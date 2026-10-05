@@ -49,7 +49,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   followed subjects `f:nfl` / `f:nfl~Eagles`, never audio; a 05:00 Eastern
   edition writes every episode ahead with EI; public mixes searchable, (+)
   copies one; the server owns the date and length a tap sends), and **Explore**
-  (a myFAM rail since §181, not a tab; also search's arrow and swipe, §195; other listeners' *searched* episodes only, from the cache, `cached_only`,
+  (not a tab; the exploreFAM pill on search and beside Made for you, and search's swipe, §203; other listeners' *searched* episodes only, from the cache, `cached_only`,
   never generates; `scripts.author` excludes your own, `scripts.origin` excludes
   non-search surfaces). myFAM and DailyFAM are personalised. [three-surfaces]
 - **Decouple script generation from synthesis in time**: pre-generate scripts
@@ -81,9 +81,9 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
 - myFAM drives prefetch (§83, §105): drawing the page schedules a cycle, never
   awaited, warming **briefs**; warming whole scripts stays opt-in. [myfam-warms-briefs]
 - **9.30 interface packet** (§181): sign-up rotates today's top three kept
-  episodes; myFAM's header button searches other people's cached episodes;
-  Messages is a tab where Explore was; Explore is the "What users are
-  searching" rail; the player's (+) adds the episode's topic to a mix. [interface-181]
+  episodes; myFAM's header button (a bookshelf, §203) opens the A-Z of others'
+  cached episodes; Messages is a tab where Explore was; the player's (+) adds
+  the episode's topic to a mix. [interface-181]
 
 - **The player is Spotify's layout** (§190): down arrow, picture (4:3, §192;
   centred between GO DEEPER and the title, never missing - `pick_for_player`
@@ -95,6 +95,13 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   lettered (`/api/myfam/catalog`); typing shows the closest (§193). [dailyfam-catalogue]
 - **A queue** (§190): Add to / Go to Queue from the player's and a DailyFAM
   tile's ⋯; client state only; plays before the grid. [queue]
+
+- **Explore is a reel** (§203): picture behind, title bottom left, like /
+  comment / vibe / share / save down the right, the player's ⋯; no dislike
+  anywhere, captions slide up; **comments** keyed `(query, minutes)`,
+  read by anyone, written with an account, one level of replies; the
+  exploreFAM pill opens it from search and beside Made for you. [explore-reel]
+- A vibe may carry a caption, drawn on its story (§203). [vibe-caption]
 
 - **Names swapped for the listener** (§185): the rails screen *shows*
   "DailyFAM", the mixes screen *shows* "myFAM"; code, ids and these docs keep
@@ -203,8 +210,15 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
 - **Made for you** (§187): subjects and familiar words vouch only in their own
   field; variety never gives way (≤2 per heading, capped top-up); no
   minor-league game from another continent unless followed; market moves on
-  any money taste; ranks every held story. Weights: search 2, play 1, finish 2,
-  skip -0.5, save 2, vibe 2.5. [mfy-field-variety]
+  any money taste; ranks every held story. Weights (§202): search 1.5, play 1,
+  finish 1.5, skip -0.5, pick 2.2, share 2, save 2, vibe 2.5, mix add 2. [mfy-field-variety]
+- **Taste is a subject tree** (§202): the most specific subject takes the
+  whole signal, each heading above `ANCESTOR_SHARE` per level; major-league
+  teams seeded under their leagues, never one whose name is also an everyday
+  phrase (`LEFT_TO_GROW`); `taste_tree` draws it. [taste-tree]
+- **Chosen interests never fade** (§202): added after normalisation at
+  `INTEREST_WEIGHT` (2.0), never decayed or lowered by a skip; facets and
+  named subjects both count. [interests-constant]
 - **No "not interested"** anywhere (§171): the ranking learns from plays,
   skips and fatigue; `hide` is not an event kind; old rows are ignored.
   Explore's "Interested?" ✕ is a skip, ✓ a pick (§195). [no-not-interested]
@@ -400,6 +414,8 @@ Accounts, tiers, sharing
 - FAM posts nothing to anyone's social account and holds no token. [no-social-posting]
 - **Authorship is provenance, never identity**: `PodcastPipeline.author`, never
   on `EpisodePlan` or in `key_for`; first writer keeps it; prefetch writes none. [authorship-provenance]
+- **Type: Bricolage Grotesque (headings), Geist (body), Geist Mono (labels)**
+  (§204), one font link; Fraunces/Space Grotesk/JetBrains Mono are gone. [typefaces]
 - **A speed change must not change the voice** (WSOLA; bypassed at 1x; default 1x). [speed-pitch]
 - **A control with nothing behind it is worse than no control**; never fabricate people. [no-dead-controls]
 - **The intro screen is not on the navigation stack**; screens opened over it
@@ -474,6 +490,9 @@ Every change ends the same way, without being asked [ship-loop]:
 - Previews - the fixture build `dev.sh check` smoke-tests (`fam-artifact.html`)
   and the live-DB build at the bookmarked URL - are good for layout and flow,
   useless for writing quality or latency. [preview-fixtures]
+- **The algorithm documents itself**: `tools/algorithm_docs.py` writes the
+  PDF, deck and `ALGORITHM.md` in `docs/algorithm/` from the code; a test fails
+  when they are stale; `dev.sh check` rebuilds them. Never hand-edit. [algorithm-docs]
 - `./demo.sh` to show or judge the product; `tools/seed_demo.py` fills browse history. [demo-sh]
 - Feature branches → `staging` (`fam-staging`, zero spend) → batched PR into
   `Main` (`fam`); both services from `render.yaml`, sharing nothing (`STAGING.md`). [staging-flow]

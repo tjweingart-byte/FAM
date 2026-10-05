@@ -22,6 +22,7 @@ TARGET = ROOT / "static" / "index.html"
 HOOKS = {
     "echo-icon",    # positioned by .sb-icon; this only names it for toggleEcho
     "typed-offer",  # styled by .mix-topic; marks a topic the listener typed
+    "pk-chosen",    # the "In this mix" stack, found by toggleMixTopic (10.5 #4)
 }
 
 

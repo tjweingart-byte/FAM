@@ -90,19 +90,100 @@ from __future__ import annotations
 #: normalised - all four are enforced by `categories.mint`, which returns
 #: None rather than raising, so a violation here would be an entry that
 #: silently never exists. `tests/test_category_seed.py` fails instead.
+#: The four major North American leagues' teams, each under its league
+#: (§202, at the owner's direction: "If I consistently listen to content about
+#: the Cincinnati Bengals, that should be under [sports, american football,
+#: bengals]"). A grown node needs `MIN_LISTENERS` different people, so without
+#: these one fan's team stayed `sports` until two strangers asked about it.
+#:
+#: **A node matches any text holding all its words, in any order**, and
+#: `stories.resolve_category` prefers the deepest node it finds - so a team
+#: whose name is also an ordinary phrase would file that phrase under sport,
+#: three levels deep, ahead of anything else. "Hurricanes hitting the
+#: Carolina coast" is not hockey; "lightning in Tampa Bay tonight" is a
+#: weather question FAM answers (§194). So:
+#:
+#: * a nickname alone only where it means nothing but the team ("bengals");
+#: * otherwise the full name; and
+#: * **no seed at all** for a team whose full name is also weather, nature,
+#:   a place or the news (`LEFT_TO_GROW`). The tree still grows those from
+#:   what listeners actually ask, where the words arrive as a sports question.
+#:
+#: A name with a word shorter than `categories.MIN_WORD` or a digit
+#: ("St. Louis", "76ers") is left to grow as well.
+#: `tests/test_taste_tree_202.py` checks that none of the phrases the rule
+#: exists for matches a team.
+def _teams(*names: str) -> dict:
+    return {name: {} for name in names}
+
+
+#: Teams deliberately not seeded, each because its name is also something
+#: else a listener asks about. Kept as a list so the next person extending
+#: the seed sees the rule rather than re-adding one.
+LEFT_TO_GROW = (
+    # weather and nature
+    "carolina hurricanes", "tampa bay lightning", "colorado avalanche",
+    "oklahoma city thunder", "miami heat", "minnesota wild",
+    "calgary flames", "colorado rockies", "tampa bay rays", "dallas stars",
+    "miami dolphins", "florida panthers",
+    # places, institutions and the news
+    "ottawa senators", "washington nationals", "washington commanders",
+    "kansas city chiefs", "houston texans", "texas rangers",
+    "new england patriots", "san francisco giants", "new york giants",
+    "new york jets", "winnipeg jets", "los angeles chargers",
+    "houston rockets", "detroit pistons", "milwaukee brewers",
+    "chicago bulls", "chicago bears", "buffalo bills", "orlando magic",
+)
+
+NFL_TEAMS = _teams(
+    "bengals", "steelers", "baltimore ravens", "cleveland browns",
+    "indianapolis colts", "jacksonville jaguars", "tennessee titans",
+    "broncos", "las vegas raiders", "dallas cowboys", "philadelphia eagles",
+    "detroit lions", "green bay packers", "minnesota vikings",
+    "atlanta falcons", "carolina panthers", "new orleans saints",
+    "buccaneers", "arizona cardinals", "los angeles rams", "niners",
+    "seahawks")
+NBA_TEAMS = _teams(
+    "atlanta hawks", "boston celtics", "brooklyn nets", "charlotte hornets",
+    "cleveland cavaliers", "dallas mavericks", "denver nuggets",
+    "golden state warriors", "indiana pacers", "los angeles clippers",
+    "los angeles lakers", "memphis grizzlies", "milwaukee bucks",
+    "minnesota timberwolves", "new orleans pelicans", "new york knicks",
+    "philadelphia sixers", "phoenix suns", "portland trail blazers",
+    "sacramento kings", "san antonio spurs", "toronto raptors", "utah jazz",
+    "washington wizards")
+MLB_TEAMS = _teams(
+    "arizona diamondbacks", "atlanta braves", "baltimore orioles",
+    "boston red sox", "chicago cubs", "chicago white sox", "cincinnati reds",
+    "cleveland guardians", "detroit tigers", "houston astros",
+    "kansas city royals", "los angeles angels", "los angeles dodgers",
+    "miami marlins", "minnesota twins", "new york mets", "new york yankees",
+    "oakland athletics", "philadelphia phillies", "pittsburgh pirates",
+    "san diego padres", "seattle mariners", "toronto blue jays")
+NHL_TEAMS = _teams(
+    "anaheim ducks", "boston bruins", "buffalo sabres", "chicago blackhawks",
+    "columbus blue jackets", "detroit red wings", "edmonton oilers",
+    "los angeles kings", "montreal canadiens", "nashville predators",
+    "new jersey devils", "new york islanders", "new york rangers",
+    "philadelphia flyers", "pittsburgh penguins", "san jose sharks",
+    "seattle kraken", "toronto maple leafs", "vancouver canucks",
+    "vegas golden knights", "washington capitals")
+
+
 SEED: dict[str, dict] = {
     "sports": {
         # §187: the leagues, so a question about one files it as a subject
-        # (depth two) rather than as the whole of a sport.
+        # (depth two) rather than as the whole of a sport. §202: and their
+        # teams, a level below.
         "american football": {"college football": {}, "super bowl": {},
-                              "quarterback play": {}, "nfl": {}},
+                              "quarterback play": {}, "nfl": NFL_TEAMS},
         "basketball": {"playoff basketball": {}, "draft prospects": {},
-                       "nba": {}, "wnba": {}, "euroleague": {}},
+                       "nba": NBA_TEAMS, "wnba": {}, "euroleague": {}},
         "football": {"transfer window": {}, "champions league": {},
                      "world cup": {}, "premier league": {},
                      "bundesliga": {}, "major league soccer": {}},
-        "baseball": {"mlb": {}, "world series": {}},
-        "ice hockey": {"nhl": {}, "stanley cup": {}},
+        "baseball": {"mlb": MLB_TEAMS, "world series": {}},
+        "ice hockey": {"nhl": NHL_TEAMS, "stanley cup": {}},
         "golf": {"major championship": {}},
         "tennis": {},
         "motorsport": {"formula one": {}, "nascar": {}},

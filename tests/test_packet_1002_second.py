@@ -134,7 +134,9 @@ def test_the_x_is_a_skip_and_never_not_interested():
 def test_search_has_the_explore_arrow():
     home = INDEX.split('id="screen-home"', 1)[1].split("</section>", 1)[0]
     btn = home.split('id="homeExploreBtn"', 1)[1].split("</button>", 1)[0]
-    assert "openExplore('home')" in home and "Explore?" in btn
+    # The exploreFAM pill since the 10.5 packet (#7).
+    assert "openExplore('home')" in home and 'class="home-explore xfam-pill"' in home
+    assert "explore<span" in btn
 
 
 def test_a_swipe_on_search_reveals_explore_under_it():

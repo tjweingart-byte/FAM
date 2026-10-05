@@ -363,20 +363,37 @@ __MIX_ITEMS__
       return e.user_id === uid && e.kind !== "impression";
     });
   }
-  var WEIGHT = { search: 1.0, play: 1.0, complete: 2.5, skip: -1.5 };
-  // `seed` is the intro's chosen interests, entering flat and before decay
-  // exactly as topics.taste does - a starting position that real listening
-  // overtakes rather than a rule it has to fight.
+  var WEIGHT = __EVENT_WEIGHT__;          // topics.EVENT_WEIGHT, verbatim
+  var ANCESTOR_SHARE = __ANCESTOR_SHARE__; // topics.ANCESTOR_SHARE
+  // topics.tag_shares over the two levels this page knows: the most
+  // specific tag takes the whole signal, its facet ANCESTOR_SHARE of it.
+  function tagShares(tags) {
+    var out = {}, above = {};
+    tags.forEach(function (g) { if (TAG_PARENT[g]) above[TAG_PARENT[g]] = 1; });
+    tags.forEach(function (g) {
+      if (!g || above[g]) return;
+      out[g] = 1;
+      var p = TAG_PARENT[g];
+      if (p && (out[p] || 0) < ANCESTOR_SHARE) out[p] = ANCESTOR_SHARE;
+    });
+    return out;
+  }
+  // topics.taste (§202): behaviour spread over the tree and normalised to a
+  // peak of 1, then each chosen interest held at INTEREST_WEIGHT on top -
+  // a constant that no amount of listening shrinks.
   function taste(uid, seed) {
     var s = {}, t = now(), HALF = 14 * 86400;
-    (seed || []).forEach(function (g) {
-      if (TAG_LABELS[g]) s[g] = INTEREST_WEIGHT;
-    });
     behavioural(uid).forEach(function (e) {
       var w = (WEIGHT[e.kind] || 0) * Math.pow(0.5, Math.max(0, t - e.at) / HALF);
-      (e.tags ? String(e.tags).split(",") : []).forEach(function (g) {
-        if (g) s[g] = (s[g] || 0) + w;
-      });
+      if (!w) return;
+      var sh = tagShares(e.tags ? String(e.tags).split(",") : []);
+      Object.keys(sh).forEach(function (g) { s[g] = (s[g] || 0) + w * sh[g]; });
+    });
+    var peak = 0;
+    Object.keys(s).forEach(function (g) { peak = Math.max(peak, Math.abs(s[g])); });
+    if (peak) Object.keys(s).forEach(function (g) { s[g] = s[g] / peak; });
+    (seed || []).forEach(function (g) {
+      if (TAG_LABELS[g]) s[g] = INTEREST_WEIGHT + Math.max(0, s[g] || 0);
     });
     return s;
   }
@@ -2581,20 +2598,20 @@ STAGE = """
     body { background: var(--bg); }
   }
   #famDb .fd-head { padding: 16px 18px 13px; border-bottom: 1px solid #3a3348; }
-  #famDb h2 { font-family: 'Fraunces', Georgia, serif; font-size: 19px; font-weight: 600;
+  #famDb h2 { font-family: 'Bricolage Grotesque', sans-serif; font-size: 19px; font-weight: 600;
               margin: 0 0 4px; color: #f1eef7; letter-spacing: -.01em; }
   #famDb .fd-head p { margin: 0; font-size: 12.5px; color: #a79eba; line-height: 1.45; }
   #famDb .fd-status { display: flex; align-items: center; gap: 7px; margin-top: 9px;
-                      font-family: 'JetBrains Mono', monospace; font-size: 10.5px; color: #a79eba; }
+                      font-family: 'Geist Mono', monospace; font-size: 10.5px; color: #a79eba; }
   #famDb .fd-dot { width: 7px; height: 7px; border-radius: 50%; background: #7c7391; }
   #famDb .fd-dot.on { background: #6bc2a8; box-shadow: 0 0 0 3px rgba(107,194,168,.16); }
   #famDb .fd-dot.off { background: #de8fa8; }
   #famDb .fd-metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 1px;
                        background: #3a3348; border-bottom: 1px solid #3a3348; }
   #famDb .fd-metric { background: #1c1926; padding: 11px 14px; }
-  #famDb .fd-metric span { font-family: 'JetBrains Mono', monospace; font-size: 9px;
+  #famDb .fd-metric span { font-family: 'Geist Mono', monospace; font-size: 9px;
                            letter-spacing: .09em; text-transform: uppercase; color: #7c7391; }
-  #famDb .fd-metric b { display: block; font-family: 'Fraunces', Georgia, serif;
+  #famDb .fd-metric b { display: block; font-family: 'Bricolage Grotesque', sans-serif;
                         font-size: 21px; line-height: 1.15; margin: 1px 0 2px; }
   #famDb .fd-metric em { font-style: normal; display: block; font-size: 11px;
                          color: #a79eba; line-height: 1.35; }
@@ -2603,13 +2620,13 @@ STAGE = """
   #famDb .fd-tabs { display: flex; flex-wrap: wrap; gap: 5px; padding: 11px 14px;
                     border-bottom: 1px solid #3a3348; }
   #famDb .fd-tab { background: #262233; border: 1px solid #3a3348; border-radius: 7px;
-                   padding: 4px 9px; font-family: 'JetBrains Mono', monospace;
+                   padding: 4px 9px; font-family: 'Geist Mono', monospace;
                    font-size: 10.5px; color: #a79eba; cursor: pointer; }
   #famDb .fd-tab.on { background: #302a40; color: #f1eef7; border-color: #8a6a22; }
   #famDb .fd-tab u { text-decoration: none; color: #e9bc63; font-weight: 700; }
   #famDb .fd-scroll { flex: 1; overflow: auto; }
   #famDb table { width: 100%; border-collapse: collapse;
-                 font-family: 'JetBrains Mono', monospace; font-size: 10.5px; }
+                 font-family: 'Geist Mono', monospace; font-size: 10.5px; }
   #famDb th { position: sticky; top: 0; background: #262233; text-align: left;
               padding: 7px 10px; font-size: 9px; letter-spacing: .07em;
               text-transform: uppercase; color: #7c7391; font-weight: 500;
@@ -2663,7 +2680,7 @@ STAGE = """
     letter-spacing: .05em; text-transform: uppercase; }
   #famDb .fd-ep ol { margin: 0; padding-left: 16px; }
   #famDb .fd-ep p { margin: 0; max-height: 220px; overflow: auto; }
-  #famDb .fd-note { font-family: 'JetBrains Mono', monospace; font-size: 9.5px;
+  #famDb .fd-note { font-family: 'Geist Mono', monospace; font-size: 9.5px;
                     color: #7c7391; line-height: 1.4; flex: 1; min-width: 150px; }
 </style>
 """
@@ -2729,6 +2746,8 @@ def build() -> pathlib.Path:
                 [t.as_dict() for t in topics.STARTUP_TOPICS]))
             .replace("__STARTUP_STEP__", json.dumps(topics.STARTUP_PRIOR_STEP))
             .replace("__INTEREST_WEIGHT__", json.dumps(topics.INTEREST_WEIGHT))
+            .replace("__EVENT_WEIGHT__", json.dumps(topics.EVENT_WEIGHT))
+            .replace("__ANCESTOR_SHARE__", json.dumps(topics.ANCESTOR_SHARE))
             .replace("__VOLATILE__", json.dumps(sorted(cache.research_words())))
             .replace("__NEAR__", json.dumps({
                 "threshold": settings.cache_vector_threshold,

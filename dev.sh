@@ -28,6 +28,16 @@ if ! $PY -c "import pytest, fastapi, httpx" 2>/dev/null; then
 fi
 
 if [ "$MODE" != "preview" ]; then
+  # Before the tests, because tests/test_algorithm_docs.py fails while the
+  # PDF and deck describe an older algorithm. Rebuilt only when it moved.
+  step "Algorithm documents"
+  if $PY -c "import reportlab, pptx" 2>/dev/null; then
+    $PY tools/algorithm_docs.py --if-stale
+  else
+    printf '  \033[1mSKIPPED: reportlab or python-pptx is missing, so the algorithm PDF and deck were not rebuilt.\033[0m\n'
+    printf '  Run:  %s -m pip install -r requirements-docs.txt\n' "$PY"
+  fi
+
   step "Tests"
   $PY -m pytest tests/ -q
 

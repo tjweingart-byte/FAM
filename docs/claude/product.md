@@ -82,9 +82,10 @@ Three surfaces, all backed by generated audio:
    myFAM tile, a DailyFAM edition, a Trending episode or a warmed guess is
    never on Explore.
 
-   > **Current:** since §181 Explore is not on the tab bar. It is reached
-   > from myFAM's "What users are searching" rail (one "Start scrolling"
-   > tile, right under Made for you); Messages has its tab.
+   > **Current:** since §181 Explore is not on the tab bar. Since §203 (the
+   > 10.5 packet) the "What users are searching" rail is gone: Explore is
+   > reached from the exploreFAM pill beside Made for you and on search's
+   > top right; Messages has its tab.
 
 <!-- rule:interface-181 -->
 **The 9.30 interface packet (§181), at the owner's direction.** The sign-up
@@ -95,13 +96,37 @@ the cached episodes other listeners made that are most like it
 (`/api/myfam/search`, `cache.rank_similar`, replay only); the "Search FAM"
 bar is gone from myFAM. Messages is a tab, in Explore's old place, and
 carries the unread count. Explore is the "What users are searching" rail
-under Made for you. The player's (+) (top right; sources moved top left)
+under Made for you (> **Current:** §203 removed the rail; the exploreFAM
+pill beside Made for you replaced it, see [explore-reel]). The player's (+) (top right; sources moved top left)
 adds the episode's **topic** - a followed subject from
 `topics.episode_subject`, else its title typed - to a DailyFAM mix, or to a
 new one (`/api/episode/topic`).
 
 myFAM and dailyFAM are **personalised**, driven by a per-user model that updates
 as they interact with the app.
+
+<!-- rule:explore-reel -->
+**Explore is a reel, with comments (§203, the 10.5 packet), at the owner's
+direction.** The episode's picture fills the page (`/api/episode/card`,
+the player's); its title sits bottom left where a reel puts the account;
+like, comment, vibe (FAM's repost), share and save run down the right;
+the player's ⋯ is top right; **there is no dislike anywhere in the app**
+(the owner, after §203 - `/api/rate` still takes -1 from installed clients);
+captions slide up from the bottom. The ±15 and the draggable bar stay
+(`transport`), small. **Comments** are keyed `(query, minutes)` like vibes
+and thumbs, so everyone who hears an episode reads one thread: read by
+anyone, written and liked only with an account (`account-gates-kept`);
+replies one level deep, filed under the top comment; slurs removed as in
+an episode (`content_filter.scrub`), swearing kept; no `user_id` in a
+response (`mine` says it); account deletion takes them, their replies and
+likes. Its way in is the exploreFAM pill - wordmark and arrow - on
+search's top right and level with Made for you.
+
+<!-- rule:vibe-caption -->
+**A vibe can carry a caption (§203).** Tapping VIBE! opens a sheet with an
+optional line (`social.MAX_CAPTION`, cut not refused, slurs removed); the
+story that vibe plays as draws it under the title. Stored on the echo row,
+replaced when the same episode is vibed again.
 
 <!-- rule:names-swapped -->
 **The listener sees myFAM and DailyFAM with their names swapped (§185), at

@@ -144,6 +144,7 @@
    `python tools/stories_report.py` is what says a machine can actually reach
    the sources. Nothing here has made a real request from the build container.
 <!-- rule:op-taste-vocab -->
+> **Current (PROBLEMS.md §202):** weights moved again (see `mfy-field-variety`), interests are constant (`interests-constant`) and taste is a tree (`taste-tree`).
 > **Current (PROBLEMS.md §187):** the weights are the owner's - search 2, play 1, finishing 2, skip -0.5, save 2, vibe 2.5 - so "share and vibe weigh the same" and "between a play and a completion" below are history. "The country is stored and never ranks" is narrowed: it never boosts, but it excludes minor-league games from other continents on Made for you (`mfy-field-variety`).
 
 5. **The taste model is crude, and the vocabulary is no longer the ceiling.**
@@ -329,6 +330,8 @@
   > event kind was added.
 
 <!-- rule:mfy-field-variety -->
+> **Current (PROBLEMS.md §202):** the weights are search 1.5, play 1, finish 1.5, skip -0.5, pick 2.2, share 2, save 2, vibe 2.5, and adding to a mix (`mix_add`) 2.
+
 - **Made for you: subjects are filed by field, variety never gives way, no
   far minor league, markets on a money taste** *(PROBLEMS.md §187, at the
   owner's direction, after one search about a flight to Israel filled the
@@ -348,6 +351,32 @@
   on subject for any positive `money` taste (`_follows_markets`), and the
   rail ranks every story the pool holds (`made_for_you_candidates`), not
   only what the shared cap shows.
+
+<!-- rule:taste-tree -->
+- **Taste is a subject tree** *(PROBLEMS.md §202, at the owner's direction:
+  "If I consistently listen to content about the Cincinnati Bengals, that
+  should be under [sports, american football, bengals] ... relate that to the
+  sport of football as a whole. It should prioritize the more specific
+  subtopics")*. `topics.tag_shares`: an event's most specific tags take its
+  whole weight, each heading above `ANCESTOR_SHARE` per level; `taste_tree`
+  draws it and `/api/profile` serves it. Scoring keeps `tag_weight`'s
+  specificity, so the specific story wins when one exists. The four major
+  North American leagues' teams are seeded under their leagues so one fan's
+  team is a subject from the first search - a nickname alone only where it
+  means nothing else, and no seed for a team whose name is also weather,
+  nature, a place or the news (`category_seed.LEFT_TO_GROW`), because a node
+  matches any text holding all its words and the deepest match wins.
+
+<!-- rule:interests-constant -->
+- **Chosen interests never fade** *(PROBLEMS.md §202, at the owner's
+  direction: "A person's selected interests SHOULD NOT fade in weight at any
+  point in time ... the only part that they have intentional influence
+  over. Make interests chosen at sign-up much more weighted")*. Added after
+  normalisation at `INTEREST_WEIGHT` (2.0, twice the strongest listening),
+  never decayed, never lowered by a skip; facets and named subjects
+  (`preferences.topics`) both count, through the tree; two interests on one
+  heading take the larger. This reverses "a starting position that real
+  listening outvotes" (§121 and before).
 
 <!-- rule:op-taste-scoring -->
 5b. **The taste model is crude, and less crude than it was.**

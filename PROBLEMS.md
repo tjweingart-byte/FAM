@@ -15396,7 +15396,225 @@ it would start.
 
 Tests: `tests/test_entry_handoff.py`.
 
-## 202. Viral Loops refused every grant's flag: "'participants' is required"
+
+## 202. Taste is a subject tree, chosen interests never fade, and the algorithm documents itself
+
+At the owner's direction, after reading how Made for you was weighted:
+
+1. "I want to have a person's algorithm be categorized similar to the topics
+   tree ... If I consistently listen to content about the Cincinnati Bengals,
+   that should be under [sports, american football, bengals]. The algorithm
+   should know that I am interested in the Bengals, but also relate that to
+   the sport of football as a whole. It should prioritize the more specific
+   subtopics."
+2. "A person's selected interests SHOULD NOT fade in weight at any point in
+   time ... the only part that they have intentional influence over. Make
+   interests chosen at sign-up much more weighted."
+3. Search 2 -> 1.5, finishing 2 -> 1.5, pick 1.6 -> 2.2.
+4. A weight of 2.0 for episodes added to mixes.
+5. A PDF and a presentation of the algorithm that update when it changes.
+
+**What was wrong.** `categories.match` already brought a node's ancestry
+with it, but `taste` gave every level the *full* weight, so the facet summed
+everything under it and was always the peak: a Bengals fan's profile said
+"sport" loudest and "Bengals" no louder than "American football". And a
+team was only a node once `MIN_LISTENERS` (3) different people had asked
+about it - one fan's team stayed `sports`. Interests entered at 1.0 *before*
+normalisation, so a few weeks of listening shrank them to a tenth of the
+peak; and the named subjects from the interests page (`preferences.topics`)
+never reached `taste` at all except as decaying `pick` rows.
+
+**What changed** (`ALGO_VERSION` 2026-10-05.1):
+
+- `topics.tag_shares`: the most specific tags an event carries take its whole
+  weight, each heading above `ANCESTOR_SHARE` (0.6) per level; headings
+  missing from the stored tags are added (`lineage`). `taste_tree` draws the
+  profile as the tree it is; `/api/profile` serves it as `taste_tree`.
+  Specificity in scoring is unchanged (`tag_weight`), so a Bengals story
+  beats an NFL one beats a sports one, and with no Bengals story the NFL and
+  football tiles are next.
+- `category_seed`: 90 of the NFL, NBA, MLB and NHL teams under their
+  leagues. A node matches any text holding all its words, in any order, and
+  `stories.resolve_category` prefers the deepest - so a nickname stands alone
+  only where it means nothing but the team ("bengals"), and a team whose full
+  name is also weather, nature, a place or the news is not seeded at all
+  (`LEFT_TO_GROW`: "hurricanes hitting the Carolina coast" is not hockey,
+  "lightning in Tampa Bay tonight" is a weather question). Those grow from
+  real sports questions like any other subject. Found in review before
+  merge; `test_a_seeded_team_never_catches_an_everyday_question` holds it.
+- `INTEREST_WEIGHT` is 2.0, added **after** normalisation, never decayed:
+  a chosen interest is worth twice the listener's strongest listening, for
+  ever, and a skip cannot take it below that. `interest_shares` resolves
+  facets, catalogue ids and typed subjects into the tree (choosing NFL lifts
+  American football and sport by the share); two interests on one heading
+  take the larger, not the sum. `app._interests_for` now passes
+  `preferences.topics` as well as the facets.
+- `EVENT_WEIGHT`: search 1.5, complete 1.5, pick 2.2, new `mix_add` 2.0.
+  `app._record_mix_adds` logs one per item a create, edit or copy put into a
+  mix - only what is new, so a rename adds nothing; `mixes.taste_tags` says
+  what the item is about (a followed subject's focus reaches the team).
+- The preview's JavaScript `taste` reads `EVENT_WEIGHT` and `ANCESTOR_SHARE`
+  from Python now; it had kept the weights of four changes ago.
+
+**The documents.** `tools/algorithm_docs.py` writes
+`docs/algorithm/FAM_Algorithm.pdf`, `FAM_Algorithm.pptx` and `ALGORITHM.md`.
+Every number is read from the code at build time and the worked example (a
+Bengals fan) is run through the real `taste`, `taste_tree` and `_affinity`
+over the seeded tree, so they cannot disagree with the ranker - only be out
+of date. `fingerprint.txt` hashes the constants and the source of every
+function that decides Made for you; `tests/test_algorithm_docs.py` fails
+when it moves, and when `ALGO_VERSION` moves without an entry at the top of
+the tool's `CHANGES`. `./dev.sh check` rebuilds them first when stale
+(`--if-stale`; needs `requirements-docs.txt`, and says so when missing).
+
+**Consequences worth knowing.** Chosen interests now stay at the top of the
+profile page's ranking (`ranked_interests`) rather than giving way to
+listening. A chosen facet lifts every tile under it, so a listener who chose
+Sport sees sport on Made for you every day - the strict two-per-heading cap
+is what keeps the rail varied. Unverified here: how this reads on a real
+listener's history; `tools/eval_recommendations.py` on production data is
+the measure.
+
+Tests: `tests/test_taste_tree_202.py`, `tests/test_algorithm_docs.py`.
+
+
+## 203. The 10.5 packet: the whole search bar, whole titles, a mix in order, Explore as a reel with comments, and a caption on a vibe
+
+The owner's nine changes, with screenshots (search's bar with a long
+question, DailyFAM's Trending tiles cut off, a mix's topics, Edit topics
+with chosen and recommended mixed, the Explore rail, and an Instagram reel
+with its comments sheet):
+
+1. **A long question uses the whole bar.** The mic, attach and go sat to the
+   right of the text on every line, so a question wrapped at about half the
+   bar. Once the text wraps in the one-row shape, the bar takes `tall`: the
+   textarea spans the full width and the buttons drop under it on the right
+   (`paintSearchBar`, measured in the one-row shape first so a short
+   question keeps Google's single row).
+2. **Whole titles on DailyFAM's tiles.** `.seed-card-title` was clamped to two
+   lines. It is not clamped now; a long title steps the size down
+   (`seedTitleHTML`: 11.5px past 48 characters, 10.5px past 72) so one card
+   is not twice its neighbours' height, and a rail's cards stretch to the
+   tallest. Titles are already budgeted at three to eight words by the
+   writer (`<<TITLE:>>`); nothing server-side changed.
+3. **Drag a mix's topics into order.** Each topic in a mix has a handle on
+   its left (`.mix-drag`); holding it moves the row with the finger while the
+   others step aside, and letting go saves the new order with one PATCH
+   (`moveMixTopic`), the payload every other mix edit sends. The order is
+   the playlist's; `mixes.clean_items` already kept it.
+4. **Edit topics stacks what is chosen.** Everything in the mix - followed
+   topics with their "narrow it down" panels, typed topics, earlier picks -
+   is one stack, "In this mix · n", at the top; the list under it holds only
+   what is not chosen. While something is typed, the matches come first and
+   the stack after them. A topic just added moves into the stack and is
+   scrolled into view there.
+5. **The A to Z catalogue's button is a bookshelf** - three books on a shelf,
+   one leaning - in DailyFAM's header, and its rows show the whole title,
+   wrapped (`#mfsBody .sv-title`).
+6. **The "What users are searching" rail is gone** from DailyFAM (§181's
+   "Start scrolling" tile, `searchingRailHTML`).
+7. **The exploreFAM pill**: the wordmark and an arrow in a copper-edged pill,
+   where search's "Explore? →" was, and on DailyFAM level with "Made for
+   you" (`.feed-head-row`). DailyFAM's is drawn from search's markup
+   (`exploreFamPillHTML`), so there is one copy; it opens Explore with its
+   back arrow returning to DailyFAM.
+8. **Explore is a reel.** The episode's picture (the player's, from
+   `/api/episode/card`, kept on the card) fills the page under a gradient;
+   the title is bottom left where a reel names the account, over the source
+   line and play count; like, comment, vibe (FAM's repost), share and save
+   run down the right with their counts; the ⋯ top right is the player's
+   sheet - share, vibe, save, comments, dislike, closed captions, add to
+   playlist, add to / go to queue. **Dislike left the rail for the ⋯** - the
+   owner's rail is five - and still counts (§134). A tap on the picture
+   pauses. **The ±15 and the draggable bar stay** (`transport`), small, beside
+   Go Deeper. **Captions slide up from the bottom** as on the player
+   (`toggleReelCC`): its own small state off `/api/transcript` for the card
+   on screen, since the player's captions follow the player's episode.
+   "Interested?" stays under it all.
+
+   **Comments.** A sheet over the lower 72%: face, handle and age, the
+   comment, Reply (and Delete on your own), replies folded under "View n
+   more replies", a heart and its count on the right; eight quick emoji and
+   the box at the foot. In `social.py` beside vibes and thumbs, keyed
+   `(query, minutes)` so everybody who hears the episode reads one thread:
+   `comments` (a reply names its parent; a reply to a reply is filed under
+   the top comment, so threads are one level deep, the picture's shape) and
+   `comment_likes` (one row per person, a count is `COUNT(*)`). Most liked
+   first, then newest; replies oldest first. `GET /api/comments` is open to
+   anyone; posting and liking take an account (`_require_account`, 401 ->
+   the sign-up buttons where the box was), and only the author can delete.
+   Text is cut to 500 and run through `content_filter.scrub` - slurs out,
+   swearing kept, as in an episode (§171). Responses carry no `user_id`;
+   `mine` says what the id would. `SocialStore.forget` removes a deleted
+   listener's comments, the replies under them and every like on them.
+   Explore cards carry `comments`, the number under the button.
+9. **A caption on a vibe.** VIBE! opens a sheet - the episode's title, an
+   optional line (150), Cancel and VIBE! - and the vibe is sent from there
+   with `caption` (`EchoRequest.caption`, cut to `social.MAX_CAPTION` rather
+   than refused, slurs removed). It is a column on the echo row, replaced
+   when the same episode is vibed again, and `stories_among` returns it: the
+   story viewer draws it under the title. Taking a vibe back is unchanged.
+
+**Follow-up, at the owner's direction: no dislike anywhere.** It had moved
+to the reel's ⋯; it is gone from there too, and it was nowhere else.
+`/api/rate` still accepts -1 from apps already installed (`old-clients`),
+and a like replaces one; nothing in this client offers it.
+
+Tests: `tests/test_packet_1005.py`; §181's and §195's tests and the smoke
+run follow the rail's removal and the pill.
+
+## 204. The type read as generated: Bricolage Grotesque, Geist and Geist Mono
+
+**The problem.** Fraunces for headings, Space Grotesk for body text and
+JetBrains Mono for uppercase labels is the trio a coding assistant reaches
+for, and anyone who has seen a few such interfaces recognises it at once.
+The owner did not want FAM to look built that way.
+
+**How it was chosen.** Six type systems - the current one and five
+replacements (Plus Jakarta Sans; DM Serif Display + DM Sans + DM Mono;
+Bricolage Grotesque + Geist + Geist Mono; Instrument Serif + Instrument Sans
++ IBM Plex Mono; Outfit) - were photographed on Search, DailyFAM, myFAM,
+exploreFAM, Messages and YourFAM from the same preview build, with Explore's
+rotation pinned and each font verified loaded before the shutter, and laid
+out as a deck by screen and by font. The owner chose Bricolage Grotesque +
+Geist + Geist Mono.
+
+**The change.** A straight role-for-role swap, so every size, weight and
+letter-spacing decision stays where it was:
+
+* Headings (`'Fraunces', Georgia, serif` and its variants) ->
+  `'Bricolage Grotesque', sans-serif`. The serif fallbacks went with the
+  serif: a sans heading falling back to Georgia would be a different design.
+* Body (`'Space Grotesk'`) -> `'Geist'`; labels (`'JetBrains Mono'`) ->
+  `'Geist Mono'`, monospace fallback kept.
+* One Google Fonts link per page, variable weights 400..700 and Bricolage's
+  optical-size axis (12..96), so small card titles get the text cut and
+  hero titles the display cut without any CSS saying so:
+  `static/index.html`, `static/listen.html` (the share landing),
+  `static/waitlist.html` (Barlow Condensed kept beside them),
+  `docs/_page_template.html`.
+* The share story card (`sharing.story_card`) names the new faces, its
+  headline included (it was Georgia). The card is an SVG the page rasterises
+  as an image, and an image cannot load web fonts, so in practice it draws in
+  the device's Helvetica/Arial, as its body text already did. That makes the
+  headline about a tenth wider than Georgia: measured at 92px, real titles
+  wrapped at 18 characters reach 913-928px of the 990 inside the margins
+  (Georgia: 740-849), so the wrap width stands.
+* The live preview's database panel, the loading demo and the share-preview
+  banner follow.
+
+`releases/web/2026.09.29/` is not touched: it is the archived client that
+shipped, served at `/v/<version>/`, and keeps the type it shipped with.
+
+**Still to do by hand.** The waitlist page's "What is FAM" pictures
+(`static/landing/*.jpg`) were retaken (`tools/landing_shots.py`), but the
+player still and the DailyFAM tile cards in `tools/landing/` are cut from the
+owner's phone screenshots and still show the old type until new ones are
+taken on a build with this change.
+
+Rule: `typefaces` in `docs/claude/constraints.md`.
+
+## 205. Viral Loops refused every grant's flag: "'participants' is required"
 
 The admin waitlist page showed `1 call(s) refused by Viral Loops and not
 retried. Latest: refused: /campaign/participant/flag answered 400 ...
@@ -15423,7 +15641,7 @@ the app is open.
 Tests: `tests/test_waitlist.py` (`test_flag_sends_a_participants_list`,
 `test_a_refusal_since_fixed_is_sent_again`).
 
-## 203. The admin page lets in the ticked people, or any number from the front
+## 206. The admin page lets in the ticked people, or any number from the front
 
 The owner, 05/10: the waitlist should be fully on, and `/admin/waitlist`
 should let in individual people by ticking a box next to their name, and
@@ -15450,6 +15668,11 @@ service, rule `waitlist-gate`). `render.yaml` keeps `sync: false`, so a
 merge can never open or close the app by itself. The code was already
 complete: the middleware refuses non-active accounts, and new accounts
 start waitlisted.
+
+A quote out of place in the new row markup broke the page's whole script
+while it was being written, and no test noticed, because nothing parses
+`admin_ui/`. `tools/check_js.py` now checks every page there, as it already
+did `static/index.html` and `listen.html`.
 
 Tests: `tests/test_waitlist.py`
 (`test_admin_lets_in_the_ticked_people_and_the_first_n_in_line`,

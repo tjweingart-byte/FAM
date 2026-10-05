@@ -110,7 +110,7 @@ class ViralLoops:
 
         The endpoint takes a list: `{"participants": [{"email": ...}]}`. A bare
         `email` was refused in production with "'participants' is required"
-        (PROBLEMS.md §202), which is the only shape evidence this has."""
+        (PROBLEMS.md §205), which is the only shape evidence this has."""
         await self._post("/campaign/participant/flag",
                          {"participants": [{"email": email}]})
 
