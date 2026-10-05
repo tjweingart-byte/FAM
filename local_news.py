@@ -100,6 +100,9 @@ FETCH_TIMEOUT = 8.0
 ARTICLES_PER_POLL = 4
 #: An item with fewer words than this is a teaser and its article is fetched.
 TEASER_WORDS = 60
+#: Items each outlet keeps whatever their age when old ones are pruned
+#: (§205): the duplicate-title check reads an outlet's last 200.
+KEEP_PER_OUTLET = 200
 #: An extracted article with fewer words than this was paywalled or blocked.
 ARTICLE_MIN_WORDS = 80
 #: How long somebody's question keeps a place's outlets polled.
@@ -433,6 +436,25 @@ class LocalNewsStore:
         with closing(self._connect()) as db:
             return db.execute("SELECT 1 FROM excluded WHERE host = ?",
                               (host,)).fetchone() is not None
+
+    def prune(self, before: float, keep_per_outlet: int = KEEP_PER_OUTLET) -> int:
+        """Delete items published before `before`, keeping each outlet's newest
+        `keep_per_outlet` whatever their age (§205).
+
+        Items were never deleted, though only the last `LOCAL_NEWS_WINDOW_DAYS`
+        count as evidence, so the table grew without bound on a 1 GB disk.
+        The newest few per outlet stay because the collector reads them: the
+        duplicate-title check looks at an outlet's last 200, and its polling
+        rhythm (`item_times`) at its last 20. Returns how many were deleted.
+        """
+        with self._lock, closing(self._connect()) as db, db:
+            cur = db.execute(
+                "DELETE FROM items WHERE published < ? AND id NOT IN ("
+                " SELECT id FROM (SELECT id, ROW_NUMBER() OVER ("
+                "  PARTITION BY outlet_id ORDER BY published DESC, id DESC) AS n"
+                "  FROM items) WHERE n <= ?)",
+                (before, int(keep_per_outlet)))
+            return cur.rowcount or 0
 
     def counts(self) -> dict:
         with closing(self._connect()) as db:
@@ -921,8 +943,25 @@ async def poll_due(now: Optional[float] = None, limit: int = 40) -> int:
     return len(due)
 
 
+def prune_old(now: Optional[float] = None) -> int:
+    """Drop items older than `LOCAL_NEWS_KEEP_DAYS` (§205). Never raises."""
+    now = now or time.time()
+    keep_days = max(int(settings.local_news_keep_days),
+                    int(settings.local_news_window_days))
+    try:
+        gone = store().prune(now - keep_days * 86400)
+    except Exception:  # noqa: BLE001 - housekeeping never stops the collector
+        log.warning("local news: pruning failed", exc_info=True)
+        return 0
+    if gone:
+        log.info("local news: pruned %d item(s) older than %d days", gone, keep_days)
+    return gone
+
+
 async def run_forever(every: float = 300.0) -> None:
-    """The collector. Never raises; one bad sweep waits for the next."""
+    """The collector. Never raises; one bad sweep waits for the next.
+    Old items are pruned once a day (§205)."""
+    last_prune = 0.0
     while True:
         try:
             polled = await poll_due()
@@ -930,6 +969,9 @@ async def run_forever(every: float = 300.0) -> None:
                 log.info("local news: polled %d feed(s)", polled)
         except Exception:  # noqa: BLE001
             log.warning("local news: a sweep failed", exc_info=True)
+        if time.time() - last_prune >= 86400:
+            last_prune = time.time()
+            await asyncio.to_thread(prune_old)
         await asyncio.sleep(every)
 
 

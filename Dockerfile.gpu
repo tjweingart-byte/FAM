@@ -63,8 +63,10 @@ COPY . .
 #   /state/voices  reference_3.wav and its .rights.json. The engine refuses to
 #                  speak without both, which is why a fresh pod that "has the
 #                  code" still cannot talk.
-#   /state/data    the eight SQLite stores. Without this every redeploy silently
-#                  discards every listener's history, name and echoes.
+#   /state/data    every SQLite store (the same list as Dockerfile, checked by
+#                  tests/test_data_paths.py). Without this every redeploy
+#                  silently discards every listener's history, name and echoes;
+#                  until §205 only eight of the twenty were here.
 ENV FAM_STATE=/state \
     HF_HOME=/state/hf \
     FAM_VOICES_DIR=/state/voices \
@@ -76,6 +78,18 @@ ENV FAM_STATE=/state \
     ACCOUNTS_DB=/state/data/accounts.db \
     PREFS_DB=/state/data/preferences.db \
     METERING_DB=/state/data/metering.db \
+    MESSAGES_DB=/state/data/messages.db \
+    SAVED_DB=/state/data/saved.db \
+    SHARES_DB=/state/data/shares.db \
+    FEEDBACK_DB=/state/data/feedback.db \
+    QUOTAS_DB=/state/data/quotas.db \
+    VOICE_REGISTRY_DB=/state/data/voice_registry.db \
+    VOICE_BANK_DB=/state/data/voice_bank.db \
+    CATEGORIES_DB=/state/data/categories.db \
+    TRENDING_BANK_DB=/state/data/trending_bank.db \
+    THUMBNAILS_DB=/state/data/thumbnails.db \
+    PROVIDER_USAGE_DB=/state/data/provider_usage.db \
+    LOCAL_NEWS_DB=/state/data/local_news.db \
     PORT=8000
 
 # Production defaults, named here so the image is self-describing and a host

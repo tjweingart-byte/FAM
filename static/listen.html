@@ -164,6 +164,28 @@
   </main>
 
 <!--FAM_SHARE_DATA-->
+<script>
+  // The share page names itself too (§172, §205): every /api/ call it makes -
+  // fam-audio.js's stream included - carries `X-FAM-Client`, so /api/health
+  // counts it and a retired page could be told so. No `X-FAM-TZ`: a shared
+  // episode is the sharer's, written in nobody's clock.
+  (function () {
+    var raw = window.fetch;
+    if (!raw) return;
+    window.fetch = function (input, init) {
+      try {
+        var url = typeof input === "string" ? input : (input && input.url) || "";
+        if (/^\/api\//.test(url) || url.indexOf(location.origin + "/api/") === 0) {
+          init = init || {};
+          var headers = new Headers(init.headers || {});
+          if (!headers.has("X-FAM-Client")) headers.set("X-FAM-Client", "web/share");
+          init.headers = headers;
+        }
+      } catch (e) {}
+      return raw.call(this, input, init);
+    };
+  })();
+</script>
 <script src="/fam-audio.js"></script>
 <script>
 (function () {

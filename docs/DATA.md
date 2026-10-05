@@ -76,8 +76,8 @@ flowchart TB
 **No listener data is stored on RunPod.** The worker receives text and a voice
 id and returns PCM, and it keeps neither. The exception is the all-in-one
 `Dockerfile.gpu` image, which puts SQLite on `/state/data`. It is not the
-Render deployment, and it pins only 8 of the 20 stores there (see
-"Inconsistencies" at the end).
+Render deployment; since §205 it pins all 20 stores there, as the Render
+`Dockerfile` does to `/data` (`tests/test_data_paths.py` checks both).
 
 ---
 
@@ -104,7 +104,7 @@ Render deployment, and it pins only 8 of the 20 stores there (see
 
 | File (env var) | Owner module(s) | Main tables | Per-listener? | Retention | Erase / Wipe |
 |---|---|---|---|---|---|
-| **scripts.db** (`CACHE_PATH`) | `cache.py` | `scripts`, `episode_audio` | **No, shared** (`author` is provenance) | 7 days per row; audio capped at 512 MB | Not erased · **Wiped** |
+| **scripts.db** (`CACHE_PATH`) | `cache.py` | `scripts`, `episode_audio` | **No, shared** (`author` is provenance) | 7 days per row; audio capped at 512 MB | `author` cleared on erase (§205) · **Wiped** |
 | **myfam.db** (`MYFAM_DB`) | `topics.py`, `learned_rank.py` | `events`, `learned_rank` | Yes | Forever (impressions 30 days) | Erased · **Wiped** (events and the model) |
 | **preferences.db** (`PREFS_DB`) | `preferences.py` | `preferences` | Yes | 1 row per listener | Erased · kept |
 | **accounts.db** (`ACCOUNTS_DB`) | `accounts.py`, `waitlist.py` | `accounts`, `sessions`, `identities`, `waitlist_settings`, `waitlist_outbox` | Yes | Sessions 90 days | Erased · **never wiped** |
@@ -123,7 +123,7 @@ Render deployment, and it pins only 8 of the 20 stores there (see
 | **trending_bank.db** (`TRENDING_BANK_DB`) | `trending_bank.py` | `editions`, `spend` | No, shared | 2 editions per day (+ startup slots) | n/a · **Wiped** |
 | **provider_usage.db** (`PROVIDER_USAGE_DB`) | `provider_usage.py` | `calls` | No, shared | Forever | n/a · **never wiped** (like metering) |
 | **thumbnails.db** (`THUMBNAILS_DB`) | `thumbnails.py` | `thumbnails`, `spend`, `runs` | No, shared | ≤ 1 picture per tree node | n/a · kept |
-| **local_news.db** (`LOCAL_NEWS_DB`) | `local_news.py`, `places.py`, `weather.py` | `outlets`, `items`, `demand`, `excluded`, `places`, `weather` | No (no `user_id`) | Items forever; demand 30 days | n/a · kept |
+| **local_news.db** (`LOCAL_NEWS_DB`) | `local_news.py`, `places.py`, `weather.py` | `outlets`, `items`, `demand`, `excluded`, `places`, `weather` | No (no `user_id`) | Items pruned daily past 30 days (`LOCAL_NEWS_KEEP_DAYS`, never below the 14-day window; each outlet keeps its newest 200, §205); demand 30 days | n/a · kept |
 
 ### 2.2 Each store: what it holds, who writes it, who reads it
 
@@ -321,9 +321,11 @@ flowchart LR
   (events, mixes and push, social including comments and likes, preferences,
   attachments, quotas, messages, saved, shares, voice choice, waitlist
   outbox, then the account, identities and sessions). It **anonymises**
-  metering and feedback rather than deleting them. It leaves the shared
-  script cache alone; a script's `author` column still holds the writer's
-  id (see "Inconsistencies").
+  metering and feedback rather than deleting them. It keeps every episode in
+  the shared script cache but clears this listener's id from the `author`
+  column of the scripts they wrote (`anonymise_author`, §205). A seed wipe
+  drops the seed's scripts *before* erasing the seed's listeners, so it can
+  still find them.
 
 ### 2.4 How much data: size estimates
 
@@ -621,19 +623,17 @@ searches, the story pool's subjects and typed interests:
 
 ---
 
-## Inconsistencies found while writing this (2026-10-05)
+## Inconsistencies found while writing this (2026-10-05), and what became of them
 
-- **`Dockerfile.gpu` pins only 8 of 20 stores** to `/state/data` (its comment
-  says "the eight SQLite stores"). On that image the other twelve, including
-  `saved.db`, `messages.db`, `shares.db`, `quotas.db`, `voice_bank.db` and
-  `local_news.db`, fall back to the project root and are lost on redeploy.
-  Not the Render deployment, but the image is documented as runnable.
-- **`app.erase_listener`'s docstring** says the script cache "holds no
-  `user_id` at all". `scripts.author` holds the first writer's listener id
-  (that is what `cache.forget_author` deletes by). Account deletion leaves it.
-- **`CLAUDE.md`'s `mfy-field-variety` line** still gives the §187 weights
-  (search 2, finish 2). The code (`topics.EVENT_WEIGHT`, §202) has search 1.5,
-  complete 1.5, pick 2.2 and `mix_add` 2.0, as `ALGORITHM.md` says.
-- **`DATABASE.md`** still says fourteen stores (see the top of this document).
-- **`local_news.db` items are never pruned.** Only 14 days are read as
-  evidence, so older rows are dead weight on the 1 GB disk.
+- **`Dockerfile.gpu` pinned only 8 of 20 stores** to `/state/data`. **Fixed in
+  §205:** it pins all twenty, and `tests/test_data_paths.py` now checks that
+  image as well as the Render `Dockerfile`.
+- **Account deletion left `scripts.author`** holding the deleted listener's
+  id. **Fixed in §205:** `erase_listener` clears it (`anonymise_author`);
+  the episodes stay.
+- **`CLAUDE.md`'s `mfy-field-variety` weights** - already current in the
+  repository (§202 values); the stale copy was the one an agent was given.
+- **`DATABASE.md`** said fourteen stores. Fixed: it now defers to this document.
+- **`local_news.db` items were never pruned.** **Fixed in §205:** pruned
+  once a day past `LOCAL_NEWS_KEEP_DAYS` (30), never inside the evidence
+  window, each outlet keeping its newest 200 for the collector's own checks.

@@ -80,8 +80,8 @@ services:
       # key is then picked up by the running server. See CREDENTIALS.md.
       - key: ANTHROPIC_API_KEY
         sync: false        # set once in the dashboard; never in the repo
-      - key: DEMO_MODE
-        value: "0"
+      # No DEMO_MODE here: nothing reads it. Demo mode is derived from whether
+      # a Claude key is present (§205 removed a `DEMO_MODE=0` that did nothing).
       # Tier quotas, enforced here and nowhere else (§204): the free tier's
       # daily ceiling bounds what one listener can spend (~$0.50 a day rather
       # than ~$2 a minute). Admin accounts (FAM_ADMIN_ACCOUNTS) are unlimited;

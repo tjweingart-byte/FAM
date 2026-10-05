@@ -2837,6 +2837,9 @@
       </div>
 
       <!-- ============ ENTRY ============
+           (Since §197 the guest button below is withdrawn until FAM is
+           public, and the paragraph that follows is its history; `skipAccount`
+           and every guest rule stay for the day it returns.)
            Shown once, on the first open. "Continue as guest" is a first-class
            path rather than a link in small type: an account gates what the
            server stores for you, never what you can hear, so refusing one
@@ -4368,10 +4371,28 @@
           var go = res && res.status === 403 && res.headers.get("X-FAM-Waitlist");
           if(go && /^\/waitlist(\/me)?$/.test(go)) location.replace(go);
         } catch(e){}
+        // An old kept release (§172) hears about it (§205): `deprecated` is
+        // said once, as a toast with the way to the current page; `retired`
+        // (426) goes there, because nothing on this page will work.
+        try { clientStatusSeen(res); } catch(e){}
         return res;
       });
     };
   })();
+  var clientStatusSaid = false;
+  function clientStatusSeen(res){
+    if(!res || !res.headers) return;
+    var status = res.headers.get("X-FAM-Client-Status");
+    if(res.status === 426 || status === "retired"){
+      if(location.pathname !== "/") location.replace("/");
+      return;
+    }
+    if(status === "deprecated" && !clientStatusSaid){
+      clientStatusSaid = true;
+      if(typeof toast === "function")
+        toast("A newer version of FAM is available \u2014 reload to update");
+    }
+  }
   var TOPICS = {
     spacex:{title:"SpaceX Starship: This Week's Test Flight", source:"Market Watch", caption:'…and this time, the heat shield tiles held through <mark>re-entry</mark>, which is the milestone engineers were watching for—'},
     tesla:{title:"Tesla Q2 Delivery Numbers", source:"Market Watch", caption:'…deliveries came in ahead of estimates, even as <mark>price cuts</mark> kept squeezing margin—'},
@@ -6660,8 +6681,9 @@
 
   // ---------------- Offline listening (27/09 packet) ----------------
   //
-  // Episodes heard to the end on this device are kept on it, so they play
-  // with no connection. Automatic, not a download button: the owner asked
+  // Episodes whose whole stream has arrived on this device are kept on it
+  // (`FamAudio.isComplete()` and keepable - not necessarily listened to the
+  // end; §205 corrected this comment), so they play with no connection. Automatic, not a download button: the owner asked
   // for "cached episodes" to be listenable offline, and the episodes a
   // listener has already played are the ones this device has in hand.
   //
@@ -7283,7 +7305,10 @@
     // Pressing play on a finished episode should replay it, not do nothing.
     if(playing && FamAudio.isComplete() && FamAudio.position() >= FamAudio.duration() - 0.3){
       FamAudio.seek(0);
-      startProgress(selectedLengthMinutes * 60);
+      // The episode's own length (§205): it has finished, so the real
+      // duration is known. `selectedLengthMinutes` is the search page's
+      // setting, and timed a replayed 2-minute DailyFAM tile as a 5-minute one.
+      startProgress(FamAudio.duration() || (currentPlayMinutes || selectedLengthMinutes) * 60);
     }
     isPlaying = playing;
     paIsPlaying = playing;
@@ -18247,6 +18272,8 @@
   // this from being one. What keeps that true is the door - "Continue as guest" is
   // on this screen, one tap, and everything behind it still works with no
   // account. What changed is which side of the door the app opens on.
+  // (Since §197 that door is withdrawn until FAM is public, at the owner's
+  // direction; the waitlist (§183) closes the app to guests meanwhile.)
   //
   // It runs after `refreshAuth` because it cannot run before: being signed in
   // is a fact on the server, held in an HttpOnly cookie this script cannot

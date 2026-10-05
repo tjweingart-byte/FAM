@@ -1255,10 +1255,11 @@ def erase_listener(user_id: str) -> dict:
       model cost in a given month is a fact about the business; a ledger with
       holes cannot be reconciled against an invoice. The link to the person
       goes and the amount stays (`metering.anonymise`).
-    * **The shared script cache is untouched, and needs no decision.** It holds
-      no `user_id` at all - it never has - so a script written for this
-      listener is already unattributed, and other listeners' Explore feeds do
-      not develop holes because somebody left.
+    * **The shared script cache keeps every episode, and loses the name.**
+      Other listeners' Explore feeds must not develop holes because somebody
+      left, so no script is deleted - but `scripts.author` held this
+      listener's id as provenance, and until §205 it outlived the account.
+      It is cleared (`anonymise_author`), leaving the episodes unattributed.
 
     Returns a per-store count so the endpoint reports what it did. Each store
     is attempted independently: a failure in one must not leave the other six
@@ -1288,6 +1289,13 @@ def erase_listener(user_id: str) -> dict:
     except Exception:
         log.exception("could not anonymise usage for %r", user_id)
         removed["usage_rows_anonymised"] = -1
+    try:
+        store = SCRIPT_CACHE if SCRIPT_CACHE is not None else build_cache()
+        anonymise = getattr(store, "anonymise_author", None) if store else None
+        removed["scripts_unattributed"] = anonymise(user_id) if anonymise else 0
+    except Exception:
+        log.exception("could not clear authorship for %r", user_id)
+        removed["scripts_unattributed"] = -1
     try:
         removed["waitlist"] = WAITLIST.forget(user_id)
     except Exception:
@@ -3493,8 +3501,11 @@ if _ALLOWED_ORIGINS:
         CORSMiddleware,
         allow_origins=_ALLOWED_ORIGINS,
         allow_credentials=True,
-        allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
-        allow_headers=["Authorization", "Content-Type", "X-FAM-Client"],
+        # PATCH is how a mix is edited and X-FAM-TZ is every request's clock
+        # (§186); both were missing, which only a cross-origin client would
+        # have found (§205).
+        allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+        allow_headers=["Authorization", "Content-Type", "X-FAM-Client", "X-FAM-TZ"],
         # So a browser client can read the quota verdict on a 429 rather than
         # only the status code.
         expose_headers=["X-FAM-Quota", "X-Sample-Rate", "X-Requested-Seconds",

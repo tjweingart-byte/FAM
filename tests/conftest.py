@@ -70,6 +70,7 @@ FAM_ENVIRONMENT = (
     # Local news and weather (§194). A developer with WEATHER=1 and a key in
     # their shell must not run a suite that asks the Weather Service anything.
     "LOCAL_NEWS", "LOCAL_NEWS_POLL_MINUTES", "LOCAL_NEWS_WINDOW_DAYS",
+    "LOCAL_NEWS_KEEP_DAYS",
     "WEATHER", "WEATHER_SWEEP_HOURS", "WEATHER_LIVE_ALERTS",
     "OPEN_METEO_KEYLESS",
     "OPEN_METEO_API_KEY", "FAM_CONTACT_EMAIL",

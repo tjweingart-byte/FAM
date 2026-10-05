@@ -1196,8 +1196,8 @@ when no admin is configured.
 
 ## 21. Oddities a newcomer will meet
 
-These were found while writing this document. Each one is real at this
-commit.
+These were found while writing this document; §205 fixed most of them the
+same day. What is left is said plainly.
 
 1. **Legacy demo albums.** `TOPICS` (about 60 hand-written demo topics),
    `BRANCHES` (myMorning, Culture Trends, AI Updates), `screen-detail`,
@@ -1208,40 +1208,29 @@ commit.
    only from inside that screen. So `playall` is reachable only through it.
    `setPlayState` and the next-up grid still handle `playall`. `TOPICS` is
    also the runtime registry for every played episode (`_custom`, `bank_…`,
-   `queue_…`, `deeper_…`, `hist_…`). Do not delete it.
-2. **Stale comments about the guest door.** The `ENTRY` markup comment
-   (`static/index.html:2839`) and `routeFirstScreen`'s comment still
-   describe "Continue as guest" as present. It was withdrawn in §197, and
-   the button's own comment says so.
-3. **A stale comment on limits.** `showLimitReached` says "While the tier
-   system is switched off nothing refuses". Quotas have been enforced in
-   production since §204.
+   `queue_…`, `deeper_…`, `hist_…`). Do not delete it. *Still true.*
+2. **The guest door's comments.** The `ENTRY` markup comment and
+   `routeFirstScreen`'s comment described "Continue as guest" as present.
+   *Fixed (§205):* both now say it is withdrawn since §197.
+3. **The limit card's comment** said nothing refuses. *Fixed (§204/§205):*
+   it says quotas are enforced in production.
 4. **The offline shelf keeps *streamed-complete* episodes, not *heard*
-   ones.** The comment says "heard to the end", and CLAUDE.md says "finished
-   episodes". The code stores an episode once the whole stream has arrived
-   (`FamAudio.isComplete()`) and is keepable, whether or not it was listened
-   to.
-5. **`setPlayState`'s replay restarts the progress clock at
-   `selectedLengthMinutes`**, the *search* length, not the episode's own
-   (`currentPlayMinutes`). On a replay of a non-search episode this can
-   briefly show the wrong total. Unverified whether it is visible.
-6. **The web client ignores `X-FAM-Client-Status` and 426.** The server
-   sends both (§19). `index.html` reads neither, so a deprecated or retired
-   web release would get no update prompt, only failed calls. Retired web
-   releases are not served at all, which mostly covers this.
-7. **CORS lists methods GET, POST, DELETE and OPTIONS, and only
-   `X-FAM-Client` among the custom headers** (`app.py:3496`). The app uses
-   `PATCH` (mix edits) and sends `X-FAM-TZ`. Same-origin web pages and
-   native apps are not subject to CORS, so this affects only a future
-   cross-origin web client.
-8. **`static/app.js` and `static/reference-app.js` are byte-identical.** Only
-   `app.js` is loaded (by `reference-ui.html`). `reference-app.js` is
-   unreferenced.
+   ones.** The code stores an episode once the whole stream has arrived and
+   is keepable, listened to or not. *The comment now says so (§205)*; the
+   behaviour is unchanged.
+5. **A replay's progress clock** restarted at the search page's length.
+   *Fixed (§205):* it restarts at the episode's real duration.
+6. **The web client ignored `X-FAM-Client-Status` and 426.** *Fixed (§205):*
+   the `fetch` wrapper's `clientStatusSeen` toasts "A newer version of FAM is
+   available" once for a deprecated release, and sends a retired one to `/`.
+7. **CORS lacked `PATCH` and `X-FAM-TZ`.** *Fixed (§205).*
+8. **`static/reference-app.js`** was a byte-identical, unreferenced copy of
+   `static/app.js`. *Deleted (§205).*
 9. **`/api/progress` serves two unrelated jobs**: GET returns the loading
-   steps, POST saves a resume position (§6.4).
-10. **The share page's audio request carries no `X-FAM-Client`.**
-    `listen.html` loads `fam-audio.js` without the app's `fetch` wrapper,
-    so the server counts it as an unnamed client.
+   steps, POST saves a resume position (§6.4). *Still true;* renaming it
+   would break installed clients (`old-clients`).
+10. **The share page's audio request carried no `X-FAM-Client`.** *Fixed
+    (§205):* `listen.html` names itself `web/share`.
 
 ---
 

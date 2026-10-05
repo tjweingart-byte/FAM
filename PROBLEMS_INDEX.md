@@ -208,3 +208,4 @@ and `limit` = Lines.
 | 15400 | 81 | 202. Taste is a subject tree, chosen interests never fade, and the algorithm documents itself |
 | 15481 | 85 | 203. The 10.5 packet: the whole search bar, whole titles, a mix in order, Explore as a reel with comments, and a caption on a vibe |
 | 15566 | 60 | 204. What FAM costs, and five fixes: quotas on, the GPU and Exa priced right, GDELT paused, licences checked |
+| 15626 | 43 | 205. The training docs, and the bugs writing them found |

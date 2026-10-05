@@ -15622,3 +15622,46 @@ Not done here, because it is buying: the plans themselves, and the proxy.
 Tests: `tests/test_quotas_on_in_production_204.py`,
 `tests/test_gdelt_breaker_204.py`, `tests/test_licences_204.py`;
 `test_metering` prices synthesis at the measured speed.
+
+## 205. The training docs, and the bugs writing them found
+
+**What was asked (05/10).** Up-to-date documentation of everything asked for,
+to train somebody on how the backend and frontend are wired: `docs/` now has
+ONBOARDING (the entry point and a five-day curriculum), BACKEND and DATA
+(brought current through §204), FRONTEND (new), PRODUCT_HISTORY (every owner
+request §1-§204, by area, with what is current, changed or reversed), and
+FINANCIAL gained local news, weather, Viral Loops and the GDELT proxy. Thirteen
+older topic files were corrected where they contradicted the code. Then, at
+the owner's direction, the bugs the writing turned up were fixed:
+
+* **`Dockerfile.gpu` pinned 8 of 20 stores** to `/state/data`; saved,
+  messages, quotas, voice bank, local news and the rest went with every
+  redeploy of that image. All twenty now, and `tests/test_data_paths.py`
+  checks that image as it checks the Render `Dockerfile` (`storage-durability`:
+  a guard whose subject is enumerated by hand is decorative).
+* **Account deletion left `scripts.author`** - the one field in the shared
+  cache that points at a person - holding the deleted listener's id.
+  `erase_listener` clears it now (`anonymise_author`, both backends); the
+  episodes stay, as `authorship-provenance` and the erase docstring require.
+  The seed wipe drops the seed's scripts *before* erasing the seed listeners,
+  or it could no longer find them.
+* **Local news items were never deleted**, though only 14 days count as
+  evidence. The collector prunes once a day past `LOCAL_NEWS_KEEP_DAYS` (30;
+  never below the window), each outlet keeping its newest 200, which the
+  duplicate-title check and polling rhythm read.
+* **`DEMO_MODE=0` in `render.yaml` was read by nothing** - demo mode is derived
+  from a Claude key. Removed, with a comment saying why.
+* **The web page ignored `X-FAM-Client-Status` and 426** (§172): an old kept
+  release now hears "A newer version of FAM is available" once, and a retired
+  one goes to `/`. The share page names itself `web/share`.
+* **CORS** lacked `PATCH` (mix edits) and `X-FAM-TZ`; added.
+* **A replayed episode's progress clock** restarted at the search page's
+  length; it uses the episode's real duration.
+* Stale comments (the guest door, the offline shelf) corrected; an
+  unreferenced byte-identical `static/reference-app.js` deleted.
+
+**Publishing.** The combined docs page had been link-shared since v1; v2 adds
+operating detail (admin commands, settings), so it was published privately in
+the owner's chat instead, and the shared link was left for the owner to decide.
+
+Tests: `tests/test_fixes_205.py`; `tests/test_data_paths.py` gains the GPU image.

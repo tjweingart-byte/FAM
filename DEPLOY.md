@@ -56,11 +56,10 @@ volume. One mount, three trees:
     /state/voices   reference_3.wav + reference_3.rights.json
     /state/data     the SQLite stores (every one opened through paths.data_path)
 
-Of those stores, `Dockerfile.gpu` pins only eight (`scripts.db`, `myfam.db`,
-`mixes.db`, `social.db`, `attachments.db`, `accounts.db`, `preferences.db`,
-`metering.db`) to `/state/data`; the rest land in the image's project root and
-do not survive a redeploy of this image. The Render `Dockerfile` pins every
-one to `/data`. `docs/DATA.md` lists them all.
+`Dockerfile.gpu` pins every one of those stores to `/state/data` (until §205
+only eight were, and the rest went with each redeploy of this image); the
+Render `Dockerfile` pins every one to `/data`, and `tests/test_data_paths.py`
+checks both. `docs/DATA.md` lists them all.
 
 **3. Put the voice on the volume, once.** The engine refuses to speak without
 both files — a cloned voice is somebody's voice:

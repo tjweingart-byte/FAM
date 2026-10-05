@@ -509,6 +509,9 @@ class Settings:
     local_news_poll_minutes: int = _env_int("LOCAL_NEWS_POLL_MINUTES", 30)
     # How far back a stored item still counts as news about a place, in days.
     local_news_window_days: int = _env_int("LOCAL_NEWS_WINDOW_DAYS", 14)
+    # How long a stored item is kept at all, in days (§205): pruned once a day,
+    # never below the window above, and each outlet's newest few always stay.
+    local_news_keep_days: int = _env_int("LOCAL_NEWS_KEEP_DAYS", 30)
     # Weather for the place a question names: the US National Weather Service
     # first, Open-Meteo everywhere else and whenever NWS fails. See `weather.py`.
     weather: bool = field(
