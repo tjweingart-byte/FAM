@@ -15350,3 +15350,10 @@ the waitlist gate, which closes only the app's pages.
 **The copyright line.** The page ends with "© 2026 APALI. All rights reserved."
 under the footer's tagline, small and faint, at the owner's direction; a test
 keeps it the last line of the footer.
+
+**Two lines reworded.** The condense caption now reads "FAM takes all that
+information and condenses it into one short episode." The caught-up reply in
+the With FAM chat was "That ending was something else" - nobody talks like
+that. It now answers the chat the way a friend would, with the detail that
+shows they know: "I heard all about it this morning. Can’t believe they came
+back in the ninth!"

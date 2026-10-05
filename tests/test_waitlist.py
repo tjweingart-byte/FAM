@@ -656,7 +656,7 @@ def test_the_landing_page_tells_why_fam_exists():
     assert "One episode · 2 min" in condense
     assert condense.index('class="cd-in"') < condense.index('class="cd-fam"') < condense.index('class="cd-out"')
     # The sentence that says what the picture shows comes before it.
-    assert condense.index("<figcaption>FAM takes all of it") < condense.index('class="cd-in"')
+    assert condense.index("<figcaption>FAM takes all that information") < condense.index('class="cd-in"')
 
 
 def test_the_morning_after_says_it_before_it_shows_it():
@@ -668,5 +668,5 @@ def test_the_morning_after_says_it_before_it_shows_it():
     # Beside it, the same chat with FAM: you're in it.
     assert (morning.index('<figcaption class="ba-label off">Without FAM</figcaption>')
             < morning.index('<figcaption class="ba-label on">With FAM</figcaption>'))
-    assert '<div class="msg me in"><p><b>You</b>I caught the story this morning.' in morning
+    assert '<div class="msg me in"><p><b>You</b>I heard all about it this morning.' in morning
     assert 'class="ab-wrap ab-payoff' not in page
