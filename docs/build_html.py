@@ -1,4 +1,4 @@
-"""Build the published HTML version of docs/ (FINANCIAL, BACKEND, DATA).
+"""Build the published HTML version of docs/ (every document listed in DOCS).
 
     pip install markdown mdx_truly_sane_lists
     python docs/build_html.py [out.html]      # default: docs/build/fam-docs.html
@@ -10,8 +10,8 @@ become <pre class="mermaid"> blocks, which the artifact viewer renders.
 import re, sys, pathlib, html, markdown
 ROOT = pathlib.Path(__file__).resolve().parent
 OUT = pathlib.Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / "build" / "fam-docs.html"
-DOCS = [("financial","Financial","FINANCIAL.md"),("timeline","Scaling timeline","SCALING_TIMELINE.md"),("backend","Backend","BACKEND.md"),("data","Data","DATA.md")]
-LINKS = {"FINANCIAL.md":"#financial","SCALING_TIMELINE.md":"#timeline","BACKEND.md":"#backend","DATA.md":"#data"}
+DOCS = [("onboarding","Start here","ONBOARDING.md"),("backend","Backend","BACKEND.md"),("frontend","Frontend","FRONTEND.md"),("data","Data","DATA.md"),("history","Product history","PRODUCT_HISTORY.md"),("financial","Financial","FINANCIAL.md"),("timeline","Scaling timeline","SCALING_TIMELINE.md")]
+LINKS = {fn: "#" + slug for slug, _label, fn in DOCS}
 
 def render(src):
     blocks = []
