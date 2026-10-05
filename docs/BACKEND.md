@@ -508,7 +508,7 @@ means the handler refuses a guest (`_require_account`, 401); "admin" means
 | GET | `/api/episode/card` | The player's picture (`thumbnails.pick_for_player`) and the searcher's handle if `searches_public`. |
 | GET | `/api/episode/topic` | The topic an episode falls under, for the player's (+) (`topics.episode_subject`). |
 | GET | `/api/episode/stats` | Plays, vibes, likes, dislikes now. |
-| POST | `/api/rate` | Like (or legacy dislike) an episode. |
+| POST | `/api/rate` | Like an episode (installed clients may still send a dislike). |
 | POST | `/api/attach` | Extract a document, photo or link once, at attach time. |
 | DELETE | `/api/attach` | Drop an attachment. |
 | GET | `/api/voices` | Voices this server can speak in, and the listener's. |
@@ -579,8 +579,8 @@ means the handler refuses a guest (`_require_account`, 401); "admin" means
 | POST | `/api/friends/seen` | The Friends tab was opened. |
 | POST | `/api/vibe` | VIBE! an episode, with an optional caption (same handler as `/api/echo`). |
 | DELETE | `/api/vibe` | Take a vibe back. |
-| POST | `/api/echo` | The legacy name for `/api/vibe`. |
-| DELETE | `/api/echo` | The legacy name for `DELETE /api/vibe`. |
+| POST | `/api/echo` | The older name for `/api/vibe`. |
+| DELETE | `/api/echo` | The older name for `DELETE /api/vibe`. |
 | GET | `/api/vibes` | The listener's own vibes. |
 | POST | `/api/vibes/file` | File a vibe in a folder. |
 | GET | `/api/comments` | An episode's comments, keyed `(query, minutes)`; open to anyone. |
