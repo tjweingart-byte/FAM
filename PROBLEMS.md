@@ -15395,3 +15395,79 @@ goes straight in. A sound effect is planned; `FAM_INTRO_CHARGE_MS` is where
 it would start.
 
 Tests: `tests/test_entry_handoff.py`.
+
+
+## 202. Taste is a subject tree, chosen interests never fade, and the algorithm documents itself
+
+At the owner's direction, after reading how Made for you was weighted:
+
+1. "I want to have a person's algorithm be categorized similar to the topics
+   tree ... If I consistently listen to content about the Cincinnati Bengals,
+   that should be under [sports, american football, bengals]. The algorithm
+   should know that I am interested in the Bengals, but also relate that to
+   the sport of football as a whole. It should prioritize the more specific
+   subtopics."
+2. "A person's selected interests SHOULD NOT fade in weight at any point in
+   time ... the only part that they have intentional influence over. Make
+   interests chosen at sign-up much more weighted."
+3. Search 2 -> 1.5, finishing 2 -> 1.5, pick 1.6 -> 2.2.
+4. A weight of 2.0 for episodes added to mixes.
+5. A PDF and a presentation of the algorithm that update when it changes.
+
+**What was wrong.** `categories.match` already brought a node's ancestry
+with it, but `taste` gave every level the *full* weight, so the facet summed
+everything under it and was always the peak: a Bengals fan's profile said
+"sport" loudest and "Bengals" no louder than "American football". And a
+team was only a node once `MIN_LISTENERS` (3) different people had asked
+about it - one fan's team stayed `sports`. Interests entered at 1.0 *before*
+normalisation, so a few weeks of listening shrank them to a tenth of the
+peak; and the named subjects from the interests page (`preferences.topics`)
+never reached `taste` at all except as decaying `pick` rows.
+
+**What changed** (`ALGO_VERSION` 2026-10-05.1):
+
+- `topics.tag_shares`: the most specific tags an event carries take its whole
+  weight, each heading above `ANCESTOR_SHARE` (0.6) per level; headings
+  missing from the stored tags are added (`lineage`). `taste_tree` draws the
+  profile as the tree it is; `/api/profile` serves it as `taste_tree`.
+  Specificity in scoring is unchanged (`tag_weight`), so a Bengals story
+  beats an NFL one beats a sports one, and with no Bengals story the NFL and
+  football tiles are next.
+- `category_seed`: the NFL, NBA, MLB and NHL teams under their leagues.
+  Nickname alone only where it means nothing but the team ("bengals"); the
+  full name where the nickname is a common word ("miami heat", "philadelphia
+  eagles"), because a node matches any text holding all its words.
+- `INTEREST_WEIGHT` is 2.0, added **after** normalisation, never decayed:
+  a chosen interest is worth twice the listener's strongest listening, for
+  ever, and a skip cannot take it below that. `interest_shares` resolves
+  facets, catalogue ids and typed subjects into the tree (choosing NFL lifts
+  American football and sport by the share); two interests on one heading
+  take the larger, not the sum. `app._interests_for` now passes
+  `preferences.topics` as well as the facets.
+- `EVENT_WEIGHT`: search 1.5, complete 1.5, pick 2.2, new `mix_add` 2.0.
+  `app._record_mix_adds` logs one per item a create, edit or copy put into a
+  mix - only what is new, so a rename adds nothing; `mixes.taste_tags` says
+  what the item is about (a followed subject's focus reaches the team).
+- The preview's JavaScript `taste` reads `EVENT_WEIGHT` and `ANCESTOR_SHARE`
+  from Python now; it had kept the weights of four changes ago.
+
+**The documents.** `tools/algorithm_docs.py` writes
+`docs/algorithm/FAM_Algorithm.pdf`, `FAM_Algorithm.pptx` and `ALGORITHM.md`.
+Every number is read from the code at build time and the worked example (a
+Bengals fan) is run through the real `taste`, `taste_tree` and `_affinity`
+over the seeded tree, so they cannot disagree with the ranker - only be out
+of date. `fingerprint.txt` hashes the constants and the source of every
+function that decides Made for you; `tests/test_algorithm_docs.py` fails
+when it moves, and when `ALGO_VERSION` moves without an entry at the top of
+the tool's `CHANGES`. `./dev.sh check` rebuilds them first when stale
+(`--if-stale`; needs `requirements-docs.txt`, and says so when missing).
+
+**Consequences worth knowing.** Chosen interests now stay at the top of the
+profile page's ranking (`ranked_interests`) rather than giving way to
+listening. A chosen facet lifts every tile under it, so a listener who chose
+Sport sees sport on Made for you every day - the strict two-per-heading cap
+is what keeps the rail varied. Unverified here: how this reads on a real
+listener's history; `tools/eval_recommendations.py` on production data is
+the measure.
+
+Tests: `tests/test_taste_tree_202.py`, `tests/test_algorithm_docs.py`.

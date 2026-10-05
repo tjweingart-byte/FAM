@@ -90,19 +90,82 @@ from __future__ import annotations
 #: normalised - all four are enforced by `categories.mint`, which returns
 #: None rather than raising, so a violation here would be an entry that
 #: silently never exists. `tests/test_category_seed.py` fails instead.
+#: The four major North American leagues' teams, each under its league
+#: (§202, at the owner's direction: "If I consistently listen to content about
+#: the Cincinnati Bengals, that should be under [sports, american football,
+#: bengals]"). A grown node needs `MIN_LISTENERS` different people, so without
+#: these one fan's team stayed `sports` until two strangers asked about it.
+#:
+#: A nickname alone only where it means nothing but the team ("bengals");
+#: everywhere else the full name, because a node matches any text containing
+#: all its words and "heat", "eagles" or "texans" alone would file a heat
+#: wave, a bird or a state's residents under sport. A name with a word
+#: shorter than `categories.MIN_WORD` or a digit ("St. Louis", "76ers") is
+#: left for the tree to grow.
+def _teams(*names: str) -> dict:
+    return {name: {} for name in names}
+
+
+NFL_TEAMS = _teams(
+    "bengals", "steelers", "ravens", "cleveland browns",
+    "houston texans", "indianapolis colts", "jacksonville jaguars",
+    "tennessee titans", "broncos", "kansas city chiefs", "las vegas raiders",
+    "los angeles chargers", "buffalo bills", "miami dolphins",
+    "new england patriots", "new york jets", "dallas cowboys",
+    "philadelphia eagles", "washington commanders", "new york giants",
+    "chicago bears", "detroit lions", "packers", "minnesota vikings",
+    "atlanta falcons", "carolina panthers", "new orleans saints",
+    "buccaneers", "arizona cardinals", "los angeles rams", "niners",
+    "seahawks")
+NBA_TEAMS = _teams(
+    "atlanta hawks", "boston celtics", "brooklyn nets", "charlotte hornets",
+    "chicago bulls", "cleveland cavaliers", "dallas mavericks",
+    "denver nuggets", "detroit pistons", "golden state warriors",
+    "houston rockets", "indiana pacers", "los angeles clippers",
+    "los angeles lakers", "memphis grizzlies", "miami heat",
+    "milwaukee bucks", "minnesota timberwolves", "new orleans pelicans",
+    "new york knicks", "oklahoma city thunder", "orlando magic",
+    "philadelphia sixers", "phoenix suns", "portland trail blazers",
+    "sacramento kings", "san antonio spurs", "toronto raptors", "utah jazz",
+    "washington wizards")
+MLB_TEAMS = _teams(
+    "arizona diamondbacks", "atlanta braves", "baltimore orioles",
+    "boston red sox", "chicago cubs", "chicago white sox", "cincinnati reds",
+    "cleveland guardians", "colorado rockies", "detroit tigers",
+    "houston astros", "kansas city royals", "los angeles angels",
+    "los angeles dodgers", "miami marlins", "milwaukee brewers",
+    "minnesota twins", "new york mets", "new york yankees",
+    "oakland athletics", "philadelphia phillies", "pittsburgh pirates",
+    "san diego padres", "san francisco giants", "seattle mariners",
+    "tampa bay rays", "texas rangers", "toronto blue jays",
+    "washington nationals")
+NHL_TEAMS = _teams(
+    "anaheim ducks", "boston bruins", "buffalo sabres", "calgary flames",
+    "carolina hurricanes", "chicago blackhawks", "colorado avalanche",
+    "columbus blue jackets", "dallas stars", "detroit red wings",
+    "edmonton oilers", "florida panthers", "los angeles kings",
+    "minnesota wild", "montreal canadiens", "nashville predators",
+    "new jersey devils", "new york islanders", "new york rangers",
+    "ottawa senators", "philadelphia flyers", "pittsburgh penguins",
+    "san jose sharks", "seattle kraken", "tampa bay lightning",
+    "toronto maple leafs", "vancouver canucks", "vegas golden knights",
+    "washington capitals", "winnipeg jets")
+
+
 SEED: dict[str, dict] = {
     "sports": {
         # §187: the leagues, so a question about one files it as a subject
-        # (depth two) rather than as the whole of a sport.
+        # (depth two) rather than as the whole of a sport. §202: and their
+        # teams, a level below.
         "american football": {"college football": {}, "super bowl": {},
-                              "quarterback play": {}, "nfl": {}},
+                              "quarterback play": {}, "nfl": NFL_TEAMS},
         "basketball": {"playoff basketball": {}, "draft prospects": {},
-                       "nba": {}, "wnba": {}, "euroleague": {}},
+                       "nba": NBA_TEAMS, "wnba": {}, "euroleague": {}},
         "football": {"transfer window": {}, "champions league": {},
                      "world cup": {}, "premier league": {},
                      "bundesliga": {}, "major league soccer": {}},
-        "baseball": {"mlb": {}, "world series": {}},
-        "ice hockey": {"nhl": {}, "stanley cup": {}},
+        "baseball": {"mlb": MLB_TEAMS, "world series": {}},
+        "ice hockey": {"nhl": NHL_TEAMS, "stanley cup": {}},
         "golf": {"major championship": {}},
         "tennis": {},
         "motorsport": {"formula one": {}, "nascar": {}},

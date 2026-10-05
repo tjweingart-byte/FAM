@@ -1,0 +1,5 @@
+# The algorithm documents (tools/algorithm_docs.py): the PDF and the deck.
+# Not in requirements.txt - the server never needs them, and
+# tests/test_algorithm_docs.py checks freshness without either.
+reportlab==5.0.1
+python-pptx==1.0.2
