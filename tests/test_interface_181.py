@@ -117,10 +117,11 @@ def test_myfams_header_searches_and_its_search_bar_is_gone():
     assert 'id="screen-myfamsearch"' in HTML
 
 
-def test_explore_is_a_rail_under_made_for_you():
-    assert "What users are searching" in HTML
-    assert "Start scrolling" in HTML
-    assert '(sec.key === "from_history" ? searchingRailHTML() : "")' in HTML
+def test_explore_opens_from_beside_made_for_you():
+    # The rail is gone (10.5 packet #6); the exploreFAM pill beside "Made
+    # for you" is the way in (#7).
+    assert "Start scrolling" not in HTML and "searchingRailHTML" not in HTML
+    assert "exploreFamPillHTML()" in HTML
 
 
 # --- the player's (+) ------------------------------------------------------

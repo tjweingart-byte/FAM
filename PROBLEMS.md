@@ -15471,3 +15471,89 @@ listener's history; `tools/eval_recommendations.py` on production data is
 the measure.
 
 Tests: `tests/test_taste_tree_202.py`, `tests/test_algorithm_docs.py`.
+
+
+## 203. The 10.5 packet: the whole search bar, whole titles, a mix in order, Explore as a reel with comments, and a caption on a vibe
+
+The owner's nine changes, with screenshots (search's bar with a long
+question, DailyFAM's Trending tiles cut off, a mix's topics, Edit topics
+with chosen and recommended mixed, the Explore rail, and an Instagram reel
+with its comments sheet):
+
+1. **A long question uses the whole bar.** The mic, attach and go sat to the
+   right of the text on every line, so a question wrapped at about half the
+   bar. Once the text wraps in the one-row shape, the bar takes `tall`: the
+   textarea spans the full width and the buttons drop under it on the right
+   (`paintSearchBar`, measured in the one-row shape first so a short
+   question keeps Google's single row).
+2. **Whole titles on DailyFAM's tiles.** `.seed-card-title` was clamped to two
+   lines. It is not clamped now; a long title steps the size down
+   (`seedTitleHTML`: 11.5px past 48 characters, 10.5px past 72) so one card
+   is not twice its neighbours' height, and a rail's cards stretch to the
+   tallest. Titles are already budgeted at three to eight words by the
+   writer (`<<TITLE:>>`); nothing server-side changed.
+3. **Drag a mix's topics into order.** Each topic in a mix has a handle on
+   its left (`.mix-drag`); holding it moves the row with the finger while the
+   others step aside, and letting go saves the new order with one PATCH
+   (`moveMixTopic`), the payload every other mix edit sends. The order is
+   the playlist's; `mixes.clean_items` already kept it.
+4. **Edit topics stacks what is chosen.** Everything in the mix - followed
+   topics with their "narrow it down" panels, typed topics, earlier picks -
+   is one stack, "In this mix · n", at the top; the list under it holds only
+   what is not chosen. While something is typed, the matches come first and
+   the stack after them. A topic just added moves into the stack and is
+   scrolled into view there.
+5. **The A to Z catalogue's button is a bookshelf** - three books on a shelf,
+   one leaning - in DailyFAM's header, and its rows show the whole title,
+   wrapped (`#mfsBody .sv-title`).
+6. **The "What users are searching" rail is gone** from DailyFAM (§181's
+   "Start scrolling" tile, `searchingRailHTML`).
+7. **The exploreFAM pill**: the wordmark and an arrow in a copper-edged pill,
+   where search's "Explore? →" was, and on DailyFAM level with "Made for
+   you" (`.feed-head-row`). DailyFAM's is drawn from search's markup
+   (`exploreFamPillHTML`), so there is one copy; it opens Explore with its
+   back arrow returning to DailyFAM.
+8. **Explore is a reel.** The episode's picture (the player's, from
+   `/api/episode/card`, kept on the card) fills the page under a gradient;
+   the title is bottom left where a reel names the account, over the source
+   line and play count; like, comment, vibe (FAM's repost), share and save
+   run down the right with their counts; the ⋯ top right is the player's
+   sheet - share, vibe, save, comments, dislike, closed captions, add to
+   playlist, add to / go to queue. **Dislike left the rail for the ⋯** - the
+   owner's rail is five - and still counts (§134). A tap on the picture
+   pauses. **The ±15 and the draggable bar stay** (`transport`), small, beside
+   Go Deeper. **Captions slide up from the bottom** as on the player
+   (`toggleReelCC`): its own small state off `/api/transcript` for the card
+   on screen, since the player's captions follow the player's episode.
+   "Interested?" stays under it all.
+
+   **Comments.** A sheet over the lower 72%: face, handle and age, the
+   comment, Reply (and Delete on your own), replies folded under "View n
+   more replies", a heart and its count on the right; eight quick emoji and
+   the box at the foot. In `social.py` beside vibes and thumbs, keyed
+   `(query, minutes)` so everybody who hears the episode reads one thread:
+   `comments` (a reply names its parent; a reply to a reply is filed under
+   the top comment, so threads are one level deep, the picture's shape) and
+   `comment_likes` (one row per person, a count is `COUNT(*)`). Most liked
+   first, then newest; replies oldest first. `GET /api/comments` is open to
+   anyone; posting and liking take an account (`_require_account`, 401 ->
+   the sign-up buttons where the box was), and only the author can delete.
+   Text is cut to 500 and run through `content_filter.scrub` - slurs out,
+   swearing kept, as in an episode (§171). Responses carry no `user_id`;
+   `mine` says what the id would. `SocialStore.forget` removes a deleted
+   listener's comments, the replies under them and every like on them.
+   Explore cards carry `comments`, the number under the button.
+9. **A caption on a vibe.** VIBE! opens a sheet - the episode's title, an
+   optional line (150), Cancel and VIBE! - and the vibe is sent from there
+   with `caption` (`EchoRequest.caption`, cut to `social.MAX_CAPTION` rather
+   than refused, slurs removed). It is a column on the echo row, replaced
+   when the same episode is vibed again, and `stories_among` returns it: the
+   story viewer draws it under the title. Taking a vibe back is unchanged.
+
+**Follow-up, at the owner's direction: no dislike anywhere.** It had moved
+to the reel's ⋯; it is gone from there too, and it was nowhere else.
+`/api/rate` still accepts -1 from apps already installed (`old-clients`),
+and a like replaces one; nothing in this client offers it.
+
+Tests: `tests/test_packet_1005.py`; §181's and §195's tests and the smoke
+run follow the rail's removal and the pill.
