@@ -5524,6 +5524,10 @@ def ranked_interests(
     declared = set(chosen)
     for tag, label in TAG_LABELS.items():
         score = _interest_score(_facet_and_children(tag), profile)
+        if tag in declared:
+            # Never diluted by its family (§202): a chosen interest is worth
+            # its constant at least, however many subtags sit under it.
+            score = max(score, profile.get(tag, 0.0))
         if score <= 0 and tag not in declared:
             continue
         seen.add(tag)
