@@ -15594,7 +15594,12 @@ letter-spacing decision stays where it was:
   `static/waitlist.html` (Barlow Condensed kept beside them),
   `docs/_page_template.html`.
 * The share story card (`sharing.story_card`) names the new faces, its
-  headline included (it was Georgia).
+  headline included (it was Georgia). The card is an SVG the page rasterises
+  as an image, and an image cannot load web fonts, so in practice it draws in
+  the device's Helvetica/Arial, as its body text already did. That makes the
+  headline about a tenth wider than Georgia: measured at 92px, real titles
+  wrapped at 18 characters reach 913-928px of the 990 inside the margins
+  (Georgia: 740-849), so the wrap width stands.
 * The live preview's database panel, the loading demo and the share-preview
   banner follow.
 
