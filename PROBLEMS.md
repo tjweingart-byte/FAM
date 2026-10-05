@@ -15253,8 +15253,12 @@ page's "What is FAM" section, mostly in the owner's words:
    marquee that stops, wrapped, under reduced motion), then "keeping up takes
    work", with the time it costs drawn to scale - an hour-long podcast for the
    ten minutes you care about, a twenty-minute video for three, FAM's two.
-3. **The next morning**: a conversation at work drawn with you silent ("on the
-   outside looking in"), then the pull quote about access against knowing.
+3. **The next morning**: "You're left out of the conversation." said first,
+   then a work chat where your only line is "Wait… what happened?", then the
+   pull quote about access against knowing. (The first version led with the
+   chat and drew you as three dots in a dashed bubble with a small caption;
+   the owner found it hard to read at a glance, so the point now comes before
+   the picture and the picture needs no caption.)
 4. **Why we built FAM**: the podcast-company origin, written without "I"
    because the page is signed by both founders; the three asks from the
    owner's text as search bars; not a search result, not a wall of text, not a

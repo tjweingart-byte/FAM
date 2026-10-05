@@ -619,7 +619,7 @@ def test_the_landing_page_tells_why_fam_exists():
     assert '<h2 class="ab-h">Social information.</h2>' in landing
     assert "Social information, not social media" in landing.split('class="ab-foot"', 1)[1]
     order = ["Being in the know shouldn’t be a full-time job.", "keeping up with it takes work",
-             "the game you didn’t see", "two completely different things",
+             "left out of the conversation", "two completely different things",
              "stories you hear?", "Search. Scroll. Mix.", "You’re in it.",
              "actually being part of the conversation"]
     at = [landing.index(text) for text in order]
@@ -640,3 +640,11 @@ def test_the_landing_page_tells_why_fam_exists():
     assert 'style="left:45%;width:15%"' in problem   # 3 of 20 minutes lit
     assert "<b>60 minutes</b>" in problem and "<b>20 minutes</b>" in problem
     assert "<b>2 minutes</b> on FAM" in problem
+
+
+def test_the_morning_after_says_it_before_it_shows_it():
+    page = (ROOT / "static" / "waitlist.html").read_text(encoding="utf-8")
+    morning = page.split('class="ab-wrap ab-morning', 1)[1].split("</section>", 1)[0]
+    # The point first, then the chat; and in the chat you plainly can't join in.
+    assert morning.index("You’re left out of the conversation.") < morning.index('class="convo"')
+    assert '<div class="msg me lost"><p><b>You</b>Wait… what happened?</p>' in morning

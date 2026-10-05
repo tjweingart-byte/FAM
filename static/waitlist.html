@@ -226,11 +226,10 @@
   .msg.me{ justify-content:flex-end; }
   .msg.me .who{ background:var(--line); color:var(--muted); font-size:10px; }
   .msg.me p{ border-radius:16px 16px 4px 16px; }
-  .msg.quiet p{ background:transparent; border:1px dashed #5A5470; }
+  .msg.lost p{ background:transparent; border:1.5px solid var(--coral); }
+  .msg.lost p b{ color:var(--coral); }
   .msg.in p{ background:var(--gold); color:var(--gold-ink); }
   .msg.in .who{ background:var(--gold); color:var(--gold-ink); }
-  .dots{ display:inline-flex; gap:4px; padding:4px 2px; }
-  .dots i{ width:6px; height:6px; border-radius:50%; background:#5A5470; }
   .convo-note{ margin-top:14px; text-align:right; font-size:12.5px; color:var(--faint); font-style:italic; }
   .convo-note.on{ display:flex; align-items:center; justify-content:flex-end; gap:8px; color:var(--gold); font-style:normal; }
   .fam-dot{ width:8px; height:8px; border-radius:50%; background:var(--gold); box-shadow:0 0 0 4px rgba(240,195,94,0.18); }
@@ -361,8 +360,7 @@
   @media (min-width:820px){
     .ab-two{ grid-template-columns:1fr 1fr; gap:64px; }
     .costs{ grid-template-columns:1fr 1fr 1fr; }
-    .ab-morning .ab-two .ab-art{ order:0; }
-    .pipeline{ grid-template-columns:1.4fr auto 1fr; }
+      .pipeline{ grid-template-columns:1.4fr auto 1fr; }
     .pipe-arrow{ transform:none; }
     .ab-compare{ grid-template-columns:1fr 1fr; gap:18px; }
     .feat{ grid-template-columns:1.05fr 1fr; gap:64px; padding:64px 0; }
@@ -608,22 +606,21 @@
 
     <section class="ab-wrap ab-morning reveal">
       <div class="ab-two">
+        <div class="ab-copy">
+          <div class="ab-kicker label">The next morning</div>
+          <h2 class="ab-h ab-h-sm">You’re left out of the conversation.</h2>
+          <p class="ab-p">Everyone at work is talking about last night’s game. You didn’t
+            see it. You vaguely remember a headline, but you don’t know enough to join in.</p>
+          <p class="ab-p">And there’s this tiny feeling of being on the outside looking in.</p>
+        </div>
         <div class="ab-art">
-          <div class="convo" aria-label="A conversation at work">
-            <div class="convo-head"><span class="label">9:04 AM</span><span>Monday, at work</span></div>
+          <div class="convo" aria-label="A conversation at work you can’t join">
+            <div class="convo-head"><span class="label">#team</span><span>Monday, 9:04 AM</span></div>
             <div class="msg"><span class="who" style="background:#8FAE9A">JR</span><p><b>Jordan</b>Did anyone see the end of that game last night?</p></div>
             <div class="msg"><span class="who" style="background:#F2D2B6">MB</span><p><b>Maya</b>That ninth inning was unreal.</p></div>
             <div class="msg"><span class="who" style="background:#C9B6F0">SP</span><p><b>Sam</b>Still can’t believe how it ended.</p></div>
-            <div class="msg me quiet"><p><span class="dots" aria-label="Nothing to add"><i></i><i></i><i></i></span></p><span class="who">You</span></div>
-            <div class="convo-note">You, on the outside looking in</div>
+            <div class="msg me lost"><p><b>You</b>Wait… what happened?</p><span class="who">You</span></div>
           </div>
-        </div>
-        <div class="ab-copy">
-          <div class="ab-kicker label">The next morning</div>
-          <h2 class="ab-h ab-h-sm">Everyone is talking about the game you didn’t see.</h2>
-          <p class="ab-p">Or someone brings up a story you vaguely remember seeing a headline
-            about, but you don’t actually know enough to join the conversation.</p>
-          <p class="ab-p">And there’s this tiny feeling of being on the outside looking in.</p>
         </div>
       </div>
       <blockquote class="pull">
