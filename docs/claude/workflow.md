@@ -378,3 +378,15 @@ What is true but not obvious from the code:
 <!-- rule:diag-tools -->
 - `diagnose_api.py` explains connection failures; `compare_models.py` compares
   cost, speed and output across models.
+
+<!-- rule:algorithm-docs -->
+- **The algorithm documents itself** (PROBLEMS.md §202, at the owner's
+  direction: "make documentation that details the algorithm (pdf and
+  presentation) and updates when something changes with the algorithm").
+  `tools/algorithm_docs.py` writes `docs/algorithm/FAM_Algorithm.pdf`,
+  `.pptx` and `ALGORITHM.md`, every number read from the code and the worked
+  example run through the real ranker. `tests/test_algorithm_docs.py` fails
+  when the fingerprint (constants + the source of every Made for you
+  function) moves, or `ALGO_VERSION` moves without a `CHANGES` entry;
+  `./dev.sh check` rebuilds them first (`requirements-docs.txt`). Never edit
+  the outputs by hand.

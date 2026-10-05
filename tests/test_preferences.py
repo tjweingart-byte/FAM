@@ -162,13 +162,15 @@ def test_a_declared_interest_ranks_the_feed_for_a_listener_with_no_history():
     assert any("science" in t.tags for t in ranked)
 
 
-def test_behaviour_outweighs_a_declaration_once_there_is_any():
-    """An intro answer is a starting position, not a rule. Someone who chose
-    Sport and then finished three tech episodes should get tech."""
+def test_a_declaration_is_never_outweighed_by_behaviour():
+    """§202, reversing "an intro answer is a starting position": a chosen
+    interest is constant. Someone who chose Sport and then finished three
+    tech episodes still has Sport at full weight, and tech beside it."""
     now = time.time()
     events = [T.Event("u", "complete", "ai-agents", "", ("tech",), now)] * 3
     profile = T.taste(events, now, interests=["sports"])
-    assert profile["tech"] > profile["sports"]
+    assert profile["sports"] == T.INTEREST_WEIGHT
+    assert 0 < profile["tech"] < profile["sports"]
 
 
 # --- the API and the gate -------------------------------------------------

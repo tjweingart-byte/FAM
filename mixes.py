@@ -43,6 +43,7 @@ from urllib.parse import quote, unquote
 
 from paths import data_path
 from topics import BANK_BY_ID, CATALOGUE_BY_ID, facets_only, tags_for_text
+import topics as _topics
 
 log = logging.getLogger(__name__)
 
@@ -317,6 +318,21 @@ def followed_item(entry: str) -> MixItem:
          else "New briefing every day"),
         subject.icon, True, base, tuple(focus), subject.label,
     )
+
+
+def taste_tags(item: MixItem) -> tuple[str, ...]:
+    """What adding this item to a mix says about the listener's taste
+    (§202, the `mix_add` event): a bank topic's tags, a followed subject's
+    catalogue tags plus whatever its focus names ("NFL - Eagles" reaches the
+    Eagles), a typed question's words."""
+    if item.follow:
+        subject = CATALOGUE_BY_ID.get(item.base[2:])
+        found = set(subject.tags) if subject else set()
+        words = " ".join((item.topic_label,) + tuple(item.focus))
+        return tuple(sorted(found | set(tags_for_text(words))))
+    if item.id in BANK_BY_ID:
+        return BANK_BY_ID[item.id].tags
+    return _topics.tags_for_id(item.id, item.query)
 
 
 def clean_cover(cover: str) -> str:

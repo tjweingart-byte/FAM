@@ -4244,6 +4244,7 @@ async def create_mix(req: MixRequest, request: Request):
     except mixes_mod.MixError as exc:
         # Phrased for the listener: these are things they did, not faults.
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    _record_mix_adds(mix)
     _write_mix_ahead(mix)
     return mix.as_dict()
 
@@ -4259,8 +4260,29 @@ async def update_mix(mix_id: str, req: MixRequest, request: Request):
     except mixes_mod.MixError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     if req.topic_ids is not None:
+        _record_mix_adds(mix, before=before)
         _write_mix_ahead(mix, before=before)
     return mix.as_dict()
+
+
+def _record_mix_adds(mix, before=None) -> None:
+    """Log a `mix_add` for every item this write put into a mix (§202).
+
+    Only what is new - an item already in the mix before this write was
+    counted when it went in, and renaming a mix or reordering it adds
+    nothing. A mix needs an account, so this listener is always remembered;
+    a failure here costs one signal and never the save.
+    """
+    had = {item.id for item in (before.items if before else ())}
+    for item in mix.items:
+        if item.id in had:
+            continue
+        try:
+            EVENTS.record(topics_mod.Event(
+                mix.user_id, topics_mod.MIX_ADD, item.id, item.query,
+                mixes_mod.taste_tags(item)))
+        except Exception:  # noqa: BLE001 - a taste signal never fails a save
+            log.exception("could not record a mix add for %r", item.id)
 
 
 @app.delete("/api/mixes/{mix_id}")
@@ -4444,6 +4466,7 @@ async def add_public_mix(mix_id: str, request: Request) -> dict:
             owner.get("name") or "", owner.get("handle") or ""))
     except mixes_mod.MixError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    _record_mix_adds(mix)
     _write_mix_ahead(mix)
     return dict(mix.as_dict(), **_source_label(mix, {}))
 
@@ -4580,7 +4603,10 @@ def _interests_for(request: Request, given: str = "") -> tuple[str, ...]:
     """
     listener = getattr(request.state, "listener", None)
     if listener is not None and listener.is_authenticated:
-        return PREFS.get(listener.user_id).interests
+        # Both kinds of choice, since §202: the facets and the named subjects
+        # from the interests page. `taste` holds every one of them constant.
+        prefs = PREFS.get(listener.user_id)
+        return tuple(prefs.interests) + tuple(prefs.topics)
     try:
         return prefs_mod.clean_interests(given.split(","))
     except prefs_mod.PreferenceError:
@@ -5822,7 +5848,7 @@ async def profile(request: Request):
     """Counts and subjects from this listener's own event log. No model call."""
     _read_limit(request)
     user = _listener(request)
-    body = topics_mod.summary(EVENTS, user)
+    body = topics_mod.summary(EVENTS, user, interests=_interests_for(request))
     SOCIAL.seen(user)
     person = SOCIAL.person(user)
     body["name"] = person["name"]
