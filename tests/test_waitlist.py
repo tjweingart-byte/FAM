@@ -624,11 +624,14 @@ def test_the_landing_page_tells_why_fam_exists():
              "actually being part of the conversation"]
     at = [landing.index(text) for text in order]
     assert at == sorted(at), "the story is told out of order"
-    # The time it takes is drawn to scale: an hour is the whole track.
-    widths = [float(w) for w in re.findall(r'class="tb-track" style="width:([\d.]+)%"', landing)]
-    assert widths == [100.0, 33.33, 3.33]
-    # The drifting cards stop, and lose their copies, under reduced motion.
-    motion = next(block for block in page.split("@media (prefers-reduced-motion: reduce)")[1:]
-                  if ".pass-track" in block.split("}\n  }", 1)[0])
-    assert ".pass-track{ animation:none" in motion
-    assert '.pass-card[aria-hidden="true"]{ display:none; }' in motion
+    # One day of things passing by: four moments, each stamped as missed.
+    problem = landing.split('class="ab-wrap ab-problem', 1)[1].split("</section>", 1)[0]
+    assert problem.count('class="moment ') == 4
+    assert problem.count('<span class="stamp">Passed you by</span>') == 4
+    # What keeping up costs, as the owner put it: an hour of podcast for ten
+    # minutes, twenty of video for three, against FAM's two.
+    pod = problem.split('class="cost-media pod"', 1)[1].split("</figure>", 1)[0]
+    assert pod.count("<i") == 60 and pod.count('class="on"') == 10
+    assert 'style="left:45%;width:15%"' in problem   # 3 of 20 minutes lit
+    assert "<b>60 minutes</b>" in problem and "<b>20 minutes</b>" in problem
+    assert "<b>2 minutes</b> on FAM" in problem

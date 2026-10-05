@@ -15274,3 +15274,28 @@ later copy and features are judged against it. The people in the drawn
 conversations are the made-up friends from §198 (Maya, Jordan, Sam).
 
 Tests: `tests/test_waitlist.py`.
+
+
+## 200. The Problem, second attempt: one day, and what keeping up costs
+
+At the owner's direction, a second attempt at the waitlist page's "The
+problem" (§199). The drifting cards and the bar chart are gone:
+
+1. **One day.** The four things that pass you by are a timeline - 7:41 AM, a
+   final-score alert; 10:12 AM, a work thread; 2:30 PM, an unread industry
+   newsletter; 8:05 PM, "Wait, have you heard about…?" at dinner - each drawn
+   as the thing itself and stamped "Passed you by", with the owner's own
+   sentence under it. The times and the small print (14 replies, a 14-minute
+   read) are illustration; nothing in them claims a real event.
+2. **The turn**, set large: "The information is all out there. That isn't
+   the problem." then "The problem is that actually keeping up with it takes
+   work.", with what that work is (search, articles, feeds).
+3. **What it costs, drawn as the media**: an hour of podcast as a waveform of
+   sixty one-minute bars with the ten you wanted lit; a twenty-minute video's
+   scrubber with three minutes lit; FAM's two minutes, all of it lit gold.
+   The numbers are the owner's own, and FAM's is the browse length.
+4. "Most of us just accept that we're going to miss things" closes it, with
+   the last words brought forward.
+
+Nothing moves on its own any more, so reduced motion has nothing to stop
+here. Tests: `tests/test_waitlist.py`.

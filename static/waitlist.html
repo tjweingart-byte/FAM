@@ -166,37 +166,63 @@
   .ab-p{ font-size:17px; line-height:1.6; color:#D9D2E4; margin:16px 0 0; max-width:560px; }
   .ab-p.center{ text-align:center; margin:22px auto 0; }
 
-  /* What passes by: four things, drifting past and never stopping. */
-  .pass{ margin:40px -20px 0; overflow:hidden;
-    -webkit-mask-image:linear-gradient(90deg, transparent, #000 10%, #000 90%, transparent);
-    mask-image:linear-gradient(90deg, transparent, #000 10%, #000 90%, transparent); }
-  .pass-track{ display:flex; gap:14px; width:max-content; list-style:none; margin:0; padding:6px 0;
-    animation:drift 46s linear infinite; }
-  @keyframes drift{ to{ transform:translateX(calc(-50% - 7px)); } }
-  .pass-card{ display:flex; align-items:center; gap:12px; flex:none; max-width:300px; padding:14px 18px;
-    border-radius:16px; background:var(--card); border:1px solid var(--line); color:#D9D2E4;
-    font-size:15px; line-height:1.35; }
-  .pass-ic{ flex:none; width:38px; height:38px; border-radius:11px; display:flex; align-items:center;
-    justify-content:center; background:rgba(240,195,94,0.12); color:var(--gold); }
-  .pass-ic svg{ width:20px; height:20px; }
+  /* One day: four moments, each the thing itself, each stamped as missed. */
+  .day{ list-style:none; padding:0; margin:44px 0 0; display:grid; grid-template-columns:1fr; gap:18px;
+    position:relative; }
+  .moment{ position:relative; padding-left:26px; min-width:0; }
+  .moment::before{ content:""; position:absolute; left:4px; top:6px; width:9px; height:9px; border-radius:50%;
+    background:var(--page-bg); border:2px solid var(--faint); }
+  .moment::after{ content:""; position:absolute; left:9px; top:20px; bottom:-18px; width:1px; background:var(--line); }
+  .moment:last-child::after{ display:none; }
+  .m-time{ position:relative; z-index:1; display:inline-block; padding-right:10px; background:var(--page-bg);
+    font-family:'Barlow Condensed', sans-serif; font-weight:600; letter-spacing:0.12em; font-size:14px;
+    color:var(--muted); margin-bottom:10px; font-variant-numeric:tabular-nums; }
+  .m-card{ position:relative; overflow:hidden; background:var(--card); border:1px solid var(--line); border-radius:18px;
+    padding:16px 16px 18px; min-height:132px; }
+  .m-src{ display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--faint); margin-bottom:10px; }
+  .m-ic{ width:24px; height:24px; border-radius:7px; display:flex; align-items:center; justify-content:center;
+    background:rgba(240,195,94,0.10); color:var(--gold); }
+  .m-ic svg{ width:14px; height:14px; }
+  .m-title{ font-size:16px; line-height:1.35; color:var(--text); }
+  .m-dinner .m-title{ font-family:'Fraunces', Georgia, serif; font-size:19px; }
+  .m-work .m-title{ background:var(--card-2); border-radius:14px 14px 14px 4px; padding:9px 12px; display:inline-block; }
+  .m-meta{ font-size:12.5px; color:var(--faint); margin-top:8px; }
+  .stamp{ position:absolute; right:12px; top:12px; transform:rotate(6deg); border:1.5px solid var(--coral);
+    color:var(--coral); border-radius:6px; padding:3px 7px; font-family:'Barlow Condensed', sans-serif; font-weight:600;
+    font-size:11.5px; letter-spacing:0.12em; text-transform:uppercase; background:rgba(30,27,39,0.85); }
+  .m-cap{ margin:12px 2px 0; font-size:14.5px; line-height:1.45; color:#D9D2E4; }
 
-  .chores{ list-style:none; padding:0; margin:22px 0 0; display:flex; flex-wrap:wrap; gap:8px; }
+  .turn{ margin:84px auto 0; max-width:860px; text-align:center; }
+  .turn-a{ font-family:'Fraunces', Georgia, serif; font-size:clamp(24px, 3.6vw, 34px); line-height:1.2; color:var(--muted); margin:0; text-wrap:balance; }
+  .turn-b{ font-family:'Fraunces', Georgia, serif; font-size:clamp(30px, 5vw, 48px); line-height:1.1; color:#F6F0E4; margin:14px 0 0; text-wrap:balance; }
+  .chores{ list-style:none; padding:0; margin:26px 0 0; display:flex; flex-wrap:wrap; justify-content:center; gap:8px; }
   .chores li{ border:1px solid var(--line); border-radius:999px; padding:8px 14px; font-size:14px; color:var(--muted); }
 
-  /* The time it takes, to scale: one hour is the whole track. */
-  .timebars{ margin:0; background:var(--card); border:1px solid var(--line); border-radius:20px; padding:24px 22px 20px; }
-  .timebars figcaption{ color:var(--faint); font-size:13px; margin-bottom:18px; }
-  .tb-row + .tb-row{ margin-top:18px; }
-  .tb-label{ font-size:14px; color:var(--text); margin-bottom:7px; }
-  .tb-track{ position:relative; height:14px; min-width:12px; border-radius:7px; background:#4A4360; }
-  .tb-hit{ position:absolute; top:0; bottom:0; border-radius:7px; background:var(--coral); }
-  .tb-row.fam .tb-track{ background:var(--gold); }
-  .tb-note{ font-size:13px; color:var(--muted); margin-top:6px; }
-  .tb-note b{ color:var(--text); font-weight:500; font-variant-numeric:tabular-nums; }
-  .tb-axis{ display:flex; justify-content:space-between; margin-top:16px; padding-top:8px; border-top:1px solid var(--line);
-    font-size:11px; color:var(--faint); font-variant-numeric:tabular-nums; }
-  .tb-key{ display:flex; align-items:center; gap:8px; margin-top:10px; font-size:12px; color:var(--muted); }
-  .k-hit{ width:14px; height:8px; border-radius:4px; background:var(--coral); }
+  /* What it costs, drawn as the media: a podcast's hour, a video's twenty
+     minutes, FAM's two - the part you wanted lit in each. */
+  .costs{ display:grid; grid-template-columns:1fr; gap:16px; margin-top:44px; }
+  .cost{ margin:0; background:var(--card); border:1px solid var(--line); border-radius:20px; padding:22px 20px; min-width:0; }
+  .cost figcaption{ margin-top:16px; font-size:15.5px; line-height:1.45; color:var(--muted); }
+  .cost figcaption b{ color:var(--text); font-weight:500; font-variant-numeric:tabular-nums; }
+  .hl{ color:var(--coral); font-weight:500; }
+  .cost-media{ height:96px; display:flex; flex-direction:column; justify-content:flex-end; gap:8px; }
+  .wave{ flex:1; display:flex; align-items:center; gap:2px; }
+  .wave i{ flex:1; min-width:1px; border-radius:2px; background:#4A4360; }
+  .wave i.on{ background:var(--coral); }
+  .cost-scale{ display:flex; justify-content:space-between; font-size:11px; color:var(--faint); font-variant-numeric:tabular-nums; }
+  .vid-frame{ flex:1; border-radius:10px; background:linear-gradient(135deg, #2E2A3A, #3A3548); display:flex; align-items:center; justify-content:center; }
+  .vid-play{ width:30px; height:30px; border-radius:50%; background:rgba(244,239,228,0.14); color:var(--text);
+    display:flex; align-items:center; justify-content:center; }
+  .vid-play svg{ width:14px; height:14px; margin-left:2px; }
+  .vid-bar{ position:relative; height:5px; border-radius:3px; background:#4A4360; }
+  .vid-lit{ position:absolute; top:0; bottom:0; border-radius:3px; background:var(--coral); }
+  .vid-head{ position:absolute; top:50%; width:11px; height:11px; margin:-5.5px 0 0 -5.5px; border-radius:50%; background:var(--text); }
+  .cost.fam{ background:linear-gradient(160deg, #3A3150 0%, #2B2638 100%); border-color:rgba(240,195,94,0.35); }
+  .cost.fam figcaption{ color:#D9D2E4; }
+  .fam-wave i{ background:var(--gold) !important; }
+
+  .resign{ margin:56px auto 0; max-width:720px; text-align:center; font-size:clamp(18px, 2.4vw, 21px); line-height:1.55; color:var(--muted); }
+  .resign span{ color:var(--text); }
 
   /* A conversation at work, drawn twice: on the outside, then in it. */
   .convo{ position:relative; background:var(--card); border:1px solid var(--line); border-radius:24px; padding:20px 18px 18px;
@@ -346,6 +372,12 @@
 
   @media (min-width:820px){
     .ab-two{ grid-template-columns:1fr 1fr; gap:64px; }
+    .day{ grid-template-columns:repeat(4, 1fr); gap:18px; }
+    .moment{ padding-left:0; padding-top:30px; }
+    .moment::before{ left:0; top:0; }
+    .moment::after{ left:18px; right:-18px; top:5px; bottom:auto; width:auto; height:1px; }
+    .m-time{ position:absolute; top:-3px; left:22px; margin:0; }
+    .costs{ grid-template-columns:1fr 1fr 1fr; }
     .ab-morning .ab-two .ab-art{ order:0; }
     .pipeline{ grid-template-columns:1.4fr auto 1fr; }
     .pipe-arrow{ transform:none; }
@@ -358,8 +390,6 @@
   @media (prefers-reduced-motion: reduce){
     .can-reveal .reveal{ transform:none; transition:none; }
     .hero-more svg{ animation:none; }
-    .pass-track{ animation:none; flex-wrap:wrap; justify-content:center; width:auto; }
-    .pass-card[aria-hidden="true"]{ display:none; }
   }
 
   /* ---------- status ---------- */
@@ -545,29 +575,50 @@
 
     <!-- The problem, told the way the owner tells it (PROBLEMS.md §199):
          what passes by, the work keeping up takes, and the morning after. -->
+    <!-- The problem, told the way the owner tells it (PROBLEMS.md §199, §200):
+         one day of things passing you by, then what keeping up would cost,
+         drawn as the media it would cost it in. Every time on it is the
+         owner's own (60 for 10, 20 for 3) or FAM's two-minute episode. -->
     <section class="ab-wrap ab-problem reveal">
       <div class="ab-kicker label">The problem</div>
       <h2 class="ab-h">Think about how much information passes by you every single day.</h2>
-      <div class="pass" aria-label="What passes you by">
-        <ul class="pass-track"><li class="pass-card"><span class="pass-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18v12H3z"/><path d="M12 6v12M3 12h4M17 12h4"/><circle cx="12" cy="12" r="2.4"/></svg></span>A game you didn’t watch</li><li class="pass-card"><span class="pass-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v10H9l-5 4z"/><path d="M8 9h8M8 12h5"/></svg></span>A story everyone at work is suddenly talking about</li><li class="pass-card"><span class="pass-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20h18"/><path d="M5 16l4-5 4 3 6-8"/><path d="M15 6h4v4"/></svg></span>Something happening in an industry you care about</li><li class="pass-card"><span class="pass-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3v8a2 2 0 0 0 2 2v8M5 3v5M9 3v5"/><path d="M17 21V3c-2 1.5-3 4-3 7s1 3 3 3"/></svg></span>A topic your friend brings up at dinner that you wish you knew more about</li><li class="pass-card" aria-hidden="true"><span class="pass-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18v12H3z"/><path d="M12 6v12M3 12h4M17 12h4"/><circle cx="12" cy="12" r="2.4"/></svg></span>A game you didn’t watch</li><li class="pass-card" aria-hidden="true"><span class="pass-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v10H9l-5 4z"/><path d="M8 9h8M8 12h5"/></svg></span>A story everyone at work is suddenly talking about</li><li class="pass-card" aria-hidden="true"><span class="pass-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20h18"/><path d="M5 16l4-5 4 3 6-8"/><path d="M15 6h4v4"/></svg></span>Something happening in an industry you care about</li><li class="pass-card" aria-hidden="true"><span class="pass-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3v8a2 2 0 0 0 2 2v8M5 3v5M9 3v5"/><path d="M17 21V3c-2 1.5-3 4-3 7s1 3 3 3"/></svg></span>A topic your friend brings up at dinner that you wish you knew more about</li></ul>
+      <ol class="day" aria-label="One day"><li class="moment m-game"><div class="m-time">7:41 AM</div><div class="m-card"><div class="m-src"><span class="m-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18v12H3z"/><path d="M12 6v12M3 12h4M17 12h4"/><circle cx="12" cy="12" r="2.4"/></svg></span>Sports</div><div class="m-title">Final: walk-off win in the ninth</div><div class="m-meta">Tap for highlights</div><span class="stamp">Passed you by</span></div><p class="m-cap">A game you didn’t watch</p></li><li class="moment m-work"><div class="m-time">10:12 AM</div><div class="m-card"><div class="m-src"><span class="m-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v10H9l-5 4z"/><path d="M8 9h8M8 12h5"/></svg></span>#team</div><div class="m-title">is anyone else following this story?</div><div class="m-meta">14 replies</div><span class="stamp">Passed you by</span></div><p class="m-cap">A story everyone at work is suddenly talking about</p></li><li class="moment m-news"><div class="m-time">2:30 PM</div><div class="m-card"><div class="m-src"><span class="m-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6l9 6 9-6"/><path d="M3 6h18v12H3z"/></svg></span>Inbox</div><div class="m-title">This week in your industry</div><div class="m-meta">Unread · 14 min read</div><span class="stamp">Passed you by</span></div><p class="m-cap">Something happening in an industry you care about</p></li><li class="moment m-dinner"><div class="m-time">8:05 PM</div><div class="m-card"><div class="m-src"><span class="m-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3v8a2 2 0 0 0 2 2v8M5 3v5M9 3v5"/><path d="M17 21V3c-2 1.5-3 4-3 7s1 3 3 3"/></svg></span>Dinner</div><div class="m-title">“Wait, have you heard about…?”</div><div class="m-meta">You nod along</div><span class="stamp">Passed you by</span></div><p class="m-cap">A topic your friend brings up at dinner that you wish you knew more about</p></li></ol>
+
+      <div class="turn">
+        <p class="turn-a">The information is all out there. That isn’t the problem.</p>
+        <p class="turn-b">The problem is that actually keeping up with it takes work.</p>
+        <ul class="chores" aria-label="What keeping up takes">
+          <li>Search for it</li><li>Read through articles</li><li>Scroll through feeds</li>
+        </ul>
       </div>
-      <div class="ab-two">
-        <div class="ab-copy">
-          <p class="ab-big">The information is all out there. That isn’t the problem.</p>
-          <p class="ab-big gold">The problem is that actually keeping up with it takes work.</p>
-          <ul class="chores">
-            <li>Search for it</li><li>Read through articles</li><li>Scroll through feeds</li>
-          </ul>
-          <p class="ab-p">And because nobody has time to do that for everything they care
-            about, most of us just accept that we’re going to miss things.</p>
-        </div>
-        <figure class="timebars" aria-label="Time spent for the part you want, to scale">
-          <figcaption class="label">The time it takes, to scale</figcaption>
-          <div class="tb-row"><div class="tb-label">An hour-long podcast</div><div class="tb-track" style="width:100.00%"><span class="tb-hit" style="left:40.00%;width:16.67%"></span></div><div class="tb-note"><b>60 min</b> for the 10 you actually care about</div></div><div class="tb-row"><div class="tb-label">A twenty-minute video</div><div class="tb-track" style="width:33.33%"><span class="tb-hit" style="left:45.00%;width:15.00%"></span></div><div class="tb-note"><b>20 min</b> for something that could take 3</div></div><div class="tb-row fam"><div class="tb-label">FAM</div><div class="tb-track" style="width:3.33%"></div><div class="tb-note"><b>2 min</b>, and all of it is what you asked for</div></div>
-          <div class="tb-axis" aria-hidden="true"><span>0</span><span>15</span><span>30</span><span>45</span><span>60 min</span></div>
-          <div class="tb-key" aria-hidden="true"><span class="k-hit"></span>The part you wanted</div>
+
+      <div class="costs">
+        <figure class="cost">
+          <div class="cost-media pod">
+            <div class="wave" aria-hidden="true"><i style="height:58%"></i><i style="height:69%"></i><i style="height:59%"></i><i style="height:57%"></i><i style="height:49%"></i><i style="height:59%"></i><i style="height:77%"></i><i style="height:67%"></i><i style="height:76%"></i><i style="height:65%"></i><i style="height:67%"></i><i style="height:64%"></i><i style="height:39%"></i><i style="height:73%"></i><i style="height:69%"></i><i style="height:68%"></i><i style="height:39%"></i><i style="height:38%"></i><i style="height:49%"></i><i style="height:55%"></i><i style="height:66%"></i><i style="height:61%"></i><i style="height:69%"></i><i style="height:53%"></i><i class="on" style="height:66%"></i><i class="on" style="height:67%"></i><i class="on" style="height:53%"></i><i class="on" style="height:85%"></i><i class="on" style="height:69%"></i><i class="on" style="height:78%"></i><i class="on" style="height:53%"></i><i class="on" style="height:52%"></i><i class="on" style="height:57%"></i><i class="on" style="height:60%"></i><i style="height:70%"></i><i style="height:65%"></i><i style="height:55%"></i><i style="height:49%"></i><i style="height:54%"></i><i style="height:78%"></i><i style="height:51%"></i><i style="height:65%"></i><i style="height:67%"></i><i style="height:41%"></i><i style="height:62%"></i><i style="height:79%"></i><i style="height:34%"></i><i style="height:57%"></i><i style="height:60%"></i><i style="height:50%"></i><i style="height:68%"></i><i style="height:61%"></i><i style="height:42%"></i><i style="height:73%"></i><i style="height:71%"></i><i style="height:75%"></i><i style="height:81%"></i><i style="height:67%"></i><i style="height:63%"></i><i style="height:44%"></i></div>
+            <div class="cost-scale" aria-hidden="true"><span>0:00</span><span>1:00:00</span></div>
+          </div>
+          <figcaption><b>60 minutes</b> of podcast to find the <span class="hl">ten</span> you actually care about.</figcaption>
+        </figure>
+        <figure class="cost">
+          <div class="cost-media vid" aria-hidden="true">
+            <div class="vid-frame"><span class="vid-play"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></span></div>
+            <div class="vid-bar"><span class="vid-lit" style="left:45%;width:15%"></span><span class="vid-head" style="left:45%"></span></div>
+            <div class="cost-scale"><span>0:00</span><span>20:00</span></div>
+          </div>
+          <figcaption><b>20 minutes</b> of video for something that could be explained in <span class="hl">three</span>.</figcaption>
+        </figure>
+        <figure class="cost fam">
+          <div class="cost-media famm">
+            <div class="wave fam-wave" aria-hidden="true"><i style="height:45%"></i><i style="height:67%"></i><i style="height:75%"></i><i style="height:55%"></i><i style="height:43%"></i><i style="height:61%"></i><i style="height:68%"></i><i style="height:77%"></i><i style="height:45%"></i><i style="height:44%"></i><i style="height:71%"></i><i style="height:68%"></i><i style="height:83%"></i><i style="height:75%"></i><i style="height:60%"></i><i style="height:58%"></i><i style="height:97%"></i><i style="height:58%"></i><i style="height:51%"></i><i style="height:46%"></i><i style="height:63%"></i><i style="height:64%"></i><i style="height:57%"></i><i style="height:61%"></i></div>
+            <div class="cost-scale" aria-hidden="true"><span>0:00</span><span>2:00</span></div>
+          </div>
+          <figcaption><b>2 minutes</b> on FAM, and every one of them is the story you asked for.</figcaption>
         </figure>
       </div>
+
+      <p class="resign">And because nobody has time to do that for everything they care about,
+        most of us just accept that <span>we’re going to miss things.</span></p>
     </section>
 
     <section class="ab-wrap ab-morning reveal">
