@@ -241,11 +241,11 @@ PACER = _Pacer()
 
 
 class GdeltPaused(GdeltBusy):
-    """GDELT has failed every request lately; it is not being asked (§204)."""
+    """GDELT has failed every request lately; it is not being asked (§207)."""
 
 
 class _Breaker:
-    """Stop asking an address that refuses every request (§204).
+    """Stop asking an address that refuses every request (§207).
 
     On 1/10 GDELT failed 384 of 384 requests from Render's shared outbound
     address (§191). Each failure still cost a paced slot, and an episode whose
@@ -627,7 +627,7 @@ def report() -> dict:
     return {"enabled": bool(settings.gdelt), "ready": ok, "detail": why,
             "endpoint": DOC_API, "themes_swept": len(THEMES),
             "verified_from_this_machine": False,
-            # §204: whether requests leave through a proxy of FAM's own (never
+            # §207: whether requests leave through a proxy of FAM's own (never
             # the URL - it carries a credential), and whether the breaker has
             # stopped asking.
             "via_proxy": _proxy() is not None,

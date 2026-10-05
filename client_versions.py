@@ -29,7 +29,7 @@ exactly the builds staging exists to test.
 
 `web/live` is the page this server itself serves, which is always current and
 never in the registry. `web/share` is the shared-episode page (`/s/<id>`,
-§205): also served by this server, also never in the registry, so it reads as
+§208): also served by this server, also never in the registry, so it reads as
 unknown and is served normally - it is named so `/api/health` can count it.
 """
 from __future__ import annotations

@@ -287,7 +287,7 @@ which added the new-mix gate, the topic bank surviving a locked mix list, and
 the search page opening on the length it will generate.)
 
   > **Current:** the count is no longer eighty-six - it was 91 when this note
-  > was written (after §204). Do not update a number here; run
+  > was written (after §207). Do not update a number here; run
   > `grep -c '^        check(' tools/smoke_preview.py` and expect `dev.sh` to
   > print that many.
 

@@ -1139,7 +1139,7 @@ def _tier(request: Request) -> str:
     client-supplied one is a client-supplied upgrade.
     """
     listener = getattr(request.state, "listener", None)
-    # An admin account is never refused by its own allowance (§204): the
+    # An admin account is never refused by its own allowance (§207): the
     # people who test every surface every day would otherwise hit the free
     # ceiling by lunchtime the day quotas are switched on. Named by
     # `FAM_ADMIN_ACCOUNTS`, on the server - never by anything the client says.
@@ -1258,7 +1258,7 @@ def erase_listener(user_id: str) -> dict:
     * **The shared script cache keeps every episode, and loses the name.**
       Other listeners' Explore feeds must not develop holes because somebody
       left, so no script is deleted - but `scripts.author` held this
-      listener's id as provenance, and until §205 it outlived the account.
+      listener's id as provenance, and until §208 it outlived the account.
       It is cleared (`anonymise_author`), leaving the episodes unattributed.
 
     Returns a per-store count so the endpoint reports what it did. Each store
@@ -1590,7 +1590,7 @@ async def health(request: Request) -> dict:
         # healthy while this is off, and vice versa.
         "gdelt": gdelt_report(),
         # Whether every licensed provider in use may be used commercially
-        # (§204): GNews' and Finnhub's free plans and Open-Meteo's keyless
+        # (§207): GNews' and Finnhub's free plans and Open-Meteo's keyless
         # endpoint may not. The question to ask before charging anybody.
         "licences": _licences_report(),
         # Whether episodes are being written before anybody asks for them, on
@@ -3127,7 +3127,7 @@ async def plans_read(request: Request) -> dict:
     _read_limit(request)
     return {**entitlements.catalogue(), "current": _tier(request),
             # Whether a limit can refuse anybody on this deploy, and whether
-            # anything sells a way past one (§204). The plans screen and the
+            # anything sells a way past one (§207). The plans screen and the
             # limit card word themselves from these rather than guessing:
             # "everything is free" is false the day quotas are on, and a
             # "See plans" button with no checkout behind it is a dead end.
@@ -3503,7 +3503,7 @@ if _ALLOWED_ORIGINS:
         allow_credentials=True,
         # PATCH is how a mix is edited and X-FAM-TZ is every request's clock
         # (§186); both were missing, which only a cross-origin client would
-        # have found (§205).
+        # have found (§208).
         allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
         allow_headers=["Authorization", "Content-Type", "X-FAM-Client", "X-FAM-TZ"],
         # So a browser client can read the quota verdict on a 429 rather than
@@ -7722,7 +7722,19 @@ def _kick_viral_loops() -> None:
         pass  # no running loop (a synchronous caller); the timer delivers it
 
 
+#: Refusals caused by a request shape FAM has since corrected; their calls are
+#: sent again once at boot (PROBLEMS.md §205).
+VIRAL_LOOPS_FIXED_REFUSALS = (("flag", "'participants' is required"),)
+
+
 async def _drain_viral_loops_forever(every: float = 300.0) -> None:
+    for action, error in VIRAL_LOOPS_FIXED_REFUSALS:
+        try:
+            if n := WAITLIST.reopen_refused(action, error):
+                log.info("viral loops: re-sending %d %s call(s) refused for %r",
+                         n, action, error)
+        except Exception:  # noqa: BLE001 - never stop the drain over this
+            log.exception("could not reopen refused viral loops calls")
     while True:
         try:
             result = await viral_loops_mod.drain(WAITLIST, VIRAL_LOOPS)
@@ -7948,7 +7960,7 @@ class AdminPlanRequest(BaseModel):
 
 @app.post("/api/admin/plan")
 async def admin_set_plan(req: AdminPlanRequest, request: Request) -> dict:
-    """Move one account between plans (§204).
+    """Move one account between plans (§207).
 
     There is no checkout, so this is the only way an account leaves `free`:
     a tester, a friend of the product, anybody the owner wants past the daily

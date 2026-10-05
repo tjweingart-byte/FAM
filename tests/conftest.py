@@ -496,7 +496,7 @@ def isolated_api_sports(monkeypatch):
 
 @pytest.fixture(autouse=True)
 def closed_gdelt_breaker():
-    """GDELT's breaker (§204) is a process-global: failures one test
+    """GDELT's breaker (§207) is a process-global: failures one test
     simulates must not pause GDELT for the next test."""
     import gdelt as gdelt_mod
 

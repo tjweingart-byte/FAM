@@ -231,7 +231,7 @@ def test_the_dockerfile_puts_every_database_on_the_mounted_disk():
 
 
 def test_the_gpu_image_puts_every_database_on_its_volume_too():
-    """§205: `Dockerfile.gpu` pinned eight of twenty stores to `/state/data`,
+    """§208: `Dockerfile.gpu` pinned eight of twenty stores to `/state/data`,
     so on that image saved, messages, quotas, voice bank, local news and the
     rest landed in the image and went with every redeploy. Same derived list,
     same rule."""

@@ -162,7 +162,7 @@ rather than one per listener.
 - **Estimate:** about **$0.015 per search** and **$0.015-0.03 per episode**.
 - **Fallback price:** `research.COST_PER_SEARCH = 0.015` is used only when
   Exa's response omits `cost_dollars`. It was 0.005 - a third of list price -
-  until §204.
+  until §207.
 - **Rate limit:** about 10 requests/s per key (`CREDENTIALS.md:159`). FAM will
   not reach it before 100k listeners (see §4).
 
@@ -171,10 +171,10 @@ rather than one per listener.
 Chatterbox has open weights, so there is no per-character fee. The only cost
 is GPU time.
 
-**The GPU cost in `metering.py` is priced at the measured speed** (§204).
+**The GPU cost in `metering.py` is priced at the measured speed** (§207).
 `SYNTHESIS_REALTIME_FACTOR` defaults to **4.6** - Chatterbox measured on an RTX
 4090 (PROBLEMS.md §75) - and `GPU_USD_PER_HOUR` to **0.69**, RunPod's serverless
-flex rate. Until §204 they were 330 (the old CPU voices' speed) and 0.60, which
+flex rate. Until §207 they were 330 (the old CPU voices' speed) and 0.60, which
 under-reported every GPU line about 70x. Re-measure on the rented card with
 `python verify_voice.py` and override either on Render if it differs.
 
@@ -200,7 +200,7 @@ figures are 730 h/month at list prices.
 | RTX A5000 | 0.27 | **~$197** |
 | L4 | 0.39 | **~$285** |
 | RTX 4090 (the measurements were made on this) | 0.69 | **~$504** |
-| *Default in `metering.py` (`GPU_USD_PER_HOUR=0.69`, §204)* | 0.69 | *$504* |
+| *Default in `metering.py` (`GPU_USD_PER_HOUR=0.69`, §207)* | 0.69 | *$504* |
 
 **The third option: a serverless active worker.** An always-warm worker on
 the same serverless endpoint, billed every second at a ~40% discount on flex
@@ -300,7 +300,7 @@ So cost per listener is almost entirely the cache-miss rate times $0.06.
 **Before charging money:** the free tiers of GNews and Finnhub and Open-Meteo's
 keyless endpoint are development / non-commercial licences. A paid launch needs
 GNews Essential, a Finnhub commercial plan and Open-Meteo Standard whatever the
-traffic is: about **$95-100/month** together at list price. Since §204
+traffic is: about **$95-100/month** together at list price. Since §207
 `/api/health` → `licences.commercial_ready` says whether the deploy is covered
 (`GNEWS_PLAN`, `FINNHUB_PLAN`, `OPEN_METEO_API_KEY`).
 
@@ -309,7 +309,7 @@ traffic is: about **$95-100/month** together at list price. Since §204
 | Service | What for | Price | Scales with |
 |---|---|---|---|
 | **Viral Loops** | Waitlist referrals, fraud checks and emails while `WAITLIST=1` (§183) | Start-up $35/mo billed annually ($49 monthly) to 1,000 participants; Plus $99 (5k); Growing $159 (10k); Power $279 (25k) | Waitlist size; cancel at public launch |
-| **QuotaGuard Static** (optional) | A static outbound IP for GDELT only, `GDELT_PROXY_URL` (§204) | Starter $19/mo (20k requests); Production $49 (100k) | Flat: GDELT is ~12k requests/month |
+| **QuotaGuard Static** (optional) | A static outbound IP for GDELT only, `GDELT_PROXY_URL` (§207) | Starter $19/mo (20k requests); Production $49 (100k) | Flat: GDELT is ~12k requests/month |
 | **Google image model** | Tile pictures, one per category branch (§160) | ~$0.067/image, ≤60/day (`THUMBNAILS_DAILY_IMAGES`) | New category branches, not listeners |
 | **Apple Developer Program** | The iOS app and Sign in with Apple | $99/year | Flat |
 
@@ -381,7 +381,7 @@ What the table shows:
 
 ### 4.3 The free-tier ("free" plan) exposure
 
-Quotas are built, off by default, and **enforced in production** since §204
+Quotas are built, off by default, and **enforced in production** since §207
 (`ENFORCE_QUOTAS=1` on `fam` in `render.yaml`). No checkout exists: admin
 accounts are unlimited, and `POST /api/admin/plan` moves anybody else.
 
@@ -403,7 +403,7 @@ The tiers exist in code (`entitlements.py:219-247`):
 - Turning on `ENFORCE_QUOTAS=1` caps a free listener at 5 episodes/day, which
   is **≤ $0.50/day** even if every one is a new 10-minute episode.
 
-**Done (§204):** on in production. Five a day bounds the worst listener at
+**Done (§207):** on in production. Five a day bounds the worst listener at
 ~$15/month. Note the free tier counts every episode heard, cached replays
 included (`tier-spend`), so tune `FREE_EPISODES_PER_DAY` in the dashboard if
 five is too tight for how people actually listen.
@@ -478,7 +478,7 @@ forced by the one-instance ceiling, not by price.
 
 | Limit | Where it bites | Action |
 |---|---|---|
-| **1 request per 5 s per IP**, and Render's outbound IP is **shared** with other tenants. On 1/10 every request failed (§191). Since §204 a breaker stops asking after 5 failures in a row for 30 min, and `GDELT_PROXY_URL` (QuotaGuard Static, from $19/mo) sends GDELT's requests from an address of FAM's own | Paced at 5.5 s (`GDELT_REQUEST_GAP_SECONDS`). A story sweep is ~32 paced requests (~3 min). An episode waits at most 6 s for a slot and has priority over the sweep. That is about **11 fallback retrievals a minute across all users** at most. | GDELT is only the second rung, so this binds only when Exa returns nothing. If it binds, a dedicated egress IP gives FAM its own allowance. Money does not raise the cap. |
+| **1 request per 5 s per IP**, and Render's outbound IP is **shared** with other tenants. On 1/10 every request failed (§191). Since §207 a breaker stops asking after 5 failures in a row for 30 min, and `GDELT_PROXY_URL` (QuotaGuard Static, from $19/mo) sends GDELT's requests from an address of FAM's own | Paced at 5.5 s (`GDELT_REQUEST_GAP_SECONDS`). A story sweep is ~32 paced requests (~3 min). An episode waits at most 6 s for a slot and has priority over the sweep. That is about **11 fallback retrievals a minute across all users** at most. | GDELT is only the second rung, so this binds only when Exa returns nothing. If it binds, a dedicated egress IP gives FAM its own allowance. Money does not raise the cap. |
 
 ### 5.6 GNews
 
@@ -516,7 +516,7 @@ the episode continues without the fact.
    per-day request count for every outside service on `/admin`, beside its
    limit and the next plan's. Stage-by-stage triggers are in
    [`SCALING_TIMELINE.md`](SCALING_TIMELINE.md).
-1. **Done in §204:** the metering constants (GPU at 4.6x and $0.69/h, Exa's
+1. **Done in §207:** the metering constants (GPU at 4.6x and $0.69/h, Exa's
    fallback at $0.015), quotas enforced in production, a GDELT breaker and
    proxy, and a licence check for GNews, Finnhub and Open-Meteo on `/admin`
    and `/api/health` (`licences.commercial_ready`).

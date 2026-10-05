@@ -397,7 +397,7 @@ Accounts, tiers, sharing
   friends; a shared episode plays for anyone (only what was shared); the landing
   page plays the three sign-up samples as replays (§190); a `/waitlist` join is
   always waitlisted and the app's Sign Up goes there (§192). [waitlist-gate]
-- **Tiers are built; enforced in production only** (`ENFORCE_QUOTAS=1` in `render.yaml`, §204);
+- **Tiers are built; enforced in production only** (`ENFORCE_QUOTAS=1` in `render.yaml`, §207);
   admins are `unlimited`, `/api/admin/plan` moves anyone else; no checkout yet. [tiers-off]
 - A refusal names what the listener was doing (`service_label`), composed
   server-side, in the body as well as `X-FAM-Quota`, in the reader's clock. [refusal-wording]
@@ -415,6 +415,8 @@ Accounts, tiers, sharing
 - FAM posts nothing to anyone's social account and holds no token. [no-social-posting]
 - **Authorship is provenance, never identity**: `PodcastPipeline.author`, never
   on `EpisodePlan` or in `key_for`; first writer keeps it; prefetch writes none. [authorship-provenance]
+- **Type: Bricolage Grotesque (headings), Geist (body), Geist Mono (labels)**
+  (§204), one font link; Fraunces/Space Grotesk/JetBrains Mono are gone. [typefaces]
 - **A speed change must not change the voice** (WSOLA; bypassed at 1x; default 1x). [speed-pitch]
 - **A control with nothing behind it is worse than no control**; never fabricate people. [no-dead-controls]
 - **The intro screen is not on the navigation stack**; screens opened over it

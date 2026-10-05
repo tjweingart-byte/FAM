@@ -120,7 +120,7 @@ def wipe(*, cache, events, erase_listener, scope: str = "seed",
         return report
 
     # The seed's scripts go first: erasing a listener clears their id from
-    # the scripts they wrote (§205), after which nothing could find them.
+    # the scripts they wrote (§208), after which nothing could find them.
     scripts = 0
     if cache is not None:
         if scope == "all":

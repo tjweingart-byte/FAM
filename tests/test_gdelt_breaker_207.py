@@ -1,4 +1,4 @@
-"""§204: GDELT stops being asked when it refuses everything, and can be
+"""§207: GDELT stops being asked when it refuses everything, and can be
 sent through a proxy of FAM's own.
 
 On 1/10 GDELT failed 384 of 384 requests from Render's shared outbound address

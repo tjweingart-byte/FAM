@@ -56,7 +56,7 @@ volume. One mount, three trees:
     /state/voices   reference_3.wav + reference_3.rights.json
     /state/data     the SQLite stores (every one opened through paths.data_path)
 
-`Dockerfile.gpu` pins every one of those stores to `/state/data` (until §205
+`Dockerfile.gpu` pins every one of those stores to `/state/data` (until §208
 only eight were, and the rest went with each redeploy of this image); the
 Render `Dockerfile` pins every one to `/data`, and `tests/test_data_paths.py`
 checks both. `docs/DATA.md` lists them all.

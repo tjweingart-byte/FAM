@@ -1,4 +1,4 @@
-"""§205: the bugs the documentation pass found.
+"""§208: the bugs the documentation pass found.
 
 * account deletion left the listener's id on the scripts they wrote
   (`scripts.author`); it is cleared now, and the episodes stay;

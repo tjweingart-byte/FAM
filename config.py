@@ -509,7 +509,7 @@ class Settings:
     local_news_poll_minutes: int = _env_int("LOCAL_NEWS_POLL_MINUTES", 30)
     # How far back a stored item still counts as news about a place, in days.
     local_news_window_days: int = _env_int("LOCAL_NEWS_WINDOW_DAYS", 14)
-    # How long a stored item is kept at all, in days (§205): pruned once a day,
+    # How long a stored item is kept at all, in days (§208): pruned once a day,
     # never below the window above, and each outlet's newest few always stay.
     local_news_keep_days: int = _env_int("LOCAL_NEWS_KEEP_DAYS", 30)
     # Weather for the place a question names: the US National Weather Service
@@ -815,13 +815,13 @@ class Settings:
     # request already booked, never behind a whole sweep.
     gdelt_episode_wait_seconds: float = _env_float(
         "GDELT_EPISODE_WAIT_SECONDS", 6.0)
-    # Stop asking after this many failures in a row, for this long (§204):
+    # Stop asking after this many failures in a row, for this long (§207):
     # on 1/10 every one of 384 requests failed from Render's shared address,
     # and each cost a slot and, for an episode, up to a six-second wait. One
     # request is let through when the pause ends. 0 never pauses.
     gdelt_breaker_failures: int = _env_int("GDELT_BREAKER_FAILURES", 5)
     gdelt_breaker_seconds: float = _env_float("GDELT_BREAKER_SECONDS", 1800.0)
-    # A static-IP proxy for GDELT's requests only (§204), e.g. QuotaGuard
+    # A static-IP proxy for GDELT's requests only (§207), e.g. QuotaGuard
     # Static's URL: GDELT counts per address, and Render's is shared. Holds a
     # credential, so it is set in the dashboard and scrubbed on staging.
     gdelt_proxy_url: str = field(
@@ -1015,7 +1015,7 @@ class Settings:
     finnhub_key: str = field(
         default_factory=lambda: os.environ.get("FINNHUB_KEY", "").strip())
     # Which plan each licensed provider is on, as bought on its dashboard
-    # (§204). Nothing in the provider's answer says so, and the free plans of
+    # (§207). Nothing in the provider's answer says so, and the free plans of
     # both are licensed for development / personal use only - so the deploy
     # says it, and `/admin` and `/api/health` flag a free plan in use.
     # GNews: free | essential | business | enterprise. Finnhub: free |
@@ -1468,7 +1468,7 @@ class Settings:
     # a burst throttles correct use. 0 switches it off.
     read_limit_per_window: int = _env_int("READ_LIMIT_PER_WINDOW", 60)
     # --- Public API -------------------------------------------------------
-    # Tier quotas. **Off by default, on in production** (§204: `render.yaml`
+    # Tier quotas. **Off by default, on in production** (§207: `render.yaml`
     # sets `ENFORCE_QUOTAS=1` on `fam`; admin accounts are unlimited in
     # `app._tier`, and `/api/admin/plan` moves anyone else). The whole mechanism stays - tiers, limits, counters,
     # reservations, refunds, the refusal and the screen it raises - and

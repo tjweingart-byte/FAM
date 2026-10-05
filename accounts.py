@@ -520,7 +520,7 @@ class AccountStore:
 
     def user_id_for(self, who: str) -> str:
         """The account an admin means by `who`: a listener id, an email or a
-        phone number, or "" when no account matches (§204).
+        phone number, or "" when no account matches (§207).
 
         For `/api/admin/plan`, where an admin names a tester the way they
         know them. Never on a listener's own path: an id is never taken from

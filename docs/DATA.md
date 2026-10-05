@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | **Status** | Official documentation, v2 |
-| **As of** | 2026-10-05 (code at `Main` after PR #103, plus PROBLEMS.md §204) |
+| **As of** | 2026-10-05 (code at `Main` after PR #103, plus PROBLEMS.md §207) |
 | **Audience** | Engineers new to FAM, and anyone answering a privacy, retention or capacity question |
 | **Companion docs** | [`FINANCIAL.md`](FINANCIAL.md), [`BACKEND.md`](BACKEND.md), [`algorithm/ALGORITHM.md`](algorithm/ALGORITHM.md) (generated), `DATABASE.md` (the design reasoning) |
 
@@ -76,7 +76,7 @@ flowchart TB
 **No listener data is stored on RunPod.** The worker receives text and a voice
 id and returns PCM, and it keeps neither. The exception is the all-in-one
 `Dockerfile.gpu` image, which puts SQLite on `/state/data`. It is not the
-Render deployment; since §205 it pins all 20 stores there, as the Render
+Render deployment; since §208 it pins all 20 stores there, as the Render
 `Dockerfile` does to `/data` (`tests/test_data_paths.py` checks both).
 
 ---
@@ -104,7 +104,7 @@ Render deployment; since §205 it pins all 20 stores there, as the Render
 
 | File (env var) | Owner module(s) | Main tables | Per-listener? | Retention | Erase / Wipe |
 |---|---|---|---|---|---|
-| **scripts.db** (`CACHE_PATH`) | `cache.py` | `scripts`, `episode_audio` | **No, shared** (`author` is provenance) | 7 days per row; audio capped at 512 MB | `author` cleared on erase (§205) · **Wiped** |
+| **scripts.db** (`CACHE_PATH`) | `cache.py` | `scripts`, `episode_audio` | **No, shared** (`author` is provenance) | 7 days per row; audio capped at 512 MB | `author` cleared on erase (§208) · **Wiped** |
 | **myfam.db** (`MYFAM_DB`) | `topics.py`, `learned_rank.py` | `events`, `learned_rank` | Yes | Forever (impressions 30 days) | Erased · **Wiped** (events and the model) |
 | **preferences.db** (`PREFS_DB`) | `preferences.py` | `preferences` | Yes | 1 row per listener | Erased · kept |
 | **accounts.db** (`ACCOUNTS_DB`) | `accounts.py`, `waitlist.py` | `accounts`, `sessions`, `identities`, `waitlist_settings`, `waitlist_outbox` | Yes | Sessions 90 days | Erased · **never wiped** |
@@ -123,7 +123,7 @@ Render deployment; since §205 it pins all 20 stores there, as the Render
 | **trending_bank.db** (`TRENDING_BANK_DB`) | `trending_bank.py` | `editions`, `spend` | No, shared | 2 editions per day (+ startup slots) | n/a · **Wiped** |
 | **provider_usage.db** (`PROVIDER_USAGE_DB`) | `provider_usage.py` | `calls` | No, shared | Forever | n/a · **never wiped** (like metering) |
 | **thumbnails.db** (`THUMBNAILS_DB`) | `thumbnails.py` | `thumbnails`, `spend`, `runs` | No, shared | ≤ 1 picture per tree node | n/a · kept |
-| **local_news.db** (`LOCAL_NEWS_DB`) | `local_news.py`, `places.py`, `weather.py` | `outlets`, `items`, `demand`, `excluded`, `places`, `weather` | No (no `user_id`) | Items pruned daily past 30 days (`LOCAL_NEWS_KEEP_DAYS`, never below the 14-day window; each outlet keeps its newest 200, §205); demand 30 days | n/a · kept |
+| **local_news.db** (`LOCAL_NEWS_DB`) | `local_news.py`, `places.py`, `weather.py` | `outlets`, `items`, `demand`, `excluded`, `places`, `weather` | No (no `user_id`) | Items pruned daily past 30 days (`LOCAL_NEWS_KEEP_DAYS`, never below the 14-day window; each outlet keeps its newest 200, §208); demand 30 days | n/a · kept |
 
 ### 2.2 Each store: what it holds, who writes it, who reads it
 
@@ -233,12 +233,12 @@ was playing: transcript ≤ 30,000 chars, ≤ 30 sources, §175), `resolved_at`,
 - `daily_editions`: the 05:00 Eastern edition's build ledger (claimed, built).
 
 **quotas.db**: `counters` and per-episode `charges` per window. Enforced in
-production since §204 (`ENFORCE_QUOTAS=1` on `fam` in `render.yaml`).
+production since §207 (`ENFORCE_QUOTAS=1` on `fam` in `render.yaml`).
 
 **metering.db**: `usage`, one row per episode: tokens (including
 `cache_read_tokens`/`cache_write_tokens`, §179), Exa searches, live calls,
 `audio_seconds`, `cache_hit`, and cost split `claude_usd` / `exa_usd` /
-`gpu_usd`. Since §204 the GPU line uses the measured Chatterbox speed
+`gpu_usd`. Since §207 the GPU line uses the measured Chatterbox speed
 (`SYNTHESIS_REALTIME_FACTOR` 4.6) at `GPU_USD_PER_HOUR` 0.69.
 
 **attachments.db**: extracted text of attached documents (≤ 24,000 chars),
@@ -269,7 +269,7 @@ stored**; it is computed from `events` and `preferences` on each request.
 provider: `api_sports` (and `api_sports/<sport>` per sport, §180), `exa`,
 `gdelt`, `polymarket`, `gnews`, `finnhub`, `nws`, `open_meteo`, `local_feeds`.
 Counted in memory and flushed at most every 10 s (`FLUSH_SECONDS`). Feeds
-`/admin`. The licence check (§204, `provider_usage.licences()`) stores
+`/admin`. The licence check (§207, `provider_usage.licences()`) stores
 nothing: it reads `GNEWS_PLAN`, `FINNHUB_PLAN` and whether an Open-Meteo key
 is set, and reports `commercial_ready` on `/api/health`.
 
@@ -323,7 +323,7 @@ flowchart LR
   outbox, then the account, identities and sessions). It **anonymises**
   metering and feedback rather than deleting them. It keeps every episode in
   the shared script cache but clears this listener's id from the `author`
-  column of the scripts they wrote (`anonymise_author`, §205). A seed wipe
+  column of the scripts they wrote (`anonymise_author`, §208). A seed wipe
   drops the seed's scripts *before* erasing the seed's listeners, so it can
   still find them.
 
@@ -364,7 +364,7 @@ source of truth.
 | Trending feed (legacy) | `trending._FEED` | Old GDELT themes | 15 min |
 | Live facts | `live_facts.FACT_CACHE` | Scores, quotes, odds | Short, by status (in progress shortest) |
 | API-Sports budgets | `live_sources.API_SPORTS_BUDGET` and per sport | Requests used today, per sport (§180) | Per UTC day, per process |
-| GDELT breaker | `gdelt` | Failures in a row, `paused_until` (§204) | 5 failures → 1,800 s pause |
+| GDELT breaker | `gdelt` | Failures in a row, `paused_until` (§207) | 5 failures → 1,800 s pause |
 | GDELT volumes | `gdelt._VOLUMES` | Coverage counts | 20 min |
 | Provider counts (pending) | `provider_usage._PENDING` | Requests not yet flushed to `provider_usage.db` | ≤ 10 s |
 | Weather lookups | `weather._POINTS`, `weather._PLACES` | NWS grid points, resolved places | Process lifetime |
@@ -440,7 +440,7 @@ is never accepted from the client (`listener-id-server`).
 | API-Sports | Per sport, from each sport's tier (`API_SPORTS_TIERS`); `API_SPORTS_DAILY_REQUESTS` overrides (0 = the plan) | `config.py:992`, `live_sources.py` |
 | GDELT breaker | 5 failures → pause 1,800 s | `config.py:819-820` |
 | Pace per listener | 1 generation per 3 s, burst 3; 60 reads per window | `config.py:1456-1466` |
-| Tier quotas | free 5 episodes/day (`FREE_EPISODES_PER_DAY`). **On in production** (`ENFORCE_QUOTAS=1` in `render.yaml`, §204), off by default in code. Admins are `unlimited`. | `config.py:1487`, `entitlements.py:224` |
+| Tier quotas | free 5 episodes/day (`FREE_EPISODES_PER_DAY`). **On in production** (`ENFORCE_QUOTAS=1` in `render.yaml`, §207), off by default in code. Admins are `unlimited`. | `config.py:1487`, `entitlements.py:224` |
 | Waitlist referrals | ≤ 20 credited per code per hour | `WAITLIST_REFERRALS_PER_HOUR` |
 | Admin SQL | Read-only SELECT, 500 rows, 4 s | `admin_tracker.py:62-64` |
 | Account visibility | A listener id is only ever taken from the server-minted session, never from a parameter | `app._listener` |
@@ -626,14 +626,14 @@ searches, the story pool's subjects and typed interests:
 ## Inconsistencies found while writing this (2026-10-05), and what became of them
 
 - **`Dockerfile.gpu` pinned only 8 of 20 stores** to `/state/data`. **Fixed in
-  §205:** it pins all twenty, and `tests/test_data_paths.py` now checks that
+  §208:** it pins all twenty, and `tests/test_data_paths.py` now checks that
   image as well as the Render `Dockerfile`.
 - **Account deletion left `scripts.author`** holding the deleted listener's
-  id. **Fixed in §205:** `erase_listener` clears it (`anonymise_author`);
+  id. **Fixed in §208:** `erase_listener` clears it (`anonymise_author`);
   the episodes stay.
 - **`CLAUDE.md`'s `mfy-field-variety` weights** - already current in the
   repository (§202 values); the stale copy was the one an agent was given.
 - **`DATABASE.md`** said fourteen stores. Fixed: it now defers to this document.
-- **`local_news.db` items were never pruned.** **Fixed in §205:** pruned
+- **`local_news.db` items were never pruned.** **Fixed in §208:** pruned
   once a day past `LOCAL_NEWS_KEEP_DAYS` (30), never inside the evidence
   window, each outlet keeping its newest 200 for the collector's own checks.

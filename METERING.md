@@ -54,7 +54,7 @@ synthesising or idle. Two consequences, both counterintuitive:
 * **Marginal audio cost is small but not nothing.** Chatterbox synthesises at
   ~4.6× realtime (§75), so a three-minute episode is about 39 seconds of card —
   under a cent at the default $0.69/h. (This used to say ~330× and $0.0001: the
-  old CPU voices' speed, which left every GPU figure ~70× low until §204.) It is
+  old CPU voices' speed, which left every GPU figure ~70× low until §207.) It is
   why prefetch warms text and never audio, and why cached episodes keep their
   audio (§132).
 * **The real GPU cost is a floor that exists before the first listener.** It is
@@ -143,7 +143,7 @@ anyone who can read the file has already won.
 
 `accounts` carries a `plan` column, default `free`.
 
-There is still no payment route. Since §204 an admin moves an account with
+There is still no payment route. Since §207 an admin moves an account with
 `POST /api/admin/plan {"who": email | phone | id, "plan": ...}`, which calls
 `ACCOUNTS.set_plan`; the plans are `entitlements.TIERS` — `free`, `plus`,
 `unlimited` — and admin accounts are `unlimited`. `paid` is the legacy name for
@@ -169,7 +169,7 @@ number that excluded most of them.
 | `FAM_ADMIN_TOKEN` | unset | gates `/api/usage`; unset means the endpoint 404s |
 | `FAM_ADMIN_ACCOUNTS` | unset | the accounts (email, phone or listener id) that are admins while signed in - `/admin`, the live tracker, and every admin endpoint (PROBLEMS.md §150) |
 | `GPU_USD_PER_HOUR` | `0.69` | RunPod serverless flex, 24 GB class. An active worker (~0.47) or a pod is cheaper |
-| `SYNTHESIS_REALTIME_FACTOR` | `4.6` | how much faster than realtime Chatterbox synthesises, measured on an RTX 4090 (§75; was 330, the old CPU voices', §204) |
+| `SYNTHESIS_REALTIME_FACTOR` | `4.6` | how much faster than realtime Chatterbox synthesises, measured on an RTX 4090 (§75; was 330, the old CPU voices', §207) |
 | `GPU_HOURS_PER_DAY` | `24` | hours the card is actually paid for |
 
 Rates live in `metering.PRICES`, checked against the published card on
@@ -182,7 +182,7 @@ cost.
 
 * **It does not enforce anything itself.** Metering only records. Limits are
   `quotas.py` and `entitlements.py`, switched on by `ENFORCE_QUOTAS=1` — set on
-  the production service in `render.yaml` since §204, off by default for local
+  the production service in `render.yaml` since §207, off by default for local
   runs, tests and staging.
 * **It does not bill anyone.** There is no payment processor, no invoice, no
   Stripe. `plan` decides limits, not charges.

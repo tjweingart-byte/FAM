@@ -988,7 +988,7 @@ sentence meets it on the first chunk.
 - **Plans** (`openPlans` → `/api/plans`): the listener's current plan and
   every tier's limits, worded with the server's numbers. **There is no
   checkout.** Choosing a plan says so (`choosePlan`). The note under the
-  plans comes from the server's `enforced` flag (§204).
+  plans comes from the server's `enforced` flag (§207).
 - **Gates.**
   - **`gateActions()` is the one pair of Sign up / Log in buttons** behind
     every account gate (`account-gates-kept`). `openAuth` records where it
@@ -1196,7 +1196,7 @@ when no admin is configured.
 
 ## 21. Oddities a newcomer will meet
 
-These were found while writing this document; §205 fixed most of them the
+These were found while writing this document; §208 fixed most of them the
 same day. What is left is said plainly.
 
 1. **Legacy demo albums.** `TOPICS` (about 60 hand-written demo topics),
@@ -1211,26 +1211,26 @@ same day. What is left is said plainly.
    `queue_…`, `deeper_…`, `hist_…`). Do not delete it. *Still true.*
 2. **The guest door's comments.** The `ENTRY` markup comment and
    `routeFirstScreen`'s comment described "Continue as guest" as present.
-   *Fixed (§205):* both now say it is withdrawn since §197.
-3. **The limit card's comment** said nothing refuses. *Fixed (§204/§205):*
+   *Fixed (§208):* both now say it is withdrawn since §197.
+3. **The limit card's comment** said nothing refuses. *Fixed (§207/§208):*
    it says quotas are enforced in production.
 4. **The offline shelf keeps *streamed-complete* episodes, not *heard*
    ones.** The code stores an episode once the whole stream has arrived and
-   is keepable, listened to or not. *The comment now says so (§205)*; the
+   is keepable, listened to or not. *The comment now says so (§208)*; the
    behaviour is unchanged.
 5. **A replay's progress clock** restarted at the search page's length.
-   *Fixed (§205):* it restarts at the episode's real duration.
-6. **The web client ignored `X-FAM-Client-Status` and 426.** *Fixed (§205):*
+   *Fixed (§208):* it restarts at the episode's real duration.
+6. **The web client ignored `X-FAM-Client-Status` and 426.** *Fixed (§208):*
    the `fetch` wrapper's `clientStatusSeen` toasts "A newer version of FAM is
    available" once for a deprecated release, and sends a retired one to `/`.
-7. **CORS lacked `PATCH` and `X-FAM-TZ`.** *Fixed (§205).*
+7. **CORS lacked `PATCH` and `X-FAM-TZ`.** *Fixed (§208).*
 8. **`static/reference-app.js`** was a byte-identical, unreferenced copy of
-   `static/app.js`. *Deleted (§205).*
+   `static/app.js`. *Deleted (§208).*
 9. **`/api/progress` serves two unrelated jobs**: GET returns the loading
    steps, POST saves a resume position (§6.4). *Still true;* renaming it
    would break installed clients (`old-clients`).
 10. **The share page's audio request carried no `X-FAM-Client`.** *Fixed
-    (§205):* `listen.html` names itself `web/share`.
+    (§208):* `listen.html` names itself `web/share`.
 
 ---
 

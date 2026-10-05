@@ -1921,7 +1921,7 @@ class SqliteScriptCache:
             return 0
 
     def anonymise_author(self, author: str) -> int:
-        """Clear one listener's id from every script they wrote first (§205).
+        """Clear one listener's id from every script they wrote first (§208).
 
         Account deletion's half of `author`. The episodes stay - other people
         are listening to them, and `forget_author` below explains why a
@@ -1949,7 +1949,7 @@ class SqliteScriptCache:
         `author` is provenance, so that Explore can leave a listener's own
         episodes off their own feed - and a listener leaving does not un-write
         the episodes other people are listening to. Account deletion clears
-        the id instead (`anonymise_author`, §205).
+        the id instead (`anonymise_author`, §208).
 
         What this is for is the other thing: a deployment seeded with demo
         episodes so the browse surfaces had something to show, now being

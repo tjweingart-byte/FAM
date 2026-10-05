@@ -101,7 +101,7 @@ ARTICLES_PER_POLL = 4
 #: An item with fewer words than this is a teaser and its article is fetched.
 TEASER_WORDS = 60
 #: Items each outlet keeps whatever their age when old ones are pruned
-#: (§205): the duplicate-title check reads an outlet's last 200.
+#: (§208): the duplicate-title check reads an outlet's last 200.
 KEEP_PER_OUTLET = 200
 #: An extracted article with fewer words than this was paywalled or blocked.
 ARTICLE_MIN_WORDS = 80
@@ -439,7 +439,7 @@ class LocalNewsStore:
 
     def prune(self, before: float, keep_per_outlet: int = KEEP_PER_OUTLET) -> int:
         """Delete items published before `before`, keeping each outlet's newest
-        `keep_per_outlet` whatever their age (§205).
+        `keep_per_outlet` whatever their age (§208).
 
         Items were never deleted, though only the last `LOCAL_NEWS_WINDOW_DAYS`
         count as evidence, so the table grew without bound on a 1 GB disk.
@@ -944,7 +944,7 @@ async def poll_due(now: Optional[float] = None, limit: int = 40) -> int:
 
 
 def prune_old(now: Optional[float] = None) -> int:
-    """Drop items older than `LOCAL_NEWS_KEEP_DAYS` (§205). Never raises."""
+    """Drop items older than `LOCAL_NEWS_KEEP_DAYS` (§208). Never raises."""
     now = now or time.time()
     keep_days = max(int(settings.local_news_keep_days),
                     int(settings.local_news_window_days))
@@ -960,7 +960,7 @@ def prune_old(now: Optional[float] = None) -> int:
 
 async def run_forever(every: float = 300.0) -> None:
     """The collector. Never raises; one bad sweep waits for the next.
-    Old items are pruned once a day (§205)."""
+    Old items are pruned once a day (§208)."""
     last_prune = 0.0
     while True:
         try:

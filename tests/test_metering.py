@@ -79,7 +79,7 @@ def test_synthesis_is_priced_at_the_measured_speed():
     """Chatterbox runs at ~4.6x realtime (§75), so a three-minute episode is
     about 40 seconds of card: under a cent on serverless flex. The old default
     of 330x - the CPU voices' speed - priced it at a fortieth of a cent and
-    under-reported every GPU line about 70x (§204). Prefetch warms text, never
+    under-reported every GPU line about 70x (§207). Prefetch warms text, never
     audio, so this number does not touch its premise."""
     assert metering.gpu_cost(180) == pytest.approx(180 / 4.6 / 3600 * 0.69)
     assert 0.005 < metering.gpu_cost(180) < 0.01

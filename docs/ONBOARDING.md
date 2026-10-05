@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | **Status** | Official documentation, v1 |
-| **As of** | 2026-10-05 (code at `Main` after §204: quotas enforced in production) |
+| **As of** | 2026-10-05 (code at `Main` after §207: quotas enforced in production) |
 | **Audience** | A new engineer or technical operator, in their first week |
 | **Companion docs** | [`BACKEND.md`](BACKEND.md) (server wiring), [`FRONTEND.md`](FRONTEND.md) (app wiring), [`DATA.md`](DATA.md) (stores), [`FINANCIAL.md`](FINANCIAL.md) and [`SCALING_TIMELINE.md`](SCALING_TIMELINE.md) (costs), [`PRODUCT_HISTORY.md`](PRODUCT_HISTORY.md) (every owner request), [`algorithm/ALGORITHM.md`](algorithm/ALGORITHM.md) (ranking, generated) |
 
@@ -107,11 +107,11 @@ Learn these words before reading code. A `§` number is a section of
 |---|---|
 | **Listener** | A server-minted id held in a cookie or a bearer token. An **account** is credentials attached to that id. You can listen without one. |
 | **Tier / plan** | `free`, `plus` or `unlimited` (`entitlements.TIERS`). A tier is what you may *spend*, never what you may *reach*. Every tier has every feature. |
-| **Quota** | The per-tier episode and Explore counts (`quotas.py`). **Enforced in production only** (`ENFORCE_QUOTAS=1` on `fam`, §204). Admins are `unlimited`. There is no checkout yet. |
+| **Quota** | The per-tier episode and Explore counts (`quotas.py`). **Enforced in production only** (`ENFORCE_QUOTAS=1` on `fam`, §207). Admins are `unlimited`. There is no checkout yet. |
 | **Waitlist** | `WAITLIST=1` closes the app to every account that is not `active`. A `/waitlist` join is always waitlisted. Admins grant access. |
 | **Staging** | `fam-staging`, which follows the `staging` branch. **It spends nothing and cannot be configured to.** Episodes there are a sample script read in the tone. |
 | **Preview** | `static/index.html` built into a single HTML file that runs against fixtures (`fam-artifact.html`) or a live database (`fam-live-artifact.html`, the bookmarked artifact). It is good for layout and flow. It tells you nothing about writing quality or latency. |
-| **§ numbers** | Sections of `PROBLEMS.md`, the engineering log (§1 to §204 so far). `PROBLEMS_INDEX.md` lists each with its line offset. |
+| **§ numbers** | Sections of `PROBLEMS.md`, the engineering log (§1 to §207 so far). `PROBLEMS_INDEX.md` lists each with its line offset. |
 | **Rule IDs** | `[transport]`, `[no-filler]` and the rest. One line each in `CLAUDE.md`, with full text under `<!-- rule:ID -->` in `docs/claude/*.md`. A `> **Current:**` note marks text that a later rule overrides. |
 | **Packet** (owner sense) | A batch of owner requests with a date, such as "the 10.5 packet" (§203). This is a different sense from the evidence packet. |
 
@@ -361,7 +361,7 @@ for the rails screen, mixes, Explore and the player.
 
 **Read.** [`DATA.md`](DATA.md); `ACCOUNTS.md`; `WAITLIST.md` (How it works
 and Decisions); `METERING.md`; [`FINANCIAL.md`](FINANCIAL.md);
-[`SCALING_TIMELINE.md`](SCALING_TIMELINE.md); `STAGING.md`; §204.
+[`SCALING_TIMELINE.md`](SCALING_TIMELINE.md); `STAGING.md`; §207.
 
 **Do.**
 1. List every SQLite store and the environment variable that pins it to
@@ -521,12 +521,12 @@ They share nothing: no disk, key, admin token or voice worker.
 | `ANTHROPIC_API_KEY`, `EXA_API_KEY` | Writing and research. Without the first, every episode is the demo script |
 | `MODEL` | The writer model (`claude-sonnet-5` in `render.yaml`) |
 | `VOICE_BACKEND`, `REMOTE_VOICE_TRANSPORT`, `RUNPOD_ENDPOINT_ID`, `RUNPOD_API_KEY`, `RUNPOD_POD`, `VOICE_REGISTRY_TOKEN`, `VOICE_WORKER_PORT`, `VOICE_ALLOW_PLAIN_HTTP` | Where the voice is and how it is found (`REMOTE_VOICE.md`) |
-| `ENFORCE_QUOTAS`, `FREE_EPISODES_PER_DAY` (5), `FREE_EXPLORE_PER_DAY` (25) | Tier limits (§204) |
+| `ENFORCE_QUOTAS`, `FREE_EPISODES_PER_DAY` (5), `FREE_EXPLORE_PER_DAY` (25) | Tier limits (§207) |
 | `WAITLIST`, `VIRAL_LOOPS_CAMPAIGN_ID`, `VIRAL_LOOPS_API_TOKEN` | The pre-launch gate and its vendor (`WAITLIST.md`) |
 | `FAM_ADMIN_ACCOUNTS`, `FAM_ADMIN_TOKEN` | Who can open `/admin` (by account), and the token for terminals. With neither set, admin routes return 404 |
 | `GNEWS_KEY`, `GNEWS_DAILY_REQUESTS`, `GNEWS_PLAN` | Trending's only source, its daily ceiling, and the plan bought |
 | `API_SPORTS_KEY`, `FINNHUB_KEY`, `FINNHUB_PLAN`, `LIVE_ELECTIONS_PROVIDER`, `STORIES_POLYMARKET` | Live facts and the story pool |
-| `GDELT`, `GDELT_PROXY_URL` | The story pool's news source and its static-IP proxy (§204) |
+| `GDELT`, `GDELT_PROXY_URL` | The story pool's news source and its static-IP proxy (§207) |
 | `OPEN_METEO_API_KEY` | Weather outside the US, the NWS fallback, and place names (§194) |
 | `GEMINI_API_KEY`, `THUMBNAILS` | Tile pictures (`THUMBNAILS.md`) |
 | `FAM_SECRETS` | Where to fetch credentials from (`CREDENTIALS.md`). Precedence is env, then `FAM_SECRETS`, then `.env`, then `~/.fam/env` |
@@ -547,7 +547,7 @@ curl -s https://<host>/api/health | python -m json.tool
 | `tts` | The voice engine. `interim: true` means the placeholder tone |
 | `research`, `episode_intelligence`, `search_mode_source`, `writer_effort` | Whether researched episodes can run, whether EI is on, and where each setting came from |
 | `live_facts`, `live_sources`, `stories`, `trending`, `trending_bank`, `daily_edition` | Whether each feed is configured and actually refreshing |
-| `gdelt` | `failures_in_a_row`, `paused_until`, `last_error`, `via_proxy` (the breaker, §204) |
+| `gdelt` | `failures_in_a_row`, `paused_until`, `last_error`, `via_proxy` (the breaker, §207) |
 | `local_news`, `weather`, `thumbnails` | §194 and §160 |
 | `quotas`, `tiers` | Whether limits are enforced, and the tier catalogue |
 | `licences` | Each provider's plan. `commercial_ready` answers "may we charge money?" |
@@ -627,7 +627,7 @@ top N, because nothing about a signup is verified.
   each service. Every cost figure so far comes from synthetic runs. Replace
   them with a real month as soon as there is one.
 
-### 7.8 What to buy before charging money (§204)
+### 7.8 What to buy before charging money (§207)
 
 There is no checkout yet. Before one exists:
 

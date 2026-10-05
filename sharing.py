@@ -404,24 +404,24 @@ def story_card(title: str, question: str, minutes: int, handle: str = "",
   <rect width="1080" height="1920" fill="url(#bg)"/>
   <rect width="1080" height="1920" fill="url(#glow)"/>
 
-  <text x="90" y="250" fill="#E0B563" font-family="'Space Grotesk',Helvetica,Arial,sans-serif"
+  <text x="90" y="250" fill="#E0B563" font-family="'Geist',Helvetica,Arial,sans-serif"
         font-size="34" font-weight="700" letter-spacing="6">FAM</text>
 
-  <text x="90" y="700" fill="#F4EFE4" font-family="Georgia,'Times New Roman',serif"
+  <text x="90" y="700" fill="#F4EFE4" font-family="'Bricolage Grotesque',Helvetica,Arial,sans-serif"
         font-size="92" font-weight="600">{title_svg}</text>
 
-  <text x="90" y="1180" fill="#ABA3C4" font-family="'Space Grotesk',Helvetica,Arial,sans-serif"
+  <text x="90" y="1180" fill="#ABA3C4" font-family="'Geist',Helvetica,Arial,sans-serif"
         font-size="38">{ask_svg}</text>
 
   <rect x="90" y="1320" width="{60 + len(pill) * 18}" height="64" rx="32"
         fill="none" stroke="#E0B563" stroke-width="2"/>
   <text x="120" y="1362" fill="#E0B563"
-        font-family="'Space Grotesk',Helvetica,Arial,sans-serif" font-size="30"
+        font-family="'Geist',Helvetica,Arial,sans-serif" font-size="30"
         font-weight="600">{esc(pill)}</text>
 
-  <text x="90" y="1700" fill="#8FAE9A" font-family="'Space Grotesk',Helvetica,Arial,sans-serif"
+  <text x="90" y="1700" fill="#8FAE9A" font-family="'Geist',Helvetica,Arial,sans-serif"
         font-size="32" font-weight="500">{who}</text>
-  <text x="90" y="1760" fill="#8A83A0" font-family="'Space Grotesk',Helvetica,Arial,sans-serif"
+  <text x="90" y="1760" fill="#8A83A0" font-family="'Geist',Helvetica,Arial,sans-serif"
         font-size="28">Ask anything. Hear the answer.</text>
 </svg>'''
 

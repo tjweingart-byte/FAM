@@ -120,7 +120,7 @@ def cache_write_multiplier() -> float:
 BATCH_DISCOUNT = 0.5
 
 #: What a synthesis GPU costs per hour. Default is RunPod's serverless flex
-#: rate for the 24 GB class production runs on (§204; was 0.60, the middle of
+#: rate for the 24 GB class production runs on (§207; was 0.60, the middle of
 #: the L4 on-demand range). Only ever used for an *allocation* - see the
 #: module docstring on why this is not a price.
 GPU_USD_PER_HOUR = float(os.environ.get("GPU_USD_PER_HOUR", "0.69"))
@@ -128,7 +128,7 @@ GPU_USD_PER_HOUR = float(os.environ.get("GPU_USD_PER_HOUR", "0.69"))
 #: How much faster than realtime Chatterbox synthesises: 4.6x, measured on an
 #: RTX 4090 (PROBLEMS.md §75). It was 330 - a figure measured on espeak and
 #: Piper, the old CPU voices - which under-reported every GPU line about 70x
-#: (§204). Re-measure on the rented card with `python verify_voice.py`.
+#: (§207). Re-measure on the rented card with `python verify_voice.py`.
 SYNTHESIS_REALTIME_FACTOR = float(os.environ.get("SYNTHESIS_REALTIME_FACTOR", "4.6"))
 
 #: Hours per day the card is actually paid for. 24 is the honest default for a

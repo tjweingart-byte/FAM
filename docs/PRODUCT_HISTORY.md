@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | **Status** | Official documentation, v1 |
-| **As of** | 2026-10-05, covering `PROBLEMS.md` §1–§204 |
+| **As of** | 2026-10-05, covering `PROBLEMS.md` §1–§208 |
 | **Audience** | Anyone being trained on the product who needs to know every decision the owner made, what was tried and undone, and what is true today |
 | **Companion docs** | `CLAUDE.md` and [`claude/`](claude/) (the settled rules), `PROBLEMS.md` and `PROBLEMS_INDEX.md` (the log), [`BACKEND.md`](BACKEND.md), [`DATA.md`](DATA.md), [`FINANCIAL.md`](FINANCIAL.md), [`SCALING_TIMELINE.md`](SCALING_TIMELINE.md), [`algorithm/ALGORITHM.md`](algorithm/ALGORITHM.md) |
 
@@ -387,17 +387,19 @@ owner.
 | The app should open on sign-up | Opens on sign-up with a guest door | 107 | Current; guest door later withdrawn. |
 | One sign-up screen | `gateActions()`; "Skip for now" renamed **Continue as guest** | 114 | "Continue as guest" **withdrawn until public (§197)**. |
 | Quota counted requests (production 429s) | Counts episodes, refunds failures | 79 | Current `[limit-episodes]`. |
-| Tiers | Built; enforcement **off** (no checkout) | 81 | **Switched on in production by §204** (`ENFORCE_QUOTAS=1` in `render.yaml`); admins unlimited; `/api/admin/plan` moves anyone else `[tiers-off]`. |
+| Tiers | Built; enforcement **off** (no checkout) | 81 | **Switched on in production by §207** (`ENFORCE_QUOTAS=1` in `render.yaml`); admins unlimited; `/api/admin/plan` moves anyone else `[tiers-off]`. |
 | Pre-launch waitlist (owner's spec, `WAITLIST.md`) | App closed until an account is active; email + password; Viral Loops sends email | 183 | Current `[waitlist-gate]`; shared episodes stay open (owner, 01/10). |
 | familiarize.net gated | Nothing to build; the owner sets `WAITLIST=1` and `PUBLIC_BASE_URL` in the Render dashboard | 186 | Open (dashboard action). |
 | A second account from one browser was refused | An account is its email and password, **never the device** | 190 | Current `[op-identity]`. |
 | A waitlist join made an ordinary account | A `/waitlist` join is always waitlisted; the app's Sign Up goes there; profile gains birth date, location, phone | 192 | Current. |
+| Viral Loops refused every grant's flag (05/10) | `flag` sends `{"participants": [{"email"}]}`; the refusals for that one cause are re-sent once at boot | 205 | Current. |
+| Let in ticked people, or the first N in line (05/10) | `/admin/waitlist` checkboxes, **Let in selected (N)**, **Let in the first [N] in line**; the page turns red while `WAITLIST` is off; `tools/check_js.py` parses `admin_ui/` too | 206 | Current; turning the waitlist on stays a dashboard switch `[waitlist-gate]`. |
 
 ### 2.15 Operations
 
 | Asked (date if given) | What was decided / built | § | Status today |
 |---|---|---|---|
-| Per-listener cost | `metering.py`; marginal cost never blended with the fixed floor | 73 | Current `[metering]`; GPU line fixed in §204. |
+| Per-listener cost | `metering.py`; marginal cost never blended with the fixed floor | 73 | Current `[metering]`; GPU line fixed in §207. |
 | "The accounts that were created are erased" on redeploy | Every store derived onto `/data`; health measures durability | 107, 114 | Current `[storage-durability]`. Needs a Render disk attached. |
 | Remove demo data | `tools/wipe_demo_data.py`, `/api/admin/wipe`; derived state cleared too | 114, 124 | Current `[wipe-derived]`. |
 | An admin tracker that is up to date | `/admin` reads the real stores and answers questions | 150 | Current. |
@@ -406,6 +408,7 @@ owner.
 | Instant feedback | Feedback button and `/admin` inbox; reports from the player carry the episode | 175, 178 | Current. |
 | Cost changes (RunPod email) | Prompt caching, batched editions, provider counts on `/admin`, `SCALING_TIMELINE.md` | 179 | Current. |
 | Five fixes from the financial breakdown (05/10) | Quotas on in production; GPU priced at 4.6× realtime, $0.69/h; Exa fallback $0.015; GDELT breaker + proxy option; licence flags (`GNEWS_PLAN`, `FINNHUB_PLAN`, `commercial_ready`) | 204 | Current; plans and proxy not bought. |
+| Training documentation, and the bugs it found (05/10) | `docs/` ONBOARDING, BACKEND, FRONTEND, DATA, PRODUCT_HISTORY, FINANCIAL current; 13 older files corrected; fixed: `Dockerfile.gpu` pins all 20 stores, account deletion clears `scripts.author`, local news pruned past 30 days, dead `DEMO_MODE` removed, web page acts on deprecated/retired status, CORS, replay clock | 208 | Current. |
 
 ### 2.16 Landing page, intro and brand
 
@@ -419,6 +422,7 @@ owner.
 | Waitlist page explains FAM | "What is FAM", real app screens, founders Ian Solomon and TJ Weingart | 198 | Rewritten by §199, §200. |
 | Social information | Hero line "The social information network" | 199 | Current. |
 | The real problem | "Being in the know shouldn't be a full-time job"; founders' photo; "© 2026 APALI. All rights reserved." | 200 | Current. |
+| The type read as generated (Fraunces / Space Grotesk / JetBrains Mono) | Bricolage Grotesque + Geist + Geist Mono, chosen by the owner from six photographed systems; a role-for-role swap | 204 | Current `[typefaces]`; the landing page's phone-screenshot cards still show the old type until retaken. |
 
 ---
 
@@ -462,7 +466,7 @@ the cold open twice).
 | Interaction log outside the account gate | §70 | §127 (owner) | Everything learned belongs to an account. |
 | Own interests off own profile | §174 | §178 (owner) | Back as one sideways line. |
 | Starter mix suggestions | §107, §138 | §184 | Removed from the page (still sent to old clients). |
-| Tiers unenforced | §81 | §204 (production only) | One listener could spend ~$2 a minute. |
+| Tiers unenforced | §81 | §207 (production only) | One listener could spend ~$2 a minute. |
 | Continuous-line illustrations | §84–§87 | Reverted from `Main` | Whole subsystem removed. |
 | Share and vibe weigh the same | §121 | §187 (owner's weights), §202 | Owner set the weights. |
 | Imagen 4 | §160 | §164 | Google shut it down 2026-08-17. |
@@ -490,7 +494,7 @@ the cold open twice).
 **Waiting on the owner (decisions)**
 
 - **GDELT**: 384 of 384 requests failed from Render (§191); options put to
-  the owner, nothing decided. §204 added a breaker and an optional static-IP
+  the owner, nothing decided. §207 added a breaker and an optional static-IP
   proxy (QuotaGuard), not bought.
 - Whether to add a paid sports-news provider for injuries and lineups
   (SportsDataIO, MySportsFeeds, Sportradar) (§178).
@@ -504,9 +508,9 @@ the cold open twice).
 
 - **Licences to buy before charging money**: GNews' free plan is for
   development, Finnhub's for personal use, Open-Meteo's keyless endpoint is
-  non-commercial; `commercial_ready` on `/api/health` reports it (§204).
+  non-commercial; `commercial_ready` on `/api/health` reports it (§207).
   API-Sports plans per sport are on the free tier (§180).
-- **Payment / checkout is not built**; "See plans" says so (§81, §204).
+- **Payment / checkout is not built**; "See plans" says so (§81, §207).
   **Delivery** (email/SMS) is not built, so no password reset or verification
   `[ios-server-built]`.
 - Render dashboard: `WAITLIST=1` and `PUBLIC_BASE_URL=https://familiarize.net`

@@ -64,7 +64,7 @@ PAID_CREDENTIALS = (
     # Not paid, but outbound to a third party that emails real people: a
     # staging signup must never register anybody with the vendor.
     "VIRAL_LOOPS_API_TOKEN",
-    # A paid static-IP proxy for GDELT (§204), and its credential is in the URL.
+    # A paid static-IP proxy for GDELT (§207), and its credential is in the URL.
     "GDELT_PROXY_URL",
 )
 

@@ -1,4 +1,4 @@
-"""§204: the deploy says whether it may use each licensed provider commercially.
+"""§207: the deploy says whether it may use each licensed provider commercially.
 
 GNews' free plan is for development, Finnhub's for personal use, and
 Open-Meteo's keyless endpoint is non-commercial. None of their answers says

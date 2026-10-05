@@ -104,7 +104,7 @@ def _plans() -> dict:
 
 
 def licences() -> dict:
-    """provider -> whether this deploy may use it commercially (§204).
+    """provider -> whether this deploy may use it commercially (§207).
 
     Only the three whose free plan forbids it: GNews (development use),
     Finnhub (personal, non-commercial) and Open-Meteo's keyless endpoint

@@ -15563,7 +15563,122 @@ and a like replaces one; nothing in this client offers it.
 Tests: `tests/test_packet_1005.py`; §181's and §195's tests and the smoke
 run follow the rail's removal and the pill.
 
-## 204. What FAM costs, and five fixes: quotas on, the GPU and Exa priced right, GDELT paused, licences checked
+## 204. The type read as generated: Bricolage Grotesque, Geist and Geist Mono
+
+**The problem.** Fraunces for headings, Space Grotesk for body text and
+JetBrains Mono for uppercase labels is the trio a coding assistant reaches
+for, and anyone who has seen a few such interfaces recognises it at once.
+The owner did not want FAM to look built that way.
+
+**How it was chosen.** Six type systems - the current one and five
+replacements (Plus Jakarta Sans; DM Serif Display + DM Sans + DM Mono;
+Bricolage Grotesque + Geist + Geist Mono; Instrument Serif + Instrument Sans
++ IBM Plex Mono; Outfit) - were photographed on Search, DailyFAM, myFAM,
+exploreFAM, Messages and YourFAM from the same preview build, with Explore's
+rotation pinned and each font verified loaded before the shutter, and laid
+out as a deck by screen and by font. The owner chose Bricolage Grotesque +
+Geist + Geist Mono.
+
+**The change.** A straight role-for-role swap, so every size, weight and
+letter-spacing decision stays where it was:
+
+* Headings (`'Fraunces', Georgia, serif` and its variants) ->
+  `'Bricolage Grotesque', sans-serif`. The serif fallbacks went with the
+  serif: a sans heading falling back to Georgia would be a different design.
+* Body (`'Space Grotesk'`) -> `'Geist'`; labels (`'JetBrains Mono'`) ->
+  `'Geist Mono'`, monospace fallback kept.
+* One Google Fonts link per page, variable weights 400..700 and Bricolage's
+  optical-size axis (12..96), so small card titles get the text cut and
+  hero titles the display cut without any CSS saying so:
+  `static/index.html`, `static/listen.html` (the share landing),
+  `static/waitlist.html` (Barlow Condensed kept beside them),
+  `docs/_page_template.html`.
+* The share story card (`sharing.story_card`) names the new faces, its
+  headline included (it was Georgia). The card is an SVG the page rasterises
+  as an image, and an image cannot load web fonts, so in practice it draws in
+  the device's Helvetica/Arial, as its body text already did. That makes the
+  headline about a tenth wider than Georgia: measured at 92px, real titles
+  wrapped at 18 characters reach 913-928px of the 990 inside the margins
+  (Georgia: 740-849), so the wrap width stands.
+* The live preview's database panel, the loading demo and the share-preview
+  banner follow.
+
+`releases/web/2026.09.29/` is not touched: it is the archived client that
+shipped, served at `/v/<version>/`, and keeps the type it shipped with.
+
+**Still to do by hand.** The waitlist page's "What is FAM" pictures
+(`static/landing/*.jpg`) were retaken (`tools/landing_shots.py`), but the
+player still and the DailyFAM tile cards in `tools/landing/` are cut from the
+owner's phone screenshots and still show the old type until new ones are
+taken on a build with this change.
+
+Rule: `typefaces` in `docs/claude/constraints.md`.
+
+## 205. Viral Loops refused every grant's flag: "'participants' is required"
+
+The admin waitlist page showed `1 call(s) refused by Viral Loops and not
+retried. Latest: refused: /campaign/participant/flag answered 400 ...
+"(participants) 'participants' is required"`. `ViralLoops.flag` sent
+`{"email", "reason"}`, a shape guessed when the docs hosts were blocked
+(WAITLIST.md). The vendor wants a list. So every grant flipped `status` in
+FAM, which is the source of truth (the person was let in), but Viral Loops was
+never told, so they stayed on its leaderboard. Nothing in FAM was lost.
+
+Fix: `flag` sends `{"participants": [{"email": ...}]}` and drops `reason`. The
+docs were still unreachable from this session, so the shape comes from the
+error alone. If the vendor refuses the next field, the admin line shows it the
+same way. Refusals are final (`mark_given_up`), so the calls already refused
+would never be sent again. `Waitlist.reopen_refused(action, containing)`
+reopens refused calls whose kept error matches, and
+`_drain_viral_loops_forever` runs it once at boot for each entry in
+`VIRAL_LOOPS_FIXED_REFUSALS`. Only refusals for this one cause move.
+
+Not a bug, and visible on the same screenshot: one person is waitlisted
+while `WAITLIST` is off. A `/waitlist` join is always waitlisted (§192), so
+somebody who signed up through the waitlist page waits for a grant even when
+the app is open.
+
+Tests: `tests/test_waitlist.py` (`test_flag_sends_a_participants_list`,
+`test_a_refusal_since_fixed_is_sent_again`).
+
+## 206. The admin page lets in the ticked people, or any number from the front
+
+The owner, 05/10: the waitlist should be fully on, and `/admin/waitlist`
+should let in individual people by ticking a box next to their name, and
+any number of people from the front of the line, in order.
+
+The server already took both (`POST /api/admin/waitlist/grant` with
+`user_ids` or `top`; `grant_top` walks `ordered()`, so it is place order).
+What was missing was the page:
+
+- A checkbox on every row, and one in the header that ticks everyone
+  shown (after a search, only the matches). Ticks survive sorting,
+  searching and refreshes, and a refresh drops anyone no longer waiting.
+  **Let in selected (N)** sends exactly those ids after one confirm.
+- "Grant the top" is now **Let in the first [N] in line**, which says that
+  it goes by place. Asking for more than are waiting lets in whoever is
+  left.
+- Each row's own **Grant** button stays.
+- When `WAITLIST` is off, the line at the top turns red and says where to
+  turn it on, because a screenshot of the page with the gate off was the
+  first sign the owner had.
+
+Turning the waitlist on stays a dashboard switch (`WAITLIST=1` on the `fam`
+service, rule `waitlist-gate`). `render.yaml` keeps `sync: false`, so a
+merge can never open or close the app by itself. The code was already
+complete: the middleware refuses non-active accounts, and new accounts
+start waitlisted.
+
+A quote out of place in the new row markup broke the page's whole script
+while it was being written, and no test noticed, because nothing parses
+`admin_ui/`. `tools/check_js.py` now checks every page there, as it already
+did `static/index.html` and `listen.html`.
+
+Tests: `tests/test_waitlist.py`
+(`test_admin_lets_in_the_ticked_people_and_the_first_n_in_line`,
+`test_admin_page_has_the_checkboxes_and_the_first_n_control`).
+
+## 207. What FAM costs, and five fixes: quotas on, the GPU and Exa priced right, GDELT paused, licences checked
 
 **What was asked.** A complete financial breakdown of every outside service
 (published as an artifact, built from `docs/FINANCIAL.md` plus §191 and §194),
@@ -15619,17 +15734,17 @@ paid but `GNEWS_DAILY_REQUESTS` is still the free guard.
 
 Not done here, because it is buying: the plans themselves, and the proxy.
 
-Tests: `tests/test_quotas_on_in_production_204.py`,
-`tests/test_gdelt_breaker_204.py`, `tests/test_licences_204.py`;
+Tests: `tests/test_quotas_on_in_production_207.py`,
+`tests/test_gdelt_breaker_207.py`, `tests/test_licences_207.py`;
 `test_metering` prices synthesis at the measured speed.
 
-## 205. The training docs, and the bugs writing them found
+## 208. The training docs, and the bugs writing them found
 
 **What was asked (05/10).** Up-to-date documentation of everything asked for,
 to train somebody on how the backend and frontend are wired: `docs/` now has
 ONBOARDING (the entry point and a five-day curriculum), BACKEND and DATA
-(brought current through §204), FRONTEND (new), PRODUCT_HISTORY (every owner
-request §1-§204, by area, with what is current, changed or reversed), and
+(brought current through §207), FRONTEND (new), PRODUCT_HISTORY (every owner
+request §1-§207, by area, with what is current, changed or reversed), and
 FINANCIAL gained local news, weather, Viral Loops and the GDELT proxy. Thirteen
 older topic files were corrected where they contradicted the code. Then, at
 the owner's direction, the bugs the writing turned up were fixed:
@@ -15664,4 +15779,4 @@ the owner's direction, the bugs the writing turned up were fixed:
 operating detail (admin commands, settings), so it was published privately in
 the owner's chat instead, and the shared link was left for the owner to decide.
 
-Tests: `tests/test_fixes_205.py`; `tests/test_data_paths.py` gains the GPU image.
+Tests: `tests/test_fixes_208.py`; `tests/test_data_paths.py` gains the GPU image.

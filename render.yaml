@@ -81,8 +81,8 @@ services:
       - key: ANTHROPIC_API_KEY
         sync: false        # set once in the dashboard; never in the repo
       # No DEMO_MODE here: nothing reads it. Demo mode is derived from whether
-      # a Claude key is present (§205 removed a `DEMO_MODE=0` that did nothing).
-      # Tier quotas, enforced here and nowhere else (§204): the free tier's
+      # a Claude key is present (§208 removed a `DEMO_MODE=0` that did nothing).
+      # Tier quotas, enforced here and nowhere else (§207): the free tier's
       # daily ceiling bounds what one listener can spend (~$0.50 a day rather
       # than ~$2 a minute). Admin accounts (FAM_ADMIN_ACCOUNTS) are unlimited;
       # POST /api/admin/plan moves anyone else. FREE_EPISODES_PER_DAY and
@@ -265,7 +265,7 @@ services:
         sync: false
       - key: GNEWS_DAILY_REQUESTS
         value: "90"
-      # Which plan was bought on each provider's own dashboard (§204). The
+      # Which plan was bought on each provider's own dashboard (§207). The
       # free plans of GNews and Finnhub are not licensed for commercial use,
       # and /admin and /api/health flag them in red until these say a paid
       # one: GNEWS_PLAN=essential (then GNEWS_DAILY_REQUESTS=950 and
@@ -284,7 +284,7 @@ services:
       # GDELT counts requests per address, and Render's outbound address is
       # shared: on 1/10 every request failed (§191). A static-IP proxy's URL
       # here (QuotaGuard Static, ~$19/mo) sends GDELT's requests - and only
-      # GDELT's - from an address of FAM's own (§204). Unset, the breaker
+      # GDELT's - from an address of FAM's own (§207). Unset, the breaker
       # stops asking after 5 failures in a row and says so on /api/health.
       - key: GDELT_PROXY_URL
         sync: false

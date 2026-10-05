@@ -167,6 +167,36 @@ def test_a_vendor_outage_loses_nothing(acc, wl):
     assert wl.due(now=10**12)[0]["attempts"] == 1
 
 
+def test_flag_sends_a_participants_list(acc, wl):
+    """Viral Loops refused a bare `email` with "'participants' is required"."""
+    seen = []
+
+    def handler(request):
+        seen.append(json.loads(request.content))
+        return httpx.Response(200, json={})
+
+    acc.sign_up("a", "a@fam.test", PASSWORD)
+    wl.enqueue("a", "flag")
+    assert asyncio.run(vl_mod.drain(wl, _vendor(handler)))["sent"] == 1
+    assert seen[0]["participants"] == [{"email": "a@fam.test"}]
+    assert "email" not in seen[0]
+
+
+def test_a_refusal_since_fixed_is_sent_again(acc, wl):
+    acc.sign_up("a", "a@fam.test", PASSWORD)
+    acc.sign_up("b", "b@fam.test", PASSWORD)
+    old = wl.enqueue("a", "flag")
+    other = wl.enqueue("b", "register")
+    wl.mark_given_up(old, "/campaign/participant/flag answered 400: "
+                          "(participants) 'participants' is required")
+    wl.mark_given_up(other, "answered 400: something else")
+    assert wl.outbox_summary()["refused"] == 2
+    assert wl.reopen_refused("flag", "'participants' is required") == 1
+    assert [i["id"] for i in wl.due()] == [old]
+    assert wl.outbox_summary()["refused"] == 1
+    assert wl.reopen_refused("flag", "'participants' is required") == 0
+
+
 def test_unconfigured_sends_nothing(acc, wl):
     acc.sign_up("a", "a@fam.test", PASSWORD)
     wl.enqueue("a", "register")
@@ -243,6 +273,36 @@ def test_admin_credentials_pass_the_gate_and_nobody_else_does(world):
     body = guest.get("/api/admin/waitlist", headers=admin).json()
     assert body["summary"]["waitlisted"] == 1 and body["rows"][0]["email"] == "w@fam.test"
     assert guest.get("/api/usage", headers=admin).status_code != 403
+
+
+def test_admin_lets_in_the_ticked_people_and_the_first_n_in_line(world):
+    """The admin page's two ways in: the people ticked, and any number from
+    the front of the line, in order."""
+    admin = TestClient(appmod.app, headers={"X-Admin-Token": "admin-secret"})
+    ids = []
+    for i in range(5):
+        member, _ = _join(f"p{i}@fam.test")
+        ids.append(member.get("/api/auth/me").json()["user_id"])
+    line = [r["user_id"] for r in admin.get("/api/admin/waitlist").json()["rows"]]
+    assert sorted(line) == sorted(ids)
+    picked = [line[1], line[3]]
+    got = admin.post("/api/admin/waitlist/grant", json={"user_ids": picked}).json()
+    assert got["granted"] == 2 and sorted(got["user_ids"]) == sorted(picked)
+    left = [r["user_id"] for r in admin.get("/api/admin/waitlist").json()["rows"]]
+    assert left == [line[0], line[2], line[4]]
+    got = admin.post("/api/admin/waitlist/grant", json={"top": 2}).json()
+    assert got["user_ids"] == [line[0], line[2]]
+    assert [r["user_id"] for r in admin.get("/api/admin/waitlist").json()["rows"]] == [line[4]]
+    # More than are waiting lets in whoever is left.
+    assert admin.post("/api/admin/waitlist/grant", json={"top": 50}).json()["granted"] == 1
+    assert admin.get("/api/admin/waitlist").json()["rows"] == []
+
+
+def test_admin_page_has_the_checkboxes_and_the_first_n_control():
+    page = (appmod.PROJECT_ROOT / "admin_ui" / "waitlist.html").read_text()
+    for needle in ('id="pickAll"', 'data-pick=', 'id="grantPicked"', 'id="topN"',
+                   '{ user_ids: ids }', '{ top: top }'):
+        assert needle in page, needle
 
 
 def test_referral_signup_makes_friends_and_counts_the_invite(world):

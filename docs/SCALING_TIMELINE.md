@@ -56,7 +56,7 @@ pays a cold start (boot plus a ~10 s model load). **The owner's decision on
 | When | Trigger | Action | Cost change |
 |---|---|---|---|
 | **Stage 0 · now** | Nobody has heard an episode in the production voice | Run the listening test (`RUNPOD_PRODUCTION.md`), and measure the speed on the card you would rent: `python verify_voice.py`. Every GPU-hour figure below assumes 4.6x realtime (measured on an RTX 4090) | $0 |
-| **Done (§204)** | `usage_report.py` under-reported the GPU about 70x | Defaults are now `SYNTHESIS_REALTIME_FACTOR=4.6`, `GPU_USD_PER_HOUR=0.69`; override on Render if the rented card measures differently | $0 |
+| **Done (§207)** | `usage_report.py` under-reported the GPU about 70x | Defaults are now `SYNTHESIS_REALTIME_FACTOR=4.6`, `GPU_USD_PER_HOUR=0.69`; override on Render if the rented card measures differently | $0 |
 | **Stage 1 · before launch** | A peak of more than ~4 people hearing new episodes at once outruns one card | Set the endpoint's **Max workers** to at least 3, and turn **FlashBoot** on | $0 until used |
 | **Stage 2 · launch day** | The public can tap, and a cold start puts 10+ s in front of the first word - against the one-second spec | **Add one active worker** (always warm, ~$0.47/h) and keep flex workers for peaks | **+~$343/mo** |
 | **Stage 2, cost-only alternative** | If launch is private enough to live with cold starts: the day GPU time reaches **~16 hours a day** (~7k MAU) | Add the active worker then: at that point it is cheaper than flex as well ($11.28/day vs $0.69/h) | net saving from then on |
@@ -77,7 +77,7 @@ batch pricing on both editions are **on (§179)**.
 | **Done (§179)** | — | Batch pricing for the Trending and DailyFAM editions (`EDITION_BATCH=1`) | -50% on those writer calls |
 | **Stage 0 · now** | Writer calls are rarer than one per five minutes (pre-launch) | Optional: `PROMPT_CACHE_TTL=1h`, so a sparse call reads rather than re-writes the cache | ± cents |
 | **Stage 1 · before launch** | Rate limits are per organisation and a pool of keys adds nothing | Check the usage tier in the Anthropic console; request the next tier | $0 |
-| **Done (§204)** | One listener could spend ~$2/min | `ENFORCE_QUOTAS=1` on production (free tier: 5 episodes/day, ≤ $0.50/day each); admins unlimited, `/api/admin/plan` for anybody else | caps the worst listener at ~$15/mo |
+| **Done (§207)** | One listener could spend ~$2/min | `ENFORCE_QUOTAS=1` on production (free tier: 5 episodes/day, ≤ $0.50/day each); admins unlimited, `/api/admin/plan` for anybody else | caps the worst listener at ~$15/mo |
 | **Stage 2 · after the first real month** | Real miss rate and cost per episode exist in `metering.db` | `python tools/usage_report.py --days 30`; replace every estimate in `FINANCIAL.md` §4 | $0 |
 | **Stage 3 · ~1k MAU** | Search miss rate above ~60% | Tune the near-match threshold; trial the canonical key (`CACHE_SEMANTIC_KEY=1`, ~$0.0002/request) | -10 points of misses ≈ -$50/mo at 1k, -$5,100/mo at 100k |
 | **Stage 3 · ~10k MAU** | Claude above ~$3,000/mo | Evaluate the brief on Haiku 4.5 (`EI_MODEL`) with `tools/ei_eval.py` first - quality comes from the brief (§82). Needs a code change: Haiku rejects `effort` | -11% per episode, only if the eval holds |
@@ -92,7 +92,7 @@ requests/s per key. Counted on `/admin`.
 | When | Trigger | Action | Cost change |
 |---|---|---|---|
 | **Stage 1 · before launch** | Exa stops when the balance runs out (research falls back to GDELT and says so) | Card on file with auto top-up | $0 |
-| **Done (§204)** | The `research.COST_PER_SEARCH` fallback ($0.005) under-reported | Raised to 0.015 (only used when Exa omits `cost_dollars`) | $0 |
+| **Done (§207)** | The `research.COST_PER_SEARCH` fallback ($0.005) under-reported | Raised to 0.015 (only used when Exa omits `cost_dollars`) | $0 |
 | **Stage 4 · ~100k MAU** | `/admin` shows Exa above ~5 requests/s at peak (~430k/day), or 429s in *failed* | Add a second key (unlike Anthropic, a second Exa key adds headroom) | $0 fixed |
 
 ## 4. Render — the web host, its disk and its bandwidth
@@ -188,7 +188,7 @@ outbound IP is shared with other tenants. Paced at 5.5 s.
 
 | When | Trigger | Action | Cost change |
 |---|---|---|---|
-| **Now (§191: 384 of 384 failed on 1/10)** | `/admin` shows GDELT *failed* rising, or `/api/health` → `gdelt.paused_until` is set (the §204 breaker stopped asking) | A static-IP proxy for GDELT only: QuotaGuard Static Starter (20k requests/mo covers ~12k), its URL in `GDELT_PROXY_URL`. Money does not raise GDELT's cap; an address of FAM's own is the fix | +$19/mo |
+| **Now (§191: 384 of 384 failed on 1/10)** | `/admin` shows GDELT *failed* rising, or `/api/health` → `gdelt.paused_until` is set (the §207 breaker stopped asking) | A static-IP proxy for GDELT only: QuotaGuard Static Starter (20k requests/mo covers ~12k), its URL in `GDELT_PROXY_URL`. Money does not raise GDELT's cap; an address of FAM's own is the fix | +$19/mo |
 | **Never** | — | `GDELT_CROSS_CHECK=1` on Render: every episode waits for a GDELT slot (§144) | — |
 
 ## 10. Polymarket — election and prediction facts
@@ -217,10 +217,10 @@ shared by everybody, so it does not grow with listeners.
 1. Hear an episode in the production voice; measure the speed on the rented card.
 2. RunPod: Max workers ≥ 3, FlashBoot on; plan the active worker for launch day.
 3. Render: Standard plan, 10 GB disk, `AUDIO_CACHE_MAX_MB` raised.
-4. Anthropic: next usage tier requested. (`ENFORCE_QUOTAS=1` is in `render.yaml`, §204.)
+4. Anthropic: next usage tier requested. (`ENFORCE_QUOTAS=1` is in `render.yaml`, §207.)
 5. Exa: card on file, auto top-up.
 6. Licences before charging money: GNews Essential, Finnhub commercial, API-Sports Pro for the sports the product leads with (per sport, §180).
-7. Licences: `/api/health` → `licences.commercial_ready` is true (GNEWS_PLAN, FINNHUB_PLAN, OPEN_METEO_API_KEY set after buying, §204).
+7. Licences: `/api/health` → `licences.commercial_ready` is true (GNEWS_PLAN, FINNHUB_PLAN, OPEN_METEO_API_KEY set after buying, §207).
 
 Fixed monthly cost of the checklist (estimate): ~$150/mo before launch day,
 then ~$490/mo once the active worker is added.
