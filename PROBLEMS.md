@@ -15324,4 +15324,6 @@ they care about, so most people accept that they will miss things."; "The
 office is discussing last night's game. You missed it. That headline you
 half remember is not enough to take part in the conversation."; and the
 origin, "FAM began inside a podcast company, where a handful of people
-decided which stories became episodes… Why not simply ask…".
+decided which stories became episodes and ultimately controlled what
+listeners heard." (that phrase in bold), then, on its own line, "That raised
+a question: … Why not simply ask…".
