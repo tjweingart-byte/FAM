@@ -574,9 +574,10 @@ def test_explore_shows_the_episodes_plays_and_not_the_sessions_swipes():
     assert '(reelHistory.length) + " played"' not in INDEX
     body = re.search(r"function drawReelStats\(\)\{(.*?)\n  \}", INDEX, re.S).group(1)
     assert "ep.plays" in body
-    for element in ('id="reelLike"', 'id="reelDislike"', 'id="reelVibeN"',
-                    'id="reelLikeN"', 'id="reelDislikeN"'):
+    for element in ('id="reelLike"', 'id="reelVibeN"', 'id="reelLikeN"'):
         assert element in INDEX
+    # Dislike moved from the reel's rail to its ⋯ menu (10.5 packet #8).
+    assert "rateReel(-1)" in INDEX
 
 
 def test_explore_still_plays_cached_only():

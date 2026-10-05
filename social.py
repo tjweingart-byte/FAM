@@ -107,6 +107,31 @@ def clean_handle(handle: str) -> str:
     return handle
 
 
+#: How long a vibe's caption may be (10.5 packet #9): a line over a story,
+#: not a post.
+MAX_CAPTION = 150
+#: How long a comment may be (10.5 packet #8).
+MAX_COMMENT = 500
+
+
+def _clean_words(text: str, limit: int) -> str:
+    """Whitespace folded, cut to `limit`, and slurs removed the way an
+    episode's are (`content_filter.scrub`, §171): swearing stays."""
+    text = " ".join(str(text or "").split())[:limit]
+    if not text:
+        return ""
+    try:
+        import content_filter
+        return content_filter.scrub(text)
+    except Exception:  # noqa: BLE001 - the filter failing is not a lost post
+        log.exception("could not run the slur filter over a post")
+        return text
+
+
+def clean_caption(caption: str) -> str:
+    return _clean_words(caption, MAX_CAPTION)
+
+
 class SocialStore:
     def __init__(self, path: str | None = None) -> None:
         self.path = data_path("SOCIAL_DB", "social.db", path)
@@ -215,6 +240,47 @@ class SocialStore:
             )
             conn.execute("CREATE INDEX IF NOT EXISTS ratings_episode"
                          " ON ratings(query, minutes)")
+            # A vibe's caption (10.5 packet #9): what the person vibing it
+            # said about it, shown with the episode when it plays as a story.
+            # "" for none, and for every vibe sent before captions existed.
+            try:
+                conn.execute("ALTER TABLE echoes ADD COLUMN"
+                             " caption TEXT NOT NULL DEFAULT ''")
+            except sqlite3.OperationalError:
+                pass  # already there
+            # Comments on an episode (10.5 packet #8): Explore's comments
+            # sheet. Keyed like a vibe and a thumb - `(query, minutes)` - so
+            # everybody who hears that episode reads the same thread. A reply
+            # names its parent; replies are one level deep, the way the
+            # owner's picture draws them, so a reply to a reply is filed under
+            # the top-level comment it hangs from.
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS comments (
+                       id        INTEGER PRIMARY KEY AUTOINCREMENT,
+                       user_id   TEXT NOT NULL,
+                       query     TEXT NOT NULL,
+                       minutes   INTEGER NOT NULL DEFAULT 0,
+                       parent_id INTEGER NOT NULL DEFAULT 0,
+                       text      TEXT NOT NULL,
+                       at        REAL NOT NULL
+                   )"""
+            )
+            conn.execute("CREATE INDEX IF NOT EXISTS comments_episode"
+                         " ON comments(query, minutes, at)")
+            conn.execute("CREATE INDEX IF NOT EXISTS comments_user"
+                         " ON comments(user_id)")
+            # One like per person per comment; taking it back deletes the row,
+            # so a comment's count is always `COUNT(*)`, like a thumb's.
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS comment_likes (
+                       user_id    TEXT NOT NULL,
+                       comment_id INTEGER NOT NULL,
+                       at         REAL NOT NULL,
+                       PRIMARY KEY (user_id, comment_id)
+                   )"""
+            )
+            conn.execute("CREATE INDEX IF NOT EXISTS comment_likes_comment"
+                         " ON comment_likes(comment_id)")
             # Who has already been announced to whom (§142). The "___ started
             # following you" popup used to remember this in page memory, so
             # every fresh open of the app showed the latest follower again.
@@ -349,7 +415,7 @@ class SocialStore:
     # --- echoes -----------------------------------------------------------
 
     def echo(self, user_id: str, query: str, title: str, minutes: int,
-             thread: str = "") -> Echo:
+             thread: str = "", caption: str = "") -> Echo:
         if not user_id:
             raise SocialError("No listener id.")
         query = " ".join(str(query).split())[:300]
@@ -360,11 +426,13 @@ class SocialStore:
         # An echo of something already echoed just moves it to the top: the
         # listener's intent is "send this", not "send this twice".
         conn.execute(
-            "INSERT INTO echoes (user_id, query, title, minutes, thread, at)"
-            " VALUES (?, ?, ?, ?, ?, ?)"
+            "INSERT INTO echoes (user_id, query, title, minutes, thread, at, caption)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?)"
             " ON CONFLICT(user_id, query, minutes) DO UPDATE SET at = excluded.at,"
-            " title = excluded.title, thread = excluded.thread",
-            (user_id, query, str(title)[:200], int(minutes), str(thread)[:200], now),
+            " title = excluded.title, thread = excluded.thread,"
+            " caption = excluded.caption",
+            (user_id, query, str(title)[:200], int(minutes), str(thread)[:200], now,
+             clean_caption(caption)),
         )
         row = conn.execute(
             "SELECT id, user_id, query, title, minutes, thread, at FROM echoes"
@@ -602,7 +670,7 @@ class SocialStore:
         marks = ",".join("?" for _ in ids)
         try:
             rows = self._conn().execute(
-                "SELECT user_id, query, title, minutes, thread, at FROM echoes"
+                "SELECT user_id, query, title, minutes, thread, at, caption FROM echoes"
                 f" WHERE user_id IN ({marks}) AND at >= ? ORDER BY at ASC",
                 (*ids, float(since)),
             ).fetchall()
@@ -610,12 +678,160 @@ class SocialStore:
             log.exception("could not read the circle's stories")
             return {}
         out: dict = {}
-        for user_id, query, title, minutes, thread, at in rows:
+        for user_id, query, title, minutes, thread, at, caption in rows:
             out.setdefault(user_id, []).append(
                 {"query": query, "title": title or "", "minutes": int(minutes or 0),
-                 "thread": thread or "", "at": float(at)})
+                 "thread": thread or "", "at": float(at),
+                 # What they said about it, drawn with the story (10.5 #9).
+                 "caption": caption or ""})
         # The newest `per_person`, still oldest first.
         return {uid: items[-per_person:] for uid, items in out.items()}
+
+    # --- comments on an episode (10.5 packet #8) --------------------------
+
+    def add_comment(self, user_id: str, query: str, minutes: int, text: str,
+                    parent_id: int = 0) -> dict:
+        """Post a comment, or a reply to one. Returns it as `comments` draws it.
+
+        A reply is filed under the top-level comment it answers, so a thread
+        is one level deep however somebody replied. A parent that is not on
+        this episode is refused rather than quietly made top-level: a reply
+        that lands somewhere else reads as the app losing it.
+        """
+        if not user_id:
+            raise SocialError("No listener id.")
+        query = " ".join(str(query).split())[:300]
+        if not query:
+            raise SocialError("Nothing to comment on.")
+        text = _clean_words(text, MAX_COMMENT)
+        if not text:
+            raise SocialError("Write something first.")
+        conn = self._conn()
+        parent = 0
+        if parent_id:
+            row = conn.execute(
+                "SELECT id, parent_id, query, minutes FROM comments WHERE id = ?",
+                (int(parent_id),)).fetchone()
+            if not row or row[2] != query or int(row[3]) != int(minutes):
+                raise SocialError("That comment is not here any more.")
+            parent = int(row[1]) or int(row[0])
+        now = time.time()
+        cur = conn.execute(
+            "INSERT INTO comments (user_id, query, minutes, parent_id, text, at)"
+            " VALUES (?, ?, ?, ?, ?, ?)",
+            (user_id, query, int(minutes), parent, text, now))
+        person = self.person(user_id)
+        return self._comment_dict(cur.lastrowid, user_id, parent, text, now,
+                                  person, 0, False, user_id)
+
+    def _comment_dict(self, cid, user_id, parent, text, at, person, likes,
+                      liked, viewer) -> dict:
+        # No `user_id`: a listener id in a response is an id the client could
+        # send back (`listener-id-server`). `mine` says what the id would.
+        return {"id": int(cid), "parent_id": int(parent or 0), "text": text,
+                "at": float(at), "name": person.get("name") or "",
+                "handle": person.get("handle") or "",
+                "avatar": person.get("avatar") or "",
+                "likes": int(likes or 0), "liked": bool(liked),
+                "mine": bool(viewer) and viewer == user_id}
+
+    def comments(self, query: str, minutes: int, viewer: str = "",
+                 limit: int = 200) -> list[dict]:
+        """An episode's comments, most liked first then newest, each with its
+        replies (oldest first, as a conversation reads) under `replies`."""
+        query = " ".join(str(query).split())[:300]
+        conn = self._conn()
+        try:
+            rows = conn.execute(
+                "SELECT c.id, c.user_id, c.parent_id, c.text, c.at,"
+                " (SELECT COUNT(*) FROM comment_likes l WHERE l.comment_id = c.id)"
+                " FROM comments c WHERE c.query = ? AND c.minutes = ?"
+                " ORDER BY c.at ASC LIMIT ?",
+                (query, int(minutes), int(limit) * 4)).fetchall()
+        except Exception:
+            log.exception("could not read an episode's comments")
+            return []
+        ids = [r[0] for r in rows]
+        liked: set = set()
+        if viewer and ids:
+            marks = ",".join("?" for _ in ids)
+            liked = {r[0] for r in conn.execute(
+                f"SELECT comment_id FROM comment_likes WHERE user_id = ?"
+                f" AND comment_id IN ({marks})", (viewer, *ids))}
+        people: dict = {}
+        tops: list[dict] = []
+        by_id: dict = {}
+        for cid, uid, parent, text, at, likes in rows:
+            if uid not in people:
+                people[uid] = self.person(uid)
+            item = self._comment_dict(cid, uid, parent, text, at, people[uid],
+                                      likes, cid in liked, viewer)
+            if parent:
+                host = by_id.get(parent)
+                if host is not None:
+                    host["replies"].append(item)
+                continue
+            item["replies"] = []
+            by_id[cid] = item
+            tops.append(item)
+        tops.sort(key=lambda c: (-c["likes"], -c["at"]))
+        return tops[:limit]
+
+    def comment_counts_many(self, pairs) -> dict:
+        """`(query, minutes) -> number of comments`, replies included, for a
+        whole Explore page in one query."""
+        wanted = {(" ".join(str(q).split())[:300], int(m)): (q, m)
+                  for q, m in pairs}
+        out = {orig: 0 for orig in wanted.values()}
+        if not wanted:
+            return out
+        queries = sorted({q for q, _ in wanted})
+        marks = ",".join("?" for _ in queries)
+        try:
+            rows = self._conn().execute(
+                "SELECT query, minutes, COUNT(*) FROM comments"
+                f" WHERE query IN ({marks}) GROUP BY query, minutes",
+                queries).fetchall()
+        except Exception:
+            log.exception("could not count comments")
+            return out
+        for query, minutes, n in rows:
+            orig = wanted.get((query, int(minutes)))
+            if orig is not None:
+                out[orig] = int(n)
+        return out
+
+    def like_comment(self, user_id: str, comment_id: int, on: bool = True) -> dict:
+        """Like a comment, or take the like back. Returns its count and state."""
+        if not user_id:
+            raise SocialError("No listener id.")
+        conn = self._conn()
+        if not conn.execute("SELECT 1 FROM comments WHERE id = ?",
+                            (int(comment_id),)).fetchone():
+            raise SocialError("That comment is not here any more.")
+        if on:
+            conn.execute("INSERT OR IGNORE INTO comment_likes (user_id, comment_id, at)"
+                         " VALUES (?, ?, ?)", (user_id, int(comment_id), time.time()))
+        else:
+            conn.execute("DELETE FROM comment_likes WHERE user_id = ? AND comment_id = ?",
+                         (user_id, int(comment_id)))
+        n = conn.execute("SELECT COUNT(*) FROM comment_likes WHERE comment_id = ?",
+                         (int(comment_id),)).fetchone()[0]
+        return {"id": int(comment_id), "likes": int(n), "liked": bool(on)}
+
+    def delete_comment(self, user_id: str, comment_id: int) -> bool:
+        """Take back your own comment, with its replies and likes."""
+        conn = self._conn()
+        row = conn.execute("SELECT user_id FROM comments WHERE id = ?",
+                           (int(comment_id),)).fetchone()
+        if not row or row[0] != user_id:
+            return False
+        ids = [int(comment_id)] + [r[0] for r in conn.execute(
+            "SELECT id FROM comments WHERE parent_id = ?", (int(comment_id),))]
+        marks = ",".join("?" for _ in ids)
+        conn.execute(f"DELETE FROM comment_likes WHERE comment_id IN ({marks})", ids)
+        conn.execute(f"DELETE FROM comments WHERE id IN ({marks})", ids)
+        return True
 
     # --- the follow graph -------------------------------------------------
 
@@ -888,6 +1104,26 @@ class SocialStore:
             removed += cur.rowcount or 0
         except Exception:
             log.exception("could not erase follows for %r", user_id)
+        # Their comments go, and every reply under them and every like on
+        # them, so no thread is left hanging from a comment nobody wrote.
+        try:
+            conn = self._conn()
+            own = [r[0] for r in conn.execute(
+                "SELECT id FROM comments WHERE user_id = ?", (user_id,))]
+            if own:
+                marks = ",".join("?" for _ in own)
+                cur = conn.execute(
+                    f"DELETE FROM comments WHERE parent_id IN ({marks})", own)
+                removed += cur.rowcount or 0
+                conn.execute(
+                    f"DELETE FROM comment_likes WHERE comment_id IN ({marks})", own)
+            cur = conn.execute("DELETE FROM comment_likes WHERE user_id = ?",
+                               (user_id,))
+            removed += cur.rowcount or 0
+            cur = conn.execute("DELETE FROM comments WHERE user_id = ?", (user_id,))
+            removed += cur.rowcount or 0
+        except Exception:
+            log.exception("could not erase comments for %r", user_id)
         for table in ('echoes', 'ratings', 'people'):
             try:
                 cur = self._conn().execute(

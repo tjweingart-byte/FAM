@@ -213,16 +213,15 @@ def main() -> int:
             """
             page.evaluate("openMyFamTab()")
             page.wait_for_selector(".feed-rail .seed-card", timeout=10000, state="attached")
-            rails = page.eval_on_selector_all(
-                '.feed-section:not([data-section="searching"])', "e => e.length")
+            rails = page.eval_on_selector_all(".feed-section", "e => e.length")
             wanted = len(topics_mod.SECTIONS)
             assert rails == wanted, f"expected {wanted} sections, saw {rails}"
             titles = page.eval_on_selector_all(".feed-title", "e => e.map(x => x.textContent)")
-            # "What users are searching" (§181), Explore's way in, sits right
-            # under Made for you; it is drawn by the page, not a server rail.
-            assert len(titles) > 1 and titles[1].strip() == "What users are searching", \
-                f"the What users are searching rail is not under Made for you: {titles}"
-            titles = titles[:1] + titles[2:]
+            # No "What users are searching" rail (10.5 packet #6): Explore's
+            # way in is the exploreFAM pill level with Made for you (#7).
+            assert "What users are searching" not in titles, titles
+            assert page.query_selector("#myfamFeed .feed-head-row #myfamExploreBtn"), \
+                "no exploreFAM pill beside Made for you"
             # Trending is second, in the slot Explore New used to hold. It was
             # last, where a row nobody scrolls to is a row nobody reads, and it
             # is the one rail here with a reason to be looked at *today*.
@@ -2810,10 +2809,9 @@ def main() -> int:
                 "myFAM's header button does not open its search"
             page.evaluate("goBack()")
             page.wait_for_timeout(400)
-            # And Explore is a rail under Made for you, one tile into it.
-            assert page.query_selector('#myfamFeed [data-section="searching"] .searching-tile'), \
-                "the What users are searching rail is missing"
-            page.click('#myfamFeed [data-section="searching"] .searching-tile')
+            # And Explore opens from the exploreFAM pill beside Made for you
+            # (10.5 packet #7).
+            page.click("#myfamExploreBtn")
             page.wait_for_timeout(700)
             assert page.eval_on_selector(".screen.active", "e => e.id") == "screen-explore"
             page.evaluate("openMyFamTab()")
@@ -3653,7 +3651,7 @@ def main() -> int:
             assert re.fullmatch(r"[\d,]+ plays?", corner), \
                 f"the corner reads {corner!r}, not a play count"
             assert page.eval_on_selector_all(
-                "#reelLike, #reelDislike, #reelVibeN", "e => e.length") == 3
+                "#reelLike, #reelCommentN, #reelVibeN", "e => e.length") == 3
             page.evaluate("nextReel()")
             page.wait_for_timeout(1500)
             assert page.text_content("#reelTitle") != first, "swipe did not advance"

@@ -5599,6 +5599,11 @@ class EchoRequest(BaseModel):
     title: str = Field("", max_length=200)
     minutes: int = Field(DEFAULT_MINUTES, ge=1, le=10)
     thread: str = Field("", max_length=200)
+    #: What the person vibing it says about it (10.5 packet #9), shown with
+    #: the episode when it plays as a story. Optional; cut to
+    #: `social.MAX_CAPTION` rather than refused, since a client may not know
+    #: the limit.
+    caption: str = Field("", max_length=1000)
 
 
 @app.post("/api/me")
@@ -5628,7 +5633,8 @@ async def post_echo(req: EchoRequest, request: Request):
     _read_limit(request)
     user = _listener(request)
     try:
-        echo = SOCIAL.echo(user, req.query, req.title, req.minutes, req.thread)
+        echo = SOCIAL.echo(user, req.query, req.title, req.minutes, req.thread,
+                           caption=req.caption)
     except social_mod.SocialError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     # Showing somebody an episode is a statement about taste, and until this
@@ -5680,6 +5686,64 @@ async def delete_vibe(request: Request, q: str = Query("", max_length=300),
                       minutes: int = Query(DEFAULT_MINUTES, ge=1, le=10)):
     """Take a vibe back. The same act as `DELETE /api/echo`."""
     return await delete_echo(request, q, minutes)
+
+
+# --- comments (10.5 packet #8) ---------------------------------------------
+#
+# Explore's comments sheet. A comment is about an episode - `(query,
+# minutes)`, the same pair a vibe and a thumb are keyed on - so everybody who
+# hears that episode reads the one thread. Reading is open to anyone who can
+# hear the episode; writing is kept, so it takes an account
+# (`account-gates-kept`), and the 401 is what opens the sign-up screen.
+class CommentRequest(BaseModel):
+    query: str = Field(..., max_length=300)
+    minutes: int = Field(DEFAULT_MINUTES, ge=1, le=10)
+    #: Cut to `social.MAX_COMMENT` rather than refused.
+    text: str = Field(..., max_length=2000)
+    #: The comment this answers, or 0 for a new one.
+    parent_id: int = Field(0, ge=0)
+
+
+class CommentLikeRequest(BaseModel):
+    on: bool = True
+
+
+@app.get("/api/comments")
+async def episode_comments(request: Request, q: str = Query("", max_length=300),
+                           minutes: int = Query(DEFAULT_MINUTES, ge=1, le=10)) -> dict:
+    """An episode's comments, most liked first, each with its replies."""
+    _read_limit(request)
+    rows = SOCIAL.comments(q, minutes, viewer=_listener(request)) if q.strip() else []
+    return {"comments": rows,
+            "count": sum(1 + len(c.get("replies") or []) for c in rows)}
+
+
+@app.post("/api/comments")
+async def post_comment(req: CommentRequest, request: Request) -> dict:
+    _read_limit(request)
+    user = _require_account(request)
+    try:
+        return SOCIAL.add_comment(user, req.query, req.minutes, req.text,
+                                  parent_id=req.parent_id)
+    except social_mod.SocialError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/api/comments/{comment_id}/like")
+async def like_comment(comment_id: int, req: CommentLikeRequest,
+                       request: Request) -> dict:
+    _read_limit(request)
+    user = _require_account(request)
+    try:
+        return SOCIAL.like_comment(user, comment_id, on=req.on)
+    except social_mod.SocialError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@app.delete("/api/comments/{comment_id}")
+async def delete_comment(comment_id: int, request: Request) -> dict:
+    _read_limit(request)
+    return {"ok": SOCIAL.delete_comment(_listener(request), comment_id)}
 
 
 @app.get("/api/vibes")
@@ -6315,6 +6379,9 @@ async def explore(request: Request, limit: int = Query(30, ge=1, le=60)):
         lambda: [autocorrect_mod.correct_text(q) for q in untitled])))
     all_counts = SOCIAL.episode_counts_many(
         [(e["query"], e["minutes"]) for e in entries], listener)
+    # The number under the comment button (10.5 packet #8).
+    comment_counts = SOCIAL.comment_counts_many(
+        [(e["query"], e["minutes"]) for e in entries])
     for entry in entries:
         pair = (entry["query"], entry["minutes"])
         by = vibes.get(pair)
@@ -6355,7 +6422,8 @@ async def explore(request: Request, limit: int = Query(30, ge=1, le=60)):
         counts = all_counts[(entry["query"], entry["minutes"])]
         card.update({"vibes": counts["vibes"], "likes": counts["likes"],
                      "dislikes": counts["dislikes"], "rating": counts["rating"],
-                     "my_vibe": counts["vibed"]})
+                     "my_vibe": counts["vibed"],
+                     "comments": comment_counts[(entry["query"], entry["minutes"])]})
         # Note what is *not* on the card: `author`. It is read here for one
         # display decision and resolved to a name and a picture; a listener id
         # in this response would be an id the client could send back, which is
