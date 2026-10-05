@@ -238,10 +238,12 @@ services:
       # Exa, GDELT, API-Sports, Finnhub and Polymarket, and nothing else: the
       # model never searches the web for FAM. The three with credentials are
       # asked for once in the dashboard. A key is also the switch - with
-      # API_SPORTS_KEY set, sports questions get live scores and the story
-      # pool sweeps today's card on the whole daily allowance (about every
-      # 14 minutes on the free tier); with FINNHUB_KEY set, markets do the
-      # same. Neither needs a second line naming its provider.
+      # API_SPORTS_KEY set, sports questions get live scores, and the story
+      # pool sweeps only the followed leagues (story_sources.SWEPT_LEAGUES),
+      # only while one of their games is on and myFAM was drawn recently
+      # (§191) - every other league is looked up on demand; with FINNHUB_KEY
+      # set, markets are swept every 2h. Neither needs a second line naming
+      # its provider.
       - key: EXA_API_KEY
         sync: false
       - key: API_SPORTS_KEY
@@ -287,15 +289,9 @@ services:
       - key: GDELT_PROXY_URL
         sync: false
       #
-      # Deliberately NOT pinned here: ANSWER_FIRST. `Dockerfile.gpu` sets it to
-      # 1 because the configuration that was listened to and judged good ran
-      # with the cover on, and `config.py` has since derived it from the
-      # research backend. That pin is provisional in the image and unmeasured
-      # either way, so copying it into a second deployment would spread an
-      # untested decision rather than settle it. Once a card has run
-      # `ANSWER_FIRST=1 bash tools/pod_production_test.sh` against the same
-      # harness without it, whichever wins belongs in config.py and neither
-      # deployment needs a line.
+      # ANSWER_FIRST is not here because it no longer exists: the
+      # from-knowledge cover it switched on was deleted in §108 (see DEPLOY.md
+      # and Dockerfile.gpu). Setting it does nothing.
     disk:
       name: fam-data
       mountPath: /data     # matches the Dockerfile's CACHE_PATH etc.
