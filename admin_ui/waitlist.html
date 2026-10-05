@@ -37,6 +37,10 @@
   .login{ max-width:360px; margin:12vh auto; }
   .login input{ width:100%; margin-bottom:10px; }
   .warn{ border-left:3px solid var(--gold); }
+  .gate-off{ color:var(--bad); font-weight:600; }
+  td.pick, th.pick{ width:34px; padding-right:0; cursor:default; }
+  input[type=checkbox]{ width:18px; height:18px; padding:0; accent-color:var(--gold); cursor:pointer; vertical-align:middle; }
+  tr.picked td{ background:rgba(240,195,94,0.08); }
 </style>
 </head>
 <body>
@@ -62,8 +66,10 @@
         <label>Access cutoff <input id="cutoff" type="number" min="0" style="width:110px"></label>
         <button id="saveCutoff" type="button">Set cutoff</button>
         <span style="width:24px"></span>
-        <label>Grant the top <input id="topN" type="number" min="1" style="width:90px"></label>
-        <button id="grantTop" type="button">Grant access</button>
+        <label>Let in the first <input id="topN" type="number" min="1" style="width:90px"> in line</label>
+        <button id="grantTop" type="button">Let them in</button>
+        <span style="width:24px"></span>
+        <button id="grantPicked" type="button" disabled>Let in selected (0)</button>
         <span id="actionNote"></span>
       </div>
     </div>
@@ -76,6 +82,7 @@
       <div class="table-wrap">
         <table>
           <thead><tr>
+            <th class="pick"><input id="pickAll" type="checkbox" title="Select everyone shown" aria-label="Select everyone shown"></th>
             <th data-k="place" class="sorted asc">Place</th><th data-k="name">Name</th><th data-k="handle">Handle</th>
             <th data-k="email">Email</th><th data-k="invites">Invites</th><th data-k="profile_complete">Profile</th>
             <th data-k="joined">Joined</th><th></th>
@@ -92,6 +99,9 @@
   "use strict";
   var $ = function (id) { return document.getElementById(id); };
   var DATA = null, sortKey = "place", asc = true;
+  // Who is ticked, by user id. Kept across redraws, searches and sorts, and
+  // trimmed on every load to people still waitlisted.
+  var PICKED = new Set(), SHOWN = [];
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) {
     return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
   function api(path, body) {
@@ -113,8 +123,9 @@
   function draw() {
     var s = DATA.summary;
     $("gateLine").textContent = DATA.gate
-      ? "The app is closed to everyone but active accounts (WAITLIST=1)."
-      : "WAITLIST is off: the app is open and new accounts start active.";
+      ? "The waitlist is on: the app is closed to everyone but active accounts (WAITLIST=1)."
+      : "WAITLIST is off: the app is open to everyone and new accounts start active. Set WAITLIST=1 on the fam service in the Render dashboard to close it.";
+    $("gateLine").className = DATA.gate ? "sub" : "sub gate-off";
     var stats = [["Waitlisted", n(s.waitlisted)], ["Active", n(s.active)], ["Signups today", n(s.signups_today)],
                  ["Profile complete", s.profile_complete_pct + "%"],
                  ["Top inviters", s.top_inviters.length ? s.top_inviters.map(function (t) {
@@ -141,17 +152,32 @@
       return asc ? (x - y) : (y - x);
     });
     var shown = rows.slice(0, 500);
+    SHOWN = shown;
     $("rows").innerHTML = shown.map(function (r) {
-      return "<tr><td class=num>" + n(r.place) + "</td><td>" + esc(r.name) + "</td><td>" + (r.handle ? "@" + esc(r.handle) : "") + "</td>"
+      var on = PICKED.has(r.user_id);
+      return "<tr" + (on ? ' class="picked"' : "") + '><td class="pick"><input type="checkbox" data-pick="' + esc(r.user_id) + '"'
+        + (on ? " checked" : "") + ' aria-label="Select ' + esc(r.email || r.name) + '"></td><td class=num>' + n(r.place) + "</td><td>" + esc(r.name) + "</td><td>" + (r.handle ? "@" + esc(r.handle) : "") + "</td>"
         + "<td>" + esc(r.email) + "</td><td class=num>" + n(r.invites) + "</td>"
         + "<td class=" + (r.profile_complete ? "yes>Yes" : "no>No") + "</td><td>" + day(r.joined) + "</td>"
         + '<td><button class="ghost" data-grant="' + esc(r.user_id) + '" type="button">Grant</button></td></tr>';
     }).join("");
     $("shown").textContent = "Showing " + n(shown.length) + " of " + n(rows.length) + (q ? " matching" : "") + " waitlisted.";
+    drawPicked();
+  }
+  function drawPicked() {
+    var all = SHOWN.length && SHOWN.every(function (r) { return PICKED.has(r.user_id); });
+    var some = SHOWN.some(function (r) { return PICKED.has(r.user_id); });
+    $("pickAll").checked = !!all;
+    $("pickAll").indeterminate = some && !all;
+    $("grantPicked").textContent = "Let in selected (" + n(PICKED.size) + ")";
+    $("grantPicked").disabled = !PICKED.size;
   }
   function load() {
     return api("/api/admin/waitlist").then(function (d) {
-      DATA = d; $("loginForm").hidden = true; $("app").hidden = false; draw();
+      DATA = d; $("loginForm").hidden = true; $("app").hidden = false;
+      var still = new Set(d.rows.map(function (r) { return r.user_id; }));
+      PICKED.forEach(function (id) { if (!still.has(id)) PICKED.delete(id); });
+      draw();
     });
   }
 
@@ -176,21 +202,42 @@
   });
   $("search").addEventListener("input", function () { if (DATA) draw(); });
   $("refresh").addEventListener("click", load);
+  $("rows").addEventListener("change", function (ev) {
+    var id = ev.target.getAttribute && ev.target.getAttribute("data-pick"); if (!id) return;
+    if (ev.target.checked) PICKED.add(id); else PICKED.delete(id);
+    ev.target.closest("tr").classList.toggle("picked", ev.target.checked);
+    drawPicked();
+  });
+  $("pickAll").addEventListener("change", function () {
+    var on = this.checked;
+    SHOWN.forEach(function (r) { if (on) PICKED.add(r.user_id); else PICKED.delete(r.user_id); });
+    draw();
+  });
+  $("grantPicked").addEventListener("click", function () {
+    var ids = Array.from(PICKED);
+    if (!ids.length) return;
+    if (!confirm("Let " + ids.length + (ids.length === 1 ? " person" : " people") + " into FAM now?")) return;
+    var btn = this; btn.disabled = true;
+    api("/api/admin/waitlist/grant", { user_ids: ids })
+      .then(function (d) { PICKED.clear(); note("Let in " + n(d.granted) + "."); return load(); })
+      .catch(function (e) { note(e.message, true); drawPicked(); });
+  });
   $("rows").addEventListener("click", function (ev) {
     var id = ev.target.getAttribute && ev.target.getAttribute("data-grant"); if (!id) return;
     if (!confirm("Let this person into FAM now?")) return;
     ev.target.disabled = true;
     api("/api/admin/waitlist/grant", { user_ids: [id] })
-      .then(function (d) { note("Granted " + d.granted + "."); return load(); })
+      .then(function (d) { note("Let in " + n(d.granted) + "."); return load(); })
       .catch(function (e) { ev.target.disabled = false; note(e.message, true); });
   });
   $("grantTop").addEventListener("click", function () {
     var top = parseInt($("topN").value, 10);
     if (!(top > 0)) { note("Enter how many places to let in.", true); return; }
-    if (!confirm("Let the top " + top + " people into FAM now?")) return;
+    var waiting = DATA ? DATA.rows.length : 0;
+    if (!confirm("Let the first " + Math.min(top, waiting || top) + " people in line into FAM now?")) return;
     this.disabled = true; var btn = this;
     api("/api/admin/waitlist/grant", { top: top })
-      .then(function (d) { note("Granted " + d.granted + "."); return load(); })
+      .then(function (d) { note("Let in " + n(d.granted) + "."); return load(); })
       .catch(function (e) { note(e.message, true); })
       .then(function () { btn.disabled = false; });
   });

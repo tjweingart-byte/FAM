@@ -15422,3 +15422,35 @@ the app is open.
 
 Tests: `tests/test_waitlist.py` (`test_flag_sends_a_participants_list`,
 `test_a_refusal_since_fixed_is_sent_again`).
+
+## 203. The admin page lets in the ticked people, or any number from the front
+
+The owner, 05/10: the waitlist should be fully on, and `/admin/waitlist`
+should let in individual people by ticking a box next to their name, and
+any number of people from the front of the line, in order.
+
+The server already took both (`POST /api/admin/waitlist/grant` with
+`user_ids` or `top`; `grant_top` walks `ordered()`, so it is place order).
+What was missing was the page:
+
+- A checkbox on every row, and one in the header that ticks everyone
+  shown (after a search, only the matches). Ticks survive sorting,
+  searching and refreshes, and a refresh drops anyone no longer waiting.
+  **Let in selected (N)** sends exactly those ids after one confirm.
+- "Grant the top" is now **Let in the first [N] in line**, which says that
+  it goes by place. Asking for more than are waiting lets in whoever is
+  left.
+- Each row's own **Grant** button stays.
+- When `WAITLIST` is off, the line at the top turns red and says where to
+  turn it on, because a screenshot of the page with the gate off was the
+  first sign the owner had.
+
+Turning the waitlist on stays a dashboard switch (`WAITLIST=1` on the `fam`
+service, rule `waitlist-gate`). `render.yaml` keeps `sync: false`, so a
+merge can never open or close the app by itself. The code was already
+complete: the middleware refuses non-active accounts, and new accounts
+start waitlisted.
+
+Tests: `tests/test_waitlist.py`
+(`test_admin_lets_in_the_ticked_people_and_the_first_n_in_line`,
+`test_admin_page_has_the_checkboxes_and_the_first_n_control`).

@@ -275,6 +275,36 @@ def test_admin_credentials_pass_the_gate_and_nobody_else_does(world):
     assert guest.get("/api/usage", headers=admin).status_code != 403
 
 
+def test_admin_lets_in_the_ticked_people_and_the_first_n_in_line(world):
+    """The admin page's two ways in: the people ticked, and any number from
+    the front of the line, in order."""
+    admin = TestClient(appmod.app, headers={"X-Admin-Token": "admin-secret"})
+    ids = []
+    for i in range(5):
+        member, _ = _join(f"p{i}@fam.test")
+        ids.append(member.get("/api/auth/me").json()["user_id"])
+    line = [r["user_id"] for r in admin.get("/api/admin/waitlist").json()["rows"]]
+    assert sorted(line) == sorted(ids)
+    picked = [line[1], line[3]]
+    got = admin.post("/api/admin/waitlist/grant", json={"user_ids": picked}).json()
+    assert got["granted"] == 2 and sorted(got["user_ids"]) == sorted(picked)
+    left = [r["user_id"] for r in admin.get("/api/admin/waitlist").json()["rows"]]
+    assert left == [line[0], line[2], line[4]]
+    got = admin.post("/api/admin/waitlist/grant", json={"top": 2}).json()
+    assert got["user_ids"] == [line[0], line[2]]
+    assert [r["user_id"] for r in admin.get("/api/admin/waitlist").json()["rows"]] == [line[4]]
+    # More than are waiting lets in whoever is left.
+    assert admin.post("/api/admin/waitlist/grant", json={"top": 50}).json()["granted"] == 1
+    assert admin.get("/api/admin/waitlist").json()["rows"] == []
+
+
+def test_admin_page_has_the_checkboxes_and_the_first_n_control():
+    page = (appmod.PROJECT_ROOT / "admin_ui" / "waitlist.html").read_text()
+    for needle in ('id="pickAll"', 'data-pick=', 'id="grantPicked"', 'id="topN"',
+                   '{ user_ids: ids }', '{ top: top }'):
+        assert needle in page, needle
+
+
 def test_referral_signup_makes_friends_and_counts_the_invite(world):
     inviter, _ = _join("i@fam.test")
     code = inviter.get("/api/waitlist/me").json()["referral_code"]
