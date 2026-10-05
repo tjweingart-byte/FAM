@@ -15248,7 +15248,8 @@ page's "What is FAM" section, mostly in the owner's words:
 
 1. **The hero** keeps its headline and gains the line "Your social
    information network"; the intro's headline is "Social information."; the
-   meta description and the footer say "social information, not social media".
+   meta description says "social information, not social media" (the footer
+   went back to "Listen to everything you want to know about.").
 2. **The problem**: four things that pass you by drift across the page (a
    marquee that stops, wrapped, under reduced motion), then "keeping up takes
    work", with the time it costs drawn to scale - an hour-long podcast for the
@@ -15259,9 +15260,8 @@ page's "What is FAM" section, mostly in the owner's words:
    pull quote about access against knowing. (The first version led with the
    chat and drew you as three dots in a dashed bubble with a small caption;
    the owner found it hard to read at a glance, so the point now comes before
-   the picture and the picture needs no caption.) The quote is one line now:
-   "Having access to information and actually knowing something are two
-   completely different things."
+   the picture and the picture needs no caption.) The pull quote about access
+   against knowing was cut once the before-and-after chats said it.
 4. **Why we built FAM**: the podcast-company origin, written without "I"
    because the page is signed by both founders; the three asks from the
    owner's text as search bars; not a search result, not a wall of text, not a

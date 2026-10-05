@@ -614,12 +614,14 @@ def test_the_what_is_fam_pictures_are_real_screens_that_ship():
 def test_the_landing_page_tells_why_fam_exists():
     page = (ROOT / "static" / "waitlist.html").read_text(encoding="utf-8")
     landing = page.split('id="landing"', 1)[1].split('id="status"', 1)[0]
-    # The sign-up screen names it, the intro says it, the footer spells it out.
+    # The sign-up screen names it and the intro says it; the meta description
+    # spells it out.
     assert '<p class="tagline label">Your social information network</p>' in landing
     assert '<h2 class="ab-h">Social information.</h2>' in landing
-    assert "Social information, not social media" in landing.split('class="ab-foot"', 1)[1]
+    assert "social information, not social media" in page.split("</head>", 1)[0]
+    assert "Listen to everything you want to know about." in landing.split('class="ab-foot"', 1)[1]
     order = ["Being in the know shouldn’t be a full-time job.", "Keeping up with all the information out there takes time",
-             "left out of the conversation", "two completely different things",
+             "left out of the conversation",
              "stories you hear?", "Search. Scroll. Mix.",
              "actually being part of the conversation"]
     at = [landing.index(text) for text in order]
