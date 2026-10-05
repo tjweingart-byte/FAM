@@ -618,7 +618,7 @@ def test_the_landing_page_tells_why_fam_exists():
     assert '<p class="tagline label">Your social information network</p>' in landing
     assert '<h2 class="ab-h">Social information.</h2>' in landing
     assert "Social information, not social media" in landing.split('class="ab-foot"', 1)[1]
-    order = ["Being in the know shouldn’t be a full-time job.", "keeping up with it takes time",
+    order = ["Being in the know shouldn’t be a full-time job.", "Keeping up with all the information out there takes time",
              "left out of the conversation", "two completely different things",
              "stories you hear?", "Search. Scroll. Mix.", "You’re in it.",
              "actually being part of the conversation"]
@@ -635,7 +635,7 @@ def test_the_landing_page_tells_why_fam_exists():
     assert ".pass-track{ animation:none" in motion
     # Everything you would have to get through goes into FAM and comes out
     # as one short episode - the owner's numbers on the way in, FAM's two out.
-    assert "keeping up with it takes time." in problem
+    assert "Keeping up with all the information out there takes time." in problem
     condense = problem.split('class="condense"', 1)[1].split("</figure>", 1)[0]
     assert condense.count("<li>") == 5
     assert ">60 min<" in condense and ">20 min<" in condense

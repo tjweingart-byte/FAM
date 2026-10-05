@@ -15293,10 +15293,10 @@ problem" (§199):
    so much work that people end up outside the conversation.
 2. **The rail stays** - the four things that pass you by, drifting past on
    their own (a day-timeline version was tried and rejected for it).
-3. **The turn**, set large: "The information is all out there." then "The
-   problem is that actually keeping up with it takes time." (the owner's
-   word, over "work"), then "most of us just accept that we're going to miss
-   things."
+3. **The turn**, set large and condensed to one line at the owner's
+   direction: "Keeping up with all the information out there takes time."
+   ("time", the owner's word, over "work"), then "most of us just accept that
+   we're going to miss things."
 4. **One picture of what FAM does about it** (the owner: "simple - it takes
    all the information and condenses it into a short FAM episode"): search
    results, articles, feeds, an hour-long podcast (60 min) and a
