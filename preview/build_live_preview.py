@@ -363,20 +363,37 @@ __MIX_ITEMS__
       return e.user_id === uid && e.kind !== "impression";
     });
   }
-  var WEIGHT = { search: 1.0, play: 1.0, complete: 2.5, skip: -1.5 };
-  // `seed` is the intro's chosen interests, entering flat and before decay
-  // exactly as topics.taste does - a starting position that real listening
-  // overtakes rather than a rule it has to fight.
+  var WEIGHT = __EVENT_WEIGHT__;          // topics.EVENT_WEIGHT, verbatim
+  var ANCESTOR_SHARE = __ANCESTOR_SHARE__; // topics.ANCESTOR_SHARE
+  // topics.tag_shares over the two levels this page knows: the most
+  // specific tag takes the whole signal, its facet ANCESTOR_SHARE of it.
+  function tagShares(tags) {
+    var out = {}, above = {};
+    tags.forEach(function (g) { if (TAG_PARENT[g]) above[TAG_PARENT[g]] = 1; });
+    tags.forEach(function (g) {
+      if (!g || above[g]) return;
+      out[g] = 1;
+      var p = TAG_PARENT[g];
+      if (p && (out[p] || 0) < ANCESTOR_SHARE) out[p] = ANCESTOR_SHARE;
+    });
+    return out;
+  }
+  // topics.taste (§202): behaviour spread over the tree and normalised to a
+  // peak of 1, then each chosen interest held at INTEREST_WEIGHT on top -
+  // a constant that no amount of listening shrinks.
   function taste(uid, seed) {
     var s = {}, t = now(), HALF = 14 * 86400;
-    (seed || []).forEach(function (g) {
-      if (TAG_LABELS[g]) s[g] = INTEREST_WEIGHT;
-    });
     behavioural(uid).forEach(function (e) {
       var w = (WEIGHT[e.kind] || 0) * Math.pow(0.5, Math.max(0, t - e.at) / HALF);
-      (e.tags ? String(e.tags).split(",") : []).forEach(function (g) {
-        if (g) s[g] = (s[g] || 0) + w;
-      });
+      if (!w) return;
+      var sh = tagShares(e.tags ? String(e.tags).split(",") : []);
+      Object.keys(sh).forEach(function (g) { s[g] = (s[g] || 0) + w * sh[g]; });
+    });
+    var peak = 0;
+    Object.keys(s).forEach(function (g) { peak = Math.max(peak, Math.abs(s[g])); });
+    if (peak) Object.keys(s).forEach(function (g) { s[g] = s[g] / peak; });
+    (seed || []).forEach(function (g) {
+      if (TAG_LABELS[g]) s[g] = INTEREST_WEIGHT + Math.max(0, s[g] || 0);
     });
     return s;
   }
@@ -2729,6 +2746,8 @@ def build() -> pathlib.Path:
                 [t.as_dict() for t in topics.STARTUP_TOPICS]))
             .replace("__STARTUP_STEP__", json.dumps(topics.STARTUP_PRIOR_STEP))
             .replace("__INTEREST_WEIGHT__", json.dumps(topics.INTEREST_WEIGHT))
+            .replace("__EVENT_WEIGHT__", json.dumps(topics.EVENT_WEIGHT))
+            .replace("__ANCESTOR_SHARE__", json.dumps(topics.ANCESTOR_SHARE))
             .replace("__VOLATILE__", json.dumps(sorted(cache.research_words())))
             .replace("__NEAR__", json.dumps({
                 "threshold": settings.cache_vector_threshold,

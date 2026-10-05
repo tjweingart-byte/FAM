@@ -284,13 +284,23 @@ def test_the_top_interests_move_as_the_listener_listens(store):
     stored order, so day one outranked a month of listening forever."""
     now = time.time()
     finished(store, "me", "a", "the nfl", ("sports", "sports-drama"), at=now - 60)
-    first = [row["id"] for row in T.ranked_interests(store, "me", chosen=("tech",))]
+    first = [row["id"] for row in T.ranked_interests(store, "me")]
     for i in range(6):
         finished(store, "me", f"t{i}", "nvidia chips and ai models",
                  ("tech", "chips", "ai"), at=now - 30)
-    later = [row["id"] for row in T.ranked_interests(store, "me", chosen=("tech",))]
+    later = [row["id"] for row in T.ranked_interests(store, "me")]
     assert first[0] == "sports"
     assert later[0] == "tech", f"listening did not move the row: {later}"
+
+
+def test_a_chosen_interest_stays_at_the_top_however_they_listen(store):
+    """§202: a chosen interest never fades, so listening ranks around it."""
+    now = time.time()
+    for i in range(6):
+        finished(store, "me", f"t{i}", "nvidia chips and ai models",
+                 ("tech", "chips", "ai"), at=now - 30)
+    rows = [row["id"] for row in T.ranked_interests(store, "me", chosen=("health",))]
+    assert rows[0] == "health", rows
 
 
 def test_a_pinned_set_wins_and_says_so(store):
