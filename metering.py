@@ -33,9 +33,10 @@ user" number hides:
   has to cover.
 * **The GPU is fixed.** Chatterbox runs in-process on a card that costs the
   same whether it is synthesising or idle. Its *marginal* cost per episode is
-  near zero - synthesis runs at ~330x realtime, so a three-minute episode is
-  under a second of GPU - and its *real* cost is a monthly floor that exists
-  before the first listener arrives.
+  small - Chatterbox runs at ~4.6x realtime (§75), so a three-minute episode
+  is about 40 seconds of GPU, half a cent on serverless flex - and on an
+  always-on card its *real* cost is a monthly floor that exists before the
+  first listener arrives.
 * **The script cache is a discount that grows with listeners.** Two people who
   ask the same thing pay for one script. Reporting only what was spent would
   make the cache invisible, so `report` estimates what the hits avoided.
@@ -118,15 +119,17 @@ def cache_write_multiplier() -> float:
 #: cache reads and writes included (§179). Published, not measured here.
 BATCH_DISCOUNT = 0.5
 
-#: What a synthesis GPU costs per hour. Default is the middle of the L4
-#: on-demand range; a reserved card or a neocloud is cheaper. Only ever used
-#: for an *allocation* - see the module docstring on why this is not a price.
-GPU_USD_PER_HOUR = float(os.environ.get("GPU_USD_PER_HOUR", "0.60"))
+#: What a synthesis GPU costs per hour. Default is RunPod's serverless flex
+#: rate for the 24 GB class production runs on (§207; was 0.60, the middle of
+#: the L4 on-demand range). Only ever used for an *allocation* - see the
+#: module docstring on why this is not a price.
+GPU_USD_PER_HOUR = float(os.environ.get("GPU_USD_PER_HOUR", "0.69"))
 
-#: How much faster than realtime Chatterbox synthesises. CLAUDE.md's figure.
-#: This is what makes the marginal audio cost negligible and the fixed cost
-#: everything.
-SYNTHESIS_REALTIME_FACTOR = float(os.environ.get("SYNTHESIS_REALTIME_FACTOR", "330"))
+#: How much faster than realtime Chatterbox synthesises: 4.6x, measured on an
+#: RTX 4090 (PROBLEMS.md §75). It was 330 - a figure measured on espeak and
+#: Piper, the old CPU voices - which under-reported every GPU line about 70x
+#: (§207). Re-measure on the rented card with `python verify_voice.py`.
+SYNTHESIS_REALTIME_FACTOR = float(os.environ.get("SYNTHESIS_REALTIME_FACTOR", "4.6"))
 
 #: Hours per day the card is actually paid for. 24 is the honest default for a
 #: service that answers at any hour; scale-to-zero would lower it and add cold

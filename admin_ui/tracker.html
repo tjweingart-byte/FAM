@@ -387,6 +387,16 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
         said = ' <small style="color:var(--muted)">· API-Sports: ' + Number(r.provider_remaining).toLocaleString() +
           (r.provider_limit != null ? ' of ' + Number(r.provider_limit).toLocaleString() : '') + ' left</small>';
       }
+      // A free plan whose licence forbids commercial use, while the service
+      // is in use (§207): buy the plan, then say so in the deploy's settings.
+      var lic = r.licence;
+      if (!sub && lic && lic.in_use && !lic.commercial) {
+        said += ' <small style="color:var(--bad, #c0392b)">· ' + esc(lic.plan) +
+          ' plan: not licensed for commercial use - ' + esc(lic.buy) + '</small>';
+      }
+      if (!sub && lic && lic.warning) {
+        said += ' <small style="color:var(--bad, #c0392b)">· ' + esc(lic.warning) + '</small>';
+      }
       if (sub && r.mismatch) {
         said += ' <small style="color:var(--bad, #c0392b)">· API-Sports reports a different plan - check API_SPORTS_TIERS</small>';
       }

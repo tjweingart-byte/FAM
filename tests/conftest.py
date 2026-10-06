@@ -70,6 +70,7 @@ FAM_ENVIRONMENT = (
     # Local news and weather (§194). A developer with WEATHER=1 and a key in
     # their shell must not run a suite that asks the Weather Service anything.
     "LOCAL_NEWS", "LOCAL_NEWS_POLL_MINUTES", "LOCAL_NEWS_WINDOW_DAYS",
+    "LOCAL_NEWS_KEEP_DAYS",
     "WEATHER", "WEATHER_SWEEP_HOURS", "WEATHER_LIVE_ALERTS",
     "OPEN_METEO_KEYLESS",
     "OPEN_METEO_API_KEY", "FAM_CONTACT_EMAIL",
@@ -125,6 +126,8 @@ FAM_ENVIRONMENT = (
     # asserting FAM says "no live feed" would then pass or fail on their shell.
     "GDELT", "GDELT_TIMEOUT_SECONDS", "GDELT_MAX_RECORDS", "GDELT_CROSS_CHECK",
     "GDELT_REQUEST_GAP_SECONDS", "GDELT_EPISODE_WAIT_SECONDS",
+    "GDELT_BREAKER_FAILURES", "GDELT_BREAKER_SECONDS", "GDELT_PROXY_URL",
+    "GNEWS_PLAN", "FINNHUB_PLAN",
     "BOOT_STAGGER_SECONDS",
     "API_SPORTS_KEY", "API_SPORTS_SPORT", "SPORTSDATAIO_KEY", "FINNHUB_KEY", "ALPHA_VANTAGE_KEY",
     "AP_ELECTIONS_KEY", "DDHQ_KEY", "POLYMARKET_BASE",
@@ -489,6 +492,17 @@ def isolated_api_sports(monkeypatch):
     monkeypatch.setattr(story_sources, "SPORT_FAILURES", {})
     monkeypatch.setattr(live_sources.ApiSportsSource, "_PODIUMS", {})
     yield
+
+
+@pytest.fixture(autouse=True)
+def closed_gdelt_breaker():
+    """GDELT's breaker (§207) is a process-global: failures one test
+    simulates must not pause GDELT for the next test."""
+    import gdelt as gdelt_mod
+
+    gdelt_mod.BREAKER.reset()
+    yield
+    gdelt_mod.BREAKER.reset()
 
 
 @pytest.fixture(autouse=True)

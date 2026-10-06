@@ -174,7 +174,8 @@ separate decisions.
 
 * `/api/health`: `environment.zero_spend: true`, `network_guard: true`,
   `blocked_connections` has nothing unexpected.
-* Sign up, sign in, sign out, continue as guest.
+* Sign up, sign in, sign out. (No "continue as guest": the button is withdrawn
+  until FAM is public, §197.)
 * Search: the loading steps, the sample script plays, the transport works,
   captions follow.
 * myFAM rails draw; a tile plays; Go Deeper; the post-episode grid.

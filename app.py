@@ -1139,6 +1139,12 @@ def _tier(request: Request) -> str:
     client-supplied one is a client-supplied upgrade.
     """
     listener = getattr(request.state, "listener", None)
+    # An admin account is never refused by its own allowance (§207): the
+    # people who test every surface every day would otherwise hit the free
+    # ceiling by lunchtime the day quotas are switched on. Named by
+    # `FAM_ADMIN_ACCOUNTS`, on the server - never by anything the client says.
+    if _allowed_admin(listener):
+        return "unlimited"
     return entitlements.normalise(listener.tier if listener else "free")
 
 
@@ -1249,10 +1255,11 @@ def erase_listener(user_id: str) -> dict:
       model cost in a given month is a fact about the business; a ledger with
       holes cannot be reconciled against an invoice. The link to the person
       goes and the amount stays (`metering.anonymise`).
-    * **The shared script cache is untouched, and needs no decision.** It holds
-      no `user_id` at all - it never has - so a script written for this
-      listener is already unattributed, and other listeners' Explore feeds do
-      not develop holes because somebody left.
+    * **The shared script cache keeps every episode, and loses the name.**
+      Other listeners' Explore feeds must not develop holes because somebody
+      left, so no script is deleted - but `scripts.author` held this
+      listener's id as provenance, and until §208 it outlived the account.
+      It is cleared (`anonymise_author`), leaving the episodes unattributed.
 
     Returns a per-store count so the endpoint reports what it did. Each store
     is attempted independently: a failure in one must not leave the other six
@@ -1282,6 +1289,13 @@ def erase_listener(user_id: str) -> dict:
     except Exception:
         log.exception("could not anonymise usage for %r", user_id)
         removed["usage_rows_anonymised"] = -1
+    try:
+        store = SCRIPT_CACHE if SCRIPT_CACHE is not None else build_cache()
+        anonymise = getattr(store, "anonymise_author", None) if store else None
+        removed["scripts_unattributed"] = anonymise(user_id) if anonymise else 0
+    except Exception:
+        log.exception("could not clear authorship for %r", user_id)
+        removed["scripts_unattributed"] = -1
     try:
         removed["waitlist"] = WAITLIST.forget(user_id)
     except Exception:
@@ -1575,6 +1589,10 @@ async def health(request: Request) -> dict:
         # separately from `research` because they fail separately: Exa can be
         # healthy while this is off, and vice versa.
         "gdelt": gdelt_report(),
+        # Whether every licensed provider in use may be used commercially
+        # (§207): GNews' and Finnhub's free plans and Open-Meteo's keyless
+        # endpoint may not. The question to ask before charging anybody.
+        "licences": _licences_report(),
         # Whether episodes are being written before anybody asks for them, on
         # what evidence, and whether the guesses are being taken. The hit rate
         # is the only thing that answers CLAUDE.md's open question about how
@@ -3085,6 +3103,24 @@ async def entitlements_read(request: Request) -> dict:
     }
 
 
+def _licences_report() -> dict:
+    """`provider_usage.licences`, never raising: health reports, it does not
+    fail on a report.
+
+    Only the verdict and which services: `/api/health` is open to anybody
+    (the waitlist lets it through), so the plans, prices and what to buy stay
+    on `/admin`'s outside-services table (§207 review)."""
+    try:
+        import provider_usage
+
+        full = provider_usage.licences()
+        return {"commercial_ready": full["commercial_ready"],
+                "non_commercial_in_use": full["non_commercial_in_use"]}
+    except Exception as exc:  # noqa: BLE001
+        log.warning("could not read licences: %s", exc)
+        return {"error": str(exc)}
+
+
 @app.get("/api/plans")
 async def plans_read(request: Request) -> dict:
     """Every tier and every feature, for a pricing screen.
@@ -3095,7 +3131,14 @@ async def plans_read(request: Request) -> dict:
     product metadata, which is also the only place it can be right per country.
     """
     _read_limit(request)
-    return {**entitlements.catalogue(), "current": _tier(request)}
+    return {**entitlements.catalogue(), "current": _tier(request),
+            # Whether a limit can refuse anybody on this deploy, and whether
+            # anything sells a way past one (§207). The plans screen and the
+            # limit card word themselves from these rather than guessing:
+            # "everything is free" is false the day quotas are on, and a
+            # "See plans" button with no checkout behind it is a dead end.
+            "enforced": bool(settings.enforce_quotas),
+            "checkout": False}
 
 
 @app.get("/api/voices")
@@ -3464,8 +3507,11 @@ if _ALLOWED_ORIGINS:
         CORSMiddleware,
         allow_origins=_ALLOWED_ORIGINS,
         allow_credentials=True,
-        allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
-        allow_headers=["Authorization", "Content-Type", "X-FAM-Client"],
+        # PATCH is how a mix is edited and X-FAM-TZ is every request's clock
+        # (§186); both were missing, which only a cross-origin client would
+        # have found (§208).
+        allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+        allow_headers=["Authorization", "Content-Type", "X-FAM-Client", "X-FAM-TZ"],
         # So a browser client can read the quota verdict on a 429 rather than
         # only the status code.
         expose_headers=["X-FAM-Quota", "X-Sample-Rate", "X-Requested-Seconds",
@@ -7911,6 +7957,33 @@ async def admin_waitlist_grant(req: AdminGrantRequest, request: Request) -> dict
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     _kick_viral_loops()
     return {"granted": len(granted), "user_ids": granted}
+
+
+class AdminPlanRequest(BaseModel):
+    who: str = Field(..., min_length=1, max_length=200)
+    plan: str = Field(..., min_length=1, max_length=40)
+
+
+@app.post("/api/admin/plan")
+async def admin_set_plan(req: AdminPlanRequest, request: Request) -> dict:
+    """Move one account between plans (§207).
+
+    There is no checkout, so this is the only way an account leaves `free`:
+    a tester, a friend of the product, anybody the owner wants past the daily
+    ceiling while quotas are enforced. `who` is the listener id, email or
+    phone number on the account. Takes effect on their next request - the
+    plan is read with the session.
+    """
+    _require_admin(request)
+    user_id = ACCOUNTS.user_id_for(req.who)
+    if not user_id:
+        raise HTTPException(status_code=404, detail=f"No account matches {req.who!r}.")
+    try:
+        plan = ACCOUNTS.set_plan(user_id, req.plan.strip().lower())
+    except accounts_mod.AuthError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    log.info("admin set plan %s for %s", plan, user_id)
+    return {"user_id": user_id, "plan": plan}
 
 
 class AdminCutoffRequest(BaseModel):

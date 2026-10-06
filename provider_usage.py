@@ -103,6 +103,54 @@ def _plans() -> dict:
     }
 
 
+def licences() -> dict:
+    """provider -> whether this deploy may use it commercially (§207).
+
+    Only the three whose free plan forbids it: GNews (development use),
+    Finnhub (personal, non-commercial) and Open-Meteo's keyless endpoint
+    (non-commercial). The plan is what the deploy says it bought
+    (`GNEWS_PLAN`, `FINNHUB_PLAN`) - neither provider's answer carries it -
+    and Open-Meteo's is the key itself. `in_use` is whether the service is
+    configured at all: an unused free plan is not a licence problem.
+
+    `commercial_ready` is the one question before charging anybody money.
+    """
+    from config import settings
+    import credentials
+
+    gnews_paid = settings.gnews_plan not in ("", "free")
+    finnhub_paid = settings.finnhub_plan not in ("", "free")
+    meteo_key = bool(credentials.active("OPEN_METEO_API_KEY"))
+    rows = {
+        "gnews": {
+            "in_use": bool((settings.gnews_key or "").strip()),
+            "plan": settings.gnews_plan or "free",
+            "commercial": gnews_paid,
+            "buy": "Essential, EUR 49.99/mo (gnews.io); then GNEWS_PLAN=essential",
+        },
+        "finnhub": {
+            "in_use": bool((settings.finnhub_key or "").strip()),
+            "plan": settings.finnhub_plan or "free",
+            "commercial": finnhub_paid,
+            "buy": "a commercial plan, quote-based (finnhub.io); then FINNHUB_PLAN=commercial",
+        },
+        "open_meteo": {
+            "in_use": meteo_key or bool(settings.open_meteo_keyless),
+            "plan": "paid key" if meteo_key else (
+                "keyless" if settings.open_meteo_keyless else "none"),
+            "commercial": meteo_key,
+            "buy": "API Standard, $29/mo (open-meteo.com); then OPEN_METEO_API_KEY",
+        },
+    }
+    if gnews_paid and int(settings.gnews_daily_requests) <= 100:
+        rows["gnews"]["warning"] = (
+            f"GNEWS_DAILY_REQUESTS is still {settings.gnews_daily_requests}: "
+            "raise it to the plan (950 on Essential)")
+    blocking = [p for p, r in rows.items() if r["in_use"] and not r["commercial"]]
+    return {"providers": rows, "non_commercial_in_use": blocking,
+            "commercial_ready": not blocking}
+
+
 #: Hosts `live_sources._json` sends to, and whose request each one is.
 _HOSTS = (
     ("api-sports.io", "api_sports"),
@@ -319,6 +367,11 @@ def report(now: Optional[float] = None, days: int = 7) -> list[dict]:
         log.warning("could not read provider usage: %s", exc)
         seen = {}
     plans = _plans()
+    try:
+        licensed = licences()["providers"]
+    except Exception as exc:  # noqa: BLE001 - a report is never load-bearing
+        log.warning("could not read licences: %s", exc)
+        licensed = {}
     today, yesterday = _day(now), _day(now - DAY)
     rows = []
     for provider in PROVIDERS:
@@ -335,6 +388,8 @@ def report(now: Optional[float] = None, days: int = 7) -> list[dict]:
             "limit": limit,
             "next": upgrade,
         }
+        if provider in licensed:
+            row["licence"] = licensed[provider]
         if provider == "api_sports":
             row["breakdown"] = _api_sports_breakdown(seen, today, yesterday, days)
         rows.append(row)

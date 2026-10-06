@@ -240,36 +240,191 @@ class _Pacer:
 PACER = _Pacer()
 
 
+class GdeltPaused(GdeltBusy):
+    """GDELT has failed every request lately; it is not being asked (§207)."""
+
+
+class _Breaker:
+    """Stop asking an address that refuses every request (§207).
+
+    On 1/10 GDELT failed 384 of 384 requests from Render's shared outbound
+    address (§191). Each failure still cost a paced slot, and an episode whose
+    Exa search came back empty waited up to `GDELT_EPISODE_WAIT_SECONDS` for
+    an answer that was never coming. After `GDELT_BREAKER_FAILURES` failures
+    in a row nothing is sent for `GDELT_BREAKER_SECONDS`; then exactly one
+    request is let through (`probing`) while everyone else is still told
+    "paused", and its success closes it - its failure pauses again. The check
+    runs again after a request's pacer wait, so requests queued before the
+    pause began do not go out after it. A pause is reported on `/api/health`
+    (`gdelt.paused_until`), because a fallback that is quietly off is the
+    failure this code base keeps a rule about.
+    """
+
+    def __init__(self) -> None:
+        self.failures = 0
+        self.paused_until = 0.0
+        self.last_error = ""
+        #: True while the one request after a pause is out. Event-loop state:
+        #: every caller runs on the one loop, so no lock is needed.
+        self.probing = False
+
+    def _limit(self) -> int:
+        return int(settings.gdelt_breaker_failures)
+
+    def check(self, claim: bool = False) -> None:
+        """Raise `GdeltPaused` while paused. `claim=True` is the last check
+        before a request is sent: once a pause has expired, the first caller
+        to claim becomes the probe and the rest are still refused."""
+        if self._limit() <= 0:
+            return
+        now = time.time()
+        if self.paused_until > now:
+            raise GdeltPaused(
+                f"GDELT refused the last {self.failures} requests; not asking "
+                f"again for {self.paused_until - now:.0f}s")
+        if self.paused_until and self.failures >= self._limit():
+            # A pause has run out but nothing has succeeded since.
+            if self.probing:
+                raise GdeltPaused("GDELT is being retried by one request; "
+                                  "waiting for its answer")
+            if claim:
+                self.probing = True
+
+    def success(self) -> None:
+        self.failures = 0
+        self.paused_until = 0.0
+        self.last_error = ""
+        self.probing = False
+
+    def failure(self, why: str) -> None:
+        self.failures += 1
+        self.last_error = why[:200]
+        self.probing = False
+        limit = self._limit()
+        if limit > 0 and self.failures >= limit:
+            self.paused_until = time.time() + float(settings.gdelt_breaker_seconds)
+            log.warning("gdelt: %d failures in a row (last: %s); pausing %ss",
+                        self.failures, self.last_error,
+                        settings.gdelt_breaker_seconds)
+
+    def report(self) -> dict:
+        return {"failures_in_a_row": self.failures,
+                "paused_until": self.paused_until if self.paused_until > time.time() else None,
+                "probing": self.probing,
+                "last_error": self.last_error or None}
+
+    def reset(self) -> None:
+        self.__init__()
+
+
+BREAKER = _Breaker()
+
+
+class ProxyInvalid(ValueError):
+    """`GDELT_PROXY_URL` is set but is not an http(s) URL httpx can use."""
+
+
+def _proxy() -> Optional[str]:
+    """The outbound proxy GDELT's requests go through, if one is set.
+
+    GDELT limits by address, and Render's address is shared with every other
+    tenant on it (§144, §191). `GDELT_PROXY_URL` sends these requests - and
+    only these - through a static-IP proxy (QuotaGuard Static is the one
+    Render documents), so FAM is counted on an address of its own. A
+    credential lives in the URL, so it is a secret and staging never has it.
+
+    A URL that is not `http://` or `https://` with a host raises
+    `ProxyInvalid` - worded without the URL, which holds the credential -
+    rather than letting httpx refuse it with the URL in the message.
+    """
+    url = str(getattr(settings, "gdelt_proxy_url", "") or "").strip()
+    if not url:
+        return None
+    try:
+        parsed = httpx.URL(url)
+        ok = parsed.scheme in ("http", "https") and bool(parsed.host)
+    except Exception:  # noqa: BLE001 - any parse failure is the same answer
+        ok = False
+    if not ok:
+        raise ProxyInvalid("GDELT_PROXY_URL is set but is not an http(s):// "
+                           "URL with a host; GDELT is not being asked")
+    return url
+
+
+def proxy_state() -> str:
+    """For health: "none", "set" or "invalid" - never the URL itself."""
+    try:
+        return "set" if _proxy() else "none"
+    except ProxyInvalid:
+        return "invalid"
+
+
+#: What GDELT says, with a 200, when it is rate-limiting an address.
+_RATE_LIMIT_TEXT = "limit requests"
+
+
 async def _get(params: dict, timeout: float,
                max_wait: Optional[float] = None) -> dict:
     """One DOC request, in its turn. `max_wait=None` is background work."""
+    BREAKER.check()
     await PACER.slot(max_wait)
+    # Again after the wait (§207 review): a request that queued before the
+    # breaker tripped must not go out after it, and only one may probe.
+    BREAKER.check(claim=True)
     import provider_usage
 
-    async with httpx.AsyncClient(timeout=timeout) as client:
+    try:
+        proxy = _proxy()
+        client = httpx.AsyncClient(timeout=timeout, proxy=proxy)
+    except Exception as exc:
+        # A bad proxy setting is a failure to reach GDELT, counted and paused
+        # like any other - never a silent hole (`failures-visible`).
+        provider_usage.record("gdelt", ok=False)
+        BREAKER.failure(_describe(exc) if isinstance(exc, ProxyInvalid)
+                        else f"{type(exc).__name__} building the client")
+        raise
+    async with client:
         try:
             response = await client.get(DOC_API, params=params)
-        except Exception:
+        except asyncio.CancelledError:
+            # The caller's deadline passed mid-request (`retrieve` bounds the
+            # whole call). A GDELT too slow to answer is not answering, and
+            # the probe after a pause must not stay claimed for ever.
             provider_usage.record("gdelt", ok=False)
+            BREAKER.failure("no answer before the deadline")
+            raise
+        except Exception as exc:
+            provider_usage.record("gdelt", ok=False)
+            BREAKER.failure(_describe(exc))
             raise
         # Counted for the admin page (§179), refused or not: a 429 spent
         # the slot as surely as a 200 did.
         provider_usage.record("gdelt", ok=response.is_success)
+        if not response.is_success:
+            BREAKER.failure(f"HTTP {response.status_code}")
         response.raise_for_status()
         try:
-            return response.json()
+            payload = response.json()
         except ValueError as exc:
             # DOC answers a query it cannot parse with a 200 and a sentence of
             # plain text. Say what it said, rather than "Expecting value".
-            raise ValueError(
-                f"GDELT answered with text, not JSON: {response.text[:160]!r}"
-            ) from exc
+            # Its rate-limit notice is also text with a 200, and that one is
+            # a refusal; a query it could not parse says nothing either way.
+            text = response.text[:160]
+            if _RATE_LIMIT_TEXT in text.lower():
+                BREAKER.failure("rate-limited (200 with a notice)")
+            else:
+                BREAKER.probing = False
+            raise ValueError(f"GDELT answered with text, not JSON: {text!r}") from exc
+        BREAKER.success()
+        return payload
 
 
 def _describe(exc: BaseException) -> str:
     """A failure in words. A timeout's own message is empty, which is how the
     24/09 logs came to read `gdelt retrieval failed for '...': ` and stop."""
-    text = str(exc).strip()
+    # A proxy URL carries its credential (`GDELT_PROXY_URL`); never repeat it.
+    text = re.sub(r"//[^/@\s]+@", "//***@", str(exc)).strip()
     name = type(exc).__name__
     return f"{name}: {text}" if text else name
 
@@ -548,4 +703,10 @@ def report() -> dict:
     ok, why = available()
     return {"enabled": bool(settings.gdelt), "ready": ok, "detail": why,
             "endpoint": DOC_API, "themes_swept": len(THEMES),
-            "verified_from_this_machine": False}
+            "verified_from_this_machine": False,
+            # §207: whether requests leave through a proxy of FAM's own (never
+            # the URL - it carries a credential), and whether the breaker has
+            # stopped asking.
+            "proxy": proxy_state(),
+            "via_proxy": proxy_state() == "set",
+            **BREAKER.report()}

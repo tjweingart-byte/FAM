@@ -230,6 +230,16 @@ def test_the_dockerfile_puts_every_database_on_the_mounted_disk():
     assert not missing, f"not pinned to the mounted disk in the Dockerfile: {missing}"
 
 
+def test_the_gpu_image_puts_every_database_on_its_volume_too():
+    """§208: `Dockerfile.gpu` pinned eight of twenty stores to `/state/data`,
+    so on that image saved, messages, quotas, voice bank, local news and the
+    rest landed in the image and went with every redeploy. Same derived list,
+    same rule."""
+    dockerfile = (ROOT / "Dockerfile.gpu").read_text()
+    missing = [v for v in ALL_VARS if f"{v}=/state/data/" not in dockerfile]
+    assert not missing, f"not pinned to /state/data in Dockerfile.gpu: {missing}"
+
+
 def test_the_hand_written_list_covers_every_declared_store():
     """`STORES` names constructors, which cannot be discovered from a string,
     so it stays by hand - but it must not fall behind the derived set, or the

@@ -1092,6 +1092,14 @@
   `WAITLIST=0`.
 <!-- rule:tiers-off -->
 - **The tier system is built, and switched off.** *(PROBLEMS.md §81.)*
+  > **Current:** switched **on in production** at the owner's direction
+  > (§207): `render.yaml` sets `ENFORCE_QUOTAS=1` on `fam`, so the worst
+  > listener is bounded (5 episodes a day on free, ~$0.50) rather than ~$2 a
+  > minute. The code default stays `0` (local runs, tests, staging). Still no
+  > checkout: admin accounts (`FAM_ADMIN_ACCOUNTS`) are `unlimited` by
+  > derivation in `app._tier`, `POST /api/admin/plan` moves any other account
+  > between plans, and the plans sheet says the allowance comes back daily
+  > rather than "everything is free" (`/api/plans` `enforced`, `checkout`).
   `ENFORCE_QUOTAS=0` is the default: every tier, limit, counter, reservation,
   refund and refusal exists and is tested, and none of them refuses anybody.
   The reason is not that limits are wrong, it is that **nothing sells a

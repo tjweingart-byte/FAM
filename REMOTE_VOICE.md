@@ -1,7 +1,8 @@
 # The voice on a rented card, and the app where it is cheap
 
-Chatterbox needs a GPU. The rest of FAM — Claude, the cache, eight SQLite
-stores, the interface — needs a web server. Running both on the same machine
+Chatterbox needs a GPU. The rest of FAM — Claude, the cache, the SQLite
+stores (every one opened through `paths.data_path`; see `docs/DATA.md`), the
+interface — needs a web server. Running both on the same machine
 means paying GPU prices for the 99% of the time nothing is being synthesised,
 which `DEPLOY.md` names as the constraint to plan around:
 

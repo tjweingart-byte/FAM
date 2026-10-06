@@ -54,7 +54,12 @@ volume. One mount, three trees:
 
     /state/hf       Chatterbox weights
     /state/voices   reference_3.wav + reference_3.rights.json
-    /state/data     the eight SQLite stores
+    /state/data     the SQLite stores (every one opened through paths.data_path)
+
+`Dockerfile.gpu` pins every one of those stores to `/state/data` (until §208
+only eight were, and the rest went with each redeploy of this image); the
+Render `Dockerfile` pins every one to `/data`, and `tests/test_data_paths.py`
+checks both. `docs/DATA.md` lists them all.
 
 **3. Put the voice on the volume, once.** The engine refuses to speak without
 both files — a cloned voice is somebody's voice:
@@ -169,8 +174,10 @@ each worker holds in process, and the engagement table. A wipe that left
 those would rank a blank-slate feed on subjects learned from episodes nobody
 can play any more, and nothing on the outside would say so (§124). That is
 the true blank slate and it takes real listening with it. It costs nothing
-that cannot be regenerated - a script is about three cents and audio is never
-stored - and the taste model starts from nothing for everybody.
+that cannot be regenerated - a script is about three cents, and the audio kept
+beside it since §132 goes with it and is synthesised again the next time the
+episode is written - and the taste model
+starts from nothing for everybody.
 
 Neither scope touches accounts, credentials or the metering ledger, and
 neither removes a mix, a saved episode or a vibe: all three hold a question

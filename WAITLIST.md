@@ -56,6 +56,13 @@ section when a decision changes, including why.
    asks for the email, then a password - the app's own sign-up, so the account
    is the one the app opens with. The provider route still honours
    `referral_code` for the day it is offered.
+   *Reconciling with CLAUDE.md `op-identity`* (email/phone/Google/Apple): that
+   rule describes what the server supports - `/api/auth/signup` takes an email
+   or a phone, `/api/auth/provider` verifies Google and Apple tokens - and every
+   one of those routes writes `waitlisted`. What this decision limits is the
+   waitlist page (`static/waitlist.html`), which offers only email and password
+   (`/api/waitlist/join`, then `/api/auth/login`); the phone field there is
+   part of the profile step, not a way to sign up.
 4. **No email delivery in FAM; Viral Loops sends the email** (the owner).
    Welcome, referral and "you're in" email are configured in Viral Loops.
    Granting access flags the participant there.

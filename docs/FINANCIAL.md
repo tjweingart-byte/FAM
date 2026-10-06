@@ -160,9 +160,9 @@ rather than one per listener.
 - **List price:** $7 / 1,000 searches (up to 10 results), plus $1 / 1,000 pages
   of contents. FAM asks for highlights on 8 results.
 - **Estimate:** about **$0.015 per search** and **$0.015-0.03 per episode**.
-- **Code discrepancy:** `research.COST_PER_SEARCH = 0.005` is used only when
-  Exa's response omits `cost_dollars`. It is below today's list price, so any
-  row priced from the fallback **under-reports**.
+- **Fallback price:** `research.COST_PER_SEARCH = 0.015` is used only when
+  Exa's response omits `cost_dollars`. It was 0.005 - a third of list price -
+  until §207.
 - **Rate limit:** about 10 requests/s per key (`CREDENTIALS.md:159`). FAM will
   not reach it before 100k listeners (see §4).
 
@@ -171,16 +171,12 @@ rather than one per listener.
 Chatterbox has open weights, so there is no per-character fee. The only cost
 is GPU time.
 
-**The GPU cost in `metering.py` is understated by about 70x.**
-
-- `metering.py:106` assumes `SYNTHESIS_REALTIME_FACTOR = 330`: one second of
-  GPU makes 330 seconds of audio.
-- That figure was measured on espeak/Piper, the old CPU voices
-  (PROBLEMS.md:169).
-- Chatterbox was measured at **about 4.6x realtime** (PROBLEMS.md:3871, §75).
-- The fix needs no code change. Set `SYNTHESIS_REALTIME_FACTOR=4.6` (and
-  `GPU_USD_PER_HOUR` to the real rate) on Render, and `usage_report.py` will
-  report the right GPU line.
+**The GPU cost in `metering.py` is priced at the measured speed** (§207).
+`SYNTHESIS_REALTIME_FACTOR` defaults to **4.6** - Chatterbox measured on an RTX
+4090 (PROBLEMS.md §75) - and `GPU_USD_PER_HOUR` to **0.69**, RunPod's serverless
+flex rate. Until §207 they were 330 (the old CPU voices' speed) and 0.60, which
+under-reported every GPU line about 70x. Re-measure on the rented card with
+`python verify_voice.py` and override either on Render if it differs.
 
 **GPU time per episode at 4.6x realtime.** An episode is voiced once. Every
 replay after that comes from `episode_audio` and never reaches RunPod
@@ -204,7 +200,7 @@ figures are 730 h/month at list prices.
 | RTX A5000 | 0.27 | **~$197** |
 | L4 | 0.39 | **~$285** |
 | RTX 4090 (the measurements were made on this) | 0.69 | **~$504** |
-| *Assumption in `metering.py` (`GPU_USD_PER_HOUR=0.60`)* | 0.60 | *$438* |
+| *Default in `metering.py` (`GPU_USD_PER_HOUR=0.69`, §207)* | 0.69 | *$504* |
 
 **The third option: a serverless active worker.** An always-warm worker on
 the same serverless endpoint, billed every second at a ~40% discount on flex
@@ -293,15 +289,29 @@ So cost per listener is almost entirely the cache-miss rate times $0.06.
 |---|---|---|---|---|
 | **GNews** | Trending edition only | `GNEWS_DAILY_REQUESTS=90`. Uses about 26 requests per edition, 2 editions/day ≈ **52/day** | 100 req/day, 10 articles per call. For development use; check the terms before charging money. | Essential **€49.99/mo**: 1,000/day, 25 articles |
 | **API-Sports** | Live scores in episodes plus score lines on story cards, ten sports | A plan **per sport** (`API_SPORTS_TIER`/`API_SPORTS_TIERS`, §180), each shared between both uses, **per process** | 100 req/day **per sport** on the free plans; since §191 swept only for followed leagues while a game is on and somebody is looking (≤ every 15 min) | **$19/mo** for 7,500/day; $29 for 75k; $39 for 150k (`PROVIDER_ROLLOUT.md:108`) |
-| **Finnhub** | Market facts plus market-move story cards | Story source every 900 s (§156; was 1,800); quotes delayed 1,200 s | 60 req/min, **personal / non-commercial** | Paid plan per `PROVIDER_ROLLOUT.md` ($11.99/mo quoted there; verify, since Finnhub's commercial pricing is quote-based). Metered price in code: $0.80 / 1,000 calls (`live_sources.py:961`) |
+| **Finnhub** | Market facts plus market-move story cards | Story source every 2 h since §191 (~150 calls/day); quotes delayed 1,200 s | 60 req/min, **personal / non-commercial** | Paid plan per `PROVIDER_ROLLOUT.md` ($11.99/mo quoted there; verify, since Finnhub's commercial pricing is quote-based). Metered price in code: $0.80 / 1,000 calls (`live_sources.py:961`) |
 | **Polymarket** | Election and prediction facts plus cards | Keyless; source every 1,800 s | Free | n/a |
 | **GDELT** | Retrieval fallback rung, story pool discovery | `GDELT=1`; paced one request per 5.5 s; the story sweep (~32 requests) every 2 h since §156 | Free; **1 request per 5 s per IP**, and Render's outbound IP is shared | n/a: this limit cannot be bought off |
-| **Exa** | Every episode's research | Pay-as-you-go | $10 credit/month (~1,400 searches) | Usage-billed; see §2.2 |
+| **Exa** | Every episode's research, and the last rung of the local-news ladder (§194, known outlets only) | Pay-as-you-go | $10 credit/month (~1,400 searches) | Usage-billed; see §2.2 |
+| **NWS** | US weather: forecasts, warnings, observations (§194) | Keyless; fetched on demand, swept 05:00/17:00 in each asked place's own time; warnings live (≤ every 10 min per place) | Free; needs a User-Agent contact (`FAM_CONTACT_EMAIL`) | n/a |
+| **Open-Meteo** | Weather outside the US and when NWS fails; place names → county and coordinates (§194) | Only with `OPEN_METEO_API_KEY`; the keyless endpoint is non-commercial and never used in production | Keyless: non-commercial only | API Standard **$29/mo** (1M calls/month); Professional $99 (5M) |
+| **Local news RSS** | Town and county outlets' own feeds (§194) | FAM's own collector, every 5 min, only for places asked about in 30 days, each feed at its own rhythm (≥30 min) | Free | n/a. Paid news APIs ($90-550/mo) were priced and turned down |
 
-**Before charging money:** the free tiers of GNews and Finnhub are
-development / non-commercial licences. A paid launch needs GNews Essential and
-a Finnhub commercial plan whatever the traffic is: about **$65-70/month**
-together at list price.
+**Before charging money:** the free tiers of GNews and Finnhub and Open-Meteo's
+keyless endpoint are development / non-commercial licences. A paid launch needs
+GNews Essential, a Finnhub commercial plan and Open-Meteo Standard whatever the
+traffic is: about **$95-100/month** together at list price. Since §207
+`/api/health` → `licences.commercial_ready` says whether the deploy is covered
+(`GNEWS_PLAN`, `FINNHUB_PLAN`, `OPEN_METEO_API_KEY`).
+
+**Other services** (list prices looked up 2026-10-05):
+
+| Service | What for | Price | Scales with |
+|---|---|---|---|
+| **Viral Loops** | Waitlist referrals, fraud checks and emails while `WAITLIST=1` (§183) | Start-up $35/mo billed annually ($49 monthly) to 1,000 participants; Plus $99 (5k); Growing $159 (10k); Power $279 (25k) | Waitlist size; cancel at public launch |
+| **QuotaGuard Static** (optional) | A static outbound IP for GDELT only, `GDELT_PROXY_URL` (§207) | Starter $19/mo (20k requests); Production $49 (100k) | Flat: GDELT is ~12k requests/month |
+| **Google image model** | Tile pictures, one per category branch (§160) | ~$0.067/image, ≤60/day (`THUMBNAILS_DAILY_IMAGES`) | New category branches, not listeners |
+| **Apple Developer Program** | The iOS app and Sign in with Apple | $99/year | Flat |
 
 ### 3.3 Background generation (shared by every listener)
 
@@ -371,8 +381,9 @@ What the table shows:
 
 ### 4.3 The free-tier ("free" plan) exposure
 
-Quotas are built and **switched off** (`ENFORCE_QUOTAS=0`, `config.py:1216`).
-No checkout exists, so an enforced limit would have no way past it.
+Quotas are built, off by default, and **enforced in production** since §207
+(`ENFORCE_QUOTAS=1` on `fam` in `render.yaml`). No checkout exists: admin
+accounts are unlimited, and `POST /api/admin/plan` moves anybody else.
 
 The tiers exist in code (`entitlements.py:219-247`):
 
@@ -392,8 +403,10 @@ The tiers exist in code (`entitlements.py:219-247`):
 - Turning on `ENFORCE_QUOTAS=1` caps a free listener at 5 episodes/day, which
   is **≤ $0.50/day** even if every one is a new 10-minute episode.
 
-**Recommendation:** turn quotas on before any public launch, even with no paid
-plan. Five a day is generous, and it bounds the worst listener at ~$15/month.
+**Done (§207):** on in production. Five a day bounds the worst listener at
+~$15/month. Note the free tier counts every episode heard, cached replays
+included (`tier-spend`), so tune `FREE_EPISODES_PER_DAY` in the dashboard if
+five is too tight for how people actually listen.
 
 ---
 
@@ -465,7 +478,7 @@ forced by the one-instance ceiling, not by price.
 
 | Limit | Where it bites | Action |
 |---|---|---|
-| **1 request per 5 s per IP**, and Render's outbound IP is **shared** with other tenants | Paced at 5.5 s (`GDELT_REQUEST_GAP_SECONDS`). A story sweep is ~32 paced requests (~3 min). An episode waits at most 6 s for a slot and has priority over the sweep. That is about **11 fallback retrievals a minute across all users** at most. | GDELT is only the second rung, so this binds only when Exa returns nothing. If it binds, a dedicated egress IP gives FAM its own allowance. Money does not raise the cap. |
+| **1 request per 5 s per IP**, and Render's outbound IP is **shared** with other tenants. On 1/10 every request failed (§191). Since §207 a breaker stops asking after 5 failures in a row for 30 min, and `GDELT_PROXY_URL` (QuotaGuard Static, from $19/mo) sends GDELT's requests from an address of FAM's own | Paced at 5.5 s (`GDELT_REQUEST_GAP_SECONDS`). A story sweep is ~32 paced requests (~3 min). An episode waits at most 6 s for a slot and has priority over the sweep. That is about **11 fallback retrievals a minute across all users** at most. | GDELT is only the second rung, so this binds only when Exa returns nothing. If it binds, a dedicated egress IP gives FAM its own allowance. Money does not raise the cap. |
 
 ### 5.6 GNews
 
@@ -503,15 +516,14 @@ the episode continues without the fact.
    per-day request count for every outside service on `/admin`, beside its
    limit and the next plan's. Stage-by-stage triggers are in
    [`SCALING_TIMELINE.md`](SCALING_TIMELINE.md).
-1. **Correct the metering constants on Render.** Set
-   `SYNTHESIS_REALTIME_FACTOR=4.6`, set `GPU_USD_PER_HOUR` to the real card
-   rate, and consider raising `research.COST_PER_SEARCH` to ~0.015. Without
-   this, `usage_report.py` under-reports GPU cost about 70x.
+1. **Done in §207:** the metering constants (GPU at 4.6x and $0.69/h, Exa's
+   fallback at $0.015), quotas enforced in production, a GDELT breaker and
+   proxy, and a licence check for GNews, Finnhub and Open-Meteo on `/admin`
+   and `/api/health` (`licences.commercial_ready`).
 2. **Confirm the voice transport:** serverless or always-on pod. It is a
    $0-vs-$200-500/month fixed-cost question, and the repo describes both.
 3. **Run `usage_report.py` after the first real month** and replace §4's
    assumptions with measured miss rates and per-episode costs.
-4. **Turn on `ENFORCE_QUOTAS=1` before a public launch.**
 5. **Buy commercial licences** for GNews and Finnhub before charging anyone,
    and API-Sports $19 as soon as more than one sport is wanted.
 6. **Plan the Opus transport** before 10k MAU. Bandwidth is the line that

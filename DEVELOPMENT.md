@@ -52,16 +52,19 @@ python tools/seed_demo.py             # 8 real episodes, 8 model calls, no audio
 
 **Explore cannot fill itself.** It replays episodes other listeners generated
 and refuses to generate — that guarantee lives in the pipeline, not in the
-interface's good intentions — so on a fresh database it is a dead tab no matter
-how much you tap it. myFAM's Trending rail has the same problem from the other
-direction: it ranks a global event log, and an empty log ranks nothing.
+interface's good intentions — so on a fresh database it is an empty reel no
+matter how much you open it (Explore is the exploreFAM pill now, not a tab,
+§203). myFAM's "Most played" rail has the same problem from the other
+direction: it holds plays only, and an empty log ranks nothing.
 
 The seeder writes that history. It generates real scripts into the shared
 cache, records three other listeners having played them at plausible times
 across the last few days, and adds two echoes so an Explore card can say who
-sent it. It costs one model call per episode and no speech synthesis at all —
-audio is regenerated from the script in milliseconds, so seeding it would be
-storing the cheap half.
+sent it. It costs one model call per episode and no speech synthesis at all.
+Since §132 a played episode keeps its audio beside the script, but synthesis
+needs the GPU voice (Chatterbox runs at about 4.6× realtime, not in
+milliseconds), so a seeded episode is voiced the first time somebody plays it
+and kept from then on.
 
 It **refuses to run without an API key**. The server happily falls back to a
 canned script, and a cache seeded with that looks exactly like a cache of real
@@ -69,8 +72,10 @@ episodes until you press play, which is worse than an empty Explore.
 
 After seeding, "What FAM can't stop listening to" ranks immediately and leads
 with the episodes that are already written. "What your friends are listening
-to" stays empty until you follow somebody, and "Trending" stays empty until a
-live source is configured (`MYFAM.md`). Both are the feature working rather
+to" stays empty until you follow somebody, and "Trending" is unaffected by the
+seed: since §139 it is its own GNews edition, ten stories written at 05:00 and
+17:00 Eastern, and it stays empty until `GNEWS_KEY` is set and an edition has
+run (`MYFAM.md`). Both are the feature working rather
 than a seed that failed, and both say which on the page.
 
 ## Three ways to look at it, and what each one proves

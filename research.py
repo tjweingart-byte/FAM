@@ -71,8 +71,11 @@ log = logging.getLogger("research")
 #: configuration instead.
 DEFAULT_SEARCH_TYPE = "fast"
 
-#: Exa's published rate, used only when a response reports no cost of its own.
-COST_PER_SEARCH = 0.005
+#: Exa's published rate, used only when a response reports no cost of its own:
+#: $7 per 1,000 searches plus contents for the 8 results FAM asks highlights
+#: of, about $0.015 (docs/FINANCIAL.md §2.2). Was 0.005, a third of that, so
+#: every row priced from the fallback under-reported (§207).
+COST_PER_SEARCH = 0.015
 
 
 # --------------------------------------------------------------------------

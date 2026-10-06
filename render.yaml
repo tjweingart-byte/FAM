@@ -80,8 +80,15 @@ services:
       # key is then picked up by the running server. See CREDENTIALS.md.
       - key: ANTHROPIC_API_KEY
         sync: false        # set once in the dashboard; never in the repo
-      - key: DEMO_MODE
-        value: "0"
+      # No DEMO_MODE here: nothing reads it. Demo mode is derived from whether
+      # a Claude key is present (§208 removed a `DEMO_MODE=0` that did nothing).
+      # Tier quotas, enforced here and nowhere else (§207): the free tier's
+      # daily ceiling bounds what one listener can spend (~$0.50 a day rather
+      # than ~$2 a minute). Admin accounts (FAM_ADMIN_ACCOUNTS) are unlimited;
+      # POST /api/admin/plan moves anyone else. FREE_EPISODES_PER_DAY and
+      # FREE_EXPLORE_PER_DAY tune the ceiling in the dashboard.
+      - key: ENFORCE_QUOTAS
+        value: "1"
       # The pre-launch waitlist (WAITLIST.md). WAITLIST=1 closes the app to
       # anybody whose account is not active, so it is asked for in the
       # dashboard rather than set here: turning it on is a decision made when
@@ -231,10 +238,12 @@ services:
       # Exa, GDELT, API-Sports, Finnhub and Polymarket, and nothing else: the
       # model never searches the web for FAM. The three with credentials are
       # asked for once in the dashboard. A key is also the switch - with
-      # API_SPORTS_KEY set, sports questions get live scores and the story
-      # pool sweeps today's card on the whole daily allowance (about every
-      # 14 minutes on the free tier); with FINNHUB_KEY set, markets do the
-      # same. Neither needs a second line naming its provider.
+      # API_SPORTS_KEY set, sports questions get live scores, and the story
+      # pool sweeps only the followed leagues (story_sources.SWEPT_LEAGUES),
+      # only while one of their games is on and myFAM was drawn recently
+      # (§191) - every other league is looked up on demand; with FINNHUB_KEY
+      # set, markets are swept every 2h. Neither needs a second line naming
+      # its provider.
       - key: EXA_API_KEY
         sync: false
       - key: API_SPORTS_KEY
@@ -256,6 +265,15 @@ services:
         sync: false
       - key: GNEWS_DAILY_REQUESTS
         value: "90"
+      # Which plan was bought on each provider's own dashboard (§207). The
+      # free plans of GNews and Finnhub are not licensed for commercial use,
+      # and /admin and /api/health flag them in red until these say a paid
+      # one: GNEWS_PLAN=essential (then GNEWS_DAILY_REQUESTS=950 and
+      # GNEWS_MAX_ARTICLES=25), FINNHUB_PLAN=commercial. Unset means free.
+      - key: GNEWS_PLAN
+        sync: false
+      - key: FINNHUB_PLAN
+        sync: false
       # The live story pool's news source - what Made for you and What you
       # missed draw on (Trending is GNews since §139, above). GDELT is keyless
       # and measures what worldwide news is covering, including which
@@ -263,16 +281,17 @@ services:
       # against the running service is what says it is actually answering.
       - key: GDELT
         value: "1"
+      # GDELT counts requests per address, and Render's outbound address is
+      # shared: on 1/10 every request failed (§191). A static-IP proxy's URL
+      # here (QuotaGuard Static, ~$19/mo) sends GDELT's requests - and only
+      # GDELT's - from an address of FAM's own (§207). Unset, the breaker
+      # stops asking after 5 failures in a row and says so on /api/health.
+      - key: GDELT_PROXY_URL
+        sync: false
       #
-      # Deliberately NOT pinned here: ANSWER_FIRST. `Dockerfile.gpu` sets it to
-      # 1 because the configuration that was listened to and judged good ran
-      # with the cover on, and `config.py` has since derived it from the
-      # research backend. That pin is provisional in the image and unmeasured
-      # either way, so copying it into a second deployment would spread an
-      # untested decision rather than settle it. Once a card has run
-      # `ANSWER_FIRST=1 bash tools/pod_production_test.sh` against the same
-      # harness without it, whichever wins belongs in config.py and neither
-      # deployment needs a line.
+      # ANSWER_FIRST is not here because it no longer exists: the
+      # from-knowledge cover it switched on was deleted in §108 (see DEPLOY.md
+      # and Dockerfile.gpu). Setting it does nothing.
     disk:
       name: fam-data
       mountPath: /data     # matches the Dockerfile's CACHE_PATH etc.

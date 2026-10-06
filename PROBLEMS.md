@@ -15677,3 +15677,143 @@ did `static/index.html` and `listen.html`.
 Tests: `tests/test_waitlist.py`
 (`test_admin_lets_in_the_ticked_people_and_the_first_n_in_line`,
 `test_admin_page_has_the_checkboxes_and_the_first_n_control`).
+
+## 207. What FAM costs, and five fixes: quotas on, the GPU and Exa priced right, GDELT paused, licences checked
+
+**What was asked.** A complete financial breakdown of every outside service
+(published as an artifact, built from `docs/FINANCIAL.md` plus §191 and §194),
+then, at the owner's direction (05/10), the five things it said to fix first.
+
+**1. Quotas enforced in production.** With `ENFORCE_QUOTAS=0` one listener
+searching nonstop could spend ~$2 a minute. `render.yaml` now sets
+`ENFORCE_QUOTAS=1` on `fam` only; the code default stays 0 (local runs, tests,
+staging). `tiers-off` carries a Current note. There is still no checkout, so:
+* admin accounts (`FAM_ADMIN_ACCOUNTS`) are `unlimited`, derived in
+  `app._tier` from the account - a bare session whose id is listed gets
+  nothing;
+* `POST /api/admin/plan {"who": email | phone | id, "plan": ...}` moves any
+  other account (`AccountStore.user_id_for`, then `set_plan`);
+* `/api/plans` says `enforced` and `checkout`, and the plans sheet stops
+  saying "Everything is free for now" when limits are on. The limit card keeps
+  "See plans" (`refusal-wording`).
+The free tier counts every episode heard, cached replays included
+(`tier-spend`), so five a day may be tight; `FREE_EPISODES_PER_DAY` tunes it
+in the dashboard.
+
+**2. The GPU line.** `metering.SYNTHESIS_REALTIME_FACTOR` defaulted to 330 -
+espeak and Piper's speed - against Chatterbox's measured 4.6 (§75), so every
+GPU allocation in `usage_report.py` was ~70x low. Defaults are now 4.6 and
+`GPU_USD_PER_HOUR=0.69` (RunPod serverless flex, 24 GB).
+
+**3. Exa's fallback price.** `research.COST_PER_SEARCH` 0.005 → 0.015 (list:
+$7/1,000 searches plus contents). Used only when Exa omits `cost_dollars`.
+
+**4. GDELT.** 384 of 384 failed on 1/10 from Render's shared address (§191),
+each costing a paced slot and, for an episode with an empty Exa packet, up to
+six seconds. Two changes in `gdelt._get`:
+* a breaker: after `GDELT_BREAKER_FAILURES` (5) failures in a row nothing is
+  sent for `GDELT_BREAKER_SECONDS` (1800), then one request is let through;
+  `GdeltPaused` is a `GdeltBusy`, so `retrieve` returns `[]` at once and
+  background callers fail as before. `/api/health` → `gdelt` reports
+  `failures_in_a_row`, `paused_until`, `last_error`;
+* `GDELT_PROXY_URL`: GDELT's requests, and only GDELT's, through a static-IP
+  proxy (QuotaGuard Static, which Render documents; Starter $19/mo, 20k
+  requests). Health says `via_proxy`, never the URL - it holds a credential,
+  which is also why `spend_guard` scrubs it on staging.
+A proxy fixes this only if the refusal is the shared address; QuotaGuard's
+own pair is shared among its customers, so verify with
+`python tools/gdelt_probe.py` once it is set.
+
+**5. Licences.** GNews' free plan is for development, Finnhub's for personal
+use, Open-Meteo's keyless endpoint non-commercial - and no provider's answer
+says which plan a key is on. `GNEWS_PLAN` and `FINNHUB_PLAN` (default `free`)
+say it; `provider_usage.licences()` reports each, flags a free plan *in use*,
+and `commercial_ready` answers "may we charge money?" on `/api/health`. The
+admin page draws the flag in red on the service's row, and warns when GNews is
+paid but `GNEWS_DAILY_REQUESTS` is still the free guard.
+
+Not done here, because it is buying: the plans themselves, and the proxy.
+
+Tests: `tests/test_quotas_on_in_production_207.py`,
+`tests/test_gdelt_breaker_207.py`, `tests/test_licences_207.py`;
+`test_metering` prices synthesis at the measured speed.
+
+## 208. The training docs, and the bugs writing them found
+
+**What was asked (05/10).** Up-to-date documentation of everything asked for,
+to train somebody on how the backend and frontend are wired: `docs/` now has
+ONBOARDING (the entry point and a five-day curriculum), BACKEND and DATA
+(brought current through §207), FRONTEND (new), PRODUCT_HISTORY (every owner
+request §1-§207, by area, with what is current, changed or reversed), and
+FINANCIAL gained local news, weather, Viral Loops and the GDELT proxy. Thirteen
+older topic files were corrected where they contradicted the code. Then, at
+the owner's direction, the bugs the writing turned up were fixed:
+
+* **`Dockerfile.gpu` pinned 8 of 20 stores** to `/state/data`; saved,
+  messages, quotas, voice bank, local news and the rest went with every
+  redeploy of that image. All twenty now, and `tests/test_data_paths.py`
+  checks that image as it checks the Render `Dockerfile` (`storage-durability`:
+  a guard whose subject is enumerated by hand is decorative).
+* **Account deletion left `scripts.author`** - the one field in the shared
+  cache that points at a person - holding the deleted listener's id.
+  `erase_listener` clears it now (`anonymise_author`, both backends); the
+  episodes stay, as `authorship-provenance` and the erase docstring require.
+  The seed wipe drops the seed's scripts *before* erasing the seed listeners,
+  or it could no longer find them.
+* **Local news items were never deleted**, though only 14 days count as
+  evidence. The collector prunes once a day past `LOCAL_NEWS_KEEP_DAYS` (30;
+  never below the window), each outlet keeping its newest 200, which the
+  duplicate-title check and polling rhythm read.
+* **`DEMO_MODE=0` in `render.yaml` was read by nothing** - demo mode is derived
+  from a Claude key. Removed, with a comment saying why.
+* **The web page ignored `X-FAM-Client-Status` and 426** (§172): an old kept
+  release now hears "A newer version of FAM is available" once, and a retired
+  one goes to `/`. The share page names itself `web/share`.
+* **CORS** lacked `PATCH` (mix edits) and `X-FAM-TZ`; added.
+* **A replayed episode's progress clock** restarted at the search page's
+  length; it uses the episode's real duration.
+* Stale comments (the guest door, the offline shelf) corrected; an
+  unreferenced byte-identical `static/reference-app.js` deleted.
+
+**Publishing.** The combined docs page had been link-shared since v1; v2 adds
+operating detail (admin commands, settings), so it was published privately in
+the owner's chat instead, and the shared link was left for the owner to decide.
+
+Tests: `tests/test_fixes_208.py`; `tests/test_data_paths.py` gains the GPU image.
+
+**Review before merging (06/10).** An independent pass over the branch's
+code found nothing blocking, and these, each fixed with a test:
+
+* *A malformed `GDELT_PROXY_URL`* (no scheme, or socks) made httpx refuse to
+  build the client outside the `try`: GDELT went silent, the breaker never
+  tripped, health said `via_proxy: true`, and the log line could carry the
+  credential. The URL is validated (`ProxyInvalid`, worded without it), a bad
+  one is a counted failure that trips the breaker, health says
+  `proxy: invalid`, and `_describe` masks any `//user:pass@`.
+* *The breaker let several requests through.* Requests already waiting on the
+  pacer when it tripped went out anyway, and every caller waiting when a pause
+  ended probed. It is checked again after the pacer wait, and after a pause
+  exactly one request probes (`probing`) while the rest are told "paused".
+* *A probe cut off by its caller's deadline* (`CancelledError`) was neither a
+  success nor a failure, and would have left the probe claimed for ever; it is
+  a failure now.
+* *A 200 counted as success before its body parsed.* GDELT's rate-limit notice
+  is text with a 200; it now counts as a refusal, and success is recorded only
+  after the JSON parses.
+* *The deprecated-release toast said "reload to update"*, which on a kept
+  `/v/<version>/` page reloads the same old page; it names the current
+  address instead.
+* *Local news pruning* kept each outlet's newest 200 by publish date while
+  the duplicate check reads the last 200 by id, so an old-dated item still in
+  a feed would have been pruned and re-fetched daily; both use id now. Deletes
+  run in batches of 500 with the lock released between them, and the first
+  prune is an hour after boot.
+* *`/api/health` is open to anybody*, so its `licences` block now says only
+  `commercial_ready` and which services; plans, prices and what to buy stay
+  on `/admin`.
+* The CORS test reads the middleware's own options instead of grepping.
+
+Left as they are: a deleted listener's scripts read as unattributed (`''`),
+so a later rewrite of the same key may attribute it to its new writer, which
+is how scripts from before the column behave; and a proxy's own refusal (a
+407) is counted as GDELT's, which `last_error` makes readable.

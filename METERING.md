@@ -42,7 +42,7 @@ worst listener cost **68× the median**. That ratio, not the mean, is what
 decides whether a flat price needs a usage cap behind it, so it is printed
 next to it.
 
-Broken down by **plan** (free against paid) and by **surface** — Explore
+Broken down by **plan** (free, plus, unlimited) and by **surface** — Explore
 replays and never writes a script, so an Explore-heavy listener costs a
 fraction of a search-heavy one.
 
@@ -51,9 +51,12 @@ fraction of a search-heavy one.
 Chatterbox runs in-process on a GPU that costs the same whether it is
 synthesising or idle. Two consequences, both counterintuitive:
 
-* **Marginal audio cost is almost nothing.** Synthesis runs at ~330× realtime,
-  so a three-minute episode is under a second of card — about $0.0001. This is
-  the arithmetic the prefetch plan rests on, and the report shows it holding.
+* **Marginal audio cost is small but not nothing.** Chatterbox synthesises at
+  ~4.6× realtime (§75), so a three-minute episode is about 39 seconds of card —
+  under a cent at the default $0.69/h. (This used to say ~330× and $0.0001: the
+  old CPU voices' speed, which left every GPU figure ~70× low until §207.) It is
+  why prefetch warms text and never audio, and why cached episodes keep their
+  audio (§132).
 * **The real GPU cost is a floor that exists before the first listener.** It is
   reported beside the marginal total and **never folded into a per-listener
   average**, because an average that includes it says more about how many
@@ -140,11 +143,13 @@ anyone who can read the file has already won.
 
 `accounts` carries a `plan` column, default `free`.
 
-**Nothing in the app sets it to `paid`** — there is no payment route, and
-CLAUDE.md's open question about what an account should *entitle* you to is
-still open. The column exists so the split is available from the day something
-does take payment, rather than being backfilled out of a log that never
-recorded it. `ACCOUNTS.set_plan(user_id, "paid")` is the whole interface.
+There is still no payment route. Since §207 an admin moves an account with
+`POST /api/admin/plan {"who": email | phone | id, "plan": ...}`, which calls
+`ACCOUNTS.set_plan`; the plans are `entitlements.TIERS` — `free`, `plus`,
+`unlimited` — and admin accounts are `unlimited`. `paid` is the legacy name for
+`plus` (`entitlements.LEGACY_TIERS`), still accepted and normalised. The column
+exists so the split is available from the day something does take payment,
+rather than being backfilled out of a log that never recorded it.
 
 The plan is **stamped on each row at write time**. Someone who upgrades on the
 20th did not cost paid-plan money on the 5th, and joining to today's plan would
@@ -163,8 +168,8 @@ number that excluded most of them.
 | `METERING_DB` | `metering.db` | where the ledger lives. **Not regenerable** — pin it to the mounted disk, as both Dockerfiles do |
 | `FAM_ADMIN_TOKEN` | unset | gates `/api/usage`; unset means the endpoint 404s |
 | `FAM_ADMIN_ACCOUNTS` | unset | the accounts (email, phone or listener id) that are admins while signed in - `/admin`, the live tracker, and every admin endpoint (PROBLEMS.md §150) |
-| `GPU_USD_PER_HOUR` | `0.60` | mid L4 on-demand. A reserved card or a neocloud is cheaper |
-| `SYNTHESIS_REALTIME_FACTOR` | `330` | how much faster than realtime Chatterbox synthesises |
+| `GPU_USD_PER_HOUR` | `0.69` | RunPod serverless flex, 24 GB class. An active worker (~0.47) or a pod is cheaper |
+| `SYNTHESIS_REALTIME_FACTOR` | `4.6` | how much faster than realtime Chatterbox synthesises, measured on an RTX 4090 (§75; was 330, the old CPU voices', §207) |
 | `GPU_HOURS_PER_DAY` | `24` | hours the card is actually paid for |
 
 Rates live in `metering.PRICES`, checked against the published card on
@@ -175,11 +180,12 @@ cost.
 
 ## What this still does not do
 
-* **It does not enforce anything.** No quota, no per-plan limit, no cutoff. The
-  data to build one now exists; the policy does not, and inventing one here
-  would be inventing a product decision.
+* **It does not enforce anything itself.** Metering only records. Limits are
+  `quotas.py` and `entitlements.py`, switched on by `ENFORCE_QUOTAS=1` — set on
+  the production service in `render.yaml` since §207, off by default for local
+  runs, tests and staging.
 * **It does not bill anyone.** There is no payment processor, no invoice, no
-  Stripe. `plan` is a label.
+  Stripe. `plan` decides limits, not charges.
 * **It does not track bandwidth.** 2.65 MB/min uncompressed per listener is a
   real cost at scale (CLAUDE.md) and is not in these numbers. `audio_seconds`
   is the quantity it would be computed from when there is a CDN bill to

@@ -518,6 +518,31 @@ class AccountStore:
         account = self.account(user_id) if user_id else None
         return entitlements.normalise((account or {}).get("plan") or "free")
 
+    def user_id_for(self, who: str) -> str:
+        """The account an admin means by `who`: a listener id, an email or a
+        phone number, or "" when no account matches (§207).
+
+        For `/api/admin/plan`, where an admin names a tester the way they
+        know them. Never on a listener's own path: an id is never taken from
+        the client there (`_listener`).
+        """
+        who = " ".join(str(who or "").split()).strip()
+        if not who:
+            return ""
+        if self.account(who):
+            return who
+        try:
+            if "@" in who:
+                column, value = "email", clean_email(who)
+            else:
+                column, value = "phone", clean_phone(who)
+        except AuthError:
+            return ""
+        row = self._conn().execute(
+            f"SELECT user_id FROM accounts WHERE {column} = ?", (value,)
+        ).fetchone()
+        return row[0] if row else ""
+
     def set_plan(self, user_id: str, plan: str) -> str:
         """Move an account between plans. Requires an account: a plan is a
         billing relationship, and there is nobody to bill without one."""

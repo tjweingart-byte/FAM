@@ -119,9 +119,8 @@ def wipe(*, cache, events, erase_listener, scope: str = "seed",
                 report["categories_total"] = 0
         return report
 
-    for user_id in SEED_USER_IDS:
-        report["listeners"][user_id] = erase_listener(user_id)
-
+    # The seed's scripts go first: erasing a listener clears their id from
+    # the scripts they wrote (§208), after which nothing could find them.
     scripts = 0
     if cache is not None:
         if scope == "all":
@@ -130,6 +129,9 @@ def wipe(*, cache, events, erase_listener, scope: str = "seed",
             for user_id in SEED_USER_IDS:
                 scripts += cache.forget_author(user_id)
     report["scripts_removed"] = scripts
+
+    for user_id in SEED_USER_IDS:
+        report["listeners"][user_id] = erase_listener(user_id)
 
     if scope == "all":
         report["events_removed"] = events.clear()

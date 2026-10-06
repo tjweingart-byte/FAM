@@ -1053,6 +1053,15 @@ class MemoryScriptCache:
             self._drop_audio(key)
         return len(keys)
 
+    def anonymise_author(self, author: str) -> int:
+        """The memory backend's half of `SqliteScriptCache.anonymise_author`."""
+        if not author:
+            return 0
+        keys = [k for k, who in self._authors.items() if who == author]
+        for key in keys:
+            self._authors[key] = ""
+        return len(keys)
+
     def clear(self) -> int:
         removed = len(self._data)
         for table in (self._data, self._authors, self._origins, self._voices,
@@ -1911,14 +1920,36 @@ class SqliteScriptCache:
         except Exception:
             return 0
 
+    def anonymise_author(self, author: str) -> int:
+        """Clear one listener's id from every script they wrote first (§208).
+
+        Account deletion's half of `author`. The episodes stay - other people
+        are listening to them, and `forget_author` below explains why a
+        listener leaving must not un-write them - but the id was the one field
+        in the shared cache that pointed at a person, and it outlived the
+        account. Cleared, a script reads like one written before the column
+        existed: unattributed. Archived rows (§173) share the table and are
+        cleared with it. Returns how many rows changed; -1 is never returned,
+        a failure is logged and counts 0.
+        """
+        if not author:
+            return 0
+        try:
+            cur = self._conn().execute(
+                "UPDATE scripts SET author = '' WHERE author = ?", (author,))
+            return cur.rowcount or 0
+        except Exception:
+            log.exception("could not clear authorship for %r", author)
+            return 0
+
     def forget_author(self, author: str) -> int:
         """Drop every script one listener wrote first. For clearing seed data.
 
         **Not part of account deletion, and it must not become part of it.**
-        The shared cache holds no identity - `author` is provenance, so that
-        Explore can leave a listener's own episodes off their own feed - and a
-        listener leaving does not un-write the episodes other people are
-        listening to. `erase_listener` says so and is right.
+        `author` is provenance, so that Explore can leave a listener's own
+        episodes off their own feed - and a listener leaving does not un-write
+        the episodes other people are listening to. Account deletion clears
+        the id instead (`anonymise_author`, §208).
 
         What this is for is the other thing: a deployment seeded with demo
         episodes so the browse surfaces had something to show, now being
