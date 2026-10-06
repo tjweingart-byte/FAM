@@ -829,6 +829,9 @@
     line-height:1; }
   .rc-emoji button:active{ transform:scale(0.88); }
   .rc-compose{ display:flex; align-items:center; gap:9px; }
+  /* A guest gets the sign-up buttons in place of the box, so the box is
+     really gone: `display:flex` above would otherwise outrank `hidden`. */
+  .rc-compose[hidden], .rc-emoji[hidden], .rc-gate[hidden]{ display:none; }
   .rc-me{ flex:none; width:30px; height:30px; border-radius:50%; overflow:hidden;
     display:flex; align-items:center; justify-content:center; color:var(--ink); }
   .rc-compose input{ flex:1; min-width:0; height:38px; border-radius:19px;
