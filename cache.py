@@ -843,6 +843,10 @@ class MemoryScriptCache:
             self._summaries[key] = summary
         if category:
             self._categories[key] = category
+        elif before is not None and list(before[1]) != list(sentences):
+            # New words with no category of their own (§209): the old one
+            # described the old script.
+            self._categories.pop(key, None)
         # First writer only. A second listener asking the same question is
         # served from this entry and never rewrites it, so authorship stays
         # "who paid for this" rather than "who asked most recently".
@@ -1447,8 +1451,13 @@ class SqliteScriptCache:
                 "               ELSE scripts.title END,"
                 "  summary = CASE WHEN excluded.summary != '' THEN excluded.summary"
                 "                 ELSE scripts.summary END,"
+                # A re-write's category, even an empty one, when it wrote
+                # new words (§209): the old category described the old
+                # script. Kept only for a re-write that said the same thing.
                 "  category = CASE WHEN excluded.category != ''"
-                "                  THEN excluded.category ELSE scripts.category END,"
+                "                  THEN excluded.category"
+                "                  WHEN scripts.sentences = excluded.sentences"
+                "                  THEN scripts.category ELSE '' END,"
                 # §147. Where it came from is the first writer's, except that
                 # a search re-writing it makes it a searched episode. Its
                 # voice is the first one it was given, so every later play

@@ -1532,6 +1532,11 @@ class PodcastPipeline:
             self.cache.put(key, stats.script, ttl, plan.query, stats.thread,
                            plan.minutes, bucket, sources, self.author,
                            stats.title, **extra)
+            # What each categoriser said about it (§209), for the audit.
+            import category_audit
+
+            category_audit.note(plan.query, getattr(notes, "category", ""),
+                                self.origin or "tap")
             # The listen that wrote it is its first play (§134).
             self._count_play(key)
             # The audio goes beside it once the tail pad is out, and only

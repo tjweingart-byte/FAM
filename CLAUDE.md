@@ -132,6 +132,11 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   is Go Deeper's own suggestion, played as its follow-up (§178), then album next,
   then `topics.rank_next_up` over both inventories; a search box above Back
   stops the countdown; not on Explore / Explore New. [post-episode-grid]
+- **One episode, one category** (§209): the writer's `<<CATEGORY:>>` is read
+  through `app._episode_category` by tile, player picture, ranking and logged
+  tags; events name the heard episode; a written live story ranks under it;
+  the writer sees its branch's names; nodes match as in-order phrases; every
+  write logs each categoriser's view (`categories_report.py --audit`). [one-category]
 - Openings are concrete and open a question - not inverted-pyramid news style. [no-inverted-pyramid]
 
 ## The writing problem  (`product.md`)

@@ -410,6 +410,9 @@ def isolated_stores(tmp_path, monkeypatch):
 
     monkeypatch.setattr(appmod, "FEEDBACK",
                         feedback_mod.FeedbackStore(str(here / "feedback.db")))
+    # A written story's category, memoised for the ranker (§209), is a read
+    # of the script cache a test replaces - one test's must not be the next's.
+    appmod._WRITTEN_CATEGORY_MEMO.clear()
 
 
 @pytest.fixture(autouse=True)

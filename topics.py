@@ -2327,12 +2327,14 @@ class EventStore:
             self._local.conn = conn
         return conn
 
-    def record(self, event: Event) -> None:
+    def record(self, event: Event) -> Optional[int]:
+        """Log one interaction. Returns its row id, or None when it was not
+        logged - which is never an error a caller has to handle."""
         if event.kind not in EVENT_KINDS:
             log.warning("ignoring unknown event kind %r", event.kind)
-            return
+            return None
         try:
-            self._conn().execute(
+            cur = self._conn().execute(
                 "INSERT INTO events"
                 " (user_id, kind, topic_id, text, tags, at, thread, section, algo)"
                 " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
@@ -2340,9 +2342,30 @@ class EventStore:
                  ",".join(event.tags), event.at, event.thread[:200],
                  event.section[:40], event.algo[:40]),
             )
+            return cur.lastrowid
         except Exception:
             # A feed is a nicety. Losing an event must never break playback.
             log.exception("could not record interaction; continuing")
+            return None
+
+    def retag(self, row_id: int, tags: Iterable[str]) -> bool:
+        """Correct the tags of one event just logged (§209).
+
+        For one case only: a play is logged when its audio is served, before
+        the episode it plays has been written, so it can only carry the
+        question's keyword tags; once the writer has said what the episode
+        is about, the server files that same play under its category. The
+        play stays where it was in the log - its time, its order before any
+        skip or complete - and only its label changes. Never raises."""
+        if not row_id:
+            return False
+        try:
+            self._conn().execute("UPDATE events SET tags = ? WHERE id = ?",
+                                 (",".join(tags), int(row_id)))
+            return True
+        except Exception:
+            log.exception("could not correct an event's tags; continuing")
+            return False
 
     def record_impressions(
         self,
@@ -4925,6 +4948,32 @@ def build_section(store: EventStore, user_id: str, key: str,
     return section
 
 
+#: `query -> category-tree node` for a live story whose episode is written,
+#: or None for no such source (§209). Set by the server
+#: (`app._written_category_probe`); a caller with none - a test, a tool -
+#: ranks on the composer's tags exactly as before.
+_WRITTEN_CATEGORY = None
+
+
+def set_written_category(probe) -> None:
+    """Where a written episode's category is read from (§209). `None`
+    turns it off. The probe must be cheap and must never raise or call a
+    model: it is on the browse path."""
+    global _WRITTEN_CATEGORY
+    _WRITTEN_CATEGORY = probe
+
+
+def _written_node(query: str) -> str:
+    probe = _WRITTEN_CATEGORY
+    if probe is None or not query:
+        return ""
+    try:
+        return probe(query) or ""
+    except Exception:  # noqa: BLE001 - a category never takes the page away
+        log.exception("could not read a written episode's category")
+        return ""
+
+
 def topics_from_stories(rows, limit: int = 0, now: Optional[float] = None) -> list:
     """Turn live stories into tiles, loudest first.
 
@@ -4944,6 +4993,29 @@ def topics_from_stories(rows, limit: int = 0, now: Optional[float] = None) -> li
     tiles = []
     for story in rows:
         tags = tuple(story.tags) or tags_for_text(f"{story.subject} {story.query}")
+        category = getattr(story, "category", "") or ""
+        # **A written story is ranked as what its episode turned out to be
+        # about** (§209). The composer filed it from headlines before any
+        # research; once the writer has named its category, that decides the
+        # tile's picture and - for news - its tags, so Made for you, the
+        # variety cap and the logged play all agree. A game or a market move
+        # keeps the tags its provider filed it under (§187); the category
+        # decides only its picture, the rule `stories._story_from` keeps.
+        written = _written_node(story.query)
+        if written:
+            if getattr(story, "domain", stories.ATTENTION) == stories.ATTENTION:
+                text = f"{story.title} {story.angle} {story.query}"
+                # The composer's node goes with its guess, and so does any
+                # level only it implied - "mixed martial arts" under the same
+                # facet as the writer's "boxing" would otherwise still be
+                # scored. Its facet and what the writer's branch shares stay.
+                if category and category != written:
+                    keep = set(stories.category_tags(written, text))
+                    gone = ({category} | set(category_tree().ancestors(category))
+                            ) - keep - FACETS
+                    tags = tuple(t for t in tags if t not in gone)
+                tags = stories.refine_tags(tags, written, text)
+            category = written
         tiles.append(Topic(
             id=story.id,
             title=story.title,
@@ -4955,7 +5027,7 @@ def topics_from_stories(rows, limit: int = 0, now: Optional[float] = None) -> li
             tags=tags,
             icon=_icon_for_tags(tags),
             angle=story.angle,
-            category=getattr(story, "category", "") or "",
+            category=category,
             source=story.source,
             freshness=story.push(now),
             countries=tuple(getattr(story, "countries", ()) or ()),
