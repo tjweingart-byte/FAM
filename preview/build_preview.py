@@ -729,14 +729,6 @@ def mix_items_js() -> str:
         "typed_endings": list(mixes_mod.TYPED_ENDINGS)}))
 
 
-#: The loading screen's five steps, walked the way a written episode walks
-#: them (§148). Shared by both preview shims, which answer `/api/audio` and
-#: `/api/progress` from it. A question asked for the first time in the page is
-#: "written" - its audio held back while the marks pass on a clock with uneven
-#: steps, because the variance is what the screen is for - and asked again it
-#: is a replay. Under a browser driver it is off (every play a replay, so the
-#: smoke test is not ten seconds per tap); `window.famPreviewWrites = true`
-#: turns it on there, which is how the smoke test walks it.
 #: The picture behind the reel and the player in a preview (10.5 #8b). The
 #: server answers `/api/episode/card` with an approved photo
 #: (`thumbnails.pick_for_player`); a preview has no photos, so it draws the
@@ -776,6 +768,14 @@ PREVIEW_PICTURE_JS = r"""
   }
 """
 
+#: The loading screen's five steps, walked the way a written episode walks
+#: them (§148). Shared by both preview shims, which answer `/api/audio` and
+#: `/api/progress` from it. A question asked for the first time in the page is
+#: "written" - its audio held back while the marks pass on a clock with uneven
+#: steps, because the variance is what the screen is for - and asked again it
+#: is a replay. Under a browser driver it is off (every play a replay, so the
+#: smoke test is not ten seconds per tap); `window.famPreviewWrites = true`
+#: turns it on there, which is how the smoke test walks it.
 WRITING_SIM_JS = r"""
   var WRITES = {};
   // Seconds each step takes: the brief, the retrieval, the writer's planning,
@@ -1461,7 +1461,9 @@ __PREVIEW_PICTURE__
       var cparent = 0;
       if (cb.parent_id) {
         var chost = COMMENTS.filter(function (c) { return c.id === Number(cb.parent_id); })[0];
-        if (!chost) return json({ detail: "That comment is not here any more." }, 400);
+        if (!chost || chost.query !== cb.query || chost.minutes !== Number(cb.minutes)) {
+          return json({ detail: "That comment is not here any more." }, 400);
+        }
         cparent = chost.parent_id || chost.id;
       }
       var crow = { id: NEXT_COMMENT++, user_id: "me", query: String(cb.query || ""),
