@@ -178,6 +178,28 @@
 
 <script>window.FAM_SHARE = {"id": "preview-share", "title": "Who Makes the Chips", "question": "why is semiconductor manufacturing so concentrated in taiwan", "minutes": 3, "url": "https://fam.audio/s/preview-share", "card": "https://fam.audio/api/share/card?share=preview-share", "app_store": "https://apps.apple.com/app/fam/id0000000000", "has_app": true, "join": "https://apps.apple.com/app/fam/id0000000000"};</script>
 <script>
+  // The share page names itself too (§172, §208): every /api/ call it makes -
+  // fam-audio.js's stream included - carries `X-FAM-Client`, so /api/health
+  // counts it and a retired page could be told so. No `X-FAM-TZ`: a shared
+  // episode is the sharer's, written in nobody's clock.
+  (function () {
+    var raw = window.fetch;
+    if (!raw) return;
+    window.fetch = function (input, init) {
+      try {
+        var url = typeof input === "string" ? input : (input && input.url) || "";
+        if (/^\/api\//.test(url) || url.indexOf(location.origin + "/api/") === 0) {
+          init = init || {};
+          var headers = new Headers(init.headers || {});
+          if (!headers.has("X-FAM-Client")) headers.set("X-FAM-Client", "web/share");
+          init.headers = headers;
+        }
+      } catch (e) {}
+      return raw.call(this, input, init);
+    };
+  })();
+</script>
+<script>
 /*
  * FamAudio - streaming speech with transport controls.
  *
