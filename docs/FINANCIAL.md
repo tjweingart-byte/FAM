@@ -290,8 +290,8 @@ So cost per listener is almost entirely the cache-miss rate times $0.06.
 | **GNews** | Trending edition only | `GNEWS_DAILY_REQUESTS=90`. Uses about 26 requests per edition, 2 editions/day ≈ **52/day** | 100 req/day, 10 articles per call. For development use; check the terms before charging money. | Essential **€49.99/mo**: 1,000/day, 25 articles |
 | **API-Sports** | Live scores in episodes plus score lines on story cards, ten sports | A plan **per sport** (`API_SPORTS_TIER`/`API_SPORTS_TIERS`, §180), each shared between both uses, **per process** | 100 req/day **per sport** on the free plans; since §191 swept only for followed leagues while a game is on and somebody is looking (≤ every 15 min) | **$19/mo** for 7,500/day; $29 for 75k; $39 for 150k (`PROVIDER_ROLLOUT.md:108`) |
 | **Finnhub** | Market facts plus market-move story cards | Story source every 2 h since §191 (~150 calls/day); quotes delayed 1,200 s | 60 req/min, **personal / non-commercial** | Paid plan per `PROVIDER_ROLLOUT.md` ($11.99/mo quoted there; verify, since Finnhub's commercial pricing is quote-based). Metered price in code: $0.80 / 1,000 calls (`live_sources.py:961`) |
-| **Polymarket** | Election and prediction facts plus cards | Keyless; source every 1,800 s | Free | n/a |
-| **GDELT** | Retrieval fallback rung, story pool discovery | `GDELT=1`; paced one request per 5.5 s; the story sweep (~32 requests) every 2 h since §156 | Free; **1 request per 5 s per IP**, and Render's outbound IP is shared | n/a: this limit cannot be bought off |
+| **Polymarket** | Prediction-market forecasts beside every outcome-dependent episode (§209), plus cards | Keyless; source every 1,800 s; asked beside the live lookup for every question EI marks `outcome_dependent` | Free | n/a |
+| **GDELT** | Retrieval fallback rung, story pool discovery | `GDELT=1`; since §209 one background job downloads the 15-minute export files (~200 requests/day, whatever the traffic) into a local copy that everything reads | Free; the export files have no per-address limit (the DOC API's 1 request per 5 s per IP is no longer used) | n/a: no paid plan; none needed |
 | **Exa** | Every episode's research, and the last rung of the local-news ladder (§194, known outlets only) | Pay-as-you-go | $10 credit/month (~1,400 searches) | Usage-billed; see §2.2 |
 | **NWS** | US weather: forecasts, warnings, observations (§194) | Keyless; fetched on demand, swept 05:00/17:00 in each asked place's own time; warnings live (≤ every 10 min per place) | Free; needs a User-Agent contact (`FAM_CONTACT_EMAIL`) | n/a |
 | **Open-Meteo** | Weather outside the US and when NWS fails; place names → county and coordinates (§194) | Only with `OPEN_METEO_API_KEY`; the keyless endpoint is non-commercial and never used in production | Keyless: non-commercial only | API Standard **$29/mo** (1M calls/month); Professional $99 (5M) |
@@ -309,7 +309,7 @@ traffic is: about **$95-100/month** together at list price. Since §207
 | Service | What for | Price | Scales with |
 |---|---|---|---|
 | **Viral Loops** | Waitlist referrals, fraud checks and emails while `WAITLIST=1` (§183) | Start-up $35/mo billed annually ($49 monthly) to 1,000 participants; Plus $99 (5k); Growing $159 (10k); Power $279 (25k) | Waitlist size; cancel at public launch |
-| **QuotaGuard Static** (optional) | A static outbound IP for GDELT only, `GDELT_PROXY_URL` (§207) | Starter $19/mo (20k requests); Production $49 (100k) | Flat: GDELT is ~12k requests/month |
+| **QuotaGuard Static** | Was a static outbound IP for GDELT (`GDELT_PROXY_URL`, §207); **not needed since §209**, and the setting is deleted | $0 | n/a |
 | **Google image model** | Tile pictures, one per category branch (§160) | ~$0.067/image, ≤60/day (`THUMBNAILS_DAILY_IMAGES`) | New category branches, not listeners |
 | **Apple Developer Program** | The iOS app and Sign in with Apple | $99/year | Flat |
 
@@ -478,7 +478,7 @@ forced by the one-instance ceiling, not by price.
 
 | Limit | Where it bites | Action |
 |---|---|---|
-| **1 request per 5 s per IP**, and Render's outbound IP is **shared** with other tenants. On 1/10 every request failed (§191). Since §207 a breaker stops asking after 5 failures in a row for 30 min, and `GDELT_PROXY_URL` (QuotaGuard Static, from $19/mo) sends GDELT's requests from an address of FAM's own | Paced at 5.5 s (`GDELT_REQUEST_GAP_SECONDS`). A story sweep is ~32 paced requests (~3 min). An episode waits at most 6 s for a slot and has priority over the sweep. That is about **11 fallback retrievals a minute across all users** at most. | GDELT is only the second rung, so this binds only when Exa returns nothing. If it binds, a dedicated egress IP gives FAM its own allowance. Money does not raise the cap. |
+| None that traffic reaches. The DOC API's 1 request per 5 s per shared IP failed every request on 1/10 (§191); since §209 FAM downloads GDELT's 15-minute export files instead: ~2 requests per 15 min (~200/day), whatever the traffic | One background job (`gdelt.sync`, every `GDELT_EXPORT_POLL_SECONDS`=900) keeps 24 hours on the data disk (`GDELT_EXPORT_DB`). The research rung, the story sweep and the trending source read that copy; no listener's tap reaches GDELT. | None. A copy that is empty or over an hour old is reported as an outage (`/api/health` → `gdelt`). |
 
 ### 5.6 GNews
 
@@ -503,7 +503,8 @@ forced by the one-instance ceiling, not by price.
 ### 5.9 Polymarket
 
 Keyless and free. It runs every 30 minutes, and episode lookups are cached for
-5-15 minutes by status. No scaling step is needed. The risk is an unannounced
+5-15 minutes by status. Since §209 it is asked for every outcome-dependent
+episode (a forecast, never evidence), not only elections. No scaling step is needed. The risk is an unannounced
 API change: the lookup returns one of its seven "what happened" outcomes and
 the episode continues without the fact.
 
@@ -518,7 +519,7 @@ the episode continues without the fact.
    [`SCALING_TIMELINE.md`](SCALING_TIMELINE.md).
 1. **Done in §207:** the metering constants (GPU at 4.6x and $0.69/h, Exa's
    fallback at $0.015), quotas enforced in production, a GDELT breaker and
-   proxy, and a licence check for GNews, Finnhub and Open-Meteo on `/admin`
+   proxy (both deleted in §209, when GDELT moved to its export files), and a licence check for GNews, Finnhub and Open-Meteo on `/admin`
    and `/api/health` (`licences.commercial_ready`).
 2. **Confirm the voice transport:** serverless or always-on pod. It is a
    $0-vs-$200-500/month fixed-cost question, and the repo describes both.

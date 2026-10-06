@@ -203,7 +203,10 @@ def from_live(lookup) -> Optional[Attribution]:
     except (AttributeError, ValueError):
         pass
     tier = "live feed"
-    if getattr(facts, "delayed_seconds", 0):
+    if getattr(facts, "kind", "") == live_facts.PREDICTION_MARKET:
+        # What people are betting, never a result (§209) - and the panel says so.
+        tier = "prediction market - a forecast, not a result"
+    elif getattr(facts, "delayed_seconds", 0):
         minutes = max(1, int(round(facts.delayed_seconds / 60)))
         tier = f"live feed, delayed about {minutes} minute(s)"
     return Attribution(label=facts.source, kind=LIVE, tier=tier, at=at)

@@ -847,6 +847,66 @@ async def lookup(brief, notes=None) -> Optional[LiveLookup]:
     return fallback
 
 
+def wants_forecast(brief) -> bool:
+    """Whether a brief's question is one a market forecast belongs beside (§209).
+
+    Every question whose answer turns on an outcome - EI's `outcome_dependent`
+    - not only elections: a Fed decision, a final, a war, a ruling. Except:
+    an election question already asks the forecaster as its live lookup;
+    weather has its own forecaster; and one town's news has no market.
+    """
+    if brief is None or not getattr(brief, "outcome_dependent", False):
+        return False
+    if (getattr(brief, "live_domain", "") or "") in ("elections", "weather"):
+        return False
+    return not getattr(brief, "place", "")
+
+
+def forecasters() -> list:
+    """Registered sources that publish forecasts (`forecasts = True`) and can
+    serve. Polymarket, when `LIVE_ELECTIONS_PROVIDER=polymarket`."""
+    out = []
+    for source in _SOURCES:
+        if not getattr(source, "forecasts", False):
+            continue
+        try:
+            ok, _why = source.diagnose()
+        except Exception:  # noqa: BLE001 - a source that cannot say is not asked
+            ok = False
+        if ok:
+            out.append(source)
+    return out
+
+
+async def forecast(brief, notes=None) -> Optional[LiveLookup]:
+    """What the markets expect, for a question that turns on an outcome (§209).
+
+    Asked beside `lookup`, never instead of it: a scoreboard answers what
+    happened, and a forecast only what people expect, so the two are separate
+    blocks and the forecast never takes the live slot. Returns `None` when no
+    forecast applies or none was found - a missing forecast is not a gap the
+    writer has to be told about, because nothing about the question depended
+    on having one. Every fact is `unknown` and `prediction-market`, so it can
+    never close the question (`LiveFacts.as_prompt_block`: the articles win).
+    """
+    if not settings.live_facts or not wants_forecast(brief):
+        return None
+    sources = forecasters()
+    if not sources:
+        return None
+    deadline = time.monotonic() + float(settings.live_total_timeout_seconds)
+    for source in sources:
+        result = await _ask(source, brief, notes, deadline)
+        if result.outcome == FACTS and result.facts is not None \
+                and result.facts.kind == PREDICTION_MARKET:
+            result.attempts = [(source.name, result.outcome, result.detail)]
+            return result
+        log.info("live facts: no forecast from %s - %s", source.name, result.detail)
+        if time.monotonic() >= deadline:
+            break
+    return None
+
+
 def report() -> dict:
     """What live-fact coverage this server has - for /api/health.
 

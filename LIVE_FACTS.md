@@ -327,7 +327,7 @@ recorded payloads in `tests/test_live_providers.py`. Run
 | sports | `sportsdataio` | SportsDataIO | `SPORTSDATAIO_KEY` | player-level stats; sales-gated |
 | markets | `finnhub` | Finnhub | `FINNHUB_KEY` | ~20 min delayed; knows if the market is open |
 | markets | `alpha-vantage` | Alpha Vantage | `ALPHA_VANTAGE_KEY` | ~15 min delayed |
-| elections | `polymarket` | Polymarket | none | **forecast, never a result** |
+| elections | `polymarket` | Polymarket | none | **forecast, never a result**; since §209 also asked beside every outcome-dependent question |
 | elections | `ap` | AP Elections | — | declared, unimplemented: quote-only |
 | elections | `ddhq` | Decision Desk HQ | — | declared, unimplemented: quote-only |
 
@@ -356,6 +356,23 @@ constant precisely because `as_prompt_block` switches on it, and that one kind
 is told the opposite: **where it and the articles disagree, the articles win.**
 `status` forbids *speaking* a result; this decides who wins a disagreement, and
 they are different questions.
+
+## A forecast beside every outcome-dependent question (§209)
+
+Polymarket is no longer reached only through the `elections` domain.
+`live_facts.forecast` asks it, beside the live lookup, for **every** question
+EI marks `outcome_dependent` - except live-domain elections (Polymarket is
+already their live lookup), weather, and a town question (`Brief.place`). The
+answer goes in `EpisodePlan.forecast`, never in `plan.live`; it is rendered
+after the live block, in the same prediction-market block that says the
+articles win, and credited in provenance with the tier "prediction market - a
+forecast, not a result". It **never counts as evidence** for the `NoEvidence`
+refusal.
+
+`PolymarketSource.resolve` finds the market by searching Gamma's
+`/public-search` with the brief's subject words (two shared words when the
+subject has two), and falls back to scanning the 100 busiest markets if the
+search is refused. An event reads up to its three likeliest outcomes.
 
 ## The routing vocabulary lives in exactly one place
 

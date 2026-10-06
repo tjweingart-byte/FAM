@@ -685,6 +685,12 @@ class EpisodePlan:
     #: itself had nothing, and the weather there. **Never in the cache
     #: key**: it is derived from the request, not part of it.
     local: object = None
+    #: What prediction markets expect, when the answer turns on an outcome
+    #: (§209): a `live_facts.LiveLookup` from `live_facts.forecast`, or None.
+    #: Beside `live`, never in its place - a scoreboard says what happened, a
+    #: market only what people expect - and never evidence of an outcome.
+    #: **Never in the cache key**: it is derived from the request.
+    forecast: object = None
 
     @property
     def images(self) -> list:
@@ -950,6 +956,14 @@ for the script.
             log.warning("a live-facts block could not be rendered; continuing "
                         "without it", exc_info=True)
             live = ""
+    # A market forecast (§209), after the live state it never outranks. Its
+    # own block says the articles win; only a found forecast is rendered.
+    if plan.forecast is not None:
+        try:
+            live += plan.forecast.as_prompt_block()
+        except Exception:  # noqa: BLE001
+            log.warning("a forecast block could not be rendered; continuing "
+                        "without it", exc_info=True)
 
     # What EI worked out, and the temporal discipline that depends on it.
     brief_block = ""
@@ -1624,6 +1638,22 @@ class ScriptGenerator:
         _mark(notes, "live_ready")
         return plan if result is None else dataclasses.replace(plan, live=result)
 
+    async def forecast_lookup(self, plan: EpisodePlan,
+                              notes: ScriptNotes | None = None) -> EpisodePlan:
+        """What prediction markets expect, when the brief says the answer
+        turns on an outcome (§209). Alongside retrieval like `live_lookup`,
+        and bounded the same way, so it adds no wait in front of the first
+        word that retrieval was not already costing."""
+        if plan.brief is None or plan.forecast is not None:
+            return plan
+        try:
+            result = await live_facts.forecast(plan.brief, notes)
+        except Exception:  # noqa: BLE001 - a forecast is never worth an episode
+            log.warning("the forecast lookup failed; writing without one",
+                        exc_info=True)
+            return plan
+        return plan if result is None else dataclasses.replace(plan, forecast=result)
+
     async def prepare(self, plan: EpisodePlan,
                       notes: ScriptNotes | None = None) -> EpisodePlan:
         """Everything that happens before a word is written.
@@ -1648,14 +1678,16 @@ class ScriptGenerator:
         # for nothing. They are merged field-by-field rather than chained
         # because each returns a copy derived from the *same* input plan.
         _mark(notes, "evidence_start")
-        live_plan, research_plan = await asyncio.gather(
-            self.live_lookup(plan, notes), self.research(plan, notes))
+        live_plan, research_plan, forecast_plan = await asyncio.gather(
+            self.live_lookup(plan, notes), self.research(plan, notes),
+            self.forecast_lookup(plan, notes))
         _mark(notes, "evidence_ready")
         if notes is not None:
             notes.sourced_at = time.time()
         plan = dataclasses.replace(
             plan, live=live_plan.live, evidence=research_plan.evidence,
-            thin_on=research_plan.thin_on, local=research_plan.local)
+            thin_on=research_plan.thin_on, local=research_plan.local,
+            forecast=forecast_plan.forecast)
 
         # The weather the local ladder fetched when the town had nothing
         # (§194) reaches the writer the way any live state does - one block,
@@ -1698,6 +1730,9 @@ class ScriptGenerator:
             live_source = provenance_mod.from_live(plan.live)
             if live_source is not None:
                 notes.provenance.add(live_source)
+            forecast_source = provenance_mod.from_live(plan.forecast)
+            if forecast_source is not None:
+                notes.provenance.add(forecast_source)
             for attached in provenance_mod.from_attachments(plan.attachments):
                 notes.provenance.add(attached)
             _publish_sources(notes)

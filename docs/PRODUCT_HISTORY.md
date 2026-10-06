@@ -300,7 +300,9 @@ owner.
 | Sweeps every 15 min (owner first asked 2 h for all, then narrowed: sports must stay fresh) | Sports/markets 15 min, news and Polymarket 2 h | 156 | Changed by §191. |
 | Outside services asked all day with nobody looking (owner's direction) | Sports: **followed leagues only**, only while their games are on, only if somebody drew the rails recently; Finnhub every 2 h; a refused catalogue not re-asked that day | 191 | Current `[sweep-on-demand]`. |
 | Small-town news was invented; no weather (owner's decisions 02/10) | Local news from the town's outlets' RSS → county → Exa on known outlets, **never GDELT**; an empty town opens with a code-composed gap line, then weather, then county news; weather NWS then Open-Meteo, fetched on demand then swept 05:00/17:00 local | 194 | Current `[local-news-ladder]`, `[weather]`. |
-| GDELT failing from Render | Breaker and an optional static-IP proxy (`GDELT_PROXY_URL`) | 204 | Current code; **proxy not bought**. |
+| GDELT failing from Render | Breaker and an optional static-IP proxy (`GDELT_PROXY_URL`) | 204 | **Superseded by §209**: breaker, pacer and proxy deleted; proxy never bought. |
+| GDELT failing from Render: 384 of 384 DOC API requests on 1/10 (owner's direction) | GDELT read from its **15-minute export files**, never its search API: one background job (~200 requests/day, whatever the traffic) keeps a 24-hour copy on the data disk (`gdelt_export.db`); the story sweep, the trending source and the research rung read the copy, so no listener's tap reaches GDELT; an empty or stale (>1 h) copy is an outage | 209 | Current. |
+| Polymarket beside every outcome-dependent question | `live_facts.forecast` asks Polymarket beside the live lookup whenever EI marks `outcome_dependent` (not weather, town questions, or elections already looked up); a forecast after the live block, never evidence, never `plan.live`; markets found by Gamma's search on the brief's subject | 209 | Current `[live-facts]`. |
 
 ### 2.10 Voice
 
@@ -407,7 +409,7 @@ owner.
 | A staging deployment that spends nothing, compatible with older app versions | `fam-staging` (zero spend, GDELT and Polymarket off too); client registry, contracts, kept web releases at `/v/<version>/` | 172 | Current `[zero-spend-staging]`, `[old-clients]`, `[staging-flow]`. |
 | Instant feedback | Feedback button and `/admin` inbox; reports from the player carry the episode | 175, 178 | Current. |
 | Cost changes (RunPod email) | Prompt caching, batched editions, provider counts on `/admin`, `SCALING_TIMELINE.md` | 179 | Current. |
-| Five fixes from the financial breakdown (05/10) | Quotas on in production; GPU priced at 4.6× realtime, $0.69/h; Exa fallback $0.015; GDELT breaker + proxy option; licence flags (`GNEWS_PLAN`, `FINNHUB_PLAN`, `commercial_ready`) | 204 | Current; plans and proxy not bought. |
+| Five fixes from the financial breakdown (05/10) | Quotas on in production; GPU priced at 4.6× realtime, $0.69/h; Exa fallback $0.015; GDELT breaker + proxy option; licence flags (`GNEWS_PLAN`, `FINNHUB_PLAN`, `commercial_ready`) | 204 | Current, except the GDELT breaker and proxy (deleted in §209); plans not bought. |
 | Training documentation, and the bugs it found (05/10) | `docs/` ONBOARDING, BACKEND, FRONTEND, DATA, PRODUCT_HISTORY, FINANCIAL current; 13 older files corrected; fixed: `Dockerfile.gpu` pins all 20 stores, account deletion clears `scripts.author`, local news pruned past 30 days, dead `DEMO_MODE` removed, web page acts on deprecated/retired status, CORS, replay clock | 208 | Current. |
 
 ### 2.16 Landing page, intro and brand
@@ -457,6 +459,7 @@ the cold open twice).
 | Floors on every rail | §127 | §134 | Topping up the crowd row invented plays; only Made for you is topped up. |
 | Trending reserved before personal rails (`WORLD_FLOOR`) | §114 | §134/§139 | Trending is chosen first from its own edition. |
 | Trending from the live pool / GDELT | §102, §135 | §139 (owner: GNews only, no fallback) | GDELT could not answer from Render. |
+| GDELT pacer, breaker and static-IP proxy | §144, §207 | §209 | GDELT is read from its export files; nothing is left to pace. |
 | Not interested (card) and "not for me" (player) | §161 | §162, **§171** (owner) | "The algorithm should work naturally." |
 | Dislike on Explore | §134 | §203 (owner) | No dislike anywhere. |
 | Explore as a tab | §34–§36 | §181 | Messages took the slot. |
@@ -493,9 +496,6 @@ the cold open twice).
 
 **Waiting on the owner (decisions)**
 
-- **GDELT**: 384 of 384 requests failed from Render (§191); options put to
-  the owner, nothing decided. §207 added a breaker and an optional static-IP
-  proxy (QuotaGuard), not bought.
 - Whether to add a paid sports-news provider for injuries and lineups
   (SportsDataIO, MySportsFeeds, Sportradar) (§178).
 - Spotify's "Exclude from your taste profile" versus `[no-not-interested]` (§190).

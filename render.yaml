@@ -281,13 +281,10 @@ services:
       # against the running service is what says it is actually answering.
       - key: GDELT
         value: "1"
-      # GDELT counts requests per address, and Render's outbound address is
-      # shared: on 1/10 every request failed (§191). A static-IP proxy's URL
-      # here (QuotaGuard Static, ~$19/mo) sends GDELT's requests - and only
-      # GDELT's - from an address of FAM's own (§207). Unset, the breaker
-      # stops asking after 5 failures in a row and says so on /api/health.
-      - key: GDELT_PROXY_URL
-        sync: false
+      # Read from GDELT's 15-minute export files, never its search API
+      # (§209): one download every fifteen minutes whatever the traffic, and
+      # every story sweep and fallback search reads the copy on the disk.
+      # The search API's per-address limit (§191, §207) no longer applies.
       #
       # ANSWER_FIRST is not here because it no longer exists: the
       # from-knowledge cover it switched on was deleted in §108 (see DEPLOY.md

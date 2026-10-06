@@ -1,85 +1,87 @@
-"""GDELT: a second retrieval index, and the world-trending feed.
+"""GDELT: a second article index, and the news behind the story pool.
 
 Two jobs from one upstream, because GDELT answers two different questions and
 FAM has two different clocks for them:
 
-* **Evidence** (`retrieve`) - a second index beside Exa, on the per-episode
-  clock. One vendor's index is one vendor's blind spots; a question Exa covers
-  poorly currently produces a thin episode with no sign that another index
-  would have done better.
-* **Attention** (`GdeltTrendingSource`) - what the world is writing about, on
-  the shared 15-minute clock, for the myFAM Trending row.
+* **Evidence** (`retrieve`) - a second index beside Exa: the rung an episode
+  falls to when Exa comes back empty, and the optional cross-check.
+* **Attention** (`discover`, `volume_for`, `GdeltTrendingSource`) - what the
+  world's press is running, for the story pool and the Trending registry.
 
-Why GDELT for the second one specifically
------------------------------------------
-Exa is *retrieval*: find me documents about X, ranked by relevance. GDELT is
-*measurement*: it counts coverage across hundreds of thousands of outlets in
-100+ languages. Attention is a volume question, and only one of those two
-measures volume. That count is also the thing a provenance panel can show -
-"covered by 47 outlets" is corroboration a listener can read.
+Read from the export files, never the search API (§209)
+-------------------------------------------------------
+FAM used to ask GDELT's DOC 2.0 search API for all of it. That API allows one
+request every five seconds *per address*, and Render's outbound address is
+shared with every other tenant on it: on 1/10 GDELT refused 384 of 384 (§191),
+§144 had already seen it refuse requests sent one at a time, and §207's
+breaker only limited how much the refusals cost. Pacing cannot fix a limit
+other people are spending.
 
-The API
--------
-DOC 2.0, a single keyless endpoint over a rolling three-month window:
+GDELT also publishes everything it reads as plain files, every fifteen
+minutes (`lastupdate.txt` names the newest). They are file downloads, with no
+per-address limit, and the Global Knowledge Graph file carries what FAM read
+from DOC: each article's URL, title, publisher, date, GKG themes and the
+people, organisations and places it names. So:
 
-    https://api.gdeltproject.org/api/v2/doc/doc
+* **One background job downloads each new file** (`sync`, scheduled by
+  `run_forever`): 96 a day, plus one `lastupdate.txt` each time - the same
+  whether FAM has ten listeners or ten million.
+* **Everything else reads the copy on disk** (`ExportStore`). The story
+  sweep's worldwide and regional samples, the theme volumes and an episode's
+  fallback search are local reads. **No listener's tap ever reaches GDELT.**
 
-`mode=artlist` returns articles; `mode=timelinevolraw` returns coverage volume
-over time. No credential and no account - but **not** unlimited: GDELT asks
-for one request every five seconds per address, and Render's outbound address
-is shared with other tenants.
+What the copy cannot do that DOC did: search article *bodies* (DOC matched
+full text; the copy matches titles and the names GDELT extracted), reach back
+three months (it holds `GDELT_EXPORT_KEEP_HOURS`), or read the translated
+feed (the main export is English-language press). For a fallback rung and a
+news sweep, a day of English headlines is what was being used.
 
-**Every request goes through one pacer** (§144). The boot of 24/09 fired the
-story sweep's fifteen theme requests at once, the regional sweep six at a
-time, the old trending source's own fifteen and a cross-check per episode, all
-from one address in the same minute - and every one of them timed out. So
-`_get` waits its turn: background work queues one at a time, and an episode
-takes the next slot or, if that is further off than
-`GDELT_EPISODE_WAIT_SECONDS`, does without GDELT rather than wait on a sweep.
-Theme volumes are cached (`VOLUME_TTL_SECONDS`) because the story pool and the
-trending source measure the same fifteen themes.
-
-**The limitation, and how the story pool gets round it** (§135). DOC is
-query-driven: it tells you how much coverage *a query you name* is getting;
-it does not hand you a ranked list of everything hot right now. So
-`GdeltTrendingSource` sweeps a set of GKG themes and ranks them by measured
-volume - real measurement over a fixed vocabulary. The story pool no longer
-stops there: `discover` reads the recent articles under the hottest themes
-and under each region's own press, and `news_clusters` groups them into the
-actual stories, ranked by how many outlets are running each one. Open-ended
-discovery without the bulk GKG exports.
+Publisher countries come from GDELT's own domain-to-country list (fetched
+once a month, `DOMAINS_URL`), and from the domain's country code where the
+list does not know it. A `.com` the list does not know has no country, which
+`stories.country_shares` already treats as "could not tell".
 
 Not verified against the live service
 -------------------------------------
-The build container's egress proxy blocks `api.gdeltproject.org`, so every
-shape below is written from the documented API and exercised against recorded
-payloads in `tests/test_gdelt.py`. **Nothing here has made a real request.**
-Run `python tools/verify_live.py` and `tools/gdelt_probe.py` somewhere with
+The build container's egress proxy blocks `data.gdeltproject.org`, so the
+file shapes below are written from GDELT's published codebook and pinned
+against recorded rows in `tests/test_gdelt_exports_209.py`. **Nothing here has
+downloaded a real file.** Run `python tools/gdelt_probe.py` somewhere with
 network before believing it works.
 """
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import html
+import io
 import logging
 import re
+import sqlite3
+import threading
 import time
-from datetime import datetime, timezone
-from typing import Optional
+import zipfile
+from contextlib import closing
+from datetime import datetime, timedelta, timezone
+from typing import Iterable, Optional
 
 import httpx
 
 import trending
 from config import settings
+from paths import data_path
 
 log = logging.getLogger(__name__)
 
-DOC_API = "https://api.gdeltproject.org/api/v2/doc/doc"
+#: GDELT's list of news domains and the country each publishes from. A static
+#: file, fetched at most once every `DOMAINS_MAX_AGE_SECONDS`.
+DOMAINS_URL = ("http://data.gdeltproject.org/blog/2018-news-outlets-by-country-"
+               "may2018-update/MASTER-GDELTDOMAINSBYCOUNTRY-MAY2018.txt")
+DOMAINS_MAX_AGE_SECONDS = 30 * 86400
 
-#: GKG themes swept for the Trending row, with the plain-English subject each
-#: one stands for. A fixed vocabulary rather than open discovery - see the
-#: module docstring for why, and `TRENDING.md` for what open discovery would
-#: cost. Chosen to span domains rather than to be exhaustive; GDELT publishes
-#: thousands and sweeping all of them would be thousands of requests.
+#: GKG themes measured for the story pool and the Trending registry, with the
+#: plain-English subject each one stands for. Chosen to span domains rather
+#: than to be exhaustive.
 THEMES = (
     ("ECON_STOCKMARKET", "the stock market"),
     ("ECON_INFLATION", "inflation"),
@@ -97,6 +99,26 @@ THEMES = (
     ("TECH", "technology"),
     ("SPORTS", "sport"),
 )
+THEME_CODES = frozenset(code for code, _subject in THEMES)
+
+#: Country-code domains used as generic names (.io, .tv, .ai...), which say
+#: nothing about where a publisher is.
+GENERIC_TLDS = frozenset({
+    "io", "co", "tv", "me", "ai", "fm", "ly", "to", "ws", "cc", "gg", "im",
+    "la", "nu", "sh", "ac", "vc", "is", "it", "am", "ag", "tk", "ml", "ga",
+    "cf", "gq",
+})
+
+#: GDELT writes some country names FIPS-style; these are the ones
+#: `stories.normalise_country` would not otherwise recognise.
+_FIPS_NAMES = {
+    "korea, south": "south korea", "korea, north": "north korea",
+    "congo, democratic republic of the": "democratic republic of the congo",
+    "congo, republic of the": "republic of the congo",
+    "gambia, the": "gambia", "bahamas, the": "bahamas",
+    "cote d'ivoire": "ivory coast", "west bank": "palestine",
+    "gaza strip": "palestine", "macedonia, the former yugoslav republic of": "macedonia",
+}
 
 
 class _Result:
@@ -104,8 +126,7 @@ class _Result:
 
     Duck-typed rather than adapted at the call site, so `research.rank_results`,
     `research.credibility`, `research.published_at` and `provenance.from_results`
-    all work on it unchanged. A second retriever that needed its own branch in
-    each of those would be four places to forget.
+    all work on it unchanged.
     """
 
     __slots__ = ("title", "url", "published_date", "highlights", "text",
@@ -118,417 +139,658 @@ class _Result:
         self.published_date = published_date
         self.highlights = highlights
         self.text = ""
-        #: Where the *publisher* is, as GDELT names it ("United States"). It
-        #: is what lets Trending say how a story is running in one listener's
-        #: country without a second request - see `stories.country_shares`.
+        #: Where the *publisher* is ("united states"), or "" when unknown -
+        #: what lets a story say which countries' press is running it.
         self.country = country
 
 
-def _iso(stamp: str) -> str:
-    """GDELT's `20260916T143000Z` -> an ISO date `research.published_at` reads."""
-    text = (stamp or "").strip()
-    if len(text) >= 8 and text[:8].isdigit():
-        return f"{text[0:4]}-{text[4:6]}-{text[6:8]}"
-    return ""
+# --------------------------------------------------------------------------
+# Reading the export files
+# --------------------------------------------------------------------------
+#: GKG 2.1 columns, by position (the codebook's order).
+_DATE, _COLLECTION, _SOURCE, _URL = 1, 2, 3, 4
+_THEMES, _LOCATIONS, _PERSONS, _ORGS, _EXTRAS = 7, 9, 11, 13, 26
+_TITLE = re.compile(r"<PAGE_TITLE>(.*?)</PAGE_TITLE>", re.S)
+_STAMP = re.compile(r"(\d{14})\.gkg\.csv\.zip$")
+#: Most characters of extracted names kept per article for search.
+NAMES_CHARS = 400
 
 
-def parse_articles(payload: dict) -> list:
-    """Turn a DOC `mode=artlist` response into Exa-shaped results.
+def stamp_of(name: str) -> Optional[datetime]:
+    """`20261006141500.gkg.csv.zip` -> its UTC time, or None."""
+    found = _STAMP.search(name or "")
+    if not found:
+        return None
+    try:
+        return datetime.strptime(found.group(1), "%Y%m%d%H%M%S").replace(
+            tzinfo=timezone.utc)
+    except ValueError:
+        return None
 
-    Tolerant on purpose: GDELT is a research project and fields come and go.
-    A row missing a URL is skipped rather than raising, because one malformed
-    article must not cost the whole second opinion.
+
+def name_for(at: datetime) -> str:
+    return at.strftime("%Y%m%d%H%M%S") + ".gkg.csv.zip"
+
+
+def parse_lastupdate(text: str) -> tuple:
+    """`lastupdate.txt` -> `(url, md5)` of the newest GKG file, or ("", "").
+
+    Three lines, `size md5 url`, one each for the event, mentions and GKG
+    files; only the GKG one is read.
     """
-    out: list = []
-    for row in (payload or {}).get("articles", []) or []:
-        if not isinstance(row, dict):
+    for line in (text or "").splitlines():
+        parts = line.split()
+        if len(parts) >= 3 and parts[2].endswith(".gkg.csv.zip"):
+            return parts[2], parts[1]
+    return "", ""
+
+
+def domain_country(domain: str, known: Optional[dict] = None) -> str:
+    """The country a publisher's domain is in, or "" when nothing says."""
+    import stories
+
+    domain = (domain or "").lower().strip().rstrip(".")
+    if domain.startswith("www."):
+        domain = domain[4:]
+    if known:
+        hit = known.get(domain)
+        if hit:
+            return hit
+    tld = domain.rsplit(".", 1)[-1] if "." in domain else ""
+    if tld == "uk":
+        return "united kingdom"
+    if not tld or tld in GENERIC_TLDS:
+        return ""
+    return stories.ISO_COUNTRIES.get(tld, "")
+
+
+def _country_name(raw: str) -> str:
+    import stories
+
+    text = " ".join((raw or "").lower().split())
+    return stories.normalise_country(_FIPS_NAMES.get(text, text))
+
+
+def parse_domains(text: str) -> dict:
+    """GDELT's domain list -> `{domain: country}`. Tolerant of its layout:
+    tab-separated, domain first and the country's name last."""
+    out: dict = {}
+    for line in (text or "").splitlines():
+        parts = [p.strip() for p in line.split("\t")]
+        if len(parts) < 2 or not parts[0] or "." not in parts[0]:
             continue
-        url = str(row.get("url") or "").strip()
-        if not url:
-            continue
-        title = str(row.get("title") or "").strip()
-        out.append(_Result(
-            title=title,
-            url=url,
-            published_date=_iso(str(row.get("seendate") or "")),
-            # DOC does not return article body text. The title is the only
-            # evidence it carries, and it is passed through as the single
-            # highlight rather than being padded out into something that looks
-            # like more than it is.
-            highlights=[title] if title else [],
-            country=str(row.get("sourcecountry") or "").strip(),
-        ))
+        name = _country_name(parts[-1])
+        if name:
+            out[parts[0].lower()] = name
     return out
 
 
-def parse_volume(payload: dict) -> float:
-    """The most recent coverage-volume point from `mode=timelinevolraw`."""
-    for series in (payload or {}).get("timeline", []) or []:
-        points = series.get("data") or []
-        if points:
-            try:
-                return float(points[-1].get("value", 0.0))
-            except (TypeError, ValueError, AttributeError):
-                continue
-    return 0.0
+def _names(field: str, limit: int = 12) -> list:
+    out: list = []
+    for item in (field or "").split(";"):
+        item = item.strip()
+        if item and item not in out:
+            out.append(item)
+        if len(out) >= limit:
+            break
+    return out
 
 
-class GdeltBusy(RuntimeError):
-    """The next free slot is further off than this caller may wait."""
+def _places(field: str, limit: int = 8) -> list:
+    """V1LOCATIONS entries are `type#name#country#adm1#lat#long#id`."""
+    out: list = []
+    for item in (field or "").split(";"):
+        parts = item.split("#")
+        if len(parts) > 1 and parts[1].strip() and parts[1].strip() not in out:
+            out.append(parts[1].strip())
+        if len(out) >= limit:
+            break
+    return out
 
 
-class _Pacer:
-    """One request every `GDELT_REQUEST_GAP_SECONDS`, across the process.
+def parse_gkg_line(line: str, known: Optional[dict] = None) -> Optional[dict]:
+    """One GKG row -> what the copy keeps of it, or None.
 
-    A reservation clock rather than a lock around the request: a slot is taken
-    the moment it is asked for, so a slow response never holds anybody else
-    up, and the gap is between request *starts*, which is what GDELT counts.
+    Only web articles (collection 1) with a URL and a title are kept: an
+    article FAM cannot name is not evidence and cannot be clustered. A row
+    with too few columns is skipped rather than raising - one malformed line
+    must not cost the file.
+    """
+    cols = line.rstrip("\r\n").split("\t")
+    if len(cols) <= _EXTRAS:
+        return None
+    if cols[_COLLECTION].strip() != "1":
+        return None
+    url = cols[_URL].strip()
+    if not url.startswith(("http://", "https://")):
+        return None
+    found = _TITLE.search(cols[_EXTRAS])
+    title = " ".join(html.unescape(found.group(1)).split()) if found else ""
+    if not title:
+        return None
+    stamp = cols[_DATE].strip()
+    try:
+        seen = datetime.strptime(stamp[:14], "%Y%m%d%H%M%S").replace(
+            tzinfo=timezone.utc).timestamp()
+    except ValueError:
+        return None
+    themes = sorted({t for t in cols[_THEMES].split(";") if t in THEME_CODES})
+    names = _names(cols[_PERSONS]) + _names(cols[_ORGS]) + _places(cols[_LOCATIONS])
+    domain = cols[_SOURCE].strip().lower()
+    return {
+        "url": url,
+        "title": title[:300],
+        "domain": domain,
+        "country": domain_country(domain, known),
+        "seen": seen,
+        "themes": (";" + ";".join(themes) + ";") if themes else "",
+        "names": "; ".join(names)[:NAMES_CHARS].lower(),
+        "all_themes": cols[_THEMES],
+    }
 
-    **Episodes go first.** Background work queues on a lock and takes a slot
-    only once it is free *now*, so a sweep of thirty requests never books
-    thirty slots up front - which would put every episode's request two and a
-    half minutes into the future. An episode books the next slot directly, so
-    it waits at most one gap behind whatever started last, and a background
-    request that was about to go simply waits one more.
+
+def parse_gkg_file(blob: bytes, known: Optional[dict] = None,
+                   keep: int = 0) -> tuple:
+    """A zipped GKG file -> `(rows kept, theme counts over every row)`.
+
+    Theme counts are taken over every article in the file, so the volume a
+    theme is getting is a measurement of the whole feed; only `keep` rows
+    are stored, because the disk is shared with every other store.
+    """
+    kept: list = []
+    counts: dict = {}
+    with zipfile.ZipFile(io.BytesIO(blob)) as archive:
+        members = [n for n in archive.namelist() if n.endswith(".csv")]
+        if not members:
+            raise ValueError("the GKG archive holds no .csv file")
+        with archive.open(members[0]) as raw:
+            for line_bytes in raw:
+                row = parse_gkg_line(line_bytes.decode("utf-8", "replace"), known)
+                if row is None:
+                    continue
+                for theme in set(row.pop("all_themes").split(";")) & THEME_CODES:
+                    counts[theme] = counts.get(theme, 0) + 1
+                if not keep or len(kept) < keep:
+                    kept.append(row)
+    return kept, counts
+
+
+# --------------------------------------------------------------------------
+# The copy on disk
+# --------------------------------------------------------------------------
+class ExportStore:
+    """GDELT's last `GDELT_EXPORT_KEEP_HOURS` of articles, on the data disk.
+
+    Kept on the disk rather than in memory so a redeploy does not download a
+    day again, and so a day of articles is not held in the server's RAM.
+    Plain tables, no full-text index: searching is the rare fallback rung,
+    and a scan of a day's titles is milliseconds against the space an index
+    would cost.
     """
 
+    def __init__(self, path: Optional[str] = None) -> None:
+        self.path = data_path("GDELT_EXPORT_DB", "gdelt_export.db", path)
+        self._lock = threading.Lock()
+        with closing(self._connect()) as db:
+            db.executescript("""
+                CREATE TABLE IF NOT EXISTS files (
+                    name TEXT PRIMARY KEY, stamp REAL NOT NULL,
+                    rows INTEGER NOT NULL, fetched_at REAL NOT NULL);
+                CREATE TABLE IF NOT EXISTS articles (
+                    url TEXT PRIMARY KEY, title TEXT NOT NULL,
+                    domain TEXT NOT NULL, country TEXT NOT NULL,
+                    seen REAL NOT NULL, themes TEXT NOT NULL,
+                    names TEXT NOT NULL);
+                CREATE INDEX IF NOT EXISTS articles_seen ON articles(seen);
+                CREATE INDEX IF NOT EXISTS articles_country ON articles(country, seen);
+                CREATE TABLE IF NOT EXISTS theme_counts (
+                    stamp REAL NOT NULL, theme TEXT NOT NULL, n INTEGER NOT NULL,
+                    PRIMARY KEY (stamp, theme));
+                CREATE TABLE IF NOT EXISTS domains (
+                    domain TEXT PRIMARY KEY, country TEXT NOT NULL);
+                CREATE TABLE IF NOT EXISTS meta (
+                    key TEXT PRIMARY KEY, value TEXT NOT NULL);
+            """)
+
+    def _connect(self) -> sqlite3.Connection:
+        db = sqlite3.connect(self.path, timeout=10)
+        db.execute("PRAGMA journal_mode=WAL")
+        return db
+
+    # -- writing -----------------------------------------------------------
+    def has_file(self, name: str) -> bool:
+        with closing(self._connect()) as db:
+            return db.execute("SELECT 1 FROM files WHERE name=?",
+                              (name,)).fetchone() is not None
+
+    def add_file(self, name: str, stamp: float, rows: list, counts: dict,
+                 now: Optional[float] = None) -> None:
+        now = time.time() if now is None else now
+        with self._lock, closing(self._connect()) as db, db:
+            db.executemany(
+                "INSERT OR REPLACE INTO articles (url, title, domain, country, "
+                "seen, themes, names) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                [(r["url"], r["title"], r["domain"], r["country"], r["seen"],
+                  r["themes"], r["names"]) for r in rows])
+            db.executemany(
+                "INSERT OR REPLACE INTO theme_counts (stamp, theme, n) VALUES (?, ?, ?)",
+                [(stamp, theme, int(n)) for theme, n in counts.items()])
+            db.execute("INSERT OR REPLACE INTO files (name, stamp, rows, fetched_at) "
+                       "VALUES (?, ?, ?, ?)", (name, stamp, len(rows), now))
+
+    def mark_missing(self, name: str, stamp: float,
+                     now: Optional[float] = None) -> None:
+        """A file GDELT never published (it skips one now and then): noted,
+        with -1 rows, so it is not asked for again."""
+        now = time.time() if now is None else now
+        with self._lock, closing(self._connect()) as db, db:
+            db.execute("INSERT OR IGNORE INTO files (name, stamp, rows, fetched_at) "
+                       "VALUES (?, ?, -1, ?)", (name, stamp, now))
+
+    def prune(self, keep_hours: float, now: Optional[float] = None) -> int:
+        cutoff = (time.time() if now is None else now) - keep_hours * 3600
+        with self._lock, closing(self._connect()) as db, db:
+            gone = db.execute("DELETE FROM articles WHERE seen < ?", (cutoff,)).rowcount
+            db.execute("DELETE FROM theme_counts WHERE stamp < ?", (cutoff,))
+            db.execute("DELETE FROM files WHERE stamp < ?", (cutoff,))
+        return int(gone or 0)
+
+    def set_domains(self, known: dict, now: Optional[float] = None) -> None:
+        now = time.time() if now is None else now
+        with self._lock, closing(self._connect()) as db, db:
+            db.execute("DELETE FROM domains")
+            db.executemany("INSERT OR REPLACE INTO domains (domain, country) VALUES (?, ?)",
+                           list(known.items()))
+            db.execute("INSERT OR REPLACE INTO meta (key, value) VALUES ('domains_at', ?)",
+                       (str(now),))
+
+    # -- reading -----------------------------------------------------------
+    def domains(self) -> dict:
+        with closing(self._connect()) as db:
+            return dict(db.execute("SELECT domain, country FROM domains").fetchall())
+
+    def domains_at(self) -> float:
+        with closing(self._connect()) as db:
+            row = db.execute("SELECT value FROM meta WHERE key='domains_at'").fetchone()
+        try:
+            return float(row[0]) if row else 0.0
+        except ValueError:
+            return 0.0
+
+    def newest(self) -> float:
+        """When the newest file held was published (0.0 for none)."""
+        with closing(self._connect()) as db:
+            row = db.execute("SELECT MAX(stamp) FROM files WHERE rows >= 0").fetchone()
+        return float(row[0] or 0.0) if row else 0.0
+
+    def counts(self) -> dict:
+        with closing(self._connect()) as db:
+            files = db.execute("SELECT COUNT(*) FROM files WHERE rows >= 0").fetchone()[0]
+            articles = db.execute("SELECT COUNT(*) FROM articles").fetchone()[0]
+        return {"files": int(files), "articles": int(articles)}
+
+    def volume(self, theme: str, since: float) -> float:
+        with closing(self._connect()) as db:
+            row = db.execute("SELECT SUM(n) FROM theme_counts WHERE theme=? AND stamp >= ?",
+                             (theme, since)).fetchone()
+        return float(row[0] or 0.0) if row else 0.0
+
+    def _rows(self, sql: str, args: tuple) -> list:
+        with closing(self._connect()) as db:
+            return db.execute(sql, args).fetchall()
+
+    def by_theme(self, theme: str, since: float, limit: int) -> list:
+        return self._rows(
+            "SELECT title, url, seen, country FROM articles WHERE seen >= ? "
+            "AND themes LIKE ? ORDER BY seen DESC LIMIT ?",
+            (since, f"%;{theme};%", int(limit)))
+
+    def by_countries(self, countries: Iterable[str], since: float, limit: int) -> list:
+        wanted = tuple(countries)
+        if not wanted:
+            return []
+        marks = ",".join("?" for _ in wanted)
+        return self._rows(
+            f"SELECT title, url, seen, country FROM articles WHERE seen >= ? "
+            f"AND country IN ({marks}) ORDER BY seen DESC LIMIT ?",
+            (since, *wanted, int(limit)))
+
+    def search(self, words: list, since: float, limit: int) -> list:
+        """Articles whose title or extracted names carry these words, best
+        first: most words matched, then newest. At least two words must match
+        when the query has two - one shared word is a namesake, not a match."""
+        if not words:
+            return []
+        clauses = " OR ".join("(LOWER(title) LIKE ? OR names LIKE ?)" for _ in words)
+        args: list = [since]
+        for word in words:
+            args += [f"%{word}%", f"%{word}%"]
+        rows = self._rows(
+            f"SELECT title, url, seen, country, names FROM articles "
+            f"WHERE seen >= ? AND ({clauses}) ORDER BY seen DESC LIMIT 2000",
+            tuple(args))
+        need = min(2, len(words))
+        scored = []
+        for title, url, seen, country, names in rows:
+            text = f"{title.lower()} {names}"
+            hits = sum(1 for w in words if re.search(rf"\b{re.escape(w)}", text))
+            if hits >= need:
+                scored.append((hits, seen, title, url, country))
+        scored.sort(key=lambda row: (-row[0], -row[1]))
+        return [(title, url, seen, country)
+                for _h, seen, title, url, country in scored[:int(limit)]]
+
+
+_STORE: list = [None]
+
+
+def store() -> ExportStore:
+    if _STORE[0] is None:
+        _STORE[0] = ExportStore()
+    return _STORE[0]
+
+
+def reset_store() -> None:
+    """Forget the open store, so a test's `GDELT_EXPORT_DB` is the one used."""
+    _STORE[0] = None
+
+
+def exists() -> bool:
+    import os
+
+    return os.path.exists(data_path("GDELT_EXPORT_DB", "gdelt_export.db"))
+
+
+def _results(rows: list) -> list:
+    out = []
+    for title, url, seen, country in rows:
+        stamp = datetime.fromtimestamp(seen, tz=timezone.utc)
+        out.append(_Result(title=title, url=url,
+                           published_date=stamp.strftime("%Y-%m-%d"),
+                           # The title is the only text the export carries;
+                           # passed as the one highlight rather than padded.
+                           highlights=[title], country=country))
+    return out
+
+
+# --------------------------------------------------------------------------
+# Fetching: the only code that talks to GDELT
+# --------------------------------------------------------------------------
+class _State:
+    """What `/api/health` says about the downloads."""
+
     def __init__(self) -> None:
-        self._next = 0.0
-        self._background: Optional[asyncio.Lock] = None
-        self._loop = None
-
-    def _lock(self) -> asyncio.Lock:
-        # One lock per event loop: tests run each case in a fresh loop, and a
-        # lock bound to a closed loop raises on first use.
-        loop = asyncio.get_running_loop()
-        if self._background is None or self._loop is not loop:
-            self._background = asyncio.Lock()
-            self._loop = loop
-        return self._background
-
-    async def slot(self, max_wait: Optional[float] = None) -> None:
-        gap = float(settings.gdelt_request_gap_seconds)
-        if gap <= 0:
-            return
-        if max_wait is None:
-            async with self._lock():
-                while True:
-                    now = time.monotonic()
-                    if self._next <= now:
-                        self._next = now + gap
-                        return
-                    await asyncio.sleep(self._next - now)
-        else:
-            await self._take(gap, max_wait)
-
-    async def _take(self, gap: float, max_wait: float) -> None:
-        now = time.monotonic()
-        at = max(now, self._next)
-        wait = at - now
-        if wait > max_wait:
-            raise GdeltBusy(
-                f"GDELT's next free slot is {wait:.1f}s away, past the "
-                f"{max_wait:.1f}s an episode may wait")
-        self._next = at + gap
-        if wait > 0:
-            await asyncio.sleep(wait)
-
-    def reset(self) -> None:
-        self._next = 0.0
-
-
-PACER = _Pacer()
-
-
-class GdeltPaused(GdeltBusy):
-    """GDELT has failed every request lately; it is not being asked (§207)."""
-
-
-class _Breaker:
-    """Stop asking an address that refuses every request (§207).
-
-    On 1/10 GDELT failed 384 of 384 requests from Render's shared outbound
-    address (§191). Each failure still cost a paced slot, and an episode whose
-    Exa search came back empty waited up to `GDELT_EPISODE_WAIT_SECONDS` for
-    an answer that was never coming. After `GDELT_BREAKER_FAILURES` failures
-    in a row nothing is sent for `GDELT_BREAKER_SECONDS`; then exactly one
-    request is let through (`probing`) while everyone else is still told
-    "paused", and its success closes it - its failure pauses again. The check
-    runs again after a request's pacer wait, so requests queued before the
-    pause began do not go out after it. A pause is reported on `/api/health`
-    (`gdelt.paused_until`), because a fallback that is quietly off is the
-    failure this code base keeps a rule about.
-    """
-
-    def __init__(self) -> None:
-        self.failures = 0
-        self.paused_until = 0.0
+        self.last_ok = 0.0
+        self.last_attempt = 0.0
+        self.failures_in_a_row = 0
         self.last_error = ""
-        #: True while the one request after a pause is out. Event-loop state:
-        #: every caller runs on the one loop, so no lock is needed.
-        self.probing = False
-
-    def _limit(self) -> int:
-        return int(settings.gdelt_breaker_failures)
-
-    def check(self, claim: bool = False) -> None:
-        """Raise `GdeltPaused` while paused. `claim=True` is the last check
-        before a request is sent: once a pause has expired, the first caller
-        to claim becomes the probe and the rest are still refused."""
-        if self._limit() <= 0:
-            return
-        now = time.time()
-        if self.paused_until > now:
-            raise GdeltPaused(
-                f"GDELT refused the last {self.failures} requests; not asking "
-                f"again for {self.paused_until - now:.0f}s")
-        if self.paused_until and self.failures >= self._limit():
-            # A pause has run out but nothing has succeeded since.
-            if self.probing:
-                raise GdeltPaused("GDELT is being retried by one request; "
-                                  "waiting for its answer")
-            if claim:
-                self.probing = True
-
-    def success(self) -> None:
-        self.failures = 0
-        self.paused_until = 0.0
-        self.last_error = ""
-        self.probing = False
-
-    def failure(self, why: str) -> None:
-        self.failures += 1
-        self.last_error = why[:200]
-        self.probing = False
-        limit = self._limit()
-        if limit > 0 and self.failures >= limit:
-            self.paused_until = time.time() + float(settings.gdelt_breaker_seconds)
-            log.warning("gdelt: %d failures in a row (last: %s); pausing %ss",
-                        self.failures, self.last_error,
-                        settings.gdelt_breaker_seconds)
+        self.last_file = ""
 
     def report(self) -> dict:
-        return {"failures_in_a_row": self.failures,
-                "paused_until": self.paused_until if self.paused_until > time.time() else None,
-                "probing": self.probing,
-                "last_error": self.last_error or None}
-
-    def reset(self) -> None:
-        self.__init__()
+        return {"last_ok": self.last_ok or None,
+                "last_attempt": self.last_attempt or None,
+                "failures_in_a_row": self.failures_in_a_row,
+                "last_error": self.last_error or None,
+                "last_file": self.last_file or None}
 
 
-BREAKER = _Breaker()
-
-
-class ProxyInvalid(ValueError):
-    """`GDELT_PROXY_URL` is set but is not an http(s) URL httpx can use."""
-
-
-def _proxy() -> Optional[str]:
-    """The outbound proxy GDELT's requests go through, if one is set.
-
-    GDELT limits by address, and Render's address is shared with every other
-    tenant on it (§144, §191). `GDELT_PROXY_URL` sends these requests - and
-    only these - through a static-IP proxy (QuotaGuard Static is the one
-    Render documents), so FAM is counted on an address of its own. A
-    credential lives in the URL, so it is a secret and staging never has it.
-
-    A URL that is not `http://` or `https://` with a host raises
-    `ProxyInvalid` - worded without the URL, which holds the credential -
-    rather than letting httpx refuse it with the URL in the message.
-    """
-    url = str(getattr(settings, "gdelt_proxy_url", "") or "").strip()
-    if not url:
-        return None
-    try:
-        parsed = httpx.URL(url)
-        ok = parsed.scheme in ("http", "https") and bool(parsed.host)
-    except Exception:  # noqa: BLE001 - any parse failure is the same answer
-        ok = False
-    if not ok:
-        raise ProxyInvalid("GDELT_PROXY_URL is set but is not an http(s):// "
-                           "URL with a host; GDELT is not being asked")
-    return url
-
-
-def proxy_state() -> str:
-    """For health: "none", "set" or "invalid" - never the URL itself."""
-    try:
-        return "set" if _proxy() else "none"
-    except ProxyInvalid:
-        return "invalid"
-
-
-#: What GDELT says, with a 200, when it is rate-limiting an address.
-_RATE_LIMIT_TEXT = "limit requests"
-
-
-async def _get(params: dict, timeout: float,
-               max_wait: Optional[float] = None) -> dict:
-    """One DOC request, in its turn. `max_wait=None` is background work."""
-    BREAKER.check()
-    await PACER.slot(max_wait)
-    # Again after the wait (§207 review): a request that queued before the
-    # breaker tripped must not go out after it, and only one may probe.
-    BREAKER.check(claim=True)
-    import provider_usage
-
-    try:
-        proxy = _proxy()
-        client = httpx.AsyncClient(timeout=timeout, proxy=proxy)
-    except Exception as exc:
-        # A bad proxy setting is a failure to reach GDELT, counted and paused
-        # like any other - never a silent hole (`failures-visible`).
-        provider_usage.record("gdelt", ok=False)
-        BREAKER.failure(_describe(exc) if isinstance(exc, ProxyInvalid)
-                        else f"{type(exc).__name__} building the client")
-        raise
-    async with client:
-        try:
-            response = await client.get(DOC_API, params=params)
-        except asyncio.CancelledError:
-            # The caller's deadline passed mid-request (`retrieve` bounds the
-            # whole call). A GDELT too slow to answer is not answering, and
-            # the probe after a pause must not stay claimed for ever.
-            provider_usage.record("gdelt", ok=False)
-            BREAKER.failure("no answer before the deadline")
-            raise
-        except Exception as exc:
-            provider_usage.record("gdelt", ok=False)
-            BREAKER.failure(_describe(exc))
-            raise
-        # Counted for the admin page (§179), refused or not: a 429 spent
-        # the slot as surely as a 200 did.
-        provider_usage.record("gdelt", ok=response.is_success)
-        if not response.is_success:
-            BREAKER.failure(f"HTTP {response.status_code}")
-        response.raise_for_status()
-        try:
-            payload = response.json()
-        except ValueError as exc:
-            # DOC answers a query it cannot parse with a 200 and a sentence of
-            # plain text. Say what it said, rather than "Expecting value".
-            # Its rate-limit notice is also text with a 200, and that one is
-            # a refusal; a query it could not parse says nothing either way.
-            text = response.text[:160]
-            if _RATE_LIMIT_TEXT in text.lower():
-                BREAKER.failure("rate-limited (200 with a notice)")
-            else:
-                BREAKER.probing = False
-            raise ValueError(f"GDELT answered with text, not JSON: {text!r}") from exc
-        BREAKER.success()
-        return payload
+STATE = _State()
+_SYNCING = [False]
 
 
 def _describe(exc: BaseException) -> str:
-    """A failure in words. A timeout's own message is empty, which is how the
-    24/09 logs came to read `gdelt retrieval failed for '...': ` and stop."""
-    # A proxy URL carries its credential (`GDELT_PROXY_URL`); never repeat it.
-    text = re.sub(r"//[^/@\s]+@", "//***@", str(exc)).strip()
+    """A failure in words - a timeout's own message is empty (§144)."""
+    text = str(exc).strip()
     name = type(exc).__name__
     return f"{name}: {text}" if text else name
 
 
-#: Most words a free-text query keeps. DOC is a keyword index, and a whole
-#: DailyFAM prompt ("The latest on Anthropic (Startups) as of Thursday...")
-#: sent when EI degrades is a query it either rejects or matches badly.
+async def _download(client: httpx.AsyncClient, url: str) -> httpx.Response:
+    import provider_usage
+
+    try:
+        response = await client.get(url)
+    except Exception:
+        provider_usage.record("gdelt", ok=False)
+        raise
+    provider_usage.record("gdelt", ok=response.is_success)
+    return response
+
+
+async def _refresh_domains(client: httpx.AsyncClient, target: ExportStore,
+                           now: float) -> None:
+    """GDELT's domain-to-country list, once a month. A failure leaves the
+    country-code fallback in charge and is tried again next sync."""
+    if now - target.domains_at() < DOMAINS_MAX_AGE_SECONDS:
+        return
+    try:
+        response = await _download(client, DOMAINS_URL)
+        response.raise_for_status()
+        known = parse_domains(response.text)
+        if known:
+            await asyncio.to_thread(target.set_domains, known, now)
+            log.info("gdelt: %d publisher domains placed by country", len(known))
+    except Exception as exc:  # noqa: BLE001 - a country is a nicety
+        log.info("gdelt: the domain list could not be read: %s", _describe(exc))
+
+
+async def _fetch_file(client: httpx.AsyncClient, target: ExportStore,
+                      name: str, md5: str, known: dict) -> int:
+    """One GKG file into the copy. Returns the rows kept; -1 for a file
+    GDELT never published. Raises on anything else."""
+    url = f"{settings.gdelt_export_base.rstrip('/')}/{name}"
+    response = await _download(client, url)
+    at = stamp_of(name)
+    stamp = at.timestamp() if at else time.time()
+    if response.status_code == 404:
+        await asyncio.to_thread(target.mark_missing, name, stamp)
+        return -1
+    response.raise_for_status()
+    blob = response.content
+    if md5 and hashlib.md5(blob).hexdigest() != md5.lower():
+        raise ValueError(f"{name} did not match the checksum GDELT published")
+    rows, counts = await asyncio.to_thread(
+        parse_gkg_file, blob, known, int(settings.gdelt_export_rows_per_file))
+    await asyncio.to_thread(target.add_file, name, stamp, rows, counts)
+    return len(rows)
+
+
+async def sync(now: Optional[float] = None,
+               client: Optional[httpx.AsyncClient] = None) -> dict:
+    """Bring the copy up to date with GDELT's newest file. Never raises.
+
+    Reads `lastupdate.txt`, fetches the newest GKG file and - when the copy
+    is behind - up to `GDELT_EXPORT_BACKFILL_FILES` before it, oldest first,
+    then drops what is older than `GDELT_EXPORT_KEEP_HOURS`. One sync at a
+    time; a second caller returns at once.
+    """
+    if not settings.gdelt:
+        return {"skipped": "GDELT=0"}
+    if _SYNCING[0]:
+        return {"skipped": "a sync is already running"}
+    _SYNCING[0] = True
+    now = time.time() if now is None else now
+    STATE.last_attempt = now
+    fetched = 0
+    try:
+        target = store()
+        own = client is None
+        client = client or httpx.AsyncClient(
+            timeout=float(settings.gdelt_export_timeout_seconds),
+            follow_redirects=True)
+        try:
+            await _refresh_domains(client, target, now)
+            response = await _download(
+                client, f"{settings.gdelt_export_base.rstrip('/')}/lastupdate.txt")
+            response.raise_for_status()
+            url, md5 = parse_lastupdate(response.text)
+            newest_name = url.rsplit("/", 1)[-1] if url else ""
+            newest = stamp_of(newest_name)
+            if newest is None:
+                raise ValueError("lastupdate.txt named no GKG file")
+            keep_after = now - float(settings.gdelt_export_keep_hours) * 3600
+            wanted = [(newest_name, md5)]
+            for step in range(1, max(0, int(settings.gdelt_export_backfill_files)) + 1):
+                earlier = newest - timedelta(minutes=15 * step)
+                if earlier.timestamp() < keep_after:
+                    break
+                wanted.append((name_for(earlier), ""))
+            known = await asyncio.to_thread(target.domains)
+            for name, digest in reversed(wanted):
+                if await asyncio.to_thread(target.has_file, name):
+                    continue
+                kept = await _fetch_file(client, target, name, digest, known)
+                if kept >= 0:
+                    fetched += 1
+                    STATE.last_file = name
+        finally:
+            if own:
+                await client.aclose()
+        pruned = await asyncio.to_thread(
+            target.prune, float(settings.gdelt_export_keep_hours), now)
+        STATE.last_ok = now
+        STATE.failures_in_a_row = 0
+        STATE.last_error = ""
+        if fetched:
+            log.info("gdelt: %d export file(s) read; %d old article(s) dropped",
+                     fetched, pruned)
+        return {"fetched": fetched, "pruned": pruned}
+    except Exception as exc:  # noqa: BLE001 - the next sync tries again
+        STATE.failures_in_a_row += 1
+        STATE.last_error = _describe(exc)[:200]
+        log.warning("gdelt: export sync failed (%d in a row): %s",
+                    STATE.failures_in_a_row, STATE.last_error)
+        return {"fetched": fetched, "error": STATE.last_error}
+    finally:
+        _SYNCING[0] = False
+
+
+async def run_forever() -> None:
+    """The one job that downloads from GDELT. Never raises."""
+    while True:
+        await sync()
+        await asyncio.sleep(max(60.0, float(settings.gdelt_export_poll_seconds)))
+
+
+# --------------------------------------------------------------------------
+# Reading: everything FAM asks of GDELT, answered from the copy
+# --------------------------------------------------------------------------
+class ExportStale(RuntimeError):
+    """The copy holds nothing recent enough to be today's news."""
+
+
+#: The copy is an outage, not a quiet day, when its newest file is older than
+#: this: four missed polls.
+STALE_AFTER_SECONDS = 3600.0
+
+
+def freshness(now: Optional[float] = None) -> Optional[float]:
+    """Seconds since the newest file held was published, or None for none."""
+    newest = store().newest()
+    if not newest:
+        return None
+    return max(0.0, (time.time() if now is None else now) - newest)
+
+
+def _check_fresh() -> None:
+    age = freshness()
+    if age is None:
+        raise ExportStale("GDELT's export copy is empty - no file has been read yet")
+    if age > STALE_AFTER_SECONDS:
+        raise ExportStale(f"GDELT's export copy is {age / 3600:.1f}h old")
+
+
+#: Most words a free-text query keeps.
 MAX_QUERY_WORDS = 10
 
 
 def clean_query(query: str) -> str:
-    """Free text reduced to what DOC can search on.
-
-    Only for `retrieve`, whose query is somebody's words: `artlist` carries
-    DOC operators (`theme:`, `sourcecountry:`, parentheses) and is left alone.
-    Punctuation goes, because DOC treats brackets and quotes as syntax.
-    """
+    """Free text reduced to its words - a degraded brief can send a whole
+    DailyFAM prompt, brackets and all (§144)."""
     words = re.sub(r"[^\w\s'-]", " ", query or "").split()
     return " ".join(words[:MAX_QUERY_WORDS])
+
+
+def _search_words(query: str) -> list:
+    import news_clusters
+
+    out: list = []
+    for word in clean_query(query).lower().split():
+        word = word.strip("'-")
+        if len(word) >= 3 and word not in news_clusters.STOPWORDS and word not in out:
+            out.append(word)
+    return out
 
 
 def available() -> tuple[bool, str]:
     """Whether GDELT is switched on. No credential exists to check."""
     if not settings.gdelt:
         return False, "GDELT=0"
-    return True, "GDELT DOC 2.0 needs no credential"
+    return True, "GDELT export files, keyless; read from the copy on disk"
 
 
 async def retrieve(query: str, limit: int = 0,
                    recency_days: int = 0) -> list:
-    """Articles for `query`, as Exa-shaped results. Never raises.
+    """Articles for `query` from the copy, as Exa-shaped results. Never raises.
 
-    The second opinion beside Exa. Returns `[]` on any failure, because a
-    cross-check that could break an episode would be worse than no
-    cross-check - the first retriever's packet is still real evidence.
+    A local read: nothing here reaches GDELT, so an episode's fallback rung
+    costs GDELT nothing however many listeners there are. `[]` on any
+    failure, because a fallback that could break an episode would be worse
+    than none.
     """
-    query = clean_query(query)
-    if not query:
+    words = _search_words(query)
+    if not words:
         return []
     ok, _why = available()
     if not ok:
         return []
-
     limit = limit or int(settings.gdelt_max_records)
-    params = {
-        "query": query,
-        "mode": "artlist",
-        "maxrecords": str(max(1, min(250, limit))),
-        "format": "json",
-        "sort": "hybridrel",
-    }
+    hours = float(settings.gdelt_export_keep_hours)
     if recency_days > 0:
-        # DOC expresses windows in hours, capped at its three-month window.
-        params["timespan"] = f"{min(2160, max(1, recency_days * 24))}h"
-
-    timeout = float(settings.gdelt_timeout_seconds)
-    wait = float(settings.gdelt_episode_wait_seconds)
+        hours = min(hours, recency_days * 24.0)
+    since = time.time() - hours * 3600
     try:
-        payload = await asyncio.wait_for(
-            _get(params, timeout, max_wait=wait),
-            timeout=timeout + wait + 0.5)
-    except GdeltBusy as exc:
-        # Not a failure of GDELT: a sweep has the next few slots. Info, not a
-        # warning - it is the pacer doing its job.
-        log.info("gdelt: skipped for %r - %s", query, exc)
-        return []
+        rows = await asyncio.to_thread(store().search, words, since, limit)
     except Exception as exc:  # noqa: BLE001 - see docstring
-        log.warning("gdelt retrieval failed for %r: %s", query, _describe(exc))
+        log.warning("gdelt: searching the copy failed for %r: %s", query,
+                    _describe(exc))
         return []
-
-    results = parse_articles(payload)
-    log.info("gdelt: %d article(s) for %r", len(results), query)
+    results = _results(rows)
+    log.info("gdelt: %d article(s) for %r from the copy", len(results), query)
     return results
 
 
-async def artlist(query: str, limit: int, hours: int, timeout: float) -> list:
-    """Recent articles for `query`. **Raises** on failure, unlike `retrieve`.
+async def artlist(query: str, limit: int, hours: int, timeout: float = 0.0) -> list:
+    """Recent articles for a selector, from the copy. **Raises** when the copy
+    is empty or stale, unlike `retrieve` - a sweep must tell "GDELT had
+    nothing" from "FAM has not read GDELT".
 
-    The trending sweep needs to tell "GDELT answered with nothing" from
-    "GDELT did not answer" - the second is an outage `/api/health` has to be
-    able to say - so this is the half of `retrieve` without its safety net.
-    `retrieve` is the one to call on an episode's path.
+    Selectors: `theme:CODE`, or a `region_query` (`sourcecountry:` names,
+    OR'd). Anything else is a word search.
     """
-    params = {
-        "query": query,
-        "mode": "artlist",
-        "maxrecords": str(max(1, min(250, limit))),
-        "format": "json",
-        # Hybrid relevance leans towards the outlets GDELT weights most, which
-        # is what a trending row wants from a sample: the stories the big
-        # newsrooms are running, rather than the most recent two minutes.
-        "sort": "hybridrel",
-        "timespan": f"{max(1, min(2160, hours))}h",
-    }
-    return parse_articles(await _get(params, timeout))
+    await asyncio.to_thread(_check_fresh)
+    since = time.time() - max(1, hours) * 3600
+    target = store()
+    if query.startswith("theme:"):
+        rows = await asyncio.to_thread(target.by_theme, query[6:], since, limit)
+    elif "sourcecountry:" in query:
+        compact = set(re.findall(r"sourcecountry:(\w+)", query))
+        countries = [c for c in _known_countries() if c.replace(" ", "") in compact]
+        rows = await asyncio.to_thread(target.by_countries, countries, since, limit)
+    else:
+        rows = await asyncio.to_thread(target.search, _search_words(query), since, limit)
+    return _results(rows)
+
+
+def _known_countries() -> list:
+    import geography
+
+    return sorted(geography.REGION_OF)
 
 
 def region_query(region: str) -> str:
-    """How to ask for one region's press: its main source countries, OR'd.
-
-    GDELT wants OR'd terms in parentheses, and `sourcecountry:` takes the
-    country name with its spaces removed - the FIPS codes it also accepts are
-    not ISO codes (`UK`, `GM`), which is a mistake waiting in a lookup table.
-    """
+    """One region's press: its main source countries, as the selector
+    `artlist` reads (`sourcecountry:` names with their spaces removed)."""
     import geography
 
     names = geography.GDELT_SOURCES.get(region, ())
@@ -539,20 +801,15 @@ def region_query(region: str) -> str:
     return "(" + " OR ".join(f"sourcecountry:{n}" for n in names) + ")"
 
 
-async def discover(hot_themes: list, timeout: float, hours: int = 12,
+async def discover(hot_themes: list, timeout: float = 0.0, hours: int = 12,
                    per_query: int = 75, regions=None,
                    concurrency: int = 6) -> tuple:
     """Read what the world's press, and each region's, is running right now.
 
-    One `artlist` per hot theme for the worldwide sample, and one per region
-    over that region's own press. Returns `(articles, scope_of, failures)`:
-    every article read, a function saying which sweep found each one ("world"
-    or a region key), and how many requests failed - so a sweep that lost
-    every request is reported as an outage rather than as a quiet news day.
-
-    Bounded concurrency, because GDELT is a research project's free service
-    and asks to be treated like one; a sweep of fifteen at once is how a
-    keyless API becomes a rate-limited one.
+    One read per hot theme for the worldwide sample, and one per region over
+    that region's own press - all from the copy. Returns `(articles,
+    scope_of, (failures, asked))`, so a sweep against an empty or stale copy
+    is reported as an outage rather than as a quiet news day.
     """
     import geography
 
@@ -560,153 +817,94 @@ async def discover(hot_themes: list, timeout: float, hours: int = 12,
     jobs = [("world", f"theme:{theme}") for theme in hot_themes]
     jobs += [(region, region_query(region)) for region in regions
              if region_query(region)]
-    gate = asyncio.Semaphore(max(1, concurrency))
     found_in: dict = {}
     failures = 0
-
-    async def run(scope: str, query: str):
-        async with gate:
-            try:
-                return scope, await artlist(query, per_query, hours, timeout), None
-            except Exception as exc:  # noqa: BLE001 - one query is not the sweep
-                return scope, [], exc
-
     articles: list = []
-    for scope, rows, error in await asyncio.gather(
-            *(run(scope, query) for scope, query in jobs)):
-        if error is not None:
+    for scope, query in jobs:
+        try:
+            rows = await artlist(query, per_query, hours, timeout)
+        except Exception as exc:  # noqa: BLE001 - one read is not the sweep
             failures += 1
-            log.info("gdelt: %s sweep failed: %s", scope, _describe(error))
+            log.info("gdelt: %s read failed: %s", scope, _describe(exc))
             continue
         for row in rows:
             # First finder wins, and a worldwide finding beats a regional
-            # one: the world sweep runs first in `jobs`.
+            # one: the world reads run first in `jobs`.
             found_in.setdefault(row.url, scope)
             articles.append(row)
-
     return articles, (lambda article: found_in.get(article.url, "")), \
         (failures, len(jobs))
 
 
-#: How long a theme's measured volume is reused. The window it measures is 24
-#: hours, so twenty minutes of staleness moves nothing, and it lets the story
-#: pool and the trending source share one set of fifteen requests per sweep.
-VOLUME_TTL_SECONDS = 1200.0
-_VOLUMES: dict = {}
-
-
-async def _measure_volume(theme: str, timeout: float) -> float:
-    payload = await _get({"query": f"theme:{theme}", "mode": "timelinevolraw",
-                          "format": "json", "timespan": "24h"}, timeout)
-    return parse_volume(payload)
-
-
-async def volume_for(theme: str, timeout: float) -> float:
-    """How much coverage a GKG theme is getting right now. Cached, shared.
-
-    Two callers asking at once share one request: the cache holds the task
-    itself, shielded, so a caller that gives up does not cancel the request
-    for the other.
-    """
-    now = time.monotonic()
-    held = _VOLUMES.get(theme)
-    if held is not None:
-        expires, task = held
-        loop_ok = task.get_loop() is asyncio.get_running_loop()
-        if loop_ok and (not task.done() or (
-                expires > now and not task.cancelled()
-                and task.exception() is None)):
-            return await asyncio.shield(task)
-    task = asyncio.ensure_future(_measure_volume(theme, timeout))
-    # Every caller may have given up (a sweep's ceiling) before it fails;
-    # reading the outcome here keeps that from logging "exception was never
-    # retrieved" on top of the failure the sweep already reported.
-    task.add_done_callback(lambda t: t.cancelled() or t.exception())
-    _VOLUMES[theme] = (now + VOLUME_TTL_SECONDS, task)
-    return await asyncio.shield(task)
+async def volume_for(theme: str, timeout: float = 0.0) -> float:
+    """How many articles carried a GKG theme in the last 24 hours, counted
+    over every article GDELT read rather than the rows kept. Raises when the
+    copy is empty or stale."""
+    await asyncio.to_thread(_check_fresh)
+    return await asyncio.to_thread(store().volume, theme, time.time() - 86400)
 
 
 class GdeltTrendingSource(trending.TrendingSource):
-    """The Trending row, ranked by measured coverage volume.
+    """The Trending registry's GDELT feed, ranked by measured theme volume.
 
-    Sweeps `THEMES`, ranks by volume, and turns the top few into questions.
-
-    **The question is templated, not generated**, and that is a deliberate
-    stopping point rather than the finished article. `TRENDING.md` says a tile
-    must carry a question worth an episode rather than a headline, and a
-    template is only just on the right side of that line. The better version is
-    one model call per refresh window turning the top themes and their leading
-    headlines into real questions - one call for everybody, which the shared
-    clock makes affordable. That is left as the next step rather than guessed
-    at here, because it is a writing-quality decision and this file cannot
-    test writing quality.
+    **The question is templated, not generated** - see `TRENDING.md`; the
+    story pool's GDELT source is the one that finds actual stories.
     """
 
     name = "GDELT"
     cost_per_refresh = 0.0
-    #: Fifteen paced requests are over a minute; `TRENDING_TIMEOUT_SECONDS`
-    #: (8s) is sized for one request, and nobody waits on this sweep.
-    timeout_seconds = 150.0
+    timeout_seconds = 30.0
 
     def diagnose(self) -> tuple[bool, str]:
         ok, why = available()
         if not ok:
             return False, f"GDELT is switched off ({why})"
-        return True, "GDELT DOC 2.0, keyless; not verified from this machine"
+        return True, "GDELT export files, keyless; not verified from this machine"
 
     async def verify(self) -> tuple[bool, str]:
-        try:
-            results = await retrieve("climate", limit=1)
-        except Exception as exc:  # noqa: BLE001
-            return False, f"GDELT did not answer: {type(exc).__name__}: {exc}"
-        if not results:
-            return False, "GDELT answered but returned nothing parseable"
-        return True, f"GDELT answered with {len(results)} article(s)"
+        age = await asyncio.to_thread(freshness)
+        if age is None:
+            return False, "GDELT's export copy is empty - no file has been read yet"
+        if age > STALE_AFTER_SECONDS:
+            return False, f"GDELT's export copy is {age / 3600:.1f}h old"
+        held = await asyncio.to_thread(lambda: store().counts())
+        return True, (f"GDELT's export copy holds {held['articles']} article(s) "
+                      f"from {held['files']} file(s), newest {age / 60:.0f} min old")
 
     async def fetch(self, limit: int) -> list:
-        timeout = float(settings.gdelt_timeout_seconds)
-        measured: list = []
-
-        async def measure(theme: str, subject: str):
+        measured = []
+        for theme, subject in THEMES:
             try:
-                return subject, theme, await volume_for(theme, timeout)
+                volume = await volume_for(theme)
             except Exception as exc:  # noqa: BLE001 - one theme must not sink the sweep
                 log.debug("gdelt: theme %s failed: %s", theme, exc)
-                return subject, theme, -1.0
-
-        # Concurrent, because this is fifteen small requests and doing them in
-        # series would put the whole sweep past any sensible ceiling. It runs
-        # on the shared clock, so nobody is waiting on it.
-        results = await asyncio.gather(
-            *(measure(theme, subject) for theme, subject in THEMES))
-        measured = [row for row in results if row[2] > 0]
+                continue
+            if volume > 0:
+                measured.append((subject, theme, volume))
         if not measured:
             return []
-
         measured.sort(key=lambda row: -row[2])
         now = datetime.now(timezone.utc)
-        items = []
-        for rank, (subject, theme, volume) in enumerate(measured[:limit or 6]):
-            items.append(trending.TrendingItem(
-                subject=subject,
-                query=f"what is actually driving the news about {subject} right now",
-                why_now=f"coverage of {subject} is running high across global media",
-                source=self.name,
-                as_of=now,
-                rank=rank + 1,
-                kind=trending.ATTENTION,
-            ))
-        return items
+        return [trending.TrendingItem(
+            subject=subject,
+            query=f"what is actually driving the news about {subject} right now",
+            why_now=f"coverage of {subject} is running high across global media",
+            source=self.name, as_of=now, rank=rank + 1, kind=trending.ATTENTION)
+            for rank, (subject, _theme, _v) in enumerate(measured[:limit or 6])]
 
 
 def report() -> dict:
     ok, why = available()
-    return {"enabled": bool(settings.gdelt), "ready": ok, "detail": why,
-            "endpoint": DOC_API, "themes_swept": len(THEMES),
-            "verified_from_this_machine": False,
-            # §207: whether requests leave through a proxy of FAM's own (never
-            # the URL - it carries a credential), and whether the breaker has
-            # stopped asking.
-            "proxy": proxy_state(),
-            "via_proxy": proxy_state() == "set",
-            **BREAKER.report()}
+    out = {"enabled": bool(settings.gdelt), "ready": ok, "detail": why,
+           "source": "export files", "endpoint": settings.gdelt_export_base,
+           "themes_swept": len(THEMES), "verified_from_this_machine": False,
+           "keep_hours": float(settings.gdelt_export_keep_hours),
+           **STATE.report()}
+    try:
+        if exists():
+            out.update(store().counts())
+            age = freshness()
+            out["newest_age_seconds"] = None if age is None else round(age)
+    except Exception:  # noqa: BLE001 - a report is never load-bearing
+        pass
+    return out

@@ -139,7 +139,7 @@ flowchart LR
   end
   subgraph Evidence
     EXA[Exa]
-    GD["GDELT<br/>(breaker, optional proxy)"]
+    GD["GDELT<br/>(export files, local copy)"]
     GN[GNews]
     AS[API-Sports]
     FH[Finnhub]
@@ -526,7 +526,7 @@ They share nothing: no disk, key, admin token or voice worker.
 | `FAM_ADMIN_ACCOUNTS`, `FAM_ADMIN_TOKEN` | Who can open `/admin` (by account), and the token for terminals. With neither set, admin routes return 404 |
 | `GNEWS_KEY`, `GNEWS_DAILY_REQUESTS`, `GNEWS_PLAN` | Trending's only source, its daily ceiling, and the plan bought |
 | `API_SPORTS_KEY`, `FINNHUB_KEY`, `FINNHUB_PLAN`, `LIVE_ELECTIONS_PROVIDER`, `STORIES_POLYMARKET` | Live facts and the story pool |
-| `GDELT`, `GDELT_PROXY_URL` | The story pool's news source and its static-IP proxy (§207) |
+| `GDELT`, `GDELT_EXPORT_DB`, `GDELT_EXPORT_POLL_SECONDS`, `GDELT_EXPORT_KEEP_HOURS` | The story pool's news source and the research ladder's last rung, read from a local copy of GDELT's 15-minute export files (§209) |
 | `OPEN_METEO_API_KEY` | Weather outside the US, the NWS fallback, and place names (§194) |
 | `GEMINI_API_KEY`, `THUMBNAILS` | Tile pictures (`THUMBNAILS.md`) |
 | `FAM_SECRETS` | Where to fetch credentials from (`CREDENTIALS.md`). Precedence is env, then `FAM_SECRETS`, then `.env`, then `~/.fam/env` |
@@ -547,7 +547,7 @@ curl -s https://<host>/api/health | python -m json.tool
 | `tts` | The voice engine. `interim: true` means the placeholder tone |
 | `research`, `episode_intelligence`, `search_mode_source`, `writer_effort` | Whether researched episodes can run, whether EI is on, and where each setting came from |
 | `live_facts`, `live_sources`, `stories`, `trending`, `trending_bank`, `daily_edition` | Whether each feed is configured and actually refreshing |
-| `gdelt` | `failures_in_a_row`, `paused_until`, `probing`, `last_error`, `proxy` (`none`/`set`/`invalid`) and `via_proxy` (the breaker, §207) |
+| `gdelt` | `source` (`export files`), `endpoint`, `keep_hours`, `last_ok`, `last_attempt`, `failures_in_a_row`, `last_error`, `last_file`, and once the copy exists `files`, `articles`, `newest_age_seconds` (§209) |
 | `local_news`, `weather`, `thumbnails` | §194 and §160 |
 | `quotas`, `tiers` | Whether limits are enforced, and the tier catalogue |
 | `licences` | Each provider's plan. `commercial_ready` answers "may we charge money?" |
@@ -606,7 +606,7 @@ top N, because nothing about a signup is verified.
 | `python tools/usage_report.py --days 30 [--price 4.99] [--flagged]` | Real marginal cost per listener, its distribution, and the fixed GPU floor kept separate |
 | `python tools/prefetch_report.py --live` | Whether prefetch pays for itself |
 | `python tools/stories_report.py` | Whether the story pool's sources are answering |
-| `python tools/gdelt_probe.py` | Whether GDELT answers, from this address or through the proxy |
+| `python tools/gdelt_probe.py` | One real sync of GDELT's export files into a scratch copy, read back (volume, retrieval) |
 | `python tools/verify_live.py`, `python tools/verify_weather.py` | Live facts and weather against the real providers |
 | `python tools/voice_doctor.py`, `python tools/probe_remote_voice.py` | Why the voice is not answering |
 | `python tools/replay_episodes.py --from <prod> --to <staging>` | Copy kept episodes to staging, where they replay for free |
@@ -640,9 +640,9 @@ There is no checkout yet. Before one exists:
    `OPEN_METEO_KEYLESS=0`. The keyless endpoint is non-commercial.
 4. **API-Sports Pro** for the sports the product leads with, one plan per
    sport (§180).
-5. **A static-IP proxy for GDELT** (QuotaGuard Static), if GDELT is wanted.
-   Verify it with `tools/gdelt_probe.py`, because the proxy's address pair is
-   shared with its other customers.
+5. ~~**A static-IP proxy for GDELT** (QuotaGuard Static)~~. Not needed since
+   §209: GDELT is read from its export files, which have no per-address limit.
+   `tools/gdelt_probe.py` checks a real sync.
 
 The test is `/api/health` → `licences.commercial_ready: true`. The rest of
 the launch checklist (RunPod workers, Render plan and disk, Anthropic tier,

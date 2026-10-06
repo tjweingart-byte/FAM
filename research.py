@@ -42,7 +42,7 @@ a second model call speaking from knowledge while this ran. That cover is gone
 (§108): it wrote the opening of every researched episode without a brief,
 without evidence, and without knowing what the episode was going to be about.
 So the wait is real and it is in front of the first word, deliberately - Exa
-answers in about half a second and GDELT in one keyless HTTP call.
+answers in about half a second and GDELT from its export copy on disk (§209).
 
 **It does not block the event loop.** The experiment ran `exa_py` synchronously
 because trials were pinned to one at a time and a thread hand-off would have
@@ -830,7 +830,8 @@ async def retrieve(query: str, backend: Optional[str] = None,
     # **The second opinion.** One vendor's index is one vendor's blind spots,
     # and a question Exa covers poorly currently produces a thin episode with
     # nothing to show that another index would have done better. GDELT is
-    # keyless and free, so a cross-check costs nothing per episode - and it
+    # read from its export copy on disk (§209), so a cross-check sends GDELT
+    # nothing and costs the episode a local read - and it
     # adds corroboration a listener can *see*, because both retrievers reach
     # the provenance panel.
     #
@@ -888,8 +889,9 @@ async def retrieve_with_gdelt(query: str, brief=None, recency_days: int = 0
     It was already here as the additive cross-check beside an Exa packet. The
     reason it is also a rung of its own (§109): when the configured retriever
     comes back with nothing, the alternative rungs are the model's own search
-    at 10-25 seconds, or writing from memory. This costs one keyless HTTP call
-    and sometimes ends the ladder there.
+    at 10-25 seconds, or writing from memory. Since §209 it is a read of
+    GDELT's export copy on disk - no request to GDELT at all, so it costs
+    GDELT nothing however many episodes fall to it.
 
     What it cannot do is carry highlights: GDELT returns articles, so the
     packet is titles, dates and grades, with no passages under them. That is

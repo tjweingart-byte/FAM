@@ -272,11 +272,14 @@ def test_the_ways_of_writing_a_country_are_one_country():
 
 
 def test_gdelt_articles_carry_the_publishers_country():
-    rows = gdelt.parse_articles({"articles": [
-        {"url": "https://a.example/x", "title": "T", "seendate": "20260922T000000Z",
-         "sourcecountry": "United Kingdom"},
-        {"url": "https://b.example/y", "title": "U"}]})
-    assert [r.country for r in rows] == ["United Kingdom", ""]
+    """Since §209 from GDELT's own domain list, else the domain's country
+    code; a `.com` nobody placed has no country rather than a guess."""
+    known = gdelt.parse_domains("lemonde.fr\tFR\tFrance\nnytimes.com\tUS\tUnited States\n")
+    assert gdelt.domain_country("nytimes.com", known) == "united states"
+    assert gdelt.domain_country("www.bbc.co.uk") == "united kingdom"
+    assert gdelt.domain_country("spiegel.de") == "germany"
+    assert gdelt.domain_country("example.com") == ""
+    assert gdelt.domain_country("startup.io") == "", ".io is not the Indian Ocean"
 
 
 def test_a_signals_countries_reach_the_story_and_survive_a_resighting():

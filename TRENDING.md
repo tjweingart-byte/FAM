@@ -194,8 +194,9 @@ Added in §91. `TRENDING_SOURCE=gdelt`, and `GDELT=1`.
 ## What it does here
 
 Sweeps a fixed list of GKG themes (`gdelt.THEMES`), measures each one's
-coverage volume via `mode=timelinevolraw`, ranks by volume, and turns the top
-few into tiles. Concurrent, on the shared clock, so nobody waits on it.
+coverage volume (`gdelt.volume_for`: since §209, articles carrying the theme in
+the last 24 hours of FAM's local copy of GDELT's export files), ranks by
+volume, and turns the top few into tiles. Concurrent, on the shared clock, so nobody waits on it.
 
 ## Stories, not themes (§135)
 
@@ -215,14 +216,19 @@ longer depends on it.
 
 ## The honest limitation
 
-**GDELT's DOC API is query-driven.** It tells you how much coverage *a query
-you name* is getting; it does not hand back a ranked list of everything hot
-right now. So this is real measurement over a **fixed vocabulary**, not
-open-ended discovery.
+**The themes are still a fixed vocabulary.** This was written when FAM asked
+GDELT's DOC API, which is query-driven: it tells you how much coverage *a query
+you name* is getting, not a ranked list of everything hot right now.
 
-Open-ended discovery needs the bulk GKG exports — a heavier path, deliberately
-not taken. If the fixed vocabulary proves too narrow, that is the next step,
-not a bug in this one.
+**Since §209 FAM reads the bulk GKG exports instead** - the heavier path this
+section once said was deliberately not taken. One background job
+(`gdelt.sync`, every `GDELT_EXPORT_POLL_SECONDS` = 900) downloads each
+15-minute GKG 2.1 file into a 24-hour copy on the data disk
+(`GDELT_EXPORT_DB`), and every GDELT reader asks that copy. The DOC API allowed
+one request per five seconds per address, Render's address is shared, and on
+1/10 384 of 384 requests failed; the export files cost ~200 requests a day
+whatever the traffic. The registry feed still measures a fixed list of themes;
+open-ended discovery from the copy is the story pool's job (above).
 
 ## What is still templated
 
@@ -240,11 +246,11 @@ decision and nothing in this build can test writing quality.
 
 ## Not verified
 
-`api.gdeltproject.org` is blocked from the build container. Every shape in
-`gdelt.py` is written from the documented API and tested against recorded
-payloads. Run `python tools/gdelt_probe.py` somewhere with network first — it
-checks both modes FAM uses and warns on the two things most likely to be
-silently wrong (dates not parsing, URLs not arriving).
+GDELT is blocked from the build container, so no real export file has been
+read here. Every shape in `gdelt.py` is written from GDELT's documented GKG 2.1
+format and tested against recorded files. Run `python tools/gdelt_probe.py`
+somewhere with network first — since §209 it does one real sync into a scratch
+copy and reads it back (volume, retrieval).
 
 
 ## The trending bank (§139)
@@ -255,7 +261,9 @@ fired six at a time inside a forty-five second ceiling. The pool stayed
 empty and the row said "The live sources didn't answer in time" to everybody.
 *(§144 then paced every GDELT request in the process - one every
 `GDELT_REQUEST_GAP_SECONDS`, episodes first - and gave the story sweep a
-ceiling that fits that pace. Trending stays GNews; this is about the pool.)*
+ceiling that fits that pace. Trending stays GNews; this is about the pool.
+§209 deleted the pacing: GDELT is now read from its 15-minute export files by
+one background job, and the sweep reads the local copy.)*
 
 **What it is.** An edition, built on a clock rather than on a page load:
 

@@ -49,6 +49,7 @@ episode built on it is traceable to it from the log and `/api/health`.
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import re
 import time
@@ -2309,12 +2310,23 @@ class PolymarketSource(LiveSource):
     the score - *"Chiefs at 94%, so they must be winning"* - and that
     inference is exactly PROBLEMS.md §88 coming back through a side door.
     `unknown` is what forbids it, structurally, rather than by asking nicely.
+
+    **Asked for every question that turns on an outcome** (§209), not only
+    elections: `live_facts.forecast` asks it beside the live lookup whenever
+    EI says the answer is `outcome_dependent` - a Fed decision, a final, a
+    war, a ruling. And it **searches** for the question's subject
+    (`/public-search`) rather than scanning the twenty most-traded markets for
+    a shared word, which is why it used to match almost nothing.
     """
 
     name = "Polymarket"
     domain = "elections"
     cost_per_call = 0.0
     delayed_seconds = 0.0
+    #: `live_facts.forecast` asks the sources that say this (§209).
+    forecasts = True
+    #: Markets read out per event: the likeliest few, never the whole board.
+    MAX_MARKETS = 3
 
     def diagnose(self) -> tuple[bool, str]:
         if not settings.polymarket_base:
@@ -2334,48 +2346,78 @@ class PolymarketSource(LiveSource):
 
     async def resolve(self, brief) -> Optional[Entity]:
         subject = (getattr(brief, "subject", "") or getattr(brief, "query", "")).strip()
-        if not subject:
+        wanted = subject_words(subject)
+        if not wanted:
             return None
+        try:
+            data = await _json(f"{settings.polymarket_base}/public-search", {},
+                               {"q": " ".join(wanted[:6]), "limit_per_type": 10,
+                                "events_status": "active",
+                                "keep_closed_markets": 0},
+                               settings.live_timeout_seconds)
+            events = data.get("events") if isinstance(data, dict) else None
+        except ProviderHTTPError as exc:
+            # Search is the better half; a deployment whose host has no search
+            # still gets the old scan rather than nothing. Logged, so a
+            # search that quietly stopped working is seen.
+            log.info("polymarket: search refused (%s); scanning the busiest "
+                     "markets instead", exc.status)
+            events = None
+        if events is not None:
+            best = _best_match(
+                ((e, " ".join([str(e.get("title") or "")]
+                              + [str(m.get("question") or "")
+                                 for m in (e.get("markets") or [])
+                                 if isinstance(m, dict)]),
+                  _as_float(e.get("volume")) or 0.0)
+                 for e in events if isinstance(e, dict)
+                 and not e.get("closed") and _open_markets(e)),
+                wanted)
+            if best is None:
+                return None
+            return Entity(domain=self.domain, provider=self.name,
+                          id=f"event:{best.get('id') or best.get('slug') or ''}",
+                          label=str(best.get("title") or "")[:120])
         data = await _json(f"{settings.polymarket_base}/markets", {},
-                           {"limit": 20, "closed": "false", "order": "volume",
+                           {"limit": 100, "closed": "false", "order": "volume24hr",
                             "ascending": "false"},
                            settings.live_timeout_seconds)
-        wanted = {w for w in subject.lower().split() if len(w) > 3}
-        for row in (data if isinstance(data, list) else []):
-            question = str(row.get("question") or "").lower()
-            if wanted and any(word in question for word in wanted):
-                return Entity(domain=self.domain, provider=self.name,
-                              id=str(row.get("id") or row.get("conditionId") or ""),
-                              label=str(row.get("question") or "")[:120])
-        return None
+        best = _best_match(
+            ((m, str(m.get("question") or ""), _as_float(m.get("volume")) or 0.0)
+             for m in (data if isinstance(data, list) else [])
+             if isinstance(m, dict)),
+            wanted)
+        if best is None:
+            return None
+        return Entity(domain=self.domain, provider=self.name,
+                      id=str(best.get("id") or best.get("conditionId") or ""),
+                      label=str(best.get("question") or "")[:120])
 
     async def fetch(self, entity: Entity) -> Optional[LiveFacts]:
-        data = await _json(f"{settings.polymarket_base}/markets/{entity.id}",
-                           {}, {}, settings.live_timeout_seconds)
+        if entity.id.startswith("event:"):
+            data = await _json(
+                f"{settings.polymarket_base}/events/{entity.id[len('event:'):]}",
+                {}, {}, settings.live_timeout_seconds)
+        else:
+            data = await _json(f"{settings.polymarket_base}/markets/{entity.id}",
+                               {}, {}, settings.live_timeout_seconds)
         return self.to_facts(data, entity)
 
     def to_facts(self, row: dict, entity: Entity) -> Optional[LiveFacts]:
-        price = None
-        for field_name in ("bestBid", "lastTradePrice", "outcomePrices"):
-            value = (row or {}).get(field_name)
-            if isinstance(value, list) and value:
-                value = value[0]
-            try:
-                price = float(value)
-                break
-            except (TypeError, ValueError):
-                continue
-        if price is None:
+        row = row or {}
+        if isinstance(row.get("markets"), list):
+            said = self._event_lines(row, entity)
+        else:
+            said = self._market_lines(row, entity)
+        if not said:
             return None
-        percent = max(0, min(100, round(price * 100)))
-        said = [
-            f"On prediction markets, {entity.label} is trading around "
-            f"{percent} percent.",
-            "That is what people are betting, not a reported result.",
-        ]
-        volume = (row or {}).get("volume")
+        said.append("That is what people are betting, not a reported result.")
+        volume = row.get("volume")
         if volume:
-            said.append(f"There is real money behind it - about {volume} traded.")
+            amount = _as_float(volume)
+            said.append("There is real money behind it - about "
+                        + (f"{amount:,.0f} dollars" if amount else str(volume))
+                        + " traded.")
         return LiveFacts(
             domain=self.domain, source=self.name,
             as_of=datetime.now(timezone.utc), facts=said,
@@ -2383,6 +2425,132 @@ class PolymarketSource(LiveSource):
             # happened, and `unknown` is what structurally forbids a result.
             status=live_facts.UNKNOWN, entity=entity,
             kind=live_facts.PREDICTION_MARKET)
+
+    def _market_lines(self, row: dict, entity: Entity) -> list:
+        price = market_price(row)
+        if price is None:
+            return []
+        return [f"On prediction markets, {entity.label} is trading around "
+                f"{_percent(price)} percent."]
+
+    def _event_lines(self, event: dict, entity: Entity) -> list:
+        """An event is several markets - "Fed decision in December" is one
+        market per outcome. The likeliest few, each with what it asks."""
+        priced = []
+        for market in _open_markets(event):
+            outcomes = _listed(market.get("outcomes"))
+            prices = _listed(market.get("outcomePrices"))
+            label = str(market.get("groupItemTitle") or market.get("question") or "").strip()
+            if (len(outcomes) == 2 and len(prices) == 2
+                    and [o.lower() for o in outcomes] != ["yes", "no"]):
+                # A head-to-head market names its two sides.
+                try:
+                    split = [(str(o), float(p)) for o, p in zip(outcomes, prices)]
+                except (TypeError, ValueError):
+                    continue
+                split.sort(key=lambda pair: -pair[1])
+                priced.append((split[0][1], f"{label}: {split[0][0]} around "
+                               f"{_percent(split[0][1])} percent, {split[1][0]} "
+                               f"around {_percent(split[1][1])} percent"))
+                continue
+            price = market_price(market)
+            if price is not None and label:
+                priced.append((price, f"{label}: around {_percent(price)} percent"))
+        if not priced:
+            return []
+        priced.sort(key=lambda pair: -pair[0])
+        title = str(event.get("title") or entity.label or "").strip()
+        return [f"On Polymarket, \"{title}\" - " + "; ".join(
+            text for _p, text in priced[:self.MAX_MARKETS]) + "."]
+
+
+#: Words that say nothing about which market a question is about.
+_MARKET_STOPWORDS = frozenset("""
+will what when where which while about after again against before being does
+doing from have having into more most much other over same some than that their
+them then there these they this those through under until very were what with
+would could should next last latest news today week year happen happening
+going expected chance odds market markets prediction predictions
+""".split())
+
+
+def subject_words(subject: str) -> list:
+    """A brief's subject as the words a market would be named by."""
+    out: list = []
+    for word in re.findall(r"[^\W_]+", (subject or "").lower()):
+        if len(word) > 3 and word not in _MARKET_STOPWORDS and word not in out:
+            out.append(word)
+    return out
+
+
+def _best_match(candidates, wanted: list):
+    """The candidate whose text shares the most of `wanted`, then the most
+    traded - and only one that shares at least two words when the subject has
+    two. One shared word is a namesake: "Eagles" alone matches every Eagles
+    market and the wrong Eagles."""
+    need = min(2, len(wanted))
+    best = None
+    best_key = None
+    for item, text, volume in candidates:
+        lowered = text.lower()
+        hits = sum(1 for w in wanted if re.search(rf"\b{re.escape(w)}", lowered))
+        if hits < need:
+            continue
+        key = (hits, volume)
+        if best_key is None or key > best_key:
+            best, best_key = item, key
+    return best
+
+
+def _listed(value) -> list:
+    """Gamma sends `outcomes` and `outcomePrices` as JSON *strings*."""
+    if isinstance(value, list):
+        return value
+    if isinstance(value, str) and value.strip().startswith("["):
+        try:
+            parsed = json.loads(value)
+        except ValueError:
+            return []
+        return parsed if isinstance(parsed, list) else []
+    return []
+
+
+def _open_markets(event: dict) -> list:
+    return [m for m in (event.get("markets") or [])
+            if isinstance(m, dict) and not m.get("closed")
+            and m.get("active", True) is not False]
+
+
+def market_price(row: dict) -> Optional[float]:
+    """The YES price of one market, 0-1, or None."""
+    outcomes = [str(o).lower() for o in _listed(row.get("outcomes"))]
+    prices = _listed(row.get("outcomePrices"))
+    if prices:
+        index = outcomes.index("yes") if "yes" in outcomes else 0
+        try:
+            return float(prices[index])
+        except (TypeError, ValueError, IndexError):
+            pass
+    for field_name in ("bestBid", "lastTradePrice", "outcomePrices"):
+        value = (row or {}).get(field_name)
+        if isinstance(value, list) and value:
+            value = value[0]
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            continue
+    return None
+
+
+def _percent(price: float) -> int:
+    return max(0, min(100, round(price * 100)))
+
+
+def _as_float(value) -> Optional[float]:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
 
 
 class _QuoteOnlyElections(LiveSource):
