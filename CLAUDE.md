@@ -101,7 +101,9 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   anywhere, captions slide up; **comments** keyed `(query, minutes)`,
   read by anyone, written with an account, one level of replies; the
   exploreFAM pill opens it from search and beside Made for you. [explore-reel]
-- A vibe may carry a caption, drawn on its story (§203). [vibe-caption]
+- **VIBE! is a story editor** (§212): a clamped layout, never an image;
+  Your story or Close Friends; holding pauses; your story rings your face. [vibe-caption]
+- **Group chats** (§212): one row per message to a `g:` thread; graph only. [group-chats]
 
 - **Names swapped for the listener** (§185): the rails screen *shows*
   "DailyFAM", the mixes screen *shows* "myFAM"; code, ids and these docs keep

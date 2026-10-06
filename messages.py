@@ -24,9 +24,17 @@ allocated, so:
   threads, which is the classic bug in this shape and produces a split history
   that nobody can merge afterwards.
 
-Group threads are not here. Not because they are hard, but because a group
-changes what a share *means* - a share to a group is closer to an echo, and the
-right time to decide that is when somebody wants one, not now.
+## Group chats (10.6 packet #4)
+
+A group is the one thread whose id is allocated rather than derived: there is
+no pair of people to sort, so it is `g:` and a random token, minted once when
+somebody picks two or more people and starts typing. A group message is **one
+row**, its `recipient` the group's id, never a copy per member - so a thread
+reads the same for everybody in it and a hundred members cost one write.
+Membership lives in `group_members`; every read that asked "addressed to
+me?" also asks "addressed to a group I am in, by somebody else?". A member
+who leaves stops receiving at once, and only sees what arrived while they
+were in it (`joined`, the id the group had reached when they were added).
 
 ## What a message may be
 
@@ -63,6 +71,10 @@ log = logging.getLogger(__name__)
 MAX_TEXT = 1000
 MAX_TITLE = 200
 MAX_QUERY = 500
+#: A group's name, and how many people may be in one (10.6 packet #4).
+MAX_GROUP_NAME = 60
+MAX_GROUP_MEMBERS = 32
+GROUP_PREFIX = "g:"
 
 KINDS = ("episode", "text", "system")
 
@@ -100,6 +112,10 @@ class MessageError(ValueError):
     """Something the sender can fix, phrased so it can be shown to them."""
 
 
+def is_group(thread: str) -> bool:
+    return str(thread or "").startswith(GROUP_PREFIX)
+
+
 def thread_id(a: str, b: str) -> str:
     """The conversation between two listeners, derived from who they are.
 
@@ -111,6 +127,8 @@ def thread_id(a: str, b: str) -> str:
         raise MessageError("A conversation needs two people.")
     if a == b:
         raise MessageError("You cannot start a conversation with yourself.")
+    if is_group(a) or is_group(b):
+        raise MessageError("That is a group, not a person.")
     return "|".join(sorted((a, b)))
 
 
@@ -192,6 +210,28 @@ class MessageStore:
                        PRIMARY KEY (thread, user_id)
                    )"""
             )
+            # Group chats (10.6 packet #4): the group, and who is in it.
+            # `joined` is the highest message id when the member was added,
+            # so somebody added later does not read what was said before.
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS groups (
+                       id         TEXT PRIMARY KEY,
+                       name       TEXT NOT NULL DEFAULT '',
+                       created_by TEXT NOT NULL,
+                       at         REAL NOT NULL
+                   )"""
+            )
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS group_members (
+                       gid     TEXT NOT NULL,
+                       user_id TEXT NOT NULL,
+                       joined  INTEGER NOT NULL DEFAULT 0,
+                       at      REAL NOT NULL,
+                       PRIMARY KEY (gid, user_id)
+                   )"""
+            )
+            conn.execute("CREATE INDEX IF NOT EXISTS group_members_user"
+                         " ON group_members(user_id)")
 
     def _conn(self) -> sqlite3.Connection:
         conn = getattr(self._local, "conn", None)
@@ -216,7 +256,7 @@ class MessageStore:
         """
         if kind not in KINDS:
             raise MessageError(f"Unknown message kind {kind!r}.")
-        thread = thread_id(sender, recipient)
+        thread = self._resolve(sender, recipient)
         text = clean_text(text)
         query = " ".join(str(query or "").split())[:MAX_QUERY]
         title = " ".join(str(title or "").split())[:MAX_TITLE]
@@ -251,11 +291,11 @@ class MessageStore:
         counter - and a `> at` cursor silently drops the second of any such
         pair. An id is allocated by the database and cannot collide.
         """
-        tid = thread_id(user_id, other_id)
+        tid = self._resolve(user_id, other_id)
         sql = ("SELECT id, thread, sender, recipient, kind, text, query,"
                " minutes, title, at FROM messages WHERE thread = ?")
         args: list = [tid]
-        floor = max(int(after_id or 0), self.cleared_at(user_id, tid))
+        floor = max(int(after_id or 0), self._floor(user_id, tid))
         if floor:
             sql += " AND id > ?"
             args.append(floor)
@@ -293,12 +333,17 @@ class MessageStore:
                 "SELECT m.id, m.thread, m.sender, m.recipient, m.kind, m.text,"
                 " m.query, m.minutes, m.title, m.at FROM messages m"
                 " LEFT JOIN clears c ON c.thread = m.thread AND c.user_id = ?"
-                " WHERE m.recipient = ? AND m.id > ?"
+                " LEFT JOIN group_members g ON g.gid = m.recipient AND g.user_id = ?"
+                " WHERE (m.recipient = ?"
+                # A group's message, from somebody else, since they joined.
+                "        OR (g.user_id IS NOT NULL AND m.sender != ?"
+                "            AND m.id > g.joined))"
+                "   AND m.id > ?"
                 # Not a message from a chat this listener has deleted (§142):
                 # a banner for it would open an empty conversation.
                 "   AND m.id > COALESCE(c.after_id, 0)"
                 " ORDER BY m.id ASC LIMIT ?",
-                (user_id, user_id, int(after_id), int(limit)),
+                (user_id, user_id, user_id, user_id, int(after_id), int(limit)),
             ).fetchall()
         except Exception:
             log.exception("could not read new messages")
@@ -316,8 +361,9 @@ class MessageStore:
             return 0
         try:
             row = self._conn().execute(
-                "SELECT MAX(id) FROM messages WHERE recipient = ?",
-                (user_id,)).fetchone()
+                "SELECT MAX(id) FROM messages WHERE recipient = ?"
+                " OR recipient IN (SELECT gid FROM group_members WHERE user_id = ?)",
+                (user_id, user_id)).fetchone()
         except Exception:
             log.exception("could not read the latest message id")
             return 0
@@ -341,12 +387,17 @@ class MessageStore:
                 "  JOIN (SELECT x.thread, MAX(x.id) AS top FROM messages x"
                 "          LEFT JOIN clears c"
                 "            ON c.thread = x.thread AND c.user_id = ?"
-                "         WHERE (x.sender = ? OR x.recipient = ?)"
+                "          LEFT JOIN group_members g"
+                "            ON g.gid = x.recipient AND g.user_id = ?"
+                "         WHERE (((x.sender = ? OR x.recipient = ?)"
+                "                 AND x.recipient NOT LIKE 'g:%')"
+                # A group only while they are in it, and from when they joined.
+                "                OR (g.user_id IS NOT NULL AND x.id > g.joined))"
                 "           AND x.id > COALESCE(c.after_id, 0)"
                 "         GROUP BY x.thread) t"
                 "    ON t.thread = m.thread AND t.top = m.id"
                 " ORDER BY m.at DESC, m.id DESC LIMIT ?",
-                (user_id, user_id, user_id, int(limit)),
+                (user_id, user_id, user_id, user_id, int(limit)),
             ).fetchall()
         except Exception:
             log.exception("could not read the inbox")
@@ -359,10 +410,15 @@ class MessageStore:
             if last.thread in seen:
                 continue  # defensive: the join is on a unique id, so one row a thread
             seen.add(last.thread)
-            other = last.recipient if last.sender == user_id else last.sender
+            group = is_group(last.thread)
+            other = (last.thread if group else
+                     last.recipient if last.sender == user_id else last.sender)
             out.append({
                 "thread": last.thread,
                 "with": other,
+                "group": group,
+                # Who said the last thing, for a group's preview line.
+                "last_sender": last.sender,
                 "last": last.as_dict(user_id),
                 "unread": self.unread_in(user_id, last.thread),
             })
@@ -374,6 +430,12 @@ class MessageStore:
                 "SELECT read_at FROM reads WHERE thread = ? AND user_id = ?",
                 (thread, user_id)).fetchone()
             since = row[0] if row else 0.0
+            if is_group(thread):
+                return int(self._conn().execute(
+                    "SELECT COUNT(*) FROM messages WHERE thread = ?"
+                    " AND sender != ? AND at > ? AND id > ?",
+                    (thread, user_id, since,
+                     self._floor(user_id, thread))).fetchone()[0])
             return int(self._conn().execute(
                 "SELECT COUNT(*) FROM messages WHERE thread = ?"
                 " AND recipient = ? AND at > ? AND id > ?",
@@ -390,16 +452,24 @@ class MessageStore:
                 "SELECT m.thread, COUNT(*) FROM messages m"
                 " LEFT JOIN reads r ON r.thread = m.thread AND r.user_id = ?"
                 " LEFT JOIN clears c ON c.thread = m.thread AND c.user_id = ?"
-                " WHERE m.recipient = ? AND m.at > COALESCE(r.read_at, 0)"
+                " LEFT JOIN group_members g ON g.gid = m.recipient AND g.user_id = ?"
+                " WHERE (m.recipient = ?"
+                "        OR (g.user_id IS NOT NULL AND m.sender != ?"
+                "            AND m.id > g.joined))"
+                "   AND m.at > COALESCE(r.read_at, 0)"
                 "   AND m.id > COALESCE(c.after_id, 0)"
-                " GROUP BY m.thread", (user_id, user_id, user_id)).fetchall()
+                " GROUP BY m.thread",
+                (user_id, user_id, user_id, user_id, user_id)).fetchall()
         except Exception:
             log.exception("could not count unread messages")
             return 0
         return sum(int(r[1]) for r in rows)
 
     def mark_read(self, user_id: str, other_id: str, at: float = 0.0) -> None:
-        tid = thread_id(user_id, other_id)
+        try:
+            tid = self._resolve(user_id, other_id)
+        except MessageError:
+            return
         now = at or time.time()
         try:
             self._conn().execute(
@@ -432,7 +502,7 @@ class MessageStore:
         unread, and a message either of them sends later starts a fresh one.
         Returns the mark it set.
         """
-        tid = thread_id(user_id, other_id)
+        tid = self._resolve(user_id, other_id)
         try:
             row = self._conn().execute(
                 "SELECT MAX(id) FROM messages WHERE thread = ?",
@@ -447,6 +517,117 @@ class MessageStore:
         except Exception:
             log.exception("could not delete a chat for %r", user_id)
             raise MessageError("Could not delete that chat. Try again.")
+
+    # --- groups (10.6 packet #4) -------------------------------------------
+
+    def _resolve(self, user_id: str, other: str) -> str:
+        """The thread between `user_id` and `other`: a person or a group.
+
+        A group is opened only by somebody in it - its id is a thread, and a
+        thread is never readable by asking for it by name.
+        """
+        if is_group(other):
+            if not user_id or not self.is_member(other, user_id):
+                raise MessageError("You are not in that group.")
+            return other
+        return thread_id(user_id, other)
+
+    def _floor(self, user_id: str, tid: str) -> int:
+        floor = self.cleared_at(user_id, tid)
+        if is_group(tid):
+            try:
+                row = self._conn().execute(
+                    "SELECT joined FROM group_members WHERE gid = ? AND user_id = ?",
+                    (tid, user_id)).fetchone()
+            except Exception:
+                log.exception("could not read when somebody joined a group")
+                row = None
+            floor = max(floor, int(row[0]) if row else 0)
+        return floor
+
+    def create_group(self, creator: str, members, name: str = "") -> dict:
+        """A group of `creator` and `members`, opened with a line saying so.
+
+        Two or more other people: one is a conversation, which already has a
+        derived id and needs no group. The opening line is a `system` row,
+        so the group is on everybody's list at once rather than appearing
+        only when somebody first speaks.
+        """
+        import secrets
+        if not creator:
+            raise MessageError("A group needs somebody to start it.")
+        others: list[str] = []
+        for m in members or []:
+            m = str(m or "")
+            if m and m != creator and not is_group(m) and m not in others:
+                others.append(m)
+        if len(others) < 2:
+            raise MessageError("Pick at least two people for a group.")
+        if len(others) + 1 > MAX_GROUP_MEMBERS:
+            raise MessageError(f"A group holds up to {MAX_GROUP_MEMBERS} people.")
+        name = " ".join(str(name or "").split())[:MAX_GROUP_NAME]
+        gid = GROUP_PREFIX + secrets.token_hex(8)
+        now = time.time()
+        conn = self._conn()
+        top = int((conn.execute("SELECT MAX(id) FROM messages").fetchone()[0]) or 0)
+        conn.execute("INSERT INTO groups (id, name, created_by, at) VALUES (?, ?, ?, ?)",
+                     (gid, name, creator, now))
+        for uid in [creator] + others:
+            conn.execute(
+                "INSERT OR IGNORE INTO group_members (gid, user_id, joined, at)"
+                " VALUES (?, ?, ?, ?)", (gid, uid, top, now))
+        self.send(creator, gid, kind="system", text="started the group", at=now)
+        return self.group(gid)
+
+    def group(self, gid: str) -> dict:
+        """{id, name, members} for a group, or {} if there is none."""
+        try:
+            row = self._conn().execute(
+                "SELECT id, name, created_by, at FROM groups WHERE id = ?",
+                (gid,)).fetchone()
+        except Exception:
+            log.exception("could not read a group")
+            return {}
+        if not row:
+            return {}
+        return {"id": row[0], "name": row[1], "created_by": row[2], "at": row[3],
+                "members": self.members(gid)}
+
+    def members(self, gid: str) -> list[str]:
+        try:
+            rows = self._conn().execute(
+                "SELECT user_id FROM group_members WHERE gid = ? ORDER BY at, user_id",
+                (gid,)).fetchall()
+        except Exception:
+            log.exception("could not read a group's members")
+            return []
+        return [r[0] for r in rows]
+
+    def is_member(self, gid: str, user_id: str) -> bool:
+        try:
+            return bool(self._conn().execute(
+                "SELECT 1 FROM group_members WHERE gid = ? AND user_id = ?",
+                (gid, user_id)).fetchone())
+        except Exception:
+            return False
+
+    def rename_group(self, user_id: str, gid: str, name: str) -> dict:
+        if not self.is_member(gid, user_id):
+            raise MessageError("You are not in that group.")
+        name = " ".join(str(name or "").split())[:MAX_GROUP_NAME]
+        self._conn().execute("UPDATE groups SET name = ? WHERE id = ?", (name, gid))
+        self.send(user_id, gid, kind="system",
+                  text=f"named the group {name}" if name else "took the group's name off")
+        return self.group(gid)
+
+    def leave_group(self, user_id: str, gid: str) -> bool:
+        """Leave a group. Said in the group first, so the others know."""
+        if not self.is_member(gid, user_id):
+            return False
+        self.send(user_id, gid, kind="system", text="left the group")
+        self._conn().execute(
+            "DELETE FROM group_members WHERE gid = ? AND user_id = ?", (gid, user_id))
+        return True
 
     # --- housekeeping -----------------------------------------------------
 
@@ -468,6 +649,9 @@ class MessageStore:
             removed += cur.rowcount or 0
             cur = self._conn().execute(
                 "DELETE FROM clears WHERE user_id = ?", (user_id,))
+            removed += cur.rowcount or 0
+            cur = self._conn().execute(
+                "DELETE FROM group_members WHERE user_id = ?", (user_id,))
             removed += cur.rowcount or 0
         except Exception:
             log.exception("could not erase messages for %r", user_id)

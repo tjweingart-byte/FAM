@@ -16061,3 +16061,79 @@ section renumbered §211 (and its tests `*_211.py`). Read back, five fixes:
 * a 404 on the newest file wrote it off for good; only files behind it are;
 * a failed domain list was asked again every sync; now once a day;
 * the theme filter's `LIKE` read `_` as a wildcard; it is an exact `instr`.
+
+## 212. The 10.6 packet: your own story, VIBE! as a story editor, holding a story, and group chats
+
+The owner's four changes, with screenshots of Instagram's story editor.
+
+1. **Your own story.** `/api/profile` now carries `stories`: your vibes of
+   the last 24 hours, the same `stories_among` rows your friends' faces
+   play. While one is up, your picture on YourFAM has the ring (grey once
+   watched) and tapping it plays them (`openMyStory`; the viewer steps
+   through `storyList`, the circle row or just you). Every story now has a ⋯
+   at the top right: **Save for later, Share, Add to Queue, Add topic to
+   playlist**, and on your own **Remove from your story**
+   (`DELETE /api/vibe/story/{id}`, matched on the id *and* the poster). That
+   sets `unstoried` on the row: the story comes down and the vibe stays on
+   your profile, as Instagram's leaves a post. Vibing the episode again puts
+   it back up. The story holds while the menu is open (the sheet is raised
+   over the viewer with `over-story`).
+
+2. **VIBE! opens a story editor**, replacing §203's caption sheet. The
+   episode's picture sits in the middle as a post card. The Picture options
+   button frames it (Card, Rounded, Circle, Full) and has Smaller / Bigger /
+   Reset; a pinch or a trackpad scroll resizes it and a drag moves it. Down
+   the right are **Text** (five faces - FAM's three and two the phone has, so
+   no new font link - and a size slider), **Stickers** (a fixed set of emoji
+   and word stickers; drag to move, pinch to resize, tap then x to remove),
+   **Mention** (@: anybody you follow or who follows you) and **Picture**.
+   "Add a caption…" is at the foot of the picture, then **Your story**,
+   **Close Friends** and the arrow. The X goes back to the episode and posts
+   nothing. Not built, per the packet: music, the colour circle, the "more"
+   arrow.
+
+   The layout is a few hundred bytes of JSON on the echo row (`style`), drawn
+   by one `storyCanvasHTML` in both the editor and the viewer, every position
+   a fraction and every size in container units, so it reads the same on any
+   phone. `social.clean_style` clamps each field. The picture must be a path
+   on this server: a remote URL would be every viewer's phone fetching
+   somebody else's tracking pixel, the profile-picture rule again.
+   A vibe from before the editor has no layout and keeps the old
+   title-and-caption page.
+
+   **Close Friends.** A list in Settings ("Close friends", from your graph,
+   never shown to anybody on it; `close_friends` in `social.db`). A story
+   posted to it has `audience = "close"`, and every read another listener
+   makes - the circle row, `/api/person`, Explore's friend tags and
+   anybody-vibed labels - goes through `SocialStore._visible`, so it never
+   leaves the list. Tapping Close Friends with nobody on it opens the picker
+   in the editor instead of posting to nobody.
+
+   **Tags** are resolved on the server to people in the poster's graph; on a
+   Close Friends story only to close friends, or the tag would tell somebody
+   about a story they cannot see. Each person tagged gets the episode as a
+   message ("Tagged you in their VIBE!"), the way a share arrives. The story
+   draws `@handle` and opens their profile; the response carries no ids.
+
+3. **Holding a story pauses it.** A press longer than 220ms stops the timer
+   where it was (`storyLeft`) and the bar with it (`.story.paused`, a rule
+   that existed with nothing setting it), and hides the chrome while held.
+   Letting go carries on from the same point, and the click that follows the
+   lift does not also step. A finger that travels is a swipe, not a hold.
+
+4. **Group chats.** The Messages (+) picker now picks: tap faces to tick
+   them, one is a chat, two or more show an optional group name and **Start
+   group** (`POST /api/messages/groups`, only people in your graph). A
+   group's id is allocated (`g:` and a token), the only thread id that is
+   not derived. A message to it is one row whose recipient is the group, and
+   the reads that asked "addressed to me" (`arrived_for`, `latest_id`,
+   `inbox`, `unread_*`) also ask "a group I am in, from somebody else, after
+   I joined". The thread draws each run of bubbles under a name and the
+   group's own lines centred. The ⋯ menu has who's here, name the group,
+   leave (said in the group), and delete chat. A group's banner opens the
+   group. `MessageStore.forget` takes a deleted listener out of every group.
+
+Tests: `tests/test_packet_1006.py`; §203's caption test follows the editor.
+Both previews answer the new endpoints. The live one has nobody else in its
+database, so it refuses a group and lists no close friends. It says so
+rather than inventing people.

@@ -265,10 +265,12 @@ def test_a_caption_is_cut_not_refused(store):
 
 
 def test_vibing_asks_for_a_caption_first_and_the_story_draws_it():
-    assert "openVibeCaption(ep)" in _fn("toggleEcho")
-    assert "caption: caption" in _fn("sendVibe")
+    # The caption sheet became the story editor (10.6 packet #2, §212); the
+    # caption is still sent and still drawn.
+    assert "openVibeComposer(ep)" in _fn("toggleEcho")
+    assert "caption: caption" in _fn("postVibeStory")
     assert 'getElementById("storyCaption")' in _fn("showStory")
-    assert 'id="vibeCaptionOverlay"' in INDEX
+    assert 'id="vibeComposer"' in INDEX
 
 
 def test_a_long_thread_keeps_its_newest_comments(store):
