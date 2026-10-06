@@ -112,10 +112,11 @@ class GdeltSignals(stories.StorySource):
     are always being written about and read the same every day. Now it reads
     the articles and finds the stories in them:
 
-    1. **Which themes are hot** - `gdelt.volume_for` over `gdelt.THEMES`, the
-       sweep it always did. Cheap, and it decides where the worldwide sample
-       is drawn from.
-    2. **What is being run** - `gdelt.discover`: the recent articles under
+    1. **Which themes are hot** - `gdelt.volume_for` over `gdelt.THEMES`,
+       counted over every article in GDELT's export files. It decides where
+       the worldwide sample is drawn from.
+    2. **What is being run** - `gdelt.discover`: the recent articles (read
+       from the export copy on disk, §211 - never GDELT's search API) under
        the hottest themes (the worldwide sample) and under each region's own
        press (`geography.GDELT_SOURCES`), a few hundred headlines in all.
     3. **Which of them are one story** - `news_clusters.cluster` groups
@@ -141,28 +142,24 @@ class GdeltSignals(stories.StorySource):
     name = "GDELT"
     domain = stories.ATTENTION
     cost_per_refresh = 0.0
-    #: Keyless, but not unlimited (§144): one request every five seconds per
-    #: address, and a sweep is ~32 paced requests. Since §156 it is asked on
-    #: the slow clock, `STORIES_NEWS_INTERVAL_SECONDS` (two hours), never
-    #: under ten minutes; sports and markets keep the fifteen-minute tick.
+    #: Since §211 a sweep reads GDELT's export copy on disk and sends GDELT
+    #: nothing, so this floor is about how fast news moves and what composing
+    #: costs (§156), not GDELT's limit: `STORIES_NEWS_INTERVAL_SECONDS` (two
+    #: hours), never under ten minutes.
     @property
     def min_interval_seconds(self) -> float:
         return max(600.0, float(settings.stories_news_interval_seconds))
     #: Room for the world and every region, rather than one provider's eight.
     max_signals = 32
-    #: Fifteen theme volumes, eight hot themes and nine regions, one every
-    #: `GDELT_REQUEST_GAP_SECONDS` (§144): about three minutes cold, half that
-    #: with the volumes cached. Nobody waits on a sweep, and one cut short by
-    #: the ceiling is a sweep that found nothing - which is what 45s became
-    #: the moment the requests were paced.
-    timeout_seconds = 240.0
+    #: Local reads; a minute is generous.
+    timeout_seconds = 60.0
 
     #: How many of the hottest themes the worldwide sample is drawn from.
     HOT_THEMES = 8
     #: How far back a trending story may have been published.
     WINDOW_HOURS = 12
-    #: Articles read per query. The extra rows cost nothing - it is the same
-    #: request - and they are what clustering and the country split measure.
+    #: Articles read per selector. What clustering and the country split
+    #: measure.
     ARTICLES_PER_QUERY = 75
     #: Places guaranteed to each region's own top stories.
     PER_REGION = 2
@@ -175,14 +172,27 @@ class GdeltSignals(stories.StorySource):
         ok, why = gdelt.available()
         if not ok:
             return False, f"GDELT is switched off ({why})"
-        return True, "GDELT DOC 2.0, keyless; not verified from this machine"
+        return True, "GDELT export files, keyless; read from the copy on disk"
+
+    def idle(self, now: float) -> str:
+        """Nothing to read until the first export file has landed (§211) -
+        said as a skip, so the source is asked again next tick rather than
+        stamped as swept for two hours on an empty copy after a boot."""
+        import gdelt
+
+        try:
+            if not gdelt.exists() or not gdelt.store().newest():
+                return "waiting for GDELT's first export file"
+        except Exception:  # noqa: BLE001 - asking is better than not
+            return ""
+        return ""
 
     async def verify(self) -> tuple[bool, str]:
         import gdelt
 
         return await gdelt.GdeltTrendingSource().verify()
 
-    async def hot_themes(self, timeout: float) -> list:
+    async def hot_themes(self, timeout: float = 0.0) -> list:
         import gdelt
 
         async def measure(theme: str):
@@ -202,7 +212,7 @@ class GdeltSignals(stories.StorySource):
         import geography
         import news_clusters
 
-        timeout = float(settings.gdelt_timeout_seconds)
+        timeout = float(self.timeout_seconds)
         themes = await self.hot_themes(timeout)
         articles, scope_of, (failed, asked) = await gdelt.discover(
             themes, timeout, hours=self.WINDOW_HOURS,
@@ -210,7 +220,8 @@ class GdeltSignals(stories.StorySource):
         if asked and failed == asked:
             # Every request failed: an outage, which `collect` must raise so
             # the report says so, rather than a quiet day with no news.
-            raise RuntimeError(f"all {asked} GDELT requests failed")
+            raise RuntimeError(f"all {asked} GDELT requests failed - the export "
+                               f"copy is empty or stale")
         groups = news_clusters.cluster(articles, scope_of=scope_of)
         if not groups:
             return []
@@ -296,9 +307,9 @@ class TrendingRegistrySignals(stories.StorySource):
     def min_interval_seconds(self) -> float:
         return float(settings.stories_news_interval_seconds)
 
-    #: Room for a paced GDELT trending source (§144), whose fifteen theme
-    #: requests share the pacer with the story sweep beside it.
-    timeout_seconds = 200.0
+    #: Room for a registry source that asks the network. GDELT's no longer
+    #: does - it reads the export copy on disk (§211).
+    timeout_seconds = 60.0
 
     def diagnose(self) -> tuple[bool, str]:
         import trending

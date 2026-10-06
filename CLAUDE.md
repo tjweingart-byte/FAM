@@ -324,6 +324,12 @@ Research and truth
 - **Weather** (§194): NWS first, Open-Meteo second; fetched on demand, then
   swept at 05:00/17:00 in each asked place's own time; US warnings asked live;
   worded as a forecast, never an outcome; never prefetched. [weather]
+- **GDELT is read from its 15-minute export files, never its search API**
+  (§211): one job downloads them; every reader uses the copy on disk;
+  nothing a listener does reaches GDELT. [gdelt-exports]
+- **A forecast beside every outcome-dependent question** (§211):
+  `live_facts.forecast` asks Polymarket by subject; `plan.forecast`, never
+  `plan.live`, never evidence. [forecast-beside]
 - Every research path records who it read (provenance). [provenance-all-paths]
 - **Live captions** publish each sentence as it is voiced (`live_captions.py`),
   keyed on the cache key, say `done`, never generate; sentence timing is measured

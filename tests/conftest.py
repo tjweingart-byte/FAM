@@ -124,9 +124,10 @@ FAM_ENVIRONMENT = (
     # GDELT and the live provider credentials. A developer with any of these
     # set must not run a suite that quietly has a real provider in it - a test
     # asserting FAM says "no live feed" would then pass or fail on their shell.
-    "GDELT", "GDELT_TIMEOUT_SECONDS", "GDELT_MAX_RECORDS", "GDELT_CROSS_CHECK",
-    "GDELT_REQUEST_GAP_SECONDS", "GDELT_EPISODE_WAIT_SECONDS",
-    "GDELT_BREAKER_FAILURES", "GDELT_BREAKER_SECONDS", "GDELT_PROXY_URL",
+    "GDELT", "GDELT_MAX_RECORDS", "GDELT_CROSS_CHECK", "GDELT_EXPORT_BASE",
+    "GDELT_EXPORT_POLL_SECONDS", "GDELT_EXPORT_TIMEOUT_SECONDS",
+    "GDELT_EXPORT_KEEP_HOURS", "GDELT_EXPORT_ROWS_PER_FILE",
+    "GDELT_EXPORT_BACKFILL_FILES",
     "GNEWS_PLAN", "FINNHUB_PLAN",
     "BOOT_STAGGER_SECONDS",
     "API_SPORTS_KEY", "API_SPORTS_SPORT", "SPORTSDATAIO_KEY", "FINNHUB_KEY", "ALPHA_VANTAGE_KEY",
@@ -194,7 +195,7 @@ DATA_ENVIRONMENT = (
     "ACCOUNTS_DB", "ATTACHMENTS_PATH", "CACHE_PATH", "MESSAGES_DB", "MIXES_DB",
     "MYFAM_DB", "PREFS_DB", "QUOTAS_DB", "SAVED_DB", "SHARES_DB", "SOCIAL_DB",
     "VOICE_REGISTRY_DB", "TRENDING_BANK_DB", "FEEDBACK_DB", "PROVIDER_USAGE_DB",
-    "LOCAL_NEWS_DB",
+    "LOCAL_NEWS_DB", "GDELT_EXPORT_DB",
 )
 
 #: Tier limits. Read by `entitlements.py` rather than `config.py`, so the
@@ -498,14 +499,19 @@ def isolated_api_sports(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
-def closed_gdelt_breaker():
-    """GDELT's breaker (§207) is a process-global: failures one test
-    simulates must not pause GDELT for the next test."""
+def isolated_gdelt_export(tmp_path, monkeypatch):
+    """GDELT's export copy (§211), per test - one test's articles must not be
+    the next one's, and the suite must never write `gdelt_export.db` into the
+    project root."""
     import gdelt as gdelt_mod
 
-    gdelt_mod.BREAKER.reset()
+    monkeypatch.setenv("GDELT_EXPORT_DB",
+                       str(tmp_path / "stores" / "gdelt_export.db"))
+    gdelt_mod.reset_store()
+    gdelt_mod.STATE.__init__()
     yield
-    gdelt_mod.BREAKER.reset()
+    gdelt_mod.reset_store()
+    gdelt_mod.STATE.__init__()
 
 
 @pytest.fixture(autouse=True)

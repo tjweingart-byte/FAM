@@ -791,44 +791,46 @@ class Settings:
         default_factory=lambda: os.environ.get("FINNHUB_WATCHLIST", "").strip())
 
     # --- GDELT -----------------------------------------------------------
-    # A second retrieval index beside Exa, and the source behind the Trending
-    # row. Keyless - GDELT DOC 2.0 needs no credential - so the only switch
-    # that matters is this one.
+    # A second article index beside Exa, and the source behind the story
+    # pool's news. Keyless, so the only switch that matters is this one.
     #
-    # Ships OFF. Not because it costs anything, but because nothing in this
-    # build has ever made a real request to it: the container's egress proxy
-    # blocks it, so every shape in `gdelt.py` is written from the docs and
-    # tested against recorded payloads. Turn it on somewhere with network,
-    # run `python tools/gdelt_probe.py`, and leave it on once that passes.
+    # **Read from GDELT's 15-minute export files, never its search API**
+    # (§211, at the owner's direction). The DOC API allows one request every
+    # five seconds per address, and Render's address is shared: 384 of 384
+    # failed on 1/10. The exports are plain files - one download every
+    # fifteen minutes whatever the traffic - and everything FAM asks of GDELT
+    # is answered from the copy on disk (`gdelt.py`). No listener's tap ever
+    # reaches GDELT.
+    #
+    # Ships OFF: the container's egress proxy blocks GDELT, so nothing in this
+    # build has fetched a real file. Turn it on somewhere with network, run
+    # `python tools/gdelt_probe.py`, and leave it on once that passes.
     gdelt: bool = field(
         default_factory=lambda: os.environ.get("GDELT", "0")
         not in ("0", "false", "False", ""))
-    gdelt_timeout_seconds: float = _env_float("GDELT_TIMEOUT_SECONDS", 6.0)
     gdelt_max_records: int = _env_int("GDELT_MAX_RECORDS", 20)
-    # GDELT asks for one request every five seconds per address, and Render's
-    # outbound address is shared (§144). Every request in the process takes
-    # its turn on one clock; a little over five so a slow clock never trips it.
-    gdelt_request_gap_seconds: float = _env_float(
-        "GDELT_REQUEST_GAP_SECONDS", 5.5)
-    # How long an episode may wait for its GDELT slot before doing without.
-    # About one gap: an episode queues behind at most the one background
-    # request already booked, never behind a whole sweep.
-    gdelt_episode_wait_seconds: float = _env_float(
-        "GDELT_EPISODE_WAIT_SECONDS", 6.0)
-    # Stop asking after this many failures in a row, for this long (§207):
-    # on 1/10 every one of 384 requests failed from Render's shared address,
-    # and each cost a slot and, for an episode, up to a six-second wait. One
-    # request is let through when the pause ends. 0 never pauses.
-    gdelt_breaker_failures: int = _env_int("GDELT_BREAKER_FAILURES", 5)
-    gdelt_breaker_seconds: float = _env_float("GDELT_BREAKER_SECONDS", 1800.0)
-    # A static-IP proxy for GDELT's requests only (§207), e.g. QuotaGuard
-    # Static's URL: GDELT counts per address, and Render's is shared. Holds a
-    # credential, so it is set in the dashboard and scrubbed on staging.
-    gdelt_proxy_url: str = field(
-        default_factory=lambda: os.environ.get("GDELT_PROXY_URL", "").strip())
-    # Whether a researched episode asks GDELT as well as Exa. Separate from
-    # `gdelt` so the Trending row can run without adding a second call to
-    # every episode - they are different clocks and different budgets.
+    # Where the export files are published. `lastupdate.txt` there names the
+    # newest file every fifteen minutes.
+    gdelt_export_base: str = field(
+        default_factory=lambda: os.environ.get(
+            "GDELT_EXPORT_BASE", "http://data.gdeltproject.org/gdeltv2").strip())
+    # How often `lastupdate.txt` is read. GDELT publishes every 15 minutes,
+    # so asking more often finds nothing new.
+    gdelt_export_poll_seconds: float = _env_float(
+        "GDELT_EXPORT_POLL_SECONDS", 900.0)
+    # One download - a file is ~10-40 MB zipped.
+    gdelt_export_timeout_seconds: float = _env_float(
+        "GDELT_EXPORT_TIMEOUT_SECONDS", 120.0)
+    # How much news the copy holds. A day covers the story sweep's 12 hours
+    # and the volume's 24; the disk is shared with every other store.
+    gdelt_export_keep_hours: float = _env_float("GDELT_EXPORT_KEEP_HOURS", 24.0)
+    # Articles kept per file (the theme counts are taken over all of them).
+    gdelt_export_rows_per_file: int = _env_int("GDELT_EXPORT_ROWS_PER_FILE", 1500)
+    # Files fetched behind the newest when the copy is behind - after a boot
+    # or an outage - so a first sweep has more than fifteen minutes to read.
+    gdelt_export_backfill_files: int = _env_int("GDELT_EXPORT_BACKFILL_FILES", 8)
+    # Whether a researched episode searches the copy as well as Exa. It costs
+    # GDELT nothing now; it costs the episode a local read.
     gdelt_cross_check: bool = field(
         default_factory=lambda: os.environ.get("GDELT_CROSS_CHECK", "0")
         not in ("0", "false", "False", ""))

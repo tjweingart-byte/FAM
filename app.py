@@ -530,6 +530,14 @@ async def lifespan(_: FastAPI):
     # while it is still empty - the rails fall back to the evergreen bank and
     # say why. This just means the first listener usually does not see that.
     stories_mod.install()
+    # GDELT's export files (§211): the one job that downloads from GDELT,
+    # once every fifteen minutes whatever the traffic. Everything else reads
+    # its copy on disk. Started before the warming sweep, which reports the
+    # GDELT source idle until the first file has landed.
+    if settings.gdelt:
+        import gdelt as gdelt_mod
+
+        _BACKGROUND.add(asyncio.create_task(gdelt_mod.run_forever()))
     asyncio.create_task(_warm_stories())
     if settings.stories and settings.stories_background_seconds > 0:
         _BACKGROUND.add(asyncio.create_task(_refresh_stories_forever()))
@@ -894,6 +902,16 @@ def _database_report() -> list[dict]:
         if local_news_mod.exists():
             stores.append(("local news", "LOCAL_NEWS_DB",
                            local_news_mod.store().path))
+    except Exception:  # pragma: no cover - a report is never load-bearing
+        pass
+    # GDELT's export copy (§211). Created by the first download, and reported
+    # once it exists, like the stores above.
+    try:
+        import gdelt as gdelt_mod
+
+        if gdelt_mod.exists():
+            stores.append(("GDELT export copy", "GDELT_EXPORT_DB",
+                           gdelt_mod.store().path))
     except Exception:  # pragma: no cover - a report is never load-bearing
         pass
     try:

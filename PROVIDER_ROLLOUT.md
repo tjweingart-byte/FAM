@@ -13,7 +13,7 @@ credential or TLS problem. On a normal machine there is no proxy and this does
 not apply. If you hit it on a deployment, allowlist the hosts rather than
 routing around it:
 
-    api.gdeltproject.org
+    data.gdeltproject.org   (GDELT's export files, §211)
     gamma-api.polymarket.com
     v1.american-football.api-sports.io   (and the sibling sport hosts)
     api.sportsdata.io
@@ -35,32 +35,32 @@ proven in one command.
 
     GDELT=1 python tools/gdelt_probe.py
 
-The probe checks both modes FAM uses — `artlist` for retrieval and
-`timelinevolraw` for the Trending row — and warns on the two things most likely
-to be silently wrong: dates not parsing, and URLs not arriving in the field
-`research.host_of` reads.
+Since §211 FAM never calls GDELT's DOC search API (one request per five
+seconds per address, on Render's shared address: 384 of 384 failed on 1/10).
+One background job downloads GDELT's 15-minute export files into a local copy
+(`GDELT_EXPORT_DB`), and everything else reads that copy. The probe does one
+real sync into a scratch copy and reads it back: volume, and retrieval.
 
 **Step 2.** Turn it on:
 
     GDELT=1
 
-That is all a deployment needs: the story pool reads it, and it is the last
-rung of the research ladder when Exa comes back empty.
+That is all a deployment needs: the background job keeps the copy (~200
+requests a day, whatever the traffic), the story pool reads it, and it is the
+last rung of the research ladder when Exa comes back empty. No proxy and no
+paid plan are needed.
 
-**Leave `GDELT_CROSS_CHECK` off on Render** (§144). It asks GDELT on every
-researched episode *after* Exa has answered, and GDELT asks for one request
-every five seconds per address - Render's outbound address is shared with
-other tenants. On 24/09 it was on, and every episode waited out a GDELT
-timeout for nothing. Every request now goes through one pacer
-(`GDELT_REQUEST_GAP_SECONDS`), so turning the cross-check on costs an episode
-at most `GDELT_EPISODE_WAIT_SECONDS` rather than a timeout, but it also spends
-slots the story sweep needs. Turn it on only on a host with its own address,
-and watch `/api/sources` for `retrievers` showing both.
+**`GDELT_CROSS_CHECK`** (off by default) searches GDELT on every researched
+episode *after* Exa has answered. It was left off on Render in §144: on 24/09
+it was on, and every episode waited out a DOC API timeout for nothing. Since
+§211 it searches the local copy, so it costs GDELT nothing and the episode a
+local read. If you turn it on, watch `/api/sources` for `retrievers` showing
+both.
 
 **Step 3.** ~~`TRENDING_SOURCE=gdelt`~~ - **do not set this** (§139, §144).
 The Trending row is built from GNews now (`trending_bank.py`). Set, it adds
-the old GDELT theme sweep - fifteen more requests per refresh - as a second
-input to the story pool, which already reads GDELT directly.
+the old GDELT theme sweep as a second input to the story pool, which already
+reads GDELT's local copy directly.
 
 **Step 4, and this is a judgement call rather than a config change.** Look at
 the row. The tile questions are currently templated:
@@ -189,6 +189,14 @@ so EI could not name the domain. The enum now reads `live_facts.LIVE_DOMAINS`
 directly. If you add a domain, add it there and nowhere else — and give the EI
 prompt a sentence saying when to choose it, or the model never will. Two tests
 enforce both halves.
+
+**Since §211** Polymarket is not only an elections source: `live_facts.forecast`
+asks it beside the live lookup for every question EI marks `outcome_dependent`
+(except elections already looked up, weather, and town questions). It finds
+markets with Gamma's `/public-search` on the brief's subject words, falling
+back to the 100 busiest markets. The forecast is rendered after the live
+block, credited as "prediction market - a forecast, not a result", and never
+counts as evidence for the `NoEvidence` refusal.
 
 **Step 4.** Polymarket covers election *interest*, never election *results*.
 For results you need AP Elections or Decision Desk HQ — both sales-gated with

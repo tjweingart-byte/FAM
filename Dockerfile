@@ -95,6 +95,7 @@ ENV CACHE_PATH=/data/scripts.db \
     THUMBNAILS_DB=/data/thumbnails.db \
     PROVIDER_USAGE_DB=/data/provider_usage.db \
     LOCAL_NEWS_DB=/data/local_news.db \
+    GDELT_EXPORT_DB=/data/gdelt_export.db \
     PORT=8000
 RUN mkdir -p /data
 

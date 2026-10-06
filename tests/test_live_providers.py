@@ -320,18 +320,24 @@ def test_no_provider_claims_to_have_been_verified_here():
 # --------------------------------------------------------------------------
 # GDELT
 # --------------------------------------------------------------------------
+def _gkg_line(url, title, date="20260916143000", source="reuters.com"):
+    """One GKG 2.1 row: 27 tab-separated columns, the title in the extras."""
+    cols = [""] * 27
+    cols[0], cols[1], cols[2], cols[3], cols[4] = "1", date, "1", source, url
+    cols[26] = f"<PAGE_TITLE>{title}</PAGE_TITLE>"
+    return "\t".join(cols)
+
+
 def test_gdelt_articles_parse_into_the_shape_the_rest_of_fam_reads():
     """Duck-typed to match an Exa result, so `rank_results`, `credibility`,
     `published_at` and `provenance.from_results` all work unchanged. A second
-    retriever needing its own branch in each would be four places to forget."""
+    retriever needing its own branch in each would be four places to forget.
+    Since §211 the rows come from GDELT's export files."""
     import provenance
     import research
 
-    results = gdelt.parse_articles({"articles": [
-        {"url": "https://www.reuters.com/a", "title": "A headline",
-         "seendate": "20260916T143000Z"},
-        {"url": "", "title": "no url, skipped"},
-    ]})
+    row = gdelt.parse_gkg_line(_gkg_line("https://www.reuters.com/a", "A headline"))
+    results = gdelt._results([(row["title"], row["url"], row["seen"], row["country"])])
     assert len(results) == 1
     assert research.credibility(results[0]) == "primary"
     assert research.published_at(results[0]).date().isoformat() == "2026-09-16"
@@ -339,16 +345,11 @@ def test_gdelt_articles_parse_into_the_shape_the_rest_of_fam_reads():
 
 
 def test_a_malformed_gdelt_row_does_not_cost_the_whole_second_opinion():
-    assert gdelt.parse_articles({"articles": [None, {"nope": 1}]}) == []
-    assert gdelt.parse_articles({}) == []
-    assert gdelt.parse_articles(None) == []
-
-
-def test_gdelt_volume_reads_the_latest_point():
-    assert gdelt.parse_volume(
-        {"timeline": [{"data": [{"value": 1.5}, {"value": 4.25}]}]}) == 4.25
-    assert gdelt.parse_volume({"timeline": []}) == 0.0
-    assert gdelt.parse_volume({}) == 0.0
+    assert gdelt.parse_gkg_line("") is None
+    assert gdelt.parse_gkg_line("too\tfew\tcolumns") is None
+    assert gdelt.parse_gkg_line(_gkg_line("", "no url, skipped")) is None
+    assert gdelt.parse_gkg_line(_gkg_line("https://x.com/a", "")) is None
+    assert gdelt.parse_gkg_line(_gkg_line("https://x.com/a", "T", date="nope")) is None
 
 
 def test_gdelt_ships_off_and_says_it_was_never_verified_here():

@@ -79,8 +79,9 @@ def _plans() -> dict:
             "pay-as-you-go, ~10 requests/s per key",
             "no daily cap to buy; a second key adds rate"),
         "gdelt": (
-            "1 request per 5 s per IP = 17,280/day at most",
-            "no paid plan; a dedicated egress IP"),
+            "export files, no per-address limit: ~2 requests per 15 min "
+            "(~200/day), whatever the traffic (§211)",
+            "no paid plan; none needed"),
         "polymarket": (
             "keyless; no published daily cap",
             "no paid plan"),

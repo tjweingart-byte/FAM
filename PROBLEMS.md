@@ -15983,3 +15983,81 @@ The smoke run now opens Explore's comments and requires a picture behind
 the reel, a thread with likes and folded replies, and a posted comment
 (`explores_comments_open_on_a_thread`) - the check that would have caught
 this. Tests: `tests/test_packet_1005.py` (the last three).
+
+## 211. GDELT read from its export files; Polymarket asked for every outcome
+
+**What was asked (06/10).** The admin page showed GDELT 38 requests today, all
+failed (576 yesterday), and Polymarket at zero. The owner: keep GDELT under its
+limit with no extra pressure from scaling, and get real use from Polymarket.
+
+**Why GDELT failed.** The DOC search API allows one request every five seconds
+*per address*, and Render's outbound address is shared with other tenants -
+§144 saw it refuse requests sent one at a time, §191 counted 384 of 384, and
+§207's breaker (5 failures, then one probe every 30 minutes - today's 38) only
+limited what the refusals cost. And the episode ladder's GDELT rung was a
+request per episode, so load grew with listeners.
+
+**What changed.** GDELT publishes everything it reads as plain files every
+fifteen minutes. `gdelt.py` is rewritten around them:
+* `sync` (one background job, `run_forever`, started at boot when `GDELT=1`)
+  reads `lastupdate.txt`, downloads each new GKG 2.1 file - checksum checked,
+  up to `GDELT_EXPORT_BACKFILL_FILES` behind the newest when the copy is
+  behind, a file GDELT skipped noted and never asked again - and keeps
+  `GDELT_EXPORT_KEEP_HOURS` (24) in `ExportStore` (`GDELT_EXPORT_DB` on the
+  data disk; `GDELT_EXPORT_ROWS_PER_FILE` articles per file, theme counts over
+  all of them). About 200 requests a day, whatever the traffic.
+* `retrieve` (the ladder rung and cross-check), `artlist`/`discover` (the
+  story sweep's world and regional samples), `volume_for` and
+  `GdeltTrendingSource` all read the copy. No listener's tap reaches GDELT;
+  `test_a_thousand_listeners_cost_gdelt_nothing` pins it.
+* Publisher countries from GDELT's domain list (monthly), else the domain's
+  country code; generic codes (.io, .tv, .ai) say nothing.
+* An empty or stale (>1h) copy raises `ExportStale`, so the sweep reports an
+  outage; `GdeltSignals.idle` skips until the first file lands, so a fresh
+  boot is not stamped swept for two hours.
+* Deleted: the pacer, the breaker, `GDELT_PROXY_URL` (and its staging scrub),
+  `GDELT_TIMEOUT_SECONDS`, the DOC parsing. `/api/health` → `gdelt` reports the
+  copy (`files`, `articles`, `newest_age_seconds`, `last_error`).
+What the copy cannot do that DOC did: search article bodies, reach back three
+months, or read the translated feed. Not verified against the live files -
+the container cannot reach GDELT; run `python tools/gdelt_probe.py`.
+
+**Why Polymarket was at zero.** Two reasons in code: an episode asked it only
+when EI said `elections`, and its `resolve` looked for one shared word in the
+twenty busiest markets. The story sweep (`STORIES_POLYMARKET=1`) does call it
+every two hours when switched on - a local run with the network stubbed
+asked `gamma-api.polymarket.com` - so a production count of zero across every
+day also means the running service may not have `STORIES_POLYMARKET=1`:
+`/api/health` → `stories` names it if so.
+
+**What changed.** `live_facts.forecast` asks every forecaster (`forecasts =
+True`; Polymarket when `LIVE_ELECTIONS_PROVIDER=polymarket`) for any
+`outcome_dependent` brief except elections, weather and a town's news. It
+runs beside the live lookup and retrieval in `prepare`, lands in
+`EpisodePlan.forecast` (never `plan.live`), renders after the live block with
+the prediction-market rule, is credited "prediction market - a forecast, not a
+result", and never counts against `NoEvidence`. `PolymarketSource.resolve`
+searches `/public-search` by the subject's words (two shared when there are
+two), falling back to the hundred busiest markets when search is refused; an
+event reads its three likeliest outcomes, Gamma's JSON-string prices parsed.
+Made for you already held a market tile to §155's bar; now pinned by test.
+
+Rules: `gdelt-exports`, `forecast-beside` (constraints.md); always-researched
+carries a Current note. Tests: `tests/test_gdelt_exports_211.py`,
+`tests/test_polymarket_forecasts_211.py`; `test_gdelt_breaker_207.py` and the
+pacer tests in `test_provider_failures_144.py` are deleted with what they
+tested.
+
+**Review before merge (06/10).** Main's §209 and §210 merged in; this
+section renumbered §211 (and its tests `*_211.py`). Read back, five fixes:
+* the copy's search took the 2,000 newest rows matching *any* word and only
+  then asked for two, so a day of one common name crowded out the article
+  naming both - words matched are now counted in SQL before the limit
+  (~0.4 s over a full day's 150k rows, on the fallback rung only);
+* the forecast was gathered *with* retrieval, so a slow Polymarket held the
+  first word up to `LIVE_TOTAL_TIMEOUT_SECONDS` after the evidence was in -
+  it now gets `FORECAST_GRACE_SECONDS` (0.25) past the evidence, then is
+  dropped;
+* a 404 on the newest file wrote it off for good; only files behind it are;
+* a failed domain list was asked again every sync; now once a day;
+* the theme filter's `LIKE` read `_` as a wildcard; it is an exact `instr`.

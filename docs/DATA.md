@@ -15,9 +15,9 @@ disagree, the code wins: fix this document.
 `DATABASE.md` is out of date in these places, and where it disagrees with this
 document, this document follows the code:
 
-- It says "fourteen" stores. There are **twenty** (§2). It is missing
+- It says "fourteen" stores. There are **twenty-one** (§2). It is missing
   `voice_bank.db`, `trending_bank.db`, `thumbnails.db`, `provider_usage.db`,
-  `feedback.db` and `local_news.db`.
+  `feedback.db`, `local_news.db` and `gdelt_export.db` (§211).
 - It says the `share` event is dropped. It is not; it is an event with a
   taste weight.
 - It says location is not stored. It is (`preferences.city/region/country`).
@@ -39,14 +39,14 @@ flowchart TB
   end
   subgraph Render["Render web service (fam, and fam-staging separately)"]
     subgraph Disk["Persistent disk /data — 1 GB — survives deploys"]
-      D1[(20 SQLite files)]
+      D1[(21 SQLite files)]
     end
     subgraph Image["Container image — replaced every deploy"]
       I1[Code, local_outlets.json seed]
       I2[/opt/fam/embed — MiniLM model/]
     end
     subgraph Mem["Process memory — lost on restart"]
-      M1[Story pool, trending edition, brief store,<br/>live captions, live facts, engagement table,<br/>vector LRU, GDELT breaker, API-Sports budgets]
+      M1[Story pool, trending edition, brief store,<br/>live captions, live facts, engagement table,<br/>vector LRU, API-Sports budgets]
     end
   end
   subgraph RunPod
@@ -63,7 +63,7 @@ flowchart TB
 
 | Location | Holds | Survives a deploy? |
 |---|---|---|
-| **Render persistent disk** `/data` (disk `fam-data`, **1 GB**, code: `render.yaml:299-302`; staging has its own `fam-staging-data`, also 1 GB, `render.yaml:54-57`) | All 20 SQLite databases, including the kept episode audio, the voice-bank recordings and the tile pictures | **Yes.** `/api/health` → `storage` measures this with `st_dev` rather than trusting config (`storage-durability`). |
+| **Render persistent disk** `/data` (disk `fam-data`, **1 GB**, code: `render.yaml:299-302`; staging has its own `fam-staging-data`, also 1 GB, `render.yaml:54-57`) | All 21 SQLite databases, including the kept episode audio, the voice-bank recordings and the tile pictures | **Yes.** `/api/health` → `storage` measures this with `st_dev` rather than trusting config (`storage-durability`). |
 | **Render container image** | Code; the all-MiniLM-L6-v2 embedding model at `/opt/fam/embed` (`Dockerfile:53-57`); the seed list of local outlets (`local_outlets.json`) | Rebuilt every deploy. Nothing is written there. |
 | **Render process memory** | Every cache in §3 | **No.** Lost on restart or deploy, by design |
 | **RunPod network volume** `/state` | Chatterbox weights (`/state/hf`), `reference_3.wav` and its rights file (`/state/voices`), bank voices materialised after a SHA and rights check | Yes |
@@ -76,18 +76,18 @@ flowchart TB
 **No listener data is stored on RunPod.** The worker receives text and a voice
 id and returns PCM, and it keeps neither. The exception is the all-in-one
 `Dockerfile.gpu` image, which puts SQLite on `/state/data`. It is not the
-Render deployment; since §208 it pins all 20 stores there, as the Render
+Render deployment; since §208 it pins every store there (21 since §211), as the Render
 `Dockerfile` does to `/data` (`tests/test_data_paths.py` checks both).
 
 ---
 
-## 2. The twenty SQLite databases
+## 2. The twenty-one SQLite databases
 
 - **Files:** each database is one SQLite file, opened through
   `paths.data_path(ENV_VAR, filename)`. Unset, the file lands in the project
   root. Some files are shared by more than one module (`mixes.db`,
   `local_news.db`, `accounts.db`).
-- **Location on Render:** the `Dockerfile` (lines 78-97) pins all twenty to
+- **Location on Render:** the `Dockerfile` (lines 78-98) pins all twenty-one to
   `/data`.
 - **Joins:** there are no cross-file foreign keys. `user_id` is joined in
   Python.
@@ -124,6 +124,7 @@ Render deployment; since §208 it pins all 20 stores there, as the Render
 | **provider_usage.db** (`PROVIDER_USAGE_DB`) | `provider_usage.py` | `calls` | No, shared | Forever | n/a · **never wiped** (like metering) |
 | **thumbnails.db** (`THUMBNAILS_DB`) | `thumbnails.py` | `thumbnails`, `spend`, `runs` | No, shared | ≤ 1 picture per tree node | n/a · kept |
 | **local_news.db** (`LOCAL_NEWS_DB`) | `local_news.py`, `places.py`, `weather.py` | `outlets`, `items`, `demand`, `excluded`, `places`, `weather` | No (no `user_id`) | Items pruned daily past 30 days (`LOCAL_NEWS_KEEP_DAYS`, never below the 14-day window; each outlet keeps its newest 200, §208); demand 30 days | n/a · kept |
+| **gdelt_export.db** (`GDELT_EXPORT_DB`, §211) | `gdelt.py` (`ExportStore`) | `files`, `articles`, `theme_counts`, `domains`, `meta` | No, shared | 24 hours of GDELT's 15-minute export files (`GDELT_EXPORT_KEEP_HOURS`), ≤ 1,500 articles per file | n/a · kept |
 
 ### 2.2 Each store: what it holds, who writes it, who reads it
 
@@ -269,7 +270,8 @@ stored**; it is computed from `events` and `preferences` on each request.
 provider: `api_sports` (and `api_sports/<sport>` per sport, §180), `exa`,
 `gdelt`, `polymarket`, `gnews`, `finnhub`, `nws`, `open_meteo`, `local_feeds`.
 Counted in memory and flushed at most every 10 s (`FLUSH_SECONDS`). Feeds
-`/admin`. The licence check (§207, `provider_usage.licences()`) stores
+`/admin`. Since §211 `gdelt` counts the export-file downloads (~200 a day,
+whatever the traffic), never a listener's request. The licence check (§207, `provider_usage.licences()`) stores
 nothing: it reads `GNEWS_PLAN`, `FINNHUB_PLAN` and whether an Open-Meteo key
 is set, and reports `commercial_ready` on `/api/health`.
 
@@ -295,6 +297,17 @@ WebP **BLOB**), its scene, prompt, the checker's verdict, status; `spend`
 - `weather` (`weather.py`): one structured forecast snapshot per place,
   fetched on first ask and swept at 05:00 and 17:00 local time. US warnings
   are asked live, not stored.
+
+**gdelt_export.db** (`gdelt.ExportStore`, §211): FAM's own copy of GDELT's
+15-minute GKG 2.1 export files, written by one background job (`gdelt.sync`,
+every `GDELT_EXPORT_POLL_SECONDS` = 900). `files` (one row per file read),
+`articles` (title, domain, publisher country, themes, names; ≤ 1,500 per
+file), `theme_counts` (taken over every article in a file), `domains`
+(GDELT's domain-by-country list, fetched monthly) and `meta`. Rows older than
+`GDELT_EXPORT_KEEP_HOURS` (24) are pruned. The story pool, the trending
+registry's GDELT source and the research ladder's GDELT rung read only this
+copy; an empty copy, or one over an hour old, is reported as an outage
+(`ExportStale`). Holds no listener data.
 
 ### 2.3 What a wipe and an account deletion do
 
@@ -364,8 +377,7 @@ source of truth.
 | Trending feed (legacy) | `trending._FEED` | Old GDELT themes | 15 min |
 | Live facts | `live_facts.FACT_CACHE` | Scores, quotes, odds | Short, by status (in progress shortest) |
 | API-Sports budgets | `live_sources.API_SPORTS_BUDGET` and per sport | Requests used today, per sport (§180) | Per UTC day, per process |
-| GDELT breaker | `gdelt` | Failures in a row, `paused_until` (§207) | 5 failures → 1,800 s pause |
-| GDELT volumes | `gdelt._VOLUMES` | Coverage counts | 20 min |
+| GDELT download state | `gdelt.STATE` | Last success, last attempt, failures in a row, last error, last file (§211; the §207 breaker is deleted) | Process lifetime |
 | Provider counts (pending) | `provider_usage._PENDING` | Requests not yet flushed to `provider_usage.db` | ≤ 10 s |
 | Weather lookups | `weather._POINTS`, `weather._PLACES` | NWS grid points, resolved places | Process lifetime |
 | robots.txt | `local_news._ROBOTS` | Per-host robots answers | Process lifetime |
@@ -438,7 +450,7 @@ is never accepted from the client (`listener-id-server`).
 | DailyFAM edition | 300 episodes, **$15** per day, 3 at a time | `config.py:890-891`, `daily_edition.py:91` |
 | GNews | 90 requests per day | `config.py:967` |
 | API-Sports | Per sport, from each sport's tier (`API_SPORTS_TIERS`); `API_SPORTS_DAILY_REQUESTS` overrides (0 = the plan) | `config.py:992`, `live_sources.py` |
-| GDELT breaker | 5 failures → pause 1,800 s | `config.py:819-820` |
+| GDELT export copy | 24 hours kept, 1,500 articles per file, 8 files backfilled, polled every 900 s; stale after 1 h (§211; the breaker is deleted) | `config.py:820-831`, `gdelt.STALE_AFTER_SECONDS` |
 | Pace per listener | 1 generation per 3 s, burst 3; 60 reads per window | `config.py:1456-1466` |
 | Tier quotas | free 5 episodes/day (`FREE_EPISODES_PER_DAY`). **On in production** (`ENFORCE_QUOTAS=1` in `render.yaml`, §207), off by default in code. Admins are `unlimited`. | `config.py:1487`, `entitlements.py:224` |
 | Waitlist referrals | ≤ 20 credited per code per hour | `WAITLIST_REFERRALS_PER_HOUR` |

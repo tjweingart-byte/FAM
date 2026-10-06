@@ -131,6 +131,7 @@
   goes in `EXCEPTIONS`. Mild words (damn, hell, crap, ass) carry no E. Add to
   the lists with a test of an innocent sentence beside each addition.
 <!-- rule:always-researched -->
+> **Current (PROBLEMS.md §211):** the GDELT rung is a read of GDELT's export copy on disk (rule:gdelt-exports), not "one HTTP call" - no request reaches GDELT from an episode.
 > **Current (PROBLEMS.md §194, at the owner's direction):** a question about one town (`Brief.place`) does not take this ladder. It takes the local one (rule:local-news-ladder): the town's own outlets, its county's, then Exa limited to their known outlets, and **never GDELT**. A weather question (`live_domain == "weather"`) searches no index at all; the forecast is its evidence. Everything below still governs every other question.
 - **Every episode is researched. (Reversed — this used to say the opposite.)**
   *(PROBLEMS.md §76.)* `SEARCH_MODE=always` is the production default and the
@@ -428,6 +429,44 @@
     markets are moving to 24-hour trading, so it is not tied to the session.
   * A team catalogue the provider refused is not asked again that UTC day
     (`live_sources.TEAMS_REFUSED`).
+
+<!-- rule:gdelt-exports -->
+- **GDELT is read from its export files, never its search API** *(PROBLEMS.md
+  §211, at the owner's direction: "We must be able to keep GDELT under its
+  limit, and not have scaling put any extra pressure on it").* The DOC API
+  allows one request every five seconds per address and Render's address is
+  shared: 384 of 384 failed on 1/10, and §207's breaker only limited what the
+  refusals cost. So **one background job** (`gdelt.run_forever` -> `sync`)
+  reads `lastupdate.txt` every `GDELT_EXPORT_POLL_SECONDS` and downloads each
+  new 15-minute GKG file into a copy on the data disk (`GDELT_EXPORT_DB`,
+  `GDELT_EXPORT_KEEP_HOURS`) - about 200 requests a day, the same whatever the
+  traffic. **Everything else reads the copy**: the story sweep, the theme
+  volumes, the Trending registry, the episode ladder's GDELT rung and the
+  cross-check. **Nothing a listener does may reach GDELT** - a new reader
+  goes through the copy, never a new request. The pacer, the breaker and the
+  static-IP proxy are deleted, not switched off: with nothing calling the
+  search API they would be controls with nothing behind them. An empty or
+  stale copy is an outage (`ExportStale`), never a quiet news day; the story
+  source idles until the first file lands rather than being stamped swept.
+
+<!-- rule:forecast-beside -->
+- **A forecast beside every outcome-dependent question** *(PROBLEMS.md §211,
+  at the owner's direction).* Polymarket was asked only when EI said
+  `elections`, and then matched a shared word against the twenty busiest
+  markets, so it was asked nothing. `live_facts.forecast` now asks every
+  registered forecaster (`forecasts = True`) whenever the brief is
+  `outcome_dependent` - except `elections` (already its live lookup),
+  weather and a town's news - searching by the subject (`/public-search`,
+  two shared words when the subject has two). It starts beside retrieval and
+  is given `FORECAST_GRACE_SECONDS` (0.25) past the evidence, then dropped:
+  it never holds the first word. The result is
+  `EpisodePlan.forecast`: **beside `plan.live`, never in it** (a scoreboard
+  says what happened, a market what people expect), rendered after it with
+  the prediction-market block that says the articles win, credited as "a
+  forecast, not a result", and **never evidence** - a forecast alone does not
+  stop `NoEvidence`. "Forecast, never a result" is unchanged: every fact is
+  `unknown`. On Made for you a market tile meets the §155 bar like any live
+  story: it must name something the listener follows.
 
 <!-- rule:live-facts -->
 > **Current (PROBLEMS.md §178):** for the NFL, API-Sports also supplies each team's record (counted in code from regular-season finals on the team's own schedule), last result and next game, beside the game; a game not on today's card is resolved from the teams' schedules by the provider's own team catalogue. A game that has not started never has a score. The live block tells the writer that every number comes from it and never to describe the sources.
