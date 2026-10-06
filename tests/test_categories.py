@@ -307,10 +307,12 @@ def test_matching_finds_everything_a_brute_force_scan_would(tree):
 
     for _ in range(60):
         text = " ".join(random.sample(words, random.randint(2, 7)))
-        text_words = C.words_of(text)
+        # The scan, in the rule `match` keeps since §209: the node's words as
+        # a consecutive run of the text's, in the node's own order.
+        padded = f" {' '.join(text.split())} "
         brute = set()
-        for node_id, node in nodes.items():
-            if node.words <= text_words:
+        for node_id in nodes:
+            if f" {node_id} " in padded:
                 brute.add(node_id)
                 brute.update(tree.ancestors(node_id))
         assert set(tree.match(text)) == brute, text

@@ -514,6 +514,10 @@ def _finish(pending: "_Pending", sentences: list, cache, length: int,
     extra["voice"] = voice_bank.random_slug()
     cache.put(key, sentences, ttl, query, notes.thread, length,
               bucket_for(pending.plan), sources, "", notes.title, **extra)
+    # What each categoriser said about it (§209), for the audit.
+    import category_audit
+
+    category_audit.note(query, getattr(notes, "category", ""), "dailyfam")
     return {"status": "written" if ttl else "volatile", "key": key,
             "dollars": dollars, "ei": ei, "title": notes.title,
             "sourced_at": notes.sourced_at or now}

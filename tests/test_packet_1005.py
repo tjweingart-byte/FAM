@@ -288,7 +288,7 @@ def test_deleting_an_account_leaves_no_likes_on_replies_it_hosted(store):
     assert store.comment_counts_many([("why tides turn", 3)]) == {("why tides turn", 3): 0}
 
 
-# --- the 10.5 packet, checked again (§209) ----------------------------------
+# --- the 10.5 packet, checked again (§210) ----------------------------------
 
 def test_a_guests_comment_sheet_hides_the_box_behind_the_sign_up():
     # `.rc-compose{display:flex}` outranked `hidden`, so a guest saw the box

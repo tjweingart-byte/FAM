@@ -1097,6 +1097,101 @@ def category_vocabulary() -> list:
     return lines
 
 
+#: How many lines of the tree the *writer* is shown (§209): only the
+#: branches under the facets its question points at, so it costs a few
+#: hundred tokens rather than the composer's whole vocabulary.
+WRITER_VOCABULARY_LINES = 30
+
+#: `(tree generation, {facet: [line, ...]}, {node: [child, ...]})`, so a
+#: prompt built in front of the first word reads the tree's shape rather
+#: than sorting four thousand nodes for it.
+_WRITER_SHAPE: tuple = (None, {}, {})
+
+
+def _writer_shape(tree) -> tuple:
+    """Per facet, its first-level lines (`facet / node: children`, most
+    used first), and every node's children. Rebuilt only when the tree is."""
+    global _WRITER_SHAPE
+    gen = getattr(tree, "_loaded_at", 0.0)
+    if _WRITER_SHAPE[0] == gen and _WRITER_SHAPE[0] is not None:
+        return _WRITER_SHAPE[1], _WRITER_SHAPE[2]
+    nodes = tree.nodes()
+    children: dict = {}
+    for node in nodes.values():
+        if node.parent_id:
+            children.setdefault(node.parent_id, []).append(node)
+    kids = {parent: [k.id for k in sorted(rows, key=lambda n: (-int(n.uses or 0),
+                                                                n.id))]
+            for parent, rows in children.items()}
+    by_facet: dict = {}
+    facets = _facets()
+    for node in sorted(nodes.values(), key=lambda n: (-int(n.uses or 0), n.id)):
+        if node.parent_id in facets:
+            by_facet.setdefault(node.parent_id, []).append(
+                _vocabulary_line(node.parent_id, node.id, kids))
+    _WRITER_SHAPE = (gen, by_facet, kids)
+    return by_facet, kids
+
+
+def _vocabulary_line(path: str, node_id: str, kids: dict) -> str:
+    line = f"- {path} / {node_id}"
+    under = kids.get(node_id, [])
+    if under:
+        line += ": " + ", ".join(under[:CATEGORY_VOCABULARY_CHILDREN])
+    return line
+
+
+def writer_vocabulary(text: str) -> list:
+    """The category lines the writer may name its episode from (§209).
+
+    **The branch its question is on first**: every node the tree finds in
+    `text`, deepest first, with its path and its children - so a Bengals
+    question is offered `cincinnati bengals` and its neighbours, not only
+    the league. Then the first-level lines of the facets `text` points at
+    (the keyword map's facets and the roots of those nodes), most used
+    first. At most `WRITER_VOCABULARY_LINES`. Built per facet rather than
+    filtered out of the composer's capped list, which a grown tree fills
+    alphabetically before reaching `sports`. Empty when `text` points at no
+    facet or there is no tree, and the writer then names it in its own
+    words. Never raises."""
+    try:
+        import topics
+
+        tree = topics.category_tree()
+        found = list(tree.match(text or ""))
+        wanted = list(topics.facets_only(topics.tags_for_text(text or "")))
+        for node in found:
+            facet = facet_for(node)
+            if facet and facet not in wanted:
+                wanted.append(facet)
+        if not wanted:
+            return []
+        by_facet, kids = _writer_shape(tree)
+        lines: list = []
+        seen: set = set()
+        facets = _facets()
+
+        def add(line: str) -> bool:
+            if line not in seen:
+                seen.add(line)
+                lines.append(line)
+            return len(lines) >= WRITER_VOCABULARY_LINES
+
+        for node in sorted((n for n in found if n not in facets),
+                           key=lambda n: (-tree.depth_of(n), n)):
+            path = " / ".join(reversed([a for a in tree.ancestors(node)]))
+            if add(_vocabulary_line(path or facet_for(node), node, kids)):
+                return lines
+        for facet in wanted:
+            for line in by_facet.get(facet, []):
+                if add(line):
+                    return lines
+        return lines
+    except Exception:  # noqa: BLE001 - a hint, never a reason to fail a script
+        log.warning("stories: could not build the writer's vocabulary")
+        return []
+
+
 def _facets() -> frozenset:
     import topics
 
