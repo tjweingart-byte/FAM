@@ -15817,3 +15817,59 @@ Left as they are: a deleted listener's scripts read as unattributed (`''`),
 so a later rewrite of the same key may attribute it to its new writer, which
 is how scripts from before the column behave; and a proxy's own refusal (a
 407) is counted as GDELT's, which `last_error` makes readable.
+
+## 209. The 10.5 packet, checked one by one: what the preview could not show
+
+The owner asked for every change in the 10.5 packet (§203) to be checked
+again, one at a time, because some seemed to be missed. Their screenshots
+were taken before §203 (the old type, search's "Explore? →"), so each item
+was checked against what the current build draws, at a phone's width, in
+both preview builds, rather than against the commit message.
+
+| # | Change | Found |
+|---|---|---|
+| 1 | A long question uses the whole bar | Done: past one line the text spans the bar, the buttons under it |
+| 2 | Whole titles on DailyFAM's tiles | Done, rails and View more alike; checked with 70-character titles |
+| 3 | A handle to drag a mix's topics into order | Done; a real drag reorders and saves |
+| 4 | Edit topics stacks what is chosen | Done: "In this mix" on top, the rest under "Topics to follow" |
+| 5 | Bookshelf button; whole titles in the A to Z | Done |
+| 6 | No Explore rail on DailyFAM | Done |
+| 7 | The exploreFAM pill on search and beside Made for you | Done |
+| 8 | Explore as a reel with comments | **Could not be seen** - see below |
+| 9 | A caption on a vibe, drawn on the story | Built; **could not be seen** in either preview |
+
+**What was missing was the preview, not the code - and one real bug.**
+
+* **Comments never loaded in either preview.** Neither builder answered
+  `/api/comments`, so the sheet only ever said "Could not load the
+  comments". The Instagram-shaped thread the packet asked for - name and
+  face, replies folded under the comment, a heart and a count on the right -
+  had never been on screen anywhere the owner looks. The fixture build now
+  seeds a thread on every Explore episode from the fixture's people (a
+  reply, likes) and keeps what is posted for the page's life; the live build
+  keeps `comments` and `comment_likes` in the artifact db, so everybody who
+  opens the bookmarked page reads one thread per episode, as the server
+  does. Same shape, order and rules as `social.comments`: most liked then
+  newest, replies oldest first, one level deep, an account to write or like,
+  only the author deletes. Explore's cards carry `comments` in both.
+* **The reel had no picture behind it in either preview.** Neither answered
+  `/api/episode/card`. The server answers with an approved photo
+  (`thumbnails.pick_for_player`); a preview has none, so both now draw the
+  tile's line art for the episode's words on the tile's paper
+  (`PREVIEW_PICTURE_JS`, shared), portrait so it survives both the reel's
+  crop and the player's 4:3.
+* **A vibe's caption was dropped by both previews.** They stored the echo
+  without it; the live build now keeps it (and returns it from
+  `/api/vibes`), and Beth's story in the fixture build carries one, so the
+  story viewer's caption can be looked at.
+* **The bug: a guest saw the comment box drawn over "Sign up to comment".**
+  `drawReelCompose` set `hidden` on the box and the emoji row, but
+  `.rc-compose{display:flex}` outranks the attribute. `[hidden]` rules for
+  the box, the emoji row and the gate fix it. A sweep of every screen for
+  any other `[hidden]` element still drawn found only `#vsGo`, which is
+  deliberate (`visibility:hidden` keeps its room).
+
+The smoke run now opens Explore's comments and requires a picture behind
+the reel, a thread with likes and folded replies, and a posted comment
+(`explores_comments_open_on_a_thread`) - the check that would have caught
+this. Tests: `tests/test_packet_1005.py` (the last three).

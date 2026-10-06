@@ -1836,6 +1836,33 @@ def main() -> int:
             page.evaluate("goBack()")
             page.wait_for_timeout(400)
 
+        def explores_comments_open_on_a_thread():
+            """Explore's comments sheet shows a thread, and a comment posts.
+
+            The sheet shipped (10.5 #8) with no `/api/comments` in either
+            preview, so every look at it read "Could not load the comments",
+            and the reel had no picture behind it: what the owner saw was a
+            feature that seemed to be missing.
+            """
+            page.evaluate("openExplore()")
+            page.wait_for_selector("#screen-explore.active", timeout=10000)
+            page.wait_for_function(
+                "document.getElementById('reelBg').classList.contains('has-img')",
+                timeout=5000)
+            page.evaluate("openReelComments()")
+            page.wait_for_selector("#rcList .rc-item", timeout=5000)
+            assert page.query_selector("#rcList .rc-like"), \
+                "a comment has no like on its right"
+            assert page.query_selector("#rcList .rc-more"), \
+                "a comment's replies are not folded under it"
+            n = page.eval_on_selector_all("#rcList > .rc-item", "e => e.length")
+            page.fill("#rcInput", "Smoke check comment")
+            page.evaluate("postReelComment()")
+            page.wait_for_function(
+                f"document.querySelectorAll('#rcList > .rc-item').length > {n}",
+                timeout=5000)
+            page.evaluate("closeReelComments()")
+
         def explores_bar_scrubs_without_swiping():
             """The bar in Explore seeks, and does not deal the next card.
 
@@ -3939,6 +3966,7 @@ def main() -> int:
         check("A mix is shared from its menu", a_mix_is_shared_from_its_menu)
         check("Explore plays and advances", explore)
         check("Explore's bar scrubs without swiping", explores_bar_scrubs_without_swiping)
+        check("Explore's comments open on a thread", explores_comments_open_on_a_thread)
         check("Explore goes deeper, with a suggestion and a length",
               explore_goes_deeper_with_a_suggestion_and_a_length)
         check("The interests list is alphabetical", the_interests_list_is_alphabetical)

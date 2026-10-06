@@ -100,7 +100,7 @@ __MIX_ITEMS__
   // ------------------------------------------------------------ db plumbing
   var db = null, MEM = {}, COLS =
     ["sessions", "accounts", "people", "events", "scripts", "mixes", "echoes",
-     "prefs", "feedback"];
+     "prefs", "feedback", "comments", "comment_likes"];
   var cache = {}; COLS.forEach(function (c) { cache[c] = []; });
   var UID = "", EMAIL = "", TOKEN = "";
   //: Conversations, for the life of the page only - see the note on
@@ -1006,6 +1006,34 @@ __MIX_ITEMS__
     };
   }
 
+  function commentRows(q, m) {
+    return rows("comments").filter(function (c) { return c.query === q && c.minutes === Number(m); });
+  }
+  function likesOf(cid) {
+    return rows("comment_likes").filter(function (l) { return l.comment_id === cid; }).length;
+  }
+  function commentDict(c) {
+    var p = rows("people").filter(function (x) { return x.id === c.user_id; })[0] || {};
+    return { id: c.cid, parent_id: c.parent_id || 0, text: c.text, at: c.at,
+             name: p.name || "", handle: p.handle || "", avatar: p.avatar || "",
+             likes: likesOf(c.cid),
+             liked: rows("comment_likes").some(function (l) {
+               return l.comment_id === c.cid && l.user_id === UID; }),
+             mine: c.user_id === UID };
+  }
+  // `social.comments`: most liked then newest, replies oldest first under them.
+  function commentsBody(q, m) {
+    var all = commentRows(q, m).sort(function (a, b) { return a.at - b.at; });
+    var tops = [], byId = {};
+    all.forEach(function (c) {
+      var d = commentDict(c);
+      if (c.parent_id) { if (byId[c.parent_id]) byId[c.parent_id].replies.push(d); return; }
+      d.replies = []; byId[c.cid] = d; tops.push(d);
+    });
+    return tops.sort(function (a, b) { return (b.likes - a.likes) || (b.at - a.at); });
+  }
+  __PREVIEW_PICTURE__
+
   function exploreBody(limit) {
     var labels = {};
     rows("echoes").forEach(function (e) {
@@ -1029,7 +1057,8 @@ __MIX_ITEMS__
           title: String(s.query).charAt(0).toUpperCase() + String(s.query).slice(1),
           minutes: s.minutes, plays: s.hits || 0, thread: s.thread || "",
           age_seconds: Math.max(0, now() - s.created),
-          vibed: !!labels[s.query]
+          vibed: !!labels[s.query],
+          comments: commentRows(s.query, s.minutes).length
         };
       });
     return { episodes: eps };
@@ -1326,6 +1355,70 @@ __WRITING_SIM__
     }
     if (path === "/api/messages/typing") return json({ ok: true });
     if (path === "/api/explore") return json(exploreBody(Number(qs.get("limit") || 30)));
+
+    // ---- comments on an episode (10.5 #8), in the artifact db so every
+    // viewer of this page reads one thread per episode, as `social.comments`
+    // gives everyone who hears it. Reading is open; writing and liking take
+    // an account; only the author deletes.
+    if (path === "/api/comments" && method === "GET") {
+      var cq = qs.get("q") || "", cm = Number(qs.get("minutes") || 3);
+      var tops = commentsBody(cq, cm);
+      return json({ comments: tops, count: commentRows(cq, cm).length });
+    }
+    if (path === "/api/comments" && method === "POST") {
+      if (!EMAIL) return json({ detail: ACCOUNT_REQUIRED }, 401);
+      var text = String(body.text || "").replace(/\s+/g, " ").trim().slice(0, 500);
+      if (!text) return json({ detail: "Write something first." }, 400);
+      var parent = 0;
+      if (body.parent_id) {
+        var host = rows("comments").filter(function (c) { return c.cid === Number(body.parent_id); })[0];
+        if (!host || host.query !== body.query || host.minutes !== Number(body.minutes)) {
+          return json({ detail: "That comment is not here any more." }, 400);
+        }
+        parent = host.parent_id || host.cid;
+      }
+      // Numbers, as the server's are: the page writes them into onclick.
+      var cid = Math.floor(Date.now() * 100 + Math.random() * 100);
+      var row = { cid: cid, user_id: UID, query: String(body.query || ""),
+                  minutes: Number(body.minutes || 3), parent_id: parent, text: text, at: now() };
+      return put("comments", String(cid), row).then(function () {
+        return json(commentDict(row));
+      });
+    }
+    var likeM = /^\/api\/comments\/(\d+)\/like$/.exec(path);
+    if (likeM) {
+      if (!EMAIL) return json({ detail: ACCOUNT_REQUIRED }, 401);
+      var lid = Number(likeM[1]), likeDoc = UID + "_" + lid;
+      var job = body.on === false ? del("comment_likes", likeDoc)
+        : put("comment_likes", likeDoc, { user_id: UID, comment_id: lid, at: now() });
+      return job.then(function () {
+        return json({ id: lid, likes: likesOf(lid), liked: body.on !== false });
+      });
+    }
+    var delM = /^\/api\/comments\/(\d+)$/.exec(path);
+    if (delM && method === "DELETE") {
+      var did = Number(delM[1]);
+      var own = rows("comments").filter(function (c) { return c.cid === did; })[0];
+      if (!own || own.user_id !== UID) return json({ ok: false });
+      var gone = rows("comments").filter(function (c) { return c.cid === did || c.parent_id === did; });
+      var jobs = [];
+      gone.forEach(function (c) {
+        rows("comment_likes").forEach(function (l) {
+          if (l.comment_id === c.cid) jobs.push(del("comment_likes", l.id));
+        });
+        jobs.push(del("comments", c.id));
+      });
+      return Promise.all(jobs).then(function () { return json({ ok: true }); });
+    }
+
+    // The picture behind the reel and the player (`/api/episode/card`). The
+    // server picks an approved photo; this page has none, so it draws the
+    // tile's own line art for the words, which is what a tile without a
+    // photo shows.
+    if (path === "/api/episode/card") {
+      return json({ thumb: previewPicture((qs.get("q") || "") + " " + (qs.get("title") || "")),
+                    fallback: false, searcher: "" });
+    }
     if (path === "/api/myfam/catalog") return json(catalogBody());
     if (path === "/api/myfam/search") return json(myfamSearchBody(qs.get("q") || ""));
     // The search box's trending searches (10.1 #3): searched episodes still
@@ -1445,7 +1538,9 @@ __WRITING_SIM__
       var id = already ? already.id : rid();
       return put("echoes", id, {
         user_id: UID, query: body.query, title: body.title || "",
-        minutes: body.minutes || 3, thread: body.thread || "", at: now()
+        minutes: body.minutes || 3, thread: body.thread || "", at: now(),
+        // The line said with it (10.5 #9), cut and replaced as the server does.
+        caption: String(body.caption || "").replace(/\s+/g, " ").trim().slice(0, 150)
       }).then(function () { paint(); return json({ id: id, query: body.query, at: now() }); });
     }
 
@@ -1460,7 +1555,7 @@ __WRITING_SIM__
       return json({ count: mine.length, folders: window.__famVibeFolders || [],
                     vibes: mine.map(function (e) {
         return { id: e.id, query: e.query, title: e.title, minutes: e.minutes,
-                 thread: e.thread || "", at: e.at,
+                 thread: e.thread || "", at: e.at, caption: e.caption || "",
                  by: who.name || "", handle: who.handle || "",
                  folder_id: vfiles[e.query + "|" + (e.minutes || 0)] || "" };
       }) });
@@ -2166,12 +2261,15 @@ __WRITING_SIM__
     mixes:    ["name", "user_id", "items", "public"],
     echoes:   ["user_id", "query", "minutes", "at"],
     prefs:    ["id", "interests", "city", "country"],
-    feedback: ["state", "text", "screen", "created"]
+    feedback: ["state", "text", "screen", "created"],
+    comments: ["user_id", "query", "minutes", "parent_id", "text", "at"],
+    comment_likes: ["user_id", "comment_id", "at"]
   };
   var FILE = {
     events: "myfam.db", scripts: "scripts.db", people: "social.db",
     sessions: "accounts.db", accounts: "accounts.db", mixes: "mixes.db",
-    echoes: "social.db", prefs: "preferences.db", feedback: "feedback.db"
+    echoes: "social.db", prefs: "preferences.db", feedback: "feedback.db",
+    comments: "social.db", comment_likes: "social.db"
   };
   var fresh = {}, lastSeenIds = {};
 
@@ -2708,6 +2806,7 @@ def build() -> pathlib.Path:
             .replace("__FIXTURES__", json.dumps(bp.load_fixtures()))
             .replace("__ALGO__", json.dumps(topics.ALGO_VERSION))
             .replace("__MIX_ITEMS__", bp.mix_items_js())
+            .replace("__PREVIEW_PICTURE__", bp.PREVIEW_PICTURE_JS)
             .replace("__SHARE_TEMPLATES__", json.dumps([
                 {"key": t.key, "label": t.label, "kind": t.kind,
                  "needs_image": t.needs_image, "text": t.template,

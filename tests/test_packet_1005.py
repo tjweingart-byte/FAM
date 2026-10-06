@@ -286,3 +286,31 @@ def test_deleting_an_account_leaves_no_likes_on_replies_it_hosted(store):
     left = store._conn().execute("SELECT COUNT(*) FROM comment_likes").fetchone()[0]
     assert left == 0
     assert store.comment_counts_many([("why tides turn", 3)]) == {("why tides turn", 3): 0}
+
+
+# --- the 10.5 packet, checked again (§209) ----------------------------------
+
+def test_a_guests_comment_sheet_hides_the_box_behind_the_sign_up():
+    # `.rc-compose{display:flex}` outranked `hidden`, so a guest saw the box
+    # drawn over "Sign up to comment".
+    assert ".rc-compose[hidden], .rc-emoji[hidden], .rc-gate[hidden]{ display:none; }" in INDEX
+
+
+@pytest.mark.parametrize("builder", ["build_preview.py", "build_live_preview.py"])
+def test_both_previews_answer_comments_the_card_and_a_caption(builder):
+    # Without these the owner's preview could not show 10.5 #8 and #9: the
+    # sheet said "Could not load the comments", the reel had no picture,
+    # and a vibe's caption was dropped.
+    src = (ROOT / "preview" / builder).read_text()
+    assert 'path === "/api/comments" && method === "GET"' in src
+    assert 'path === "/api/comments" && method === "POST"' in src
+    assert "\\/like$/" in src
+    assert 'path === "/api/episode/card"' in src
+    assert "previewPicture(" in src
+    assert "caption: String(" in src
+
+
+def test_the_live_preview_keeps_comments_in_the_shared_db():
+    # Everybody who opens the page reads one thread, as on the server.
+    src = (ROOT / "preview" / "build_live_preview.py").read_text()
+    assert '"comments", "comment_likes"]' in src
