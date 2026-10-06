@@ -269,9 +269,27 @@
   .ab-how{ margin-top:110px; }
   .ab-sec-head{ text-align:center; margin-bottom:24px; }
   .ab-sec-head .ab-sub{ margin-left:auto; margin-right:auto; }
-  .feat{ display:grid; grid-template-columns:1fr; gap:34px; align-items:center; padding:46px 0;
-    border-top:1px solid var(--line); }
-  .feat:first-of-type{ border-top:0; }
+  .feat{ display:grid; grid-template-columns:1fr; gap:34px; align-items:center; padding:30px 0 10px; }
+  /* The three features share one place and take turns in it: stacked in one
+     grid cell, so the carousel is as tall as the tallest and never jumps. */
+  .feat-carousel{ position:relative; display:grid; grid-template-columns:auto 1fr auto; grid-template-areas:"s s s" "p d n";
+    align-items:center; row-gap:6px; }
+  .feat-slides{ grid-area:s; display:grid; }
+  .feat-slides .feat{ grid-area:1/1; opacity:0; visibility:hidden; transform:translateX(18px);
+    transition:opacity .5s ease, transform .5s ease, visibility 0s linear .5s; }
+  .feat-slides .feat[data-on]{ opacity:1; visibility:visible; transform:none;
+    transition:opacity .5s ease, transform .5s ease, visibility 0s; }
+  .feat-arrow{ position:relative; z-index:3; width:46px; height:46px; border-radius:50%; border:1px solid var(--line); background:var(--card);
+    color:var(--text); display:inline-flex; align-items:center; justify-content:center; cursor:pointer; padding:0;
+    box-shadow:0 8px 20px rgba(0,0,0,0.3); transition:border-color .2s, color .2s; }
+  .feat-arrow:hover, .feat-arrow:focus-visible{ border-color:var(--gold); color:var(--gold); }
+  .feat-arrow svg{ width:22px; height:22px; }
+  .feat-prev{ grid-area:p; }
+  .feat-next{ grid-area:n; }
+  .feat-dots{ grid-area:d; display:flex; justify-content:center; gap:10px; }
+  .feat-dots button{ width:9px; height:9px; padding:0; border:0; border-radius:999px; background:var(--line); cursor:pointer;
+    transition:width .3s, background .3s; }
+  .feat-dots button[aria-current]{ width:26px; background:var(--gold); }
   .feat-num{ color:var(--gold); font-size:15px; margin-bottom:12px; }
   .feat-h{ font-family:'Bricolage Grotesque', sans-serif; font-weight:400; font-size:clamp(26px, 4.4vw, 36px); line-height:1.12;
     margin:0 0 14px; color:#F6F0E4; text-wrap:balance; }
@@ -381,8 +399,9 @@
       .pipeline{ grid-template-columns:1.4fr auto 1fr; }
     .pipe-arrow{ transform:none; }
     .ab-compare{ grid-template-columns:1fr 1fr; gap:18px; }
-    .feat{ grid-template-columns:1.05fr 1fr; gap:64px; padding:64px 0; }
-    .feat-flip .feat-copy{ order:2; }
+    .feat{ grid-template-columns:1.05fr 1fr; gap:64px; padding:40px 0 10px; }
+    /* Arrows at the left and right edges, level with the feature. */
+    .feat-carousel{ grid-template-columns:auto 1fr auto; grid-template-areas:"p s n" ". d ."; column-gap:22px; }
     .fr-cards{ grid-template-columns:repeat(3, 1fr); gap:18px; }
     .ab-founders{ grid-template-columns:1fr 1.1fr; gap:64px; }
   }
@@ -391,6 +410,7 @@
     .hero-more svg{ animation:none; }
     .pass-track{ animation:none; flex-wrap:wrap; justify-content:center; width:auto; }
     .pass-card[aria-hidden="true"]{ display:none; }
+    .feat-slides .feat, .feat-slides .feat[data-on]{ transform:none; transition:none; }
   }
 
   /* ---------- status ---------- */
@@ -618,9 +638,9 @@
           <figcaption class="ba-label off">Without FAM</figcaption>
           <div class="convo">
               <div class="convo-head"><span class="label">#team</span><span>Monday, 9:04 AM</span></div>
-              <div class="msg"><span class="who" style="background:#8FAE9A">JR</span><p><b>Jordan</b>Did anyone see the end of that game last night?</p></div>
-              <div class="msg"><span class="who" style="background:#F2D2B6">MB</span><p><b>Maya</b>That ninth inning was unreal.</p></div>
-              <div class="msg"><span class="who" style="background:#C9B6F0">SP</span><p><b>Sam</b>Still can’t believe how it ended.</p></div>
+              <div class="msg"><span class="who" style="background:#8FAE9A">JR</span><p><b>Jordan</b>I can’t believe what came out about that NFL head coach.</p></div>
+              <div class="msg"><span class="who" style="background:#F2D2B6">MB</span><p><b>Maya</b>I know, they kept that affair quiet for a long time.</p></div>
+              <div class="msg"><span class="who" style="background:#C9B6F0">SP</span><p><b>Sam</b>I can’t believe they got caught on that hotel rooftop!</p></div>
               <div class="msg me lost"><p><b>You</b>Wait… what happened?</p><span class="who">You</span></div>
             </div>
         </figure>
@@ -628,10 +648,10 @@
           <figcaption class="ba-label on">With FAM</figcaption>
           <div class="convo">
               <div class="convo-head"><span class="label">#team</span><span>Monday, 9:04 AM</span></div>
-              <div class="msg"><span class="who" style="background:#8FAE9A">JR</span><p><b>Jordan</b>Did anyone see the end of that game last night?</p></div>
-              <div class="msg"><span class="who" style="background:#F2D2B6">MB</span><p><b>Maya</b>That ninth inning was unreal.</p></div>
-              <div class="msg"><span class="who" style="background:#C9B6F0">SP</span><p><b>Sam</b>Still can’t believe how it ended.</p></div>
-              <div class="msg me in"><p><b>You</b>I heard all about it this morning. Can’t believe they came back in the ninth!</p><span class="who">You</span></div>
+              <div class="msg"><span class="who" style="background:#8FAE9A">JR</span><p><b>Jordan</b>I can’t believe what came out about that NFL head coach.</p></div>
+              <div class="msg"><span class="who" style="background:#F2D2B6">MB</span><p><b>Maya</b>I know, they kept that affair quiet for a long time.</p></div>
+              <div class="msg"><span class="who" style="background:#C9B6F0">SP</span><p><b>Sam</b>I can’t believe they got caught on that hotel rooftop!</p></div>
+              <div class="msg me in"><p><b>You</b>I remember the rumors from a while ago, but I can’t believe they turned out to be true.</p><span class="who">You</span></div>
               <div class="convo-note on"><span class="fam-dot"></span>Caught up on FAM this morning · 2 min</div>
             </div>
         </figure>
@@ -689,8 +709,12 @@
           every episode is yours.</p>
       </header>
 
+      <!-- One feature at a time: it turns every ten seconds, and the arrows
+           either side turn it by hand. -->
+      <div class="feat-carousel reveal" id="featCarousel" role="region" aria-roledescription="carousel" aria-label="Three ways to listen">
+        <div class="feat-slides" id="featSlides" aria-live="off">
       <!-- 01 Search -->
-      <article class="feat reveal">
+      <article class="feat" id="feat0" role="group" aria-roledescription="slide" aria-label="1 of 3: Search" data-on="">
         <div class="feat-copy">
           <div class="feat-num label">01 · Search</div>
           <h3 class="feat-h">Ask for exactly the episode you want.</h3>
@@ -706,9 +730,8 @@
           <div class="shots two"><figure class="shot shot-back"><img src="/landing/player.jpg" alt="The player: your episode's picture, title, and Go Deeper" width="780" height="1627" loading="lazy"></figure><figure class="shot shot-front"><img src="/landing/search.jpg" alt="FAM search: ask anything, with trending searches underneath" width="780" height="1688" loading="lazy"></figure><span class="shot-tag">Your episode, made for you</span></div>
         </div>
       </article>
-
       <!-- 02 DailyFAM -->
-      <article class="feat feat-flip reveal">
+      <article class="feat" id="feat1" role="group" aria-roledescription="slide" aria-label="2 of 3: DailyFAM" aria-hidden="true" inert>
         <div class="feat-copy">
           <div class="feat-num label">02 · DailyFAM</div>
           <h3 class="feat-h">A page that refreshes all day long.</h3>
@@ -725,9 +748,8 @@
           <div class="shots two"><figure class="shot shot-back"><img src="/landing/dailyfam-rails.jpg" alt="DailyFAM's Trending and What you missed last week rails" width="780" height="1688" loading="lazy"></figure><figure class="shot shot-front"><img src="/landing/dailyfam.jpg" alt="DailyFAM: your friends, pick up where you left off, and Made for you" width="780" height="1688" loading="lazy"></figure><span class="shot-tag">The latest, all in one place</span></div>
         </div>
       </article>
-
       <!-- 03 myFAM -->
-      <article class="feat reveal">
+      <article class="feat" id="feat2" role="group" aria-roledescription="slide" aria-label="3 of 3: myFAM" aria-hidden="true" inert>
         <div class="feat-copy">
           <div class="feat-num label">03 · myFAM</div>
           <h3 class="feat-h">Your topics, mixed and played in one tap.</h3>
@@ -743,6 +765,11 @@
           <div class="shots two"><figure class="shot shot-back"><img src="/landing/myfam-mixes.jpg" alt="myFAM: your mixes" width="780" height="1688" loading="lazy"></figure><figure class="shot shot-front"><img src="/landing/myfam-mix.jpg" alt="A myFAM mix with today’s edition ready to play" width="780" height="1688" loading="lazy"></figure><span class="shot-tag">Your mix, your way, made daily</span></div>
         </div>
       </article>
+        </div>
+        <button type="button" class="feat-arrow feat-prev" aria-label="Previous feature" aria-controls="featSlides"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg></button>
+        <button type="button" class="feat-arrow feat-next" aria-label="Next feature" aria-controls="featSlides"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
+        <div class="feat-dots" id="featDots"><button type="button" data-i="0" aria-label="Show Search" aria-current="true"></button><button type="button" data-i="1" aria-label="Show DailyFAM"></button><button type="button" data-i="2" aria-label="Show myFAM"></button></div>
+      </div>
     </section>
 
 
@@ -1046,6 +1073,39 @@
   /* ---------------- what is FAM ---------------- */
   // Sections ease up as they scroll into view. They are never hidden while
   // they wait, so a link preview or a browser without an observer sees all.
+  // How to use FAM, one feature at a time: it turns itself every ten seconds,
+  // and the arrows or dots turn it by hand and restart the ten seconds. It
+  // waits while the tab is hidden.
+  var FEATURE_SECONDS = 10;
+  function turnFeatures(){
+    var box = $("featCarousel");
+    if(!box) return;
+    var slides = box.querySelectorAll(".feat"), dots = box.querySelectorAll(".feat-dots button");
+    var at = 0, timer = null;
+    function show(i){
+      at = (i + slides.length) % slides.length;
+      Array.prototype.forEach.call(slides, function(el, k){
+        if(k === at){ el.setAttribute("data-on", ""); el.removeAttribute("aria-hidden"); el.inert = false; }
+        else { el.removeAttribute("data-on"); el.setAttribute("aria-hidden", "true"); el.inert = true; }
+      });
+      Array.prototype.forEach.call(dots, function(d, k){
+        if(k === at) d.setAttribute("aria-current", "true"); else d.removeAttribute("aria-current");
+      });
+    }
+    function restart(){
+      clearInterval(timer);
+      timer = document.hidden ? null : setInterval(function(){ show(at + 1); }, FEATURE_SECONDS * 1000);
+    }
+    box.querySelector(".feat-prev").addEventListener("click", function(){ show(at - 1); restart(); });
+    box.querySelector(".feat-next").addEventListener("click", function(){ show(at + 1); restart(); });
+    $("featDots").addEventListener("click", function(ev){
+      var i = ev.target && ev.target.getAttribute("data-i");
+      if(i !== null && i !== undefined && i !== ""){ show(Number(i)); restart(); }
+    });
+    document.addEventListener("visibilitychange", restart);
+    show(0);
+    restart();
+  }
   function showAbout(){
     var items = document.querySelectorAll(".reveal");
     if("IntersectionObserver" in window){
@@ -1065,6 +1125,7 @@
         field.focus({ preventScroll: true });
       }, 500);
     }
+    turnFeatures();
     $("aboutJoin").addEventListener("click", toForm);
     document.querySelector(".hero-more").addEventListener("click", function(ev){
       ev.preventDefault();

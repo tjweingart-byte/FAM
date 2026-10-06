@@ -728,5 +728,27 @@ def test_the_morning_after_says_it_before_it_shows_it():
     # Beside it, the same chat with FAM: you're in it.
     assert (morning.index('<figcaption class="ba-label off">Without FAM</figcaption>')
             < morning.index('<figcaption class="ba-label on">With FAM</figcaption>'))
-    assert '<div class="msg me in"><p><b>You</b>I heard all about it this morning.' in morning
+    assert '<div class="msg me in"><p><b>You</b>I remember the rumors from a while ago' in morning
     assert 'class="ab-wrap ab-payoff' not in page
+    # The story is the niche kind you only know if you kept up, not a score.
+    assert "NFL head coach" in morning and "hotel rooftop" in morning
+    assert "ninth" not in morning
+
+
+def test_how_to_use_fam_is_one_feature_at_a_time():
+    page = (ROOT / "static" / "waitlist.html").read_text(encoding="utf-8")
+    how = page.split('class="ab-wrap ab-how"', 1)[1].split("</section>", 1)[0]
+    carousel = how.split('id="featCarousel"', 1)[1]
+    # The three features take turns in one carousel; the first shows, the
+    # others are hidden from sight, screen readers and the keyboard.
+    assert carousel.count('<article class="feat"') == 3
+    assert carousel.count(" data-on=") == 1
+    assert carousel.count('aria-hidden="true" inert') == 2
+    assert "feat-flip" not in page
+    # Arrows at the left and right turn it by hand; it turns itself every ten seconds.
+    assert carousel.index('class="feat-arrow feat-prev"') < carousel.index('class="feat-arrow feat-next"')
+    assert "var FEATURE_SECONDS = 10;" in page
+    assert "setInterval(function(){ show(at + 1); }, FEATURE_SECONDS * 1000)" in page
+    turn = page.split("function turnFeatures(){", 1)[1].split("\n  }\n", 1)[0]
+    assert turn.count("restart(); }") == 3  # a hand turn restarts the ten seconds
+    assert "turnFeatures();" in page.split("function showAbout(){", 1)[1]
