@@ -282,7 +282,7 @@ services:
       - key: GDELT
         value: "1"
       # Read from GDELT's 15-minute export files, never its search API
-      # (§209): one download every fifteen minutes whatever the traffic, and
+      # (§211): one download every fifteen minutes whatever the traffic, and
       # every story sweep and fallback search reads the copy on the disk.
       # The search API's per-address limit (§191, §207) no longer applies.
       #

@@ -272,7 +272,7 @@ def test_the_ways_of_writing_a_country_are_one_country():
 
 
 def test_gdelt_articles_carry_the_publishers_country():
-    """Since §209 from GDELT's own domain list, else the domain's country
+    """Since §211 from GDELT's own domain list, else the domain's country
     code; a `.com` nobody placed has no country rather than a guess."""
     known = gdelt.parse_domains("lemonde.fr\tFR\tFrance\nnytimes.com\tUS\tUnited States\n")
     assert gdelt.domain_country("nytimes.com", known) == "united states"

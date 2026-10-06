@@ -4,6 +4,7 @@
     python tools/categories_report.py --tree       # drawn as a tree
     python tools/categories_report.py --dry-run    # what one sweep would mint
     python tools/categories_report.py --json
+    python tools/categories_report.py --audit      # how often categorisers agree
 
 `topics.py` ships with eight facets and twenty-nine subtags, all hand-written.
 `categories.py` grows the rest from what listeners actually search for, and
@@ -84,6 +85,49 @@ def dry_run(store: cat.CategoryStore, days: int) -> list:
     return cat.promote(scratch, texts)
 
 
+def _pct(rate) -> str:
+    return "no data" if rate is None else f"{rate * 100:.0f}%"
+
+
+def audit(days: int, as_json: bool) -> int:
+    """How often FAM's categorisers agree about written episodes (§209)."""
+    import category_audit
+
+    found = category_audit.summary(days=days)
+    if as_json:
+        print(json.dumps(found, indent=2))
+        return 0
+    print(f"  {found['episodes']} written episode(s) in the last {days} days"
+          f"  {found['by_origin']}")
+    if not found["episodes"]:
+        print("  Nothing logged yet: the audit starts with the first episode"
+              " written after §209.")
+        return 0
+    print(f"  the writer named a category for {found['worded']};"
+          f" the tree placed {found['placed']} ({_pct(found['placed_rate'])})")
+    print(f"  writer agrees with the composer on the facet:"
+          f" {_pct(found['writer_vs_composer'])}"
+          f" of {found['with_composer']}")
+    print(f"  writer's facet is one the keyword map found:"
+          f" {_pct(found['writer_vs_keywords'])}"
+          f" of {found['with_keywords']}")
+    if found["composer_to_writer"]:
+        print()
+        print("  composer -> writer, where they disagree:")
+        for pair in found["composer_to_writer"][:12]:
+            print(f"    {pair['composer']:14} -> {pair['writer']:14}"
+                  f" {pair['episodes']}")
+    for name, rows in found["examples"].items():
+        if not rows:
+            continue
+        print()
+        print(f"  {name.replace('_', ' ')}:")
+        for row in rows:
+            rest = ", ".join(f"{k}={v!r}" for k, v in row.items() if k != "query")
+            print(f"    {row['query'][:60]!r}  {rest}")
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--tree", action="store_true",
@@ -95,7 +139,13 @@ def main() -> int:
     parser.add_argument("--json", action="store_true")
     parser.add_argument("--seed", action="store_true",
                         help="apply the starter vocabulary, then report")
+    parser.add_argument("--audit", action="store_true",
+                        help="how often the writer, the composer and the"
+                             " keyword map agree (§209)")
     args = parser.parse_args()
+
+    if args.audit:
+        return audit(args.days, args.json)
 
     store = cat.CategoryStore()
     if args.seed:

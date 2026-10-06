@@ -80,7 +80,7 @@ def _plans() -> dict:
             "no daily cap to buy; a second key adds rate"),
         "gdelt": (
             "export files, no per-address limit: ~2 requests per 15 min "
-            "(~200/day), whatever the traffic (§209)",
+            "(~200/day), whatever the traffic (§211)",
             "no paid plan; none needed"),
         "polymarket": (
             "keyless; no published daily cap",

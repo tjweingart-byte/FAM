@@ -848,7 +848,7 @@ async def lookup(brief, notes=None) -> Optional[LiveLookup]:
 
 
 def wants_forecast(brief) -> bool:
-    """Whether a brief's question is one a market forecast belongs beside (§209).
+    """Whether a brief's question is one a market forecast belongs beside (§211).
 
     Every question whose answer turns on an outcome - EI's `outcome_dependent`
     - not only elections: a Fed decision, a final, a war, a ruling. Except:
@@ -879,7 +879,7 @@ def forecasters() -> list:
 
 
 async def forecast(brief, notes=None) -> Optional[LiveLookup]:
-    """What the markets expect, for a question that turns on an outcome (§209).
+    """What the markets expect, for a question that turns on an outcome (§211).
 
     Asked beside `lookup`, never instead of it: a scoreboard answers what
     happened, and a forecast only what people expect, so the two are separate

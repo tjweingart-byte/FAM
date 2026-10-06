@@ -591,11 +591,19 @@ def extract_title(text: str) -> str:
 
 
 def extract_category(text: str) -> str:
-    """The writer's `<<CATEGORY:>>` words, or "" when it wrote none (§189)."""
+    """The writer's `<<CATEGORY:>>` words, or "" when it wrote none (§189).
+
+    Scrubbed like the title and summary beside it (§209): it is shown to
+    nobody, but it is stored, resolved and logged, and it was the one marker
+    that skipped the filter. Words with nothing a category could be made of
+    (no letters at all) are "" rather than stored."""
     match = _CATEGORY_MARKER.search(text)
     if not match:
         return ""
-    return re.sub(r"\s+", " ", match.group(1)).strip(" .\"'")[:60]
+    words = re.sub(r"\s+", " ", match.group(1)).strip(" .\"'")[:60]
+    if not re.search(r"[a-z]", words, re.I):
+        return ""
+    return content_filter.scrub(words)
 
 
 def extract_summary(text: str) -> str:
@@ -686,7 +694,7 @@ class EpisodePlan:
     #: key**: it is derived from the request, not part of it.
     local: object = None
     #: What prediction markets expect, when the answer turns on an outcome
-    #: (§209): a `live_facts.LiveLookup` from `live_facts.forecast`, or None.
+    #: (§211): a `live_facts.LiveLookup` from `live_facts.forecast`, or None.
     #: Beside `live`, never in its place - a scoreboard says what happened, a
     #: market only what people expect - and never evidence of an outcome.
     #: **Never in the cache key**: it is derived from the request.
@@ -852,6 +860,18 @@ and none may be supplied from memory. A short episode is the right one here.
 """
 
 
+def stories_vocabulary(text: str) -> list:
+    """`stories.writer_vocabulary`, imported where it is used: `stories`
+    reaches the composer's client, which this module has no need of at
+    import time. Never raises."""
+    try:
+        import stories
+
+        return stories.writer_vocabulary(text)
+    except Exception:  # noqa: BLE001 - a hint, never a reason to fail a script
+        return []
+
+
 def build_prompt(plan: EpisodePlan) -> str:
     budget = plan.body_budget
     attached = ""
@@ -956,7 +976,7 @@ for the script.
             log.warning("a live-facts block could not be rendered; continuing "
                         "without it", exc_info=True)
             live = ""
-    # A market forecast (§209), after the live state it never outranks. Its
+    # A market forecast (§211), after the live state it never outranks. Its
     # own block says the articles win; only a found forecast is rendered.
     if plan.forecast is not None:
         try:
@@ -1071,6 +1091,19 @@ never spoken.
 
     local = build_local_block(plan)
 
+    # The names FAM files episodes under (§209), from the branches this
+    # question points at, so the category the writer gives is one the tree
+    # can place rather than words `resolve_category` has to guess at. In this
+    # user turn, never the cached system prompt: it changes as the tree grows.
+    vocabulary = stories_vocabulary(
+        " ".join([plan.query, getattr(plan.brief, "subject", "") or ""]))
+    categories = ""
+    if vocabulary:
+        categories = ("FAM files episodes under names like these. If the "
+                      "most specific true one is here, use its exact words; "
+                      "if none is specific enough, use your own:\n"
+                      + "\n".join(vocabulary) + "\n")
+
     return f"""Someone just asked FAM this:
 
 <request>{plan.query}</request>
@@ -1113,7 +1146,7 @@ whether to come back to it - the subject and the angle, no tease, no question:
 Name the most specific kind of thing it is about, in two to four plain words - \
 "heavyweight boxing", "nutrition", "premier league football", never just \
 "sport" or "news":
-
+{categories}
 <<CATEGORY: two to four words>>
 
 And predict the single most likely thing they would go on to ask, having heard
@@ -1641,7 +1674,7 @@ class ScriptGenerator:
     async def forecast_lookup(self, plan: EpisodePlan,
                               notes: ScriptNotes | None = None) -> EpisodePlan:
         """What prediction markets expect, when the brief says the answer
-        turns on an outcome (§209). Alongside retrieval like `live_lookup`,
+        turns on an outcome (§211). Alongside retrieval like `live_lookup`,
         and bounded the same way, so it adds no wait in front of the first
         word that retrieval was not already costing."""
         if plan.brief is None or plan.forecast is not None:

@@ -411,6 +411,9 @@ def isolated_stores(tmp_path, monkeypatch):
 
     monkeypatch.setattr(appmod, "FEEDBACK",
                         feedback_mod.FeedbackStore(str(here / "feedback.db")))
+    # A written story's category, memoised for the ranker (§209), is a read
+    # of the script cache a test replaces - one test's must not be the next's.
+    appmod._WRITTEN_CATEGORY_MEMO.clear()
 
 
 @pytest.fixture(autouse=True)
@@ -497,7 +500,7 @@ def isolated_api_sports(monkeypatch):
 
 @pytest.fixture(autouse=True)
 def isolated_gdelt_export(tmp_path, monkeypatch):
-    """GDELT's export copy (§209), per test - one test's articles must not be
+    """GDELT's export copy (§211), per test - one test's articles must not be
     the next one's, and the suite must never write `gdelt_export.db` into the
     project root."""
     import gdelt as gdelt_mod

@@ -17,7 +17,7 @@ document, this document follows the code:
 
 - It says "fourteen" stores. There are **twenty-one** (§2). It is missing
   `voice_bank.db`, `trending_bank.db`, `thumbnails.db`, `provider_usage.db`,
-  `feedback.db`, `local_news.db` and `gdelt_export.db` (§209).
+  `feedback.db`, `local_news.db` and `gdelt_export.db` (§211).
 - It says the `share` event is dropped. It is not; it is an event with a
   taste weight.
 - It says location is not stored. It is (`preferences.city/region/country`).
@@ -76,7 +76,7 @@ flowchart TB
 **No listener data is stored on RunPod.** The worker receives text and a voice
 id and returns PCM, and it keeps neither. The exception is the all-in-one
 `Dockerfile.gpu` image, which puts SQLite on `/state/data`. It is not the
-Render deployment; since §208 it pins every store there (21 since §209), as the Render
+Render deployment; since §208 it pins every store there (21 since §211), as the Render
 `Dockerfile` does to `/data` (`tests/test_data_paths.py` checks both).
 
 ---
@@ -124,7 +124,7 @@ Render deployment; since §208 it pins every store there (21 since §209), as th
 | **provider_usage.db** (`PROVIDER_USAGE_DB`) | `provider_usage.py` | `calls` | No, shared | Forever | n/a · **never wiped** (like metering) |
 | **thumbnails.db** (`THUMBNAILS_DB`) | `thumbnails.py` | `thumbnails`, `spend`, `runs` | No, shared | ≤ 1 picture per tree node | n/a · kept |
 | **local_news.db** (`LOCAL_NEWS_DB`) | `local_news.py`, `places.py`, `weather.py` | `outlets`, `items`, `demand`, `excluded`, `places`, `weather` | No (no `user_id`) | Items pruned daily past 30 days (`LOCAL_NEWS_KEEP_DAYS`, never below the 14-day window; each outlet keeps its newest 200, §208); demand 30 days | n/a · kept |
-| **gdelt_export.db** (`GDELT_EXPORT_DB`, §209) | `gdelt.py` (`ExportStore`) | `files`, `articles`, `theme_counts`, `domains`, `meta` | No, shared | 24 hours of GDELT's 15-minute export files (`GDELT_EXPORT_KEEP_HOURS`), ≤ 1,500 articles per file | n/a · kept |
+| **gdelt_export.db** (`GDELT_EXPORT_DB`, §211) | `gdelt.py` (`ExportStore`) | `files`, `articles`, `theme_counts`, `domains`, `meta` | No, shared | 24 hours of GDELT's 15-minute export files (`GDELT_EXPORT_KEEP_HOURS`), ≤ 1,500 articles per file | n/a · kept |
 
 ### 2.2 Each store: what it holds, who writes it, who reads it
 
@@ -270,7 +270,7 @@ stored**; it is computed from `events` and `preferences` on each request.
 provider: `api_sports` (and `api_sports/<sport>` per sport, §180), `exa`,
 `gdelt`, `polymarket`, `gnews`, `finnhub`, `nws`, `open_meteo`, `local_feeds`.
 Counted in memory and flushed at most every 10 s (`FLUSH_SECONDS`). Feeds
-`/admin`. Since §209 `gdelt` counts the export-file downloads (~200 a day,
+`/admin`. Since §211 `gdelt` counts the export-file downloads (~200 a day,
 whatever the traffic), never a listener's request. The licence check (§207, `provider_usage.licences()`) stores
 nothing: it reads `GNEWS_PLAN`, `FINNHUB_PLAN` and whether an Open-Meteo key
 is set, and reports `commercial_ready` on `/api/health`.
@@ -298,7 +298,7 @@ WebP **BLOB**), its scene, prompt, the checker's verdict, status; `spend`
   fetched on first ask and swept at 05:00 and 17:00 local time. US warnings
   are asked live, not stored.
 
-**gdelt_export.db** (`gdelt.ExportStore`, §209): FAM's own copy of GDELT's
+**gdelt_export.db** (`gdelt.ExportStore`, §211): FAM's own copy of GDELT's
 15-minute GKG 2.1 export files, written by one background job (`gdelt.sync`,
 every `GDELT_EXPORT_POLL_SECONDS` = 900). `files` (one row per file read),
 `articles` (title, domain, publisher country, themes, names; ≤ 1,500 per
@@ -377,7 +377,7 @@ source of truth.
 | Trending feed (legacy) | `trending._FEED` | Old GDELT themes | 15 min |
 | Live facts | `live_facts.FACT_CACHE` | Scores, quotes, odds | Short, by status (in progress shortest) |
 | API-Sports budgets | `live_sources.API_SPORTS_BUDGET` and per sport | Requests used today, per sport (§180) | Per UTC day, per process |
-| GDELT download state | `gdelt.STATE` | Last success, last attempt, failures in a row, last error, last file (§209; the §207 breaker is deleted) | Process lifetime |
+| GDELT download state | `gdelt.STATE` | Last success, last attempt, failures in a row, last error, last file (§211; the §207 breaker is deleted) | Process lifetime |
 | Provider counts (pending) | `provider_usage._PENDING` | Requests not yet flushed to `provider_usage.db` | ≤ 10 s |
 | Weather lookups | `weather._POINTS`, `weather._PLACES` | NWS grid points, resolved places | Process lifetime |
 | robots.txt | `local_news._ROBOTS` | Per-host robots answers | Process lifetime |
@@ -450,7 +450,7 @@ is never accepted from the client (`listener-id-server`).
 | DailyFAM edition | 300 episodes, **$15** per day, 3 at a time | `config.py:890-891`, `daily_edition.py:91` |
 | GNews | 90 requests per day | `config.py:967` |
 | API-Sports | Per sport, from each sport's tier (`API_SPORTS_TIERS`); `API_SPORTS_DAILY_REQUESTS` overrides (0 = the plan) | `config.py:992`, `live_sources.py` |
-| GDELT export copy | 24 hours kept, 1,500 articles per file, 8 files backfilled, polled every 900 s; stale after 1 h (§209; the breaker is deleted) | `config.py:820-831`, `gdelt.STALE_AFTER_SECONDS` |
+| GDELT export copy | 24 hours kept, 1,500 articles per file, 8 files backfilled, polled every 900 s; stale after 1 h (§211; the breaker is deleted) | `config.py:820-831`, `gdelt.STALE_AFTER_SECONDS` |
 | Pace per listener | 1 generation per 3 s, burst 3; 60 reads per window | `config.py:1456-1466` |
 | Tier quotas | free 5 episodes/day (`FREE_EPISODES_PER_DAY`). **On in production** (`ENFORCE_QUOTAS=1` in `render.yaml`, §207), off by default in code. Admins are `unlimited`. | `config.py:1487`, `entitlements.py:224` |
 | Waitlist referrals | ≤ 20 credited per code per hour | `WAITLIST_REFERRALS_PER_HOUR` |

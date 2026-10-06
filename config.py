@@ -795,7 +795,7 @@ class Settings:
     # pool's news. Keyless, so the only switch that matters is this one.
     #
     # **Read from GDELT's 15-minute export files, never its search API**
-    # (§209, at the owner's direction). The DOC API allows one request every
+    # (§211, at the owner's direction). The DOC API allows one request every
     # five seconds per address, and Render's address is shared: 384 of 384
     # failed on 1/10. The exports are plain files - one download every
     # fifteen minutes whatever the traffic - and everything FAM asks of GDELT

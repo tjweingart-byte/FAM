@@ -530,7 +530,7 @@ async def lifespan(_: FastAPI):
     # while it is still empty - the rails fall back to the evergreen bank and
     # say why. This just means the first listener usually does not see that.
     stories_mod.install()
-    # GDELT's export files (§209): the one job that downloads from GDELT,
+    # GDELT's export files (§211): the one job that downloads from GDELT,
     # once every fifteen minutes whatever the traffic. Everything else reads
     # its copy on disk. Started before the warming sweep, which reports the
     # GDELT source idle until the first file has landed.
@@ -904,7 +904,7 @@ def _database_report() -> list[dict]:
                            local_news_mod.store().path))
     except Exception:  # pragma: no cover - a report is never load-bearing
         pass
-    # GDELT's export copy (§209). Created by the first download, and reported
+    # GDELT's export copy (§211). Created by the first download, and reported
     # once it exists, like the stores above.
     try:
         import gdelt as gdelt_mod
@@ -4969,17 +4969,21 @@ def _categorise_written_tile(tile: dict, words: str) -> None:
                            else stories_mod.facet_for(node))
 
 
-def _written_category(query: str, minutes: int) -> str:
-    """The category-tree node the cached episode for `query` says it is
-    about (§189), or "" when it is not written, has none, or cannot be
-    placed. One local read; never a model call."""
-    if not query or SCRIPT_CACHE is None:
+def _episode_category(key: str) -> str:
+    """The category-tree node the cached episode under `key` says it is
+    about (§189), or "" when there is none or the tree cannot place it.
+
+    **The one reader of a written episode's category** (§209): the tile, the
+    player's picture, the ranking and the logged tags all come through here,
+    so one episode is filed under one node everywhere. The words are stored
+    as the writer put them and resolved against the tree as it is now, so a
+    tree that has grown since still places an older episode. One local read;
+    never a model call."""
+    if not key or SCRIPT_CACHE is None:
         return ""
     try:
-        key = _episode_key(_validated_plan(query, minutes))
-        words = (getattr(SCRIPT_CACHE, "category", lambda _k: "")(key)
-                 if key else "")
-    except Exception:  # noqa: BLE001 - a tag is never worth a failed event
+        words = getattr(SCRIPT_CACHE, "category", lambda _k: "")(key)
+    except Exception:  # noqa: BLE001 - a category is never worth a failure
         return ""
     if not words:
         return ""
@@ -4988,7 +4992,64 @@ def _written_category(query: str, minutes: int) -> str:
     return stories_mod.resolve_category(words)
 
 
-def _event_tags(topic_id: str, text: str, minutes: int) -> tuple:
+def _heard_key(query: str, minutes: int, episode: str = "") -> str:
+    """The cache key of the episode a request is about, or "".
+
+    The heard episode's id (`X-FAM-Episode`, §173) when the client sent one:
+    it names exactly what played, whatever its length, context or voice.
+    Else the question at `minutes` (§209 - this used to assume the browse
+    length, so a search at any other length never found its own category).
+    Never raises."""
+    if SCRIPT_CACHE is None:
+        return ""
+    try:
+        if episode and parse_episode_id(episode) is not None:
+            key = SCRIPT_CACHE.resolve_episode(episode)
+            if key:
+                return key
+        if not query or not minutes:
+            return ""
+        return _episode_key(_validated_plan(query, minutes)) or ""
+    except Exception:  # noqa: BLE001 - a lookup, never a failure
+        return ""
+
+
+def _written_category(query: str, minutes: int, episode: str = "") -> str:
+    """The category-tree node the cached episode for `query` (or the heard
+    `episode`) says it is about (§189), or "" when it is not written, has
+    none, or cannot be placed. One local read; never a model call."""
+    return _episode_category(_heard_key(query, minutes, episode))
+
+
+#: How long one live story's written category is remembered (§209). The
+#: ranker asks for every story in the pool on every browse page, and an
+#: episode that has just been written can wait this long to be re-filed.
+WRITTEN_CATEGORY_SECONDS = 60.0
+#: The memo's ceiling: the pool and the edition hold about fifty stories.
+MAX_WRITTEN_CATEGORY_MEMO = 2000
+_WRITTEN_CATEGORY_MEMO: dict[str, tuple[str, float]] = {}
+
+
+def _written_category_probe(query: str) -> str:
+    """`topics.set_written_category`'s source: the node a live story's
+    written episode (at the browse length, every live tile's) says it is
+    about, or "". Local reads, memoised briefly; never a model call."""
+    now = time.monotonic()
+    hit = _WRITTEN_CATEGORY_MEMO.get(query)
+    if hit is not None and now - hit[1] < WRITTEN_CATEGORY_SECONDS:
+        return hit[0]
+    node = _written_category(query, BROWSE_MINUTES)
+    if len(_WRITTEN_CATEGORY_MEMO) >= MAX_WRITTEN_CATEGORY_MEMO:
+        _WRITTEN_CATEGORY_MEMO.clear()
+    _WRITTEN_CATEGORY_MEMO[query] = (node, now)
+    return node
+
+
+topics_mod.set_written_category(_written_category_probe)
+
+
+def _event_tags(topic_id: str, text: str, minutes: int,
+                episode: str = "") -> tuple:
     """The tags an interaction is logged with: `topics.tags_for_id`, refined
     by what the written episode said it was about (§189).
 
@@ -5004,7 +5065,7 @@ def _event_tags(topic_id: str, text: str, minutes: int) -> tuple:
     if (topic_id in topics_mod.BANK_BY_ID
             or topic_id in topics_mod.CATALOGUE_BY_ID):
         return tags
-    node = _written_category(text, minutes)
+    node = _written_category(text, minutes, episode)
     if not node:
         return tags
     import stories as stories_mod
@@ -5250,7 +5311,9 @@ def _topic_is_written(query: str, minutes: int) -> bool:
 @app.get("/api/episode/card")
 async def episode_card(request: Request,
                        q: str = Query("", max_length=300),
-                       title: str = Query("", max_length=300)) -> dict:
+                       title: str = Query("", max_length=300),
+                       minutes: int = Query(0, ge=0, le=10),
+                       episode: str = Query("", max_length=80)) -> dict:
     """What the player draws around an episode (§190): its picture, and who
     searched it.
 
@@ -5267,6 +5330,10 @@ async def episode_card(request: Request,
       never in the key); this is the one place it is shown, by the author's
       choice, and the response carries no id.
 
+    `minutes` and `episode` (both optional) say which written episode this
+    is, so its own category picks the picture, as it does on the tile that
+    opened it (§209).
+
     Reads the cache and the profile store; no model call.
     """
     _read_limit(request)
@@ -5276,8 +5343,10 @@ async def episode_card(request: Request,
     borrowed = False
     try:
         import thumbnails
+        node = _written_category(asked, minutes, episode)
         found = thumbnails.pick_for_player(
-            f"{asked} {words}".strip(), key=normalize_query(asked)) or {}
+            f"{asked} {words}".strip(), key=normalize_query(asked),
+            category=node) or {}
         thumb = found.get("url", "") or ""
         borrowed = bool(found.get("fallback"))
     except Exception:  # noqa: BLE001 - a picture is never worth a 500
@@ -5527,6 +5596,12 @@ class EventRequest(BaseModel):
     #: The follow-up predicted for the finished episode, so Go Deeper can offer it
     #: back later without a second lookup.
     thread: str = Field("", max_length=200)
+    #: The episode's length and its id (`X-FAM-Episode`, §173), so the event
+    #: is filed under the category of the episode that was actually heard
+    #: (§209). Both optional: an older client sends neither, and its events
+    #: are looked up at the browse length as they always were.
+    minutes: int = Field(0, ge=0, le=10)
+    episode: str = Field("", max_length=80)
 
 
 @app.get("/api/myfam")
@@ -5665,7 +5740,8 @@ async def record_event(req: EventRequest, request: Request):
     # guest session as a broken server (§127).
     if not _remembers(request):
         return {"ok": True, "remembered": False}
-    tags = _event_tags(req.topic_id, req.text, BROWSE_MINUTES)
+    tags = _event_tags(req.topic_id, req.text, req.minutes or BROWSE_MINUTES,
+                       req.episode)
     EVENTS.record(
         topics_mod.Event(_listener(request), req.kind, req.topic_id, req.text, tags,
                          thread=req.thread)
@@ -7081,6 +7157,7 @@ async def audio(
                 _ms(first_pcm_at), _ms(preroll_at), _ms(first_byte_at),
                 json.dumps(stats.marks.to_dict(), default=str),
             )
+            refile_play()
             # The ledger row, written last, when the numbers are final.
             #
             # Here and not at the model call because this is the only place
@@ -7105,9 +7182,21 @@ async def audio(
     # response object is built, so neither is in front of the first word.
     # A guest's play is served and not remembered (§127): nothing the
     # algorithm learns is kept anywhere but an account.
+    # Recorded now, as it always was - the play is a fact the moment audio
+    # is served, and myFAM drawn while it plays must already know it was
+    # heard. **An episode being written is then re-filed once it has been**
+    # (§209): its category is the writer's last line, so the row logged here
+    # can only carry the question's keyword tags; the stream's `finally`
+    # corrects that same row (`EventStore.retag`) once the episode it played
+    # is stored, so the first play of an episode is filed like every later
+    # one. Only when that exact episode was stored - a listener who left
+    # before it was keeps the keyword tags rather than borrowing the
+    # category of an older episode under the same key.
+    play_row = None
+    write_pending = stats.cache != "hit"
     if user and _remembers(request):
         SOCIAL.seen(user)
-        EVENTS.record(
+        play_row = EVENTS.record(
             topics_mod.Event(
                 user, "play", topic_id, plan.query,
                 # Through `tags_for_id`, which is the one definition of where
@@ -7118,9 +7207,21 @@ async def audio(
                 # play is the one event that decides whether the ranker ever
                 # learns anything, and those queries carry none of the
                 # keywords their facet is matched on.
-                _event_tags(topic_id, plan.query, plan.minutes),
+                _event_tags(topic_id, plan.query, plan.minutes, stats.episode),
             )
         )
+
+    def refile_play() -> None:
+        if not (play_row and write_pending and stats.episode
+                and SCRIPT_CACHE is not None):
+            return
+        try:
+            if not SCRIPT_CACHE.resolve_episode(stats.episode):
+                return
+            EVENTS.retag(play_row, _event_tags(topic_id, plan.query,
+                                               plan.minutes, stats.episode))
+        except Exception:  # noqa: BLE001 - a label, never the episode
+            log.exception("could not re-file a play under its category")
 
     media_type = "audio/wav" if fmt == "wav" else "audio/L16"
     return StreamingResponse(

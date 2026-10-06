@@ -2311,7 +2311,7 @@ class PolymarketSource(LiveSource):
     inference is exactly PROBLEMS.md §88 coming back through a side door.
     `unknown` is what forbids it, structurally, rather than by asking nicely.
 
-    **Asked for every question that turns on an outcome** (§209), not only
+    **Asked for every question that turns on an outcome** (§211), not only
     elections: `live_facts.forecast` asks it beside the live lookup whenever
     EI says the answer is `outcome_dependent` - a Fed decision, a final, a
     war, a ruling. And it **searches** for the question's subject
@@ -2323,7 +2323,7 @@ class PolymarketSource(LiveSource):
     domain = "elections"
     cost_per_call = 0.0
     delayed_seconds = 0.0
-    #: `live_facts.forecast` asks the sources that say this (§209).
+    #: `live_facts.forecast` asks the sources that say this (§211).
     forecasts = True
     #: Markets read out per event: the likeliest few, never the whole board.
     MAX_MARKETS = 3

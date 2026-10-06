@@ -12,7 +12,7 @@ the files still have that shape.
 That is precisely the §52 gap: a check that answers a cheaper question than
 the one being asked and then reports OK. This asks the real question: it runs
 one real sync into a scratch copy (never the deployment's own), then reads it
-the three ways FAM does (§209):
+the three ways FAM does (§211):
 
 * **files** - `lastupdate.txt`, the newest GKG file and a little behind it
 * **volume** - the theme counts the story sweep ranks on

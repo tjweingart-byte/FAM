@@ -183,7 +183,7 @@ means an empty Trending row.
 
 ## 9. GDELT — the fallback research rung and story discovery
 
-**Today (§209):** free, keyless, read from GDELT's 15-minute export files by
+**Today (§211):** free, keyless, read from GDELT's 15-minute export files by
 one background job (~2 requests per 15 min, ~200/day, whatever the traffic)
 into a 24-hour copy on the data disk. Everything else reads that copy; no
 listener's tap reaches GDELT. The DOC API's 1 request per 5 s per shared IP
@@ -191,13 +191,13 @@ no longer applies.
 
 | When | Trigger | Action | Cost change |
 |---|---|---|---|
-| ~~**Now (§191: 384 of 384 failed on 1/10)**~~ | ~~`gdelt.paused_until` set~~ | ~~A static-IP proxy (QuotaGuard Static)~~: not needed since §209, which moved GDELT to its export files | $0 |
+| ~~**Now (§191: 384 of 384 failed on 1/10)**~~ | ~~`gdelt.paused_until` set~~ | ~~A static-IP proxy (QuotaGuard Static)~~: not needed since §211, which moved GDELT to its export files | $0 |
 | **Any stage** | `/api/health` → `gdelt.failures_in_a_row` rising, or `newest_age_seconds` over an hour (the copy is stale and reported as an outage) | Check `last_error`, and run `python tools/gdelt_probe.py` for one real sync. No paid plan; none needed | $0 |
 
 ## 10. Polymarket — election and prediction facts
 
 **Today:** free, keyless, no published cap; asked every 30 minutes, lookups
-cached 5-15 minutes. Since §209 an episode asks it for every question EI marks
+cached 5-15 minutes. Since §211 an episode asks it for every question EI marks
 `outcome_dependent` (a forecast beside the live lookup, never evidence), not
 only elections.
 

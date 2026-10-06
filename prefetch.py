@@ -790,6 +790,11 @@ class Prefetcher:
             self.cache.put(key, sentences, ttl,
                            candidate.query, notes.thread, candidate.minutes,
                            self._bucket(plan), **stamp)
+            # What each categoriser said about it (§209), for the audit.
+            import category_audit
+
+            category_audit.note(candidate.query, getattr(notes, "category", ""),
+                                "prefetch")
             self.ledger.note_warmed(key, candidate, spent)
             log.info("prefetch warmed %d sentences for %r (%s: %s, $%.4f)",
                      len(sentences), candidate.query, candidate.source,

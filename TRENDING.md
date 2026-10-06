@@ -194,7 +194,7 @@ Added in §91. `TRENDING_SOURCE=gdelt`, and `GDELT=1`.
 ## What it does here
 
 Sweeps a fixed list of GKG themes (`gdelt.THEMES`), measures each one's
-coverage volume (`gdelt.volume_for`: since §209, articles carrying the theme in
+coverage volume (`gdelt.volume_for`: since §211, articles carrying the theme in
 the last 24 hours of FAM's local copy of GDELT's export files), ranks by
 volume, and turns the top few into tiles. Concurrent, on the shared clock, so nobody waits on it.
 
@@ -220,7 +220,7 @@ longer depends on it.
 GDELT's DOC API, which is query-driven: it tells you how much coverage *a query
 you name* is getting, not a ranked list of everything hot right now.
 
-**Since §209 FAM reads the bulk GKG exports instead** - the heavier path this
+**Since §211 FAM reads the bulk GKG exports instead** - the heavier path this
 section once said was deliberately not taken. One background job
 (`gdelt.sync`, every `GDELT_EXPORT_POLL_SECONDS` = 900) downloads each
 15-minute GKG 2.1 file into a 24-hour copy on the data disk
@@ -249,7 +249,7 @@ decision and nothing in this build can test writing quality.
 GDELT is blocked from the build container, so no real export file has been
 read here. Every shape in `gdelt.py` is written from GDELT's documented GKG 2.1
 format and tested against recorded files. Run `python tools/gdelt_probe.py`
-somewhere with network first — since §209 it does one real sync into a scratch
+somewhere with network first — since §211 it does one real sync into a scratch
 copy and reads it back (volume, retrieval).
 
 
@@ -262,7 +262,7 @@ empty and the row said "The live sources didn't answer in time" to everybody.
 *(§144 then paced every GDELT request in the process - one every
 `GDELT_REQUEST_GAP_SECONDS`, episodes first - and gave the story sweep a
 ceiling that fits that pace. Trending stays GNews; this is about the pool.
-§209 deleted the pacing: GDELT is now read from its 15-minute export files by
+§211 deleted the pacing: GDELT is now read from its 15-minute export files by
 one background job, and the sweep reads the local copy.)*
 
 **What it is.** An edition, built on a clock rather than on a page load:

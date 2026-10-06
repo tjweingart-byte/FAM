@@ -15818,7 +15818,173 @@ so a later rewrite of the same key may attribute it to its new writer, which
 is how scripts from before the column behave; and a proxy's own refusal (a
 407) is counted as GDELT's, which `last_error` makes readable.
 
-## 209. GDELT read from its export files; Polymarket asked for every outcome
+## 209. One episode, one category: what the categorisation review found and fixed
+
+**The owner asked** for everything that categorises an episode, and how to
+make it stronger. The review found four categorisers that never reconcile:
+the keyword map (`topics.tags_for_text`), the composer (headlines, before
+research, §188), the writer (`<<CATEGORY:>>`, after research, §189) and the
+hand-declared tags of the bank, startup and catalogue tiles. The writer's is
+the best informed and reached the least. The owner then chose a set of
+fixes; all are in this change, and the rule is [one-category].
+
+**Bugs (A1-A4).**
+
+* *A search at any length but two minutes never found its own category.*
+  `/api/event` looked it up at `BROWSE_MINUTES`, a different cache key, so
+  every complete and skip of a 1, 3 or 5-minute search taught taste the
+  question's keywords. Events now carry the episode's `minutes` and its
+  `X-FAM-Episode` id (`EventRequest`, `recordFamEvent(..., heard)`), and
+  `app._heard_key` prefers the id. An older client sends neither and is
+  looked up as before.
+* *The player drew a different picture from the tile.* `pick_for_player`
+  re-derived everything from the words. `/api/episode/card` takes `minutes`
+  and `episode`, and the written category outranks the words, as it does in
+  `pick`; when borrowing, the walk up starts from it. The first ask uses
+  only the tile's own episode id - asked as the player opens,
+  `FamAudio.episode()` is still the previous stream's.
+* *The first play of a fresh episode was filed under keywords.* The play was
+  recorded before the script, and so its category, was stored. It is still
+  recorded when the audio is served - myFAM drawn while it plays must know
+  it was heard, and a skip must never precede its play - and the stream's
+  `finally` re-files that same row once the episode is stored
+  (`EventStore.record` now returns the row id; `EventStore.retag`). Only when
+  that exact episode resolves (`resolve_episode(stats.episode)`): a listener
+  who left before it was written keeps the keyword tags rather than
+  borrowing an older episode's category under the same key. (A first version
+  deferred the whole play to `finally`; the branch review caught that it
+  let myFAM re-offer the tile being played and let a skip land first.) The
+  review proposed re-resolving each event in `taste()` instead; that is a
+  cache read per event per page.
+* *A re-write inherited a category it had not earned.* The upsert kept the
+  old category whenever the new script gave none. Now a re-write with new
+  words takes its own category, even an empty one; only a re-write that said
+  the same thing keeps the old (both backends). `extract_category` is
+  scrubbed like the title and summary, and words with no letter are "".
+
+**Measuring it (E18).** Every written episode logs what each categoriser said
+- the writer's words and node, the composer's node (the story's own on the
+Trending edition, else looked up in the pool and edition by question) and the
+keyword facets - into a `category_audit` table in `categories.db`
+(`category_audit.note`, on all four write paths; kept `AUDIT_DAYS`).
+`python tools/categories_report.py --audit [--days N] [--json]` prints how
+often the writer's category is placed by the tree, how often it agrees with
+the composer and with the keywords on the facet, the commonest composer ->
+writer disagreements, and examples. Rates are `None`, not 0, with nothing to
+measure. A wipe of the tree empties it. Nothing ranks on it.
+
+**One reader, and ranking (B5, B6).** `app._episode_category(key)` is the one
+reader of a written episode's category: the tile, the player's picture, the
+probe the ranker uses and the logged tags all go through it. The words stay
+stored as the writer put them and are resolved against the tree as it is now,
+because §189's reason still holds - a tree that grows later can still place
+an older episode - so "store a node id instead" was not done; the node
+resolved at write time is in the audit. A written live story is now *ranked*
+as what it turned out to be about: `topics.set_written_category` (the server
+registers `app._written_category_probe`, a browse-length lookup memoised for
+`WRITTEN_CATEGORY_SECONDS`) is read by `topics_from_stories`, which takes
+the writer's node as the tile's category and, for news, corrects its tags
+with `refine_tags` - so `_affinity`, the off-subject gate, the variety cap
+and Trending's facet cap see what the episode is about. A game or market
+keeps its provider's tags (§187); the category decides only its picture.
+An overruled composer node in the same facet ("mixed martial arts" under
+the writer's "boxing") is dropped with any level only it implied; the facet
+stays. This reverses §189's "ranking for Made for you still reads a story's
+composed tags". Measured: sixty stories cost 5ms cold, then nothing for a
+minute. With no probe (a test, a tool) ranking is unchanged.
+
+**The writer is shown its branch (B7).** `stories.writer_vocabulary` gives
+first every node the tree finds in the question and the brief's subject,
+deepest first with its path and children (a Bengals question sees
+`cincinnati bengals`, not only the league), then the first-level lines of
+the facets they point at, most used first - at most
+`WRITER_VOCABULARY_LINES` (30). It is built per facet and memoised per tree
+generation (`_writer_shape`): filtering the composer's capped list, as the
+first version did, let a grown tree crowd sports out alphabetically, and
+cost 6.7ms in front of the first word at 4,000 nodes. `build_prompt` puts
+the lines beside the CATEGORY instruction - "if the most specific true one
+is here, use its exact words; if none is specific enough, use your own". The user turn, never `SYSTEM_PROMPT`:
+the list changes as the tree grows and would break the cached block
+([writer-savings]). Unheard and unmeasured: the audit is how to tell
+whether it raises the placed rate.
+
+**Phrases, in order (C9).** `CategoryStore.match` was a word-set subset
+test, so any text holding a node's words anywhere was about it - why
+"Hurricanes hitting the Carolina coast" was hockey three levels down, and
+why `LEFT_TO_GROW` exists. A multi-word node now matches only as a run of
+consecutive words in its own order, in either the full word sequence or the
+one with short words and digits removed ("Bank of England" is a run of
+`bank england`). The cheap set test still runs first, so only candidates pay
+for the run check. The review said this alone would fix "Maccabi Tel Aviv";
+it does not - "tel aviv" is a run there - and §187's field rule is still what
+keeps that game out of world news. `LEFT_TO_GROW` stays: "Miami heat wave"
+is still `miami heat` in order. The brute-force test now scans for runs.
+
+**Not done here** (listed in the review, not chosen): agreement-gated deep
+nodes, scored `resolve_category`, stemming and aliases, an embedding
+fallback, minting from writer and composer words, league tags for games,
+holding degraded nodes out of taste, /admin overrides, and a labelled
+evaluation set.
+
+Tests: `tests/test_categorisation_209.py`.
+
+## 210. The 10.5 packet, checked one by one: what the preview could not show
+
+The owner asked for every change in the 10.5 packet (§203) to be checked
+again, one at a time, because some seemed to be missed. Their screenshots
+were taken before §203 (the old type, search's "Explore? →"), so each item
+was checked against what the current build draws, at a phone's width, in
+both preview builds, rather than against the commit message.
+
+| # | Change | Found |
+|---|---|---|
+| 1 | A long question uses the whole bar | Done: past one line the text spans the bar, the buttons under it |
+| 2 | Whole titles on DailyFAM's tiles | Done, rails and View more alike; checked with 70-character titles |
+| 3 | A handle to drag a mix's topics into order | Done; a real drag reorders and saves |
+| 4 | Edit topics stacks what is chosen | Done: "In this mix" on top, the rest under "Topics to follow" |
+| 5 | Bookshelf button; whole titles in the A to Z | Done |
+| 6 | No Explore rail on DailyFAM | Done |
+| 7 | The exploreFAM pill on search and beside Made for you | Done |
+| 8 | Explore as a reel with comments | **Could not be seen** - see below |
+| 9 | A caption on a vibe, drawn on the story | Built; **could not be seen** in either preview |
+
+**What was missing was the preview, not the code - and one real bug.**
+
+* **Comments never loaded in either preview.** Neither builder answered
+  `/api/comments`, so the sheet only ever said "Could not load the
+  comments". The Instagram-shaped thread the packet asked for - name and
+  face, replies folded under the comment, a heart and a count on the right -
+  had never been on screen anywhere the owner looks. The fixture build now
+  seeds a thread on every Explore episode from the fixture's people (a
+  reply, likes) and keeps what is posted for the page's life; the live build
+  keeps `comments` and `comment_likes` in the artifact db, so everybody who
+  opens the bookmarked page reads one thread per episode, as the server
+  does. Same shape, order and rules as `social.comments`: most liked then
+  newest, replies oldest first, one level deep, an account to write or like,
+  only the author deletes. Explore's cards carry `comments` in both.
+* **The reel had no picture behind it in either preview.** Neither answered
+  `/api/episode/card`. The server answers with an approved photo
+  (`thumbnails.pick_for_player`); a preview has none, so both now draw the
+  tile's line art for the episode's words on the tile's paper
+  (`PREVIEW_PICTURE_JS`, shared), portrait so it survives both the reel's
+  crop and the player's 4:3.
+* **A vibe's caption was dropped by both previews.** They stored the echo
+  without it; the live build now keeps it (and returns it from
+  `/api/vibes`), and Beth's story in the fixture build carries one, so the
+  story viewer's caption can be looked at.
+* **The bug: a guest saw the comment box drawn over "Sign up to comment".**
+  `drawReelCompose` set `hidden` on the box and the emoji row, but
+  `.rc-compose{display:flex}` outranks the attribute. `[hidden]` rules for
+  the box, the emoji row and the gate fix it. A sweep of every screen for
+  any other `[hidden]` element still drawn found only `#vsGo`, which is
+  deliberate (`visibility:hidden` keeps its room).
+
+The smoke run now opens Explore's comments and requires a picture behind
+the reel, a thread with likes and folded replies, and a posted comment
+(`explores_comments_open_on_a_thread`) - the check that would have caught
+this. Tests: `tests/test_packet_1005.py` (the last three).
+
+## 211. GDELT read from its export files; Polymarket asked for every outcome
 
 **What was asked (06/10).** The admin page showed GDELT 38 requests today, all
 failed (576 yesterday), and Polymarket at zero. The owner: keep GDELT under its
@@ -15877,7 +16043,7 @@ event reads its three likeliest outcomes, Gamma's JSON-string prices parsed.
 Made for you already held a market tile to §155's bar; now pinned by test.
 
 Rules: `gdelt-exports`, `forecast-beside` (constraints.md); always-researched
-carries a Current note. Tests: `tests/test_gdelt_exports_209.py`,
-`tests/test_polymarket_forecasts_209.py`; `test_gdelt_breaker_207.py` and the
+carries a Current note. Tests: `tests/test_gdelt_exports_211.py`,
+`tests/test_polymarket_forecasts_211.py`; `test_gdelt_breaker_207.py` and the
 pacer tests in `test_provider_failures_144.py` are deleted with what they
 tested.

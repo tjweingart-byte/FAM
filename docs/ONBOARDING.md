@@ -526,7 +526,7 @@ They share nothing: no disk, key, admin token or voice worker.
 | `FAM_ADMIN_ACCOUNTS`, `FAM_ADMIN_TOKEN` | Who can open `/admin` (by account), and the token for terminals. With neither set, admin routes return 404 |
 | `GNEWS_KEY`, `GNEWS_DAILY_REQUESTS`, `GNEWS_PLAN` | Trending's only source, its daily ceiling, and the plan bought |
 | `API_SPORTS_KEY`, `FINNHUB_KEY`, `FINNHUB_PLAN`, `LIVE_ELECTIONS_PROVIDER`, `STORIES_POLYMARKET` | Live facts and the story pool |
-| `GDELT`, `GDELT_EXPORT_DB`, `GDELT_EXPORT_POLL_SECONDS`, `GDELT_EXPORT_KEEP_HOURS` | The story pool's news source and the research ladder's last rung, read from a local copy of GDELT's 15-minute export files (§209) |
+| `GDELT`, `GDELT_EXPORT_DB`, `GDELT_EXPORT_POLL_SECONDS`, `GDELT_EXPORT_KEEP_HOURS` | The story pool's news source and the research ladder's last rung, read from a local copy of GDELT's 15-minute export files (§211) |
 | `OPEN_METEO_API_KEY` | Weather outside the US, the NWS fallback, and place names (§194) |
 | `GEMINI_API_KEY`, `THUMBNAILS` | Tile pictures (`THUMBNAILS.md`) |
 | `FAM_SECRETS` | Where to fetch credentials from (`CREDENTIALS.md`). Precedence is env, then `FAM_SECRETS`, then `.env`, then `~/.fam/env` |
@@ -547,7 +547,7 @@ curl -s https://<host>/api/health | python -m json.tool
 | `tts` | The voice engine. `interim: true` means the placeholder tone |
 | `research`, `episode_intelligence`, `search_mode_source`, `writer_effort` | Whether researched episodes can run, whether EI is on, and where each setting came from |
 | `live_facts`, `live_sources`, `stories`, `trending`, `trending_bank`, `daily_edition` | Whether each feed is configured and actually refreshing |
-| `gdelt` | `source` (`export files`), `endpoint`, `keep_hours`, `last_ok`, `last_attempt`, `failures_in_a_row`, `last_error`, `last_file`, and once the copy exists `files`, `articles`, `newest_age_seconds` (§209) |
+| `gdelt` | `source` (`export files`), `endpoint`, `keep_hours`, `last_ok`, `last_attempt`, `failures_in_a_row`, `last_error`, `last_file`, and once the copy exists `files`, `articles`, `newest_age_seconds` (§211) |
 | `local_news`, `weather`, `thumbnails` | §194 and §160 |
 | `quotas`, `tiers` | Whether limits are enforced, and the tier catalogue |
 | `licences` | Each provider's plan. `commercial_ready` answers "may we charge money?" |
@@ -641,7 +641,7 @@ There is no checkout yet. Before one exists:
 4. **API-Sports Pro** for the sports the product leads with, one plan per
    sport (§180).
 5. ~~**A static-IP proxy for GDELT** (QuotaGuard Static)~~. Not needed since
-   §209: GDELT is read from its export files, which have no per-address limit.
+   §211: GDELT is read from its export files, which have no per-address limit.
    `tools/gdelt_probe.py` checks a real sync.
 
 The test is `/api/health` → `licences.commercial_ready: true`. The rest of

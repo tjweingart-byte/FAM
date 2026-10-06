@@ -8,7 +8,7 @@ FAM has two different clocks for them:
 * **Attention** (`discover`, `volume_for`, `GdeltTrendingSource`) - what the
   world's press is running, for the story pool and the Trending registry.
 
-Read from the export files, never the search API (§209)
+Read from the export files, never the search API (§211)
 -------------------------------------------------------
 FAM used to ask GDELT's DOC 2.0 search API for all of it. That API allows one
 request every five seconds *per address*, and Render's outbound address is
@@ -45,7 +45,7 @@ Not verified against the live service
 -------------------------------------
 The build container's egress proxy blocks `data.gdeltproject.org`, so the
 file shapes below are written from GDELT's published codebook and pinned
-against recorded rows in `tests/test_gdelt_exports_209.py`. **Nothing here has
+against recorded rows in `tests/test_gdelt_exports_211.py`. **Nothing here has
 downloaded a real file.** Run `python tools/gdelt_probe.py` somewhere with
 network before believing it works.
 """

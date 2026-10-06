@@ -1,4 +1,4 @@
-"""§209: GDELT is read from its export files, never its search API.
+"""§211: GDELT is read from its export files, never its search API.
 
 The DOC search API allows one request every five seconds per address, and
 Render's address is shared: on 1/10 GDELT refused 384 of 384. The exports are

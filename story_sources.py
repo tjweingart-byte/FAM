@@ -116,7 +116,7 @@ class GdeltSignals(stories.StorySource):
        counted over every article in GDELT's export files. It decides where
        the worldwide sample is drawn from.
     2. **What is being run** - `gdelt.discover`: the recent articles (read
-       from the export copy on disk, §209 - never GDELT's search API) under
+       from the export copy on disk, §211 - never GDELT's search API) under
        the hottest themes (the worldwide sample) and under each region's own
        press (`geography.GDELT_SOURCES`), a few hundred headlines in all.
     3. **Which of them are one story** - `news_clusters.cluster` groups
@@ -142,7 +142,7 @@ class GdeltSignals(stories.StorySource):
     name = "GDELT"
     domain = stories.ATTENTION
     cost_per_refresh = 0.0
-    #: Since §209 a sweep reads GDELT's export copy on disk and sends GDELT
+    #: Since §211 a sweep reads GDELT's export copy on disk and sends GDELT
     #: nothing, so this floor is about how fast news moves and what composing
     #: costs (§156), not GDELT's limit: `STORIES_NEWS_INTERVAL_SECONDS` (two
     #: hours), never under ten minutes.
@@ -175,7 +175,7 @@ class GdeltSignals(stories.StorySource):
         return True, "GDELT export files, keyless; read from the copy on disk"
 
     def idle(self, now: float) -> str:
-        """Nothing to read until the first export file has landed (§209) -
+        """Nothing to read until the first export file has landed (§211) -
         said as a skip, so the source is asked again next tick rather than
         stamped as swept for two hours on an empty copy after a boot."""
         import gdelt
@@ -308,7 +308,7 @@ class TrendingRegistrySignals(stories.StorySource):
         return float(settings.stories_news_interval_seconds)
 
     #: Room for a registry source that asks the network. GDELT's no longer
-    #: does - it reads the export copy on disk (§209).
+    #: does - it reads the export copy on disk (§211).
     timeout_seconds = 60.0
 
     def diagnose(self) -> tuple[bool, str]:

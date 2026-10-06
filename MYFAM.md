@@ -254,7 +254,7 @@ already configured keeps working and produces the same row it always did.
 
 **Since §135** the GDELT source finds stories rather than themes: it reads a
 few hundred recent headlines worldwide and from each region's press (since
-§209 from FAM's own copy of GDELT's 15-minute export files, kept by one
+§211 from FAM's own copy of GDELT's 15-minute export files, kept by one
 background job, so a sweep sends GDELT no request; it idles until the first
 file lands), groups
 them (`news_clusters`), and counts the outlets running each. API-Sports sweeps

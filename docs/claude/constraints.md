@@ -131,7 +131,7 @@
   goes in `EXCEPTIONS`. Mild words (damn, hell, crap, ass) carry no E. Add to
   the lists with a test of an innocent sentence beside each addition.
 <!-- rule:always-researched -->
-> **Current (PROBLEMS.md §209):** the GDELT rung is a read of GDELT's export copy on disk (rule:gdelt-exports), not "one HTTP call" - no request reaches GDELT from an episode.
+> **Current (PROBLEMS.md §211):** the GDELT rung is a read of GDELT's export copy on disk (rule:gdelt-exports), not "one HTTP call" - no request reaches GDELT from an episode.
 > **Current (PROBLEMS.md §194, at the owner's direction):** a question about one town (`Brief.place`) does not take this ladder. It takes the local one (rule:local-news-ladder): the town's own outlets, its county's, then Exa limited to their known outlets, and **never GDELT**. A weather question (`live_domain == "weather"`) searches no index at all; the forecast is its evidence. Everything below still governs every other question.
 - **Every episode is researched. (Reversed — this used to say the opposite.)**
   *(PROBLEMS.md §76.)* `SEARCH_MODE=always` is the production default and the
@@ -432,7 +432,7 @@
 
 <!-- rule:gdelt-exports -->
 - **GDELT is read from its export files, never its search API** *(PROBLEMS.md
-  §209, at the owner's direction: "We must be able to keep GDELT under its
+  §211, at the owner's direction: "We must be able to keep GDELT under its
   limit, and not have scaling put any extra pressure on it").* The DOC API
   allows one request every five seconds per address and Render's address is
   shared: 384 of 384 failed on 1/10, and §207's breaker only limited what the
@@ -450,7 +450,7 @@
   source idles until the first file lands rather than being stamped swept.
 
 <!-- rule:forecast-beside -->
-- **A forecast beside every outcome-dependent question** *(PROBLEMS.md §209,
+- **A forecast beside every outcome-dependent question** *(PROBLEMS.md §211,
   at the owner's direction).* Polymarket was asked only when EI said
   `elections`, and then matched a shared word against the twenty busiest
   markets, so it was asked nothing. `live_facts.forecast` now asks every

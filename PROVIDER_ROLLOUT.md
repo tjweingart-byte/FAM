@@ -13,7 +13,7 @@ credential or TLS problem. On a normal machine there is no proxy and this does
 not apply. If you hit it on a deployment, allowlist the hosts rather than
 routing around it:
 
-    data.gdeltproject.org   (GDELT's export files, §209)
+    data.gdeltproject.org   (GDELT's export files, §211)
     gamma-api.polymarket.com
     v1.american-football.api-sports.io   (and the sibling sport hosts)
     api.sportsdata.io
@@ -35,7 +35,7 @@ proven in one command.
 
     GDELT=1 python tools/gdelt_probe.py
 
-Since §209 FAM never calls GDELT's DOC search API (one request per five
+Since §211 FAM never calls GDELT's DOC search API (one request per five
 seconds per address, on Render's shared address: 384 of 384 failed on 1/10).
 One background job downloads GDELT's 15-minute export files into a local copy
 (`GDELT_EXPORT_DB`), and everything else reads that copy. The probe does one
@@ -53,7 +53,7 @@ paid plan are needed.
 **`GDELT_CROSS_CHECK`** (off by default) searches GDELT on every researched
 episode *after* Exa has answered. It was left off on Render in §144: on 24/09
 it was on, and every episode waited out a DOC API timeout for nothing. Since
-§209 it searches the local copy, so it costs GDELT nothing and the episode a
+§211 it searches the local copy, so it costs GDELT nothing and the episode a
 local read. If you turn it on, watch `/api/sources` for `retrievers` showing
 both.
 
@@ -190,7 +190,7 @@ directly. If you add a domain, add it there and nowhere else — and give the EI
 prompt a sentence saying when to choose it, or the model never will. Two tests
 enforce both halves.
 
-**Since §209** Polymarket is not only an elections source: `live_facts.forecast`
+**Since §211** Polymarket is not only an elections source: `live_facts.forecast`
 asks it beside the live lookup for every question EI marks `outcome_dependent`
 (except elections already looked up, weather, and town questions). It finds
 markets with Gamma's `/public-search` on the brief's subject words, falling

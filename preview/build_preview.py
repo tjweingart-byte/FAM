@@ -729,6 +729,45 @@ def mix_items_js() -> str:
         "typed_endings": list(mixes_mod.TYPED_ENDINGS)}))
 
 
+#: The picture behind the reel and the player in a preview (10.5 #8b). The
+#: server answers `/api/episode/card` with an approved photo
+#: (`thumbnails.pick_for_player`); a preview has no photos, so it draws the
+#: line art a tile without a photo shows, on the tile's paper, chosen from
+#: the episode's words. Shared by both preview builds.
+PREVIEW_PICTURE_JS = r"""
+  var PREVIEW_ART = {
+    sports: '<circle cx="80" cy="60" r="26" fill="none" stroke="#2A2530" stroke-width="2.2"/><path d="M58 60h44M80 34v52M64 42l32 36M96 42L64 78" stroke="#2A2530" stroke-width="1.4" fill="none"/>',
+    business: '<rect x="44" y="55" width="14" height="37" fill="none" stroke="#2A2530" stroke-width="2"/><rect x="64" y="40" width="14" height="52" fill="none" stroke="#2A2530" stroke-width="2"/><rect x="84" y="24" width="14" height="68" fill="none" stroke="#2A2530" stroke-width="2"/><rect x="104" y="47" width="14" height="45" fill="none" stroke="#2A2530" stroke-width="2"/>',
+    tech: '<rect x="52" y="34" width="56" height="48" rx="14" fill="none" stroke="#2A2530" stroke-width="2.2"/><circle cx="70" cy="58" r="4" fill="#2A2530"/><circle cx="90" cy="58" r="4" fill="#2A2530"/><line x1="80" y1="34" x2="80" y2="20" stroke="#2A2530" stroke-width="2"/><circle cx="80" cy="17" r="3" fill="none" stroke="#2A2530" stroke-width="2"/>',
+    rocket: '<path d="M80 20 L98 62 L98 84 L62 84 L62 62 Z" fill="none" stroke="#2A2530" stroke-width="2.2"/><path d="M62 74 L44 90 M98 74 L116 90" stroke="#2A2530" stroke-width="2"/><circle cx="80" cy="46" r="6" fill="none" stroke="#2A2530" stroke-width="1.8"/>',
+    food: '<line x1="56" y1="20" x2="56" y2="58" stroke="#2A2530" stroke-width="2"/><line x1="66" y1="20" x2="66" y2="58" stroke="#2A2530" stroke-width="2"/><line x1="76" y1="20" x2="76" y2="58" stroke="#2A2530" stroke-width="2"/><path d="M53 58 Q66 70 79 58 L70 92 L62 92Z" fill="none" stroke="#2A2530" stroke-width="2"/>',
+    leaf: '<path d="M80 22C112 40 112 82 80 98C48 82 48 40 80 22Z" fill="none" stroke="#2A2530" stroke-width="2.2"/><path d="M80 30v62" stroke="#2A2530" stroke-width="1.6"/>'
+  };
+  var PREVIEW_ART_WORDS = [
+    // Word starts, so a plural or a "-flight" still counts.
+    ["sports", /\b(nfl|nba|golf|football|soccer|game|league|eagles|chiefs|team|season|cup)/],
+    ["rocket", /\b(rocket|space|orbit|nasa|launch)/],
+    ["tech", /\b(ai\b|chip|agent|tech|software|robot|cable)/],
+    ["business", /\b(fed\b|federal reserve|rate|market|stock|oil|price|econom|bank|money|inflation)/],
+    ["food", /\b(food|supply|farm|restaurant|cook|drink)/]
+  ];
+  function previewPicture(words) {
+    var w = String(words || "").toLowerCase(), kind = "leaf";
+    for (var i = 0; i < PREVIEW_ART_WORDS.length; i++) {
+      if (PREVIEW_ART_WORDS[i][1].test(w)) { kind = PREVIEW_ART_WORDS[i][0]; break; }
+    }
+    return "data:image/svg+xml;utf8," + encodeURIComponent(
+      // Portrait and the drawing small in the middle, so it survives being
+      // cropped to cover both a whole phone (the reel) and a 4:3 box (the
+      // player).
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 200">'
+      + '<rect width="160" height="200" fill="#F4EFE4"/>'
+      + '<path d="M-10 130 Q35 65 75 105 T170 75" fill="none" stroke="#2A2530" stroke-width="1.2" opacity="0.22"/>'
+      + '<g transform="translate(80 100) scale(0.55) translate(-80 -60)">'
+      + PREVIEW_ART[kind] + '</g></svg>');
+  }
+"""
+
 #: The loading screen's five steps, walked the way a written episode walks
 #: them (§148). Shared by both preview shims, which answer `/api/audio` and
 #: `/api/progress` from it. A question asked for the first time in the page is
@@ -915,6 +954,51 @@ __WRITING_SIM__
     NOTIFY.pending.push(item);
   };
 
+__PREVIEW_PICTURE__
+  // Comments, for this page's lifetime. Seeded on every Explore
+  // episode by people in the fixture graph, with a reply and likes, so the
+  // sheet shows what a thread looks like (10.5 #8f).
+  var COMMENTS = [], NEXT_COMMENT = 1;
+  (function () {
+    var eps = ((FIXTURES["/api/explore"] || {}).episodes || []);
+    var ago = function (mins) { return Date.now() / 1000 - mins * 60; };
+    var add = function (ep, who, text, mins, parent, likes) {
+      var likers = {};
+      for (var i = 0; i < likes; i++) likers["fan" + i] = 1;
+      var row = { id: NEXT_COMMENT++, user_id: who, query: ep.query, minutes: ep.minutes,
+                  parent_id: parent || 0, text: text, at: ago(mins), likers: likers };
+      COMMENTS.push(row);
+      return row.id;
+    };
+    eps.forEach(function (ep) {
+      var top = add(ep, "u_beth", "I had no idea it worked like this. Sending it to my brother.", 16 * 60, 0, 12);
+      add(ep, "u_mike", "Same, the middle part was the bit nobody explains.", 15 * 60, top, 3);
+      add(ep, "u_rachel", "@beth he's going to ask you about it at dinner", 14 * 60, top, 1);
+      add(ep, "u_nadia", "Would love a Go Deeper on the last point.", 3 * 60, 0, 4);
+      add(ep, "u_rachel", "Played this twice on the way in.", 40, 0, 0);
+    });
+  })();
+  function likeCount(c) { return Object.keys(c.likers).length; }
+  function commentRows(q, m) {
+    return COMMENTS.filter(function (c) { return c.query === q && c.minutes === Number(m); });
+  }
+  function commentDict(c) {
+    var p = c.user_id === "me" ? { name: "You", handle: "you" }
+      : (PEOPLE.all.filter(function (x) { return x.user_id === c.user_id; })[0] || {});
+    return { id: c.id, parent_id: c.parent_id, text: c.text, at: c.at,
+             name: p.name || "", handle: p.handle || "", avatar: p.avatar || "",
+             likes: likeCount(c), liked: !!c.likers.me, mine: c.user_id === "me" };
+  }
+  function commentsBody(q, m) {
+    var tops = [], byId = {};
+    commentRows(q, m).slice().sort(function (a, b) { return a.at - b.at; }).forEach(function (c) {
+      var d = commentDict(c);
+      if (c.parent_id) { if (byId[c.parent_id]) byId[c.parent_id].replies.push(d); return; }
+      d.replies = []; byId[c.id] = d; tops.push(d);
+    });
+    return tops.sort(function (a, b) { return (b.likes - a.likes) || (b.at - a.at); });
+  }
+
   var PEOPLE = {
     all: [
       // A picture, so the preview shows faces where somebody has set one and
@@ -1016,7 +1100,9 @@ __WRITING_SIM__
                    // Beth's vibes of the last 24 hours, as stories.
                    stories: p.user_id === "u_beth" ? [
                      { query: "why the fed held rates in september", minutes: 2, thread: "",
-                       title: "Why the Fed Held Rates", at: Date.now() / 1000 - 5 * 3600 },
+                       title: "Why the Fed Held Rates", at: Date.now() / 1000 - 5 * 3600,
+                       // What she said with it (10.5 #9), drawn on the story.
+                       caption: "This is the clearest explanation of rates I've heard" },
                      { query: "what the eagles changed on offense", minutes: 2, thread: "",
                        title: "What the Eagles Changed on Offense", at: Date.now() / 1000 - 40 * 60 }
                    ] : [] });
@@ -1360,6 +1446,61 @@ __WRITING_SIM__
       // de-duplicates on, and without it the same message arrives twice.
       return json({ ok: true, message: written });
     }
+    // ---- comments on an episode (10.5 #8), `social.comments`' shape: most
+    // liked then newest, replies oldest first under them. Explore's episodes
+    // arrive with a thread so the sheet can be looked at.
+    if (path === "/api/comments" && method === "GET") {
+      var cq = qs.get("q") || "", cm = Number(qs.get("minutes") || 3);
+      return json({ comments: commentsBody(cq, cm), count: commentRows(cq, cm).length });
+    }
+    if (path === "/api/comments" && method === "POST") {
+      if (!PREVIEW_AUTHED()) return json({ detail: "You need an account for this." }, 401);
+      var cb = JSON.parse((init && init.body) || "{}");
+      var ctext = String(cb.text || "").replace(/\s+/g, " ").trim().slice(0, 500);
+      if (!ctext) return json({ detail: "Write something first." }, 400);
+      var cparent = 0;
+      if (cb.parent_id) {
+        var chost = COMMENTS.filter(function (c) { return c.id === Number(cb.parent_id); })[0];
+        if (!chost || chost.query !== cb.query || chost.minutes !== Number(cb.minutes)) {
+          return json({ detail: "That comment is not here any more." }, 400);
+        }
+        cparent = chost.parent_id || chost.id;
+      }
+      var crow = { id: NEXT_COMMENT++, user_id: "me", query: String(cb.query || ""),
+                   minutes: Number(cb.minutes || 3), parent_id: cparent, text: ctext,
+                   at: Date.now() / 1000, likers: {} };
+      COMMENTS.push(crow);
+      return json(commentDict(crow));
+    }
+    var clike = /^\/api\/comments\/(\d+)\/like$/.exec(path);
+    if (clike) {
+      if (!PREVIEW_AUTHED()) return json({ detail: "You need an account for this." }, 401);
+      var lb = JSON.parse((init && init.body) || "{}");
+      var lrow = COMMENTS.filter(function (c) { return c.id === Number(clike[1]); })[0];
+      if (!lrow) return json({ detail: "That comment is not here any more." }, 404);
+      if (lb.on === false) delete lrow.likers.me; else lrow.likers.me = 1;
+      return json({ id: lrow.id, likes: likeCount(lrow), liked: lb.on !== false });
+    }
+    var cdel = /^\/api\/comments\/(\d+)$/.exec(path);
+    if (cdel && method === "DELETE") {
+      var did = Number(cdel[1]);
+      var drow = COMMENTS.filter(function (c) { return c.id === did; })[0];
+      if (!drow || drow.user_id !== "me") return json({ ok: false });
+      COMMENTS = COMMENTS.filter(function (c) { return c.id !== did && c.parent_id !== did; });
+      return json({ ok: true });
+    }
+    if (path === "/api/explore") {
+      var ex = JSON.parse(JSON.stringify(FIXTURES["/api/explore"]));
+      (ex.episodes || []).forEach(function (e) {
+        e.comments = commentRows(e.query, e.minutes).length;
+      });
+      return json(ex);
+    }
+    // The picture behind the reel and the player: see PREVIEW_PICTURE_JS.
+    if (path === "/api/episode/card") {
+      return json({ thumb: previewPicture((qs.get("q") || "") + " " + (qs.get("title") || "")),
+                    fallback: false, searcher: "" });
+    }
     if (path === "/api/vibes") {
       var vfiles = window.__famVibeFiles || {};
       return json({ vibes: PEOPLE.vibes.map(function (v) {
@@ -1381,7 +1522,8 @@ __WRITING_SIM__
       PEOPLE.vibes.unshift({
         id: PEOPLE.vibes.length + 1, query: vibeBody.query,
         title: vibeBody.title || vibeBody.query, minutes: vibeBody.minutes || 3,
-        thread: "", at: Date.now() / 1000, by: "You", handle: "you"
+        thread: "", at: Date.now() / 1000, by: "You", handle: "you",
+        caption: String(vibeBody.caption || "").replace(/\s+/g, " ").trim().slice(0, 150)
       });
       return json(PEOPLE.vibes[0]);
     }
@@ -1694,6 +1836,7 @@ def build() -> pathlib.Path:
     shim = (SHIM.replace("__WRITING_SIM__", WRITING_SIM_JS)
                .replace("__FIXTURES__", json.dumps(fixtures))
                .replace("__MIX_ITEMS__", mix_items_js())
+               .replace("__PREVIEW_PICTURE__", PREVIEW_PICTURE_JS)
                .replace("__SHARE_TEMPLATES__", json.dumps([
                    {"key": t.key, "label": t.label, "kind": t.kind,
                     "needs_image": t.needs_image, "text": t.template,

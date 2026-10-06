@@ -6,7 +6,7 @@ Each test here is one line of those logs made impossible:
   422, logged with a traceback, with the token in the URL.
 * `gdelt retrieval failed for '...': ` - a timeout, with no message at all.
 * `stories: GDELT failed: all 9 GDELT requests failed` - dozens of requests
-  from one shared address in the same minute (since §209 GDELT is read from
+  from one shared address in the same minute (since §211 GDELT is read from
   its export files, and no request goes to its search API at all).
 """
 from __future__ import annotations
@@ -148,8 +148,8 @@ def test_redaction_leaves_ordinary_parameters_alone():
 
 
 # --------------------------------------------------------------------------
-# GDELT: since §209 nothing here talks to GDELT's search API - the pacer and
-# the breaker that rationed it are gone, and `tests/test_gdelt_exports_209.py`
+# GDELT: since §211 nothing here talks to GDELT's search API - the pacer and
+# the breaker that rationed it are gone, and `tests/test_gdelt_exports_211.py`
 # pins what replaced them. What is left from 24/09 is the query cleaning.
 # --------------------------------------------------------------------------
 def test_a_whole_prompt_is_reduced_to_searchable_words():

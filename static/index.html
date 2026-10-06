@@ -829,6 +829,9 @@
     line-height:1; }
   .rc-emoji button:active{ transform:scale(0.88); }
   .rc-compose{ display:flex; align-items:center; gap:9px; }
+  /* A guest gets the sign-up buttons in place of the box, so the box is
+     really gone: `display:flex` above would otherwise outrank `hidden`. */
+  .rc-compose[hidden], .rc-emoji[hidden], .rc-gate[hidden]{ display:none; }
   .rc-me{ flex:none; width:30px; height:30px; border-radius:50%; overflow:hidden;
     display:flex; align-items:center; justify-content:center; color:var(--ink); }
   .rc-compose input{ flex:1; min-width:0; height:38px; border-radius:19px;
@@ -6423,9 +6426,17 @@
     }
     if(nowBarState) paintNowThumb();
   }
-  function askPlayerCard(key, q, title){
+  function askPlayerCard(key, q, title, streaming){
+    // Which written episode this is, so the server can draw it by its own
+    // category, as the tile that opened it was (§209). The stream's own id
+    // only once it is this episode's stream (`streaming`): asked as the
+    // player opens, `FamAudio.episode()` is still the last episode's.
+    var heard = "";
+    if(PLAYER_CARD.minutes) heard += "&minutes=" + PLAYER_CARD.minutes;
+    var ep = PLAYER_CARD.episode || (streaming ? FamAudio.episode() : "");
+    if(ep) heard += "&episode=" + encodeURIComponent(ep);
     fetch("/api/episode/card?q=" + encodeURIComponent(q)
-          + "&title=" + encodeURIComponent(title || ""))
+          + "&title=" + encodeURIComponent(title || "") + heard)
       .then(function(r){ return r.ok ? r.json() : null; })
       .then(function(d){
         // The episode may have changed while this was asked.
@@ -6441,8 +6452,9 @@
       })
       .catch(function(){});
   }
-  function loadPlayerCard(key, t){
-    PLAYER_CARD = { key: key, thumb: t.thumb || "", searcher: "", borrowed: false };
+  function loadPlayerCard(key, t, minutes){
+    PLAYER_CARD = { key: key, thumb: t.thumb || "", searcher: "", borrowed: false,
+                    minutes: minutes || 0, episode: t.episode || "" };
     drawPlayerPicture(PLAYER_CARD.thumb);
     var q = t.prompt || t.title || "";
     if(!q) return;
@@ -6454,7 +6466,7 @@
     var t = key ? TOPICS[key] : null;
     if(!t || PLAYER_CARD.key !== key) return;
     if(PLAYER_CARD.thumb && !PLAYER_CARD.borrowed) return;
-    askPlayerCard(key, t.prompt || t.title || title, title);
+    askPlayerCard(key, t.prompt || t.title || title, title, true);
   }
 
   var MENU_ICONS = {
@@ -6915,6 +6927,11 @@
     var totalSeconds = minutes * 60;
     rememberEpisode(title, minutes, context || "", !!opts.cachedOnly);
     var episodeTopicId = bankTopicId || "";
+    // Which episode these events are about (§209): its length, and the id
+    // its audio arrived with once it has.
+    var heardEpisode = function(){
+      return { minutes: minutes, episode: FamAudio.episode() || "" };
+    };
     var reportedOutcome = false;
     reportOutcomeIfHeard = function(heard, whole){
       if(reportedOutcome || !(whole > 0)) return;
@@ -6922,7 +6939,8 @@
       reportedOutcome = true;
       // The thread rides along, exactly as it does on the end-of-episode
       // path, so Go Deeper can offer it back later without another lookup.
-      recordFamEvent("complete", episodeTopicId, title, episodeThread);
+      recordFamEvent("complete", episodeTopicId, title, episodeThread,
+                     heardEpisode());
     };
     setEchoed(false);
     // Both controls open dark and are corrected from the server, because the
@@ -7023,7 +7041,8 @@
         // out of substance and ended early, which is still finished.
         if(!reportedOutcome){
           reportedOutcome = true;
-          recordFamEvent("complete", episodeTopicId, title, episodeThread);
+          recordFamEvent("complete", episodeTopicId, title, episodeThread,
+                     heardEpisode());
         }
         // Ended under an open Go Deeper: the sound stops and the sheet stays
         // up on its own - no album advance, no countdown over it (10.1).
@@ -7089,7 +7108,7 @@
       if(reportedOutcome) return;
       reportedOutcome = true;
       if(FamAudio.position() > 5 && !FamAudio.isComplete()){
-        recordFamEvent("skip", episodeTopicId, title);
+        recordFamEvent("skip", episodeTopicId, title, "", heardEpisode());
       }
     };
   }
@@ -7153,7 +7172,7 @@
                      minutes: episodeMinutes(t.exploreMinutes || 0, where),
                      attach: t.attach || "", surface: where,
                      episode: t.episode || "", queueable: true };
-    loadPlayerCard(key, t);
+    loadPlayerCard(key, t, playOpts.minutes);
     // A DailyFAM playlist entry ends by playing the next one (§134), and
     // anything else that starts playing means the playlist is over - the
     // listener went and chose something, and a queue that resumed behind
@@ -11615,16 +11634,24 @@
   // server-side when the audio is served; these are the ones only the client
   // knows about, and a failure here is silent by design - it costs one weak
   // ranking signal, never an episode.
-  function recordFamEvent(kind, topicId, text, thread){
+  // `heard` ({minutes, episode}) names the episode that played, so the
+  // server files the event under that episode's own category (§209) rather
+  // than whatever the question would be at the browse length.
+  function recordFamEvent(kind, topicId, text, thread, heard){
     try {
+      var body = {
+        kind: kind,
+        topic_id: topicId || "", text: (text || "").slice(0, 300),
+        thread: (thread || "").slice(0, 200)
+      };
+      if(heard){
+        if(heard.minutes) body.minutes = heard.minutes;
+        if(heard.episode) body.episode = String(heard.episode).slice(0, 80);
+      }
       fetch("/api/event", {
         method: "POST",
         headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({
-          kind: kind,
-          topic_id: topicId || "", text: (text || "").slice(0, 300),
-          thread: (thread || "").slice(0, 200)
-        })
+        body: JSON.stringify(body)
       }).catch(function(){});
     } catch(e){}
   }
@@ -16373,7 +16400,8 @@
     if(ep.thumb || ep.thumbAsked) return;
     ep.thumbAsked = true;
     fetch("/api/episode/card?q=" + encodeURIComponent(ep.query)
-          + "&title=" + encodeURIComponent(ep.title || ""))
+          + "&title=" + encodeURIComponent(ep.title || "")
+          + (ep.minutes ? "&minutes=" + ep.minutes : ""))
       .then(function(r){ return r.ok ? r.json() : null; })
       .then(function(d){
         if(!d || !d.thumb) return;

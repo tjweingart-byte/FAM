@@ -327,7 +327,7 @@ recorded payloads in `tests/test_live_providers.py`. Run
 | sports | `sportsdataio` | SportsDataIO | `SPORTSDATAIO_KEY` | player-level stats; sales-gated |
 | markets | `finnhub` | Finnhub | `FINNHUB_KEY` | ~20 min delayed; knows if the market is open |
 | markets | `alpha-vantage` | Alpha Vantage | `ALPHA_VANTAGE_KEY` | ~15 min delayed |
-| elections | `polymarket` | Polymarket | none | **forecast, never a result**; since §209 also asked beside every outcome-dependent question |
+| elections | `polymarket` | Polymarket | none | **forecast, never a result**; since §211 also asked beside every outcome-dependent question |
 | elections | `ap` | AP Elections | — | declared, unimplemented: quote-only |
 | elections | `ddhq` | Decision Desk HQ | — | declared, unimplemented: quote-only |
 
@@ -357,7 +357,7 @@ is told the opposite: **where it and the articles disagree, the articles win.**
 `status` forbids *speaking* a result; this decides who wins a disagreement, and
 they are different questions.
 
-## A forecast beside every outcome-dependent question (§209)
+## A forecast beside every outcome-dependent question (§211)
 
 Polymarket is no longer reached only through the `elections` domain.
 `live_facts.forecast` asks it, beside the live lookup, for **every** question

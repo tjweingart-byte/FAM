@@ -177,6 +177,11 @@ MIN_WORD = 3
 #: most, for the whole deployment.
 SWEEP_INTERVAL = 7200.0
 
+#: How long the categorisation audit keeps a row (§209). Long enough to
+#: compare a month of writing before and after a change; it is a log, not
+#: a store anything ranks on.
+AUDIT_DAYS = 30
+
 #: When the last sweep started, in this process. In memory like
 #: `stories._LAST_SWEPT`, and for the same reason: a second worker sweeping an
 #: hour later costs one extra model call and mints nothing new, because `mint`
@@ -244,10 +249,10 @@ def normalise(phrase: str) -> str:
     """One phrase, as the tree stores it: lower case, words only, collapsed.
 
     Deliberately the same crudeness `topics.tags_for_text` has. No stemming,
-    no lemmatisation, no embedding - a phrase is a bag of words and two
-    phrases are the same when their words are. What that buys is that
-    matching is a set operation and costs microseconds on a browse path,
-    which is the constraint everything here is written under.
+    no lemmatisation, no embedding. What that buys is that matching is a set
+    operation plus, for a multi-word node, one scan for the phrase in order
+    (§209), and costs microseconds on a browse path, which is the constraint
+    everything here is written under.
     """
     return " ".join(_WORD.findall(str(phrase or "").lower()))
 
@@ -256,6 +261,28 @@ def words_of(text: str) -> frozenset[str]:
     """The words of a text that can take part in a phrase."""
     return frozenset(w for w in _WORD.findall(str(text or "").lower())
                      if len(w) >= MIN_WORD and not w.isdigit())
+
+
+def _sequences(text: str) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """The text's words in order, twice: every word, and only the words that
+    can take part in a phrase (`words_of`'s rule). A node's words are looked
+    for as a run in either (§209), so "Carolina's Hurricanes" is a run of
+    `carolina hurricanes` once the stray "s" is gone."""
+    every = tuple(_WORD.findall(str(text or "").lower()))
+    usable = tuple(w for w in every if len(w) >= MIN_WORD and not w.isdigit())
+    return every, usable
+
+
+def _runs_in(phrase: tuple[str, ...], sequence: tuple[str, ...]) -> bool:
+    """Whether `phrase` appears in `sequence` as consecutive words, in order."""
+    size = len(phrase)
+    if not size or size > len(sequence):
+        return False
+    first = phrase[0]
+    for i in range(len(sequence) - size + 1):
+        if sequence[i] == first and sequence[i:i + size] == phrase:
+            return True
+    return False
 
 
 @dataclass(frozen=True)
@@ -339,6 +366,14 @@ class EmptyTree:
     def mint(self, phrase: str, *args, **kwargs) -> None:
         return None
 
+    #: The audit (§209) has nowhere to go without a database, and says so
+    #: by recording nothing - the line `category_tree()` logged is the cause.
+    def note_written(self, row: dict, at: float = 0.0) -> bool:
+        return False
+
+    def audit_rows(self, since: float = 0.0, limit: int = 5000) -> list:
+        return []
+
     def report(self) -> dict:
         return {"path": "", "nodes": 0, "max_depth": 0, "by_depth": {},
                 "by_source": {}, "degraded": 0, "full": False,
@@ -381,6 +416,25 @@ class CategoryStore:
                          " ON categories(parent_id)")
             conn.execute("CREATE INDEX IF NOT EXISTS categories_seen"
                          " ON categories(last_seen)")
+            # §209: what each categoriser said about each written episode,
+            # so how often they disagree is a number rather than an
+            # impression. A log, read by `tools/categories_report.py
+            # --audit`; nothing ranks on it.
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS category_audit (
+                       at             REAL NOT NULL,
+                       origin         TEXT NOT NULL DEFAULT '',
+                       query          TEXT NOT NULL DEFAULT '',
+                       words          TEXT NOT NULL DEFAULT '',
+                       writer         TEXT NOT NULL DEFAULT '',
+                       writer_facet   TEXT NOT NULL DEFAULT '',
+                       composer       TEXT NOT NULL DEFAULT '',
+                       composer_facet TEXT NOT NULL DEFAULT '',
+                       keywords       TEXT NOT NULL DEFAULT ''
+                   )"""
+            )
+            conn.execute("CREATE INDEX IF NOT EXISTS category_audit_at"
+                         " ON category_audit(at)")
         self.reload()
 
     def _conn(self) -> sqlite3.Connection:
@@ -496,10 +550,16 @@ class CategoryStore:
         whose history is specific would stop matching the general tiles
         entirely, which is the opposite of what more resolution is for.
 
-        A word-set subset test, not a substring one. "bengals cincinnati"
-        matches the same node as "cincinnati bengals", and "the bengals game"
-        matches `bengals` - which is right, and is the same bluntness
-        `tags_for_text` has had since it was written.
+        **A phrase, in order** (§209). A node matches only where its words
+        appear in the text consecutively and in its own order: "the bengals
+        game" matches `bengals`, "Cincinnati Bengals' season" matches
+        `cincinnati bengals`, and "hurricanes hitting the Carolina coast" no
+        longer matches `carolina hurricanes` three levels down the hockey
+        branch. It used to be a word-set subset test, so any text holding a
+        node's words anywhere was about it - the bluntness `LEFT_TO_GROW`
+        and §187's field rule were both written around. Short words and
+        digits are skipped when looking for the run (a node never has one),
+        so "Bank of England" still reads as a run of its two real words.
 
         The index it walks is keyed on each node's smallest word, which is
         what keeps this cheap enough to run per event inside `taste`. See
@@ -519,10 +579,20 @@ class CategoryStore:
         for word in text_words:
             candidates |= index.get(word, set())
         hit: set[str] = set()
+        sequences = None
         for node_id in candidates:
-            if words.get(node_id, _NO_WORDS) <= text_words:
-                hit.add(node_id)
-                hit.update(ancestry.get(node_id, ()))
+            if not words.get(node_id, _NO_WORDS) <= text_words:
+                continue
+            phrase = tuple(node_id.split())
+            if len(phrase) > 1:
+                # Only a node that passed the cheap set test pays for this,
+                # and only a multi-word one: a single word is its own run.
+                if sequences is None:
+                    sequences = _sequences(text)
+                if not any(_runs_in(phrase, seq) for seq in sequences):
+                    continue
+            hit.add(node_id)
+            hit.update(ancestry.get(node_id, ()))
         return tuple(sorted(hit))
 
     def depth_of(self, node_id: str) -> int:
@@ -700,11 +770,59 @@ class CategoryStore:
         gone = len(self._nodes)
         try:
             self._conn().execute("DELETE FROM categories")
+            # What the categorisers said about episodes the wipe is emptying
+            # is derived from them too (§209).
+            self._conn().execute("DELETE FROM category_audit")
         except Exception:
             log.exception("could not clear the category tree")
             return 0
         self.reload()
         return gone
+
+    # --- the categorisation audit (§209) -----------------------------------
+
+    def note_written(self, row: dict, at: float = 0.0) -> bool:
+        """Log what each categoriser said about one written episode.
+
+        `row` carries `origin`, `query`, `words` (the writer's own), `writer`
+        and `composer` (tree nodes, or ""), their facets, and `keywords` (the
+        keyword map's facets, space-separated). Rows older than
+        `AUDIT_DAYS` go as new ones arrive. Never raises."""
+        now = at or time.time()
+        try:
+            conn = self._conn()
+            conn.execute(
+                "INSERT INTO category_audit (at, origin, query, words, writer,"
+                " writer_facet, composer, composer_facet, keywords)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (now, str(row.get("origin", ""))[:16],
+                 str(row.get("query", ""))[:200], str(row.get("words", ""))[:60],
+                 str(row.get("writer", ""))[:80],
+                 str(row.get("writer_facet", ""))[:24],
+                 str(row.get("composer", ""))[:80],
+                 str(row.get("composer_facet", ""))[:24],
+                 str(row.get("keywords", ""))[:120]))
+            conn.execute("DELETE FROM category_audit WHERE at < ?",
+                         (now - AUDIT_DAYS * 86400,))
+            return True
+        except Exception:
+            log.exception("could not log a categorisation")
+            return False
+
+    def audit_rows(self, since: float = 0.0, limit: int = 5000) -> list[dict]:
+        """The logged categorisations since `since`, newest first."""
+        try:
+            rows = self._conn().execute(
+                "SELECT at, origin, query, words, writer, writer_facet,"
+                " composer, composer_facet, keywords FROM category_audit"
+                " WHERE at >= ? ORDER BY at DESC LIMIT ?",
+                (since, int(limit))).fetchall()
+        except Exception:
+            log.exception("could not read the categorisation audit")
+            return []
+        names = ("at", "origin", "query", "words", "writer", "writer_facet",
+                 "composer", "composer_facet", "keywords")
+        return [dict(zip(names, r)) for r in rows]
 
     def report(self) -> dict:
         """What the tree currently holds. For a report, never for ranking."""
