@@ -404,6 +404,12 @@ class ExportStore:
             db.execute("INSERT OR REPLACE INTO meta (key, value) VALUES ('domains_at', ?)",
                        (str(now),))
 
+    def note_domains_tried(self, at: float) -> None:
+        """Move the domain list's clock without touching the list."""
+        with self._lock, closing(self._connect()) as db, db:
+            db.execute("INSERT OR REPLACE INTO meta (key, value) VALUES ('domains_at', ?)",
+                       (str(at),))
+
     # -- reading -----------------------------------------------------------
     def domains(self) -> dict:
         with closing(self._connect()) as db:
@@ -442,8 +448,8 @@ class ExportStore:
     def by_theme(self, theme: str, since: float, limit: int) -> list:
         return self._rows(
             "SELECT title, url, seen, country FROM articles WHERE seen >= ? "
-            "AND themes LIKE ? ORDER BY seen DESC LIMIT ?",
-            (since, f"%;{theme};%", int(limit)))
+            "AND instr(themes, ?) > 0 ORDER BY seen DESC LIMIT ?",
+            (since, f";{theme};", int(limit)))
 
     def by_countries(self, countries: Iterable[str], since: float, limit: int) -> list:
         wanted = tuple(countries)
@@ -461,15 +467,20 @@ class ExportStore:
         when the query has two - one shared word is a namesake, not a match."""
         if not words:
             return []
-        clauses = " OR ".join("(LOWER(title) LIKE ? OR names LIKE ?)" for _ in words)
-        args: list = [since]
+        # Words matched are counted in SQL, before the limit: a limit taken
+        # over "any word matched" let a day of one common name fill it and
+        # push out the article that names both (review fix).
+        score = " + ".join("(title LIKE ? OR names LIKE ?)" for _ in words)
+        likes: list = []
         for word in words:
-            args += [f"%{word}%", f"%{word}%"]
-        rows = self._rows(
-            f"SELECT title, url, seen, country, names FROM articles "
-            f"WHERE seen >= ? AND ({clauses}) ORDER BY seen DESC LIMIT 2000",
-            tuple(args))
+            likes += [f"%{word}%", f"%{word}%"]
         need = min(2, len(words))
+        rows = self._rows(
+            f"SELECT title, url, seen, country, names FROM ("
+            f"SELECT title, url, seen, country, names, ({score}) AS hits "
+            f"FROM articles WHERE seen >= ?) WHERE hits >= ? "
+            f"ORDER BY hits DESC, seen DESC LIMIT ?",
+            (*likes, since, need, max(200, int(limit) * 10)))
         scored = []
         for title, url, seen, country, names in rows:
             text = f"{title.lower()} {names}"
@@ -572,6 +583,9 @@ async def _refresh_domains(client: httpx.AsyncClient, target: ExportStore,
             log.info("gdelt: %d publisher domains placed by country", len(known))
     except Exception as exc:  # noqa: BLE001 - a country is a nicety
         log.info("gdelt: the domain list could not be read: %s", _describe(exc))
+        # Asked again in a day, not at every sync (review fix).
+        await asyncio.to_thread(target.note_domains_tried,
+                                now - DOMAINS_MAX_AGE_SECONDS + 86400)
 
 
 async def _fetch_file(client: httpx.AsyncClient, target: ExportStore,
@@ -582,7 +596,10 @@ async def _fetch_file(client: httpx.AsyncClient, target: ExportStore,
     response = await _download(client, url)
     at = stamp_of(name)
     stamp = at.timestamp() if at else time.time()
-    if response.status_code == 404:
+    if response.status_code == 404 and not md5:
+        # A file behind the newest that GDELT never published. The newest
+        # one (the file `lastupdate.txt` named, with its checksum) is never
+        # written off: a 404 there raises and the next sync asks again.
         await asyncio.to_thread(target.mark_missing, name, stamp)
         return -1
     response.raise_for_status()

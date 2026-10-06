@@ -299,3 +299,31 @@ def test_a_market_on_a_subject_they_never_went_near_is_not(log):
     made = made_for_you(log)
     assert "Will Kazakhstan hold a snap election before July?" not in made
     assert made, "the evergreen inventory still fills the rail"
+
+
+def test_a_slow_forecast_never_holds_the_first_word(gamma, monkeypatch):
+    """Review fix: the forecast was gathered with research, so a slow
+    Polymarket held the episode up to the live timeout after the evidence was
+    in. It now gets `FORECAST_GRACE_SECONDS` past the evidence and no more."""
+    async def slow_forecast(b, notes=None):
+        await asyncio.sleep(5)
+        return None
+
+    async def lookup(b, notes=None):
+        return None
+
+    async def research(self, plan, notes=None):
+        return dataclasses.replace(plan, evidence="SOURCE 1\nTitle: x")
+
+    monkeypatch.setattr(live_facts, "forecast", slow_forecast)
+    monkeypatch.setattr(live_facts, "lookup", lookup)
+    monkeypatch.setattr(sg.ScriptGenerator, "research", research)
+    monkeypatch.setattr(sg.ScriptGenerator, "understand",
+                        lambda self, plan, notes=None: _done(plan))
+    plan = dataclasses.replace(sg.plan_episode("will the fed cut in december", 3),
+                               brief=brief())
+    generator = sg.ScriptGenerator.__new__(sg.ScriptGenerator)
+    began = time.monotonic()
+    prepared = run(generator.prepare(plan, sg.ScriptNotes()))
+    assert time.monotonic() - began < sg.FORECAST_GRACE_SECONDS + 1.0
+    assert prepared.forecast is None and prepared.evidence

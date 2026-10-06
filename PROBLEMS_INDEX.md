@@ -214,4 +214,4 @@ and `limit` = Lines.
 | 15741 | 80 | 208. The training docs, and the bugs writing them found |
 | 15821 | 110 | 209. One episode, one category: what the categorisation review found and fixed |
 | 15931 | 56 | 210. The 10.5 packet, checked one by one: what the preview could not show |
-| 15987 | 64 | 211. GDELT read from its export files; Polymarket asked for every outcome |
+| 15987 | 78 | 211. GDELT read from its export files; Polymarket asked for every outcome |

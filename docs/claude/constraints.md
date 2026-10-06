@@ -457,7 +457,9 @@
   registered forecaster (`forecasts = True`) whenever the brief is
   `outcome_dependent` - except `elections` (already its live lookup),
   weather and a town's news - searching by the subject (`/public-search`,
-  two shared words when the subject has two). The result is
+  two shared words when the subject has two). It starts beside retrieval and
+  is given `FORECAST_GRACE_SECONDS` (0.25) past the evidence, then dropped:
+  it never holds the first word. The result is
   `EpisodePlan.forecast`: **beside `plan.live`, never in it** (a scoreboard
   says what happened, a market what people expect), rendered after it with
   the prediction-market block that says the articles win, credited as "a

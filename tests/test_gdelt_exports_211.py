@@ -368,3 +368,59 @@ def test_health_reports_the_copy_without_a_url_to_a_credential(seeded):
     assert report["files"] == 2 and report["articles"] == 6
     assert report["newest_age_seconds"] is not None
     assert not re.search(r"proxy", " ".join(report), re.I)
+
+
+def test_a_common_word_does_not_crowd_out_the_real_match(on):
+    """Review fix: the search used to take the 2,000 newest rows matching any
+    word and only then ask for two - so a day of one common name pushed the
+    article naming both words out before it was looked at."""
+    now = time.time()
+    rows = [{"url": f"https://n{i}.com/a", "title": f"Trump speaks at rally {i}",
+             "domain": f"n{i}.com", "country": "", "seen": now - i,
+             "themes": "", "names": ""} for i in range(2500)]
+    rows.append({"url": "https://reuters.com/t", "title": "Trump announces new tariffs on steel",
+                 "domain": "reuters.com", "country": "", "seen": now - 5000,
+                 "themes": "", "names": ""})
+    gdelt.store().add_file("x.gkg.csv.zip", now, rows, {})
+    found = gdelt.store().search(["trump", "tariffs"], now - 86400, 5)
+    assert [url for _t, url, _s, _c in found] == ["https://reuters.com/t"]
+
+
+def test_the_newest_file_is_never_written_off(on):
+    """Review fix: a 404 on the file `lastupdate.txt` just named is asked
+    again next sync; only a file behind it is noted as never published."""
+    up = upstream_with_fed()
+    newest = gdelt.name_for(up.newest)
+    blob = up.files.pop(newest)
+
+    async def go():
+        async with up.client() as client:
+            first = await gdelt.sync(client=client)
+            up.files[newest] = blob
+            second = await gdelt.sync(client=client)
+            return first, second
+
+    first, second = run(go())
+    assert "error" in first
+    assert "error" not in second and gdelt.store().has_file(newest)
+    assert gdelt.store().newest() == up.newest.timestamp()
+
+
+def test_a_failed_domain_list_is_asked_again_in_a_day_not_every_sync(on):
+    up = upstream_with_fed()
+    real = up.handler
+
+    def no_list(request):
+        if request.url.path.endswith("MAY2018.txt"):
+            up.asked.append(str(request.url))
+            return httpx.Response(500)
+        return real(request)
+
+    async def go():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(no_list)) as client:
+            await gdelt.sync(client=client)
+            up.asked.clear()
+            await gdelt.sync(client=client)
+
+    run(go())
+    assert not any("MAY2018" in u for u in up.asked), up.asked

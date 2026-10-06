@@ -622,6 +622,12 @@ def extract_summary(text: str) -> str:
     return content_filter.scrub(summary[:200])
 
 
+#: How long a forecast (§211) may arrive after the evidence before the episode
+#: is written without it. It runs beside retrieval; this is the most it may
+#: add in front of the first word.
+FORECAST_GRACE_SECONDS = 0.25
+
+
 @dataclass
 class EpisodePlan:
     """The length contract for one episode."""
@@ -1674,9 +1680,8 @@ class ScriptGenerator:
     async def forecast_lookup(self, plan: EpisodePlan,
                               notes: ScriptNotes | None = None) -> EpisodePlan:
         """What prediction markets expect, when the brief says the answer
-        turns on an outcome (§211). Alongside retrieval like `live_lookup`,
-        and bounded the same way, so it adds no wait in front of the first
-        word that retrieval was not already costing."""
+        turns on an outcome (§211). Started beside retrieval by `prepare`,
+        which waits at most `FORECAST_GRACE_SECONDS` past the evidence."""
         if plan.brief is None or plan.forecast is not None:
             return plan
         try:
@@ -1711,16 +1716,30 @@ class ScriptGenerator:
         # for nothing. They are merged field-by-field rather than chained
         # because each returns a copy derived from the *same* input plan.
         _mark(notes, "evidence_start")
-        live_plan, research_plan, forecast_plan = await asyncio.gather(
-            self.live_lookup(plan, notes), self.research(plan, notes),
-            self.forecast_lookup(plan, notes))
+        # The forecast (§211) starts with them and **never holds the first
+        # word**: once the evidence is in it gets `FORECAST_GRACE_SECONDS`
+        # more, then the episode goes without it.
+        forecast_task = asyncio.ensure_future(self.forecast_lookup(plan, notes))
+        try:
+            live_plan, research_plan = await asyncio.gather(
+                self.live_lookup(plan, notes), self.research(plan, notes))
+        except BaseException:
+            forecast_task.cancel()
+            raise
+        forecast = None
+        try:
+            forecast = (await asyncio.wait_for(
+                asyncio.shield(forecast_task), FORECAST_GRACE_SECONDS)).forecast
+        except asyncio.TimeoutError:
+            forecast_task.cancel()
+            log.info("forecast: not back when the evidence was; writing without it")
         _mark(notes, "evidence_ready")
         if notes is not None:
             notes.sourced_at = time.time()
         plan = dataclasses.replace(
             plan, live=live_plan.live, evidence=research_plan.evidence,
             thin_on=research_plan.thin_on, local=research_plan.local,
-            forecast=forecast_plan.forecast)
+            forecast=forecast)
 
         # The weather the local ladder fetched when the town had nothing
         # (§194) reaches the writer the way any live state does - one block,

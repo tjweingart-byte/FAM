@@ -2373,10 +2373,10 @@ class PolymarketSource(LiveSource):
                  for e in events if isinstance(e, dict)
                  and not e.get("closed") and _open_markets(e)),
                 wanted)
-            if best is None:
+            if best is None or not best.get("id"):
                 return None
             return Entity(domain=self.domain, provider=self.name,
-                          id=f"event:{best.get('id') or best.get('slug') or ''}",
+                          id=f"event:{best['id']}",
                           label=str(best.get("title") or "")[:120])
         data = await _json(f"{settings.polymarket_base}/markets", {},
                            {"limit": 100, "closed": "false", "order": "volume24hr",

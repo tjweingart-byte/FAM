@@ -16047,3 +16047,17 @@ carries a Current note. Tests: `tests/test_gdelt_exports_211.py`,
 `tests/test_polymarket_forecasts_211.py`; `test_gdelt_breaker_207.py` and the
 pacer tests in `test_provider_failures_144.py` are deleted with what they
 tested.
+
+**Review before merge (06/10).** Main's §209 and §210 merged in; this
+section renumbered §211 (and its tests `*_211.py`). Read back, five fixes:
+* the copy's search took the 2,000 newest rows matching *any* word and only
+  then asked for two, so a day of one common name crowded out the article
+  naming both - words matched are now counted in SQL before the limit
+  (~0.4 s over a full day's 150k rows, on the fallback rung only);
+* the forecast was gathered *with* retrieval, so a slow Polymarket held the
+  first word up to `LIVE_TOTAL_TIMEOUT_SECONDS` after the evidence was in -
+  it now gets `FORECAST_GRACE_SECONDS` (0.25) past the evidence, then is
+  dropped;
+* a 404 on the newest file wrote it off for good; only files behind it are;
+* a failed domain list was asked again every sync; now once a day;
+* the theme filter's `LIKE` read `_` as a wildcard; it is an exact `instr`.
