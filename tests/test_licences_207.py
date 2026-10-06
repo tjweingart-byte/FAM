@@ -75,4 +75,6 @@ def test_health_reports_it():
 
     with TestClient(appmod.app) as c:
         body = c.get("/api/health").json()
-    assert "commercial_ready" in body["licences"]
+    assert set(body["licences"]) == {"commercial_ready", "non_commercial_in_use"}
+    # Plans and prices are /admin's, not the open health endpoint's.
+    assert "buy" not in repr(body["licences"])

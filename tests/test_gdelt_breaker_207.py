@@ -87,6 +87,74 @@ def test_the_pause_ends_with_one_request_let_through(wired):
     assert gdelt.report()["paused_until"] is None
 
 
+def test_after_a_pause_only_one_request_probes(wired):
+    """Review of §207: when a pause ran out, every waiting caller went out.
+    One probes; the others are told "paused" until it answers."""
+    import asyncio
+
+    for _ in range(3):
+        run(gdelt.retrieve("fed rates"))
+    gdelt.BREAKER.paused_until = 1.0   # the pause is over
+    gate = asyncio.Event()
+    calls_before = wired["calls"]
+
+    async def both():
+        gdelt.BREAKER.check(claim=True)          # the first caller claims
+        with pytest.raises(gdelt.GdeltPaused):   # the second is refused
+            gdelt.BREAKER.check(claim=True)
+        gdelt.BREAKER.failure("still refused")   # the probe fails: paused again
+        assert gdelt.report()["paused_until"] is not None
+        gate.set()
+
+    run(both())
+    assert wired["calls"] == calls_before
+    assert gdelt.report()["probing"] is False
+
+
+def test_a_request_queued_before_the_pause_does_not_go_out(wired):
+    """`check` runs again after the pacer wait."""
+    for _ in range(3):
+        run(gdelt.retrieve("fed rates"))
+    calls = wired["calls"]
+    with pytest.raises(gdelt.GdeltPaused):
+        run(gdelt._get({"query": "x"}, 1.0))
+    assert wired["calls"] == calls
+
+
+def test_a_rate_limit_notice_with_a_200_is_not_a_success(wired, monkeypatch):
+    import httpx
+
+    real = httpx.AsyncClient
+
+    def notice(*args, **kwargs):
+        kwargs.pop("proxy", None)
+        return real(*args, transport=httpx.MockTransport(
+            lambda r: httpx.Response(200, text="Please limit requests to one every 5 seconds")),
+            **kwargs)
+
+    monkeypatch.setattr(gdelt.httpx, "AsyncClient", notice)
+    run(gdelt.retrieve("fed rates"))
+    assert gdelt.report()["failures_in_a_row"] == 1
+
+
+def test_a_malformed_proxy_is_a_counted_failure_that_never_shows_the_url(wired, monkeypatch):
+    monkeypatch.setattr(gdelt, "settings", dataclasses.replace(
+        gdelt.settings, gdelt_proxy_url="user:secretpw@proxy.example:9293"))
+    for _ in range(3):
+        assert run(gdelt.retrieve("fed rates")) == []
+    report = gdelt.report()
+    assert report["proxy"] == "invalid"
+    assert report["via_proxy"] is False
+    assert report["paused_until"] is not None     # it tripped, visibly
+    assert "secretpw" not in repr(report)
+    assert wired["calls"] == 0
+
+
+def test_a_failure_message_never_repeats_a_proxy_credential():
+    exc = RuntimeError("could not reach http://user:secretpw@proxy.example:9293")
+    assert "secretpw" not in gdelt._describe(exc)
+
+
 def test_zero_never_pauses(wired, monkeypatch):
     monkeypatch.setattr(gdelt, "settings", dataclasses.replace(
         gdelt.settings, gdelt_breaker_failures=0))

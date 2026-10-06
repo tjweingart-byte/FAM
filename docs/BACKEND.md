@@ -775,8 +775,8 @@ a subsystem cannot. Its keys, in order:
 | `trending`, `stories`, `trending_bank` | The registry, the story pool (sources, outcomes, templated tiles), the edition (slot, written, failures, empty reason) |
 | `thumbnails`, `daily_edition` | Picture counts and `last_run`; edition slot, written, ceilings |
 | `categories` | Tree size, learned vs seeded, `stale` |
-| `gdelt` | On/off, pacer, breaker (`failures_in_a_row`, `paused_until`, `last_error`), `via_proxy` (never the URL) |
-| `licences` | Per GNews / Finnhub / Open-Meteo plan, and `commercial_ready` (§207) |
+| `gdelt` | On/off, pacer, breaker (`failures_in_a_row`, `paused_until`, `probing`, `last_error`), `proxy` (`none`/`set`/`invalid`, never the URL) and `via_proxy` |
+| `licences` | `commercial_ready` and which services are on a non-commercial plan (§207); the plans, prices and what to buy are on `/admin` only |
 | `prefetch`, `prefetch_sources` | Level, ceilings, hit rate, sources |
 | `streaming_pipeline`(`_default`), `search_mode`(`_source`), `writer_effort`(`_source`), `writer_savings` | Settings that can be overridden in a dashboard, and where each value came from |
 | `research_words`, `cache` | Keyword floor; cache size, audio kept, hit counts |

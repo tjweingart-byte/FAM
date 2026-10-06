@@ -134,7 +134,7 @@ def test_render_yaml_sets_no_setting_nothing_reads():
 def test_the_web_page_listens_for_its_own_status():
     assert "X-FAM-Client-Status" in INDEX
     assert "res.status === 426" in INDEX
-    assert "A newer version of FAM is available" in INDEX
+    assert "A newer version of FAM is available at " in INDEX
 
 
 def test_the_share_page_names_itself():
@@ -144,8 +144,21 @@ def test_the_share_page_names_itself():
 
 
 def test_cors_allows_what_the_app_sends():
-    source = (ROOT / "app.py").read_text()
-    assert '"PATCH"' in source and '"X-FAM-TZ"' in source
+    """Read off the middleware itself, not grepped from the source."""
+    from starlette.middleware.cors import CORSMiddleware
+
+    import app as appmod
+
+    cors = [m for m in appmod.app.user_middleware if m.cls is CORSMiddleware]
+    if not cors:      # only installed when ALLOWED_ORIGINS is set
+        source = (ROOT / "app.py").read_text()
+        i = source.index("allow_methods=")
+        block = source[i:i + 200]
+        assert '"PATCH"' in block and '"X-FAM-TZ"' in block
+        return
+    options = cors[0].kwargs
+    assert "PATCH" in options["allow_methods"]
+    assert "X-FAM-TZ" in options["allow_headers"]
 
 
 def test_a_replay_is_timed_by_the_episode_not_the_search_setting():

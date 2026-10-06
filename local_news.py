@@ -103,6 +103,8 @@ TEASER_WORDS = 60
 #: Items each outlet keeps whatever their age when old ones are pruned
 #: (§208): the duplicate-title check reads an outlet's last 200.
 KEEP_PER_OUTLET = 200
+#: Rows deleted per transaction when pruning, so the lock is never held long.
+PRUNE_BATCH = 500
 #: An extracted article with fewer words than this was paywalled or blocked.
 ARTICLE_MIN_WORDS = 80
 #: How long somebody's question keeps a place's outlets polled.
@@ -444,17 +446,28 @@ class LocalNewsStore:
         Items were never deleted, though only the last `LOCAL_NEWS_WINDOW_DAYS`
         count as evidence, so the table grew without bound on a 1 GB disk.
         The newest few per outlet stay because the collector reads them: the
-        duplicate-title check looks at an outlet's last 200, and its polling
-        rhythm (`item_times`) at its last 20. Returns how many were deleted.
+        duplicate-title check looks at an outlet's last 200 *by id*, so that is
+        the order kept here too - otherwise an old-dated item still in a feed
+        would be pruned and re-fetched every day - and its polling rhythm
+        (`item_times`) reads its last 20. Deleted in batches, releasing the
+        store's lock between them, so the first prune of a large table does
+        not hold up the collector or an episode's lookup. Returns how many.
         """
-        with self._lock, closing(self._connect()) as db, db:
-            cur = db.execute(
-                "DELETE FROM items WHERE published < ? AND id NOT IN ("
+        with closing(self._connect()) as db:
+            doomed = [r[0] for r in db.execute(
+                "SELECT id FROM items WHERE published < ? AND id NOT IN ("
                 " SELECT id FROM (SELECT id, ROW_NUMBER() OVER ("
-                "  PARTITION BY outlet_id ORDER BY published DESC, id DESC) AS n"
+                "  PARTITION BY outlet_id ORDER BY id DESC) AS n"
                 "  FROM items) WHERE n <= ?)",
-                (before, int(keep_per_outlet)))
-            return cur.rowcount or 0
+                (before, int(keep_per_outlet))).fetchall()]
+        gone = 0
+        for start in range(0, len(doomed), PRUNE_BATCH):
+            batch = doomed[start:start + PRUNE_BATCH]
+            marks = ",".join("?" * len(batch))
+            with self._lock, closing(self._connect()) as db, db:
+                cur = db.execute(f"DELETE FROM items WHERE id IN ({marks})", batch)
+                gone += cur.rowcount or 0
+        return gone
 
     def counts(self) -> dict:
         with closing(self._connect()) as db:
@@ -960,8 +973,10 @@ def prune_old(now: Optional[float] = None) -> int:
 
 async def run_forever(every: float = 300.0) -> None:
     """The collector. Never raises; one bad sweep waits for the next.
-    Old items are pruned once a day (§208)."""
-    last_prune = 0.0
+    Old items are pruned once a day (§208), the first time an hour after
+    boot rather than in the boot's own busy minute - and not a day after,
+    because a deploy restarts this loop and could postpone it for ever."""
+    last_prune = time.time() - 86400 + 3600
     while True:
         try:
             polled = await poll_due()

@@ -3105,11 +3105,17 @@ async def entitlements_read(request: Request) -> dict:
 
 def _licences_report() -> dict:
     """`provider_usage.licences`, never raising: health reports, it does not
-    fail on a report."""
+    fail on a report.
+
+    Only the verdict and which services: `/api/health` is open to anybody
+    (the waitlist lets it through), so the plans, prices and what to buy stay
+    on `/admin`'s outside-services table (§207 review)."""
     try:
         import provider_usage
 
-        return provider_usage.licences()
+        full = provider_usage.licences()
+        return {"commercial_ready": full["commercial_ready"],
+                "non_commercial_in_use": full["non_commercial_in_use"]}
     except Exception as exc:  # noqa: BLE001
         log.warning("could not read licences: %s", exc)
         return {"error": str(exc)}

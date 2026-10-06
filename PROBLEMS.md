@@ -15780,3 +15780,40 @@ operating detail (admin commands, settings), so it was published privately in
 the owner's chat instead, and the shared link was left for the owner to decide.
 
 Tests: `tests/test_fixes_208.py`; `tests/test_data_paths.py` gains the GPU image.
+
+**Review before merging (06/10).** An independent pass over the branch's
+code found nothing blocking, and these, each fixed with a test:
+
+* *A malformed `GDELT_PROXY_URL`* (no scheme, or socks) made httpx refuse to
+  build the client outside the `try`: GDELT went silent, the breaker never
+  tripped, health said `via_proxy: true`, and the log line could carry the
+  credential. The URL is validated (`ProxyInvalid`, worded without it), a bad
+  one is a counted failure that trips the breaker, health says
+  `proxy: invalid`, and `_describe` masks any `//user:pass@`.
+* *The breaker let several requests through.* Requests already waiting on the
+  pacer when it tripped went out anyway, and every caller waiting when a pause
+  ended probed. It is checked again after the pacer wait, and after a pause
+  exactly one request probes (`probing`) while the rest are told "paused".
+* *A probe cut off by its caller's deadline* (`CancelledError`) was neither a
+  success nor a failure, and would have left the probe claimed for ever; it is
+  a failure now.
+* *A 200 counted as success before its body parsed.* GDELT's rate-limit notice
+  is text with a 200; it now counts as a refusal, and success is recorded only
+  after the JSON parses.
+* *The deprecated-release toast said "reload to update"*, which on a kept
+  `/v/<version>/` page reloads the same old page; it names the current
+  address instead.
+* *Local news pruning* kept each outlet's newest 200 by publish date while
+  the duplicate check reads the last 200 by id, so an old-dated item still in
+  a feed would have been pruned and re-fetched daily; both use id now. Deletes
+  run in batches of 500 with the lock released between them, and the first
+  prune is an hour after boot.
+* *`/api/health` is open to anybody*, so its `licences` block now says only
+  `commercial_ready` and which services; plans, prices and what to buy stay
+  on `/admin`.
+* The CORS test reads the middleware's own options instead of grepping.
+
+Left as they are: a deleted listener's scripts read as unattributed (`''`),
+so a later rewrite of the same key may attribute it to its new writer, which
+is how scripts from before the column behave; and a proxy's own refusal (a
+407) is counted as GDELT's, which `last_error` makes readable.

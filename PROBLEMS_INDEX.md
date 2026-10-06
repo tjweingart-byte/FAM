@@ -211,4 +211,4 @@ and `limit` = Lines.
 | 15617 | 27 | 205. Viral Loops refused every grant's flag: "'participants' is required" |
 | 15644 | 37 | 206. The admin page lets in the ticked people, or any number from the front |
 | 15681 | 60 | 207. What FAM costs, and five fixes: quotas on, the GPU and Exa priced right, GDELT paused, licences checked |
-| 15741 | 43 | 208. The training docs, and the bugs writing them found |
+| 15741 | 80 | 208. The training docs, and the bugs writing them found |

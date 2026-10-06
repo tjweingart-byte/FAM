@@ -547,7 +547,7 @@ curl -s https://<host>/api/health | python -m json.tool
 | `tts` | The voice engine. `interim: true` means the placeholder tone |
 | `research`, `episode_intelligence`, `search_mode_source`, `writer_effort` | Whether researched episodes can run, whether EI is on, and where each setting came from |
 | `live_facts`, `live_sources`, `stories`, `trending`, `trending_bank`, `daily_edition` | Whether each feed is configured and actually refreshing |
-| `gdelt` | `failures_in_a_row`, `paused_until`, `last_error`, `via_proxy` (the breaker, §207) |
+| `gdelt` | `failures_in_a_row`, `paused_until`, `probing`, `last_error`, `proxy` (`none`/`set`/`invalid`) and `via_proxy` (the breaker, §207) |
 | `local_news`, `weather`, `thumbnails` | §194 and §160 |
 | `quotas`, `tiers` | Whether limits are enforced, and the tier catalogue |
 | `licences` | Each provider's plan. `commercial_ready` answers "may we charge money?" |

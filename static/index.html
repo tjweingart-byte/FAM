@@ -4372,7 +4372,7 @@
           if(go && /^\/waitlist(\/me)?$/.test(go)) location.replace(go);
         } catch(e){}
         // An old kept release (§172) hears about it (§208): `deprecated` is
-        // said once, as a toast with the way to the current page; `retired`
+        // said once, as a toast naming where the current page is; `retired`
         // (426) goes there, because nothing on this page will work.
         try { clientStatusSeen(res); } catch(e){}
         return res;
@@ -4390,7 +4390,10 @@
     if(status === "deprecated" && !clientStatusSaid){
       clientStatusSaid = true;
       if(typeof toast === "function")
-        toast("A newer version of FAM is available \u2014 reload to update");
+        // Only a kept /v/<version>/ page can hear this (`web/live` is never
+        // in the registry), and reloading it serves the same old page - so
+        // the toast says where the current one is.
+        toast("A newer version of FAM is available at " + location.origin + "/");
     }
   }
   var TOPICS = {
