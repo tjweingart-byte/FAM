@@ -274,14 +274,16 @@
      a screen there); from 820px they flank it and it keeps the tallest's height. */
   .car{ position:relative; display:grid; grid-template-columns:auto 1fr auto; grid-template-areas:"p d n" "s s s";
     align-items:center; row-gap:22px; }
-  .car-slides{ grid-area:s; display:grid; min-width:0; }
-  .car-slide{ grid-area:1/1; align-self:start; min-width:0; opacity:0; visibility:hidden; transform:translateX(18px);
+  .car-slides{ grid-area:s; display:grid; gap:56px; min-width:0; }
+  .car-slide{ min-width:0; }
+  .car:not(.ready) .car-arrow, .car:not(.ready) .car-dots{ display:none; }
+  .car.ready .car-slide{ grid-area:1/1; align-self:start; opacity:0; visibility:hidden; transform:translateX(18px);
     transition:opacity .5s ease, transform .5s ease, visibility 0s linear .5s; }
-  .car-slide[data-on]{ opacity:1; visibility:visible; transform:none;
+  .car.ready .car-slide[data-on]{ opacity:1; visibility:visible; transform:none;
     transition:opacity .5s ease, transform .5s ease, visibility 0s; }
   @media (max-width:819px){
     .car-slides{ position:relative; }
-    .car-slide:not([data-on]){ position:absolute; top:0; left:0; right:0; }
+    .car.ready .car-slide:not([data-on]){ position:absolute; top:0; left:0; right:0; }
   }
   .car-arrow{ position:relative; z-index:3; width:46px; height:46px; border-radius:50%; border:1px solid var(--line);
     background:var(--card); color:var(--text); display:inline-flex; align-items:center; justify-content:center;
@@ -407,7 +409,7 @@
     .feat{ grid-template-columns:1.05fr 1fr; gap:64px; padding:40px 0 10px; }
     /* Arrows at the left and right edges, level with the slide. */
     .car{ grid-template-areas:"p s n" ". d ."; column-gap:22px; row-gap:6px; }
-    .car-slide{ align-self:center; }
+    .car.ready .car-slide{ align-self:center; }
     .pass-card{ flex-direction:column; align-items:flex-start; justify-content:space-between; min-height:210px;
       padding:28px; font-size:23px; }
     .pass-ic{ width:56px; height:56px; border-radius:15px; }
@@ -418,7 +420,7 @@
   @media (prefers-reduced-motion: reduce){
     .can-reveal .reveal{ transform:none; transition:none; }
     .hero-more svg{ animation:none; }
-    .car-slide, .car-slide[data-on]{ transform:none; transition:none; }
+    .car.ready .car-slide, .car.ready .car-slide[data-on]{ transform:none; transition:none; }
   }
 
   /* ---------- status ---------- */
@@ -602,11 +604,9 @@
     </section>
 
 
-    <!-- The problem, told the way the owner tells it (PROBLEMS.md §199, §200):
-         what passes you by on a rail that never stops, then everything keeping
-         up would take, condensed into one two-minute FAM episode. -->
-    <!-- The problem, told in four turns under one heading: it turns every ten
-         seconds, and the arrows either side turn it by hand. -->
+    <!-- The problem, told the way the owner tells it (PROBLEMS.md §199, §200,
+         §212): four turns under one heading - what passes you by, what keeping
+         up would take, the conversation you miss, why someone else decides. -->
     <section class="ab-wrap ab-problem reveal">
       <header class="ab-center">
         <div class="ab-kicker label">The problem</div>
@@ -614,10 +614,10 @@
       </header>
       <div class="car" data-carousel role="region" aria-roledescription="carousel" aria-label="The problem">
         <div class="car-slides">
-          <div class="car-slide prob-pass" role="group" aria-roledescription="slide" aria-label="1 of 4: What passes you by" data-on="">
+          <div class="car-slide prob-pass" role="group" aria-roledescription="slide" aria-label="1 of 4: What passes you by">
             <ul class="pass" aria-label="What passes you by"><li class="pass-card"><span class="pass-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18v12H3z"/><path d="M12 6v12M3 12h4M17 12h4"/><circle cx="12" cy="12" r="2.4"/></svg></span>A game you didn’t watch</li><li class="pass-card"><span class="pass-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v10H9l-5 4z"/><path d="M8 9h8M8 12h5"/></svg></span>A story everyone at work is suddenly talking about</li><li class="pass-card"><span class="pass-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20h18"/><path d="M5 16l4-5 4 3 6-8"/><path d="M15 6h4v4"/></svg></span>Something happening in an industry you care about</li><li class="pass-card"><span class="pass-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3v8a2 2 0 0 0 2 2v8M5 3v5M9 3v5"/><path d="M17 21V3c-2 1.5-3 4-3 7s1 3 3 3"/></svg></span>A topic your friend brings up at dinner that you wish you knew more about</li></ul>
           </div>
-          <div class="car-slide prob-time" role="group" aria-roledescription="slide" aria-label="2 of 4: It takes time" aria-hidden="true" inert>
+          <div class="car-slide prob-time" role="group" aria-roledescription="slide" aria-label="2 of 4: It takes time">
             <div class="turn">
               <p class="turn-b">Keeping up with all the information out there takes time.</p>
             </div>
@@ -641,56 +641,56 @@
               </div>
             </figure>
           </div>
-          <div class="car-slide ab-morning" role="group" aria-roledescription="slide" aria-label="3 of 4: The conversation" aria-hidden="true" inert>
-          <div class="ab-copy ab-center">
-            <div class="ab-kicker label">Stay in the loop</div>
-            <h2 class="ab-h ab-h-sm">Don’t be left out of the conversation</h2>
-          </div>
-          <!-- The same conversation twice, side by side: only your line differs. -->
-          <div class="ba">
-            <figure class="ba-col">
-              <figcaption class="ba-label off">Without FAM</figcaption>
-              <div class="convo">
-                  <div class="convo-head"><span class="label">#team</span><span>Monday, 9:04 AM</span></div>
-                  <div class="msg"><span class="who" style="background:#8FAE9A">JR</span><p><b>Jordan</b>I can’t believe what came out about that NFL head coach.</p></div>
-                  <div class="msg"><span class="who" style="background:#F2D2B6">MB</span><p><b>Maya</b>I know, they kept that affair quiet for a long time.</p></div>
-                  <div class="msg"><span class="who" style="background:#C9B6F0">SP</span><p><b>Sam</b>I can’t believe they got caught on that hotel rooftop!</p></div>
-                  <div class="msg me lost"><p><b>You</b>Wait… what happened?</p><span class="who">You</span></div>
-                </div>
-            </figure>
-            <figure class="ba-col">
-              <figcaption class="ba-label on">With FAM</figcaption>
-              <div class="convo">
-                  <div class="convo-head"><span class="label">#team</span><span>Monday, 9:04 AM</span></div>
-                  <div class="msg"><span class="who" style="background:#8FAE9A">JR</span><p><b>Jordan</b>I can’t believe what came out about that NFL head coach.</p></div>
-                  <div class="msg"><span class="who" style="background:#F2D2B6">MB</span><p><b>Maya</b>I know, they kept that affair quiet for a long time.</p></div>
-                  <div class="msg"><span class="who" style="background:#C9B6F0">SP</span><p><b>Sam</b>I can’t believe they got caught on that hotel rooftop!</p></div>
-                  <div class="msg me in"><p><b>You</b>I remember the rumors from a while ago, but I can’t believe they turned out to be true.</p><span class="who">You</span></div>
-                  <div class="convo-note on"><span class="fam-dot"></span>Caught up on FAM this morning · 2 min</div>
-                </div>
-            </figure>
-          </div>
-          <p class="ba-out">Two minutes in the morning and <b>you’re in it</b>: you know the story,
-            you can contribute, and you have one more thing to connect with someone over.</p>
-          </div>
-          <div class="car-slide ab-origin" role="group" aria-roledescription="slide" aria-label="4 of 4: Why we built FAM" aria-hidden="true" inert>
-          <div class="ab-kicker label">Why we built FAM</div>
-          <h2 class="ab-h">Why should someone else decide which stories you hear?</h2>
-          <p class="ab-lede">FAM began inside a podcast company, where a handful of people decided
-            which stories became episodes and ultimately <b>controlled what listeners heard</b>.<br>
-            That raised a question: why should you wait for someone else
-            to make an episode about the things you care about?</p>
-          <div class="pipeline">
-            <div class="pipe-old">
-              <div class="label">For most of the history of media, someone had to</div>
-              <ol><li>Research it</li><li>Write it</li><li>Record it</li><li>Edit it</li><li>Publish it</li></ol>
+          <div class="car-slide ab-morning" role="group" aria-roledescription="slide" aria-label="3 of 4: The conversation">
+            <div class="ab-copy ab-center">
+              <div class="ab-kicker label">Stay in the loop</div>
+              <h2 class="ab-h ab-h-sm">Don’t be left out of the conversation</h2>
             </div>
-            <div class="pipe-arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>
-            <div class="pipe-new">
-              <div class="label">Now the technology exists to collapse all of that</div>
-              <p>You ask. FAM tells you the story.</p>
+            <!-- The same conversation twice, side by side: only your line differs. -->
+            <div class="ba">
+              <figure class="ba-col">
+                <figcaption class="ba-label off">Without FAM</figcaption>
+                <div class="convo">
+                    <div class="convo-head"><span class="label">#team</span><span>Monday, 9:04 AM</span></div>
+                    <div class="msg"><span class="who" style="background:#8FAE9A">JR</span><p><b>Jordan</b>I can’t believe what came out about that NFL head coach.</p></div>
+                    <div class="msg"><span class="who" style="background:#F2D2B6">MB</span><p><b>Maya</b>I know, they kept that affair quiet for a long time.</p></div>
+                    <div class="msg"><span class="who" style="background:#C9B6F0">SP</span><p><b>Sam</b>I can’t believe they got caught on that hotel rooftop!</p></div>
+                    <div class="msg me lost"><p><b>You</b>Wait… what happened?</p><span class="who">You</span></div>
+                  </div>
+              </figure>
+              <figure class="ba-col">
+                <figcaption class="ba-label on">With FAM</figcaption>
+                <div class="convo">
+                    <div class="convo-head"><span class="label">#team</span><span>Monday, 9:04 AM</span></div>
+                    <div class="msg"><span class="who" style="background:#8FAE9A">JR</span><p><b>Jordan</b>I can’t believe what came out about that NFL head coach.</p></div>
+                    <div class="msg"><span class="who" style="background:#F2D2B6">MB</span><p><b>Maya</b>I know, they kept that affair quiet for a long time.</p></div>
+                    <div class="msg"><span class="who" style="background:#C9B6F0">SP</span><p><b>Sam</b>I can’t believe they got caught on that hotel rooftop!</p></div>
+                    <div class="msg me in"><p><b>You</b>I remember the rumors from a while ago, but I can’t believe they turned out to be true.</p><span class="who">You</span></div>
+                    <div class="convo-note on"><span class="fam-dot"></span>Caught up on FAM this morning · 2 min</div>
+                  </div>
+              </figure>
             </div>
+            <p class="ba-out">Two minutes in the morning and <b>you’re in it</b>: you know the story,
+              you can contribute, and you have one more thing to connect with someone over.</p>
           </div>
+          <div class="car-slide ab-origin" role="group" aria-roledescription="slide" aria-label="4 of 4: Why we built FAM">
+            <div class="ab-kicker label">Why we built FAM</div>
+            <h2 class="ab-h">Why should someone else decide which stories you hear?</h2>
+            <p class="ab-lede">FAM began inside a podcast company, where a handful of people decided
+              which stories became episodes and ultimately <b>controlled what listeners heard</b>.<br>
+              That raised a question: why should you wait for someone else
+              to make an episode about the things you care about?</p>
+            <div class="pipeline">
+              <div class="pipe-old">
+                <div class="label">For most of the history of media, someone had to</div>
+                <ol><li>Research it</li><li>Write it</li><li>Record it</li><li>Edit it</li><li>Publish it</li></ol>
+              </div>
+              <div class="pipe-arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>
+              <div class="pipe-new">
+                <div class="label">Now the technology exists to collapse all of that</div>
+                <p>You ask. FAM tells you the story.</p>
+              </div>
+            </div>
           </div>
         </div>
         <button type="button" class="car-arrow car-prev" aria-label="Previous"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg></button>
@@ -733,58 +733,58 @@
       <!-- One feature at a time, turned like the problem above. -->
       <div class="car feat-carousel reveal" data-carousel role="region" aria-roledescription="carousel" aria-label="Three ways to listen">
         <div class="car-slides">
-      <!-- 01 Search -->
-      <article class="feat car-slide" role="group" aria-roledescription="slide" aria-label="1 of 3: Search" data-on="">
-        <div class="feat-copy">
-          <div class="feat-num label">01 · Search</div>
-          <h3 class="feat-h">Ask for exactly the episode you want.</h3>
-          <p>Type or say your question, pick how long you want to listen, and FAM
-            creates a custom episode just for you.</p>
-          <ul class="ticks">
-            <li>Prompt it like you’d ask a friend who knows everything</li>
-            <li>Choose your length, from a quick minute to a deep dive</li>
-            <li>Go deeper with a follow-up when it ends</li>
-          </ul>
-        </div>
-        <div class="feat-art">
-          <div class="shots two"><figure class="shot shot-back"><img src="/landing/player.jpg" alt="The player: your episode's picture, title, and Go Deeper" width="780" height="1627" loading="lazy"></figure><figure class="shot shot-front"><img src="/landing/search.jpg" alt="FAM search: ask anything, with trending searches underneath" width="780" height="1688" loading="lazy"></figure><span class="shot-tag">Your episode, made for you</span></div>
-        </div>
-      </article>
-      <!-- 02 DailyFAM -->
-      <article class="feat car-slide" role="group" aria-roledescription="slide" aria-label="2 of 3: DailyFAM" aria-hidden="true" inert>
-        <div class="feat-copy">
-          <div class="feat-num label">02 · DailyFAM</div>
-          <h3 class="feat-h">A page that refreshes all day long.</h3>
-          <p>DailyFAM is always full of relevant, up-to-date episodes, so there’s
-            something worth hearing every time you open it.</p>
-          <ul class="ticks">
-            <li><b>Made for you</b> from what you love to hear about</li>
-            <li><b>Trending</b> stories from around the world</li>
-            <li><b>What you missed</b> while you were busy</li>
-            <li>What’s hot on <b>FAM</b> and with <b>your friends</b></li>
-          </ul>
-        </div>
-        <div class="feat-art">
-          <div class="shots two"><figure class="shot shot-back"><img src="/landing/dailyfam-rails.jpg" alt="DailyFAM's Trending and What you missed last week rails" width="780" height="1688" loading="lazy"></figure><figure class="shot shot-front"><img src="/landing/dailyfam.jpg" alt="DailyFAM: your friends, pick up where you left off, and Made for you" width="780" height="1688" loading="lazy"></figure><span class="shot-tag">The latest, all in one place</span></div>
-        </div>
-      </article>
-      <!-- 03 myFAM -->
-      <article class="feat car-slide" role="group" aria-roledescription="slide" aria-label="3 of 3: myFAM" aria-hidden="true" inert>
-        <div class="feat-copy">
-          <div class="feat-num label">03 · myFAM</div>
-          <h3 class="feat-h">Your topics, mixed and played in one tap.</h3>
-          <p>myFAM is the easiest way to stay up to date. Build custom playlists,
-            called mixes, from the topics you follow, and get the latest on them every day.</p>
-          <ul class="ticks">
-            <li>Want a daily recap of your team or the markets? Add them to a mix</li>
-            <li>One tap plays through all the latest, back to back</li>
-            <li>Share your mixes, or copy one somebody else made</li>
-          </ul>
-        </div>
-        <div class="feat-art">
-          <div class="shots two"><figure class="shot shot-back"><img src="/landing/myfam-mixes.jpg" alt="myFAM: your mixes" width="780" height="1688" loading="lazy"></figure><figure class="shot shot-front"><img src="/landing/myfam-mix.jpg" alt="A myFAM mix with today’s edition ready to play" width="780" height="1688" loading="lazy"></figure><span class="shot-tag">Your mix, your way, made daily</span></div>
-        </div>
-      </article>
+          <!-- 01 Search -->
+          <article class="feat car-slide" role="group" aria-roledescription="slide" aria-label="1 of 3: Search">
+            <div class="feat-copy">
+              <div class="feat-num label">01 · Search</div>
+              <h3 class="feat-h">Ask for exactly the episode you want.</h3>
+              <p>Type or say your question, pick how long you want to listen, and FAM
+                creates a custom episode just for you.</p>
+              <ul class="ticks">
+                <li>Prompt it like you’d ask a friend who knows everything</li>
+                <li>Choose your length, from a quick minute to a deep dive</li>
+                <li>Go deeper with a follow-up when it ends</li>
+              </ul>
+            </div>
+            <div class="feat-art">
+              <div class="shots two"><figure class="shot shot-back"><img src="/landing/player.jpg" alt="The player: your episode's picture, title, and Go Deeper" width="780" height="1627" loading="lazy"></figure><figure class="shot shot-front"><img src="/landing/search.jpg" alt="FAM search: ask anything, with trending searches underneath" width="780" height="1688" loading="lazy"></figure><span class="shot-tag">Your episode, made for you</span></div>
+            </div>
+          </article>
+          <!-- 02 DailyFAM -->
+          <article class="feat car-slide" role="group" aria-roledescription="slide" aria-label="2 of 3: DailyFAM">
+            <div class="feat-copy">
+              <div class="feat-num label">02 · DailyFAM</div>
+              <h3 class="feat-h">A page that refreshes all day long.</h3>
+              <p>DailyFAM is always full of relevant, up-to-date episodes, so there’s
+                something worth hearing every time you open it.</p>
+              <ul class="ticks">
+                <li><b>Made for you</b> from what you love to hear about</li>
+                <li><b>Trending</b> stories from around the world</li>
+                <li><b>What you missed</b> while you were busy</li>
+                <li>What’s hot on <b>FAM</b> and with <b>your friends</b></li>
+              </ul>
+            </div>
+            <div class="feat-art">
+              <div class="shots two"><figure class="shot shot-back"><img src="/landing/dailyfam-rails.jpg" alt="DailyFAM's Trending and What you missed last week rails" width="780" height="1688" loading="lazy"></figure><figure class="shot shot-front"><img src="/landing/dailyfam.jpg" alt="DailyFAM: your friends, pick up where you left off, and Made for you" width="780" height="1688" loading="lazy"></figure><span class="shot-tag">The latest, all in one place</span></div>
+            </div>
+          </article>
+          <!-- 03 myFAM -->
+          <article class="feat car-slide" role="group" aria-roledescription="slide" aria-label="3 of 3: myFAM">
+            <div class="feat-copy">
+              <div class="feat-num label">03 · myFAM</div>
+              <h3 class="feat-h">Your topics, mixed and played in one tap.</h3>
+              <p>myFAM is the easiest way to stay up to date. Build custom playlists,
+                called mixes, from the topics you follow, and get the latest on them every day.</p>
+              <ul class="ticks">
+                <li>Want a daily recap of your team or the markets? Add them to a mix</li>
+                <li>One tap plays through all the latest, back to back</li>
+                <li>Share your mixes, or copy one somebody else made</li>
+              </ul>
+            </div>
+            <div class="feat-art">
+              <div class="shots two"><figure class="shot shot-back"><img src="/landing/myfam-mixes.jpg" alt="myFAM: your mixes" width="780" height="1688" loading="lazy"></figure><figure class="shot shot-front"><img src="/landing/myfam-mix.jpg" alt="A myFAM mix with today’s edition ready to play" width="780" height="1688" loading="lazy"></figure><span class="shot-tag">Your mix, your way, made daily</span></div>
+            </div>
+          </article>
         </div>
         <button type="button" class="car-arrow car-prev" aria-label="Previous"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg></button>
         <button type="button" class="car-arrow car-next" aria-label="Next"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
@@ -1091,12 +1091,12 @@
   });
 
   /* ---------------- what is FAM ---------------- */
-  // Sections ease up as they scroll into view. They are never hidden while
-  // they wait, so a link preview or a browser without an observer sees all.
   // The page's two carousels (the problem, and how to use FAM): one slide at
   // a time, turning itself every ten seconds; the arrows and dots turn it by
   // hand and restart the ten seconds. It waits while it is off screen or the
   // tab is hidden, so it is never turning where nobody is looking.
+  // Without script every slide shows, one under another: the slides are only
+  // stacked and hidden once a carousel is running (`.car.ready`).
   var CAROUSEL_SECONDS = 10;
   function turnCarousel(box){
     var slides = box.querySelectorAll(".car-slide"), dots = box.querySelectorAll(".car-dots button");
@@ -1128,9 +1128,12 @@
         restart();
       }).observe(box);
     }
+    box.classList.add("ready");
     show(0);
     restart();
   }
+  // Sections ease up as they scroll into view. They are never hidden while
+  // they wait, so a link preview or a browser without an observer sees all.
   function showAbout(){
     var items = document.querySelectorAll(".reveal");
     if("IntersectionObserver" in window){

@@ -754,14 +754,20 @@ def test_the_carousels_turn_every_ten_seconds_and_by_hand():
     assert len(boxes) == 2  # the problem, and how to use FAM
     for box in boxes:
         box = box.split("</section>", 1)[0]
-        # The first slide shows; the others are hidden from sight, screen
-        # readers and the keyboard.
-        on = box.count(" data-on=")
-        hidden = box.count('aria-hidden="true" inert')
-        assert on == 1 and hidden >= 2
+        # Without script every slide shows: nothing is hidden in the markup.
+        slides = box.count('aria-roledescription="slide"')
+        assert slides >= 3
+        tags = re.findall(r'<[^>]*aria-roledescription="slide"[^>]*>', box)
+        assert len(tags) == slides
+        assert not any("data-on" in t or "inert" in t or "aria-hidden" in t for t in tags)
         # Arrows on the left and right, a dot a slide.
         assert box.index('class="car-arrow car-prev"') < box.index('class="car-arrow car-next"')
-        assert box.split('class="car-dots"', 1)[1].split("</div>", 1)[0].count("<button") == on + hidden
+        assert box.split('class="car-dots"', 1)[1].split("</div>", 1)[0].count("<button") == slides
+    # Running, it stacks the slides and shows one; the rest are hidden from
+    # sight, screen readers and the keyboard.
+    assert ".car:not(.ready) .car-arrow" in page and ".car.ready .car-slide{ grid-area:1/1;" in page
+    assert 'el.setAttribute("aria-hidden", "true"); el.inert = true;' in page
+    assert 'box.classList.add("ready");' in page
     assert "var CAROUSEL_SECONDS = 10;" in page
     assert "setInterval(function(){ show(at + 1); }, CAROUSEL_SECONDS * 1000)" in page
     turn = page.split("function turnCarousel(box){", 1)[1].split("\n  }\n", 1)[0]

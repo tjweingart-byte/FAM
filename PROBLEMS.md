@@ -16061,3 +16061,48 @@ section renumbered §211 (and its tests `*_211.py`). Read back, five fixes:
 * a 404 on the newest file wrote it off for good; only files behind it are;
 * a failed domain list was asked again every sync; now once a day;
 * the theme filter's `LIKE` read `_` as a wildcard; it is an exact `instr`.
+
+
+## 212. The waitlist page's two carousels (the 10.6 packet)
+
+The owner's 10.6 packet reordered the "What is FAM" half of `/waitlist`
+(`static/waitlist.html`) before people are sent to it:
+
+- **The conversation is about something niche.** The before/after chat was a
+  ninth-inning comeback - a score anyone can look up. It is now a story you
+  only know if you kept up: an NFL head coach's affair coming out ("caught on
+  that hotel rooftop"), and with FAM you remember the rumours and can say
+  they turned out true. No coach is named.
+- **The problem is one heading over four slides.** "Being in the know
+  shouldn't be a full-time job" stays put while what passes you by, what
+  keeping up takes (the condense picture), the conversation, and why someone
+  else decides take turns under it. What passes you by was a rail drifting
+  past forever; it is now all four cards at once, two by two, sized like the
+  slides beside it. "That's why we built FAM" moved out of the origin slide to
+  stand on its own over No more / FAM gives you.
+- **Search, DailyFAM and myFAM are one carousel** under Search. Scroll. Mix.;
+  DailyFAM no longer flips sides, since a carousel that swapped sides would
+  jump.
+
+Both carousels are one function (`turnCarousel`, `CAROUSEL_SECONDS = 10`):
+every ten seconds, arrows left and right and a dot a slide, a hand turn
+restarting the ten seconds. What was decided, and why:
+
+- **No pause on hover or focus.** The arrow keeps focus after a click, so a
+  focus pause stopped the turning for good after the first click.
+- **It waits while off screen** (and while the tab is hidden), so a visitor
+  reaches the problem on its first slide rather than wherever it got to.
+- **The slides share one grid cell**, so the carousel is as tall as its
+  tallest slide and the page below never moves. On a phone the conversation
+  slide (two chats stacked) is most of a screen taller than the others, so
+  below 820px the carousel takes the height of the slide showing and the
+  arrows and dots sit above it, where the slide starts.
+- **Without script every slide shows**, one under another: the markup hides
+  nothing, and the stacking, hiding, `aria-hidden` and `inert` are applied only
+  once a carousel runs (`.car.ready`) - the same promise the reveal makes.
+- The tilted back phone in a feature slide overlapped the right arrow and took
+  its clicks; the arrows sit above the slides (`z-index`).
+
+Pinned in `tests/test_waitlist.py`
+(`test_the_carousels_turn_every_ten_seconds_and_by_hand` and the story-order
+tests).
