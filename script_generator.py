@@ -1085,9 +1085,10 @@ never spoken.
         " ".join([plan.query, getattr(plan.brief, "subject", "") or ""]))
     categories = ""
     if vocabulary:
-        categories = ("If one of these names it, use those exact words; if "
-                      "none fits, use your own:\n" + "\n".join(vocabulary)
-                      + "\n")
+        categories = ("FAM files episodes under names like these. If the "
+                      "most specific true one is here, use its exact words; "
+                      "if none is specific enough, use your own:\n"
+                      + "\n".join(vocabulary) + "\n")
 
     return f"""Someone just asked FAM this:
 

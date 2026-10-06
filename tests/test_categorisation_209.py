@@ -142,25 +142,64 @@ def client(monkeypatch, tmp_path, tree):
         yield c
 
 
-def test_a_fresh_episode_logs_its_play_under_the_writers_category(client,
-                                                                  monkeypatch):
-    seen = []
+def _plays():
+    rows = appmod.EVENTS._conn().execute(
+        "SELECT id, tags FROM events WHERE kind = 'play' ORDER BY id").fetchall()
+    return [(r[0], set(filter(None, r[1].split(",")))) for r in rows]
+
+
+def test_a_fresh_episodes_play_is_logged_at_once_then_filed_under_its_category(
+        client, monkeypatch):
+    """Logged when the audio is served - myFAM drawn while it plays must
+    know it was heard, and a skip must never precede its play - and the
+    same row is re-filed once the writer has said what it was about."""
+    at_serve = []
     real = appmod.EVENTS.record
-    monkeypatch.setattr(appmod.EVENTS, "record",
-                        lambda event: (seen.append(event), real(event)))
+
+    def record(event):
+        row = real(event)
+        if event.kind == "play":
+            at_serve.append(set(event.tags))
+        return row
+    monkeypatch.setattr(appmod.EVENTS, "record", record)
     q = "what a chaotic press conference signals about the fight"
     res = client.get(f"/api/audio?q={q}&minutes=1&fmt=pcm&surface=search")
     assert res.status_code == 200
     assert res.headers["X-FAM-Cache"] != "hit"
-    plays = [e for e in seen if e.kind == "play"]
+    assert len(at_serve) == 1 and "boxing" not in at_serve[0], \
+        "logged at serve time, before anything was written"
+    plays = _plays()
     assert len(plays) == 1, "a written episode's play was logged twice or never"
-    assert {"boxing", "combat sports", "sports"} <= set(plays[0].tags)
+    assert {"boxing", "combat sports", "sports"} <= plays[0][1]
 
-    # And its replay is logged now, under the same category.
+    # And its replay is logged at once, under the same category.
     again = client.get(f"/api/audio?q={q}&minutes=1&fmt=pcm&surface=search")
     assert again.headers["X-FAM-Cache"] == "hit"
-    plays = [e for e in seen if e.kind == "play"]
-    assert len(plays) == 2 and "boxing" in plays[1].tags
+    plays = _plays()
+    assert len(plays) == 2 and "boxing" in plays[1][1]
+
+
+def test_a_play_whose_episode_was_never_stored_keeps_its_keyword_tags(
+        client, monkeypatch):
+    """Left before it was written: nothing to re-file it under, and never
+    the category of an older episode under the same key."""
+    monkeypatch.setattr(appmod.SCRIPT_CACHE, "resolve_episode", lambda e: "")
+    q = "what a chaotic press conference signals about the fight"
+    client.get(f"/api/audio?q={q}&minutes=1&fmt=pcm&surface=search")
+    plays = _plays()
+    assert len(plays) == 1 and "boxing" not in plays[0][1]
+
+
+def test_retag_corrects_one_row_and_never_raises():
+    store = appmod.EVENTS
+    row = store.record(T.Event("u", "play", "", "q", ("science",)))
+    other = store.record(T.Event("u", "play", "", "q2", ("science",)))
+    assert row and other and row != other
+    assert store.retag(row, ("boxing", "sports"))
+    tags = dict(store._conn().execute("SELECT id, tags FROM events").fetchall())
+    assert tags[row] == "boxing,sports" and tags[other] == "science"
+    assert store.retag(None, ("x",)) is False
+    assert store.record(T.Event("u", "not-a-kind", "", "q", ())) is None
 
 
 def test_a_written_episode_logs_what_each_categoriser_said(client):
@@ -310,6 +349,17 @@ def test_a_written_game_keeps_its_providers_tags(tree, monkeypatch):
     assert tile.tags == ("sports", "nfl")
 
 
+def test_the_composers_overruled_node_goes_with_its_guess(tree, monkeypatch):
+    """Same facet, different subject: the composer's node and what only it
+    implied stop being scored; the facet stays."""
+    monkeypatch.setattr(T, "_WRITTEN_CATEGORY", lambda q: "boxing")
+    composed = S.refine_tags(("sports",), "mixed martial arts", QUERY)
+    tile = T.topics_from_stories([_story(tags=composed,
+                                         category="mixed martial arts")])[0]
+    assert "mixed martial arts" not in tile.tags
+    assert {"boxing", "sports"} <= set(tile.tags)
+
+
 def test_without_a_source_a_story_ranks_as_before(tree, monkeypatch):
     monkeypatch.setattr(T, "_WRITTEN_CATEGORY", None)
     tile = T.topics_from_stories([_story(category="boxing")])[0]
@@ -334,12 +384,41 @@ def test_the_writer_is_shown_its_questions_branches(tree):
     assert S.writer_vocabulary("") == []
 
 
+def test_the_writers_own_branch_comes_first_down_to_the_team(tree):
+    """A Bengals question is offered the team and its path, deepest first -
+    not only the league - so "use those exact words" never pushes the writer
+    up from the most specific name."""
+    lines = S.writer_vocabulary("can the cincinnati bengals make the playoffs")
+    assert "cincinnati bengals" in lines[0] or "bengals" in lines[0]
+    assert lines[0].startswith("- sports / ")
+
+
+def test_a_grown_tree_does_not_crowd_sports_out_of_the_writers_list(tree):
+    """The composer's list is capped and filled facet by facet alphabetically;
+    the writer's is built per facet, so a big business branch costs a sports
+    question nothing."""
+    for i in range(200):
+        tree.mint(f"business thing{chr(97 + i % 26)}{chr(97 + i // 26)}", "business")
+    lines = S.writer_vocabulary("the heavyweight boxing title fight")
+    assert lines and all(line.startswith("- sports / ") for line in lines)
+
+
+def test_the_writers_list_is_rebuilt_only_when_the_tree_is(tree):
+    S.writer_vocabulary("boxing")
+    shape = S._WRITER_SHAPE
+    S.writer_vocabulary("boxing again")
+    assert S._WRITER_SHAPE is shape
+    tree.mint("bare knuckle boxing", "boxing")
+    assert any("bare knuckle boxing" in line
+               for line in S.writer_vocabulary("bare knuckle boxing tonight"))
+
+
 def test_the_vocabulary_is_in_the_user_turn_never_the_system_prompt(tree):
     plan = plan_episode("the heavyweight boxing title fight", 2)
     prompt = G.build_prompt(plan)
-    assert "If one of these names it, use those exact words" in prompt
+    assert "FAM files episodes under names like these" in prompt
     assert "- sports / " in prompt
-    assert "use those exact words" not in G.SYSTEM_PROMPT
+    assert "names like these" not in G.SYSTEM_PROMPT
     assert prompt.index("- sports / ") < prompt.index("<<CATEGORY:")
 
 

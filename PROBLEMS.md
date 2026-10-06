@@ -15844,11 +15844,18 @@ fixes; all are in this change, and the rule is [one-category].
   only the tile's own episode id - asked as the player opens,
   `FamAudio.episode()` is still the previous stream's.
 * *The first play of a fresh episode was filed under keywords.* The play was
-  recorded before the script, and so its category, was stored. A replay is
-  still recorded at once; an episode being written is recorded in the
-  stream's `finally`, after the cache write (a disconnect still records).
-  The review proposed re-resolving each event in `taste()` instead; that is a
-  cache read per event per page, and deferring one write does the same job.
+  recorded before the script, and so its category, was stored. It is still
+  recorded when the audio is served - myFAM drawn while it plays must know
+  it was heard, and a skip must never precede its play - and the stream's
+  `finally` re-files that same row once the episode is stored
+  (`EventStore.record` now returns the row id; `EventStore.retag`). Only when
+  that exact episode resolves (`resolve_episode(stats.episode)`): a listener
+  who left before it was written keeps the keyword tags rather than
+  borrowing an older episode's category under the same key. (A first version
+  deferred the whole play to `finally`; the branch review caught that it
+  let myFAM re-offer the tile being played and let a skip land first.) The
+  review proposed re-resolving each event in `taste()` instead; that is a
+  cache read per event per page.
 * *A re-write inherited a category it had not earned.* The upsert kept the
   old category whenever the new script gave none. Now a re-write with new
   words takes its own category, even an empty one; only a re-write that said
@@ -15880,15 +15887,23 @@ the writer's node as the tile's category and, for news, corrects its tags
 with `refine_tags` - so `_affinity`, the off-subject gate, the variety cap
 and Trending's facet cap see what the episode is about. A game or market
 keeps its provider's tags (§187); the category decides only its picture.
-This reverses §189's "ranking for Made for you still reads a story's
+An overruled composer node in the same facet ("mixed martial arts" under
+the writer's "boxing") is dropped with any level only it implied; the facet
+stays. This reverses §189's "ranking for Made for you still reads a story's
 composed tags". Measured: sixty stories cost 5ms cold, then nothing for a
 minute. With no probe (a test, a tool) ranking is unchanged.
 
 **The writer is shown its branch (B7).** `stories.writer_vocabulary` gives
-the composer's vocabulary lines under the facets the question and the
-brief's subject point at, at most `WRITER_VOCABULARY_LINES` (30), and
-`build_prompt` puts them beside the CATEGORY instruction - "use those exact
-words; if none fits, use your own". The user turn, never `SYSTEM_PROMPT`:
+first every node the tree finds in the question and the brief's subject,
+deepest first with its path and children (a Bengals question sees
+`cincinnati bengals`, not only the league), then the first-level lines of
+the facets they point at, most used first - at most
+`WRITER_VOCABULARY_LINES` (30). It is built per facet and memoised per tree
+generation (`_writer_shape`): filtering the composer's capped list, as the
+first version did, let a grown tree crowd sports out alphabetically, and
+cost 6.7ms in front of the first word at 4,000 nodes. `build_prompt` puts
+the lines beside the CATEGORY instruction - "if the most specific true one
+is here, use its exact words; if none is specific enough, use your own". The user turn, never `SYSTEM_PROMPT`:
 the list changes as the tree grows and would break the cached block
 ([writer-savings]). Unheard and unmeasured: the audit is how to tell
 whether it raises the placed rate.

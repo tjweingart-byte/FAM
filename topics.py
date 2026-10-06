@@ -2327,12 +2327,14 @@ class EventStore:
             self._local.conn = conn
         return conn
 
-    def record(self, event: Event) -> None:
+    def record(self, event: Event) -> Optional[int]:
+        """Log one interaction. Returns its row id, or None when it was not
+        logged - which is never an error a caller has to handle."""
         if event.kind not in EVENT_KINDS:
             log.warning("ignoring unknown event kind %r", event.kind)
-            return
+            return None
         try:
-            self._conn().execute(
+            cur = self._conn().execute(
                 "INSERT INTO events"
                 " (user_id, kind, topic_id, text, tags, at, thread, section, algo)"
                 " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
@@ -2340,9 +2342,30 @@ class EventStore:
                  ",".join(event.tags), event.at, event.thread[:200],
                  event.section[:40], event.algo[:40]),
             )
+            return cur.lastrowid
         except Exception:
             # A feed is a nicety. Losing an event must never break playback.
             log.exception("could not record interaction; continuing")
+            return None
+
+    def retag(self, row_id: int, tags: Iterable[str]) -> bool:
+        """Correct the tags of one event just logged (§209).
+
+        For one case only: a play is logged when its audio is served, before
+        the episode it plays has been written, so it can only carry the
+        question's keyword tags; once the writer has said what the episode
+        is about, the server files that same play under its category. The
+        play stays where it was in the log - its time, its order before any
+        skip or complete - and only its label changes. Never raises."""
+        if not row_id:
+            return False
+        try:
+            self._conn().execute("UPDATE events SET tags = ? WHERE id = ?",
+                                 (",".join(tags), int(row_id)))
+            return True
+        except Exception:
+            log.exception("could not correct an event's tags; continuing")
+            return False
 
     def record_impressions(
         self,
@@ -4980,10 +5003,19 @@ def topics_from_stories(rows, limit: int = 0, now: Optional[float] = None) -> li
         # decides only its picture, the rule `stories._story_from` keeps.
         written = _written_node(story.query)
         if written:
-            category = written
             if getattr(story, "domain", stories.ATTENTION) == stories.ATTENTION:
-                tags = stories.refine_tags(
-                    tags, written, f"{story.title} {story.angle} {story.query}")
+                text = f"{story.title} {story.angle} {story.query}"
+                # The composer's node goes with its guess, and so does any
+                # level only it implied - "mixed martial arts" under the same
+                # facet as the writer's "boxing" would otherwise still be
+                # scored. Its facet and what the writer's branch shares stay.
+                if category and category != written:
+                    keep = set(stories.category_tags(written, text))
+                    gone = ({category} | set(category_tree().ancestors(category))
+                            ) - keep - FACETS
+                    tags = tuple(t for t in tags if t not in gone)
+                tags = stories.refine_tags(tags, written, text)
+            category = written
         tiles.append(Topic(
             id=story.id,
             title=story.title,

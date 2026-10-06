@@ -7139,8 +7139,7 @@ async def audio(
                 _ms(first_pcm_at), _ms(preroll_at), _ms(first_byte_at),
                 json.dumps(stats.marks.to_dict(), default=str),
             )
-            if remember_play and write_pending:
-                record_play()
+            refile_play()
             # The ledger row, written last, when the numbers are final.
             #
             # Here and not at the model call because this is the only place
@@ -7165,41 +7164,46 @@ async def audio(
     # response object is built, so neither is in front of the first word.
     # A guest's play is served and not remembered (§127): nothing the
     # algorithm learns is kept anywhere but an account.
-    remember_play = bool(user and _remembers(request))
-
-    def record_play() -> None:
-        try:
-            EVENTS.record(
-                topics_mod.Event(
-                    user, "play", topic_id, plan.query,
-                    # Through `tags_for_id`, which is the one definition of
-                    # where a tile's tags live. This used to read the bank
-                    # directly and fall through to the words of the question,
-                    # which quietly skipped the other three inventories - the
-                    # startup set is the case that makes it matter, because a
-                    # cold start's *first* play is the one event that decides
-                    # whether the ranker ever learns anything, and those
-                    # queries carry none of the keywords their facet is
-                    # matched on.
-                    _event_tags(topic_id, plan.query, plan.minutes,
-                                stats.episode),
-                )
-            )
-        except Exception:  # noqa: BLE001 - a signal, never the episode
-            log.exception("could not record a play")
-
-    # **A replay is recorded now; an episode being written, when it has
-    # been** (§209). Its category is the writer's last line, so a play logged
-    # before the script was stored was filed under the question's keywords -
-    # the guess the category exists to correct - and the same episode was
-    # logged one way on its first play and another on every later one. The
-    # stream's `finally` runs on a disconnect too, so the play is still a
-    # fact whether or not it was listened to the end.
+    # Recorded now, as it always was - the play is a fact the moment audio
+    # is served, and myFAM drawn while it plays must already know it was
+    # heard. **An episode being written is then re-filed once it has been**
+    # (§209): its category is the writer's last line, so the row logged here
+    # can only carry the question's keyword tags; the stream's `finally`
+    # corrects that same row (`EventStore.retag`) once the episode it played
+    # is stored, so the first play of an episode is filed like every later
+    # one. Only when that exact episode was stored - a listener who left
+    # before it was keeps the keyword tags rather than borrowing the
+    # category of an older episode under the same key.
+    play_row = None
     write_pending = stats.cache != "hit"
-    if remember_play:
+    if user and _remembers(request):
         SOCIAL.seen(user)
-        if not write_pending:
-            record_play()
+        play_row = EVENTS.record(
+            topics_mod.Event(
+                user, "play", topic_id, plan.query,
+                # Through `tags_for_id`, which is the one definition of where
+                # a tile's tags live. This used to read the bank directly and
+                # fall through to the words of the question, which quietly
+                # skipped the other three inventories - the startup set is the
+                # case that makes it matter, because a cold start's *first*
+                # play is the one event that decides whether the ranker ever
+                # learns anything, and those queries carry none of the
+                # keywords their facet is matched on.
+                _event_tags(topic_id, plan.query, plan.minutes, stats.episode),
+            )
+        )
+
+    def refile_play() -> None:
+        if not (play_row and write_pending and stats.episode
+                and SCRIPT_CACHE is not None):
+            return
+        try:
+            if not SCRIPT_CACHE.resolve_episode(stats.episode):
+                return
+            EVENTS.retag(play_row, _event_tags(topic_id, plan.query,
+                                               plan.minutes, stats.episode))
+        except Exception:  # noqa: BLE001 - a label, never the episode
+            log.exception("could not re-file a play under its category")
 
     media_type = "audio/wav" if fmt == "wav" else "audio/L16"
     return StreamingResponse(

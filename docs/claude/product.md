@@ -419,18 +419,24 @@ length but two minutes. Now:
   the ranking and the logged tags all read it.
 * **An event names the episode it is about** - its length and its
   `X-FAM-Episode` id (`/api/event` `minutes`/`episode`); an older client is
-  looked up at the browse length as before. **A play of an episode being
-  written is logged once it has been** (the stream's `finally`), so its
-  first play is filed under its category, not the question's keywords; a
-  replay is logged at once.
+  looked up at the browse length as before. **A play is logged when its
+  audio is served, as always, and an episode being written re-files that
+  same row once it is stored** (`EventStore.retag`, from the stream's
+  `finally`), so its first play is filed under its category, not the
+  question's keywords. Only when that exact episode was stored: a listener
+  who left first keeps the keyword tags.
 * **A written live story is ranked as what it turned out to be about**
   (`topics.set_written_category`, `topics_from_stories`): its category
   replaces the composer's, and a news story's tags are corrected by it
-  (`refine_tags`); a game or market keeps its provider's tags (§187). This
+  (`refine_tags`), and an overruled composer node is dropped with what only
+  it implied; a game or market keeps its provider's tags (§187). This
   reverses §189's "ranking still reads the composed tags".
 * **The writer is shown the names its question's branches use**
-  (`stories.writer_vocabulary`, `WRITER_VOCABULARY_LINES`), in the user turn,
-  never the cached system prompt; it may still use its own words.
+  (`stories.writer_vocabulary`, `WRITER_VOCABULARY_LINES`): the nodes the
+  question names, deepest first with their paths and children, then its
+  facets' first-level lines - built per facet, memoised per tree. In the
+  user turn, never the cached system prompt; the most specific true name,
+  or its own words if none is specific enough.
 * **The words are scrubbed and need a letter**; a re-write with **new words**
   and no category clears the old one (it described the old script); a
   re-write that said the same thing keeps it.
