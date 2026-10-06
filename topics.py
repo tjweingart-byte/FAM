@@ -4925,6 +4925,32 @@ def build_section(store: EventStore, user_id: str, key: str,
     return section
 
 
+#: `query -> category-tree node` for a live story whose episode is written,
+#: or None for no such source (§209). Set by the server
+#: (`app._written_category_probe`); a caller with none - a test, a tool -
+#: ranks on the composer's tags exactly as before.
+_WRITTEN_CATEGORY = None
+
+
+def set_written_category(probe) -> None:
+    """Where a written episode's category is read from (§209). `None`
+    turns it off. The probe must be cheap and must never raise or call a
+    model: it is on the browse path."""
+    global _WRITTEN_CATEGORY
+    _WRITTEN_CATEGORY = probe
+
+
+def _written_node(query: str) -> str:
+    probe = _WRITTEN_CATEGORY
+    if probe is None or not query:
+        return ""
+    try:
+        return probe(query) or ""
+    except Exception:  # noqa: BLE001 - a category never takes the page away
+        log.exception("could not read a written episode's category")
+        return ""
+
+
 def topics_from_stories(rows, limit: int = 0, now: Optional[float] = None) -> list:
     """Turn live stories into tiles, loudest first.
 
@@ -4944,6 +4970,20 @@ def topics_from_stories(rows, limit: int = 0, now: Optional[float] = None) -> li
     tiles = []
     for story in rows:
         tags = tuple(story.tags) or tags_for_text(f"{story.subject} {story.query}")
+        category = getattr(story, "category", "") or ""
+        # **A written story is ranked as what its episode turned out to be
+        # about** (§209). The composer filed it from headlines before any
+        # research; once the writer has named its category, that decides the
+        # tile's picture and - for news - its tags, so Made for you, the
+        # variety cap and the logged play all agree. A game or a market move
+        # keeps the tags its provider filed it under (§187); the category
+        # decides only its picture, the rule `stories._story_from` keeps.
+        written = _written_node(story.query)
+        if written:
+            category = written
+            if getattr(story, "domain", stories.ATTENTION) == stories.ATTENTION:
+                tags = stories.refine_tags(
+                    tags, written, f"{story.title} {story.angle} {story.query}")
         tiles.append(Topic(
             id=story.id,
             title=story.title,
@@ -4955,7 +4995,7 @@ def topics_from_stories(rows, limit: int = 0, now: Optional[float] = None) -> li
             tags=tags,
             icon=_icon_for_tags(tags),
             angle=story.angle,
-            category=getattr(story, "category", "") or "",
+            category=category,
             source=story.source,
             freshness=story.push(now),
             countries=tuple(getattr(story, "countries", ()) or ()),

@@ -729,7 +729,8 @@ def pick(text: str, tags: Iterable[str] = (),
         return None
 
 
-def pick_for_player(text: str, key: str = "") -> Optional[dict]:
+def pick_for_player(text: str, key: str = "",
+                    category: str = "") -> Optional[dict]:
     """The picture behind the player's title, which is never blank while
     the deployment holds any approved picture (10.2 feedback: a searched
     episode played over an empty screen).
@@ -749,6 +750,11 @@ def pick_for_player(text: str, key: str = "") -> Optional[dict]:
     growing a title later (the client asks again when the writer's title
     lands) never swaps one borrowed picture for another; it defaults to
     `text`. `fallback` is True for anything borrowed. Never raises.
+
+    `category` is the written episode's own node (§209, `app._episode_category`)
+    and outranks the words exactly as it does on a tile (`pick`), so the
+    player never draws a different picture from the card that opened it. A
+    borrowed picture walks up from it first.
     """
     try:
         import topics
@@ -756,7 +762,7 @@ def pick_for_player(text: str, key: str = "") -> Optional[dict]:
         words = (text or "").strip()
         facets = topics.FACETS
         declared = tuple(t for t in topics.tags_for_text(words) if t in facets)
-        found = pick(words, declared)
+        found = pick(words, declared, category=category)
         if found:
             return dict(found, fallback=False)
         if not _exists():
@@ -768,6 +774,8 @@ def pick_for_player(text: str, key: str = "") -> Optional[dict]:
         chosen = ""
         candidates = sorted(tree.match(words) if words else (),
                             key=lambda n: (-_depth(tree, n, facets), n))
+        if category and (category in facets or tree.get(category) is not None):
+            candidates.insert(0, category)
         for node in candidates:
             for up in [node] + list(tree.ancestors(node)):
                 if up in approved:

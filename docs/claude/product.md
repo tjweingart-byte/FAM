@@ -403,6 +403,48 @@ explainers, because the one place today's stories live was not in its
 candidate list. It deliberately
 does not fire on Explore or Explore New, which are already continuous.
 
+<!-- rule:one-category -->
+**One episode, one category, everywhere it is read.** *(PROBLEMS.md §209, at
+the owner's direction.)* An episode was categorised by three things that never
+consulted each other - the keyword map (`topics.tags_for_text`), the composer
+(from headlines, before research, §188) and the writer (`<<CATEGORY:>>`, after
+research, §189) - and the writer's, the best informed, reached only a written
+tile's picture and the logged tags, and missed even those for a search at any
+length but two minutes. Now:
+
+* **The writer's category is read through one function**,
+  `app._episode_category(key)`: the words stored as written (so a tree that
+  grows later still places an older episode) and resolved against the tree
+  as it is now. The tile, the player's picture (`pick_for_player(category=)`),
+  the ranking and the logged tags all read it.
+* **An event names the episode it is about** - its length and its
+  `X-FAM-Episode` id (`/api/event` `minutes`/`episode`); an older client is
+  looked up at the browse length as before. **A play of an episode being
+  written is logged once it has been** (the stream's `finally`), so its
+  first play is filed under its category, not the question's keywords; a
+  replay is logged at once.
+* **A written live story is ranked as what it turned out to be about**
+  (`topics.set_written_category`, `topics_from_stories`): its category
+  replaces the composer's, and a news story's tags are corrected by it
+  (`refine_tags`); a game or market keeps its provider's tags (§187). This
+  reverses §189's "ranking still reads the composed tags".
+* **The writer is shown the names its question's branches use**
+  (`stories.writer_vocabulary`, `WRITER_VOCABULARY_LINES`), in the user turn,
+  never the cached system prompt; it may still use its own words.
+* **The words are scrubbed and need a letter**; a re-write with **new words**
+  and no category clears the old one (it described the old script); a
+  re-write that said the same thing keeps it.
+* **Every written episode logs what each categoriser said** (the
+  `category_audit` table in `categories.db`, `category_audit.note` on all
+  four write paths); `python tools/categories_report.py --audit` gives how
+  often the writer's category is placed and agrees with the composer and the
+  keywords. A log; nothing ranks on it; a wipe of the tree empties it.
+* **A tree node matches only as a phrase, in order** (`CategoryStore.match`):
+  "hurricanes hitting the Carolina coast" is no longer `carolina hurricanes`.
+  Short words and digits are skipped inside a run. `LEFT_TO_GROW` still
+  stands - a team named like weather still matches the weather in order
+  ("Miami heat wave") - and is now a narrower problem.
+
 <!-- rule:no-inverted-pyramid -->
 Note this **replaced an earlier rule** that said to open with the answer
 immediately. That was news-writing — the inverted pyramid — and it is the

@@ -15817,3 +15817,98 @@ Left as they are: a deleted listener's scripts read as unattributed (`''`),
 so a later rewrite of the same key may attribute it to its new writer, which
 is how scripts from before the column behave; and a proxy's own refusal (a
 407) is counted as GDELT's, which `last_error` makes readable.
+
+## 209. One episode, one category: what the categorisation review found and fixed
+
+**The owner asked** for everything that categorises an episode, and how to
+make it stronger. The review found four categorisers that never reconcile:
+the keyword map (`topics.tags_for_text`), the composer (headlines, before
+research, §188), the writer (`<<CATEGORY:>>`, after research, §189) and the
+hand-declared tags of the bank, startup and catalogue tiles. The writer's is
+the best informed and reached the least. The owner then chose a set of
+fixes; all are in this change, and the rule is [one-category].
+
+**Bugs (A1-A4).**
+
+* *A search at any length but two minutes never found its own category.*
+  `/api/event` looked it up at `BROWSE_MINUTES`, a different cache key, so
+  every complete and skip of a 1, 3 or 5-minute search taught taste the
+  question's keywords. Events now carry the episode's `minutes` and its
+  `X-FAM-Episode` id (`EventRequest`, `recordFamEvent(..., heard)`), and
+  `app._heard_key` prefers the id. An older client sends neither and is
+  looked up as before.
+* *The player drew a different picture from the tile.* `pick_for_player`
+  re-derived everything from the words. `/api/episode/card` takes `minutes`
+  and `episode`, and the written category outranks the words, as it does in
+  `pick`; when borrowing, the walk up starts from it. The first ask uses
+  only the tile's own episode id - asked as the player opens,
+  `FamAudio.episode()` is still the previous stream's.
+* *The first play of a fresh episode was filed under keywords.* The play was
+  recorded before the script, and so its category, was stored. A replay is
+  still recorded at once; an episode being written is recorded in the
+  stream's `finally`, after the cache write (a disconnect still records).
+  The review proposed re-resolving each event in `taste()` instead; that is a
+  cache read per event per page, and deferring one write does the same job.
+* *A re-write inherited a category it had not earned.* The upsert kept the
+  old category whenever the new script gave none. Now a re-write with new
+  words takes its own category, even an empty one; only a re-write that said
+  the same thing keeps the old (both backends). `extract_category` is
+  scrubbed like the title and summary, and words with no letter are "".
+
+**Measuring it (E18).** Every written episode logs what each categoriser said
+- the writer's words and node, the composer's node (the story's own on the
+Trending edition, else looked up in the pool and edition by question) and the
+keyword facets - into a `category_audit` table in `categories.db`
+(`category_audit.note`, on all four write paths; kept `AUDIT_DAYS`).
+`python tools/categories_report.py --audit [--days N] [--json]` prints how
+often the writer's category is placed by the tree, how often it agrees with
+the composer and with the keywords on the facet, the commonest composer ->
+writer disagreements, and examples. Rates are `None`, not 0, with nothing to
+measure. A wipe of the tree empties it. Nothing ranks on it.
+
+**One reader, and ranking (B5, B6).** `app._episode_category(key)` is the one
+reader of a written episode's category: the tile, the player's picture, the
+probe the ranker uses and the logged tags all go through it. The words stay
+stored as the writer put them and are resolved against the tree as it is now,
+because §189's reason still holds - a tree that grows later can still place
+an older episode - so "store a node id instead" was not done; the node
+resolved at write time is in the audit. A written live story is now *ranked*
+as what it turned out to be about: `topics.set_written_category` (the server
+registers `app._written_category_probe`, a browse-length lookup memoised for
+`WRITTEN_CATEGORY_SECONDS`) is read by `topics_from_stories`, which takes
+the writer's node as the tile's category and, for news, corrects its tags
+with `refine_tags` - so `_affinity`, the off-subject gate, the variety cap
+and Trending's facet cap see what the episode is about. A game or market
+keeps its provider's tags (§187); the category decides only its picture.
+This reverses §189's "ranking for Made for you still reads a story's
+composed tags". Measured: sixty stories cost 5ms cold, then nothing for a
+minute. With no probe (a test, a tool) ranking is unchanged.
+
+**The writer is shown its branch (B7).** `stories.writer_vocabulary` gives
+the composer's vocabulary lines under the facets the question and the
+brief's subject point at, at most `WRITER_VOCABULARY_LINES` (30), and
+`build_prompt` puts them beside the CATEGORY instruction - "use those exact
+words; if none fits, use your own". The user turn, never `SYSTEM_PROMPT`:
+the list changes as the tree grows and would break the cached block
+([writer-savings]). Unheard and unmeasured: the audit is how to tell
+whether it raises the placed rate.
+
+**Phrases, in order (C9).** `CategoryStore.match` was a word-set subset
+test, so any text holding a node's words anywhere was about it - why
+"Hurricanes hitting the Carolina coast" was hockey three levels down, and
+why `LEFT_TO_GROW` exists. A multi-word node now matches only as a run of
+consecutive words in its own order, in either the full word sequence or the
+one with short words and digits removed ("Bank of England" is a run of
+`bank england`). The cheap set test still runs first, so only candidates pay
+for the run check. The review said this alone would fix "Maccabi Tel Aviv";
+it does not - "tel aviv" is a run there - and §187's field rule is still what
+keeps that game out of world news. `LEFT_TO_GROW` stays: "Miami heat wave"
+is still `miami heat` in order. The brute-force test now scans for runs.
+
+**Not done here** (listed in the review, not chosen): agreement-gated deep
+nodes, scored `resolve_category`, stemming and aliases, an embedding
+fallback, minting from writer and composer words, league tags for games,
+holding degraded nodes out of taste, /admin overrides, and a labelled
+evaluation set.
+
+Tests: `tests/test_categorisation_209.py`.

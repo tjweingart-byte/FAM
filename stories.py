@@ -1097,6 +1097,39 @@ def category_vocabulary() -> list:
     return lines
 
 
+#: How many lines of the tree the *writer* is shown (§209): only the
+#: branches under the facets its question points at, so it costs a few
+#: hundred tokens rather than the composer's whole vocabulary.
+WRITER_VOCABULARY_LINES = 30
+
+
+def writer_vocabulary(text: str) -> list:
+    """The category lines the writer may name its episode from (§209).
+
+    The composer's lines (`category_vocabulary`), kept to the facets `text`
+    points at - the keyword map's facets, and the roots of what the tree
+    finds in it - so a boxing question is shown the sport branch and not
+    the whole tree. Empty when `text` points at no facet or there is no
+    tree, and the writer then names it in its own words, which
+    `resolve_category` places as well as it can. Never raises."""
+    try:
+        import topics
+
+        wanted = set(topics.facets_only(topics.tags_for_text(text or "")))
+        tree = topics.category_tree()
+        for node in tree.match(text or ""):
+            facet = facet_for(node)
+            if facet:
+                wanted.add(facet)
+    except Exception:  # noqa: BLE001 - a hint, never a reason to fail a script
+        return []
+    if not wanted:
+        return []
+    lines = [line for line in category_vocabulary()
+             if line[2:].split(" / ", 1)[0] in wanted]
+    return lines[:WRITER_VOCABULARY_LINES]
+
+
 def _facets() -> frozenset:
     import topics
 

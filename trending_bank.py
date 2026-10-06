@@ -871,6 +871,12 @@ def _finish(story, plan, key: str, notes, sentences: list, cache, minutes: int,
     extra["voice"] = voice_bank.random_slug()
     cache.put(key, sentences, ttl, story.query, notes.thread, minutes,
               bucket_for(plan), sources, "", notes.title, **extra)
+    # What each categoriser said about it (§209): the composer's category is
+    # the story's own, so it is not looked up.
+    import category_audit
+
+    category_audit.note(story.query, getattr(notes, "category", ""), origin,
+                        composer=getattr(story, "category", "") or "")
     return {"status": "written", "key": key, "dollars": dollars,
             "title": notes.title}
 
