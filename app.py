@@ -1921,9 +1921,10 @@ async def auth_signup(req: CredentialsRequest, request: Request) -> dict:
                                         phone=req.phone or "")
     except accounts_mod.AuthError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    listener = _admit_admin(listener)
     _waitlist_after_signup(listener.user_id, req.referral_code or "")
     listener = ACCOUNTS.listener_of(listener.user_id)
-    return {**listener.as_dict(),
+    return {**listener.as_dict(), "admin": _allowed_admin(listener),
             **_signup_session(request, listener.user_id, fresh, req.want_token)}
 
 
@@ -1943,13 +1944,15 @@ async def auth_login(req: CredentialsRequest, request: Request) -> dict:
             listener = ACCOUNTS.log_in_phone(req.phone, req.password)
     except accounts_mod.AuthError as exc:
         raise HTTPException(status_code=401, detail=str(exc)) from exc
+    listener = _admit_admin(listener)
     old = _session_token(request)
     token, _user_id = ACCOUNTS.new_session(listener.user_id)
     if old:
         # The anonymous session this client was carrying is finished with.
         ACCOUNTS.end_session(old)
     request.state.set_session = token
-    return {**listener.as_dict(), **_maybe_token(request, token, req.want_token)}
+    return {**listener.as_dict(), "admin": _allowed_admin(listener),
+            **_maybe_token(request, token, req.want_token)}
 
 
 @app.post("/api/auth/provider")
@@ -3861,6 +3864,8 @@ def _waitlist_refusal(request: Request, listener):
         return None
     if listener is not None and listener.status == waitlist_mod.ACTIVE:
         return None
+    if _allowed_admin(listener):
+        return None
     path = request.url.path
     target = _waitlist_page_for(listener)
     if path.startswith("/api/"):
@@ -3881,7 +3886,7 @@ def _waitlist_refusal(request: Request, listener):
     # and `//` too, and a gate that matches only the spellings it thought of
     # is a gate with a side door.
     page = "/" + path.strip("/")
-    # A guest is never moved off the front door (PROBLEMS.md §216, the
+    # A guest is never moved off the front door (PROBLEMS.md §217, the
     # owner): typing the address opens the app on its own sign-in and
     # sign-up, so a member signed out on this browser can sign in. The app
     # stays closed all the same - every API call above still refuses them -
@@ -8119,6 +8124,34 @@ def _waitlist_after_signup(user_id: str, referral_code: str = "") -> None:
         log.exception("waitlist bookkeeping failed for %r", user_id)
 
 
+def _admit_admin(listener):
+    """An admin is never on the waitlist: the listener, let in if it is one.
+
+    `FAM_ADMIN_ACCOUNTS` names who runs FAM, and the person checking what the
+    waitlist looks like must not end up in its line - signing up at
+    `/waitlist`, or signing in to an account the line already holds, leaves an
+    admin's account `active`. Viral Loops is told only if it was told about
+    them in the first place (a `register` already queued), so a fresh admin
+    never appears on its leaderboard. Anyone else is returned untouched.
+    """
+    if listener is None or listener.status != waitlist_mod.WAITLISTED:
+        return listener
+    if not _allowed_admin(listener):
+        return listener
+    user = listener.user_id
+    WAITLIST.grant([user], flag=WAITLIST.has_action(user, "register"))
+    log.info("waitlist: %r is an admin account; kept off the line", user)
+    return ACCOUNTS.listener_of(user)
+
+
+def _waitlist_preview(place_of_next: int, cutoff: int) -> dict:
+    """The numbers an admin's status page draws: where the next person to join
+    would land, so the page shows exactly what a new member sees."""
+    return {"place": place_of_next, "total": place_of_next, "cutoff": cutoff,
+            "places_until": max(0, place_of_next - cutoff),
+            "in_next_batch": bool(cutoff and place_of_next <= cutoff)}
+
+
 def _kick_viral_loops() -> None:
     """Deliver the outbox now, in the background. Never awaited by a request."""
     if not VIRAL_LOOPS.configured:
@@ -8225,10 +8258,14 @@ async def waitlist_join(req: WaitlistJoinRequest, request: Request) -> dict:
         listener = ACCOUNTS.sign_up(user, req.email, req.password, waitlisted=True)
     except accounts_mod.AuthError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    listener = _admit_admin(listener)
     _waitlist_after_signup(listener.user_id, req.referral_code)
     listener = ACCOUNTS.listener_of(listener.user_id)
-    return {**listener.as_dict(),
-            "redirect": "/waitlist/me" if listener.status == waitlist_mod.WAITLISTED
+    admin = _allowed_admin(listener)
+    return {**listener.as_dict(), "admin": admin,
+            # An admin is sent to the status page too, to see it as a member
+            # would (`/api/waitlist/me`'s preview), never put in the line.
+            "redirect": "/waitlist/me" if admin or listener.status == waitlist_mod.WAITLISTED
             else "/",
             **_signup_session(request, listener.user_id, fresh, req.want_token)}
 
@@ -8257,9 +8294,18 @@ async def waitlist_me(request: Request) -> dict:
     friends.sort(key=lambda p: order.get(p["user_id"], len(order)))
     account = ACCOUNTS.account(user) or {}
     profile = _profile_state(user)
+    listener = getattr(request.state, "listener", None)
+    admin = bool(listener is not None and listener.user_id == user
+                 and _allowed_admin(listener))
+    preview = (_waitlist_preview(WAITLIST.waitlisted_count() + 1, cutoff)
+               if admin and place is None else None)
     return {
         "status": status,
         "waitlist": settings.waitlist,
+        # An admin is never in line; `preview` is what a member joining now
+        # would see, and the page draws it under an "Admin preview" note.
+        "admin": admin,
+        "preview": preview,
         "name": profile["name"] or account.get("display_name") or "",
         "place": place,
         "total": WAITLIST.waitlisted_count() if place is not None else 0,

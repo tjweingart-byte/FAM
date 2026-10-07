@@ -236,7 +236,7 @@ def _join(email, code=""):
 
 def test_guests_and_waitlisted_are_kept_out_of_the_app(world):
     guest = TestClient(appmod.app)
-    # Typing the address opens the app's front door, to sign in (§216).
+    # Typing the address opens the app's front door, to sign in (§217).
     r = guest.get("/", follow_redirects=False)
     assert r.status_code == 200
     assert guest.get("/index.html", follow_redirects=False).status_code == 200
@@ -278,6 +278,52 @@ def test_admin_credentials_pass_the_gate_and_nobody_else_does(world):
     body = guest.get("/api/admin/waitlist", headers=admin).json()
     assert body["summary"]["waitlisted"] == 1 and body["rows"][0]["email"] == "w@fam.test"
     assert guest.get("/api/usage", headers=admin).status_code != 403
+
+
+def test_an_admin_joining_the_waitlist_is_never_put_in_line(world, monkeypatch):
+    """An admin email (FAM_ADMIN_ACCOUNTS) signing up at /waitlist gets an
+    active account, passes the gate, and is sent to the status page to see
+    it - with a preview of a new member's numbers - never into the line."""
+    monkeypatch.setenv("FAM_ADMIN_ACCOUNTS", "boss@fam.test")
+    _join("m1@fam.test")
+    admin, body = _join("Boss@fam.test")
+    assert body["status"] == "active" and body["admin"] is True
+    assert body["redirect"] == "/waitlist/me"
+    user = admin.get("/api/auth/me").json()["user_id"]
+    assert appmod.WAITLIST.place_of(user) is None
+    assert user not in [r["user_id"] for r in appmod.WAITLIST.ordered()]
+    # Viral Loops was never told about them, so nothing is queued.
+    assert not appmod.WAITLIST.has_action(user, "register")
+    assert not appmod.WAITLIST.has_action(user, "flag")
+    assert admin.get("/", follow_redirects=False).status_code == 200
+    me = admin.get("/api/waitlist/me").json()
+    assert me["admin"] is True and me["place"] is None
+    assert me["preview"]["place"] == 2  # where the next joiner would land
+    # Nobody else is an admin, and nobody else gets a preview.
+    other, body = _join("m2@fam.test")
+    assert body["status"] == "waitlisted" and body["admin"] is False
+    assert other.get("/api/waitlist/me").json()["preview"] is None
+
+
+def test_an_admin_already_in_line_is_let_out_at_sign_in(world, monkeypatch):
+    member, _ = _join("late@fam.test")
+    user = member.get("/api/auth/me").json()["user_id"]
+    assert appmod.WAITLIST.place_of(user) == 1
+    monkeypatch.setenv("FAM_ADMIN_ACCOUNTS", "late@fam.test")
+    c = TestClient(appmod.app)
+    r = c.post("/api/auth/login", json={"email": "late@fam.test", "password": PASSWORD})
+    assert r.status_code == 200 and r.json()["status"] == "active"
+    assert r.json()["admin"] is True
+    assert appmod.WAITLIST.place_of(user) is None
+    # They were registered with Viral Loops, so they are flagged off it.
+    assert appmod.WAITLIST.has_action(user, "flag")
+    assert c.get("/api/friends").status_code == 200
+
+
+def test_the_status_page_draws_an_admins_preview():
+    page = (ROOT / "static" / "waitlist.html").read_text()
+    assert 'id="adminNote"' in page and "d.preview" in page
+    assert 'd.admin || d.status !== "active" ? "/waitlist/me" : "/"' in page
 
 
 def test_admin_lets_in_the_ticked_people_and_the_first_n_in_line(world):
@@ -442,7 +488,7 @@ def test_waitlisted_can_delete_their_account(world):
 
 
 def test_the_shell_is_closed_under_every_spelling(world):
-    # A guest is let onto the front door (§216); a waitlisted account is not,
+    # A guest is let onto the front door (§217); a waitlisted account is not,
     # under any spelling of it.
     member, _ = _join("s@fam.test")
     for path in ("/", "/index.html", "/index.html/", "//"):

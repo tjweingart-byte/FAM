@@ -409,7 +409,7 @@ Accounts, tiers, sharing
   the outbox, never loses a signup; waitlisted hidden from discovery except
   friends; a shared episode plays for anyone (only what was shared); the landing
   page plays the three sign-up samples as replays (§190), own picture only (§214); a `/waitlist` join is
-  always waitlisted and the app's Sign Up goes there (§192). [waitlist-gate]
+  always waitlisted (never an admin account, which previews it, §216) and the app's Sign Up goes there (§192). [waitlist-gate]
 - **Tiers are built; enforced in production only** (`ENFORCE_QUOTAS=1` in `render.yaml`, §207);
   admins are `unlimited`, `/api/admin/plan` moves anyone else; no checkout yet. [tiers-off]
 - A refusal names what the listener was doing (`service_label`), composed

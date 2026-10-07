@@ -337,12 +337,14 @@ class Waitlist:
 
     # --- granting ---------------------------------------------------------
 
-    def grant(self, user_ids, at: float = 0.0) -> list[str]:
+    def grant(self, user_ids, at: float = 0.0, flag: bool = True) -> list[str]:
         """Let these people in. Returns the ids that actually changed.
 
         Only 'waitlisted' rows move, so granting twice is harmless and an id
         with no account is ignored. Each one granted queues a `flag` for Viral
-        Loops, which takes them off its leaderboard without deleting them.
+        Loops, which takes them off its leaderboard without deleting them -
+        unless `flag` is False, for an account Viral Loops was never told
+        about (an admin let in at sign-up, `app._admit_admin`).
         """
         now = at or time.time()
         changed = []
@@ -353,7 +355,8 @@ class Waitlist:
                 (ACTIVE, now, user_id, WAITLISTED))
             if cur.rowcount:
                 changed.append(user_id)
-                self.enqueue(user_id, "flag", at=now)
+                if flag:
+                    self.enqueue(user_id, "flag", at=now)
         return changed
 
     def grant_top(self, n: int, at: float = 0.0) -> list[str]:

@@ -4555,7 +4555,7 @@
         try {
           var go = res && res.status === 403 && res.headers.get("X-FAM-Waitlist");
           // Only a waitlisted account is moved: a guest refused here stays
-          // on the front door to sign in (§216).
+          // on the front door to sign in (§217).
           if(go === "/waitlist/me") location.replace(go);
         } catch(e){}
         // An old kept release (§172) hears about it (§208): `deprecated` is
@@ -12427,7 +12427,7 @@
         AUTH = d;
         // A page that reached this far while the waitlist runs - opened from
         // the offline shell - is sent where the server would have sent it.
-        // A guest stays, on the front door, to sign in (§216).
+        // A guest stays, on the front door, to sign in (§217).
         if(d && d.waitlist && d.status === "waitlisted"){
           location.replace("/waitlist/me");
         }
