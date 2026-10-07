@@ -25,7 +25,8 @@ section when a decision changes, including why.
   kept, so `/?referralCode=x` survives). Any `/api/*` call answers 403 with
   `X-FAM-Waitlist`, except `/api/auth/*`, `/api/waitlist/*`, `/api/admin/*`,
   `/api/health`, `/api/client-status`, `/api/me` and `/api/preferences`,
-  any request carrying an admin credential, a shared episode's own two
+  any request carrying an admin credential or from an admin account (an
+  admin is never in line, PROBLEMS.md §216), a shared episode's own two
   calls (decision 10), and the landing page's samples: `/api/welcome`,
   `/api/thumb/*`, and `/api/audio` for exactly one of today's three sign-up
   samples as a replay (`_welcome_sample_request`, PROBLEMS.md §190).
