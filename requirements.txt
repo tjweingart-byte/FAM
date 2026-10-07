@@ -64,3 +64,8 @@ pyspellchecker>=0.8
 # as it came (larger, still correct) and a warning says so. Only the machine
 # that paints pictures needs it; serving them needs nothing.
 Pillow>=10.0
+
+# The finance workbook (`financials.py`, `/api/admin/financials.xlsx`): every
+# service FAM pays for and what it spent each day, as an Excel file built on
+# request. Only the admin download imports it.
+openpyxl>=3.1

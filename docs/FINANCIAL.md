@@ -30,6 +30,14 @@ python tools/usage_report.py --days 30 --price 4.99   # margin at a price
 python tools/prefetch_report.py --live            # is prefetch paying for itself?
 ```
 
+**The spreadsheet.** Everything below, kept current, is one Excel workbook:
+`/admin` → **Financials (.xlsx)**, or `GET /api/admin/financials.xlsx` with the
+admin token, or `python tools/financials.py --remote <host>`. It is built from
+the deployment's own records on every download (`financials.py`, PROBLEMS.md
+§220): a dashboard, every service with its plan and monthly cost, a daily
+ledger, a 12-month plan with the launch licences, and provider calls against
+their limits. A service added to FAM gets a row in `financials.catalogue`.
+
 ---
 
 ## 1. The cost structure in one picture

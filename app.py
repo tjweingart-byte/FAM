@@ -7680,6 +7680,26 @@ async def usage(
     return report
 
 
+@app.get("/api/admin/financials.xlsx", include_in_schema=False)
+def admin_financials(request: Request) -> Response:
+    """The finance workbook (`financials.py`), built from the stores now.
+
+    Built on request rather than on a timer, so a copy downloaded today has
+    today's spend in it and nothing has to remember to run. Reads only - no
+    model, no network - so it is as safe on staging as `/api/usage`.
+    """
+    _require_admin(request)
+    import financials
+
+    now = time.time()
+    return Response(
+        content=financials.build(now),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition":
+                 f'attachment; filename="{financials.filename(now)}"',
+                 "Cache-Control": "no-store"})
+
+
 # ---------------------------------------------------------------- replay
 #
 # Staging spends nothing, so it cannot write a real episode (§172). It can

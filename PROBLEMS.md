@@ -16423,3 +16423,51 @@ Pinned in `tests/test_waitlist.py` (the guest redirect,
 slides), `tests/test_yourfam.py::test_the_place_they_gave_is_shown_under_their_name`
 and `tests/test_search_length_and_mix_gate.py` (the five lengths, the packet
 size and that the writer asks for it).
+
+## 220. The finance workbook: every service, every day, one file
+
+The owner asked for the financials in one organised spreadsheet that updates
+daily and tracks every cost from every piece of software. There is no
+revenue yet, so it is a cost structure first.
+
+**It is built, not kept.** `financials.build()` writes an Excel workbook from
+the stores at the moment it is asked for - `GET /api/admin/financials.xlsx`
+(behind `_require_admin`, a **Financials (.xlsx)** button on `/admin`) or
+`python tools/financials.py` (`--remote <host>` pulls production's with
+`FAM_ADMIN_TOKEN`). A daily job writing a file would be a second record that
+could fall behind the first; this one cannot, so "updates daily" is true of
+every copy on the day it was downloaded. It reads only, opens no store that
+does not exist, calls no model and no network, so it is as safe on staging as
+`/api/usage`.
+
+**Six sheets.** *Dashboard*: today, month to date, trailing 30 days, monthly
+run-rate, revenue (a yellow input, $0), net burn, runway from a cash cell,
+spend by category, a 30-day stacked chart. *Cost Structure*: one row per
+service - Render (both services and disks, bandwidth from the invoice),
+RunPod, Anthropic, Google's image model, Exa, GNews, API-Sports per sport,
+Finnhub, Open-Meteo, the free sources, Viral Loops, Apple, GitHub, Google
+sign-in, web push, and three rows the code cannot see (domain, the team's
+Claude plan, email) for the owner's figures. Usage-billed rows are SUMIFS over
+the ledger's last 30 days, never a typed number. *Daily Ledger*: per UTC day,
+episodes, replays, Claude, Exa, GPU and tile-picture spend from
+`metering.db`/`thumbnails.db`, plus the subscriptions' daily share.
+*12-Month Plan*: run-rate forward at a growth input, plus the licences a paid
+launch needs (`launch_purchases`: whatever of GNews Essential, Finnhub
+commercial and Open-Meteo Standard is not yet bought, API-Sports Pro, and two
+optional upgrades) from a launch month. *Provider Calls*: requests per day
+against each limit (`provider_usage.db`). *Notes*: colours and sources.
+
+**What decides a row is the deployment.** GNews, Finnhub, Open-Meteo,
+API-Sports tiers, the voice transport (serverless = usage, `http` pod = a
+fixed rental and the ledger's GPU column then left out of the total), tile
+pictures and Viral Loops read the settings in force, so buying a plan and
+setting `GNEWS_PLAN=essential` moves it from the launch list to Paying with
+no edit here.
+
+**Known gap, said on the Notes sheet:** background Claude calls that are not
+an episode (story-tile composer, category placement, prefetched briefs) are
+billed but not metered per call, so the Claude column is a floor; compare it
+with the Anthropic console monthly.
+
+Pinned in `tests/test_financials.py`.
+
