@@ -16378,7 +16378,10 @@ The owner's 10.7 packet, six changes.
    row (Enter does the same) for anything not on it - the app's interests
    page, here. Chosen ones show as chips that take themselves off, and save
    as `topics`, exactly as the app saves them, so they are already there on
-   the first day in the app. `topics_chosen` fills them back in.
+   the first day in the app. `topics_chosen` fills them back in. They are
+   sent only once touched (`topicsDirty`): the server logs every saved topic
+   as a pick, so resending an untouched list whenever the profile is saved
+   for a name or a phone number would count each topic again.
 3. **Typing the address goes to the waitlist again**, reversing §217 at the
    owner's direction: while `WAITLIST=1` runs, a guest at `/`, `/index.html`,
    `/v/` or `/m/` is sent to `/waitlist`, and the app shell sends one there

@@ -222,4 +222,4 @@ and `limit` = Lines.
 | 16303 | 25 | 216. An admin is never on the waitlist, and sees it as a member would |
 | 16328 | 21 | 217. Typing the address opens the app, not the waitlist |
 | 16349 | 18 | 218. The waitlist carousels turn only by hand; white arrows above the slide |
-| 16367 | 57 | 219. The 10.7 packet: the waitlist is the front door again, its topics, a place under the name, and a search length that held |
+| 16367 | 60 | 219. The 10.7 packet: the waitlist is the front door again, its topics, a place under the name, and a search length that held |

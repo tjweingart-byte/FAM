@@ -1401,6 +1401,7 @@
     var topics = prefs.interests_all || [];
     CATALOGUE = (prefs.catalogue || []).map(function(t){ return { id: t.id, label: t.label || t.id }; });
     chosenTopics = (prefs.topics_chosen || []).map(function(t){ return { id: t.id, label: t.label || t.id }; });
+    topicsDirty = false;
     drawTopics();
     var p = d.profile;
     $("pName").value = p.name || d.name || "";
@@ -1422,7 +1423,10 @@
   // "View all topics" (10.7 packet): the app's own interests list - the
   // catalogue, A to Z, searchable, and anything typed added as it is -
   // saved as `topics`, exactly as the app's interests page saves them.
-  var CATALOGUE = [], chosenTopics = [];
+  // `topicsDirty`: sent only once touched. The server logs every saved topic
+  // as a pick, so resending an untouched list on a name fix would count each
+  // topic again.
+  var CATALOGUE = [], chosenTopics = [], topicsDirty = false;
   function hasTopic(id){
     var low = String(id).toLowerCase();
     return chosenTopics.some(function(t){ return String(t.id).toLowerCase() === low; });
@@ -1434,6 +1438,7 @@
     } else {
       chosenTopics.push({ id: id, label: label || id });
     }
+    topicsDirty = true;
     drawTopics();
   }
   function addTypedTopic(){
@@ -1540,11 +1545,11 @@
     // before anything else is written.
     api("/api/account", account)
       .then(function(){ return api("/api/me", body); })
-      .then(function(){ return api("/api/preferences", {
-        interests: interests,
-        topics: chosenTopics.map(function(t){ return t.id; }),
-        country: $("pCountry").value.trim(),
-        region: $("pRegion").value.trim(), city: $("pCity").value.trim() }); })
+      .then(function(){
+        var prefs = { interests: interests, country: $("pCountry").value.trim(),
+                      region: $("pRegion").value.trim(), city: $("pCity").value.trim() };
+        if(topicsDirty) prefs.topics = chosenTopics.map(function(t){ return t.id; });
+        return api("/api/preferences", prefs); })
       .then(function(){
         if(setupMode){ window.finishSetup(); toast("Profile saved"); return load(); }
         note.textContent = "Saved."; return load();

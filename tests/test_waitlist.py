@@ -894,7 +894,10 @@ def test_the_10_7_packet_on_the_waitlist_page():
     assert ">View all topics</button>" in page
     assert 'placeholder="Search topics, or type your own"' in page
     assert "prefs.catalogue" in page and "prefs.topics_chosen" in page
-    assert "topics: chosenTopics.map(function(t){ return t.id; })" in page
+    # Sent only once touched: every saved topic is logged as a pick, so an
+    # untouched list resent on a name fix would count each one again.
+    assert "if(topicsDirty) prefs.topics = chosenTopics.map(function(t){ return t.id; });" in page
+    assert "topicsDirty = true;" in page.split("function toggleTopic", 1)[1].split("function ", 1)[0]
     assert "Add <b>' + esc(raw)" in page
     landing = page.split('id="landing"', 1)[1].split('id="status"', 1)[0]
     cta = landing.split('class="ab-wrap ab-cta', 1)[1].split("</section>", 1)[0]

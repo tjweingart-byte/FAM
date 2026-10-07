@@ -721,10 +721,10 @@ def packet_size(minutes: int) -> dict:
     nothing behind it - so it ended near two minutes whatever was asked.
     Duration buys depth, and depth needs material: past the browse length
     each extra minute brings one more source, and four minutes or more a
-    third highlight each. Two minutes and under is exactly the configured
-    packet (nothing is overridden), so every browse episode is unchanged. The sources come out of the
-    results the one Exa call already returns, so a longer episode costs
-    prompt tokens, never another search.
+    third highlight each. Two minutes and under overrides nothing, so every
+    browse episode is unchanged. The sources come out of the results the one
+    Exa call already returns, so a longer episode costs prompt tokens, never
+    another search.
     """
     extra = max(0, int(minutes) - BROWSE_MINUTES)
     if not extra:
