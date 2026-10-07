@@ -87,7 +87,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
 
 - **The player is Spotify's layout** (§190): down arrow, picture (4:3, §192;
   centred between GO DEEPER and the title, never missing - `pick_for_player`
-  borrows - and on the mini player, sides cropped, §193), sources by it, GO
+  borrows, as do tiles, §214 - and on the mini player, sides cropped, §193), sources by it, GO
   DEEPER pill at the top, share/vibe/save on the right (§192), captions sheet
   slid up, a ⋯ menu; no "exclude from taste" (§171); the searcher shown only
   if `searches_public`. [player-layout]
@@ -408,7 +408,7 @@ Accounts, tiers, sharing
   one account, granting flips `status`; place counted in FAM; Viral Loops via
   the outbox, never loses a signup; waitlisted hidden from discovery except
   friends; a shared episode plays for anyone (only what was shared); the landing
-  page plays the three sign-up samples as replays (§190); a `/waitlist` join is
+  page plays the three sign-up samples as replays (§190), own picture only (§214); a `/waitlist` join is
   always waitlisted and the app's Sign Up goes there (§192). [waitlist-gate]
 - **Tiers are built; enforced in production only** (`ENFORCE_QUOTAS=1` in `render.yaml`, §207);
   admins are `unlimited`, `/api/admin/plan` moves anyone else; no checkout yet. [tiers-off]

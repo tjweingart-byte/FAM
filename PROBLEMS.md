@@ -16216,3 +16216,43 @@ whole diff found these. Each is fixed and has a test:
   people cannot be tagged while the waitlist runs.
 * Removing the story on screen showed the one before it. It now shows the
   next.
+
+## 214. Every tile has a picture; the waitlist shows only its own; a let-in account is set up first
+
+Three asks from the owner, 07/10.
+
+**Every episode on the interface has a picture.** Since 9.30 #7 (§178) a rail
+tile showed its own node's picture or the line drawing, never a parent's,
+because the walk up the branch put the facet's one picture on every subject
+under it. With most of the tree still unpainted that meant a line drawing on
+a large share of the rails, and the owner judged that worse. Tiles now draw
+through `thumbnails.pick_for_tile`: the tile's own node first (`pick`,
+unchanged), and only when that node is unpainted, a borrowed picture in the
+order the player has used since §193 - nearest painted ancestor, the declared
+facet, then one approved facet picture chosen by a hash of the words, so a
+tile never changes picture between page loads. A borrowed picture is marked
+`thumb_borrowed`, and the unpainted node is still remembered (`asked_for`) so
+the next sweep paints it first; borrowing is a stand-in until then, not the
+answer. The borrowed answer is memoised beside `pick`'s and forgotten with it
+when the tree or the approved set changes. Nothing is blank unless the
+deployment holds no approved picture at all, when the drawing is still drawn.
+A written live-story tile (`_categorise_written_tile`) borrows the same way.
+
+**The waitlist's samples have their own picture.** `/api/welcome` (the
+waitlist page and the app's sign-up screen, the same three per §190) now
+skips any episode whose tile has no picture or only a borrowed one: the front
+page is the shop window. It looks `WELCOME_SCAN` (10) times further down the
+most-played ranking, since kept audio and an own picture both filter. Fewer
+than three, or none, is still honest.
+
+**An account let in off the waitlist is set up before the app.** The account
+was made on `/waitlist`, so its cookie is already in the browser when it is
+let in; the app saw a signed-in listener whose device had never finished the
+first run and showed the front door (Sign up / Log in). `routeFirstScreen`
+now sends a signed-in listener with no finished entry through `afterAccount`
+- the steps a new account takes: who you are and where (`screen-identity`:
+name, handle, photo, location), then interests, then whatever follows - and
+`afterAccount` goes straight in when the server says the intro is done. The
+identity step is skipped only when the account is set up (`identitySetUp`:
+name, handle *and* a place); a name and handle filled in on the waitlist's
+"Edit your profile" no longer skip it when the location is missing.

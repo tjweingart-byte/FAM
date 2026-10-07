@@ -14,6 +14,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import app as appmod  # noqa: E402
 import cache  # noqa: E402
+import thumbnails  # noqa: E402
 import topics  # noqa: E402
 from cache import SqliteScriptCache  # noqa: E402
 
@@ -60,10 +61,38 @@ def test_welcome_samples_are_the_top_three_with_kept_audio(client, monkeypatch):
     # Episode 1 has no kept audio: a tap on it would wake the voice for
     # somebody with no account, so it is not offered.
     monkeypatch.setattr(appmod, "_audio_is_kept", lambda q, m: q != "question 1")
+    monkeypatch.setattr(thumbnails, "pick_for_tile", _own_picture())
     got = client.get("/api/welcome").json()["episodes"]
     assert [e["title"] for e in got] == ["Episode 0", "Episode 2", "Episode 3"]
     assert all(e["minutes"] == appmod.BROWSE_MINUTES for e in got)
     assert all("user" not in key for e in got for key in e)
+
+
+def _own_picture(borrowed=(), none=()):
+    """A picker: its own picture for every question, except those borrowed
+    from a branch or with no picture at all."""
+    def pick(text, tags=(), category=""):
+        if text in none:
+            return None
+        return {"node": text, "facet": "world", "url": "/api/thumb/" + text,
+                "fallback": text in borrowed}
+    return pick
+
+
+def test_welcome_samples_have_their_own_picture(client, monkeypatch):
+    """The owner, 07/10: the waitlist's front page shows only the most
+    played episodes with a picture - no line drawing, and no picture
+    borrowed from the branch."""
+    ranked = [topics.Topic(id=f"t{i}", title=f"Episode {i}", subtitle="", query=f"question {i}",
+                           tags=("world",), icon="news")
+              for i in range(6)]
+    monkeypatch.setattr(topics, "rank_most_played", lambda *a, **k: ranked)
+    monkeypatch.setattr(appmod, "_audio_is_kept", lambda q, m: True)
+    monkeypatch.setattr(thumbnails, "pick_for_tile",
+                        _own_picture(borrowed={"question 0"}, none={"question 2"}))
+    got = client.get("/api/welcome").json()["episodes"]
+    assert [e["title"] for e in got] == ["Episode 1", "Episode 3", "Episode 4"]
+    assert all(e["thumb"] and not e["thumb_borrowed"] for e in got)
 
 
 # --- search within myFAM ---------------------------------------------------
@@ -158,3 +187,29 @@ def test_episode_topic_is_a_mix_entry(client):
     typed = client.get("/api/episode/topic",
                        params={"q": "why is the sky blue", "title": "Rayleigh scattering"}).json()
     assert typed["id"] == "" and typed["query"] == "Rayleigh scattering"
+
+
+# --- an account let in off the waitlist (§214) ------------------------------
+
+
+def _js(name):
+    return HTML.split("function " + name + "(", 1)[1].split("\n  }\n", 1)[0]
+
+
+def test_a_signed_in_device_without_a_first_run_is_set_up_not_sent_to_the_door():
+    """Let in off the waitlist, the account's cookie is already here: it is
+    taken through who-you-are, where, and interests - never the Sign up /
+    Log in screen it already passed on /waitlist."""
+    body = _js("routeFirstScreen")
+    unfinished = body[body.index("if(!entryComplete())"):]
+    assert unfinished.index("AUTH.authenticated") < unfinished.index("afterAccount()") \
+        < unfinished.index("startEntry()")
+
+
+def test_the_identity_step_needs_a_name_a_handle_and_a_place():
+    body = _js("identitySetUp")
+    for field in ("p.name", "p.handle", "place.city", "place.region", "place.country"):
+        assert field in body
+    after = _js("afterAccount")
+    assert "identitySetUp()" in after
+    assert "profileNow.name && profileNow.handle" not in after

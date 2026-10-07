@@ -729,8 +729,28 @@ def pick(text: str, tags: Iterable[str] = (),
         return None
 
 
+def pick_for_tile(text: str, tags: Iterable[str] = (),
+                  category: str = "") -> Optional[dict]:
+    """The picture on a tile, which is never blank while the deployment holds
+    any approved picture (the owner, 07/10: "all episodes on the interface
+    should have a thumbnail").
+
+    The tile's own node's picture first (`pick`), and only when that node is
+    unpainted, a borrowed one in `pick_for_player`'s order - nearest painted
+    ancestor, the declared facet, then a stable choice by the words. A
+    borrowed picture is `fallback: True`, so a surface that wants a tile's
+    *own* picture (the waitlist's samples) can tell, and the unpainted node
+    is still remembered (`asked_for`) and painted first by the next sweep.
+    This reverses 9.30 #7's "never a parent's" for rails: a line drawing on
+    half the tiles was worse than two subjects sharing a branch's picture
+    until their own is painted. Never raises.
+    """
+    return pick_for_player(text, category=category, tags=tags)
+
+
 def pick_for_player(text: str, key: str = "",
-                    category: str = "") -> Optional[dict]:
+                    category: str = "",
+                    tags: Optional[Iterable[str]] = None) -> Optional[dict]:
     """The picture behind the player's title, which is never blank while
     the deployment holds any approved picture (10.2 feedback: a searched
     episode played over an empty screen).
@@ -755,14 +775,24 @@ def pick_for_player(text: str, key: str = "",
     and outranks the words exactly as it does on a tile (`pick`), so the
     player never draws a different picture from the card that opened it. A
     borrowed picture walks up from it first.
+
+    `tags`, when given, are the tile's declared tags (`pick_for_tile`) and
+    stand in for the facets read off the words.
     """
     try:
         import topics
 
         words = (text or "").strip()
         facets = topics.FACETS
-        declared = tuple(t for t in topics.tags_for_text(words) if t in facets)
-        found = pick(words, declared, category=category)
+        if tags is None:
+            declared = tuple(t for t in topics.tags_for_text(words)
+                             if t in facets)
+            found = pick(words, declared, category=category)
+        else:
+            tags = tuple(tags)
+            found = pick(words, tags, category=category)
+            declared = tuple(f for f in (topics.facet_of(t) for t in tags)
+                             if f in facets)
         if found:
             return dict(found, fallback=False)
         if not _exists():
@@ -770,6 +800,13 @@ def pick_for_player(text: str, key: str = "",
         approved = store().approved()
         if not approved:
             return None
+        # Memoised beside `pick`'s answers, and forgotten with them when the
+        # tree or the approved set changes: every rail tile on an unpainted
+        # node comes through here on every page drawn.
+        memo_key = ("borrow", words, key or "", category or "", declared)
+        hit = _MEMO.get(memo_key)
+        if hit is not None:
+            return dict(hit)
         tree = topics.category_tree()
         chosen = ""
         candidates = sorted(tree.match(words) if words else (),
@@ -791,8 +828,11 @@ def pick_for_player(text: str, key: str = "",
             digest = hashlib.sha1(stable.encode("utf-8")).digest()
             chosen = pool[int.from_bytes(digest[:4], "big") % len(pool)]
         facet = approved[chosen][1] or _facet_of_node(tree, chosen, facets)
-        return {"node": chosen, "facet": facet,
-                "url": url_for(chosen, approved[chosen][0]), "fallback": True}
+        found = {"node": chosen, "facet": facet,
+                 "url": url_for(chosen, approved[chosen][0]), "fallback": True}
+        if len(_MEMO) < MAX_MEMO:
+            _MEMO[memo_key] = found
+        return dict(found)
     except Exception:  # noqa: BLE001 - a picture is never worth a player
         log.exception("thumbnails: could not pick the player's picture")
         return None

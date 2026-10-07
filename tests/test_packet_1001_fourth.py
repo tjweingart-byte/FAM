@@ -56,6 +56,10 @@ def test_welcome_samples_carry_the_whole_tile(client, monkeypatch):
                         icon="sports")
     monkeypatch.setattr(topics, "rank_most_played", lambda *a, **k: [tile])
     monkeypatch.setattr(appmod, "_audio_is_kept", lambda q, m: True)
+    import thumbnails
+    monkeypatch.setattr(thumbnails, "pick_for_tile", lambda *a, **k: {
+        "node": "tennis", "facet": "sports", "url": "/api/thumb/tennis",
+        "fallback": False})
     got = client.get("/api/welcome").json()["episodes"][0]
     assert got["title"] == "The Legs Behind a Faster Forehand"
     assert got["subtitle"] == "Why the swing starts at the ground."

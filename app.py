@@ -5100,8 +5100,9 @@ def _categorise_written_tile(tile: dict, words: str) -> None:
     text = " ".join(str(tile.get(k, "")) for k in ("title", "angle", "query"))
     tags = stories_mod.refine_tags(tile.get("tags") or (), node, text)
     tile["tags"] = list(tags)
-    found = thumbnails.pick(tile.get("query", ""), tags, category=node)
+    found = thumbnails.pick_for_tile(tile.get("query", ""), tags, category=node)
     tile["thumb"] = found["url"] if found else ""
+    tile["thumb_borrowed"] = bool(found and found.get("fallback"))
     tile["thumb_facet"] = (found["facet"] if found
                            else stories_mod.facet_for(node))
 
@@ -5651,6 +5652,11 @@ async def myfam_catalog(request: Request) -> dict:
 #: through (§181, the 9.30 interface packet).
 WELCOME_SAMPLES = 3
 
+#: How far down the most-played ranking the samples look, as a multiple of
+#: `WELCOME_SAMPLES`: an episode is skipped without kept audio or its own
+#: picture, so the top three by plays are often not the three shown.
+WELCOME_SCAN = 10
+
 
 #: How long one ranking of the samples serves every request (§190): the
 #: waitlist gate asks for it on each sample's audio, and the samples turn
@@ -5672,7 +5678,7 @@ def _welcome_episodes() -> list[dict]:
     try:
         ranked = topics_mod.rank_most_played(
             EVENTS, episode_info=_episode_info_probe(minutes),
-            limit=WELCOME_SAMPLES * 4)
+            limit=WELCOME_SAMPLES * WELCOME_SCAN)
     except Exception:  # noqa: BLE001 - a sign-up page is never worth a 500
         log.exception("could not rank the welcome samples")
         ranked = []
@@ -5682,7 +5688,13 @@ def _welcome_episodes() -> list[dict]:
             continue
         # The whole tile, as the rail draws it - title, hook and picture -
         # so the sign-up screen shows exactly what myFAM shows (10.1 packet).
-        samples.append({**topic.as_dict(), "minutes": minutes})
+        tile = topic.as_dict()
+        # Only an episode with its own picture (the owner, 07/10): the
+        # waitlist's front page is the product's shop window, and a line
+        # drawing or a picture borrowed from its branch is not a good one.
+        if not tile.get("thumb") or tile.get("thumb_borrowed"):
+            continue
+        samples.append({**tile, "minutes": minutes})
         if len(samples) >= WELCOME_SAMPLES:
             break
     _WELCOME_MEMO.update(at=now, episodes=samples, stores=stores)
