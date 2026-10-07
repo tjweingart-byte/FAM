@@ -1103,6 +1103,7 @@
   time: a second sign-up form left standing is one somebody wires a new gate
   to by accident.
 <!-- rule:waitlist-gate -->
+> **Current (PROBLEMS.md §214):** joining goes straight to the profile (`/waitlist/me?setup=1`, the app's sign-up fields plus date of birth and phone, **Skip for now** at the top right), never behind an "Edit your profile" card, which is gone; the status page's top right is a settings gear (it reopens the profile), and a Go Deeper-yellow **Learn more about FAM →** at its top shows the landing's "What is FAM" section again.
 > **Current (PROBLEMS.md §192):** joining at `/waitlist` always starts the account waitlisted, gate on or off (the gate only decides whether the app is closed); the app's Sign Up goes to `/waitlist` (a preview, with no server, keeps its form); the form asks for the password twice; the status page shows the exact place, the invite link, and "Edit your profile" (name, handle, photo, date of birth, location, phone, interests; `birth_date` is on the account).
 > **Current (PROBLEMS.md §190):** the landing page rotates the app's three sign-up samples, so `/api/welcome` and `/api/thumb/` are open past the gate and `/api/audio` is let through for exactly those samples as replays (`_welcome_sample_request`: `cached_only`, the browse length, nothing attached, no voice, a question that is one of today's samples).
 - **Before launch the app is closed to everyone but `active` accounts, and the

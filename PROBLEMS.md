@@ -16216,3 +16216,34 @@ whole diff found these. Each is fixed and has a test:
   people cannot be tagged while the waitlist runs.
 * Removing the story on screen showed the one before it. It now shows the
   next.
+
+## 214. The waitlist page: profile straight after joining, a settings gear, "Learn more about FAM"
+
+The owner's three changes to the waitlist page (07/10), with screenshots of
+the status page's dot and its "Edit your profile" card.
+
+1. **The dot at the top right is a settings gear.** It used to show the
+   member's initials, or "·" with no name, and read as nothing. It opens the
+   same menu: Edit profile, Sign out, Delete account.
+2. **The profile is the next screen after the email and password**, not
+   something behind "Edit your profile". A join now lands on
+   `/waitlist/me?setup=1` (the client adds the flag; `/api/waitlist/join`'s
+   `redirect` is unchanged, so no installed client's contract moves). That
+   view is the profile and nothing else - name, handle, photo, date of birth,
+   location, phone and interests, which covers the app's own sign-up step
+   (identity, then interests) - under a bar with **Skip for now** at the top
+   right. "Save and continue" and "Skip for now" both drop the flag
+   (`history.replaceState`) and show the status page. The "Edit your
+   profile" card is removed; the gear's Edit profile reopens the form.
+   Signing in on the landing page goes to the status page, never setup.
+3. **"Learn more about FAM →"** sits at the top of the status page, in Go
+   Deeper's yellow (`--deeper`, `#FFD23F`; a test pins the two together).
+   It shows the landing page's "What is FAM" section: the same DOM node,
+   moved into `#aboutView` on first open, so there is one copy to keep up.
+   The carousels start when it is first shown. A bar at the top says "Back
+   to your spot"; the section's last button, "Join the waitlist" on the
+   landing page, says the same here; the browser's back button closes it
+   too (`pushState`/`popstate`).
+
+Checked in a browser at phone size with the API mocked: setup with Skip,
+the status page with the gear and the pill, the menu, the explainer and back.

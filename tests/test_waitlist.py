@@ -604,7 +604,7 @@ def test_the_waitlist_page_asks_for_the_password_twice_and_says_the_place():
     page = (ROOT / "static" / "waitlist.html").read_text(encoding="utf-8")
     assert 'id="password2"' in page and "don’t match" in page
     assert 'id="placeBig"' in page and '"#" + fmt(d.place)' in page
-    assert 'id="shareLink"' in page and "to personalize your experience" in page
+    assert 'id="shareLink"' in page
     for field in ("pBirth", "pCountry", "pRegion", "pCity", "pPhone"):
         assert f'id="{field}"' in page
     # The profile's details reach the account and the preferences.
@@ -612,6 +612,47 @@ def test_the_waitlist_page_asks_for_the_password_twice_and_says_the_place():
     # A refused number or date stops the save before anything is written.
     save = page.split("window.saveProfile = function", 1)[1]
     assert save.index('api("/api/account"') < save.index('api("/api/me"')
+
+
+def test_joining_goes_straight_to_the_profile_with_a_skip():
+    """§214: the profile is the next screen after the email and password,
+    never behind an "Edit your profile" button, and it can be skipped."""
+    page = (ROOT / "static" / "waitlist.html").read_text(encoding="utf-8")
+    assert 'id="editProfileBtn"' not in page and "to personalize your experience" not in page
+    join = page.split('api("/api/waitlist/join"', 1)[1].split(".catch(", 1)[0]
+    assert '"?setup=1"' in join
+    # The setup bar holds the skip, at the top right, and only in setup.
+    bar = page.split('<div class="top setup-only">', 1)[1].split("</div>\n  <div", 1)[0]
+    assert bar.index('class="wordmark"') < bar.index('id="skipSetup"')
+    assert ">Skip for now<" in bar and 'onclick="finishSetup()"' in bar
+    # Every field the app's sign-up asks for is on it.
+    profile = page.split('id="profile"', 1)[1].split("</section>", 1)[0]
+    for field in ("pName", "pHandle", "photoFile", "pBirth", "pCity", "pRegion", "pCountry", "pPhone", "chips"):
+        assert f'id="{field}"' in profile
+    # Saving in setup leaves setup, like skipping.
+    save = page.split("window.saveProfile = function", 1)[1].split("\n  };", 1)[0]
+    assert "if(setupMode){ window.finishSetup();" in save
+    assert 'history.replaceState(null, "", "/waitlist/me")' in page
+
+
+def test_the_status_page_has_a_settings_gear_and_learn_more():
+    page = (ROOT / "static" / "waitlist.html").read_text(encoding="utf-8")
+    status = page.split('id="status"', 1)[1].split('id="aboutView"', 1)[0]
+    # A gear, never a dot or a monogram.
+    gear = status.split('id="meBtn"', 1)[1].split("</button>", 1)[0]
+    assert 'aria-label="Settings"' in gear and "<svg" in gear and "·" not in gear
+    assert '$("meBtn").textContent' not in page
+    # "Learn more about FAM" at the top, in Go Deeper's yellow.
+    assert status.index('id="learnMore"') < status.index('id="placeCard"')
+    assert "Learn more about FAM" in status
+    learn = page.split(".learn-btn{", 1)[1].split("}", 1)[0]
+    app = (ROOT / "static" / "index.html").read_text(encoding="utf-8")
+    deeper = re.search(r"--deeper:(#[0-9A-Fa-f]{6})", app).group(1)
+    assert f"background:{deeper}" in learn
+    # It opens the landing's own explainer, not a copy of it.
+    assert page.count('id="about"') == 1
+    opener = page.split("window.openAbout = function(){", 1)[1].split("\n  };", 1)[0]
+    assert 'view.appendChild($("about"))' in opener and "showAbout(true)" in opener
 
 
 def test_the_apps_sign_up_goes_to_the_waitlist():
@@ -624,7 +665,8 @@ def test_the_apps_sign_up_goes_to_the_waitlist():
 def test_the_landing_page_says_what_fam_is_under_the_sign_up():
     page = (ROOT / "static" / "waitlist.html").read_text(encoding="utf-8")
     landing = page.split('id="landing"', 1)[1].split('id="status"', 1)[0]
-    # Under the form, on the landing view only - never on the status page.
+    # Under the form, in the landing's markup; the status page's "Learn more
+    # about FAM" moves this same section into its own view (§214).
     assert landing.index('id="joinForm"') < landing.index('id="about"')
     for heading in ("Search. Scroll. Mix.", "01 · Search", "02 · DailyFAM",
                     "03 · myFAM", "Ian Solomon &amp; TJ Weingart"):
@@ -772,4 +814,4 @@ def test_the_carousels_turn_every_ten_seconds_and_by_hand():
     assert "setInterval(function(){ show(at + 1); }, CAROUSEL_SECONDS * 1000)" in page
     turn = page.split("function turnCarousel(box){", 1)[1].split("\n  }\n", 1)[0]
     assert turn.count("restart(); }") == 3  # a hand turn restarts the ten seconds
-    assert 'querySelectorAll("[data-carousel]"), turnCarousel' in page.split("function showAbout(){", 1)[1]
+    assert 'querySelectorAll("[data-carousel]"), turnCarousel' in page.split("function showAbout(member){", 1)[1]
