@@ -16423,3 +16423,77 @@ Pinned in `tests/test_waitlist.py` (the guest redirect,
 slides), `tests/test_yourfam.py::test_the_place_they_gave_is_shown_under_their_name`
 and `tests/test_search_length_and_mix_gate.py` (the five lengths, the packet
 size and that the writer asks for it).
+
+## 220. Why a third of GDELT's downloads failed, and Finnhub's and the local feeds'
+
+**What was asked (07/10).** The admin page showed GDELT at 314 requests
+today, 101 failed (433 yesterday), where §211 promised about 200 a day with
+none failing; Finnhub and the local news feeds were failing too. The owner:
+break down why, and mitigate it for GDELT.
+
+**What could be read, and what could not.** This container cannot reach
+production, Render's logs or GDELT (the egress proxy refuses all three), and
+the admin page counted failures without a reason. So the breakdown is from
+the code: every way `gdelt.sync` could fail, matched against the counts.
+
+**Why GDELT failed.** Since §211 every GDELT request is the one background
+job; nothing a listener does reaches it. The shape - roughly one failure for
+every two good requests, and the failures *adding* to the ~200 rather than
+replacing them - is that of a file failing once and then being fetched on
+the next poll. Three things in `sync` produced exactly that:
+* **The poll drifted.** `run_forever` slept 900 s *after* each sync, so
+  every poll landed later by the sync's own length (a download and parse of
+  a 10-40 MB file) and the phase walked round the quarter hour. Whenever it
+  landed in the minutes after `lastupdate.txt` names a GKG file and before
+  the file server serves it, the newest file answered 404 and the sync
+  failed; the file came on the next poll as a backfill. GDELT's file server
+  is a CDN in front of a bucket and a name running ahead of its file is the
+  likeliest reading - not verified against the live service.
+* **A named file was written off on its second 404.** That backfill carried
+  no checksum and so was treated as a slot GDELT skipped: marked missing and
+  never asked again, losing fifteen minutes of news (and the 404 counted).
+* **One failure stopped the sync and nothing was asked twice.** A timeout,
+  a dropped connection or a passing 5xx raised out of the loop, so files
+  after it waited a whole period, and the next try was fifteen minutes away.
+
+**What changed (GDELT).**
+* `next_poll_in`: polls land `GDELT_EXPORT_POLL_OFFSET_SECONDS` (450) past
+  each quarter hour, on GDELT's clock - well after a name appears, well
+  before the next - and never drift.
+* A file `lastupdate.txt` *named* that answers 404 is **waiting**, not an
+  error: never written off for `NAMED_GRACE_SECONDS` (an hour), looked for
+  again after `GDELT_EXPORT_WAIT_SECONDS` (120) rather than a period later -
+  but only while it was named within the last period, so a file that never
+  appears is asked on the ordinary clock, not every two minutes for an hour
+  (review fix). Only a file never named is written off on one 404.
+* A timeout, dropped connection, 408/425/429 or 5xx is asked once more after
+  `GDELT_EXPORT_RETRY_SECONDS` (10). Each attempt is counted - a retry spends
+  a request like any other. A 404 on `lastupdate.txt` is not retried.
+* One file's failure no longer stops the others: the newest is still read.
+* Expected steady state: 96 `lastupdate.txt` + 96 files ≈ 192 a day, with
+  failures only for GDELT's own skipped slots and real outages.
+
+**Why Finnhub and the local feeds fail (read from the code, unverified).**
+* *Finnhub*: every request is `live_sources._json`. Non-2xx answers come
+  from a listener's subject that reaches `/search` and is refused (the §144
+  422s, now rarer behind the topic filter), the free plan refusing an
+  endpoint or symbol (403), and the 60-a-minute limit (429) when the
+  two-hourly watchlist sweep lands beside live lookups.
+* *Local feeds*: `local_news._get` counts any answer but 2xx/304 as failed,
+  including a **missing `robots.txt`** (404), which is normal and means
+  "allowed" - so part of that count is not a failure at all. The rest are
+  small outlets' sites: bot walls (403), moved or dead feeds (404/410),
+  timeouts.
+
+**What changed (all three).** `provider_usage.record` takes a `why`, and the
+admin page shows each provider's failure reasons since boot beside its
+count ("failed since boot: GKG file: HTTP 404, named but not served yet ×3,
+…"); `/api/health` → `gdelt.failure_reasons` and `waiting_for` too. A reason
+never carries a URL (Finnhub's key is a query parameter). The next look at
+the page says which of the readings above is true. Finnhub's and the local
+feeds' behaviour is unchanged; the `robots.txt` miscount is the obvious next
+fix once the reasons confirm it.
+
+Rule: `gdelt-exports` carries a §220 Current note. Tests:
+`tests/test_gdelt_failures_220.py`; `test_the_newest_file_is_never_written_off`
+now expects `waiting`, not an error.
