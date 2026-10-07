@@ -16345,3 +16345,22 @@ a guest's `X-FAM-Waitlist: /waitlist`. Two things still redirect:
   it is an invitation to join.
 
 Pinned by `tests/test_waitlist.py::test_guests_and_waitlisted_are_kept_out_of_the_app`.
+
+## 218. The waitlist carousels turn only by hand; white arrows above the slide
+
+The owner asked for two changes to `/waitlist`'s carousels (§212):
+
+- **No turning on a timer.** `CAROUSEL_SECONDS` and the interval, the
+  visibility and off-screen waits that served it, are gone: a slide moving
+  while someone reads it loses their place. The arrows and dots are the only
+  way to turn one.
+- **The arrows are more prominent and cover nothing.** White circles (54px)
+  with black chevrons. From 820px they used to flank the slide, level with
+  it, and the tilted back phone in the how-to-use slides ran under the right
+  arrow (§212 put the arrow on top so it kept its clicks, which meant it hid
+  the picture). The arrows and dots now sit in their own row above the slide
+  on every width, as they already did on a phone; measured from 360 to
+  1920px, no arrow overlaps any element of any slide.
+
+Pinned in `tests/test_waitlist.py` (`test_the_carousels_turn_only_by_hand`).
+
