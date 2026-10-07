@@ -16299,3 +16299,29 @@ the status page's dot and its "Edit your profile" card.
 
 Checked in a browser at phone size with the API mocked: setup with Skip,
 the status page with the gear and the pill, the menu, the explainer and back.
+
+## 216. An admin is never on the waitlist, and sees it as a member would
+
+The owner (07/10): an admin email signing in at the waitlist should override
+the waitlist, let the admin see what the page looks like, and never add them
+to it.
+
+- **Admin is still `FAM_ADMIN_ACCOUNTS`** (§183's rule 8): an account whose
+  email, phone or id is listed. Nothing the client says makes it one.
+- **Never in line.** `app._admit_admin` runs on `/api/waitlist/join`,
+  `/api/auth/signup` and `/api/auth/login`: an admin account that would be (or
+  already is) `waitlisted` is flipped `active` through `WAITLIST.grant`, before
+  `_waitlist_after_signup`, which then does nothing - no place, no invite
+  credit, no `register` with Viral Loops. An admin who was already in line is
+  flagged off Viral Loops as anyone granted is; a fresh one was never told,
+  so `grant(..., flag=False)`.
+- **The gate lets an admin account through whatever its status**
+  (`_waitlist_refusal`), so the override holds even before the first sign-in
+  since the variable was set.
+- **They see the page.** Join and sign-in answer `admin: true`, and the page
+  sends an admin to `/waitlist/me` rather than the app. `/api/waitlist/me`
+  carries `admin` and `preview` - where the next person to join would land
+  (`waitlisted_count() + 1`, against the real cutoff) - and the page draws
+  the member's view from it under an "Admin preview ... You are not on the
+  waitlist" note with Open FAM. Everybody else gets `preview: null`.
+

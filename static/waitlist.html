@@ -440,6 +440,11 @@
     border-radius:999px; border:1px solid #FFD23F; background:#FFD23F; color:var(--gold-ink);
     font-weight:700; font-size:14px; letter-spacing:0.04em; cursor:pointer; }
   .learn-btn svg{ width:17px; height:17px; }
+  /* An admin's own status page: a preview of a member's, said so at the top. */
+  .admin-note{ display:flex; align-items:center; justify-content:space-between; gap:12px;
+    margin:0 0 18px; padding:10px 14px; border:1px dashed rgba(255,255,255,0.35); border-radius:14px;
+    font-size:13px; line-height:1.35; }
+  .admin-note a{ color:inherit; font-weight:600; white-space:nowrap; }
   .learn-btn:active{ transform:scale(0.96); }
   /* The profile straight after joining: nothing else on the page but it,
      under a bar whose right-hand side lets them skip it for now. */
@@ -899,6 +904,12 @@
     <button type="button" role="menuitem" onclick="deleteAccount()" style="color:#FFB4A2">Delete account</button>
   </div>
 
+  <!-- An admin is never in line: what they see is a member's page, labelled. -->
+  <div class="admin-note hidden" id="adminNote" role="note">
+    <span>Admin preview: this is what a member joining now sees. You are not on the waitlist.</span>
+    <a href="/">Open FAM</a>
+  </div>
+
   <!-- The landing page's "What is FAM", for somebody already on the list. -->
   <button class="learn-btn" type="button" id="learnMore" onclick="openAbout()">Learn more about FAM
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
@@ -1248,7 +1259,8 @@
       var note = $("loginNote"); note.className = "form-note"; note.textContent = "";
       $("loginBtn").disabled = true;
       api("/api/auth/login", { email: $("loginEmail").value.trim(), password: $("loginPassword").value })
-        .then(function(d){ location.replace(d.status === "active" ? "/" : "/waitlist/me"); })
+        // An admin goes to the status page to see it, never into the line.
+        .then(function(d){ location.replace(d.admin || d.status !== "active" ? "/waitlist/me" : "/"); })
         .catch(function(e){ $("loginBtn").disabled = false; note.className = "form-note err"; note.textContent = e.message; });
     });
   }
@@ -1259,6 +1271,11 @@
   function drawPlace(d){
     var first = (d.name || "").split(/\s+/)[0];
     $("helloName").textContent = first ? first + ", you’re a" : "You’re a";
+    $("adminNote").classList.toggle("hidden", !d.admin);
+    // An admin's numbers are the preview's: where the next joiner lands.
+    if(d.admin && d.preview){
+      d = Object.assign({}, d, d.preview, { status: "waitlisted" });
+    }
     if(d.status === "active"){
       $("placeCard").classList.add("hidden");
       $("grantedCard").classList.remove("hidden");
