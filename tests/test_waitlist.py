@@ -851,7 +851,7 @@ def test_how_to_use_fam_is_one_feature_at_a_time():
     assert "feat-flip" not in page
 
 
-def test_the_carousels_turn_every_ten_seconds_and_by_hand():
+def test_the_carousels_turn_only_by_hand():
     page = (ROOT / "static" / "waitlist.html").read_text(encoding="utf-8")
     boxes = page.split(" data-carousel role=")[1:]
     assert len(boxes) == 2  # the problem, and how to use FAM
@@ -871,10 +871,15 @@ def test_the_carousels_turn_every_ten_seconds_and_by_hand():
     assert ".car:not(.ready) .car-arrow" in page and ".car.ready .car-slide{ grid-area:1/1;" in page
     assert 'el.setAttribute("aria-hidden", "true"); el.inert = true;' in page
     assert 'box.classList.add("ready");' in page
-    assert "var CAROUSEL_SECONDS = 10;" in page
-    assert "setInterval(function(){ show(at + 1); }, CAROUSEL_SECONDS * 1000)" in page
+    # Never on a timer: a slide must not move while someone is reading it.
     turn = page.split("function turnCarousel(box){", 1)[1].split("\n  }\n", 1)[0]
-    assert turn.count("restart(); }") == 3  # a hand turn restarts the ten seconds
+    assert "setInterval" not in turn and "setTimeout" not in turn
+    assert "CAROUSEL_SECONDS" not in page
+    # The arrows are white with black chevrons, in their own row above the
+    # slide on every width, so they never cover a picture.
+    assert "background:#FFFFFF; color:#000000;" in page
+    assert 'grid-template-areas:"p d n" "s s s";' in page
+    assert '"p s n"' not in page
     assert 'querySelectorAll("[data-carousel]"), turnCarousel' in page.split("function showAbout(member){", 1)[1]
 
 

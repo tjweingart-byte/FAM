@@ -61,7 +61,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
 - **Trending searches**: under the search bubbles, the five questions most
   searched in the last 2h whose episodes are still current; cache only (§190, §192). [trending-searches]
 - **Search is Google's shape** (§190): mic and attach inside the bar's right;
-  Length (1-5 min, §218) and Voice bubbles never print the choice; back to 2 min on
+  Length (1-5 min, §219) and Voice bubbles never print the choice; back to 2 min on
   every return to the app. [search-bar]
 - A search is spell-corrected whole at send; its title never shows a
   misspelling (`autocorrect.correct_text`). [autocorrect-at-send]
@@ -234,7 +234,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   Go Deeper prompts, from the **last 24 hours** only; fewer than four is honest. [pick-up-rail]
 - Follows are asymmetric; a friend is the mutual case, derived never stored. [op-follow-graph]
 - A friend's profile is its own screen (`screen-person`); `/api/person` returns
-  only what they published, a given place included (§218) (a handle resolves for anyone, a bare id only within
+  only what they published, a given place included (§219) (a handle resolves for anyone, a bare id only within
   the asker's follows; the response carries no id); new followers announced once (`social.announced`),
   badge cleared by the Friends tab; **85% through counts as finished**. [op-friend-profile]
 - Social updates itself: message cursor is a **row id, never a timestamp**,
@@ -350,7 +350,7 @@ Caching and prefetch
   `in_progress` = never current, nor a sports score or update (`recap`/`update`) short of `final` (§182). Do not fix by adding keywords. Prefetch never
   calls `live_lookup` and never warms an outcome-dependent script (DailyFAM
   edition is the stated exception). [ttl-from-evidence]
-- **Duration buys depth, not words** (`DEPTH_BANDS`; evidence grows with minutes, §218); shapes, never boxes; a beat
+- **Duration buys depth, not words** (`DEPTH_BANDS`; evidence grows with minutes, §219); shapes, never boxes; a beat
   with nothing behind it is dropped - a test pins that wording. [depth-not-words]
 - **Prefetch writes the same cache under the same key**: `pipeline.key_for` /
   `bucket_for` are the only key; a new field that changes an episode goes there
@@ -410,7 +410,7 @@ Accounts, tiers, sharing
   friends; a shared episode plays for anyone (only what was shared); the landing
   page plays the three sign-up samples as replays (§190), own picture only (§214); a `/waitlist` join is
   always waitlisted (never an admin account, which previews it, §216) and the app's Sign Up goes there (§192);
-  a guest at the address goes to `/waitlist`, whose foot signs a member in (§218). [waitlist-gate]
+  a guest at the address goes to `/waitlist`, whose foot signs a member in (§219). [waitlist-gate]
 - **Tiers are built; enforced in production only** (`ENFORCE_QUOTAS=1` in `render.yaml`, §207);
   admins are `unlimited`, `/api/admin/plan` moves anyone else; no checkout yet. [tiers-off]
 - A refusal names what the listener was doing (`service_label`), composed
