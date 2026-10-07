@@ -665,6 +665,7 @@
    against their own allowances. Mixes are private by default and appear on the
    profile once made public.
 <!-- rule:op-profile-hub -->
+> **Current (PROBLEMS.md §214):** the identity step runs for an account let in off the waitlist too, and is skipped only when name, handle and a place are all set (`identitySetUp`).
 > **Current (PROBLEMS.md §178, reversing §174's first item):** your own page draws its interests again - as one line under Edit profile and Saved for Later, labelled "Interests", pills in a row that scrolls sideways (`interestLineHTML`); a friend's page draws theirs the same way. They are still changed in Edit profile.
 
 > **Current (PROBLEMS.md §174):** your own YourFAM page no longer draws the interest pills - the owner found them clutter, and Edit profile ("Your interests - N of 5") is where they are seen and changed. `interests_shown` is still what the profile *shares*: a friend's page shows it. "Find new friends" is a gold pill with a plus rather than a text link. Where the text below says the hub shows five pills, read "the profile shares five".

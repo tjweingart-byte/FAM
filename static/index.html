@@ -18405,27 +18405,39 @@
     var ask = !(opts && opts.askWhoTheyAre === false);
     loadPrefChoices().then(function(){
       if(localPrefs().intro === "done" || PREF_CHOICES.intro_done){
-        finishEntry();
+        // From the app opening, the boot intro has already played.
+        finishEntry(opts && opts.fromBoot ? { handoff: false } : null);
         return;
       }
       // A handle is for other people to find somebody by, which is worth
       // nothing without an account to find - so this step belongs after
       // signing up and nowhere else.
       if(!ask || !AUTH.authenticated){ afterIdentity(); return; }
-      // Already named, so there is nothing to ask - somebody who set a name
-      // and stopped before the interests, or who signed in rather than up.
-      if(profileNow && profileNow.name && profileNow.handle){
+      // Already set up, so there is nothing to ask - somebody who filled in
+      // who they are and where and stopped before the interests. An account
+      // let in off the waitlist with any of it missing is asked, the way a
+      // new account is: a name and handle alone is not the account set up.
+      if(identitySetUp()){
         afterIdentity();
         return;
       }
       loadProfileQuietly().then(function(){
-        if(profileNow && profileNow.name && profileNow.handle){
+        if(identitySetUp()){
           afterIdentity();
           return;
         }
         openIdentity("first-run", "intro");
       });
     });
+  }
+
+  // Whether the identity step has anything left to ask: a name, a handle
+  // and a place. The place is optional on the screen, but an account that
+  // never saw the screen (made on /waitlist) is shown it once.
+  function identitySetUp(){
+    var p = profileNow || {};
+    var place = (PREF_CHOICES && PREF_CHOICES.location) || {};
+    return !!(p.name && p.handle && (place.city || place.region || place.country));
   }
 
   // The profile, read without drawing it. The identity step needs to know
@@ -18842,13 +18854,13 @@
     finishEntry();
   }
 
-  function finishEntry(){
+  function finishEntry(opts){
     saveLocalPrefs({ entry: "done" });
     // Signed in, or an account just finished (credentials, who they are,
     // interests): the wordmark hands them into DailyFAM. Captured before the
     // screen changes, because the picture is of the page being left. A guest
     // goes straight in - they finished nothing.
-    var handoff = AUTH.authenticated
+    var handoff = (AUTH.authenticated && !(opts && opts.handoff === false))
       ? beginEntryHandoff(document.querySelector(".screen.active")) : null;
     openMyFamTab();   // which loads the feed and Go Deeper
     if(handoff) handoff();
@@ -19295,7 +19307,16 @@
       showScreen("welcome");
       return;
     }
-    if(!entryComplete()){ startEntry(); return; }
+    // Signed in on a device that never finished the first run - most often
+    // somebody let in off the waitlist, whose account was made on /waitlist
+    // and whose cookie is already here. The front door would ask them to
+    // sign up again; they get the steps a new account gets instead (who
+    // they are and where, then interests), and `afterAccount` goes straight
+    // in when the server says those are done.
+    if(!entryComplete()){
+      if(AUTH.authenticated){ afterAccount({ fromBoot: true }); return; }
+      startEntry(); return;
+    }
     openMyFamTab();   // which loads the feed and Go Deeper
     loadPrefChoices();
     // There is no push, so the honest moment to say "___ started following
