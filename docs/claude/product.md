@@ -128,7 +128,7 @@ optional line (`social.MAX_CAPTION`, cut not refused, slurs removed); the
 story that vibe plays as draws it under the title. Stored on the echo row,
 replaced when the same episode is vibed again.
 
-> **Current:** §212 (the 10.6 packet) replaced the sheet with a story editor,
+> **Current:** §213 (the 10.6 packet) replaced the sheet with a story editor,
 > Instagram's shape at the owner's direction. The picture is framed (card,
 > rounded, circle, full) and pinched to size; the caption takes a face and a
 > size and is dragged into place; stickers come from a fixed set; @ tags
@@ -145,7 +145,7 @@ replaced when the same episode is vibed again.
 > the story and leaves the vibe on the profile.
 
 <!-- rule:group-chats -->
-**Group chats (§212).** Pick two or more people you follow under the
+**Group chats (§213).** Pick two or more people you follow under the
 Messages (+) and start typing. A group is the one thread whose id is
 allocated (`g:` and a token) rather than derived from two people. A message
 to it is **one row** whose recipient is the group, never one copy per

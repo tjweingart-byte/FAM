@@ -1,4 +1,4 @@
-"""The 10.6 implementations packet (PROBLEMS.md §212): your own story and its
+"""The 10.6 implementations packet (PROBLEMS.md §213): your own story and its
 menu, VIBE! as a story editor with close friends, holding a story to pause it,
 and group chats."""
 
