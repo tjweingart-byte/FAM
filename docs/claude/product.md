@@ -128,6 +128,32 @@ optional line (`social.MAX_CAPTION`, cut not refused, slurs removed); the
 story that vibe plays as draws it under the title. Stored on the echo row,
 replaced when the same episode is vibed again.
 
+> **Current:** §213 (the 10.6 packet) replaced the sheet with a story editor,
+> Instagram's shape at the owner's direction. The picture is framed (card,
+> rounded, circle, full) and pinched to size; the caption takes a face and a
+> size and is dragged into place; stickers come from a fixed set; @ tags
+> people in the poster's graph and sends each one the episode. All of it is a
+> layout beside the row (`social.clean_style`, every field clamped, the
+> picture a path on this server, never a remote address) that the viewer
+> draws with the same `storyCanvasHTML`. "Your story" goes to everybody who
+> follows, "Close Friends" only to the list chosen in Settings
+> (`close_friends`), and a close-friends vibe is kept out of every read
+> another listener makes (`SocialStore._visible`). No music, no colour, no
+> "more". The X goes back to the episode and posts nothing. Holding a story
+> pauses it until the finger lifts. Your own story rings your picture on
+> YourFAM, and its ⋯ menu adds "Remove from your story", which takes it off
+> the story and leaves the vibe on the profile.
+
+<!-- rule:group-chats -->
+**Group chats (§213).** Pick two or more people you follow under the
+Messages (+) and start typing. A group is the one thread whose id is
+allocated (`g:` and a token) rather than derived from two people. A message
+to it is **one row** whose recipient is the group, never one copy per
+member. Every "addressed to me" read also asks "a group I am in, from
+somebody else, since I joined". Members are only people in the creator's
+graph. Leaving is said in the group, and stops its messages at once.
+Responses name members and carry no listener ids.
+
 <!-- rule:names-swapped -->
 **The listener sees myFAM and DailyFAM with their names swapped (§185), at
 the owner's direction.** The rails screen (the first tab, `screen-myfam`) is
