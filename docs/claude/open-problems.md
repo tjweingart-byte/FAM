@@ -582,6 +582,7 @@
    two taps that fix it**, because the alternative was what it did before,
    which was to show strangers under a heading that said "people you follow".
 <!-- rule:op-friend-profile -->
+> **Current (PROBLEMS.md §218):** the place a listener gave (city, state, country as typed, whichever parts) is printed under their name on their own page (`/api/profile` `location`) and on the page a friend opens (`/api/person` `location`): putting it on the profile is publishing it, at the owner's direction.
 7b. **A friend's profile is its own screen, and it shows what they published.**
    *(§104, `SHARING.md`.)* The navigation bug the packet reported had four
    symptoms and one cause: somebody else's profile was drawn into

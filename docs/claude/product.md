@@ -574,6 +574,7 @@ the rest of this list it needs taste rather than a key.
   question goes through `autocorrect.correct_text`.
 
 <!-- rule:search-bar -->
+> **Current (PROBLEMS.md §218):** the Length menu offers **1, 2, 3, 4 and 5 minutes** (`SEARCH_LENGTHS`); the server still accepts up to ten, so no installed client is refused.
 - **The search page is Google's shape** *(PROBLEMS.md §190, the owner's 10.1
   packet with a Google screenshot)*: one rounded bar holding the question,
   with the mic and attach on its right and the go arrow only once something

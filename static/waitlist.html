@@ -159,6 +159,7 @@
     text-align:center; margin:-30px 0 40px; }
   .ab-problem{ margin-top:110px; }
   .ab-problem .car{ margin-top:36px; }
+  .ab-problem .prob-pass{ margin-top:36px; }
   .ab-why{ margin-top:110px; }
   .ab-why .ab-big.center{ margin-top:0; font-size:clamp(30px, 5vw, 44px); }
   .ab-h-sm{ font-size:clamp(28px, 4.6vw, 40px); }
@@ -166,7 +167,7 @@
     color:#F6F0E4; margin:0 0 12px; text-wrap:balance; }
   .ab-big.center{ text-align:center; margin:56px auto 0; }
 
-  /* What passes by: all four at once, two by two, as big as the slides beside it. */
+  /* What passes by: all four at once, two by two, fixed under the heading. */
   .pass{ display:grid; grid-template-columns:1fr; gap:14px; list-style:none; margin:0 auto; padding:0; max-width:860px; }
   .pass-card{ display:flex; align-items:center; gap:16px; padding:22px 22px;
     border-radius:18px; background:var(--card); border:1px solid var(--line); color:#E6E0EE;
@@ -371,6 +372,9 @@
     border:1px solid var(--line); width:calc(100% - 40px); }
   .ab-cta .ab-sub{ margin-left:auto; margin-right:auto; }
   .ab-cta-btn{ max-width:320px; margin:28px auto 0; text-decoration:none; }
+  .ab-signin{ margin-top:22px; text-decoration:underline; text-underline-offset:4px; }
+  /* Somebody on the status page is signed in already. */
+  #aboutView .ab-signin{ display:none; }
   .ab-foot{ display:flex; flex-direction:column; align-items:center; gap:10px; padding:56px 20px 48px; color:var(--faint); font-size:14px; }
   .ab-foot .wordmark{ font-size:28px; margin:0; }
   .ab-foot .tagline{ margin:0; font-size:13px; }
@@ -534,6 +538,24 @@
   .chip{ border:1px solid #5A5470; background:transparent; border-radius:999px; padding:8px 14px;
     cursor:pointer; font-size:14px; }
   .chip.on{ background:var(--gold); color:var(--gold-ink); border-color:var(--gold); }
+  .pfield span .opt{ display:inline; font-style:normal; color:var(--faint); }
+  .chips:empty{ display:none; }
+  .view-all{ margin-top:10px; }
+  .all-topics{ margin-top:12px; }
+  .topic-list{ margin-top:8px; max-height:340px; overflow-y:auto; border:1px solid var(--line);
+    border-radius:12px; background:var(--card-2); }
+  .topic-row{ display:flex; align-items:center; justify-content:space-between; gap:12px; width:100%;
+    padding:12px 16px; background:none; border:0; border-bottom:1px solid var(--line);
+    cursor:pointer; font-size:15px; text-align:left; color:var(--text); }
+  .topic-row:last-child{ border-bottom:0; }
+  /* Not the field labels' small grey: `.pfield span` would reach these. */
+  .pfield .topic-row span{ display:block; margin:0; font-size:15px; color:inherit; }
+  .pfield .topic-row .mark{ flex:none; width:26px; height:26px; border-radius:50%; border:1px solid #5A5470;
+    display:flex; align-items:center; justify-content:center; font-size:15px; line-height:1; }
+  .pfield .topic-row.on .mark{ background:var(--gold); border-color:var(--gold); color:var(--gold-ink); }
+  .topic-row.add{ color:var(--gold); }
+  .topic-letter{ padding:10px 16px 4px; font-size:12px; letter-spacing:0.14em; color:var(--gold); }
+  .topic-empty{ padding:14px 16px; font-size:14px; color:var(--muted); }
   .done-pill{ display:inline-block; font-size:12px; color:var(--sage); border:1px solid var(--sage);
     border-radius:999px; padding:3px 10px; margin-left:8px; vertical-align:middle; }
   .toast{ position:fixed; left:50%; bottom:28px; transform:translateX(-50%) translateY(20px); opacity:0;
@@ -631,19 +653,22 @@
 
 
     <!-- The problem, told the way the owner tells it (PROBLEMS.md §199, §200,
-         §212): four turns under one heading - what passes you by, what keeping
-         up would take, the conversation you miss, why someone else decides. -->
+         §212, the 10.7 packet): one heading with what passes you by under it,
+         fixed, then three turns - what keeping up would take, the
+         conversation you miss, why someone else decides. -->
     <section class="ab-wrap ab-problem reveal">
       <header class="ab-center">
         <div class="ab-kicker label">The problem</div>
         <h2 class="ab-h">Being in the know shouldn’t be a full-time job.</h2>
       </header>
+      <!-- What passes you by sits under the heading and stays put (10.7
+           packet); the carousel below turns the other three. -->
+      <div class="prob-pass">
+        <ul class="pass" aria-label="What passes you by"><li class="pass-card"><span class="pass-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18v12H3z"/><path d="M12 6v12M3 12h4M17 12h4"/><circle cx="12" cy="12" r="2.4"/></svg></span>A game you didn’t watch</li><li class="pass-card"><span class="pass-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v10H9l-5 4z"/><path d="M8 9h8M8 12h5"/></svg></span>A story everyone at work is suddenly talking about</li><li class="pass-card"><span class="pass-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20h18"/><path d="M5 16l4-5 4 3 6-8"/><path d="M15 6h4v4"/></svg></span>Something happening in an industry you care about</li><li class="pass-card"><span class="pass-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3v8a2 2 0 0 0 2 2v8M5 3v5M9 3v5"/><path d="M17 21V3c-2 1.5-3 4-3 7s1 3 3 3"/></svg></span>A topic your friend brings up at dinner that you wish you knew more about</li></ul>
+      </div>
       <div class="car" data-carousel role="region" aria-roledescription="carousel" aria-label="The problem">
         <div class="car-slides">
-          <div class="car-slide prob-pass" role="group" aria-roledescription="slide" aria-label="1 of 4: What passes you by">
-            <ul class="pass" aria-label="What passes you by"><li class="pass-card"><span class="pass-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18v12H3z"/><path d="M12 6v12M3 12h4M17 12h4"/><circle cx="12" cy="12" r="2.4"/></svg></span>A game you didn’t watch</li><li class="pass-card"><span class="pass-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v10H9l-5 4z"/><path d="M8 9h8M8 12h5"/></svg></span>A story everyone at work is suddenly talking about</li><li class="pass-card"><span class="pass-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20h18"/><path d="M5 16l4-5 4 3 6-8"/><path d="M15 6h4v4"/></svg></span>Something happening in an industry you care about</li><li class="pass-card"><span class="pass-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3v8a2 2 0 0 0 2 2v8M5 3v5M9 3v5"/><path d="M17 21V3c-2 1.5-3 4-3 7s1 3 3 3"/></svg></span>A topic your friend brings up at dinner that you wish you knew more about</li></ul>
-          </div>
-          <div class="car-slide prob-time" role="group" aria-roledescription="slide" aria-label="2 of 4: It takes time">
+          <div class="car-slide prob-time" role="group" aria-roledescription="slide" aria-label="1 of 3: It takes time">
             <div class="turn">
               <p class="turn-b">Keeping up with all the information out there takes time.</p>
             </div>
@@ -667,7 +692,7 @@
               </div>
             </figure>
           </div>
-          <div class="car-slide ab-morning" role="group" aria-roledescription="slide" aria-label="3 of 4: The conversation">
+          <div class="car-slide ab-morning" role="group" aria-roledescription="slide" aria-label="2 of 3: The conversation">
             <div class="ab-copy ab-center">
               <div class="ab-kicker label">Stay in the loop</div>
               <h2 class="ab-h ab-h-sm">Don’t be left out of the conversation</h2>
@@ -699,7 +724,7 @@
             <p class="ba-out">Two minutes in the morning and <b>you’re in it</b>: you know the story,
               you can contribute, and you have one more thing to connect with someone over.</p>
           </div>
-          <div class="car-slide ab-origin" role="group" aria-roledescription="slide" aria-label="4 of 4: Why we built FAM">
+          <div class="car-slide ab-origin" role="group" aria-roledescription="slide" aria-label="3 of 3: Why we built FAM">
             <div class="ab-kicker label">Why we built FAM</div>
             <h2 class="ab-h">Why should someone else decide which stories you hear?</h2>
             <p class="ab-lede">FAM began inside a podcast company, where a handful of people decided
@@ -721,7 +746,7 @@
         </div>
         <button type="button" class="car-arrow car-prev" aria-label="Previous"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg></button>
         <button type="button" class="car-arrow car-next" aria-label="Next"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
-        <div class="car-dots"><button type="button" data-i="0" aria-label="Show What passes you by" aria-current="true"></button><button type="button" data-i="1" aria-label="Show It takes time"></button><button type="button" data-i="2" aria-label="Show The conversation"></button><button type="button" data-i="3" aria-label="Show Why we built FAM"></button></div>
+        <div class="car-dots"><button type="button" data-i="0" aria-label="Show It takes time" aria-current="true"></button><button type="button" data-i="1" aria-label="Show The conversation"></button><button type="button" data-i="2" aria-label="Show Why we built FAM"></button></div>
       </div>
     </section>
 
@@ -877,6 +902,9 @@
         friends to move up the line.</p>
       <a class="cta label ab-cta-btn" href="#landing" id="aboutJoin">Join the waitlist
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
+      <!-- The way into the app while the waitlist is the front door (10.7
+           packet): the sign-in at the top, which sends a member on to FAM. -->
+      <button class="quiet-link label ab-signin" type="button" id="bottomLogin">Already off the waitlist? Sign in here</button>
     </section>
 
     <footer class="ab-foot">
@@ -988,7 +1016,7 @@
         <input class="pinput" id="pHandle" maxlength="24" autocapitalize="off" autocorrect="off" spellcheck="false"></div></label>
     <label class="pfield"><span>Date of birth</span>
       <input class="pinput" id="pBirth" type="date" autocomplete="bday"></label>
-    <div class="pfield"><span>Location</span>
+    <div class="pfield"><span>Location <em class="opt">(Optional)</em></span>
       <input class="pinput" id="pCountry" maxlength="60" autocomplete="country-name" placeholder="Country" aria-label="Country">
       <input class="pinput" id="pRegion" maxlength="60" autocomplete="address-level1" placeholder="State" aria-label="State" style="margin-top:8px">
       <input class="pinput" id="pCity" maxlength="60" autocomplete="address-level2" placeholder="City" aria-label="City" style="margin-top:8px"></div>
@@ -997,8 +1025,18 @@
         <select class="pinput phone-cc" id="pPhoneCC" aria-label="Country code"></select>
         <input class="pinput" id="pPhone" type="tel" inputmode="tel" autocomplete="tel-national" placeholder="Phone number" aria-label="Phone number">
       </div></div>
-    <div class="pfield"><span>Your interests</span>
-      <div class="chips" id="chips"></div></div>
+    <div class="pfield"><span>Your interests <em class="opt">(Optional)</em></span>
+      <div class="chips" id="chips"></div>
+      <!-- Every topic the app's own interests page offers, A to Z, and
+           anything typed that is not on it (10.7 packet). -->
+      <div class="chips" id="topicChips"></div>
+      <button class="ghost view-all" type="button" id="viewAllTopics" aria-expanded="false"
+              aria-controls="allTopics">View all topics</button>
+      <div class="all-topics hidden" id="allTopics">
+        <input class="pinput" id="topicSearch" type="search" autocomplete="off"
+               placeholder="Search topics, or type your own" aria-label="Search topics, or type your own">
+        <div class="topic-list" id="topicList"></div>
+      </div></div>
     <button class="cta label" type="button" id="saveProfile" onclick="saveProfile()">Save profile</button>
     <div class="form-note" id="profileNote" role="status" aria-live="polite"></div>
   </section>
@@ -1254,6 +1292,13 @@
       this.textContent = toLogin ? "New here? Get early access" : "Already on the list? Sign in";
       if(toLogin){ $("loginEmail").value = $("email").value; $("loginEmail").focus(); }
     });
+    // "Already off the waitlist? Sign in here", at the foot of the page:
+    // the sign-in form at the top, opened and focused.
+    $("bottomLogin").addEventListener("click", function(){
+      if($("loginForm").classList.contains("hidden")) $("toggleLogin").click();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      setTimeout(function(){ $("loginEmail").focus({ preventScroll: true }); }, 400);
+    });
     $("loginForm").addEventListener("submit", function(ev){
       ev.preventDefault();
       var note = $("loginNote"); note.className = "form-note"; note.textContent = "";
@@ -1367,7 +1412,11 @@
     cc.value = parts[0]; $("pPhone").value = parts[1];
   }
 
-  function drawProfile(d, topics){
+  function drawProfile(d, prefs){
+    var topics = prefs.interests_all || [];
+    CATALOGUE = (prefs.catalogue || []).map(function(t){ return { id: t.id, label: t.label || t.id }; });
+    chosenTopics = (prefs.topics_chosen || []).map(function(t){ return { id: t.id, label: t.label || t.id }; });
+    drawTopics();
     var p = d.profile;
     $("pName").value = p.name || d.name || "";
     $("pHandle").value = p.handle || "";
@@ -1385,6 +1434,86 @@
     });
     $("profileDone").classList.toggle("hidden", !p.complete);
   }
+  // "View all topics" (10.7 packet): the app's own interests list - the
+  // catalogue, A to Z, searchable, and anything typed added as it is -
+  // saved as `topics`, exactly as the app's interests page saves them.
+  var CATALOGUE = [], chosenTopics = [];
+  function hasTopic(id){
+    var low = String(id).toLowerCase();
+    return chosenTopics.some(function(t){ return String(t.id).toLowerCase() === low; });
+  }
+  function toggleTopic(id, label){
+    if(hasTopic(id)){
+      var low = String(id).toLowerCase();
+      chosenTopics = chosenTopics.filter(function(t){ return String(t.id).toLowerCase() !== low; });
+    } else {
+      chosenTopics.push({ id: id, label: label || id });
+    }
+    drawTopics();
+  }
+  function addTypedTopic(){
+    var box = $("topicSearch");
+    var raw = (box.value || "").replace(/\s+/g, " ").trim().slice(0, 60);
+    if(!raw) return;
+    // The list's own entry when what was typed is on it.
+    var listed = CATALOGUE.filter(function(t){ return t.label.toLowerCase() === raw.toLowerCase(); })[0];
+    if(!hasTopic(listed ? listed.id : raw)) toggleTopic(listed ? listed.id : raw, listed ? listed.label : raw);
+    box.value = "";
+    drawTopics();
+  }
+  function drawTopics(){
+    // What they chose off the long list, as chips that take it off again.
+    $("topicChips").innerHTML = chosenTopics.map(function(t, i){
+      return '<button type="button" class="chip on" data-i="' + i + '" aria-label="Remove ' + esc(t.label) + '">'
+        + esc(t.label) + ' &times;</button>';
+    }).join("");
+    Array.prototype.forEach.call($("topicChips").children, function(b){
+      b.addEventListener("click", function(){
+        var t = chosenTopics[+b.getAttribute("data-i")]; if(t) toggleTopic(t.id);
+      });
+    });
+    if($("allTopics").classList.contains("hidden")) return;
+    var raw = ($("topicSearch").value || "").trim(), term = raw.toLowerCase();
+    var shown = CATALOGUE.filter(function(t){ return !term || t.label.toLowerCase().indexOf(term) !== -1; })
+      .sort(function(a, b){ return a.label.localeCompare(b.label); });
+    var exact = CATALOGUE.some(function(t){ return t.label.toLowerCase() === term; });
+    var html = "";
+    if(raw && !exact && !hasTopic(raw)){
+      html += '<button type="button" class="topic-row add" data-add="1"><span>Add <b>' + esc(raw)
+        + '</b> as a topic</span><span class="mark">+</span></button>';
+    }
+    var letter = "";
+    shown.forEach(function(t){
+      var first = t.label.charAt(0).toUpperCase();
+      if(!term && first !== letter){ letter = first; html += '<div class="topic-letter label">' + esc(letter) + '</div>'; }
+      var on = hasTopic(t.id);
+      html += '<button type="button" class="topic-row' + (on ? " on" : "") + '" data-id="' + esc(t.id)
+        + '" aria-pressed="' + on + '"><span>' + esc(t.label) + '</span><span class="mark">'
+        + (on ? "&#10003;" : "+") + '</span></button>';
+    });
+    if(!shown.length && !html) html = '<div class="topic-empty">Nothing on the list matches that.</div>';
+    $("topicList").innerHTML = html;
+    Array.prototype.forEach.call($("topicList").querySelectorAll(".topic-row"), function(b){
+      b.addEventListener("click", function(){
+        if(b.getAttribute("data-add")){ addTypedTopic(); return; }
+        var id = b.getAttribute("data-id");
+        var row = CATALOGUE.filter(function(t){ return t.id === id; })[0];
+        toggleTopic(id, row && row.label);
+      });
+    });
+  }
+  $("viewAllTopics").addEventListener("click", function(){
+    var open = $("allTopics").classList.toggle("hidden") === false;
+    this.setAttribute("aria-expanded", String(open));
+    this.textContent = open ? "Hide all topics" : "View all topics";
+    drawTopics();
+    if(open) $("topicSearch").focus({ preventScroll: true });
+  });
+  $("topicSearch").addEventListener("input", drawTopics);
+  $("topicSearch").addEventListener("keydown", function(ev){
+    if(ev.key === "Enter"){ ev.preventDefault(); addTypedTopic(); }
+  });
+
   function drawPhoto(){
     var el = $("photoPreview");
     el.innerHTML = avatar ? '<img alt="" src="' + esc(avatar) + '">' : esc(initials($("pName").value));
@@ -1427,7 +1556,9 @@
     api("/api/account", account)
       .then(function(){ return api("/api/me", body); })
       .then(function(){ return api("/api/preferences", {
-        interests: interests, country: $("pCountry").value.trim(),
+        interests: interests,
+        topics: chosenTopics.map(function(t){ return t.id; }),
+        country: $("pCountry").value.trim(),
         region: $("pRegion").value.trim(), city: $("pCity").value.trim() }); })
       .then(function(){
         if(setupMode){ window.finishSetup(); toast("Profile saved"); return load(); }
@@ -1517,11 +1648,11 @@
   $("meBtn").addEventListener("click", function(ev){ ev.stopPropagation(); $("menu").classList.toggle("hidden"); });
   document.addEventListener("click", function(){ $("menu").classList.add("hidden"); });
 
-  var TOPICS = null;
   function load(){
     return Promise.all([
       api("/api/waitlist/me"),
-      TOPICS ? Promise.resolve(TOPICS) : api("/api/preferences").then(function(p){ return (TOPICS = p.interests_all || []); })
+      // Read every time: it carries what they chose off the long list.
+      api("/api/preferences")
     ]).then(function(r){
       STATE = r[0];
       drawPlace(STATE); drawFam(STATE); drawProfile(STATE, r[1]);

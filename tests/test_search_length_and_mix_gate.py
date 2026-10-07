@@ -128,3 +128,67 @@ def test_the_new_mix_button_starts_hidden_and_is_shown_by_the_mix_list():
     shown = INDEX[INDEX.index("function renderMixList(){"):]
     shown = shown[:shown.index("function mixById")]
     assert "showNewMixButton(true);" in shown
+
+
+def test_a_search_offers_one_to_five_minutes():
+    """10.7 packet: the length menu is 1, 2, 3, 4 and 5 minutes, and a
+    search's request carries what was picked (`episodeMinutes` answers the
+    chosen length for search and BROWSE_MINUTES only for myFAM/DailyFAM)."""
+    assert "var SEARCH_LENGTHS = [1, 2, 3, 4, 5];" in INDEX
+    menu = INDEX[INDEX.index("function openLengthMenu()"):]
+    menu = menu[:menu.index("function ", 10)]
+    assert "SEARCH_LENGTHS" in menu and "m <= 10" not in menu
+    pick = INDEX[INDEX.index("function episodeMinutes(named, surface)"):]
+    pick = pick[:pick.index("}\n", pick.index("return (surface"))]
+    assert '(surface === "myfam" || surface === "dailyfam") ? BROWSE_MINUTES' in pick
+    assert ": selectedLengthMinutes" in pick
+
+
+def test_a_longer_search_is_handed_more_evidence(monkeypatch):
+    """The real reason a five-minute search came back near two: it got the
+    same three sources as a two-minute one, and the writer drops a beat with
+    nothing behind it. Past the browse length each minute adds a source
+    (from the results the one call already returns), four minutes and up a
+    third highlight each; two minutes and under overrides nothing."""
+    import dataclasses
+    import research
+    from config import BROWSE_MINUTES
+    monkeypatch.setattr(research, "settings", dataclasses.replace(
+        research.settings, exa_num_results=8, exa_packet_sources=3,
+        exa_highlights_per_source=2))
+    assert research.packet_size(1) == {} and research.packet_size(BROWSE_MINUTES) == {}
+    assert research.packet_size(3) == {"packet_sources": 4, "highlights_per_source": 2}
+    assert research.packet_size(4) == {"packet_sources": 5, "highlights_per_source": 3}
+    assert research.packet_size(5) == {"packet_sources": 6, "highlights_per_source": 3}
+    # Never more sources than the one search fetched.
+    assert research.packet_size(10)["packet_sources"] == 8
+
+
+def test_the_writer_asks_research_for_the_episodes_length(monkeypatch):
+    """The packet size reaches the search: a five-minute plan's retrieval
+    carries `packet_sources`, a two-minute one's carries nothing extra."""
+    import asyncio
+    import research as research_mod
+    from script_generator import ScriptGenerator, plan_episode
+
+    seen = []
+
+    class Packet:
+        context = "SOURCE 1 / Title: x / Key evidence: y"
+        searches, cost, missing = 1, 0.0, ()
+
+        def __bool__(self):
+            return True
+
+        def as_dict(self):
+            return {"context": self.context}
+
+    async def fake_retrieve(q, backend=None, brief=None, **size):
+        seen.append(size)
+        return Packet()
+
+    monkeypatch.setattr(research_mod, "retrieve", fake_retrieve)
+    for minutes in (2, 5):
+        asyncio.run(ScriptGenerator(api_key="").research(plan_episode("why rates moved", minutes)))
+    assert seen[0] == {}
+    assert seen[1] == research_mod.packet_size(5) and seen[1]["packet_sources"] > 3

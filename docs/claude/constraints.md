@@ -949,6 +949,7 @@
   happened, and it runs the live lookup as a tap would. A game still in
   progress at write time is kept and never current, so the tap writes it.
 <!-- rule:depth-not-words -->
+> **Current (PROBLEMS.md §218):** depth needs material: past `BROWSE_MINUTES` each extra minute adds a source to the evidence packet and four minutes or more a third highlight each (`research.packet_size`), out of the results the one search already returns. Two minutes and under is the configured packet unchanged. A five-minute search used to get two minutes' evidence and so ended near two.
 - **Duration buys depth, not words.** *(§82, and this sharpens "duration is a
   ceiling".)* `DEPTH_BANDS` says what each band of minutes is *for* —
   orientation, understanding, depth, the full arc — described as content and
@@ -1103,6 +1104,7 @@
   time: a second sign-up form left standing is one somebody wires a new gate
   to by accident.
 <!-- rule:waitlist-gate -->
+> **Current (PROBLEMS.md §218):** §217 is reversed at the owner's direction (10.7 packet): while `WAITLIST=1` runs, a guest typing the address is sent to `/waitlist` again (server and shell), and the landing page's foot carries **Already off the waitlist? Sign in here**, which opens its sign-in - a member is sent on to the app from there. The waitlist profile marks Location and interests **(Optional)** and has **View all topics**: the app's catalogue, searchable, anything typed added as it is, saved as `topics`.
 > **Current (PROBLEMS.md §217):** a guest is never redirected off the front door - typing the address opens the app on its sign-in and sign-up, with every API call still refused; only a waitlisted account (to `/waitlist/me`) and a `?referralCode=` link (to `/waitlist`) are moved.
 > **Current (PROBLEMS.md §216):** an admin account (`FAM_ADMIN_ACCOUNTS`) is never on the waitlist: joining or signing in leaves it `active` (`app._admit_admin`), the gate lets it through, and it is sent to `/waitlist/me` to see a member's page from `/api/waitlist/me`'s `preview`, labelled "Admin preview".
 > **Current (PROBLEMS.md §215):** joining goes straight to the profile (`/waitlist/me?setup=1`, the app's sign-up fields plus date of birth and phone, **Skip for now** at the top right), never behind an "Edit your profile" card, which is gone; the status page's top right is a settings gear (it reopens the profile), and a Go Deeper-yellow **Learn more about FAM →** at its top shows the landing's "What is FAM" section again.

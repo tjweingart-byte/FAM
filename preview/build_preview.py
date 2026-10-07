@@ -502,6 +502,8 @@ def load_fixtures() -> dict:
             # the four were pinned or chosen, because those look identical on
             # screen and the copy under them is only true of one.
             "interests_max": 5,
+            # Under the name (10.7).
+            "location": "San Francisco, CA, USA",
             "interests_shown": [
                 {"id": "tech", "label": "Technology", "kind": "facet"},
                 {"id": "money", "label": "Money & markets", "kind": "facet"},
@@ -1161,6 +1163,7 @@ __PREVIEW_PICTURE__
         vibe_count: 2,
         interests: ["tech", "world"],
         interest_labels: ["Technology", "World"],
+        location: "Austin, TX, USA",
         follows: { following: 3, followers: 4, friends: 2 }
       };
     },
