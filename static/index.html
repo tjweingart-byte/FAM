@@ -13457,11 +13457,18 @@
   })();
 
   // A story does not run on while the app is out of sight: hidden, it
-  // stops where it was, and it starts that story again when it is back.
+  // holds where it was, and carries on from there when it is back - unless
+  // it was already held (a finger, or its menu open), which it still is.
+  var storyHeldByHide = false;
   document.addEventListener("visibilitychange", function(){
     var open = !document.getElementById("storyOverlay").hidden;
     if(!open) return;
-    if(document.hidden) clearTimeout(storyTimer); else showStory();
+    if(document.hidden){
+      if(!storyHeld){ pauseStory(); storyHeldByHide = true; }
+    } else if(storyHeldByHide){
+      storyHeldByHide = false;
+      if(!document.getElementById("sheetOverlay").classList.contains("active")) resumeStory();
+    }
   });
 
   function closeStory(){
@@ -13573,7 +13580,9 @@
         if(person){
           var at = person.stories.indexOf(v);
           if(at !== -1) person.stories.splice(at, 1);
-          if(at !== -1 && storyAt.item >= at && storyAt.item > 0) storyAt.item -= 1;
+          // The next one slides into its place; only one before it moves us.
+          if(at !== -1 && at < storyAt.item) storyAt.item -= 1;
+          if(storyAt.item >= person.stories.length) storyAt.item = person.stories.length - 1;
         }
         toast("Removed from your story — it’s still in your vibes");
         if(!hasStories(person)){ closeStory(); }

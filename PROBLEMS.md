@@ -16182,3 +16182,37 @@ Tests: `tests/test_packet_1006.py`; §203's caption test follows the editor.
 Both previews answer the new endpoints. The live one has nobody else in its
 database, so it refuses a group and lists no close friends. It says so
 rather than inventing people.
+
+**Review, before merging into Main.** Main had taken §212 for the waitlist
+carousels in the meantime, so this became §213. An independent pass over the
+whole diff found these. Each is fixed and has a test:
+
+* *A story's picture could make every viewer's browser call the API.* It was
+  checked only for "a path on this server", and it is drawn as a CSS
+  background, so a poster could set it to `/api/audio?...`. Each friend
+  opening the story would then have started an episode on their own quota.
+  It must now be a picture route (`/api/thumb/<node>?v=<n>`, `_THUMB_PATH`)
+  and nothing else.
+* *An installed client's re-vibe made a Close Friends story public.* The
+  upsert wrote `audience`, `style` and `tags` from defaults the old client
+  never sent. Those fields are now `None` when absent, and the row keeps what
+  it had (`COALESCE`).
+* *A Close Friends vibe still counted* in the vibe number other people saw.
+  On a quiet episode that number gave it away. It now counts only for its
+  poster.
+* *Deleting an account left its id in two places*: the tags on other people's
+  stories, and `groups.created_by`. Both are cleared now.
+* *A group's banner carried the sender's listener id*, and the sender may be a
+  stranger. It is dropped for group messages.
+* *Coming back to the app restarted a held story.* With its menu open, the
+  story ran on underneath the menu. Hiding the app holds the story now, and
+  coming back resumes it only if nothing else was holding it.
+* Membership is checked before the waitlist when sending to a group. A
+  non-member was told "still on the waitlist", which said something about the
+  group. Typing dots in a group also need membership.
+* *A re-posted story re-sent its tag messages.* Only people newly tagged are
+  told now.
+* *A tag could draw a waitlisted handle* on strangers' screens. Waitlisted
+  people cannot be tagged while the waitlist runs.
+* Removing the story on screen showed the one before it. It now shows the
+  next.

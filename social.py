@@ -170,6 +170,10 @@ def _num(value, lo: float, hi: float, default: float) -> float:
     return round(max(lo, min(hi, v)), 4)
 
 
+#: What `thumbnails.url_for` makes: a node's picture and its version.
+_THUMB_PATH = re.compile(r"^/api/thumb/[A-Za-z0-9_.%~-]+(\?v=\d+)?$")
+
+
 def clean_thumb(url: str) -> str:
     """The episode's picture, as a path on this server or "".
 
@@ -177,11 +181,10 @@ def clean_thumb(url: str) -> str:
     every viewer's phone would fetch it from somebody else.
     """
     url = str(url or "").strip()[:300]
-    if not url.startswith("/") or url.startswith("//"):
-        return ""
-    if any(ch in url for ch in "\"'()<> \\"):
-        return ""
-    return url
+    # Only a picture route, never any other path: every viewer's browser
+    # requests this with their own cookies, so `/api/audio?...` here would
+    # spend their quota on whatever the poster chose.
+    return url if _THUMB_PATH.match(url) else ""
 
 
 def clean_style(style) -> dict:
@@ -540,7 +543,7 @@ class SocialStore:
 
     def echo(self, user_id: str, query: str, title: str, minutes: int,
              thread: str = "", caption: str = "", style=None, tags=None,
-             audience: str = "") -> Echo:
+             audience: Optional[str] = None) -> Echo:
         if not user_id:
             raise SocialError("No listener id.")
         query = " ".join(str(query).split())[:300]
@@ -551,9 +554,13 @@ class SocialStore:
         # An echo of something already echoed just moves it to the top: the
         # listener's intent is "send this", not "send this twice".
         import json
-        layout = clean_style(style)
-        tagged = clean_tags(tags)
-        audience = audience if audience in AUDIENCES else ""
+        # None is "not sent" - an installed client that predates the story
+        # editor - and keeps what the row already says, so its re-vibe never
+        # turns a Close Friends story public or wipes its layout.
+        layout = clean_style(style) if style is not None else None
+        tagged = clean_tags(tags) if tags is not None else None
+        if audience is not None:
+            audience = audience if audience in AUDIENCES else ""
         # Vibing it again is posting it again: back on the story, with the
         # new layout, whoever it is for now.
         conn.execute(
@@ -562,11 +569,15 @@ class SocialStore:
             " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)"
             " ON CONFLICT(user_id, query, minutes) DO UPDATE SET at = excluded.at,"
             " title = excluded.title, thread = excluded.thread,"
-            " caption = excluded.caption, style = excluded.style,"
-            " tags = excluded.tags, audience = excluded.audience, unstoried = 0",
+            " caption = excluded.caption, style = COALESCE(?, style),"
+            " tags = COALESCE(?, tags), audience = COALESCE(?, audience),"
+            " unstoried = 0",
             (user_id, query, str(title)[:200], int(minutes), str(thread)[:200], now,
              clean_caption(caption), json.dumps(layout) if layout else "",
-             json.dumps(tagged) if tagged else "", audience),
+             json.dumps(tagged) if tagged else "", audience or "",
+             None if layout is None else (json.dumps(layout) if layout else ""),
+             None if tagged is None else (json.dumps(tagged) if tagged else ""),
+             audience),
         )
         row = conn.execute(
             "SELECT id, user_id, query, title, minutes, thread, at FROM echoes"
@@ -574,6 +585,17 @@ class SocialStore:
             (user_id, query, int(minutes)),
         ).fetchone()
         return Echo(*row)
+
+    def tagged_in(self, user_id: str, query: str, minutes: int) -> set:
+        """Who this listener's vibe of an episode already tags, by id."""
+        import json
+        try:
+            row = self._conn().execute(
+                "SELECT tags FROM echoes WHERE user_id = ? AND query = ? AND minutes = ?",
+                (user_id, " ".join(str(query).split())[:300], int(minutes))).fetchone()
+            return {t.get("user_id") for t in json.loads(row[0])} if row and row[0] else set()
+        except Exception:
+            return set()
 
     def unstory(self, user_id: str, echo_id: int) -> bool:
         """Take one of this listener's vibes off their story (10.6 packet #1).
@@ -676,7 +698,10 @@ class SocialStore:
             conn = self._conn()
             for q, m, n in conn.execute(
                     f"SELECT query, minutes, COUNT(*) FROM echoes WHERE query IN ({marks})"
-                    " GROUP BY query, minutes", queries):
+                    # A close-friends vibe is not counted for anybody else
+                    # (10.6 #2): on a quiet episode the number would give it away.
+                    " AND (audience = '' OR user_id = ?)"
+                    " GROUP BY query, minutes", (*queries, user_id or "")):
                 if (q, m) in wanted:
                     out[wanted[(q, m)]]["vibes"] = int(n)
             for q, m, value, n in conn.execute(
@@ -713,8 +738,9 @@ class SocialStore:
         try:
             conn = self._conn()
             out["vibes"] = int(conn.execute(
-                "SELECT COUNT(*) FROM echoes WHERE query = ? AND minutes = ?",
-                (query, int(minutes))).fetchone()[0])
+                "SELECT COUNT(*) FROM echoes WHERE query = ? AND minutes = ?"
+                " AND (audience = '' OR user_id = ?)",
+                (query, int(minutes), user_id or "")).fetchone()[0])
             for value, n in conn.execute(
                     "SELECT value, COUNT(*) FROM ratings WHERE query = ?"
                     " AND minutes = ? GROUP BY value", (query, int(minutes))):
@@ -1355,6 +1381,21 @@ class SocialStore:
             removed += cur.rowcount or 0
         except Exception:
             log.exception("could not erase comments for %r", user_id)
+        # Their id out of the tags on other people's stories.
+        try:
+            import json
+            conn = self._conn()
+            for eid, tags in conn.execute(
+                    "SELECT id, tags FROM echoes WHERE tags LIKE ?",
+                    (f"%{user_id}%",)).fetchall():
+                try:
+                    kept = [t for t in json.loads(tags) if t.get("user_id") != user_id]
+                except ValueError:
+                    kept = []
+                conn.execute("UPDATE echoes SET tags = ? WHERE id = ?",
+                             (json.dumps(kept) if kept else "", eid))
+        except Exception:
+            log.exception("could not untag %r", user_id)
         for table in ('echoes', 'ratings', 'people'):
             try:
                 cur = self._conn().execute(

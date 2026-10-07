@@ -653,6 +653,9 @@ class MessageStore:
             cur = self._conn().execute(
                 "DELETE FROM group_members WHERE user_id = ?", (user_id,))
             removed += cur.rowcount or 0
+            # A group they started is nobody's now, not theirs by id.
+            self._conn().execute(
+                "UPDATE groups SET created_by = '' WHERE created_by = ?", (user_id,))
         except Exception:
             log.exception("could not erase messages for %r", user_id)
         return removed

@@ -2693,7 +2693,9 @@ async def notifications(request: Request,
                        "handle": person.get("handle") or "",
                        "avatar": person.get("avatar") or ""}
         if messages_mod.is_group(message.thread):
-            # A banner for a group opens the group, not the sender.
+            # A banner for a group opens the group, not the sender - who
+            # may be a stranger, so their id stays here.
+            row["from"].pop("user_id", None)
             view = _group_view(message.thread, user, known)
             row["group"] = {"user_id": message.thread, "name": view["name"],
                             "group": True}
@@ -2749,6 +2751,8 @@ async def messages_send(req: SendMessageRequest, request: Request) -> dict:
     # sends, and nothing is sent to somebody who could not open it.
     # Only while the waitlist runs: at launch (WAITLIST=0) everybody may
     # message, whatever an old row still says.
+    if messages_mod.is_group(req.to) and not MESSAGES.is_member(req.to, user):
+        raise HTTPException(status_code=400, detail="You are not in that group.")
     recipients = (MESSAGES.members(req.to) if messages_mod.is_group(req.to)
                   else [req.to])
     waiting = (WAITLIST.waitlisted_among([user] + recipients)
@@ -5906,11 +5910,13 @@ class EchoRequest(BaseModel):
     #: The story's layout (10.6 packet #2): picture frame and size, the
     #: caption's face, size and place, stickers. Clamped in
     #: `social.clean_style`; omitted for a plain vibe.
-    style: dict = Field(default_factory=dict)
+    #: Omitted (None) by an installed client that predates the editor, which
+    #: keeps the row's layout, tags and audience as they are.
+    style: Optional[dict] = None
     #: People tagged with @, by handle, and where each tag sits.
-    tags: list[dict] = Field(default_factory=list, max_length=social_mod.MAX_TAGS)
+    tags: Optional[list[dict]] = Field(None, max_length=social_mod.MAX_TAGS)
     #: "" for everybody who follows, "close" for close friends only.
-    audience: str = Field("", max_length=10)
+    audience: Optional[str] = Field(None, max_length=10)
 
 
 @app.post("/api/me")
@@ -5939,10 +5945,16 @@ async def post_echo(req: EchoRequest, request: Request):
     """
     _read_limit(request)
     user = _listener(request)
-    audience = req.audience if req.audience in social_mod.AUDIENCES else ""
+    audience = None
+    if req.audience is not None:
+        audience = req.audience if req.audience in social_mod.AUDIENCES else ""
     if audience == "close" and not _has_account(request):
         raise HTTPException(status_code=401, detail="Close friends need an account.")
-    tags = _resolve_tags(user, req.tags, audience)
+    tags = (_resolve_tags(user, req.tags, audience or "")
+            if req.tags is not None else None)
+    # Only somebody newly tagged hears about it: posting the same story
+    # again is not a second invitation.
+    told = SOCIAL.tagged_in(user, req.query, req.minutes) if tags else set()
     try:
         echo = SOCIAL.echo(user, req.query, req.title, req.minutes, req.thread,
                            caption=req.caption, style=req.style, tags=tags,
@@ -5951,8 +5963,9 @@ async def post_echo(req: EchoRequest, request: Request):
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     # Somebody tagged hears about it the way a share arrives: one message,
     # the episode in it (10.6 packet #2). Only accounts message.
-    if tags and _has_account(request):
-        _tell_tagged(user, tags, req)
+    fresh = [t for t in (tags or []) if t["user_id"] not in told]
+    if fresh and _has_account(request):
+        _tell_tagged(user, fresh, req)
     # Showing somebody an episode is a statement about taste, and until this
     # line the ranker never heard about it. Recorded after the row is written,
     # so a failed vibe does not teach the feed anything happened - and, like
@@ -5978,11 +5991,15 @@ def _resolve_tags(user: str, tags: list[dict], audience: str) -> list[dict]:
              for p in SOCIAL.following(user) + SOCIAL.followers(user)
              if p.get("handle")}
     close = set(SOCIAL.close_friends(user)) if audience == "close" else None
+    # Nobody still on the waitlist: a tag draws a handle on other people's
+    # screens, and waitlisted accounts are kept out of discovery.
+    waiting = (WAITLIST.waitlisted_among(graph.values())
+               if settings.waitlist else set())
     out = []
     for tag in tags[:social_mod.MAX_TAGS]:
         handle = str((tag or {}).get("handle") or "").strip().lstrip("@").lower()
         uid = graph.get(handle)
-        if not uid or (close is not None and uid not in close):
+        if not uid or uid in waiting or (close is not None and uid not in close):
             continue
         out.append({"user_id": uid, "x": tag.get("x"), "y": tag.get("y")})
     return out

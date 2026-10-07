@@ -284,6 +284,7 @@ def test_groups_over_the_api(client):
     assert seen["messages"][-1]["from"]["name"] == "Zed"
     note = others[1].get("/api/notifications", params={"since": 0}).json()["messages"]
     assert note[-1]["group"]["user_id"] == gid
+    assert "user_id" not in note[-1]["from"], "a group banner names a stranger's id"
     row = others[1].get("/api/messages").json()["threads"][0]
     assert row["group"] and row["name"] == "Pod" and row["last"]["from_name"] == "Zed"
     assert others[0].delete(f"/api/messages/groups/{gid}").json()["ok"] is True
@@ -311,3 +312,73 @@ def test_typing_into_a_group_needs_membership(client):
     signed_in(client, "ty1@b.com", "Ty", "ty1")
     assert client.post("/api/messages/typing",
                        json={"to": "g:0000000000000000"}).status_code == 404
+# --- review fixes ---------------------------------------------------------------
+
+@pytest.mark.parametrize("url", ["/api/audio?q=x&minutes=10", "/api/messages/thread?with=a",
+                                 "/static/x.png", "//evil/p.png", "data:image/png;base64,AA"])
+def test_a_story_picture_is_only_ever_a_picture_route(url):
+    assert social_mod.clean_thumb(url) == ""
+
+
+def test_a_real_picture_route_is_kept():
+    assert social_mod.clean_thumb("/api/thumb/sports%3Anfl?v=17") == "/api/thumb/sports%3Anfl?v=17"
+
+
+def test_an_old_clients_revibe_keeps_a_close_friends_story_closed(store):
+    store.echo("a", "why tides turn", "Tides", 3, audience="close",
+               style={"font": "strong"}, tags=[{"user_id": "b"}])
+    store.echo("a", "why tides turn", "Tides", 3)   # no audience, style or tags
+    story = store.stories_among(["a"], 0, viewer="a")["a"][0]
+    assert story["close"] is True and story["style"]["font"] == "strong"
+    assert store.tagged_in("a", "why tides turn", 3) == {"b"}
+    # A new client saying "everybody" still can.
+    store.echo("a", "why tides turn", "Tides", 3, audience="", style={}, tags=[])
+    story = store.stories_among(["a"], 0, viewer="a")["a"][0]
+    assert story["close"] is False and story["style"] == {}
+
+
+def test_a_close_friends_vibe_is_not_counted_for_strangers(store):
+    store.echo("a", "why tides turn", "Tides", 3, audience="close")
+    assert store.episode_counts("why tides turn", 3, user_id="c")["vibes"] == 0
+    assert store.episode_counts("why tides turn", 3, user_id="a")["vibes"] == 1
+    many = store.episode_counts_many([("why tides turn", 3)], user_id="c")
+    assert many[("why tides turn", 3)]["vibes"] == 0
+
+
+def test_a_deleted_listener_is_untagged_everywhere(store):
+    store.echo("a", "why tides turn", "Tides", 3, tags=[{"user_id": "b"}, {"user_id": "c"}])
+    store.forget("b")
+    assert store.tagged_in("a", "why tides turn", 3) == {"c"}
+
+
+def test_a_deleted_listener_no_longer_owns_their_group(mail):
+    gid = mail.create_group("a", ["b", "c"])["id"]
+    mail.forget("a")
+    assert mail.group(gid)["created_by"] == ""
+
+
+def test_a_tag_is_sent_once_however_often_the_story_is_posted(client):
+    me = signed_in(client, "tg5@b.com", "Ada", "ada5")
+    other = TestClient(appmod.app)
+    with other:
+        them = signed_in(other, "tg6@b.com", "Bea", "bea6")
+        other.post("/api/friends/follow", json={"user_id": me})
+    client.post("/api/friends/follow", json={"user_id": them})
+    for _ in range(2):
+        client.post("/api/vibe", json={"query": "why tides turn", "minutes": 3,
+                                       "tags": [{"handle": "bea6", "x": 0.5, "y": 0.5}]})
+    with other:
+        thread = other.get("/api/messages/thread", params={"with": me}).json()["messages"]
+    assert len(thread) == 1
+
+
+def test_a_stranger_cannot_learn_about_a_group_by_sending_to_it(client):
+    signed_in(client, "gs1@b.com", "Cel", "cel1")
+    assert client.post("/api/messages", json={"to": "g:0000000000000000",
+                                              "text": "hi"}).status_code == 400
+
+
+def test_coming_back_to_the_app_leaves_a_held_story_held():
+    src = INDEX.split("var storyHeldByHide", 1)[1].split("function closeStory(", 1)[0]
+    assert "if(!storyHeld){ pauseStory(); storyHeldByHide = true; }" in src
+    assert "showStory()" not in src
