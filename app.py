@@ -3066,6 +3066,37 @@ def _landing_template() -> str:
     return _LANDING_TEMPLATE
 
 
+def apple_app_site_association(team_id: str, bundle_id: str) -> Optional[dict]:
+    """What iOS reads from this domain to trust the app (APP_STORE.md).
+
+    `applinks`: a shared episode (`/s/<id>`) or mix (`/m/<id>`) opens in the
+    app when it is installed, and in the browser - the landing page, which
+    plays it - when it is not. `webcredentials`: the app may offer a FAM
+    password saved in iCloud Keychain. None until both ids are configured.
+    """
+    if not (team_id and bundle_id):
+        return None
+    app_id = "%s.%s" % (team_id, bundle_id)
+    return {
+        "applinks": {"details": [{
+            "appIDs": [app_id],
+            "components": [{"/": "/s/*"}, {"/": "/m/*"}],
+        }]},
+        "webcredentials": {"apps": [app_id]},
+    }
+
+
+@app.get("/.well-known/apple-app-site-association", include_in_schema=False)
+async def well_known_aasa() -> JSONResponse:
+    """Served as JSON at the exact path Apple fetches, with no redirect and no
+    gate: Apple's CDN asks for it without a session, waitlist or not."""
+    body = apple_app_site_association(settings.apple_team_id,
+                                      settings.ios_bundle_id)
+    if body is None:
+        raise HTTPException(status_code=404, detail="No iOS app is configured.")
+    return JSONResponse(body)
+
+
 @app.get("/s/{share_id}")
 async def share_open(share_id: str, request: Request):
     """Where a shared link lands: one episode, and no way into the rest.

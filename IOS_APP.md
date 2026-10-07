@@ -89,6 +89,9 @@ a polish item after it.
 
 ## What the App Store requires that FAM does not have
 
+`APP_STORE.md` is the submission runbook: paperwork, the answers App Store
+Connect asks for, and how to talk to Apple. This section is the why.
+
 Verify each against the current guidelines when the submission is real — they
 move — but these are the ones that apply to this app specifically, and two of
 them are hard rejections rather than notes.

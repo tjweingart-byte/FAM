@@ -16106,3 +16106,59 @@ restarting the ten seconds. What was decided, and why:
 Pinned in `tests/test_waitlist.py`
 (`test_the_carousels_turn_every_ten_seconds_and_by_hand` and the story-order
 tests).
+
+## 213. Ready for Apple: a load test for staging, universal links, and APP_STORE.md
+
+Two asks from the owner: a way to see latency with many listeners at once, and
+everything that can be prepared now for the App Store, so talking to Apple
+goes in as few rounds as possible.
+
+**The load test** (`tools/load_test.py`, Locust, `requirements-loadtest.txt`).
+Each simulated user is one listener with its own server-minted session, so a
+429 is a real limiter, not the test sharing a bucket (`_limit_key`). It browses
+myFAM, Explore, trending searches and the catalogue, and replays kept
+episodes with `cached_only=1`. A play is reported as **time to first byte of
+audio** and time to the whole stream, because the one-sentence spec is about
+the first word, not requests per second. It **refuses any server whose health
+does not report zero spend** (`environment.zero_spend`), since production
+pays for every new episode and its waitlist and quotas would refuse the crowd
+anyway; `LOAD_TEST_ALLOW_SPEND=1` is the deliberate override. Sessions are
+minted with `/api/auth/me`, not `/api/health`, which stats every database
+(~240ms here) and would have put its own cost into every listener's numbers.
+On staging it measures the server and replays, never the model or the voice:
+those need a budgeted run against a GPU. Ten listeners for 40s against a local
+`FAM_ENV=staging` server: 92 requests, no failures.
+
+A trap found writing its test: putting `tools/` first on `sys.path` shadows
+real modules with scripts of the same name (`tools/trending_bank.py` over
+`trending_bank.py`), and every later test in the run broke. The test loads
+the file by path.
+
+**Universal links.** `/.well-known/apple-app-site-association` names the app
+for `/s/*` and `/m/*` (a shared episode or mix opens in the app when it is
+installed) and for `webcredentials`. It is a **404 until `APPLE_TEAM_ID` and
+`IOS_BUNDLE_ID` are both set**, the same rule as `APP_STORE_URL`: no file
+promising an app that does not exist. Not behind the waitlist gate, which
+covers `/api/` and the app's pages only; Apple's CDN fetches it without a
+session.
+
+**`APP_STORE.md`** is the runbook: the paperwork in the order Apple checks it
+(entity, EIN, domain email, D-U-N-S, organization enrollment, agreements,
+name, identifiers, server settings), the one-sheet of exactly-matching
+company details that prevents most enrollment stalls, the listing, age-rating
+and privacy-label answers drafted from what `DATABASE.md` says is stored, the
+review notes, and drafts for writing to Apple.
+
+What it found that is **not built** and will be rejected:
+
+- **1.2 user-generated content**: comments, messages, vibe captions,
+  profiles, photos and Explore are all UGC. Apple needs report, block, terms,
+  a filter and a contact. `/api/feedback` is a bug inbox, not a report button,
+  and there is no block. The filter is slurs-only by settled rule
+  (`slurs-only`); whether that satisfies Apple is the owner's call.
+- **5.1.2(i) third-party AI** (November 2025): explicit in-app consent before
+  a typed question or attachment is sent to Anthropic. A one-time screen
+  before the first search; it costs no latency.
+- Privacy policy, terms and support pages; APNs if 1.0 sends pushes.
+
+Pinned in `tests/test_load_test.py`.

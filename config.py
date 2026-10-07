@@ -1534,6 +1534,15 @@ class Settings:
     # same rule `public_base_url` above keeps, for the same reason.
     app_store_url: str = field(
         default_factory=lambda: os.environ.get("APP_STORE_URL", "").strip())
+    # The iOS app's identity, for universal links (APP_STORE.md): Apple's
+    # ten-character Team ID from the developer account, and the app's bundle
+    # id. Both unset until the account exists, and then
+    # `/.well-known/apple-app-site-association` answers 404 rather than
+    # naming an app that is not there - the same rule as `app_store_url`.
+    apple_team_id: str = field(
+        default_factory=lambda: os.environ.get("APPLE_TEAM_ID", "").strip())
+    ios_bundle_id: str = field(
+        default_factory=lambda: os.environ.get("IOS_BUNDLE_ID", "").strip())
     # The pre-launch waitlist (WAITLIST.md). On, the app is closed to anybody
     # whose account is not 'active': guests and waitlisted accounts are sent
     # to /waitlist, every new account starts 'waitlisted', and the app's API

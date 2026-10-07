@@ -239,8 +239,8 @@ and downloads, `LIVE_FACTS.md` for how FAM handles rapidly changing information
 and what it does when it has none, `TRENDING.md` for the myFAM row that says
 what the world is talking about, `PROVENANCE.md` for the sources panel and why
 what the app displays is not what the writer reads, `PROVIDER_ROLLOUT.md` for
-the step-by-step of turning each live provider on, and `IOS_APP.md` for the app version this is
-now being written towards.
+the step-by-step of turning each live provider on, `IOS_APP.md` for the app version this is
+now being written towards, and `APP_STORE.md` for getting it through Apple.
 
 <!-- rule:setup-deps -->
 A fresh container has none of the dependencies installed. Setup is two lines,
