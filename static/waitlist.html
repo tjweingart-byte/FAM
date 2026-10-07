@@ -272,9 +272,10 @@
   .feat{ display:grid; grid-template-columns:1fr; gap:34px; align-items:center; padding:30px 0 10px; }
   /* A carousel: its slides share one place and take turns in it, stacked in
      one grid cell, so it is as tall as its tallest slide and never jumps. */
-  /* On a phone the arrows and dots sit above the slide, where it starts, and
-     the carousel is as tall as the slide showing (the slides differ by most of
-     a screen there); from 820px they flank it and it keeps the tallest's height. */
+  /* The arrows and dots sit in their own row above the slide, where it starts,
+     so no arrow ever covers a picture. On a phone the carousel is as tall as
+     the slide showing (the slides differ by most of a screen there); from
+     820px it keeps the tallest's height. */
   .car{ position:relative; display:grid; grid-template-columns:auto 1fr auto; grid-template-areas:"p d n" "s s s";
     align-items:center; row-gap:22px; }
   .car-slides{ grid-area:s; display:grid; gap:56px; min-width:0; }
@@ -288,11 +289,12 @@
     .car-slides{ position:relative; }
     .car.ready .car-slide:not([data-on]){ position:absolute; top:0; left:0; right:0; }
   }
-  .car-arrow{ position:relative; z-index:3; width:46px; height:46px; border-radius:50%; border:1px solid var(--line);
-    background:var(--card); color:var(--text); display:inline-flex; align-items:center; justify-content:center;
-    cursor:pointer; padding:0; box-shadow:0 8px 20px rgba(0,0,0,0.3); transition:border-color .2s, color .2s; }
-  .car-arrow:hover, .car-arrow:focus-visible{ border-color:var(--gold); color:var(--gold); }
-  .car-arrow svg{ width:22px; height:22px; }
+  .car-arrow{ position:relative; z-index:3; width:54px; height:54px; border-radius:50%; border:0;
+    background:#FFFFFF; color:#000000; display:inline-flex; align-items:center; justify-content:center;
+    cursor:pointer; padding:0; box-shadow:0 8px 22px rgba(0,0,0,0.45); transition:transform .2s, box-shadow .2s; }
+  .car-arrow:hover{ transform:scale(1.06); }
+  .car-arrow:focus-visible{ outline:none; box-shadow:0 0 0 3px var(--gold), 0 8px 22px rgba(0,0,0,0.45); }
+  .car-arrow svg{ width:26px; height:26px; stroke-width:2.6; }
   .car-prev{ grid-area:p; }
   .car-next{ grid-area:n; }
   .car-dots{ grid-area:d; display:flex; justify-content:center; gap:10px; }
@@ -410,9 +412,6 @@
     .ab-compare{ grid-template-columns:1fr 1fr; gap:18px; }
     .pass{ grid-template-columns:1fr 1fr; gap:18px; }
     .feat{ grid-template-columns:1.05fr 1fr; gap:64px; padding:40px 0 10px; }
-    /* Arrows at the left and right edges, level with the slide. */
-    .car{ grid-template-areas:"p s n" ". d ."; column-gap:22px; row-gap:6px; }
-    .car.ready .car-slide{ align-self:center; }
     .pass-card{ flex-direction:column; align-items:flex-start; justify-content:space-between; min-height:210px;
       padding:28px; font-size:23px; }
     .pass-ic{ width:56px; height:56px; border-radius:15px; }
@@ -1133,15 +1132,13 @@
 
   /* ---------------- what is FAM ---------------- */
   // The page's two carousels (the problem, and how to use FAM): one slide at
-  // a time, turning itself every ten seconds; the arrows and dots turn it by
-  // hand and restart the ten seconds. It waits while it is off screen or the
-  // tab is hidden, so it is never turning where nobody is looking.
+  // a time, turned only by hand - the arrows and dots. Never on a timer: a
+  // slide must not move while someone is reading it.
   // Without script every slide shows, one under another: the slides are only
   // stacked and hidden once a carousel is running (`.car.ready`).
-  var CAROUSEL_SECONDS = 10;
   function turnCarousel(box){
     var slides = box.querySelectorAll(".car-slide"), dots = box.querySelectorAll(".car-dots button");
-    var at = 0, timer = null, inView = true;
+    var at = 0;
     function show(i){
       at = (i + slides.length) % slides.length;
       Array.prototype.forEach.call(slides, function(el, k){
@@ -1152,26 +1149,14 @@
         if(k === at) d.setAttribute("aria-current", "true"); else d.removeAttribute("aria-current");
       });
     }
-    function restart(){
-      clearInterval(timer);
-      timer = document.hidden || !inView ? null : setInterval(function(){ show(at + 1); }, CAROUSEL_SECONDS * 1000);
-    }
-    box.querySelector(".car-prev").addEventListener("click", function(){ show(at - 1); restart(); });
-    box.querySelector(".car-next").addEventListener("click", function(){ show(at + 1); restart(); });
+    box.querySelector(".car-prev").addEventListener("click", function(){ show(at - 1); });
+    box.querySelector(".car-next").addEventListener("click", function(){ show(at + 1); });
     box.querySelector(".car-dots").addEventListener("click", function(ev){
       var i = ev.target && ev.target.getAttribute("data-i");
-      if(i !== null && i !== undefined && i !== ""){ show(Number(i)); restart(); }
+      if(i !== null && i !== undefined && i !== "") show(Number(i));
     });
-    document.addEventListener("visibilitychange", restart);
-    if("IntersectionObserver" in window){
-      new IntersectionObserver(function(entries){
-        inView = entries[entries.length - 1].isIntersecting;
-        restart();
-      }).observe(box);
-    }
     box.classList.add("ready");
     show(0);
-    restart();
   }
   // Sections ease up as they scroll into view. They are never hidden while
   // they wait, so a link preview or a browser without an observer sees all.
