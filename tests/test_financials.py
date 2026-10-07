@@ -146,3 +146,18 @@ def test_only_an_operator_can_download_it(stores, monkeypatch):
     assert _book(res.content).sheetnames == [
         "Dashboard", "Cost Structure", "Daily Ledger", "12-Month Plan",
         "Provider Calls", "Notes"]
+
+
+def test_the_plan_is_driven_by_listeners_with_sports_apart(stores):
+    """Cost follows new episodes, and sports misses the cache more and spends
+    API-Sports requests - so it has its own rows, not a blended growth rate."""
+    plan = _book(financials.build(NOW))["12-Month Plan"]
+    labels = {plan.cell(row=r, column=1).value: r for r in range(1, plan.max_row + 1)}
+    for needed in ("Listeners (monthly active)", "  of which sports",
+                   "Cache miss rate - sports searches", "API-Sports plans",
+                   "Sports share of costs", "Total costs"):
+        assert needed in labels, needed
+    episode = plan.cell(row=labels["Cost of one new episode ($)"], column=2).value
+    assert "'Daily Ledger'" in episode, "the forecast must learn from recorded spend"
+    api = plan.cell(row=labels["API-Sports plans"], column=4).value
+    assert "7500" in api and "75000" in api

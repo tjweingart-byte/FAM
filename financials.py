@@ -296,8 +296,9 @@ def catalogue() -> list[dict]:
     return rows
 
 
-#: What a paid launch needs that is not yet bought, and what it costs. The
-#: 12-Month Plan adds a row for each from the launch month on.
+#: The licences a paid launch needs that are not yet bought, and one optional
+#: upgrade. The 12-Month Plan counts the included ones from the launch month.
+#: API-Sports and Render are not here: the plan sizes those from listeners.
 def launch_purchases(rows: list[dict]) -> list[dict]:
     out = []
     bought = {(r["vendor"], r["status"]) for r in rows}
@@ -310,10 +311,6 @@ def launch_purchases(rows: list[dict]) -> list[dict]:
     if ("Open-Meteo", "Paying") not in bought:
         out.append({"item": "Open-Meteo API Standard",
                     "price": 29, "unit": "/month", "include": 1})
-    out.append({"item": "API-Sports Pro, one sport",
-                "price": 19, "unit": "/month", "include": 1})
-    out.append({"item": "Render Standard (upgrade from Starter, +$18)",
-                "price": 18, "unit": "/month", "include": 0})
     out.append({"item": "RunPod active worker (no cold starts)",
                 "price": 343, "unit": "/month", "include": 0})
     return out
@@ -678,8 +675,8 @@ def build(now: Optional[float] = None) -> bytes:
     dash["B10"].font = f(bold=True)
     dash["C10"] = '=IF(AND(ISNUMBER(C9),G7<0),C9/-G7,"-")'
     dash["C10"].number_format = '0.0" months"'
-    dash["D9"] = "Yellow cells are yours to fill in; blue numbers are inputs."
-    dash["D9"].font = f(9, color=MUTED, italic=True)
+    dash["B11"] = "Yellow cells are yours to fill in; blue numbers are inputs."
+    dash["B11"].font = f(9, color=MUTED, italic=True)
 
     dash["B12"] = "Where the money goes (monthly)"
     dash["B12"].font = f(12, True, INK)
@@ -737,98 +734,225 @@ def build(now: Optional[float] = None) -> bytes:
     dash.add_chart(pie, "F12")
 
     # ------------------------------------------------------------ 12-month plan
+    #
+    # A forecast driven by listeners, not a percentage on today's bill: cost
+    # follows new episodes (searches that miss the cache), and sports searches
+    # miss more often - a game in progress is never served from the cache
+    # (`ttl-from-evidence`) - and also spend API-Sports requests.
     title(plan, "12-Month Plan",
-          "Today's run-rate carried forward, plus what a paid launch has to buy. "
-          "Change the yellow cells; everything else follows.")
-    plan["A4"] = "Launch month"
-    plan["B4"] = _dt.date(today.year + (today.month == 12), today.month % 12 + 1, 1)
-    plan["B4"].number_format = "mmm yyyy"
-    plan["A5"] = "Usage growth per month"
-    plan["B5"] = 0.10
-    plan["B5"].number_format = PCT
-    plan["C5"] = "Assumption: how fast usage-billed spend grows. 0% keeps today's level."
-    plan["C4"] = "Licences below start counting from this month."
-    for a in ("A4", "A5"):
-        plan[a].font = f(bold=True)
-    for b in ("B4", "B5"):
-        plan[b].font = f(color=BLUE)
-        plan[b].fill = fill("FFFF00")
-    for c in ("C4", "C5"):
-        plan[c].font = f(9, color=MUTED, italic=True)
+          "What FAM will cost as listeners arrive. Change the yellow cells; "
+          "every month below follows. Sports is modelled on its own.")
+    launch = _dt.date(today.year + (today.month == 12), today.month % 12 + 1, 1)
+    assumptions = [
+        # (label, value, format, note, input?)
+        ("Launch month", launch, "mmm yyyy",
+         "Listeners and launch licences start counting from this month.", True),
+        ("Listeners at launch (monthly active)", 500, COUNT,
+         "Assumption. Replace with your launch target.", True),
+        ("Listener growth per month", 0.25, PCT,
+         "Assumption. Month-over-month growth after launch.", True),
+        ("Listeners before launch (testers)", 25, COUNT,
+         "Assumption. Who uses it until the launch month.", True),
+        ("Searches per listener per month", 15, COUNT,
+         "Estimate (docs/FINANCIAL.md 4.1). Search is what writes new episodes.", True),
+        ("Plays per listener per month", 45, COUNT,
+         "Estimate: 15 searches + 30 browse plays (FINANCIAL.md 4.1).", True),
+        ("Share of searches that are sports", 0.40, PCT,
+         "Assumption. Raise it if sports leads the launch.", True),
+        ("Cache miss rate - general searches", 0.70, PCT,
+         "Estimate: 85% at 100 listeners falling to ~55% at 10k (FINANCIAL.md 4.1).", True),
+        ("Cache miss rate - sports searches", 0.90, PCT,
+         "Assumption: scores move, and a game in progress is never served from cache.", True),
+        ("Cost of one new episode ($)", None, MONEY,
+         "Recorded: last 30 days' Claude + Exa + GPU per episode written. "
+         "$0.06 (FINANCIAL.md 2.4) until there are episodes.", False),
+        ("Sports offered (each its own API-Sports plan)", 2, COUNT,
+         "Assumption, e.g. NFL and soccer. SCALING_TIMELINE.md: Pro for these at launch.", True),
+        ("API-Sports requests per sports search", 2, "0.0",
+         "Estimate: the lookup plus the occasional standings call (live_sources.py).", True),
+        ("API-Sports background requests per sport per day", 100, COUNT,
+         "Estimate: score-card sweeps while games are on - today's whole free allowance.", True),
+        ("Background writing: base ($/month)", 120, MONEY,
+         "Estimate: Trending, DailyFAM, story pool, categories (FINANCIAL.md 3.3).", True),
+        ("Background writing: per listener ($/month)", 0.21, MONEY,
+         "Estimate, fitted to FINANCIAL.md 4.2 ($150 at 100, $330 at 1,000).", True),
+        ("Background writing: ceiling ($/month)", 700, MONEY,
+         "Code: every daily cap hit every day (FINANCIAL.md 3.3).", True),
+        ("Bandwidth per play ($)", 0.0008, '$0.0000',
+         "Estimate: 2 min x 2.65 MB/min of PCM at Render's $0.15/GB.", True),
+    ]
+    A = {}
+    for i, (label, value, fmt, note, editable) in enumerate(assumptions):
+        rr = 4 + i
+        A[label] = f"$B${rr}"
+        plan.cell(row=rr, column=1, value=label).font = f(bold=True)
+        cell = plan.cell(row=rr, column=2, value=value)
+        cell.number_format = fmt
+        if editable:
+            cell.font = f(color=BLUE)
+            cell.fill = fill("FFFF00")
+        plan.cell(row=rr, column=3, value=note).font = f(9, color=MUTED, italic=True)
+    ep = "Cost of one new episode ($)"
+    win = f'{led_range("A")},">"&({AS_OF}-30)'
+    plan[A[ep].replace("$", "")] = (
+        f"=IF(SUMIFS({led_range('B')},{win})>0,"
+        f"(SUMIFS({led_range('D')},{win})+SUMIFS({led_range('E')},{win})"
+        f"+SUMIFS({led_range('F')},{win})+SUMIFS({led_range('G')},{win}))"
+        f"/SUMIFS({led_range('B')},{win}),0.06)")
+    plan[A[ep].replace("$", "")].font = f(color=GREEN)
+    a = lambda label: A[label]  # noqa: E731
 
-    header(plan, 7, ["Line", "Monthly price ($)", "Include? (1/0)"] +
-           [None] * 12)
+    HEAD = 4 + len(assumptions) + 1
+    header(plan, HEAD, ["Month", "", ""] + [None] * 12)
     for m in range(12):
         y, mo = today.year, today.month + 1 + m
         y += (mo - 1) // 12
         mo = (mo - 1) % 12 + 1
-        c = plan.cell(row=7, column=4 + m, value=_dt.date(y, mo, 1))
+        c = plan.cell(row=HEAD, column=4 + m, value=_dt.date(y, mo, 1))
         c.number_format = "mmm yy"
         c.font = f(10, True, "FFFFFF")
         c.fill = fill(BRAND)
     months = [col(4 + m) for m in range(12)]
 
-    def plan_row(rr, label, formula_for, price=None, include=None, bold=False, fmt=MONEY):
-        plan.cell(row=rr, column=1, value=label).font = f(bold=bold)
-        if price is not None:
-            p = plan.cell(row=rr, column=2, value=price)
-            p.number_format = MONEY
-            if isinstance(price, (int, float)):
-                p.font = f(color=BLUE)
-        if include is not None:
-            i = plan.cell(row=rr, column=3, value=include)
-            i.font = f(color=BLUE)
-            i.fill = fill("FFFF00")
-            i.alignment = Alignment(horizontal="center")
+    def plan_row(rr, label, formula_for, bold=False, fmt=MONEY, note="", info=False):
+        plan.cell(row=rr, column=1, value=label).font = f(
+            bold=bold, italic=info, color=MUTED if info else INK)
+        if note:
+            plan.cell(row=rr, column=2, value=note).font = f(8, color=MUTED, italic=True)
         for m, L in enumerate(months):
             cell = plan.cell(row=rr, column=4 + m, value=formula_for(m, L))
             cell.number_format = fmt
-            cell.font = f(bold=bold, color=BLUE if label.startswith("Revenue") else INK)
+            cell.font = f(bold=bold, italic=info, color=MUTED if info else INK)
         for c in range(1, 16):
             plan.cell(row=rr, column=c).border = under
 
-    plan_row(8, "Revenue", lambda m, L: 0)
+    lb = a("Launch month")
+    live = lambda L: f"{L}${HEAD}>={lb}"  # noqa: E731
+    cs_sum = lambda vendor: (  # noqa: E731
+        f"SUMIFS('Cost Structure'!$J${first_row}:$J${last_row},"
+        f"'Cost Structure'!$B${first_row}:$B${last_row},\"{vendor}\","
+        f"'Cost Structure'!$H${first_row}:$H${last_row},\"<>usage\")")
+    R = {}
+    r0 = HEAD + 1
+    names = ["revenue", "mau", "searches", "sports", "episodes", "episode_cost",
+             "sports_cost", "sports_req", "api_sports", "bandwidth", "hosting",
+             "background", "other", "licences", "total", "net", "cumulative",
+             "per_listener", "sports_share"]
+    for i, n in enumerate(names):
+        R[n] = r0 + i
+    rv = R
+
+    plan_row(rv["revenue"], "Revenue", lambda m, L: 0)
     for L in months:
-        plan[f"{L}8"].fill = fill("FFFF00")
-    plan["A8"].comment = Comment("No revenue yet. Type expected revenue per month.", "FAM")
-    plan_row(9, "Subscriptions & hosting today",
-             lambda m, L: "=$B$9", price=f"='Cost Structure'!J{FIXED_ROW}")
-    plan["B9"].font = f(color=GREEN)
-    plan_row(10, "Usage-billed (grows at B5)",
-             lambda m, L: f"=$B$10*(1+$B$5)^{m}",
-             price=f"='Cost Structure'!J{FIXED_ROW + 1}")
-    plan["B10"].font = f(color=GREEN)
+        plan[f"{L}{rv['revenue']}"].fill = fill("FFFF00")
+        plan[f"{L}{rv['revenue']}"].font = f(color=BLUE)
+    plan.cell(row=rv["revenue"], column=1).comment = Comment(
+        "No revenue yet. Type expected revenue per month.", "FAM")
+    plan_row(rv["mau"], "Listeners (monthly active)", lambda m, L: (
+        f"=IF({live(L)},{a('Listeners at launch (monthly active)')}*(1+"
+        f"{a('Listener growth per month')})^((YEAR({L}${HEAD})-YEAR({lb}))*12"
+        f"+MONTH({L}${HEAD})-MONTH({lb})),{a('Listeners before launch (testers)')})"),
+        fmt=COUNT, bold=True)
+    plan_row(rv["searches"], "Searches", lambda m, L: (
+        f"={L}{rv['mau']}*{a('Searches per listener per month')}"), fmt=COUNT)
+    plan_row(rv["sports"], "  of which sports", lambda m, L: (
+        f"={L}{rv['searches']}*{a('Share of searches that are sports')}"), fmt=COUNT)
+    plan_row(rv["episodes"], "New episodes written (cache misses)", lambda m, L: (
+        f"=({L}{rv['searches']}-{L}{rv['sports']})*{a('Cache miss rate - general searches')}"
+        f"+{L}{rv['sports']}*{a('Cache miss rate - sports searches')}"), fmt=COUNT)
+    plan_row(rv["episode_cost"], "Episodes: Claude, Exa, voice", lambda m, L: (
+        f"={L}{rv['episodes']}*{a(ep)}"))
+    plan_row(rv["sports_cost"], "  of which sports episodes", lambda m, L: (
+        f"={L}{rv['sports']}*{a('Cache miss rate - sports searches')}*{a(ep)}"),
+        info=True, note="part of the line above")
+    plan_row(rv["sports_req"], "API-Sports requests / sport / day", lambda m, L: (
+        f"={L}{rv['sports']}*{a('API-Sports requests per sports search')}/30"
+        f"/MAX(1,{a('Sports offered (each its own API-Sports plan)')})"
+        f"+{a('API-Sports background requests per sport per day')}"),
+        fmt=COUNT, info=True, note="decides the plan below")
+    plan_row(rv["api_sports"], "API-Sports plans", lambda m, L: (
+        f"=IF({live(L)},{a('Sports offered (each its own API-Sports plan)')}*"
+        f"IF({L}{rv['sports_req']}<=7500,19,IF({L}{rv['sports_req']}<=75000,29,39)),"
+        f"{cs_sum('API-Sports')})"),
+        note="Pro $19 to 7,500/day, Ultra $29, Mega $39")
+    plan_row(rv["bandwidth"], "Bandwidth (Render)", lambda m, L: (
+        f"={L}{rv['mau']}*{a('Plays per listener per month')}*{a('Bandwidth per play ($)')}"))
+    plan_row(rv["hosting"], "Hosting (Render)", lambda m, L: (
+        f"=IF({L}{rv['mau']}<1000,{cs_sum('Render')},IF({L}{rv['mau']}<10000,32.5,87.5))"),
+        note="Standard at 1k, Pro at 10k (FINANCIAL.md 5.1)")
+    plan_row(rv["background"], "Background writing", lambda m, L: (
+        f"=MIN({a('Background writing: ceiling ($/month)')},"
+        f"{a('Background writing: base ($/month)')}+"
+        f"{a('Background writing: per listener ($/month)')}*{L}{rv['mau']})"))
+    plan_row(rv["other"], "Other subscriptions (today's)", lambda m, L: (
+        f"='Cost Structure'!$J${FIXED_ROW}-{cs_sum('Render')}-{cs_sum('API-Sports')}"))
+
     purchases = launch_purchases(rows)
-    rr = 11
-    plan.cell(row=rr, column=1, value="Launch purchases").font = f(bold=True, color=MUTED)
-    rr += 1
-    p0 = rr
-    for item in purchases:
+    LP0 = rv["sports_share"] + 3
+    plan.cell(row=LP0 - 1, column=1, value="Launch licences").font = f(12, True)
+    header(plan, LP0, ["Licence", "Monthly ($)", "Include? (1/0)"])
+    for i, item in enumerate(purchases):
+        rr = LP0 + 1 + i
+        plan.cell(row=rr, column=1, value=item["item"])
         price = item["price"]
-        price_cell = f"={price}*'Cost Structure'!$B$3" if item["unit"] == "EUR/month" else price
-        plan_row(rr, item["item"], lambda m, L, rr=rr: f"=IF({L}$7>=$B$4,$B{rr}*$C{rr},0)",
-                 price=price_cell, include=item["include"])
-        plan.cell(row=rr, column=2).font = f(color=BLUE)
-        rr += 1
-    pN = rr - 1
-    total_row = rr
-    plan_row(total_row, "Total costs",
-             lambda m, L: f"=SUM({L}9:{L}10)+SUM({L}{p0}:{L}{pN})", bold=True)
-    plan_row(total_row + 1, "Net (revenue - costs)",
-             lambda m, L: f"={L}8-{L}{total_row}", bold=True)
-    plan_row(total_row + 2, "Cumulative net",
-             lambda m, L: f"={L}{total_row + 1}" if m == 0
-             else f"={months[m - 1]}{total_row + 2}+{L}{total_row + 1}", bold=True)
+        p = plan.cell(row=rr, column=2, value=(
+            f"={price}*'Cost Structure'!$B$3" if item["unit"] == "EUR/month" else price))
+        p.number_format = MONEY
+        p.font = f(color=BLUE)
+        inc = plan.cell(row=rr, column=3, value=item["include"])
+        inc.font = f(color=BLUE)
+        inc.fill = fill("FFFF00")
+        inc.alignment = Alignment(horizontal="center")
+        for c in (1, 2, 3):
+            plan.cell(row=rr, column=c).border = under
+    LPN = LP0 + max(1, len(purchases))
+    plan_row(rv["licences"], "Launch licences", lambda m, L: (
+        f"=IF({live(L)},SUMPRODUCT($B${LP0 + 1}:$B${LPN},$C${LP0 + 1}:$C${LPN}),0)"),
+        note="table below")
+    plan_row(rv["total"], "Total costs", lambda m, L: (
+        f"={L}{rv['episode_cost']}+SUM({L}{rv['api_sports']}:{L}{rv['licences']})"),
+        bold=True)
+    plan_row(rv["net"], "Net (revenue - costs)", lambda m, L: (
+        f"={L}{rv['revenue']}-{L}{rv['total']}"), bold=True)
+    plan_row(rv["cumulative"], "Cumulative net", lambda m, L: (
+        f"={L}{rv['net']}" if m == 0
+        else f"={months[m - 1]}{rv['cumulative']}+{L}{rv['net']}"), bold=True)
+    plan_row(rv["per_listener"], "Cost per listener", lambda m, L: (
+        f"=IF({L}{rv['mau']}>0,{L}{rv['total']}/{L}{rv['mau']},0)"), info=True)
+    plan_row(rv["sports_share"], "Sports share of costs", lambda m, L: (
+        f"=IF({L}{rv['total']}>0,({L}{rv['sports_cost']}+{L}{rv['api_sports']})"
+        f"/{L}{rv['total']},0)"), fmt=PCT, info=True)
     for c in range(1, 16):
-        plan.cell(row=total_row, column=c).border = top_rule
-        plan.cell(row=total_row + 2, column=c).fill = fill(BRAND_SOFT)
-    plan["A" + str(total_row + 4)] = (
-        "Scale estimates (docs/FINANCIAL.md 4.2, estimate, not measured): about "
-        "$250/mo at 100 monthly listeners, $1,200 at 1,000, $6,500 at 10,000, "
-        "$45,000 at 100,000. Search episodes that miss the cache are 60-90% of it.")
-    plan["A" + str(total_row + 4)].font = f(9, color=MUTED, italic=True)
-    plan.freeze_panes = "D8"
-    widths(plan, [44, 16, 12] + [11] * 12)
+        plan.cell(row=rv["total"], column=c).border = top_rule
+        plan.cell(row=rv["total"], column=c).fill = fill(BRAND_SOFT)
+    plan.freeze_panes = f"D{HEAD + 1}"
+    widths(plan, [46, 14, 12] + [11] * 12)
+    plan.column_dimensions["C"].width = 12
+
+    growth = BarChart()
+    growth.type = "col"
+    growth.title = "Monthly costs as listeners grow"
+    growth.y_axis.numFmt = "$#,##0"
+    growth.height, growth.width = 8, 22
+    growth.add_data(Reference(plan, min_col=4, max_col=15, min_row=rv["total"]),
+                    from_rows=True, titles_from_data=False)
+    growth.set_categories(Reference(plan, min_col=4, max_col=15, min_row=HEAD))
+    growth.legend = None
+    plan.add_chart(growth, f"E{LP0 - 1}")
+    # The note-like assumption text runs long; keep the month grid readable.
+    for i in range(len(assumptions)):
+        plan.cell(row=4 + i, column=3).alignment = Alignment(wrap_text=False)
+
+    # The forecast's two headline numbers, beside the cash on the Dashboard.
+    for rr, label, formula in (
+            (9, "Forecast in 12 months ($/month)",
+             f"='12-Month Plan'!{months[-1]}{rv['total']}"),
+            (10, "Forecast, next 12 months ($)",
+             f"=SUM('12-Month Plan'!{months[0]}{rv['total']}:{months[-1]}{rv['total']})")):
+        dash.cell(row=rr, column=5, value=label).font = f(bold=True)
+        cell = dash.cell(row=rr, column=7, value=formula)
+        cell.number_format = MONEY0
+        cell.font = f(bold=True, color=GREEN)
 
     # ---------------------------------------------------------- provider calls
     title(calls, "Provider Calls",
@@ -898,6 +1022,12 @@ def build(now: Optional[float] = None) -> bytes:
          "with the Anthropic console once a month."),
         ("Colours", "Blue text: an input or recorded figure. Black: a formula. "
          "Green: a link to another sheet. Yellow fill: yours to fill in or confirm."),
+        ("12-Month Plan", "Costs follow new episodes: searches that miss the "
+         "cache. Sports searches are modelled apart because they miss it more "
+         "(a game in progress is never served from cache) and spend API-Sports "
+         "requests, which decide each sport's plan. The cost of one episode is "
+         "the recorded average once there are episodes, so the forecast sharpens "
+         "as real traffic arrives. Listener numbers are yours to set."),
         ("Adding a service", "The list lives in financials.py (catalogue). Add a "
          "row there and every copy from then on carries it."),
         ("Detail", "docs/FINANCIAL.md explains every cost and when to upgrade; "

@@ -16471,3 +16471,26 @@ with the Anthropic console monthly.
 
 Pinned in `tests/test_financials.py`.
 
+**The plan follows listeners (same day, owner's follow-up).** "We will be
+spending more as we get users and launch, especially in sports." The
+12-Month Plan's flat growth percentage is replaced by a model of what
+actually drives cost: listeners (a launch month, a launch size and monthly
+growth) -> searches -> new episodes (searches that miss the cache) x the cost
+of one episode. Sports is its own line: a share of searches, a higher miss
+rate (a game in progress is never served from cache), and API-Sports requests
+per sports search plus the sweeps, which pick each offered sport's plan (Pro
+to 7,500/day, Ultra, Mega). Hosting steps to Standard at 1k and Pro at 10k,
+bandwidth follows plays, background writing follows FINANCIAL.md 4.2 to its
+$700 ceiling, and the launch licences start in the launch month. **The cost of
+one episode is the recorded average** over the ledger's last 30 days once
+there are episodes ($0.06 until then), so the forecast sharpens as traffic
+arrives. Its twelve-months-out figure and twelve-month total sit on the
+Dashboard. Every listener figure is a yellow input, because none is known.
+
+**Delivered daily.** The cloud Routine "Daily FAM financials" (06:52
+Eastern, a fresh session each morning) downloads `/api/admin/financials.xlsx`
+with `FAM_ADMIN_TOKEN` and sends the file with yesterday's spend, month to
+date, run-rate and the forecast. It needs this merged and deployed, the token
+in the cloud environment, and `fam.onrender.com` on its allowed domains; until
+then it says which of the three is missing.
+
