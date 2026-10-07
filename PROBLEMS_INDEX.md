@@ -219,4 +219,5 @@ and `limit` = Lines.
 | 16110 | 110 | 213. The 10.6 packet: your own story, VIBE! as a story editor, holding a story, and group chats |
 | 16220 | 52 | 214. Every tile has a picture; the waitlist shows only its own; a let-in account is set up first |
 | 16272 | 31 | 215. The waitlist page: profile straight after joining, a settings gear, "Learn more about FAM" |
-| 16303 | 26 | 216. An admin is never on the waitlist, and sees it as a member would |
+| 16303 | 25 | 216. An admin is never on the waitlist, and sees it as a member would |
+| 16328 | 21 | 217. Typing the address opens the app, not the waitlist |
