@@ -555,12 +555,12 @@ class _State:
 STATE = _State()
 _SYNCING = [False]
 
-#: Statuses worth one more try inside the same sync (§218): GDELT's file
+#: Statuses worth one more try inside the same sync (§220): GDELT's file
 #: server is a CDN in front of a bucket, and these are its passing states.
 RETRY_STATUSES = frozenset({408, 425, 429, 500, 502, 503, 504})
 
 #: How long a file `lastupdate.txt` named may answer 404 and still be waited
-#: for (§218). Past this, it is written off as never published like any other.
+#: for (§220). Past this, it is written off as never published like any other.
 NAMED_GRACE_SECONDS = 3600.0
 
 #: name -> when `lastupdate.txt` first named it. A file GDELT *named* exists or
@@ -589,7 +589,7 @@ def _what(url: str) -> str:
 
 async def _download(client: httpx.AsyncClient, url: str) -> httpx.Response:
     """One GET, asked once more after `GDELT_EXPORT_RETRY_SECONDS` when it
-    timed out, dropped, or met a passing status (§218). Every attempt is
+    timed out, dropped, or met a passing status (§220). Every attempt is
     counted, with its reason when it failed."""
     import provider_usage
 
@@ -658,7 +658,7 @@ async def _fetch_file(client: httpx.AsyncClient, target: ExportStore,
     if response.status_code == 404:
         named = _NAMED.get(name)
         if named is not None and now - named < NAMED_GRACE_SECONDS:
-            # Named by `lastupdate.txt` and not served yet (§218): the name
+            # Named by `lastupdate.txt` and not served yet (§220): the name
             # runs ahead of the file. Waited for, never written off - the
             # old code wrote it off on its second 404 and lost its news.
             provider_usage.record("gdelt", ok=False,
@@ -687,7 +687,7 @@ async def sync(now: Optional[float] = None,
     Reads `lastupdate.txt`, fetches the newest GKG file and - when the copy
     is behind - up to `GDELT_EXPORT_BACKFILL_FILES` before it, oldest first,
     then drops what is older than `GDELT_EXPORT_KEEP_HOURS`. One file's
-    failure does not stop the others (§218). A file named but not served
+    failure does not stop the others (§220). A file named but not served
     yet is `waiting`, not an error. One sync at a time; a second caller
     returns at once.
     """
@@ -771,11 +771,17 @@ async def sync(now: Optional[float] = None,
         log.info("gdelt: %s named but not served yet; looking again shortly",
                  ", ".join(waiting))
         out["waiting"] = waiting
+        # Looked for again soon only while the name is new: a file named a
+        # whole period ago and still not served is an outage, and is asked
+        # on the ordinary clock rather than every few minutes for an hour.
+        every = max(60.0, float(settings.gdelt_export_poll_seconds))
+        out["look_again_soon"] = any(now - _NAMED.get(n, now) < every
+                                     for n in waiting)
     return out
 
 
 def next_poll_in(now: Optional[float] = None, waiting: bool = False) -> float:
-    """Seconds until the next poll (§218).
+    """Seconds until the next poll (§220).
 
     On GDELT's clock: `GDELT_EXPORT_POLL_OFFSET_SECONDS` past each period
     (the quarter hour at the default 900s), so polls land in the same place
@@ -800,7 +806,8 @@ async def run_forever() -> None:
     """The one job that downloads from GDELT. Never raises."""
     while True:
         result = await sync()
-        await asyncio.sleep(next_poll_in(waiting=bool(result.get("waiting"))))
+        await asyncio.sleep(next_poll_in(
+            waiting=bool(result.get("look_again_soon"))))
 
 
 # --------------------------------------------------------------------------

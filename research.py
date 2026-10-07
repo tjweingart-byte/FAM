@@ -62,7 +62,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
-from config import RESEARCH_BACKENDS, settings
+from config import BROWSE_MINUTES, RESEARCH_BACKENDS, settings
 
 log = logging.getLogger("research")
 
@@ -711,6 +711,28 @@ def _note_gaps(packet: "Packet", must_establish: list) -> "Packet":
         if item not in packet.missing:
             packet.missing.append(item)
     return packet
+
+
+def packet_size(minutes: int) -> dict:
+    """How much evidence an episode of `minutes` is handed (the 10.7 packet).
+
+    A five-minute search used to get the same three sources and two
+    highlights each as a two-minute one, and the writer drops a beat with
+    nothing behind it - so it ended near two minutes whatever was asked.
+    Duration buys depth, and depth needs material: past the browse length
+    each extra minute brings one more source, and four minutes or more a
+    third highlight each. Two minutes and under overrides nothing, so every
+    browse episode is unchanged. The sources come out of the results the one
+    Exa call already returns, so a longer episode costs prompt tokens, never
+    another search.
+    """
+    extra = max(0, int(minutes) - BROWSE_MINUTES)
+    if not extra:
+        return {}
+    highlights = settings.exa_highlights_per_source + (1 if int(minutes) >= 4 else 0)
+    return {"packet_sources": min(settings.exa_num_results,
+                                  settings.exa_packet_sources + extra),
+            "highlights_per_source": highlights}
 
 
 async def retrieve(query: str, backend: Optional[str] = None,

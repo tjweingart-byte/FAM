@@ -1446,7 +1446,7 @@ class ScriptGenerator:
         # deployment chose, then GDELT because it is keyless and takes one
         # HTTP call. Since §135 there is nothing below GDELT: the model's own
         # search was the last rung and is deleted.
-        packet = await self._retrieve(query, plan.brief, configured)
+        packet = await self._retrieve(query, plan.brief, configured, plan.minutes)
         _mark(notes, "first_rung_ready")
         spent = [packet]
 
@@ -1467,7 +1467,7 @@ class ScriptGenerator:
                 break
             log.info("%s found nothing usable for %r; trying %s on %r before "
                      "writing", configured, query, rung, wider)
-            better = await self._retrieve(wider, plan.brief, rung)
+            better = await self._retrieve(wider, plan.brief, rung, plan.minutes)
             spent.append(better)
             if better:
                 better.fell_back_from = configured
@@ -1580,7 +1580,8 @@ class ScriptGenerator:
             evidence=packet.context if packet is not None else "",
             thin_on=tuple(getattr(packet, "missing", ()) or ()))
 
-    async def _retrieve(self, query: str, brief, backend: str):
+    async def _retrieve(self, query: str, brief, backend: str,
+                        minutes: int = 0):
         """One rung of the retrieval ladder. Never raises.
 
         **Every failure is caught here, not just `ResearchUnavailable`.** A
@@ -1600,7 +1601,10 @@ class ScriptGenerator:
         own record.
         """
         try:
-            return await research_mod.retrieve(query, backend=backend, brief=brief)
+            # More evidence for a longer episode (`research.packet_size`).
+            size = research_mod.packet_size(minutes) if minutes else {}
+            return await research_mod.retrieve(query, backend=backend, brief=brief,
+                                               **size)
         except research_mod.ResearchUnavailable as exc:
             log.warning("%s cannot retrieve (%s)", backend or "the backend", exc)
         except Exception:  # noqa: BLE001 - see the docstring

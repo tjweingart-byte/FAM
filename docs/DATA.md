@@ -445,7 +445,7 @@ is never accepted from the client (`listener-id-server`).
 | Vocabulary | 4,000 nodes, ≤ 40 new per sweep, a phrase needs ≥ 3 listeners and ≥ 2 wordings, sweep every 2 h | `categories.py:120-178` |
 | Story pool | 40 offered / 96 kept / ≤ 5 per facet / ≤ 8 per source | `stories.py:152-176` |
 | Writer output | 16,000 tokens | `config.py:291` |
-| Episode length | 1-10 min for search; every other surface 2 (a Go Deeper follow-up 1-5) | `config.py:1239-1240` |
+| Episode length | 1-5 min offered for search (`SEARCH_LENGTHS`; the server accepts 1-10); every other surface 2 (a Go Deeper follow-up 1-5) | `config.py:1239-1240` |
 | Prefetch | 6 per cycle, 50 episodes, 400 briefs, **$2** per day | `config.py:1065-1077` |
 | DailyFAM edition | 300 episodes, **$15** per day, 3 at a time | `config.py:890-891`, `daily_edition.py:91` |
 | GNews | 90 requests per day | `config.py:967` |

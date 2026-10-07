@@ -397,7 +397,7 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
       if (!sub && lic && lic.warning) {
         said += ' <small style="color:var(--bad, #c0392b)">· ' + esc(lic.warning) + '</small>';
       }
-      // Why requests failed, since this server started (§218): a count of
+      // Why requests failed, since this server started (§220): a count of
       // failures alone sends someone to the logs.
       if (!sub && r.failure_reasons && r.failure_reasons.length) {
         said += ' <small style="color:var(--muted)">· failed since boot: ' +

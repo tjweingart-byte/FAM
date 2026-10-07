@@ -315,7 +315,7 @@ async def _json(url: str, headers: dict, params: dict, timeout: float) -> dict:
                                   why=type(exc).__name__)
             raise
         # The reason names the path and status, never the query: Finnhub's
-        # key is a query parameter (§144, §218).
+        # key is a query parameter (§144, §220).
         provider_usage.record(provider, ok=response.is_success,
                               detail=sport_of_url(url) if provider == "api_sports" else "",
                               why=f"HTTP {response.status_code} {response.url.path}")

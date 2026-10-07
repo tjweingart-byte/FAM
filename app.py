@@ -2273,7 +2273,7 @@ async def person_profile(request: Request,
     The rule this endpoint exists under, and the reason it did not exist
     before: what somebody has listened to is theirs. There is no play count
     here, no completion total, no subjects inferred from behaviour and no
-    history. Three things come back, and each one is something the person
+    history. Four things come back, and each one is something the person
     actively decided to show:
 
     * **public mixes** - a new mix is public by default, and one its owner
@@ -2281,7 +2281,9 @@ async def person_profile(request: Request,
     * **vibes** - a vibe *is* the act of showing somebody an episode, so a
       list of them is a list of things they chose to publish;
     * **interests they have not hidden** - declared in the first run or in
-      Settings, minus anything they turned off in Edit profile.
+      Settings, minus anything they turned off in Edit profile;
+    * **the place they gave** - city, state, country as typed, under their
+      name (10.7 packet); a profile with none shows none.
 
     The standing between the two of you comes from the follow graph, which
     both sides can already see.
@@ -2359,6 +2361,10 @@ async def person_profile(request: Request,
         "vibe_count": len(SOCIAL.echoes_by(target, limit=200, viewer=me)),
         "interests": interests,
         "interest_labels": [row["label"] for row in shown],
+        # Where they said they are, under their name (10.7 packet, the
+        # owner): a place they put on their profile is something they chose
+        # to show, as typed - city, state, country, whichever they gave.
+        "location": prefs.location.label,
         "follows": SOCIAL.follow_counts(target),
     }
 
@@ -3886,15 +3892,11 @@ def _waitlist_refusal(request: Request, listener):
     # and `//` too, and a gate that matches only the spellings it thought of
     # is a gate with a side door.
     page = "/" + path.strip("/")
-    # A guest is never moved off the front door (PROBLEMS.md §217, the
-    # owner): typing the address opens the app on its own sign-in and
-    # sign-up, so a member signed out on this browser can sign in. The app
-    # stays closed all the same - every API call above still refuses them -
-    # and only a referral link, which is an invitation to join, still goes
-    # to the waitlist.
-    if target == "/waitlist" and not request.query_params.get(
-            waitlist_mod.REFERRAL_PARAM):
-        return None
+    # Typing the address lands a guest on the waitlist (the 10.7 packet,
+    # reversing §217): it is the front door while the waitlist runs, and its
+    # "Already off the waitlist? Sign in here" signs a member in and sends
+    # them on to the app - so a member signed out on this browser still has
+    # a way in, without the app's own sign-in being a door to nothing.
     if page in WAITLIST_CLOSED_PAGES or page.startswith(WAITLIST_CLOSED_PAGE_PREFIXES):
         query = request.url.query
         return RedirectResponse(target + ("?" + query if query else ""),
@@ -6293,6 +6295,8 @@ async def profile(request: Request):
     body["interests_pinned"] = list(prefs.profile_interests)
     body["interests_source"] = source
     body["interests_max"] = topics_mod.PROFILE_INTEREST_SLOTS
+    # Shown under their name (10.7 packet): the place as they wrote it.
+    body["location"] = prefs.location.label
     body["circle"] = _circle_row(user)
     # Their own story (10.6 packet #1): their vibes of the last 24 hours, the
     # ones their friends' faces play, so their own picture can carry the

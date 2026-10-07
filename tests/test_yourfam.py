@@ -280,3 +280,26 @@ def test_saved_and_vibed_episodes_can_be_filed_in_folders(client):
     client.delete(f"/api/saved/folders/{gym['id']}")
     body = client.get("/api/vibes").json()
     assert body["folders"] == [] and body["vibes"][0]["folder_id"] == ""
+
+
+def test_the_place_they_gave_is_shown_under_their_name(client):
+    """10.7 packet: a location on the profile is printed under the name, on
+    their own page and on the page a friend opens - just what they wrote,
+    whichever parts they gave."""
+    signed_in(client, "lou@b.com", "Lou", "lou")
+    client.post("/api/preferences", json={"city": "San Francisco", "region": "CA",
+                                           "country": "USA"})
+    assert client.get("/api/profile").json()["location"] == "San Francisco, CA, USA"
+    viewer = TestClient(appmod.app)
+    with viewer:
+        signed_in(viewer, "vi@b.com", "Vi", "vi")
+        assert viewer.get("/api/person", params={"handle": "lou"}).json()[
+            "location"] == "San Francisco, CA, USA"
+        # Only a country is only a country; nothing given is nothing shown.
+        client.post("/api/preferences", json={"city": "", "region": "", "country": "Canada"})
+        assert viewer.get("/api/person", params={"handle": "lou"}).json()["location"] == "Canada"
+        client.post("/api/preferences", json={"country": ""})
+        assert viewer.get("/api/person", params={"handle": "lou"}).json()["location"] == ""
+    page = _interface()
+    assert "(p.location ? '<div class=\"yf-place\">'" in page
+    assert "(pub.location ? '<div class=\"yf-place\">'" in page

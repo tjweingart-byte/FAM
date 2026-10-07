@@ -236,10 +236,12 @@ def _join(email, code=""):
 
 def test_guests_and_waitlisted_are_kept_out_of_the_app(world):
     guest = TestClient(appmod.app)
-    # Typing the address opens the app's front door, to sign in (§217).
+    # Typing the address lands on the waitlist, where a member signs in
+    # (the 10.7 packet, reversing §217).
     r = guest.get("/", follow_redirects=False)
-    assert r.status_code == 200
-    assert guest.get("/index.html", follow_redirects=False).status_code == 200
+    assert r.status_code == 302 and r.headers["location"] == "/waitlist"
+    r = guest.get("/index.html", follow_redirects=False)
+    assert r.headers["location"] == "/waitlist"
     r = guest.get("/?referralCode=abc", follow_redirects=False)
     assert r.headers["location"] == "/waitlist?referralCode=abc"
     r = guest.get("/api/friends")
@@ -249,7 +251,8 @@ def test_guests_and_waitlisted_are_kept_out_of_the_app(world):
     assert guest.get("/waitlist").status_code == 200
     page = (ROOT / "static" / "index.html").read_text(encoding="utf-8")
     assert 'd.status === "waitlisted"' in page
-    assert 'if(go === "/waitlist/me") location.replace(go);' in page
+    assert 'if(go === "/waitlist/me" || go === "/waitlist") location.replace(go);' in page
+    assert 'location.replace("/waitlist");' in page
 
     member, body = _join("w@fam.test")
     assert body["status"] == "waitlisted" and body["redirect"] == "/waitlist/me"
@@ -793,13 +796,18 @@ def test_the_landing_page_tells_why_fam_exists():
              "actually being part of the conversation"]
     at = [landing.index(text) for text in order]
     assert at == sorted(at), "the story is told out of order"
-    # The problem stays at the top while four slides take turns under it:
-    # what passes you by (all four at once, nothing moving), the time it
-    # takes, the conversation, and why someone else decides.
+    # The problem and what passes you by (all four at once) stay put at the
+    # top, outside the carousel (the 10.7 packet); three slides take turns
+    # under them: the time it takes, the conversation, and why someone else
+    # decides.
     problem = landing.split('class="ab-wrap ab-problem', 1)[1].split("</section>", 1)[0]
-    assert problem.index("Being in the know shouldn’t be a full-time job.") < problem.index("data-carousel")
+    assert (problem.index("Being in the know shouldn’t be a full-time job.")
+            < problem.index('class="prob-pass"') < problem.index("data-carousel"))
+    carousel = problem.split("data-carousel", 1)[1]
+    assert 'class="pass-card"' not in carousel
     slides = re.findall(r'<div class="car-slide ([\w-]+)"', problem)
-    assert slides == ["prob-pass", "prob-time", "ab-morning", "ab-origin"]
+    assert slides == ["prob-time", "ab-morning", "ab-origin"]
+    assert carousel.count('<button type="button" data-i=') == 3
     assert problem.count('class="pass-card"') == 4
     assert "animation:drift" not in page and "pass-track" not in page
     # "That's why we built FAM" stands on its own, over what FAM changes.
@@ -843,7 +851,7 @@ def test_how_to_use_fam_is_one_feature_at_a_time():
     assert "feat-flip" not in page
 
 
-def test_the_carousels_turn_every_ten_seconds_and_by_hand():
+def test_the_carousels_turn_only_by_hand():
     page = (ROOT / "static" / "waitlist.html").read_text(encoding="utf-8")
     boxes = page.split(" data-carousel role=")[1:]
     assert len(boxes) == 2  # the problem, and how to use FAM
@@ -863,8 +871,48 @@ def test_the_carousels_turn_every_ten_seconds_and_by_hand():
     assert ".car:not(.ready) .car-arrow" in page and ".car.ready .car-slide{ grid-area:1/1;" in page
     assert 'el.setAttribute("aria-hidden", "true"); el.inert = true;' in page
     assert 'box.classList.add("ready");' in page
-    assert "var CAROUSEL_SECONDS = 10;" in page
-    assert "setInterval(function(){ show(at + 1); }, CAROUSEL_SECONDS * 1000)" in page
+    # Never on a timer: a slide must not move while someone is reading it.
     turn = page.split("function turnCarousel(box){", 1)[1].split("\n  }\n", 1)[0]
-    assert turn.count("restart(); }") == 3  # a hand turn restarts the ten seconds
+    assert "setInterval" not in turn and "setTimeout" not in turn
+    assert "CAROUSEL_SECONDS" not in page
+    # The arrows are white with black chevrons, in their own row above the
+    # slide on every width, so they never cover a picture.
+    assert "background:#FFFFFF; color:#000000;" in page
+    assert 'grid-template-areas:"p d n" "s s s";' in page
+    assert '"p s n"' not in page
     assert 'querySelectorAll("[data-carousel]"), turnCarousel' in page.split("function showAbout(member){", 1)[1]
+
+
+def test_the_10_7_packet_on_the_waitlist_page():
+    """Location and interests say they are optional; "View all topics" opens
+    the app's own long list (the catalogue, searchable, anything typed added
+    as it is) and saves it as `topics`, as the app does; and the foot of the
+    landing page signs a member in."""
+    page = (ROOT / "static" / "waitlist.html").read_text(encoding="utf-8")
+    assert '<span>Location <em class="opt">(Optional)</em></span>' in page
+    assert '<span>Your interests <em class="opt">(Optional)</em></span>' in page
+    assert ">View all topics</button>" in page
+    assert 'placeholder="Search topics, or type your own"' in page
+    assert "prefs.catalogue" in page and "prefs.topics_chosen" in page
+    # Sent only once touched: every saved topic is logged as a pick, so an
+    # untouched list resent on a name fix would count each one again.
+    assert "if(topicsDirty) prefs.topics = chosenTopics.map(function(t){ return t.id; });" in page
+    assert "topicsDirty = true;" in page.split("function toggleTopic", 1)[1].split("function ", 1)[0]
+    assert "Add <b>' + esc(raw)" in page
+    landing = page.split('id="landing"', 1)[1].split('id="status"', 1)[0]
+    cta = landing.split('class="ab-wrap ab-cta', 1)[1].split("</section>", 1)[0]
+    assert 'id="bottomLogin">Already off the waitlist? Sign in here</button>' in cta
+    assert '$("bottomLogin").addEventListener("click"' in page
+
+
+def test_the_waitlist_profile_saves_topics_off_the_long_list(world):
+    member, _ = _join("t@fam.test")
+    prefs = member.get("/api/preferences").json()
+    assert len(prefs["catalogue"]) > 20
+    first = prefs["catalogue"][0]["id"]
+    assert member.post("/api/preferences", json={
+        "interests": [], "topics": [first, "Formula E"],
+        "country": "USA", "region": "CA", "city": "San Francisco"}).status_code == 200
+    chosen = member.get("/api/preferences").json()["topics_chosen"]
+    assert [t["id"] for t in chosen] == [first, "Formula E"]
+    assert chosen[1]["typed"] is True

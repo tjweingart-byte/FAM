@@ -276,7 +276,7 @@ _LAST_FLUSH = [0.0]
 _FLUSHING = [False]
 
 
-#: Why requests failed, per provider, since this server started (§218): the
+#: Why requests failed, per provider, since this server started (§220): the
 #: admin page's "(101 failed)" said how many and never why. In memory only -
 #: a reason is a diagnosis for whoever is looking now, not a record to keep -
 #: and never a URL (Finnhub's key is a query parameter, §144).

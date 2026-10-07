@@ -124,7 +124,7 @@ def test_the_retrieval_really_runs_for_both_kinds_of_question(monkeypatch, query
         def as_dict(self):
             return {"context": self.context}
 
-    async def fake_retrieve(q, backend=None, brief=None):
+    async def fake_retrieve(q, backend=None, brief=None, **_size):
         calls.append(q)
         return Packet()
 
@@ -147,7 +147,7 @@ def test_a_backend_that_cannot_run_is_recorded_rather_than_hidden(monkeypatch):
     """
     from research import Packet
 
-    async def retrieve(q, backend=None, brief=None):
+    async def retrieve(q, backend=None, brief=None, **_size):
         if backend != "gdelt":
             raise research_mod.ResearchUnavailable("EXA_API_KEY is not set")
         return Packet(context="SOURCE 1\nTitle: x", backend="gdelt",
@@ -284,7 +284,7 @@ def test_the_gdelt_backend_retrieves_like_any_other(monkeypatch):
 
     seen: list = []
 
-    async def retrieve(q, backend=None, brief=None):
+    async def retrieve(q, backend=None, brief=None, **_size):
         seen.append(backend)
         return Packet(context="SOURCE 1\nTitle: x", backend="gdelt")
 

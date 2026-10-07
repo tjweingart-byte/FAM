@@ -1,4 +1,4 @@
-"""§218: why a third of GDELT's downloads failed, and what stops it.
+"""§220: why a third of GDELT's downloads failed, and what stops it.
 
 The admin page counted 314 GDELT requests in a day, 101 failed, where a
 healthy day is about 200 with none. Every download goes through `sync`, and
@@ -249,7 +249,7 @@ def test_the_loop_reads_the_clock_rather_than_sleeping_a_period():
     source = (ROOT / "gdelt.py").read_text()
     loop = source[source.index("async def run_forever"):]
     loop = loop[:loop.index("\n\n\n")]
-    assert "next_poll_in" in loop
+    assert "next_poll_in" in loop and "look_again_soon" in loop
     assert "gdelt_export_poll_seconds" not in loop
 
 
@@ -272,10 +272,40 @@ def test_the_admin_row_says_why_gdelt_failed(on):
     assert gdelt.report()["failure_reasons"] == row["failure_reasons"]
 
 
-def test_a_reason_never_carries_a_url():
-    provider_usage.record("gdelt", ok=False, why="GKG file: HTTP 500")
-    for row in provider_usage.failure_reasons("gdelt"):
-        assert "http" not in row["why"].lower().replace("http 5", "")
+def test_a_reason_never_carries_a_url(on):
+    """Reasons are shown on the admin page; a URL there would be the §144
+    leak for any provider whose key rides in the query."""
+    up = upstream_with_fed()
+    newest = gdelt.name_for(up.newest)
+
+    async def go():
+        async with _flaky(up, newest, ["drop", 502]) as client:
+            await gdelt.sync(client=client)
+
+    run(go())
+    found = provider_usage.failure_reasons("gdelt")
+    assert found
+    for row in found:
+        assert "://" not in row["why"] and "gdeltproject" not in row["why"]
+
+
+def test_a_long_missing_named_file_waits_on_the_ordinary_clock(on):
+    """A named file that has not appeared in a whole period is an outage:
+    looked for on the ordinary clock, not every two minutes for an hour."""
+    up = upstream_with_fed()
+    late = gdelt.name_for(up.newest)
+    up.files.pop(late)
+    start = up.newest.timestamp() + 60
+
+    async def go():
+        async with up.client() as client:
+            first = await gdelt.sync(client=client, now=start)
+            later = await gdelt.sync(client=client, now=start + 1000)
+            return first, later
+
+    first, later = run(go())
+    assert first["waiting"] == [late] and first["look_again_soon"] is True
+    assert later["waiting"] == [late] and later["look_again_soon"] is False
 
 
 def test_reasons_are_bounded():

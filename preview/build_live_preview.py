@@ -709,6 +709,8 @@ __MIX_ITEMS__
       interests_pinned: (myPrefs().profile_interests || []).slice(),
       interests_shown: profileInterests().shown,
       interests_source: profileInterests().source,
+      // The place they gave, under their name (10.7), as the server says it.
+      location: locationBody(EMAIL ? myPrefs() : null).label,
       // The YourFAM avatar row. Nobody else is in this database, so it is
       // honestly empty - the Invite circle is the whole row.
       circle: [],

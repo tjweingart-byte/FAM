@@ -16346,7 +16346,85 @@ a guest's `X-FAM-Waitlist: /waitlist`. Two things still redirect:
 
 Pinned by `tests/test_waitlist.py::test_guests_and_waitlisted_are_kept_out_of_the_app`.
 
-## 218. Why a third of GDELT's downloads failed, and Finnhub's and the local feeds'
+## 218. The waitlist carousels turn only by hand; white arrows above the slide
+
+The owner asked for two changes to `/waitlist`'s carousels (§212):
+
+- **No turning on a timer.** `CAROUSEL_SECONDS` and the interval, the
+  visibility and off-screen waits that served it, are gone: a slide moving
+  while someone reads it loses their place. The arrows and dots are the only
+  way to turn one.
+- **The arrows are more prominent and cover nothing.** White circles (54px)
+  with black chevrons. From 820px they used to flank the slide, level with
+  it, and the tilted back phone in the how-to-use slides ran under the right
+  arrow (§212 put the arrow on top so it kept its clicks, which meant it hid
+  the picture). The arrows and dots now sit in their own row above the slide
+  on every width, as they already did on a phone; measured from 360 to
+  1920px, no arrow overlaps any element of any slide.
+
+Pinned in `tests/test_waitlist.py` (`test_the_carousels_turn_only_by_hand`).
+
+## 219. The 10.7 packet: the waitlist is the front door again, its topics, a place under the name, and a search length that held
+
+The owner's 10.7 packet, six changes.
+
+**The waitlist page.**
+
+1. **Location and interests say "(Optional)"** beside their labels on the
+   profile a member fills in after joining.
+2. **"View all topics"** under the interests chips opens the app's own long
+   list: `/api/preferences`' `catalogue`, A to Z with a letter over each run,
+   a search box that filters it, and an "Add *what you typed* as a topic"
+   row (Enter does the same) for anything not on it - the app's interests
+   page, here. Chosen ones show as chips that take themselves off, and save
+   as `topics`, exactly as the app saves them, so they are already there on
+   the first day in the app. `topics_chosen` fills them back in. They are
+   sent only once touched (`topicsDirty`): the server logs every saved topic
+   as a pick, so resending an untouched list whenever the profile is saved
+   for a name or a phone number would count each topic again.
+3. **Typing the address goes to the waitlist again**, reversing §217 at the
+   owner's direction: while `WAITLIST=1` runs, a guest at `/`, `/index.html`,
+   `/v/` or `/m/` is sent to `/waitlist`, and the app shell sends one there
+   too (from `/api/auth/me` and from a guest's `X-FAM-Waitlist`). §217's
+   problem - a member signed out on this browser had no way in - is answered
+   by the landing page's foot: **Already off the waitlist? Sign in here**
+   opens the page's own sign-in at the top, which sends an `active` account
+   on to the app (and anyone still in line to their status page).
+4. **"Being in the know shouldn't be a full-time job" stays put with the
+   four cards under it** (a game you didn't watch, a story at work, an
+   industry, a topic at dinner), outside the carousel; the carousel turns the
+   other three: the time it takes, the conversation, why someone else
+   decides.
+
+**A place under the name.** The location a listener gave is printed under
+their name - "San Francisco, CA, USA", or whichever parts they wrote - on
+their own YourFAM page (`/api/profile` `location`) and on the page a friend
+opens (`/api/person` `location`, the owner's call: a place put on the
+profile is published).
+
+**Search length.** The menu is 1-5 minutes now (it was 1-10). Checked in a
+browser first: the request already carried the chosen minutes
+(`/api/audio?...&minutes=5&surface=search`) and the server honoured them, so
+the 2-minute episodes were the writer's doing. The likely cause, which
+nobody here can confirm without an API key: a five-minute search was
+handed exactly the evidence a two-minute one was - three sources, two
+highlights each - and the writer is told to drop a beat with nothing behind
+it, so it ran out of material near two minutes and stopped, as a ceiling
+allows. `research.packet_size` now scales the packet with the minutes past
+`BROWSE_MINUTES` (one source a minute, a third highlight from four minutes),
+taken from the eight results the one Exa call already fetches - no second
+search, no added wait, only prompt tokens. Two minutes and under overrides
+nothing, so every browse episode is unchanged. **To confirm it:** search the
+same question at 2 and 5 minutes and compare the lengths (`python write.py
+"<query>" --minutes 5` prints the word count against the budget).
+
+Pinned in `tests/test_waitlist.py` (the guest redirect,
+`test_the_10_7_packet_on_the_waitlist_page`, the story order with three
+slides), `tests/test_yourfam.py::test_the_place_they_gave_is_shown_under_their_name`
+and `tests/test_search_length_and_mix_gate.py` (the five lengths, the packet
+size and that the writer asks for it).
+
+## 220. Why a third of GDELT's downloads failed, and Finnhub's and the local feeds'
 
 **What was asked (07/10).** The admin page showed GDELT at 314 requests
 today, 101 failed (433 yesterday), where §211 promised about 200 a day with
@@ -16384,8 +16462,10 @@ the next poll. Three things in `sync` produced exactly that:
   before the next - and never drift.
 * A file `lastupdate.txt` *named* that answers 404 is **waiting**, not an
   error: never written off for `NAMED_GRACE_SECONDS` (an hour), looked for
-  again after `GDELT_EXPORT_WAIT_SECONDS` (120) rather than a period later.
-  Only a file never named is written off on one 404.
+  again after `GDELT_EXPORT_WAIT_SECONDS` (120) rather than a period later -
+  but only while it was named within the last period, so a file that never
+  appears is asked on the ordinary clock, not every two minutes for an hour
+  (review fix). Only a file never named is written off on one 404.
 * A timeout, dropped connection, 408/425/429 or 5xx is asked once more after
   `GDELT_EXPORT_RETRY_SECONDS` (10). Each attempt is counted - a retry spends
   a request like any other. A 404 on `lastupdate.txt` is not retried.
@@ -16414,6 +16494,6 @@ the page says which of the readings above is true. Finnhub's and the local
 feeds' behaviour is unchanged; the `robots.txt` miscount is the obvious next
 fix once the reasons confirm it.
 
-Rule: `gdelt-exports` carries a §218 Current note. Tests:
-`tests/test_gdelt_failures_218.py`; `test_the_newest_file_is_never_written_off`
+Rule: `gdelt-exports` carries a §220 Current note. Tests:
+`tests/test_gdelt_failures_220.py`; `test_the_newest_file_is_never_written_off`
 now expects `waiting`, not an error.

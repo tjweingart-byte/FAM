@@ -402,7 +402,7 @@ def test_the_newest_file_is_never_written_off(on):
             return first, second
 
     first, second = run(go())
-    # §218: waited for, not an error - the name runs ahead of the file.
+    # §220: waited for, not an error - the name runs ahead of the file.
     assert first.get("waiting") == [newest] and "error" not in first
     assert "error" not in second and gdelt.store().has_file(newest)
     assert gdelt.store().newest() == up.newest.timestamp()
