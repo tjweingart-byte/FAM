@@ -615,7 +615,7 @@ def test_the_waitlist_page_asks_for_the_password_twice_and_says_the_place():
 
 
 def test_joining_goes_straight_to_the_profile_with_a_skip():
-    """§214: the profile is the next screen after the email and password,
+    """§215: the profile is the next screen after the email and password,
     never behind an "Edit your profile" button, and it can be skipped."""
     page = (ROOT / "static" / "waitlist.html").read_text(encoding="utf-8")
     assert 'id="editProfileBtn"' not in page and "to personalize your experience" not in page
@@ -666,7 +666,7 @@ def test_the_landing_page_says_what_fam_is_under_the_sign_up():
     page = (ROOT / "static" / "waitlist.html").read_text(encoding="utf-8")
     landing = page.split('id="landing"', 1)[1].split('id="status"', 1)[0]
     # Under the form, in the landing's markup; the status page's "Learn more
-    # about FAM" moves this same section into its own view (§214).
+    # about FAM" moves this same section into its own view (§215).
     assert landing.index('id="joinForm"') < landing.index('id="about"')
     for heading in ("Search. Scroll. Mix.", "01 · Search", "02 · DailyFAM",
                     "03 · myFAM", "Ian Solomon &amp; TJ Weingart"):

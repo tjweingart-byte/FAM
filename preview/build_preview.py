@@ -945,6 +945,14 @@ __WRITING_SIM__
   var NOTIFY = { head: 0, pending: [], follows: [] };
   //: Listening history (§142), for the life of the page.
   var PREVIEW_HISTORY = [];
+  // Signed out until this device has finished the first run, as a real
+  // first open is: a signed-in device that never finished it is somebody let
+  // in off the waitlist, and the app takes them through setup, not the
+  // welcome screen (§214). Afterwards the preview is the signed-in listener.
+  try {
+    var donePrefs = JSON.parse(localStorage.getItem("fam.prefs") || "{}") || {};
+    if (donePrefs.entry !== "done") FIXTURES["/api/auth/me"].authenticated = false;
+  } catch (e) {}
   var PREVIEW_AUTHED = function () {
     return !!(FIXTURES["/api/auth/me"] && FIXTURES["/api/auth/me"].authenticated);
   };

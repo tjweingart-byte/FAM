@@ -145,7 +145,7 @@ section when a decision changes, including why.
     photo is `static/founders.jpg` (no metadata); without the file the frame
     holds their initials. The page ends with the copyright line. The status
     page shows the same section, moved into its own view, from "Learn more
-    about FAM" (decision 21).
+    about FAM" (decision 20).
 19. **The section tells why FAM exists** (the owner, 04/10, PROBLEMS.md §199):
     FAM is social information, not social media. The tagline under both
     wordmarks and the intro say so; then the problem (what passes you by on a
@@ -153,8 +153,8 @@ section when a decision changes, including why.
     short episode), the same group chat without FAM and with it, side by
     side, and why it was built (who decides which stories you hear, and the
     pipeline it collapses), before the product.
-21. **The profile comes straight after joining; the status page has a gear
-    and "Learn more about FAM"** (the owner, 07/10, PROBLEMS.md §214). Joining
+20. **The profile comes straight after joining; the status page has a gear
+    and "Learn more about FAM"** (the owner, 07/10, PROBLEMS.md §215). Joining
     lands on `/waitlist/me?setup=1`: the profile and nothing else - the app's
     sign-up fields (name, handle, photo, location, interests) plus date of
     birth and phone - with **Skip for now** at the top right. Saving or
@@ -164,7 +164,7 @@ section when a decision changes, including why.
     Deeper's yellow, **Learn more about FAM →**, opens the landing page's
     "What is FAM" section in its own view, with "Back to your spot" (and its
     last button) returning to the place in line. Signing in skips setup.
-20. **Still open (ask the owner):** what each unlock gives (the tiers are
+21. **Still open (ask the owner):** what each unlock gives (the tiers are
     `WAITLIST_UNLOCKS`, default `1,3,5`); whether completing a profile moves
     anyone up; one label ("Your FAM" / "Your Friends") or two.
 

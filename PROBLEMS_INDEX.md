@@ -217,4 +217,5 @@ and `limit` = Lines.
 | 15987 | 79 | 211. GDELT read from its export files; Polymarket asked for every outcome |
 | 16066 | 44 | 212. The waitlist page's two carousels (the 10.6 packet) |
 | 16110 | 110 | 213. The 10.6 packet: your own story, VIBE! as a story editor, holding a story, and group chats |
-| 16220 | 31 | 214. The waitlist page: profile straight after joining, a settings gear, "Learn more about FAM" |
+| 16220 | 52 | 214. Every tile has a picture; the waitlist shows only its own; a let-in account is set up first |
+| 16272 | 31 | 215. The waitlist page: profile straight after joining, a settings gear, "Learn more about FAM" |
