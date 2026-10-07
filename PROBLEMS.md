@@ -16299,3 +16299,24 @@ the status page's dot and its "Edit your profile" card.
 
 Checked in a browser at phone size with the API mocked: setup with Skip,
 the status page with the gear and the pill, the menu, the explainer and back.
+
+## 216. Typing the address opens the app, not the waitlist
+
+The owner typed familiarize.net and landed on `/waitlist` with no way into
+the beta: while `WAITLIST=1` runs, `_waitlist_refusal` sent every guest from
+`/` to the waitlist, and the app shell did the same from `/api/auth/me` and
+from any 403 carrying `X-FAM-Waitlist`. A member signed out on that browser
+could not reach the app's own Sign In.
+
+Now a **guest is never moved off the front door**: `/`, `/index.html`, `/v/`
+and `/m/` are served to them, and the app opens on its sign-in and sign-up
+(Sign Up still goes to `/waitlist`). The app stays closed: every API call a
+guest makes is still refused 403 server-side, and the shell no longer follows
+a guest's `X-FAM-Waitlist: /waitlist`. Two things still redirect:
+
+- a **waitlisted account** goes to its status page, `/waitlist/me` (server
+  and shell), since nothing in the app will answer it;
+- a **referral link** (`/?referralCode=...`) still goes to `/waitlist`, since
+  it is an invitation to join.
+
+Pinned by `tests/test_waitlist.py::test_guests_and_waitlisted_are_kept_out_of_the_app`.
