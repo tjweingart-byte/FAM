@@ -16364,3 +16364,62 @@ The owner asked for two changes to `/waitlist`'s carousels (§212):
 
 Pinned in `tests/test_waitlist.py` (`test_the_carousels_turn_only_by_hand`).
 
+## 219. The 10.7 packet: the waitlist is the front door again, its topics, a place under the name, and a search length that held
+
+The owner's 10.7 packet, six changes.
+
+**The waitlist page.**
+
+1. **Location and interests say "(Optional)"** beside their labels on the
+   profile a member fills in after joining.
+2. **"View all topics"** under the interests chips opens the app's own long
+   list: `/api/preferences`' `catalogue`, A to Z with a letter over each run,
+   a search box that filters it, and an "Add *what you typed* as a topic"
+   row (Enter does the same) for anything not on it - the app's interests
+   page, here. Chosen ones show as chips that take themselves off, and save
+   as `topics`, exactly as the app saves them, so they are already there on
+   the first day in the app. `topics_chosen` fills them back in. They are
+   sent only once touched (`topicsDirty`): the server logs every saved topic
+   as a pick, so resending an untouched list whenever the profile is saved
+   for a name or a phone number would count each topic again.
+3. **Typing the address goes to the waitlist again**, reversing §217 at the
+   owner's direction: while `WAITLIST=1` runs, a guest at `/`, `/index.html`,
+   `/v/` or `/m/` is sent to `/waitlist`, and the app shell sends one there
+   too (from `/api/auth/me` and from a guest's `X-FAM-Waitlist`). §217's
+   problem - a member signed out on this browser had no way in - is answered
+   by the landing page's foot: **Already off the waitlist? Sign in here**
+   opens the page's own sign-in at the top, which sends an `active` account
+   on to the app (and anyone still in line to their status page).
+4. **"Being in the know shouldn't be a full-time job" stays put with the
+   four cards under it** (a game you didn't watch, a story at work, an
+   industry, a topic at dinner), outside the carousel; the carousel turns the
+   other three: the time it takes, the conversation, why someone else
+   decides.
+
+**A place under the name.** The location a listener gave is printed under
+their name - "San Francisco, CA, USA", or whichever parts they wrote - on
+their own YourFAM page (`/api/profile` `location`) and on the page a friend
+opens (`/api/person` `location`, the owner's call: a place put on the
+profile is published).
+
+**Search length.** The menu is 1-5 minutes now (it was 1-10). Checked in a
+browser first: the request already carried the chosen minutes
+(`/api/audio?...&minutes=5&surface=search`) and the server honoured them, so
+the 2-minute episodes were the writer's doing. The likely cause, which
+nobody here can confirm without an API key: a five-minute search was
+handed exactly the evidence a two-minute one was - three sources, two
+highlights each - and the writer is told to drop a beat with nothing behind
+it, so it ran out of material near two minutes and stopped, as a ceiling
+allows. `research.packet_size` now scales the packet with the minutes past
+`BROWSE_MINUTES` (one source a minute, a third highlight from four minutes),
+taken from the eight results the one Exa call already fetches - no second
+search, no added wait, only prompt tokens. Two minutes and under overrides
+nothing, so every browse episode is unchanged. **To confirm it:** search the
+same question at 2 and 5 minutes and compare the lengths (`python write.py
+"<query>" --minutes 5` prints the word count against the budget).
+
+Pinned in `tests/test_waitlist.py` (the guest redirect,
+`test_the_10_7_packet_on_the_waitlist_page`, the story order with three
+slides), `tests/test_yourfam.py::test_the_place_they_gave_is_shown_under_their_name`
+and `tests/test_search_length_and_mix_gate.py` (the five lengths, the packet
+size and that the writer asks for it).
