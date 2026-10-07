@@ -698,15 +698,19 @@ def test_the_landing_page_tells_why_fam_exists():
              "actually being part of the conversation"]
     at = [landing.index(text) for text in order]
     assert at == sorted(at), "the story is told out of order"
-    # What passes you by, on a rail that keeps moving: four things, twice over
-    # so the loop is seamless, the copies hidden from screen readers.
+    # The problem stays at the top while four slides take turns under it:
+    # what passes you by (all four at once, nothing moving), the time it
+    # takes, the conversation, and why someone else decides.
     problem = landing.split('class="ab-wrap ab-problem', 1)[1].split("</section>", 1)[0]
-    assert problem.count('class="pass-card"') == 8
-    assert problem.count('class="pass-card" aria-hidden="true"') == 4
-    assert "animation:drift" in page
-    motion = next(block for block in page.split("@media (prefers-reduced-motion: reduce)")[1:]
-                  if ".pass-track" in block.split("}\n  }", 1)[0])
-    assert ".pass-track{ animation:none" in motion
+    assert problem.index("Being in the know shouldn’t be a full-time job.") < problem.index("data-carousel")
+    slides = re.findall(r'<div class="car-slide ([\w-]+)"', problem)
+    assert slides == ["prob-pass", "prob-time", "ab-morning", "ab-origin"]
+    assert problem.count('class="pass-card"') == 4
+    assert "animation:drift" not in page and "pass-track" not in page
+    # "That's why we built FAM" stands on its own, over what FAM changes.
+    why = landing.split('class="ab-wrap ab-why', 1)[1].split("</section>", 1)[0]
+    assert why.index("That’s why we built FAM.") < why.index('class="ab-compare"')
+    assert "That’s why we built FAM." not in problem
     # Everything you would have to get through goes into FAM and comes out
     # as one short episode - the owner's numbers on the way in, FAM's two out.
     assert "Keeping up with all the information out there takes time." in problem
@@ -721,12 +725,51 @@ def test_the_landing_page_tells_why_fam_exists():
 
 def test_the_morning_after_says_it_before_it_shows_it():
     page = (ROOT / "static" / "waitlist.html").read_text(encoding="utf-8")
-    morning = page.split('class="ab-wrap ab-morning', 1)[1].split("</section>", 1)[0]
+    morning = page.split('class="car-slide ab-morning"', 1)[1].split('class="car-slide ab-origin"', 1)[0]
     # The point first, then the chat; and in the chat you plainly can't join in.
     assert morning.index("Don’t be left out of the conversation") < morning.index('class="convo"')
     assert '<div class="msg me lost"><p><b>You</b>Wait… what happened?</p>' in morning
     # Beside it, the same chat with FAM: you're in it.
     assert (morning.index('<figcaption class="ba-label off">Without FAM</figcaption>')
             < morning.index('<figcaption class="ba-label on">With FAM</figcaption>'))
-    assert '<div class="msg me in"><p><b>You</b>I heard all about it this morning.' in morning
+    assert '<div class="msg me in"><p><b>You</b>I remember the rumors from a while ago' in morning
     assert 'class="ab-wrap ab-payoff' not in page
+    # The story is the niche kind you only know if you kept up, not a score.
+    assert "NFL head coach" in morning and "hotel rooftop" in morning
+    assert "ninth" not in morning
+
+
+def test_how_to_use_fam_is_one_feature_at_a_time():
+    page = (ROOT / "static" / "waitlist.html").read_text(encoding="utf-8")
+    how = page.split('class="ab-wrap ab-how"', 1)[1].split("</section>", 1)[0]
+    # Its heading on its own, then the three features taking turns.
+    assert how.index("Search. Scroll. Mix.") < how.index("data-carousel")
+    assert how.count('<article class="feat car-slide"') == 3
+    assert "feat-flip" not in page
+
+
+def test_the_carousels_turn_every_ten_seconds_and_by_hand():
+    page = (ROOT / "static" / "waitlist.html").read_text(encoding="utf-8")
+    boxes = page.split(" data-carousel role=")[1:]
+    assert len(boxes) == 2  # the problem, and how to use FAM
+    for box in boxes:
+        box = box.split("</section>", 1)[0]
+        # Without script every slide shows: nothing is hidden in the markup.
+        slides = box.count('aria-roledescription="slide"')
+        assert slides >= 3
+        tags = re.findall(r'<[^>]*aria-roledescription="slide"[^>]*>', box)
+        assert len(tags) == slides
+        assert not any("data-on" in t or "inert" in t or "aria-hidden" in t for t in tags)
+        # Arrows on the left and right, a dot a slide.
+        assert box.index('class="car-arrow car-prev"') < box.index('class="car-arrow car-next"')
+        assert box.split('class="car-dots"', 1)[1].split("</div>", 1)[0].count("<button") == slides
+    # Running, it stacks the slides and shows one; the rest are hidden from
+    # sight, screen readers and the keyboard.
+    assert ".car:not(.ready) .car-arrow" in page and ".car.ready .car-slide{ grid-area:1/1;" in page
+    assert 'el.setAttribute("aria-hidden", "true"); el.inert = true;' in page
+    assert 'box.classList.add("ready");' in page
+    assert "var CAROUSEL_SECONDS = 10;" in page
+    assert "setInterval(function(){ show(at + 1); }, CAROUSEL_SECONDS * 1000)" in page
+    turn = page.split("function turnCarousel(box){", 1)[1].split("\n  }\n", 1)[0]
+    assert turn.count("restart(); }") == 3  # a hand turn restarts the ten seconds
+    assert 'querySelectorAll("[data-carousel]"), turnCarousel' in page.split("function showAbout(){", 1)[1]
