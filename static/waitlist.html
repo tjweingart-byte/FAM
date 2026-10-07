@@ -22,12 +22,15 @@
                     email-and-password sign-up, so the account made here is
                     the one the app opens with later, and it always starts
                     on the waitlist.
-  * /waitlist/me  - the status page: their exact place in line, the link
-                    that moves them up, Your FAM, the next unlock, and the
-                    profile behind "Edit your profile": name, handle, photo,
-                    date of birth, location, phone and interests. It writes
-                    the same profile the app reads (/api/me, /api/preferences
-                    and /api/account).
+  * /waitlist/me?setup=1 - straight after joining, the profile, the app's
+                    sign-up fields: name, handle, photo, date of birth,
+                    location, phone and interests, with "Skip for now" at the
+                    top right. It writes the same profile the app reads
+                    (/api/me, /api/preferences and /api/account).
+  * /waitlist/me  - the status page: "Learn more about FAM" (the landing's
+                    explainer, shown again), their exact place in line, the
+                    link that moves them up, Your FAM and the next unlock.
+                    The settings gear at the top right opens the profile.
 
   Nothing here decides anything: place, cutoff, friends and status all come
   from /api/waitlist/me, and every rule is enforced by the server.
@@ -427,8 +430,32 @@
   .status{ max-width:440px; margin:0 auto; padding:max(28px, env(safe-area-inset-top)) 20px 56px; }
   .top{ display:flex; align-items:center; justify-content:space-between; margin:8px 0 26px; }
   .top .wordmark{ font-size:40px; }
+  /* Settings: a gear, not a monogram - it opens the profile and the account. */
   .me-btn{ width:46px; height:46px; border-radius:50%; border:1.5px solid var(--muted);
-    background:transparent; cursor:pointer; font-size:17px; letter-spacing:0.06em; }
+    background:transparent; cursor:pointer; padding:0; display:flex; align-items:center;
+    justify-content:center; color:var(--text); }
+  .me-btn svg{ width:22px; height:22px; }
+  /* Go Deeper's own yellow (the app's --deeper), so it is the first thing seen. */
+  .learn-btn{ display:inline-flex; align-items:center; gap:8px; margin:0 0 22px; padding:10px 20px;
+    border-radius:999px; border:1px solid #FFD23F; background:#FFD23F; color:var(--gold-ink);
+    font-weight:700; font-size:14px; letter-spacing:0.04em; cursor:pointer; }
+  .learn-btn svg{ width:17px; height:17px; }
+  .learn-btn:active{ transform:scale(0.96); }
+  /* The profile straight after joining: nothing else on the page but it,
+     under a bar whose right-hand side lets them skip it for now. */
+  .setup-only{ display:none; }
+  .status.setup-mode .setup-only{ display:flex; }
+  .status.setup-mode > :not(.setup-only):not(#profile){ display:none !important; }
+  .status.setup-mode #profile{ margin-top:0 !important; background:transparent; padding:0; }
+  .skip-btn{ background:none; border:1px solid #5A5470; border-radius:999px; padding:9px 16px;
+    cursor:pointer; font-size:14px; color:var(--text); }
+  /* The explainer, opened from the status page: the landing's own section. */
+  .about-bar{ position:sticky; top:0; z-index:6; display:flex; align-items:center; gap:10px;
+    padding:max(14px, env(safe-area-inset-top)) 16px 14px; background:rgba(30,27,39,0.92);
+    -webkit-backdrop-filter:blur(8px); backdrop-filter:blur(8px); border-bottom:1px solid var(--line); }
+  .about-bar button{ display:inline-flex; align-items:center; gap:8px; background:none; border:0;
+    cursor:pointer; font-size:15px; color:var(--text); padding:6px 4px; }
+  .about-bar svg{ width:20px; height:20px; }
   .menu{ position:absolute; right:20px; top:84px; background:var(--card-2); border:1px solid var(--line);
     border-radius:12px; padding:6px; z-index:5; box-shadow:0 10px 30px rgba(0,0,0,0.4); }
   .menu button{ display:block; width:100%; text-align:left; background:none; border:0; padding:10px 14px;
@@ -511,12 +538,6 @@
   .link-row{ display:flex; gap:8px; align-items:center; margin-top:18px; }
   .link-row .link-box{ flex:1; min-width:0; height:44px; font-size:14px; color:var(--muted); }
   .link-row .ghost{ height:44px; flex:none; }
-  .edit-btn{ width:100%; display:flex; align-items:center; gap:12px; text-align:left; cursor:pointer;
-    background:var(--card); border:1px solid var(--line); border-radius:18px; padding:18px 20px; margin:0 0 14px; }
-  .edit-btn .eb-text{ flex:1; min-width:0; }
-  .edit-btn .eb-1{ display:block; font-size:19px; color:var(--text); }
-  .edit-btn .eb-2{ display:block; font-size:14px; color:var(--muted); margin-top:3px; }
-  .edit-btn svg{ width:22px; height:22px; flex:none; color:var(--gold); }
   .phone-row{ display:flex; gap:8px; }
   .phone-row .phone-cc{ flex:none; width:100px; padding:0 10px; }
   .pinput[type=date]{ color-scheme:dark; }
@@ -863,15 +884,24 @@
 
 <!-- ============ STATUS ============ -->
 <main class="status hidden" id="status">
+  <!-- Straight after joining (?setup=1): the profile and a way past it. -->
+  <div class="top setup-only">
+    <div class="wordmark" aria-label="FAM"><svg viewBox="0 0 48.7 16.9" style="height:1em;width:2.88em;overflow:visible"><use href="#wm"/></svg></div>
+    <button class="skip-btn" type="button" id="skipSetup" onclick="finishSetup()">Skip for now</button>
+  </div>
   <div class="top">
     <div class="wordmark" aria-label="FAM"><svg viewBox="0 0 48.7 16.9" style="height:1em;width:2.88em;overflow:visible"><use href="#wm"/></svg></div>
-    <button class="me-btn label" id="meBtn" aria-haspopup="true" aria-label="Account">·</button>
+    <button class="me-btn" id="meBtn" aria-haspopup="true" aria-label="Settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
   </div>
   <div class="menu hidden" id="menu" role="menu">
     <button type="button" role="menuitem" onclick="openProfile()">Edit profile</button>
     <button type="button" role="menuitem" onclick="signOut()">Sign out</button>
     <button type="button" role="menuitem" onclick="deleteAccount()" style="color:#FFB4A2">Delete account</button>
   </div>
+
+  <!-- The landing page's "What is FAM", for somebody already on the list. -->
+  <button class="learn-btn" type="button" id="learnMore" onclick="openAbout()">Learn more about FAM
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
 
   <div class="hello">
     <div class="line1" id="helloName">You’re a</div>
@@ -912,13 +942,6 @@
     </button>
   </section>
 
-  <!-- "To personalize your experience" (10.2 packet): opens the profile. -->
-  <button class="edit-btn" type="button" id="editProfileBtn" onclick="openProfile()">
-    <span class="eb-text"><span class="eb-1">Edit your profile</span>
-      <span class="eb-2">to personalize your experience</span></span>
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
-  </button>
-
   <div class="section-head">
     <div class="label">Your FAM</div>
     <button class="ghost label" type="button" onclick="copyLink()" style="font-weight:500">
@@ -937,8 +960,8 @@
   </div>
 
   <section class="card profile hidden" id="profile" style="margin-top:26px">
-    <h3>Your profile <span class="done-pill hidden" id="profileDone">Complete</span></h3>
-    <p class="lede">Claim your @handle and tell us about you, so FAM is yours from the first episode.</p>
+    <h3><span id="profileHeading">Your profile</span> <span class="done-pill hidden" id="profileDone">Complete</span></h3>
+    <p class="lede">Claim your @handle and tell us about you, so FAM is yours from the first episode. You can change any of it later in settings.</p>
     <div class="photo-row">
       <div class="av" id="photoPreview">?</div>
       <div>
@@ -968,6 +991,13 @@
     <button class="cta label" type="button" id="saveProfile" onclick="saveProfile()">Save profile</button>
     <div class="form-note" id="profileNote" role="status" aria-live="polite"></div>
   </section>
+</main>
+
+<!-- "Learn more about FAM": the landing's #about, moved here when opened. -->
+<main class="hidden" id="aboutView">
+  <div class="about-bar">
+    <button type="button" onclick="closeAbout()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Back to your spot</button>
+  </div>
 </main>
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
@@ -1134,7 +1164,13 @@
   }
   // Sections ease up as they scroll into view. They are never hidden while
   // they wait, so a link preview or a browser without an observer sees all.
-  function showAbout(){
+  // Run once, whichever view opens it first: the landing page, or "Learn
+  // more about FAM" on the status page, where its last button goes back to
+  // their spot instead of to a sign-up form they have already filled in.
+  var aboutShown = false;
+  function showAbout(member){
+    if(aboutShown) return;
+    aboutShown = true;
     var items = document.querySelectorAll(".reveal");
     if("IntersectionObserver" in window){
       document.documentElement.classList.add("can-reveal");
@@ -1154,7 +1190,12 @@
       }, 500);
     }
     Array.prototype.forEach.call(document.querySelectorAll("[data-carousel]"), turnCarousel);
-    $("aboutJoin").addEventListener("click", toForm);
+    if(member){
+      $("aboutJoin").firstChild.textContent = "Back to your spot ";
+      $("aboutJoin").addEventListener("click", function(ev){ ev.preventDefault(); window.closeAbout(); });
+    } else {
+      $("aboutJoin").addEventListener("click", toForm);
+    }
     document.querySelector(".hero-more").addEventListener("click", function(ev){
       ev.preventDefault();
       $("about").scrollIntoView({ behavior: "smooth" });
@@ -1185,7 +1226,10 @@
       api("/api/waitlist/join", { email: email, password: pw, referral_code: referral })
         .then(function(d){
           try { sessionStorage.removeItem("famReferral"); } catch(e){}
-          location.replace(d.redirect || "/waitlist/me");
+          // Straight on to the profile - the app's sign-up fields - with a
+          // way to skip it; the status page comes after.
+          var to = d.redirect || "/waitlist/me";
+          location.replace(to === "/waitlist/me" ? to + "?setup=1" : to);
         })
         .catch(function(e){
           $("joinBtn").disabled = false;
@@ -1215,7 +1259,6 @@
   function drawPlace(d){
     var first = (d.name || "").split(/\s+/)[0];
     $("helloName").textContent = first ? first + ", you’re a" : "You’re a";
-    $("meBtn").textContent = initials(d.name || d.profile.handle || "");
     if(d.status === "active"){
       $("placeCard").classList.add("hidden");
       $("grantedCard").classList.remove("hidden");
@@ -1369,7 +1412,10 @@
       .then(function(){ return api("/api/preferences", {
         interests: interests, country: $("pCountry").value.trim(),
         region: $("pRegion").value.trim(), city: $("pCity").value.trim() }); })
-      .then(function(){ note.textContent = "Saved."; return load(); })
+      .then(function(){
+        if(setupMode){ window.finishSetup(); toast("Profile saved"); return load(); }
+        note.textContent = "Saved."; return load();
+      })
       .catch(function(e){ note.className = "form-note err"; note.textContent = e.message; })
       .then(function(){ $("saveProfile").disabled = false; });
   };
@@ -1391,6 +1437,49 @@
         .catch(function(){});
     } else { window.copyLink(); }
   };
+  // The profile straight after joining (?setup=1): the whole page, with
+  // "Skip for now" at the top right. Saving or skipping both land on the
+  // status page; the settings gear opens the profile again any time.
+  var setupMode = /(^|[?&])setup=1(&|$)/.test(location.search.slice(1));
+  function drawSetup(){
+    $("status").classList.toggle("setup-mode", setupMode);
+    $("profileHeading").textContent = setupMode ? "Set up your profile" : "Your profile";
+    $("saveProfile").textContent = setupMode ? "Save and continue" : "Save profile";
+    if(setupMode) $("profile").classList.remove("hidden");
+  }
+  window.finishSetup = function(){
+    setupMode = false;
+    try { history.replaceState(null, "", "/waitlist/me"); } catch(e){}
+    $("profile").classList.add("hidden");
+    $("profileNote").textContent = "";
+    drawSetup();
+    window.scrollTo(0, 0);
+  };
+
+  // "Learn more about FAM": the landing page's explainer, the same section
+  // moved into its own view, with a way back to their spot. The browser's
+  // back button closes it too.
+  window.openAbout = function(){
+    var view = $("aboutView");
+    if($("about").parentNode !== view) view.appendChild($("about"));
+    showAbout(true);
+    $("status").classList.add("hidden");
+    view.classList.remove("hidden");
+    window.scrollTo(0, 0);
+    try { if(!history.state || !history.state.about) history.pushState({ about: true }, "", "#about"); } catch(e){}
+  };
+  window.closeAbout = function(fromHistory){
+    $("aboutView").classList.add("hidden");
+    $("status").classList.remove("hidden");
+    window.scrollTo(0, 0);
+    if(fromHistory !== true){
+      try { if(history.state && history.state.about) history.back(); } catch(e){}
+    }
+  };
+  window.addEventListener("popstate", function(){
+    if(!$("aboutView").classList.contains("hidden")) window.closeAbout(true);
+  });
+
   window.openProfile = function(){
     $("menu").classList.add("hidden");
     $("profile").classList.remove("hidden");
@@ -1424,6 +1513,7 @@
   }
   function showStatus(){
     $("status").classList.remove("hidden");
+    drawSetup();
     load().catch(function(e){
       if(e.status === 401) location.replace("/waitlist");
       else toast(e.message);
