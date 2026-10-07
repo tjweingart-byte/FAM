@@ -45,7 +45,8 @@ def on(monkeypatch):
     patched = dataclasses.replace(config.settings, gdelt=True,
                                   gdelt_export_backfill_files=2,
                                   gdelt_export_keep_hours=24.0,
-                                  gdelt_export_rows_per_file=1500)
+                                  gdelt_export_rows_per_file=1500,
+                                  gdelt_export_retry_seconds=0.0)
     monkeypatch.setattr(gdelt, "settings", patched)
     return patched
 
@@ -401,7 +402,8 @@ def test_the_newest_file_is_never_written_off(on):
             return first, second
 
     first, second = run(go())
-    assert "error" in first
+    # §218: waited for, not an error - the name runs ahead of the file.
+    assert first.get("waiting") == [newest] and "error" not in first
     assert "error" not in second and gdelt.store().has_file(newest)
     assert gdelt.store().newest() == up.newest.timestamp()
 

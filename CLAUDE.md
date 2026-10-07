@@ -328,7 +328,8 @@ Research and truth
   worded as a forecast, never an outcome; never prefetched. [weather]
 - **GDELT is read from its 15-minute export files, never its search API**
   (§211): one job downloads them; every reader uses the copy on disk;
-  nothing a listener does reaches GDELT. [gdelt-exports]
+  nothing a listener does reaches GDELT; polls on GDELT's clock, a named
+  file is waited for (§218). [gdelt-exports]
 - **A forecast beside every outcome-dependent question** (§211):
   `live_facts.forecast` asks Polymarket by subject; `plan.forecast`, never
   `plan.live`, never evidence. [forecast-beside]

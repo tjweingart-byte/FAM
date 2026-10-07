@@ -448,6 +448,12 @@
   search API they would be controls with nothing behind them. An empty or
   stale copy is an outage (`ExportStale`), never a quiet news day; the story
   source idles until the first file lands rather than being stamped swept.
+  > **Current (PROBLEMS.md §218):** polls land on GDELT's clock
+  > (`GDELT_EXPORT_POLL_OFFSET_SECONDS` past each quarter hour, never a sleep
+  > after the sync); a file `lastupdate.txt` named is *waited for*, never
+  > written off for an hour; a timeout, drop or passing 5xx is asked once more;
+  > one file's failure stops nothing else; every failure is counted with its
+  > reason on the admin page.
 
 <!-- rule:forecast-beside -->
 - **A forecast beside every outcome-dependent question** *(PROBLEMS.md §211,

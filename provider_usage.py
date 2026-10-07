@@ -253,6 +253,7 @@ def reset(usage_store: Optional[UsageStore] = None) -> None:
         _STORE = usage_store
     with _PENDING_LOCK:
         _PENDING.clear()
+        _WHY.clear()
         _LAST_FLUSH[0] = 0.0
 
 
@@ -275,12 +276,24 @@ _LAST_FLUSH = [0.0]
 _FLUSHING = [False]
 
 
-def record(provider: str, ok: bool = True, detail: str = "") -> None:
+#: Why requests failed, per provider, since this server started (§218): the
+#: admin page's "(101 failed)" said how many and never why. In memory only -
+#: a reason is a diagnosis for whoever is looking now, not a record to keep -
+#: and never a URL (Finnhub's key is a query parameter, §144).
+_WHY: dict = {}
+#: Most distinct reasons kept per provider; the rest are "other".
+WHY_KINDS = 12
+
+
+def record(provider: str, ok: bool = True, detail: str = "",
+           why: str = "") -> None:
     """Count one request that went out to `provider`. Never raises, never waits.
 
     `detail` is the part of the provider it was billed to (an API-Sports
-    sport), counted as well as the provider's own total. Adds to a count in
-    memory; a background thread writes it out.
+    sport), counted as well as the provider's own total. `why` says, for a
+    failure, what went wrong ("HTTP 404", "ReadTimeout") - shown beside the
+    count on the admin page. Adds to a count in memory; a background thread
+    writes it out.
     """
     if provider not in LABELS:
         return
@@ -293,6 +306,12 @@ def record(provider: str, ok: bool = True, detail: str = "") -> None:
             for key in keys:
                 requests, failures = _PENDING.get(key, (0, 0))
                 _PENDING[key] = (requests + 1, failures + (0 if ok else 1))
+            if not ok:
+                kinds = _WHY.setdefault(provider, {})
+                reason = (why or "no reason given").strip()[:80]
+                if reason not in kinds and len(kinds) >= WHY_KINDS:
+                    reason = "other"
+                kinds[reason] = kinds.get(reason, 0) + 1
             due = (not _FLUSHING[0]
                    and time.monotonic() - _LAST_FLUSH[0] >= FLUSH_SECONDS)
             if due:
@@ -352,6 +371,14 @@ def _flush_locked() -> None:
                 _PENDING[key] = (held[0] + requests, held[1] + failures)
 
 
+def failure_reasons(provider: str) -> list:
+    """`[{"why", "count"}]`, commonest first, since this server started."""
+    with _PENDING_LOCK:
+        kinds = dict(_WHY.get(provider, {}))
+    return [{"why": why, "count": count}
+            for why, count in sorted(kinds.items(), key=lambda kv: -kv[1])]
+
+
 def report(now: Optional[float] = None, days: int = 7) -> list[dict]:
     """One row per provider for the admin page. Never raises, never creates.
 
@@ -391,6 +418,9 @@ def report(now: Optional[float] = None, days: int = 7) -> list[dict]:
         }
         if provider in licensed:
             row["licence"] = licensed[provider]
+        why = failure_reasons(provider)
+        if why:
+            row["failure_reasons"] = why
         if provider == "api_sports":
             row["breakdown"] = _api_sports_breakdown(seen, today, yesterday, days)
         rows.append(row)

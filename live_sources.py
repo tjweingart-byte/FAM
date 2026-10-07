@@ -309,12 +309,16 @@ async def _json(url: str, headers: dict, params: dict, timeout: float) -> dict:
     async with httpx.AsyncClient(timeout=timeout) as client:
         try:
             response = await client.get(url, headers=headers, params=params)
-        except Exception:
+        except Exception as exc:
             provider_usage.record(provider, ok=False,
-                                  detail=sport_of_url(url) if provider == "api_sports" else "")
+                                  detail=sport_of_url(url) if provider == "api_sports" else "",
+                                  why=type(exc).__name__)
             raise
+        # The reason names the path and status, never the query: Finnhub's
+        # key is a query parameter (§144, §218).
         provider_usage.record(provider, ok=response.is_success,
-                              detail=sport_of_url(url) if provider == "api_sports" else "")
+                              detail=sport_of_url(url) if provider == "api_sports" else "",
+                              why=f"HTTP {response.status_code} {response.url.path}")
         if provider == "api_sports":
             _note_quota(url, response.headers)
         if not response.is_success:

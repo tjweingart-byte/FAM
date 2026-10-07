@@ -502,8 +502,10 @@ def store() -> ExportStore:
 
 
 def reset_store() -> None:
-    """Forget the open store, so a test's `GDELT_EXPORT_DB` is the one used."""
+    """Forget the open store, so a test's `GDELT_EXPORT_DB` is the one used,
+    and the names `lastupdate.txt` gave for the store forgotten."""
     _STORE[0] = None
+    _NAMED.clear()
 
 
 def exists() -> bool:
@@ -536,17 +538,37 @@ class _State:
         self.failures_in_a_row = 0
         self.last_error = ""
         self.last_file = ""
+        self.waiting: list = []
 
     def report(self) -> dict:
+        import provider_usage
+
         return {"last_ok": self.last_ok or None,
                 "last_attempt": self.last_attempt or None,
                 "failures_in_a_row": self.failures_in_a_row,
                 "last_error": self.last_error or None,
-                "last_file": self.last_file or None}
+                "last_file": self.last_file or None,
+                "waiting_for": list(self.waiting) or None,
+                "failure_reasons": provider_usage.failure_reasons("gdelt")}
 
 
 STATE = _State()
 _SYNCING = [False]
+
+#: Statuses worth one more try inside the same sync (§218): GDELT's file
+#: server is a CDN in front of a bucket, and these are its passing states.
+RETRY_STATUSES = frozenset({408, 425, 429, 500, 502, 503, 504})
+
+#: How long a file `lastupdate.txt` named may answer 404 and still be waited
+#: for (§218). Past this, it is written off as never published like any other.
+NAMED_GRACE_SECONDS = 3600.0
+
+#: name -> when `lastupdate.txt` first named it. A file GDELT *named* exists or
+#: is about to; only a file it never named can be written off on one 404.
+_NAMED: dict = {}
+
+#: `_fetch_file`'s answer for a named file not served yet.
+WAITING = -2
 
 
 def _describe(exc: BaseException) -> str:
@@ -556,16 +578,48 @@ def _describe(exc: BaseException) -> str:
     return f"{name}: {text}" if text else name
 
 
+def _what(url: str) -> str:
+    """Which kind of file a URL is, for a failure's reason - never the URL."""
+    if url.endswith("lastupdate.txt"):
+        return "lastupdate.txt"
+    if url.endswith(".gkg.csv.zip"):
+        return "GKG file"
+    return "domain list"
+
+
 async def _download(client: httpx.AsyncClient, url: str) -> httpx.Response:
+    """One GET, asked once more after `GDELT_EXPORT_RETRY_SECONDS` when it
+    timed out, dropped, or met a passing status (§218). Every attempt is
+    counted, with its reason when it failed."""
     import provider_usage
 
-    try:
-        response = await client.get(url)
-    except Exception:
-        provider_usage.record("gdelt", ok=False)
-        raise
-    provider_usage.record("gdelt", ok=response.is_success)
-    return response
+    what = _what(url)
+    for attempt in (1, 2):
+        last = attempt == 2
+        try:
+            response = await client.get(url)
+        except httpx.TransportError as exc:
+            provider_usage.record("gdelt", ok=False,
+                                  why=f"{what}: {type(exc).__name__}")
+            if last:
+                raise
+        except Exception as exc:
+            provider_usage.record("gdelt", ok=False,
+                                  why=f"{what}: {type(exc).__name__}")
+            raise
+        else:
+            if response.is_success:
+                provider_usage.record("gdelt")
+                return response
+            status = response.status_code
+            if status == 404 and what == "GKG file":
+                # `_fetch_file` knows whether this file was named; it counts it.
+                return response
+            provider_usage.record("gdelt", ok=False, why=f"{what}: HTTP {status}")
+            if last or status not in RETRY_STATUSES:
+                return response
+        await asyncio.sleep(max(0.0, float(settings.gdelt_export_retry_seconds)))
+    raise AssertionError("unreachable")  # pragma: no cover
 
 
 async def _refresh_domains(client: httpx.AsyncClient, target: ExportStore,
@@ -589,17 +643,31 @@ async def _refresh_domains(client: httpx.AsyncClient, target: ExportStore,
 
 
 async def _fetch_file(client: httpx.AsyncClient, target: ExportStore,
-                      name: str, md5: str, known: dict) -> int:
+                      name: str, md5: str, known: dict,
+                      now: Optional[float] = None) -> int:
     """One GKG file into the copy. Returns the rows kept; -1 for a file
-    GDELT never published. Raises on anything else."""
+    GDELT never published; `WAITING` for one it named but does not serve
+    yet. Raises on anything else."""
+    import provider_usage
+
+    now = time.time() if now is None else now
     url = f"{settings.gdelt_export_base.rstrip('/')}/{name}"
     response = await _download(client, url)
     at = stamp_of(name)
     stamp = at.timestamp() if at else time.time()
-    if response.status_code == 404 and not md5:
-        # A file behind the newest that GDELT never published. The newest
-        # one (the file `lastupdate.txt` named, with its checksum) is never
-        # written off: a 404 there raises and the next sync asks again.
+    if response.status_code == 404:
+        named = _NAMED.get(name)
+        if named is not None and now - named < NAMED_GRACE_SECONDS:
+            # Named by `lastupdate.txt` and not served yet (§218): the name
+            # runs ahead of the file. Waited for, never written off - the
+            # old code wrote it off on its second 404 and lost its news.
+            provider_usage.record("gdelt", ok=False,
+                                  why="GKG file: HTTP 404, named but not served yet")
+            return WAITING
+        # A file GDELT never named - it skips a slot now and then - or one
+        # named over an hour ago that never appeared: noted, never asked again.
+        provider_usage.record("gdelt", ok=False,
+                              why="GKG file: HTTP 404, never published")
         await asyncio.to_thread(target.mark_missing, name, stamp)
         return -1
     response.raise_for_status()
@@ -618,8 +686,10 @@ async def sync(now: Optional[float] = None,
 
     Reads `lastupdate.txt`, fetches the newest GKG file and - when the copy
     is behind - up to `GDELT_EXPORT_BACKFILL_FILES` before it, oldest first,
-    then drops what is older than `GDELT_EXPORT_KEEP_HOURS`. One sync at a
-    time; a second caller returns at once.
+    then drops what is older than `GDELT_EXPORT_KEEP_HOURS`. One file's
+    failure does not stop the others (§218). A file named but not served
+    yet is `waiting`, not an error. One sync at a time; a second caller
+    returns at once.
     """
     if not settings.gdelt:
         return {"skipped": "GDELT=0"}
@@ -629,6 +699,8 @@ async def sync(now: Optional[float] = None,
     now = time.time() if now is None else now
     STATE.last_attempt = now
     fetched = 0
+    waiting: list = []
+    errors: list = []
     try:
         target = store()
         own = client is None
@@ -645,7 +717,11 @@ async def sync(now: Optional[float] = None,
             newest = stamp_of(newest_name)
             if newest is None:
                 raise ValueError("lastupdate.txt named no GKG file")
+            _NAMED.setdefault(newest_name, now)
             keep_after = now - float(settings.gdelt_export_keep_hours) * 3600
+            for name in [n for n, at in _NAMED.items()
+                         if now - at > NAMED_GRACE_SECONDS * 2]:
+                _NAMED.pop(name, None)
             wanted = [(newest_name, md5)]
             for step in range(1, max(0, int(settings.gdelt_export_backfill_files)) + 1):
                 earlier = newest - timedelta(minutes=15 * step)
@@ -656,8 +732,14 @@ async def sync(now: Optional[float] = None,
             for name, digest in reversed(wanted):
                 if await asyncio.to_thread(target.has_file, name):
                     continue
-                kept = await _fetch_file(client, target, name, digest, known)
-                if kept >= 0:
+                try:
+                    kept = await _fetch_file(client, target, name, digest, known, now)
+                except Exception as exc:  # noqa: BLE001 - the rest still come
+                    errors.append(f"{name}: {_describe(exc)}")
+                    continue
+                if kept == WAITING:
+                    waiting.append(name)
+                elif kept >= 0:
                     fetched += 1
                     STATE.last_file = name
         finally:
@@ -665,28 +747,60 @@ async def sync(now: Optional[float] = None,
                 await client.aclose()
         pruned = await asyncio.to_thread(
             target.prune, float(settings.gdelt_export_keep_hours), now)
+    except Exception as exc:  # noqa: BLE001 - the next sync tries again
+        errors.append(_describe(exc))
+        pruned = 0
+    finally:
+        _SYNCING[0] = False
+    STATE.waiting = waiting
+    if errors:
+        STATE.failures_in_a_row += 1
+        STATE.last_error = errors[-1][:200]
+        log.warning("gdelt: export sync failed (%d in a row): %s",
+                    STATE.failures_in_a_row, "; ".join(errors)[:400])
+        out = {"fetched": fetched, "error": STATE.last_error}
+    else:
         STATE.last_ok = now
         STATE.failures_in_a_row = 0
         STATE.last_error = ""
-        if fetched:
-            log.info("gdelt: %d export file(s) read; %d old article(s) dropped",
-                     fetched, pruned)
-        return {"fetched": fetched, "pruned": pruned}
-    except Exception as exc:  # noqa: BLE001 - the next sync tries again
-        STATE.failures_in_a_row += 1
-        STATE.last_error = _describe(exc)[:200]
-        log.warning("gdelt: export sync failed (%d in a row): %s",
-                    STATE.failures_in_a_row, STATE.last_error)
-        return {"fetched": fetched, "error": STATE.last_error}
-    finally:
-        _SYNCING[0] = False
+        out = {"fetched": fetched, "pruned": pruned}
+    if fetched:
+        log.info("gdelt: %d export file(s) read; %d old article(s) dropped",
+                 fetched, pruned)
+    if waiting:
+        log.info("gdelt: %s named but not served yet; looking again shortly",
+                 ", ".join(waiting))
+        out["waiting"] = waiting
+    return out
+
+
+def next_poll_in(now: Optional[float] = None, waiting: bool = False) -> float:
+    """Seconds until the next poll (§218).
+
+    On GDELT's clock: `GDELT_EXPORT_POLL_OFFSET_SECONDS` past each period
+    (the quarter hour at the default 900s), so polls land in the same place
+    every time - well after GDELT names a file and well before it names the
+    next. The old loop slept a fixed period *after* each sync, so it drifted
+    by the sync's own length and walked through the moment a named file is
+    not yet served. A named file not yet served is looked for again after
+    `GDELT_EXPORT_WAIT_SECONDS`, if that comes first.
+    """
+    now = time.time() if now is None else now
+    every = max(60.0, float(settings.gdelt_export_poll_seconds))
+    offset = float(settings.gdelt_export_poll_offset_seconds) % every
+    due = (now - offset) // every * every + every + offset - now
+    if due < 60.0:
+        due += every
+    if waiting:
+        due = min(due, max(30.0, float(settings.gdelt_export_wait_seconds)))
+    return due
 
 
 async def run_forever() -> None:
     """The one job that downloads from GDELT. Never raises."""
     while True:
-        await sync()
-        await asyncio.sleep(max(60.0, float(settings.gdelt_export_poll_seconds)))
+        result = await sync()
+        await asyncio.sleep(next_poll_in(waiting=bool(result.get("waiting"))))
 
 
 # --------------------------------------------------------------------------
