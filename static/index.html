@@ -18405,7 +18405,8 @@
     var ask = !(opts && opts.askWhoTheyAre === false);
     loadPrefChoices().then(function(){
       if(localPrefs().intro === "done" || PREF_CHOICES.intro_done){
-        finishEntry();
+        // From the app opening, the boot intro has already played.
+        finishEntry(opts && opts.fromBoot ? { handoff: false } : null);
         return;
       }
       // A handle is for other people to find somebody by, which is worth
@@ -18853,13 +18854,13 @@
     finishEntry();
   }
 
-  function finishEntry(){
+  function finishEntry(opts){
     saveLocalPrefs({ entry: "done" });
     // Signed in, or an account just finished (credentials, who they are,
     // interests): the wordmark hands them into DailyFAM. Captured before the
     // screen changes, because the picture is of the page being left. A guest
     // goes straight in - they finished nothing.
-    var handoff = AUTH.authenticated
+    var handoff = (AUTH.authenticated && !(opts && opts.handoff === false))
       ? beginEntryHandoff(document.querySelector(".screen.active")) : null;
     openMyFamTab();   // which loads the feed and Go Deeper
     if(handoff) handoff();
@@ -19313,7 +19314,7 @@
     // they are and where, then interests), and `afterAccount` goes straight
     // in when the server says those are done.
     if(!entryComplete()){
-      if(AUTH.authenticated){ afterAccount(); return; }
+      if(AUTH.authenticated){ afterAccount({ fromBoot: true }); return; }
       startEntry(); return;
     }
     openMyFamTab();   // which loads the feed and Go Deeper

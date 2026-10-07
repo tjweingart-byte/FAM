@@ -744,8 +744,27 @@ def pick_for_tile(text: str, tags: Iterable[str] = (),
     This reverses 9.30 #7's "never a parent's" for rails: a line drawing on
     half the tiles was worse than two subjects sharing a branch's picture
     until their own is painted. Never raises.
+
+    A borrowed picture's `facet` is the tile's own - its category's facet,
+    else its first tag's - whenever it has one: the word on the card names
+    the episode, and the last borrowing step (a stable choice among all
+    painted facets) can hand a sports tile a money picture.
     """
-    return pick_for_player(text, category=category, tags=tags)
+    found = pick_for_player(text, category=category, tags=tags)
+    if not found or not found.get("fallback"):
+        return found
+    try:
+        import topics
+
+        own = topics._root_facet(category) if category else ""
+        if not own:
+            own = next((f for f in (topics._root_facet(t) for t in tags or ())
+                        if f), "")
+        if own:
+            found = dict(found, facet=own)
+    except Exception:  # noqa: BLE001 - the picture's own facet will do
+        log.exception("thumbnails: could not name a borrowed picture's facet")
+    return found
 
 
 def pick_for_player(text: str, key: str = "",

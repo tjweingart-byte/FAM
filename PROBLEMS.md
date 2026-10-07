@@ -16256,3 +16256,15 @@ name, handle, photo, location), then interests, then whatever follows - and
 identity step is skipped only when the account is set up (`identitySetUp`:
 name, handle *and* a place); a name and handle filled in on the waitlist's
 "Edit your profile" no longer skip it when the location is missing.
+
+Found on review, before merge:
+
+* *A borrowed picture could name the wrong subject.* The last borrowing step
+  (a stable choice among every painted facet) can hand a sports tile a money
+  picture, and the card's word is the picture's facet. A borrowed picture now
+  carries the tile's own facet - its category's, else its first tag's -
+  whenever it has one (`pick_for_tile`).
+* *The let-in path could play the FAM intro twice.* Opening the app runs the
+  intro; when the server then said the first run was done, `finishEntry`
+  played its handoff again over it. From boot it is skipped
+  (`afterAccount({ fromBoot: true })` → `finishEntry({ handoff: false })`).

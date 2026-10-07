@@ -202,7 +202,7 @@ def test_a_signed_in_device_without_a_first_run_is_set_up_not_sent_to_the_door()
     Log in screen it already passed on /waitlist."""
     body = _js("routeFirstScreen")
     unfinished = body[body.index("if(!entryComplete())"):]
-    assert unfinished.index("AUTH.authenticated") < unfinished.index("afterAccount()") \
+    assert unfinished.index("AUTH.authenticated") < unfinished.index("afterAccount({ fromBoot: true })") \
         < unfinished.index("startEntry()")
 
 
@@ -213,3 +213,6 @@ def test_the_identity_step_needs_a_name_a_handle_and_a_place():
     after = _js("afterAccount")
     assert "identitySetUp()" in after
     assert "profileNow.name && profileNow.handle" not in after
+    # Already done on the server: in without a second intro over the boot one.
+    assert "{ handoff: false }" in after
+    assert "opts.handoff === false" in _js("finishEntry")

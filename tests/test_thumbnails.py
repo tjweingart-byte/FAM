@@ -189,6 +189,18 @@ def test_a_tile_the_tree_cannot_place_still_has_a_picture(tree):
     assert d["thumb_borrowed"] is True
 
 
+def test_a_borrowed_picture_is_labelled_with_the_tiles_own_facet(tree):
+    """The last borrowing step can hand a sports tile a money picture; the
+    word on the card still names the episode."""
+    _put("business", facet="money")
+    topic = T.Topic(id="x", title="Unplaceable", subtitle="",
+                    query="a question the tree knows nothing about",
+                    tags=("sports",), icon="sports")
+    d = topic.as_dict()
+    assert d["thumb"] and d["thumb_borrowed"] is True
+    assert d["thumb_facet"] == "sports"
+
+
 def test_a_tile_with_nothing_approved_keeps_the_drawing(tree):
     _put("college football", status=th.STATUS_REVIEW)
     topic = T.Topic(id="cf", title="College money", subtitle="",
