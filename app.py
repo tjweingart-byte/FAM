@@ -2727,6 +2727,9 @@ async def messages_typing(req: TypingRequest, request: Request) -> dict:
     """
     _read_limit(request)
     user = _require_account(request)
+    # Dots in a group only from somebody in it (10.6 #4).
+    if messages_mod.is_group(req.to) and not MESSAGES.is_member(req.to, user):
+        raise HTTPException(status_code=404, detail="You are not in that group.")
     typing_mod.note(user, req.to)
     return {"ok": True}
 

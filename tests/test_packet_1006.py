@@ -305,3 +305,9 @@ def test_a_deleted_listener_leaves_their_groups(mail):
     gid = mail.create_group("a", ["b", "c"])["id"]
     mail.forget("c")
     assert mail.members(gid) == ["a", "b"]
+
+
+def test_typing_into_a_group_needs_membership(client):
+    signed_in(client, "ty1@b.com", "Ty", "ty1")
+    assert client.post("/api/messages/typing",
+                       json={"to": "g:0000000000000000"}).status_code == 404
