@@ -16842,8 +16842,9 @@ Each one was reproduced and fixed, and each has a regression test in
   lead is FAM's own `<<NEXT>>` prediction, so a myFAM listener who said "Not
   now" got the consent question over their next episode.
   - `_sends_listener_words` no longer counts a bare follow-up.
-  - A *typed* Go Deeper question is still asked for first, by both clients.
-    The server cannot tell typed from suggested.
+  - A *typed* Go Deeper question says so with `own=1`: `confirmGoDeeper` sets
+    it unless the listener kept FAM's suggestion unchanged. The server holds
+    an `own` question to the answer like a search.
 - **The photo check:**
   - the cost is now recorded whenever the model was called, even when its
     answer was unreadable;
@@ -16878,3 +16879,34 @@ Each one was reproduced and fixed, and each has a regression test in
   cosmetic and low-risk. Moving these filters into the store and ranking
   layers is the right long-term shape and a bigger change than a pre-merge
   fix.
+
+**A second review of the fix commit** found and fixed:
+
+- the `own` flag above;
+- the photo check is paced only when it will really make a call
+  (`image_check.will_call`), so with checking off or no key, saving a photo
+  never uses an episode's pace;
+- a handle someone else has, or an empty mix name, is refused before the paid
+  check;
+- unread counts are grouped by sender and filtered in Python, instead of a
+  `NOT IN` list that grew with every suspended account toward SQLite's
+  variable limit;
+- `_drop_removed` reads the removed and reported sets once per rail, not once
+  per tile.
+
+**What that pass also raised, left as it is:**
+
+- **The moderation key uses `normalize_query`**, so two questions with the
+  same words in a different order share a key. That is deliberate. The script
+  cache keys on the same normalisation, so those two questions are already one
+  cached episode, and removing it should remove both.
+- **No rows needed migrating.** The raw-query keys of §222 were never deployed.
+- **A paraphrase the vector cache matches to a removed episode can still
+  replay its script.** The 410 check is on the exact key. Closing that needs a
+  way to take a row out of the script cache and its vector index, which the
+  cache does not have yet. Until then a reviewer's Remove covers the question
+  as asked and every listed surface, and the reporter never sees it again.
+- **A rail can show one tile fewer after a removal** rather than being topped
+  up. That keeps to "never invent a tile".
+- **A photo check that times out after Anthropic has already answered is not
+  metered.** The tokens are not known without the response.

@@ -86,14 +86,6 @@ KINDS = ("episode", "text", "system")
 MAX_BLANK_LINES = 2
 
 
-def _not_from(senders, column: str = "sender") -> tuple[str, tuple]:
-    """An SQL clause leaving out messages from `senders`, and its arguments."""
-    senders = tuple(sorted(s for s in (senders or ()) if s))
-    if not senders:
-        return "", ()
-    return (" AND %s NOT IN (%s)" % (column, ",".join("?" for _ in senders)), senders)
-
-
 def clean_text(text: str) -> str:
     """Tidy a typed message without flattening it.
 
@@ -444,34 +436,38 @@ class MessageStore:
     def unread_in(self, user_id: str, thread: str, exclude_senders=()) -> int:
         """Unread in one thread, not counting `exclude_senders` - people this
         listener blocked or who are suspended (`moderation.py`, §226)."""
-        skip, skip_args = _not_from(exclude_senders)
+        skip = set(exclude_senders or ())
         try:
             row = self._conn().execute(
                 "SELECT read_at FROM reads WHERE thread = ? AND user_id = ?",
                 (thread, user_id)).fetchone()
             since = row[0] if row else 0.0
             if is_group(thread):
-                return int(self._conn().execute(
-                    "SELECT COUNT(*) FROM messages WHERE thread = ?"
-                    " AND sender != ? AND at > ? AND id > ?" + skip,
+                rows = self._conn().execute(
+                    "SELECT sender, COUNT(*) FROM messages WHERE thread = ?"
+                    " AND sender != ? AND at > ? AND id > ? GROUP BY sender",
                     (thread, user_id, since,
-                     self._floor(user_id, thread), *skip_args)).fetchone()[0])
-            return int(self._conn().execute(
-                "SELECT COUNT(*) FROM messages WHERE thread = ?"
-                " AND recipient = ? AND at > ? AND id > ?" + skip,
-                (thread, user_id, since,
-                 self.cleared_at(user_id, thread), *skip_args)).fetchone()[0])
+                     self._floor(user_id, thread))).fetchall()
+            else:
+                rows = self._conn().execute(
+                    "SELECT sender, COUNT(*) FROM messages WHERE thread = ?"
+                    " AND recipient = ? AND at > ? AND id > ? GROUP BY sender",
+                    (thread, user_id, since,
+                     self.cleared_at(user_id, thread))).fetchall()
+            return sum(int(r[1]) for r in rows if r[0] not in skip)
         except Exception:
             log.exception("could not count unread messages")
             return 0
 
     def unread_total(self, user_id: str, exclude_senders=()) -> int:
         """What the badge on the Messages button shows - never counting a
-        message the listener cannot open (`exclude_senders`, §226)."""
-        skip, skip_args = _not_from(exclude_senders, column="m.sender")
+        message the listener cannot open (`exclude_senders`, §226). Counted
+        per sender and filtered here rather than with a `NOT IN` list, which
+        would grow with every suspended account and hit SQLite's limit."""
+        skip = set(exclude_senders or ())
         try:
             rows = self._conn().execute(
-                "SELECT m.thread, COUNT(*) FROM messages m"
+                "SELECT m.sender, COUNT(*) FROM messages m"
                 " LEFT JOIN reads r ON r.thread = m.thread AND r.user_id = ?"
                 " LEFT JOIN clears c ON c.thread = m.thread AND c.user_id = ?"
                 " LEFT JOIN group_members g ON g.gid = m.recipient AND g.user_id = ?"
@@ -479,13 +475,13 @@ class MessageStore:
                 "        OR (g.user_id IS NOT NULL AND m.sender != ?"
                 "            AND m.id > g.joined))"
                 "   AND m.at > COALESCE(r.read_at, 0)"
-                "   AND m.id > COALESCE(c.after_id, 0)" + skip +
-                " GROUP BY m.thread",
-                (user_id, user_id, user_id, user_id, user_id, *skip_args)).fetchall()
+                "   AND m.id > COALESCE(c.after_id, 0)"
+                " GROUP BY m.sender",
+                (user_id, user_id, user_id, user_id, user_id)).fetchall()
         except Exception:
             log.exception("could not count unread messages")
             return 0
-        return sum(int(r[1]) for r in rows)
+        return sum(int(r[1]) for r in rows if r[0] not in skip)
 
     def mark_read(self, user_id: str, other_id: str, at: float = 0.0) -> None:
         try:

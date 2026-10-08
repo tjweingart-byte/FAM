@@ -477,3 +477,28 @@ def test_a_menu_never_draws_a_name_as_html():
     in it is escaped like everywhere else."""
     html = (appmod.PROJECT_ROOT / "static" / "index.html").read_text()
     assert '"Block " + firstName(person)' not in html
+
+
+def test_a_typed_go_deeper_question_waits_for_a_yes():
+    """`own=1`: the listener's words, held to their answer like a search;
+    the same follow-up without it is FAM's own suggestion."""
+    assert appmod._sends_listener_words("other", "a heard topic", "", "", own=True)
+    c = TestClient(appmod.app)
+    r = c.get("/api/audio", params={"q": "and what about the bond market",
+                                    "context": "the fed", "own": 1}, headers=WEB)
+    assert r.status_code == 403 and r.headers.get("X-FAM-Consent") == "ai"
+
+
+def test_a_taken_handle_never_pays_for_a_photo_check(monkeypatch):
+    import image_check as ic
+    calls = []
+
+    async def counting(*a, **k):
+        calls.append(1)
+        return ic.Verdict(allowed=True, checked=True)
+    monkeypatch.setattr(ic, "check", counting)
+    listener("Ann", "ann")
+    ben = listener("Ben", "ben")
+    r = ben.post("/api/me", json={"name": "Ben", "handle": "ann", "avatar": PHOTO})
+    assert r.status_code == 400 and "taken" in r.json()["error"]
+    assert calls == []

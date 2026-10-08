@@ -29,8 +29,10 @@ lock-screen audio spike comes first). When there is:
 2. Make one `SafetyAPI` with the server, `ios/<version>+<build>`, and the
    Keychain token; one `ConsentModel(api:)`; call `consent.load()` at launch.
 3. Put `.aiConsentSheet(consent)` on the root view.
-4. Before a search, a Go Deeper question, an attachment or the "where you
-   live" tile: `guard await consent.ensure() else { return }`.
+4. Before a search, a typed Go Deeper question, an attachment or the "where
+   you live" tile: `guard await consent.ensure() else { return }`. Send
+   `own=1` on `/api/v1/audio` for a Go Deeper question the listener typed
+   (not FAM's suggestion kept as it was): the server holds it to the answer.
 5. When `/api/v1/audio` answers `isConsentRefusal(response)`:
    `consent.forget()`, then `if await consent.ensure() { retry }` - the web's
    `onGenerationFailed` does exactly this.

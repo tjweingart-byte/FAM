@@ -191,6 +191,15 @@ def verdict_from(response) -> Verdict:
                              checked=True))
 
 
+def will_call() -> bool:
+    """Whether `check` would make a paid model call right now - checking on
+    and a key present - so a caller paces only requests that can spend
+    (`limit-episodes`)."""
+    from config import settings
+    import credentials
+    return bool(settings.image_check and credentials.active("ANTHROPIC_API_KEY"))
+
+
 def report() -> dict:
     """For `/api/health`: whether photos are being checked, by what, and what
     the last check actually did - the outcome, not a guess from settings

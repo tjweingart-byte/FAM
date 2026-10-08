@@ -2264,12 +2264,13 @@ def _episode_author(query: str, minutes: int) -> str:
 def _drop_removed(viewer: str, topics: list[dict], minutes: int) -> list[dict]:
     """A rail's tiles without any episode a reviewer took down or this
     listener reported (§226) - the crowd rails replay other people's
-    searched episodes too, not only Explore."""
-    if not MODERATION.hidden_episodes() and not MODERATION.reported_by(viewer, "episode"):
+    searched episodes too, not only Explore. The two sets are read once per
+    rail, not once per tile."""
+    gone = MODERATION.hidden_episodes() | MODERATION.reported_by(viewer, "episode")
+    if not gone:
         return topics
     return [t for t in topics
-            if not _episode_removed(viewer, t.get("query") or "",
-                                    t.get("minutes") or minutes)]
+            if _episode_target(t.get("query") or "", t.get("minutes") or minutes) not in gone]
 
 
 def _visible_episodes(viewer: str, entries: list[dict]) -> list[dict]:
@@ -4905,6 +4906,8 @@ async def update_mix(mix_id: str, req: MixRequest, request: Request):
         _require_can_post(account)
     if req.cover:
         try:
+            if req.name is not None:
+                mixes_mod.clean_name(req.name)
             mixes_mod.clean_cover(req.cover)
         except mixes_mod.MixError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -5357,7 +5360,7 @@ def _client_asks_consent(request: Request) -> bool:
 
 
 def _sends_listener_words(where: str, context: str, attach: str,
-                          topic_id: str = "") -> bool:
+                          topic_id: str = "", own: bool = False) -> bool:
     """Whether a generation carries something of this listener to the
     writer: a search they typed or spoke, an attachment, or the "what changed
     where you live" tile, whose question names the place they set
@@ -5367,10 +5370,11 @@ def _sends_listener_words(where: str, context: str, attach: str,
     A follow-up (`context`) is not counted on its own (§226): the one the
     post-episode grid starts is FAM's own `<<NEXT>>` prediction, and refusing
     it put the consent question over a myFAM listener's next episode. A
-    *typed* Go Deeper question is the listener's words, and both clients ask
-    before sending one (`confirmGoDeeper`, `ConsentModel.ensure`) - the server
-    cannot tell a typed follow-up from a suggested one."""
-    return where == "search" or bool(attach) or topic_id == startup.LOCAL_ID
+    *typed* Go Deeper question is the listener's words: the client says so
+    with `own=1`, and both clients ask before sending one (`confirmGoDeeper`,
+    `ConsentModel.ensure`)."""
+    return (where == "search" or bool(attach) or own
+            or topic_id == startup.LOCAL_ID)
 
 
 CONSENT_REQUIRED = ("FAM needs your OK before it sends what you ask to "
@@ -6510,8 +6514,10 @@ async def _check_photo(request: Request, user: str, data_url: Optional[str],
         return
     if image_check.split_data_url(data_url) is None:
         raise HTTPException(status_code=400, detail=image_check.UNREADABLE)
-    # A paid model call: paced like one (`limit-episodes`), not like a read.
-    _rate_limit(request)
+    # A paid model call: paced like one (`limit-episodes`) - and only when
+    # one will actually be made.
+    if image_check.will_call():
+        _rate_limit(request)
     usage = metering.Usage()
     verdict = await image_check.check(data_url, usage=usage)
     # Whatever the verdict, a call that was made was paid for (`metering`).
@@ -6536,7 +6542,9 @@ async def set_me(req: PersonRequest, request: Request):
     _require_can_post(user)
     # The cheap checks first, so a bad handle never pays for a photo check.
     try:
-        social_mod.clean_handle(req.handle)
+        handle = social_mod.clean_handle(req.handle)
+        if SOCIAL.user_by_handle(handle) not in ("", user):
+            raise social_mod.SocialError(f"@{handle} is taken.")
         if not " ".join(str(req.name or "").split()):
             raise social_mod.SocialError("Give yourself a name.")
         if req.avatar:
@@ -7831,6 +7839,9 @@ async def audio(
     episode: str = Query("", max_length=80,
                          description="A heard episode's id (X-FAM-Episode) to "
                                      "replay exactly; never generates (§173)"),
+    own: bool = Query(False, description="The question is the listener's own "
+                                         "words (a typed Go Deeper), held to "
+                                         "their AI answer like a search"),
 ):
     """Stream the episode.
 
@@ -7874,7 +7885,7 @@ async def audio(
         # Before anything is sent anywhere: a listener's own words reach the
         # AI provider only with their yes (5.1.2(i), `consent.py`). A replay
         # or a written script sends nothing, so it never asks.
-        if _sends_listener_words(where, context, attach, topic_id):
+        if _sends_listener_words(where, context, attach, topic_id, own):
             _require_ai_consent(request, user)
         _rate_limit(request)
 

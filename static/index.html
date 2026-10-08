@@ -7920,7 +7920,8 @@
       FamAudio.play(title, minutes, audioHandlers,
         context, surface === "search" ? selectedVoice : null, {
         topicId: episodeTopicId, cachedOnly: !!opts.cachedOnly,
-        attach: opts.attach || "", surface: surface, episode: opts.episode || ""
+        attach: opts.attach || "", surface: surface, episode: opts.episode || "",
+        own: !!opts.own
       });
     }
 
@@ -8002,6 +8003,7 @@
     var playOpts = { cachedOnly: !!t.cachedOnly,
                      minutes: episodeMinutes(t.exploreMinutes || 0, where),
                      attach: t.attach || "", surface: where,
+                     own: !!t.own,
                      episode: t.episode || "", queueable: true };
     loadPlayerCard(key, t, playOpts.minutes);
     // A DailyFAM playlist entry ends by playing the next one (§134), and
@@ -9121,6 +9123,9 @@
     var baseTitle = baseKey && TOPICS[baseKey] ? TOPICS[baseKey].title : "this";
     var newKey = "deeper_" + Date.now();
     TOPICS[newKey] = {
+      // The listener's own words, unless they kept FAM's suggestion as it
+      // was: the server holds `own` to the AI answer (consent.py, §226).
+      own: val !== (goDeeperSuggestionText() || "").trim(),
       title: deriveTitleFromPrompt(val),
       source: "Following up on " + baseTitle,
       caption: "Picking up where that left off — " + val + "—",
