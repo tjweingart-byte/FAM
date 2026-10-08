@@ -418,6 +418,9 @@ window.FamAudio = (function () {
               // because the text was extracted when they were added - the
               // generation path never parses a file or fetches a page.
               (listener && listener.attach ? "&attach=" + encodeURIComponent(listener.attach) : "") +
+              // A question the listener typed themselves (a Go Deeper): held
+              // to their AI answer like a search (consent.py).
+              (listener && listener.own ? "&own=1" : "") +
               // Which surface the tap came from (§147): only a search picks
               // its voice and length, and only a search goes on Explore.
               (listener && listener.surface ? "&surface=" + encodeURIComponent(listener.surface) : "") +
@@ -447,6 +450,9 @@ window.FamAudio = (function () {
           err.status = res.status;
           err.refusedBy = body.refused_by || "";
           err.quota = body.quota || null;
+          // The listener has not said yes to their words going to the AI
+          // provider (consent.py): the interface asks, then starts again.
+          err.consent = res.headers.get("X-FAM-Consent") || "";
           throw err;
         });
       }

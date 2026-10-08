@@ -30,6 +30,15 @@ python tools/usage_report.py --days 30 --price 4.99   # margin at a price
 python tools/prefetch_report.py --live            # is prefetch paying for itself?
 ```
 
+**The spreadsheet.** The working copy is the Google Sheet **FAM Financials**
+(Costs, Marketing & Materials, Projections, Daily Spend). The same workbook is
+built from the deployment's own records on every download: `/admin` →
+**Financials (.xlsx)**, `GET /api/admin/financials.xlsx` with the admin token,
+or `python tools/financials.py --remote <host>` (`financials.py`, PROBLEMS.md
+§230). Costs lists every service with its monthly cost; Projections carries it
+twelve months forward from listener numbers, with sports apart and the
+marketing budget added. A service added to FAM gets a row in `financials.catalogue`.
+
 ---
 
 ## 1. The cost structure in one picture

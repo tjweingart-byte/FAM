@@ -640,7 +640,10 @@ the rest of this list it needs taste rather than a key.
   (`daily_edition.subjects`), **A to Z** in the catalogue's order, **most
   recent** made first; `q` keeps titles holding every typed word, whole or
   begun; "narrow it down" chips are the level below that has something
-  today. One row per title, the most popular.
+  today. Screened per viewer as every shelf of other people's episodes is
+  (`_visible_episodes`, §222: nothing taken down, reported by them, or from
+  somebody blocked or suspended), then one row per title, the most popular;
+  who wrote an episode never leaves the server.
 
 <!-- rule:queue -->
 - **The queue** *(PROBLEMS.md §190)*: Add to Queue from the player's menu or a

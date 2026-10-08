@@ -43,8 +43,8 @@ def client(monkeypatch, tmp_path, tree):
     monkeypatch.setattr(appmod, "SCRIPT_CACHE", SqliteScriptCache(str(tmp_path / "c.db")))
     monkeypatch.setattr(appmod, "MIXES", M.MixStore(str(tmp_path / "m.db")))
     monkeypatch.setattr(appmod, "PREFS", P.PreferenceStore(str(tmp_path / "p.db")))
-    appmod._CATEGORY_MEMO.clear()
-    appmod._CATEGORY_MEMO["at"] = 0.0
+    # A day that began a day ago, so no test lands either side of midnight.
+    monkeypatch.setattr(appmod, "_day_start", lambda: time.time() - 86400)
     return TestClient(appmod.app)
 
 
@@ -147,12 +147,44 @@ def test_an_unknown_category_is_a_404(client):
 
 
 def test_the_page_never_writes_an_episode(client, monkeypatch):
-    """Cached only: no pipeline is built and nothing is put in the cache."""
-    monkeypatch.setattr(appmod, "_pipeline_for", None, raising=False)
+    """Cached only: reading a category page never puts anything in the cache."""
     _put("k1", "q1", "Lions", category="detroit lions")
-    before = len(appmod.SCRIPT_CACHE.recent(100))
-    _episodes(client, "nfl")
-    assert len(appmod.SCRIPT_CACHE.recent(100)) == before
+
+    def refuse(*a, **k):
+        raise AssertionError("a category page wrote to the cache")
+    monkeypatch.setattr(appmod.SCRIPT_CACHE, "put", refuse)
+    for sort in appmod.CATEGORY_SORTS:
+        assert _episodes(client, "nfl", sort=sort)["episodes"]
+    client.get("/api/categories")
+
+
+def test_who_made_an_episode_never_leaves_the_server(client):
+    _put("k1", "q1", "Lions", category="detroit lions")
+    got = _episodes(client, "nfl")["episodes"][0]
+    assert "author" not in got and "chain" not in got
+
+
+def test_a_blocked_listeners_episodes_are_not_shown(client):
+    """Screened like every shelf of other people's episodes (§222)."""
+    me = _signed_up("blocker@fam.test")
+    my_id = me.get("/api/auth/me").json()["user_id"]
+    _put("k1", "q1", "Lions", category="detroit lions")       # by "someone"
+    _put("k2", "q2", "The deadline", category="nfl")
+    appmod.SCRIPT_CACHE.put("k3", ["A."], 600, "q3", "", 2, "", "", "pest",
+                            title="Chiefs again", category="nfl", origin="search")
+    assert len(_episodes(me, "nfl")["episodes"]) == 3
+    appmod.MODERATION.block(my_id, "pest")
+    titles = {e["title"] for e in _episodes(me, "nfl")["episodes"]}
+    assert titles == {"Lions", "The deadline"}
+    # Somebody else still sees it.
+    assert len(_episodes(client, "nfl")["episodes"]) == 3
+
+
+def test_a_taken_down_episode_is_not_shown(client):
+    _put("k1", "q1", "Lions", category="detroit lions")
+    _put("k2", "q2", "The deadline", category="nfl")
+    appmod.MODERATION.hide_episode(appmod._episode_target("q2", 2))
+    assert [e["title"] for e in _episodes(client, "nfl")["episodes"]] == ["Lions"]
 
 
 # --- following -------------------------------------------------------------

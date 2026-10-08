@@ -57,7 +57,9 @@ def load_fixtures() -> dict:
     same topics the app would. Imported rather than duplicated - a fixture that
     drifts from the code is worse than no fixture."""
     sys.path.insert(0, str(ROOT))
+    import consent as consent_mod
     import entitlements
+    import moderation as moderation_mod
     import mixes as mixes_mod
     import preferences as prefs_mod
     import stories as stories_mod
@@ -558,6 +560,22 @@ def load_fixtures() -> dict:
         },
         "/api/health": {"ok": True, "demo": True, "engine": "preview"},
         "/api/event": {"ok": True},
+        # The preview's listener has said yes to the AI notice, so a search
+        # plays; Settings > Privacy and safety turns it off to see the
+        # question (consent.py). Words from the real module, never a copy.
+        "/api/consent": {"ai": {**consent_mod.describe(None), "asked": True,
+                                "given": True,
+                                "answered_version": consent_mod.VERSION},
+                         # Agreed at sign-up (§228), so the re-accept sheet
+                         # stays down unless a check takes this back.
+                         "terms": {**consent_mod.describe_terms(None), "accepted": True,
+                                   "accepted_version": consent_mod.TERMS_VERSION}},
+        "/api/report": {"reasons": [{"id": i, "label": label}
+                                    for i, label in moderation_mod.REASONS],
+                        "kinds": list(moderation_mod.KINDS),
+                        "review_hours": moderation_mod.REVIEW_HOURS,
+                        "contact": ""},
+        "/api/blocks": {"people": []},
         # The plans sheet the limit screen opens. Built from the real tier
         # table rather than a copy typed here, for the same reason as the
         # vocabulary below: a preview that shows tiers the server does not have
@@ -1224,6 +1242,40 @@ __PREVIEW_PICTURE__
         chars: sent.kind === "image" ? 0 : stub.chars,
         url: sent.url || "", preview: stub.preview
       });
+    }
+    // Consent, reporting and blocking (consent.py, moderation.py): the
+    // answers are kept for as long as the page is open.
+    if (path === "/api/consent" && method === "POST") {
+      var cAsk = JSON.parse((init && init.body) || "{}");
+      var cAll = FIXTURES["/api/consent"];
+      if (cAsk.scope === "terms") {
+        if (!cAsk.allow) return json({ error: "To stop agreeing to the Terms, delete your account in Settings." }, 400);
+        cAll.terms.accepted = true;
+        cAll.terms.accepted_version = cAll.terms.version;
+        return json({ ai: cAll.ai, terms: cAll.terms });
+      }
+      var cAi = cAll.ai;
+      cAi.asked = true;
+      cAi.given = !!cAsk.allow;
+      cAi.answered_version = cAi.version;
+      return json({ ai: cAi, terms: cAll.terms });
+    }
+    if (path === "/api/report" && method === "POST") {
+      return json({ ok: true, id: "preview", hidden: true,
+                    message: "Thanks for telling us. We review every report within "
+                             + FIXTURES["/api/report"].review_hours + " hours." });
+    }
+    if (path === "/api/block") {
+      var bAsk = method === "POST" ? JSON.parse((init && init.body) || "{}").handle
+                                   : new URLSearchParams(url.split("?")[1] || "").get("handle");
+      var bList = FIXTURES["/api/blocks"].people;
+      if (method === "POST") {
+        if (bAsk && !bList.some(function (p) { return p.handle === bAsk; }))
+          bList.unshift({ name: "", handle: bAsk, avatar: "" });
+        return json({ ok: true, blocked: true });
+      }
+      FIXTURES["/api/blocks"].people = bList.filter(function (p) { return p.handle !== bAsk; });
+      return json({ ok: true, blocked: false });
     }
     // Enough of an account for the entry flow to be walked end to end. There
     // are no credentials here and nothing is checked - the point is the

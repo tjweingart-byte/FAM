@@ -91,7 +91,8 @@ PRICES: dict[str, tuple[float, float]] = {
     "claude-sonnet-5": (2.00, 10.00),
     "claude-sonnet-4-6": (3.00, 15.00),
     # The rate for a prompt of 100K tokens or fewer, which every FAM call is;
-    # above that Haiku 5.5 bills $0.50 / $2.50 (§227).
+    # above that Haiku 5.5 bills $0.50 / $2.50 (§227). The photo check's are
+    # a few hundred (§225).
     "claude-haiku-5-5": (0.10, 0.50),
     "claude-haiku-4-5": (1.00, 5.00),
 }
