@@ -16498,7 +16498,10 @@ Rule: `gdelt-exports` carries a §220 Current note. Tests:
 `tests/test_gdelt_failures_220.py`; `test_the_newest_file_is_never_written_off`
 now expects `waiting`, not an error.
 
-## 221. The small calls on Haiku 5.5, and an episode priced call by call
+## 227. The small calls on Haiku 5.5, and an episode priced call by call
+
+*Numbered 227, not 221: `claude/hopeful-clarke-te67tk` already holds
+§221-§226, so either branch can merge first without renumbering.*
 
 The owner asked where cheaper Claude models could save money, read an
 analysis of every call site (prices per model, expected quality, monthly cost
@@ -16576,4 +16579,4 @@ falls back visibly (`EI returned nothing readable`, `Brief.degraded`). Watch
 for that reason in the log after deploying; raising the ceiling costs
 nothing unless it is used.
 
-Rule: `small-calls-haiku`. Tests: `tests/test_small_model_221.py`.
+Rule: `small-calls-haiku`. Tests: `tests/test_small_model_227.py`.

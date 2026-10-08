@@ -561,7 +561,7 @@ source look broken.
     STORIES_MARKETS_INTERVAL_SECONDS=900.0   # Finnhub (§156)
     STORIES_TIMEOUT_SECONDS=12.0    # per source; never in front of the first word
     STORIES_COMPOSE=1               # 0 = templated tiles, which is a real product
-    STORIES_MODEL=                  # defaults to claude-haiku-5-5 (§221)
+    STORIES_MODEL=                  # defaults to claude-haiku-5-5 (§227)
     STORIES_MARKET_MOVE_PERCENT=3.0
     STORIES_SPORTS=                 # empty follows API_SPORTS_SPORT
     STORIES_POLYMARKET=0            # keyless, so it needs a switch of its own

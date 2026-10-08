@@ -77,7 +77,7 @@ from paths import data_path
 log = logging.getLogger("metering")
 
 #: USD per million tokens, input and output, as published. Checked against the
-#: rate card on 2026-10-08 (§221). A model missing from here is not costed at zero -
+#: rate card on 2026-10-08 (§227). A model missing from here is not costed at zero -
 #: `record` marks the row unpriced and `report` says how many there were.
 PRICES: dict[str, tuple[float, float]] = {
     "claude-fable-5-1": (10.00, 50.00),
@@ -91,7 +91,7 @@ PRICES: dict[str, tuple[float, float]] = {
     "claude-sonnet-5": (2.00, 10.00),
     "claude-sonnet-4-6": (3.00, 15.00),
     # The rate for a prompt of 100K tokens or fewer, which every FAM call is;
-    # above that Haiku 5.5 bills $0.50 / $2.50 (§221).
+    # above that Haiku 5.5 bills $0.50 / $2.50 (§227).
     "claude-haiku-5-5": (0.10, 0.50),
     "claude-haiku-4-5": (1.00, 5.00),
 }
@@ -100,7 +100,7 @@ PRICES: dict[str, tuple[float, float]] = {
 #: costs a premium over it. Published multipliers, not measured here.
 CACHE_READ_MULTIPLIER = 0.1
 #: Models whose cache reads are not a tenth of their input rate, in USD per
-#: million tokens as published (§221).
+#: million tokens as published (§227).
 CACHE_READ_PER_MTOK: dict[str, float] = {
     "claude-fable-5-1": 0.25,
     "claude-opus-5-5": 0.20,
@@ -191,7 +191,7 @@ class Usage:
     #: rates, because the tokens above are totals across calls and only some
     #: of them were batched.
     batch_discount: float = 0.0
-    #: Each call priced at its own model's rates as it is folded in (§221).
+    #: Each call priced at its own model's rates as it is folded in (§227).
     #: The token fields above are totals across calls, and an episode's calls
     #: need not share a model - the brief runs on Haiku, the writer on Sonnet
     #: - so pricing the totals at `model` (the last call's) would charge the
@@ -313,7 +313,7 @@ def price_of(usage: Usage) -> Cost:
     """
     cost = Cost()
     if usage.calls_priced or usage.calls_unpriced:
-        # Folded in call by call, each at its own model's rates (§221).
+        # Folded in call by call, each at its own model's rates (§227).
         cost.priced = not usage.calls_unpriced
         cost.claude_input = usage.priced_input
         cost.claude_output = usage.priced_output

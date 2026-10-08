@@ -1032,7 +1032,7 @@
   reads the module rather than trusting the rule.
 <!-- rule:small-calls-haiku -->
 - **The small calls run on Haiku 5.5; the writer runs on `MODEL`.**
-  *(PROBLEMS.md §221, at the owner's direction.)* The brief, the tile
+  *(PROBLEMS.md §227, at the owner's direction.)* The brief, the tile
   composer, the category placer and the thumbnail calls default to
   `config.SMALL_MODEL` (`claude-haiku-5-5`) and never follow `MODEL`; each
   has its own setting to move it back. The admin question box follows

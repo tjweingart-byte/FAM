@@ -360,7 +360,7 @@ Caching and prefetch
   anything personal, report `None` not `0`. [prefetch-same-key]
 - A prefetch candidate carries a reason in words; sources never call a model or
   the network. [candidate-reason]
-- **Small calls on Haiku 5.5** (§221): brief, composer, placer, thumbnails
+- **Small calls on Haiku 5.5** (§227): brief, composer, placer, thumbnails
   default to `SMALL_MODEL`, never `MODEL`; metering prices each call at its
   own model; brief quality unmeasured until `ei_eval.py` runs. [small-calls-haiku]
 - **Writer savings change no word and cost no episode** (§179): its

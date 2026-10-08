@@ -1,4 +1,4 @@
-"""The small calls run on Haiku 5.5; the writer does not move (§221).
+"""The small calls run on Haiku 5.5; the writer does not move (§227).
 
 The brief, the tile composer, the category placer and the thumbnail calls are
 JSON against a schema at low effort, and none of them writes a word a listener
@@ -56,7 +56,7 @@ def test_the_small_calls_default_to_haiku_5_5(fresh_config):
 
 
 def test_setting_model_moves_only_the_writer(fresh_config, monkeypatch):
-    """`render.yaml` sets MODEL. Before §221 that silently set all five."""
+    """`render.yaml` sets MODEL. Before §227 that silently set all five."""
     monkeypatch.setenv("MODEL", "claude-opus-5-5")
     config = fresh_config()
     assert config.settings.model == "claude-opus-5-5"
@@ -177,7 +177,7 @@ def _boot_check(monkeypatch, client, state="ok"):
 
 
 def test_boot_checks_the_small_model_once_beside_the_writer(monkeypatch):
-    """Before §221 the writer's check covered every call; now the small model
+    """Before §227 the writer's check covered every call; now the small model
     is a second thing an account may not have."""
     client = _Retriever()
     creds = _boot_check(monkeypatch, client)

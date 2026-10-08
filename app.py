@@ -182,9 +182,9 @@ async def _verify_credentials() -> None:
 
 
 async def _verify_small_models() -> None:
-    """Ask the same question of the models the small calls run on (§221).
+    """Ask the same question of the models the small calls run on (§227).
 
-    Until §221 every call ran on `settings.model`, so `_verify_credentials`
+    Until §227 every call ran on `settings.model`, so `_verify_credentials`
     covered them all. The brief, composer, placer and thumbnail calls now
     default to `config.SMALL_MODEL`, and an account that cannot use it would
     turn every brief into the raw-query fallback - each one logged, none of
