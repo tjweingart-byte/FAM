@@ -16797,3 +16797,84 @@ expected to get out of it".
   turn out wrong in practice.
 
 Pinned in `tests/test_moderation_and_consent.py`.
+
+## 226. Reviewing the branch before it merges: what the review found and fixed
+
+The owner asked for every change in this branch (§221-§225) to be checked
+before it goes to Main. A full review of the branch against Main found these.
+Each one was reproduced and fixed, and each has a regression test in
+`tests/test_moderation_and_consent.py`.
+
+- **Stored XSS in the story menu.** The new "Block <name>" row passed a
+  listener's first name into `menuLabel`, which `showActionSheet` draws as
+  HTML. It is escaped now, as the head row beside it already was.
+- **A handle with an underscore could not be blocked, reported or
+  reinstated.** `find_people` strips `_` and `%` to keep its LIKE pattern
+  literal, so `john_doe` never matched itself. `SOCIAL.user_by_handle` is an
+  exact lookup, used by `_person_by_handle`.
+  - The same bug was already on Main in `/api/person?handle=` and in
+    follow-by-handle. Both now use the exact lookup too.
+- **An unreadable photo bypassed the check.** Base64 with a space in it failed
+  the strict decode, so the check returned "nothing to look at". But the
+  avatar store kept it, and browsers decode loosely. A photo that cannot be
+  decoded is now refused (`image_check.UNREADABLE`), whether or not checking
+  is on.
+- **A reviewer's Remove on an episode only hid it from Explore's lists.** It
+  now also covers:
+  - playback: `/api/audio` answers 410, which covers shares, replays and any
+    rail tap;
+  - the myFAM rails and their View more (`_drop_removed`);
+  - the sign-up samples.
+- **Episode moderation keys now use the normalised question**
+  (`_episode_target` via `normalize_query`). A report filed with what was typed
+  and a cache row stored lower-cased now name the same episode.
+- **An episode report now records who searched it** (`_episode_author`), so a
+  reviewer can suspend them. Apple 1.2 asks for the poster to be ejected.
+- **The Messages badge counted messages from blocked people**, in threads they
+  could no longer open, so it could never be cleared. `unread_total` and
+  `unread_in` take `exclude_senders`; every badge goes through
+  `_unread_total`. A group's preview line no longer shows a blocked member's
+  last message either.
+- **Suspension did not cover everything strangers see.** It now also covers
+  mix creation and edits (name, cover, going public), changing your own name
+  and picture, and renaming a group.
+- **A FAM-suggested follow-up asked for consent.** The post-episode grid's
+  lead is FAM's own `<<NEXT>>` prediction, so a myFAM listener who said "Not
+  now" got the consent question over their next episode.
+  - `_sends_listener_words` no longer counts a bare follow-up.
+  - A *typed* Go Deeper question is still asked for first, by both clients.
+    The server cannot tell typed from suggested.
+- **The photo check:**
+  - the cost is now recorded whenever the model was called, even when its
+    answer was unreadable;
+  - it is paced as a paid call (`_rate_limit`);
+  - the cheap checks run first (handle, name, picture format, mix name), so a
+    bad handle never pays for a photo check;
+  - health reports the last check's real outcome instead of "a key is set"
+    (`verify-not-inspect`).
+- **A report id of 120 digits returned 500** (SQLite integer overflow). Ids
+  are now limited to 18 digits, and anything else is a 404.
+- **"Unblocked" toasted on failure.** The Blocked people list now reads the
+  answer.
+- **Slurs are now scrubbed before the cut, in one helper**
+  (`content_filter.clean_line`). Before, "a slur" could push a name past its
+  limit, and a slur cut in half by the limit went unseen. There were four
+  copies of that logic; there is now one.
+- **Memory and polling:**
+  - the consent cache no longer grows with every guest session (unanswered
+    sessions are not cached, and there is a size cap);
+  - the block lookup is an index in both directions rather than a scan of
+    every block on each two-second poll.
+
+**Left as they are, deliberately:**
+
+- **Photos go to Anthropic even for a listener who said "Not now" to sending
+  questions.** The two are different things. The photo editor says, right
+  above Save, that the photo is checked by Anthropic, and saving after that is
+  the permission for that photo. Checking photos only with consent would let a
+  "Not now" listener post unchecked pictures to strangers.
+- **Some surfaces are still not filtered for blocks and removals:** Explore's
+  comment *counts*, and the friends rail for a suspended account. They are
+  cosmetic and low-risk. Moving these filters into the store and ranking
+  layers is the right long-term shape and a bigger change than a pre-merge
+  fix.

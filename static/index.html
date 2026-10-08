@@ -5737,7 +5737,11 @@
         items.push({ label: escapeHtml(p.name || ("@" + p.handle)) + ' <span style="color:var(--text-muted);font-size:11px;">@' + escapeHtml(p.handle) + '</span>',
           action: function(){
             fetch("/api/block?handle=" + encodeURIComponent(p.handle), { method: "DELETE" })
-              .then(function(){ toast("Unblocked @" + p.handle); return loadBlocked(); })
+              .then(function(r){ return r.ok ? r.json() : { ok: false }; })
+              .then(function(d){
+                toast(d && d.ok ? "Unblocked @" + p.handle : "Couldn\u2019t unblock them");
+                return loadBlocked();
+              })
               .then(renderSettings)
               .catch(function(){ toast("Couldn\u2019t unblock them"); });
           } });
@@ -13781,7 +13785,7 @@
             reportContent({ kind: "vibe", target: v.id }, function(){ closeStory(); }); } });
       }
       if(person.handle){
-        items.push({ label: menuLabel("block", "Block " + firstName(person)), danger: true,
+        items.push({ label: menuLabel("block", "Block " + escapeHtml(firstName(person))), danger: true,
                      action: function(){ blockPerson(person.handle, person.name, closeStory); } });
       }
     }

@@ -44,6 +44,14 @@ CATEGORIES = ("ok", "nudity", "sexual", "violence", "hate", "minor")
 #: way round it.
 REFUSED = ("That photo can't be used on FAM. Pick another one - photos are "
            "checked automatically for nudity, violence and hate symbols.")
+#: A picture that cannot be decoded cannot be checked, and a browser's
+#: forgiving decoder would still draw it - so it is refused, never waved
+#: through (§226).
+UNREADABLE = "That photo couldn't be read. Try another one."
+
+#: The last check's outcome, for `/api/health` (`verify-not-inspect`): a key
+#: being present says nothing about whether checks are actually running.
+_LAST: dict = {"at": None, "checked": None, "note": ""}
 
 SYSTEM = """You check one image before a social audio app shows it to other people as a profile picture or a playlist cover.
 
@@ -82,9 +90,15 @@ class Verdict:
     note: str = ""
 
 
+def _remember(verdict: Verdict) -> Verdict:
+    import time
+    _LAST.update(at=time.time(), checked=verdict.checked, note=verdict.note)
+    return verdict
+
+
 def _unchecked(note: str) -> Verdict:
     log.warning("image_check: photo let through unchecked (%s)", note)
-    return Verdict(allowed=True, category="ok", checked=False, note=note)
+    return _remember(Verdict(allowed=True, category="ok", checked=False, note=note))
 
 
 def split_data_url(data_url: str) -> Optional[tuple[str, str]]:
@@ -111,12 +125,14 @@ async def check(data_url: str, usage=None) -> Verdict:
     (`metering`: cost per listener at spend time).
     """
     from config import settings
-    if not settings.image_check:
-        return Verdict(allowed=True, checked=False, note="off")
     parts = split_data_url(data_url)
     if parts is None:
-        # The stores refuse what is not an image; nothing here to look at.
-        return Verdict(allowed=True, checked=False, note="not an image")
+        # Before the switch: an image no browser should be shown unchecked
+        # is refused whether or not checking is on (§226).
+        return Verdict(allowed=False, category="unreadable", checked=False,
+                       note="not a readable image")
+    if not settings.image_check:
+        return Verdict(allowed=True, checked=False, note="off")
     import credentials
     key = credentials.active("ANTHROPIC_API_KEY")
     if not key:
@@ -158,7 +174,8 @@ def verdict_from(response) -> Verdict:
     a network."""
     if getattr(response, "stop_reason", "") == "refusal":
         # The model would not look at it: the picture is the problem.
-        return Verdict(allowed=False, category="other", checked=True, note="refused")
+        return _remember(Verdict(allowed=False, category="other", checked=True,
+                                 note="refused"))
     try:
         text = next(b.text for b in response.content if b.type == "text")
         answer = json.loads(text) or {}
@@ -170,15 +187,18 @@ def verdict_from(response) -> Verdict:
     allowed = bool(answer.get("allowed")) and category == "ok"
     if not allowed:
         log.info("image_check: refused a photo (%s)", category)
-    return Verdict(allowed=allowed, category=category if not allowed else "ok",
-                   checked=True)
+    return _remember(Verdict(allowed=allowed, category=category if not allowed else "ok",
+                             checked=True))
 
 
 def report() -> dict:
-    """For `/api/health`: whether photos are being checked, and by what."""
+    """For `/api/health`: whether photos are being checked, by what, and what
+    the last check actually did - the outcome, not a guess from settings
+    (`verify-not-inspect`). `last.checked: false` with a note means photos
+    are going through on Report + Remove alone."""
     from config import settings
     import credentials
     return {"enabled": bool(settings.image_check),
             "model": settings.image_check_model,
-            "can_check": bool(settings.image_check
-                              and credentials.active("ANTHROPIC_API_KEY"))}
+            "key": bool(credentials.active("ANTHROPIC_API_KEY")),
+            "last": dict(_LAST)}

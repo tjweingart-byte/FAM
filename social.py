@@ -133,15 +133,8 @@ MAX_COMMENT = 500
 def _clean_words(text: str, limit: int) -> str:
     """Whitespace folded, cut to `limit`, and slurs removed the way an
     episode's are (`content_filter.scrub`, §171): swearing stays."""
-    text = " ".join(str(text or "").split())[:limit]
-    if not text:
-        return ""
-    try:
-        import content_filter
-        return content_filter.scrub(text)
-    except Exception:  # noqa: BLE001 - the filter failing is not a lost post
-        log.exception("could not run the slur filter over a post")
-        return text
+    import content_filter
+    return content_filter.clean_line(text, limit)
 
 
 def clean_caption(caption: str) -> str:
@@ -1357,6 +1350,17 @@ class SocialStore:
             return {"following": 0, "followers": 0, "friends": 0}
         return {"following": int(following), "followers": int(followers),
                 "friends": int(friends)}
+
+    def user_by_handle(self, handle: str) -> str:
+        """The listener with exactly this handle, or "". Not `find_people`:
+        that strips `_` and `%` to keep its LIKE literal, so a handle with an
+        underscore in it never matched itself (§226)."""
+        wanted = str(handle or "").strip().lstrip("@").lower()
+        if not wanted:
+            return ""
+        row = self._conn().execute(
+            "SELECT user_id FROM people WHERE handle = ?", (wanted,)).fetchone()
+        return row[0] if row else ""
 
     def find_people(self, term: str, exclude_user: str = "",
                     limit: int = 20) -> list[dict]:

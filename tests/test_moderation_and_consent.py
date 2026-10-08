@@ -88,7 +88,8 @@ def test_an_older_wording_is_not_a_yes_to_this_one(monkeypatch):
 
 def test_only_the_listeners_own_words_need_it():
     assert appmod._sends_listener_words("search", "", "")
-    assert appmod._sends_listener_words("other", "a heard topic", "")
+    # A suggested follow-up is FAM's words; a typed one is asked client-side.
+    assert not appmod._sends_listener_words("other", "a heard topic", "")
     assert appmod._sends_listener_words("myfam", "", "att1")
     assert not appmod._sends_listener_words("myfam", "", "")
     assert not appmod._sends_listener_words("dailyfam", "", "")
@@ -402,3 +403,77 @@ def test_the_photo_check_runs_on_the_cheap_model_and_is_costed():
     from config import settings
     assert settings.image_check_model == "claude-haiku-5-5"
     assert settings.image_check_model in metering.PRICES
+
+
+# --- §226: regressions from the branch review ---------------------------------
+
+def test_a_handle_with_an_underscore_can_be_blocked_and_found():
+    """`find_people` strips `_` from its LIKE pattern, so an exact handle
+    with one never matched itself; blocking it 404'd."""
+    ann, _ = listener("Ann", "ann"), listener("John", "john_doe")
+    assert ann.post("/api/block", json={"handle": "john_doe"}).status_code == 200
+    assert ann.delete("/api/block", params={"handle": "john_doe"}).json()["ok"] is True
+    assert ann.get("/api/person", params={"handle": "john_doe"}).status_code == 200
+
+
+def test_an_unreadable_photo_is_refused_not_waved_through():
+    import image_check as ic
+    ann = listener("Ann", "ann")
+    r = ann.post("/api/me", json={"name": "Ann", "handle": "ann",
+                                  "avatar": "data:image/png;base64,iVBO RLG!!"})
+    assert r.status_code == 400 and r.json()["error"] == ic.UNREADABLE
+
+
+def test_a_report_and_the_cache_name_the_same_episode():
+    """The player reports what was typed; the cache keeps it normalised."""
+    ann = listener("Ann", "ann")
+    ann.post("/api/report", json={"kind": "episode", "query": "Eagles  Game",
+                                  "minutes": 2, "reason": "false"})
+    entries = [{"query": "eagles game", "minutes": 2, "author": ""}]
+    assert appmod._visible_episodes(uid(ann), entries) == []
+
+
+def test_a_removed_episode_plays_for_nobody():
+    appmod.MODERATION.hide_episode(appmod._episode_target("why the sky is blue", 2))
+    r = TestClient(appmod.app).get("/api/audio", params={
+        "q": "Why the sky is blue", "minutes": 2, "cached_only": 1})
+    assert r.status_code == 410
+
+
+def test_the_badge_never_counts_a_blocked_persons_messages():
+    ann, ben = listener("Ann", "ann"), listener("Ben", "ben")
+    ann.post("/api/friends/follow", json={"handle": "ben"})
+    ben.post("/api/friends/follow", json={"handle": "ann"})
+    ben.post("/api/messages", json={"to": uid(ann), "text": "one"})
+    ben.post("/api/messages", json={"to": uid(ann), "text": "two"})
+    assert ann.get("/api/messages").json()["unread"] == 2
+    ann.post("/api/block", json={"handle": "ben"})
+    assert ann.get("/api/messages").json()["unread"] == 0
+    assert ann.get("/api/notifications").json()["unread"] == 0
+
+
+def test_a_suspended_account_cannot_publish_a_mix_or_rename_itself(monkeypatch):
+    ann = listener("Ann", "ann")
+    appmod.MODERATION.suspend(uid(ann))
+    assert ann.post("/api/mixes", json={"name": "Mine", "topic_ids": []}).status_code == 403
+    assert ann.post("/api/me", json={"name": "New", "handle": "ann"}).status_code == 403
+
+
+def test_an_oversized_report_id_is_a_404_not_a_500():
+    ann = listener("Ann", "ann")
+    r = ann.post("/api/report", json={"kind": "comment", "target": "9" * 120,
+                                      "reason": "spam"})
+    assert r.status_code == 404
+
+
+def test_slurs_are_scrubbed_before_the_cut():
+    import content_filter
+    line = content_filter.clean_line("x" * 58 + " fag", 60)
+    assert len(line) <= 60 and "fag" not in line
+
+
+def test_a_menu_never_draws_a_name_as_html():
+    """The story menu's Block row is HTML (`showActionSheet`); a display name
+    in it is escaped like everywhere else."""
+    html = (appmod.PROJECT_ROOT / "static" / "index.html").read_text()
+    assert '"Block " + firstName(person)' not in html

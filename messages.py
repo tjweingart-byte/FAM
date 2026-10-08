@@ -86,6 +86,14 @@ KINDS = ("episode", "text", "system")
 MAX_BLANK_LINES = 2
 
 
+def _not_from(senders, column: str = "sender") -> tuple[str, tuple]:
+    """An SQL clause leaving out messages from `senders`, and its arguments."""
+    senders = tuple(sorted(s for s in (senders or ()) if s))
+    if not senders:
+        return "", ()
+    return (" AND %s NOT IN (%s)" % (column, ",".join("?" for _ in senders)), senders)
+
+
 def clean_text(text: str) -> str:
     """Tidy a typed message without flattening it.
 
@@ -107,8 +115,14 @@ def clean_text(text: str) -> str:
     while out and not out[-1]:
         out.pop()
     # Slurs out, swearing kept - the rule for every word FAM shows somebody
-    # else (`content_filter`, §171, widened to messages in §224).
-    return content_filter.scrub("\n".join(out)[:MAX_TEXT].rstrip())
+    # else (`content_filter`, §171, widened to messages in §224). Before the
+    # cut, so "a slur" cannot carry a message past MAX_TEXT (§226).
+    try:
+        text = content_filter.scrub("\n".join(out))
+    except Exception:  # noqa: BLE001 - the filter failing is not a lost message
+        log.exception("could not run the slur filter over a message")
+        text = "\n".join(out)
+    return text[:MAX_TEXT].rstrip()
 
 
 class MessageError(ValueError):
@@ -427,7 +441,10 @@ class MessageStore:
             })
         return out
 
-    def unread_in(self, user_id: str, thread: str) -> int:
+    def unread_in(self, user_id: str, thread: str, exclude_senders=()) -> int:
+        """Unread in one thread, not counting `exclude_senders` - people this
+        listener blocked or who are suspended (`moderation.py`, §226)."""
+        skip, skip_args = _not_from(exclude_senders)
         try:
             row = self._conn().execute(
                 "SELECT read_at FROM reads WHERE thread = ? AND user_id = ?",
@@ -436,20 +453,22 @@ class MessageStore:
             if is_group(thread):
                 return int(self._conn().execute(
                     "SELECT COUNT(*) FROM messages WHERE thread = ?"
-                    " AND sender != ? AND at > ? AND id > ?",
+                    " AND sender != ? AND at > ? AND id > ?" + skip,
                     (thread, user_id, since,
-                     self._floor(user_id, thread))).fetchone()[0])
+                     self._floor(user_id, thread), *skip_args)).fetchone()[0])
             return int(self._conn().execute(
                 "SELECT COUNT(*) FROM messages WHERE thread = ?"
-                " AND recipient = ? AND at > ? AND id > ?",
+                " AND recipient = ? AND at > ? AND id > ?" + skip,
                 (thread, user_id, since,
-                 self.cleared_at(user_id, thread))).fetchone()[0])
+                 self.cleared_at(user_id, thread), *skip_args)).fetchone()[0])
         except Exception:
             log.exception("could not count unread messages")
             return 0
 
-    def unread_total(self, user_id: str) -> int:
-        """What the badge on the Messages button shows."""
+    def unread_total(self, user_id: str, exclude_senders=()) -> int:
+        """What the badge on the Messages button shows - never counting a
+        message the listener cannot open (`exclude_senders`, §226)."""
+        skip, skip_args = _not_from(exclude_senders, column="m.sender")
         try:
             rows = self._conn().execute(
                 "SELECT m.thread, COUNT(*) FROM messages m"
@@ -460,9 +479,9 @@ class MessageStore:
                 "        OR (g.user_id IS NOT NULL AND m.sender != ?"
                 "            AND m.id > g.joined))"
                 "   AND m.at > COALESCE(r.read_at, 0)"
-                "   AND m.id > COALESCE(c.after_id, 0)"
+                "   AND m.id > COALESCE(c.after_id, 0)" + skip +
                 " GROUP BY m.thread",
-                (user_id, user_id, user_id, user_id, user_id)).fetchall()
+                (user_id, user_id, user_id, user_id, user_id, *skip_args)).fetchall()
         except Exception:
             log.exception("could not count unread messages")
             return 0
@@ -568,7 +587,7 @@ class MessageStore:
             raise MessageError("Pick at least two people for a group.")
         if len(others) + 1 > MAX_GROUP_MEMBERS:
             raise MessageError(f"A group holds up to {MAX_GROUP_MEMBERS} people.")
-        name = content_filter.scrub(" ".join(str(name or "").split())[:MAX_GROUP_NAME])
+        name = content_filter.clean_line(name, MAX_GROUP_NAME)
         gid = GROUP_PREFIX + secrets.token_hex(8)
         now = time.time()
         conn = self._conn()
@@ -617,7 +636,7 @@ class MessageStore:
     def rename_group(self, user_id: str, gid: str, name: str) -> dict:
         if not self.is_member(gid, user_id):
             raise MessageError("You are not in that group.")
-        name = content_filter.scrub(" ".join(str(name or "").split())[:MAX_GROUP_NAME])
+        name = content_filter.clean_line(name, MAX_GROUP_NAME)
         self._conn().execute("UPDATE groups SET name = ? WHERE id = ?", (name, gid))
         self.send(user_id, gid, kind="system",
                   text=f"named the group {name}" if name else "took the group's name off")

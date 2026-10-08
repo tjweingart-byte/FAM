@@ -37,6 +37,10 @@ from paths import data_path
 AI = "ai"
 SCOPES = (AI,)
 
+#: How many answers are held in memory before the map is dropped and read
+#: again from disk; the lookup is a primary-key read either way.
+CACHE_LIMIT = 50_000
+
 #: Bump when `AI_NOTICE` changes what is sent or who receives it.
 VERSION = 1
 
@@ -103,7 +107,13 @@ class ConsentStore:
         answer = (None if row is None else
                   {"version": int(row[0]), "allowed": bool(row[1]), "at": float(row[2])})
         with self._lock:
-            self._cache[key] = answer
+            # Bounded (§226): a guest session that never answered is not
+            # remembered at all, and the whole map is dropped past a size
+            # rather than growing with every session ever minted.
+            if answer is not None:
+                if len(self._cache) >= CACHE_LIMIT:
+                    self._cache.clear()
+                self._cache[key] = answer
         return answer
 
     def given(self, user_id: str, scope: str = AI) -> bool:
@@ -126,6 +136,8 @@ class ConsentStore:
             (user_id, scope, int(version), 1 if allowed else 0, now, client[:80]))
         answer = {"version": int(version), "allowed": bool(allowed), "at": now}
         with self._lock:
+            if len(self._cache) >= CACHE_LIMIT:
+                self._cache.clear()
             self._cache[(user_id, scope)] = answer
         return answer
 

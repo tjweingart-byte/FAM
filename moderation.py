@@ -262,16 +262,20 @@ class ModerationStore:
     # --- blocks ------------------------------------------------------------
 
     def _blocks(self) -> dict[str, set]:
+        """Both directions at once, keyed on each person: whom they blocked
+        and who blocked them. Read on every poll, so a lookup is one dict
+        get rather than a scan of every block (§226)."""
         with self._lock:
             if self._blocks_cache is not None:
                 return self._blocks_cache
-        pairs: dict[str, set] = {}
+        either: dict[str, set] = {}
         for blocker, blocked in self._conn().execute(
                 "SELECT blocker, blocked FROM blocks"):
-            pairs.setdefault(blocker, set()).add(blocked)
+            either.setdefault(blocker, set()).add(blocked)
+            either.setdefault(blocked, set()).add(blocker)
         with self._lock:
-            self._blocks_cache = pairs
-        return pairs
+            self._blocks_cache = either
+        return either
 
     def block(self, blocker: str, blocked: str) -> bool:
         if not blocker or not blocked:
@@ -300,9 +304,7 @@ class ModerationStore:
         who blocked them, and everyone suspended. One set, both ways."""
         if not user_id:
             return set(self.suspended())
-        pairs = self._blocks()
-        out = set(pairs.get(user_id, ()))
-        out.update(b for b, blocked in pairs.items() if user_id in blocked)
+        out = set(self._blocks().get(user_id, ()))
         out.update(self.suspended())
         out.discard(user_id)
         return out

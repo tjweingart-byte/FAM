@@ -431,7 +431,7 @@ class Mix:
 
 def clean_name(name: str) -> str:
     # A public mix's name is read by strangers: slurs out (§224).
-    name = content_filter.scrub(" ".join(str(name).split())[:MAX_NAME])
+    name = content_filter.clean_line(name, MAX_NAME)
     if not name:
         raise MixError("Give the mix a name.")
     return name

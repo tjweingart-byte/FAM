@@ -2231,6 +2231,47 @@ def _require_can_post(user: str) -> None:
         raise HTTPException(status_code=403, detail=SUSPENDED)
 
 
+def _episode_target(query: str, minutes) -> str:
+    """The moderation key for an episode, from the question as the cache
+    matches it (`normalize_query`), so a report filed with what the listener
+    typed and a cache row stored lower-cased name the same episode (§226)."""
+    return moderation_mod.episode_target(normalize_query(query or ""), int(minutes or 0))
+
+
+def _episode_removed(viewer: str, query: str, minutes) -> bool:
+    """Whether a reviewer took this episode down, or this listener reported it."""
+    target = _episode_target(query, minutes)
+    return (target in MODERATION.hidden_episodes()
+            or target in MODERATION.reported_by(viewer, "episode"))
+
+
+def _episode_author(query: str, minutes: int) -> str:
+    """Who searched this episode, from the shared cache's provenance, or ""."""
+    store = SCRIPT_CACHE if SCRIPT_CACHE is not None else build_cache()
+    if store is None:
+        return ""
+    norm = normalize_query(query)
+    try:
+        for entry in store.recent(TRENDING_SEARCHES_SCAN, origin="search"):
+            if (normalize_query(entry.get("query") or "") == norm
+                    and int(entry.get("minutes") or 0) == int(minutes)):
+                return entry.get("author") or ""
+    except Exception:  # noqa: BLE001 - a report is kept without an author
+        log.exception("could not read an episode's author for a report")
+    return ""
+
+
+def _drop_removed(viewer: str, topics: list[dict], minutes: int) -> list[dict]:
+    """A rail's tiles without any episode a reviewer took down or this
+    listener reported (§226) - the crowd rails replay other people's
+    searched episodes too, not only Explore."""
+    if not MODERATION.hidden_episodes() and not MODERATION.reported_by(viewer, "episode"):
+        return topics
+    return [t for t in topics
+            if not _episode_removed(viewer, t.get("query") or "",
+                                    t.get("minutes") or minutes)]
+
+
 def _visible_episodes(viewer: str, entries: list[dict]) -> list[dict]:
     """Cached episodes as another listener's shelf shows them: none a reviewer
     took down, none this listener reported, and none searched by somebody
@@ -2241,8 +2282,7 @@ def _visible_episodes(viewer: str, entries: list[dict]) -> list[dict]:
         return entries
     return [e for e in entries
             if (e.get("author") or "") not in apart
-            and moderation_mod.episode_target(e.get("query") or "",
-                                              e.get("minutes") or 0) not in hidden]
+            and _episode_target(e.get("query") or "", e.get("minutes") or 0) not in hidden]
 
 
 def _mark_waitlisted(people: list[dict]) -> list[dict]:
@@ -2344,10 +2384,9 @@ async def person_profile(request: Request,
                  SOCIAL.following(me) + SOCIAL.followers(me)} if me else set()
         target = user_id if user_id in known else ""
     if not target and handle:
-        wanted = handle.strip().lstrip("@").lower()
-        found = [p for p in SOCIAL.find_people(wanted, exclude_user=me, limit=5)
-                 if p["handle"] == wanted]
-        target = found[0]["user_id"] if found else ""
+        target = _person_by_handle(handle)
+        if target == me:
+            target = ""
         if target and not _reachable(me, target):
             target = ""
     # Blocked either way, or suspended: to this listener they are not there.
@@ -2449,10 +2488,9 @@ async def friends_follow(req: FollowRequest, request: Request) -> dict:
     _require_can_post(user)
     target = req.user_id
     if not target and req.handle:
-        found = SOCIAL.find_people(req.handle, exclude_user=user, limit=5)
-        exact = [p for p in found
-                 if p["handle"] == req.handle.strip().lstrip("@").lower()]
-        target = exact[0]["user_id"] if exact else ""
+        target = _person_by_handle(req.handle)
+        if target == user:
+            target = ""
     if target and not _reachable(user, target):
         target = ""
     if not target:
@@ -2507,6 +2545,14 @@ async def messages_inbox(request: Request) -> dict:
     for row in inbox:
         sender = row.pop("last_sender", "")
         if row.get("group"):
+            # Nothing from somebody this listener cannot see: not counted,
+            # and not the preview line (§226).
+            if apart:
+                row["unread"] = MESSAGES.unread_in(user, row["with"], exclude_senders=apart)
+                if sender in apart:
+                    row["last"] = {**(row.get("last") or {}), "text": "", "query": "",
+                                   "title": "", "kind": "text"}
+                    sender = ""
             # A group (10.6 packet #4): its name, or its people's first
             # names, and who said the last thing.
             view = _group_view(row["with"], user, known)
@@ -2532,9 +2578,13 @@ async def messages_inbox(request: Request) -> dict:
         last = row.get("last") or {}
         if last.get("kind") == "episode":
             last["topic"] = _topic_label(last.get("query") or "", last.get("title") or "")
-    unread = (sum(int(row.get("unread") or 0) for row in inbox) if apart
-              else MESSAGES.unread_total(user))
-    return {"threads": inbox, "unread": unread}
+    return {"threads": inbox, "unread": _unread_total(user)}
+
+
+def _unread_total(user: str) -> int:
+    """The Messages badge, never counting what this listener cannot open:
+    messages from somebody blocked either way or suspended (§226)."""
+    return MESSAGES.unread_total(user, exclude_senders=MODERATION.apart(user))
 
 
 def _first_name(person: dict) -> str:
@@ -2716,7 +2766,7 @@ async def messages_delete_thread(request: Request,
         MESSAGES.clear(user, with_)
     except messages_mod.MessageError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return {"ok": True, "unread": MESSAGES.unread_total(user)}
+    return {"ok": True, "unread": _unread_total(user)}
 
 
 @app.get("/api/notifications")
@@ -2759,7 +2809,7 @@ async def notifications(request: Request,
     head = MESSAGES.latest_id(user)
     if bootstrap:
         return {"messages": [], "follows": [], "head": head,
-                "unread": MESSAGES.unread_total(user)}
+                "unread": _unread_total(user)}
 
     arrived = MESSAGES.arrived_for(user, after_id=since)
     apart = MODERATION.apart(user)
@@ -2793,7 +2843,7 @@ async def notifications(request: Request,
         # one open of the app is not raised again on the next.
         "follows": _without_apart(user, SOCIAL.new_followers(user, unannounced=True)),
         "head": head_seen,
-        "unread": MESSAGES.unread_total(user),
+        "unread": _unread_total(user),
     }
 
 
@@ -2917,6 +2967,7 @@ async def messages_rename_group(gid: str, req: GroupNameRequest,
                                 request: Request) -> dict:
     _read_limit(request)
     user = _require_account(request)
+    _require_can_post(user)
     try:
         MESSAGES.rename_group(user, gid, req.name)
     except messages_mod.MessageError as exc:
@@ -2930,7 +2981,7 @@ async def messages_leave_group(gid: str, request: Request) -> dict:
     _read_limit(request)
     user = _require_account(request)
     return {"ok": MESSAGES.leave_group(user, gid),
-            "unread": MESSAGES.unread_total(user)}
+            "unread": _unread_total(user)}
 
 
 # --- save for later -------------------------------------------------------
@@ -3735,8 +3786,7 @@ def _person_by_handle(handle: str) -> str:
     wanted = str(handle or "").strip().lstrip("@").lower()
     if len(wanted) < 2:
         return ""
-    found = [p for p in SOCIAL.find_people(wanted, limit=5) if p["handle"] == wanted]
-    return found[0]["user_id"] if found else ""
+    return SOCIAL.user_by_handle(wanted)
 
 
 #: The three pages App Store review asks for (APP_STORE.md): the terms every
@@ -3823,10 +3873,12 @@ def _report_subject(kind: str, req: ReportRequest, me: str) -> tuple[str, str, d
         query = " ".join(req.query.split())
         if not query or not req.minutes:
             raise missing
-        return (moderation_mod.episode_target(query, req.minutes), "",
+        # The searcher is who posted it, so a reviewer can suspend them (1.2).
+        return (_episode_target(query, req.minutes), _episode_author(query, req.minutes),
                 {"query": query, "minutes": req.minutes})
     target = req.target.strip()
-    if kind in ("comment", "message", "vibe") and not target.isdigit():
+    # Row ids: digits, and short enough to be an SQLite integer (§226).
+    if kind in ("comment", "message", "vibe") and not (target.isdigit() and len(target) <= 18):
         raise missing
     if kind == "comment":
         row = SOCIAL.comment(int(target))
@@ -4827,6 +4879,11 @@ async def create_mix(req: MixRequest, request: Request):
         # Public unless the request says otherwise: a new mix is public by
         # default, at the owner's direction.
         account = _require_account(request)
+        _require_can_post(account)
+        # The cheap checks first, so a refused mix never pays for a photo check.
+        mixes_mod.clean_name(req.name or "")
+        if req.cover:
+            mixes_mod.clean_cover(req.cover)
         await _check_photo(request, account, req.cover)
         mix = MIXES.create(account, req.name or "", req.topic_ids or [],
                            req.cover or "", public=req.public is not False)
@@ -4842,9 +4899,15 @@ async def create_mix(req: MixRequest, request: Request):
 async def update_mix(mix_id: str, req: MixRequest, request: Request):
     _read_limit(request)
     account = _require_account(request)
-    before = MIXES.get(account, mix_id) if req.topic_ids is not None else None
+    kept = MIXES.get(account, mix_id)
+    before = kept if req.topic_ids is not None else None
+    if req.name is not None or req.cover or req.public:
+        _require_can_post(account)
     if req.cover:
-        kept = MIXES.get(account, mix_id)
+        try:
+            mixes_mod.clean_cover(req.cover)
+        except mixes_mod.MixError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
         await _check_photo(request, account, req.cover,
                            before=(kept.cover if kept else "") or "")
     try:
@@ -5296,12 +5359,18 @@ def _client_asks_consent(request: Request) -> bool:
 def _sends_listener_words(where: str, context: str, attach: str,
                           topic_id: str = "") -> bool:
     """Whether a generation carries something of this listener to the
-    writer: a search they typed or spoke, a Go Deeper question, an
-    attachment, or the "what changed where you live" tile, whose question
-    names the place they set (`startup.LOCAL_ID`, §223). Every other myFAM,
-    DailyFAM or Trending tile is FAM's own question."""
-    return (where == "search" or bool(context) or bool(attach)
-            or topic_id == startup.LOCAL_ID)
+    writer: a search they typed or spoke, an attachment, or the "what changed
+    where you live" tile, whose question names the place they set
+    (`startup.LOCAL_ID`, §223). Every other myFAM, DailyFAM or Trending tile
+    is FAM's own question.
+
+    A follow-up (`context`) is not counted on its own (§226): the one the
+    post-episode grid starts is FAM's own `<<NEXT>>` prediction, and refusing
+    it put the consent question over a myFAM listener's next episode. A
+    *typed* Go Deeper question is the listener's words, and both clients ask
+    before sending one (`confirmGoDeeper`, `ConsentModel.ensure`) - the server
+    cannot tell a typed follow-up from a suggested one."""
+    return where == "search" or bool(attach) or topic_id == startup.LOCAL_ID
 
 
 CONSENT_REQUIRED = ("FAM needs your OK before it sends what you ask to "
@@ -5791,6 +5860,7 @@ async def myfam_section(request: Request,
         raise HTTPException(status_code=404,
                             detail="No such section.") from exc
 
+    body["topics"] = _drop_removed(user, body["topics"], minutes)
     for topic in body["topics"]:
         topic["cached"] = written(topic.get("query", ""))
     # Trending's geography groups carry the same tiles; they are marked the
@@ -5986,11 +6056,12 @@ async def episode_card(request: Request,
     norm = normalize_query(asked)
     if store is not None and norm:
         listener = _listener(request)
+        apart = MODERATION.apart(listener)
         for entry in store.recent(TRENDING_SEARCHES_SCAN, origin="search"):
             if normalize_query(entry.get("query") or "") != norm:
                 continue
             author = entry.get("author") or ""
-            if author and author in MODERATION.apart(listener):
+            if author and author in apart:
                 break
             if author and author != listener and PREFS.get(author).searches_public:
                 handle = SOCIAL.person(author).get("handle") or ""
@@ -6210,7 +6281,10 @@ async def welcome_samples(request: Request) -> dict:
     landing page shows the same three (§190), so this is open past the gate.
     """
     _read_limit(request)
-    return {"episodes": _welcome_episodes()}
+    # A sample a reviewer took down is not offered on the front door (§226).
+    return {"episodes": [e for e in _welcome_episodes()
+                         if not _episode_removed("", e.get("query") or "",
+                                                 e.get("minutes") or BROWSE_MINUTES)]}
 
 
 @app.get("/api/explorenew")
@@ -6335,6 +6409,7 @@ async def myfam(request: Request, interests: str = Query("", max_length=200),
     # between two of them - and it is free to say, because the ranking asked
     # the same question a moment ago and this is the memoised answer.
     for section in feed["sections"]:
+        section["topics"] = _drop_removed(user, section["topics"], minutes)
         for topic in section["topics"]:
             topic["cached"] = written(topic.get("query", ""))
         _name_written_tiles(section["topics"], minutes)
@@ -6433,9 +6508,14 @@ async def _check_photo(request: Request, user: str, data_url: Optional[str],
     is the one already kept; a check that cannot run lets it through."""
     if not data_url or data_url == before:
         return
+    if image_check.split_data_url(data_url) is None:
+        raise HTTPException(status_code=400, detail=image_check.UNREADABLE)
+    # A paid model call: paced like one (`limit-episodes`), not like a read.
+    _rate_limit(request)
     usage = metering.Usage()
     verdict = await image_check.check(data_url, usage=usage)
-    if verdict.checked and user:
+    # Whatever the verdict, a call that was made was paid for (`metering`).
+    if usage.model_calls and user:
         _record_usage(user, usage, surface="photo_check")
     if not verdict.allowed:
         raise HTTPException(status_code=400, detail=image_check.REFUSED)
@@ -6452,6 +6532,17 @@ async def set_me(req: PersonRequest, request: Request):
     """
     _read_limit(request)
     user = _listener(request)
+    # Suspended: nothing new that strangers read, a name or a face included.
+    _require_can_post(user)
+    # The cheap checks first, so a bad handle never pays for a photo check.
+    try:
+        social_mod.clean_handle(req.handle)
+        if not " ".join(str(req.name or "").split()):
+            raise social_mod.SocialError("Give yourself a name.")
+        if req.avatar:
+            social_mod.clean_avatar(req.avatar)
+    except social_mod.SocialError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     await _check_photo(request, user, req.avatar,
                        before=SOCIAL.person(user).get("avatar") or "")
     try:
@@ -7761,6 +7852,10 @@ async def audio(
                                                     settings.max_minutes))
     plan = _validated_plan(q, minutes, context, search, cached_only,
                            _attachments_for(user, attach))
+    # A reviewer took this episode down (moderation.py, §226): it plays for
+    # nobody - not from a share, a rail, a replay, or written again.
+    if _episode_target(q, minutes) in MODERATION.hidden_episodes():
+        raise HTTPException(status_code=410, detail="This episode was removed.")
     if episode:
         # The listening history replaying what was heard (§173): that
         # episode, current or not, or a 409 - never a new one.

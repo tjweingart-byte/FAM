@@ -197,6 +197,21 @@ def scrub(text: str) -> str:
     return text
 
 
+def clean_line(text: str, limit: int) -> str:
+    """One line somebody typed for somebody else to read - a name, a group or
+    mix name, a comment, a caption (§224): whitespace folded, slurs out, then
+    cut to `limit`. Scrubbed *before* the cut, so a slur straddling the limit
+    is caught whole and "a slur" can never push the text past it. Never
+    raises: the filter failing is not a lost post."""
+    text = " ".join(str(text or "").split())
+    try:
+        text = scrub(text)
+    except Exception:  # noqa: BLE001 - logged by the caller's own handler
+        import logging
+        logging.getLogger(__name__).exception("could not run the slur filter")
+    return text[:limit].strip()
+
+
 def scrub_all(sentences: Iterable[str]) -> list[str]:
     return [scrub(s) for s in sentences]
 
