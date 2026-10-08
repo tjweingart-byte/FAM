@@ -566,7 +566,7 @@ def load_fixtures() -> dict:
         "/api/consent": {"ai": {**consent_mod.describe(None), "asked": True,
                                 "given": True,
                                 "answered_version": consent_mod.VERSION},
-                         # Agreed at sign-up (§227), so the re-accept sheet
+                         # Agreed at sign-up (§228), so the re-accept sheet
                          # stays down unless a check takes this back.
                          "terms": {**consent_mod.describe_terms(None), "accepted": True,
                                    "accepted_version": consent_mod.TERMS_VERSION}},

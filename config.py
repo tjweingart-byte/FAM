@@ -710,7 +710,7 @@ class Settings:
     # the writer's model, and at the owner's direction (§225) it runs on the
     # cheapest current one - about $0.0002 a photo.
     image_check_model: str = field(
-        default_factory=lambda: os.environ.get("IMAGE_CHECK_MODEL", "claude-haiku-5-5"))
+        default_factory=lambda: os.environ.get("IMAGE_CHECK_MODEL") or SMALL_MODEL)
     image_check_max_tokens: int = _env_int("IMAGE_CHECK_MAX_TOKENS", 2000)
     # Somebody is waiting on the save; past this the photo is let through
     # unchecked rather than lost.
