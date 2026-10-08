@@ -1030,6 +1030,18 @@
   Sources are **forbidden to call a model or the network** - one that costs
   money to *ask* turns a speculative saving into a certain spend - and a test
   reads the module rather than trusting the rule.
+<!-- rule:small-calls-haiku -->
+- **The small calls run on Haiku 5.5; the writer runs on `MODEL`.**
+  *(PROBLEMS.md §227, at the owner's direction.)* The brief, the tile
+  composer, the category placer and the thumbnail calls default to
+  `config.SMALL_MODEL` (`claude-haiku-5-5`) and never follow `MODEL`; each
+  has its own setting to move it back. The admin question box follows
+  `MODEL`. Metering prices every call at its own model's rates, because one
+  episode's calls run on different models; every model the code can name
+  must be in `metering.PRICES`, or prefetch's dollar budget cannot see it.
+  The brief's quality on Haiku is unmeasured until `tools/ei_eval.py` runs
+  with a key.
+
 <!-- rule:writer-savings -->
 - **Savings on the writer never change what is written, and never cost an
   episode.** *(PROBLEMS.md §179, at the owner's direction.)* Two are in: the

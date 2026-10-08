@@ -93,7 +93,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   if `searches_public`. [player-layout]
 - **Search DailyFAM opens on an A to Z catalogue** of others' cached episodes,
   lettered (`/api/myfam/catalog`); typing shows the closest (§193). [dailyfam-catalogue]
-- **Your categories** (§221): followed facets/tree nodes under the mixes; a
+- **Your categories** (§228): followed facets/tree nodes under the mixes; a
   page of today's cached episodes in or below one - popular (plays + mixes),
   A-Z, recent; title search; never writes. [your-categories]
 - **A queue** (§190): Add to / Go to Queue from the player's and a DailyFAM
@@ -363,6 +363,9 @@ Caching and prefetch
   anything personal, report `None` not `0`. [prefetch-same-key]
 - A prefetch candidate carries a reason in words; sources never call a model or
   the network. [candidate-reason]
+- **Small calls on Haiku 5.5** (§227): brief, composer, placer, thumbnails
+  default to `SMALL_MODEL`, never `MODEL`; metering prices each call at its
+  own model; brief quality unmeasured until `ei_eval.py` runs. [small-calls-haiku]
 - **Writer savings change no word and cost no episode** (§179): its
   instructions are one cacheable block (`PROMPT_CACHE`); the Trending and
   DailyFAM editions batch their writers (`EDITION_BATCH`), read by the same

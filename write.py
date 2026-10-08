@@ -36,12 +36,6 @@ from anthropic_client import build_async_client
 from config import DEFAULT_MINUTES, settings
 from script_generator import ScriptGenerator, ScriptNotes, count_words, plan_episode
 
-PRICES = {
-    "claude-opus-5": (5.0, 25.0),
-    "claude-sonnet-5": (2.0, 10.0),
-    "claude-haiku-4-5": (1.0, 5.0),
-}
-
 
 async def main() -> int:
     ap = argparse.ArgumentParser()

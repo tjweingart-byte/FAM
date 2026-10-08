@@ -181,6 +181,42 @@ async def _verify_credentials() -> None:
              CREDENTIALS["key"], CREDENTIALS["source"])
 
 
+async def _verify_small_models() -> None:
+    """Ask the same question of the models the small calls run on (§227).
+
+    Until §227 every call ran on `settings.model`, so `_verify_credentials`
+    covered them all. The brief, composer, placer and thumbnail calls now
+    default to `config.SMALL_MODEL`, and an account that cannot use it would
+    turn every brief into the raw-query fallback - each one logged, none of
+    them said at boot. A model that fails here is reported in
+    `/api/health` (`credentials.models`) and the log; nothing else changes,
+    because every one of those calls already falls back on its own.
+    """
+    if CREDENTIALS.get("state") != "ok":
+        return
+    small = sorted({settings.ei_model, settings.stories_model,
+                    settings.categories_model, settings.thumbnails_model}
+                   - {settings.model})
+    report: dict[str, str] = {}
+    for model in small:
+        try:
+            await build_async_client().models.retrieve(model)
+            report[model] = "ok"
+        except Exception as exc:  # noqa: BLE001 - the report matters, not the type
+            import anthropic
+
+            # `friendly_error` names the writer's model on a 404; this is not it.
+            report[model] = (f"The model {model!r} is not available to this account."
+                             if isinstance(exc, anthropic.NotFoundError)
+                             else friendly_error(exc))
+            log.error("MODEL UNAVAILABLE - %s: %s. The calls on it fall back "
+                      "(the brief searches the raw query, tiles are templated); "
+                      "set EI_MODEL / STORIES_MODEL / CATEGORIES_MODEL / "
+                      "THUMBNAILS_MODEL to a model this key can use.",
+                      model, report[model])
+    CREDENTIALS["models"] = report
+
+
 def _say_where_a_key_could_come_from() -> None:
     """With no key, say the thing that stops this happening on the next machine.
 
@@ -487,6 +523,7 @@ async def lifespan(_: FastAPI):
     asyncio.get_running_loop().run_in_executor(None, autocorrect_mod.warm)
     # Before a listener finds out the hard way.
     await _verify_credentials()
+    await _verify_small_models()
     _announce_research()
     # Before the first listener signs up into a database that is about to be
     # replaced by the next push.
@@ -5665,7 +5702,7 @@ async def myfam_catalog(request: Request) -> dict:
 
 
 # --------------------------------------------------------------------------
-# Your categories (§221)
+# Your categories (§228)
 # --------------------------------------------------------------------------
 #: How far back a category page reads the cache: every row written today on
 #: a deployment this size; past it the newest win.
@@ -5760,7 +5797,7 @@ def _mix_counts() -> dict:
 def _todays_filed() -> list[dict]:
     """Every episode cached since the start of the listener's day, filed.
 
-    **A read of the shared cache and nothing else** (§221): nothing here
+    **A read of the shared cache and nothing else** (§228): nothing here
     writes, prefetches or asks a model. What is in it is what is already
     made - everything listeners searched and played, and the edition and
     warmed episodes nobody has tapped yet, which sit in the same cache under
@@ -5882,7 +5919,7 @@ class CategoryFollowRequest(BaseModel):
 async def follow_categories(req: CategoryFollowRequest, request: Request) -> dict:
     """Keep the categories this listener follows. Account only - what is
     kept is what an account is for. Writes no event: following a category
-    is a list to browse, never a taste signal (§221)."""
+    is a list to browse, never a taste signal (§228)."""
     _read_limit(request)
     user = _require_account(request)
     try:
@@ -5899,7 +5936,7 @@ async def category_episodes(
     sort: str = Query("popular", max_length=12),
     q: str = Query("", max_length=200),
 ) -> dict:
-    """Today's episodes in one category or anything under it (§221).
+    """Today's episodes in one category or anything under it (§228).
 
     Cached only - this never causes an episode to be written; a tap plays
     what is there (`cached_only`). `sort` is `popular` (plays plus the mixes

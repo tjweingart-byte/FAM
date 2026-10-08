@@ -621,7 +621,7 @@ the rest of this list it needs taste rather than a key.
   (`rank_similar`, unchanged); clearing the box brings it back.
 
 <!-- rule:your-categories -->
-- **Your categories** *(PROBLEMS.md §221, at the owner's direction)*: under
+- **Your categories** *(PROBLEMS.md §228, at the owner's direction)*: under
   the mixes on the screen that shows "myFAM", the categories a listener
   follows - any of the eight facets or any node of the category tree
   ("NFL", three levels down), kept on `preferences.categories` for an
