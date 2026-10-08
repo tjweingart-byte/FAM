@@ -228,3 +228,4 @@ and `limit` = Lines.
 | 16557 | 79 | 222. The two App Store rejections: report and block (1.2), and asking before words go to the AI (5.1.2(i)) |
 | 16636 | 74 | 223. The privacy policy, support page, legal PDFs and the iOS safety screens |
 | 16710 | 70 | 224. The content filter, widened for App Store 1.2: names, messages, and photos |
+| 16780 | 21 | 225. The photo check runs on Claude Haiku 5.5 |

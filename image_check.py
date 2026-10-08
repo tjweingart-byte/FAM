@@ -2,9 +2,10 @@
 
 A profile picture and a public mix's cover are the two images FAM shows to
 strangers. Both are small (a 96 KB avatar, a 360px cover), uploaded rarely,
-and looked at by one model call each before they are kept: about a quarter
-of a cent a photo at the default model, which is why the owner chose an
-automated check over relying on Report + Remove alone.
+and looked at by one model call each before they are kept, on the cheapest
+current model (`IMAGE_CHECK_MODEL`, Claude Haiku 5.5): about $0.0002 a photo.
+That is why the owner chose an automated check over relying on Report +
+Remove alone, and why it does not run on the writer's model (§225).
 
 What is refused is narrow on purpose, the image counterpart of `slurs-only`:
 nudity and sexual content, graphic violence or gore, hate symbols or slurs in

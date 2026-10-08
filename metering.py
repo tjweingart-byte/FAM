@@ -89,6 +89,8 @@ PRICES: dict[str, tuple[float, float]] = {
     "claude-sonnet-5": (2.00, 10.00),
     "claude-sonnet-4-6": (3.00, 15.00),
     "claude-haiku-4-5": (1.00, 5.00),
+    # Prompts up to 100K tokens; the photo check's are a few hundred (§225).
+    "claude-haiku-5-5": (0.10, 0.50),
 }
 
 #: Cached input is billed at a fraction of the input rate; writing to the cache

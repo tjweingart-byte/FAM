@@ -127,7 +127,7 @@ it does):
 | **Terms** the listener agrees to, zero tolerance | `/terms`, linked under both sign-up forms ("By continuing you agree..."). Template `pages/terms.html`; have a lawyer read it. |
 | **Acting on reports** within 24 hours | `/admin` > **Reported content**, oldest first, with how long the oldest has waited and an OVERDUE flag past 24h. Remove (for everybody), Suspend (remove and stop the account posting; it can still listen) or Dismiss. The reporter is never shown, even there. |
 | **Published contact** | `SUPPORT_EMAIL`, printed on `/terms` and returned by `/api/report`. **Set it before submitting.** |
-| A **filter** | Slurs are removed from episodes, comments, captions, messages, display names, group and mix names, and refused in handles; swearing is kept and marked E, names included (§224). Profile pictures and mix covers are checked by a model for nudity, sexual content, graphic violence, hate symbols and anything sexualising a minor before anyone else sees them (`image_check.py`, about a quarter of a cent a photo). |
+| A **filter** | Slurs are removed from episodes, comments, captions, messages, display names, group and mix names, and refused in handles; swearing is kept and marked E, names included (§224). Profile pictures and mix covers are checked by a model for nudity, sexual content, graphic violence, hate symbols and anything sexualising a minor before anyone else sees them (`image_check.py`, on Claude Haiku 5.5, about $0.0002 a photo). |
 
 Somebody must read `/admin` every day while the app is in review and after.
 Nothing alerts anybody when a report arrives (FAM has no email delivery).

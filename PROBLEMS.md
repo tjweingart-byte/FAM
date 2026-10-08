@@ -16776,3 +16776,24 @@ The avatar and mix saves now show the server's sentence too, so a refused photo
 says why.
 
 Pinned in `tests/test_moderation_and_consent.py`.
+
+## 225. The photo check runs on Claude Haiku 5.5
+
+At the owner's direction: the §224 photo check followed `MODEL` (Sonnet 5,
+about $0.002-0.003 a photo), which was "too expensive for what we are
+expected to get out of it".
+
+- **The check now has its own default model**, `IMAGE_CHECK_MODEL=claude-haiku-5-5`
+  ($0.10 / $0.50 per million tokens). It no longer inherits the writer's
+  `MODEL`.
+- **Cost.** A few hundred image tokens plus a short structured answer at low
+  effort comes to about $0.0002 a photo, roughly a tenth of what it was.
+- **What it does is unchanged.** It is a yes/no on one small picture, against
+  a narrow list of what to refuse, which is the work the smallest current
+  model is for.
+- **`metering.PRICES` gains `claude-haiku-5-5`.** Without it every check would
+  have been recorded as unpriced.
+- **Still settable.** `IMAGE_CHECK_MODEL` can name another model if refusals
+  turn out wrong in practice.
+
+Pinned in `tests/test_moderation_and_consent.py`.

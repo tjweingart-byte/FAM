@@ -394,3 +394,11 @@ def test_an_unchanged_photo_is_not_checked_again(monkeypatch):
     ann.post("/api/me", json={"name": "Ann", "handle": "ann", "avatar": PHOTO})
     ann.post("/api/me", json={"name": "Ann B", "handle": "ann", "avatar": PHOTO})
     assert len(calls) == 1
+
+
+def test_the_photo_check_runs_on_the_cheap_model_and_is_costed():
+    """§225: not the writer's model, and the ledger can price it."""
+    import metering
+    from config import settings
+    assert settings.image_check_model == "claude-haiku-5-5"
+    assert settings.image_check_model in metering.PRICES
