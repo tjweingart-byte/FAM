@@ -328,7 +328,8 @@ Research and truth
   worded as a forecast, never an outcome; never prefetched. [weather]
 - **GDELT is read from its 15-minute export files, never its search API**
   (§211): one job downloads them; every reader uses the copy on disk;
-  nothing a listener does reaches GDELT. [gdelt-exports]
+  nothing a listener does reaches GDELT; polls on GDELT's clock, a named
+  file is waited for (§220). [gdelt-exports]
 - **A forecast beside every outcome-dependent question** (§211):
   `live_facts.forecast` asks Polymarket by subject; `plan.forecast`, never
   `plan.live`, never evidence. [forecast-beside]
@@ -359,6 +360,9 @@ Caching and prefetch
   anything personal, report `None` not `0`. [prefetch-same-key]
 - A prefetch candidate carries a reason in words; sources never call a model or
   the network. [candidate-reason]
+- **Small calls on Haiku 5.5** (§227): brief, composer, placer, thumbnails
+  default to `SMALL_MODEL`, never `MODEL`; metering prices each call at its
+  own model; brief quality unmeasured until `ei_eval.py` runs. [small-calls-haiku]
 - **Writer savings change no word and cost no episode** (§179): its
   instructions are one cacheable block (`PROMPT_CACHE`); the Trending and
   DailyFAM editions batch their writers (`EDITION_BATCH`), read by the same

@@ -721,11 +721,13 @@ async def _get(client: httpx.AsyncClient, url: str, headers: dict | None = None)
     try:
         reply = await client.get(url, headers={
             "User-Agent": places.user_agent(), **(headers or {})})
-    except Exception:
-        provider_usage.record("local_feeds", ok=False)
+    except Exception as exc:
+        provider_usage.record("local_feeds", ok=False, why=type(exc).__name__)
         raise
+    what = "robots.txt" if url.endswith("/robots.txt") else "feed or page"
     provider_usage.record("local_feeds",
-                          ok=reply.is_success or reply.status_code == 304)
+                          ok=reply.is_success or reply.status_code == 304,
+                          why=f"{what}: HTTP {reply.status_code}")
     return reply
 
 

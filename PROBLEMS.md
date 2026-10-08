@@ -16424,7 +16424,164 @@ slides), `tests/test_yourfam.py::test_the_place_they_gave_is_shown_under_their_n
 and `tests/test_search_length_and_mix_gate.py` (the five lengths, the packet
 size and that the writer asks for it).
 
-## 220. The finance workbook: every service, every day, one file
+## 220. Why a third of GDELT's downloads failed, and Finnhub's and the local feeds'
+
+**What was asked (07/10).** The admin page showed GDELT at 314 requests
+today, 101 failed (433 yesterday), where §211 promised about 200 a day with
+none failing; Finnhub and the local news feeds were failing too. The owner:
+break down why, and mitigate it for GDELT.
+
+**What could be read, and what could not.** This container cannot reach
+production, Render's logs or GDELT (the egress proxy refuses all three), and
+the admin page counted failures without a reason. So the breakdown is from
+the code: every way `gdelt.sync` could fail, matched against the counts.
+
+**Why GDELT failed.** Since §211 every GDELT request is the one background
+job; nothing a listener does reaches it. The shape - roughly one failure for
+every two good requests, and the failures *adding* to the ~200 rather than
+replacing them - is that of a file failing once and then being fetched on
+the next poll. Three things in `sync` produced exactly that:
+* **The poll drifted.** `run_forever` slept 900 s *after* each sync, so
+  every poll landed later by the sync's own length (a download and parse of
+  a 10-40 MB file) and the phase walked round the quarter hour. Whenever it
+  landed in the minutes after `lastupdate.txt` names a GKG file and before
+  the file server serves it, the newest file answered 404 and the sync
+  failed; the file came on the next poll as a backfill. GDELT's file server
+  is a CDN in front of a bucket and a name running ahead of its file is the
+  likeliest reading - not verified against the live service.
+* **A named file was written off on its second 404.** That backfill carried
+  no checksum and so was treated as a slot GDELT skipped: marked missing and
+  never asked again, losing fifteen minutes of news (and the 404 counted).
+* **One failure stopped the sync and nothing was asked twice.** A timeout,
+  a dropped connection or a passing 5xx raised out of the loop, so files
+  after it waited a whole period, and the next try was fifteen minutes away.
+
+**What changed (GDELT).**
+* `next_poll_in`: polls land `GDELT_EXPORT_POLL_OFFSET_SECONDS` (450) past
+  each quarter hour, on GDELT's clock - well after a name appears, well
+  before the next - and never drift.
+* A file `lastupdate.txt` *named* that answers 404 is **waiting**, not an
+  error: never written off for `NAMED_GRACE_SECONDS` (an hour), looked for
+  again after `GDELT_EXPORT_WAIT_SECONDS` (120) rather than a period later -
+  but only while it was named within the last period, so a file that never
+  appears is asked on the ordinary clock, not every two minutes for an hour
+  (review fix). Only a file never named is written off on one 404.
+* A timeout, dropped connection, 408/425/429 or 5xx is asked once more after
+  `GDELT_EXPORT_RETRY_SECONDS` (10). Each attempt is counted - a retry spends
+  a request like any other. A 404 on `lastupdate.txt` is not retried.
+* One file's failure no longer stops the others: the newest is still read.
+* Expected steady state: 96 `lastupdate.txt` + 96 files ≈ 192 a day, with
+  failures only for GDELT's own skipped slots and real outages.
+
+**Why Finnhub and the local feeds fail (read from the code, unverified).**
+* *Finnhub*: every request is `live_sources._json`. Non-2xx answers come
+  from a listener's subject that reaches `/search` and is refused (the §144
+  422s, now rarer behind the topic filter), the free plan refusing an
+  endpoint or symbol (403), and the 60-a-minute limit (429) when the
+  two-hourly watchlist sweep lands beside live lookups.
+* *Local feeds*: `local_news._get` counts any answer but 2xx/304 as failed,
+  including a **missing `robots.txt`** (404), which is normal and means
+  "allowed" - so part of that count is not a failure at all. The rest are
+  small outlets' sites: bot walls (403), moved or dead feeds (404/410),
+  timeouts.
+
+**What changed (all three).** `provider_usage.record` takes a `why`, and the
+admin page shows each provider's failure reasons since boot beside its
+count ("failed since boot: GKG file: HTTP 404, named but not served yet ×3,
+…"); `/api/health` → `gdelt.failure_reasons` and `waiting_for` too. A reason
+never carries a URL (Finnhub's key is a query parameter). The next look at
+the page says which of the readings above is true. Finnhub's and the local
+feeds' behaviour is unchanged; the `robots.txt` miscount is the obvious next
+fix once the reasons confirm it.
+
+Rule: `gdelt-exports` carries a §220 Current note. Tests:
+`tests/test_gdelt_failures_220.py`; `test_the_newest_file_is_never_written_off`
+now expects `waiting`, not an error.
+
+## 227. The small calls on Haiku 5.5, and an episode priced call by call
+
+*Numbered 227, not 221: `claude/hopeful-clarke-te67tk` already holds
+§221-§226, so either branch can merge first without renumbering.*
+
+The owner asked where cheaper Claude models could save money, read an
+analysis of every call site (prices per model, expected quality, monthly cost
+at 100 / 1k / 10k / 100k MAU, Fable 5.1 included), and chose "scenario D":
+the brief, the tile composer, the category placer and the thumbnail scene
+writer and checker move to `claude-haiku-5-5`; **the writer stays on
+`MODEL`** (Sonnet 5) because the writing is the product.
+
+**What changed.**
+
+* `config.SMALL_MODEL = "claude-haiku-5-5"` is the default of `EI_MODEL`,
+  `STORIES_MODEL`, `CATEGORIES_MODEL` and `THUMBNAILS_MODEL`. They no longer
+  follow `MODEL`: `render.yaml` sets `MODEL`, so following it would have kept
+  production on Sonnet. An empty value (`.env.example` shipped
+  `CATEGORIES_MODEL=`, which used to mean a model named `''`) now means the
+  default. `THUMBNAILS_CLAUDE_*_PER_MTOK` default to Haiku 5.5's 0.10 / 0.50.
+* The admin question box (`ADMIN_ASK_MODEL`) followed `ei_model`; it now
+  follows `MODEL`, so it stays where it was - writing SQL against a live
+  schema is not the brief's small extraction.
+* `metering.PRICES` gains `claude-opus-5-5` (4/20), `claude-sonnet-5-5`
+  (2/10) and `claude-haiku-5-5` (0.10/0.50, the rate for prompts of 100K
+  tokens or fewer, which every FAM call is), checked against the card on
+  2026-10-08. `CACHE_READ_PER_MTOK` holds the models whose cache reads are not
+  a tenth of input (Fable 5.1 $0.25, Opus 5.5 $0.20) - the existing Fable 5.1
+  row was pricing its cache reads at $1.00.
+* **Metering prices each call at its own model's rates** (`Usage.priced_*`,
+  `calls_priced`, `calls_unpriced`). `Usage` kept token totals and one
+  `model`, the last call's, and `price_of` multiplied the totals by that
+  model's rate. With the brief on Haiku and the writer on Sonnet that would
+  have charged the brief at Sonnet's rate - the saving would have been
+  invisible in `usage_report.py` and in prefetch's dollar budget. One
+  unpriced call marks the episode unpriced. A `Usage` built without
+  `add_model_call` is priced from its totals as before.
+* `write.py`, `compare_models.py` and `tools/compare_search.py` each carried
+  their own three-model price table; they import `metering.PRICES` now.
+  `compare_models.py`'s default comparison is Sonnet 5 / Sonnet 5.5 /
+  Opus 5.5, the writer test the analysis recommends next.
+
+**What it should save (estimate, not measured - no key here).** A brief from
+~$0.010 to ~$0.0005; the composer and placer by 95%. On `docs/FINANCIAL.md`
+§4's assumptions the Claude bill falls about 59% at 100 MAU (where the shared
+background calls dominate) and about 30% from 1k MAU up. The writer is ~70%
+of a new episode's Claude cost and did not move.
+
+**What it may cost.** Haiku 5.5 is a smaller model. The brief decides what is
+searched and whether a question is `outcome_dependent` (§82: quality came from
+the inputs), so a worse brief is a worse episode even with the writer
+unchanged. Nobody has run `tools/ei_eval.py` on Haiku 5.5 - **that is the
+first thing to do with a key**, and `EI_MODEL=claude-sonnet-5` restores the
+old brief without a deploy of code. The composer's hooks may read flatter; the
+placer's mistakes skew ranking until fixed on /admin. Haiku 5.5 has no
+server-side refusal fallback (the code uses none anyway) and counts the same
+text as ~30% more tokens than Haiku 4.5, already inside the estimate's margin.
+Changing these models does not touch the script cache: only `MODEL` is in
+`cache_key`.
+
+**Review, before merging into Main.** A second pass over the diff found:
+
+* *Nothing said at boot when the account cannot use Haiku 5.5.* Every call
+  ran on `MODEL` before, so `_verify_credentials`' `models.retrieve` covered
+  them all. Now an account without the small model would turn every brief
+  into the raw-query fallback, logged per episode and said nowhere at boot.
+  `app._verify_small_models` asks `models.retrieve` of each small model that
+  is not `MODEL`, once the key is known good, and reports each in
+  `/api/health` under `credentials.models`; a 404 names the small model, not
+  the writer's (`friendly_error` names `settings.model`). Nothing else
+  changes - each call already falls back on its own.
+* *`write.py` imported `PRICES` and never used it* (the table it replaced was
+  dead on Main too). Removed.
+
+Known and left: `EI_MAX_TOKENS` (1200) and `STORIES_MAX_TOKENS` (6000) were
+sized on Sonnet 5. Haiku 5.5 thinks adaptively and counts text differently,
+so a brief that hits the ceiling would be truncated JSON - which already
+falls back visibly (`EI returned nothing readable`, `Brief.degraded`). Watch
+for that reason in the log after deploying; raising the ceiling costs
+nothing unless it is used.
+
+Rule: `small-calls-haiku`. Tests: `tests/test_small_model_227.py`.
+
+## 229. The finance workbook: every service, every day, one file
 
 The owner asked for the financials in one organised spreadsheet that updates
 daily and tracks every cost from every piece of software. There is no

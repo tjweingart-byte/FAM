@@ -223,4 +223,6 @@ and `limit` = Lines.
 | 16328 | 21 | 217. Typing the address opens the app, not the waitlist |
 | 16349 | 18 | 218. The waitlist carousels turn only by hand; white arrows above the slide |
 | 16367 | 60 | 219. The 10.7 packet: the waitlist is the front door again, its topics, a place under the name, and a search length that held |
-| 16427 | 94 | 220. The finance workbook: every service, every day, one file |
+| 16427 | 74 | 220. Why a third of GDELT's downloads failed, and Finnhub's and the local feeds' |
+| 16501 | 83 | 227. The small calls on Haiku 5.5, and an episode priced call by call |
+| 16584 | 94 | 229. The finance workbook: every service, every day, one file |
