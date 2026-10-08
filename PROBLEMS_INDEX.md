@@ -231,4 +231,5 @@ and `limit` = Lines.
 | 16780 | 21 | 225. The photo check runs on Claude Haiku 5.5 |
 | 16801 | 113 | 226. Reviewing the branch before it merges: what the review found and fixed |
 | 16914 | 83 | 227. The small calls on Haiku 5.5, and an episode priced call by call |
-| 16997 | 48 | 228. The Terms, agreed with a checkbox (clickwrap) |
+| 16997 | 47 | 228. The Terms, agreed with a checkbox (clickwrap) |
+| 17044 | 113 | 230. The finance workbook: every service, every day, one file |

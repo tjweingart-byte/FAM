@@ -33,6 +33,7 @@
   .dot.off { background:var(--rose); }
   .ghost { background:var(--surface); border:1px solid var(--line); border-radius:8px; padding:6px 11px; font-size:12px; color:var(--muted); }
   .ghost:hover { color:var(--ink); border-color:var(--amber-dk); }
+  a.ghost { text-decoration:none; display:inline-block; }
   .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:16px; min-width:0; }
   .grid { display:grid; gap:14px; }
   .kpis { display:grid; grid-template-columns:repeat(auto-fill,minmax(170px,1fr)); gap:1px; background:var(--line); border:1px solid var(--line); border-radius:14px; overflow:hidden; margin-bottom:14px; }
@@ -118,6 +119,7 @@
       <span class="dot" id="dot"></span><span id="state">connecting…</span>
       <button class="ghost" id="pause">Pause</button>
       <button class="ghost" id="refresh">Refresh now</button>
+      <a class="ghost" id="financials" href="/api/admin/financials.xlsx" download>Financials (.xlsx)</a>
       <button class="ghost" id="signOut" hidden>Sign out</button>
     </div>
   </header>

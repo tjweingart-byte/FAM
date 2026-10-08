@@ -17041,3 +17041,115 @@ Changing the Terms in a way people must agree to again is a bump of
 **Not built.** The iOS sign-up screen is not in `ios/FAMSafety`; its README
 says what the screen must send.
 
+## 230. The finance workbook: every service, every day, one file
+
+The owner asked for the financials in one organised spreadsheet that updates
+daily and tracks every cost from every piece of software. There is no
+revenue yet, so it is a cost structure first.
+
+**It is built, not kept.** `financials.build()` writes an Excel workbook from
+the stores at the moment it is asked for - `GET /api/admin/financials.xlsx`
+(behind `_require_admin`, a **Financials (.xlsx)** button on `/admin`) or
+`python tools/financials.py` (`--remote <host>` pulls production's with
+`FAM_ADMIN_TOKEN`). A daily job writing a file would be a second record that
+could fall behind the first; this one cannot, so "updates daily" is true of
+every copy on the day it was downloaded. It reads only, opens no store that
+does not exist, calls no model and no network, so it is as safe on staging as
+`/api/usage`.
+
+**Six sheets.** *Dashboard*: today, month to date, trailing 30 days, monthly
+run-rate, revenue (a yellow input, $0), net burn, runway from a cash cell,
+spend by category, a 30-day stacked chart. *Cost Structure*: one row per
+service - Render (both services and disks, bandwidth from the invoice),
+RunPod, Anthropic, Google's image model, Exa, GNews, API-Sports per sport,
+Finnhub, Open-Meteo, the free sources, Viral Loops, Apple, GitHub, Google
+sign-in, web push, and three rows the code cannot see (domain, the team's
+Claude plan, email) for the owner's figures. Usage-billed rows are SUMIFS over
+the ledger's last 30 days, never a typed number. *Daily Ledger*: per UTC day,
+episodes, replays, Claude, Exa, GPU and tile-picture spend from
+`metering.db`/`thumbnails.db`, plus the subscriptions' daily share.
+*12-Month Plan*: run-rate forward at a growth input, plus the licences a paid
+launch needs (`launch_purchases`: whatever of GNews Essential, Finnhub
+commercial and Open-Meteo Standard is not yet bought, API-Sports Pro, and two
+optional upgrades) from a launch month. *Provider Calls*: requests per day
+against each limit (`provider_usage.db`). *Notes*: colours and sources.
+
+**What decides a row is the deployment.** GNews, Finnhub, Open-Meteo,
+API-Sports tiers, the voice transport (serverless = usage, `http` pod = a
+fixed rental and the ledger's GPU column then left out of the total), tile
+pictures and Viral Loops read the settings in force, so buying a plan and
+setting `GNEWS_PLAN=essential` moves it from the launch list to Paying with
+no edit here.
+
+**Known gap, said on the Notes sheet:** background Claude calls that are not
+an episode (story-tile composer, category placement, prefetched briefs) are
+billed but not metered per call, so the Claude column is a floor; compare it
+with the Anthropic console monthly.
+
+Pinned in `tests/test_financials.py`.
+
+**The plan follows listeners (same day, owner's follow-up).** "We will be
+spending more as we get users and launch, especially in sports." The
+12-Month Plan's flat growth percentage is replaced by a model of what
+actually drives cost: listeners (a launch month, a launch size and monthly
+growth) -> searches -> new episodes (searches that miss the cache) x the cost
+of one episode. Sports is its own line: a share of searches, a higher miss
+rate (a game in progress is never served from cache), and API-Sports requests
+per sports search plus the sweeps, which pick each offered sport's plan (Pro
+to 7,500/day, Ultra, Mega). Hosting steps to Standard at 1k and Pro at 10k,
+bandwidth follows plays, background writing follows FINANCIAL.md 4.2 to its
+$700 ceiling, and the launch licences start in the launch month. **The cost of
+one episode is the recorded average** over the ledger's last 30 days once
+there are episodes ($0.06 until then), so the forecast sharpens as traffic
+arrives. Its twelve-months-out figure and twelve-month total sit on the
+Dashboard. Every listener figure is a yellow input, because none is known.
+
+**Delivered daily.** The cloud Routine "Daily FAM financials" (06:52
+Eastern, a fresh session each morning) downloads `/api/admin/financials.xlsx`
+with `FAM_ADMIN_TOKEN` and sends the file with yesterday's spend, month to
+date, run-rate and the forecast. It needs this merged and deployed, the token
+in the cloud environment, and `fam.onrender.com` on its allowed domains; until
+then it says which of the three is missing.
+
+**Simplified, a marketing budget, and Google Sheets (next day, owner's
+follow-up).** "Clean up the spreadsheet, simplify down to only costs and
+projections, build in a marketing and material budget, and move it into
+Google Sheets." Four tabs now: **Costs** (one row per service, the three
+totals above it; free services folded into one row), **Marketing &
+Materials** (paid social, App Store ads, creators, content, sports-fan
+sponsorships, referral rewards, PR; brand assets, merch, print, events,
+equipment - each a before-launch, after-launch and one-off-at-launch figure,
+spread over the months; starting placeholders the owner sets), **Projections**
+(as before, plus the marketing line, and every rate that had been a literal in
+a formula moved into a labelled, sourced cell under the table), and **Daily
+Spend** (the recorded days). The Dashboard, charts, Provider Calls and Notes
+tabs are gone. Plain formulas only, so the file opens the same in Excel and in
+Google Sheets; the Google copy was built through the Sheets connector (each
+month's formula written once and filled across), with open-ended Daily Spend
+ranges so rows added later count. **Daily, inside Google:** a cloud Routine
+cannot carry the Sheets connector on this organisation, so the sheet refreshes
+itself. `tools/financials_apps_script.gs`, pasted into the sheet with the
+admin token as a script property (never in a cell), fetches
+`/api/admin/financials/daily.json` (`financials.daily_rows`, the workbook's own
+rows) every morning and replaces Daily Spend; Costs and Projections follow as
+formulas. The Routine that mailed the .xlsx is deleted.
+
+**Review before merge.** Ledger ranges are whole columns (`'Daily Spend'!$C:$C`)
+because the sheet gains a row a day and a range fixed at build time would
+leave the newest days out; any day typed as the launch month means that
+month (`DATE(YEAR(),MONTH(),1)`), so 15 Jan does not drop January's one-off
+launch spend; on an always-on pod the per-episode GPU share is left out of the
+cost of an episode, since Costs already carries the rental; invoice bandwidth
+is its own service ("Render bandwidth") so it is not counted twice beside the
+modelled line; the Apps Script writes real dates, not text. `live_usd` stays
+out of the ledger on purpose: it prices Finnhub calls at the metered rate,
+and FAM pays Finnhub nothing (or, on a commercial plan, a flat fee that is its
+own row). Costs shows each service's purpose and source; dead code from the
+earlier tabs is gone.
+
+**Second merge of Main (§221-§228 landed).** The finance entry moves to §230
+(another branch now holds §229). §225's photo check records Claude spend in
+`metering.db` with `surface="photo_check"`: it counts under Claude on Daily
+Spend but never as an episode written (`financials.NOT_EPISODES`), or the
+projection's "cost of one new episode" would fall with every profile photo.
+
