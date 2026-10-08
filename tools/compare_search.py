@@ -79,11 +79,8 @@ NO_SEARCH = [
     "why is the sky blue",
 ]
 
-PRICES = {  # $ per million tokens (input, output)
-    "claude-opus-5": (5.0, 25.0),
-    "claude-sonnet-5": (2.0, 10.0),
-    "claude-haiku-4-5": (1.0, 5.0),
-}
+# $ per million tokens (input, output): the one rate card, `metering.PRICES`.
+from metering import PRICES  # noqa: E402
 
 _SENTENCE_END = script_generator._SENTENCE_END
 

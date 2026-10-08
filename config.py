@@ -215,6 +215,13 @@ DEFAULT_RESEARCH_BACKEND = "exa"
 #: is *for*; this says which one somebody who has expressed no preference
 #: lands in.
 DEFAULT_MINUTES = 2
+#: The model for the small, structured calls - the brief, the tile composer,
+#: the category placer, the thumbnail scene writer and checker (§227). They
+#: return JSON against a schema at low effort; none of them writes a word a
+#: listener hears, and Haiku 5.5 does them at a twentieth of Sonnet's price.
+#: Deliberately **not** `MODEL`: the writer stays where it is, and a
+#: deployment that sets `MODEL` no longer drags these along with it.
+SMALL_MODEL = "claude-haiku-5-5"
 
 #: How long every episode is that searchFAM did not ask for (§147, at the
 #: owner's direction): myFAM, DailyFAM, the Trending bank and prefetch. Only
@@ -429,12 +436,12 @@ class Settings:
         default_factory=lambda: os.environ.get("EPISODE_INTELLIGENCE", "1")
         not in ("0", "false", "False", ""))
     # Understanding a request is a small, well-specified extraction, not the
-    # writing. It runs on the same model as the script by default so a
-    # deployment has one model to reason about, and at low effort because the
-    # time here is time the listener waits.
+    # writing - so it runs on `SMALL_MODEL` (§227; it followed `MODEL` until
+    # then), and at low effort because the time here is time the listener
+    # waits. Its quality is measured by `tools/ei_eval.py`; `EI_MODEL`
+    # restores any other model.
     ei_model: str = field(
-        default_factory=lambda: os.environ.get(
-            "EI_MODEL", os.environ.get("MODEL", "claude-sonnet-5")))
+        default_factory=lambda: os.environ.get("EI_MODEL") or SMALL_MODEL)
     ei_effort: str = field(
         default_factory=lambda: os.environ.get("EI_EFFORT", "low"))
     ei_max_tokens: int = _env_int("EI_MAX_TOKENS", 1200)
@@ -644,11 +651,9 @@ class Settings:
         not in ("0", "false", "False", ""))
     # One call per refresh window for every listener, so this is the cheapest
     # model call in the product and still the one that decides what the whole
-    # browse page says. Same default as the rest of the app: one model to
-    # reason about per deployment.
+    # browse page says. A JSON task, so `SMALL_MODEL` (§227).
     stories_model: str = field(
-        default_factory=lambda: os.environ.get(
-            "STORIES_MODEL", os.environ.get("MODEL", "claude-sonnet-5")))
+        default_factory=lambda: os.environ.get("STORIES_MODEL") or SMALL_MODEL)
     stories_effort: str = field(
         default_factory=lambda: os.environ.get("STORIES_EFFORT", "low"))
     # Room for a first sweep's worth of tiles: since §135 the GDELT sweep
@@ -685,10 +690,9 @@ class Settings:
         default_factory=lambda: os.environ.get("CATEGORIES_PLACE", "1")
         not in ("0", "false", "False", ""))
     # One call per sweep for the whole deployment, batching every new subject
-    # at once. Same default model as everything else here.
+    # at once. A JSON task, so `SMALL_MODEL` (§227).
     categories_model: str = field(
-        default_factory=lambda: os.environ.get(
-            "CATEGORIES_MODEL", os.environ.get("MODEL", "claude-sonnet-5")))
+        default_factory=lambda: os.environ.get("CATEGORIES_MODEL") or SMALL_MODEL)
     categories_effort: str = field(
         default_factory=lambda: os.environ.get("CATEGORIES_EFFORT", "low"))
     categories_max_tokens: int = _env_int("CATEGORIES_MAX_TOKENS", 4000)
@@ -733,15 +737,16 @@ class Settings:
     # The list price of one image from that model, for the spend record.
     # An estimate for a 1K image; set it from the pricing page.
     thumbnails_image_price: float = _env_float("THUMBNAILS_IMAGE_PRICE", 0.067)
-    # The model that writes scenes and checks pictures for logos and people.
+    # The model that writes scenes and checks pictures for logos and people:
+    # `SMALL_MODEL` (§227).
     thumbnails_model: str = field(
-        default_factory=lambda: os.environ.get(
-            "THUMBNAILS_MODEL", os.environ.get("MODEL", "claude-sonnet-5")))
-    # Its list prices, per million tokens, for the spend record.
+        default_factory=lambda: os.environ.get("THUMBNAILS_MODEL") or SMALL_MODEL)
+    # Its list prices, per million tokens, for the spend record - Haiku 5.5's.
+    # Change them with THUMBNAILS_MODEL.
     thumbnails_claude_input_per_mtok: float = _env_float(
-        "THUMBNAILS_CLAUDE_INPUT_PER_MTOK", 2.0)
+        "THUMBNAILS_CLAUDE_INPUT_PER_MTOK", 0.10)
     thumbnails_claude_output_per_mtok: float = _env_float(
-        "THUMBNAILS_CLAUDE_OUTPUT_PER_MTOK", 10.0)
+        "THUMBNAILS_CLAUDE_OUTPUT_PER_MTOK", 0.50)
     # How many paid paintings a node gets per run. One by default (§169): a picture that fails a check is held for a
     # person rather than paid for again. Raise it to repaint on a logo, text,
     # a real person or a real product.

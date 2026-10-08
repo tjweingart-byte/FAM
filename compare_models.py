@@ -21,12 +21,8 @@ from anthropic_client import build_async_client
 from config import settings
 from script_generator import SYSTEM_PROMPT, build_prompt, count_words, plan_episode
 
-# $ per million tokens (input, output), from the published price list.
-PRICES = {
-    "claude-opus-5": (5.0, 25.0),
-    "claude-sonnet-5": (2.0, 10.0),
-    "claude-haiku-4-5": (1.0, 5.0),
-}
+# $ per million tokens (input, output): the one rate card, `metering.PRICES`.
+from metering import PRICES  # noqa: E402
 
 
 async def run_one(client, model: str, plan, use_search: bool) -> dict:
@@ -77,7 +73,7 @@ async def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("query")
     ap.add_argument("--minutes", type=int, default=3)
-    ap.add_argument("--models", default="claude-opus-5,claude-sonnet-5,claude-haiku-4-5")
+    ap.add_argument("--models", default="claude-sonnet-5,claude-sonnet-5-5,claude-opus-5-5")
     ap.add_argument("--no-search", action="store_true", help="skip live web search")
     ap.add_argument("--full", action="store_true", help="print whole scripts, not excerpts")
     args = ap.parse_args()
