@@ -144,3 +144,54 @@ def test_a_ledger_row_carries_the_per_call_total(tmp_path):
     u.add_model_call("claude-sonnet-5", {"input_tokens": 1_000_000})
     ledger.record("u", u)
     assert ledger.rows()[0]["claude_usd"] == pytest.approx(2.10)
+
+
+# --- the boot check ---------------------------------------------------------
+
+class _Retriever:
+    def __init__(self, missing=()):
+        self.missing, self.asked = set(missing), []
+
+        outer = self
+
+        class _Models:
+            async def retrieve(self, model):
+                outer.asked.append(model)
+                if model in outer.missing:
+                    import anthropic
+                    raise anthropic.NotFoundError.__new__(anthropic.NotFoundError)
+                return {"id": model}
+
+        self.models = _Models()
+
+
+def _boot_check(monkeypatch, client, state="ok"):
+    import asyncio
+
+    import app as appmod
+    monkeypatch.setattr(appmod, "build_async_client", lambda: client)
+    monkeypatch.setitem(appmod.CREDENTIALS, "state", state)
+    monkeypatch.delitem(appmod.CREDENTIALS, "models", raising=False)
+    asyncio.run(appmod._verify_small_models())
+    return appmod.CREDENTIALS
+
+
+def test_boot_checks_the_small_model_once_beside_the_writer(monkeypatch):
+    """Before §221 the writer's check covered every call; now the small model
+    is a second thing an account may not have."""
+    client = _Retriever()
+    creds = _boot_check(monkeypatch, client)
+    assert client.asked == ["claude-haiku-5-5"]
+    assert creds["models"] == {"claude-haiku-5-5": "ok"}
+
+
+def test_a_missing_small_model_is_said_at_boot_and_named(monkeypatch):
+    creds = _boot_check(monkeypatch, _Retriever(missing={"claude-haiku-5-5"}))
+    assert "claude-haiku-5-5" in creds["models"]["claude-haiku-5-5"]
+    assert "not available" in creds["models"]["claude-haiku-5-5"]
+
+
+def test_no_second_question_when_the_key_already_failed(monkeypatch):
+    client = _Retriever()
+    _boot_check(monkeypatch, client, state="rejected")
+    assert client.asked == []

@@ -36,9 +36,6 @@ from anthropic_client import build_async_client
 from config import DEFAULT_MINUTES, settings
 from script_generator import ScriptGenerator, ScriptNotes, count_words, plan_episode
 
-# $ per million tokens (input, output): the one rate card, `metering.PRICES`.
-from metering import PRICES  # noqa: E402
-
 
 async def main() -> int:
     ap = argparse.ArgumentParser()

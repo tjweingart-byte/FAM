@@ -16555,4 +16555,25 @@ text as ~30% more tokens than Haiku 4.5, already inside the estimate's margin.
 Changing these models does not touch the script cache: only `MODEL` is in
 `cache_key`.
 
+**Review, before merging into Main.** A second pass over the diff found:
+
+* *Nothing said at boot when the account cannot use Haiku 5.5.* Every call
+  ran on `MODEL` before, so `_verify_credentials`' `models.retrieve` covered
+  them all. Now an account without the small model would turn every brief
+  into the raw-query fallback, logged per episode and said nowhere at boot.
+  `app._verify_small_models` asks `models.retrieve` of each small model that
+  is not `MODEL`, once the key is known good, and reports each in
+  `/api/health` under `credentials.models`; a 404 names the small model, not
+  the writer's (`friendly_error` names `settings.model`). Nothing else
+  changes - each call already falls back on its own.
+* *`write.py` imported `PRICES` and never used it* (the table it replaced was
+  dead on Main too). Removed.
+
+Known and left: `EI_MAX_TOKENS` (1200) and `STORIES_MAX_TOKENS` (6000) were
+sized on Sonnet 5. Haiku 5.5 thinks adaptively and counts text differently,
+so a brief that hits the ceiling would be truncated JSON - which already
+falls back visibly (`EI returned nothing readable`, `Brief.degraded`). Watch
+for that reason in the log after deploying; raising the ceiling costs
+nothing unless it is used.
+
 Rule: `small-calls-haiku`. Tests: `tests/test_small_model_221.py`.

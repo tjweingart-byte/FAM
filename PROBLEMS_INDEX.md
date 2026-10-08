@@ -224,4 +224,4 @@ and `limit` = Lines.
 | 16349 | 18 | 218. The waitlist carousels turn only by hand; white arrows above the slide |
 | 16367 | 60 | 219. The 10.7 packet: the waitlist is the front door again, its topics, a place under the name, and a search length that held |
 | 16427 | 74 | 220. Why a third of GDELT's downloads failed, and Finnhub's and the local feeds' |
-| 16501 | 59 | 221. The small calls on Haiku 5.5, and an episode priced call by call |
+| 16501 | 80 | 221. The small calls on Haiku 5.5, and an episode priced call by call |
