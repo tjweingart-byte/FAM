@@ -5702,7 +5702,7 @@ async def myfam_catalog(request: Request) -> dict:
 
 
 # --------------------------------------------------------------------------
-# Your categories (§228)
+# Your categories (§229)
 # --------------------------------------------------------------------------
 #: How far back a category page reads the cache: every row written today on
 #: a deployment this size; past it the newest win.
@@ -5815,7 +5815,7 @@ def _mix_counts() -> dict:
 def _todays_filed() -> list[dict]:
     """Every episode cached since the start of the listener's day, filed.
 
-    **A read of the shared cache and nothing else** (§228): nothing here
+    **A read of the shared cache and nothing else** (§229): nothing here
     writes, prefetches or asks a model. What is in it is what is already
     made - everything listeners searched and played, and the edition and
     warmed episodes nobody has tapped yet, which sit in the same cache under
@@ -5937,7 +5937,7 @@ class CategoryFollowRequest(BaseModel):
 async def follow_categories(req: CategoryFollowRequest, request: Request) -> dict:
     """Keep the categories this listener follows. Account only - what is
     kept is what an account is for. Writes no event: following a category
-    is a list to browse, never a taste signal (§228)."""
+    is a list to browse, never a taste signal (§229)."""
     _read_limit(request)
     user = _require_account(request)
     try:
@@ -5954,7 +5954,7 @@ async def category_episodes(
     sort: str = Query("popular", max_length=12),
     q: str = Query("", max_length=200),
 ) -> dict:
-    """Today's episodes in one category or anything under it (§228).
+    """Today's episodes in one category or anything under it (§229).
 
     Cached only - this never causes an episode to be written; a tap plays
     what is there (`cached_only`). `sort` is `popular` (plays plus the mixes

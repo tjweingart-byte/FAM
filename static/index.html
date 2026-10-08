@@ -866,7 +866,7 @@
     padding:13px; border-radius:14px; background:transparent; color:var(--copper);
     border:1px dashed var(--border-strong); font-family:'Geist',sans-serif;
     font-size:12px; font-weight:700; cursor:pointer; margin-bottom:11px; }
-  /* Your categories (§228), under the mixes. */
+  /* Your categories (§229), under the mixes. */
   .cat-head{ display:flex; align-items:flex-end; justify-content:space-between; gap:10px;
     margin:22px 0 10px; }
   .cat-eyebrow{ font-family:'Geist Mono', monospace; font-size:10px; letter-spacing:0.16em;
@@ -3688,7 +3688,7 @@
           </div>
           <div id="dailyResults" hidden></div>
           <div id="mixList"></div>
-          <!-- Your categories (§228): the categories this listener follows,
+          <!-- Your categories (§229): the categories this listener follows,
                each opening today's episodes in it. Drawn by
                `renderMyCategories`; cached episodes only. -->
           <div id="catSection"></div>
@@ -3712,7 +3712,7 @@
         <div class="scroll" id="mixBody"></div>
       </section>
 
-      <!-- ============ CATEGORIES — browse all (§228) ============
+      <!-- ============ CATEGORIES — browse all (§229) ============
            The eight facets, and a search over every category the tree holds
            ("NFL" is three levels down). A tap opens the category's page. -->
       <section class="screen" id="screen-catbrowse">
@@ -3729,7 +3729,7 @@
         <div class="scroll" id="catBrowseBody"></div>
       </section>
 
-      <!-- ============ CATEGORIES — one category's episodes today (§228) ============
+      <!-- ============ CATEGORIES — one category's episodes today (§229) ============
            Every episode made today in the category or under it, from the
            cache only: nothing on this page writes an episode. Sorted and
            searched by the server (`/api/categories/episodes`). -->
@@ -9257,7 +9257,7 @@
   function loadMixes(){
     var el = document.getElementById("mixList");
     if(!el) return;
-    // §228: drawn whatever the mixes answer - a guest is offered the
+    // §229: drawn whatever the mixes answer - a guest is offered the
     // account, and a failed mixes read is no reason to hide categories.
     loadMyCategories();
     Promise.all([
@@ -9431,7 +9431,7 @@
     document.getElementById("mixList").innerHTML = html;
   }
 
-  // ---- Your categories (§228) ----
+  // ---- Your categories (§229) ----
   //
   // Under the mixes: the categories this listener follows, each opening a
   // page of the episodes made in it today. Everything on these screens is a

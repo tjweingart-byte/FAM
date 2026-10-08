@@ -16581,7 +16581,7 @@ nothing unless it is used.
 
 Rule: `small-calls-haiku`. Tests: `tests/test_small_model_227.py`.
 
-## 228. Your categories: follow a category, scroll what was made in it today
+## 229. Your categories: follow a category, scroll what was made in it today
 
 **What was asked (08/10).** Listeners had no way to pick a category and
 explore the episodes in it. On the screen that shows "myFAM" (the mixes,
@@ -16623,4 +16623,4 @@ somebody's mix or DailyFAM that nobody has tapped yet.
 continuous category player: they were not asked for here, and a category
 that plays back to back is a queue decision for its own change.
 
-Rule: `your-categories`. Tests: `tests/test_your_categories_228.py`.
+Rule: `your-categories`. Tests: `tests/test_your_categories_229.py`.

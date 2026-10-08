@@ -231,13 +231,13 @@ def clean_profile_interests(values: Iterable[str]) -> tuple[str, ...]:
 
 
 #: How many categories one listener may follow on myFAM's "Your categories"
-#: (§228). A list to scroll, not a second interest picker; enough for every
+#: (§229). A list to scroll, not a second interest picker; enough for every
 #: facet and a dozen subjects under them.
 MAX_CATEGORIES = 24
 
 
 def clean_categories(values: Iterable[str]) -> tuple[str, ...]:
-    """The categories this listener follows on myFAM (§228), in their order.
+    """The categories this listener follows on myFAM (§229), in their order.
 
     Each must be one of the eight facets or a node the category tree holds
     now - the same ids `_episode_category` files an episode under, so a
@@ -424,7 +424,7 @@ class Preferences:
     #: searched is theirs (`op-friend-profile`), and this is the one place it
     #: is shown to anybody else, by their choice.
     searches_public: bool = False
-    #: The categories followed on myFAM's "Your categories" (§228): facet
+    #: The categories followed on myFAM's "Your categories" (§229): facet
     #: ids and category-tree nodes, in the order they were added. A list to
     #: browse today's episodes by, never a taste signal - following one
     #: writes no event and moves no ranking (`clean_categories`).
@@ -523,7 +523,7 @@ class PreferenceStore:
                              " searches_public INTEGER NOT NULL DEFAULT 0")
             except sqlite3.OperationalError:
                 pass  # already there
-            # §228: newline-separated like `topics`; a grown node's id is a
+            # §229: newline-separated like `topics`; a grown node's id is a
             # phrase. Empty means none followed, which every older row means.
             try:
                 conn.execute("ALTER TABLE preferences ADD COLUMN"

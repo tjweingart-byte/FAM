@@ -1,4 +1,4 @@
-"""§228: Your categories on myFAM - follow a category, open it, and scroll
+"""§229: Your categories on myFAM - follow a category, open it, and scroll
 the episodes made in it today, sorted by popularity, A to Z or newest, and
 searched by title. Cached only: nothing here ever writes an episode."""
 from __future__ import annotations
