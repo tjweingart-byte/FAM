@@ -162,7 +162,8 @@ FAM_ENVIRONMENT = (
     # Where a share recipient goes when they press anything but play. Unset
     # in a test, or a machine with a real one would draw doors the assertions
     # about the empty state do not expect.
-    "APP_STORE_URL", "APP_HOME_URL", "APPLE_TEAM_ID", "IOS_BUNDLE_ID", "SUPPORT_EMAIL",
+    "APP_STORE_URL", "APP_HOME_URL", "APPLE_TEAM_ID", "IOS_BUNDLE_ID", "SUPPORT_EMAIL", "IMAGE_CHECK", "IMAGE_CHECK_MODEL",
+    "IMAGE_CHECK_MAX_TOKENS", "IMAGE_CHECK_TIMEOUT_SECONDS",
     # Which machine speaks, and how it is reached. A developer with a real
     # RunPod endpoint configured must run the same suite as CI: without these
     # cleared, `VOICE_BACKEND=remote` in their shell would point the engine

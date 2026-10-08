@@ -64,6 +64,7 @@ import time
 from dataclasses import dataclass
 from typing import Optional
 
+import content_filter
 from paths import data_path
 
 log = logging.getLogger(__name__)
@@ -105,7 +106,9 @@ def clean_text(text: str) -> str:
                 out.append("")
     while out and not out[-1]:
         out.pop()
-    return "\n".join(out)[:MAX_TEXT].rstrip()
+    # Slurs out, swearing kept - the rule for every word FAM shows somebody
+    # else (`content_filter`, §171, widened to messages in §224).
+    return content_filter.scrub("\n".join(out)[:MAX_TEXT].rstrip())
 
 
 class MessageError(ValueError):
@@ -565,7 +568,7 @@ class MessageStore:
             raise MessageError("Pick at least two people for a group.")
         if len(others) + 1 > MAX_GROUP_MEMBERS:
             raise MessageError(f"A group holds up to {MAX_GROUP_MEMBERS} people.")
-        name = " ".join(str(name or "").split())[:MAX_GROUP_NAME]
+        name = content_filter.scrub(" ".join(str(name or "").split())[:MAX_GROUP_NAME])
         gid = GROUP_PREFIX + secrets.token_hex(8)
         now = time.time()
         conn = self._conn()
@@ -614,7 +617,7 @@ class MessageStore:
     def rename_group(self, user_id: str, gid: str, name: str) -> dict:
         if not self.is_member(gid, user_id):
             raise MessageError("You are not in that group.")
-        name = " ".join(str(name or "").split())[:MAX_GROUP_NAME]
+        name = content_filter.scrub(" ".join(str(name or "").split())[:MAX_GROUP_NAME])
         self._conn().execute("UPDATE groups SET name = ? WHERE id = ?", (name, gid))
         self.send(user_id, gid, kind="system",
                   text=f"named the group {name}" if name else "took the group's name off")

@@ -289,3 +289,108 @@ def test_the_privacy_and_support_pages_are_served_with_the_contact():
     for company in ("Anthropic", "Exa", "RunPod", "Render", "Viral Loops"):
         assert company in privacy.text, company
     assert c.get("/support").status_code == 200
+
+
+# --- §224: the slur filter on everything somebody else reads ----------------
+
+def test_slurs_come_out_of_names_groups_mixes_and_messages():
+    import accounts
+    import messages
+    import mixes
+    import social
+    assert "a slur" in accounts.clean_display_name("the gook squad").lower() \
+        or "slur" in accounts.clean_display_name("the gook squad").lower()
+    assert "wop" not in mixes.clean_name("wop songs").lower()
+    assert messages.clean_text("you are a fag") == "you are a slur"
+    # Swearing stays everywhere: only slurs are taken out (`slurs-only`).
+    assert messages.clean_text("this is fucking great") == "this is fucking great"
+    ann = listener("Ann", "ann")
+    me = ann.post("/api/me", json={"name": "Ann the kike", "handle": "ann"}).json()
+    assert "kike" not in me["name"].lower()
+
+
+def test_a_handle_with_a_slur_is_refused_not_scrubbed():
+    c = TestClient(appmod.app)
+    r = c.post("/api/me", json={"name": "X", "handle": "big_spic"})
+    assert r.status_code == 400 and "handle" in r.json()["error"].lower()
+    # Whole words only: a handle that merely contains the letters is fine.
+    assert c.post("/api/me", json={"name": "X", "handle": "dickens_fan"}).status_code == 200
+
+
+# --- §224: a name that swears is marked, never refused ------------------------
+
+def test_a_swearing_name_is_kept_and_marked():
+    ann, ben = listener("Ann", "ann"), listener("Shithead Ben", "ben")
+    assert ben.post("/api/comments", json={**EPISODE, "text": "hi"}).status_code == 200
+    row = ann.get("/api/comments", params={"q": EPISODE["query"], "minutes": 2}).json()["comments"][0]
+    assert row["name"] == "Shithead Ben" and row["explicit"] is True
+    assert ann.get("/api/person", params={"handle": "ben"}).json()["explicit"] is True
+    assert ben.get("/api/person", params={"handle": "ann"}).json()["explicit"] is False
+
+
+# --- §224: the photo check ------------------------------------------------------
+
+PHOTO = "data:image/jpeg;base64," + __import__("base64").b64encode(b"\xff\xd8\xff" + b"0" * 40).decode()
+
+
+class _Text:
+    type = "text"
+
+    def __init__(self, text):
+        self.text = text
+
+
+class _Response:
+    def __init__(self, text="", stop_reason="end_turn"):
+        self.content = [_Text(text)]
+        self.stop_reason = stop_reason
+
+
+def test_a_verdict_is_read_from_the_models_answer():
+    import image_check as ic
+    assert ic.verdict_from(_Response('{"allowed": true, "category": "ok"}')).allowed
+    no = ic.verdict_from(_Response('{"allowed": false, "category": "nudity"}'))
+    assert not no.allowed and no.category == "nudity" and no.checked
+    # The model declining to look is the picture being the problem.
+    assert not ic.verdict_from(_Response("", stop_reason="refusal")).allowed
+    # An unreadable answer never costs somebody their photo.
+    assert ic.verdict_from(_Response("not json")).allowed
+
+
+async def _no_check(*a, **k):
+    import image_check as ic
+    return ic.Verdict(allowed=False, category="nudity", checked=True)
+
+
+def test_a_refused_photo_is_not_kept(monkeypatch):
+    import image_check as ic
+    ann = listener("Ann", "ann")
+    monkeypatch.setattr(ic, "check", _no_check)
+    r = ann.post("/api/me", json={"name": "Ann", "handle": "ann", "avatar": PHOTO})
+    assert r.status_code == 400 and r.json()["error"] == ic.REFUSED
+    assert appmod.SOCIAL.person(uid(ann))["avatar"] == ""
+    r = ann.post("/api/mixes", json={"name": "Mornings", "topic_ids": [], "cover": PHOTO})
+    assert r.status_code == 400
+
+
+def test_with_no_key_a_photo_goes_through_unchecked():
+    """Staging has no key (`zero-spend-staging`): the check says it did not
+    run, and the photo is kept - Report + Remove still covers it."""
+    import asyncio
+    import image_check as ic
+    verdict = asyncio.run(ic.check(PHOTO))
+    assert verdict.allowed and not verdict.checked
+
+
+def test_an_unchanged_photo_is_not_checked_again(monkeypatch):
+    import image_check as ic
+    calls = []
+
+    async def counting(*a, **k):
+        calls.append(1)
+        return ic.Verdict(allowed=True, checked=True)
+    monkeypatch.setattr(ic, "check", counting)
+    ann = listener("Ann", "ann")
+    ann.post("/api/me", json={"name": "Ann", "handle": "ann", "avatar": PHOTO})
+    ann.post("/api/me", json={"name": "Ann B", "handle": "ann", "avatar": PHOTO})
+    assert len(calls) == 1

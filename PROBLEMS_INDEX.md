@@ -227,3 +227,4 @@ and `limit` = Lines.
 | 16501 | 56 | 221. Ready for Apple: a load test for staging, universal links, and APP_STORE.md |
 | 16557 | 79 | 222. The two App Store rejections: report and block (1.2), and asking before words go to the AI (5.1.2(i)) |
 | 16636 | 74 | 223. The privacy policy, support page, legal PDFs and the iOS safety screens |
+| 16710 | 70 | 224. The content filter, widened for App Store 1.2: names, messages, and photos |

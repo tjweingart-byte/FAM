@@ -4280,6 +4280,9 @@
           </div>
           <input class="photo-zoom" id="photoZoom" type="range" min="100" max="300"
                  value="100" step="1" aria-label="Zoom" oninput="photoZoomed()">
+          <!-- Said before Save (§224): the photo goes to Anthropic for one
+               automated check before anybody else sees it (image_check.py). -->
+          <div class="set-note" id="photoCheckNote">Other people can see this photo, so it&rsquo;s checked automatically by our AI provider, Anthropic, for nudity, violence and hate symbols before it&rsquo;s shown.</div>
           <div class="modal-btns">
             <button class="modal-btn ghost" onclick="closePhotoEditor()">Cancel</button>
             <button class="modal-btn primary" onclick="savePhotoCrop()">Save</button>
@@ -5693,7 +5696,7 @@
                            body: JSON.stringify(body) })
       .then(function(r){ return r.json().then(function(d){ return { ok: r.ok, d: d }; }); })
       .then(function(res){
-        if(!res.ok){ toast((res.d && res.d.detail) || "Couldn\u2019t send that report"); return; }
+        if(!res.ok){ toast((res.d && (res.d.error || res.d.detail)) || "Couldn\u2019t send that report"); return; }
         toast(res.d.message || "Thanks for telling us");
         if(onHidden) onHidden();
       })
@@ -5716,7 +5719,7 @@
                                 body: JSON.stringify({ handle: handle }) })
             .then(function(r){ return r.json().then(function(d){ return { ok: r.ok, d: d }; }); })
             .then(function(res){
-              if(!res.ok){ toast((res.d && res.d.detail) || "Couldn\u2019t block them"); return; }
+              if(!res.ok){ toast((res.d && (res.d.error || res.d.detail)) || "Couldn\u2019t block them"); return; }
               toast("Blocked");
               loadBlocked();
               if(typeof loadFriends === "function") try { loadFriends(); } catch(e){}
@@ -11315,7 +11318,8 @@
       body: JSON.stringify(body)
     }).then(function(r){
       return r.json().then(function(data){
-        if(!r.ok) throw new Error(data.error || "Could not save that mix");
+        if(!r.ok) throw new Error(data.error || (typeof data.detail === "string" && data.detail)
+                                  || "Could not save that mix");
         return data;
       });
     }).then(function(saved){
@@ -13139,7 +13143,9 @@
       body: JSON.stringify({ name: name, handle: handle, avatar: dataUrl })
     }).then(function(r){
       return r.json().then(function(d){
-        if(!r.ok) throw new Error(d.error || "Could not save that picture");
+        // The server's sentence - a refused photo (§224) says why.
+        if(!r.ok) throw new Error(d.error || (typeof d.detail === "string" && d.detail)
+                                  || "Could not save that picture");
         return d;
       });
     }).then(function(saved){
@@ -14422,7 +14428,8 @@
     return '<div class="fr-row" onclick="openPersonProfile(\''
       + escapeHtml(person.handle || "") + '\')">'
       + '<div class="fr-av">' + avatarHTML(person, 40) + '</div>'
-      + '<div class="fr-body"><div class="fr-name">'
+      // The E beside a name that swears (§224), the same mark as an episode's.
+      + '<div class="fr-body"><div class="fr-name' + (person.explicit ? ' is-explicit' : '') + '">'
       + escapeHtml(person.name || "Someone") + '</div>'
       + '<div class="fr-at">@' + escapeHtml(person.handle || "") + '</div>'
       // Friends from the waitlist show on both sides before they are let in
@@ -14641,7 +14648,7 @@
 
     var html = '<div class="yf-person-id"><span class="yf-ring' + (fresh ? " fresh" : "") + '">'
       + yfFace(face) + '</span><div style="min-width:0;">'
-      + '<div class="yf-person-name">'
+      + '<div class="yf-person-name' + ((pub.explicit || person.explicit) ? ' is-explicit' : '') + '">'
       + escapeHtml(face.name || ("@" + (person.handle || ""))) + '</div>'
       + (pub.location ? '<div class="yf-place">' + escapeHtml(pub.location) + '</div>' : '')
       + '<div class="yf-meta">@' + escapeHtml(person.handle || "")
@@ -15361,8 +15368,9 @@
   // how many are in it (10.6 #4).
   function paintThreadHead(){
     var person = currentThread || {};
-    document.getElementById("thread-name").textContent =
-      person.name || ("@" + (person.handle || ""));
+    var nameEl = document.getElementById("thread-name");
+    nameEl.textContent = person.name || ("@" + (person.handle || ""));
+    nameEl.classList.toggle("is-explicit", !!person.explicit);
     paintPersonAv(document.getElementById("thread-av"), person);
     var sub = document.getElementById("thread-sub");
     if(sub) sub.textContent = person.group
@@ -17825,7 +17833,7 @@
     return '<div class="rc-item' + (isReply ? " rc-reply" : "") + '" data-cid="' + c.id + '">'
       + '<span class="rc-av" style="background:' + personHue(c.handle || c.name) + '">'
       + avatarHTML(c, isReply ? 24 : 32) + '</span>'
-      + '<div class="rc-main"><div class="rc-who">' + escapeHtml(who)
+      + '<div class="rc-main"><div class="rc-who"><span' + (c.explicit ? ' class="is-explicit"' : '') + '>' + escapeHtml(who) + '</span>'
       + '<small>' + rcAgo(c.at) + '</small></div>'
       + '<div class="rc-text">' + escapeHtml(c.text) + '</div>'
       + '<div class="rc-acts"><button onclick="replyToReelComment(' + c.id + ')">Reply</button>'

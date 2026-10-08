@@ -82,6 +82,17 @@ class Echo:
         }
 
 
+def explicit_name(name, handle) -> bool:
+    """Whether a name or handle swears, so the interface draws the E beside
+    it the way it does beside an episode (§224, at the owner's direction:
+    marked, not refused - slurs are the only words taken out, `slurs-only`)."""
+    try:
+        import content_filter
+        return content_filter.is_explicit([str(name or ""), str(handle or "")])
+    except Exception:  # noqa: BLE001 - a mark is never worth a failed page
+        return False
+
+
 def clean_avatar(avatar: str) -> str:
     """The picture as it will be stored, or "" for none.
 
@@ -104,6 +115,11 @@ def clean_handle(handle: str) -> str:
     handle = str(handle).strip().lstrip("@").lower()[:MAX_HANDLE]
     if not _HANDLE_OK.match(handle):
         raise SocialError("A handle is 2-24 letters, numbers, dots or underscores.")
+    # A handle cannot be scrubbed - "a slur" is not a handle - so one with a
+    # slur in it is refused (§224). Dots and underscores separate words.
+    import content_filter
+    if content_filter.slurs_in(handle):
+        raise SocialError("That handle isn't allowed. Try another.")
     return handle
 
 
@@ -452,6 +468,7 @@ class SocialStore:
             "joined": row[2] if row else 0.0,
             "last_seen": row[3] if row else 0.0,
             "avatar": (row[4] if row else "") or "",
+            "explicit": explicit_name(row[0], row[1]) if row else False,
             # Whether the app has ever seen this id before, as opposed to
             # whether they got around to naming themselves. The profile page
             # needs to tell those apart; before `seen()` it could not.
@@ -512,7 +529,7 @@ class SocialStore:
         """
         if not user_id:
             raise SocialError("No listener id.")
-        name = " ".join(str(name).split())[:MAX_NAME]
+        name = _clean_words(name, MAX_NAME)
         if not name:
             raise SocialError("Give yourself a name.")
         handle = clean_handle(handle)
@@ -987,6 +1004,7 @@ class SocialStore:
                 "at": float(at), "name": person.get("name") or "",
                 "handle": person.get("handle") or "",
                 "avatar": person.get("avatar") or "",
+                "explicit": explicit_name(person.get("name"), person.get("handle")),
                 "likes": int(likes or 0), "liked": bool(liked),
                 "mine": bool(viewer) and viewer == user_id}
 
@@ -1176,7 +1194,8 @@ class SocialStore:
             log.exception("could not read the follow graph")
             return []
         return [{"user_id": r[0], "name": r[1] or "", "handle": r[2] or "",
-                 "at": r[3], "avatar": (r[4] if len(r) > 4 else "") or ""}
+                 "at": r[3], "avatar": (r[4] if len(r) > 4 else "") or "",
+                 "explicit": explicit_name(r[1], r[2])}
                 for r in rows]
 
     def friends(self, user_id: str, limit: int = 500) -> list[dict]:
@@ -1260,7 +1279,8 @@ class SocialStore:
             return []
         return [
             {"user_id": r[0], "name": r[1] or "", "handle": r[2] or "",
-             "at": r[3], "avatar": r[4] or "", "follows_back": bool(r[5])}
+             "at": r[3], "avatar": r[4] or "", "follows_back": bool(r[5]),
+             "explicit": explicit_name(r[1], r[2])}
             for r in rows
         ]
 
@@ -1362,7 +1382,7 @@ class SocialStore:
             log.exception("could not search people")
             return []
         return [{"user_id": r[0], "name": r[1] or "", "handle": r[2] or "",
-                 "avatar": r[3] or ""}
+                 "avatar": r[3] or "", "explicit": explicit_name(r[1], r[2])}
                 for r in rows if r[0] != exclude_user]
 
     def forget(self, user_id: str) -> int:

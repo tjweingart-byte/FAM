@@ -16706,3 +16706,73 @@ episodes, titles, summaries, comments and vibe captions, and keeps them off
 trending searches. It marks swearing E and does not remove it. It does not
 touch messages, names, handles, group names, mix names or images. The owner
 decides what to widen; the options are in the reply of 2026-10-08.
+
+## 224. The content filter, widened for App Store 1.2: names, messages, and photos
+
+§223 broke the filter down for the owner. It covered episodes, comments,
+captions and trending searches. It did not cover messages, names, handles,
+group names, mix names or any image. The owner made three decisions.
+
+**1. The slur filter runs over everything one listener writes for another to
+read.**
+
+- Display names, in both `social.set_person` and `accounts.clean_display_name`.
+- Group names, at creation and on rename.
+- Mix names (`mixes.clean_name`).
+- Message text (`messages.clean_text`).
+- Comments and captions already used it. This is `slurs-only` applied in more
+  places, not a broader filter: swearing stays.
+- A handle cannot be scrubbed ("a slur" is not a handle), so **a handle with a
+  slur in it is refused**. Matching is still whole-word, so `dickens_fan` is
+  fine; dots and underscores separate words.
+
+**2. A name or handle that swears is kept and marked**, at the owner's
+direction ("for now").
+
+- `social.explicit_name` puts `explicit` on every person row: the profile,
+  comments, people search, friends lists, the inbox and the chat header.
+- The web draws the same E as an episode's (`.is-explicit`).
+
+The owner asked how common this is. Marking a *person* is not a pattern on the
+big platforms: Instagram, TikTok, Xbox, PlayStation and Discord refuse or force
+a change to a profane username, and E badges are for *content* (Apple Music
+and Spotify tracks). Apple's 1.2 does not name usernames. A reviewer creating
+an offensive username to test the filter is the likely way it comes up. If
+that happens, refusing explicit handles is one line beside the slur refusal.
+
+**3. Photos are checked automatically** (`image_check.py`), because the cost is
+insignificant.
+
+- **Cost.** A profile picture is at most 96 KB, and a cover is a 360px JPEG of
+  10-40 KB. That is a few hundred image tokens plus a short structured answer
+  at low effort: about $0.002-0.003 a photo on the default `MODEL` (Sonnet 5),
+  and a few times that on Opus.
+- **Volume.** Photos are uploaded a handful of times per account, so 10,000
+  accounts is tens of dollars.
+- **What it refuses**: nudity, sexual content, graphic violence or gore, hate
+  symbols or slurs in the image, anything sexualising a minor. Ordinary
+  photos, swimwear, art, memes and swearing are allowed. This is the image
+  counterpart of `slurs-only`.
+- **Which images.** Profile pictures (`/api/me`) and mix covers (create and
+  update) - the two images strangers see. An unchanged photo is not checked
+  again. Attached search images are private and go to Anthropic under the
+  consent anyway.
+- **Failure lets the photo through** and logs it. That covers no key
+  (staging), a timeout, an error, or an unreadable answer; Report + Remove
+  still covers the photo. A *refusal* by the model to look counts as a no.
+- **Metering.** Each check is recorded against the listener (`photo_check`).
+- **Health.** `/api/health` reports `image_check` (enabled, model, whether it
+  can run).
+- **Settings.** `IMAGE_CHECK`, `IMAGE_CHECK_MODEL` (defaults to `MODEL`),
+  `IMAGE_CHECK_MAX_TOKENS`, `IMAGE_CHECK_TIMEOUT_SECONDS`.
+- **Disclosure.** Under 5.1.2(i) a photo going to a third-party AI must be
+  disclosed. The photo editor says so before Save, and the privacy policy
+  lists it under Anthropic.
+
+**Found on the way:** the server sends refusals as `{"error": ...}`
+(`http_error`), not FastAPI's `detail`. The report and block toasts (§222) read
+`detail`, so they showed the generic sentence. They now read `error` first.
+The avatar and mix saves now show the server's sentence too, so a refused photo
+says why.
+
+Pinned in `tests/test_moderation_and_consent.py`.

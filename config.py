@@ -696,6 +696,19 @@ class Settings:
     # used and the new subjects are placed on the next sweep.
     categories_place_timeout_seconds: float = _env_float(
         "CATEGORIES_PLACE_TIMEOUT_SECONDS", 30.0)
+    # The photo check (image_check.py, §224): one model call per profile
+    # picture or mix cover, before strangers can see it. On by default; with
+    # no key (staging) a photo goes through unchecked and the log says so.
+    image_check: bool = field(
+        default_factory=lambda: os.environ.get("IMAGE_CHECK", "1")
+        not in ("0", "false", "False", ""))
+    image_check_model: str = field(
+        default_factory=lambda: os.environ.get(
+            "IMAGE_CHECK_MODEL", os.environ.get("MODEL", "claude-sonnet-5")))
+    image_check_max_tokens: int = _env_int("IMAGE_CHECK_MAX_TOKENS", 2000)
+    # Somebody is waiting on the save; past this the photo is let through
+    # unchecked rather than lost.
+    image_check_timeout_seconds: float = _env_float("IMAGE_CHECK_TIMEOUT_SECONDS", 12.0)
     # How far back the promotion sweep reads. Long enough that a subject
     # somebody was interested in last month still counts toward the listener
     # threshold, short enough that the vocabulary tracks what people are

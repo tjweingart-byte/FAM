@@ -53,6 +53,7 @@ import oauth
 import quotas
 import feedback as feedback_mod
 import consent as consent_mod
+import image_check
 import moderation as moderation_mod
 import saved as saved_mod
 import sharing
@@ -1549,6 +1550,8 @@ async def health(request: Request) -> dict:
         "min_minutes": settings.min_minutes,
         "max_minutes": settings.max_minutes,
         "tts": engine_report(),
+        # Whether profile pictures and mix covers are being checked (§224).
+        "image_check": image_check.report(),
         # Who does the looking on a researched episode, and whether that
         # backend can actually run. `unavailable: true` means researched
         # episodes will fail rather than quietly search another way - worth
@@ -2390,6 +2393,8 @@ async def person_profile(request: Request,
         "name": person["name"],
         "handle": person["handle"],
         "avatar": person["avatar"],
+        # The E beside a name that swears (§224): marked, never refused.
+        "explicit": person.get("explicit", False),
         "joined": person["joined"],
         # With the (+) state each needs: whether this listener has already
         # added it to their own DailyFAM, and whether it is theirs.
@@ -2517,6 +2522,7 @@ async def messages_inbox(request: Request) -> dict:
         person = known.get(row["with"]) or SOCIAL.person(row["with"])
         row["name"] = person.get("name") or "Someone"
         row["handle"] = person.get("handle") or ""
+        row["explicit"] = social_mod.explicit_name(row["name"], row["handle"])
         # Their picture, where they have set one - the list drew initials for
         # everybody, which made a conversation with a face look like one
         # with a stranger (§127). "" means initials, as before.
@@ -2644,7 +2650,8 @@ async def messages_thread(request: Request,
     else:
         view = {"user_id": with_, "name": person.get("name") or "Someone",
                 "handle": person.get("handle") or "",
-                "avatar": person.get("avatar") or ""}
+                "avatar": person.get("avatar") or "",
+                "explicit": person.get("explicit", False)}
         typing = typing_mod.is_typing(with_, user)
     return {"with": view,
             # Whether they are typing to this listener right now (§127). Read
@@ -4819,7 +4826,9 @@ async def create_mix(req: MixRequest, request: Request):
     try:
         # Public unless the request says otherwise: a new mix is public by
         # default, at the owner's direction.
-        mix = MIXES.create(_require_account(request), req.name or "", req.topic_ids or [],
+        account = _require_account(request)
+        await _check_photo(request, account, req.cover)
+        mix = MIXES.create(account, req.name or "", req.topic_ids or [],
                            req.cover or "", public=req.public is not False)
     except mixes_mod.MixError as exc:
         # Phrased for the listener: these are things they did, not faults.
@@ -4834,6 +4843,10 @@ async def update_mix(mix_id: str, req: MixRequest, request: Request):
     _read_limit(request)
     account = _require_account(request)
     before = MIXES.get(account, mix_id) if req.topic_ids is not None else None
+    if req.cover:
+        kept = MIXES.get(account, mix_id)
+        await _check_photo(request, account, req.cover,
+                           before=(kept.cover if kept else "") or "")
     try:
         mix = MIXES.update(account, mix_id, req.name, req.topic_ids, req.public,
                            req.cover, req.listen_at, req.listen_tz)
@@ -6413,6 +6426,21 @@ class EchoRequest(BaseModel):
     audience: Optional[str] = Field(None, max_length=10)
 
 
+async def _check_photo(request: Request, user: str, data_url: Optional[str],
+                       before: str = "") -> None:
+    """Refuse a picture strangers would see if the photo check says no
+    (image_check.py, §224). Nothing to check when there is no picture or it
+    is the one already kept; a check that cannot run lets it through."""
+    if not data_url or data_url == before:
+        return
+    usage = metering.Usage()
+    verdict = await image_check.check(data_url, usage=usage)
+    if verdict.checked and user:
+        _record_usage(user, usage, surface="photo_check")
+    if not verdict.allowed:
+        raise HTTPException(status_code=400, detail=image_check.REFUSED)
+
+
 @app.post("/api/me")
 async def set_me(req: PersonRequest, request: Request):
     """Name, handle and picture for this device. Not an account - see
@@ -6423,8 +6451,11 @@ async def set_me(req: PersonRequest, request: Request):
     field must not silently delete a picture somebody chose.
     """
     _read_limit(request)
+    user = _listener(request)
+    await _check_photo(request, user, req.avatar,
+                       before=SOCIAL.person(user).get("avatar") or "")
     try:
-        return SOCIAL.set_person(_listener(request), req.name, req.handle,
+        return SOCIAL.set_person(user, req.name, req.handle,
                                  avatar=req.avatar)
     except social_mod.SocialError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
