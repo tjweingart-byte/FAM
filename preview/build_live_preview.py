@@ -1468,6 +1468,39 @@ __WRITING_SIM__
                     summary: (FIXTURES["/api/next"] || {}).summary || "" });
     }
 
+    // Consent, reporting and blocking (consent.py, moderation.py): the
+    // answers are kept for as long as the page is open.
+    if (path === "/api/consent" && method === "POST") {
+      var cAsk = body || {};
+      var cAll = FIXTURES["/api/consent"];
+      if (cAsk.scope === "terms") {
+        if (!cAsk.allow) return json({ error: "To stop agreeing to the Terms, delete your account in Settings." }, 400);
+        cAll.terms.accepted = true;
+        cAll.terms.accepted_version = cAll.terms.version;
+        return json({ ai: cAll.ai, terms: cAll.terms });
+      }
+      var cAi = cAll.ai;
+      cAi.asked = true;
+      cAi.given = !!cAsk.allow;
+      cAi.answered_version = cAi.version;
+      return json({ ai: cAi, terms: cAll.terms });
+    }
+    if (path === "/api/report" && method === "POST") {
+      return json({ ok: true, id: "preview", hidden: true,
+                    message: "Thanks for telling us. We review every report within "
+                             + FIXTURES["/api/report"].review_hours + " hours." });
+    }
+    if (path === "/api/block") {
+      var bAsk = method === "POST" ? (body || {}).handle : qs.get("handle");
+      var bList = FIXTURES["/api/blocks"].people;
+      if (method === "POST") {
+        if (bAsk && !bList.some(function (p) { return p.handle === bAsk; }))
+          bList.unshift({ name: "", handle: bAsk, avatar: "" });
+        return json({ ok: true, blocked: true });
+      }
+      FIXTURES["/api/blocks"].people = bList.filter(function (p) { return p.handle !== bAsk; });
+      return json({ ok: true, blocked: false });
+    }
     // Instant feedback (feedback.py): the button under the phone. Kept in the
     // artifact db, so the panel's `feedback` tab is this demo's inbox and a
     // report can be resolved there, as /admin does on the server.
@@ -1715,8 +1748,14 @@ __WRITING_SIM__
       var since = Number(qs.get("since") || 0);
       var all = THREADS[withId] || [];
       var head = all.length ? all[all.length - 1].id : since;
+      // Who they are, as the server says (`messages_thread`): from the
+      // preview's people, or left out so the chat keeps the name and handle
+      // it was opened with - a made-up "Someone" with no handle took the
+      // Report and Block rows off its menu (§222).
+      var withWho = ownerOf(withId);
       return json({
-        with: { user_id: withId, name: "Someone", handle: "" },
+        with: withWho.handle ? { user_id: withId, name: withWho.name || withWho.handle,
+                                 handle: withWho.handle, avatar: "" } : null,
         messages: since ? all.filter(function (m) { return m.id > since; })
                         : all.slice(),
         partial: !!since, head: head

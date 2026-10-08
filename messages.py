@@ -64,6 +64,7 @@ import time
 from dataclasses import dataclass
 from typing import Optional
 
+import content_filter
 from paths import data_path
 
 log = logging.getLogger(__name__)
@@ -105,7 +106,15 @@ def clean_text(text: str) -> str:
                 out.append("")
     while out and not out[-1]:
         out.pop()
-    return "\n".join(out)[:MAX_TEXT].rstrip()
+    # Slurs out, swearing kept - the rule for every word FAM shows somebody
+    # else (`content_filter`, §171, widened to messages in §224). Before the
+    # cut, so "a slur" cannot carry a message past MAX_TEXT (§226).
+    try:
+        text = content_filter.scrub("\n".join(out))
+    except Exception:  # noqa: BLE001 - the filter failing is not a lost message
+        log.exception("could not run the slur filter over a message")
+        text = "\n".join(out)
+    return text[:MAX_TEXT].rstrip()
 
 
 class MessageError(ValueError):
@@ -424,32 +433,41 @@ class MessageStore:
             })
         return out
 
-    def unread_in(self, user_id: str, thread: str) -> int:
+    def unread_in(self, user_id: str, thread: str, exclude_senders=()) -> int:
+        """Unread in one thread, not counting `exclude_senders` - people this
+        listener blocked or who are suspended (`moderation.py`, §226)."""
+        skip = set(exclude_senders or ())
         try:
             row = self._conn().execute(
                 "SELECT read_at FROM reads WHERE thread = ? AND user_id = ?",
                 (thread, user_id)).fetchone()
             since = row[0] if row else 0.0
             if is_group(thread):
-                return int(self._conn().execute(
-                    "SELECT COUNT(*) FROM messages WHERE thread = ?"
-                    " AND sender != ? AND at > ? AND id > ?",
+                rows = self._conn().execute(
+                    "SELECT sender, COUNT(*) FROM messages WHERE thread = ?"
+                    " AND sender != ? AND at > ? AND id > ? GROUP BY sender",
                     (thread, user_id, since,
-                     self._floor(user_id, thread))).fetchone()[0])
-            return int(self._conn().execute(
-                "SELECT COUNT(*) FROM messages WHERE thread = ?"
-                " AND recipient = ? AND at > ? AND id > ?",
-                (thread, user_id, since,
-                 self.cleared_at(user_id, thread))).fetchone()[0])
+                     self._floor(user_id, thread))).fetchall()
+            else:
+                rows = self._conn().execute(
+                    "SELECT sender, COUNT(*) FROM messages WHERE thread = ?"
+                    " AND recipient = ? AND at > ? AND id > ? GROUP BY sender",
+                    (thread, user_id, since,
+                     self.cleared_at(user_id, thread))).fetchall()
+            return sum(int(r[1]) for r in rows if r[0] not in skip)
         except Exception:
             log.exception("could not count unread messages")
             return 0
 
-    def unread_total(self, user_id: str) -> int:
-        """What the badge on the Messages button shows."""
+    def unread_total(self, user_id: str, exclude_senders=()) -> int:
+        """What the badge on the Messages button shows - never counting a
+        message the listener cannot open (`exclude_senders`, §226). Counted
+        per sender and filtered here rather than with a `NOT IN` list, which
+        would grow with every suspended account and hit SQLite's limit."""
+        skip = set(exclude_senders or ())
         try:
             rows = self._conn().execute(
-                "SELECT m.thread, COUNT(*) FROM messages m"
+                "SELECT m.sender, COUNT(*) FROM messages m"
                 " LEFT JOIN reads r ON r.thread = m.thread AND r.user_id = ?"
                 " LEFT JOIN clears c ON c.thread = m.thread AND c.user_id = ?"
                 " LEFT JOIN group_members g ON g.gid = m.recipient AND g.user_id = ?"
@@ -458,12 +476,12 @@ class MessageStore:
                 "            AND m.id > g.joined))"
                 "   AND m.at > COALESCE(r.read_at, 0)"
                 "   AND m.id > COALESCE(c.after_id, 0)"
-                " GROUP BY m.thread",
+                " GROUP BY m.sender",
                 (user_id, user_id, user_id, user_id, user_id)).fetchall()
         except Exception:
             log.exception("could not count unread messages")
             return 0
-        return sum(int(r[1]) for r in rows)
+        return sum(int(r[1]) for r in rows if r[0] not in skip)
 
     def mark_read(self, user_id: str, other_id: str, at: float = 0.0) -> None:
         try:
@@ -565,7 +583,7 @@ class MessageStore:
             raise MessageError("Pick at least two people for a group.")
         if len(others) + 1 > MAX_GROUP_MEMBERS:
             raise MessageError(f"A group holds up to {MAX_GROUP_MEMBERS} people.")
-        name = " ".join(str(name or "").split())[:MAX_GROUP_NAME]
+        name = content_filter.clean_line(name, MAX_GROUP_NAME)
         gid = GROUP_PREFIX + secrets.token_hex(8)
         now = time.time()
         conn = self._conn()
@@ -614,7 +632,7 @@ class MessageStore:
     def rename_group(self, user_id: str, gid: str, name: str) -> dict:
         if not self.is_member(gid, user_id):
             raise MessageError("You are not in that group.")
-        name = " ".join(str(name or "").split())[:MAX_GROUP_NAME]
+        name = content_filter.clean_line(name, MAX_GROUP_NAME)
         self._conn().execute("UPDATE groups SET name = ? WHERE id = ?", (name, gid))
         self.send(user_id, gid, kind="system",
                   text=f"named the group {name}" if name else "took the group's name off")
@@ -630,6 +648,18 @@ class MessageStore:
         return True
 
     # --- housekeeping -----------------------------------------------------
+
+    def message(self, message_id: int) -> Optional[Message]:
+        """One message by id, for a report about it (`moderation.py`)."""
+        row = self._conn().execute(
+            "SELECT id, thread, sender, recipient, kind, text, query, minutes, title, at"
+            " FROM messages WHERE id = ?", (int(message_id),)).fetchone()
+        return Message(*row) if row else None
+
+    def remove(self, message_id: int) -> bool:
+        """A reviewer removing a reported message for everybody."""
+        cur = self._conn().execute("DELETE FROM messages WHERE id = ?", (int(message_id),))
+        return bool(cur.rowcount)
 
     def forget(self, user_id: str) -> int:
         """Erase this listener from every conversation they were in.

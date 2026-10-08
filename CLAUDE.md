@@ -274,7 +274,7 @@ Audio and the opening
   on the speaking call; EI on every episode. Only work *before* the tap may be
   spent on latency. [nothing-before-material]
 - **No filler, ever, and no setting for it.** [no-filler]
-- **Slurs are the only words removed** ("a slur", `content_filter.py`, §171);
+- **Slurs are the only words removed** ("a slur", `content_filter.py`, §171; names and messages too, §224);
   swearing stays and puts an E before the title. Whole words only;
   `DELIBERATELY_ABSENT` says why a word is not listed. [slurs-only]
 - **Situate, never orient**, in the first two sentences: who, what, when. [situate]
@@ -431,6 +431,8 @@ Accounts, tiers, sharing
   `X-Forwarded-Proto`, loopback refused); story cards are PNG files to the share
   sheet. [share-link]
 - FAM posts nothing to anyone's social account and holds no token. [no-social-posting]
+- **App review** (§222): Report everywhere, block both ways (`moderation.py`, `/admin`);
+  a listener's words reach Anthropic only after a yes (`consent.py`); photos checked (§224); Terms ticked at sign-up (§228). [app-review-safety]
 - **Authorship is provenance, never identity**: `PodcastPipeline.author`, never
   on `EpisodePlan` or in `key_for`; first writer keeps it; prefetch writes none. [authorship-provenance]
 - **Type: Bricolage Grotesque (headings), Geist (body), Geist Mono (labels)**

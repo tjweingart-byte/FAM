@@ -114,6 +114,16 @@ def main() -> int:
                 "the phone field did not format what was typed into it"
             assert page.eval_on_selector("#authPhoneCC", "e => e.value") == "+1", \
                 "the country code did not default to +1"
+            # Clickwrap (§228): an unticked box stops the form before a
+            # round trip, and says why under the fields.
+            assert page.is_visible("#authTerms") and not page.is_checked("#authTerms"), \
+                "the sign-up form has no unticked Terms box"
+            page.evaluate("submitAuthForm()")
+            page.wait_for_timeout(200)
+            assert "Terms" in (page.text_content("#authError") or ""), \
+                "signing up without ticking the Terms box was not refused"
+            assert page.is_visible("#screen-auth"), "sign-up went ahead without the Terms box"
+            page.check("#authTerms")
             page.evaluate("submitAuthForm()")
 
             # Who they are, before what they want to hear. A name, a handle
@@ -2212,6 +2222,55 @@ def main() -> int:
             assert listed == 1, f"the queue sheet lists {listed}"
             page.evaluate("removeFromQueue(0); closeSheet(); QUEUE = []; drawMixSkip(false)")
 
+        def asks_before_words_go_to_ai():
+            """App Store 5.1.2(i) (consent.py): with no yes on record a search
+            shows the server's notice and sends nothing; Allow sends it."""
+            page.evaluate("""() => fetch('/api/consent', {method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({allow: false})}).then(() => { AI_CONSENT = null; })""")
+            page.wait_for_timeout(200)
+            page.evaluate("setTab('home'); delete TOPICS['_custom']; sendSearch('how do tides work', '')")
+            page.wait_for_timeout(500)
+            assert page.eval_on_selector("#aiConsentOverlay", "e => e.classList.contains('active')"), \
+                "a search went ahead without asking"
+            body = page.text_content("#aiConsentBody") or ""
+            assert "Anthropic" in body, f"the notice does not name the provider: {body!r}"
+            assert not page.evaluate("() => !!TOPICS['_custom']"), "the search was sent before a yes"
+            page.click("#aiConsentYes")
+            page.wait_for_timeout(700)
+            assert page.evaluate("() => !!(TOPICS['_custom'] && TOPICS['_custom'].prompt)"), \
+                "Allow did not send the search"
+            page.reload()
+            page.wait_for_timeout(1200)
+
+        def report_and_block_are_in_the_menus():
+            """App Store 1.2 (moderation.py): somebody else's comment has
+            Report, a profile has Report and Block, and a report offers the
+            server's reasons."""
+            html = page.evaluate(
+                "() => rcItemHTML({id: 7, text: 'hi', name: 'Ben', handle: 'ben', mine: false, likes: 0}, false)")
+            assert "Report" in html, "another listener's comment has no Report"
+            own = page.evaluate(
+                "() => rcItemHTML({id: 8, text: 'hi', name: 'Me', handle: 'me', mine: true, likes: 0}, false)")
+            assert "Report" not in own, "your own comment offers Report"
+            page.evaluate("viewingProfile = {handle: 'ben', name: 'Ben'}; openPersonMenu()")
+            page.wait_for_timeout(250)
+            rows = page.evaluate(
+                "() => Array.from(document.querySelectorAll('#sheetCard .sheet-item'))"
+                ".map(e => e.textContent.trim())")
+            assert "Report" in rows and "Block" in rows, f"the profile menu: {rows}"
+            page.evaluate("""() => {
+                var rows = document.querySelectorAll('#sheetCard .sheet-item');
+                for (var i = 0; i < rows.length; i++)
+                    if (rows[i].textContent.trim() === 'Report') { rows[i].click(); return; }
+            }""")
+            page.wait_for_timeout(400)
+            reasons = page.evaluate(
+                "() => Array.from(document.querySelectorAll('#sheetCard .sheet-item'))"
+                ".map(e => e.textContent.trim())")
+            assert "Harassment or bullying" in reasons, f"the reasons sheet: {reasons}"
+            page.evaluate("closeSheet(); viewingProfile = null")
+
         def view_more_shows_eight_and_refreshes():
             """"View more" shows eight of the rail and Refresh replaces them
             with eight the screen has not shown (§165, the 28/09 packet)."""
@@ -3206,14 +3265,16 @@ def main() -> int:
             assert "u_nadia" in listed, f"a chat you sent to is not on the list: {listed}"
             rows = page.eval_on_selector_all("#threadList .thread-row", "e => e.length")
             assert rows == len(listed), "the list was read but not drawn"
-            # The menu: View profile and Delete chat, no Share an episode.
+            # The menu: View profile and Delete chat, no Share an episode -
+            # then Report and Block (App Store 1.2, moderation.py).
             page.evaluate("openThreadWith({ user_id: 'u_nadia', name: 'Nadia Okoro', handle: 'nadia' })")
             page.wait_for_timeout(500)
             page.evaluate("openThreadMenu()")
             page.wait_for_timeout(200)
             items = page.eval_on_selector_all(
                 "#sheetCard .sheet-item", "e => e.map(x => x.textContent)")
-            assert items == ["View profile", "Delete chat"], items
+            assert items == ["View profile", "Delete chat", "Report Nadia Okoro",
+                             "Block Nadia Okoro"], items
             page.evaluate("closeSheet(); deleteChat(currentThread)")
             page.wait_for_timeout(700)
             assert page.eval_on_selector(".screen.active", "e => e.id") == "screen-messages"
@@ -4027,6 +4088,8 @@ def main() -> int:
         check("The search bar is one line with its buttons on the right",
               the_search_bar_is_one_line_with_its_buttons_on_the_right)
         check("The player's menu and the queue", the_player_menu_and_the_queue)
+        check("A search asks before its words go to the AI", asks_before_words_go_to_ai)
+        check("Report and Block are in the menus", report_and_block_are_in_the_menus)
 
         if errors:
             failures.append(f"page errors: {errors}")

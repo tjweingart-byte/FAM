@@ -110,6 +110,13 @@
   been waiting; a wait you were warned about is a different experience from the
   same wait unexplained.
 <!-- rule:slurs-only -->
+> **Current:** since §224 (the owner's decision for App Store 1.2) the same
+> rule covers everything one listener writes for another to read - display
+> names, group and mix names, messages, comments, captions - and a handle
+> with a slur in it is refused, since "a slur" is not a handle. A name or
+> handle that swears is kept and marked E, like an episode. Images get their
+> own narrow check (`image_check.py`): nudity, sexual content, graphic
+> violence, hate symbols, anything sexualising a minor - nothing else.
 - **Slurs are the one thing taken out; swearing stays and earns an E**
   *(PROBLEMS.md §171, at the owner's direction: "we don't want any censorship
   from any media sources or speech options. The only thing we want to filter
@@ -1294,6 +1301,29 @@
   Instagram and Snapchat, which cannot carry a link as text - the story card.
   This is the correct shape rather than a stage: no OAuth to maintain, no
   tokens to leak, and nothing that can post while somebody is asleep.
+<!-- rule:app-review-safety -->
+- **Report anything, block both ways, and ask before a listener's words go to
+  the AI** (App Store 1.2 and 5.1.2(i), §222). Every comment, message, vibe,
+  profile and episode has Report; a report hides the thing from its reporter
+  at once and removes nothing for anybody else until a reviewer decides on
+  `/admin` (remove, suspend, dismiss), and the reporter is never shown. A
+  block is silent, both ways and total - comments, messages, vibes, profile,
+  searched episodes, follows - and every shelf of other people's episodes
+  goes through `app._visible_episodes`. A search, Go Deeper question or
+  attachment reaches Anthropic only after a yes kept on the server
+  (`consent.py`, versioned); a client that knows to ask (`web/live`, `ios/*`)
+  is refused with `X-FAM-Consent` without one, an older kept release is not
+  (`old-clients`). Asked once, before a first search, never in front of an
+  episode. The words of the notice and the report reasons are the server's.
+  Profile pictures and mix covers are checked once by a model before
+  strangers see them (`image_check.py`, §224); a check that cannot run lets
+  the photo through and says so, and Report + Remove still covers it.
+  The Terms and the Privacy Policy are agreed with an unticked checkbox at
+  sign-up (clickwrap, §228), kept as a `terms` consent with its version; a
+  client that draws the box (`web/live`, `web/waitlist`, `ios/*`) is refused
+  without `accept_terms`, an older kept release is not and is asked on its
+  first screen (`checkTerms`), and a bump of `consent.TERMS_VERSION` asks
+  every account again. A no is not an answer: leaving is deleting the account.
 <!-- rule:authorship-provenance -->
 - **Authorship is provenance, and never identity.** *(PROBLEMS.md §95.)* The
   shared cache records who first generated each script, so Explore can leave a

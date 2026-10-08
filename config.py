@@ -700,6 +700,21 @@ class Settings:
     # used and the new subjects are placed on the next sweep.
     categories_place_timeout_seconds: float = _env_float(
         "CATEGORIES_PLACE_TIMEOUT_SECONDS", 30.0)
+    # The photo check (image_check.py, §224): one model call per profile
+    # picture or mix cover, before strangers can see it. On by default; with
+    # no key (staging) a photo goes through unchecked and the log says so.
+    image_check: bool = field(
+        default_factory=lambda: os.environ.get("IMAGE_CHECK", "1")
+        not in ("0", "false", "False", ""))
+    # Its own model, not MODEL: a yes/no on one small picture does not need
+    # the writer's model, and at the owner's direction (§225) it runs on the
+    # cheapest current one - about $0.0002 a photo.
+    image_check_model: str = field(
+        default_factory=lambda: os.environ.get("IMAGE_CHECK_MODEL") or SMALL_MODEL)
+    image_check_max_tokens: int = _env_int("IMAGE_CHECK_MAX_TOKENS", 2000)
+    # Somebody is waiting on the save; past this the photo is let through
+    # unchecked rather than lost.
+    image_check_timeout_seconds: float = _env_float("IMAGE_CHECK_TIMEOUT_SECONDS", 12.0)
     # How far back the promotion sweep reads. Long enough that a subject
     # somebody was interested in last month still counts toward the listener
     # threshold, short enough that the vocabulary tracks what people are
@@ -1553,6 +1568,21 @@ class Settings:
     # same rule `public_base_url` above keeps, for the same reason.
     app_store_url: str = field(
         default_factory=lambda: os.environ.get("APP_STORE_URL", "").strip())
+    # The iOS app's identity, for universal links (APP_STORE.md): Apple's
+    # ten-character Team ID from the developer account, and the app's bundle
+    # id. Both unset until the account exists, and then
+    # `/.well-known/apple-app-site-association` answers 404 rather than
+    # naming an app that is not there - the same rule as `app_store_url`.
+    # The published contact for reports and the terms (App Store 1.2): an
+    # address that a person reads. Unset, the terms page and the report sheet
+    # point at the in-app report button alone - which Apple will not accept
+    # on its own, so set it before submitting (APP_STORE.md).
+    support_email: str = field(
+        default_factory=lambda: os.environ.get("SUPPORT_EMAIL", "").strip())
+    apple_team_id: str = field(
+        default_factory=lambda: os.environ.get("APPLE_TEAM_ID", "").strip())
+    ios_bundle_id: str = field(
+        default_factory=lambda: os.environ.get("IOS_BUNDLE_ID", "").strip())
     # The pre-launch waitlist (WAITLIST.md). On, the app is closed to anybody
     # whose account is not 'active': guests and waitlisted accounts are sent
     # to /waitlist, every new account starts 'waitlisted', and the app's API

@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1E1B27">
+<title>FAM — Privacy policy</title>
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..700&family=Geist:wght@400..700&family=Geist+Mono:wght@400..700&display=swap" rel="stylesheet">
+<!-- Served by /privacy (app.py), which fills in the contact and date. Written from what the code collects and sends (PROBLEMS.md §223); revisit with DATABASE.md and docs/DATA.md whenever a store or a provider is added, and have a lawyer read it before launch. -->
+<style>
+  :root{ --bg:#1E1B27; --text:#F4EFE4; --muted:#ABA3C4; --copper:#E0B563;
+    --border:rgba(244,239,228,0.12); }
+  *{ box-sizing:border-box; }
+  body{ margin:0; background:var(--bg); color:var(--text);
+    font:15px/1.6 'Geist', -apple-system, sans-serif; }
+  main{ max-width:680px; margin:0 auto; padding:40px 16px 64px; }
+  h1{ font-family:'Bricolage Grotesque', sans-serif; font-weight:500; font-size:32px;
+    line-height:1.15; color:var(--copper); margin:0 0 6px; }
+  h2{ font-family:'Bricolage Grotesque', sans-serif; font-weight:500; font-size:21px;
+    margin:34px 0 8px; }
+  .when{ font-family:'Geist Mono', monospace; font-size:11px; letter-spacing:0.08em;
+    text-transform:uppercase; color:var(--muted); }
+  p, li{ color:var(--text); }
+  li{ margin:4px 0; }
+  .note{ border:1px solid var(--border); border-radius:12px; padding:14px 16px;
+    color:var(--muted); font-size:14px; }
+  a{ color:var(--copper); }
+
+  table{ width:100%; border-collapse:collapse; margin:10px 0; font-size:14px; }
+  th, td{ text-align:left; vertical-align:top; padding:8px 10px 8px 0;
+    border-bottom:1px solid var(--border); }
+  th{ font-family:'Geist Mono', monospace; font-size:11px; letter-spacing:0.06em;
+    text-transform:uppercase; color:var(--muted); font-weight:500; }
+  h3{ font-size:16px; margin:22px 0 4px; }
+  .nav{ margin-top:40px; font-size:14px; color:var(--muted); }
+  @media print{
+    :root{ --bg:#fff; --text:#141413; --muted:#555; --copper:#8a5a12; --border:#ddd; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1>Privacy policy</h1>
+  <div class="when">FAM by Familiarize · updated {{UPDATED}}</div>
+
+  <p>FAM turns what you ask and what you follow into short audio stories. This
+  policy says what FAM keeps about you, who else receives any of it and why,
+  how long it is kept, and how to change or delete it. "FAM", "we" and "us"
+  mean Familiarize, which runs FAM.</p>
+
+  <h2>The short version</h2>
+  <ul>
+    <li>We keep what FAM needs to work: your account, what you ask and listen
+      to (to make your feeds), and what you post.</li>
+    <li>What you ask is sent to Anthropic to write the episode, and a search
+      drawn from it to Exa to find sources, only after you say yes in the app.
+      Anthropic does not use it to train its models.</li>
+    <li>We show no ads, sell nothing, and track you across no other apps or
+      sites.</li>
+    <li>You can delete your account at any time in Settings, and it is gone
+      straight away.</li>
+  </ul>
+
+  <h2>What we collect</h2>
+  <table>
+    <tr><th>What</th><th>Details</th><th>Why</th></tr>
+    <tr><td>Account</td><td>Email address or phone number, and a password (stored only as a scrypt hash). If you sign in with Google or Apple: the account id they give us, your email and the name on that account.</td><td>To sign you in and keep your things with you.</td></tr>
+    <tr><td>Profile</td><td>Display name, @handle and profile picture if you set them; date of birth if you give it; the town, region or country you type in (FAM never reads your device's location).</td><td>To show your profile and to suggest stories about where you live.</td></tr>
+    <tr><td>What you ask and play</td><td>Your searches and Go Deeper questions; which episodes you play, finish or skip; what you pick, share, save, vibe or add to a mix; which tiles were shown to you.</td><td>To make your episodes and to rank myFAM and DailyFAM for you.</td></tr>
+    <tr><td>What you post</td><td>Comments, messages, vibes and their captions, mixes and their covers, interests you choose, files and links you attach to a search.</td><td>To deliver them to the people you meant them for.</td></tr>
+    <tr><td>Reports and feedback</td><td>Content you report and why; bug reports you send, with the screen and app version.</td><td>To keep FAM safe and to fix it.</td></tr>
+    <tr><td>Your AI answer</td><td>Whether you allowed your questions to be sent to our AI provider, and when.</td><td>So we only send them when you said yes.</td></tr>
+    <tr><td>Your agreement to the terms</td><td>Which version of the terms and this policy you agreed to, when, and from which app.</td><td>As the record that you agreed, and so we ask again when they change.</td></tr>
+    <tr><td>Usage and cost</td><td>How many episodes you made and what each cost us to make.</td><td>To apply plan limits and to run the service.</td></tr>
+    <tr><td>Technical</td><td>A session cookie (or, in the app, a sign-in token), your time zone on each request, the app version, and the network address our hosting provider records.</td><td>To keep you signed in, write episodes in your own time, and keep the service working.</td></tr>
+  </table>
+  <p>If you listen without an account, FAM keeps no record of what you play.</p>
+
+  <h2>Who else receives it</h2>
+  <p>We use these companies to run FAM. Each receives only what is listed, only
+  to do that job for us.</p>
+  <table>
+    <tr><th>Who</th><th>What they receive</th></tr>
+    <tr><td>Anthropic (Claude)</td><td>What you type, say or attach, a Go Deeper question with the episode it follows, your local date and time, and - when you tap the story about where you live - the place you set. Only after you allow it in the app. Also each profile picture and mix cover you save, checked once for nudity, violence and hate symbols before anyone else sees it (the photo editor says so). Anthropic does not train its models on any of it.</td></tr>
+    <tr><td>Exa</td><td>A web search written from your question (or the question itself), to find the sources an episode is built on.</td></tr>
+    <tr><td>Sports, markets and forecast data (API-Sports, SportsDataIO, Finnhub, Alpha Vantage, Polymarket)</td><td>The subject of a question that needs live facts, such as a team or a company - never who asked.</td></tr>
+    <tr><td>Weather (Open-Meteo, the US National Weather Service)</td><td>A place named in a question, then its coordinates.</td></tr>
+    <tr><td>RunPod</td><td>The words of an episode, to turn into speech. Nothing is stored there.</td></tr>
+    <tr><td>Render</td><td>Hosts FAM's servers and stores its databases.</td></tr>
+    <tr><td>Viral Loops</td><td>If you join the waitlist: your email, display name and invite code, to count invitations.</td></tr>
+    <tr><td>Google and Apple</td><td>Only if you sign in with them; they tell us who you are, we tell them nothing.</td></tr>
+    <tr><td>Your browser's push service</td><td>If you turn notifications on: a short message such as "Your mix is ready".</td></tr>
+    <tr><td>Your device's speech recognition</td><td>If you search by voice, your device (Apple or Google) turns speech into text before FAM sees it.</td></tr>
+    <tr><td>Google Fonts</td><td>Your network address, when a FAM web page loads its typefaces.</td></tr>
+    <tr><td>The website of a link you attach</td><td>A request from FAM's server to read that page.</td></tr>
+  </table>
+  <p>We do not sell your information or share it for advertising. We would
+  disclose it only if the law required us to.</p>
+
+  <h2>What other people can see</h2>
+  <ul>
+    <li><b>Your profile</b>: name, @handle, picture, the interests you choose to show,
+      the place you set, your public mixes and your vibes.</li>
+    <li><b>Comments</b> can be read by anyone; <b>messages</b> only by the people in the
+      conversation.</li>
+    <li><b>Mixes</b> are public when you make them; you can make one private.</li>
+    <li><b>Episodes you search</b> can be played by other listeners in Explore, without
+      your name unless you turn on "Show my name on episodes I searched".
+      Questions that look personal (with "my", an email address or a phone
+      number) and anything with an attachment are never shared.</li>
+  </ul>
+
+  <h2>How long we keep it</h2>
+  <table>
+    <tr><th>What</th><th>For how long</th></tr>
+    <tr><td>Attached files and images</td><td>6 hours</td></tr>
+    <tr><td>Listening history in Settings</td><td>14 days</td></tr>
+    <tr><td>Which tiles were shown to you</td><td>30 days</td></tr>
+    <tr><td>Plan-limit counters</td><td>60 days</td></tr>
+    <tr><td>Sign-in sessions</td><td>90 days after last use</td></tr>
+    <tr><td>Written episodes</td><td>7 days, up to 30 while people keep playing them</td></tr>
+    <tr><td>Your account, profile, activity, posts and messages</td><td>Until you delete them or your account</td></tr>
+  </table>
+  <p><b>When you delete your account</b> we erase your account, profile,
+  activity, posts, messages, mixes, saved items, blocks and your AI answer
+  straight away. Episodes you searched stay for other listeners with your name
+  removed. Our cost records, bug reports and content reports are kept with your
+  name removed, because they are records of the service rather than of you.
+  Deleting your account does not remove a waitlist entry from Viral Loops;
+  email us and we will.</p>
+
+  <h2>Your choices and rights</h2>
+  <ul>
+    <li>Change your profile, place, interests and settings in the app.</li>
+    <li>Turn <b>Send my questions to AI</b> on or off in Settings, Privacy and safety.</li>
+    <li>Block anyone; report anything.</li>
+    <li>Delete your account in Settings. It cannot be undone.</li>
+    <li>Ask us for a copy of what we hold about you, to correct it, or to delete
+      it, by emailing {{EMAIL_LINK}}. Depending on where you live (for example the
+      EU, the UK or California) these are legal rights, and you may also complain
+      to your data protection authority. We do not sell or share personal
+      information as California law defines it.</li>
+  </ul>
+
+  <h2>Cookies and storage on your device</h2>
+  <p>FAM uses one cookie to keep you signed in. Your device also keeps your
+  playback settings and, so they play without a connection, episodes you have
+  finished. Signing out clears them. There are no advertising or analytics
+  cookies.</p>
+
+  <h2>Security</h2>
+  <p>Passwords and sign-in tokens are stored only as one-way hashes, and every
+  connection to FAM is encrypted. No system is perfectly secure; if something
+  goes wrong that affects you, we will tell you.</p>
+
+  <h2>Children</h2>
+  <p>FAM is not meant for children under 13, and we do not knowingly collect
+  their information. If you believe a child has an account, email us and we
+  will delete it.</p>
+
+  <h2>Where your information is processed</h2>
+  <p>FAM and the companies above process information in the United States and
+  other countries, which may have different data protection laws from yours.</p>
+
+  <h2>Changes</h2>
+  <p>We will update the date above when this policy changes, and tell you in the
+  app before a change in what is sent to a third party takes effect.</p>
+
+  <h2>Contact</h2>
+  {{CONTACT}}
+  <p class="nav"><a href="/terms">Terms and community rules</a> · <a href="/privacy">Privacy policy</a> · <a href="/support">Help and support</a></p>
+</main>
+</body>
+</html>

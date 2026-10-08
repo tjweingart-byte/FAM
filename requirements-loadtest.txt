@@ -1,0 +1,3 @@
+# The load test (tools/load_test.py). Not needed to run FAM or its tests:
+# the test suite imports the load test's helpers without Locust.
+locust>=2.20
