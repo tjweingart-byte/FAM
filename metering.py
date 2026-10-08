@@ -77,25 +77,35 @@ from paths import data_path
 log = logging.getLogger("metering")
 
 #: USD per million tokens, input and output, as published. Checked against the
-#: rate card on 2026-09-09. A model missing from here is not costed at zero -
+#: rate card on 2026-10-08 (§227). A model missing from here is not costed at zero -
 #: `record` marks the row unpriced and `report` says how many there were.
 PRICES: dict[str, tuple[float, float]] = {
     "claude-fable-5-1": (10.00, 50.00),
     "claude-fable-5": (10.00, 50.00),
+    "claude-opus-5-5": (4.00, 20.00),
     "claude-opus-5": (5.00, 25.00),
     "claude-opus-4-8": (5.00, 25.00),
     "claude-opus-4-7": (5.00, 25.00),
     "claude-opus-4-6": (5.00, 25.00),
+    "claude-sonnet-5-5": (2.00, 10.00),
     "claude-sonnet-5": (2.00, 10.00),
     "claude-sonnet-4-6": (3.00, 15.00),
-    "claude-haiku-4-5": (1.00, 5.00),
-    # Prompts up to 100K tokens; the photo check's are a few hundred (§225).
+    # The rate for a prompt of 100K tokens or fewer, which every FAM call is;
+    # above that Haiku 5.5 bills $0.50 / $2.50 (§227). The photo check's are
+    # a few hundred (§225).
     "claude-haiku-5-5": (0.10, 0.50),
+    "claude-haiku-4-5": (1.00, 5.00),
 }
 
 #: Cached input is billed at a fraction of the input rate; writing to the cache
 #: costs a premium over it. Published multipliers, not measured here.
 CACHE_READ_MULTIPLIER = 0.1
+#: Models whose cache reads are not a tenth of their input rate, in USD per
+#: million tokens as published (§227).
+CACHE_READ_PER_MTOK: dict[str, float] = {
+    "claude-fable-5-1": 0.25,
+    "claude-opus-5-5": 0.20,
+}
 CACHE_WRITE_MULTIPLIER = 1.25
 #: A write under the one-hour TTL (`PROMPT_CACHE_TTL=1h`, §179) costs twice
 #: the input rate rather than 1.25x.
@@ -182,6 +192,18 @@ class Usage:
     #: rates, because the tokens above are totals across calls and only some
     #: of them were batched.
     batch_discount: float = 0.0
+    #: Each call priced at its own model's rates as it is folded in (§227).
+    #: The token fields above are totals across calls, and an episode's calls
+    #: need not share a model - the brief runs on Haiku, the writer on Sonnet
+    #: - so pricing the totals at `model` (the last call's) would charge the
+    #: brief at the writer's rate. `calls_unpriced` counts calls whose model
+    #: has no entry in `PRICES`.
+    priced_input: float = 0.0
+    priced_output: float = 0.0
+    priced_cache_read: float = 0.0
+    priced_cache_write: float = 0.0
+    calls_priced: int = 0
+    calls_unpriced: int = 0
 
     def add_model_call(self, model: str, usage: object,
                        batched: bool = False) -> None:
@@ -207,6 +229,15 @@ class Usage:
         self.output_tokens += call.output_tokens
         self.cache_read_tokens += call.cache_read_tokens
         self.cache_write_tokens += call.cache_write_tokens
+        lines = _token_lines(call)
+        if lines is None:
+            self.calls_unpriced += 1
+        else:
+            self.calls_priced += 1
+            self.priced_input += lines[0]
+            self.priced_output += lines[1]
+            self.priced_cache_read += lines[2]
+            self.priced_cache_write += lines[3]
         if batched:
             self.batch_discount += _claude_list_cost(call) * BATCH_DISCOUNT
 
@@ -282,18 +313,23 @@ def price_of(usage: Usage) -> Cost:
     model" rather than quietly averaging them in at nothing.
     """
     cost = Cost()
-    rate = PRICES.get(usage.model)
-    if rate is None:
-        cost.priced = not (usage.model_calls or usage.input_tokens or usage.output_tokens)
-    else:
-        per_in, per_out = rate
-        cost.claude_input = usage.input_tokens / 1_000_000 * per_in
-        cost.claude_output = usage.output_tokens / 1_000_000 * per_out
-        cost.cache_read = (usage.cache_read_tokens / 1_000_000
-                           * per_in * CACHE_READ_MULTIPLIER)
-        cost.cache_write = (usage.cache_write_tokens / 1_000_000
-                            * per_in * cache_write_multiplier())
+    if usage.calls_priced or usage.calls_unpriced:
+        # Folded in call by call, each at its own model's rates (§227).
+        cost.priced = not usage.calls_unpriced
+        cost.claude_input = usage.priced_input
+        cost.claude_output = usage.priced_output
+        cost.cache_read = usage.priced_cache_read
+        cost.cache_write = usage.priced_cache_write
         cost.batch_discount = float(usage.batch_discount or 0.0)
+    else:
+        lines = _token_lines(usage)
+        if lines is None:
+            cost.priced = not (usage.model_calls or usage.input_tokens
+                               or usage.output_tokens)
+        else:
+            (cost.claude_input, cost.claude_output, cost.cache_read,
+             cost.cache_write) = lines
+            cost.batch_discount = float(usage.batch_discount or 0.0)
     cost.exa = float(usage.exa_cost or 0.0)
     # Billed, like Exa: the provider's own figure, recorded when it was spent.
     cost.live = float(usage.live_cost or 0.0)
@@ -301,16 +337,23 @@ def price_of(usage: Usage) -> Cost:
     return cost
 
 
-def _claude_list_cost(usage: Usage) -> float:
-    """One call's Claude cost at list price; 0 for a model with no price."""
+def _token_lines(usage: Usage) -> Optional[tuple[float, float, float, float]]:
+    """Input, output, cache-read and cache-write dollars for `usage`'s tokens
+    at `usage.model`'s list price; None for a model with no price."""
     rate = PRICES.get(usage.model)
     if rate is None:
-        return 0.0
+        return None
     per_in, per_out = rate
-    return (usage.input_tokens * per_in + usage.output_tokens * per_out
-            + usage.cache_read_tokens * per_in * CACHE_READ_MULTIPLIER
-            + usage.cache_write_tokens * per_in * cache_write_multiplier()
-            ) / 1_000_000
+    per_read = CACHE_READ_PER_MTOK.get(usage.model, per_in * CACHE_READ_MULTIPLIER)
+    return (usage.input_tokens / 1_000_000 * per_in,
+            usage.output_tokens / 1_000_000 * per_out,
+            usage.cache_read_tokens / 1_000_000 * per_read,
+            usage.cache_write_tokens / 1_000_000 * per_in * cache_write_multiplier())
+
+
+def _claude_list_cost(usage: Usage) -> float:
+    """One call's Claude cost at list price; 0 for a model with no price."""
+    return sum(_token_lines(usage) or ())
 
 
 def gpu_cost(audio_seconds: float) -> float:

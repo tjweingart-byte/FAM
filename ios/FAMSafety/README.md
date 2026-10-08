@@ -41,7 +41,7 @@ lock-screen audio spike comes first). When there is:
    `ReportSubject`); remove the item when the receipt says `hidden`.
 7. Add **Block** to a profile, a chat and a story (`.blockConfirmation`).
 8. Put `PrivacyAndSafetySection` in Settings.
-9. **The Terms checkbox (§227).** Every `ios/*` client must send
+9. **The Terms checkbox (§228).** Every `ios/*` client must send
    `accept_terms: true` on `POST /api/v1/auth/signup` and
    `/api/v1/waitlist/join` - the server answers `400` without it - so the
    sign-up screen draws an unticked "I agree to the Terms and the Privacy

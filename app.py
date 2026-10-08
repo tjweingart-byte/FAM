@@ -185,6 +185,42 @@ async def _verify_credentials() -> None:
              CREDENTIALS["key"], CREDENTIALS["source"])
 
 
+async def _verify_small_models() -> None:
+    """Ask the same question of the models the small calls run on (§227).
+
+    Until §227 every call ran on `settings.model`, so `_verify_credentials`
+    covered them all. The brief, composer, placer and thumbnail calls now
+    default to `config.SMALL_MODEL`, and an account that cannot use it would
+    turn every brief into the raw-query fallback - each one logged, none of
+    them said at boot. A model that fails here is reported in
+    `/api/health` (`credentials.models`) and the log; nothing else changes,
+    because every one of those calls already falls back on its own.
+    """
+    if CREDENTIALS.get("state") != "ok":
+        return
+    small = sorted({settings.ei_model, settings.stories_model,
+                    settings.categories_model, settings.thumbnails_model}
+                   - {settings.model})
+    report: dict[str, str] = {}
+    for model in small:
+        try:
+            await build_async_client().models.retrieve(model)
+            report[model] = "ok"
+        except Exception as exc:  # noqa: BLE001 - the report matters, not the type
+            import anthropic
+
+            # `friendly_error` names the writer's model on a 404; this is not it.
+            report[model] = (f"The model {model!r} is not available to this account."
+                             if isinstance(exc, anthropic.NotFoundError)
+                             else friendly_error(exc))
+            log.error("MODEL UNAVAILABLE - %s: %s. The calls on it fall back "
+                      "(the brief searches the raw query, tiles are templated); "
+                      "set EI_MODEL / STORIES_MODEL / CATEGORIES_MODEL / "
+                      "THUMBNAILS_MODEL to a model this key can use.",
+                      model, report[model])
+    CREDENTIALS["models"] = report
+
+
 def _say_where_a_key_could_come_from() -> None:
     """With no key, say the thing that stops this happening on the next machine.
 
@@ -491,6 +527,7 @@ async def lifespan(_: FastAPI):
     asyncio.get_running_loop().run_in_executor(None, autocorrect_mod.warm)
     # Before a listener finds out the hard way.
     await _verify_credentials()
+    await _verify_small_models()
     _announce_research()
     # Before the first listener signs up into a database that is about to be
     # replaced by the next push.
@@ -1761,7 +1798,7 @@ class CredentialsRequest(BaseModel):
     #: sign-up only, and only while the account is waitlisted.
     referral_code: str = Field("", max_length=64)
     #: The sign-up checkbox: "I agree to the Terms and the Privacy Policy"
-    #: (clickwrap, §227). Required on sign-up from a client that draws it.
+    #: (clickwrap, §228). Required on sign-up from a client that draws it.
     accept_terms: bool = False
     #: Native clients only. See `_maybe_token` - a browser must never ask for
     #: this, because reading the token in script is precisely what the HttpOnly
@@ -1775,7 +1812,7 @@ class ProviderRequest(BaseModel):
     provider: str = Field(..., max_length=16)
     id_token: str = Field(..., max_length=8192)
     #: Ticked before a Google or Apple sign-in that may create an account
-    #: (§227). An account made without it is asked on its first screen.
+    #: (§228). An account made without it is asked on its first screen.
     accept_terms: bool = False
     #: The invite code a waitlist link carried; see CredentialsRequest.
     referral_code: str = Field("", max_length=64)
@@ -5396,7 +5433,7 @@ TERMS_REQUIRED = ("Tick the box to agree to the Terms and the Privacy Policy "
 
 
 def _client_draws_terms(request: Request) -> bool:
-    """Whether this client draws the sign-up checkbox (§227): the app's page,
+    """Whether this client draws the sign-up checkbox (§228): the app's page,
     the waitlist page and every iOS build. A kept older release never had
     one and is not refused for it (`old-clients`); a tool with no client
     header is not a person agreeing to anything."""
@@ -5448,7 +5485,8 @@ class ConsentRequest(BaseModel):
     allow: bool
     #: The notice version the listener was shown. A yes to an older wording
     #: is kept as what it was and does not count as a yes to this one.
-    version: int = Field(1, ge=1, le=1000)
+    #: Left out, it is the current version of `scope` (as before §228).
+    version: Optional[int] = Field(None, ge=1, le=1000)
 
 
 @app.post("/api/consent")
@@ -5462,7 +5500,8 @@ async def consent_write(req: ConsentRequest, request: Request) -> dict:
     try:
         CONSENT.record(
             user, req.allow, scope=req.scope,
-            version=min(req.version, consent_mod.current_version(req.scope)),
+            version=min(req.version or consent_mod.current_version(req.scope),
+                        consent_mod.current_version(req.scope)),
             client=request.headers.get(client_versions.HEADER, ""))
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -8910,7 +8949,7 @@ class WaitlistJoinRequest(BaseModel):
     password: str = Field(..., max_length=accounts_mod.MAX_PASSWORD)
     referral_code: str = Field("", max_length=64)
     want_token: bool = False
-    #: The join form's checkbox (§227).
+    #: The join form's checkbox (§228).
     accept_terms: bool = False
 
 

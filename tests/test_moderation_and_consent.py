@@ -506,7 +506,7 @@ def test_a_taken_handle_never_pays_for_a_photo_check(monkeypatch):
     assert calls == []
 
 
-# --- the Terms, agreed at sign-up (§227) -----------------------------------
+# --- the Terms, agreed at sign-up (§228) -----------------------------------
 
 def test_signing_up_from_the_app_needs_the_box_ticked():
     c = TestClient(appmod.app)

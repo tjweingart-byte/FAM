@@ -67,8 +67,10 @@ pays a cold start (boot plus a ~10 s model load). **The owner's decision on
 
 ## 2. Claude (Anthropic) — the brief and the writer
 
-**Today:** `claude-sonnet-5` ($2 in / $10 out per million tokens). About $0.04
-per new episode, $0 per replay. Prompt caching on the writer's instructions and
+**Today:** the writer on `claude-sonnet-5` ($2 in / $10 out per million
+tokens); the brief, tile composer, category placer and thumbnail calls on
+`claude-haiku-5-5` ($0.10 / $0.50, §227). About $0.03 per new episode, $0 per
+replay. Prompt caching on the writer's instructions and
 batch pricing on both editions are **on (§179)**.
 
 | When | Trigger | Action | Cost change |
@@ -80,7 +82,7 @@ batch pricing on both editions are **on (§179)**.
 | **Done (§207)** | One listener could spend ~$2/min | `ENFORCE_QUOTAS=1` on production (free tier: 5 episodes/day, ≤ $0.50/day each); admins unlimited, `/api/admin/plan` for anybody else | caps the worst listener at ~$15/mo |
 | **Stage 2 · after the first real month** | Real miss rate and cost per episode exist in `metering.db` | `python tools/usage_report.py --days 30`; replace every estimate in `FINANCIAL.md` §4 | $0 |
 | **Stage 3 · ~1k MAU** | Search miss rate above ~60% | Tune the near-match threshold; trial the canonical key (`CACHE_SEMANTIC_KEY=1`, ~$0.0002/request) | -10 points of misses ≈ -$50/mo at 1k, -$5,100/mo at 100k |
-| **Stage 3 · ~10k MAU** | Claude above ~$3,000/mo | Evaluate the brief on Haiku 4.5 (`EI_MODEL`) with `tools/ei_eval.py` first - quality comes from the brief (§82). Needs a code change: Haiku rejects `effort` | -11% per episode, only if the eval holds |
+| **Done (§227)** | — | The brief, composer, placer and thumbnail calls on Haiku 5.5 (`SMALL_MODEL`); the writer unchanged. **Confirm with `tools/ei_eval.py` once a key is available** - quality comes from the brief (§82); `EI_MODEL=claude-sonnet-5` restores it | about -30% of the Claude bill at every size (estimate) |
 | **Stage 4 · ~100k MAU** | Writer output tokens per minute near the tier's limit (~100 new episodes/min at peak) | Next usage tier, or Priority capacity | per Anthropic |
 | **Never** | — | Shorten the style example or lower the writer's effort to save money: the writing is the product, and caching already makes the example nearly free | — |
 

@@ -35,7 +35,7 @@ from paths import data_path
 #: What a listener can say yes to, each asked and kept on its own:
 #:   ai    - their words going to the AI provider (5.1.2(i));
 #:   terms - the Terms and the Privacy Policy, agreed with a checkbox at
-#:           sign-up (clickwrap, §227) and again whenever they change.
+#:           sign-up (clickwrap, §228) and again whenever they change.
 AI = "ai"
 TERMS = "terms"
 SCOPES = (AI, TERMS)

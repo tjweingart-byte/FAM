@@ -3095,7 +3095,7 @@
               <p class="auth-error" id="authError" role="alert" hidden></p>
               <button class="entry-btn primary" id="authSubmit" type="submit">Create account</button>
               <p class="entry-note" id="authNote">Password reset isn&rsquo;t available yet, so keep your password somewhere safe.</p>
-              <!-- Agreed before an account exists (App Store 1.2, §227): an
+              <!-- Agreed before an account exists (App Store 1.2, §228): an
                    unticked box the listener ticks themselves (clickwrap), sent
                    as `accept_terms` and kept by the server with its version.
                    Sign-up only - logging in is an account that already agreed. -->
@@ -4474,7 +4474,7 @@
       </div>
 
       <!-- An account whose acceptance is missing or older than the current
-           Terms (§227): asked once, on whatever screen it is on, before it
+           Terms (§228): asked once, on whatever screen it is on, before it
            goes on. No "Not now" - stopping agreeing is deleting the account,
            which Settings says. -->
       <div class="modal-overlay" id="termsOverlay">
@@ -5693,7 +5693,7 @@
       .catch(function(){ if(allow) toast("Couldn\u2019t save that. Try again."); });
   }
 
-  // ---------------- The Terms, agreed (§227) ----------------
+  // ---------------- The Terms, agreed (§228) ----------------
   // Sign-up ticks the box. An account that never did (Google or Apple, an
   // older release) or agreed to an older version is asked once here.
   var TERMS = null;            // `/api/consent`'s "terms" block

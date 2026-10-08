@@ -230,4 +230,5 @@ and `limit` = Lines.
 | 16710 | 70 | 224. The content filter, widened for App Store 1.2: names, messages, and photos |
 | 16780 | 21 | 225. The photo check runs on Claude Haiku 5.5 |
 | 16801 | 113 | 226. Reviewing the branch before it merges: what the review found and fixed |
-| 16914 | 48 | 227. The Terms, agreed with a checkbox (clickwrap) |
+| 16914 | 83 | 227. The small calls on Haiku 5.5, and an episode priced call by call |
+| 16997 | 48 | 228. The Terms, agreed with a checkbox (clickwrap) |

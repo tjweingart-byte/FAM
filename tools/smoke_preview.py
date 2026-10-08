@@ -114,7 +114,7 @@ def main() -> int:
                 "the phone field did not format what was typed into it"
             assert page.eval_on_selector("#authPhoneCC", "e => e.value") == "+1", \
                 "the country code did not default to +1"
-            # Clickwrap (§227): an unticked box stops the form before a
+            # Clickwrap (§228): an unticked box stops the form before a
             # round trip, and says why under the fields.
             assert page.is_visible("#authTerms") and not page.is_checked("#authTerms"), \
                 "the sign-up form has no unticked Terms box"
