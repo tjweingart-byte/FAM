@@ -70,20 +70,21 @@ def _usage():
 
 def test_the_ledger_runs_to_today_with_a_row_for_every_day(stores):
     book = _book(financials.build(NOW))
-    led = book["Daily Ledger"]
-    dates = [led.cell(row=r, column=1).value for r in range(5, led.max_row)]
+    led = book["Daily Spend"]
+    dates = [led.cell(row=r, column=1).value for r in range(2, led.max_row + 1)]
     assert len(dates) == financials.LEDGER_MIN_DAYS
     assert dates[-1].date().isoformat() == "2026-10-07"
-    assert led.cell(row=led.max_row, column=1).value == "Total"
 
 
 def test_usage_billed_rows_read_the_ledger_never_a_typed_price(stores):
     """A typed number for Claude would be a guess that never moves; the row has
     to follow what was actually spent."""
-    cs = _book(financials.build(NOW))["Cost Structure"]
-    for r in range(6, cs.max_row + 1):
-        if cs.cell(row=r, column=8).value == "usage":
-            assert str(cs.cell(row=r, column=10).value).startswith("=SUMIFS('Daily Ledger'")
+    cs = _book(financials.build(NOW))["Costs"]
+    usage = [r for r in range(10, cs.max_row + 1)
+             if str(cs.cell(row=r, column=8).value or "").startswith("Recorded")]
+    assert len(usage) >= 3, "Claude, Exa and the GPU are usage-billed"
+    for r in usage:
+        assert str(cs.cell(row=r, column=6).value).startswith("=SUMIFS('Daily Spend'")
 
 
 def test_every_service_the_code_calls_has_a_row(stores):
@@ -144,20 +145,59 @@ def test_only_an_operator_can_download_it(stores, monkeypatch):
     assert res.status_code == 200
     assert "FAM_Financials_" in res.headers["content-disposition"]
     assert _book(res.content).sheetnames == [
-        "Dashboard", "Cost Structure", "Daily Ledger", "12-Month Plan",
-        "Provider Calls", "Notes"]
+        "Costs", "Marketing & Materials", "Projections", "Daily Spend"]
 
 
 def test_the_plan_is_driven_by_listeners_with_sports_apart(stores):
     """Cost follows new episodes, and sports misses the cache more and spends
     API-Sports requests - so it has its own rows, not a blended growth rate."""
-    plan = _book(financials.build(NOW))["12-Month Plan"]
+    plan = _book(financials.build(NOW))["Projections"]
     labels = {plan.cell(row=r, column=1).value: r for r in range(1, plan.max_row + 1)}
-    for needed in ("Listeners (monthly active)", "  of which sports",
-                   "Cache miss rate - sports searches", "API-Sports plans",
-                   "Sports share of costs", "Total costs"):
+    for needed in ("Listeners", "  of which sports",
+                   "New episodes per search, sports", "Sports data (API-Sports)",
+                   "Marketing & materials", "Sports share of running costs",
+                   "Total costs"):
         assert needed in labels, needed
-    episode = plan.cell(row=labels["Cost of one new episode ($)"], column=2).value
-    assert "'Daily Ledger'" in episode, "the forecast must learn from recorded spend"
-    api = plan.cell(row=labels["API-Sports plans"], column=4).value
-    assert "7500" in api and "75000" in api
+    episode = plan.cell(row=labels["Cost of one new episode"], column=2).value
+    assert "'Daily Spend'" in episode, "the forecast must learn from recorded spend"
+    api = plan.cell(row=labels["Sports data (API-Sports)"], column=4).value
+    assert "7500" not in api, "plan limits live in labelled rate cells"
+    rate = labels["API-Sports Pro: requests per day"]
+    assert plan.cell(row=rate, column=2).value == 7500 and f"$B${rate}" in api
+
+
+def test_marketing_and_materials_feed_the_projection(stores):
+    """Every month of the plan carries that month's marketing budget, and the
+    launch month carries the one-off spend too."""
+    book = _book(financials.build(NOW))
+    mkt, plan = book["Marketing & Materials"], book["Projections"]
+    lines = [mkt.cell(row=r, column=1).value for r in range(1, mkt.max_row + 1)]
+    assert "Marketing" in lines and "Materials" in lines
+    assert len(financials.MARKETING) == sum(
+        1 for line in financials.MARKETING if line[1] in lines)
+    labels = {plan.cell(row=r, column=1).value: r for r in range(1, plan.max_row + 1)}
+    row = labels["Marketing & materials"]
+    assert plan.cell(row=row, column=4).value.startswith("='Marketing & Materials'!E")
+    first = mkt.cell(row=7, column=5).value
+    assert "$B$3" in first and "$D7" in first, "before/after launch and the one-off"
+
+
+def test_the_google_sheet_gets_the_same_days_as_the_workbook(stores, monkeypatch):
+    """The Apps Script replaces the sheet's Daily Spend rows with this JSON, so
+    it must be the workbook's own rows, admin-only like the download."""
+    store = metering.MeterStore()
+    _episode(store, time.time())
+    client = TestClient(appmod.app)
+    monkeypatch.setattr(appmod, "ADMIN_TOKEN", "the-real-token")
+    assert client.get("/api/admin/financials/daily.json").status_code == 404
+    res = client.get("/api/admin/financials/daily.json",
+                     headers={"X-Admin-Token": "the-real-token"})
+    assert res.status_code == 200
+    body = res.json()
+    assert body["rows"][-1][0] == body["as_of"]
+    assert body["rows"][-1][1] == 1 and body["rows"][-1][2] > 0
+    assert len(body["rows"]) == financials.LEDGER_MIN_DAYS
+    script = open(os.path.join(os.path.dirname(os.path.dirname(
+        os.path.abspath(__file__))), "tools", "financials_apps_script.gs")).read()
+    assert "/api/admin/financials/daily.json" in script
+    assert "'Daily Spend'" in script and "FAM_ADMIN_TOKEN" in script

@@ -7700,6 +7700,26 @@ def admin_financials(request: Request) -> Response:
                  "Cache-Control": "no-store"})
 
 
+@app.get("/api/admin/financials/daily.json", include_in_schema=False)
+def admin_financials_daily(request: Request) -> JSONResponse:
+    """The finance workbook's Daily Spend rows, for the Google Sheet.
+
+    `tools/financials_apps_script.gs`, pasted into the sheet, fetches this
+    each morning with the admin token and replaces its Daily Spend tab, so
+    the sheet's Costs and Projections follow production without a download.
+    """
+    _require_admin(request)
+    import financials
+
+    now = time.time()
+    return JSONResponse(
+        {"as_of": time.strftime("%Y-%m-%d", time.gmtime(now)),
+         "columns": ["date", "episodes", "claude_usd", "exa_usd", "gpu_usd",
+                     "pictures_usd"],
+         "rows": financials.daily_rows(now)},
+        headers={"Cache-Control": "no-store"})
+
+
 # ---------------------------------------------------------------- replay
 #
 # Staging spends nothing, so it cannot write a real episode (§172). It can

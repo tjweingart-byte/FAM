@@ -16494,3 +16494,26 @@ date, run-rate and the forecast. It needs this merged and deployed, the token
 in the cloud environment, and `fam.onrender.com` on its allowed domains; until
 then it says which of the three is missing.
 
+**Simplified, a marketing budget, and Google Sheets (next day, owner's
+follow-up).** "Clean up the spreadsheet, simplify down to only costs and
+projections, build in a marketing and material budget, and move it into
+Google Sheets." Four tabs now: **Costs** (one row per service, the three
+totals above it; free services folded into one row), **Marketing &
+Materials** (paid social, App Store ads, creators, content, sports-fan
+sponsorships, referral rewards, PR; brand assets, merch, print, events,
+equipment - each a before-launch, after-launch and one-off-at-launch figure,
+spread over the months; starting placeholders the owner sets), **Projections**
+(as before, plus the marketing line, and every rate that had been a literal in
+a formula moved into a labelled, sourced cell under the table), and **Daily
+Spend** (the recorded days). The Dashboard, charts, Provider Calls and Notes
+tabs are gone. Plain formulas only, so the file opens the same in Excel and in
+Google Sheets; the Google copy was built through the Sheets connector (each
+month's formula written once and filled across), with open-ended Daily Spend
+ranges so rows added later count. **Daily, inside Google:** a cloud Routine
+cannot carry the Sheets connector on this organisation, so the sheet refreshes
+itself. `tools/financials_apps_script.gs`, pasted into the sheet with the
+admin token as a script property (never in a cell), fetches
+`/api/admin/financials/daily.json` (`financials.daily_rows`, the workbook's own
+rows) every morning and replaces Daily Spend; Costs and Projections follow as
+formulas. The Routine that mailed the .xlsx is deleted.
+
