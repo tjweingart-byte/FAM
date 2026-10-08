@@ -5664,6 +5664,291 @@ async def myfam_catalog(request: Request) -> dict:
     return {"episodes": ordered}
 
 
+# --------------------------------------------------------------------------
+# Your categories (§221)
+# --------------------------------------------------------------------------
+#: How far back a category page reads the cache: every row written today on
+#: a deployment this size; past it the newest win.
+CATEGORY_SCAN = 1000
+#: The orders a category page offers, the first the default.
+CATEGORY_SORTS = ("popular", "az", "recent")
+#: How long one filing of today's cached episodes serves every category page
+#: and every "Your categories" count. A filing is one category read per row.
+CATEGORY_MEMO_SECONDS = 30.0
+_CATEGORY_MEMO: dict = {"at": 0.0}
+
+
+def _category_label(node: str) -> str:
+    """What a category is called on screen: a facet's label, a tree node's,
+    or the id itself with a capital."""
+    if node in topics_mod.TAG_LABELS:
+        return topics_mod.TAG_LABELS[node]
+    try:
+        found = topics_mod.category_tree().get(node)
+    except Exception:  # noqa: BLE001 - a label is never worth a failure
+        found = None
+    label = (getattr(found, "label", "") or node or "").strip()
+    return label[:1].upper() + label[1:]
+
+
+def _category_known(node: str) -> bool:
+    if node in topics_mod.TAG_LABELS:
+        return True
+    try:
+        return topics_mod.category_tree().get(node) is not None
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def _category_children(node: str) -> list[str]:
+    """The tree's nodes one level below `node`, A to Z by label."""
+    try:
+        nodes = topics_mod.category_tree().nodes()
+    except Exception:  # noqa: BLE001
+        return []
+    kids = [n for n, row in nodes.items() if row.parent_id == node]
+    return sorted(kids, key=lambda n: _category_label(n).casefold())
+
+
+def _filed_under(entry: dict) -> tuple[str, frozenset]:
+    """(the node one cached episode is filed under, that node and everything
+    above it).
+
+    The writer's category through `_episode_category`, the one reader
+    (§209). An episode written before the writer named one is filed by its
+    words (`topics.tags_for_text`, the keyword map and the tree) - the same
+    fallback every other reader of an uncategorised episode uses - and its
+    deepest match is its node. ("", empty) when nothing places it."""
+    node = _episode_category(entry.get("key", ""))
+    tree = topics_mod.category_tree()
+    if node:
+        try:
+            above = tree.ancestors(node)
+        except Exception:  # noqa: BLE001
+            above = []
+        return node, frozenset([node, *above])
+    text = f"{entry.get('title', '')} {entry.get('query', '')}"
+    try:
+        tags = set(topics_mod.tags_for_text(text))
+    except Exception:  # noqa: BLE001 - a filing is never worth a failure
+        return "", frozenset()
+    placed = [t for t in tags if t in topics_mod.TAG_LABELS or tree.get(t)]
+    if not placed:
+        return "", frozenset()
+
+    def depth(t: str) -> int:
+        if t in topics_mod.TAG_LABELS:
+            return 0
+        try:
+            return tree.depth_of(t)
+        except Exception:  # noqa: BLE001
+            return 0
+    placed.sort(key=lambda t: (-depth(t), t))
+    return placed[0], frozenset(placed)
+
+
+def _mix_counts() -> dict:
+    """How many mixes follow each of today's DailyFAM questions, by the
+    words - the words are an edition episode's cache key (§143)."""
+    try:
+        return {s["query"]: s["mixes"] for s in daily_edition.subjects(MIXES)}
+    except Exception:  # noqa: BLE001 - a count is never worth a failure
+        log.exception("could not count mixes for the category pages")
+        return {}
+
+
+def _todays_filed() -> list[dict]:
+    """Every episode cached since the start of the listener's day, filed.
+
+    **A read of the shared cache and nothing else** (§221): nothing here
+    writes, prefetches or asks a model. What is in it is what is already
+    made - everything listeners searched and played, and the edition and
+    warmed episodes nobody has tapped yet, which sit in the same cache under
+    the key the tap will ask for. One row per title, the most popular, as
+    the A to Z catalogue does. Memoised briefly per day and per store."""
+    day_start = listener_clock.now().replace(
+        hour=0, minute=0, second=0, microsecond=0).timestamp()
+    now_mono = time.monotonic()
+    stores = (id(SCRIPT_CACHE), id(MIXES), day_start)
+    if (_CATEGORY_MEMO.get("stores") == stores
+            and now_mono - _CATEGORY_MEMO["at"] < CATEGORY_MEMO_SECONDS):
+        return _CATEGORY_MEMO["rows"]
+    store = SCRIPT_CACHE if SCRIPT_CACHE is not None else build_cache()
+    if store is None:
+        return []
+    entries = store.recent(CATEGORY_SCAN)
+    mixed = _mix_counts()
+    now = time.time()
+    best: dict[str, dict] = {}
+    for entry in entries:
+        made = float(entry.get("created") or entry.get("sourced_at") or 0.0)
+        if made < day_start:
+            continue
+        query = entry.get("query") or ""
+        title = (entry.get("title") or (query[:1].upper() + query[1:])).strip()
+        if not title:
+            continue
+        plays = int(entry.get("plays") or 0)
+        in_mixes = int(mixed.get(query, 0))
+        held = best.get(title.casefold())
+        if held is not None and held["popularity"] >= plays + in_mixes:
+            continue
+        node, chain = _filed_under(entry)
+        if not node:
+            continue
+        best[title.casefold()] = {
+            "query": query,
+            "title": title,
+            "minutes": entry["minutes"],
+            "plays": plays,
+            "mixes": in_mixes,
+            "popularity": plays + in_mixes,
+            "created": made,
+            "made_age_seconds": max(0.0, now - made),
+            "sourced_age_seconds": max(
+                0.0, now - (entry.get("sourced_at") or made)),
+            "explicit": bool(entry.get("explicit")),
+            "node": node,
+            "chain": chain,
+        }
+    rows = list(best.values())
+    _CATEGORY_MEMO.update(at=now_mono, stores=stores, rows=rows)
+    return rows
+
+
+def _category_words(text: str) -> list[str]:
+    return re.findall(r"[0-9a-z]+", (text or "").casefold())
+
+
+@app.get("/api/categories")
+async def list_categories(request: Request) -> dict:
+    """Every category a listener can follow on myFAM, and the ones they do.
+
+    The eight facets, each with the tree's first level under it, and `all`:
+    every node with its path, for the picker's search ("NFL" is three levels
+    down). `mine` is what this listener follows, each with how many episodes
+    were made in it today. Following is kept for an account (`saved`), like
+    a mix; anybody may browse."""
+    _read_limit(request)
+    listener = getattr(request.state, "listener", None)
+    authed = bool(listener is not None and listener.is_authenticated)
+    chosen = PREFS.get(listener.user_id).categories if authed else ()
+    tree = topics_mod.category_tree()
+    try:
+        nodes = tree.nodes()
+    except Exception:  # noqa: BLE001
+        nodes = {}
+    facets = [{"id": facet, "label": label,
+               "children": [{"id": c, "label": _category_label(c)}
+                            for c in _category_children(facet)]}
+              for facet, label in topics_mod.TAG_LABELS.items()]
+    everything = []
+    for node in nodes:
+        try:
+            above = [a for a in reversed(tree.ancestors(node))]
+        except Exception:  # noqa: BLE001
+            above = []
+        everything.append({"id": node, "label": _category_label(node),
+                           "facet": topics_mod._root_facet(node),
+                           "path": [_category_label(a) for a in above]})
+    everything.sort(key=lambda n: n["label"].casefold())
+    try:
+        filed = await asyncio.to_thread(_todays_filed)
+    except Exception:  # noqa: BLE001 - counts are never worth a 500
+        log.exception("could not file today's episodes")
+        filed = []
+    mine = []
+    for node in chosen:
+        if not _category_known(node):
+            continue  # pruned from the tree since; kept, not shown
+        mine.append({
+            "id": node, "label": _category_label(node),
+            "facet": topics_mod._root_facet(node),
+            "children": [_category_label(c) for c in _category_children(node)][:4],
+            "today": sum(1 for row in filed if node in row["chain"]),
+        })
+    return {"facets": facets, "all": everything, "mine": mine,
+            "saved": authed}
+
+
+class CategoryFollowRequest(BaseModel):
+    """The whole followed list, in order: add, remove and reorder are one
+    write, like a mix's items."""
+
+    categories: list[str] = Field(..., max_length=prefs_mod.MAX_CATEGORIES)
+
+
+@app.post("/api/categories/mine")
+async def follow_categories(req: CategoryFollowRequest, request: Request) -> dict:
+    """Keep the categories this listener follows. Account only - what is
+    kept is what an account is for. Writes no event: following a category
+    is a list to browse, never a taste signal (§221)."""
+    _read_limit(request)
+    user = _require_account(request)
+    try:
+        prefs = PREFS.save(user, categories=req.categories)
+    except prefs_mod.PreferenceError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"categories": list(prefs.categories)}
+
+
+@app.get("/api/categories/episodes")
+async def category_episodes(
+    request: Request,
+    id: str = Query(..., min_length=1, max_length=120),
+    sort: str = Query("popular", max_length=12),
+    q: str = Query("", max_length=200),
+) -> dict:
+    """Today's episodes in one category or anything under it (§221).
+
+    Cached only - this never causes an episode to be written; a tap plays
+    what is there (`cached_only`). `sort` is `popular` (plays plus the mixes
+    that follow it), `az` (by title, the catalogue's order) or `recent`
+    (newest made first). `q` keeps the titles holding every word typed,
+    whole or begun.
+    `subcategories` are the categories one level down that have something
+    today, with how many."""
+    _read_limit(request)
+    node = id.strip().lower()
+    if not _category_known(node):
+        raise HTTPException(status_code=404, detail="There is no such category.")
+    order = sort if sort in CATEGORY_SORTS else CATEGORY_SORTS[0]
+    try:
+        filed = await asyncio.to_thread(_todays_filed)
+    except Exception:  # noqa: BLE001 - a category page is never worth a 500
+        log.exception("could not file today's episodes")
+        raise HTTPException(status_code=503,
+                            detail="Could not read today's episodes.")
+    inside = [row for row in filed if node in row["chain"]]
+    subs = []
+    for child in _category_children(node):
+        count = sum(1 for row in inside if child in row["chain"])
+        if count:
+            subs.append({"id": child, "label": _category_label(child),
+                         "count": count})
+    wanted = _category_words(q)
+    if wanted:
+        # Inside a word as well as a whole one, so a half-typed "lio"
+        # already finds the Lions.
+        inside = [row for row in inside
+                  if all(w in " ".join(_category_words(row["title"]))
+                         for w in wanted)]
+    if order == "az":
+        inside.sort(key=lambda r: _catalog_sort_key(r["title"]))
+    elif order == "recent":
+        inside.sort(key=lambda r: -r["created"])
+    else:
+        inside.sort(key=lambda r: (-r["popularity"], -r["created"]))
+    episodes = []
+    for row in inside:
+        shown = {k: v for k, v in row.items() if k not in ("chain", "created")}
+        shown["node_label"] = _category_label(row["node"])
+        episodes.append(shown)
+    return {"id": node, "label": _category_label(node),
+            "facet": topics_mod._root_facet(node), "sort": order,
+            "q": q.strip(), "subcategories": subs, "episodes": episodes}
+
+
 #: How many of today's most-played episodes the sign-up screen rotates
 #: through (§181, the 9.30 interface packet).
 WELCOME_SAMPLES = 3

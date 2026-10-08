@@ -620,6 +620,28 @@ the rest of this list it needs taste rather than a key.
   title, the most played. Typing swaps it for the closest matches
   (`rank_similar`, unchanged); clearing the box brings it back.
 
+<!-- rule:your-categories -->
+- **Your categories** *(PROBLEMS.md §221, at the owner's direction)*: under
+  the mixes on the screen that shows "myFAM", the categories a listener
+  follows - any of the eight facets or any node of the category tree
+  ("NFL", three levels down), kept on `preferences.categories` for an
+  account, validated against the tree, at most `MAX_CATEGORIES`; following
+  one writes no event and is never a taste signal. "Browse all" opens the
+  facets and a search over every node (`/api/categories`). A category's
+  page lists **every episode made today** (the listener's day,
+  `listener_clock`) filed under it or anything below it, filed through
+  `_episode_category` (§209) and, for an episode the writer never
+  categorised, by its words (`tags_for_text`). **Cached only**: the rows
+  are `cache.recent` - searched, played, and the edition and warmed episodes
+  nobody has tapped yet, which wait under the key a tap asks for - and a
+  tap is `cachedOnly`; nothing on these screens can cause an episode to be
+  written. Sorted on the server (`/api/categories/episodes`): **most
+  popular** = plays plus the mixes following that exact question
+  (`daily_edition.subjects`), **A to Z** in the catalogue's order, **most
+  recent** made first; `q` keeps titles holding every typed word, whole or
+  begun; "narrow it down" chips are the level below that has something
+  today. One row per title, the most popular.
+
 <!-- rule:queue -->
 - **The queue** *(PROBLEMS.md §190)*: Add to Queue from the player's menu or a
   DailyFAM tile's three dots (top right, beside save; the same menu less what

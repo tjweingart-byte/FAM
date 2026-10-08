@@ -16497,3 +16497,47 @@ fix once the reasons confirm it.
 Rule: `gdelt-exports` carries a §220 Current note. Tests:
 `tests/test_gdelt_failures_220.py`; `test_the_newest_file_is_never_written_off`
 now expects `waiting`, not an error.
+
+## 221. Your categories: follow a category, scroll what was made in it today
+
+**What was asked (08/10).** Listeners had no way to pick a category and
+explore the episodes in it. On the screen that shows "myFAM" (the mixes,
+`names-swapped`), add a **Your categories** section, as the owner's mockups
+draw it: categories the listener chooses, each opening every episode made
+that day under it or a subcategory, ordered by **most popular** (total
+listens plus instances in a mix), **A to Z** or **most recent**, with a
+search over the titles ("Detroit Lions" inside NFL). Nothing new may be
+generated for it: only recent cached episodes, and episodes waiting in
+somebody's mix or DailyFAM that nobody has tapped yet.
+
+**What was built.**
+* **Following** is `preferences.categories` (a new column, newline-separated
+  like `topics`), written whole by `POST /api/categories/mine`, account
+  only. Each id is a facet or a node the tree holds now
+  (`clean_categories`); an unknown one is refused, not stored. It writes no
+  event: a list to browse by is not a taste signal.
+* **`GET /api/categories`**: the eight facets with their first level, every
+  tree node with its path (for "Browse all"'s search - "NFL" is three
+  levels down), and `mine` with how many episodes each has today.
+* **`GET /api/categories/episodes?id=&sort=&q=`**: the rows are
+  `cache.recent` made since the start of the listener's day - which already
+  holds the unplayed edition and warmed episodes, since they wait in the
+  shared cache under the key a tap asks for. Each is filed through
+  `_episode_category` (§209, the one reader); an episode the writer never
+  categorised is filed by its words (`tags_for_text`), the same fallback
+  every other reader uses. A category holds its own episodes and everything
+  below it. Popularity is the cache's play count plus the number of mixes
+  following that exact question today (`daily_edition.subjects`, the
+  edition's own count). One row per title, the most popular. Filing is
+  memoised for 30 s per day and per store.
+* **Screens**: the section under the mixes (a guest is offered the account
+  through `gateActions`), `screen-catbrowse` (facet grid plus a search over
+  every node) and `screen-category` (Follow, title search, the three sorts,
+  "narrow it down" chips for the level below that has something today).
+  A tap plays `cachedOnly`, exactly as Search DailyFAM's catalogue does.
+
+**Not built, from the mockups.** Shuffle, "how long have you got" and a
+continuous category player: they were not asked for here, and a category
+that plays back to back is a queue decision for its own change.
+
+Rule: `your-categories`. Tests: `tests/test_your_categories_221.py`.

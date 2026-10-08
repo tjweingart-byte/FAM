@@ -866,6 +866,34 @@
     padding:13px; border-radius:14px; background:transparent; color:var(--copper);
     border:1px dashed var(--border-strong); font-family:'Geist',sans-serif;
     font-size:12px; font-weight:700; cursor:pointer; margin-bottom:11px; }
+  /* Your categories (§221), under the mixes. */
+  .cat-head{ display:flex; align-items:flex-end; justify-content:space-between; gap:10px;
+    margin:22px 0 10px; }
+  .cat-eyebrow{ font-family:'Geist Mono', monospace; font-size:10px; letter-spacing:0.16em;
+    text-transform:uppercase; color:var(--copper); margin-bottom:4px; }
+  .cat-sub{ font-size:11.5px; line-height:1.4; color:var(--text-muted); }
+  .cat-all{ flex:none; background:none; border:0; color:var(--text); font-family:inherit;
+    font-size:12px; font-weight:700; cursor:pointer; padding:4px 0; }
+  .cat-icon{ flex:0 0 46px; height:46px; border-radius:12px; display:flex; align-items:center;
+    justify-content:center; color:var(--paper); font-family:'Bricolage Grotesque', sans-serif;
+    font-weight:600; font-size:18px; background:var(--surface-2); }
+  .cat-grid{ display:grid; grid-template-columns:1fr 1fr; gap:10px; padding:4px 16px 18px; }
+  .cat-tile{ min-height:76px; border-radius:14px; padding:12px; cursor:pointer; text-align:left;
+    border:0; color:var(--paper); font-family:'Bricolage Grotesque', sans-serif;
+    font-weight:600; font-size:14px; background:var(--surface-2); }
+  .cat-tile small{ display:block; margin-top:6px; font-family:'Geist', sans-serif; font-weight:400;
+    font-size:10px; line-height:1.35; color:rgba(244,239,228,0.72); }
+  .cat-f-sports{ background:#56402F; } .cat-f-money{ background:#2F4A3E; }
+  .cat-f-business{ background:#4A4632; } .cat-f-tech{ background:#3B3A66; }
+  .cat-f-science{ background:#2C4A55; } .cat-f-health{ background:#3D4A30; }
+  .cat-f-culture{ background:#5A3A30; } .cat-f-world{ background:#2C415A; }
+  .hist-tabs[hidden]{ display:none; }
+  .cat-follow{ margin-left:auto; height:30px; padding:0 14px; border-radius:15px;
+    background:transparent; color:var(--text); border:1px solid var(--border-strong);
+    font-family:inherit; font-size:12px; font-weight:700; cursor:pointer; }
+  .cat-follow.on{ background:var(--paper); color:var(--ink); border-color:var(--paper); }
+  #catList .sv-title{ white-space:normal; overflow:visible; text-overflow:clip;
+    line-height:1.3; overflow-wrap:anywhere; }
   /* Inside a mix, and in the picker. */
   .mix-topic{ display:flex; align-items:center; gap:11px; padding:11px 12px; margin-bottom:9px;
     background:var(--surface); border:1px solid var(--border); border-radius:12px; }
@@ -3660,6 +3688,10 @@
           </div>
           <div id="dailyResults" hidden></div>
           <div id="mixList"></div>
+          <!-- Your categories (§221): the categories this listener follows,
+               each opening today's episodes in it. Drawn by
+               `renderMyCategories`; cached episodes only. -->
+          <div id="catSection"></div>
         </div>
         <div class="tabbar">
           <div class="tab" data-tab="myfam" onclick="openMyFamTab()"><div class="dot"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3v10a4 4 0 004 4h8M6 3L4 5m2-2l2 2M14 13l4 4-4 4"/></svg></div><div class="lbl">DailyFAM</div></div>
@@ -3678,6 +3710,48 @@
           <div class="head-dots" onclick="openMixMenu()"><span></span><span></span><span></span></div>
         </div>
         <div class="scroll" id="mixBody"></div>
+      </section>
+
+      <!-- ============ CATEGORIES — browse all (§221) ============
+           The eight facets, and a search over every category the tree holds
+           ("NFL" is three levels down). A tap opens the category's page. -->
+      <section class="screen" id="screen-catbrowse">
+        <div class="back-row">
+          <span class="back" onclick="goBack()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M17 6l-6 6 6 6"/><path d="M10 6l-6 6 6 6"/></svg></span>
+          <h2>Categories</h2>
+        </div>
+        <label class="yf-search">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+          <input id="catBrowseInput" type="search" autocomplete="off" spellcheck="false"
+                 placeholder="Find a category, like NFL" aria-label="Find a category"
+                 oninput="drawCategoryBrowse()">
+        </label>
+        <div class="scroll" id="catBrowseBody"></div>
+      </section>
+
+      <!-- ============ CATEGORIES — one category's episodes today (§221) ============
+           Every episode made today in the category or under it, from the
+           cache only: nothing on this page writes an episode. Sorted and
+           searched by the server (`/api/categories/episodes`). -->
+      <section class="screen" id="screen-category">
+        <div class="back-row">
+          <span class="back" onclick="goBack()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M17 6l-6 6 6 6"/><path d="M10 6l-6 6 6 6"/></svg></span>
+          <h2 id="catTitle">Category</h2>
+          <button class="cat-follow" id="catFollow" onclick="toggleFollowCategory()" hidden>Follow</button>
+        </div>
+        <label class="yf-search">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+          <input id="catSearch" type="search" autocomplete="off" spellcheck="false"
+                 placeholder="Search titles in this category" aria-label="Search titles in this category"
+                 oninput="onCategorySearch()">
+        </label>
+        <div class="hist-tabs" id="catSorts">
+          <button class="hist-tab on" data-sort="popular" onclick="setCategorySort('popular')">Most popular</button>
+          <button class="hist-tab" data-sort="az" onclick="setCategorySort('az')">A to Z</button>
+          <button class="hist-tab" data-sort="recent" onclick="setCategorySort('recent')">Most recent</button>
+        </div>
+        <div class="hist-tabs" id="catSubs" hidden></div>
+        <div class="scroll" id="catList"></div>
       </section>
 
       <!-- ============ DAILYFAM — somebody else's public mix ============ -->
@@ -9183,6 +9257,9 @@
   function loadMixes(){
     var el = document.getElementById("mixList");
     if(!el) return;
+    // §221: drawn whatever the mixes answer - a guest is offered the
+    // account, and a failed mixes read is no reason to hide categories.
+    loadMyCategories();
     Promise.all([
       fetch("/api/mixes").then(function(r){
         // 401 is not a failure: mixes are kept for you, and that is what an
@@ -9352,6 +9429,259 @@
         + '</div>';
     }).join("");
     document.getElementById("mixList").innerHTML = html;
+  }
+
+  // ---- Your categories (§221) ----
+  //
+  // Under the mixes: the categories this listener follows, each opening a
+  // page of the episodes made in it today. Everything on these screens is a
+  // read of what is already cached - a tap plays it replay-only and nothing
+  // here can cause an episode to be written. Following is kept for an
+  // account, like a mix; anybody may browse.
+  var catData = null;
+  var catReq = 0;
+  var catPage = { root: "", node: "", sort: "popular", episodes: [] };
+  var catTimer = null;
+  function loadMyCategories(){
+    var el = document.getElementById("catSection");
+    if(!el) return;
+    fetch("/api/categories")
+      .then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
+      .then(function(d){ catData = d; renderMyCategories(); })
+      .catch(function(){
+        el.innerHTML = categoryHeadHTML()
+          + '<div class="mix-empty">Your categories could not load. Try again in a moment.</div>';
+      });
+  }
+  function categoryHeadHTML(){
+    return '<div class="cat-head"><div>'
+      + '<div class="cat-eyebrow">Your categories</div>'
+      + '<div class="cat-sub">Everything made today in what you follow.</div>'
+      + '</div><button class="cat-all" onclick="openCategoryBrowse()">Browse all</button></div>';
+  }
+  // One colour per facet, as the browse grid draws them.
+  var CATEGORY_TONES = { sports: "cat-f-sports", money: "cat-f-money",
+    business: "cat-f-business", tech: "cat-f-tech", science: "cat-f-science",
+    health: "cat-f-health", culture: "cat-f-culture", world: "cat-f-world" };
+  function categoryTone(facet){ return CATEGORY_TONES[facet] || ""; }
+  function categoryLabelOf(id){
+    if(!catData) return id;
+    for(var i = 0; i < catData.facets.length; i++){
+      if(catData.facets[i].id === id) return catData.facets[i].label;
+    }
+    for(var j = 0; j < catData.all.length; j++){
+      if(catData.all[j].id === id) return catData.all[j].label;
+    }
+    return id;
+  }
+  function renderMyCategories(){
+    var el = document.getElementById("catSection");
+    if(!el || !catData) return;
+    var html = categoryHeadHTML();
+    if(!catData.saved){
+      html += '<div class="locked-note">Follow the categories you care about and scroll everything made in them today. Free with an account.'
+        + gateActions() + '</div>';
+    } else if(!catData.mine.length){
+      html += '<div class="mix-empty">No categories yet. '
+        + '<button class="sample-note-btn" onclick="openCategoryBrowse()">Choose some to follow</button></div>';
+    }
+    html += (catData.saved ? catData.mine : []).map(function(c){
+      return '<div class="mix-card" data-cat="' + escapeHtml(c.id) + '" onclick="openCategory(this.dataset.cat)">'
+        + '<div class="cat-icon ' + categoryTone(c.facet) + '">'
+        + escapeHtml((c.label || "?").charAt(0)) + '</div>'
+        + '<div class="mix-card-body">'
+        + '<div class="mix-name">' + escapeHtml(c.label) + '</div>'
+        + '<div class="mix-meta">' + (c.today ? c.today + (c.today === 1 ? " episode" : " episodes") + " today" : "Nothing yet today") + '</div>'
+        + '<div class="mix-preview">' + escapeHtml((c.children || []).join(" · ")) + '</div>'
+        + '</div>'
+        + '<div class="mix-chev"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" '
+        + 'stroke="currentColor" stroke-width="2.2"><path d="M9 6l6 6-6 6"/></svg></div>'
+        + '</div>';
+    }).join("");
+    el.innerHTML = html;
+  }
+  function openCategoryBrowse(){
+    navigate("catbrowse");
+    document.getElementById("catBrowseInput").value = "";
+    if(!catData){
+      document.getElementById("catBrowseBody").innerHTML = '<div class="sv-empty">Loading the categories…</div>';
+      fetch("/api/categories")
+        .then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
+        .then(function(d){ catData = d; drawCategoryBrowse(); })
+        .catch(function(){
+          document.getElementById("catBrowseBody").innerHTML =
+            '<div class="sv-empty">Could not load the categories right now. Try again in a moment.</div>';
+        });
+      return;
+    }
+    drawCategoryBrowse();
+  }
+  function drawCategoryBrowse(){
+    var el = document.getElementById("catBrowseBody");
+    if(!catData) return;
+    var q = document.getElementById("catBrowseInput").value.trim().toLowerCase();
+    if(!q){
+      el.innerHTML = '<div class="cat-grid">' + catData.facets.map(function(f){
+        var kids = (f.children || []).slice(0, 4).map(function(c){ return c.label; }).join(" · ");
+        return '<button class="cat-tile ' + categoryTone(f.id) + '" data-cat="' + escapeHtml(f.id)
+          + '" onclick="openCategory(this.dataset.cat)">' + escapeHtml(f.label)
+          + (kids ? '<small>' + escapeHtml(kids) + '</small>' : '') + '</button>';
+      }).join("") + '</div>';
+      return;
+    }
+    var found = catData.facets.filter(function(f){ return f.label.toLowerCase().indexOf(q) !== -1; })
+      .map(function(f){ return { id: f.id, label: f.label, path: [] }; })
+      .concat(catData.all.filter(function(n){ return n.label.toLowerCase().indexOf(q) !== -1; }));
+    if(!found.length){
+      el.innerHTML = '<div class="sv-empty">No category called that yet.</div>';
+      return;
+    }
+    el.innerHTML = found.slice(0, 60).map(function(n){
+      return '<div class="sv-row" data-cat="' + escapeHtml(n.id) + '" onclick="openCategory(this.dataset.cat)">'
+        + '<div class="sv-main"><div class="sv-title">' + escapeHtml(n.label) + '</div>'
+        + '<div class="sv-meta">' + escapeHtml((n.path || []).join(" › ").toUpperCase()) + '</div></div></div>';
+    }).join("");
+  }
+  function openCategory(id){
+    catPage = { root: id, node: id, sort: "popular", episodes: [] };
+    document.getElementById("catTitle").textContent = categoryLabelOf(id);
+    document.getElementById("catSearch").value = "";
+    document.getElementById("catSubs").hidden = true;
+    drawCategorySorts();
+    drawFollowButton();
+    navigate("category");
+    loadCategoryEpisodes();
+  }
+  function isFollowed(id){
+    if(!catData || !catData.saved) return false;
+    for(var i = 0; i < catData.mine.length; i++){ if(catData.mine[i].id === id) return true; }
+    return false;
+  }
+  function drawFollowButton(){
+    var btn = document.getElementById("catFollow");
+    var on = isFollowed(catPage.node);
+    btn.hidden = !catData;
+    btn.classList.toggle("on", on);
+    btn.textContent = on ? "Following" : "Follow";
+  }
+  // The whole list is written at once, in order - the server keeps it
+  // exactly as sent, and the section redraws from what it says it kept.
+  function toggleFollowCategory(){
+    if(!catData) return;
+    if(!catData.saved){ openAuth("signup"); return; }
+    var ids = catData.mine.map(function(c){ return c.id; });
+    var node = catPage.node;
+    var at = ids.indexOf(node);
+    if(at === -1) ids.push(node); else ids.splice(at, 1);
+    fetch("/api/categories/mine", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ categories: ids })
+    }).then(function(r){
+      return r.json().then(function(d){
+        if(!r.ok) throw new Error(d.detail || d.error || "Could not save that");
+        return d;
+      });
+    }).then(function(){
+      toast(at === -1 ? "Added to your categories" : "Removed from your categories");
+      return fetch("/api/categories").then(function(r){ return r.ok ? r.json() : null; });
+    }).then(function(d){
+      if(d){ catData = d; renderMyCategories(); }
+      drawFollowButton();
+    }).catch(function(err){ toast(err.message || "Could not save that"); });
+  }
+  function drawCategorySorts(){
+    document.querySelectorAll("#catSorts .hist-tab").forEach(function(b){
+      b.classList.toggle("on", b.getAttribute("data-sort") === catPage.sort);
+    });
+  }
+  function setCategorySort(sort){
+    catPage.sort = sort;
+    drawCategorySorts();
+    loadCategoryEpisodes();
+  }
+  function setCategoryNode(id){
+    catPage.node = id;
+    document.getElementById("catTitle").textContent = categoryLabelOf(id);
+    drawFollowButton();
+    loadCategoryEpisodes();
+  }
+  function onCategorySearch(){
+    clearTimeout(catTimer);
+    catTimer = setTimeout(loadCategoryEpisodes, 250);
+  }
+  function loadCategoryEpisodes(){
+    var req = ++catReq;
+    var q = document.getElementById("catSearch").value.trim();
+    var el = document.getElementById("catList");
+    el.innerHTML = '<div class="sv-empty">Loading today’s episodes…</div>';
+    fetch("/api/categories/episodes?id=" + encodeURIComponent(catPage.node)
+          + "&sort=" + encodeURIComponent(catPage.sort)
+          + "&q=" + encodeURIComponent(q))
+      .then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
+      .then(function(d){
+        if(req !== catReq) return;
+        catPage.episodes = d.episodes || [];
+        if(catPage.node === catPage.root) drawCategorySubs(d.subcategories || []);
+        drawCategoryEpisodes(q);
+      })
+      .catch(function(){
+        if(req !== catReq) return;
+        el.innerHTML = '<div class="sv-empty">Could not load this category right now. '
+          + '<button class="sample-note-btn" onclick="loadCategoryEpisodes()">Try again</button></div>';
+      });
+  }
+  // "Narrow it down": the categories one level below that have something
+  // today. Drawn from the root's answer, so narrowing keeps the chips.
+  function drawCategorySubs(subs){
+    var row = document.getElementById("catSubs");
+    if(!subs.length){ row.hidden = true; row.innerHTML = ""; return; }
+    row.hidden = false;
+    row.innerHTML = '<button class="hist-tab" data-cat="' + escapeHtml(catPage.root)
+      + '" onclick="pickCategorySub(this)">All</button>'
+      + subs.map(function(s){
+        return '<button class="hist-tab" data-cat="' + escapeHtml(s.id) + '" onclick="pickCategorySub(this)">'
+          + escapeHtml(s.label) + ' · ' + s.count + '</button>';
+      }).join("");
+    markCategorySub();
+  }
+  function markCategorySub(){
+    document.querySelectorAll("#catSubs .hist-tab").forEach(function(b){
+      b.classList.toggle("on", b.getAttribute("data-cat") === catPage.node);
+    });
+  }
+  function pickCategorySub(btn){
+    setCategoryNode(btn.getAttribute("data-cat"));
+    markCategorySub();
+  }
+  function drawCategoryEpisodes(q){
+    var el = document.getElementById("catList");
+    var eps = catPage.episodes;
+    if(!eps.length){
+      el.innerHTML = q
+        ? '<div class="sv-empty">No title in here has those words today.</div>'
+        : '<div class="sv-empty">Nothing has been made in this category today yet. '
+          + 'Episodes come up here as people play and FAM writes them.</div>';
+      return;
+    }
+    el.innerHTML = eps.map(function(ep, i){
+      var meta = [String(ep.node_label || "").toUpperCase(), (ep.minutes || BROWSE_MINUTES) + " MIN"];
+      if(ep.plays) meta.push(ep.plays + (ep.plays === 1 ? " PLAY" : " PLAYS"));
+      if(ep.mixes) meta.push("IN " + ep.mixes + (ep.mixes === 1 ? " MIX" : " MIXES"));
+      return '<div class="sv-row" onclick="playCategoryEpisode(' + i + ')">'
+        + '<div class="sv-art"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.5v15l12.5-7.5z"/></svg></div>'
+        + '<div class="sv-main"><div class="sv-title' + (ep.explicit ? ' is-explicit' : '') + '">'
+        + escapeHtml(ep.title || ep.query) + '</div>'
+        + '<div class="sv-meta">' + escapeHtml(meta.join(" · ")) + '</div></div></div>';
+    }).join("");
+  }
+  function playCategoryEpisode(i){
+    var ep = catPage.episodes[i];
+    if(!ep) return;
+    TOPICS["_category"] = { title: ep.title || ep.query, prompt: ep.query,
+                            source: categoryLabelOf(catPage.node), caption: "",
+                            cachedOnly: true, exploreMinutes: ep.minutes || BROWSE_MINUTES,
+                            titleOverridden: true };
+    generate("_category");
   }
 
   function mixById(id){
