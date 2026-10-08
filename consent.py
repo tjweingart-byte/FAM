@@ -32,10 +32,17 @@ from typing import Optional
 
 from paths import data_path
 
-#: The only scope today. A second recipient (another model provider) is a
-#: second scope, asked separately, never folded into this one.
+#: What a listener can say yes to, each asked and kept on its own:
+#:   ai    - their words going to the AI provider (5.1.2(i));
+#:   terms - the Terms and the Privacy Policy, agreed with a checkbox at
+#:           sign-up (clickwrap, §227) and again whenever they change.
 AI = "ai"
-SCOPES = (AI,)
+TERMS = "terms"
+SCOPES = (AI, TERMS)
+
+#: Bump when /terms or /privacy change in a way people must agree to again;
+#: everybody signed in is asked once more (the web's `checkTerms`).
+TERMS_VERSION = 1
 
 #: How many answers are held in memory before the map is dropped and read
 #: again from disk; the lookup is a primary-key read either way.
@@ -117,9 +124,10 @@ class ConsentStore:
         return answer
 
     def given(self, user_id: str, scope: str = AI) -> bool:
-        """A yes to the current wording."""
+        """A yes to the current wording of `scope`."""
         answer = self.get(user_id, scope)
-        return bool(answer and answer["allowed"] and answer["version"] >= VERSION)
+        return bool(answer and answer["allowed"]
+                    and answer["version"] >= current_version(scope))
 
     def record(self, user_id: str, allowed: bool, *, scope: str = AI,
                version: int = VERSION, client: str = "") -> dict:
@@ -148,6 +156,25 @@ class ConsentStore:
             for key in [k for k in self._cache if k[0] == user_id]:
                 del self._cache[key]
         return cur.rowcount or 0
+
+
+def current_version(scope: str) -> int:
+    """The wording a yes must be to. Read at call time, so a bump applies at once."""
+    return TERMS_VERSION if scope == TERMS else VERSION
+
+
+def describe_terms(answer: Optional[dict]) -> dict:
+    """The `/api/consent` block for the terms: whether this listener has
+    agreed to the current Terms and Privacy Policy, and where they are."""
+    return {
+        "scope": TERMS,
+        "version": TERMS_VERSION,
+        "accepted": bool(answer and answer["allowed"] and answer["version"] >= TERMS_VERSION),
+        "accepted_version": answer["version"] if answer else None,
+        "at": answer["at"] if answer else None,
+        "terms_url": "/terms",
+        "privacy_url": "/privacy",
+    }
 
 
 def describe(answer: Optional[dict]) -> dict:

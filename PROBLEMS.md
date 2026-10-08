@@ -16910,3 +16910,51 @@ Each one was reproduced and fixed, and each has a regression test in
   up. That keeps to "never invent a tile".
 - **A photo check that times out after Anthropic has already answered is not
   metered.** The tokens are not known without the response.
+
+## 227. The Terms, agreed with a checkbox (clickwrap)
+
+The owner asked whether a "terms and conditions" people check off would take
+all liability off FAM, Anthropic and Apple. The answer given: no document
+does that. It cannot waive liability the law will not let you waive (gross
+negligence, consumer-protection rights, a child's claims, Apple's own review
+rules), and it does not answer App Store 1.2 on its own - Apple still wants
+report, block, a contact and action within 24 hours, which are built (§222).
+What a checkbox does buy is an *enforceable* agreement: courts enforce
+clickwrap (an unticked box the person ticks, next to the links) far more
+readily than "by continuing you agree" text under a button, which is what
+both sign-up forms had. So it was built, and the Terms grew the sections an
+agreement like this normally carries.
+
+**What was built.**
+- `consent.py` gained a second scope, `terms`, versioned by `TERMS_VERSION`
+  (1). The row is the record: version, time, client. `describe_terms` is the
+  `/api/consent` block (`accepted`, `accepted_version`, `at`, the two URLs).
+- Sign-up (`/api/auth/signup`), the waitlist join and Google/Apple sign-in
+  take `accept_terms`. A client that draws the box - `web/live`,
+  `web/waitlist`, any `ios/*` - is refused with a 400 and one sentence
+  before the account is made. A kept older release, and a request with no
+  client header, is not refused (`old-clients`); its account is asked later.
+- `/api/consent` POST with `scope: "terms"` accepts a yes, clamps the version
+  to the current one, and refuses a no: stopping agreeing is deleting the
+  account, and the error says where.
+- Web: an unticked box under the sign-up form (hidden on log in), checked
+  before the round trip; the waitlist join form has the same box. After boot
+  and after any sign-in, `checkTerms` reads `/api/consent` and, when the
+  account has no current acceptance (provider sign-in, an older client, a
+  bumped version), puts up a sheet with the box and no "Not now".
+- `/terms` gained: who can use FAM (13+, parental permission under 18), what
+  you post (your responsibility; a licence to show it; others' posts are
+  theirs), no warranty, limits on liability (cap: the greater of twelve
+  months' payments or US$50), an indemnity, and Apple's minimum EULA terms
+  (Apple not responsible, third-party beneficiary, embargo). The privacy
+  policy lists the acceptance record. PDFs regenerated.
+
+**Open, for a lawyer.** The new sections are standard wording, not advice.
+Governing law, arbitration and a class-action waiver were deliberately left
+out until a lawyer chooses them; the cap figure is theirs to confirm.
+Changing the Terms in a way people must agree to again is a bump of
+`TERMS_VERSION`, which asks every signed-in account once.
+
+**Not built.** The iOS sign-up screen is not in `ios/FAMSafety`; its README
+says what the screen must send.
+

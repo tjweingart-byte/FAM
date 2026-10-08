@@ -1760,6 +1760,9 @@ class CredentialsRequest(BaseModel):
     #: The invite code a waitlist link carried (`?referralCode=`). Read on
     #: sign-up only, and only while the account is waitlisted.
     referral_code: str = Field("", max_length=64)
+    #: The sign-up checkbox: "I agree to the Terms and the Privacy Policy"
+    #: (clickwrap, §227). Required on sign-up from a client that draws it.
+    accept_terms: bool = False
     #: Native clients only. See `_maybe_token` - a browser must never ask for
     #: this, because reading the token in script is precisely what the HttpOnly
     #: cookie exists to prevent.
@@ -1771,6 +1774,9 @@ class ProviderRequest(BaseModel):
 
     provider: str = Field(..., max_length=16)
     id_token: str = Field(..., max_length=8192)
+    #: Ticked before a Google or Apple sign-in that may create an account
+    #: (§227). An account made without it is asked on its first screen.
+    accept_terms: bool = False
     #: The invite code a waitlist link carried; see CredentialsRequest.
     referral_code: str = Field("", max_length=64)
     #: The raw nonce the client generated for this sign-in, if it used one.
@@ -1921,6 +1927,7 @@ async def auth_signup(req: CredentialsRequest, request: Request) -> dict:
     """
     _rate_limit(request)
     kind = _signup_identity(req)
+    _require_terms(request, req.accept_terms)
     user, fresh = _signup_listener(request)
     try:
         if kind == "phone":
@@ -1931,6 +1938,8 @@ async def auth_signup(req: CredentialsRequest, request: Request) -> dict:
     except accounts_mod.AuthError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     listener = _admit_admin(listener)
+    if req.accept_terms:
+        _record_terms(request, listener.user_id)
     _waitlist_after_signup(listener.user_id, req.referral_code or "")
     listener = ACCOUNTS.listener_of(listener.user_id)
     return {**listener.as_dict(), "admin": _allowed_admin(listener),
@@ -1996,6 +2005,8 @@ async def auth_provider(req: ProviderRequest, request: Request) -> dict:
             current_user_id=_require_listener(request))
     except accounts_mod.AuthError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if req.accept_terms:
+        _record_terms(request, listener.user_id)
     if is_new:
         _waitlist_after_signup(listener.user_id, req.referral_code or "")
         listener = ACCOUNTS.listener_of(listener.user_id)
@@ -5380,6 +5391,38 @@ def _sends_listener_words(where: str, context: str, attach: str,
 CONSENT_REQUIRED = ("FAM needs your OK before it sends what you ask to "
                     "Anthropic to write the episode.")
 
+TERMS_REQUIRED = ("Tick the box to agree to the Terms and the Privacy Policy "
+                  "before creating an account.")
+
+
+def _client_draws_terms(request: Request) -> bool:
+    """Whether this client draws the sign-up checkbox (§227): the app's page,
+    the waitlist page and every iOS build. A kept older release never had
+    one and is not refused for it (`old-clients`); a tool with no client
+    header is not a person agreeing to anything."""
+    parsed = client_versions.parse(request.headers.get(client_versions.HEADER))
+    if not parsed:
+        return False
+    platform, version = parsed[0], parsed[1]
+    return platform == "ios" or (platform == "web" and version in ("live", "waitlist"))
+
+
+def _require_terms(request: Request, accepted: bool) -> None:
+    """Before an account is created: the box was ticked, where there is one."""
+    if not accepted and _client_draws_terms(request):
+        raise HTTPException(status_code=400, detail=TERMS_REQUIRED)
+
+
+def _record_terms(request: Request, user_id: str) -> None:
+    """Keep the acceptance - which version, when, from which client - as the
+    record that this person agreed. Never fails a sign-up."""
+    try:
+        CONSENT.record(user_id, True, scope=consent_mod.TERMS,
+                       version=consent_mod.TERMS_VERSION,
+                       client=request.headers.get(client_versions.HEADER, ""))
+    except Exception:  # noqa: BLE001 - logged; the account still exists
+        log.exception("could not record a terms acceptance")
+
 
 def _require_ai_consent(request: Request, user: str) -> None:
     """403 with `X-FAM-Consent: ai` when a client that asks has no yes on
@@ -5396,7 +5439,8 @@ async def consent_read(request: Request) -> dict:
     client shows, so the app and the web say the same thing."""
     _read_limit(request)
     user = _listener(request)
-    return {"ai": consent_mod.describe(CONSENT.get(user))}
+    return {"ai": consent_mod.describe(CONSENT.get(user)),
+            "terms": consent_mod.describe_terms(CONSENT.get(user, consent_mod.TERMS))}
 
 
 class ConsentRequest(BaseModel):
@@ -5404,21 +5448,26 @@ class ConsentRequest(BaseModel):
     allow: bool
     #: The notice version the listener was shown. A yes to an older wording
     #: is kept as what it was and does not count as a yes to this one.
-    version: int = Field(consent_mod.VERSION, ge=1, le=1000)
+    version: int = Field(1, ge=1, le=1000)
 
 
 @app.post("/api/consent")
 async def consent_write(req: ConsentRequest, request: Request) -> dict:
     """Record a yes or a no. Withdrawing is the same call with `allow: false`."""
     user = _require_listener(request)
+    if req.scope == consent_mod.TERMS and not req.allow:
+        # Agreeing to the terms is what an account is; leaving is deleting it.
+        raise HTTPException(status_code=400, detail=(
+            "To stop agreeing to the Terms, delete your account in Settings."))
     try:
-        answer = CONSENT.record(
+        CONSENT.record(
             user, req.allow, scope=req.scope,
-            version=min(req.version, consent_mod.VERSION),
+            version=min(req.version, consent_mod.current_version(req.scope)),
             client=request.headers.get(client_versions.HEADER, ""))
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return {"ai": consent_mod.describe(answer)}
+    return {"ai": consent_mod.describe(CONSENT.get(user)),
+            "terms": consent_mod.describe_terms(CONSENT.get(user, consent_mod.TERMS))}
 
 
 @app.get("/api/preferences")
@@ -8861,6 +8910,8 @@ class WaitlistJoinRequest(BaseModel):
     password: str = Field(..., max_length=accounts_mod.MAX_PASSWORD)
     referral_code: str = Field("", max_length=64)
     want_token: bool = False
+    #: The join form's checkbox (§227).
+    accept_terms: bool = False
 
 
 @app.post("/api/waitlist/join")
@@ -8877,12 +8928,15 @@ async def waitlist_join(req: WaitlistJoinRequest, request: Request) -> dict:
     is closed to them.
     """
     _rate_limit(request)
+    _require_terms(request, req.accept_terms)
     user, fresh = _signup_listener(request)
     try:
         listener = ACCOUNTS.sign_up(user, req.email, req.password, waitlisted=True)
     except accounts_mod.AuthError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     listener = _admit_admin(listener)
+    if req.accept_terms:
+        _record_terms(request, listener.user_id)
     _waitlist_after_signup(listener.user_id, req.referral_code)
     listener = ACCOUNTS.listener_of(listener.user_id)
     admin = _allowed_admin(listener)

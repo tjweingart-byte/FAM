@@ -1306,6 +1306,12 @@
   Profile pictures and mix covers are checked once by a model before
   strangers see them (`image_check.py`, §224); a check that cannot run lets
   the photo through and says so, and Report + Remove still covers it.
+  The Terms and the Privacy Policy are agreed with an unticked checkbox at
+  sign-up (clickwrap, §227), kept as a `terms` consent with its version; a
+  client that draws the box (`web/live`, `web/waitlist`, `ios/*`) is refused
+  without `accept_terms`, an older kept release is not and is asked on its
+  first screen (`checkTerms`), and a bump of `consent.TERMS_VERSION` asks
+  every account again. A no is not an answer: leaving is deleting the account.
 <!-- rule:authorship-provenance -->
 - **Authorship is provenance, and never identity.** *(PROBLEMS.md §95.)* The
   shared cache records who first generated each script, so Explore can leave a

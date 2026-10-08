@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import os
 import sys
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -15,6 +16,7 @@ import app as appmod  # noqa: E402
 import consent as consent_mod  # noqa: E402
 import moderation as moderation_mod  # noqa: E402
 
+ROOT_DIR = Path(__file__).resolve().parent.parent
 WEB = {"X-FAM-Client": "web/live"}
 EPISODE = {"query": "why the ocean is salty", "minutes": 2}
 
@@ -502,3 +504,79 @@ def test_a_taken_handle_never_pays_for_a_photo_check(monkeypatch):
     r = ben.post("/api/me", json={"name": "Ben", "handle": "ann", "avatar": PHOTO})
     assert r.status_code == 400 and "taken" in r.json()["error"]
     assert calls == []
+
+
+# --- the Terms, agreed at sign-up (§227) -----------------------------------
+
+def test_signing_up_from_the_app_needs_the_box_ticked():
+    c = TestClient(appmod.app)
+    r = c.post("/api/auth/signup", headers=WEB,
+               json={"email": "unticked@example.com", "password": "password12"})
+    assert r.status_code == 400 and "Terms" in r.json()["error"]
+    # Refused before anything was made: the address is still free.
+    r = c.post("/api/auth/signup", headers=WEB,
+               json={"email": "unticked@example.com", "password": "password12",
+                     "accept_terms": True})
+    assert r.status_code == 200, r.text
+    terms = c.get("/api/consent").json()["terms"]
+    assert terms["accepted"] is True
+    assert terms["accepted_version"] == consent_mod.TERMS_VERSION
+    assert terms["terms_url"] == "/terms" and terms["privacy_url"] == "/privacy"
+
+
+def test_the_waitlist_and_ios_need_it_too():
+    c = TestClient(appmod.app)
+    r = c.post("/api/waitlist/join", headers={"X-FAM-Client": "web/waitlist"},
+               json={"email": "wl@example.com", "password": "password12"})
+    assert r.status_code == 400
+    r = c.post("/api/auth/signup", headers={"X-FAM-Client": "ios/1.0"},
+               json={"email": "ios@example.com", "password": "password12"})
+    assert r.status_code == 400
+    r = c.post("/api/waitlist/join", headers={"X-FAM-Client": "web/waitlist"},
+               json={"email": "wl@example.com", "password": "password12",
+                     "accept_terms": True})
+    assert r.status_code == 200, r.text
+    assert c.get("/api/consent").json()["terms"]["accepted"] is True
+
+
+def test_a_kept_release_without_the_box_still_signs_up():
+    """`old-clients`: a release that never drew the box is not refused, and
+    its account is asked on its first screen instead (`checkTerms`)."""
+    c = TestClient(appmod.app)
+    r = c.post("/api/auth/signup", headers={"X-FAM-Client": "web/2026.09.29"},
+               json={"email": "old@example.com", "password": "password12"})
+    assert r.status_code == 200, r.text
+    assert c.get("/api/consent").json()["terms"]["accepted"] is False
+    r = c.post("/api/consent", json={"scope": "terms", "allow": True,
+                                     "version": consent_mod.TERMS_VERSION})
+    assert r.status_code == 200 and r.json()["terms"]["accepted"] is True
+
+
+def test_the_terms_cannot_be_unagreed_only_left(monkeypatch):
+    c = listener("Tess", "tess")
+    r = c.post("/api/consent", json={"scope": "terms", "allow": False})
+    assert r.status_code == 400 and "delete your account" in r.json()["error"]
+
+
+def test_new_terms_ask_everybody_again(monkeypatch):
+    c = TestClient(appmod.app)
+    c.post("/api/auth/signup", headers=WEB,
+           json={"email": "bump@example.com", "password": "password12",
+                 "accept_terms": True})
+    monkeypatch.setattr(consent_mod, "TERMS_VERSION", consent_mod.TERMS_VERSION + 1)
+    terms = c.get("/api/consent").json()["terms"]
+    assert terms["accepted"] is False and terms["accepted_version"] == consent_mod.TERMS_VERSION - 1
+    # A client cannot claim a version that does not exist yet.
+    c.post("/api/consent", json={"scope": "terms", "allow": True, "version": 999})
+    assert c.get("/api/consent").json()["terms"]["accepted_version"] == consent_mod.TERMS_VERSION
+
+
+def test_the_web_form_draws_an_unticked_box_and_sends_it():
+    page = (ROOT_DIR / "static" / "index.html").read_text(encoding="utf-8")
+    box = page.split('id="authTermsField"', 1)[1].split("</label>", 1)[0]
+    assert 'type="checkbox"' in box and "checked" not in box.split(">", 2)[1]
+    assert 'href="/terms"' in box and 'href="/privacy"' in box
+    submit = page.split("function submitAuthForm(){", 1)[1].split("\n  }\n", 1)[0]
+    assert "body.accept_terms = true" in submit
+    wl = (ROOT_DIR / "static" / "waitlist.html").read_text(encoding="utf-8")
+    assert 'id="acceptTerms"' in wl and "accept_terms: true" in wl

@@ -429,7 +429,7 @@ Accounts, tiers, sharing
   sheet. [share-link]
 - FAM posts nothing to anyone's social account and holds no token. [no-social-posting]
 - **App review** (§222): Report everywhere, block both ways (`moderation.py`, `/admin`);
-  a listener's words reach Anthropic only after a yes (`consent.py`); photos checked (§224). [app-review-safety]
+  a listener's words reach Anthropic only after a yes (`consent.py`); photos checked (§224); Terms ticked at sign-up (§227). [app-review-safety]
 - **Authorship is provenance, never identity**: `PodcastPipeline.author`, never
   on `EpisodePlan` or in `key_for`; first writer keeps it; prefetch writes none. [authorship-provenance]
 - **Type: Bricolage Grotesque (headings), Geist (body), Geist Mono (labels)**

@@ -114,6 +114,16 @@ def main() -> int:
                 "the phone field did not format what was typed into it"
             assert page.eval_on_selector("#authPhoneCC", "e => e.value") == "+1", \
                 "the country code did not default to +1"
+            # Clickwrap (§227): an unticked box stops the form before a
+            # round trip, and says why under the fields.
+            assert page.is_visible("#authTerms") and not page.is_checked("#authTerms"), \
+                "the sign-up form has no unticked Terms box"
+            page.evaluate("submitAuthForm()")
+            page.wait_for_timeout(200)
+            assert "Terms" in (page.text_content("#authError") or ""), \
+                "signing up without ticking the Terms box was not refused"
+            assert page.is_visible("#screen-auth"), "sign-up went ahead without the Terms box"
+            page.check("#authTerms")
             page.evaluate("submitAuthForm()")
 
             # Who they are, before what they want to hear. A name, a handle

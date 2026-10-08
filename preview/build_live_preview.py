@@ -1472,11 +1472,18 @@ __WRITING_SIM__
     // answers are kept for as long as the page is open.
     if (path === "/api/consent" && method === "POST") {
       var cAsk = body || {};
-      var cAi = FIXTURES["/api/consent"].ai;
+      var cAll = FIXTURES["/api/consent"];
+      if (cAsk.scope === "terms") {
+        if (!cAsk.allow) return json({ error: "To stop agreeing to the Terms, delete your account in Settings." }, 400);
+        cAll.terms.accepted = true;
+        cAll.terms.accepted_version = cAll.terms.version;
+        return json({ ai: cAll.ai, terms: cAll.terms });
+      }
+      var cAi = cAll.ai;
       cAi.asked = true;
       cAi.given = !!cAsk.allow;
       cAi.answered_version = cAi.version;
-      return json({ ai: cAi });
+      return json({ ai: cAi, terms: cAll.terms });
     }
     if (path === "/api/report" && method === "POST") {
       return json({ ok: true, id: "preview", hidden: true,
