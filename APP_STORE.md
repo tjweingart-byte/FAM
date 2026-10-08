@@ -22,14 +22,17 @@ the week of the first submission.
 | Server | Bearer sessions, `/api/v1`, client versions, `426` | Built (`ACCOUNTS.md`, `STAGING.md`) |
 | Server | Universal links (`/.well-known/apple-app-site-association`) | Built; needs `APPLE_TEAM_ID`, `IOS_BUNDLE_ID` |
 | Server | Load test before review traffic | Built (`tools/load_test.py`) |
-| **To build** | Report content and block a user, 1.2 | **Missing - hard rejection** |
-| **To build** | Consent before data goes to a third-party AI, 5.1.2(i) | **Missing - hard rejection** |
-| **To write** | Privacy policy, terms of use (EULA), support page | **Missing - required URLs** |
+| Server + web | Report content and block a user, 1.2 | Built (`moderation.py`, §222); reviewer inbox on `/admin` |
+| Server + web | Consent before a listener's words go to a third-party AI, 5.1.2(i) | Built (`consent.py`, §222) |
+| Server | Terms of use and community rules, agreed at sign-up | Built (`/terms`); needs `SUPPORT_EMAIL`, and a lawyer's read |
+| **To write** | Privacy policy and a support page | **Missing - required URLs** |
 | To build | APNs push for the app (today's push is Web Push) | Only if 1.0 sends pushes |
 | To build | The iOS app itself (`IOS_APP.md` stages 2-4) | Not started |
 
-The two **Missing** rows are the likeliest rejections. Both are feature work,
-not paperwork; Part B says what each needs.
+The two hard rejections (1.2 and 5.1.2(i)) are built in the server and the web
+client; the iOS app must draw the same menus and the same notice from the same
+endpoints (Part B). What is left on the server side is writing: the privacy
+policy and the support page.
 
 ---
 
@@ -109,48 +112,49 @@ only then enroll. Enrolling with a mismatch stalls without a clear error.
 
 ## Part B - What the server must have before review
 
-### 1.2 User-generated content - **build before TestFlight's external beta**
+### 1.2 User-generated content - built (§222)
 
 FAM has user-generated content in at least six places: comments (§203),
 messages, vibe captions, display names and handles, avatars and cover photos,
-and **Explore, which replays episodes other listeners searched**. Apple
-requires *all* of:
+and **Explore, which replays episodes other listeners searched**. What Apple
+requires, and where each now lives (`moderation.py` says why it works the way
+it does):
 
-* a way to **report** offensive content: from a comment, a message, a profile,
-  and an episode on the player and Explore;
-* a way to **block** an abusive user, after which their comments, messages,
-  vibes and profile no longer reach the blocker;
-* **terms of use** the listener agrees to that say objectionable content and
-  abusive users are not tolerated;
-* a **filter** for objectionable material;
-* **published contact information**, and acting on reports (Apple's wording is
-  within 24 hours: remove the content and eject the user).
+| Apple requires | FAM |
+|---|---|
+| A way to **report** offensive content | **Report** in the ⋯ of a comment, a chat (person or group), a profile, a story vibe, the player and the Explore reel. `GET /api/report` gives the reasons, `POST /api/report` files it. The reported thing disappears for the reporter at once. |
+| A way to **block** an abusive user | **Block** on a profile, a chat and a story (`POST /api/block`). Both ways: neither sees the other's comments, messages, vibes, profile or searched episodes; neither can message, follow or tag the other; any follow ends. Settings > Blocked people unblocks (`GET /api/blocks`, `DELETE /api/block`). |
+| **Terms** the listener agrees to, zero tolerance | `/terms`, linked under both sign-up forms ("By continuing you agree..."). Template `pages/terms.html`; have a lawyer read it. |
+| **Acting on reports** within 24 hours | `/admin` > **Reported content**, oldest first, with how long the oldest has waited and an OVERDUE flag past 24h. Remove (for everybody), Suspend (remove and stop the account posting; it can still listen) or Dismiss. The reporter is never shown, even there. |
+| **Published contact** | `SUPPORT_EMAIL`, printed on `/terms` and returned by `/api/report`. **Set it before submitting.** |
+| A **filter** | Slurs are removed (`content_filter.py`, the settled `slurs-only` rule). Whether that is enough for Apple is the owner's call; expect the reviewer to post an offensive comment and then report it. |
 
-What exists: `/api/feedback` keeps bug reports with episode details, and
-`/admin` can resolve them. That is an inbox, not a report button for content,
-and there is no block. Note the filter conflicts with a settled rule: content
-is filtered for **slurs only** (`content_filter.py`, `slurs-only`). Whether
-that is enough for Apple is the owner's decision, not a code change; expect
-the reviewer to test it with an obviously offensive comment.
+Somebody must read `/admin` every day while the app is in review and after.
+Nothing alerts anybody when a report arrives (FAM has no email delivery).
 
-### 5.1.2(i) Third-party AI - **build before the first build is uploaded**
+### 5.1.2(i) Third-party AI - built (§222)
 
 Since November 2025 an app must **say in the app** where personal data goes
-to a third-party AI and **get an explicit yes before it goes**. A typed
-question, an attached document or image, and the listener's taste and place
-reach Anthropic's API to write the episode. Needed:
+to a third-party AI and **get an explicit yes before it goes**. What is sent
+to Anthropic is the listener's own words - a typed or spoken search, a Go
+Deeper question, an attachment - with their local date and time. Built
+(`consent.py`):
 
-* a consent screen before the first search or attachment, naming Anthropic,
-  saying what is sent (what you typed or attached) and why (to write your
-  episode), with a clear **Allow** - and a way to say no that still leaves
-  myFAM, DailyFAM and Explore (their episodes are written before the tap and
-  carry nothing of this listener);
-* the answer stored server-side with the account, and asked again if what is
-  sent changes;
-* the same named in the privacy policy.
-
-This screen costs no latency on search: it is answered once, before the first
-search, never in front of an episode.
+* **The notice** - title, body naming Anthropic, what still works without it,
+  and the two buttons - is the server's (`GET /api/consent`), so the web and
+  the iOS app say the same thing. The web asks before a first search, Go
+  Deeper question or attachment; Settings > Privacy and safety > *Send my
+  questions to AI* changes the answer.
+* **The answer is kept on the server** (`POST /api/consent`), versioned: a yes
+  to an older wording is not a yes to a new one.
+* **The server holds the app to it.** A search, Go Deeper or attachment that
+  would be written by the AI, from a client that knows to ask (`web/live`, any
+  `ios/...`), is refused with `403` and `X-FAM-Consent: ai` until there is a
+  yes. A replay never asks: it sends nothing. myFAM, DailyFAM and Explore
+  never ask: FAM wrote their questions.
+* The iOS app must show the notice on that `403` and send the request again
+  after **Allow**, as the web does (`onGenerationFailed`).
+* The privacy policy must say the same.
 
 ### Everything else
 
@@ -245,9 +249,11 @@ added the day in-app purchase is.
 > ahead of time and start immediately. Explore shows episodes other listeners
 > searched.
 >
-> User content: comments, messages and profiles can be reported from their
-> ⋯ menu and users can be blocked from their profile. Reports reach us at
-> `<address>` and are acted on within 24 hours.
+> User content: comments, messages, profiles, vibes and episodes can be
+> reported from their ⋯ menu, and anybody can be blocked from their profile
+> or a chat (Settings > Blocked people undoes it). Reports reach a person
+> through our moderation inbox and are acted on within 24 hours; questions go
+> to `<SUPPORT_EMAIL>`. The terms are at `<host>/terms`.
 >
 > Before the first search the app asks permission to send the question to
 > Anthropic to write the episode.
@@ -318,8 +324,8 @@ appeals go through that person.
 1. Part A steps 1-6 (paperwork, in parallel with the work below).
 2. Hear an episode in the production voice (`IOS_APP.md` stage 0).
 3. The audio spike, then the app (`IOS_APP.md` stages 2-4).
-4. 1.2 report and block, 5.1.2(i) consent, privacy policy, terms, support
-   page (Part B).
+4. Privacy policy and support page; set `SUPPORT_EMAIL`; draw the report,
+   block and consent screens in the iOS app from the same endpoints (Part B).
 5. Run `tools/load_test.py` against staging at the tester count planned for
    the beta; fix what it finds.
 6. TestFlight internal (no review), then external (reviewed - Part B must be

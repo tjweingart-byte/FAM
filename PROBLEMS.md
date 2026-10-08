@@ -16553,3 +16553,82 @@ What it found that is **not built** and will be rejected:
 - Privacy policy, terms and support pages; APNs if 1.0 sends pushes.
 
 Pinned in `tests/test_load_test.py`.
+
+## 222. The two App Store rejections: report and block (1.2), and asking before words go to the AI (5.1.2(i))
+
+§221 found two things Apple rejects outright. The owner asked for both to be
+fixed. Rule `app-review-safety`; `APP_STORE.md` Part B says where each of
+Apple's requirements now lives.
+
+**Report and block** (`moderation.py`, `moderation.db`).
+
+- **Report** is in the ⋯ of a comment, a chat (person or group), a profile, a
+  story vibe, the player and the Explore reel. The reasons are the server's
+  (`GET /api/report`). The subject is read from the stores, never the request.
+  A message can be reported only by somebody in the conversation, and your own
+  comment is deleted, not reported.
+- **A report hides the thing from its reporter at once** and removes nothing
+  for anybody else. Somebody who said "this is abusive" should not have to
+  keep looking at it, and one report must not be a way to take down someone
+  else's comment.
+- **The reviewer** works from `/admin` > Reported content, oldest first, with
+  the oldest report's age and an OVERDUE flag past 24 hours.
+  - *Remove* takes the content down for everybody: a comment with its replies,
+    a message, a vibe. An episode comes off Explore and every other shelf of
+    other people's episodes.
+  - *Suspend* removes it and stops the account posting anything: comments,
+    messages, vibes, follows, groups. The account still listens, and it
+    disappears from everyone's people search, profiles and comments.
+  - One decision answers every open report about the same thing.
+  - The reporter is never shown, even to the reviewer.
+- **A block is silent, both ways and total.** Comments, messages (a one-to-one
+  chat leaves the inbox, a group keeps going without their messages), vibes and
+  stories, profile, people search, follows (ended both ways, with close
+  friends), tags, the player's searcher line, and their searched episodes on
+  Explore, the catalogue, trending searches and the interest pages. One helper
+  covers every shelf of other people's episodes (`app._visible_episodes`), so
+  a new shelf has one function to call.
+- **`_reachable` now refuses a blocked or suspended person** before the
+  waitlist check, so every handle lookup inherits it.
+- **Terms**: `/terms` (template `pages/terms.html`, outside `static/` so the
+  placeholder is never served raw). It is linked under both sign-up forms. The
+  contact is `SUPPORT_EMAIL`. When that is unset the page points at the report
+  button rather than inventing an address.
+- **Not changed**: the filter is still slurs only (`slurs-only`). Whether
+  Apple accepts that is the owner's call.
+- Nothing alerts anybody when a report arrives (there is no email delivery).
+  The 24-hour promise is kept by somebody reading `/admin`.
+
+**Consent** (`consent.py`, `consent.db`).
+
+- **What is sent to Anthropic** is the listener's own words: a typed or spoken
+  search, a Go Deeper question, an attachment. The writer also gets their local
+  date and time (`listener_clock`), so the notice says so. Nothing else
+  identifies them.
+- **The notice is the server's**, versioned. A yes to an older wording is not a
+  yes to a new one. The answer is kept per listener id, guest or account,
+  because the server is what sends the words, and account deletion erases it.
+- **The web asks before a first search, Go Deeper question or attachment.**
+  Settings > Privacy and safety > *Send my questions to AI* changes the answer.
+- **The server holds clients to it.** A generation that would carry the
+  listener's words (`_sends_listener_words`: a search, a context, an
+  attachment) from a client that knows to ask (`web/live`, any `ios/*`) is
+  refused with 403 and `X-FAM-Consent: ai` until there is a yes. The web shows
+  the notice on that refusal and starts the same episode again after Allow.
+- **What never asks:**
+  - A replay or an already-written script, which sends nothing.
+  - myFAM, DailyFAM and Trending tiles. FAM wrote those questions.
+  - A kept older web release, which never learned the question (`old-clients`).
+    Refusing it would break an installed client for a rule it cannot follow.
+  - A request with no client header (tools, tests).
+- **Latency is untouched.** The question is asked once, before a search, never
+  between a tap and the first word. The check on the generation path is an
+  in-memory lookup after the first read.
+
+**Previews.** Both shims answer `/api/consent`, `/api/report` and
+`/api/block(s)`. The preview's listener has said yes, so search still plays.
+Turn the setting off to see the notice. Two smoke checks were added: a search
+asks before sending and Allow sends it; Report and Block are in the menus. The
+chat-menu check now expects Report and Block after Delete chat.
+
+Pinned in `tests/test_moderation_and_consent.py`.

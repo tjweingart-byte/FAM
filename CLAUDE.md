@@ -428,6 +428,8 @@ Accounts, tiers, sharing
   `X-Forwarded-Proto`, loopback refused); story cards are PNG files to the share
   sheet. [share-link]
 - FAM posts nothing to anyone's social account and holds no token. [no-social-posting]
+- **App review** (§222): Report everywhere, block both ways (`moderation.py`, `/admin`);
+  a listener's words reach Anthropic only after a yes (`consent.py`). [app-review-safety]
 - **Authorship is provenance, never identity**: `PodcastPipeline.author`, never
   on `EpisodePlan` or in `key_for`; first writer keeps it; prefetch writes none. [authorship-provenance]
 - **Type: Bricolage Grotesque (headings), Geist (body), Geist Mono (labels)**

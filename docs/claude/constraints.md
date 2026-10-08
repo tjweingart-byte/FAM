@@ -1282,6 +1282,20 @@
   Instagram and Snapchat, which cannot carry a link as text - the story card.
   This is the correct shape rather than a stage: no OAuth to maintain, no
   tokens to leak, and nothing that can post while somebody is asleep.
+<!-- rule:app-review-safety -->
+- **Report anything, block both ways, and ask before a listener's words go to
+  the AI** (App Store 1.2 and 5.1.2(i), §222). Every comment, message, vibe,
+  profile and episode has Report; a report hides the thing from its reporter
+  at once and removes nothing for anybody else until a reviewer decides on
+  `/admin` (remove, suspend, dismiss), and the reporter is never shown. A
+  block is silent, both ways and total - comments, messages, vibes, profile,
+  searched episodes, follows - and every shelf of other people's episodes
+  goes through `app._visible_episodes`. A search, Go Deeper question or
+  attachment reaches Anthropic only after a yes kept on the server
+  (`consent.py`, versioned); a client that knows to ask (`web/live`, `ios/*`)
+  is refused with `X-FAM-Consent` without one, an older kept release is not
+  (`old-clients`). Asked once, before a first search, never in front of an
+  episode. The words of the notice and the report reasons are the server's.
 <!-- rule:authorship-provenance -->
 - **Authorship is provenance, and never identity.** *(PROBLEMS.md §95.)* The
   shared cache records who first generated each script, so Explore can leave a

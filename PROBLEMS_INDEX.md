@@ -225,3 +225,4 @@ and `limit` = Lines.
 | 16367 | 60 | 219. The 10.7 packet: the waitlist is the front door again, its topics, a place under the name, and a search length that held |
 | 16427 | 74 | 220. Why a third of GDELT's downloads failed, and Finnhub's and the local feeds' |
 | 16501 | 56 | 221. Ready for Apple: a load test for staging, universal links, and APP_STORE.md |
+| 16557 | 79 | 222. The two App Store rejections: report and block (1.2), and asking before words go to the AI (5.1.2(i)) |

@@ -5595,6 +5595,9 @@
       .then(function(d){ if(d && d.ai) AI_CONSENT = d.ai; return AI_CONSENT; })
       .catch(function(){ return AI_CONSENT; });
   }
+  // Read at start-up, so a first search with a yes on record never waits
+  // on this round trip (`one-sentence-spec`).
+  setTimeout(loadAiConsent, 0);
   // Runs `then` straight away after a yes on record, else asks first.
   function withAiConsent(then){
     if(AI_CONSENT && AI_CONSENT.given){ then(); return; }
