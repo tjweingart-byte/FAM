@@ -174,7 +174,8 @@ def test_follow_and_read_back_with_todays_count(client):
     assert [(m["id"], m["today"]) for m in got["mine"]] == [("nfl", 1), ("money", 0)]
     assert [f["id"] for f in got["facets"]] == list(T.TAG_LABELS)
     nfl = next(n for n in got["all"] if n["id"] == "nfl")
-    assert nfl["path"] == ["Sport", "American football"]
+    assert nfl["label"] == "NFL"
+    assert nfl["path"] == ["Sport", "American Football"]
 
 
 def test_an_unknown_category_is_refused_not_stored(client):
@@ -199,6 +200,16 @@ def test_preferences_keep_the_categories(tmp_path, tree):
     assert store.get("u").categories == ("tech", "nfl")
     with pytest.raises(P.PreferenceError):
         P.clean_categories(["no such node here"])
+
+
+def test_labels_read_as_headings():
+    assert appmod._category_label("nfl") == "NFL"
+    assert appmod._category_label("elections and politics") == "Elections and Politics"
+    assert appmod._category_label("money") == "Money & markets"
+
+
+def test_finding_a_category_matches_from_the_start_of_a_word():
+    assert '(" " + label.toLowerCase()).indexOf(" " + q)' in _fn("drawCategoryBrowse")
 
 
 # --- the screens -----------------------------------------------------------

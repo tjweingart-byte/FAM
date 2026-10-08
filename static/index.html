@@ -877,7 +877,7 @@
   .cat-icon{ flex:0 0 46px; height:46px; border-radius:12px; display:flex; align-items:center;
     justify-content:center; color:var(--paper); font-family:'Bricolage Grotesque', sans-serif;
     font-weight:600; font-size:18px; background:var(--surface-2); }
-  .cat-grid{ display:grid; grid-template-columns:1fr 1fr; gap:10px; padding:4px 16px 18px; }
+  .cat-grid{ display:grid; grid-template-columns:1fr 1fr; gap:10px; padding:4px 0 18px; }
   .cat-tile{ min-height:76px; border-radius:14px; padding:12px; cursor:pointer; text-align:left;
     border:0; color:var(--paper); font-family:'Bricolage Grotesque', sans-serif;
     font-weight:600; font-size:14px; background:var(--surface-2); }
@@ -9529,9 +9529,11 @@
       }).join("") + '</div>';
       return;
     }
-    var found = catData.facets.filter(function(f){ return f.label.toLowerCase().indexOf(q) !== -1; })
+    // From the start of a word: "nfl" is the NFL, not "conflict".
+    var starts = function(label){ return (" " + label.toLowerCase()).indexOf(" " + q) !== -1; };
+    var found = catData.facets.filter(function(f){ return starts(f.label); })
       .map(function(f){ return { id: f.id, label: f.label, path: [] }; })
-      .concat(catData.all.filter(function(n){ return n.label.toLowerCase().indexOf(q) !== -1; }));
+      .concat(catData.all.filter(function(n){ return starts(n.label); }));
     if(!found.length){
       el.innerHTML = '<div class="sv-empty">No category called that yet.</div>';
       return;

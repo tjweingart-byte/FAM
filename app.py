@@ -5725,7 +5725,25 @@ def _category_label(node: str) -> str:
     except Exception:  # noqa: BLE001 - a label is never worth a failure
         found = None
     label = (getattr(found, "label", "") or node or "").strip()
-    return label[:1].upper() + label[1:]
+    return " ".join(_label_word(w, i) for i, w in enumerate(label.split()))
+
+
+#: League and body names said as letters, which a tree node keeps lowercase
+#: ("nfl") and a page should not print as "Nfl".
+_LETTER_NAMES = frozenset({"nfl", "nba", "wnba", "mlb", "nhl", "ufc", "mls",
+                           "ai", "nascar", "fc", "us", "uk", "eu", "un"})
+_SMALL_WORDS = frozenset({"and", "of", "the", "in", "on", "for", "to", "a"})
+
+
+def _label_word(word: str, at: int) -> str:
+    """One word of a tree node's label, as a heading prints it."""
+    if word.lower() in _LETTER_NAMES:
+        return word.upper()
+    if word != word.lower():
+        return word  # the tree already cased it
+    if at and word in _SMALL_WORDS:
+        return word
+    return word[:1].upper() + word[1:]
 
 
 def _category_known(node: str) -> bool:
