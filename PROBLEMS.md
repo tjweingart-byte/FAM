@@ -16107,7 +16107,398 @@ Pinned in `tests/test_waitlist.py`
 (`test_the_carousels_turn_every_ten_seconds_and_by_hand` and the story-order
 tests).
 
-## 213. Ready for Apple: a load test for staging, universal links, and APP_STORE.md
+## 213. The 10.6 packet: your own story, VIBE! as a story editor, holding a story, and group chats
+
+The owner's four changes, with screenshots of Instagram's story editor.
+
+1. **Your own story.** `/api/profile` now carries `stories`: your vibes of
+   the last 24 hours, the same `stories_among` rows your friends' faces
+   play. While one is up, your picture on YourFAM has the ring (grey once
+   watched) and tapping it plays them (`openMyStory`; the viewer steps
+   through `storyList`, the circle row or just you). Every story now has a ⋯
+   at the top right: **Save for later, Share, Add to Queue, Add topic to
+   playlist**, and on your own **Remove from your story**
+   (`DELETE /api/vibe/story/{id}`, matched on the id *and* the poster). That
+   sets `unstoried` on the row: the story comes down and the vibe stays on
+   your profile, as Instagram's leaves a post. Vibing the episode again puts
+   it back up. The story holds while the menu is open (the sheet is raised
+   over the viewer with `over-story`).
+
+2. **VIBE! opens a story editor**, replacing §203's caption sheet. The
+   episode's picture sits in the middle as a post card. The Picture options
+   button frames it (Card, Rounded, Circle, Full) and has Smaller / Bigger /
+   Reset; a pinch or a trackpad scroll resizes it and a drag moves it. Down
+   the right are **Text** (five faces - FAM's three and two the phone has, so
+   no new font link - and a size slider), **Stickers** (a fixed set of emoji
+   and word stickers; drag to move, pinch to resize, tap then x to remove),
+   **Mention** (@: anybody you follow or who follows you) and **Picture**.
+   "Add a caption…" is at the foot of the picture, then **Your story**,
+   **Close Friends** and the arrow. The X goes back to the episode and posts
+   nothing. Not built, per the packet: music, the colour circle, the "more"
+   arrow.
+
+   The layout is a few hundred bytes of JSON on the echo row (`style`), drawn
+   by one `storyCanvasHTML` in both the editor and the viewer, every position
+   a fraction and every size in container units, so it reads the same on any
+   phone. `social.clean_style` clamps each field. The picture must be a path
+   on this server: a remote URL would be every viewer's phone fetching
+   somebody else's tracking pixel, the profile-picture rule again.
+   A vibe from before the editor has no layout and keeps the old
+   title-and-caption page.
+
+   **Close Friends.** A list in Settings ("Close friends", from your graph,
+   never shown to anybody on it; `close_friends` in `social.db`). A story
+   posted to it has `audience = "close"`, and every read another listener
+   makes - the circle row, `/api/person`, Explore's friend tags and
+   anybody-vibed labels - goes through `SocialStore._visible`, so it never
+   leaves the list. Tapping Close Friends with nobody on it opens the picker
+   in the editor instead of posting to nobody.
+
+   **Tags** are resolved on the server to people in the poster's graph; on a
+   Close Friends story only to close friends, or the tag would tell somebody
+   about a story they cannot see. Each person tagged gets the episode as a
+   message ("Tagged you in their VIBE!"), the way a share arrives. The story
+   draws `@handle` and opens their profile; the response carries no ids.
+
+3. **Holding a story pauses it.** A press longer than 220ms stops the timer
+   where it was (`storyLeft`) and the bar with it (`.story.paused`, a rule
+   that existed with nothing setting it), and hides the chrome while held.
+   Letting go carries on from the same point, and the click that follows the
+   lift does not also step. A finger that travels is a swipe, not a hold.
+
+4. **Group chats.** The Messages (+) picker now picks: tap faces to tick
+   them, one is a chat, two or more show an optional group name and **Start
+   group** (`POST /api/messages/groups`, only people in your graph). A
+   group's id is allocated (`g:` and a token), the only thread id that is
+   not derived. A message to it is one row whose recipient is the group, and
+   the reads that asked "addressed to me" (`arrived_for`, `latest_id`,
+   `inbox`, `unread_*`) also ask "a group I am in, from somebody else, after
+   I joined". The thread draws each run of bubbles under a name and the
+   group's own lines centred. The ⋯ menu has who's here, name the group,
+   leave (said in the group), and delete chat. A group's banner opens the
+   group. `MessageStore.forget` takes a deleted listener out of every group.
+
+Tests: `tests/test_packet_1006.py`; §203's caption test follows the editor.
+Both previews answer the new endpoints. The live one has nobody else in its
+database, so it refuses a group and lists no close friends. It says so
+rather than inventing people.
+
+**Review, before merging into Main.** Main had taken §212 for the waitlist
+carousels in the meantime, so this became §213. An independent pass over the
+whole diff found these. Each is fixed and has a test:
+
+* *A story's picture could make every viewer's browser call the API.* It was
+  checked only for "a path on this server", and it is drawn as a CSS
+  background, so a poster could set it to `/api/audio?...`. Each friend
+  opening the story would then have started an episode on their own quota.
+  It must now be a picture route (`/api/thumb/<node>?v=<n>`, `_THUMB_PATH`)
+  and nothing else.
+* *An installed client's re-vibe made a Close Friends story public.* The
+  upsert wrote `audience`, `style` and `tags` from defaults the old client
+  never sent. Those fields are now `None` when absent, and the row keeps what
+  it had (`COALESCE`).
+* *A Close Friends vibe still counted* in the vibe number other people saw.
+  On a quiet episode that number gave it away. It now counts only for its
+  poster.
+* *Deleting an account left its id in two places*: the tags on other people's
+  stories, and `groups.created_by`. Both are cleared now.
+* *A group's banner carried the sender's listener id*, and the sender may be a
+  stranger. It is dropped for group messages.
+* *Coming back to the app restarted a held story.* With its menu open, the
+  story ran on underneath the menu. Hiding the app holds the story now, and
+  coming back resumes it only if nothing else was holding it.
+* Membership is checked before the waitlist when sending to a group. A
+  non-member was told "still on the waitlist", which said something about the
+  group. Typing dots in a group also need membership.
+* *A re-posted story re-sent its tag messages.* Only people newly tagged are
+  told now.
+* *A tag could draw a waitlisted handle* on strangers' screens. Waitlisted
+  people cannot be tagged while the waitlist runs.
+* Removing the story on screen showed the one before it. It now shows the
+  next.
+
+## 214. Every tile has a picture; the waitlist shows only its own; a let-in account is set up first
+
+Three asks from the owner, 07/10.
+
+**Every episode on the interface has a picture.** Since 9.30 #7 (§178) a rail
+tile showed its own node's picture or the line drawing, never a parent's,
+because the walk up the branch put the facet's one picture on every subject
+under it. With most of the tree still unpainted that meant a line drawing on
+a large share of the rails, and the owner judged that worse. Tiles now draw
+through `thumbnails.pick_for_tile`: the tile's own node first (`pick`,
+unchanged), and only when that node is unpainted, a borrowed picture in the
+order the player has used since §193 - nearest painted ancestor, the declared
+facet, then one approved facet picture chosen by a hash of the words, so a
+tile never changes picture between page loads. A borrowed picture is marked
+`thumb_borrowed`, and the unpainted node is still remembered (`asked_for`) so
+the next sweep paints it first; borrowing is a stand-in until then, not the
+answer. The borrowed answer is memoised beside `pick`'s and forgotten with it
+when the tree or the approved set changes. Nothing is blank unless the
+deployment holds no approved picture at all, when the drawing is still drawn.
+A written live-story tile (`_categorise_written_tile`) borrows the same way.
+
+**The waitlist's samples have their own picture.** `/api/welcome` (the
+waitlist page and the app's sign-up screen, the same three per §190) now
+skips any episode whose tile has no picture or only a borrowed one: the front
+page is the shop window. It looks `WELCOME_SCAN` (10) times further down the
+most-played ranking, since kept audio and an own picture both filter. Fewer
+than three, or none, is still honest.
+
+**An account let in off the waitlist is set up before the app.** The account
+was made on `/waitlist`, so its cookie is already in the browser when it is
+let in; the app saw a signed-in listener whose device had never finished the
+first run and showed the front door (Sign up / Log in). `routeFirstScreen`
+now sends a signed-in listener with no finished entry through `afterAccount`
+- the steps a new account takes: who you are and where (`screen-identity`:
+name, handle, photo, location), then interests, then whatever follows - and
+`afterAccount` goes straight in when the server says the intro is done. The
+identity step is skipped only when the account is set up (`identitySetUp`:
+name, handle *and* a place); a name and handle filled in on the waitlist's
+"Edit your profile" no longer skip it when the location is missing.
+
+Found on review, before merge:
+
+* *A borrowed picture could name the wrong subject.* The last borrowing step
+  (a stable choice among every painted facet) can hand a sports tile a money
+  picture, and the card's word is the picture's facet. A borrowed picture now
+  carries the tile's own facet - its category's, else its first tag's -
+  whenever it has one (`pick_for_tile`).
+* *The let-in path could play the FAM intro twice.* Opening the app runs the
+  intro; when the server then said the first run was done, `finishEntry`
+  played its handoff again over it. From boot it is skipped
+  (`afterAccount({ fromBoot: true })` → `finishEntry({ handoff: false })`).
+
+## 215. The waitlist page: profile straight after joining, a settings gear, "Learn more about FAM"
+
+The owner's three changes to the waitlist page (07/10), with screenshots of
+the status page's dot and its "Edit your profile" card.
+
+1. **The dot at the top right is a settings gear.** It used to show the
+   member's initials, or "·" with no name, and read as nothing. It opens the
+   same menu: Edit profile, Sign out, Delete account.
+2. **The profile is the next screen after the email and password**, not
+   something behind "Edit your profile". A join now lands on
+   `/waitlist/me?setup=1` (the client adds the flag; `/api/waitlist/join`'s
+   `redirect` is unchanged, so no installed client's contract moves). That
+   view is the profile and nothing else - name, handle, photo, date of birth,
+   location, phone and interests, which covers the app's own sign-up step
+   (identity, then interests) - under a bar with **Skip for now** at the top
+   right. "Save and continue" and "Skip for now" both drop the flag
+   (`history.replaceState`) and show the status page. The "Edit your
+   profile" card is removed; the gear's Edit profile reopens the form.
+   Signing in on the landing page goes to the status page, never setup.
+3. **"Learn more about FAM →"** sits at the top of the status page, in Go
+   Deeper's yellow (`--deeper`, `#FFD23F`; a test pins the two together).
+   It shows the landing page's "What is FAM" section: the same DOM node,
+   moved into `#aboutView` on first open, so there is one copy to keep up.
+   The carousels start when it is first shown. A bar at the top says "Back
+   to your spot"; the section's last button, "Join the waitlist" on the
+   landing page, says the same here; the browser's back button closes it
+   too (`pushState`/`popstate`).
+
+Checked in a browser at phone size with the API mocked: setup with Skip,
+the status page with the gear and the pill, the menu, the explainer and back.
+
+## 216. An admin is never on the waitlist, and sees it as a member would
+
+The owner (07/10): an admin email signing in at the waitlist should override
+the waitlist, let the admin see what the page looks like, and never add them
+to it.
+
+- **Admin is still `FAM_ADMIN_ACCOUNTS`** (§183's rule 8): an account whose
+  email, phone or id is listed. Nothing the client says makes it one.
+- **Never in line.** `app._admit_admin` runs on `/api/waitlist/join`,
+  `/api/auth/signup` and `/api/auth/login`: an admin account that would be (or
+  already is) `waitlisted` is flipped `active` through `WAITLIST.grant`, before
+  `_waitlist_after_signup`, which then does nothing - no place, no invite
+  credit, no `register` with Viral Loops. An admin who was already in line is
+  flagged off Viral Loops as anyone granted is; a fresh one was never told,
+  so `grant(..., flag=False)`.
+- **The gate lets an admin account through whatever its status**
+  (`_waitlist_refusal`), so the override holds even before the first sign-in
+  since the variable was set.
+- **They see the page.** Join and sign-in answer `admin: true`, and the page
+  sends an admin to `/waitlist/me` rather than the app. `/api/waitlist/me`
+  carries `admin` and `preview` - where the next person to join would land
+  (`waitlisted_count() + 1`, against the real cutoff) - and the page draws
+  the member's view from it under an "Admin preview ... You are not on the
+  waitlist" note with Open FAM. Everybody else gets `preview: null`.
+
+## 217. Typing the address opens the app, not the waitlist
+
+The owner typed familiarize.net and landed on `/waitlist` with no way into
+the beta: while `WAITLIST=1` runs, `_waitlist_refusal` sent every guest from
+`/` to the waitlist, and the app shell did the same from `/api/auth/me` and
+from any 403 carrying `X-FAM-Waitlist`. A member signed out on that browser
+could not reach the app's own Sign In.
+
+Now a **guest is never moved off the front door**: `/`, `/index.html`, `/v/`
+and `/m/` are served to them, and the app opens on its sign-in and sign-up
+(Sign Up still goes to `/waitlist`). The app stays closed: every API call a
+guest makes is still refused 403 server-side, and the shell no longer follows
+a guest's `X-FAM-Waitlist: /waitlist`. Two things still redirect:
+
+- a **waitlisted account** goes to its status page, `/waitlist/me` (server
+  and shell), since nothing in the app will answer it;
+- a **referral link** (`/?referralCode=...`) still goes to `/waitlist`, since
+  it is an invitation to join.
+
+Pinned by `tests/test_waitlist.py::test_guests_and_waitlisted_are_kept_out_of_the_app`.
+
+## 218. The waitlist carousels turn only by hand; white arrows above the slide
+
+The owner asked for two changes to `/waitlist`'s carousels (§212):
+
+- **No turning on a timer.** `CAROUSEL_SECONDS` and the interval, the
+  visibility and off-screen waits that served it, are gone: a slide moving
+  while someone reads it loses their place. The arrows and dots are the only
+  way to turn one.
+- **The arrows are more prominent and cover nothing.** White circles (54px)
+  with black chevrons. From 820px they used to flank the slide, level with
+  it, and the tilted back phone in the how-to-use slides ran under the right
+  arrow (§212 put the arrow on top so it kept its clicks, which meant it hid
+  the picture). The arrows and dots now sit in their own row above the slide
+  on every width, as they already did on a phone; measured from 360 to
+  1920px, no arrow overlaps any element of any slide.
+
+Pinned in `tests/test_waitlist.py` (`test_the_carousels_turn_only_by_hand`).
+
+## 219. The 10.7 packet: the waitlist is the front door again, its topics, a place under the name, and a search length that held
+
+The owner's 10.7 packet, six changes.
+
+**The waitlist page.**
+
+1. **Location and interests say "(Optional)"** beside their labels on the
+   profile a member fills in after joining.
+2. **"View all topics"** under the interests chips opens the app's own long
+   list: `/api/preferences`' `catalogue`, A to Z with a letter over each run,
+   a search box that filters it, and an "Add *what you typed* as a topic"
+   row (Enter does the same) for anything not on it - the app's interests
+   page, here. Chosen ones show as chips that take themselves off, and save
+   as `topics`, exactly as the app saves them, so they are already there on
+   the first day in the app. `topics_chosen` fills them back in. They are
+   sent only once touched (`topicsDirty`): the server logs every saved topic
+   as a pick, so resending an untouched list whenever the profile is saved
+   for a name or a phone number would count each topic again.
+3. **Typing the address goes to the waitlist again**, reversing §217 at the
+   owner's direction: while `WAITLIST=1` runs, a guest at `/`, `/index.html`,
+   `/v/` or `/m/` is sent to `/waitlist`, and the app shell sends one there
+   too (from `/api/auth/me` and from a guest's `X-FAM-Waitlist`). §217's
+   problem - a member signed out on this browser had no way in - is answered
+   by the landing page's foot: **Already off the waitlist? Sign in here**
+   opens the page's own sign-in at the top, which sends an `active` account
+   on to the app (and anyone still in line to their status page).
+4. **"Being in the know shouldn't be a full-time job" stays put with the
+   four cards under it** (a game you didn't watch, a story at work, an
+   industry, a topic at dinner), outside the carousel; the carousel turns the
+   other three: the time it takes, the conversation, why someone else
+   decides.
+
+**A place under the name.** The location a listener gave is printed under
+their name - "San Francisco, CA, USA", or whichever parts they wrote - on
+their own YourFAM page (`/api/profile` `location`) and on the page a friend
+opens (`/api/person` `location`, the owner's call: a place put on the
+profile is published).
+
+**Search length.** The menu is 1-5 minutes now (it was 1-10). Checked in a
+browser first: the request already carried the chosen minutes
+(`/api/audio?...&minutes=5&surface=search`) and the server honoured them, so
+the 2-minute episodes were the writer's doing. The likely cause, which
+nobody here can confirm without an API key: a five-minute search was
+handed exactly the evidence a two-minute one was - three sources, two
+highlights each - and the writer is told to drop a beat with nothing behind
+it, so it ran out of material near two minutes and stopped, as a ceiling
+allows. `research.packet_size` now scales the packet with the minutes past
+`BROWSE_MINUTES` (one source a minute, a third highlight from four minutes),
+taken from the eight results the one Exa call already fetches - no second
+search, no added wait, only prompt tokens. Two minutes and under overrides
+nothing, so every browse episode is unchanged. **To confirm it:** search the
+same question at 2 and 5 minutes and compare the lengths (`python write.py
+"<query>" --minutes 5` prints the word count against the budget).
+
+Pinned in `tests/test_waitlist.py` (the guest redirect,
+`test_the_10_7_packet_on_the_waitlist_page`, the story order with three
+slides), `tests/test_yourfam.py::test_the_place_they_gave_is_shown_under_their_name`
+and `tests/test_search_length_and_mix_gate.py` (the five lengths, the packet
+size and that the writer asks for it).
+
+## 220. Why a third of GDELT's downloads failed, and Finnhub's and the local feeds'
+
+**What was asked (07/10).** The admin page showed GDELT at 314 requests
+today, 101 failed (433 yesterday), where §211 promised about 200 a day with
+none failing; Finnhub and the local news feeds were failing too. The owner:
+break down why, and mitigate it for GDELT.
+
+**What could be read, and what could not.** This container cannot reach
+production, Render's logs or GDELT (the egress proxy refuses all three), and
+the admin page counted failures without a reason. So the breakdown is from
+the code: every way `gdelt.sync` could fail, matched against the counts.
+
+**Why GDELT failed.** Since §211 every GDELT request is the one background
+job; nothing a listener does reaches it. The shape - roughly one failure for
+every two good requests, and the failures *adding* to the ~200 rather than
+replacing them - is that of a file failing once and then being fetched on
+the next poll. Three things in `sync` produced exactly that:
+* **The poll drifted.** `run_forever` slept 900 s *after* each sync, so
+  every poll landed later by the sync's own length (a download and parse of
+  a 10-40 MB file) and the phase walked round the quarter hour. Whenever it
+  landed in the minutes after `lastupdate.txt` names a GKG file and before
+  the file server serves it, the newest file answered 404 and the sync
+  failed; the file came on the next poll as a backfill. GDELT's file server
+  is a CDN in front of a bucket and a name running ahead of its file is the
+  likeliest reading - not verified against the live service.
+* **A named file was written off on its second 404.** That backfill carried
+  no checksum and so was treated as a slot GDELT skipped: marked missing and
+  never asked again, losing fifteen minutes of news (and the 404 counted).
+* **One failure stopped the sync and nothing was asked twice.** A timeout,
+  a dropped connection or a passing 5xx raised out of the loop, so files
+  after it waited a whole period, and the next try was fifteen minutes away.
+
+**What changed (GDELT).**
+* `next_poll_in`: polls land `GDELT_EXPORT_POLL_OFFSET_SECONDS` (450) past
+  each quarter hour, on GDELT's clock - well after a name appears, well
+  before the next - and never drift.
+* A file `lastupdate.txt` *named* that answers 404 is **waiting**, not an
+  error: never written off for `NAMED_GRACE_SECONDS` (an hour), looked for
+  again after `GDELT_EXPORT_WAIT_SECONDS` (120) rather than a period later -
+  but only while it was named within the last period, so a file that never
+  appears is asked on the ordinary clock, not every two minutes for an hour
+  (review fix). Only a file never named is written off on one 404.
+* A timeout, dropped connection, 408/425/429 or 5xx is asked once more after
+  `GDELT_EXPORT_RETRY_SECONDS` (10). Each attempt is counted - a retry spends
+  a request like any other. A 404 on `lastupdate.txt` is not retried.
+* One file's failure no longer stops the others: the newest is still read.
+* Expected steady state: 96 `lastupdate.txt` + 96 files ≈ 192 a day, with
+  failures only for GDELT's own skipped slots and real outages.
+
+**Why Finnhub and the local feeds fail (read from the code, unverified).**
+* *Finnhub*: every request is `live_sources._json`. Non-2xx answers come
+  from a listener's subject that reaches `/search` and is refused (the §144
+  422s, now rarer behind the topic filter), the free plan refusing an
+  endpoint or symbol (403), and the 60-a-minute limit (429) when the
+  two-hourly watchlist sweep lands beside live lookups.
+* *Local feeds*: `local_news._get` counts any answer but 2xx/304 as failed,
+  including a **missing `robots.txt`** (404), which is normal and means
+  "allowed" - so part of that count is not a failure at all. The rest are
+  small outlets' sites: bot walls (403), moved or dead feeds (404/410),
+  timeouts.
+
+**What changed (all three).** `provider_usage.record` takes a `why`, and the
+admin page shows each provider's failure reasons since boot beside its
+count ("failed since boot: GKG file: HTTP 404, named but not served yet ×3,
+…"); `/api/health` → `gdelt.failure_reasons` and `waiting_for` too. A reason
+never carries a URL (Finnhub's key is a query parameter). The next look at
+the page says which of the readings above is true. Finnhub's and the local
+feeds' behaviour is unchanged; the `robots.txt` miscount is the obvious next
+fix once the reasons confirm it.
+
+Rule: `gdelt-exports` carries a §220 Current note. Tests:
+`tests/test_gdelt_failures_220.py`; `test_the_newest_file_is_never_written_off`
+now expects `waiting`, not an error.
+
+## 221. Ready for Apple: a load test for staging, universal links, and APP_STORE.md
 
 Two asks from the owner: a way to see latency with many listeners at once, and
 everything that can be prepared now for the App Store, so talking to Apple

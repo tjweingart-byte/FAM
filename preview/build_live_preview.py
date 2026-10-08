@@ -709,9 +709,21 @@ __MIX_ITEMS__
       interests_pinned: (myPrefs().profile_interests || []).slice(),
       interests_shown: profileInterests().shown,
       interests_source: profileInterests().source,
+      // The place they gave, under their name (10.7), as the server says it.
+      location: locationBody(EMAIL ? myPrefs() : null).label,
       // The YourFAM avatar row. Nobody else is in this database, so it is
       // honestly empty - the Invite circle is the whole row.
-      circle: []
+      circle: [],
+      // Your own story (10.6 #1): your vibes of the last 24 hours, oldest
+      // first, not taken down - what `stories_among` returns for you.
+      stories: myEchoes.filter(function (e) {
+          return !e.unstoried && e.at >= now() - 86400; })
+        .sort(function (a, b) { return a.at - b.at; })
+        .map(function (e) {
+          return { id: e.id, query: e.query, title: e.title || "", minutes: e.minutes,
+                   thread: e.thread || "", at: e.at, caption: e.caption || "",
+                   style: e.style || {}, tags: [], close: e.audience === "close" };
+        })
     };
   }
 
@@ -1540,8 +1552,36 @@ __WRITING_SIM__
         user_id: UID, query: body.query, title: body.title || "",
         minutes: body.minutes || 3, thread: body.thread || "", at: now(),
         // The line said with it (10.5 #9), cut and replaced as the server does.
-        caption: String(body.caption || "").replace(/\s+/g, " ").trim().slice(0, 150)
+        caption: String(body.caption || "").replace(/\s+/g, " ").trim().slice(0, 150),
+        // Its story layout and who it is for (10.6 #2). Nobody else is in
+        // this database, so nobody can be tagged and the tags are dropped,
+        // as the server drops a handle outside the graph.
+        style: body.style || {}, audience: body.audience === "close" ? "close" : "",
+        unstoried: false
       }).then(function () { paint(); return json({ id: id, query: body.query, at: now() }); });
+    }
+    // Taking one of your vibes off your story (10.6 #1): it stays a vibe.
+    var unstory = /^\/api\/vibe\/story\/(.+)$/.exec(path);
+    if (unstory && method === "DELETE") {
+      var mineE = rows("echoes").filter(function (e) {
+        return e.user_id === UID && String(e.id) === decodeURIComponent(unstory[1]); })[0];
+      if (!mineE) return json({ ok: false });
+      var kept = {};
+      for (var ek in mineE) if (ek !== "id") kept[ek] = mineE[ek];
+      kept.unstoried = true;
+      return put("echoes", mineE.id, kept).then(function () { paint(); return json({ ok: true }); });
+    }
+    // Close friends (10.6 #2): nobody else is here to pick.
+    if (path === "/api/close-friends") {
+      if (!EMAIL) return json({ error: "You need an account for this." }, 401);
+      if (method === "POST") return json({ detail: "Pick somebody you follow." }, 404);
+      return json({ people: [], count: 0 });
+    }
+    // Group chats (10.6 #4): a group needs two other people, and this
+    // database has none - said, not faked.
+    if (path === "/api/messages/groups") {
+      if (!EMAIL) return json({ error: "You need an account for this." }, 401);
+      return json({ detail: "You can start a group with people you follow." }, 400);
     }
 
     // `/api/vibe` is `/api/echo` under the product's name - one store, two

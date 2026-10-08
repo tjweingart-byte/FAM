@@ -236,8 +236,12 @@ def _join(email, code=""):
 
 def test_guests_and_waitlisted_are_kept_out_of_the_app(world):
     guest = TestClient(appmod.app)
+    # Typing the address lands on the waitlist, where a member signs in
+    # (the 10.7 packet, reversing §217).
     r = guest.get("/", follow_redirects=False)
     assert r.status_code == 302 and r.headers["location"] == "/waitlist"
+    r = guest.get("/index.html", follow_redirects=False)
+    assert r.headers["location"] == "/waitlist"
     r = guest.get("/?referralCode=abc", follow_redirects=False)
     assert r.headers["location"] == "/waitlist?referralCode=abc"
     r = guest.get("/api/friends")
@@ -245,6 +249,10 @@ def test_guests_and_waitlisted_are_kept_out_of_the_app(world):
     assert guest.get("/api/v1/friends").status_code == 403
     assert guest.get("/api/health").status_code == 200
     assert guest.get("/waitlist").status_code == 200
+    page = (ROOT / "static" / "index.html").read_text(encoding="utf-8")
+    assert 'd.status === "waitlisted"' in page
+    assert 'if(go === "/waitlist/me" || go === "/waitlist") location.replace(go);' in page
+    assert 'location.replace("/waitlist");' in page
 
     member, body = _join("w@fam.test")
     assert body["status"] == "waitlisted" and body["redirect"] == "/waitlist/me"
@@ -273,6 +281,52 @@ def test_admin_credentials_pass_the_gate_and_nobody_else_does(world):
     body = guest.get("/api/admin/waitlist", headers=admin).json()
     assert body["summary"]["waitlisted"] == 1 and body["rows"][0]["email"] == "w@fam.test"
     assert guest.get("/api/usage", headers=admin).status_code != 403
+
+
+def test_an_admin_joining_the_waitlist_is_never_put_in_line(world, monkeypatch):
+    """An admin email (FAM_ADMIN_ACCOUNTS) signing up at /waitlist gets an
+    active account, passes the gate, and is sent to the status page to see
+    it - with a preview of a new member's numbers - never into the line."""
+    monkeypatch.setenv("FAM_ADMIN_ACCOUNTS", "boss@fam.test")
+    _join("m1@fam.test")
+    admin, body = _join("Boss@fam.test")
+    assert body["status"] == "active" and body["admin"] is True
+    assert body["redirect"] == "/waitlist/me"
+    user = admin.get("/api/auth/me").json()["user_id"]
+    assert appmod.WAITLIST.place_of(user) is None
+    assert user not in [r["user_id"] for r in appmod.WAITLIST.ordered()]
+    # Viral Loops was never told about them, so nothing is queued.
+    assert not appmod.WAITLIST.has_action(user, "register")
+    assert not appmod.WAITLIST.has_action(user, "flag")
+    assert admin.get("/", follow_redirects=False).status_code == 200
+    me = admin.get("/api/waitlist/me").json()
+    assert me["admin"] is True and me["place"] is None
+    assert me["preview"]["place"] == 2  # where the next joiner would land
+    # Nobody else is an admin, and nobody else gets a preview.
+    other, body = _join("m2@fam.test")
+    assert body["status"] == "waitlisted" and body["admin"] is False
+    assert other.get("/api/waitlist/me").json()["preview"] is None
+
+
+def test_an_admin_already_in_line_is_let_out_at_sign_in(world, monkeypatch):
+    member, _ = _join("late@fam.test")
+    user = member.get("/api/auth/me").json()["user_id"]
+    assert appmod.WAITLIST.place_of(user) == 1
+    monkeypatch.setenv("FAM_ADMIN_ACCOUNTS", "late@fam.test")
+    c = TestClient(appmod.app)
+    r = c.post("/api/auth/login", json={"email": "late@fam.test", "password": PASSWORD})
+    assert r.status_code == 200 and r.json()["status"] == "active"
+    assert r.json()["admin"] is True
+    assert appmod.WAITLIST.place_of(user) is None
+    # They were registered with Viral Loops, so they are flagged off it.
+    assert appmod.WAITLIST.has_action(user, "flag")
+    assert c.get("/api/friends").status_code == 200
+
+
+def test_the_status_page_draws_an_admins_preview():
+    page = (ROOT / "static" / "waitlist.html").read_text()
+    assert 'id="adminNote"' in page and "d.preview" in page
+    assert 'd.admin || d.status !== "active" ? "/waitlist/me" : "/"' in page
 
 
 def test_admin_lets_in_the_ticked_people_and_the_first_n_in_line(world):
@@ -437,10 +491,12 @@ def test_waitlisted_can_delete_their_account(world):
 
 
 def test_the_shell_is_closed_under_every_spelling(world):
-    guest = TestClient(appmod.app)
+    # A guest is let onto the front door (§217); a waitlisted account is not,
+    # under any spelling of it.
+    member, _ = _join("s@fam.test")
     for path in ("/", "/index.html", "/index.html/", "//"):
-        r = guest.get(path, follow_redirects=False)
-        assert r.status_code == 302, path
+        r = member.get(path, follow_redirects=False)
+        assert r.status_code == 302 and r.headers["location"] == "/waitlist/me", path
 
 
 def test_an_invite_code_credits_a_limited_number_an_hour(acc, wl):
@@ -604,7 +660,7 @@ def test_the_waitlist_page_asks_for_the_password_twice_and_says_the_place():
     page = (ROOT / "static" / "waitlist.html").read_text(encoding="utf-8")
     assert 'id="password2"' in page and "don’t match" in page
     assert 'id="placeBig"' in page and '"#" + fmt(d.place)' in page
-    assert 'id="shareLink"' in page and "to personalize your experience" in page
+    assert 'id="shareLink"' in page
     for field in ("pBirth", "pCountry", "pRegion", "pCity", "pPhone"):
         assert f'id="{field}"' in page
     # The profile's details reach the account and the preferences.
@@ -612,6 +668,47 @@ def test_the_waitlist_page_asks_for_the_password_twice_and_says_the_place():
     # A refused number or date stops the save before anything is written.
     save = page.split("window.saveProfile = function", 1)[1]
     assert save.index('api("/api/account"') < save.index('api("/api/me"')
+
+
+def test_joining_goes_straight_to_the_profile_with_a_skip():
+    """§215: the profile is the next screen after the email and password,
+    never behind an "Edit your profile" button, and it can be skipped."""
+    page = (ROOT / "static" / "waitlist.html").read_text(encoding="utf-8")
+    assert 'id="editProfileBtn"' not in page and "to personalize your experience" not in page
+    join = page.split('api("/api/waitlist/join"', 1)[1].split(".catch(", 1)[0]
+    assert '"?setup=1"' in join
+    # The setup bar holds the skip, at the top right, and only in setup.
+    bar = page.split('<div class="top setup-only">', 1)[1].split("</div>\n  <div", 1)[0]
+    assert bar.index('class="wordmark"') < bar.index('id="skipSetup"')
+    assert ">Skip for now<" in bar and 'onclick="finishSetup()"' in bar
+    # Every field the app's sign-up asks for is on it.
+    profile = page.split('id="profile"', 1)[1].split("</section>", 1)[0]
+    for field in ("pName", "pHandle", "photoFile", "pBirth", "pCity", "pRegion", "pCountry", "pPhone", "chips"):
+        assert f'id="{field}"' in profile
+    # Saving in setup leaves setup, like skipping.
+    save = page.split("window.saveProfile = function", 1)[1].split("\n  };", 1)[0]
+    assert "if(setupMode){ window.finishSetup();" in save
+    assert 'history.replaceState(null, "", "/waitlist/me")' in page
+
+
+def test_the_status_page_has_a_settings_gear_and_learn_more():
+    page = (ROOT / "static" / "waitlist.html").read_text(encoding="utf-8")
+    status = page.split('id="status"', 1)[1].split('id="aboutView"', 1)[0]
+    # A gear, never a dot or a monogram.
+    gear = status.split('id="meBtn"', 1)[1].split("</button>", 1)[0]
+    assert 'aria-label="Settings"' in gear and "<svg" in gear and "·" not in gear
+    assert '$("meBtn").textContent' not in page
+    # "Learn more about FAM" at the top, in Go Deeper's yellow.
+    assert status.index('id="learnMore"') < status.index('id="placeCard"')
+    assert "Learn more about FAM" in status
+    learn = page.split(".learn-btn{", 1)[1].split("}", 1)[0]
+    app = (ROOT / "static" / "index.html").read_text(encoding="utf-8")
+    deeper = re.search(r"--deeper:(#[0-9A-Fa-f]{6})", app).group(1)
+    assert f"background:{deeper}" in learn
+    # It opens the landing's own explainer, not a copy of it.
+    assert page.count('id="about"') == 1
+    opener = page.split("window.openAbout = function(){", 1)[1].split("\n  };", 1)[0]
+    assert 'view.appendChild($("about"))' in opener and "showAbout(true)" in opener
 
 
 def test_the_apps_sign_up_goes_to_the_waitlist():
@@ -624,7 +721,8 @@ def test_the_apps_sign_up_goes_to_the_waitlist():
 def test_the_landing_page_says_what_fam_is_under_the_sign_up():
     page = (ROOT / "static" / "waitlist.html").read_text(encoding="utf-8")
     landing = page.split('id="landing"', 1)[1].split('id="status"', 1)[0]
-    # Under the form, on the landing view only - never on the status page.
+    # Under the form, in the landing's markup; the status page's "Learn more
+    # about FAM" moves this same section into its own view (§215).
     assert landing.index('id="joinForm"') < landing.index('id="about"')
     for heading in ("Search. Scroll. Mix.", "01 · Search", "02 · DailyFAM",
                     "03 · myFAM", "Ian Solomon &amp; TJ Weingart"):
@@ -698,13 +796,18 @@ def test_the_landing_page_tells_why_fam_exists():
              "actually being part of the conversation"]
     at = [landing.index(text) for text in order]
     assert at == sorted(at), "the story is told out of order"
-    # The problem stays at the top while four slides take turns under it:
-    # what passes you by (all four at once, nothing moving), the time it
-    # takes, the conversation, and why someone else decides.
+    # The problem and what passes you by (all four at once) stay put at the
+    # top, outside the carousel (the 10.7 packet); three slides take turns
+    # under them: the time it takes, the conversation, and why someone else
+    # decides.
     problem = landing.split('class="ab-wrap ab-problem', 1)[1].split("</section>", 1)[0]
-    assert problem.index("Being in the know shouldn’t be a full-time job.") < problem.index("data-carousel")
+    assert (problem.index("Being in the know shouldn’t be a full-time job.")
+            < problem.index('class="prob-pass"') < problem.index("data-carousel"))
+    carousel = problem.split("data-carousel", 1)[1]
+    assert 'class="pass-card"' not in carousel
     slides = re.findall(r'<div class="car-slide ([\w-]+)"', problem)
-    assert slides == ["prob-pass", "prob-time", "ab-morning", "ab-origin"]
+    assert slides == ["prob-time", "ab-morning", "ab-origin"]
+    assert carousel.count('<button type="button" data-i=') == 3
     assert problem.count('class="pass-card"') == 4
     assert "animation:drift" not in page and "pass-track" not in page
     # "That's why we built FAM" stands on its own, over what FAM changes.
@@ -748,7 +851,7 @@ def test_how_to_use_fam_is_one_feature_at_a_time():
     assert "feat-flip" not in page
 
 
-def test_the_carousels_turn_every_ten_seconds_and_by_hand():
+def test_the_carousels_turn_only_by_hand():
     page = (ROOT / "static" / "waitlist.html").read_text(encoding="utf-8")
     boxes = page.split(" data-carousel role=")[1:]
     assert len(boxes) == 2  # the problem, and how to use FAM
@@ -768,8 +871,48 @@ def test_the_carousels_turn_every_ten_seconds_and_by_hand():
     assert ".car:not(.ready) .car-arrow" in page and ".car.ready .car-slide{ grid-area:1/1;" in page
     assert 'el.setAttribute("aria-hidden", "true"); el.inert = true;' in page
     assert 'box.classList.add("ready");' in page
-    assert "var CAROUSEL_SECONDS = 10;" in page
-    assert "setInterval(function(){ show(at + 1); }, CAROUSEL_SECONDS * 1000)" in page
+    # Never on a timer: a slide must not move while someone is reading it.
     turn = page.split("function turnCarousel(box){", 1)[1].split("\n  }\n", 1)[0]
-    assert turn.count("restart(); }") == 3  # a hand turn restarts the ten seconds
-    assert 'querySelectorAll("[data-carousel]"), turnCarousel' in page.split("function showAbout(){", 1)[1]
+    assert "setInterval" not in turn and "setTimeout" not in turn
+    assert "CAROUSEL_SECONDS" not in page
+    # The arrows are white with black chevrons, in their own row above the
+    # slide on every width, so they never cover a picture.
+    assert "background:#FFFFFF; color:#000000;" in page
+    assert 'grid-template-areas:"p d n" "s s s";' in page
+    assert '"p s n"' not in page
+    assert 'querySelectorAll("[data-carousel]"), turnCarousel' in page.split("function showAbout(member){", 1)[1]
+
+
+def test_the_10_7_packet_on_the_waitlist_page():
+    """Location and interests say they are optional; "View all topics" opens
+    the app's own long list (the catalogue, searchable, anything typed added
+    as it is) and saves it as `topics`, as the app does; and the foot of the
+    landing page signs a member in."""
+    page = (ROOT / "static" / "waitlist.html").read_text(encoding="utf-8")
+    assert '<span>Location <em class="opt">(Optional)</em></span>' in page
+    assert '<span>Your interests <em class="opt">(Optional)</em></span>' in page
+    assert ">View all topics</button>" in page
+    assert 'placeholder="Search topics, or type your own"' in page
+    assert "prefs.catalogue" in page and "prefs.topics_chosen" in page
+    # Sent only once touched: every saved topic is logged as a pick, so an
+    # untouched list resent on a name fix would count each one again.
+    assert "if(topicsDirty) prefs.topics = chosenTopics.map(function(t){ return t.id; });" in page
+    assert "topicsDirty = true;" in page.split("function toggleTopic", 1)[1].split("function ", 1)[0]
+    assert "Add <b>' + esc(raw)" in page
+    landing = page.split('id="landing"', 1)[1].split('id="status"', 1)[0]
+    cta = landing.split('class="ab-wrap ab-cta', 1)[1].split("</section>", 1)[0]
+    assert 'id="bottomLogin">Already off the waitlist? Sign in here</button>' in cta
+    assert '$("bottomLogin").addEventListener("click"' in page
+
+
+def test_the_waitlist_profile_saves_topics_off_the_long_list(world):
+    member, _ = _join("t@fam.test")
+    prefs = member.get("/api/preferences").json()
+    assert len(prefs["catalogue"]) > 20
+    first = prefs["catalogue"][0]["id"]
+    assert member.post("/api/preferences", json={
+        "interests": [], "topics": [first, "Formula E"],
+        "country": "USA", "region": "CA", "city": "San Francisco"}).status_code == 200
+    chosen = member.get("/api/preferences").json()["topics_chosen"]
+    assert [t["id"] for t in chosen] == [first, "Formula E"]
+    assert chosen[1]["typed"] is True

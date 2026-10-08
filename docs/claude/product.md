@@ -128,6 +128,32 @@ optional line (`social.MAX_CAPTION`, cut not refused, slurs removed); the
 story that vibe plays as draws it under the title. Stored on the echo row,
 replaced when the same episode is vibed again.
 
+> **Current:** §213 (the 10.6 packet) replaced the sheet with a story editor,
+> Instagram's shape at the owner's direction. The picture is framed (card,
+> rounded, circle, full) and pinched to size; the caption takes a face and a
+> size and is dragged into place; stickers come from a fixed set; @ tags
+> people in the poster's graph and sends each one the episode. All of it is a
+> layout beside the row (`social.clean_style`, every field clamped, the
+> picture a path on this server, never a remote address) that the viewer
+> draws with the same `storyCanvasHTML`. "Your story" goes to everybody who
+> follows, "Close Friends" only to the list chosen in Settings
+> (`close_friends`), and a close-friends vibe is kept out of every read
+> another listener makes (`SocialStore._visible`). No music, no colour, no
+> "more". The X goes back to the episode and posts nothing. Holding a story
+> pauses it until the finger lifts. Your own story rings your picture on
+> YourFAM, and its ⋯ menu adds "Remove from your story", which takes it off
+> the story and leaves the vibe on the profile.
+
+<!-- rule:group-chats -->
+**Group chats (§213).** Pick two or more people you follow under the
+Messages (+) and start typing. A group is the one thread whose id is
+allocated (`g:` and a token) rather than derived from two people. A message
+to it is **one row** whose recipient is the group, never one copy per
+member. Every "addressed to me" read also asks "a group I am in, from
+somebody else, since I joined". Members are only people in the creator's
+graph. Leaving is said in the group, and stops its messages at once.
+Responses name members and carry no listener ids.
+
 <!-- rule:names-swapped -->
 **The listener sees myFAM and DailyFAM with their names swapped (§185), at
 the owner's direction.** The rails screen (the first tab, `screen-myfam`) is
@@ -548,6 +574,7 @@ the rest of this list it needs taste rather than a key.
   question goes through `autocorrect.correct_text`.
 
 <!-- rule:search-bar -->
+> **Current (PROBLEMS.md §219):** the Length menu offers **1, 2, 3, 4 and 5 minutes** (`SEARCH_LENGTHS`); the server still accepts up to ten, so no installed client is refused.
 - **The search page is Google's shape** *(PROBLEMS.md §190, the owner's 10.1
   packet with a Google screenshot)*: one rounded bar holding the question,
   with the mic and attach on its right and the go arrow only once something
@@ -559,6 +586,7 @@ the rest of this list it needs taste rather than a key.
   `visibilitychange`); a length is chosen for one search, not kept.
 
 <!-- rule:player-layout -->
+> **Current (PROBLEMS.md §214, the owner 07/10):** rail tiles borrow too: `topics.Topic._thumb` draws through `thumbnails.pick_for_tile` - its own node's picture, else one borrowed in the player's order, marked `thumb_borrowed` - so every episode on the interface has a picture while any is approved. The unpainted node is still painted first. Where the text below says a rail shows the drawing, read "borrows".
 > **Current (PROBLEMS.md §193):** the picture is centred in the space between GO DEEPER and the title, not pinned to the top under the arrow. **Every episode has one**: `/api/episode/card` answers from `thumbnails.pick_for_player`, which borrows - the nearest painted ancestor, the words' facet, else one approved facet picture chosen by a hash of the words - where a rail would show the drawing (9.30 #7 is about many tiles wearing one picture; the player shows one episode). A borrowed picture (`fallback`) is asked for again when the writer's title lands. The mini player shows the same picture, its whole height with the sides cropped.
 > **Current (PROBLEMS.md §192):** GO DEEPER is at the top where "Now playing" was (nothing says now playing), a fifth shorter; the picture is its own 4:3 shape at the top, never stretched over the whole screen; share, vibe and save stand one above another on the right above the transport, and the ⋯ menu offers vibe and save too; the queue stays bottom right.
 - **The player is Spotify's layout** *(PROBLEMS.md §190, the owner's, with

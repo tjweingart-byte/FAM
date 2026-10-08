@@ -46,7 +46,7 @@ def rungs(monkeypatch, answers: dict):
     """Stub each rung by name. `answers[name]` is the packet it returns."""
     tried: list = []
 
-    async def retrieve(query, backend=None, brief=None):
+    async def retrieve(query, backend=None, brief=None, **_size):
         tried.append((backend, query))
         packet = answers.get(backend)
         if isinstance(packet, Exception):

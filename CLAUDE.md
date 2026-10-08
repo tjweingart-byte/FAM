@@ -61,7 +61,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
 - **Trending searches**: under the search bubbles, the five questions most
   searched in the last 2h whose episodes are still current; cache only (§190, §192). [trending-searches]
 - **Search is Google's shape** (§190): mic and attach inside the bar's right;
-  Length and Voice bubbles never print the choice; length back to 2 min on
+  Length (1-5 min, §219) and Voice bubbles never print the choice; back to 2 min on
   every return to the app. [search-bar]
 - A search is spell-corrected whole at send; its title never shows a
   misspelling (`autocorrect.correct_text`). [autocorrect-at-send]
@@ -87,7 +87,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
 
 - **The player is Spotify's layout** (§190): down arrow, picture (4:3, §192;
   centred between GO DEEPER and the title, never missing - `pick_for_player`
-  borrows - and on the mini player, sides cropped, §193), sources by it, GO
+  borrows, as do tiles, §214 - and on the mini player, sides cropped, §193), sources by it, GO
   DEEPER pill at the top, share/vibe/save on the right (§192), captions sheet
   slid up, a ⋯ menu; no "exclude from taste" (§171); the searcher shown only
   if `searches_public`. [player-layout]
@@ -101,7 +101,9 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   anywhere, captions slide up; **comments** keyed `(query, minutes)`,
   read by anyone, written with an account, one level of replies; the
   exploreFAM pill opens it from search and beside Made for you. [explore-reel]
-- A vibe may carry a caption, drawn on its story (§203). [vibe-caption]
+- **VIBE! is a story editor** (§213): a clamped layout, never an image;
+  Your story or Close Friends; holding pauses; your story rings your face. [vibe-caption]
+- **Group chats** (§213): one row per message to a `g:` thread; graph only. [group-chats]
 
 - **Names swapped for the listener** (§185): the rails screen *shows*
   "DailyFAM", the mixes screen *shows* "myFAM"; code, ids and these docs keep
@@ -232,7 +234,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   Go Deeper prompts, from the **last 24 hours** only; fewer than four is honest. [pick-up-rail]
 - Follows are asymmetric; a friend is the mutual case, derived never stored. [op-follow-graph]
 - A friend's profile is its own screen (`screen-person`); `/api/person` returns
-  only what they published (a handle resolves for anyone, a bare id only within
+  only what they published, a given place included (§219) (a handle resolves for anyone, a bare id only within
   the asker's follows; the response carries no id); new followers announced once (`social.announced`),
   badge cleared by the Friends tab; **85% through counts as finished**. [op-friend-profile]
 - Social updates itself: message cursor is a **row id, never a timestamp**,
@@ -326,7 +328,8 @@ Research and truth
   worded as a forecast, never an outcome; never prefetched. [weather]
 - **GDELT is read from its 15-minute export files, never its search API**
   (§211): one job downloads them; every reader uses the copy on disk;
-  nothing a listener does reaches GDELT. [gdelt-exports]
+  nothing a listener does reaches GDELT; polls on GDELT's clock, a named
+  file is waited for (§220). [gdelt-exports]
 - **A forecast beside every outcome-dependent question** (§211):
   `live_facts.forecast` asks Polymarket by subject; `plan.forecast`, never
   `plan.live`, never evidence. [forecast-beside]
@@ -348,7 +351,7 @@ Caching and prefetch
   `in_progress` = never current, nor a sports score or update (`recap`/`update`) short of `final` (§182). Do not fix by adding keywords. Prefetch never
   calls `live_lookup` and never warms an outcome-dependent script (DailyFAM
   edition is the stated exception). [ttl-from-evidence]
-- **Duration buys depth, not words** (`DEPTH_BANDS`); shapes, never boxes; a beat
+- **Duration buys depth, not words** (`DEPTH_BANDS`; evidence grows with minutes, §219); shapes, never boxes; a beat
   with nothing behind it is dropped - a test pins that wording. [depth-not-words]
 - **Prefetch writes the same cache under the same key**: `pipeline.key_for` /
   `bucket_for` are the only key; a new field that changes an episode goes there
@@ -406,8 +409,9 @@ Accounts, tiers, sharing
   one account, granting flips `status`; place counted in FAM; Viral Loops via
   the outbox, never loses a signup; waitlisted hidden from discovery except
   friends; a shared episode plays for anyone (only what was shared); the landing
-  page plays the three sign-up samples as replays (§190); a `/waitlist` join is
-  always waitlisted and the app's Sign Up goes there (§192). [waitlist-gate]
+  page plays the three sign-up samples as replays (§190), own picture only (§214); a `/waitlist` join is
+  always waitlisted (never an admin account, which previews it, §216) and the app's Sign Up goes there (§192);
+  a guest at the address goes to `/waitlist`, whose foot signs a member in (§219). [waitlist-gate]
 - **Tiers are built; enforced in production only** (`ENFORCE_QUOTAS=1` in `render.yaml`, §207);
   admins are `unlimited`, `/api/admin/plan` moves anyone else; no checkout yet. [tiers-off]
 - A refusal names what the listener was doing (`service_label`), composed

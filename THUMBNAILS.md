@@ -38,6 +38,12 @@ picture is never on a tile until you approve it. `THUMBNAILS_ATTEMPTS=2` or
 more brings back automatic repaints, for a logo, text, a real person or a
 real product only.
 
+**Every tile has a picture** (PROBLEMS.md §214, reversing the paragraph
+below for rails): a tile on an unpainted node borrows one - nearest painted
+ancestor, its facet, else a stable choice by its words - marked
+`thumb_borrowed`, until its own is painted. The waitlist's samples take only
+a tile's own picture.
+
 **Every node shows its own picture and nobody else's** (PROBLEMS.md §178). A
 tile's node is the deepest one the tree finds in its question, or its
 declared facet when the tree finds none; the tile shows that node's live

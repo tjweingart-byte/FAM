@@ -1921,9 +1921,10 @@ async def auth_signup(req: CredentialsRequest, request: Request) -> dict:
                                         phone=req.phone or "")
     except accounts_mod.AuthError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    listener = _admit_admin(listener)
     _waitlist_after_signup(listener.user_id, req.referral_code or "")
     listener = ACCOUNTS.listener_of(listener.user_id)
-    return {**listener.as_dict(),
+    return {**listener.as_dict(), "admin": _allowed_admin(listener),
             **_signup_session(request, listener.user_id, fresh, req.want_token)}
 
 
@@ -1943,13 +1944,15 @@ async def auth_login(req: CredentialsRequest, request: Request) -> dict:
             listener = ACCOUNTS.log_in_phone(req.phone, req.password)
     except accounts_mod.AuthError as exc:
         raise HTTPException(status_code=401, detail=str(exc)) from exc
+    listener = _admit_admin(listener)
     old = _session_token(request)
     token, _user_id = ACCOUNTS.new_session(listener.user_id)
     if old:
         # The anonymous session this client was carrying is finished with.
         ACCOUNTS.end_session(old)
     request.state.set_session = token
-    return {**listener.as_dict(), **_maybe_token(request, token, req.want_token)}
+    return {**listener.as_dict(), "admin": _allowed_admin(listener),
+            **_maybe_token(request, token, req.want_token)}
 
 
 @app.post("/api/auth/provider")
@@ -2270,7 +2273,7 @@ async def person_profile(request: Request,
     The rule this endpoint exists under, and the reason it did not exist
     before: what somebody has listened to is theirs. There is no play count
     here, no completion total, no subjects inferred from behaviour and no
-    history. Three things come back, and each one is something the person
+    history. Four things come back, and each one is something the person
     actively decided to show:
 
     * **public mixes** - a new mix is public by default, and one its owner
@@ -2278,7 +2281,9 @@ async def person_profile(request: Request,
     * **vibes** - a vibe *is* the act of showing somebody an episode, so a
       list of them is a list of things they chose to publish;
     * **interests they have not hidden** - declared in the first run or in
-      Settings, minus anything they turned off in Edit profile.
+      Settings, minus anything they turned off in Edit profile;
+    * **the place they gave** - city, state, country as typed, under their
+      name (10.7 packet); a profile with none shows none.
 
     The standing between the two of you comes from the follow graph, which
     both sides can already see.
@@ -2352,10 +2357,14 @@ async def person_profile(request: Request,
         # how long it stays on their profile.
         "vibes": [dict(e.as_dict(person["name"], person["handle"]),
                        topic=_topic_label(e.query, e.title))
-                  for e in SOCIAL.echoes_by(target, limit=12)],
-        "vibe_count": len(SOCIAL.echoes_by(target, limit=200)),
+                  for e in SOCIAL.echoes_by(target, limit=12, viewer=me)],
+        "vibe_count": len(SOCIAL.echoes_by(target, limit=200, viewer=me)),
         "interests": interests,
         "interest_labels": [row["label"] for row in shown],
+        # Where they said they are, under their name (10.7 packet, the
+        # owner): a place they put on their profile is something they chose
+        # to show, as typed - city, state, country, whichever they gave.
+        "location": prefs.location.label,
         "follows": SOCIAL.follow_counts(target),
     }
 
@@ -2439,6 +2448,20 @@ async def messages_inbox(request: Request) -> dict:
     inbox = MESSAGES.inbox(user)
     known = _decorate(SOCIAL.following(user) + SOCIAL.followers(user))
     for row in inbox:
+        sender = row.pop("last_sender", "")
+        if row.get("group"):
+            # A group (10.6 packet #4): its name, or its people's first
+            # names, and who said the last thing.
+            view = _group_view(row["with"], user, known)
+            row.update(name=view["name"], handle="", avatar="",
+                       members=view["members"])
+            last = row.get("last") or {}
+            if sender and sender != user:
+                who = known.get(sender) or SOCIAL.person(sender)
+                last["from_name"] = _first_name(who)
+            if last.get("kind") == "episode":
+                last["topic"] = _topic_label(last.get("query") or "", last.get("title") or "")
+            continue
         person = known.get(row["with"]) or SOCIAL.person(row["with"])
         row["name"] = person.get("name") or "Someone"
         row["handle"] = person.get("handle") or ""
@@ -2452,6 +2475,37 @@ async def messages_inbox(request: Request) -> dict:
         if last.get("kind") == "episode":
             last["topic"] = _topic_label(last.get("query") or "", last.get("title") or "")
     return {"threads": inbox, "unread": MESSAGES.unread_total(user)}
+
+
+def _first_name(person: dict) -> str:
+    name = str((person or {}).get("name") or (person or {}).get("handle") or "").strip()
+    return name.split()[0] if name else "Someone"
+
+
+def _group_view(gid: str, me: str, known: Optional[dict] = None) -> dict:
+    """What a group chat draws: its name and its people (10.6 packet #4).
+
+    Members carry a name, handle and picture and **no listener id**: the
+    screen draws them and opens a profile by handle, which is all it needs.
+    An unnamed group is called by its other people's first names, the way
+    every phone names one.
+    """
+    group = MESSAGES.group(gid)
+    known = known or {}
+    members = []
+    for uid in group.get("members") or []:
+        person = known.get(uid) or SOCIAL.person(uid)
+        members.append({"name": person.get("name") or "",
+                        "handle": person.get("handle") or "",
+                        "avatar": person.get("avatar") or "",
+                        "me": uid == me})
+    others = [m for m in members if not m["me"]]
+    name = group.get("name") or ", ".join(
+        _first_name(m) for m in others[:4]) + (" +%d" % (len(others) - 4)
+                                               if len(others) > 4 else "")
+    return {"user_id": gid, "group": True, "name": name or "Group",
+            "named": bool(group.get("name")), "handle": "", "avatar": "",
+            "members": members}
 
 
 def _topic_label(query: str, title: str = "") -> str:
@@ -2495,9 +2549,19 @@ async def messages_thread(request: Request,
     except messages_mod.MessageError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     MESSAGES.mark_read(user, with_)
-    person = SOCIAL.person(with_)
+    group = messages_mod.is_group(with_)
+    person = SOCIAL.person(with_) if not group else {}
     head = max([m.id for m in thread] + [since])
     rows = [m.as_dict(user) for m in thread]
+    if group:
+        # Who said each thing - a group's bubbles are drawn under a name.
+        known = _decorate(SOCIAL.following(user) + SOCIAL.followers(user))
+        for m, r in zip(thread, rows):
+            if not r["mine"]:
+                who = known.get(m.sender) or SOCIAL.person(m.sender)
+                r["from"] = {"name": who.get("name") or "",
+                             "handle": who.get("handle") or "",
+                             "avatar": who.get("avatar") or ""}
     # What the chat's episode card and its receipt draw. `finished` is read
     # off this listener's own completions, so "You finished it" is a fact the
     # event log holds rather than a guess from the conversation. Matched on
@@ -2510,13 +2574,21 @@ async def messages_thread(request: Request,
             if r["kind"] == "episode":
                 r["topic"] = _topic_label(r["query"] or "", r["title"] or "")
                 r["finished"] = (not r["mine"]) and (r["query"] in done)
-    return {"with": {"user_id": with_, "name": person.get("name") or "Someone",
-                     "handle": person.get("handle") or "",
-                     "avatar": person.get("avatar") or ""},
+    if group:
+        view = _group_view(with_, user)
+        typing = any(typing_mod.is_typing(uid, with_)
+                     for uid in MESSAGES.members(with_) if uid != user)
+    else:
+        view = {"user_id": with_, "name": person.get("name") or "Someone",
+                "handle": person.get("handle") or "",
+                "avatar": person.get("avatar") or ""}
+        typing = typing_mod.is_typing(with_, user)
+    return {"with": view,
             # Whether they are typing to this listener right now (§127). Read
             # on the same two-second poll that tops the conversation up, so
-            # the dots cost no request of their own.
-            "typing": typing_mod.is_typing(with_, user),
+            # the dots cost no request of their own. In a group, anybody in
+            # it but this listener.
+            "typing": typing,
             "messages": rows,
             # True for the ordinary open, False for a poll that is topping one
             # up. The client replaces the conversation on one and appends on
@@ -2629,6 +2701,13 @@ async def notifications(request: Request,
                        "name": person.get("name") or "Someone",
                        "handle": person.get("handle") or "",
                        "avatar": person.get("avatar") or ""}
+        if messages_mod.is_group(message.thread):
+            # A banner for a group opens the group, not the sender - who
+            # may be a stranger, so their id stays here.
+            row["from"].pop("user_id", None)
+            view = _group_view(message.thread, user, known)
+            row["group"] = {"user_id": message.thread, "name": view["name"],
+                            "group": True}
         out.append(row)
     return {
         "messages": out,
@@ -2659,6 +2738,9 @@ async def messages_typing(req: TypingRequest, request: Request) -> dict:
     """
     _read_limit(request)
     user = _require_account(request)
+    # Dots in a group only from somebody in it (10.6 #4).
+    if messages_mod.is_group(req.to) and not MESSAGES.is_member(req.to, user):
+        raise HTTPException(status_code=404, detail="You are not in that group.")
     typing_mod.note(user, req.to)
     return {"ok": True}
 
@@ -2678,7 +2760,11 @@ async def messages_send(req: SendMessageRequest, request: Request) -> dict:
     # sends, and nothing is sent to somebody who could not open it.
     # Only while the waitlist runs: at launch (WAITLIST=0) everybody may
     # message, whatever an old row still says.
-    waiting = (WAITLIST.waitlisted_among([user, req.to])
+    if messages_mod.is_group(req.to) and not MESSAGES.is_member(req.to, user):
+        raise HTTPException(status_code=400, detail="You are not in that group.")
+    recipients = (MESSAGES.members(req.to) if messages_mod.is_group(req.to)
+                  else [req.to])
+    waiting = (WAITLIST.waitlisted_among([user] + recipients)
                if settings.waitlist else set())
     if waiting:
         raise HTTPException(status_code=403, detail=(
@@ -2703,6 +2789,66 @@ async def messages_send(req: SendMessageRequest, request: Request) -> dict:
         EVENTS.record(topics_mod.Event(
             user, "share", "", req.query, topics_mod.tags_for_text(req.query)))
     return {"ok": True, "message": message.as_dict(user)}
+
+
+class GroupRequest(BaseModel):
+    #: The people to start it with - each somebody this listener follows or
+    #: who follows them, the people the new-chat picker offers.
+    user_ids: list[str] = Field(..., max_length=messages_mod.MAX_GROUP_MEMBERS)
+    name: str = Field("", max_length=200)
+
+
+class GroupNameRequest(BaseModel):
+    name: str = Field("", max_length=200)
+
+
+@app.post("/api/messages/groups")
+async def messages_new_group(req: GroupRequest, request: Request) -> dict:
+    """Start a group chat with the people picked (10.6 packet #4).
+
+    Only people in this listener's graph, the ones the picker shows: a
+    group is not a way to message a stranger the one-to-one chat would not.
+    """
+    _read_limit(request)
+    user = _require_account(request)
+    graph = {p["user_id"] for p in SOCIAL.following(user) + SOCIAL.followers(user)}
+    picked = [u for u in dict.fromkeys(req.user_ids) if u in graph]
+    if len(picked) != len(set(req.user_ids) - {user}):
+        raise HTTPException(status_code=400, detail=(
+            "You can start a group with people you follow."))
+    waiting = (WAITLIST.waitlisted_among([user] + picked)
+               if settings.waitlist else set())
+    if waiting:
+        raise HTTPException(status_code=403, detail=(
+            "Messages open when you are let in off the waitlist."
+            if user in waiting else
+            "Somebody you picked is still on the waitlist."))
+    try:
+        group = MESSAGES.create_group(user, picked, req.name)
+    except messages_mod.MessageError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"ok": True, "group": _group_view(group["id"], user)}
+
+
+@app.patch("/api/messages/groups/{gid}")
+async def messages_rename_group(gid: str, req: GroupNameRequest,
+                                request: Request) -> dict:
+    _read_limit(request)
+    user = _require_account(request)
+    try:
+        MESSAGES.rename_group(user, gid, req.name)
+    except messages_mod.MessageError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return {"ok": True, "group": _group_view(gid, user)}
+
+
+@app.delete("/api/messages/groups/{gid}")
+async def messages_leave_group(gid: str, request: Request) -> dict:
+    """Leave a group. The others keep it, and are told in it."""
+    _read_limit(request)
+    user = _require_account(request)
+    return {"ok": MESSAGES.leave_group(user, gid),
+            "unread": MESSAGES.unread_total(user)}
 
 
 # --- save for later -------------------------------------------------------
@@ -3755,6 +3901,8 @@ def _waitlist_refusal(request: Request, listener):
         return None
     if listener is not None and listener.status == waitlist_mod.ACTIVE:
         return None
+    if _allowed_admin(listener):
+        return None
     path = request.url.path
     target = _waitlist_page_for(listener)
     if path.startswith("/api/"):
@@ -3775,6 +3923,11 @@ def _waitlist_refusal(request: Request, listener):
     # and `//` too, and a gate that matches only the spellings it thought of
     # is a gate with a side door.
     page = "/" + path.strip("/")
+    # Typing the address lands a guest on the waitlist (the 10.7 packet,
+    # reversing §217): it is the front door while the waitlist runs, and its
+    # "Already off the waitlist? Sign in here" signs a member in and sends
+    # them on to the app - so a member signed out on this browser still has
+    # a way in, without the app's own sign-in being a door to nothing.
     if page in WAITLIST_CLOSED_PAGES or page.startswith(WAITLIST_CLOSED_PAGE_PREFIXES):
         query = request.url.query
         return RedirectResponse(target + ("?" + query if query else ""),
@@ -4994,8 +5147,9 @@ def _categorise_written_tile(tile: dict, words: str) -> None:
     text = " ".join(str(tile.get(k, "")) for k in ("title", "angle", "query"))
     tags = stories_mod.refine_tags(tile.get("tags") or (), node, text)
     tile["tags"] = list(tags)
-    found = thumbnails.pick(tile.get("query", ""), tags, category=node)
+    found = thumbnails.pick_for_tile(tile.get("query", ""), tags, category=node)
     tile["thumb"] = found["url"] if found else ""
+    tile["thumb_borrowed"] = bool(found and found.get("fallback"))
     tile["thumb_facet"] = (found["facet"] if found
                            else stories_mod.facet_for(node))
 
@@ -5545,6 +5699,11 @@ async def myfam_catalog(request: Request) -> dict:
 #: through (§181, the 9.30 interface packet).
 WELCOME_SAMPLES = 3
 
+#: How far down the most-played ranking the samples look, as a multiple of
+#: `WELCOME_SAMPLES`: an episode is skipped without kept audio or its own
+#: picture, so the top three by plays are often not the three shown.
+WELCOME_SCAN = 10
+
 
 #: How long one ranking of the samples serves every request (§190): the
 #: waitlist gate asks for it on each sample's audio, and the samples turn
@@ -5566,7 +5725,7 @@ def _welcome_episodes() -> list[dict]:
     try:
         ranked = topics_mod.rank_most_played(
             EVENTS, episode_info=_episode_info_probe(minutes),
-            limit=WELCOME_SAMPLES * 4)
+            limit=WELCOME_SAMPLES * WELCOME_SCAN)
     except Exception:  # noqa: BLE001 - a sign-up page is never worth a 500
         log.exception("could not rank the welcome samples")
         ranked = []
@@ -5576,7 +5735,13 @@ def _welcome_episodes() -> list[dict]:
             continue
         # The whole tile, as the rail draws it - title, hook and picture -
         # so the sign-up screen shows exactly what myFAM shows (10.1 packet).
-        samples.append({**topic.as_dict(), "minutes": minutes})
+        tile = topic.as_dict()
+        # Only an episode with its own picture (the owner, 07/10): the
+        # waitlist's front page is the product's shop window, and a line
+        # drawing or a picture borrowed from its branch is not a good one.
+        if not tile.get("thumb") or tile.get("thumb_borrowed"):
+            continue
+        samples.append({**tile, "minutes": minutes})
         if len(samples) >= WELCOME_SAMPLES:
             break
     _WELCOME_MEMO.update(at=now, episodes=samples, stores=stores)
@@ -5801,6 +5966,16 @@ class EchoRequest(BaseModel):
     #: `social.MAX_CAPTION` rather than refused, since a client may not know
     #: the limit.
     caption: str = Field("", max_length=1000)
+    #: The story's layout (10.6 packet #2): picture frame and size, the
+    #: caption's face, size and place, stickers. Clamped in
+    #: `social.clean_style`; omitted for a plain vibe.
+    #: Omitted (None) by an installed client that predates the editor, which
+    #: keeps the row's layout, tags and audience as they are.
+    style: Optional[dict] = None
+    #: People tagged with @, by handle, and where each tag sits.
+    tags: Optional[list[dict]] = Field(None, max_length=social_mod.MAX_TAGS)
+    #: "" for everybody who follows, "close" for close friends only.
+    audience: Optional[str] = Field(None, max_length=10)
 
 
 @app.post("/api/me")
@@ -5829,11 +6004,27 @@ async def post_echo(req: EchoRequest, request: Request):
     """
     _read_limit(request)
     user = _listener(request)
+    audience = None
+    if req.audience is not None:
+        audience = req.audience if req.audience in social_mod.AUDIENCES else ""
+    if audience == "close" and not _has_account(request):
+        raise HTTPException(status_code=401, detail="Close friends need an account.")
+    tags = (_resolve_tags(user, req.tags, audience or "")
+            if req.tags is not None else None)
+    # Only somebody newly tagged hears about it: posting the same story
+    # again is not a second invitation.
+    told = SOCIAL.tagged_in(user, req.query, req.minutes) if tags else set()
     try:
         echo = SOCIAL.echo(user, req.query, req.title, req.minutes, req.thread,
-                           caption=req.caption)
+                           caption=req.caption, style=req.style, tags=tags,
+                           audience=audience)
     except social_mod.SocialError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    # Somebody tagged hears about it the way a share arrives: one message,
+    # the episode in it (10.6 packet #2). Only accounts message.
+    fresh = [t for t in (tags or []) if t["user_id"] not in told]
+    if fresh and _has_account(request):
+        _tell_tagged(user, fresh, req)
     # Showing somebody an episode is a statement about taste, and until this
     # line the ranker never heard about it. Recorded after the row is written,
     # so a failed vibe does not teach the feed anything happened - and, like
@@ -5844,6 +6035,102 @@ async def post_echo(req: EchoRequest, request: Request):
         EVENTS.record(topics_mod.Event(
             user, "vibe", "", req.query, topics_mod.tags_for_text(req.query)))
     return echo.as_dict()
+
+
+def _resolve_tags(user: str, tags: list[dict], audience: str) -> list[dict]:
+    """Handles typed after @, as people this listener may tag.
+
+    Only somebody in their graph - followed or following - since a tag sends
+    them a message; and on a close-friends story only a close friend, or the
+    tag would tell somebody about a story they cannot see.
+    """
+    if not user or not tags:
+        return []
+    graph = {p["handle"]: p["user_id"]
+             for p in SOCIAL.following(user) + SOCIAL.followers(user)
+             if p.get("handle")}
+    close = set(SOCIAL.close_friends(user)) if audience == "close" else None
+    # Nobody still on the waitlist: a tag draws a handle on other people's
+    # screens, and waitlisted accounts are kept out of discovery.
+    waiting = (WAITLIST.waitlisted_among(graph.values())
+               if settings.waitlist else set())
+    out = []
+    for tag in tags[:social_mod.MAX_TAGS]:
+        handle = str((tag or {}).get("handle") or "").strip().lstrip("@").lower()
+        uid = graph.get(handle)
+        if not uid or uid in waiting or (close is not None and uid not in close):
+            continue
+        out.append({"user_id": uid, "x": tag.get("x"), "y": tag.get("y")})
+    return out
+
+
+def _tell_tagged(user: str, tags: list[dict], req: "EchoRequest") -> None:
+    waiting = (WAITLIST.waitlisted_among([user] + [t["user_id"] for t in tags])
+               if settings.waitlist else set())
+    if user in waiting:
+        return
+    for tag in tags:
+        if tag["user_id"] in waiting:
+            continue
+        try:
+            MESSAGES.send(user, tag["user_id"], kind="episode",
+                          text="Tagged you in their VIBE!", query=req.query,
+                          minutes=req.minutes, title=req.title)
+        except messages_mod.MessageError:
+            log.exception("could not tell somebody they were tagged")
+
+
+@app.delete("/api/vibe/story/{echo_id}")
+async def remove_from_story(echo_id: int, request: Request) -> dict:
+    """Take one of your own vibes off your story (10.6 packet #1).
+
+    Only the poster's: matched on the id *and* this listener. The vibe stays
+    on their profile - it is the story that comes down.
+    """
+    _read_limit(request)
+    return {"ok": SOCIAL.unstory(_listener(request), echo_id)}
+
+
+class CloseFriendRequest(BaseModel):
+    user_id: str = Field(..., max_length=64)
+    on: bool = True
+
+
+@app.get("/api/close-friends")
+async def close_friends(request: Request) -> dict:
+    """The people a "Close Friends" story can go to, and who is on the list.
+
+    Everybody in this listener's graph, close friends first. Settings draws
+    it; the list is theirs and is never shown to anybody on it.
+    """
+    _read_limit(request)
+    user = _require_account(request)
+    chosen = SOCIAL.close_friends(user)
+    people, seen = [], set()
+    for person in SOCIAL.friends(user) + SOCIAL.following(user) + SOCIAL.followers(user):
+        uid = person.get("user_id") or ""
+        if uid and uid not in seen:
+            seen.add(uid)
+            people.append({"user_id": uid, "name": person.get("name") or "",
+                           "handle": person.get("handle") or "",
+                           "avatar": person.get("avatar") or "",
+                           "close": uid in chosen})
+    people.sort(key=lambda p: (not p["close"], (p["name"] or p["handle"]).lower()))
+    return {"people": people, "count": len(chosen)}
+
+
+@app.post("/api/close-friends")
+async def set_close_friend(req: CloseFriendRequest, request: Request) -> dict:
+    _read_limit(request)
+    user = _require_account(request)
+    graph = {p["user_id"] for p in SOCIAL.following(user) + SOCIAL.followers(user)}
+    if req.on and req.user_id not in graph:
+        raise HTTPException(status_code=404, detail="Pick somebody you follow.")
+    try:
+        SOCIAL.set_close_friend(user, req.user_id, req.on)
+    except social_mod.SocialError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"ok": True, "close": req.on, "count": len(SOCIAL.close_friends(user))}
 
 
 @app.delete("/api/echo")
@@ -6039,7 +6326,14 @@ async def profile(request: Request):
     body["interests_pinned"] = list(prefs.profile_interests)
     body["interests_source"] = source
     body["interests_max"] = topics_mod.PROFILE_INTEREST_SLOTS
+    # Shown under their name (10.7 packet): the place as they wrote it.
+    body["location"] = prefs.location.label
     body["circle"] = _circle_row(user)
+    # Their own story (10.6 packet #1): their vibes of the last 24 hours, the
+    # ones their friends' faces play, so their own picture can carry the
+    # ring and play them too.
+    body["stories"] = SOCIAL.stories_among(
+        [user], time.time() - CIRCLE_VIBE_WINDOW, viewer=user).get(user, [])
     return body
 
 
@@ -6081,7 +6375,7 @@ def _circle_row(user: str) -> list[dict]:
         return []
     now = time.time()
     stories = SOCIAL.stories_among([p["user_id"] for p in people],
-                                   now - CIRCLE_VIBE_WINDOW)
+                                   now - CIRCLE_VIBE_WINDOW, viewer=user)
     # Friends with a vibe up come first, left to right, newest vibe first
     # (the 10.1 packet, third set), so who has vibed is seen at a glance and
     # the stories run on from one to the next in the order drawn. Everybody
@@ -6093,7 +6387,7 @@ def _circle_row(user: str) -> list[dict]:
     people.sort(key=lambda p: (0, -_newest(p["user_id"])) if stories.get(p["user_id"])
                 else (1, 0.0))
     people = people[:CIRCLE_MAX]
-    latest = SOCIAL.latest_echo_at([p["user_id"] for p in people])
+    latest = SOCIAL.latest_echo_at([p["user_id"] for p in people], viewer=user)
     unread = {t["with"] for t in MESSAGES.inbox(user) if t.get("unread")}
     friends = {p["user_id"] for p in SOCIAL.friends(user)}
     out = []
@@ -6554,7 +6848,7 @@ async def explore(request: Request, limit: int = Query(30, ge=1, le=60)):
     # `friends` is the mutual case, derived and never stored (see SHARING.md),
     # which is what makes "friend" a word the tag is allowed to use.
     friends = {p["user_id"]: p for p in SOCIAL.friends(listener)} if listener else {}
-    vibes = SOCIAL.echoes_among(list(friends)) if friends else {}
+    vibes = SOCIAL.echoes_among(list(friends), viewer=listener) if friends else {}
 
     # And who else vibed what. Still read, and still only for the *order*: a
     # vibe is somebody choosing to send an episode, which is a real reason for
@@ -6723,7 +7017,7 @@ async def interest_episodes(request: Request,
 
     if filter == "friends":
         circle = SOCIAL.circle_of(listener) if listener else []
-        vibes = SOCIAL.echoes_among(circle) if circle else {}
+        vibes = SOCIAL.echoes_among(circle, viewer=listener) if circle else {}
         for (query, minutes), who in sorted(vibes.items(),
                                             key=lambda kv: -(kv[1].get("at") or 0)):
             if _on_interest(f"{query} {who.get('title', '')}", tags, words):
@@ -7865,6 +8159,34 @@ def _waitlist_after_signup(user_id: str, referral_code: str = "") -> None:
         log.exception("waitlist bookkeeping failed for %r", user_id)
 
 
+def _admit_admin(listener):
+    """An admin is never on the waitlist: the listener, let in if it is one.
+
+    `FAM_ADMIN_ACCOUNTS` names who runs FAM, and the person checking what the
+    waitlist looks like must not end up in its line - signing up at
+    `/waitlist`, or signing in to an account the line already holds, leaves an
+    admin's account `active`. Viral Loops is told only if it was told about
+    them in the first place (a `register` already queued), so a fresh admin
+    never appears on its leaderboard. Anyone else is returned untouched.
+    """
+    if listener is None or listener.status != waitlist_mod.WAITLISTED:
+        return listener
+    if not _allowed_admin(listener):
+        return listener
+    user = listener.user_id
+    WAITLIST.grant([user], flag=WAITLIST.has_action(user, "register"))
+    log.info("waitlist: %r is an admin account; kept off the line", user)
+    return ACCOUNTS.listener_of(user)
+
+
+def _waitlist_preview(place_of_next: int, cutoff: int) -> dict:
+    """The numbers an admin's status page draws: where the next person to join
+    would land, so the page shows exactly what a new member sees."""
+    return {"place": place_of_next, "total": place_of_next, "cutoff": cutoff,
+            "places_until": max(0, place_of_next - cutoff),
+            "in_next_batch": bool(cutoff and place_of_next <= cutoff)}
+
+
 def _kick_viral_loops() -> None:
     """Deliver the outbox now, in the background. Never awaited by a request."""
     if not VIRAL_LOOPS.configured:
@@ -7971,10 +8293,14 @@ async def waitlist_join(req: WaitlistJoinRequest, request: Request) -> dict:
         listener = ACCOUNTS.sign_up(user, req.email, req.password, waitlisted=True)
     except accounts_mod.AuthError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    listener = _admit_admin(listener)
     _waitlist_after_signup(listener.user_id, req.referral_code)
     listener = ACCOUNTS.listener_of(listener.user_id)
-    return {**listener.as_dict(),
-            "redirect": "/waitlist/me" if listener.status == waitlist_mod.WAITLISTED
+    admin = _allowed_admin(listener)
+    return {**listener.as_dict(), "admin": admin,
+            # An admin is sent to the status page too, to see it as a member
+            # would (`/api/waitlist/me`'s preview), never put in the line.
+            "redirect": "/waitlist/me" if admin or listener.status == waitlist_mod.WAITLISTED
             else "/",
             **_signup_session(request, listener.user_id, fresh, req.want_token)}
 
@@ -8003,9 +8329,18 @@ async def waitlist_me(request: Request) -> dict:
     friends.sort(key=lambda p: order.get(p["user_id"], len(order)))
     account = ACCOUNTS.account(user) or {}
     profile = _profile_state(user)
+    listener = getattr(request.state, "listener", None)
+    admin = bool(listener is not None and listener.user_id == user
+                 and _allowed_admin(listener))
+    preview = (_waitlist_preview(WAITLIST.waitlisted_count() + 1, cutoff)
+               if admin and place is None else None)
     return {
         "status": status,
         "waitlist": settings.waitlist,
+        # An admin is never in line; `preview` is what a member joining now
+        # would see, and the page draws it under an "Admin preview" note.
+        "admin": admin,
+        "preview": preview,
         "name": profile["name"] or account.get("display_name") or "",
         "place": place,
         "total": WAITLIST.waitlisted_count() if place is not None else 0,

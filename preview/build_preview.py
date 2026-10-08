@@ -502,6 +502,8 @@ def load_fixtures() -> dict:
             # the four were pinned or chosen, because those look identical on
             # screen and the copy under them is only true of one.
             "interests_max": 5,
+            # Under the name (10.7).
+            "location": "San Francisco, CA, USA",
             "interests_shown": [
                 {"id": "tech", "label": "Technology", "kind": "facet"},
                 {"id": "money", "label": "Money & markets", "kind": "facet"},
@@ -945,6 +947,14 @@ __WRITING_SIM__
   var NOTIFY = { head: 0, pending: [], follows: [] };
   //: Listening history (§142), for the life of the page.
   var PREVIEW_HISTORY = [];
+  // Signed out until this device has finished the first run, as a real
+  // first open is: a signed-in device that never finished it is somebody let
+  // in off the waitlist, and the app takes them through setup, not the
+  // welcome screen (§214). Afterwards the preview is the signed-in listener.
+  try {
+    var donePrefs = JSON.parse(localStorage.getItem("fam.prefs") || "{}") || {};
+    if (donePrefs.entry !== "done") FIXTURES["/api/auth/me"].authenticated = false;
+  } catch (e) {}
   var PREVIEW_AUTHED = function () {
     return !!(FIXTURES["/api/auth/me"] && FIXTURES["/api/auth/me"].authenticated);
   };
@@ -1104,13 +1114,34 @@ __PREVIEW_PICTURE__
                        // What she said with it (10.5 #9), drawn on the story.
                        caption: "This is the clearest explanation of rates I've heard" },
                      { query: "what the eagles changed on offense", minutes: 2, thread: "",
-                       title: "What the Eagles Changed on Offense", at: Date.now() / 1000 - 40 * 60 }
+                       title: "What the Eagles Changed on Offense", at: Date.now() / 1000 - 40 * 60,
+                       // Composed in the story editor (10.6 #2): the picture
+                       // framed round, a caption in Strong, two stickers, a tag.
+                       id: 92, caption: "Mike you need this before Sunday",
+                       style: { font: "strong", size: 26, cx: 0.5, cy: 0.79, frame: "round",
+                                zoom: 1, tx: 0, ty: -0.04,
+                                thumb: previewPicture("what the eagles changed on offense"),
+                                stickers: [{ k: "🔥", x: 0.82, y: 0.13, s: 1.2, r: 12 },
+                                           { k: "MUST LISTEN", x: 0.27, y: 0.64, s: 1, r: -8 }] },
+                       tags: [{ handle: "mike", name: "Mike Solomon", x: 0.5, y: 0.9 }] }
                    ] : [] });
       });
       return out;
     },
     //: Unread per conversation, cleared when the conversation is opened.
     unread: { u_mike: 1 },
+    //: Your own story (10.6 #1): what you vibed in the last 24 hours, drawn
+    //: on your picture. One is up, so the ring shows on YourFAM.
+    myStories: [
+      { id: 91, query: "why the strait of hormuz moves the oil price", minutes: 3, thread: "",
+        title: "The Two-Mile Lane That Moves the Oil", at: Date.now() / 1000 - 2 * 3600,
+        caption: "", style: {}, tags: [], close: false }
+    ],
+    //: Close friends, by id (10.6 #2).
+    closeFriends: ["u_beth"],
+    //: Group chats (10.6 #4): the group and its people; its messages are in
+    //: `threads` under its id, like a conversation.
+    groups: {},
     //: What another listener has chosen to publish. Only ever these three
     //: things: public mixes, vibes, and interests they have not hidden. A
     //: play count here would be a fixture of something the server has no
@@ -1132,15 +1163,32 @@ __PREVIEW_PICTURE__
         vibe_count: 2,
         interests: ["tech", "world"],
         interest_labels: ["Technology", "World"],
+        location: "Austin, TX, USA",
         follows: { following: 3, followers: 4, friends: 2 }
       };
+    },
+    groupView: function (gid) {
+      var self = this, g = this.groups[gid] || { name: "", members: [] };
+      var members = g.members.map(function (id) {
+        var p = self.byId(id) || { name: "Someone", handle: "" };
+        return { name: p.name, handle: p.handle, avatar: p.avatar || "", me: false };
+      }).concat([{ name: "You", handle: "you", avatar: "", me: true }]);
+      var name = g.name || members.filter(function (m) { return !m.me; })
+        .map(function (m) { return m.name.split(" ")[0]; }).join(", ");
+      return { user_id: gid, group: true, name: name || "Group", named: !!g.name,
+               handle: "", avatar: "", members: members };
     },
     inbox: function () {
       var self = this;
       var rows = Object.keys(this.threads).map(function (id) {
         var msgs = self.threads[id];
-        var who = self.byId(id) || { name: "Someone", handle: "" };
         var last = msgs[msgs.length - 1];
+        if (self.groups[id]) {
+          var gv = self.groupView(id);
+          return { thread: id, with: id, group: true, name: gv.name, handle: "", avatar: "",
+                   members: gv.members, last: last, unread: self.unread[id] || 0 };
+        }
+        var who = self.byId(id) || { name: "Someone", handle: "" };
         return { thread: id, with: id, name: who.name, handle: who.handle,
                  avatar: who.avatar || "", last: last, unread: self.unread[id] || 0 };
       });
@@ -1270,6 +1318,7 @@ __PREVIEW_PICTURE__
     if (path === "/api/profile") {
       var prof = FIXTURES["/api/profile"];
       prof.circle = PEOPLE.circle();
+      prof.stories = PEOPLE.myStories.slice();
       return json(prof);
     }
     if (path === "/api/interest") {
@@ -1407,9 +1456,60 @@ __PREVIEW_PICTURE__
       if (!since) PEOPLE.unread[withId] = 0;
       var head = all.length ? all[all.length - 1].id : since;
       return json({
-        with: PEOPLE.byId(withId) || { user_id: withId, name: "Someone", handle: "" },
+        with: PEOPLE.groups[withId] ? PEOPLE.groupView(withId)
+          : PEOPLE.byId(withId) || { user_id: withId, name: "Someone", handle: "" },
         messages: fresh, partial: !!since, head: head
       });
+    }
+    // Group chats (10.6 #4), the server's shape.
+    if (path === "/api/messages/groups" && method === "POST") {
+      if (!PREVIEW_AUTHED()) return json({ detail: "You need an account for this." }, 401);
+      var gb = JSON.parse((init && init.body) || "{}");
+      var gids = (gb.user_ids || []).filter(function (u) { return !!PEOPLE.byId(u); });
+      if (gids.length < 2) return json({ detail: "Pick at least two people for a group." }, 400);
+      var gid = "g:preview" + (Object.keys(PEOPLE.groups).length + 1);
+      PEOPLE.groups[gid] = { name: String(gb.name || "").trim().slice(0, 60), members: gids };
+      PEOPLE.threads[gid] = [{ id: 1, thread: gid, mine: true, kind: "system",
+        text: "started the group", query: "", minutes: 0, title: "", at: Date.now() / 1000 }];
+      return json({ ok: true, group: PEOPLE.groupView(gid) });
+    }
+    var gpath = /^\/api\/messages\/groups\/(.+)$/.exec(path);
+    if (gpath) {
+      var gk = decodeURIComponent(gpath[1]);
+      if (!PEOPLE.groups[gk]) return json({ detail: "You are not in that group." }, 404);
+      if (method === "PATCH") {
+        PEOPLE.groups[gk].name = String(JSON.parse((init && init.body) || "{}").name || "").trim().slice(0, 60);
+        return json({ ok: true, group: PEOPLE.groupView(gk) });
+      }
+      delete PEOPLE.groups[gk];
+      delete PEOPLE.threads[gk];
+      return json({ ok: true, unread: PEOPLE.inbox().unread });
+    }
+    // Close friends (10.6 #2).
+    if (path === "/api/close-friends") {
+      if (!PREVIEW_AUTHED()) return json({ detail: "You need an account for this." }, 401);
+      if (method === "POST") {
+        var cfb = JSON.parse((init && init.body) || "{}");
+        var at = PEOPLE.closeFriends.indexOf(cfb.user_id);
+        if (cfb.on && at === -1) PEOPLE.closeFriends.push(cfb.user_id);
+        if (!cfb.on && at !== -1) PEOPLE.closeFriends.splice(at, 1);
+        return json({ ok: true, close: !!cfb.on, count: PEOPLE.closeFriends.length });
+      }
+      var cg = PEOPLE.graph(), cseen = {}, crows = [];
+      cg.friends.concat(cg.following, cg.followers).forEach(function (p) {
+        if (cseen[p.user_id]) return;
+        cseen[p.user_id] = true;
+        crows.push({ user_id: p.user_id, name: p.name, handle: p.handle, avatar: p.avatar || "",
+                     close: PEOPLE.closeFriends.indexOf(p.user_id) !== -1 });
+      });
+      return json({ people: crows, count: PEOPLE.closeFriends.length });
+    }
+    // Taking your own vibe off your story (10.6 #1).
+    var unstory = /^\/api\/vibe\/story\/(\d+)$/.exec(path);
+    if (unstory && method === "DELETE") {
+      var before = PEOPLE.myStories.length;
+      PEOPLE.myStories = PEOPLE.myStories.filter(function (v) { return v.id !== Number(unstory[1]); });
+      return json({ ok: PEOPLE.myStories.length !== before });
     }
     // The drop-down's poll. Nothing arrives on its own in a fixture - there
     // is no second listener typing - so this reports the cursor and silence,
@@ -1525,6 +1625,17 @@ __PREVIEW_PICTURE__
         thread: "", at: Date.now() / 1000, by: "You", handle: "you",
         caption: String(vibeBody.caption || "").replace(/\s+/g, " ").trim().slice(0, 150)
       });
+      // And on your story, laid out as it was composed (10.6 #1, #2).
+      PEOPLE.myStories = PEOPLE.myStories.filter(function (v) { return v.query !== vibeBody.query; });
+      PEOPLE.myStories.push({
+        id: 100 + PEOPLE.vibes.length, query: vibeBody.query,
+        title: vibeBody.title || vibeBody.query, minutes: vibeBody.minutes || 3, thread: "",
+        at: Date.now() / 1000, caption: PEOPLE.vibes[0].caption, style: vibeBody.style || {},
+        tags: (vibeBody.tags || []).map(function (t) {
+          var who = PEOPLE.all.filter(function (p) { return p.handle === t.handle; })[0];
+          return who ? { handle: who.handle, name: who.name, x: t.x, y: t.y } : null;
+        }).filter(Boolean),
+        close: vibeBody.audience === "close" });
       return json(PEOPLE.vibes[0]);
     }
     // "View more" on a rail. The real endpoint reorders the same bank the

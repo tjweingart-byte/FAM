@@ -2467,6 +2467,9 @@
   .yf-name{ font-family:'Bricolage Grotesque', sans-serif; font-size:19px; font-weight:500;
     line-height:1.1; color:var(--text); overflow:hidden; text-overflow:ellipsis;
     white-space:nowrap; }
+  /* The place they gave, under their name (10.7). */
+  .yf-place{ font-size:12px; color:var(--text-muted); margin-top:3px;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .yf-meta{ font-family:'Geist Mono', monospace; font-size:10px;
     color:var(--text-muted); margin-top:3px; }
   .yf-meta b{ font-weight:400; color:inherit; cursor:pointer; }
@@ -2555,6 +2558,151 @@
     padding:9px 13px; border-radius:14px; background:rgba(244,239,228,0.12);
     font-size:14px; line-height:1.45; color:#F4EFE4; overflow-wrap:anywhere; }
   .story-caption[hidden]{ display:none; }
+  /* The story menu (10.6 #1) and holding to pause (#3). */
+  .story-more{ width:32px; height:32px; border:none; background:none; color:inherit; cursor:pointer;
+    display:flex; align-items:center; justify-content:center; }
+  .sheet-overlay.over-story{ z-index:90; }
+  .story-canvas-wrap{ position:absolute; inset:96px 12px 96px; z-index:2; pointer-events:none; }
+  .story-canvas-wrap[hidden]{ display:none; }
+  .story-canvas-wrap .sc-tag{ pointer-events:auto; }
+  .story.composed .story-main{ display:none; }
+  .story.composed .story-card{ margin-top:auto; }
+  .story.held .story-head, .story.held .story-card, .story.held .story-bars{ opacity:0; transition:opacity .2s; }
+
+  /* A vibe drawn as a story (10.6 packet #2): one renderer for the composer
+     and the viewer, every position a fraction of the canvas, every size in
+     container units, so it reads the same on any phone that opens it. */
+  .story-canvas{ position:relative; width:100%; height:100%; overflow:hidden;
+    border-radius:16px; container-type:size; touch-action:none;
+    background:linear-gradient(180deg,#3A2F44 0%,#1C1722 100%); }
+  .sc-post{ position:absolute; width:72%; transform:translate(-50%,-50%) scale(var(--z,1));
+    transform-origin:center; display:flex; flex-direction:column; overflow:hidden;
+    background:#1A1620; border-radius:14px; box-shadow:0 18px 40px -12px rgba(0,0,0,.6); }
+  .sc-pic{ width:100%; aspect-ratio:4/3; background:#2A2233 center/cover no-repeat; }
+  .sc-post-text{ padding:9px 11px 11px; text-align:left; }
+  .sc-post-title{ font-family:'Bricolage Grotesque', sans-serif; font-weight:500; color:#F4EFE4;
+    font-size:calc(17 * 100cqw / 360); line-height:1.15; }
+  .sc-post-meta{ font-family:'Geist Mono', monospace; font-size:calc(9.5 * 100cqw / 360);
+    letter-spacing:.08em; color:var(--copper); margin-top:5px; }
+  .sc-post.frame-round{ border-radius:30px; }
+  .sc-post.frame-round .sc-pic{ aspect-ratio:1/1; }
+  .sc-post.frame-circle{ background:none; box-shadow:none; overflow:visible; align-items:center; width:62%; }
+  .sc-post.frame-circle .sc-pic{ aspect-ratio:1/1; border-radius:50%; box-shadow:0 18px 40px -12px rgba(0,0,0,.6); }
+  .sc-post.frame-circle .sc-post-text{ text-align:center; }
+  .sc-post.frame-full{ width:100%; height:100%; border-radius:0; }
+  .sc-post.frame-full .sc-pic{ position:absolute; inset:0; aspect-ratio:auto; height:100%; }
+  .sc-post.frame-full .sc-post-text{ position:absolute; left:0; right:0; bottom:0; padding:60px 16px 18px;
+    background:linear-gradient(180deg, transparent, rgba(10,9,15,.85)); }
+  .sc-cap, .sc-stk, .sc-tag{ position:absolute; transform:translate(-50%,-50%); }
+  .sc-cap{ max-width:86%; text-align:center; color:#F4EFE4; line-height:1.2; overflow-wrap:anywhere;
+    text-shadow:0 1px 8px rgba(0,0,0,.55); white-space:pre-wrap; }
+  .sc-cap.f-classic{ font-family:'Geist', sans-serif; font-weight:600; }
+  .sc-cap.f-strong{ font-family:'Bricolage Grotesque', sans-serif; font-weight:700; }
+  .sc-cap.f-type{ font-family:'Geist Mono', monospace; }
+  .sc-cap.f-serif{ font-family:Georgia, 'Times New Roman', serif; font-style:italic; }
+  .sc-cap.f-script{ font-family:'Snell Roundhand', 'Segoe Script', 'Brush Script MT', cursive; }
+  .sc-stk{ font-size:calc(46 * 100cqw / 360); line-height:1; }
+  .sc-stk.word{ font-family:'Geist Mono', monospace; font-weight:700; letter-spacing:.06em;
+    font-size:calc(13 * 100cqw / 360); background:var(--copper); color:var(--ink);
+    padding:.45em .8em; border-radius:.6em; white-space:nowrap; }
+  .sc-tag{ font-family:'Geist', sans-serif; font-weight:700; font-size:calc(14 * 100cqw / 360);
+    background:rgba(244,239,228,.94); color:#1A1620; padding:.35em .7em; border-radius:.5em;
+    white-space:nowrap; border:none; cursor:pointer; }
+  .sc-sel{ outline:2px dashed rgba(244,239,228,.8); outline-offset:4px; }
+  .sc-del{ position:absolute; top:-14px; right:-14px; width:22px; height:22px; border-radius:50%;
+    background:#F4EFE4; color:#1A1620; font:700 13px/22px 'Geist', sans-serif; text-align:center;
+    transform:none; font-style:normal; }
+
+  /* The composer, Instagram's story editor (10.6 packet #2): the picture
+     in the middle, Text / Stickers / Mention / Picture down the right, a
+     caption line, then Your story / Close Friends / the arrow. No music,
+     no colour, no "more". */
+  .vcs{ position:absolute; inset:0; z-index:85; background:#0E0C12; color:#F4EFE4;
+    display:flex; flex-direction:column; padding:40px 10px 14px; border-radius:inherit;
+    overflow:hidden; user-select:none; }
+  .vcs[hidden]{ display:none; }
+  .vcs-stage{ position:relative; flex:1; min-height:0; border-radius:18px; overflow:hidden; }
+  .vcs-x{ position:absolute; top:10px; left:10px; z-index:3; width:36px; height:36px; border-radius:50%;
+    border:none; background:rgba(14,12,18,.55); color:#F4EFE4; cursor:pointer;
+    display:flex; align-items:center; justify-content:center; }
+  .vcs-tools{ position:absolute; top:10px; right:8px; z-index:3; display:flex; flex-direction:column; gap:9px; }
+  .vcs-tool{ display:flex; align-items:center; justify-content:flex-end; gap:8px; border:none; background:none;
+    color:#F4EFE4; cursor:pointer; padding:0; font:600 11px 'Geist', sans-serif; }
+  .vcs-tool span{ text-shadow:0 1px 6px rgba(0,0,0,.6); }
+  .vcs-tool i{ width:36px; height:36px; border-radius:50%; background:rgba(14,12,18,.55); font-style:normal;
+    display:flex; align-items:center; justify-content:center; font:700 14px 'Geist', sans-serif; }
+  .vcs-tool.on i{ background:#F4EFE4; color:#1A1620; }
+  .vcs-size{ position:absolute; left:6px; top:50%; transform:translateY(-50%); z-index:3; height:46%;
+    display:flex; align-items:center; }
+  .vcs-size[hidden]{ display:none; }
+  .vcs-size input{ writing-mode:vertical-lr; direction:rtl; height:100%; width:22px; accent-color:var(--copper); }
+  .vcs-fonts{ position:absolute; left:0; right:0; bottom:52px; z-index:3; display:flex; gap:6px;
+    justify-content:center; flex-wrap:wrap; padding:0 8px; }
+  .vcs-fonts[hidden]{ display:none; }
+  .vcs-font{ border:1px solid rgba(244,239,228,.4); background:rgba(14,12,18,.6); color:#F4EFE4;
+    border-radius:999px; padding:6px 11px; font-size:12px; cursor:pointer; }
+  .vcs-font.on{ background:#F4EFE4; color:#1A1620; }
+  .vcs-caption{ position:absolute; left:10px; right:10px; bottom:10px; z-index:3; border:none; outline:none;
+    background:rgba(14,12,18,.55); color:#F4EFE4; border-radius:12px; padding:10px 12px;
+    font:500 13px 'Geist', sans-serif; }
+  .vcs-caption::placeholder{ color:rgba(244,239,228,.7); }
+  .vcs-panel{ position:absolute; left:0; right:0; bottom:0; z-index:4; max-height:62%; overflow:auto;
+    background:rgba(20,17,26,.97); border-radius:18px 18px 0 0; padding:12px 14px 16px; }
+  .vcs-panel[hidden]{ display:none; }
+  .vcs-panel-head{ display:flex; align-items:center; justify-content:space-between;
+    font-family:'Geist Mono', monospace; font-size:10px; letter-spacing:.12em; color:rgba(244,239,228,.7);
+    margin-bottom:10px; }
+  .vcs-panel-head button{ border:none; background:none; color:var(--copper); font:700 12px 'Geist', sans-serif; cursor:pointer; }
+  .vcs-stickers{ display:grid; grid-template-columns:repeat(6, 1fr); gap:8px; }
+  .vcs-stickers button{ border:none; background:none; font-size:26px; cursor:pointer; padding:4px 0; }
+  .vcs-stickers button.word{ grid-column:span 3; font:700 11px 'Geist Mono', monospace; letter-spacing:.06em;
+    background:var(--copper); color:var(--ink); border-radius:8px; padding:9px 4px; }
+  .vcs-people input{ width:100%; margin-bottom:10px; }
+  .vcs-person{ display:flex; align-items:center; gap:10px; padding:7px 0; cursor:pointer; }
+  .vcs-person .av{ width:32px; height:32px; border-radius:50%; display:flex; align-items:center;
+    justify-content:center; color:var(--ink); font-weight:700; font-size:12px; overflow:hidden; flex:none; }
+  .vcs-person .nm{ flex:1; min-width:0; font-size:13px; }
+  .vcs-person .nm span{ display:block; font-size:11px; color:rgba(244,239,228,.6); }
+  .vcs-check{ width:22px; height:22px; border-radius:50%; border:1.5px solid rgba(244,239,228,.5); flex:none;
+    display:flex; align-items:center; justify-content:center; font-size:12px; }
+  .vcs-person.on .vcs-check{ background:var(--copper); border-color:var(--copper); color:var(--ink); }
+  .vcs-frames{ display:grid; grid-template-columns:repeat(4, 1fr); gap:8px; margin-bottom:12px; }
+  .vcs-frames button, .vcs-sizebtns button{ border:1px solid rgba(244,239,228,.35); background:none; color:#F4EFE4;
+    border-radius:10px; padding:9px 4px; font:600 12px 'Geist', sans-serif; cursor:pointer; }
+  .vcs-frames button.on{ background:#F4EFE4; color:#1A1620; }
+  .vcs-sizebtns{ display:flex; gap:8px; }
+  .vcs-sizebtns button{ flex:1; }
+  .vcs-hint{ font-size:11px; color:rgba(244,239,228,.6); margin-top:10px; }
+  .vcs-foot{ display:flex; align-items:center; gap:8px; margin-top:10px; }
+  .vcs-aud{ flex:1; display:flex; align-items:center; gap:8px; height:42px; border-radius:999px; border:none;
+    background:#26212D; color:#F4EFE4; font:600 12.5px 'Geist', sans-serif; cursor:pointer; padding:0 8px; }
+  .vcs-aud .av{ width:26px; height:26px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+    color:var(--ink); font-weight:700; font-size:10px; overflow:hidden; flex:none; }
+  .vcs-star{ width:26px; height:26px; border-radius:50%; background:#3BB54A; color:#fff; flex:none;
+    display:flex; align-items:center; justify-content:center; font-size:13px; }
+  .vcs-go{ width:42px; height:42px; border-radius:50%; border:none; background:var(--copper); color:var(--ink);
+    cursor:pointer; flex:none; display:flex; align-items:center; justify-content:center; }
+  .vcs-foot button:disabled{ opacity:.5; }
+  /* Your own picture carries the ring while your story is up (10.6 #1). */
+  .yf-photo-btn{ border:none; background:none; padding:0; cursor:pointer; border-radius:50%; flex:none; }
+  .yf-photo-btn.ring{ padding:2px; border:2px solid var(--copper); }
+  .yf-photo-btn.ring.seen{ border-color:var(--text-faint); }
+  .yf-photo-btn.ring .yf-photo{ width:42px; height:42px; }
+  /* Group chats (10.6 #4). */
+  .msg-from{ font-family:'Geist Mono', monospace; font-size:9.5px; letter-spacing:.06em;
+    color:var(--text-muted); margin:6px 0 2px 4px; }
+  .msg-system{ text-align:center; font-size:11px; color:var(--text-muted); margin:8px 0; }
+  .share-contact .pick{ position:absolute; right:-2px; bottom:16px; width:18px; height:18px; border-radius:50%;
+    background:var(--copper); color:var(--ink); font-size:11px; font-weight:800; display:none;
+    align-items:center; justify-content:center; border:2px solid var(--surface); }
+  .share-contact.on .pick{ display:flex; }
+  .share-contact.on .av{ box-shadow:0 0 0 2px var(--copper); }
+  .share-contact{ position:relative; }
+  .gc-picked{ font-size:12px; color:var(--text-muted); margin:10px 0 0; min-height:16px; }
+  .group-av{ position:relative; }
+  .cf-list .vcs-person .nm{ color:var(--text); }
+  .cf-list .vcs-person .nm span{ color:var(--text-muted); }
+  .cf-list .vcs-check{ border-color:var(--border-strong); }
   .vc-ep{ font-family:'Bricolage Grotesque', sans-serif; font-size:14px; line-height:1.3; color:var(--text);
     margin:-2px 0 12px; }
   .vc-input{ width:100%; resize:none; min-height:72px; font-family:'Geist', sans-serif;
@@ -3939,7 +4087,7 @@
             <button class="yf-thread-who" onclick="openThreadProfile()" aria-label="View profile">
               <div class="av" id="thread-av"></div>
               <div style="min-width:0;"><div class="yf-thread-name" id="thread-name">Name</div>
-                <div class="yf-thread-sub">View profile</div></div>
+                <div class="yf-thread-sub" id="thread-sub">View profile</div></div>
             </button>
             <button class="yf-round" onclick="openThreadMenu()" aria-label="More"><svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/></svg></button>
           </div>
@@ -4196,8 +4344,13 @@
             <span class="story-av" id="storyAv"></span>
             <span class="story-who"><b id="storyName"></b><span id="storyAgo"></span></span>
           </button>
+          <!-- Save, share, queue, add to a mix - and, on your own story,
+               remove it (10.6 packet #1). -->
+          <button class="story-more" onclick="openStoryMenu()" aria-label="More"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.9"/><circle cx="12" cy="12" r="1.9"/><circle cx="19" cy="12" r="1.9"/></svg></button>
           <button class="story-x" onclick="closeStory()" aria-label="Close"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
         </div>
+        <!-- A vibe composed as a story (10.6 #2), drawn from its layout. -->
+        <div class="story-canvas-wrap" id="storyCanvasWrap" hidden></div>
         <div class="story-tap left" onclick="storyTap(-1)" aria-hidden="true"></div>
         <div class="story-tap right" onclick="storyTap(1)" aria-hidden="true"></div>
         <div class="story-main">
@@ -4213,21 +4366,48 @@
             Play episode</button>
         </div>
       </div>
-      <!-- A caption on a vibe (10.5 packet #9): what the person vibing it
-           says about it, shown with the episode when it plays as a story.
-           Optional - "VIBE!" with the box empty sends it bare. -->
-      <div class="modal-overlay" id="vibeCaptionOverlay" onclick="if(event.target===this) closeVibeCaption()">
-        <div class="modal-card">
-          <div class="modal-title">VIBE! to your friends</div>
-          <div class="vc-ep" id="vibeCaptionEp"></div>
-          <textarea class="modal-input vc-input" id="vibeCaptionInput" rows="3" maxlength="150"
-                    placeholder="Add a caption (optional)" aria-label="Caption"
-                    oninput="document.getElementById('vibeCaptionCount').textContent = this.value.length + ' / 150'"></textarea>
-          <div class="vc-count" id="vibeCaptionCount">0 / 150</div>
-          <div class="modal-btns">
-            <button class="modal-btn ghost" onclick="closeVibeCaption()">Cancel</button>
-            <button class="modal-btn primary" id="vibeCaptionSend" onclick="sendVibe()">VIBE!</button>
+      <!-- VIBE! opens a story editor (10.6 packet #2), Instagram's shape: the
+           episode's picture in the middle (pinch or the Picture options to
+           size and frame it), Text / Stickers / Mention / Picture down the
+           right, a caption line, then Your story, Close Friends and the
+           arrow. The X goes back to the episode and posts nothing. No music,
+           no colour, no "more" - the owner's list. -->
+      <div class="vcs" id="vibeComposer" hidden role="dialog" aria-label="VIBE! to your story">
+        <div class="vcs-stage" id="vcsStage">
+          <div class="story-canvas" id="vcsCanvas"></div>
+          <button class="vcs-x" onclick="closeVibeComposer()" aria-label="Back to the episode"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+          <div class="vcs-tools">
+            <button class="vcs-tool" data-tool="text" onclick="vcsTool('text')"><span>Text</span><i>Aa</i></button>
+            <button class="vcs-tool" data-tool="stickers" onclick="vcsTool('stickers')"><span>Stickers</span><i><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M15.5 3H7a4 4 0 0 0-4 4v10a4 4 0 0 0 4 4h6.5L21 13.5V7a4 4 0 0 0-4-4z"/><path d="M13.5 21v-3.5a4 4 0 0 1 4-4H21"/><path d="M8.5 13.5s1.2 1.5 3.5 1.5"/><circle cx="9" cy="9" r=".6"/><circle cx="15" cy="9" r=".6"/></svg></i></button>
+            <button class="vcs-tool" data-tool="mention" onclick="vcsTool('mention')"><span>Mention</span><i>@</i></button>
+            <button class="vcs-tool" data-tool="picture" onclick="vcsTool('picture')"><span>Picture</span><i><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg></i></button>
           </div>
+          <div class="vcs-size" id="vcsSize" hidden>
+            <input type="range" id="vcsSizeInput" min="14" max="48" step="1" value="24" aria-label="Text size"
+                   oninput="vcsSetSize(this.value)">
+          </div>
+          <div class="vcs-fonts" id="vcsFonts" hidden></div>
+          <input class="vcs-caption" id="vcsCaption" type="text" maxlength="150"
+                 placeholder="Add a caption&hellip;" aria-label="Caption" oninput="vcsCaptionInput(this.value)"
+                 onfocus="vcsTool('text', true)">
+          <div class="vcs-panel" id="vcsPanel" hidden></div>
+        </div>
+        <div class="vcs-foot">
+          <button class="vcs-aud" id="vcsPostAll" onclick="postVibeStory('')"><span class="av" id="vcsMe"></span>Your story</button>
+          <button class="vcs-aud" id="vcsPostClose" onclick="postVibeStory('close')"><span class="vcs-star">&#9733;</span>Close Friends</button>
+          <button class="vcs-go" id="vcsPostGo" onclick="postVibeStory('')" aria-label="Post to your story"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
+        </div>
+      </div>
+      <!-- Close friends (10.6 packet #2): who a "Close Friends" story goes
+           to, chosen in Settings. The list is yours; nobody on it is told. -->
+      <div class="sheet-overlay" id="closeFriendsOverlay" onclick="if(event.target===this) closeCloseFriends()">
+        <div class="sheet-card">
+          <div class="sheet-scroll">
+            <div class="sheet-group">Close friends</div>
+            <div class="set-note" style="margin:0 18px 8px;">A story you post to Close Friends is seen only by the people ticked here. Nobody is told they are on your list.</div>
+            <div class="cf-list" id="closeFriendsList" style="padding:0 18px;"></div>
+          </div>
+          <div class="sheet-cancel" onclick="closeCloseFriends()">Done</div>
         </div>
       </div>
       <!-- A guest tapped a sample episode that has not been made yet. Making
@@ -4276,13 +4456,18 @@
       <div class="modal-overlay" id="newChatOverlay" onclick="if(event.target===this) closeNewChatModal()">
         <div class="modal-card">
           <div class="modal-title">New message</div>
-          <div class="gc-label" style="margin-bottom:8px;">Your FAM contacts</div>
+          <!-- Pick one person for a chat, or several for a group (10.6
+               packet #4); Chat starts typing to them. -->
+          <div class="gc-label" style="margin-bottom:8px;">Pick one or more people you follow</div>
           <div class="share-contacts" id="newChatContacts"></div>
+          <div class="gc-picked" id="newChatPicked"></div>
+          <input class="modal-input" id="newChatGroupName" type="text" maxlength="60" hidden
+                 placeholder="Name the group (optional)" style="margin:10px 0 0;">
           <div class="gc-label" style="margin:16px 0 8px;">Or start a new conversation</div>
           <input class="modal-input" id="newChatInput" type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Name or phone number">
           <div class="modal-btns">
             <button class="modal-btn ghost" onclick="closeNewChatModal()">Cancel</button>
-            <button class="modal-btn primary" onclick="confirmNewChat()">Start chat</button>
+            <button class="modal-btn primary" id="newChatGo" onclick="confirmNewChat()">Start chat</button>
           </div>
         </div>
       </div>
@@ -4372,7 +4557,9 @@
       return raw.call(this, input, init).then(function(res){
         try {
           var go = res && res.status === 403 && res.headers.get("X-FAM-Waitlist");
-          if(go && /^\/waitlist(\/me)?$/.test(go)) location.replace(go);
+          // A waitlisted account to its status page, a guest to the
+          // waitlist, which is where they sign in (10.7, reversing §217).
+          if(go === "/waitlist/me" || go === "/waitlist") location.replace(go);
         } catch(e){}
         // An old kept release (§172) hears about it (§208): `deprecated` is
         // said once, as a toast naming where the current page is; `retired`
@@ -6337,56 +6524,484 @@
         .catch(function(){ toast("Could not take that back"); });
       return;
     }
-    // A caption first (10.5 packet #9): the vibe is sent from the sheet.
-    openVibeCaption(ep);
+    // A story first (10.6 packet #2): the vibe is posted from the editor.
+    openVibeComposer(ep);
   }
 
-  // **A vibe can carry a caption** (10.5 packet #9): a line the person
-  // vibing writes, drawn with the episode when it plays as a story. The
-  // sheet holds the episode it was opened on, so a card that turns
-  // underneath it does not change what is vibed.
-  var vibeCaptionEp = null;
-  function openVibeCaption(ep){
-    vibeCaptionEp = ep;
-    document.getElementById("vibeCaptionEp").textContent = ep.title || ep.query;
-    var box = document.getElementById("vibeCaptionInput");
-    box.value = "";
-    document.getElementById("vibeCaptionCount").textContent = "0 / 150";
-    document.getElementById("vibeCaptionSend").disabled = false;
-    document.getElementById("vibeCaptionOverlay").classList.add("active");
-    setTimeout(function(){ try { box.focus(); } catch(e){} }, 60);
+  // ---- VIBE! as a story (10.6 packet #2) ----
+  //
+  // VIBE! opens a story editor rather than a caption box: Instagram's
+  // shape, at the owner's direction. Everything the listener does is a
+  // layout - where the episode's picture sits and how big, its frame, the
+  // caption's face, size and place, stickers, @tags - sent with the vibe
+  // and drawn by the same `storyCanvasHTML` in the viewer. The editor holds
+  // the episode it was opened on, so a card that turns underneath does not
+  // change what is posted. The X goes back to the episode and posts nothing.
+  var STORY_FONTS = [["classic", "Classic"], ["strong", "Strong"], ["type", "Typewriter"],
+                     ["serif", "Serif"], ["script", "Script"]];
+  var STORY_FRAMES = [["card", "Card"], ["round", "Rounded"], ["circle", "Circle"], ["full", "Full"]];
+  // The same set `social.STORY_STICKERS` accepts; anything else is dropped.
+  var STORY_STICKERS = ["🔥", "🤯", "😂", "🙌", "👀",
+    "💯", "❤️", "🎧", "🧠", "👏",
+    "😮", "✨", "🏆", "📈", "🌍", "🤔",
+    "MUST LISTEN", "HOT TAKE", "TIL", "SO GOOD", "NEW", "LISTEN TO THIS"];
+  function storyStyleDefaults(){
+    return { font: "classic", size: 24, cx: 0.5, cy: 0.8, frame: "card",
+             zoom: 1, tx: 0, ty: 0, thumb: "", stickers: [] };
   }
-  function closeVibeCaption(){
-    vibeCaptionEp = null;
-    document.getElementById("vibeCaptionOverlay").classList.remove("active");
+  function storyStyleOf(v){
+    var st = storyStyleDefaults(), given = (v && v.style) || {};
+    for(var k in given){ if(Object.prototype.hasOwnProperty.call(given, k)) st[k] = given[k]; }
+    if(!Array.isArray(st.stickers)) st.stickers = [];
+    return st;
   }
-  function sendVibe(){
-    var ep = vibeCaptionEp;
-    if(!ep){ closeVibeCaption(); return; }
-    var caption = (document.getElementById("vibeCaptionInput").value || "").trim();
-    document.getElementById("vibeCaptionSend").disabled = true;
+  function storyHasLayout(v){
+    return !!(v && v.style && Object.keys(v.style).length);
+  }
+  // One story, drawn from its layout. `edit` marks what can be dragged and
+  // which piece is selected, for the composer; the viewer draws it still,
+  // with each tag a button to that person's profile.
+  function storyCanvasHTML(v, edit){
+    var st = storyStyleOf(v);
+    var pic = st.thumb ? ' style="background-image:url(&quot;' + escapeHtml(st.thumb) + '&quot;)"' : '';
+    // Whole class names, built here, so each is one the CSS defines.
+    var frameCls = "frame-" + escapeHtml(st.frame), fontCls = "f-" + escapeHtml(st.font);
+    var html = '<div class="sc-post ' + frameCls + '"'
+      + (edit ? ' data-drag="pic"' : '')
+      + ' style="left:' + (50 + st.tx * 100) + '%;top:' + (42 + st.ty * 100) + '%;--z:' + st.zoom + ';">'
+      + '<div class="sc-pic"' + pic + '></div>'
+      + '<div class="sc-post-text"><div class="sc-post-title">' + escapeHtml(v.title || v.query || "") + '</div>'
+      + '<div class="sc-post-meta">FAM · ' + (v.minutes || BROWSE_MINUTES) + ' MIN</div></div></div>';
+    if(v.caption){
+      html += '<div class="sc-cap ' + fontCls + (edit && vcs.sel === "cap" ? " sc-sel" : "") + '"'
+        + (edit ? ' data-drag="cap"' : '')
+        + ' style="left:' + st.cx * 100 + '%;top:' + st.cy * 100 + '%;font-size:calc(' + st.size + ' * 100cqw / 360);">'
+        + escapeHtml(v.caption) + '</div>';
+    }
+    st.stickers.forEach(function(k, i){
+      var word = /[A-Z]/.test(k.k);
+      var sel = edit && vcs.sel === "stk" + i;
+      html += '<div class="sc-stk' + (word ? " word" : "") + (sel ? " sc-sel" : "") + '"'
+        + (edit ? ' data-drag="stk' + i + '"' : '')
+        + ' style="left:' + k.x * 100 + '%;top:' + k.y * 100 + '%;transform:translate(-50%,-50%) scale('
+        + (k.s || 1) + ') rotate(' + (k.r || 0) + 'deg);">' + escapeHtml(k.k)
+        + (sel ? '<i class="sc-del" data-del="stk' + i + '">×</i>' : '') + '</div>';
+    });
+    (v.tags || []).forEach(function(t, i){
+      var sel = edit && vcs.sel === "tag" + i;
+      html += (edit ? '<div' : '<button onclick="storyOpenTag(' + i + ')"')
+        + ' class="sc-tag' + (sel ? " sc-sel" : "") + '"'
+        + (edit ? ' data-drag="tag' + i + '"' : '')
+        + ' style="left:' + t.x * 100 + '%;top:' + t.y * 100 + '%;">@' + escapeHtml(t.handle)
+        + (sel ? '<i class="sc-del" data-del="tag' + i + '">×</i>' : '')
+        + (edit ? '</div>' : '</button>');
+    });
+    return html;
+  }
+
+  var vcs = { ep: null, model: null, sel: "", tool: "", people: null, close: null, sending: false };
+  function openVibeComposer(ep){
+    var thumb = "";
+    if(nowBarState && nowBarState.query === ep.query) thumb = PLAYER_CARD.thumb || "";
+    if(!thumb && typeof reelCurrent !== "undefined" && reelCurrent
+       && reelCurrent.query === ep.query) thumb = reelCurrent.thumb || "";
+    var st = storyStyleDefaults();
+    st.thumb = thumb;
+    vcs = { ep: ep, sel: "", tool: "", people: vcs.people, close: vcs.close, sending: false,
+            model: { query: ep.query, title: ep.title || ep.query, minutes: ep.minutes,
+                     caption: "", style: st, tags: [] } };
+    document.getElementById("vcsCaption").value = "";
+    document.getElementById("vcsSizeInput").value = st.size;
+    paintPersonAv(document.getElementById("vcsMe"), profileNow || {});
+    ["vcsPostAll", "vcsPostClose", "vcsPostGo"].forEach(function(id){
+      document.getElementById(id).disabled = false;
+    });
+    vcsTool("");
+    document.getElementById("vibeComposer").hidden = false;
+    drawVibeComposer();
+    // A picture the player has not got yet: the server's, as the player asks.
+    if(!thumb){
+      fetch("/api/episode/card?q=" + encodeURIComponent(ep.query)
+            + "&title=" + encodeURIComponent(ep.title || "") + "&minutes=" + (ep.minutes || 0))
+        .then(function(r){ return r.ok ? r.json() : null; })
+        .then(function(d){
+          if(d && d.thumb && vcs.ep === ep && !vcs.model.style.thumb){
+            vcs.model.style.thumb = d.thumb;
+            drawVibeComposer();
+          }
+        }).catch(function(){});
+    }
+  }
+  function closeVibeComposer(){
+    vcs.ep = null;
+    document.getElementById("vibeComposer").hidden = true;
+  }
+  function drawVibeComposer(){
+    if(!vcs.model) return;
+    document.getElementById("vcsCanvas").innerHTML = storyCanvasHTML(vcs.model, true);
+  }
+  function vcsCaptionInput(val){
+    vcs.model.caption = val;
+    drawVibeComposer();
+  }
+  function vcsSetSize(val){
+    vcs.model.style.size = Math.max(14, Math.min(48, +val || 24));
+    drawVibeComposer();
+  }
+  function vcsSetFont(font){
+    vcs.model.style.font = font;
+    vcsPaintFonts();
+    drawVibeComposer();
+  }
+  function vcsPaintFonts(){
+    document.getElementById("vcsFonts").innerHTML = STORY_FONTS.map(function(f){
+      var cls = "f-" + f[0];
+      return '<button class="vcs-font sc-cap ' + cls + (vcs.model.style.font === f[0] ? " on" : "")
+        + '" style="position:static;transform:none;text-shadow:none;" onclick="vcsSetFont(\'' + f[0] + '\')">'
+        + f[1] + '</button>';
+    }).join("");
+  }
+  // One tool at a time, a second tap on it closes it. `keep` is the caption
+  // box taking focus, which opens Text without toggling it shut.
+  function vcsTool(tool, keep){
+    if(!keep && vcs.tool === tool) tool = "";
+    vcs.tool = tool;
+    document.querySelectorAll("#vibeComposer .vcs-tool").forEach(function(b){
+      b.classList.toggle("on", b.getAttribute("data-tool") === tool);
+    });
+    document.getElementById("vcsSize").hidden = tool !== "text";
+    document.getElementById("vcsFonts").hidden = tool !== "text";
+    var panel = document.getElementById("vcsPanel");
+    panel.hidden = !(tool === "stickers" || tool === "mention" || tool === "picture" || tool === "close");
+    if(tool === "text"){
+      vcsPaintFonts();
+      if(!keep){ try { document.getElementById("vcsCaption").focus(); } catch(e){} }
+    }
+    if(tool === "stickers") vcsPaintStickers();
+    if(tool === "mention") vcsPaintPeople();
+    if(tool === "picture") vcsPaintPicture();
+    if(tool === "close") vcsPaintClose();
+  }
+  function vcsPanelHead(label){
+    return '<div class="vcs-panel-head"><span>' + label + '</span>'
+      + '<button onclick="vcsTool(\'\')">Done</button></div>';
+  }
+  function vcsPaintStickers(){
+    document.getElementById("vcsPanel").innerHTML = vcsPanelHead("STICKERS")
+      + '<div class="vcs-stickers">' + STORY_STICKERS.map(function(k, i){
+          return '<button' + (/[A-Z]/.test(k) ? ' class="word"' : '') + ' onclick="vcsAddSticker(' + i + ')">'
+            + escapeHtml(k) + '</button>';
+        }).join("") + '</div>'
+      + '<div class="vcs-hint">Drag a sticker to move it, pinch to resize it, tap it to take it off.</div>';
+  }
+  function vcsAddSticker(i){
+    var st = vcs.model.style;
+    if(st.stickers.length >= 12){ toast("That’s the most stickers a story holds"); return; }
+    // A little scatter, so a second sticker is not exactly on the first.
+    st.stickers.push({ k: STORY_STICKERS[i], x: 0.3 + Math.random() * 0.4,
+                       y: 0.2 + Math.random() * 0.25, s: 1, r: Math.round(Math.random() * 24 - 12) });
+    vcs.sel = "stk" + (st.stickers.length - 1);
+    vcsTool("");
+    drawVibeComposer();
+  }
+  // @: the people this listener follows or who follow them - the ones the
+  // server will let them tag. A tag sends that person the episode.
+  function vcsLoadPeople(){
+    if(vcs.people) return Promise.resolve(vcs.people);
+    return fetch("/api/friends").then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
+      .then(function(d){
+        var seen = {}, out = [];
+        (d.friends || []).concat(d.following || [], d.followers || []).forEach(function(p){
+          if(!p.handle || seen[p.handle]) return;
+          seen[p.handle] = true;
+          out.push(p);
+        });
+        vcs.people = out;
+        return out;
+      });
+  }
+  function vcsPaintPeople(term){
+    var panel = document.getElementById("vcsPanel");
+    if(!AUTH.authenticated){
+      panel.innerHTML = vcsPanelHead("MENTION")
+        + '<div class="vcs-hint">Tagging somebody needs an account.' + gateActions() + '</div>';
+      return;
+    }
+    if(!vcs.people){
+      panel.innerHTML = vcsPanelHead("MENTION") + '<div class="vcs-hint">Loading…</div>';
+      vcsLoadPeople().then(function(){ if(vcs.tool === "mention") vcsPaintPeople(term); })
+        .catch(function(){ panel.innerHTML = vcsPanelHead("MENTION")
+          + '<div class="vcs-hint">Could not load your people.</div>'; });
+      return;
+    }
+    var q = String(term || "").toLowerCase().replace(/^@/, "");
+    var tagged = {};
+    vcs.model.tags.forEach(function(t){ tagged[t.handle] = true; });
+    var rows = vcs.people.filter(function(p){
+      return !q || ((p.name || "") + " " + p.handle).toLowerCase().indexOf(q) !== -1;
+    });
+    var list = rows.length ? rows.map(function(p){
+      return '<div class="vcs-person' + (tagged[p.handle] ? " on" : "") + '" onclick="vcsToggleTag(\''
+        + escapeHtml(p.handle) + '\')">' + personAvHTML(p)
+        + '<div class="nm">' + escapeHtml(p.name || ("@" + p.handle)) + '<span>@' + escapeHtml(p.handle) + '</span></div>'
+        + '<span class="vcs-check">' + (tagged[p.handle] ? "✓" : "") + '</span></div>';
+    }).join("") : '<div class="vcs-hint">' + (vcs.people.length
+        ? "Nobody you follow matches that." : "Follow somebody to tag them.") + '</div>';
+    var box = document.getElementById("vcsPeopleSearch");
+    if(box && term !== undefined){
+      document.getElementById("vcsPeopleList").innerHTML = list;
+      return;
+    }
+    panel.innerHTML = vcsPanelHead("MENTION")
+      + '<div class="vcs-people"><input class="modal-input" id="vcsPeopleSearch" type="text" placeholder="Search people you follow"'
+      + ' autocomplete="off" autocapitalize="off" spellcheck="false" oninput="vcsPaintPeople(this.value)">'
+      + '<div id="vcsPeopleList">' + list + '</div></div>';
+  }
+  function vcsToggleTag(handle){
+    var tags = vcs.model.tags;
+    for(var i = 0; i < tags.length; i++){
+      if(tags[i].handle === handle){ tags.splice(i, 1); vcs.sel = ""; drawVibeComposer(); vcsPaintPeople(); return; }
+    }
+    if(tags.length >= 10){ toast("That’s the most people a story can tag"); return; }
+    tags.push({ handle: handle, x: 0.5, y: 0.14 + 0.07 * (tags.length % 5) });
+    drawVibeComposer();
+    vcsPaintPeople();
+  }
+  // The picture's options: its frame, and bigger or smaller for anybody
+  // without a pinch (a desktop, a trackpad).
+  function vcsPaintPicture(){
+    var st = vcs.model.style;
+    document.getElementById("vcsPanel").innerHTML = vcsPanelHead("PICTURE")
+      + '<div class="vcs-frames">' + STORY_FRAMES.map(function(f){
+          return '<button class="' + (st.frame === f[0] ? "on" : "") + '" onclick="vcsFrame(\'' + f[0] + '\')">'
+            + f[1] + '</button>';
+        }).join("") + '</div>'
+      + '<div class="vcs-sizebtns"><button onclick="vcsZoom(1/1.15)">Smaller</button>'
+      + '<button onclick="vcsZoom(1.15)">Bigger</button>'
+      + '<button onclick="vcsZoom(0)">Reset</button></div>'
+      + '<div class="vcs-hint">Pinch the picture to make it bigger or smaller, and drag it to move it.</div>';
+  }
+  function vcsFrame(frame){
+    vcs.model.style.frame = frame;
+    if(frame === "full"){ vcs.model.style.tx = 0; vcs.model.style.ty = 0.08; }
+    vcsPaintPicture();
+    drawVibeComposer();
+  }
+  function vcsZoom(f){
+    var st = vcs.model.style;
+    if(!f){ st.zoom = 1; st.tx = 0; st.ty = st.frame === "full" ? 0.08 : 0; }
+    else st.zoom = Math.max(0.4, Math.min(2.5, st.zoom * f));
+    drawVibeComposer();
+  }
+  // Close Friends with nobody on the list would post to nobody, so the
+  // first tap asks who they are, in place.
+  function vcsPaintClose(){
+    var panel = document.getElementById("vcsPanel");
+    panel.innerHTML = vcsPanelHead("CLOSE FRIENDS")
+      + '<div class="vcs-hint" style="margin:0 0 8px;">Pick who sees your Close Friends stories. You can change this in Settings.</div>'
+      + '<div id="vcsCloseList"><div class="vcs-hint">Loading…</div></div>';
+    loadCloseFriends(document.getElementById("vcsCloseList"));
+  }
+
+  // Drag and pinch on the canvas. A pointer captured on the canvas, so the
+  // piece under it can be redrawn while it moves.
+  (function(){
+    var canvas = document.getElementById("vcsCanvas");
+    if(!canvas) return;
+    var pts = {}, g = null;
+    function count(){ return Object.keys(pts).length; }
+    function dist(){
+      var k = Object.keys(pts);
+      if(k.length < 2) return 0;
+      var a = pts[k[0]], b = pts[k[1]];
+      return Math.hypot(a.x - b.x, a.y - b.y);
+    }
+    function item(drag){
+      var st = vcs.model.style;
+      if(drag === "pic") return { get: function(){ return { x: st.tx, y: st.ty, s: st.zoom }; },
+        set: function(x, y, sc){ st.tx = Math.max(-0.5, Math.min(0.5, x)); st.ty = Math.max(-0.5, Math.min(0.5, y));
+                                 st.zoom = Math.max(0.4, Math.min(2.5, sc)); } };
+      if(drag === "cap") return { get: function(){ return { x: st.cx, y: st.cy, s: st.size }; },
+        set: function(x, y, sc){ st.cx = Math.max(0.05, Math.min(0.95, x)); st.cy = Math.max(0.05, Math.min(0.95, y));
+                                 st.size = Math.round(Math.max(14, Math.min(48, sc)));
+                                 document.getElementById("vcsSizeInput").value = st.size; } };
+      var m = /^(stk|tag)(\d+)$/.exec(drag || "");
+      if(!m) return null;
+      var obj = m[1] === "stk" ? st.stickers[+m[2]] : vcs.model.tags[+m[2]];
+      if(!obj) return null;
+      return { get: function(){ return { x: obj.x, y: obj.y, s: obj.s || 1 }; },
+        set: function(x, y, sc){ obj.x = Math.max(0, Math.min(1, x)); obj.y = Math.max(0, Math.min(1, y));
+                                 if(m[1] === "stk") obj.s = Math.max(0.4, Math.min(3, sc)); } };
+    }
+    canvas.addEventListener("pointerdown", function(e){
+      if(!vcs.model) return;
+      var del = e.target.closest("[data-del]");
+      if(del){ vcsRemove(del.getAttribute("data-del")); e.preventDefault(); return; }
+      pts[e.pointerId] = { x: e.clientX, y: e.clientY };
+      try { canvas.setPointerCapture(e.pointerId); } catch(err){}
+      if(count() === 1){
+        var hit = e.target.closest("[data-drag]");
+        var drag = hit ? hit.getAttribute("data-drag") : "";
+        var it = item(drag);
+        if(vcs.tool && vcs.tool !== "text") vcsTool("");
+        g = it ? { drag: drag, it: it, o: it.get(), x0: e.clientX, y0: e.clientY, moved: false } : null;
+      } else if(g){
+        g.d0 = dist(); g.o = g.it.get(); g.x0 = null;
+      }
+    });
+    canvas.addEventListener("pointermove", function(e){
+      if(!pts[e.pointerId] || !g) return;
+      pts[e.pointerId] = { x: e.clientX, y: e.clientY };
+      var r = canvas.getBoundingClientRect();
+      if(count() >= 2 && g.d0){
+        g.moved = true;
+        g.it.set(g.o.x, g.o.y, g.o.s * (dist() / g.d0));
+      } else if(g.x0 !== null && count() === 1){
+        var dx = (e.clientX - g.x0) / r.width, dy = (e.clientY - g.y0) / r.height;
+        if(Math.abs(dx) + Math.abs(dy) > 0.01) g.moved = true;
+        g.it.set(g.o.x + dx, g.o.y + dy, g.o.s);
+      }
+      drawVibeComposer();
+    });
+    function end(e){
+      delete pts[e.pointerId];
+      if(!g) return;
+      if(count() === 0){
+        // A tap, not a drag: a sticker or tag is selected (its x takes it
+        // off), the caption opens Text, the picture its options.
+        if(!g.moved){
+          if(/^(stk|tag)/.test(g.drag)) vcs.sel = vcs.sel === g.drag ? "" : g.drag;
+          else { vcs.sel = ""; if(g.drag === "cap") vcsTool("text"); }
+        }
+        g = null;
+        drawVibeComposer();
+      } else {
+        // One finger left of a pinch carries on as a drag from here.
+        var k = Object.keys(pts)[0];
+        g.o = g.it.get(); g.x0 = pts[k].x; g.y0 = pts[k].y; g.d0 = 0;
+      }
+    }
+    canvas.addEventListener("pointerup", end);
+    canvas.addEventListener("pointercancel", end);
+    // A wheel or trackpad pinch over a piece resizes it, as a pinch does.
+    canvas.addEventListener("wheel", function(e){
+      if(!vcs.model) return;
+      var hit = e.target.closest("[data-drag]");
+      var it = item(hit ? hit.getAttribute("data-drag") : "pic");
+      if(!it) return;
+      e.preventDefault();
+      var o = it.get();
+      it.set(o.x, o.y, o.s * (e.deltaY < 0 ? 1.06 : 1 / 1.06));
+      drawVibeComposer();
+    }, { passive: false });
+  })();
+  function vcsRemove(what){
+    var m = /^(stk|tag)(\d+)$/.exec(what || "");
+    if(!m) return;
+    if(m[1] === "stk") vcs.model.style.stickers.splice(+m[2], 1);
+    else vcs.model.tags.splice(+m[2], 1);
+    vcs.sel = "";
+    drawVibeComposer();
+  }
+
+  // "Your story" (and the arrow) posts to everybody who follows; "Close
+  // Friends" only to the people on that list.
+  function postVibeStory(audience){
+    var ep = vcs.ep;
+    if(!ep || vcs.sending) return;
+    if(audience === "close"){
+      if(!AUTH.authenticated){ toast("Close Friends needs an account"); return; }
+      if(vcs.close === null){
+        fetch("/api/close-friends").then(function(r){ return r.ok ? r.json() : null; })
+          .then(function(d){ vcs.close = d ? (d.count || 0) : 0; postVibeStory("close"); })
+          .catch(function(){ toast("Could not load your close friends"); });
+        return;
+      }
+      if(!vcs.close){ vcsTool("close"); return; }
+    }
+    var model = vcs.model;
+    var caption = (model.caption || "").trim();
+    vcs.sending = true;
+    ["vcsPostAll", "vcsPostClose", "vcsPostGo"].forEach(function(id){
+      document.getElementById(id).disabled = true;
+    });
     fetch("/api/vibe", {
       method: "POST", headers: {"Content-Type": "application/json"},
       body: JSON.stringify({ query: ep.query, title: ep.title,
                              minutes: ep.minutes,
                              thread: episodeThread || "",
-                             caption: caption })
+                             caption: caption, style: model.style,
+                             tags: model.tags, audience: audience || "" })
     }).then(function(r){
       return r.json().then(function(d){
         if(!r.ok) throw new Error(d.error || d.detail || "Could not vibe that");
         return d;
       });
     }).then(function(){
-      closeVibeCaption();
+      closeVibeComposer();
       // Lit only if the episode playing is still the one vibed.
       var now = currentEpisode();
       if(now && now.query === ep.query && now.minutes === ep.minutes) setEchoed(true);
-      toast("VIBE! \u2014 your friends will see this");
+      toast(audience === "close" ? "VIBE! — posted to your Close Friends"
+                                 : "VIBE! — posted to your story");
       refreshVibeCount(ep);
+      if(typeof loadProfileQuietly === "function") loadProfileQuietly();
     }).catch(function(err){
-      document.getElementById("vibeCaptionSend").disabled = false;
+      vcs.sending = false;
+      ["vcsPostAll", "vcsPostClose", "vcsPostGo"].forEach(function(id){
+        document.getElementById(id).disabled = false;
+      });
       toast(err.message || "Could not vibe that");
     });
+  }
+
+  // ---- Close friends (10.6 packet #2), from Settings and the composer ----
+  function openCloseFriends(){
+    if(!AUTH.authenticated){ toast("Close friends need an account"); return; }
+    document.getElementById("closeFriendsOverlay").classList.add("active");
+    loadCloseFriends(document.getElementById("closeFriendsList"));
+  }
+  function closeCloseFriends(){
+    document.getElementById("closeFriendsOverlay").classList.remove("active");
+    if(document.getElementById("screen-settings").classList.contains("active")) renderSettings();
+  }
+  var closeFriendRows = [];
+  var closeFriendCount = null;
+  function loadCloseFriends(el){
+    if(!el) return;
+    fetch("/api/close-friends").then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
+      .then(function(d){
+        closeFriendRows = d.people || [];
+        closeFriendCount = d.count || 0;
+        paintCloseFriends(el);
+      })
+      .catch(function(){ el.innerHTML = '<div class="vcs-hint">Could not load your people.</div>'; });
+  }
+  function paintCloseFriends(el){
+    el.innerHTML = closeFriendRows.length ? closeFriendRows.map(function(p, i){
+      return '<div class="vcs-person' + (p.close ? " on" : "") + '" onclick="toggleCloseFriend(' + i + ', this)">'
+        + personAvHTML(p) + '<div class="nm">' + escapeHtml(p.name || ("@" + p.handle))
+        + (p.handle ? '<span>@' + escapeHtml(p.handle) + '</span>' : '') + '</div>'
+        + '<span class="vcs-check">' + (p.close ? "✓" : "") + '</span></div>';
+    }).join("") : '<div class="vcs-hint">Follow somebody first, then add them here.</div>';
+  }
+  function toggleCloseFriend(i, rowEl){
+    var p = closeFriendRows[i];
+    if(!p) return;
+    var on = !p.close;
+    p.close = on;
+    var el = rowEl && rowEl.parentNode;
+    if(el) paintCloseFriends(el);
+    fetch("/api/close-friends", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ user_id: p.user_id, on: on })
+    }).then(function(r){ return r.json().then(function(d){ if(!r.ok) throw new Error(d.detail || "Could not change that"); return d; }); })
+      .then(function(d){ closeFriendCount = d.count; vcs.close = d.count; })
+      .catch(function(err){
+        p.close = !on;
+        if(el) paintCloseFriends(el);
+        toast(err.message);
+      });
   }
 
   // The X on the full player. Leaves the screen and nothing else: the audio,
@@ -7573,9 +8188,14 @@
       if(pill) pill.textContent = pillText();
     });
   }
+  //: The lengths a search offers (10.7 packet): one to five minutes. Search
+  //: only - every other surface is BROWSE_MINUTES - and the server still
+  //: accepts up to ten, so no installed client's request is refused.
+  var SEARCH_LENGTHS = [1, 2, 3, 4, 5];
   function openLengthMenu(){
     var items = [];
-    for(var m = 1; m <= 10; m++){
+    for(var i = 0; i < SEARCH_LENGTHS.length; i++){
+      var m = SEARCH_LENGTHS[i];
       (function(minutes){
         items.push({
           label: minutes + " min" + (minutes === selectedLengthMinutes ? "  ✓" : ""),
@@ -11815,8 +12435,11 @@
         AUTH = d;
         // A page that reached this far while the waitlist runs - opened from
         // the offline shell - is sent where the server would have sent it.
-        if(d && d.waitlist && d.status !== "active"){
-          location.replace(d.status === "waitlisted" ? "/waitlist/me" : "/waitlist");
+        // A guest goes to the waitlist, where they sign in (10.7).
+        if(d && d.waitlist && d.status === "waitlisted"){
+          location.replace("/waitlist/me");
+        } else if(d && d.waitlist && !d.authenticated){
+          location.replace("/waitlist");
         }
         authUnreachable = false;
         rememberSignedIn(!!d.authenticated);
@@ -12429,10 +13052,22 @@
     // Who you are. Every number is read off the follow graph or the vibes
     // table and worded for the number it holds: "1 vibes" is the tell that a
     // count was printed rather than read.
+    // Your own story (10.6 packet #1): while a vibe of yours is up, your
+    // picture carries the ring your friends see, and plays it.
+    myStoryPerson = (p.stories && p.stories.length)
+      ? { user_id: "me", mine: true, name: p.name || "", handle: p.handle || "",
+          avatar: p.avatar || "", stories: p.stories }
+      : null;
     var html = '<div class="yf-id">'
-      + '<div class="yf-photo">' + yfFace(p) + '</div>'
+      + (myStoryPerson
+          ? '<button class="yf-photo-btn ring' + (storiesUnseen(myStoryPerson) ? "" : " seen")
+            + '" id="yfMyStory" onclick="openMyStory()" aria-label="Your story">'
+            + '<div class="yf-photo">' + yfFace(p) + '</div></button>'
+          : '<div class="yf-photo">' + yfFace(p) + '</div>')
       + '<div class="yf-id-text">'
       + '<div class="yf-name">' + escapeHtml(p.name || "Set up your profile") + '</div>'
+      // Where they are, as they wrote it, right under the name (10.7).
+      + (p.location ? '<div class="yf-place">' + escapeHtml(p.location) + '</div>' : '')
       + '<div class="yf-meta">' + (p.handle ? "@" + escapeHtml(p.handle) : "no handle yet")
       + ' · <b onclick="openFriends()">' + friends + ' ' + plural(friends, "friend") + '</b>'
       + ' · ' + vibes + ' ' + plural(vibes, "vibe") + '</div>'
@@ -12617,6 +13252,14 @@
   var STORY_MS = 6000;
   var storyAt = { person: -1, item: 0 };
   var storyTimer = null;
+  //: Whose stories the viewer is stepping through: the circle row's faces,
+  //: or - opened from your own picture - just yours (10.6 packet #1).
+  var storyList = [];
+  //: Your own story, for your picture on YourFAM, or null when none is up.
+  var myStoryPerson = null;
+  //: How long the story on screen has left, so holding it (10.6 #3) and
+  //: letting go carries on from where it was rather than starting again.
+  var storyLeft = STORY_MS, storyStarted = 0, storyHeld = false, storyHoldTimer = null;
 
   function hasStories(person){ return !!(person && person.stories && person.stories.length); }
   function storySeenMap(){
@@ -12641,7 +13284,16 @@
   }
 
   function openStory(i){
-    var person = yfCircle[i];
+    storyList = yfCircle;
+    openStoryAt(i);
+  }
+  function openMyStory(){
+    if(!hasStories(myStoryPerson)) return;
+    storyList = [myStoryPerson];
+    openStoryAt(0);
+  }
+  function openStoryAt(i){
+    var person = storyList[i];
     if(!hasStories(person)) return;
     // Open on the first one not yet seen, like every story app.
     var seenAt = storySeenMap()[person.user_id] || 0, start = 0;
@@ -12653,22 +13305,36 @@
     showStory();
   }
 
+  function currentStory(){
+    var person = storyList[storyAt.person];
+    return { person: person, v: person && person.stories[storyAt.item] };
+  }
+
   function showStory(){
     clearTimeout(storyTimer);
-    var person = yfCircle[storyAt.person];
-    var v = person && person.stories[storyAt.item];
+    var cur = currentStory(), person = cur.person, v = cur.v;
     if(!v){ closeStory(); return; }
     document.getElementById("storyAv").innerHTML = personAvHTML(person);
-    document.getElementById("storyName").textContent = person.name || ("@" + person.handle);
-    document.getElementById("storyAgo").textContent = storyAgo(v.at);
+    document.getElementById("storyName").textContent = person.mine ? "Your story"
+      : (person.name || ("@" + person.handle));
+    document.getElementById("storyAgo").textContent = storyAgo(v.at)
+      + (v.close ? " · Close Friends" : "");
     document.getElementById("storyTitle").textContent = v.title || v.query;
     document.getElementById("storyMeta").textContent =
-      firstName(person) + " vibed this \u00b7 " + (v.minutes || BROWSE_MINUTES) + " min";
+      (person.mine ? "You" : firstName(person)) + " vibed this · " + (v.minutes || BROWSE_MINUTES) + " min";
     var cap = document.getElementById("storyCaption");
     if(cap){
       cap.hidden = !v.caption;
       cap.textContent = v.caption || "";
     }
+    // A story laid out in the editor (10.6 #2) is drawn from its layout;
+    // one vibed before the editor keeps the title-and-caption page.
+    var composed = storyHasLayout(v);
+    var overlay = document.getElementById("storyOverlay");
+    overlay.classList.toggle("composed", composed);
+    var wrap = document.getElementById("storyCanvasWrap");
+    wrap.hidden = !composed;
+    wrap.innerHTML = composed ? '<div class="story-canvas">' + storyCanvasHTML(v, false) + '</div>' : "";
     var bars = document.getElementById("storyBars");
     bars.style.setProperty("--story-ms", STORY_MS + "ms");
     bars.innerHTML = person.stories.map(function(_, k){
@@ -12678,7 +13344,30 @@
     var on = bars.children[storyAt.item];
     if(on){ void on.offsetWidth; on.classList.add("on"); }
     markStorySeen(person, v.at);
-    storyTimer = setTimeout(function(){ storyStep(1); }, STORY_MS);
+    storyHeld = false;
+    overlay.classList.remove("paused", "held");
+    storyLeft = STORY_MS;
+    storyRun();
+  }
+  function storyRun(){
+    clearTimeout(storyTimer);
+    storyStarted = Date.now();
+    storyTimer = setTimeout(function(){ storyStep(1); }, storyLeft);
+  }
+  // Holding the screen holds the story (10.6 packet #3): the bar stops
+  // where it is and the timer with it, until the finger comes up.
+  function pauseStory(){
+    if(storyHeld) return;
+    storyHeld = true;
+    clearTimeout(storyTimer);
+    storyLeft = Math.max(200, storyLeft - (Date.now() - storyStarted));
+    document.getElementById("storyOverlay").classList.add("paused");
+  }
+  function resumeStory(){
+    if(!storyHeld) return;
+    storyHeld = false;
+    document.getElementById("storyOverlay").classList.remove("paused", "held");
+    if(!document.getElementById("storyOverlay").hidden) storyRun();
   }
 
   function storyAgo(at){
@@ -12689,19 +13378,19 @@
   }
 
   function storyStep(dir){
-    var person = yfCircle[storyAt.person];
+    var person = storyList[storyAt.person];
     if(!person){ closeStory(); return; }
     var next = storyAt.item + dir;
     if(next < 0){
       // Back past the first: the previous friend with stories, else stay.
       for(var p = storyAt.person - 1; p >= 0; p--){
-        if(hasStories(yfCircle[p])){ storyAt = { person: p, item: yfCircle[p].stories.length - 1 }; showStory(); return; }
+        if(hasStories(storyList[p])){ storyAt = { person: p, item: storyList[p].stories.length - 1 }; showStory(); return; }
       }
       storyAt.item = 0; showStory(); return;
     }
     if(next >= person.stories.length){
-      for(var q = storyAt.person + 1; q < yfCircle.length; q++){
-        if(hasStories(yfCircle[q])){ storyAt = { person: q, item: 0 }; showStory(); return; }
+      for(var q = storyAt.person + 1; q < storyList.length; q++){
+        if(hasStories(storyList[q])){ storyAt = { person: q, item: 0 }; showStory(); return; }
       }
       closeStory();
       return;
@@ -12715,9 +13404,9 @@
   // are first on the row, so the next one is the next face along.
   var storySwipe = null, storySwipedAt = 0;
   function storyFriend(dir){
-    for(var p = storyAt.person + dir; p >= 0 && p < yfCircle.length; p += dir){
-      if(hasStories(yfCircle[p])){
-        var person = yfCircle[p], seenAt = storySeenMap()[person.user_id] || 0, start = 0;
+    for(var p = storyAt.person + dir; p >= 0 && p < storyList.length; p += dir){
+      if(hasStories(storyList[p])){
+        var person = storyList[p], seenAt = storySeenMap()[person.user_id] || 0, start = 0;
         for(var k = 0; k < person.stories.length; k++){
           if(person.stories[k].at > seenAt){ start = k; break; }
         }
@@ -12732,18 +13421,40 @@
     storyAt.item = 0; showStory();
   }
   // A swipe ends with a click on whichever half it ended over; that click
-  // must not also step.
+  // must not also step. Nor must letting go of a hold (10.6 #3).
   function storyTap(dir){
     if(Date.now() - storySwipedAt < 400) return;
     storyStep(dir);
   }
+  //: How long a press is before it is a hold rather than a tap.
+  var STORY_HOLD_MS = 220;
   (function(){
     var el = document.getElementById("storyOverlay");
     if(!el) return;
+    function onControl(e){
+      return !!(e.target.closest && e.target.closest("button, .story-card, .sc-tag"));
+    }
     el.addEventListener("pointerdown", function(e){
       storySwipe = { x: e.clientX, y: e.clientY };
+      clearTimeout(storyHoldTimer);
+      if(!onControl(e)) storyHoldTimer = setTimeout(function(){
+        pauseStory();
+        // Held, the story is all there is on screen, as in every story app.
+        el.classList.add("held");
+      }, STORY_HOLD_MS);
+    });
+    el.addEventListener("pointermove", function(e){
+      // A finger that is travelling is a swipe, not a hold.
+      if(storySwipe && Math.abs(e.clientX - storySwipe.x) > 12) clearTimeout(storyHoldTimer);
     });
     el.addEventListener("pointerup", function(e){
+      clearTimeout(storyHoldTimer);
+      if(storyHeld){
+        resumeStory();
+        storySwipedAt = Date.now();
+        storySwipe = null;
+        return;
+      }
       if(!storySwipe) return;
       var dx = e.clientX - storySwipe.x, dy = e.clientY - storySwipe.y;
       storySwipe = null;
@@ -12751,20 +13462,36 @@
       storySwipedAt = Date.now();
       storyFriend(dx < 0 ? 1 : -1);
     });
-    el.addEventListener("pointercancel", function(){ storySwipe = null; });
+    el.addEventListener("pointercancel", function(){
+      clearTimeout(storyHoldTimer);
+      storySwipe = null;
+      resumeStory();
+    });
+    // A long press must not open the phone's own menu over the story.
+    el.addEventListener("contextmenu", function(e){ e.preventDefault(); });
   })();
 
   // A story does not run on while the app is out of sight: hidden, it
-  // stops where it was, and it starts that story again when it is back.
+  // holds where it was, and carries on from there when it is back - unless
+  // it was already held (a finger, or its menu open), which it still is.
+  var storyHeldByHide = false;
   document.addEventListener("visibilitychange", function(){
     var open = !document.getElementById("storyOverlay").hidden;
     if(!open) return;
-    if(document.hidden) clearTimeout(storyTimer); else showStory();
+    if(document.hidden){
+      if(!storyHeld){ pauseStory(); storyHeldByHide = true; }
+    } else if(storyHeldByHide){
+      storyHeldByHide = false;
+      if(!document.getElementById("sheetOverlay").classList.contains("active")) resumeStory();
+    }
   });
 
   function closeStory(){
     clearTimeout(storyTimer);
+    clearTimeout(storyHoldTimer);
+    storyHeld = false;
     document.getElementById("storyOverlay").hidden = true;
+    document.getElementById("storyOverlay").classList.remove("paused", "held");
     // The rings reflect what was just watched.
     document.querySelectorAll(".yf-friends .yf-friend[data-i]").forEach(function(btn){
       var ring = btn.querySelector(".yf-ring");
@@ -12774,25 +13501,110 @@
         ring.classList.toggle("seen", !storiesUnseen(person));
       }
     });
+    var mine = document.getElementById("yfMyStory");
+    if(mine && myStoryPerson) mine.classList.toggle("seen", !storiesUnseen(myStoryPerson));
   }
 
   function playStory(){
-    var person = yfCircle[storyAt.person];
-    var v = person && person.stories[storyAt.item];
+    var cur = currentStory(), person = cur.person, v = cur.v;
     if(!v) return;
     closeStory();
     var key = "story_" + Date.now();
     TOPICS[key] = { title: v.title || v.query, surface: "other",
-                    source: "vibed by " + firstName(person),
+                    source: person.mine ? "your vibe" : "vibed by " + firstName(person),
                     caption: "", prompt: v.query,
                     exploreMinutes: v.minutes || BROWSE_MINUTES, titleOverridden: true };
     generate(key);
   }
 
   function storyProfile(){
+    var cur = currentStory();
+    if(cur.person && cur.person.mine){ closeStory(); return; }
     var i = storyAt.person;
     closeStory();
     openCircleFace(i);
+  }
+  // A tag on a story opens that person's profile.
+  function storyOpenTag(i){
+    var v = currentStory().v;
+    var t = v && (v.tags || [])[i];
+    if(!t || !t.handle) return;
+    closeStory();
+    openPersonProfile(t.handle, { handle: t.handle, name: t.name || "" });
+  }
+
+  // The story's three dots (10.6 packet #1): save, share, add to queue, add
+  // its topic to a mix - and, on your own story, take it down. The story
+  // holds while the menu is open.
+  function openStoryMenu(){
+    var cur = currentStory(), person = cur.person, v = cur.v;
+    if(!v) return;
+    pauseStory();
+    var ep = { query: v.query, title: v.title || v.query, minutes: v.minutes || BROWSE_MINUTES };
+    var thumb = (v.style && v.style.thumb) || "";
+    var items = [
+      { head: menuHead(ep.title, person.mine ? "Your story" : "Vibed by " + firstName(person), thumb) },
+      { label: menuLabel("save", "Save for later"), action: function(){ saveStoryEpisode(ep); } },
+      { label: menuLabel("share", "Share"), action: function(){ closeStory(); openShareModal(ep); } },
+      { label: menuLabel("addq", "Add to Queue"), action: function(){
+          addToQueue({ title: ep.title, prompt: ep.query, minutes: ep.minutes,
+                       source: person.mine ? "your vibe" : "vibed by " + firstName(person),
+                       surface: "", cachedOnly: false, thumb: thumb, titleOverridden: true });
+        } },
+      { label: menuLabel("add", "Add topic to playlist"),
+        action: function(){ closeStory(); openAddToMix(ep.query, ep.title); } }
+    ];
+    if(person.mine && v.id){
+      items.push({ label: menuLabel("remove", "Remove from your story"), danger: true,
+                   action: function(){ removeFromMyStory(v); } });
+    }
+    var sheet = document.getElementById("sheetOverlay");
+    sheet.classList.add("over-story");
+    showActionSheet(items);
+  }
+  // The story carries on when the sheet goes, however it went.
+  (function(){
+    var sheet = document.getElementById("sheetOverlay");
+    if(!sheet || !window.MutationObserver) return;
+    new MutationObserver(function(){
+      if(sheet.classList.contains("active") || !sheet.classList.contains("over-story")) return;
+      sheet.classList.remove("over-story");
+      if(!document.getElementById("storyOverlay").hidden) resumeStory();
+    }).observe(sheet, { attributes: true, attributeFilter: ["class"] });
+  })();
+  function saveStoryEpisode(ep){
+    if(!AUTH.authenticated){ toast("Save for Later needs an account"); return; }
+    fetch("/api/saved", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ query: ep.query, minutes: ep.minutes,
+                             title: ep.title, source: "story" })
+    }).then(function(r){
+      return r.json().then(function(d){
+        if(!r.ok) throw new Error(d.error || d.detail || "Could not save that");
+        return d;
+      });
+    }).then(function(){ toast("Saved for later ✓"); })
+      .catch(function(e){ toast(e.message); });
+  }
+  function removeFromMyStory(v){
+    fetch("/api/vibe/story/" + encodeURIComponent(v.id), { method: "DELETE" })
+      .then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
+      .then(function(d){
+        if(!d.ok) throw new Error();
+        var person = storyList[storyAt.person];
+        if(person){
+          var at = person.stories.indexOf(v);
+          if(at !== -1) person.stories.splice(at, 1);
+          // The next one slides into its place; only one before it moves us.
+          if(at !== -1 && at < storyAt.item) storyAt.item -= 1;
+          if(storyAt.item >= person.stories.length) storyAt.item = person.stories.length - 1;
+        }
+        toast("Removed from your story — it’s still in your vibes");
+        if(!hasStories(person)){ closeStory(); }
+        else showStory();
+        if(typeof loadProfileQuietly === "function") loadProfileQuietly();
+      })
+      .catch(function(){ toast("Could not take that down"); });
   }
 
   function openCircleProfile(i){
@@ -12861,6 +13673,11 @@
     // Redrawn when it lands rather than awaited with everything else: the plan
     // is one row's value and should not hold the screen.
     loadPlan().then(function(plan){ if(plan) renderSettings(); });
+    if(AUTH.authenticated){
+      fetch("/api/close-friends").then(function(r){ return r.ok ? r.json() : null; })
+        .then(function(d){ if(d){ closeFriendCount = d.count || 0; renderSettings(); } })
+        .catch(function(){});
+    }
   }
 
   function settingsRow(label, value, action, danger){
@@ -12949,6 +13766,10 @@
           searchesPublic ? "On" : "Off",
           "setSearchesPublic(" + (searchesPublic ? "false" : "true") + ")")
         + '<div class="set-note">When it\u2019s on, anyone who opens an episode you searched can see your @handle in the player\u2019s menu.</div>';
+      // Who a Close Friends story goes to (10.6 packet #2).
+      html += settingsRow("Close friends",
+          closeFriendCount === null ? "" : closeFriendCount + (closeFriendCount === 1 ? " person" : " people"),
+          "openCloseFriends()");
       html += settingsRow("Signed in as", escapeHtml(AUTH.email), "")
         + settingsRow("Change password", "", "changePassword()")
         + settingsRow("Log out", "", "logOut()")
@@ -13583,6 +14404,7 @@
       + yfFace(face) + '</span><div style="min-width:0;">'
       + '<div class="yf-person-name">'
       + escapeHtml(face.name || ("@" + (person.handle || ""))) + '</div>'
+      + (pub.location ? '<div class="yf-place">' + escapeHtml(pub.location) + '</div>' : '')
       + '<div class="yf-meta">@' + escapeHtml(person.handle || "")
       + (standing ? ' · ' + escapeHtml(standing) : '')
       + ' · ' + vibes + ' ' + plural(vibes, "vibe") + '</div>'
@@ -14241,10 +15063,15 @@
       var t = row.t, last = t.last || {};
       // A shared episode is previewed as what it is - a share - and by its
       // subject, not by a whole title squeezed into one line.
+      // In a group (10.6 #4), who said it leads the line.
+      var who = t.group ? (last.mine ? "You" : (last.from_name || "")) : "";
+      var lead = who && last.kind !== "system" ? escapeHtml(who) + ": " : "";
       var preview = last.kind === "episode"
-        ? yfIcon("share", 13) + '<span>Shared an episode'
+        ? yfIcon("share", 13) + '<span>' + lead + 'Shared an episode'
           + (last.topic ? " · " + escapeHtml(last.topic) : "") + '</span>'
-        : '<span>' + escapeHtml(last.text || "") + '</span>';
+        : last.kind === "system" && t.group
+          ? '<span>' + escapeHtml((who || "Someone") + " " + (last.text || "")) + '</span>'
+          : '<span>' + lead + escapeHtml(last.text || "") + '</span>';
       return '<div class="thread-row" onclick="openThread(' + row.i + ')">'
         + personAvHTML(t)
         + '<div class="tr-body"><div class="tr-top"><div class="tr-name">'
@@ -14260,7 +15087,8 @@
     var t = inboxThreads[i];
     if(!t) return;
     openThreadWith({ user_id: t["with"], name: t.name, handle: t.handle,
-                     avatar: t.avatar || "" });
+                     avatar: t.avatar || "", group: !!t.group,
+                     members: t.members || [] });
   }
 
   //: Their published interests, for the chat header's chips - the same
@@ -14271,12 +15099,10 @@
   function openThreadWith(person){
     currentThread = person;
     threadInterests = [];
-    document.getElementById("thread-name").textContent =
-      person.name || ("@" + (person.handle || ""));
-    paintPersonAv(document.getElementById("thread-av"), person);
+    paintThreadHead();
     document.getElementById("threadChips").innerHTML = "";
     var input = document.getElementById("threadInput");
-    if(input) input.placeholder = "Message " + firstName(person);
+    if(input) input.placeholder = person.group ? "Message the group" : "Message " + firstName(person);
     document.getElementById("thread-body").innerHTML =
       '<div class="pf-empty">Loading…</div>';
     navigate("thread");
@@ -14284,8 +15110,21 @@
     loadThreadInterests(person);
   }
 
+  // The header: a person's face and "View profile", or a group's name and
+  // how many are in it (10.6 #4).
+  function paintThreadHead(){
+    var person = currentThread || {};
+    document.getElementById("thread-name").textContent =
+      person.name || ("@" + (person.handle || ""));
+    paintPersonAv(document.getElementById("thread-av"), person);
+    var sub = document.getElementById("thread-sub");
+    if(sub) sub.textContent = person.group
+      ? (person.members || []).length + " people · See who’s here"
+      : "View profile";
+  }
+
   function loadThreadInterests(person){
-    if(!person || !person.handle) return;
+    if(!person || !person.handle || person.group) return;
     var who = person.user_id;
     fetch("/api/person?handle=" + encodeURIComponent(person.handle))
       .then(function(r){ return r.ok ? r.json() : null; })
@@ -14326,6 +15165,7 @@
 
   function openThreadProfile(){
     if(!currentThread) return;
+    if(currentThread.group){ openGroupMembers(); return; }
     if(!currentThread.handle){ toast("They have not chosen a handle yet"); return; }
     openPersonProfile(currentThread.handle, currentThread);
   }
@@ -14335,9 +15175,76 @@
   // exactly that, one tap nearer.
   function openThreadMenu(){
     if(!currentThread) return;
+    if(currentThread.group){
+      showActionSheet([
+        { label: "See who’s here", action: openGroupMembers },
+        { label: "Name the group", action: renameGroup },
+        { label: "Leave group", danger: true, action: confirmLeaveGroup },
+        { label: "Delete chat", danger: true, action: confirmDeleteChat }
+      ]);
+      return;
+    }
     showActionSheet([
       { label: "View profile", action: openThreadProfile },
       { label: "Delete chat", danger: true, action: confirmDeleteChat }
+    ]);
+  }
+
+  // ---- Group chats (10.6 packet #4) ----
+  var groupMemberRows = [];
+  function openGroupMembers(){
+    var g = currentThread;
+    if(!g || !g.group) return;
+    groupMemberRows = (g.members || []).filter(function(m){ return !m.me; });
+    var items = [{ group: escapeHtml(g.name) + " · " + (g.members || []).length + " people" }];
+    groupMemberRows.forEach(function(m, i){
+      items.push({ label: '<span class="menu-row">' + personAvHTML(m) + ' '
+                   + escapeHtml(m.name || ("@" + m.handle)) + (m.handle ? ' <span style="color:var(--text-muted);font-size:11px;">@'
+                   + escapeHtml(m.handle) + '</span>' : '') + '</span>',
+                   action: function(){
+                     if(m.handle) openPersonProfile(m.handle, { handle: m.handle, name: m.name, avatar: m.avatar });
+                   } });
+    });
+    items.push({ label: "You", action: function(){} });
+    showActionSheet(items);
+  }
+  function renameGroup(){
+    var g = currentThread;
+    if(!g || !g.group) return;
+    var name = window.prompt("Name this group", g.named ? g.name : "");
+    if(name === null) return;
+    fetch("/api/messages/groups/" + encodeURIComponent(g.user_id), {
+      method: "PATCH", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ name: name })
+    }).then(function(r){ return r.json().then(function(d){ if(!r.ok) throw new Error(d.detail || "Could not rename it"); return d; }); })
+      .then(function(d){
+        if(currentThread && currentThread.user_id === g.user_id && d.group){
+          currentThread = d.group;
+          paintThreadHead();
+          pollThread();
+        }
+      })
+      .catch(function(err){ toast(err.message); });
+  }
+  function confirmLeaveGroup(){
+    var g = currentThread;
+    if(!g || !g.group) return;
+    showActionSheet([
+      { group: "Leave " + escapeHtml(g.name) + "? You won’t get its messages any more, and the others are told." },
+      { label: "Leave group", danger: true, action: function(){
+          fetch("/api/messages/groups/" + encodeURIComponent(g.user_id), { method: "DELETE" })
+            .then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
+            .then(function(d){
+              inboxThreads = inboxThreads.filter(function(t){ return t["with"] !== g.user_id; });
+              setUnreadDot(d.unread);
+              stopThreadPolling();
+              currentThread = null;
+              threadMessages = [];
+              if(threadScreenOpen()) goBack();
+              toast("You left the group");
+            })
+            .catch(function(){ toast("Could not leave that group"); });
+        } }
     ]);
   }
 
@@ -14349,7 +15256,8 @@
     var who = currentThread;
     showActionSheet([
       { group: "Delete this chat? It goes from your messages only \u2014 "
-               + escapeHtml(firstName(who)) + " still has it." },
+               + (who.group ? "everybody else" : escapeHtml(firstName(who)))
+               + " still has it." },
       { label: "Delete chat", danger: true, action: function(){ deleteChat(who); } }
     ]);
   }
@@ -14405,7 +15313,8 @@
       toast("Play or save an episode, then share it here");
       return;
     }
-    showActionSheet([{ group: "Share with " + escapeHtml(firstName(currentThread)) }].concat(items));
+    showActionSheet([{ group: "Share with " + escapeHtml(currentThread.group
+      ? currentThread.name : firstName(currentThread)) }].concat(items));
   }
 
   function sendEpisodeToThread(ep){
@@ -14465,7 +15374,7 @@
           currentThread = d["with"];
           // The picture may only be known now - a conversation opened by
           // handle arrives with a name and nothing else.
-          paintPersonAv(document.getElementById("thread-av"), currentThread);
+          paintThreadHead();
         }
         threadTyping = !!d.typing;
         renderThreadBody();
@@ -14777,9 +15686,22 @@
       return;
     }
     var who = currentThread || {};
-    var lastDay = "";
+    var lastDay = "", lastFrom = "";
     body.innerHTML = threadMessages.map(function(m, i){
       var dirCls = m.mine ? "out" : "in";
+      // A group (10.6 #4): its own lines centred, and a name over the first
+      // of each run of bubbles from one person.
+      if(who.group && m.kind === "system"){
+        lastFrom = "";
+        return '<div class="msg-system">' + escapeHtml((m.mine ? "You" : firstName(m.from))
+          + " " + (m.text || "")) + '</div>';
+      }
+      var fromLabel = "";
+      if(who.group && !m.mine){
+        var name = firstName(m.from);
+        if(name !== lastFrom) fromLabel = '<div class="msg-from">' + escapeHtml(name) + '</div>';
+        lastFrom = name;
+      } else lastFrom = "";
       var day = "";
       if(m.at){
         var d = new Date(m.at * 1000);
@@ -14797,10 +15719,10 @@
         // points at a question whose script already exists. The generation
         // happens when *they* press Listen, against their own allowance.
         var label = m.mine ? "You shared an episode"
-                           : firstName(who) + " shared an episode";
+                           : firstName(who.group ? m.from : who) + " shared an episode";
         var meta = (m.topic ? escapeHtml(m.topic) + " · " : "") + (m.minutes || 2) + " min";
         var saved = savedHas(m.query, m.minutes);
-        var card = day + '<div class="msg-row ' + dirCls + (m.pending ? " pending" : "") + '">'
+        var card = day + fromLabel + '<div class="msg-row ' + dirCls + (m.pending ? " pending" : "") + '">'
           + '<div class="yf-ep"><div class="yf-ep-lab">' + yfIcon("share", 12)
           + '<span>' + escapeHtml(label) + '</span></div>'
           + '<div class="yf-ep-card"><div class="yf-ep-meta">' + meta + '</div>'
@@ -14820,7 +15742,7 @@
         }
         return card;
       }
-      return day + '<div class="msg-row ' + dirCls + (m.pending ? " pending" : "")
+      return day + fromLabel + '<div class="msg-row ' + dirCls + (m.pending ? " pending" : "")
         + '"><div class="msg-bubble">'
         + escapeHtml(m.text || "") + '</div></div>';
     }).join("") + typingRowHTML();
@@ -14942,7 +15864,11 @@
     if(!AUTH.authenticated){ toast("Messaging needs an account"); openAuth("signup"); return; }
     // The people you can actually message are the people the graph knows -
     // and searching for anyone else is one screen away, where it belongs.
+    // Pick one for a chat or several for a group (10.6 packet #4).
+    newChatPicked = [];
     document.getElementById("newChatInput").value = "";
+    document.getElementById("newChatGroupName").value = "";
+    paintNewChatPicked();
     document.getElementById("newChatContacts").innerHTML =
       '<div class="pf-empty" style="margin:0;">Loading…</div>';
     document.getElementById("newChatOverlay").classList.add("active");
@@ -14957,17 +15883,7 @@
           unique.push(person);
         });
         newChatPeople = unique;
-        var el = document.getElementById("newChatContacts");
-        if(!unique.length){
-          el.innerHTML = '<div class="pf-empty" style="margin:0;">Nobody to '
-            + 'message yet. Find someone under Friends first.</div>';
-          return;
-        }
-        el.innerHTML = unique.map(function(person, i){
-          return '<div class="share-contact" onclick="startChatWith(' + i + ')">'
-            + personAvHTML(person) + '<div class="nm">'
-            + escapeHtml((person.name || person.handle || "").split(" ")[0]) + '</div></div>';
-        }).join("");
+        paintNewChatContacts();
       })
       .catch(function(){
         document.getElementById("newChatContacts").innerHTML =
@@ -14976,15 +15892,66 @@
   }
 
   var newChatPeople = [];
+  //: Who is picked, by position in `newChatPeople`, in the order picked.
+  var newChatPicked = [];
+
+  function paintNewChatContacts(){
+    var el = document.getElementById("newChatContacts");
+    if(!newChatPeople.length){
+      el.innerHTML = '<div class="pf-empty" style="margin:0;">Nobody to '
+        + 'message yet. Find someone under Friends first.</div>';
+      return;
+    }
+    el.innerHTML = newChatPeople.map(function(person, i){
+      var on = newChatPicked.indexOf(i) !== -1;
+      return '<div class="share-contact' + (on ? " on" : "") + '" onclick="startChatWith(' + i + ')"'
+        + ' role="checkbox" aria-checked="' + on + '">'
+        + personAvHTML(person) + '<span class="pick">✓</span><div class="nm">'
+        + escapeHtml((person.name || person.handle || "").split(" ")[0]) + '</div></div>';
+    }).join("");
+  }
+  function paintNewChatPicked(){
+    var n = newChatPicked.length;
+    var names = newChatPicked.map(function(i){ return firstName(newChatPeople[i]); });
+    document.getElementById("newChatPicked").textContent = n
+      ? (n === 1 ? "Chat with " + names[0] : "Group with " + names.join(", "))
+      : "";
+    document.getElementById("newChatGroupName").hidden = n < 2;
+    document.getElementById("newChatGo").textContent = n >= 2 ? "Start group" : "Start chat";
+  }
 
   function closeNewChatModal(){
     document.getElementById("newChatOverlay").classList.remove("active");
   }
+  // A tap picks or unpicks; nothing opens until Start chat.
   function startChatWith(i){
-    var person = newChatPeople[i];
-    if(!person) return;
-    closeNewChatModal();
-    openThreadWith(person);
+    if(!newChatPeople[i]) return;
+    var at = newChatPicked.indexOf(i);
+    if(at === -1) newChatPicked.push(i); else newChatPicked.splice(at, 1);
+    paintNewChatContacts();
+    paintNewChatPicked();
+  }
+  function startGroupChat(){
+    var ids = newChatPicked.map(function(i){ return newChatPeople[i].user_id; });
+    var btn = document.getElementById("newChatGo");
+    btn.disabled = true;
+    fetch("/api/messages/groups", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ user_ids: ids,
+                             name: (document.getElementById("newChatGroupName").value || "").trim() })
+    }).then(function(r){
+      return r.json().then(function(d){
+        if(!r.ok) throw new Error(d.detail || d.error || "Could not start that group");
+        return d;
+      });
+    }).then(function(d){
+      btn.disabled = false;
+      closeNewChatModal();
+      openThreadWith(d.group);
+    }).catch(function(err){
+      btn.disabled = false;
+      toast(err.message);
+    });
   }
   function deriveInitials(text){
     var words = String(text || "").trim().replace(/^@/, "").split(/\s+/);
@@ -15020,6 +15987,13 @@
   }
   // Typing a handle rather than picking a face.
   function confirmNewChat(){
+    if(newChatPicked.length >= 2){ startGroupChat(); return; }
+    if(newChatPicked.length === 1){
+      var person = newChatPeople[newChatPicked[0]];
+      closeNewChatModal();
+      openThreadWith(person);
+      return;
+    }
     var val = (document.getElementById("newChatInput").value || "")
                 .trim().replace(/^@/, "");
     if(val.length < 2){ toast("Type at least two letters of a handle"); return; }
@@ -17447,27 +18421,39 @@
     var ask = !(opts && opts.askWhoTheyAre === false);
     loadPrefChoices().then(function(){
       if(localPrefs().intro === "done" || PREF_CHOICES.intro_done){
-        finishEntry();
+        // From the app opening, the boot intro has already played.
+        finishEntry(opts && opts.fromBoot ? { handoff: false } : null);
         return;
       }
       // A handle is for other people to find somebody by, which is worth
       // nothing without an account to find - so this step belongs after
       // signing up and nowhere else.
       if(!ask || !AUTH.authenticated){ afterIdentity(); return; }
-      // Already named, so there is nothing to ask - somebody who set a name
-      // and stopped before the interests, or who signed in rather than up.
-      if(profileNow && profileNow.name && profileNow.handle){
+      // Already set up, so there is nothing to ask - somebody who filled in
+      // who they are and where and stopped before the interests. An account
+      // let in off the waitlist with any of it missing is asked, the way a
+      // new account is: a name and handle alone is not the account set up.
+      if(identitySetUp()){
         afterIdentity();
         return;
       }
       loadProfileQuietly().then(function(){
-        if(profileNow && profileNow.name && profileNow.handle){
+        if(identitySetUp()){
           afterIdentity();
           return;
         }
         openIdentity("first-run", "intro");
       });
     });
+  }
+
+  // Whether the identity step has anything left to ask: a name, a handle
+  // and a place. The place is optional on the screen, but an account that
+  // never saw the screen (made on /waitlist) is shown it once.
+  function identitySetUp(){
+    var p = profileNow || {};
+    var place = (PREF_CHOICES && PREF_CHOICES.location) || {};
+    return !!(p.name && p.handle && (place.city || place.region || place.country));
   }
 
   // The profile, read without drawing it. The identity step needs to know
@@ -17884,13 +18870,13 @@
     finishEntry();
   }
 
-  function finishEntry(){
+  function finishEntry(opts){
     saveLocalPrefs({ entry: "done" });
     // Signed in, or an account just finished (credentials, who they are,
     // interests): the wordmark hands them into DailyFAM. Captured before the
     // screen changes, because the picture is of the page being left. A guest
     // goes straight in - they finished nothing.
-    var handoff = AUTH.authenticated
+    var handoff = (AUTH.authenticated && !(opts && opts.handoff === false))
       ? beginEntryHandoff(document.querySelector(".screen.active")) : null;
     openMyFamTab();   // which loads the feed and Go Deeper
     if(handoff) handoff();
@@ -18337,7 +19323,16 @@
       showScreen("welcome");
       return;
     }
-    if(!entryComplete()){ startEntry(); return; }
+    // Signed in on a device that never finished the first run - most often
+    // somebody let in off the waitlist, whose account was made on /waitlist
+    // and whose cookie is already here. The front door would ask them to
+    // sign up again; they get the steps a new account gets instead (who
+    // they are and where, then interests), and `afterAccount` goes straight
+    // in when the server says those are done.
+    if(!entryComplete()){
+      if(AUTH.authenticated){ afterAccount({ fromBoot: true }); return; }
+      startEntry(); return;
+    }
     openMyFamTab();   // which loads the feed and Go Deeper
     loadPrefChoices();
     // There is no push, so the honest moment to say "___ started following
@@ -18424,12 +19419,16 @@
           // Not while you are already looking at that conversation. A banner
           // announcing a message that is on screen underneath it is the app
           // telling somebody about something they can already see.
+          var where = m.group ? m.group.user_id : (m.from && m.from.user_id);
           if(threadScreenOpen() && currentThread
-             && currentThread.user_id === (m.from && m.from.user_id)) return;
+             && currentThread.user_id === where) return;
           queueNotification({
             kind: "message",
             who: m.from || {},
-            title: (m.from && m.from.name) || "Someone",
+            // A group's banner names the group and opens it (10.6 #4).
+            group: m.group || null,
+            title: m.group ? ((m.from && m.from.name) || "Someone") + " in " + m.group.name
+                           : (m.from && m.from.name) || "Someone",
             text: m.kind === "episode"
               ? "Shared: " + (m.title || m.query || "an episode")
               : (m.text || "")
@@ -18543,6 +19542,11 @@
     var item = notifShowing;
     hideNotification();
     if(!item) return;
+    if(item.kind === "message" && item.group && item.group.user_id){
+      openThreadWith({ user_id: item.group.user_id, name: item.group.name, group: true,
+                       members: [] });
+      return;
+    }
     if(item.kind === "message" && item.who && item.who.user_id){
       openThreadWith({ user_id: item.who.user_id,
                        name: item.who.name, handle: item.who.handle,

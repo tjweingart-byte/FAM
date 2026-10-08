@@ -818,6 +818,20 @@ class Settings:
     # so asking more often finds nothing new.
     gdelt_export_poll_seconds: float = _env_float(
         "GDELT_EXPORT_POLL_SECONDS", 900.0)
+    # Where in each poll period the poll lands (§220): this many seconds past
+    # the quarter hour, on GDELT's clock rather than the boot's. A file named
+    # by `lastupdate.txt` is not always served yet the moment it is named, and
+    # a poll that drifted by each sync's length kept landing in that gap.
+    gdelt_export_poll_offset_seconds: float = _env_float(
+        "GDELT_EXPORT_POLL_OFFSET_SECONDS", 450.0)
+    # When a named file is not served yet, the next look comes this soon
+    # rather than a whole period later (§220).
+    gdelt_export_wait_seconds: float = _env_float(
+        "GDELT_EXPORT_WAIT_SECONDS", 120.0)
+    # A download that times out, drops, or meets a 5xx/429 is asked once more
+    # after this long, inside the same sync (§220).
+    gdelt_export_retry_seconds: float = _env_float(
+        "GDELT_EXPORT_RETRY_SECONDS", 10.0)
     # One download - a file is ~10-40 MB zipped.
     gdelt_export_timeout_seconds: float = _env_float(
         "GDELT_EXPORT_TIMEOUT_SECONDS", 120.0)

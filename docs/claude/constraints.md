@@ -448,6 +448,12 @@
   search API they would be controls with nothing behind them. An empty or
   stale copy is an outage (`ExportStale`), never a quiet news day; the story
   source idles until the first file lands rather than being stamped swept.
+  > **Current (PROBLEMS.md §220):** polls land on GDELT's clock
+  > (`GDELT_EXPORT_POLL_OFFSET_SECONDS` past each quarter hour, never a sleep
+  > after the sync); a file `lastupdate.txt` named is *waited for*, never
+  > written off for an hour; a timeout, drop or passing 5xx is asked once more;
+  > one file's failure stops nothing else; every failure is counted with its
+  > reason on the admin page.
 
 <!-- rule:forecast-beside -->
 - **A forecast beside every outcome-dependent question** *(PROBLEMS.md §211,
@@ -949,6 +955,7 @@
   happened, and it runs the live lookup as a tap would. A game still in
   progress at write time is kept and never current, so the tap writes it.
 <!-- rule:depth-not-words -->
+> **Current (PROBLEMS.md §219):** depth needs material: past `BROWSE_MINUTES` each extra minute adds a source to the evidence packet and four minutes or more a third highlight each (`research.packet_size`), out of the results the one search already returns. Two minutes and under is the configured packet unchanged. A five-minute search used to get two minutes' evidence and so ended near two.
 - **Duration buys depth, not words.** *(§82, and this sharpens "duration is a
   ceiling".)* `DEPTH_BANDS` says what each band of minutes is *for* —
   orientation, understanding, depth, the full arc — described as content and
@@ -1103,6 +1110,11 @@
   time: a second sign-up form left standing is one somebody wires a new gate
   to by accident.
 <!-- rule:waitlist-gate -->
+> **Current (PROBLEMS.md §219):** §217 is reversed at the owner's direction (10.7 packet): while `WAITLIST=1` runs, a guest typing the address is sent to `/waitlist` again (server and shell), and the landing page's foot carries **Already off the waitlist? Sign in here**, which opens its sign-in - a member is sent on to the app from there. The waitlist profile marks Location and interests **(Optional)** and has **View all topics**: the app's catalogue, searchable, anything typed added as it is, saved as `topics`.
+> **Current (PROBLEMS.md §217):** a guest is never redirected off the front door - typing the address opens the app on its sign-in and sign-up, with every API call still refused; only a waitlisted account (to `/waitlist/me`) and a `?referralCode=` link (to `/waitlist`) are moved.
+> **Current (PROBLEMS.md §216):** an admin account (`FAM_ADMIN_ACCOUNTS`) is never on the waitlist: joining or signing in leaves it `active` (`app._admit_admin`), the gate lets it through, and it is sent to `/waitlist/me` to see a member's page from `/api/waitlist/me`'s `preview`, labelled "Admin preview".
+> **Current (PROBLEMS.md §215):** joining goes straight to the profile (`/waitlist/me?setup=1`, the app's sign-up fields plus date of birth and phone, **Skip for now** at the top right), never behind an "Edit your profile" card, which is gone; the status page's top right is a settings gear (it reopens the profile), and a Go Deeper-yellow **Learn more about FAM →** at its top shows the landing's "What is FAM" section again.
+> **Current (PROBLEMS.md §214):** `/api/welcome`'s samples (the landing page and the sign-up screen) are only episodes with their **own** picture - none borrowed, none drawn - looked for `WELCOME_SCAN` times down the ranking. A signed-in account whose device never finished the first run - one let in off the waitlist - is sent through `afterAccount` (who you are and where, then interests), never the front door; the identity step is skipped only when name, handle and a place are all set (`identitySetUp`).
 > **Current (PROBLEMS.md §192):** joining at `/waitlist` always starts the account waitlisted, gate on or off (the gate only decides whether the app is closed); the app's Sign Up goes to `/waitlist` (a preview, with no server, keeps its form); the form asks for the password twice; the status page shows the exact place, the invite link, and "Edit your profile" (name, handle, photo, date of birth, location, phone, interests; `birth_date` is on the account).
 > **Current (PROBLEMS.md §190):** the landing page rotates the app's three sign-up samples, so `/api/welcome` and `/api/thumb/` are open past the gate and `/api/audio` is let through for exactly those samples as replays (`_welcome_sample_request`: `cached_only`, the browse length, nothing attached, no voice, a question that is one of today's samples).
 - **Before launch the app is closed to everyone but `active` accounts, and the

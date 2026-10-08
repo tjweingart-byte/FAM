@@ -476,13 +476,16 @@ class Topic:
         }
 
     def _thumb(self) -> dict:
-        """The tile's picture, from the deepest branch of the category tree
-        that has one (§160), and the facet word to print on it. Empty when no
-        picture fits, and the interface draws what it always drew. An
-        in-process lookup - never a database open, never a model call."""
+        """The tile's picture (§160) and the facet word to print on it: its
+        own node's, else one borrowed (`thumbnails.pick_for_tile`, the owner
+        07/10: every episode on the interface has a picture). `thumb_borrowed`
+        says which. Empty only when nothing at all is approved, and the
+        interface draws what it always drew. An in-process lookup - never a
+        database open, never a model call."""
         import thumbnails
 
-        found = thumbnails.pick(self.query, self.tags, category=self.category)
+        found = thumbnails.pick_for_tile(self.query, self.tags,
+                                         category=self.category)
         if not found:
             # No picture yet, but a composed category still says which facet
             # the card is - rather than the alphabetically first tag.
@@ -491,8 +494,9 @@ class Topic:
                 import stories
 
                 facet = stories.facet_for(self.category)
-            return {"thumb": "", "thumb_facet": facet}
-        return {"thumb": found["url"], "thumb_facet": found["facet"]}
+            return {"thumb": "", "thumb_facet": facet, "thumb_borrowed": False}
+        return {"thumb": found["url"], "thumb_facet": found["facet"],
+                "thumb_borrowed": bool(found.get("fallback"))}
 
 
 # Keywords that map a free-text search onto the same facets the bank uses.

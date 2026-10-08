@@ -124,11 +124,17 @@ def test_the_steps_happen_in_the_order_a_listener_waits_through_them(stubbed):
 
 
 def test_each_stage_is_the_step_it_names(stubbed):
-    """The stubbed delays come back out of the right labels."""
+    """The stubbed delays come back out of the right labels.
+
+    A sleep never ends early, so each stage is held tight from below; that
+    alone pins the labels, because the delays differ and any swap puts a
+    shorter step under a longer one's name. A loaded CI runner can make a
+    sleep run long (0.29s for 0.15s once), so the bound above is loose.
+    """
     stages = _run(stubbed).marks.stages()
-    assert stages["brief"] == pytest.approx(BRIEF_DELAY, abs=0.08)
-    assert stages["evidence"] == pytest.approx(RETRIEVAL_DELAY, abs=0.08)
-    assert stages["writer thinking"] == pytest.approx(WRITER_THINKING, abs=0.08)
+    for name, delay in (("brief", BRIEF_DELAY), ("evidence", RETRIEVAL_DELAY),
+                        ("writer thinking", WRITER_THINKING)):
+        assert delay - 0.02 <= stages[name] <= delay + 0.4, (name, stages[name])
 
 
 def test_the_parts_add_up_to_the_first_audio(stubbed):

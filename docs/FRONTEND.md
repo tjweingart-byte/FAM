@@ -362,7 +362,7 @@ from many places and are listed only where they are central.
   it (`paintSearchBar`, `:4965`).
 - **The Length and Voice bubbles never print the current choice.** The
   menus tick it.
-  - Length offers 1-10 minutes (code, `openLengthMenu`, `:7529`).
+  - Length offers 1-5 minutes (`SEARCH_LENGTHS`, read by `openLengthMenu`; §219).
   - The length goes back to `DEFAULT_LENGTH_MINUTES = 2` (code, `:4485`)
     every time the app comes back into view (`visibilitychange`). The
     playing episode keeps its own length, pinned on its topic.

@@ -132,6 +132,109 @@ def clean_caption(caption: str) -> str:
     return _clean_words(caption, MAX_CAPTION)
 
 
+# --- a vibe composed like a story (10.6 packet #2) --------------------------
+#
+# The vibe sheet became a story editor: the episode's picture, framed and
+# pinched to size, a caption in a chosen face and size, stickers, and people
+# tagged with @. All of it is *where things go* - a small JSON layout beside
+# the row, never an image: the viewer draws the story from it, so a story
+# costs a few hundred bytes and its words stay words. Every field is clamped
+# here, because a layout is drawn on other people's screens.
+
+#: The caption's typefaces. The three FAM loads (`typefaces`) and two the
+#: phone already has, so a choice costs no font link.
+STORY_FONTS = ("classic", "strong", "type", "serif", "script")
+STORY_FRAMES = ("card", "round", "circle", "full")
+#: The stickers on offer. A fixed set rather than any text: a sticker is
+#: drawn big on somebody else's screen, and free text there is a caption.
+STORY_STICKERS = (
+    "\U0001F525", "\U0001F92F", "\U0001F602", "\U0001F64C", "\U0001F440",
+    "\U0001F4AF", "\u2764\uFE0F", "\U0001F3A7", "\U0001F9E0", "\U0001F44F",
+    "\U0001F62E", "\u2728", "\U0001F3C6", "\U0001F4C8", "\U0001F30D", "\U0001F914",
+    "MUST LISTEN", "HOT TAKE", "TIL", "SO GOOD", "NEW", "LISTEN TO THIS",
+)
+MAX_STICKERS = 12
+MAX_TAGS = 10
+#: Who a vibe is for: "" everybody who follows, "close" the poster's close
+#: friends only.
+AUDIENCES = ("", "close")
+
+
+def _num(value, lo: float, hi: float, default: float) -> float:
+    try:
+        v = float(value)
+    except (TypeError, ValueError):
+        return default
+    if v != v:  # NaN
+        return default
+    return round(max(lo, min(hi, v)), 4)
+
+
+#: What `thumbnails.url_for` makes: a node's picture and its version.
+_THUMB_PATH = re.compile(r"^/api/thumb/[A-Za-z0-9_.%~-]+(\?v=\d+)?$")
+
+
+def clean_thumb(url: str) -> str:
+    """The episode's picture, as a path on this server or "".
+
+    Never a remote address, for the reason a profile picture is never one:
+    every viewer's phone would fetch it from somebody else.
+    """
+    url = str(url or "").strip()[:300]
+    # Only a picture route, never any other path: every viewer's browser
+    # requests this with their own cookies, so `/api/audio?...` here would
+    # spend their quota on whatever the poster chose.
+    return url if _THUMB_PATH.match(url) else ""
+
+
+def clean_style(style) -> dict:
+    """A story's layout, every field clamped; {} for none."""
+    if not isinstance(style, dict) or not style:
+        return {}
+    out: dict = {
+        "font": style.get("font") if style.get("font") in STORY_FONTS else "classic",
+        "size": int(_num(style.get("size"), 14, 48, 24)),
+        "cx": _num(style.get("cx"), 0.05, 0.95, 0.5),
+        "cy": _num(style.get("cy"), 0.05, 0.95, 0.78),
+        "frame": style.get("frame") if style.get("frame") in STORY_FRAMES else "card",
+        "zoom": _num(style.get("zoom"), 0.4, 2.5, 1.0),
+        "tx": _num(style.get("tx"), -0.5, 0.5, 0.0),
+        "ty": _num(style.get("ty"), -0.5, 0.5, 0.0),
+        "thumb": clean_thumb(style.get("thumb")),
+    }
+    stickers = []
+    raw = style.get("stickers") or []
+    for item in (raw if isinstance(raw, list) else [])[:MAX_STICKERS * 4]:
+        if len(stickers) >= MAX_STICKERS:
+            break
+        if not isinstance(item, dict) or item.get("k") not in STORY_STICKERS:
+            continue
+        stickers.append({"k": item["k"],
+                         "x": _num(item.get("x"), 0, 1, 0.5),
+                         "y": _num(item.get("y"), 0, 1, 0.5),
+                         "s": _num(item.get("s"), 0.4, 3, 1),
+                         "r": _num(item.get("r"), -180, 180, 0)})
+    out["stickers"] = stickers
+    return out
+
+
+def clean_tags(tags) -> list[dict]:
+    """[{user_id, x, y}] - who is tagged and where the tag sits.
+
+    Ids here are the server's own: the endpoint resolves each handle the
+    listener typed to somebody in their graph before this sees it.
+    """
+    out, seen = [], set()
+    for item in (tags or [])[:MAX_TAGS]:
+        uid = str((item or {}).get("user_id") or "")
+        if not uid or uid in seen:
+            continue
+        seen.add(uid)
+        out.append({"user_id": uid, "x": _num(item.get("x"), 0, 1, 0.5),
+                    "y": _num(item.get("y"), 0, 1, 0.3)})
+    return out
+
+
 class SocialStore:
     def __init__(self, path: str | None = None) -> None:
         self.path = data_path("SOCIAL_DB", "social.db", path)
@@ -248,6 +351,30 @@ class SocialStore:
                              " caption TEXT NOT NULL DEFAULT ''")
             except sqlite3.OperationalError:
                 pass  # already there
+            # A vibe composed as a story (10.6 packet #2): its layout and the
+            # people tagged in it (JSON, "" for a plain vibe), who it is for
+            # ("" everybody, "close" close friends only), and whether its
+            # poster took it off their story (#1) - which leaves the vibe on
+            # their profile, as Instagram's "remove from story" leaves a post.
+            for column in ("style TEXT NOT NULL DEFAULT ''",
+                           "tags TEXT NOT NULL DEFAULT ''",
+                           "audience TEXT NOT NULL DEFAULT ''",
+                           "unstoried INTEGER NOT NULL DEFAULT 0"):
+                try:
+                    conn.execute(f"ALTER TABLE echoes ADD COLUMN {column}")
+                except sqlite3.OperationalError:
+                    pass  # already there
+            # Close friends (10.6 packet #2): the people a "Close Friends"
+            # story is for, chosen in Settings. One-way, like a follow - being
+            # on somebody's list is their decision and is never shown to you.
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS close_friends (
+                       owner  TEXT NOT NULL,
+                       member TEXT NOT NULL,
+                       at     REAL NOT NULL,
+                       PRIMARY KEY (owner, member)
+                   )"""
+            )
             # Comments on an episode (10.5 packet #8): Explore's comments
             # sheet. Keyed like a vibe and a thumb - `(query, minutes)` - so
             # everybody who hears that episode reads the same thread. A reply
@@ -415,7 +542,8 @@ class SocialStore:
     # --- echoes -----------------------------------------------------------
 
     def echo(self, user_id: str, query: str, title: str, minutes: int,
-             thread: str = "", caption: str = "") -> Echo:
+             thread: str = "", caption: str = "", style=None, tags=None,
+             audience: Optional[str] = None) -> Echo:
         if not user_id:
             raise SocialError("No listener id.")
         query = " ".join(str(query).split())[:300]
@@ -425,14 +553,31 @@ class SocialStore:
         conn = self._conn()
         # An echo of something already echoed just moves it to the top: the
         # listener's intent is "send this", not "send this twice".
+        import json
+        # None is "not sent" - an installed client that predates the story
+        # editor - and keeps what the row already says, so its re-vibe never
+        # turns a Close Friends story public or wipes its layout.
+        layout = clean_style(style) if style is not None else None
+        tagged = clean_tags(tags) if tags is not None else None
+        if audience is not None:
+            audience = audience if audience in AUDIENCES else ""
+        # Vibing it again is posting it again: back on the story, with the
+        # new layout, whoever it is for now.
         conn.execute(
-            "INSERT INTO echoes (user_id, query, title, minutes, thread, at, caption)"
-            " VALUES (?, ?, ?, ?, ?, ?, ?)"
+            "INSERT INTO echoes (user_id, query, title, minutes, thread, at, caption,"
+            " style, tags, audience, unstoried)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)"
             " ON CONFLICT(user_id, query, minutes) DO UPDATE SET at = excluded.at,"
             " title = excluded.title, thread = excluded.thread,"
-            " caption = excluded.caption",
+            " caption = excluded.caption, style = COALESCE(?, style),"
+            " tags = COALESCE(?, tags), audience = COALESCE(?, audience),"
+            " unstoried = 0",
             (user_id, query, str(title)[:200], int(minutes), str(thread)[:200], now,
-             clean_caption(caption)),
+             clean_caption(caption), json.dumps(layout) if layout else "",
+             json.dumps(tagged) if tagged else "", audience or "",
+             None if layout is None else (json.dumps(layout) if layout else ""),
+             None if tagged is None else (json.dumps(tagged) if tagged else ""),
+             audience),
         )
         row = conn.execute(
             "SELECT id, user_id, query, title, minutes, thread, at FROM echoes"
@@ -440,6 +585,65 @@ class SocialStore:
             (user_id, query, int(minutes)),
         ).fetchone()
         return Echo(*row)
+
+    def tagged_in(self, user_id: str, query: str, minutes: int) -> set:
+        """Who this listener's vibe of an episode already tags, by id."""
+        import json
+        try:
+            row = self._conn().execute(
+                "SELECT tags FROM echoes WHERE user_id = ? AND query = ? AND minutes = ?",
+                (user_id, " ".join(str(query).split())[:300], int(minutes))).fetchone()
+            return {t.get("user_id") for t in json.loads(row[0])} if row and row[0] else set()
+        except Exception:
+            return set()
+
+    def unstory(self, user_id: str, echo_id: int) -> bool:
+        """Take one of this listener's vibes off their story (10.6 packet #1).
+
+        Only their own: the row is matched on both the id and the poster. The
+        vibe stays on their profile; vibing it again puts it back up.
+        """
+        try:
+            cur = self._conn().execute(
+                "UPDATE echoes SET unstoried = 1 WHERE id = ? AND user_id = ?",
+                (int(echo_id), user_id))
+        except Exception:
+            log.exception("could not take a vibe off a story")
+            return False
+        return bool(cur.rowcount)
+
+    # --- close friends (10.6 packet #2) -------------------------------------
+
+    def close_friends(self, owner: str) -> list[str]:
+        try:
+            rows = self._conn().execute(
+                "SELECT member FROM close_friends WHERE owner = ? ORDER BY at",
+                (owner,)).fetchall()
+        except Exception:
+            log.exception("could not read close friends")
+            return []
+        return [r[0] for r in rows]
+
+    def set_close_friend(self, owner: str, member: str, on: bool = True) -> bool:
+        if not owner or not member or owner == member:
+            raise SocialError("Pick somebody else.")
+        conn = self._conn()
+        if on:
+            conn.execute("INSERT OR IGNORE INTO close_friends (owner, member, at)"
+                         " VALUES (?, ?, ?)", (owner, member, time.time()))
+        else:
+            conn.execute("DELETE FROM close_friends WHERE owner = ? AND member = ?",
+                         (owner, member))
+        return on
+
+    @staticmethod
+    def _visible(alias: str, viewer: str) -> tuple[str, tuple]:
+        """The SQL that keeps a close-friends vibe from anybody not on the
+        poster's list. The poster always sees their own."""
+        return (f" AND ({alias}.audience = '' OR {alias}.user_id = ?"
+                " OR EXISTS (SELECT 1 FROM close_friends cf"
+                f" WHERE cf.owner = {alias}.user_id AND cf.member = ?))",
+                (viewer or "", viewer or ""))
 
     def unecho(self, user_id: str, query: str, minutes: int) -> bool:
         cur = self._conn().execute(
@@ -494,7 +698,10 @@ class SocialStore:
             conn = self._conn()
             for q, m, n in conn.execute(
                     f"SELECT query, minutes, COUNT(*) FROM echoes WHERE query IN ({marks})"
-                    " GROUP BY query, minutes", queries):
+                    # A close-friends vibe is not counted for anybody else
+                    # (10.6 #2): on a quiet episode the number would give it away.
+                    " AND (audience = '' OR user_id = ?)"
+                    " GROUP BY query, minutes", (*queries, user_id or "")):
                 if (q, m) in wanted:
                     out[wanted[(q, m)]]["vibes"] = int(n)
             for q, m, value, n in conn.execute(
@@ -531,8 +738,9 @@ class SocialStore:
         try:
             conn = self._conn()
             out["vibes"] = int(conn.execute(
-                "SELECT COUNT(*) FROM echoes WHERE query = ? AND minutes = ?",
-                (query, int(minutes))).fetchone()[0])
+                "SELECT COUNT(*) FROM echoes WHERE query = ? AND minutes = ?"
+                " AND (audience = '' OR user_id = ?)",
+                (query, int(minutes), user_id or "")).fetchone()[0])
             for value, n in conn.execute(
                     "SELECT value, COUNT(*) FROM ratings WHERE query = ?"
                     " AND minutes = ? GROUP BY value", (query, int(minutes))):
@@ -547,12 +755,18 @@ class SocialStore:
             log.exception("could not count an episode's vibes and ratings")
         return out
 
-    def echoes_by(self, user_id: str, limit: int = 40) -> list[Echo]:
+    def echoes_by(self, user_id: str, limit: int = 40,
+                  viewer: Optional[str] = None) -> list[Echo]:
+        """Their vibes, newest first. `viewer` is somebody else looking: a
+        close-friends vibe is left out unless they are on the list."""
+        where, args = ("", ())
+        if viewer is not None and viewer != user_id:
+            where, args = self._visible("e", viewer)
         try:
             rows = self._conn().execute(
-                "SELECT id, user_id, query, title, minutes, thread, at FROM echoes"
-                " WHERE user_id = ? ORDER BY at DESC LIMIT ?",
-                (user_id, int(limit)),
+                "SELECT id, user_id, query, title, minutes, thread, at FROM echoes e"
+                " WHERE user_id = ?" + where + " ORDER BY at DESC LIMIT ?",
+                (user_id, *args, int(limit)),
             ).fetchall()
         except Exception:
             log.exception("could not read echoes")
@@ -579,6 +793,8 @@ class SocialStore:
             rows = self._conn().execute(
                 "SELECT e.query, e.minutes, p.name, p.handle, e.at, e.user_id"
                 " FROM echoes e LEFT JOIN people p ON p.user_id = e.user_id"
+                # Anybody's label: never a close-friends vibe (10.6 #2).
+                " WHERE e.audience = ''"
                 " ORDER BY e.at DESC LIMIT ?", (int(limit),),
             ).fetchall()
         except Exception:
@@ -593,7 +809,7 @@ class SocialStore:
                 out[key] = {"by": name or "Someone", "handle": handle or "", "at": at}
         return out
 
-    def echoes_among(self, user_ids, limit: int = 400) -> dict:
+    def echoes_among(self, user_ids, limit: int = 400, viewer: str = "") -> dict:
         """(query, minutes) -> the person who vibed it, for a named set only.
 
         The read behind Explore's friend tag. `recent_echoes` answers "did
@@ -608,14 +824,15 @@ class SocialStore:
         if not ids:
             return {}
         marks = ",".join("?" for _ in ids)
+        where, args = self._visible("e", viewer)
         try:
             rows = self._conn().execute(
                 "SELECT e.query, e.minutes, p.name, p.handle, p.avatar, e.at,"
                 " e.user_id, e.title FROM echoes e"
                 " LEFT JOIN people p ON p.user_id = e.user_id"
-                f" WHERE e.user_id IN ({marks})"
+                f" WHERE e.user_id IN ({marks})" + where +
                 " ORDER BY e.at DESC LIMIT ?",
-                (*ids, int(limit)),
+                (*ids, *args, int(limit)),
             ).fetchall()
         except Exception:
             log.exception("could not read echoes for a circle")
@@ -633,7 +850,7 @@ class SocialStore:
                         "at": at, "title": title or ""}
         return out
 
-    def latest_echo_at(self, user_ids) -> dict:
+    def latest_echo_at(self, user_ids, viewer: str = "") -> dict:
         """user_id -> when they last vibed anything, for a named set only.
 
         What YourFAM's avatar row asks. `echoes_among` cannot answer it: it
@@ -646,9 +863,11 @@ class SocialStore:
             return {}
         marks = ",".join("?" for _ in ids)
         try:
+            where, args = self._visible("e", viewer)
             rows = self._conn().execute(
-                "SELECT user_id, MAX(at) FROM echoes"
-                f" WHERE user_id IN ({marks}) GROUP BY user_id", ids,
+                "SELECT user_id, MAX(at) FROM echoes e"
+                f" WHERE user_id IN ({marks}) AND unstoried = 0" + where +
+                " GROUP BY user_id", (*ids, *args),
             ).fetchall()
         except Exception:
             log.exception("could not read the circle's latest vibes")
@@ -656,7 +875,7 @@ class SocialStore:
         return {user_id: float(at or 0.0) for user_id, at in rows}
 
     def stories_among(self, user_ids, since: float,
-                      per_person: int = 10) -> dict:
+                      per_person: int = 10, viewer: str = "") -> dict:
         """user_id -> their vibes since `since`, oldest first, as stories.
 
         YourFAM's avatar row plays a friend's vibes the way a story app plays
@@ -668,22 +887,48 @@ class SocialStore:
         if not ids:
             return {}
         marks = ",".join("?" for _ in ids)
+        where, args = self._visible("e", viewer)
         try:
             rows = self._conn().execute(
-                "SELECT user_id, query, title, minutes, thread, at, caption FROM echoes"
-                f" WHERE user_id IN ({marks}) AND at >= ? ORDER BY at ASC",
-                (*ids, float(since)),
+                "SELECT id, user_id, query, title, minutes, thread, at, caption,"
+                " style, tags, audience FROM echoes e"
+                f" WHERE user_id IN ({marks}) AND at >= ? AND unstoried = 0"
+                + where + " ORDER BY at ASC",
+                (*ids, float(since), *args),
             ).fetchall()
         except Exception:
             log.exception("could not read the circle's stories")
             return {}
+        import json
         out: dict = {}
-        for user_id, query, title, minutes, thread, at, caption in rows:
+        for (eid, user_id, query, title, minutes, thread, at, caption,
+             style, tags, audience) in rows:
+            try:
+                layout = json.loads(style) if style else {}
+            except ValueError:
+                layout = {}
+            try:
+                tagged = json.loads(tags) if tags else []
+            except ValueError:
+                tagged = []
+            people = []
+            for tag in tagged:
+                person = self.person(tag.get("user_id") or "")
+                if person.get("handle"):
+                    # A handle and where it sits - never the id.
+                    people.append({"handle": person["handle"],
+                                   "name": person.get("name") or "",
+                                   "x": tag.get("x", 0.5), "y": tag.get("y", 0.3)})
             out.setdefault(user_id, []).append(
-                {"query": query, "title": title or "", "minutes": int(minutes or 0),
+                {"id": int(eid), "query": query, "title": title or "",
+                 "minutes": int(minutes or 0),
                  "thread": thread or "", "at": float(at),
                  # What they said about it, drawn with the story (10.5 #9).
-                 "caption": caption or ""})
+                 "caption": caption or "",
+                 # How they laid it out, who they tagged, and who it is for
+                 # (10.6 #2).
+                 "style": layout, "tags": people,
+                 "close": audience == "close"})
         # The newest `per_person`, still oldest first.
         return {uid: items[-per_person:] for uid, items in out.items()}
 
@@ -1105,6 +1350,10 @@ class SocialStore:
                 "DELETE FROM announced WHERE user_id = ? OR follower = ?",
                 (user_id, user_id))
             removed += cur.rowcount or 0
+            cur = self._conn().execute(
+                "DELETE FROM close_friends WHERE owner = ? OR member = ?",
+                (user_id, user_id))
+            removed += cur.rowcount or 0
         except Exception:
             log.exception("could not erase follows for %r", user_id)
         # Their comments go, and every reply under them and every like on
@@ -1132,6 +1381,21 @@ class SocialStore:
             removed += cur.rowcount or 0
         except Exception:
             log.exception("could not erase comments for %r", user_id)
+        # Their id out of the tags on other people's stories.
+        try:
+            import json
+            conn = self._conn()
+            for eid, tags in conn.execute(
+                    "SELECT id, tags FROM echoes WHERE tags LIKE ?",
+                    (f"%{user_id}%",)).fetchall():
+                try:
+                    kept = [t for t in json.loads(tags) if t.get("user_id") != user_id]
+                except ValueError:
+                    kept = []
+                conn.execute("UPDATE echoes SET tags = ? WHERE id = ?",
+                             (json.dumps(kept) if kept else "", eid))
+        except Exception:
+            log.exception("could not untag %r", user_id)
         for table in ('echoes', 'ratings', 'people'):
             try:
                 cur = self._conn().execute(

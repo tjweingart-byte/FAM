@@ -1,6 +1,6 @@
 # Search → Podcast
 
-Ask a question, pick a length from 1 to 10 minutes, and hear the answer as a
+Ask a question, pick a length from 1 to 5 minutes, and hear the answer as a
 short audio story. **New to the project? Start with `docs/ONBOARDING.md`.**
 
 Every episode is researched before a word is written (`SEARCH_MODE=always`):
