@@ -649,6 +649,9 @@ window.FamAudio = (function () {
           err.status = res.status;
           err.refusedBy = body.refused_by || "";
           err.quota = body.quota || null;
+          // The listener has not said yes to their words going to the AI
+          // provider (consent.py): the interface asks, then starts again.
+          err.consent = res.headers.get("X-FAM-Consent") || "";
           throw err;
         });
       }
