@@ -3732,26 +3732,53 @@ def _person_by_handle(handle: str) -> str:
     return found[0]["user_id"] if found else ""
 
 
-_TERMS_TEMPLATE = (PROJECT_ROOT / "pages" / "terms.html").read_text(encoding="utf-8")
+#: The three pages App Store review asks for (APP_STORE.md): the terms every
+#: listener agrees to, the privacy policy and the support page. Templates in
+#: `pages/`, outside `static/` so a placeholder is never served raw.
+LEGAL_PAGES = ("terms", "privacy", "support")
+_LEGAL_TEMPLATES = {name: (PROJECT_ROOT / "pages" / f"{name}.html").read_text(encoding="utf-8")
+                    for name in LEGAL_PAGES}
+#: The privacy policy's date. Change it whenever pages/privacy.html changes.
+PRIVACY_UPDATED = "8 October 2026"
+
+
+def legal_page(name: str, support_email: str) -> str:
+    """One of `LEGAL_PAGES` with the published contact (1.2) filled in."""
+    if support_email:
+        safe = html.escape(support_email)
+        link = '<a href="mailto:%s">%s</a>' % (safe, safe)
+        contact = ('<p>Email %s. A person reads every message, and we answer '
+                   'within %d hours.</p>' % (link, moderation_mod.REVIEW_HOURS))
+    else:
+        link = "us through the app"
+        contact = ('<p class="note">Report anything from its menu in the app; a person '
+                   'reviews every report.</p>')
+    return (_LEGAL_TEMPLATES[name].replace("{{CONTACT}}", contact)
+            .replace("{{EMAIL_LINK}}", link)
+            .replace("{{UPDATED}}", PRIVACY_UPDATED)
+            .replace("{{REVIEW_HOURS}}", str(moderation_mod.REVIEW_HOURS)))
 
 
 def terms_page(support_email: str) -> str:
-    """The terms and community rules, with the published contact (1.2)."""
-    if support_email:
-        safe = html.escape(support_email)
-        contact = ('<p>Questions, appeals or something we should see: <a href="mailto:%s">%s</a>. '
-                   'A person reads every message.</p>' % (safe, safe))
-    else:
-        contact = ('<p class="note">Report anything from its menu in the app; a person '
-                   'reviews every report.</p>')
-    return (_TERMS_TEMPLATE.replace("{{CONTACT}}", contact)
-            .replace("{{REVIEW_HOURS}}", str(moderation_mod.REVIEW_HOURS)))
+    return legal_page("terms", support_email)
 
 
 @app.get("/terms", include_in_schema=False)
 async def terms() -> HTMLResponse:
     """Not behind the waitlist: everybody agrees to these before signing up."""
-    return HTMLResponse(terms_page(settings.support_email))
+    return HTMLResponse(legal_page("terms", settings.support_email))
+
+
+@app.get("/privacy", include_in_schema=False)
+async def privacy() -> HTMLResponse:
+    """The privacy policy App Store Connect links to. Open to everybody."""
+    return HTMLResponse(legal_page("privacy", settings.support_email))
+
+
+@app.get("/support", include_in_schema=False)
+async def support() -> HTMLResponse:
+    """The support URL App Store Connect links to. Open to everybody."""
+    return HTMLResponse(legal_page("support", settings.support_email))
 
 
 @app.get("/api/report")

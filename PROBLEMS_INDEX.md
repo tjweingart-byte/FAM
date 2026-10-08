@@ -226,3 +226,4 @@ and `limit` = Lines.
 | 16427 | 74 | 220. Why a third of GDELT's downloads failed, and Finnhub's and the local feeds' |
 | 16501 | 56 | 221. Ready for Apple: a load test for staging, universal links, and APP_STORE.md |
 | 16557 | 79 | 222. The two App Store rejections: report and block (1.2), and asking before words go to the AI (5.1.2(i)) |
+| 16636 | 74 | 223. The privacy policy, support page, legal PDFs and the iOS safety screens |

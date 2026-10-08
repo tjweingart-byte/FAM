@@ -16632,3 +16632,77 @@ asks before sending and Allow sends it; Report and Block are in the menus. The
 chat-menu check now expects Report and Block after Delete chat.
 
 Pinned in `tests/test_moderation_and_consent.py`.
+
+## 223. The privacy policy, support page, legal PDFs and the iOS safety screens
+
+The owner set `SUPPORT_EMAIL` on Render (ian@familiarize.net for now, then a
+support address) and asked for four things.
+
+**`/privacy` and `/support`.** Both pages, and `/terms`, are rendered by one
+function, `app.legal_page`, from templates in `pages/`. They sit outside
+`static/` so a placeholder is never served raw. None of them is behind the
+waitlist.
+
+- The policy was written from an inventory of the code rather than from the
+  docs, because `DATABASE.md` is out of date. The inventory covered every
+  store, every outside service and exactly what each receives, retention, what
+  account deletion erases and what it anonymises, cookies and device storage,
+  and what other people can see.
+- It names every company that receives something.
+- It says **Viral Loops is not told when an account is deleted** and that we
+  will ask them on request. That is the honest state today.
+- There is **no age gate in the code**. The policy says FAM is not meant for
+  under-13s and that we delete such accounts on request. Whether to add a
+  birth-date check is the owner's call; the App Store age rating will
+  probably be 16+ or 18+.
+- The support page answers the questions review and listeners actually ask.
+  Password reset is honestly "email us", since there is no email delivery.
+- Settings > Privacy and safety links all three pages. Both sign-up notes now
+  name the privacy policy beside the terms.
+
+**The inventory found two gaps in the consent notice (§222)**, and both are
+fixed:
+
+- **Exa receives a search written from the listener's question** (EI's
+  `search_query`, or the raw question when EI fails). The notice, the terms,
+  the policy and the Settings note now name it. `VERSION` stays 1 because the
+  notice has never shipped.
+- **The "what changed where you live" tile's question names the place the
+  listener set.** That is something of theirs reaching Anthropic from a myFAM
+  tap. `_sends_listener_words` now counts `startup.LOCAL_ID`, so that tile asks
+  first like a search does.
+
+**PDFs** (`tools/legal_pdfs.py`, written to `docs/legal/`). Headless Chromium
+prints the same templates in print colours, so a PDF cannot say something the
+site does not. Run it again with `--email` whenever a page or the contact
+changes.
+
+**The iOS screens** (`ios/FAMSafety`, a Swift package). There is no Xcode
+project yet (`IOS_APP.md`: the lock-screen spike comes first). The package is
+an API client (`SafetyAPI`: consent, report options, report, block, unblock,
+blocks, all on `/api/v1` with `X-FAM-Client` and the bearer token) and these
+screens:
+
+- `ConsentModel` and `ConsentSheet`, with an `ensure()` to await before a
+  search and an `isConsentRefusal` for the audio request;
+- `ReportSheet`;
+- `.blockConfirmation`;
+- `BlockedPeopleView`;
+- `PrivacyAndSafetySection` for Settings.
+
+Every word on these screens is the server's. **It has not been compiled.**
+This container has no Swift toolchain and the download was refused by the
+network policy. So `tests/test_ios_safety_contract.py` checks what CI can:
+
+- every `/api/v1` path in the Swift is a route;
+- every field a `Codable` type decodes is in the server's real answer;
+- `ReportSubject` names exactly `moderation.KINDS`;
+- the consent header matches the one the server sends.
+
+The package's README gives the eight wiring steps.
+
+**Content filter, reviewed for Apple** (no code change). It removes slurs from
+episodes, titles, summaries, comments and vibe captions, and keeps them off
+trending searches. It marks swearing E and does not remove it. It does not
+touch messages, names, handles, group names, mix names or images. The owner
+decides what to widen; the options are in the reply of 2026-10-08.

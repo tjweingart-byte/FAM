@@ -276,3 +276,16 @@ def test_the_terms_name_the_contact_once_it_is_set():
 def test_the_terms_are_served_without_an_account():
     r = TestClient(appmod.app).get("/terms")
     assert r.status_code == 200 and "Reporting and blocking" in r.text
+
+
+def test_the_privacy_and_support_pages_are_served_with_the_contact():
+    for name in appmod.LEGAL_PAGES:
+        page = appmod.legal_page(name, "help@example.com")
+        assert "{{" not in page and "mailto:help@example.com" in page, name
+    c = TestClient(appmod.app)
+    privacy = c.get("/privacy")
+    assert privacy.status_code == 200
+    # Every company the policy says receives something is one the code uses.
+    for company in ("Anthropic", "Exa", "RunPod", "Render", "Viral Loops"):
+        assert company in privacy.text, company
+    assert c.get("/support").status_code == 200

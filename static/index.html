@@ -3092,7 +3092,7 @@
               <p class="entry-note" id="authNote">Password reset isn&rsquo;t available yet, so keep your password somewhere safe.</p>
               <!-- Agreed before an account exists (App Store 1.2): the rules say
                    objectionable content and abusive people are not tolerated. -->
-              <p class="entry-note">By continuing you agree to FAM&rsquo;s <a href="/terms" target="_blank" rel="noopener" style="color:var(--copper);">Terms and community rules</a>.</p>
+              <p class="entry-note">By continuing you agree to FAM&rsquo;s <a href="/terms" target="_blank" rel="noopener" style="color:var(--copper);">Terms and community rules</a> and <a href="/privacy" target="_blank" rel="noopener" style="color:var(--copper);">Privacy policy</a>.</p>
             </form>
             <div class="auth-switch" id="authSwitch"></div>
           </div>
@@ -5742,7 +5742,9 @@
       showActionSheet(items);
     });
   }
-  function openTerms(){ window.open("/terms", "_blank", "noopener"); }
+  function openTerms(){ openLegal("terms"); }
+  // The three pages App Store review asks for, served by the server (§223).
+  function openLegal(name){ window.open("/" + name, "_blank", "noopener"); }
 
   // ---------------- A guest reaching an episode that is not made yet ----------------
   function showGuestGate(message){
@@ -13970,13 +13972,15 @@
     html += '<div class="set-group">Privacy and safety</div>'
       + settingsRow("Send my questions to AI", escapeHtml(aiConsentSummary()),
           "toggleAiConsent()")
-      + '<div class="set-note">FAM writes episodes for what you ask with Anthropic\u2019s Claude. Turn this off and you can still listen to everything FAM writes ahead.</div>';
+      + '<div class="set-note">FAM writes episodes for what you ask with Anthropic\u2019s Claude, and searches for sources with Exa. Turn this off and you can still listen to everything FAM writes ahead.</div>';
     if(AUTH.authenticated){
       html += settingsRow("Blocked people",
           blockedCount === null ? "" : (blockedCount ? String(blockedCount) : "None"),
           "openBlocked()");
     }
-    html += settingsRow("Terms and community rules", "", "openTerms()");
+    html += settingsRow("Terms and community rules", "", "openTerms()")
+      + settingsRow("Privacy policy", "", "openLegal('privacy')")
+      + settingsRow("Help and support", "", "openLegal('support')");
     html += '<div class="set-group">Account settings</div>'
       // Subscription lives here rather than only behind a refusal. It used to
       // be reachable from exactly one place - the screen a listener sees when

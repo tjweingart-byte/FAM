@@ -31,6 +31,17 @@
   .note{ border:1px solid var(--border); border-radius:12px; padding:14px 16px;
     color:var(--muted); font-size:14px; }
   a{ color:var(--copper); }
+
+  table{ width:100%; border-collapse:collapse; margin:10px 0; font-size:14px; }
+  th, td{ text-align:left; vertical-align:top; padding:8px 10px 8px 0;
+    border-bottom:1px solid var(--border); }
+  th{ font-family:'Geist Mono', monospace; font-size:11px; letter-spacing:0.06em;
+    text-transform:uppercase; color:var(--muted); font-weight:500; }
+  h3{ font-size:16px; margin:22px 0 4px; }
+  .nav{ margin-top:40px; font-size:14px; color:var(--muted); }
+  @media print{
+    :root{ --bg:#fff; --text:#141413; --muted:#555; --copper:#8a5a12; --border:#ddd; }
+  }
 </style>
 </head>
 <body>
@@ -69,8 +80,9 @@
   <p>FAM's episodes are written by AI from the sources it finds, which are
   shown on the player. They can be wrong. Don't rely on an episode for medical,
   legal, financial or safety decisions. When you search, FAM asks before
-  sending what you type, say or attach to its AI provider, Anthropic, and you
-  can change your answer in Settings.</p>
+  sending what you type, say or attach to its AI provider, Anthropic, and a
+  search drawn from it to Exa; you can change your answer in Settings. The
+  <a href="/privacy">privacy policy</a> says what is kept and who receives it.</p>
 
   <h2>Your account</h2>
   <p>You can delete your account at any time in Settings. Deleting it removes
@@ -79,6 +91,7 @@
 
   <h2>Contact</h2>
   {{CONTACT}}
+  <p class="nav"><a href="/terms">Terms and community rules</a> · <a href="/privacy">Privacy policy</a> · <a href="/support">Help and support</a></p>
 </main>
 </body>
 </html>

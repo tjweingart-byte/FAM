@@ -24,15 +24,15 @@ the week of the first submission.
 | Server | Load test before review traffic | Built (`tools/load_test.py`) |
 | Server + web | Report content and block a user, 1.2 | Built (`moderation.py`, §222); reviewer inbox on `/admin` |
 | Server + web | Consent before a listener's words go to a third-party AI, 5.1.2(i) | Built (`consent.py`, §222) |
-| Server | Terms of use and community rules, agreed at sign-up | Built (`/terms`); needs `SUPPORT_EMAIL`, and a lawyer's read |
-| **To write** | Privacy policy and a support page | **Missing - required URLs** |
+| Server | Terms, privacy policy, support page (`/terms`, `/privacy`, `/support`), agreed at sign-up | Built (§223); `SUPPORT_EMAIL` set; PDFs in `docs/legal/` (`tools/legal_pdfs.py`); a lawyer's read before launch |
+| iOS | The consent, report and block screens | Written as `ios/FAMSafety` (§223), not yet compiled - no Mac here |
 | To build | APNs push for the app (today's push is Web Push) | Only if 1.0 sends pushes |
 | To build | The iOS app itself (`IOS_APP.md` stages 2-4) | Not started |
 
 The two hard rejections (1.2 and 5.1.2(i)) are built in the server and the web
 client; the iOS app must draw the same menus and the same notice from the same
-endpoints (Part B). What is left on the server side is writing: the privacy
-policy and the support page.
+endpoints (Part B). The pages App Store Connect asks for exist (`/privacy`, `/support`), and
+the iOS screens are written as a Swift package waiting for the app target.
 
 ---
 
@@ -192,8 +192,8 @@ Deeper question, an attachment - with their local date and time. Built
   three surfaces, then accounts and privacy. No prices, no "best", no other
   apps' names, no claims of live scores until a provider returns them
   (`live-facts`).
-* **Support URL**, **Marketing URL**, **Privacy policy URL**: pages on
-  `familiarize.net` - to be written.
+* **Support URL**: `https://familiarize.net/support`. **Privacy policy URL**:
+  `https://familiarize.net/privacy`. **Marketing URL**: `https://familiarize.net`.
 
 ### Age rating
 
@@ -324,8 +324,8 @@ appeals go through that person.
 1. Part A steps 1-6 (paperwork, in parallel with the work below).
 2. Hear an episode in the production voice (`IOS_APP.md` stage 0).
 3. The audio spike, then the app (`IOS_APP.md` stages 2-4).
-4. Privacy policy and support page; set `SUPPORT_EMAIL`; draw the report,
-   block and consent screens in the iOS app from the same endpoints (Part B).
+4. Link `ios/FAMSafety` into the app target and wire it (its README), then
+   `swift build` and its tests on a Mac.
 5. Run `tools/load_test.py` against staging at the tester count planned for
    the beta; fix what it finds.
 6. TestFlight internal (no review), then external (reviewed - Part B must be

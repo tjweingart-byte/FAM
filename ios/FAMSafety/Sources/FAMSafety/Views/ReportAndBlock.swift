@@ -201,7 +201,7 @@ public struct PrivacyAndSafetySection: View {
         } header: {
             Text("Privacy and safety")
         } footer: {
-            Text("FAM writes episodes for what you ask with Anthropic's Claude. Turn this off and you can still listen to everything FAM writes ahead.")
+            Text("FAM writes episodes for what you ask with Anthropic's Claude, and searches for sources with Exa. Turn this off and you can still listen to everything FAM writes ahead.")
         }
         .task { if consent.current == nil { await consent.load() } }
     }
