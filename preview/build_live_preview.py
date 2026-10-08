@@ -1741,8 +1741,14 @@ __WRITING_SIM__
       var since = Number(qs.get("since") || 0);
       var all = THREADS[withId] || [];
       var head = all.length ? all[all.length - 1].id : since;
+      // Who they are, as the server says (`messages_thread`): from the
+      // preview's people, or left out so the chat keeps the name and handle
+      // it was opened with - a made-up "Someone" with no handle took the
+      // Report and Block rows off its menu (§222).
+      var withWho = ownerOf(withId);
       return json({
-        with: { user_id: withId, name: "Someone", handle: "" },
+        with: withWho.handle ? { user_id: withId, name: withWho.name || withWho.handle,
+                                 handle: withWho.handle, avatar: "" } : null,
         messages: since ? all.filter(function (m) { return m.id > since; })
                         : all.slice(),
         partial: !!since, head: head
