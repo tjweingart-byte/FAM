@@ -16497,3 +16497,62 @@ fix once the reasons confirm it.
 Rule: `gdelt-exports` carries a §220 Current note. Tests:
 `tests/test_gdelt_failures_220.py`; `test_the_newest_file_is_never_written_off`
 now expects `waiting`, not an error.
+
+## 221. The small calls on Haiku 5.5, and an episode priced call by call
+
+The owner asked where cheaper Claude models could save money, read an
+analysis of every call site (prices per model, expected quality, monthly cost
+at 100 / 1k / 10k / 100k MAU, Fable 5.1 included), and chose "scenario D":
+the brief, the tile composer, the category placer and the thumbnail scene
+writer and checker move to `claude-haiku-5-5`; **the writer stays on
+`MODEL`** (Sonnet 5) because the writing is the product.
+
+**What changed.**
+
+* `config.SMALL_MODEL = "claude-haiku-5-5"` is the default of `EI_MODEL`,
+  `STORIES_MODEL`, `CATEGORIES_MODEL` and `THUMBNAILS_MODEL`. They no longer
+  follow `MODEL`: `render.yaml` sets `MODEL`, so following it would have kept
+  production on Sonnet. An empty value (`.env.example` shipped
+  `CATEGORIES_MODEL=`, which used to mean a model named `''`) now means the
+  default. `THUMBNAILS_CLAUDE_*_PER_MTOK` default to Haiku 5.5's 0.10 / 0.50.
+* The admin question box (`ADMIN_ASK_MODEL`) followed `ei_model`; it now
+  follows `MODEL`, so it stays where it was - writing SQL against a live
+  schema is not the brief's small extraction.
+* `metering.PRICES` gains `claude-opus-5-5` (4/20), `claude-sonnet-5-5`
+  (2/10) and `claude-haiku-5-5` (0.10/0.50, the rate for prompts of 100K
+  tokens or fewer, which every FAM call is), checked against the card on
+  2026-10-08. `CACHE_READ_PER_MTOK` holds the models whose cache reads are not
+  a tenth of input (Fable 5.1 $0.25, Opus 5.5 $0.20) - the existing Fable 5.1
+  row was pricing its cache reads at $1.00.
+* **Metering prices each call at its own model's rates** (`Usage.priced_*`,
+  `calls_priced`, `calls_unpriced`). `Usage` kept token totals and one
+  `model`, the last call's, and `price_of` multiplied the totals by that
+  model's rate. With the brief on Haiku and the writer on Sonnet that would
+  have charged the brief at Sonnet's rate - the saving would have been
+  invisible in `usage_report.py` and in prefetch's dollar budget. One
+  unpriced call marks the episode unpriced. A `Usage` built without
+  `add_model_call` is priced from its totals as before.
+* `write.py`, `compare_models.py` and `tools/compare_search.py` each carried
+  their own three-model price table; they import `metering.PRICES` now.
+  `compare_models.py`'s default comparison is Sonnet 5 / Sonnet 5.5 /
+  Opus 5.5, the writer test the analysis recommends next.
+
+**What it should save (estimate, not measured - no key here).** A brief from
+~$0.010 to ~$0.0005; the composer and placer by 95%. On `docs/FINANCIAL.md`
+§4's assumptions the Claude bill falls about 59% at 100 MAU (where the shared
+background calls dominate) and about 30% from 1k MAU up. The writer is ~70%
+of a new episode's Claude cost and did not move.
+
+**What it may cost.** Haiku 5.5 is a smaller model. The brief decides what is
+searched and whether a question is `outcome_dependent` (§82: quality came from
+the inputs), so a worse brief is a worse episode even with the writer
+unchanged. Nobody has run `tools/ei_eval.py` on Haiku 5.5 - **that is the
+first thing to do with a key**, and `EI_MODEL=claude-sonnet-5` restores the
+old brief without a deploy of code. The composer's hooks may read flatter; the
+placer's mistakes skew ranking until fixed on /admin. Haiku 5.5 has no
+server-side refusal fallback (the code uses none anyway) and counts the same
+text as ~30% more tokens than Haiku 4.5, already inside the estimate's margin.
+Changing these models does not touch the script cache: only `MODEL` is in
+`cache_key`.
+
+Rule: `small-calls-haiku`. Tests: `tests/test_small_model_221.py`.

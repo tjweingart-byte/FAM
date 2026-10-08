@@ -686,7 +686,9 @@ ASK_SCHEMA = {
 
 def ask_model() -> str:
     from config import settings
-    return os.environ.get("ADMIN_ASK_MODEL", "").strip() or settings.ei_model
+    # The writer's model, not the brief's: writing SQL against a live schema
+    # is not the small extraction the brief moved to Haiku for (§221).
+    return os.environ.get("ADMIN_ASK_MODEL", "").strip() or settings.model
 
 
 async def _model_sql(question: str, schema_lines: str, error: str = "",

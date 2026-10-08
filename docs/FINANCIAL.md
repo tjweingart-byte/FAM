@@ -69,8 +69,16 @@ the most important number in this report.
 
 ### 2.1 Claude (Anthropic)
 
-The production model is `claude-sonnet-5`. It is set in `render.yaml` and is
-the default at `config.py:281`.
+The writer's model is `claude-sonnet-5`. It is set in `render.yaml` (`MODEL`)
+and is the default in `config.py`. **Since §221 every other call runs on
+`claude-haiku-5-5`** ($0.10 in / $0.50 out, `config.SMALL_MODEL`): the brief
+(`EI_MODEL`), the tile composer (`STORIES_MODEL`), the category placer
+(`CATEGORIES_MODEL`) and the thumbnail scene writer and checker
+(`THUMBNAILS_MODEL`). On the estimates below that takes a brief from ~$0.010
+to ~$0.0005 and the Claude bill down about 30% at every audience size; the
+tables in this section still show the Sonnet figures they were measured on.
+`metering` prices each call at its own model's rates, so an episode whose
+brief and writer differ is recorded correctly.
 
 | Price (Code, `metering.py:81-96`, "checked against the rate card on 2026-09-09") | USD |
 |---|---|
@@ -78,6 +86,7 @@ the default at `config.py:281`.
 | Sonnet 5 output (thinking tokens are billed as output) | $10.00 / M tokens |
 | Prompt-cache read | 0.1x input |
 | Prompt-cache write | 1.25x input |
+| Haiku 5.5 (brief, composer, placer, thumbnails since §221) | $0.10 in / $0.50 out |
 | Haiku 4.5 (only for the optional canonical key) | $1.00 in / $5.00 out |
 
 **Calls per new search episode: 2.**
@@ -369,7 +378,7 @@ What the table shows:
    about two-thirds of each miss. The levers, from cheapest to most expensive:
    raise the cache hit rate (near-match tuning, the canonical key), shorten
    the writer prompt (the style example is ~1,550 input tokens on every
-   call), and route the brief to a cheaper model (`EI_MODEL`).
+   call). The brief moved to Haiku 5.5 in §221.
 2. **Bandwidth becomes the second-largest line at 10k and above.** This is the
    case for Opus over the stream (`IOS_APP.md`). Opus is about 0.2 MB/min
    against 2.65 MB/min, which cuts the bandwidth line about 13x (24 TB → ~1.8 TB
