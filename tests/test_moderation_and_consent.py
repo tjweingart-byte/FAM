@@ -45,6 +45,8 @@ def test_the_notice_names_the_provider_and_starts_unasked():
     ai = c.get("/api/consent").json()["ai"]
     assert ai["provider"] == "Anthropic"
     assert "Anthropic" in ai["notice"]["body"]
+    # The search drawn from the question goes to Exa, and the notice says so.
+    assert "Exa" in ai["notice"]["body"]
     assert ai["asked"] is False and ai["given"] is False
 
 
@@ -90,6 +92,8 @@ def test_only_the_listeners_own_words_need_it():
     assert appmod._sends_listener_words("myfam", "", "att1")
     assert not appmod._sends_listener_words("myfam", "", "")
     assert not appmod._sends_listener_words("dailyfam", "", "")
+    # The "where you live" tile names the place the listener set (§223).
+    assert appmod._sends_listener_words("myfam", "", "", appmod.startup.LOCAL_ID)
 
 
 def test_a_client_that_cannot_ask_is_not_broken():

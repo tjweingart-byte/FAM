@@ -40,8 +40,10 @@ SCOPES = (AI,)
 #: Bump when `AI_NOTICE` changes what is sent or who receives it.
 VERSION = 1
 
-#: Who receives the words. Named in the notice because 5.1.2(i) asks for the
-#: third party to be identified, not described.
+#: Who writes the episode from the words. Named in the notice because
+#: 5.1.2(i) asks for the third party to be identified, not described. The
+#: notice also names Exa, which receives the search the brief writes from
+#: them (`research.py`) - PROBLEMS.md §223.
 PROVIDER = "Anthropic"
 
 #: What the listener is shown, in one place, so every client says the same
@@ -50,9 +52,10 @@ AI_NOTICE = {
     "title": "FAM writes your episodes with AI",
     "body": ("To write an episode for something you ask, FAM sends what you "
              "type, say or attach, with the date and time where you are, to "
-             "Anthropic, whose Claude model writes it. "
-             "Anthropic does not use it to train its models. Your name, email "
-             "and account are never sent."),
+             "Anthropic, whose Claude model writes it, and a search drawn from "
+             "it to Exa to find sources. A suggestion about where you live "
+             "sends the place you set. Anthropic does not use any of it to "
+             "train its models. Your name, email and account are never sent."),
     "unaffected": ("Without this you can still listen to myFAM, DailyFAM and "
                    "Explore, which FAM writes ahead from its own questions."),
     "allow": "Allow",

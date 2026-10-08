@@ -5253,11 +5253,15 @@ def _client_asks_consent(request: Request) -> bool:
     return platform == "ios" or (platform, version) == client_versions.LIVE
 
 
-def _sends_listener_words(where: str, context: str, attach: str) -> bool:
-    """Whether a generation carries this listener's own words to the writer:
-    a search they typed or spoke, a Go Deeper question, an attachment. A
-    myFAM, DailyFAM or Trending tile is FAM's own question."""
-    return where == "search" or bool(context) or bool(attach)
+def _sends_listener_words(where: str, context: str, attach: str,
+                          topic_id: str = "") -> bool:
+    """Whether a generation carries something of this listener to the
+    writer: a search they typed or spoke, a Go Deeper question, an
+    attachment, or the "what changed where you live" tile, whose question
+    names the place they set (`startup.LOCAL_ID`, §223). Every other myFAM,
+    DailyFAM or Trending tile is FAM's own question."""
+    return (where == "search" or bool(context) or bool(attach)
+            or topic_id == startup.LOCAL_ID)
 
 
 CONSENT_REQUIRED = ("FAM needs your OK before it sends what you ask to "
@@ -7717,7 +7721,7 @@ async def audio(
         # Before anything is sent anywhere: a listener's own words reach the
         # AI provider only with their yes (5.1.2(i), `consent.py`). A replay
         # or a written script sends nothing, so it never asks.
-        if _sends_listener_words(where, context, attach):
+        if _sends_listener_words(where, context, attach, topic_id):
             _require_ai_consent(request, user)
         _rate_limit(request)
 
