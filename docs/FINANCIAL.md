@@ -35,7 +35,7 @@ python tools/prefetch_report.py --live            # is prefetch paying for itsel
 built from the deployment's own records on every download: `/admin` →
 **Financials (.xlsx)**, `GET /api/admin/financials.xlsx` with the admin token,
 or `python tools/financials.py --remote <host>` (`financials.py`, PROBLEMS.md
-§229). Costs lists every service with its monthly cost; Projections carries it
+§230). Costs lists every service with its monthly cost; Projections carries it
 twelve months forward from listener numbers, with sports apart and the
 marketing budget added. A service added to FAM gets a row in `financials.catalogue`.
 

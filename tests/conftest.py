@@ -162,7 +162,8 @@ FAM_ENVIRONMENT = (
     # Where a share recipient goes when they press anything but play. Unset
     # in a test, or a machine with a real one would draw doors the assertions
     # about the empty state do not expect.
-    "APP_STORE_URL", "APP_HOME_URL",
+    "APP_STORE_URL", "APP_HOME_URL", "APPLE_TEAM_ID", "IOS_BUNDLE_ID", "SUPPORT_EMAIL", "IMAGE_CHECK", "IMAGE_CHECK_MODEL",
+    "IMAGE_CHECK_MAX_TOKENS", "IMAGE_CHECK_TIMEOUT_SECONDS",
     # Which machine speaks, and how it is reached. A developer with a real
     # RunPod endpoint configured must run the same suite as CI: without these
     # cleared, `VOICE_BACKEND=remote` in their shell would point the engine
@@ -196,7 +197,7 @@ DATA_ENVIRONMENT = (
     "ACCOUNTS_DB", "ATTACHMENTS_PATH", "CACHE_PATH", "MESSAGES_DB", "MIXES_DB",
     "MYFAM_DB", "PREFS_DB", "QUOTAS_DB", "SAVED_DB", "SHARES_DB", "SOCIAL_DB",
     "VOICE_REGISTRY_DB", "TRENDING_BANK_DB", "FEEDBACK_DB", "PROVIDER_USAGE_DB",
-    "LOCAL_NEWS_DB", "GDELT_EXPORT_DB",
+    "LOCAL_NEWS_DB", "GDELT_EXPORT_DB", "CONSENT_DB", "MODERATION_DB",
 )
 
 #: Tier limits. Read by `entitlements.py` rather than `config.py`, so the
@@ -412,6 +413,14 @@ def isolated_stores(tmp_path, monkeypatch):
 
     monkeypatch.setattr(appmod, "FEEDBACK",
                         feedback_mod.FeedbackStore(str(here / "feedback.db")))
+
+    import consent as consent_mod
+    import moderation as moderation_mod
+
+    monkeypatch.setattr(appmod, "CONSENT",
+                        consent_mod.ConsentStore(str(here / "consent.db")))
+    monkeypatch.setattr(appmod, "MODERATION",
+                        moderation_mod.ModerationStore(str(here / "moderation.db")))
     # A written story's category, memoised for the ranker (§209), is a read
     # of the script cache a test replaces - one test's must not be the next's.
     appmod._WRITTEN_CATEGORY_MEMO.clear()

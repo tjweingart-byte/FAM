@@ -82,6 +82,17 @@ class Echo:
         }
 
 
+def explicit_name(name, handle) -> bool:
+    """Whether a name or handle swears, so the interface draws the E beside
+    it the way it does beside an episode (§224, at the owner's direction:
+    marked, not refused - slurs are the only words taken out, `slurs-only`)."""
+    try:
+        import content_filter
+        return content_filter.is_explicit([str(name or ""), str(handle or "")])
+    except Exception:  # noqa: BLE001 - a mark is never worth a failed page
+        return False
+
+
 def clean_avatar(avatar: str) -> str:
     """The picture as it will be stored, or "" for none.
 
@@ -104,6 +115,11 @@ def clean_handle(handle: str) -> str:
     handle = str(handle).strip().lstrip("@").lower()[:MAX_HANDLE]
     if not _HANDLE_OK.match(handle):
         raise SocialError("A handle is 2-24 letters, numbers, dots or underscores.")
+    # A handle cannot be scrubbed - "a slur" is not a handle - so one with a
+    # slur in it is refused (§224). Dots and underscores separate words.
+    import content_filter
+    if content_filter.slurs_in(handle):
+        raise SocialError("That handle isn't allowed. Try another.")
     return handle
 
 
@@ -117,15 +133,8 @@ MAX_COMMENT = 500
 def _clean_words(text: str, limit: int) -> str:
     """Whitespace folded, cut to `limit`, and slurs removed the way an
     episode's are (`content_filter.scrub`, §171): swearing stays."""
-    text = " ".join(str(text or "").split())[:limit]
-    if not text:
-        return ""
-    try:
-        import content_filter
-        return content_filter.scrub(text)
-    except Exception:  # noqa: BLE001 - the filter failing is not a lost post
-        log.exception("could not run the slur filter over a post")
-        return text
+    import content_filter
+    return content_filter.clean_line(text, limit)
 
 
 def clean_caption(caption: str) -> str:
@@ -452,6 +461,7 @@ class SocialStore:
             "joined": row[2] if row else 0.0,
             "last_seen": row[3] if row else 0.0,
             "avatar": (row[4] if row else "") or "",
+            "explicit": explicit_name(row[0], row[1]) if row else False,
             # Whether the app has ever seen this id before, as opposed to
             # whether they got around to naming themselves. The profile page
             # needs to tell those apart; before `seen()` it could not.
@@ -512,7 +522,7 @@ class SocialStore:
         """
         if not user_id:
             raise SocialError("No listener id.")
-        name = " ".join(str(name).split())[:MAX_NAME]
+        name = _clean_words(name, MAX_NAME)
         if not name:
             raise SocialError("Give yourself a name.")
         handle = clean_handle(handle)
@@ -644,6 +654,16 @@ class SocialStore:
                 " OR EXISTS (SELECT 1 FROM close_friends cf"
                 f" WHERE cf.owner = {alias}.user_id AND cf.member = ?))",
                 (viewer or "", viewer or ""))
+
+    def echo_row(self, echo_id: int) -> Optional[dict]:
+        """One vibe as the moderation inbox needs it: whose, on what, saying what."""
+        row = self._conn().execute(
+            "SELECT id, user_id, query, minutes, title, caption FROM echoes WHERE id = ?",
+            (int(echo_id),)).fetchone()
+        if not row:
+            return None
+        return {"id": int(row[0]), "user_id": row[1], "query": row[2],
+                "minutes": int(row[3]), "title": row[4] or "", "caption": row[5] or ""}
 
     def unecho(self, user_id: str, query: str, minutes: int) -> bool:
         cur = self._conn().execute(
@@ -977,13 +997,18 @@ class SocialStore:
                 "at": float(at), "name": person.get("name") or "",
                 "handle": person.get("handle") or "",
                 "avatar": person.get("avatar") or "",
+                "explicit": explicit_name(person.get("name"), person.get("handle")),
                 "likes": int(likes or 0), "liked": bool(liked),
                 "mine": bool(viewer) and viewer == user_id}
 
     def comments(self, query: str, minutes: int, viewer: str = "",
-                 limit: int = 200) -> list[dict]:
+                 limit: int = 200, exclude_users=(), exclude_ids=()) -> list[dict]:
         """An episode's comments, most liked first then newest, each with its
-        replies (oldest first, as a conversation reads) under `replies`."""
+        replies (oldest first, as a conversation reads) under `replies`.
+
+        `exclude_users` and `exclude_ids` leave out people and comments this
+        viewer must not see (`moderation.py`); a left-out comment takes its
+        replies with it."""
         query = " ".join(str(query).split())[:300]
         conn = self._conn()
         try:
@@ -1010,6 +1035,8 @@ class SocialStore:
         tops: list[dict] = []
         by_id: dict = {}
         for cid, uid, parent, text, at, likes in rows:
+            if uid in exclude_users or cid in exclude_ids:
+                continue
             if uid not in people:
                 people[uid] = self.person(uid)
             item = self._comment_dict(cid, uid, parent, text, at, people[uid],
@@ -1067,12 +1094,24 @@ class SocialStore:
                          (int(comment_id),)).fetchone()[0]
         return {"id": int(comment_id), "likes": int(n), "liked": bool(on)}
 
-    def delete_comment(self, user_id: str, comment_id: int) -> bool:
-        """Take back your own comment, with its replies and likes."""
+    def comment(self, comment_id: int) -> Optional[dict]:
+        """One comment as the moderation inbox needs it: whose, and what."""
+        row = self._conn().execute(
+            "SELECT id, user_id, query, minutes, text, at FROM comments WHERE id = ?",
+            (int(comment_id),)).fetchone()
+        if not row:
+            return None
+        return {"id": int(row[0]), "user_id": row[1], "query": row[2],
+                "minutes": int(row[3]), "text": row[4], "at": float(row[5])}
+
+    def delete_comment(self, user_id: str, comment_id: int,
+                       moderator: bool = False) -> bool:
+        """Take back your own comment, with its replies and likes - or, for a
+        reviewer acting on a report (`moderator`), anybody's."""
         conn = self._conn()
         row = conn.execute("SELECT user_id FROM comments WHERE id = ?",
                            (int(comment_id),)).fetchone()
-        if not row or row[0] != user_id:
+        if not row or (row[0] != user_id and not moderator):
             return False
         ids = [int(comment_id)] + [r[0] for r in conn.execute(
             "SELECT id FROM comments WHERE parent_id = ?", (int(comment_id),))]
@@ -1101,6 +1140,18 @@ class SocialStore:
             " ON CONFLICT (follower, followee) DO NOTHING",
             (user_id, target_id, now))
         return bool(cur.rowcount)
+
+    def sever(self, a: str, b: str) -> int:
+        """A block (`moderation.py`): no follow either way, and neither is the
+        other's close friend. Returns the rows removed."""
+        conn = self._conn()
+        n = conn.execute(
+            "DELETE FROM follows WHERE (follower = ? AND followee = ?)"
+            " OR (follower = ? AND followee = ?)", (a, b, b, a)).rowcount or 0
+        n += conn.execute(
+            "DELETE FROM close_friends WHERE (owner = ? AND member = ?)"
+            " OR (owner = ? AND member = ?)", (a, b, b, a)).rowcount or 0
+        return n
 
     def unfollow(self, user_id: str, target_id: str) -> bool:
         cur = self._conn().execute(
@@ -1136,7 +1187,8 @@ class SocialStore:
             log.exception("could not read the follow graph")
             return []
         return [{"user_id": r[0], "name": r[1] or "", "handle": r[2] or "",
-                 "at": r[3], "avatar": (r[4] if len(r) > 4 else "") or ""}
+                 "at": r[3], "avatar": (r[4] if len(r) > 4 else "") or "",
+                 "explicit": explicit_name(r[1], r[2])}
                 for r in rows]
 
     def friends(self, user_id: str, limit: int = 500) -> list[dict]:
@@ -1220,7 +1272,8 @@ class SocialStore:
             return []
         return [
             {"user_id": r[0], "name": r[1] or "", "handle": r[2] or "",
-             "at": r[3], "avatar": r[4] or "", "follows_back": bool(r[5])}
+             "at": r[3], "avatar": r[4] or "", "follows_back": bool(r[5]),
+             "explicit": explicit_name(r[1], r[2])}
             for r in rows
         ]
 
@@ -1298,6 +1351,17 @@ class SocialStore:
         return {"following": int(following), "followers": int(followers),
                 "friends": int(friends)}
 
+    def user_by_handle(self, handle: str) -> str:
+        """The listener with exactly this handle, or "". Not `find_people`:
+        that strips `_` and `%` to keep its LIKE literal, so a handle with an
+        underscore in it never matched itself (§226)."""
+        wanted = str(handle or "").strip().lstrip("@").lower()
+        if not wanted:
+            return ""
+        row = self._conn().execute(
+            "SELECT user_id FROM people WHERE handle = ?", (wanted,)).fetchone()
+        return row[0] if row else ""
+
     def find_people(self, term: str, exclude_user: str = "",
                     limit: int = 20) -> list[dict]:
         """Look somebody up by handle or name, to follow or share with.
@@ -1322,7 +1386,7 @@ class SocialStore:
             log.exception("could not search people")
             return []
         return [{"user_id": r[0], "name": r[1] or "", "handle": r[2] or "",
-                 "avatar": r[3] or ""}
+                 "avatar": r[3] or "", "explicit": explicit_name(r[1], r[2])}
                 for r in rows if r[0] != exclude_user]
 
     def forget(self, user_id: str) -> int:

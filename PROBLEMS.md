@@ -16498,6 +16498,419 @@ Rule: `gdelt-exports` carries a §220 Current note. Tests:
 `tests/test_gdelt_failures_220.py`; `test_the_newest_file_is_never_written_off`
 now expects `waiting`, not an error.
 
+## 221. Ready for Apple: a load test for staging, universal links, and APP_STORE.md
+
+Two asks from the owner: a way to see latency with many listeners at once, and
+everything that can be prepared now for the App Store, so talking to Apple
+goes in as few rounds as possible.
+
+**The load test** (`tools/load_test.py`, Locust, `requirements-loadtest.txt`).
+Each simulated user is one listener with its own server-minted session, so a
+429 is a real limiter, not the test sharing a bucket (`_limit_key`). It browses
+myFAM, Explore, trending searches and the catalogue, and replays kept
+episodes with `cached_only=1`. A play is reported as **time to first byte of
+audio** and time to the whole stream, because the one-sentence spec is about
+the first word, not requests per second. It **refuses any server whose health
+does not report zero spend** (`environment.zero_spend`), since production
+pays for every new episode and its waitlist and quotas would refuse the crowd
+anyway; `LOAD_TEST_ALLOW_SPEND=1` is the deliberate override. Sessions are
+minted with `/api/auth/me`, not `/api/health`, which stats every database
+(~240ms here) and would have put its own cost into every listener's numbers.
+On staging it measures the server and replays, never the model or the voice:
+those need a budgeted run against a GPU. Ten listeners for 40s against a local
+`FAM_ENV=staging` server: 92 requests, no failures.
+
+A trap found writing its test: putting `tools/` first on `sys.path` shadows
+real modules with scripts of the same name (`tools/trending_bank.py` over
+`trending_bank.py`), and every later test in the run broke. The test loads
+the file by path.
+
+**Universal links.** `/.well-known/apple-app-site-association` names the app
+for `/s/*` and `/m/*` (a shared episode or mix opens in the app when it is
+installed) and for `webcredentials`. It is a **404 until `APPLE_TEAM_ID` and
+`IOS_BUNDLE_ID` are both set**, the same rule as `APP_STORE_URL`: no file
+promising an app that does not exist. Not behind the waitlist gate, which
+covers `/api/` and the app's pages only; Apple's CDN fetches it without a
+session.
+
+**`APP_STORE.md`** is the runbook: the paperwork in the order Apple checks it
+(entity, EIN, domain email, D-U-N-S, organization enrollment, agreements,
+name, identifiers, server settings), the one-sheet of exactly-matching
+company details that prevents most enrollment stalls, the listing, age-rating
+and privacy-label answers drafted from what `DATABASE.md` says is stored, the
+review notes, and drafts for writing to Apple.
+
+What it found that is **not built** and will be rejected:
+
+- **1.2 user-generated content**: comments, messages, vibe captions,
+  profiles, photos and Explore are all UGC. Apple needs report, block, terms,
+  a filter and a contact. `/api/feedback` is a bug inbox, not a report button,
+  and there is no block. The filter is slurs-only by settled rule
+  (`slurs-only`); whether that satisfies Apple is the owner's call.
+- **5.1.2(i) third-party AI** (November 2025): explicit in-app consent before
+  a typed question or attachment is sent to Anthropic. A one-time screen
+  before the first search; it costs no latency.
+- Privacy policy, terms and support pages; APNs if 1.0 sends pushes.
+
+Pinned in `tests/test_load_test.py`.
+
+## 222. The two App Store rejections: report and block (1.2), and asking before words go to the AI (5.1.2(i))
+
+§221 found two things Apple rejects outright. The owner asked for both to be
+fixed. Rule `app-review-safety`; `APP_STORE.md` Part B says where each of
+Apple's requirements now lives.
+
+**Report and block** (`moderation.py`, `moderation.db`).
+
+- **Report** is in the ⋯ of a comment, a chat (person or group), a profile, a
+  story vibe, the player and the Explore reel. The reasons are the server's
+  (`GET /api/report`). The subject is read from the stores, never the request.
+  A message can be reported only by somebody in the conversation, and your own
+  comment is deleted, not reported.
+- **A report hides the thing from its reporter at once** and removes nothing
+  for anybody else. Somebody who said "this is abusive" should not have to
+  keep looking at it, and one report must not be a way to take down someone
+  else's comment.
+- **The reviewer** works from `/admin` > Reported content, oldest first, with
+  the oldest report's age and an OVERDUE flag past 24 hours.
+  - *Remove* takes the content down for everybody: a comment with its replies,
+    a message, a vibe. An episode comes off Explore and every other shelf of
+    other people's episodes.
+  - *Suspend* removes it and stops the account posting anything: comments,
+    messages, vibes, follows, groups. The account still listens, and it
+    disappears from everyone's people search, profiles and comments.
+  - One decision answers every open report about the same thing.
+  - The reporter is never shown, even to the reviewer.
+- **A block is silent, both ways and total.** Comments, messages (a one-to-one
+  chat leaves the inbox, a group keeps going without their messages), vibes and
+  stories, profile, people search, follows (ended both ways, with close
+  friends), tags, the player's searcher line, and their searched episodes on
+  Explore, the catalogue, trending searches and the interest pages. One helper
+  covers every shelf of other people's episodes (`app._visible_episodes`), so
+  a new shelf has one function to call.
+- **`_reachable` now refuses a blocked or suspended person** before the
+  waitlist check, so every handle lookup inherits it.
+- **Terms**: `/terms` (template `pages/terms.html`, outside `static/` so the
+  placeholder is never served raw). It is linked under both sign-up forms. The
+  contact is `SUPPORT_EMAIL`. When that is unset the page points at the report
+  button rather than inventing an address.
+- **Not changed**: the filter is still slurs only (`slurs-only`). Whether
+  Apple accepts that is the owner's call.
+- Nothing alerts anybody when a report arrives (there is no email delivery).
+  The 24-hour promise is kept by somebody reading `/admin`.
+
+**Consent** (`consent.py`, `consent.db`).
+
+- **What is sent to Anthropic** is the listener's own words: a typed or spoken
+  search, a Go Deeper question, an attachment. The writer also gets their local
+  date and time (`listener_clock`), so the notice says so. Nothing else
+  identifies them.
+- **The notice is the server's**, versioned. A yes to an older wording is not a
+  yes to a new one. The answer is kept per listener id, guest or account,
+  because the server is what sends the words, and account deletion erases it.
+- **The web asks before a first search, Go Deeper question or attachment.**
+  Settings > Privacy and safety > *Send my questions to AI* changes the answer.
+- **The server holds clients to it.** A generation that would carry the
+  listener's words (`_sends_listener_words`: a search, a context, an
+  attachment) from a client that knows to ask (`web/live`, any `ios/*`) is
+  refused with 403 and `X-FAM-Consent: ai` until there is a yes. The web shows
+  the notice on that refusal and starts the same episode again after Allow.
+- **What never asks:**
+  - A replay or an already-written script, which sends nothing.
+  - myFAM, DailyFAM and Trending tiles. FAM wrote those questions.
+  - A kept older web release, which never learned the question (`old-clients`).
+    Refusing it would break an installed client for a rule it cannot follow.
+  - A request with no client header (tools, tests).
+- **Latency is untouched.** The question is asked once, before a search, never
+  between a tap and the first word. The check on the generation path is an
+  in-memory lookup after the first read.
+
+**Previews.** Both shims answer `/api/consent`, `/api/report` and
+`/api/block(s)`. The preview's listener has said yes, so search still plays.
+Turn the setting off to see the notice. Two smoke checks were added: a search
+asks before sending and Allow sends it; Report and Block are in the menus. The
+chat-menu check now expects Report and Block after Delete chat.
+
+Pinned in `tests/test_moderation_and_consent.py`.
+
+## 223. The privacy policy, support page, legal PDFs and the iOS safety screens
+
+The owner set `SUPPORT_EMAIL` on Render (ian@familiarize.net for now, then a
+support address) and asked for four things.
+
+**`/privacy` and `/support`.** Both pages, and `/terms`, are rendered by one
+function, `app.legal_page`, from templates in `pages/`. They sit outside
+`static/` so a placeholder is never served raw. None of them is behind the
+waitlist.
+
+- The policy was written from an inventory of the code rather than from the
+  docs, because `DATABASE.md` is out of date. The inventory covered every
+  store, every outside service and exactly what each receives, retention, what
+  account deletion erases and what it anonymises, cookies and device storage,
+  and what other people can see.
+- It names every company that receives something.
+- It says **Viral Loops is not told when an account is deleted** and that we
+  will ask them on request. That is the honest state today.
+- There is **no age gate in the code**. The policy says FAM is not meant for
+  under-13s and that we delete such accounts on request. Whether to add a
+  birth-date check is the owner's call; the App Store age rating will
+  probably be 16+ or 18+.
+- The support page answers the questions review and listeners actually ask.
+  Password reset is honestly "email us", since there is no email delivery.
+- Settings > Privacy and safety links all three pages. Both sign-up notes now
+  name the privacy policy beside the terms.
+
+**The inventory found two gaps in the consent notice (§222)**, and both are
+fixed:
+
+- **Exa receives a search written from the listener's question** (EI's
+  `search_query`, or the raw question when EI fails). The notice, the terms,
+  the policy and the Settings note now name it. `VERSION` stays 1 because the
+  notice has never shipped.
+- **The "what changed where you live" tile's question names the place the
+  listener set.** That is something of theirs reaching Anthropic from a myFAM
+  tap. `_sends_listener_words` now counts `startup.LOCAL_ID`, so that tile asks
+  first like a search does.
+
+**PDFs** (`tools/legal_pdfs.py`, written to `docs/legal/`). Headless Chromium
+prints the same templates in print colours, so a PDF cannot say something the
+site does not. Run it again with `--email` whenever a page or the contact
+changes.
+
+**The iOS screens** (`ios/FAMSafety`, a Swift package). There is no Xcode
+project yet (`IOS_APP.md`: the lock-screen spike comes first). The package is
+an API client (`SafetyAPI`: consent, report options, report, block, unblock,
+blocks, all on `/api/v1` with `X-FAM-Client` and the bearer token) and these
+screens:
+
+- `ConsentModel` and `ConsentSheet`, with an `ensure()` to await before a
+  search and an `isConsentRefusal` for the audio request;
+- `ReportSheet`;
+- `.blockConfirmation`;
+- `BlockedPeopleView`;
+- `PrivacyAndSafetySection` for Settings.
+
+Every word on these screens is the server's. **It has not been compiled.**
+This container has no Swift toolchain and the download was refused by the
+network policy. So `tests/test_ios_safety_contract.py` checks what CI can:
+
+- every `/api/v1` path in the Swift is a route;
+- every field a `Codable` type decodes is in the server's real answer;
+- `ReportSubject` names exactly `moderation.KINDS`;
+- the consent header matches the one the server sends.
+
+The package's README gives the eight wiring steps.
+
+**Content filter, reviewed for Apple** (no code change). It removes slurs from
+episodes, titles, summaries, comments and vibe captions, and keeps them off
+trending searches. It marks swearing E and does not remove it. It does not
+touch messages, names, handles, group names, mix names or images. The owner
+decides what to widen; the options are in the reply of 2026-10-08.
+
+## 224. The content filter, widened for App Store 1.2: names, messages, and photos
+
+§223 broke the filter down for the owner. It covered episodes, comments,
+captions and trending searches. It did not cover messages, names, handles,
+group names, mix names or any image. The owner made three decisions.
+
+**1. The slur filter runs over everything one listener writes for another to
+read.**
+
+- Display names, in both `social.set_person` and `accounts.clean_display_name`.
+- Group names, at creation and on rename.
+- Mix names (`mixes.clean_name`).
+- Message text (`messages.clean_text`).
+- Comments and captions already used it. This is `slurs-only` applied in more
+  places, not a broader filter: swearing stays.
+- A handle cannot be scrubbed ("a slur" is not a handle), so **a handle with a
+  slur in it is refused**. Matching is still whole-word, so `dickens_fan` is
+  fine; dots and underscores separate words.
+
+**2. A name or handle that swears is kept and marked**, at the owner's
+direction ("for now").
+
+- `social.explicit_name` puts `explicit` on every person row: the profile,
+  comments, people search, friends lists, the inbox and the chat header.
+- The web draws the same E as an episode's (`.is-explicit`).
+
+The owner asked how common this is. Marking a *person* is not a pattern on the
+big platforms: Instagram, TikTok, Xbox, PlayStation and Discord refuse or force
+a change to a profane username, and E badges are for *content* (Apple Music
+and Spotify tracks). Apple's 1.2 does not name usernames. A reviewer creating
+an offensive username to test the filter is the likely way it comes up. If
+that happens, refusing explicit handles is one line beside the slur refusal.
+
+**3. Photos are checked automatically** (`image_check.py`), because the cost is
+insignificant.
+
+- **Cost.** A profile picture is at most 96 KB, and a cover is a 360px JPEG of
+  10-40 KB. That is a few hundred image tokens plus a short structured answer
+  at low effort: about $0.002-0.003 a photo on the default `MODEL` (Sonnet 5),
+  and a few times that on Opus.
+- **Volume.** Photos are uploaded a handful of times per account, so 10,000
+  accounts is tens of dollars.
+- **What it refuses**: nudity, sexual content, graphic violence or gore, hate
+  symbols or slurs in the image, anything sexualising a minor. Ordinary
+  photos, swimwear, art, memes and swearing are allowed. This is the image
+  counterpart of `slurs-only`.
+- **Which images.** Profile pictures (`/api/me`) and mix covers (create and
+  update) - the two images strangers see. An unchanged photo is not checked
+  again. Attached search images are private and go to Anthropic under the
+  consent anyway.
+- **Failure lets the photo through** and logs it. That covers no key
+  (staging), a timeout, an error, or an unreadable answer; Report + Remove
+  still covers the photo. A *refusal* by the model to look counts as a no.
+- **Metering.** Each check is recorded against the listener (`photo_check`).
+- **Health.** `/api/health` reports `image_check` (enabled, model, whether it
+  can run).
+- **Settings.** `IMAGE_CHECK`, `IMAGE_CHECK_MODEL` (defaults to `MODEL`),
+  `IMAGE_CHECK_MAX_TOKENS`, `IMAGE_CHECK_TIMEOUT_SECONDS`.
+- **Disclosure.** Under 5.1.2(i) a photo going to a third-party AI must be
+  disclosed. The photo editor says so before Save, and the privacy policy
+  lists it under Anthropic.
+
+**Found on the way:** the server sends refusals as `{"error": ...}`
+(`http_error`), not FastAPI's `detail`. The report and block toasts (§222) read
+`detail`, so they showed the generic sentence. They now read `error` first.
+The avatar and mix saves now show the server's sentence too, so a refused photo
+says why.
+
+Pinned in `tests/test_moderation_and_consent.py`.
+
+## 225. The photo check runs on Claude Haiku 5.5
+
+At the owner's direction: the §224 photo check followed `MODEL` (Sonnet 5,
+about $0.002-0.003 a photo), which was "too expensive for what we are
+expected to get out of it".
+
+- **The check now has its own default model**, `IMAGE_CHECK_MODEL=claude-haiku-5-5`
+  ($0.10 / $0.50 per million tokens). It no longer inherits the writer's
+  `MODEL`.
+- **Cost.** A few hundred image tokens plus a short structured answer at low
+  effort comes to about $0.0002 a photo, roughly a tenth of what it was.
+- **What it does is unchanged.** It is a yes/no on one small picture, against
+  a narrow list of what to refuse, which is the work the smallest current
+  model is for.
+- **`metering.PRICES` gains `claude-haiku-5-5`.** Without it every check would
+  have been recorded as unpriced.
+- **Still settable.** `IMAGE_CHECK_MODEL` can name another model if refusals
+  turn out wrong in practice.
+
+Pinned in `tests/test_moderation_and_consent.py`.
+
+## 226. Reviewing the branch before it merges: what the review found and fixed
+
+The owner asked for every change in this branch (§221-§225) to be checked
+before it goes to Main. A full review of the branch against Main found these.
+Each one was reproduced and fixed, and each has a regression test in
+`tests/test_moderation_and_consent.py`.
+
+- **Stored XSS in the story menu.** The new "Block <name>" row passed a
+  listener's first name into `menuLabel`, which `showActionSheet` draws as
+  HTML. It is escaped now, as the head row beside it already was.
+- **A handle with an underscore could not be blocked, reported or
+  reinstated.** `find_people` strips `_` and `%` to keep its LIKE pattern
+  literal, so `john_doe` never matched itself. `SOCIAL.user_by_handle` is an
+  exact lookup, used by `_person_by_handle`.
+  - The same bug was already on Main in `/api/person?handle=` and in
+    follow-by-handle. Both now use the exact lookup too.
+- **An unreadable photo bypassed the check.** Base64 with a space in it failed
+  the strict decode, so the check returned "nothing to look at". But the
+  avatar store kept it, and browsers decode loosely. A photo that cannot be
+  decoded is now refused (`image_check.UNREADABLE`), whether or not checking
+  is on.
+- **A reviewer's Remove on an episode only hid it from Explore's lists.** It
+  now also covers:
+  - playback: `/api/audio` answers 410, which covers shares, replays and any
+    rail tap;
+  - the myFAM rails and their View more (`_drop_removed`);
+  - the sign-up samples.
+- **Episode moderation keys now use the normalised question**
+  (`_episode_target` via `normalize_query`). A report filed with what was typed
+  and a cache row stored lower-cased now name the same episode.
+- **An episode report now records who searched it** (`_episode_author`), so a
+  reviewer can suspend them. Apple 1.2 asks for the poster to be ejected.
+- **The Messages badge counted messages from blocked people**, in threads they
+  could no longer open, so it could never be cleared. `unread_total` and
+  `unread_in` take `exclude_senders`; every badge goes through
+  `_unread_total`. A group's preview line no longer shows a blocked member's
+  last message either.
+- **Suspension did not cover everything strangers see.** It now also covers
+  mix creation and edits (name, cover, going public), changing your own name
+  and picture, and renaming a group.
+- **A FAM-suggested follow-up asked for consent.** The post-episode grid's
+  lead is FAM's own `<<NEXT>>` prediction, so a myFAM listener who said "Not
+  now" got the consent question over their next episode.
+  - `_sends_listener_words` no longer counts a bare follow-up.
+  - A *typed* Go Deeper question says so with `own=1`: `confirmGoDeeper` sets
+    it unless the listener kept FAM's suggestion unchanged. The server holds
+    an `own` question to the answer like a search.
+- **The photo check:**
+  - the cost is now recorded whenever the model was called, even when its
+    answer was unreadable;
+  - it is paced as a paid call (`_rate_limit`);
+  - the cheap checks run first (handle, name, picture format, mix name), so a
+    bad handle never pays for a photo check;
+  - health reports the last check's real outcome instead of "a key is set"
+    (`verify-not-inspect`).
+- **A report id of 120 digits returned 500** (SQLite integer overflow). Ids
+  are now limited to 18 digits, and anything else is a 404.
+- **"Unblocked" toasted on failure.** The Blocked people list now reads the
+  answer.
+- **Slurs are now scrubbed before the cut, in one helper**
+  (`content_filter.clean_line`). Before, "a slur" could push a name past its
+  limit, and a slur cut in half by the limit went unseen. There were four
+  copies of that logic; there is now one.
+- **Memory and polling:**
+  - the consent cache no longer grows with every guest session (unanswered
+    sessions are not cached, and there is a size cap);
+  - the block lookup is an index in both directions rather than a scan of
+    every block on each two-second poll.
+
+**Left as they are, deliberately:**
+
+- **Photos go to Anthropic even for a listener who said "Not now" to sending
+  questions.** The two are different things. The photo editor says, right
+  above Save, that the photo is checked by Anthropic, and saving after that is
+  the permission for that photo. Checking photos only with consent would let a
+  "Not now" listener post unchecked pictures to strangers.
+- **Some surfaces are still not filtered for blocks and removals:** Explore's
+  comment *counts*, and the friends rail for a suspended account. They are
+  cosmetic and low-risk. Moving these filters into the store and ranking
+  layers is the right long-term shape and a bigger change than a pre-merge
+  fix.
+
+**A second review of the fix commit** found and fixed:
+
+- the `own` flag above;
+- the photo check is paced only when it will really make a call
+  (`image_check.will_call`), so with checking off or no key, saving a photo
+  never uses an episode's pace;
+- a handle someone else has, or an empty mix name, is refused before the paid
+  check;
+- unread counts are grouped by sender and filtered in Python, instead of a
+  `NOT IN` list that grew with every suspended account toward SQLite's
+  variable limit;
+- `_drop_removed` reads the removed and reported sets once per rail, not once
+  per tile.
+
+**What that pass also raised, left as it is:**
+
+- **The moderation key uses `normalize_query`**, so two questions with the
+  same words in a different order share a key. That is deliberate. The script
+  cache keys on the same normalisation, so those two questions are already one
+  cached episode, and removing it should remove both.
+- **No rows needed migrating.** The raw-query keys of §222 were never deployed.
+- **A paraphrase the vector cache matches to a removed episode can still
+  replay its script.** The 410 check is on the exact key. Closing that needs a
+  way to take a row out of the script cache and its vector index, which the
+  cache does not have yet. Until then a reviewer's Remove covers the question
+  as asked and every listed surface, and the reporter never sees it again.
+- **A rail can show one tile fewer after a removal** rather than being topped
+  up. That keeps to "never invent a tile".
+- **A photo check that times out after Anthropic has already answered is not
+  metered.** The tokens are not known without the response.
+
 ## 227. The small calls on Haiku 5.5, and an episode priced call by call
 
 *Numbered 227, not 221: `claude/hopeful-clarke-te67tk` already holds
@@ -16581,7 +16994,54 @@ nothing unless it is used.
 
 Rule: `small-calls-haiku`. Tests: `tests/test_small_model_227.py`.
 
-## 229. The finance workbook: every service, every day, one file
+## 228. The Terms, agreed with a checkbox (clickwrap)
+
+The owner asked whether a "terms and conditions" people check off would take
+all liability off FAM, Anthropic and Apple. The answer given: no document
+does that. It cannot waive liability the law will not let you waive (gross
+negligence, consumer-protection rights, a child's claims, Apple's own review
+rules), and it does not answer App Store 1.2 on its own - Apple still wants
+report, block, a contact and action within 24 hours, which are built (§222).
+What a checkbox does buy is an *enforceable* agreement: courts enforce
+clickwrap (an unticked box the person ticks, next to the links) far more
+readily than "by continuing you agree" text under a button, which is what
+both sign-up forms had. So it was built, and the Terms grew the sections an
+agreement like this normally carries.
+
+**What was built.**
+- `consent.py` gained a second scope, `terms`, versioned by `TERMS_VERSION`
+  (1). The row is the record: version, time, client. `describe_terms` is the
+  `/api/consent` block (`accepted`, `accepted_version`, `at`, the two URLs).
+- Sign-up (`/api/auth/signup`), the waitlist join and Google/Apple sign-in
+  take `accept_terms`. A client that draws the box - `web/live`,
+  `web/waitlist`, any `ios/*` - is refused with a 400 and one sentence
+  before the account is made. A kept older release, and a request with no
+  client header, is not refused (`old-clients`); its account is asked later.
+- `/api/consent` POST with `scope: "terms"` accepts a yes, clamps the version
+  to the current one, and refuses a no: stopping agreeing is deleting the
+  account, and the error says where.
+- Web: an unticked box under the sign-up form (hidden on log in), checked
+  before the round trip; the waitlist join form has the same box. After boot
+  and after any sign-in, `checkTerms` reads `/api/consent` and, when the
+  account has no current acceptance (provider sign-in, an older client, a
+  bumped version), puts up a sheet with the box and no "Not now".
+- `/terms` gained: who can use FAM (13+, parental permission under 18), what
+  you post (your responsibility; a licence to show it; others' posts are
+  theirs), no warranty, limits on liability (cap: the greater of twelve
+  months' payments or US$50), an indemnity, and Apple's minimum EULA terms
+  (Apple not responsible, third-party beneficiary, embargo). The privacy
+  policy lists the acceptance record. PDFs regenerated.
+
+**Open, for a lawyer.** The new sections are standard wording, not advice.
+Governing law, arbitration and a class-action waiver were deliberately left
+out until a lawyer chooses them; the cap figure is theirs to confirm.
+Changing the Terms in a way people must agree to again is a bump of
+`TERMS_VERSION`, which asks every signed-in account once.
+
+**Not built.** The iOS sign-up screen is not in `ios/FAMSafety`; its README
+says what the screen must send.
+
+## 230. The finance workbook: every service, every day, one file
 
 The owner asked for the financials in one organised spreadsheet that updates
 daily and tracks every cost from every piece of software. There is no
@@ -16686,4 +17146,10 @@ out of the ledger on purpose: it prices Finnhub calls at the metered rate,
 and FAM pays Finnhub nothing (or, on a commercial plan, a flat fee that is its
 own row). Costs shows each service's purpose and source; dead code from the
 earlier tabs is gone.
+
+**Second merge of Main (§221-§228 landed).** The finance entry moves to §230
+(another branch now holds §229). §225's photo check records Claude spend in
+`metering.db` with `surface="photo_check"`: it counts under Claude on Daily
+Spend but never as an episode written (`financials.NOT_EPISODES`), or the
+projection's "cost of one new episode" would fall with every profile photo.
 

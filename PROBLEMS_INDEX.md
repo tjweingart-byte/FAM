@@ -224,5 +224,12 @@ and `limit` = Lines.
 | 16349 | 18 | 218. The waitlist carousels turn only by hand; white arrows above the slide |
 | 16367 | 60 | 219. The 10.7 packet: the waitlist is the front door again, its topics, a place under the name, and a search length that held |
 | 16427 | 74 | 220. Why a third of GDELT's downloads failed, and Finnhub's and the local feeds' |
-| 16501 | 83 | 227. The small calls on Haiku 5.5, and an episode priced call by call |
-| 16584 | 107 | 229. The finance workbook: every service, every day, one file |
+| 16501 | 56 | 221. Ready for Apple: a load test for staging, universal links, and APP_STORE.md |
+| 16557 | 79 | 222. The two App Store rejections: report and block (1.2), and asking before words go to the AI (5.1.2(i)) |
+| 16636 | 74 | 223. The privacy policy, support page, legal PDFs and the iOS safety screens |
+| 16710 | 70 | 224. The content filter, widened for App Store 1.2: names, messages, and photos |
+| 16780 | 21 | 225. The photo check runs on Claude Haiku 5.5 |
+| 16801 | 113 | 226. Reviewing the branch before it merges: what the review found and fixed |
+| 16914 | 83 | 227. The small calls on Haiku 5.5, and an episode priced call by call |
+| 16997 | 47 | 228. The Terms, agreed with a checkbox (clickwrap) |
+| 17044 | 113 | 230. The finance workbook: every service, every day, one file |

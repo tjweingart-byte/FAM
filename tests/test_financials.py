@@ -220,3 +220,18 @@ def test_ledger_ranges_are_whole_columns_and_any_launch_day_counts(stores):
                  if plan.cell(row=r, column=1).value == "Listeners"][0]
     assert "DATE(YEAR($B$4),MONTH($B$4),1)" in listeners
     assert book["Marketing & Materials"]["B3"].value.startswith("=DATE(YEAR(")
+
+
+def test_a_photo_check_is_spend_but_not_an_episode(stores):
+    """§225's photo check records Claude spend in the same ledger. It must show
+    in the day's Claude cost and never in the episode count, which divides it."""
+    store = metering.MeterStore()
+    _episode(store, NOW)
+    u = metering.Usage()
+    u.model, u.model_calls = "claude-haiku-5-5", 1
+    u.input_tokens, u.output_tokens = 400, 50
+    store.record("listener", u, surface="photo_check", at=NOW)
+    day = financials.daily_ledger(NOW)["2026-10-07"]
+    assert day["episodes"] == 1
+    assert day["claude"] == pytest.approx(
+        metering.price_of(_usage()).claude + metering.price_of(u).claude, abs=1e-6)

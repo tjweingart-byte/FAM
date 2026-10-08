@@ -351,6 +351,12 @@ def _utc_day(at: float) -> str:
     return time.strftime("%Y-%m-%d", time.gmtime(at))
 
 
+#: Ledger rows that spend on Claude but write no episode (§225's photo check).
+#: Their cost counts under Claude; they never count as an episode written, or
+#: "cost of one new episode" on Projections would fall for every photo.
+NOT_EPISODES = frozenset({"photo_check"})
+
+
 def daily_ledger(now: Optional[float] = None) -> dict:
     """day -> recorded spend and counts, for every UTC day with a record."""
     now = time.time() if now is None else now
@@ -364,12 +370,14 @@ def daily_ledger(now: Optional[float] = None) -> dict:
     # `live_usd` is left out on purpose: it prices Finnhub calls at its metered
     # per-call rate, but FAM is on the free plan (and would be on a flat
     # commercial one, a row of its own on Costs), so it is not money spent.
-    for at, hit, claude, exa, gpu in _read(
+    for at, surface, hit, claude, exa, gpu in _read(
             "METERING_DB", "metering.db",
-            "SELECT at, cache_hit, claude_usd, exa_usd, gpu_usd"
+            "SELECT at, surface, cache_hit, claude_usd, exa_usd, gpu_usd"
             " FROM usage WHERE at >= ?", (since,)):
         d = day(_utc_day(at))
-        if hit:
+        if surface in NOT_EPISODES:
+            pass  # spend, but not an episode: it must not lower the per-episode cost
+        elif hit:
             d["hits"] += 1
         else:
             d["episodes"] += 1

@@ -89,6 +89,9 @@ a polish item after it.
 
 ## What the App Store requires that FAM does not have
 
+`APP_STORE.md` is the submission runbook: paperwork, the answers App Store
+Connect asks for, and how to talk to Apple. This section is the why.
+
 Verify each against the current guidelines when the submission is real — they
 move — but these are the ones that apply to this app specifically, and two of
 them are hard rejections rather than notes.
@@ -162,7 +165,9 @@ Explore → `/api/explore` with `cached_only`, Go Deeper → `/api/next`, profil
 rewrite, and keeping it true is the standing instruction below.
 
 **Stage 5 — the compliance work above**, which is real feature work and not
-paperwork: delete, report, block, filter.
+paperwork: delete, report, block, filter. *Built on the server and the web*
+(§222, `APP_STORE.md` Part B): the app draws the same menus, the same notice
+and handles `X-FAM-Consent` from the same endpoints.
 
 **Stage 6 — TestFlight.** Internal testers first (no review), then external
 (reviewed, and the 1.2 items must be in by then). Budget the beta as GPU-hours
