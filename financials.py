@@ -6,7 +6,7 @@
 
 One workbook, written fresh from the deployment's own records every time it
 is asked for - so "updates daily" is a property of where the numbers come
-from, not of a job that has to remember to run. Costs and projections only:
+from, not of a job that has to remember to run. Four tabs:
 
 * **Costs** - every outside service, one row each: what it is for, the plan
   in force, its monthly and annual cost. Usage-billed rows add up the last 30
@@ -49,8 +49,8 @@ DAY = 86400
 LEDGER_MAX_DAYS = 365
 LEDGER_MIN_DAYS = 30
 
-#: EUR to USD, for GNews (priced in euros). An assumption, editable on the
-#: sheet; looked up 2026-10-07.
+#: EUR to USD, for GNews (priced in euros). An assumption written into the
+#: GNews formulas (`=49.99*1.08`), so it shows where it is used; change it here.
 EUR_TO_USD = 1.08
 
 # --- the catalogue ----------------------------------------------------------
@@ -116,6 +116,24 @@ def _gpu() -> tuple[float, bool]:
     return rate, pod
 
 
+#: GNews' paid plans by `GNEWS_PLAN`, EUR a month (gnews.io/pricing,
+#: 2026-09-25). A plan not listed is shown as paying with its price to enter.
+GNEWS_PLANS = {"essential": 49.99}
+
+
+def _claude_plan(model: str) -> str:
+    """The writer model's list price, from the table metering prices with."""
+    try:
+        import metering
+        rate = metering.PRICES.get(model)
+    except Exception:  # noqa: BLE001
+        rate = None
+    if not rate:
+        return "Pay as you go (per token)"
+    return (f"Pay as you go: ${rate[0]:g} in / ${rate[1]:g} out per M tokens; "
+            "small calls on a cheaper model")
+
+
 def _sport_tiers() -> tuple[dict, dict]:
     """(sport -> tier, tier -> {daily, usd, label}) from live_sources."""
     try:
@@ -147,7 +165,7 @@ def catalogue() -> list[dict]:
         _row(HOSTING, "Render", "Staging disk (1 GB)",
              "Staging's own stores", "1 GB at $0.25/GB", "Paying", 0.25, "/month",
              "", "render.yaml; render.com/pricing (2026-09-25)"),
-        _row(HOSTING, "Render", "Outbound bandwidth",
+        _row(HOSTING, "Render bandwidth", "Outbound bandwidth",
              "Streaming audio to listeners (2.65 MB per minute of PCM)",
              "Included allowance, then $0.15/GB", "Enter from invoice", 0,
              "/month", "Opus transport cuts this ~13x before 10k MAU",
@@ -178,7 +196,7 @@ def catalogue() -> list[dict]:
     rows += [
         _row(AI, "Anthropic", f"Claude API ({model})",
              "Writes every brief and script, composes story tiles",
-             "Pay as you go: $2 in / $10 out per M tokens (Sonnet 5)",
+             _claude_plan(model),
              "Usage-billed", None, "usage",
              "Raise the usage tier in the console before launch",
              "Recorded per episode in metering.db (claude_usd)", ledger="claude"),
@@ -201,8 +219,9 @@ def catalogue() -> list[dict]:
         DATA, "GNews", "News API (Trending edition)",
         "Picks the ten Trending stories twice a day",
         f"{gnews_plan.title()} plan" if gnews_paid else "Free (100 req/day, development use only)",
-        "Paying" if gnews_paid else "Free tier, licence needed before launch",
-        49.99 if gnews_paid else 0, "EUR/month" if gnews_paid else "/month",
+        ("Paying" if gnews_plan in GNEWS_PLANS else "Paying, enter price")
+        if gnews_paid else "Free tier, licence needed before launch",
+        GNEWS_PLANS.get(gnews_plan, 0), "EUR/month" if gnews_paid else "/month",
         "" if gnews_paid else "Essential EUR 49.99/mo before charging anyone",
         "GNEWS_PLAN; gnews.io/pricing (2026-09-25)"))
 
@@ -293,23 +312,21 @@ def catalogue() -> list[dict]:
     return rows
 
 
-#: The licences a paid launch needs that are not yet bought, and one optional
-#: upgrade. Projections counts the included ones from the launch month.
+#: The licences a paid launch needs that are not yet bought. Projections counts
+#: them from the launch month.
 #: API-Sports and Render are not here: the plan sizes those from listeners.
 def launch_purchases(rows: list[dict]) -> list[dict]:
     out = []
     bought = {(r["vendor"], r["status"]) for r in rows}
     if ("GNews", "Paying") not in bought:
         out.append({"item": "GNews Essential (commercial licence)",
-                    "price": 49.99, "unit": "EUR/month", "include": 1})
+                    "price": 49.99, "unit": "EUR/month"})
     if not any(r["vendor"] == "Finnhub" and r["status"].startswith("Paying") for r in rows):
         out.append({"item": "Finnhub commercial plan (quoted)",
-                    "price": 11.99, "unit": "/month", "include": 1})
+                    "price": 11.99, "unit": "/month"})
     if ("Open-Meteo", "Paying") not in bought:
         out.append({"item": "Open-Meteo API Standard",
-                    "price": 29, "unit": "/month", "include": 1})
-    out.append({"item": "RunPod active worker (no cold starts)",
-                "price": 343, "unit": "/month", "include": 0})
+                    "price": 29, "unit": "/month"})
     return out
 
 
@@ -342,12 +359,14 @@ def daily_ledger(now: Optional[float] = None) -> dict:
 
     def day(d):
         return out.setdefault(d, {"episodes": 0, "hits": 0, "claude": 0.0,
-                                  "exa": 0.0, "gpu": 0.0, "images": 0.0,
-                                  "image_count": 0, "live_calls": 0})
+                                  "exa": 0.0, "gpu": 0.0, "images": 0.0})
 
-    for at, hit, claude, exa, gpu, live in _read(
+    # `live_usd` is left out on purpose: it prices Finnhub calls at its metered
+    # per-call rate, but FAM is on the free plan (and would be on a flat
+    # commercial one, a row of its own on Costs), so it is not money spent.
+    for at, hit, claude, exa, gpu in _read(
             "METERING_DB", "metering.db",
-            "SELECT at, cache_hit, claude_usd, exa_usd, gpu_usd, live_calls"
+            "SELECT at, cache_hit, claude_usd, exa_usd, gpu_usd"
             " FROM usage WHERE at >= ?", (since,)):
         d = day(_utc_day(at))
         if hit:
@@ -357,13 +376,11 @@ def daily_ledger(now: Optional[float] = None) -> dict:
         d["claude"] += float(claude or 0)
         d["exa"] += float(exa or 0)
         d["gpu"] += float(gpu or 0)
-        d["live_calls"] += int(live or 0)
     for at, images, cost in _read(
             "THUMBNAILS_DB", "thumbnails.db",
             "SELECT at, images, cost_usd FROM spend WHERE at >= ?", (since,)):
         d = day(_utc_day(at))
         d["images"] += float(cost or 0)
-        d["image_count"] += int(images or 0)
     return out
 
 
@@ -499,7 +516,10 @@ def build(now: Optional[float] = None) -> bytes:
         "FAM")
     led.freeze_panes = "A2"
     LEDGER_COL = {"claude": "C", "exa": "D", "gpu": "E", "images": "F"}
-    rng = lambda c: f"'Daily Spend'!${c}${L0}:${c}${LN}"  # noqa: E731
+    # Whole columns: the Google Sheet's Apps Script adds a row every day, and a
+    # range fixed at today's last row would leave the newest days out. The
+    # header is text, so it never matches the date criterion.
+    rng = lambda c: f"'Daily Spend'!${c}:${c}"  # noqa: E731
     AS_OF = "Costs!$B$3"
     last30 = lambda c: f'SUMIFS({rng(c)},{rng("A")},">"&({AS_OF}-30))'  # noqa: E731
 
@@ -512,8 +532,8 @@ def build(now: Optional[float] = None) -> bytes:
     costs["B3"] = today
     costs["B3"].number_format = "d mmm yyyy"
     costs["B3"].font = f(bold=True)
-    costs["C3"] = ("Download a new copy for new numbers: /admin > Financials, "
-                   "or the morning delivery.")
+    costs["C3"] = ("Daily Spend holds the recorded days; usage lines add up its "
+                   "last 30.")
     costs["C3"].font = f(9, color=MUTED, italic=True)
 
     rows = catalogue()
@@ -527,7 +547,8 @@ def build(now: Optional[float] = None) -> bytes:
     for cat in CATEGORIES:
         for x in (x for x in kept if x["category"] == cat):
             label = x["vendor"] if x["vendor"] not in ("-",) else x["item"]
-            what = x["item"] if x["vendor"] not in ("-",) else x["purpose"]
+            what = (f"{x['item']}: {x['purpose']}" if x["vendor"] not in ("-",)
+                    else x["purpose"])
             vals = [cat, label, what, x["plan"], x["status"]]
             for c, v in enumerate(vals, start=1):
                 cell = costs.cell(row=r, column=c, value=v)
@@ -549,9 +570,15 @@ def build(now: Optional[float] = None) -> bytes:
             else:
                 m.value = x["price"]
                 entry(m)
-                note = x["next"] or ("Yearly price divided by 12." if x["unit"] == "/year" else "")
+                note = x["next"] or ("Enter the yearly price divided by 12."
+                                     if x["unit"] == "/year" else "")
             m.number_format = MONEY
             costs.cell(row=r, column=7, value=f"=F{r}*12").number_format = MONEY0
+            note = note.strip()
+            if note and not note.endswith("."):
+                note += "."
+            if x["source"]:
+                note = f"{note} Source: {x['source']}."
             n = costs.cell(row=r, column=8, value=note.strip())
             n.font = f(9, color=MUTED)
             n.alignment = Alignment(vertical="top", wrap_text=True)
@@ -561,7 +588,7 @@ def build(now: Optional[float] = None) -> bytes:
                     costs.cell(row=r, column=c).alignment = Alignment(vertical="top")
             r += 1
     names = ", ".join(x["vendor"] for x in free)
-    costs.cell(row=r, column=1, value=DATA)
+    costs.cell(row=r, column=1, value="Free")
     costs.cell(row=r, column=2, value="Free services").font = f(bold=True)
     costs.cell(row=r, column=3, value=names).alignment = Alignment(wrap_text=True, vertical="top")
     costs.cell(row=r, column=4, value="Free, no paid plan")
@@ -592,11 +619,9 @@ def build(now: Optional[float] = None) -> bytes:
     costs["E5"].font = f(9, color=MUTED, italic=True)
     costs.freeze_panes = f"C{HEAD + 1}"
     widths(costs, [22, 20, 34, 30, 24, 13, 12, 44])
-    TOTAL_MONTHLY = "Costs!$D$6"
     cs_vendor = lambda v: (  # noqa: E731
         f'SUMIFS(Costs!$F${R0}:$F${RN},Costs!$B${R0}:$B${RN},"{v}")')
     FIXED = "Costs!$B$6"
-    USAGE = "Costs!$C$6"
 
     # --------------------------------------------------- the twelve months
     months_dates = []
@@ -622,7 +647,7 @@ def build(now: Optional[float] = None) -> bytes:
           "launch, plus anything spent once at launch; the months fill in.")
     mkt["A3"] = "Launch month"
     mkt["A3"].font = f(bold=True)
-    mkt["B3"] = "=Projections!$B$4"
+    mkt["B3"] = "=DATE(YEAR(Projections!$B$4),MONTH(Projections!$B$4),1)"
     mkt["B3"].number_format = "mmm yyyy"
     mkt["B3"].font = f(bold=True, color=GREEN)
     mkt["C3"] = "Set on Projections."
@@ -711,7 +736,10 @@ def build(now: Optional[float] = None) -> bytes:
         cell = proj.cell(row=row, column=2, value=value)
         if value is None:
             cell.value = (f"=IF(SUMIFS({rng('B')},{rng('A')},\">\"&({AS_OF}-30))>0,"
-                          f"({last30('C')}+{last30('D')}+{last30('E')}+{last30('F')})"
+                          # On an always-on pod the GPU is a fixed rental on
+                          # Costs; its per-episode share would count it twice.
+                          f"({last30('C')}+{last30('D')}"
+                          f"{'' if pod else '+' + last30('E')}+{last30('F')})"
                           f"/SUMIFS({rng('B')},{rng('A')},\">\"&({AS_OF}-30)),0.06)")
             cell.font = f(color=GREEN)
             cell.number_format = fmt
@@ -722,7 +750,8 @@ def build(now: Optional[float] = None) -> bytes:
     PH = 4 + len(assumptions) + 1
     month_header(proj, PH, "Month")
     lb = a("Launch month")
-    live = lambda L: f"{L}${PH}>={lb}"  # noqa: E731
+    # Any day typed into the launch month means that month.
+    live = lambda L: f"{L}${PH}>=DATE(YEAR({lb}),MONTH({lb}),1)"  # noqa: E731
     names = ["mau", "searches", "sports", "episodes", "episode_cost", "api_sports",
              "hosting", "bandwidth", "subs", "licences", "marketing", "total",
              "revenue", "net", "cumulative", "per_listener", "sports_share"]
@@ -730,7 +759,7 @@ def build(now: Optional[float] = None) -> bytes:
 
     # Every rate the months use, in its own labelled cell under the table.
     purchases = launch_purchases(rows)
-    licences = [p for p in purchases if p["include"]]
+    licences = purchases
     rates = [
         ("fallback", "Cost of one new episode before there is traffic", 0.06, MONEY,
          "Estimate, docs/FINANCIAL.md 2.4"),
@@ -817,7 +846,8 @@ def build(now: Optional[float] = None) -> bytes:
     prow("bandwidth", "Bandwidth", lambda m, L: (
         f"={L}{R['mau']}*{a('Plays per listener per month')}*{t('bw')}"))
     prow("subs", "Other subscriptions and background writing", lambda m, L: (
-        f"={FIXED}-{cs_vendor('Render')}-{cs_vendor('API-Sports')}"
+        f"={FIXED}-{cs_vendor('Render')}-{cs_vendor('Render bandwidth')}"
+        f"-{cs_vendor('API-Sports')}"
         f"+MIN({t('bg_cap')},{t('bg_base')}+{t('bg_per')}*{L}{R['mau']})"))
     prow("licences", "Launch licences", lambda m, L: (
         f"=IF({live(L)},{'+'.join(lic_cells) or 0},0)"))

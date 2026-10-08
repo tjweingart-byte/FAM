@@ -125,6 +125,10 @@ def test_a_pod_is_a_fixed_rental_and_serverless_is_usage(stores, monkeypatch):
     _set(monkeypatch, remote_voice_transport="http")
     gpu = [r for r in financials.catalogue() if r["category"] == financials.VOICE][0]
     assert gpu["unit"] == "/month" and gpu["price"] > 100
+    plan = _book(financials.build(NOW))["Projections"]
+    labels = {plan.cell(row=r, column=1).value: r for r in range(1, plan.max_row + 1)}
+    episode = plan.cell(row=labels["Cost of one new episode"], column=2).value
+    assert "'Daily Spend'!$E:$E" not in episode, "a pod's GPU must not be counted twice"
 
 
 def test_reading_never_creates_a_store(stores):
@@ -201,3 +205,18 @@ def test_the_google_sheet_gets_the_same_days_as_the_workbook(stores, monkeypatch
         os.path.abspath(__file__))), "tools", "financials_apps_script.gs")).read()
     assert "/api/admin/financials/daily.json" in script
     assert "'Daily Spend'" in script and "FAM_ADMIN_TOKEN" in script
+
+
+def test_ledger_ranges_are_whole_columns_and_any_launch_day_counts(stores):
+    """The Google Sheet adds a row a day, so a range fixed at today's last row
+    would leave new days out; and 15 Jan as the launch month means January."""
+    book = _book(financials.build(NOW))
+    cs = book["Costs"]
+    usage = [cs.cell(row=r, column=6).value for r in range(10, cs.max_row + 1)
+             if str(cs.cell(row=r, column=6).value or "").startswith("=SUMIFS")]
+    assert usage and all("'Daily Spend'!$A:$A" in f for f in usage)
+    plan = book["Projections"]
+    listeners = [plan.cell(row=r, column=4).value for r in range(1, plan.max_row + 1)
+                 if plan.cell(row=r, column=1).value == "Listeners"][0]
+    assert "DATE(YEAR($B$4),MONTH($B$4),1)" in listeners
+    assert book["Marketing & Materials"]["B3"].value.startswith("=DATE(YEAR(")

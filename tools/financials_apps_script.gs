@@ -30,16 +30,27 @@ function refreshFamSpend() {
   const data = JSON.parse(res.getContentText());
   const ss = SpreadsheetApp.getActive();
   const sheet = ss.getSheetByName('Daily Spend');
+  const costs = ss.getSheetByName('Costs');
+  if (!sheet || !costs) {
+    throw new Error('This sheet needs its "Daily Spend" and "Costs" tabs, named exactly that.');
+  }
   const last = sheet.getLastRow();
   if (last > 1) sheet.getRange(2, 1, last - 1, 6).clearContent();
-  const rows = data.rows;
+  // Real dates, not "2026-10-08" text: the Costs and Projections formulas
+  // compare dates, and a text cell would quietly drop out of every sum.
+  const rows = data.rows.map(function (r) { return [asDate(r[0])].concat(r.slice(1)); });
   if (rows.length) {
     sheet.getRange(2, 1, rows.length, 6).setValues(rows);
     sheet.getRange(2, 1, rows.length, 1).setNumberFormat('yyyy-mm-dd');
     sheet.getRange(2, 2, rows.length, 1).setNumberFormat('#,##0;(#,##0);"-"');
     sheet.getRange(2, 3, rows.length, 4).setNumberFormat(MONEY);
   }
-  ss.getSheetByName('Costs').getRange('B3').setValue(data.as_of);
+  costs.getRange('B3').setValue(asDate(data.as_of));
+}
+
+/** "2026-10-08" as a date at noon UTC, so no time zone moves it a day. */
+function asDate(iso) {
+  return new Date(iso + 'T12:00:00Z');
 }
 
 function installDailyTrigger() {

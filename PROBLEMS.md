@@ -16674,3 +16674,16 @@ admin token as a script property (never in a cell), fetches
 rows) every morning and replaces Daily Spend; Costs and Projections follow as
 formulas. The Routine that mailed the .xlsx is deleted.
 
+**Review before merge.** Ledger ranges are whole columns (`'Daily Spend'!$C:$C`)
+because the sheet gains a row a day and a range fixed at build time would
+leave the newest days out; any day typed as the launch month means that
+month (`DATE(YEAR(),MONTH(),1)`), so 15 Jan does not drop January's one-off
+launch spend; on an always-on pod the per-episode GPU share is left out of the
+cost of an episode, since Costs already carries the rental; invoice bandwidth
+is its own service ("Render bandwidth") so it is not counted twice beside the
+modelled line; the Apps Script writes real dates, not text. `live_usd` stays
+out of the ledger on purpose: it prices Finnhub calls at the metered rate,
+and FAM pays Finnhub nothing (or, on a commercial plan, a flat fee that is its
+own row). Costs shows each service's purpose and source; dead code from the
+earlier tabs is gone.
+
