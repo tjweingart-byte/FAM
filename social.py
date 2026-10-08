@@ -645,6 +645,16 @@ class SocialStore:
                 f" WHERE cf.owner = {alias}.user_id AND cf.member = ?))",
                 (viewer or "", viewer or ""))
 
+    def echo_row(self, echo_id: int) -> Optional[dict]:
+        """One vibe as the moderation inbox needs it: whose, on what, saying what."""
+        row = self._conn().execute(
+            "SELECT id, user_id, query, minutes, title, caption FROM echoes WHERE id = ?",
+            (int(echo_id),)).fetchone()
+        if not row:
+            return None
+        return {"id": int(row[0]), "user_id": row[1], "query": row[2],
+                "minutes": int(row[3]), "title": row[4] or "", "caption": row[5] or ""}
+
     def unecho(self, user_id: str, query: str, minutes: int) -> bool:
         cur = self._conn().execute(
             "DELETE FROM echoes WHERE user_id = ? AND query = ? AND minutes = ?",
@@ -981,9 +991,13 @@ class SocialStore:
                 "mine": bool(viewer) and viewer == user_id}
 
     def comments(self, query: str, minutes: int, viewer: str = "",
-                 limit: int = 200) -> list[dict]:
+                 limit: int = 200, exclude_users=(), exclude_ids=()) -> list[dict]:
         """An episode's comments, most liked first then newest, each with its
-        replies (oldest first, as a conversation reads) under `replies`."""
+        replies (oldest first, as a conversation reads) under `replies`.
+
+        `exclude_users` and `exclude_ids` leave out people and comments this
+        viewer must not see (`moderation.py`); a left-out comment takes its
+        replies with it."""
         query = " ".join(str(query).split())[:300]
         conn = self._conn()
         try:
@@ -1010,6 +1024,8 @@ class SocialStore:
         tops: list[dict] = []
         by_id: dict = {}
         for cid, uid, parent, text, at, likes in rows:
+            if uid in exclude_users or cid in exclude_ids:
+                continue
             if uid not in people:
                 people[uid] = self.person(uid)
             item = self._comment_dict(cid, uid, parent, text, at, people[uid],
@@ -1067,12 +1083,24 @@ class SocialStore:
                          (int(comment_id),)).fetchone()[0]
         return {"id": int(comment_id), "likes": int(n), "liked": bool(on)}
 
-    def delete_comment(self, user_id: str, comment_id: int) -> bool:
-        """Take back your own comment, with its replies and likes."""
+    def comment(self, comment_id: int) -> Optional[dict]:
+        """One comment as the moderation inbox needs it: whose, and what."""
+        row = self._conn().execute(
+            "SELECT id, user_id, query, minutes, text, at FROM comments WHERE id = ?",
+            (int(comment_id),)).fetchone()
+        if not row:
+            return None
+        return {"id": int(row[0]), "user_id": row[1], "query": row[2],
+                "minutes": int(row[3]), "text": row[4], "at": float(row[5])}
+
+    def delete_comment(self, user_id: str, comment_id: int,
+                       moderator: bool = False) -> bool:
+        """Take back your own comment, with its replies and likes - or, for a
+        reviewer acting on a report (`moderator`), anybody's."""
         conn = self._conn()
         row = conn.execute("SELECT user_id FROM comments WHERE id = ?",
                            (int(comment_id),)).fetchone()
-        if not row or row[0] != user_id:
+        if not row or (row[0] != user_id and not moderator):
             return False
         ids = [int(comment_id)] + [r[0] for r in conn.execute(
             "SELECT id FROM comments WHERE parent_id = ?", (int(comment_id),))]
@@ -1101,6 +1129,18 @@ class SocialStore:
             " ON CONFLICT (follower, followee) DO NOTHING",
             (user_id, target_id, now))
         return bool(cur.rowcount)
+
+    def sever(self, a: str, b: str) -> int:
+        """A block (`moderation.py`): no follow either way, and neither is the
+        other's close friend. Returns the rows removed."""
+        conn = self._conn()
+        n = conn.execute(
+            "DELETE FROM follows WHERE (follower = ? AND followee = ?)"
+            " OR (follower = ? AND followee = ?)", (a, b, b, a)).rowcount or 0
+        n += conn.execute(
+            "DELETE FROM close_friends WHERE (owner = ? AND member = ?)"
+            " OR (owner = ? AND member = ?)", (a, b, b, a)).rowcount or 0
+        return n
 
     def unfollow(self, user_id: str, target_id: str) -> bool:
         cur = self._conn().execute(

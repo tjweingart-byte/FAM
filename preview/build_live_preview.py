@@ -1468,6 +1468,32 @@ __WRITING_SIM__
                     summary: (FIXTURES["/api/next"] || {}).summary || "" });
     }
 
+    // Consent, reporting and blocking (consent.py, moderation.py): the
+    // answers are kept for as long as the page is open.
+    if (path === "/api/consent" && method === "POST") {
+      var cAsk = body || {};
+      var cAi = FIXTURES["/api/consent"].ai;
+      cAi.asked = true;
+      cAi.given = !!cAsk.allow;
+      cAi.answered_version = cAi.version;
+      return json({ ai: cAi });
+    }
+    if (path === "/api/report" && method === "POST") {
+      return json({ ok: true, id: "preview", hidden: true,
+                    message: "Thanks for telling us. We review every report within "
+                             + FIXTURES["/api/report"].review_hours + " hours." });
+    }
+    if (path === "/api/block") {
+      var bAsk = method === "POST" ? (body || {}).handle : qs.get("handle");
+      var bList = FIXTURES["/api/blocks"].people;
+      if (method === "POST") {
+        if (bAsk && !bList.some(function (p) { return p.handle === bAsk; }))
+          bList.unshift({ name: "", handle: bAsk, avatar: "" });
+        return json({ ok: true, blocked: true });
+      }
+      FIXTURES["/api/blocks"].people = bList.filter(function (p) { return p.handle !== bAsk; });
+      return json({ ok: true, blocked: false });
+    }
     // Instant feedback (feedback.py): the button under the phone. Kept in the
     // artifact db, so the panel's `feedback` tab is this demo's inbox and a
     // report can be resolved there, as /admin does on the server.

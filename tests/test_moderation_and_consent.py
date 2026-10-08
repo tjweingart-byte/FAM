@@ -1,0 +1,274 @@
+"""App Store groundwork: report and block (1.2), and asking before a
+listener's words go to a third-party AI (5.1.2(i)). `moderation.py` and
+`consent.py` say what each rule is for."""
+from __future__ import annotations
+
+import os
+import sys
+
+import pytest
+from fastapi.testclient import TestClient
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+import app as appmod  # noqa: E402
+import consent as consent_mod  # noqa: E402
+import moderation as moderation_mod  # noqa: E402
+
+WEB = {"X-FAM-Client": "web/live"}
+EPISODE = {"query": "why the ocean is salty", "minutes": 2}
+
+
+@pytest.fixture(autouse=True)
+def _no_pacing(monkeypatch):
+    monkeypatch.setattr(appmod, "_rate_limit", lambda request: None)
+    monkeypatch.setattr(appmod, "_read_limit", lambda request: None)
+
+
+def listener(name: str, handle: str) -> TestClient:
+    c = TestClient(appmod.app)
+    r = c.post("/api/auth/signup", json={"email": f"{handle}@example.com",
+                                         "password": "password12"})
+    assert r.status_code == 200, r.text
+    assert c.post("/api/me", json={"name": name, "handle": handle}).status_code == 200
+    return c
+
+
+def uid(c: TestClient) -> str:
+    return c.get("/api/auth/me").json()["user_id"]
+
+
+# --- consent ---------------------------------------------------------------
+
+def test_the_notice_names_the_provider_and_starts_unasked():
+    c = TestClient(appmod.app)
+    ai = c.get("/api/consent").json()["ai"]
+    assert ai["provider"] == "Anthropic"
+    assert "Anthropic" in ai["notice"]["body"]
+    assert ai["asked"] is False and ai["given"] is False
+
+
+def test_a_search_from_a_client_that_asks_waits_for_a_yes():
+    c = TestClient(appmod.app)
+    r = c.get("/api/audio", params={"q": "how do tides work", "surface": "search"},
+              headers=WEB)
+    assert r.status_code == 403
+    assert r.headers.get("X-FAM-Consent") == "ai"
+    # A no is kept, and still refuses.
+    c.post("/api/consent", json={"allow": False})
+    assert c.get("/api/consent").json()["ai"]["asked"] is True
+    r = c.get("/api/audio", params={"q": "how do tides work", "surface": "search"},
+              headers=WEB)
+    assert r.status_code == 403
+
+
+def test_a_yes_lets_the_words_through(monkeypatch):
+    c = TestClient(appmod.app)
+    assert c.post("/api/consent", json={"allow": True}).json()["ai"]["given"] is True
+    seen = []
+    monkeypatch.setattr(appmod, "_reserve",
+                        lambda *a, **k: seen.append(1) or (_ for _ in ()).throw(
+                            appmod.HTTPException(status_code=418, detail="stop")))
+    r = c.get("/api/audio", params={"q": "how do tides work", "surface": "search"},
+              headers=WEB)
+    # Past the consent gate and on to the allowance, which this test stops.
+    assert r.status_code == 418 and seen
+
+
+def test_an_older_wording_is_not_a_yes_to_this_one(monkeypatch):
+    store = appmod.CONSENT
+    user = "listener-x"
+    store.record(user, True, version=consent_mod.VERSION)
+    assert store.given(user)
+    monkeypatch.setattr(consent_mod, "VERSION", consent_mod.VERSION + 1)
+    assert not store.given(user)
+
+
+def test_only_the_listeners_own_words_need_it():
+    assert appmod._sends_listener_words("search", "", "")
+    assert appmod._sends_listener_words("other", "a heard topic", "")
+    assert appmod._sends_listener_words("myfam", "", "att1")
+    assert not appmod._sends_listener_words("myfam", "", "")
+    assert not appmod._sends_listener_words("dailyfam", "", "")
+
+
+def test_a_client_that_cannot_ask_is_not_broken():
+    """A kept older web release never learned the question (`old-clients`)."""
+    c = TestClient(appmod.app)
+    r = c.get("/api/audio", params={"q": "how do tides work", "surface": "search"},
+              headers={"X-FAM-Client": "web/2026.09.29"})
+    assert r.headers.get("X-FAM-Consent") is None
+
+
+def test_deleting_an_account_forgets_the_answer():
+    c = listener("Ann", "ann")
+    c.post("/api/consent", json={"allow": True})
+    user = uid(c)
+    assert appmod.CONSENT.given(user)
+    appmod.erase_listener(user)
+    assert appmod.CONSENT.get(user) is None
+
+
+# --- reporting -------------------------------------------------------------
+
+def test_a_reported_comment_leaves_the_reporters_screen_at_once():
+    ann, ben = listener("Ann", "ann"), listener("Ben", "ben")
+    cid = ben.post("/api/comments", json={**EPISODE, "text": "something vile"}).json()["id"]
+    assert [x["id"] for x in ann.get("/api/comments", params={
+        "q": EPISODE["query"], "minutes": 2}).json()["comments"]] == [cid]
+    r = ann.post("/api/report", json={"kind": "comment", "target": str(cid),
+                                      "reason": "harassment"})
+    assert r.status_code == 200 and r.json()["hidden"] is True
+    assert "24 hours" in r.json()["message"]
+    assert ann.get("/api/comments", params={"q": EPISODE["query"], "minutes": 2}).json()["comments"] == []
+    # Nobody else's view changes until a reviewer decides.
+    assert ben.get("/api/comments", params={"q": EPISODE["query"], "minutes": 2}).json()["comments"]
+
+
+def test_a_report_needs_a_reason_and_something_real():
+    ann = listener("Ann", "ann")
+    assert ann.post("/api/report", json={"kind": "comment", "target": "999",
+                                         "reason": "spam"}).status_code == 404
+    ben = listener("Ben", "ben")
+    cid = ben.post("/api/comments", json={**EPISODE, "text": "hi"}).json()["id"]
+    assert ann.post("/api/report", json={"kind": "comment", "target": str(cid),
+                                         "reason": "because"}).status_code == 400
+    # Your own comment is deleted, not reported.
+    assert ben.post("/api/report", json={"kind": "comment", "target": str(cid),
+                                         "reason": "spam"}).status_code == 400
+
+
+def test_the_options_come_from_the_server():
+    body = TestClient(appmod.app).get("/api/report").json()
+    assert [r["id"] for r in body["reasons"]] == list(moderation_mod.REASON_IDS)
+    assert body["review_hours"] == 24
+
+
+def test_a_message_can_be_reported_only_by_somebody_in_the_conversation():
+    ann, ben, cat = listener("Ann", "ann"), listener("Ben", "ben"), listener("Cat", "cat")
+    ann.post("/api/friends/follow", json={"handle": "ben"})
+    ben.post("/api/friends/follow", json={"handle": "ann"})
+    sent = ben.post("/api/messages", json={"to": uid(ann), "text": "nasty"})
+    assert sent.status_code == 200, sent.text
+    mid = sent.json()["message"]["id"] if "message" in sent.json() else sent.json()["id"]
+    assert cat.post("/api/report", json={"kind": "message", "target": str(mid),
+                                         "reason": "harassment"}).status_code == 404
+    assert ann.post("/api/report", json={"kind": "message", "target": str(mid),
+                                         "reason": "harassment"}).status_code == 200
+    thread = ann.get("/api/messages/thread", params={"with": uid(ben)}).json()
+    assert all(m["id"] != mid for m in thread["messages"])
+
+
+# --- blocking --------------------------------------------------------------
+
+def test_a_block_is_both_ways_and_ends_the_follow():
+    ann, ben = listener("Ann", "ann"), listener("Ben", "ben")
+    ann.post("/api/friends/follow", json={"handle": "ben"})
+    ben.post("/api/friends/follow", json={"handle": "ann"})
+    ben.post("/api/comments", json={**EPISODE, "text": "from ben"})
+    ann.post("/api/comments", json={**EPISODE, "text": "from ann"})
+
+    assert ann.post("/api/block", json={"handle": "ben"}).json()["blocked"] is True
+
+    def texts(c):
+        return [x["text"] for x in c.get("/api/comments", params={
+            "q": EPISODE["query"], "minutes": 2}).json()["comments"]]
+    assert texts(ann) == ["from ann"]
+    assert texts(ben) == ["from ben"]
+    # No follow either way, no profile, no messages, no follow back.
+    assert ann.get("/api/friends").json()["following"] == []
+    assert ben.get("/api/friends").json()["following"] == []
+    assert ben.get("/api/person", params={"handle": "ann"}).status_code == 404
+    assert ann.get("/api/person", params={"handle": "ben"}).status_code == 404
+    assert ben.post("/api/messages", json={"to": uid(ann), "text": "hey"}).status_code == 403
+    assert ben.post("/api/friends/follow", json={"handle": "ann"}).status_code == 404
+    assert ben.get("/api/people", params={"q": "ann"}).json()["people"] == []
+    # Listed for the blocker, and undone from there.
+    assert [p["handle"] for p in ann.get("/api/blocks").json()["people"]] == ["ben"]
+    assert ann.delete("/api/block", params={"handle": "ben"}).json()["ok"] is True
+    assert ann.get("/api/person", params={"handle": "ben"}).status_code == 200
+
+
+def test_blocking_needs_an_account():
+    listener("Ben", "ben")
+    guest = TestClient(appmod.app)
+    assert guest.post("/api/block", json={"handle": "ben"}).status_code == 401
+
+
+def test_a_blocked_listeners_searches_leave_explore():
+    entries = [{"query": "q one", "minutes": 2, "author": "u-ben"},
+               {"query": "q two", "minutes": 2, "author": "u-cat"},
+               {"query": "q three", "minutes": 2, "author": "u-ann"}]
+    appmod.MODERATION.block("u-ann", "u-ben")
+    # Both ways: Ann loses Ben's searches and Ben loses Ann's.
+    assert "q one" not in [e["query"] for e in appmod._visible_episodes("u-ann", entries)]
+    assert "q three" not in [e["query"] for e in appmod._visible_episodes("u-ben", entries)]
+    assert len(appmod._visible_episodes("u-cat", entries)) == 3
+    # A reviewer's removal is for everybody.
+    appmod.MODERATION.hide_episode(moderation_mod.episode_target("q two", 2))
+    assert "q two" not in [e["query"] for e in appmod._visible_episodes("u-cat", entries)]
+
+
+# --- the reviewer ------------------------------------------------------------
+
+def _as_admin(monkeypatch):
+    monkeypatch.setattr(appmod, "_require_admin", lambda request: None)
+
+
+def test_removing_takes_a_comment_down_for_everybody(monkeypatch):
+    _as_admin(monkeypatch)
+    ann, ben, cat = listener("Ann", "ann"), listener("Ben", "ben"), listener("Cat", "cat")
+    cid = ben.post("/api/comments", json={**EPISODE, "text": "vile"}).json()["id"]
+    rid = ann.post("/api/report", json={"kind": "comment", "target": str(cid),
+                                        "reason": "hate"}).json()["id"]
+    inbox = cat.get("/api/admin/reports").json()
+    assert inbox["summary"]["open"] == 1
+    row = inbox["reports"][0]
+    assert row["posted_by"]["handle"] == "ben"
+    assert "reporter" not in row  # never shown, even to the reviewer
+    r = cat.post(f"/api/admin/reports/{rid}/resolve", json={"action": "removed"})
+    assert r.status_code == 200 and r.json()["report"]["action"] == "removed"
+    assert cat.get("/api/comments", params={"q": EPISODE["query"], "minutes": 2}).json()["comments"] == []
+
+
+def test_suspending_stops_posting_and_hides_the_account(monkeypatch):
+    _as_admin(monkeypatch)
+    ann, ben = listener("Ann", "ann"), listener("Ben", "ben")
+    cid = ben.post("/api/comments", json={**EPISODE, "text": "vile"}).json()["id"]
+    rid = ann.post("/api/report", json={"kind": "comment", "target": str(cid),
+                                        "reason": "harassment"}).json()["id"]
+    ann.post(f"/api/admin/reports/{rid}/resolve", json={"action": "suspended"})
+    assert ben.post("/api/comments", json={**EPISODE, "text": "again"}).status_code == 403
+    assert ann.get("/api/person", params={"handle": "ben"}).status_code == 404
+    # Still listens: suspension is about posting, not hearing.
+    assert ben.get("/api/explore").status_code == 200
+
+
+def test_a_person_is_not_content_to_remove(monkeypatch):
+    _as_admin(monkeypatch)
+    ann, ben = listener("Ann", "ann"), listener("Ben", "ben")
+    rid = ann.post("/api/report", json={"kind": "person", "target": "ben",
+                                        "reason": "harassment"}).json()["id"]
+    assert ann.post(f"/api/admin/reports/{rid}/resolve",
+                    json={"action": "removed"}).status_code == 400
+
+
+def test_deleting_an_account_removes_its_blocks():
+    ann, ben = listener("Ann", "ann"), listener("Ben", "ben")
+    ann.post("/api/block", json={"handle": "ben"})
+    appmod.erase_listener(uid(ann))
+    assert appmod.MODERATION.apart(uid(ben)) == set()
+
+
+# --- the terms ----------------------------------------------------------------
+
+def test_the_terms_name_the_contact_once_it_is_set():
+    page = appmod.terms_page("help@example.com")
+    assert "mailto:help@example.com" in page
+    assert "Zero tolerance" in page and "24 hours" in page
+    assert "{{" not in appmod.terms_page("")
+
+
+def test_the_terms_are_served_without_an_account():
+    r = TestClient(appmod.app).get("/terms")
+    assert r.status_code == 200 and "Reporting and blocking" in r.text

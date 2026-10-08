@@ -14,6 +14,7 @@ import asyncio
 import base64
 import dataclasses
 import hmac
+import html
 import os
 import json
 import logging
@@ -51,6 +52,8 @@ import metering
 import oauth
 import quotas
 import feedback as feedback_mod
+import consent as consent_mod
+import moderation as moderation_mod
 import saved as saved_mod
 import sharing
 from config import (BROWSE_MINUTES, DEFAULT_MINUTES, DEFAULT_PIPELINE, describe_key,
@@ -839,6 +842,8 @@ def _database_report() -> list[dict]:
         ("quotas", "QUOTAS_DB", QUOTAS.path),
         ("metering", "METERING_DB", METER.path),
         ("feedback", "FEEDBACK_DB", FEEDBACK.path),
+        ("consent", "CONSENT_DB", CONSENT.path),
+        ("moderation", "MODERATION_DB", MODERATION.path),
         # The grown ranking vocabulary. Reported like the rest rather than
         # lazily like the voice registry below: `category_tree()` opens it on
         # the first feed, every deployment has one, and a tree silently living
@@ -1289,7 +1294,8 @@ def erase_listener(user_id: str) -> dict:
                         ("preferences", PREFS), ("attachments", ATTACHMENTS),
                         ("quotas", QUOTAS), ("messages", MESSAGES),
                         ("saved", SAVED), ("shares", SHARES),
-                        ("voice_choice", _VoiceChoices()), ("push", PUSH)):
+                        ("voice_choice", _VoiceChoices()), ("push", PUSH),
+                        ("consent", CONSENT), ("moderation", MODERATION)):
         try:
             removed[name] = store.forget(user_id)
         except Exception:
@@ -2192,12 +2198,48 @@ def _reachable(me: str, other: str) -> bool:
     The exception is a friendship that already exists: people already in each
     other's graph keep seeing each other whatever either one's status.
     """
+    # A block, either way, and a suspension end reaching somebody whatever
+    # the waitlist says (`moderation.py`).
+    if MODERATION.is_apart(me, other) or MODERATION.is_suspended(other):
+        return False
     if not settings.waitlist:
         # Launch: everybody is findable again, whatever their row still says.
         return True
     if other not in WAITLIST.waitlisted_among([other]):
         return True
     return _in_graph(me, other)
+
+
+def _without_apart(me: str, people: list[dict], key: str = "user_id") -> list[dict]:
+    """`people` without anybody `me` blocked, who blocked `me`, or who was
+    suspended (`moderation.py`): to each of them the other is not there."""
+    apart = MODERATION.apart(me)
+    return [p for p in people if p.get(key) not in apart] if apart else people
+
+
+SUSPENDED = ("Your account can't post right now because of a report we "
+             "upheld. You can still listen.")
+
+
+def _require_can_post(user: str) -> None:
+    """A suspended account keeps listening and posts nothing that reaches
+    anybody (`moderation.py`)."""
+    if MODERATION.is_suspended(user):
+        raise HTTPException(status_code=403, detail=SUSPENDED)
+
+
+def _visible_episodes(viewer: str, entries: list[dict]) -> list[dict]:
+    """Cached episodes as another listener's shelf shows them: none a reviewer
+    took down, none this listener reported, and none searched by somebody
+    blocked either way or suspended (`moderation.py`)."""
+    hidden = MODERATION.hidden_episodes() | MODERATION.reported_by(viewer, "episode")
+    apart = MODERATION.apart(viewer)
+    if not hidden and not apart:
+        return entries
+    return [e for e in entries
+            if (e.get("author") or "") not in apart
+            and moderation_mod.episode_target(e.get("query") or "",
+                                              e.get("minutes") or 0) not in hidden]
 
 
 def _mark_waitlisted(people: list[dict]) -> list[dict]:
@@ -2219,19 +2261,19 @@ async def friends_read(request: Request) -> dict:
     _read_limit(request)
     user = _require_account(request)
     return {
-        "following": _mark_waitlisted(SOCIAL.following(user)),
-        "followers": _mark_waitlisted(SOCIAL.followers(user)),
-        "friends": _mark_waitlisted(SOCIAL.friends(user)),
+        "following": _mark_waitlisted(_without_apart(user, SOCIAL.following(user))),
+        "followers": _mark_waitlisted(_without_apart(user, SOCIAL.followers(user))),
+        "friends": _mark_waitlisted(_without_apart(user, SOCIAL.friends(user))),
         "counts": SOCIAL.follow_counts(user),
         # Who followed since this listener last looked. Read here rather than
         # from an endpoint of its own because the interface asks this question
         # at the same moment it asks the others, and a badge is not worth a
         # second round trip.
-        "new_followers": SOCIAL.new_followers(user),
+        "new_followers": _without_apart(user, SOCIAL.new_followers(user)),
         # The subset the popup may still raise: never shown to this listener
         # before (§142). A follower announced once is not announced again on
         # the next open of the app.
-        "announce": SOCIAL.new_followers(user, unannounced=True),
+        "announce": _without_apart(user, SOCIAL.new_followers(user, unannounced=True)),
     }
 
 
@@ -2305,6 +2347,9 @@ async def person_profile(request: Request,
         target = found[0]["user_id"] if found else ""
         if target and not _reachable(me, target):
             target = ""
+    # Blocked either way, or suspended: to this listener they are not there.
+    if target and (MODERATION.is_apart(me, target) or MODERATION.is_suspended(target)):
+        target = ""
     if not target:
         raise HTTPException(status_code=404, detail="No listener by that handle.")
 
@@ -2385,7 +2430,7 @@ async def people_search(request: Request,
     found = SOCIAL.find_people(q, exclude_user=user, limit=40)
     waiting = (WAITLIST.waitlisted_among(p["user_id"] for p in found)
                if settings.waitlist else set())
-    found = [p for p in found if p["user_id"] not in waiting][:20]
+    found = [p for p in _without_apart(user, found) if p["user_id"] not in waiting][:20]
     following = {p["user_id"] for p in SOCIAL.following(user)}
     for person in found:
         person["following"] = person["user_id"] in following
@@ -2396,6 +2441,7 @@ async def people_search(request: Request,
 async def friends_follow(req: FollowRequest, request: Request) -> dict:
     _rate_limit(request)
     user = _require_account(request)
+    _require_can_post(user)
     target = req.user_id
     if not target and req.handle:
         found = SOCIAL.find_people(req.handle, exclude_user=user, limit=5)
@@ -2446,6 +2492,12 @@ async def messages_inbox(request: Request) -> dict:
     _read_limit(request)
     user = _require_account(request)
     inbox = MESSAGES.inbox(user)
+    # A blocked (or blocking, or suspended) person's conversation is gone
+    # from the list; a group stays, without their messages (`moderation.py`).
+    apart = MODERATION.apart(user)
+    if apart:
+        inbox = [row for row in inbox
+                 if row.get("group") or row.get("with") not in apart]
     known = _decorate(SOCIAL.following(user) + SOCIAL.followers(user))
     for row in inbox:
         sender = row.pop("last_sender", "")
@@ -2474,7 +2526,9 @@ async def messages_inbox(request: Request) -> dict:
         last = row.get("last") or {}
         if last.get("kind") == "episode":
             last["topic"] = _topic_label(last.get("query") or "", last.get("title") or "")
-    return {"threads": inbox, "unread": MESSAGES.unread_total(user)}
+    unread = (sum(int(row.get("unread") or 0) for row in inbox) if apart
+              else MESSAGES.unread_total(user))
+    return {"threads": inbox, "unread": unread}
 
 
 def _first_name(person: dict) -> str:
@@ -2552,6 +2606,15 @@ async def messages_thread(request: Request,
     group = messages_mod.is_group(with_)
     person = SOCIAL.person(with_) if not group else {}
     head = max([m.id for m in thread] + [since])
+    # Nothing from somebody blocked either way or suspended, and nothing this
+    # listener reported (`moderation.py`). The cursor still moves past them.
+    apart = MODERATION.apart(user)
+    if not group and with_ in apart:
+        thread, person = [], {}
+    hidden = MODERATION.reported_by(user, "message")
+    if apart or hidden:
+        thread = [m for m in thread
+                  if m.sender not in apart and str(m.id) not in hidden]
     rows = [m.as_dict(user) for m in thread]
     if group:
         # Who said each thing - a group's bubbles are drawn under a name.
@@ -2692,6 +2755,10 @@ async def notifications(request: Request,
                 "unread": MESSAGES.unread_total(user)}
 
     arrived = MESSAGES.arrived_for(user, after_id=since)
+    apart = MODERATION.apart(user)
+    head_seen = max([head] + [m.id for m in arrived])
+    if apart:
+        arrived = [m for m in arrived if m.sender not in apart]
     known = _decorate(SOCIAL.following(user) + SOCIAL.followers(user))
     out = []
     for message in arrived:
@@ -2717,8 +2784,8 @@ async def notifications(request: Request,
         # a count nobody got to read.
         # Only people never announced before (§142), so a banner raised on
         # one open of the app is not raised again on the next.
-        "follows": SOCIAL.new_followers(user, unannounced=True),
-        "head": max([head] + [m.id for m in arrived]),
+        "follows": _without_apart(user, SOCIAL.new_followers(user, unannounced=True)),
+        "head": head_seen,
         "unread": MESSAGES.unread_total(user),
     }
 
@@ -2764,6 +2831,12 @@ async def messages_send(req: SendMessageRequest, request: Request) -> dict:
         raise HTTPException(status_code=400, detail="You are not in that group.")
     recipients = (MESSAGES.members(req.to) if messages_mod.is_group(req.to)
                   else [req.to])
+    _require_can_post(user)
+    # A block, either way, ends a one-to-one conversation. In a group the
+    # message is sent and a blocked member simply never sees it.
+    if not messages_mod.is_group(req.to) and (
+            MODERATION.is_apart(user, req.to) or MODERATION.is_suspended(req.to)):
+        raise HTTPException(status_code=403, detail="You can't message this person.")
     waiting = (WAITLIST.waitlisted_among([user] + recipients)
                if settings.waitlist else set())
     if waiting:
@@ -2811,7 +2884,9 @@ async def messages_new_group(req: GroupRequest, request: Request) -> dict:
     """
     _read_limit(request)
     user = _require_account(request)
-    graph = {p["user_id"] for p in SOCIAL.following(user) + SOCIAL.followers(user)}
+    _require_can_post(user)
+    graph = {p["user_id"] for p in _without_apart(
+        user, SOCIAL.following(user) + SOCIAL.followers(user))}
     picked = [u for u in dict.fromkeys(req.user_ids) if u in graph]
     if len(picked) != len(set(req.user_ids) - {user}):
         raise HTTPException(status_code=400, detail=(
@@ -3643,8 +3718,265 @@ async def admin_resolve_feedback(report_id: str, req: FeedbackResolve,
     return {"ok": True, "report": report, "counts": FEEDBACK.counts()}
 
 
+# ---------------- Reporting and blocking (App Store 1.2) ----------------
+# `moderation.py` says what each record means. Reporting is open to anybody
+# who can see the content - Explore and comments are read without an
+# account - and blocking is kept on an account, like everything else kept.
+
+def _person_by_handle(handle: str) -> str:
+    """The listener a handle names exactly, or ""."""
+    wanted = str(handle or "").strip().lstrip("@").lower()
+    if len(wanted) < 2:
+        return ""
+    found = [p for p in SOCIAL.find_people(wanted, limit=5) if p["handle"] == wanted]
+    return found[0]["user_id"] if found else ""
+
+
+_TERMS_TEMPLATE = (PROJECT_ROOT / "pages" / "terms.html").read_text(encoding="utf-8")
+
+
+def terms_page(support_email: str) -> str:
+    """The terms and community rules, with the published contact (1.2)."""
+    if support_email:
+        safe = html.escape(support_email)
+        contact = ('<p>Questions, appeals or something we should see: <a href="mailto:%s">%s</a>. '
+                   'A person reads every message.</p>' % (safe, safe))
+    else:
+        contact = ('<p class="note">Report anything from its menu in the app; a person '
+                   'reviews every report.</p>')
+    return (_TERMS_TEMPLATE.replace("{{CONTACT}}", contact)
+            .replace("{{REVIEW_HOURS}}", str(moderation_mod.REVIEW_HOURS)))
+
+
+@app.get("/terms", include_in_schema=False)
+async def terms() -> HTMLResponse:
+    """Not behind the waitlist: everybody agrees to these before signing up."""
+    return HTMLResponse(terms_page(settings.support_email))
+
+
+@app.get("/api/report")
+async def report_options(request: Request) -> dict:
+    """The reasons a report offers and what happens next, in the server's
+    words so every client lists the same reasons."""
+    _read_limit(request)
+    return {"reasons": [{"id": i, "label": label}
+                        for i, label in moderation_mod.REASONS],
+            "kinds": list(moderation_mod.KINDS),
+            "review_hours": moderation_mod.REVIEW_HOURS,
+            "contact": settings.support_email}
+
+
+class ReportRequest(BaseModel):
+    kind: str = Field(..., max_length=16)
+    #: A comment, message or vibe id, a handle, or a group id. An episode is
+    #: named by `query` and `minutes` instead.
+    target: str = Field("", max_length=120)
+    query: str = Field("", max_length=300)
+    minutes: int = Field(0, ge=0, le=10)
+    reason: str = Field(..., max_length=24)
+    note: str = Field("", max_length=moderation_mod.MAX_NOTE)
+
+
+REPORT_THANKS = ("Thanks for telling us. We review every report within "
+                 "%d hours." % moderation_mod.REVIEW_HOURS)
+
+
+def _report_subject(kind: str, req: ReportRequest, me: str) -> tuple[str, str, dict]:
+    """(target, owner, snapshot) for what is being reported, read from the
+    stores rather than the request, or a 404 if this listener cannot see it."""
+    missing = HTTPException(status_code=404, detail="That isn't here any more.")
+    if kind == "episode":
+        query = " ".join(req.query.split())
+        if not query or not req.minutes:
+            raise missing
+        return (moderation_mod.episode_target(query, req.minutes), "",
+                {"query": query, "minutes": req.minutes})
+    target = req.target.strip()
+    if kind in ("comment", "message", "vibe") and not target.isdigit():
+        raise missing
+    if kind == "comment":
+        row = SOCIAL.comment(int(target))
+        if not row:
+            raise missing
+        return (target, row["user_id"],
+                {"text": row["text"], "query": row["query"], "minutes": row["minutes"]})
+    if kind == "message":
+        msg = MESSAGES.message(int(target))
+        if msg is None:
+            raise missing
+        group = messages_mod.is_group(msg.thread)
+        if (group and not MESSAGES.is_member(msg.thread, me)) or (
+                not group and me not in (msg.sender, msg.recipient)):
+            raise missing
+        return (target, msg.sender, {"text": msg.text, "query": msg.query,
+                                     "title": msg.title, "thread": msg.thread})
+    if kind == "vibe":
+        row = SOCIAL.echo_row(int(target))
+        if not row:
+            raise missing
+        return (target, row["user_id"], {"caption": row["caption"], "title": row["title"],
+                                         "query": row["query"], "minutes": row["minutes"]})
+    if kind == "person":
+        owner = _person_by_handle(target)
+        if not owner:
+            raise missing
+        person = SOCIAL.person(owner)
+        return (person.get("handle") or target, owner,
+                {"name": person.get("name") or "", "handle": person.get("handle") or ""})
+    if kind == "group":
+        group = MESSAGES.group(target) if messages_mod.is_group(target) else {}
+        if not group or not MESSAGES.is_member(target, me):
+            raise missing
+        return (target, "", {"name": group.get("name") or "",
+                             "members": len(group.get("members") or [])})
+    raise HTTPException(status_code=400, detail="That can't be reported.")
+
+
+@app.post("/api/report")
+async def report_content(req: ReportRequest, request: Request) -> dict:
+    """Report something offensive. It is hidden from this listener at once
+    and a person reviews it (`moderation.py`)."""
+    _read_limit(request)
+    me = _require_listener(request)
+    kind = req.kind.strip().lower()
+    target, owner, snapshot = _report_subject(kind, req, me)
+    try:
+        report = MODERATION.report(me, kind, target, req.reason, owner=owner,
+                                   note=req.note, snapshot=snapshot)
+    except moderation_mod.ModerationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"ok": True, "id": report["id"], "message": REPORT_THANKS,
+            # What the client should stop showing now: the thing itself.
+            "hidden": kind in ("comment", "message", "vibe", "episode")}
+
+
+class BlockRequest(BaseModel):
+    handle: str = Field(..., max_length=64)
+
+
+@app.post("/api/block")
+async def block_person(req: BlockRequest, request: Request) -> dict:
+    """Block somebody: neither of you sees or reaches the other, and any
+    follow between you ends. They are not told."""
+    _read_limit(request)
+    me = _require_account(request)
+    target = _person_by_handle(req.handle)
+    if not target:
+        raise HTTPException(status_code=404, detail="No listener by that handle.")
+    try:
+        MODERATION.block(me, target)
+    except moderation_mod.ModerationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    SOCIAL.sever(me, target)
+    return {"ok": True, "blocked": True}
+
+
+@app.delete("/api/block")
+async def unblock_person(request: Request,
+                         handle: str = Query(..., max_length=64)) -> dict:
+    """Unblock. Nothing that the block ended - a follow - comes back."""
+    _read_limit(request)
+    me = _require_account(request)
+    target = _person_by_handle(handle)
+    return {"ok": bool(target) and MODERATION.unblock(me, target), "blocked": False}
+
+
+@app.get("/api/blocks")
+async def blocked_people(request: Request) -> dict:
+    """The people this listener blocked, newest first, for Settings."""
+    _read_limit(request)
+    me = _require_account(request)
+    out = []
+    for uid in MODERATION.blocked_by(me):
+        person = SOCIAL.person(uid)
+        if person.get("handle"):
+            out.append({"name": person.get("name") or "",
+                        "handle": person["handle"],
+                        "avatar": person.get("avatar") or ""})
+    return {"people": out}
+
+
+@app.get("/api/admin/reports")
+async def admin_reports(request: Request, state: str = Query("open"),
+                        limit: int = Query(200, ge=1, le=1000)) -> dict:
+    """Content reports, oldest open first: the 24-hour promise is kept from
+    the top of this list."""
+    _require_admin(request)
+    reports = MODERATION.reports("open" if state == "open" else "resolved", limit)
+    for report in reports:
+        owner = report.pop("owner", "")
+        person = SOCIAL.person(owner) if owner else {}
+        report["posted_by"] = ({"name": person.get("name") or "",
+                                "handle": person.get("handle") or "",
+                                "suspended": MODERATION.is_suspended(owner)}
+                               if owner else None)
+        # The reporter is never shown, even here: a reviewer needs the
+        # content, not who objected to it.
+        report.pop("reporter", None)
+    return {"reports": reports, "summary": MODERATION.report_summary()}
+
+
+class ReportDecision(BaseModel):
+    action: str = Field(..., max_length=16)
+    note: str = Field("", max_length=moderation_mod.MAX_NOTE)
+
+
+def _remove_reported(report: dict, owner: str) -> bool:
+    """Take the reported thing down for everybody. False for a person or a
+    group, which are not content - suspend the person instead."""
+    kind, target = report["kind"], report["target"]
+    if kind == "comment":
+        SOCIAL.delete_comment(owner, int(target), moderator=True)
+    elif kind == "message":
+        MESSAGES.remove(int(target))
+    elif kind == "vibe":
+        row = SOCIAL.echo_row(int(target))
+        if row:
+            SOCIAL.unecho(row["user_id"], row["query"], row["minutes"])
+    elif kind == "episode":
+        MODERATION.hide_episode(target, report["id"])
+    else:
+        return False
+    return True
+
+
+@app.post("/api/admin/reports/{report_id}/resolve")
+async def admin_resolve_report(report_id: str, req: ReportDecision,
+                               request: Request) -> dict:
+    """Dismiss, remove the content for everybody, or remove it and suspend
+    whoever posted it. Every open report about the same thing is answered."""
+    _require_admin(request)
+    report = MODERATION.get(report_id)
+    if report is None:
+        raise HTTPException(status_code=404, detail="No report with that id.")
+    action = req.action.strip().lower()
+    owner = report.get("owner") or ""
+    if action == "removed" and not _remove_reported(report, owner):
+        raise HTTPException(status_code=400, detail=(
+            "A person or a group isn't content to remove. Suspend the person instead."))
+    if action == "suspended":
+        if not owner:
+            raise HTTPException(status_code=400, detail="Nobody posted this to suspend.")
+        _remove_reported(report, owner)
+        MODERATION.suspend(owner, report_id)
+    try:
+        report = MODERATION.resolve(report_id, action, req.note)
+    except moderation_mod.ModerationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"ok": True, "report": report, "summary": MODERATION.report_summary()}
+
+
+@app.post("/api/admin/reports/reinstate")
+async def admin_reinstate(request: Request, handle: str = Query(..., max_length=64)) -> dict:
+    """Lift a suspension."""
+    _require_admin(request)
+    target = _person_by_handle(handle)
+    return {"ok": bool(target) and MODERATION.reinstate(target)}
+
+
 @app.post("/api/script")
 async def script(req: ScriptRequest, request: Request) -> dict:
+    _require_ai_consent(request, _listener(request))
     _rate_limit(request)
     # A script is a Claude call, which is the expensive half of an episode.
     # Counted against the same allowance rather than a second one: from the
@@ -3711,7 +4043,7 @@ if _ALLOWED_ORIGINS:
         # only the status code.
         expose_headers=["X-FAM-Quota", "X-Sample-Rate", "X-Requested-Seconds",
                     "X-FAM-Cache", "X-FAM-Keepable", "X-FAM-Client-Status",
-                    "X-FAM-Episode"],
+                    "X-FAM-Episode", "X-FAM-Consent"],
     )
     log.info("CORS enabled for %s", ", ".join(_ALLOWED_ORIGINS))
 
@@ -3739,6 +4071,8 @@ MESSAGES = messages_mod.MessageStore()
 SAVED = saved_mod.SavedStore()
 SHARES = sharing.ShareStore()
 FEEDBACK = feedback_mod.FeedbackStore()
+CONSENT = consent_mod.ConsentStore()
+MODERATION = moderation_mod.ModerationStore()
 
 
 @app.middleware("http")
@@ -4903,6 +5237,73 @@ def _has_account(request: Request) -> bool:
     return bool(listener is not None and listener.is_authenticated)
 
 
+# ---------------- Consent: a listener's words and the AI (5.1.2(i)) --------
+# `consent.py` says why. The answer is asked once by the client, kept here,
+# and held to on the generation path.
+
+def _client_asks_consent(request: Request) -> bool:
+    """Whether this client knows to ask (`consent.py`): the web page this
+    server serves, and every iOS build. A kept older web release cannot ask,
+    and is not broken by a question it never learned (`old-clients`); a tool
+    or a test with no client header is not an app at all."""
+    parsed = client_versions.parse(request.headers.get(client_versions.HEADER))
+    if not parsed:
+        return False
+    platform, version = parsed[0], parsed[1]
+    return platform == "ios" or (platform, version) == client_versions.LIVE
+
+
+def _sends_listener_words(where: str, context: str, attach: str) -> bool:
+    """Whether a generation carries this listener's own words to the writer:
+    a search they typed or spoke, a Go Deeper question, an attachment. A
+    myFAM, DailyFAM or Trending tile is FAM's own question."""
+    return where == "search" or bool(context) or bool(attach)
+
+
+CONSENT_REQUIRED = ("FAM needs your OK before it sends what you ask to "
+                    "Anthropic to write the episode.")
+
+
+def _require_ai_consent(request: Request, user: str) -> None:
+    """403 with `X-FAM-Consent: ai` when a client that asks has no yes on
+    record. The client shows the notice and sends the request again."""
+    if not _client_asks_consent(request) or CONSENT.given(user):
+        return
+    raise HTTPException(status_code=403, detail=CONSENT_REQUIRED,
+                        headers={"X-FAM-Consent": consent_mod.AI})
+
+
+@app.get("/api/consent")
+async def consent_read(request: Request) -> dict:
+    """What this listener was asked and what they said, with the words every
+    client shows, so the app and the web say the same thing."""
+    _read_limit(request)
+    user = _listener(request)
+    return {"ai": consent_mod.describe(CONSENT.get(user))}
+
+
+class ConsentRequest(BaseModel):
+    scope: str = Field(consent_mod.AI, max_length=16)
+    allow: bool
+    #: The notice version the listener was shown. A yes to an older wording
+    #: is kept as what it was and does not count as a yes to this one.
+    version: int = Field(consent_mod.VERSION, ge=1, le=1000)
+
+
+@app.post("/api/consent")
+async def consent_write(req: ConsentRequest, request: Request) -> dict:
+    """Record a yes or a no. Withdrawing is the same call with `allow: false`."""
+    user = _require_listener(request)
+    try:
+        answer = CONSENT.record(
+            user, req.allow, scope=req.scope,
+            version=min(req.version, consent_mod.VERSION),
+            client=request.headers.get(client_versions.HEADER, ""))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"ai": consent_mod.describe(answer)}
+
+
 @app.get("/api/preferences")
 async def read_preferences(request: Request):
     """What is on offer, and what this listener chose.
@@ -5545,6 +5946,8 @@ async def episode_card(request: Request,
             if normalize_query(entry.get("query") or "") != norm:
                 continue
             author = entry.get("author") or ""
+            if author and author in MODERATION.apart(listener):
+                break
             if author and author != listener and PREFS.get(author).searches_public:
                 handle = SOCIAL.person(author).get("handle") or ""
                 searcher = "@" + handle if handle else ""
@@ -5608,7 +6011,7 @@ async def myfam_search(request: Request,
     listener = _listener(request)
     now = time.time()
     try:
-        entries = store.recent(400, exclude_author=listener)
+        entries = _visible_episodes(listener, store.recent(400, exclude_author=listener))
     except Exception:  # noqa: BLE001 - a search box is never worth a 500
         log.exception("could not read the cache for a myFAM search")
         return {"episodes": []}
@@ -5666,7 +6069,8 @@ async def myfam_catalog(request: Request) -> dict:
     listener = _listener(request)
     now = time.time()
     try:
-        entries = store.recent(MYFAM_CATALOG_SCAN, exclude_author=listener)
+        entries = _visible_episodes(
+            listener, store.recent(MYFAM_CATALOG_SCAN, exclude_author=listener))
     except Exception:  # noqa: BLE001 - a catalogue is never worth a 500
         log.exception("could not read the cache for the myFAM catalogue")
         return {"episodes": []}
@@ -6004,6 +6408,7 @@ async def post_echo(req: EchoRequest, request: Request):
     """
     _read_limit(request)
     user = _listener(request)
+    _require_can_post(user)
     audience = None
     if req.audience is not None:
         audience = req.audience if req.audience in social_mod.AUDIENCES else ""
@@ -6197,7 +6602,13 @@ async def episode_comments(request: Request, q: str = Query("", max_length=300),
                            minutes: int = Query(DEFAULT_MINUTES, ge=1, le=10)) -> dict:
     """An episode's comments, most liked first, each with its replies."""
     _read_limit(request)
-    rows = SOCIAL.comments(q, minutes, viewer=_listener(request)) if q.strip() else []
+    viewer = _listener(request)
+    # Nobody blocked either way or suspended, and nothing this listener
+    # reported (`moderation.py`); a hidden comment takes its replies with it.
+    hidden = {int(c) for c in MODERATION.reported_by(viewer, "comment") if c.isdigit()}
+    rows = SOCIAL.comments(q, minutes, viewer=viewer,
+                           exclude_users=MODERATION.apart(viewer),
+                           exclude_ids=hidden) if q.strip() else []
     return {"comments": rows,
             "count": sum(1 + len(c.get("replies") or []) for c in rows)}
 
@@ -6206,6 +6617,7 @@ async def episode_comments(request: Request, q: str = Query("", max_length=300),
 async def post_comment(req: CommentRequest, request: Request) -> dict:
     _read_limit(request)
     user = _require_account(request)
+    _require_can_post(user)
     try:
         return SOCIAL.add_comment(user, req.query, req.minutes, req.text,
                                   parent_id=req.parent_id)
@@ -6365,7 +6777,7 @@ def _circle_row(user: str) -> list[dict]:
         return []
     people: list[dict] = []
     seen: set[str] = set()
-    for person in SOCIAL.friends(user) + SOCIAL.following(user):
+    for person in _without_apart(user, SOCIAL.friends(user) + SOCIAL.following(user)):
         uid = person.get("user_id") or ""
         if uid and uid not in seen:
             seen.add(uid)
@@ -6758,7 +7170,8 @@ async def trending_searches(request: Request) -> dict:
             searchers[norm].add(user)
     if not searchers:
         return {"searches": []}
-    entries = store.recent(TRENDING_SEARCHES_SCAN, origin="search")
+    entries = _visible_episodes(_listener(request),
+                                store.recent(TRENDING_SEARCHES_SCAN, origin="search"))
     seen: set[str] = set()
     picks = []
     ranked = sorted(entries, key=lambda e: (
@@ -6862,6 +7275,7 @@ async def explore(request: Request, limit: int = Query(30, ge=1, le=60)):
     # a DailyFAM edition, a Trending episode or a warmed guess is cached too,
     # and none of them is on Explore.
     entries = store.recent(limit, exclude_author=listener, origin="search")
+    entries = _visible_episodes(listener, entries)
     # An untitled card is titled from its question, through the speller so a
     # misspelling never becomes a title (10.1 #4) - in a thread, like
     # `/api/spell`, and only for the cards that need it.
@@ -7017,6 +7431,8 @@ async def interest_episodes(request: Request,
 
     if filter == "friends":
         circle = SOCIAL.circle_of(listener) if listener else []
+        apart = MODERATION.apart(listener)
+        circle = [u for u in circle if u not in apart]
         vibes = SOCIAL.echoes_among(circle, viewer=listener) if circle else {}
         for (query, minutes), who in sorted(vibes.items(),
                                             key=lambda kv: -(kv[1].get("at") or 0)):
@@ -7036,7 +7452,7 @@ async def interest_episodes(request: Request,
                 add(tile.query, tile.title, 0, "story", 0.0, angle=tile.subtitle)
         store = SCRIPT_CACHE if SCRIPT_CACHE is not None else build_cache()
         if store is not None:
-            for entry in store.recent(120):
+            for entry in _visible_episodes(listener, store.recent(120)):
                 text = f"{entry['query']} {entry.get('title') or ''}"
                 if _on_interest(text, tags, words):
                     add(entry["query"], entry.get("title") or "",
@@ -7298,6 +7714,11 @@ async def audio(
     # tapping the episode you are listening to, or switching voice, which
     # reuses the script *by design* (PROBLEMS.md 70).
     if not (cached_only or episode or _already_written(plan)):
+        # Before anything is sent anywhere: a listener's own words reach the
+        # AI provider only with their yes (5.1.2(i), `consent.py`). A replay
+        # or a written script sends nothing, so it never asks.
+        if _sends_listener_words(where, context, attach):
+            _require_ai_consent(request, user)
         _rate_limit(request)
 
     # After validation, so a malformed request never costs an allowance, and

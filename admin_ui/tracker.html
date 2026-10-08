@@ -167,6 +167,18 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
       </div>
     </div>
 
+    <!-- Content reports (App Store 1.2, moderation.py). Oldest open first:
+         every one is answered within 24 hours, from the top of this list. -->
+    <section class="card section" id="modCard">
+      <h2>Reported content <small id="modCount"></small></h2>
+      <p class="sub">Comments, messages, vibes, people and episodes listeners reported, oldest first. Every report must be answered within 24 hours. <b>Remove</b> takes the content down for everyone; <b>Suspend</b> removes it and stops the account posting anything; <b>Dismiss</b> leaves it up (it stays hidden from whoever reported it).</p>
+      <div class="chips" id="modTabs">
+        <button class="chip on" type="button" data-mod="open">Open</button>
+        <button class="chip" type="button" data-mod="resolved">Answered</button>
+      </div>
+      <div id="modList"></div>
+    </section>
+
     <section class="card section" id="inboxCard">
       <h2>Feedback inbox <small id="inboxCount"></small></h2>
       <p class="sub">Bug reports typed into <b>Instant feedback</b> under the phone on the demo page, newest first, with the screen that was showing. Resolve one once it is fixed; resolved reports are kept with the date.</p>
@@ -508,6 +520,7 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
       }
       tick();
       loadInbox();
+      loadReports();
       loadVoices();
       loadSay();
       return api("/api/admin/schema").then(function (x) { drawStores(x.stores || []); });
@@ -547,6 +560,53 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
         $("loginErr").hidden = false;
       })
       .then(function () { $("loginBtn").disabled = false; });
+  });
+  // Reported content (moderation.py). The reporter is never shown, even here.
+  var modState = "open";
+  function snapshotText(r) {
+    var x = r.snapshot || {};
+    return x.text || x.caption || x.title || x.query || x.name || (x.handle ? "@" + x.handle : "") || r.target;
+  }
+  function loadReports() {
+    return api("/api/admin/reports?state=" + modState).then(function (v) {
+      var m = v.summary || {};
+      $("modCount").textContent = (m.open || 0) + " open" +
+        (m.oldest_open_hours != null ? " · oldest " + m.oldest_open_hours + "h" : "") +
+        (m.overdue ? " · OVERDUE" : "");
+      var rows = v.reports || [];
+      $("modList").innerHTML = rows.length ? rows.map(function (r) {
+        var done = !!r.resolved_at;
+        var who = r.posted_by ? ("by @" + r.posted_by.handle + (r.posted_by.suspended ? " (suspended)" : "")) : "";
+        var ctx = [r.kind, r.reason_label, who, when(r.created),
+                   done ? r.action + " " + when(r.resolved_at) : ""].filter(Boolean).join(" · ");
+        var content = r.kind === "person" || r.kind === "group";
+        var acts = done ? "" :
+          (content ? "" : '<button class="go" type="button" style="padding:6px 12px" data-mod-act="removed" data-mod-id="' + esc(r.id) + '">Remove</button>') +
+          (r.posted_by ? '<button class="ghost" type="button" style="padding:6px 12px" data-mod-act="suspended" data-mod-id="' + esc(r.id) + '">Suspend</button>' : '') +
+          '<button class="ghost" type="button" style="padding:6px 12px" data-mod-act="dismissed" data-mod-id="' + esc(r.id) + '">Dismiss</button>';
+        return '<div class="report' + (done ? " done" : "") + '"><div class="body">' +
+          '<p class="text">' + esc(snapshotText(r)) + '</p><div class="ctx">' + esc(ctx) + '</div>' +
+          (r.note ? '<div class="ctx">note: ' + esc(r.note) + '</div>' : '') +
+          '</div><div class="acts">' + acts + '</div></div>';
+      }).join("") : '<p class="sub">' + (modState === "open" ? "Nothing open." : "Nothing answered yet.") + '</p>';
+    }).catch(function (e) {
+      $("modList").innerHTML = '<p class="sub err">Could not load reports: ' + esc(e.message) + '</p>';
+    });
+  }
+  $("modTabs").addEventListener("click", function (ev) {
+    var b = ev.target.closest("[data-mod]"); if (!b) return;
+    modState = b.getAttribute("data-mod");
+    Array.prototype.forEach.call($("modTabs").children, function (x) { x.classList.toggle("on", x === b); });
+    loadReports();
+  });
+  $("modList").addEventListener("click", function (ev) {
+    var b = ev.target.closest("[data-mod-act]"); if (!b) return;
+    var act = b.getAttribute("data-mod-act");
+    if (act === "suspended" && !confirm("Remove this and suspend the account that posted it?")) return;
+    b.disabled = true;
+    api("/api/admin/reports/" + encodeURIComponent(b.getAttribute("data-mod-id")) + "/resolve", { action: act })
+      .then(loadReports)
+      .catch(function (e) { b.disabled = false; alert("Could not answer the report: " + e.message); });
   });
   // The feedback inbox: reports from the demo's Instant feedback button.
   // Resolving is a toggle - the report stays, with when it was resolved.

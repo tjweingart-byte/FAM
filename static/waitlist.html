@@ -88,6 +88,8 @@
   .cta svg{ width:20px; height:20px; }
   .form-note{ min-height:20px; margin:12px 2px 0; font-size:14px; line-height:1.4; color:#F6D9A0; }
   .form-note.err{ color:#FFB4A2; }
+  .terms-note{ margin:8px 2px 0; font-size:12.5px; line-height:1.45; color:rgba(244,239,228,0.6); }
+  .terms-note a{ color:inherit; text-decoration:underline; }
   .quiet-link{ display:block; margin:18px auto 0; background:none; border:0; cursor:pointer;
     color:rgba(244,239,228,0.85); font-size:15px; letter-spacing:0.14em; }
   .invited{ margin:-14px 0 22px; font-size:15px; color:#F6D9A0; }
@@ -616,6 +618,8 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
       </button>
       <div class="form-note" id="joinNote" role="status" aria-live="polite"></div>
+      <!-- Agreed before an account exists (App Store 1.2). -->
+      <p class="terms-note">By joining you agree to FAM&rsquo;s <a href="/terms" target="_blank" rel="noopener">Terms and community rules</a>.</p>
     </form>
 
     <form id="loginForm" class="hidden" novalidate>

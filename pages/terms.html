@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1E1B27">
+<title>FAM — Terms and community rules</title>
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..700&family=Geist:wght@400..700&family=Geist+Mono:wght@400..700&display=swap" rel="stylesheet">
+<!-- Served by `/terms` (app.py), which fills in the contact. The rules are
+     App Store guideline 1.2's: no tolerance for objectionable content or
+     abusive users, a way to report and block, and a published contact.
+     Have a lawyer read this before launch; the community rules are the part
+     the app enforces (moderation.py) and must stay true to it. -->
+<style>
+  :root{ --bg:#1E1B27; --text:#F4EFE4; --muted:#ABA3C4; --copper:#E0B563;
+    --border:rgba(244,239,228,0.12); }
+  *{ box-sizing:border-box; }
+  body{ margin:0; background:var(--bg); color:var(--text);
+    font:15px/1.6 'Geist', -apple-system, sans-serif; }
+  main{ max-width:680px; margin:0 auto; padding:40px 16px 64px; }
+  h1{ font-family:'Bricolage Grotesque', sans-serif; font-weight:500; font-size:32px;
+    line-height:1.15; color:var(--copper); margin:0 0 6px; }
+  h2{ font-family:'Bricolage Grotesque', sans-serif; font-weight:500; font-size:21px;
+    margin:34px 0 8px; }
+  .when{ font-family:'Geist Mono', monospace; font-size:11px; letter-spacing:0.08em;
+    text-transform:uppercase; color:var(--muted); }
+  p, li{ color:var(--text); }
+  li{ margin:4px 0; }
+  .note{ border:1px solid var(--border); border-radius:12px; padding:14px 16px;
+    color:var(--muted); font-size:14px; }
+  a{ color:var(--copper); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Terms and community rules</h1>
+  <div class="when">FAM by Familiarize</div>
+
+  <p>FAM turns what you ask and what you follow into short audio stories, and lets
+  you share them, comment on them and talk about them with other people. By
+  creating an account or using FAM you agree to these terms.</p>
+
+  <h2>Zero tolerance</h2>
+  <p>There is no place on FAM for objectionable content or abusive people. You
+  agree not to post, send, caption or search for anything that:</p>
+  <ul>
+    <li>harasses, bullies, threatens or intimidates anyone;</li>
+    <li>attacks people for who they are, including race, ethnicity, religion,
+      disability, sex, gender identity or sexual orientation;</li>
+    <li>is sexual, or involves a minor in any way that is sexual or harmful;</li>
+    <li>promotes violence, self-harm or terrorism;</li>
+    <li>is spam, a scam, or impersonates someone else;</li>
+    <li>shares someone's private information without their permission.</li>
+  </ul>
+
+  <h2>Reporting and blocking</h2>
+  <p>Every comment, message, vibe, profile and episode has a <b>Report</b>
+  option in its menu. Reported content disappears for you straight away, and a
+  person reviews every report within {{REVIEW_HOURS}} hours. When a report is
+  upheld we remove the content, and we suspend the account that posted it.</p>
+  <p>You can <b>block</b> anyone from their profile or a conversation. Neither
+  of you will see the other's comments, messages, vibes, profile or searches,
+  and neither can message or follow the other. They aren't told. You can
+  unblock people in Settings.</p>
+
+  <h2>Episodes and AI</h2>
+  <p>FAM's episodes are written by AI from the sources it finds, which are
+  shown on the player. They can be wrong. Don't rely on an episode for medical,
+  legal, financial or safety decisions. When you search, FAM asks before
+  sending what you type, say or attach to its AI provider, Anthropic, and you
+  can change your answer in Settings.</p>
+
+  <h2>Your account</h2>
+  <p>You can delete your account at any time in Settings. Deleting it removes
+  what FAM keeps about you; episodes you searched stay for other listeners
+  without your name. We may suspend or remove accounts that break these rules.</p>
+
+  <h2>Contact</h2>
+  {{CONTACT}}
+</main>
+</body>
+</html>

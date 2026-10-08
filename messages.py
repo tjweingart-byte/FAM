@@ -631,6 +631,18 @@ class MessageStore:
 
     # --- housekeeping -----------------------------------------------------
 
+    def message(self, message_id: int) -> Optional[Message]:
+        """One message by id, for a report about it (`moderation.py`)."""
+        row = self._conn().execute(
+            "SELECT id, thread, sender, recipient, kind, text, query, minutes, title, at"
+            " FROM messages WHERE id = ?", (int(message_id),)).fetchone()
+        return Message(*row) if row else None
+
+    def remove(self, message_id: int) -> bool:
+        """A reviewer removing a reported message for everybody."""
+        cur = self._conn().execute("DELETE FROM messages WHERE id = ?", (int(message_id),))
+        return bool(cur.rowcount)
+
     def forget(self, user_id: str) -> int:
         """Erase this listener from every conversation they were in.
 

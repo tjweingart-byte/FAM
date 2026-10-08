@@ -3090,6 +3090,9 @@
               <p class="auth-error" id="authError" role="alert" hidden></p>
               <button class="entry-btn primary" id="authSubmit" type="submit">Create account</button>
               <p class="entry-note" id="authNote">Password reset isn&rsquo;t available yet, so keep your password somewhere safe.</p>
+              <!-- Agreed before an account exists (App Store 1.2): the rules say
+                   objectionable content and abusive people are not tolerated. -->
+              <p class="entry-note">By continuing you agree to FAM&rsquo;s <a href="/terms" target="_blank" rel="noopener" style="color:var(--copper);">Terms and community rules</a>.</p>
             </form>
             <div class="auth-switch" id="authSwitch"></div>
           </div>
@@ -4439,6 +4442,24 @@
         </div>
       </div>
 
+      <!-- Asking before a listener's words go to the AI (5.1.2(i), consent.py).
+           Every word on it is the server's (`/api/consent`), so this and the
+           iOS app cannot say it differently. -->
+      <div class="modal-overlay" id="aiConsentOverlay">
+        <div class="modal-card">
+          <div class="limit-mark">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l7 3v5c0 5-3.5 8.5-7 10-3.5-1.5-7-5-7-10V6z"/><path d="M9 12l2 2 4-4"/></svg>
+          </div>
+          <div class="modal-title" id="aiConsentTitle"></div>
+          <div class="limit-body" id="aiConsentBody"></div>
+          <div class="limit-reset" id="aiConsentUnaffected"></div>
+          <div class="modal-btns">
+            <button class="modal-btn ghost" id="aiConsentNo" onclick="answerAiConsent(false)"></button>
+            <button class="modal-btn primary" id="aiConsentYes" onclick="answerAiConsent(true)"></button>
+          </div>
+        </div>
+      </div>
+
       <!-- What a bigger plan buys, read from /api/plans so the tiers and the
            features are the server's, not a second copy that drifts. No prices:
            a number here and a number in App Store Connect are two places for
@@ -4976,6 +4997,7 @@
   }
 
   function openAttachMenu(){
+    if(!(AI_CONSENT && AI_CONSENT.given)){ withAiConsent(openAttachMenu); return; }
     showActionSheet([
       { label: "Photo or document", action: function(){
           document.getElementById("attachFile").click(); } },
@@ -5085,6 +5107,10 @@
   }
 
   function sendSearch(typed, titleText){
+    if(!(AI_CONSENT && AI_CONSENT.given)){
+      withAiConsent(function(){ sendSearch(typed, titleText); });
+      return;
+    }
     var val = typed;
     var attach = attachedIds();
     if(ATTACHED.some(function(a){ return a.pending; })){
@@ -5489,6 +5515,16 @@
 
   function onGenerationFailed(message, err){
     clearGenOverlay();
+    // The server holds this client to the listener's answer (consent.py): a
+    // yes withdrawn elsewhere, or never given, is asked here and the same
+    // episode started again after it.
+    if(err && err.consent){
+      if(stack[stack.length - 1] === "player" && stack.length > 1) goBack();
+      AI_CONSENT = null;
+      var retry = lastGenerate;
+      askAiConsent(retry ? function(){ generate(retry.key, retry.albumContext); } : null);
+      return;
+    }
     // An allowance running out is not a failure to generate, and a toast is
     // the wrong shape for it: it vanishes, it cannot be acted on, and it does
     // not say when the allowance comes back. Everything else still toasts.
@@ -5545,6 +5581,165 @@
              + (soon ? "" : " on " + when.toLocaleDateString([], { weekday: "long" }));
     } catch(e){ return when.toISOString(); }
   }
+
+  // ---------------- Asking before a listener's words go to the AI ----------------
+  // App Store 5.1.2(i) (consent.py). A search, a Go Deeper question or an
+  // attachment is the listener's own words, and they reach Anthropic only
+  // after a yes. Asked once, kept on the server, read back from it; a "Not
+  // now" leaves everything FAM writes ahead (myFAM, DailyFAM, Explore).
+  var AI_CONSENT = null;       // `/api/consent`'s "ai" block, once read
+  var aiConsentThen = null;    // what to do after a yes
+  function loadAiConsent(){
+    return fetch("/api/consent")
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(d){ if(d && d.ai) AI_CONSENT = d.ai; return AI_CONSENT; })
+      .catch(function(){ return AI_CONSENT; });
+  }
+  // Runs `then` straight away after a yes on record, else asks first.
+  function withAiConsent(then){
+    if(AI_CONSENT && AI_CONSENT.given){ then(); return; }
+    loadAiConsent().then(function(c){
+      if(!c){ toast("Couldn\u2019t reach FAM. Try again."); return; }
+      if(c.given){ then(); return; }
+      askAiConsent(then);
+    });
+  }
+  function aiConsentSummary(){
+    if(!AI_CONSENT) return "";
+    if(AI_CONSENT.given) return "Allowed";
+    return AI_CONSENT.asked ? "Off" : "Not asked yet";
+  }
+  // The Settings row: a yes is withdrawn after one confirm, anything else
+  // is asked with the same notice the search box shows.
+  function toggleAiConsent(){
+    if(AI_CONSENT && AI_CONSENT.given){
+      showActionSheet([
+        { group: "Stop sending your questions to AI? Searches, Go Deeper and attachments will ask again first." },
+        { label: "Turn off", danger: true, action: function(){
+            aiConsentThen = null;
+            answerAiConsent(false);
+            setTimeout(renderSettings, 400);
+          } }
+      ]);
+      return;
+    }
+    askAiConsent(function(){ renderSettings(); toast("Allowed"); });
+  }
+  function askAiConsent(then){
+    aiConsentThen = then || null;
+    var n = (AI_CONSENT && AI_CONSENT.notice) || null;
+    if(!n){
+      loadAiConsent().then(function(c){
+        if(c && c.notice) askAiConsent(then);
+        else toast("Couldn\u2019t reach FAM. Try again.");
+      });
+      return;
+    }
+    document.getElementById("aiConsentTitle").textContent = n.title || "";
+    document.getElementById("aiConsentBody").textContent = n.body || "";
+    document.getElementById("aiConsentUnaffected").textContent = n.unaffected || "";
+    document.getElementById("aiConsentYes").textContent = n.allow || "Allow";
+    document.getElementById("aiConsentNo").textContent = n.decline || "Not now";
+    document.getElementById("aiConsentOverlay").classList.add("active");
+  }
+  function answerAiConsent(allow){
+    var then = aiConsentThen;
+    aiConsentThen = null;
+    document.getElementById("aiConsentOverlay").classList.remove("active");
+    fetch("/api/consent", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ scope: "ai", allow: !!allow,
+                             version: AI_CONSENT ? AI_CONSENT.version : 1 }) })
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(d){
+        if(d && d.ai) AI_CONSENT = d.ai;
+        if(!allow) return;
+        if(AI_CONSENT && AI_CONSENT.given){ if(then) then(); }
+        else toast("Couldn\u2019t save that. Try again.");
+      })
+      .catch(function(){ if(allow) toast("Couldn\u2019t save that. Try again."); });
+  }
+
+  // ---------------- Reporting and blocking (App Store 1.2, moderation.py) ----------------
+  // Every comment, message, vibe, profile and episode can be reported from
+  // its menu, and anybody can be blocked from their profile or a chat. The
+  // reasons and the promise are the server's (`/api/report`).
+  var REPORT_INFO = null;
+  function loadReportInfo(){
+    if(REPORT_INFO) return Promise.resolve(REPORT_INFO);
+    return fetch("/api/report").then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(d){ if(d) REPORT_INFO = d; return REPORT_INFO; })
+      .catch(function(){ return null; });
+  }
+  // `subject` is what the server needs: {kind, target} or, for an episode,
+  // {kind: "episode", query, minutes}. `onHidden` runs once it is reported,
+  // so the thing can leave the screen at once.
+  function reportContent(subject, onHidden){
+    loadReportInfo().then(function(info){
+      if(!info){ toast("Couldn\u2019t reach FAM. Try again."); return; }
+      var items = [{ group: "Why are you reporting this?" }];
+      (info.reasons || []).forEach(function(r){
+        items.push({ label: escapeHtml(r.label), action: function(){ sendReport(subject, r.id, onHidden); } });
+      });
+      showActionSheet(items);
+    });
+  }
+  function sendReport(subject, reason, onHidden){
+    var body = { kind: subject.kind, target: String(subject.target || ""),
+                 query: subject.query || "", minutes: subject.minutes || 0, reason: reason };
+    fetch("/api/report", { method: "POST", headers: { "Content-Type": "application/json" },
+                           body: JSON.stringify(body) })
+      .then(function(r){ return r.json().then(function(d){ return { ok: r.ok, d: d }; }); })
+      .then(function(res){
+        if(!res.ok){ toast((res.d && res.d.detail) || "Couldn\u2019t send that report"); return; }
+        toast(res.d.message || "Thanks for telling us");
+        if(onHidden) onHidden();
+      })
+      .catch(function(){ toast("Couldn\u2019t send that report"); });
+  }
+  var BLOCKED = [], blockedCount = null;
+  function loadBlocked(){
+    if(!AUTH.authenticated) return Promise.resolve([]);
+    return fetch("/api/blocks").then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(d){ BLOCKED = (d && d.people) || []; blockedCount = BLOCKED.length; return BLOCKED; })
+      .catch(function(){ return BLOCKED; });
+  }
+  function blockPerson(handle, name, after){
+    if(!handle) return;
+    if(!AUTH.authenticated){ showGuestGate("Create a free account to block people."); return; }
+    showActionSheet([
+      { group: "Block " + escapeHtml(name || ("@" + handle)) + "? Neither of you will see the other\u2019s comments, messages, vibes or profile, and they can\u2019t message you. They won\u2019t be told." },
+      { label: "Block", danger: true, action: function(){
+          fetch("/api/block", { method: "POST", headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ handle: handle }) })
+            .then(function(r){ return r.json().then(function(d){ return { ok: r.ok, d: d }; }); })
+            .then(function(res){
+              if(!res.ok){ toast((res.d && res.d.detail) || "Couldn\u2019t block them"); return; }
+              toast("Blocked");
+              loadBlocked();
+              if(typeof loadFriends === "function") try { loadFriends(); } catch(e){}
+              if(after) after();
+            })
+            .catch(function(){ toast("Couldn\u2019t block them"); });
+        } }
+    ]);
+  }
+  function openBlocked(){
+    loadBlocked().then(function(people){
+      if(!people.length){ toast("You haven\u2019t blocked anyone"); return; }
+      var items = [{ group: "Blocked people \u00b7 tap to unblock" }];
+      people.forEach(function(p){
+        items.push({ label: escapeHtml(p.name || ("@" + p.handle)) + ' <span style="color:var(--text-muted);font-size:11px;">@' + escapeHtml(p.handle) + '</span>',
+          action: function(){
+            fetch("/api/block?handle=" + encodeURIComponent(p.handle), { method: "DELETE" })
+              .then(function(){ toast("Unblocked @" + p.handle); return loadBlocked(); })
+              .then(renderSettings)
+              .catch(function(){ toast("Couldn\u2019t unblock them"); });
+          } });
+      });
+      showActionSheet(items);
+    });
+  }
+  function openTerms(){ window.open("/terms", "_blank", "noopener"); }
 
   // ---------------- A guest reaching an episode that is not made yet ----------------
   function showGuestGate(message){
@@ -5676,7 +5871,9 @@
   // The request that has been sent and has produced no audio yet.
   var awaitingFirstAudio = "";
 
+  var lastGenerate = null;   // for a retry after the consent question
   function generate(key, albumContext){
+    lastGenerate = { key: key, albumContext: albumContext };
     // One tap is one request. The player's own topic row invites a re-tap -
     // it says "tap to generate new episode" - and a listener watching the
     // honest wait taps it again, which used to send a second identical
@@ -7091,6 +7288,8 @@
     cc: '<rect x="2.5" y="5" width="19" height="14" rx="3"/><path d="M10 10.2a2.3 2.3 0 1 0 0 3.6M16.6 10.2a2.3 2.3 0 1 0 0 3.6"/>',
     add: '<circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/>',
     remove: '<circle cx="12" cy="12" r="9"/><path d="M8 12h8"/>',
+    report: '<path d="M5 21V4"/><path d="M5 4h11l-2 4 2 4H5"/>',
+    block: '<circle cx="12" cy="12" r="9"/><path d="M5.6 5.6l12.8 12.8"/>',
     addq: '<path d="M4 6h10M4 11h10M4 16h6"/><path d="M18 13v6M15 16h6"/>',
     queue: '<path d="M4 6h16M4 11h16M4 16h10"/>',
     comment: '<path d="M20.5 11.6a8.4 8.4 0 0 1-12.3 7.4L3.5 20.5l1.5-4.6a8.4 8.4 0 1 1 15.5-4.3z"/>'
@@ -7138,6 +7337,11 @@
     items.push({ label: menuLabel("addq", "Add to Queue"),
                  action: function(){ addToQueue(queueEntryFromTopic(t, title)); } });
     items.push({ label: menuLabel("queue", "Go to Queue"), action: openQueue });
+    var playing = currentEpisode();
+    if(playing){
+      items.push({ label: menuLabel("report", "Report"), danger: true, action: function(){
+          reportContent({ kind: "episode", query: playing.query, minutes: playing.minutes }); } });
+    }
     showActionSheet(items);
   }
 
@@ -8888,6 +9092,8 @@
   function confirmGoDeeper(){
     var val = document.getElementById("goDeeperInput").value.trim();
     if(!val){ document.getElementById("goDeeperInput").focus(); return; }
+    // A Go Deeper question is the listener's words too (consent.py).
+    if(!(AI_CONSENT && AI_CONSENT.given)){ withAiConsent(confirmGoDeeper); return; }
     var baseKey = getGoDeeperBaseKey(goDeeperContext);
     // From Explore the card kept playing under the sheet (10.1); the
     // follow-up replaces it, so its bar stops counting here.
@@ -13558,6 +13764,16 @@
       items.push({ label: menuLabel("remove", "Remove from your story"), danger: true,
                    action: function(){ removeFromMyStory(v); } });
     }
+    if(!person.mine){
+      if(v.id){
+        items.push({ label: menuLabel("report", "Report"), danger: true, action: function(){
+            reportContent({ kind: "vibe", target: v.id }, function(){ closeStory(); }); } });
+      }
+      if(person.handle){
+        items.push({ label: menuLabel("block", "Block " + firstName(person)), danger: true,
+                     action: function(){ blockPerson(person.handle, person.name, closeStory); } });
+      }
+    }
     var sheet = document.getElementById("sheetOverlay");
     sheet.classList.add("over-story");
     showActionSheet(items);
@@ -13673,7 +13889,9 @@
     // Redrawn when it lands rather than awaited with everything else: the plan
     // is one row's value and should not hold the screen.
     loadPlan().then(function(plan){ if(plan) renderSettings(); });
+    loadAiConsent().then(renderSettings);
     if(AUTH.authenticated){
+      loadBlocked().then(renderSettings);
       fetch("/api/close-friends").then(function(r){ return r.ok ? r.json() : null; })
         .then(function(d){ if(d){ closeFriendCount = d.count || 0; renderSettings(); } })
         .catch(function(){});
@@ -13744,6 +13962,18 @@
           "setWakePhrase(" + (wakeOn ? "false" : "true") + ")")
         + '<div class="set-note">Say \u201cHey FAM\u201d or \u201cWhat\u2019s up FAM\u201d to search by voice. While it\u2019s on, the microphone listens whenever FAM is open and nothing is playing.</div>';
     }
+    // Privacy and safety (App Store 1.2 and 5.1.2(i)): the AI answer, who is
+    // blocked, and the rules everybody agreed to.
+    html += '<div class="set-group">Privacy and safety</div>'
+      + settingsRow("Send my questions to AI", escapeHtml(aiConsentSummary()),
+          "toggleAiConsent()")
+      + '<div class="set-note">FAM writes episodes for what you ask with Anthropic\u2019s Claude. Turn this off and you can still listen to everything FAM writes ahead.</div>';
+    if(AUTH.authenticated){
+      html += settingsRow("Blocked people",
+          blockedCount === null ? "" : (blockedCount ? String(blockedCount) : "None"),
+          "openBlocked()");
+    }
+    html += settingsRow("Terms and community rules", "", "openTerms()");
     html += '<div class="set-group">Account settings</div>'
       // Subscription lives here rather than only behind a refusal. It used to
       // be reachable from exactly one place - the screen a listener sees when
@@ -14395,7 +14625,9 @@
     document.getElementById("personTop").innerHTML =
       '<button class="yf-back" onclick="goBack()" aria-label="Back">' + yfIcon("back", 20) + '</button>'
       + '<div style="flex:1"></div>'
-      + (person.user_id
+      // Shown wherever there is somebody to report or block (1.2), even
+      // when the page was opened by handle alone and Follow is not offered.
+      + ((person.user_id || person.handle)
           ? '<button class="yf-round" onclick="openPersonMenu()" aria-label="More">'
             + yfIcon("more", 17) + '</button>'
           : '');
@@ -14499,16 +14731,24 @@
 
   function openPersonMenu(){
     var person = viewingProfile;
-    if(!person || !person.user_id) return;
-    var following = (friendsData.following || []).some(function(f){
-      return f.user_id === person.user_id;
-    });
-    showActionSheet([
-      following
+    if(!person || !(person.user_id || person.handle)) return;
+    var items = [];
+    if(person.user_id){
+      var following = (friendsData.following || []).some(function(f){
+        return f.user_id === person.user_id;
+      });
+      items.push(following
         ? { label: "Unfollow", danger: true, action: function(){ unfollowPerson(person.user_id); } }
-        : { label: "Follow", action: function(){ followPerson(person.user_id); } },
-      { label: "Your friends", action: openFriends }
-    ]);
+        : { label: "Follow", action: function(){ followPerson(person.user_id); } });
+      items.push({ label: "Your friends", action: openFriends });
+    }
+    if(person.handle){
+      items.push({ label: "Report", danger: true, action: function(){
+          reportContent({ kind: "person", target: person.handle }); } });
+      items.push({ label: "Block", danger: true, action: function(){
+          blockPerson(person.handle, person.name, function(){ goBack(); }); } });
+    }
+    showActionSheet(items);
   }
 
   function openPersonMix(i){
@@ -15180,14 +15420,24 @@
         { label: "See who’s here", action: openGroupMembers },
         { label: "Name the group", action: renameGroup },
         { label: "Leave group", danger: true, action: confirmLeaveGroup },
-        { label: "Delete chat", danger: true, action: confirmDeleteChat }
+        { label: "Delete chat", danger: true, action: confirmDeleteChat },
+        { label: "Report this chat", danger: true, action: function(){
+            reportContent({ kind: "group", target: currentThread.user_id }); } }
       ]);
       return;
     }
-    showActionSheet([
+    var other = currentThread;
+    var items = [
       { label: "View profile", action: openThreadProfile },
       { label: "Delete chat", danger: true, action: confirmDeleteChat }
-    ]);
+    ];
+    if(other.handle){
+      items.push({ label: "Report " + escapeHtml(other.name || ("@" + other.handle)), danger: true,
+                   action: function(){ reportContent({ kind: "person", target: other.handle }); } });
+      items.push({ label: "Block " + escapeHtml(other.name || ("@" + other.handle)), danger: true,
+                   action: function(){ blockPerson(other.handle, other.name, function(){ goBack(); }); } });
+    }
+    showActionSheet(items);
   }
 
   // ---- Group chats (10.6 packet #4) ----
@@ -17408,7 +17658,9 @@
                        source: "exploreFAM", surface: "", cachedOnly: true,
                        thumb: ep.thumb || "", titleOverridden: true });
         } },
-      { label: menuLabel("queue", "Go to Queue"), action: openQueue }
+      { label: menuLabel("queue", "Go to Queue"), action: openQueue },
+      { label: menuLabel("report", "Report"), danger: true, action: function(){
+          reportContent({ kind: "episode", query: ep.query, minutes: ep.minutes }); } }
     ]);
   }
 
@@ -17570,12 +17822,24 @@
       + '<small>' + rcAgo(c.at) + '</small></div>'
       + '<div class="rc-text">' + escapeHtml(c.text) + '</div>'
       + '<div class="rc-acts"><button onclick="replyToReelComment(' + c.id + ')">Reply</button>'
-      + (c.mine ? '<button onclick="deleteReelComment(' + c.id + ')">Delete</button>' : '')
+      + (c.mine ? '<button onclick="deleteReelComment(' + c.id + ')">Delete</button>'
+                : '<button onclick="reportReelComment(' + c.id + ')">Report</button>')
       + '</div></div>'
       + '<button class="rc-like' + (c.liked ? " on" : "") + '" onclick="likeReelComment(' + c.id + ')"'
       + ' aria-label="' + (c.liked ? "Unlike" : "Like") + ' this comment" aria-pressed="' + (c.liked ? "true" : "false") + '">'
       + RC_HEART + '<span>' + (c.likes ? c.likes.toLocaleString() : "") + '</span></button>'
       + '</div>';
+  }
+  // Reported, it leaves this listener's list at once, with its replies.
+  function reportReelComment(cid){
+    reportContent({ kind: "comment", target: cid }, function(){
+      rcState.rows = rcState.rows.filter(function(c){ return c.id !== cid; })
+        .map(function(c){
+          if(c.replies) c.replies = c.replies.filter(function(r){ return r.id !== cid; });
+          return c;
+        });
+      drawReelComments();
+    });
   }
   function drawReelComments(){
     var list = document.getElementById("rcList");

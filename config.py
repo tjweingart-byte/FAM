@@ -1553,6 +1553,12 @@ class Settings:
     # id. Both unset until the account exists, and then
     # `/.well-known/apple-app-site-association` answers 404 rather than
     # naming an app that is not there - the same rule as `app_store_url`.
+    # The published contact for reports and the terms (App Store 1.2): an
+    # address that a person reads. Unset, the terms page and the report sheet
+    # point at the in-app report button alone - which Apple will not accept
+    # on its own, so set it before submitting (APP_STORE.md).
+    support_email: str = field(
+        default_factory=lambda: os.environ.get("SUPPORT_EMAIL", "").strip())
     apple_team_id: str = field(
         default_factory=lambda: os.environ.get("APPLE_TEAM_ID", "").strip())
     ios_bundle_id: str = field(
