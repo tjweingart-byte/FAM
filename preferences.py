@@ -230,6 +230,42 @@ def clean_profile_interests(values: Iterable[str]) -> tuple[str, ...]:
     return picked[:PROFILE_INTERESTS_MAX]
 
 
+#: How many categories one listener may follow on myFAM's "Your categories"
+#: (§229). A list to scroll, not a second interest picker; enough for every
+#: facet and a dozen subjects under them.
+MAX_CATEGORIES = 24
+
+
+def clean_categories(values: Iterable[str]) -> tuple[str, ...]:
+    """The categories this listener follows on myFAM (§229), in their order.
+
+    Each must be one of the eight facets or a node the category tree holds
+    now - the same ids `_episode_category` files an episode under, so a
+    followed category is always one an episode can be found in. An unknown
+    one is refused rather than silently stored: a row that can never hold an
+    episode is a control with nothing behind it. Duplicates are dropped, the
+    first kept.
+    """
+    out: list[str] = []
+    try:
+        tree = topics.category_tree()
+    except Exception:  # noqa: BLE001 - category_tree never raises; belt
+        tree = None
+    for raw in values or ():
+        node = (str(raw or "")).strip().lower()
+        if not node or node in out:
+            continue
+        known = node in topics.TAG_LABELS or (
+            tree is not None and tree.get(node) is not None)
+        if not known:
+            raise PreferenceError(f"There is no category called {raw!r}.")
+        out.append(node)
+    if len(out) > MAX_CATEGORIES:
+        raise PreferenceError(
+            f"You can follow up to {MAX_CATEGORIES} categories.")
+    return tuple(out)
+
+
 #: The longest any one part of a location may be. A place name, not a
 #: sentence: somebody pasting their full postal address has not answered the
 #: question, and storing it would put their street on their profile.
@@ -388,6 +424,11 @@ class Preferences:
     #: searched is theirs (`op-friend-profile`), and this is the one place it
     #: is shown to anybody else, by their choice.
     searches_public: bool = False
+    #: The categories followed on myFAM's "Your categories" (§229): facet
+    #: ids and category-tree nodes, in the order they were added. A list to
+    #: browse today's episodes by, never a taste signal - following one
+    #: writes no event and moves no ranking (`clean_categories`).
+    categories: tuple[str, ...] = ()
 
     @property
     def public_interests(self) -> tuple[str, ...]:
@@ -408,6 +449,7 @@ class Preferences:
             "recap_week": self.recap_week,
             "intro_done": self.intro_done,
             "searches_public": self.searches_public,
+            "categories": list(self.categories),
         }
 
 
@@ -481,6 +523,13 @@ class PreferenceStore:
                              " searches_public INTEGER NOT NULL DEFAULT 0")
             except sqlite3.OperationalError:
                 pass  # already there
+            # §229: newline-separated like `topics`; a grown node's id is a
+            # phrase. Empty means none followed, which every older row means.
+            try:
+                conn.execute("ALTER TABLE preferences ADD COLUMN"
+                             " categories TEXT NOT NULL DEFAULT ''")
+            except sqlite3.OperationalError:
+                pass  # already there
 
     def _conn(self) -> sqlite3.Connection:
         conn = getattr(self._local, "conn", None)
@@ -498,7 +547,7 @@ class PreferenceStore:
             row = self._conn().execute(
                 "SELECT interests, language, weekly_recap, recap_week,"
                 " intro_done, hidden_interests, topics, profile_interests,"
-                " city, region, country, searches_public"
+                " city, region, country, searches_public, categories"
                 " FROM preferences WHERE user_id = ?",
                 (user_id,),
             ).fetchone()
@@ -521,6 +570,7 @@ class PreferenceStore:
                 t for t in (row[7] or "").split("\n") if t),
             location=Location(row[8] or "", row[9] or "", row[10] or ""),
             searches_public=bool(row[11]),
+            categories=tuple(t for t in (row[12] or "").split("\n") if t),
         )
 
     def save(
@@ -538,6 +588,7 @@ class PreferenceStore:
         intro_done: Optional[bool] = None,
         recap_week: Optional[str] = None,
         searches_public: Optional[bool] = None,
+        categories: Optional[Iterable[str]] = None,
         at: float = 0.0,
     ) -> Preferences:
         """Write only the fields given. Raises PreferenceError on a bad value.
@@ -580,13 +631,16 @@ class PreferenceStore:
                         else current.intro_done),
             searches_public=(bool(searches_public) if searches_public is not None
                              else current.searches_public),
+            categories=(clean_categories(categories) if categories is not None
+                        else current.categories),
         )
         self._conn().execute(
             """INSERT INTO preferences
                    (user_id, interests, language, weekly_recap, recap_week,
                     intro_done, updated, hidden_interests, topics,
-                    profile_interests, city, region, country, searches_public)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    profile_interests, city, region, country, searches_public,
+                    categories)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                ON CONFLICT(user_id) DO UPDATE SET
                    interests        = excluded.interests,
                    hidden_interests = excluded.hidden_interests,
@@ -600,6 +654,7 @@ class PreferenceStore:
                    region       = excluded.region,
                    country      = excluded.country,
                    searches_public = excluded.searches_public,
+                   categories   = excluded.categories,
                    updated      = excluded.updated""",
             (user_id, ",".join(merged.interests), merged.language,
              int(merged.weekly_recap), merged.recap_week, int(merged.intro_done),
@@ -607,7 +662,8 @@ class PreferenceStore:
              "\n".join(merged.topics),
              "\n".join(merged.profile_interests),
              merged.location.city, merged.location.region,
-             merged.location.country, int(merged.searches_public)),
+             merged.location.country, int(merged.searches_public),
+             "\n".join(merged.categories)),
         )
         return merged
 

@@ -44,12 +44,12 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   mic since §151; "hey FAM"/"what's up FAM" wake word, opt-in, since §158;
   stopping speech shows a five-second **Search now** with an X, never a silent
   search, §159; the heard words are editable in place and Search now
-  sends the corrected words, §165; mic beside attach, §182), **myFAM** (four rails over the evergreen bank and a shared live
+  sends the corrected words, §165), **myFAM** (four rails over the evergreen bank and a shared live
   story pool, plus **What you missed last week**), **DailyFAM** (named mixes of
   followed subjects `f:nfl` / `f:nfl~Eagles`, never audio; a 05:00 Eastern
   edition writes every episode ahead with EI; public mixes searchable, (+)
   copies one; the server owns the date and length a tap sends), and **Explore**
-  (not a tab; the exploreFAM pill on search and beside Made for you, and search's swipe, §203; other listeners' *searched* episodes only, from the cache, `cached_only`,
+  (not a tab; its pill (`explore-reel`) or search's swipe, §203; other listeners' *searched* episodes only, from the cache, `cached_only`,
   never generates; `scripts.author` excludes your own, `scripts.origin` excludes
   non-search surfaces). myFAM and DailyFAM are personalised. [three-surfaces]
 - **Decouple script generation from synthesis in time**: pre-generate scripts
@@ -93,6 +93,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   if `searches_public`. [player-layout]
 - **Search DailyFAM opens on an A to Z catalogue** of others' cached episodes,
   lettered (`/api/myfam/catalog`); typing shows the closest (§193). [dailyfam-catalogue]
+- **Your categories** (§229): today's cache by category, read-only. [your-categories]
 - **A queue** (§190): Add to / Go to Queue from the player's and a DailyFAM
   tile's ⋯; client state only; plays before the grid. [queue]
 

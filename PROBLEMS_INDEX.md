@@ -232,4 +232,5 @@ and `limit` = Lines.
 | 16801 | 113 | 226. Reviewing the branch before it merges: what the review found and fixed |
 | 16914 | 83 | 227. The small calls on Haiku 5.5, and an episode priced call by call |
 | 16997 | 47 | 228. The Terms, agreed with a checkbox (clickwrap) |
-| 17044 | 113 | 230. The finance workbook: every service, every day, one file |
+| 17044 | 48 | 229. Your categories: follow a category, scroll what was made in it today |
+| 17092 | 112 | 230. The finance workbook: every service, every day, one file |

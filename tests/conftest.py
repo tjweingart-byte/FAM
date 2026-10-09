@@ -424,6 +424,10 @@ def isolated_stores(tmp_path, monkeypatch):
     # A written story's category, memoised for the ranker (§209), is a read
     # of the script cache a test replaces - one test's must not be the next's.
     appmod._WRITTEN_CATEGORY_MEMO.clear()
+    # And today's filed episodes behind the category pages (§229), keyed on
+    # the store's id - which a later test's fresh store can reuse.
+    appmod._CATEGORY_MEMO.clear()
+    appmod._CATEGORY_MEMO["at"] = 0.0
 
 
 @pytest.fixture(autouse=True)
