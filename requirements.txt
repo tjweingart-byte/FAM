@@ -42,8 +42,8 @@ pytest>=8.0
 # expecting the SDK to use it.
 httpx>=0.27
 
-# Kept audio is packed as Opus at 32 kbps (§235, `audio_codec.py`): about a
-# ninth of zlib's size for speech, which is what makes the R2 bucket cheap.
+# Kept audio is packed as Opus at 24 kbps (§235, `audio_codec.py`): about a
+# twelfth of zlib's size for speech, which is what makes the R2 bucket cheap.
 # PyAV's wheel carries its own libopus, so the image needs no ffmpeg. ~35 MB
 # resident once used, against the starter plan's 512 MB. Optional in the
 # pypdf sense: without it audio is kept as zlib and `/api/health` says why.

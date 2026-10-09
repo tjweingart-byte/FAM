@@ -1,6 +1,6 @@
 # Kept audio in Cloudflare R2
 
-PROBLEMS.md §235. Kept audio is packed as Opus at 32 kbps and, with
+PROBLEMS.md §235. Kept audio is packed as Opus at 24 kbps and, with
 `AUDIO_STORE=r2`, lives in a Cloudflare R2 bucket. `scripts.db` keeps each
 object's name and a hot copy of recently played episodes. Until `AUDIO_STORE`
 is set, everything stays in `scripts.db` as before, still packed as Opus.
@@ -60,8 +60,8 @@ already written keep playing.
 
 ## What it costs
 
-At 0.48 MB per two-minute episode, 10,000 new episodes a day kept a week is
-about 34 GB in `recent/`, roughly $0.50 a month, with uploads and reads inside
+At 0.36 MB per two-minute episode, 10,000 new episodes a day kept a week is
+about 25 GB in `recent/`, roughly $0.38 a month, with uploads and reads inside
 R2's free operations at that volume. Reading back out is free. Kept audio costs
 $0.01 per GB a month, with a 30-day minimum per object. Prices are list prices;
 check Cloudflare's R2 pricing page.

@@ -1263,14 +1263,14 @@ class Settings:
     # evicted episode keeps its script and costs one re-synthesis. 0 = none.
     audio_cache_max_mb: int = _env_int("AUDIO_CACHE_MAX_MB", 512)
     # §235: how kept audio is packed. `opus` (the default) at
-    # AUDIO_OPUS_BITRATE is about a ninth of zlib's size for speech; it is
+    # AUDIO_OPUS_BITRATE is about a twelfth of zlib's size for speech; it is
     # decoded back to the same PCM before it is streamed. `zlib` restores
     # §132's packing exactly. Opus needs PyAV and a rate it carries (24 kHz
     # production voices do); anything else is packed as zlib and says so.
     audio_codec: str = field(
         default_factory=lambda: os.environ.get("AUDIO_CODEC", "opus").strip().lower() or "opus"
     )
-    audio_opus_bitrate: int = _env_int("AUDIO_OPUS_BITRATE", 32000)
+    audio_opus_bitrate: int = _env_int("AUDIO_OPUS_BITRATE", 24000)
     # §235: where kept audio lives. "" (the default) keeps it in scripts.db
     # as before; `r2` puts each episode in a Cloudflare R2 bucket and keeps
     # only its object name here, with the SQLite blob as a hot copy under

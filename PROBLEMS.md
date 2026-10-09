@@ -17370,3 +17370,14 @@ yet: that saves listeners' data but needs decoding in the browser and iOS and
 a PCM fallback for old clients. `scripts.db` is still SQLite on one disk, so
 more than one server still needs a database move. A saved item still plays by
 question, not by episode id.
+
+## 236. Opus at 24 kbps, not 32
+
+At the owner's direction, the default `AUDIO_OPUS_BITRATE` is 24000. Measured
+on the same two minutes of `reference_3.wav`: 0.36 MB against 32 kbps's
+0.48 MB, about a twelfth of zlib's 4.45 MB. The voice is sampled at 24 kHz, so
+it holds nothing above 12 kHz, which Opus at 24 kbps already carries for
+speech. The saving is a quarter of the bytes, cents a month at today's volume;
+the reason it was 32 first was margin for a voice nobody has heard yet, and the
+24/32 comparison stays in the listening test (`op-voice`). Rows already packed
+at 32 keep playing: the rate is read from the stream, not the setting.

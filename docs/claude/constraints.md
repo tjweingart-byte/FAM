@@ -11,7 +11,7 @@
 
 <!-- rule:no-audio-files -->
 > **Current (PROBLEMS.md §235, at the owner's direction):** kept audio is
-> packed as **Opus at 32 kbps** (`audio_codec.py`; `AUDIO_CODEC=zlib`
+> packed as **Opus at 24 kbps** (32 until the owner chose 24) (`audio_codec.py`; `AUDIO_CODEC=zlib`
 > restores §132's packing) and decoded back to the same PCM, a slice at a
 > time, before it is streamed - the client still receives raw PCM and nothing
 > else. With `AUDIO_STORE=r2` it lives in a **Cloudflare R2 bucket**

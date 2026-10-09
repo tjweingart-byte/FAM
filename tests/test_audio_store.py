@@ -86,14 +86,14 @@ def row(db, key, voice="v"):
 
 
 @needs_opus
-def test_opus_is_a_ninth_of_zlib_and_exactly_as_long():
+def test_opus_is_a_twelfth_of_zlib_and_exactly_as_long():
     pcm = speech(60)
     codec, blob = audio_codec.encode(pcm, 24000)
     assert codec == audio_codec.OPUS
     zipped = zlib.compress(pcm, audio_codec.ZLIB_LEVEL)
-    assert len(blob) * 6 < len(zipped), (len(blob), len(zipped))
-    # 32 kbps is 4 KB a second, plus the container.
-    assert len(blob) < 60 * 4000 * 1.1
+    assert len(blob) * 9 < len(zipped), (len(blob), len(zipped))
+    # 24 kbps is 3 KB a second, plus the container.
+    assert len(blob) < 60 * 3000 * 1.1
     back = audio_codec.decode(codec, blob, 24000, len(pcm) // 2)
     assert len(back) == len(pcm), "the decoded episode is not the voiced length"
 

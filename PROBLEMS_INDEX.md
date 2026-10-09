@@ -239,3 +239,4 @@ and `limit` = Lines.
 | 17263 | 21 | 233. An admin with an account can type it into the waitlist to see the page |
 | 17284 | 19 | 234. A timing test that failed on a busy CI runner |
 | 17303 | 71 | 235. Kept audio moves to an R2 bucket, packed as Opus, kept a week |
+| 17374 | 11 | 236. Opus at 24 kbps, not 32 |
