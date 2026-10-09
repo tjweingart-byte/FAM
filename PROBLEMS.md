@@ -17299,3 +17299,60 @@ three times the worst runner seen. A mark in the wrong place is still caught
 by `test_each_stage_is_the_step_it_names`, whose lower bounds are unchanged
 in kind. The file takes about four seconds longer.
 
+
+## 235. Where the category tree runs out: the writer grows it, meaning fills it, towns get a street
+
+The owner showed two tiles whose pictures did not fit. "Iran's Pressure
+Campaign in the Strait of Hormuz" wore a desert with ruins and a monorail:
+its deepest node was the seeded `iran`, and the scene writer, told to name no
+country, painted a generic Middle East. "Fair Haven, New Jersey's River Road
+Food Scene" wore WORLD's own picture, the globe from space: no phrase in the
+tree was in its title, the writer's category could not be placed, and it fell
+to a facet - the wrong one for a town's restaurants.
+
+Traffic fixes the first kind (a subject enough people ask about becomes a
+node), not the second, and one source the tree never read was the best
+informed: the writer's `<<CATEGORY:>>`, logged by the §209 audit and thrown
+away whenever the tree could not place it. Four changes, at the owner's
+direction:
+
+1. **The writer's unplaced category feeds the sweep.**
+   `categories.writer_subjects` reads the audit each sweep; words the exact
+   reader (`resolve_category(near=False)`) still cannot place, given on
+   `WRITER_MIN_EPISODES` (2) different questions, are minted as
+   `SOURCE_WRITER` under the facet their questions pointed at, and placed
+   by the model with the rest of the sweep. `writer_phrase` drops short
+   words and end stopwords ("Strait of Hormuz" -> `strait hormuz`, which
+   `match` still finds in the words as written) and refuses more than four
+   words. The episodes keep their words as written, so every older episode
+   that named the subject is placed by the new node.
+2. **The nearest node by meaning, beneath the phrases** (`category_near.py`).
+   Asked only when no phrase matches: by `_episode_category` and
+   `_categorise_written_tile` (`resolve_category(near=True)`), and by
+   `thumbnails.pick` / `pick_for_player` before the facet. It uses
+   `taste_vectors`' encoder (the local all-MiniLM model, so `SEMANTIC_TASTE=0`
+   turns it off too) on each node's own name; measured here against the seed,
+   names beat whole paths, the right node scored 0.47-0.67 and the best wrong
+   one 0.39, so `NEAR_COSINE` is 0.45. The node vectors are built on a thread
+   whenever the tree changes and nothing waits on them; with no model it is
+   "" and nothing changes. The sweep and the audit stay exact, so the tree
+   still grows the words meaning could only approximate and the audit still
+   measures the tree.
+3. **A local branch** (`category_seed.LOCAL_NODES`): `local news` -> town
+   council, local schools, school board, local elections, zoning (world);
+   `food scene`, `local restaurants` under food culture, `local events`
+   (culture); `local business`; `high school sports`. "River Road Food Scene"
+   now matches `food scene` as a phrase. When the brief names a town (§194),
+   `writer_vocabulary(town=)` offers these lines first.
+4. **The scene writer paints geography and towns.** Still no country's name;
+   now a place is painted as its real terrain, coastline, waterways and
+   architecture ("a narrow strait between arid mountains, crowded with oil
+   tankers at dusk"), and a local subject as an ordinary present-day town -
+   main street, town hall, school, a field under lights - never a globe, map
+   or the view from space. Pictures already painted keep theirs; to repaint
+   one: `python tools/thumbnails.py run --regenerate --node iran`.
+
+Tests: `tests/test_categorisation_235.py`. Unverified here: the scenes the
+new rules produce (no Gemini key), and the threshold beyond the dozen
+examples it was measured on - `categories_report.py --audit` shows how often
+the writer's words go unplaced.

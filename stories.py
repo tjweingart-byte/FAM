@@ -1141,7 +1141,21 @@ def _vocabulary_line(path: str, node_id: str, kids: dict) -> str:
     return line
 
 
-def writer_vocabulary(text: str) -> list:
+def _local_lines(tree, kids: dict) -> list:
+    """The local branch's lines (§235), each with its path: the names a
+    town's question is filed under. Only nodes the tree holds."""
+    import category_seed
+
+    lines = []
+    for node in category_seed.LOCAL_NODES:
+        if tree.get(node) is None:
+            continue
+        path = " / ".join(reversed(list(tree.ancestors(node))))
+        lines.append(_vocabulary_line(path or facet_for(node), node, kids))
+    return lines
+
+
+def writer_vocabulary(text: str, town: str = "") -> list:
     """The category lines the writer may name its episode from (§209).
 
     **The branch its question is on first**: every node the tree finds in
@@ -1153,7 +1167,12 @@ def writer_vocabulary(text: str) -> list:
     filtered out of the composer's capped list, which a grown tree fills
     alphabetically before reaching `sports`. Empty when `text` points at no
     facet or there is no tree, and the writer then names it in its own
-    words. Never raises."""
+    words. Never raises.
+
+    **A town's question is offered the local branch first** (§235): when the
+    brief names a `town`, `category_seed.LOCAL_NODES` lead - its council,
+    its schools, its food scene - so a town's restaurants are filed under
+    `food scene` and painted as a main street, not left to the globe."""
     try:
         import topics
 
@@ -1164,7 +1183,7 @@ def writer_vocabulary(text: str) -> list:
             facet = facet_for(node)
             if facet and facet not in wanted:
                 wanted.append(facet)
-        if not wanted:
+        if not wanted and not town:
             return []
         by_facet, kids = _writer_shape(tree)
         lines: list = []
@@ -1176,6 +1195,11 @@ def writer_vocabulary(text: str) -> list:
                 seen.add(line)
                 lines.append(line)
             return len(lines) >= WRITER_VOCABULARY_LINES
+
+        if town:
+            for line in _local_lines(tree, kids):
+                if add(line):
+                    return lines
 
         for node in sorted((n for n in found if n not in facets),
                            key=lambda n: (-tree.depth_of(n), n)):
@@ -1206,7 +1230,7 @@ def facet_for(tag: str) -> str:
     return topics._root_facet(tag)
 
 
-def resolve_category(text: str) -> str:
+def resolve_category(text: str, near: bool = False) -> str:
     """What the composer said a story is, as a node of the category tree.
 
     In code, never trusted as given: an id the tree holds is kept; a facet,
@@ -1215,6 +1239,12 @@ def resolve_category(text: str) -> str:
     arts" -> `mixed martial arts`). Nothing recognisable is "", and the tile
     keeps its keyword tags - a category the tree cannot place would give the
     picture nothing to draw from. Never raises.
+
+    `near` (§235) adds one rung beneath all of that: the closest node by
+    meaning (`category_near.nearest`), so words no phrase in the tree
+    matches still land on the node they are about. Asked for by the readers
+    of a written episode's category; never by the sweep, which mints what
+    only `near` can place.
     """
     try:
         import categories
@@ -1233,6 +1263,10 @@ def resolve_category(text: str) -> str:
             return wanted
         found = list(tree.match(wanted))
         if not found:
+            if near:
+                import category_near
+
+                return category_near.nearest(text)
             return ""
         found.sort(key=lambda n: (-tree.depth_of(n), n))
         return found[0]

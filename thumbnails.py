@@ -141,6 +141,19 @@ WRITER_SYSTEM = (
     "person, character or country. Describe a generic equivalent instead: "
     "'an American football stadium at dusk' rather than any team's, 'a "
     "smartphone' rather than any maker's.\n"
+    "- A place is painted as its real geography, never by its name "
+    "(§235). When the path names a country, region, city or waterway, "
+    "paint what is true of that place and of the deepest subject in the "
+    "path - its terrain, coastline, climate, waterways, architecture and "
+    "what moves through it - without writing the name: 'a narrow strait "
+    "between arid mountains, crowded with oil tankers at dusk', not a "
+    "generic desert. Never a flag, a map or a border line.\n"
+    "- A local subject - one under 'local news', a town's council or "
+    "schools, its food scene, its restaurants, its events, its businesses "
+    "or its high school sports - is painted as an ordinary present-day "
+    "small town: a main street of shopfronts and restaurants, a town hall, "
+    "a school, a playing field under lights, whichever the subject is. "
+    "Never a globe, a map or the view from space.\n"
     "- Paint what the topic is actually about, and only that. Many topics "
     "are best as a place, a landscape, a building, nature, food, an animal "
     "or a single object, with no people and no devices in them. Put a "
@@ -692,7 +705,8 @@ def pick(text: str, tags: Iterable[str] = (),
         import topics
 
         tree = topics.category_tree()
-        gen = (getattr(tree, "_loaded_at", 0.0), _GENERATION)
+        gen = (getattr(tree, "_loaded_at", 0.0), _GENERATION,
+               _near_version())
         global _MEMO, _MEMO_KEY
         if gen != _MEMO_KEY:
             _MEMO = {}
@@ -710,6 +724,15 @@ def pick(text: str, tags: Iterable[str] = (),
                 candidates = list(tree.match(text or "") if text else ())
                 candidates.sort(key=lambda n: (-_depth(tree, n, facets), n))
                 own = candidates[0] if candidates else ""
+            waiting = False
+            if not own:
+                # §235: below every exact reader, the node the words are
+                # nearest by meaning - a town's food scene, not the globe.
+                # Never embedded on a page load: a title not embedded yet is
+                # queued, drawn as before, and not remembered as a miss.
+                near = _near(text)
+                waiting = near is None
+                own = near or ""
             if not own:
                 own = topics.facet_of(tags[0]) if tags else ""
             node = own if own in approved else ""
@@ -719,7 +742,7 @@ def pick(text: str, tags: Iterable[str] = (),
             if node:
                 facet = approved[node][1] or _facet_of_node(tree, node, facets)
             hit = (node, facet, url_for(node, approved[node][0]) if node else "")
-            if len(_MEMO) < MAX_MEMO:
+            if len(_MEMO) < MAX_MEMO and not waiting:
                 _MEMO[key] = hit
         if not hit[0]:
             return None
@@ -828,10 +851,17 @@ def pick_for_player(text: str, key: str = "",
             return dict(hit)
         tree = topics.category_tree()
         chosen = ""
+        waiting = False
         candidates = sorted(tree.match(words) if words else (),
                             key=lambda n: (-_depth(tree, n, facets), n))
         if category and (category in facets or tree.get(category) is not None):
             candidates.insert(0, category)
+        elif not candidates and words:
+            near = _near(words)
+            if near is None:
+                waiting = True
+            elif near:
+                candidates.append(near)
         for node in candidates:
             for up in [node] + list(tree.ancestors(node)):
                 if up in approved:
@@ -849,12 +879,35 @@ def pick_for_player(text: str, key: str = "",
         facet = approved[chosen][1] or _facet_of_node(tree, chosen, facets)
         found = {"node": chosen, "facet": facet,
                  "url": url_for(chosen, approved[chosen][0]), "fallback": True}
-        if len(_MEMO) < MAX_MEMO:
+        if len(_MEMO) < MAX_MEMO and not waiting:
             _MEMO[memo_key] = found
         return dict(found)
     except Exception:  # noqa: BLE001 - a picture is never worth a player
         log.exception("thumbnails: could not pick the player's picture")
         return None
+
+
+def _near_version() -> float:
+    try:
+        import category_near
+
+        return category_near.version()
+    except Exception:  # noqa: BLE001
+        return -1.0
+
+
+def _near(text: str) -> Optional[str]:
+    """The node `text` is nearest by meaning (§235), "" for none, or None
+    while its vector is still queued. Never embeds inline: a picture is on
+    a page-load path. Never raises."""
+    if not text:
+        return ""
+    try:
+        import category_near
+
+        return category_near.lookup(text, inline=0)
+    except Exception:  # noqa: BLE001 - a fallback, never a picture's failure
+        return ""
 
 
 #: Nodes a tile asked for that have no live picture yet, most recent last.
