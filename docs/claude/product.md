@@ -499,7 +499,8 @@ fell to a facet). Four changes, none of which moves the §209 rules above:
   episode's category, and `thumbnails.pick` before it falls to a facet. The
   local sentence model `taste_vectors` uses; a node's own name, at
   `NEAR_COSINE` 0.45 (the right node scored 0.47 and up on every example,
-  the best wrong one 0.39). No model is "" - the answer before. **The sweep
+  the best wrong one 0.39). No model is "" - the answer before. Nothing
+  is embedded on a request: an unseen text is queued and placed next read. **The sweep
   and the audit read exactly** (`near=False`), so the tree grows the words
   only meaning could place, and the audit still measures the tree.
 * **A local branch** (`category_seed.LOCAL_NODES`): `local news` (town

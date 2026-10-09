@@ -17299,6 +17299,11 @@ three times the worst runner seen. A mark in the wrong place is still caught
 by `test_each_stage_is_the_step_it_names`, whose lower bounds are unchanged
 in kind. The file takes about four seconds longer.
 
+**Follow-up (with §235).** `test_the_parts_add_up_to_the_first_audio`, in the
+same file, held the same 0.05s bound on the same leftover ("unaccounted")
+and failed it twice on CI for the §235 branch (0.071s, 0.068s) while passing
+locally at 0.0003s. It now takes the same `SHORTEST_STEP` bound, for the same
+reason.
 
 ## 235. Where the category tree runs out: the writer grows it, meaning fills it, towns get a street
 
@@ -17334,7 +17339,8 @@ direction:
    turns it off too) on each node's own name; measured here against the seed,
    names beat whole paths, the right node scored 0.47-0.67 and the best wrong
    one 0.39, so `NEAR_COSINE` is 0.45. The node vectors are built on a thread
-   whenever the tree changes and nothing waits on them; with no model it is
+   whenever the tree changes, and a text is never embedded on a request
+   (`inline=0`: queued, placed on the next read), so nothing waits on them; with no model it is
    "" and nothing changes. The sweep and the audit stay exact, so the tree
    still grows the words meaning could only approximate and the audit still
    measures the tree.

@@ -1244,7 +1244,9 @@ def resolve_category(text: str, near: bool = False) -> str:
     meaning (`category_near.nearest`), so words no phrase in the tree
     matches still land on the node they are about. Asked for by the readers
     of a written episode's category; never by the sweep, which mints what
-    only `near` can place.
+    only `near` can place. Never embeds on the request (these readers run
+    per tile on a browse page): words not embedded yet are queued and are
+    "" this time, placed on the next read.
     """
     try:
         import categories
@@ -1266,7 +1268,7 @@ def resolve_category(text: str, near: bool = False) -> str:
             if near:
                 import category_near
 
-                return category_near.nearest(text)
+                return category_near.nearest(text, inline=0)
             return ""
         found.sort(key=lambda n: (-tree.depth_of(n), n))
         return found[0]
