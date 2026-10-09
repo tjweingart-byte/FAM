@@ -17200,3 +17200,36 @@ earlier tabs is gone.
 `metering.db` with `surface="photo_check"`: it counts under Claude on Daily
 Spend but never as an episode written (`financials.NOT_EPISODES`), or the
 projection's "cost of one new episode" would fall with every profile photo.
+
+## 231. Typing the address opens the app's sign-in again, not the waitlist
+
+The owner (09/10), setting up staging: signing up there landed on the
+waitlist, and on production typing familiarize.net goes straight to
+`/waitlist` (§219). What they want instead:
+
+1. Typing the address does **not** go to the waitlist. The app's front door
+   opens; its **Sign Up** goes to `/waitlist` (§192, unchanged).
+2. Its **Sign In** opens the app's sign-in. An account still on the waitlist
+   is sent to its status page; one already let in goes into the app.
+
+That is §217's behaviour, so this reverses §219 item 3 and restores §217's
+code: `_waitlist_refusal` serves a guest `/`, `/index.html`, `/v/` and `/m/`
+(only a `?referralCode=` link still goes to `/waitlist`), and the shell no
+longer sends a guest to `/waitlist` - not from `/api/auth/me`, not from a
+403's `X-FAM-Waitlist: /waitlist`. A waitlisted account is still moved to
+`/waitlist/me` by the server and the shell, which is what makes (2) work:
+the app's sign-in succeeds, `refreshAuth` reads `status: waitlisted` and
+goes there. The app stays closed: every API call a guest or a waitlisted
+account makes is still refused 403. The landing page keeps its "Already off
+the waitlist? Sign in here" (§219), a second way in for a member who arrived
+there by Sign Up or a referral link.
+
+With `WAITLIST=0` (staging today) the gate does nothing, so nobody is
+redirected and a waitlisted account uses the app; Sign Up still goes to
+`/waitlist`, whose join starts the account waitlisted (§192). Set
+`WAITLIST=1` on `fam-staging` to test the closed app as production has it.
+
+Pinned in `tests/test_waitlist.py`
+(`test_guests_and_waitlisted_are_kept_out_of_the_app`,
+`test_the_apps_sign_in_sends_each_account_where_it_belongs`).
+

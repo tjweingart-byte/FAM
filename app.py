@@ -4392,11 +4392,16 @@ def _waitlist_refusal(request: Request, listener):
     # and `//` too, and a gate that matches only the spellings it thought of
     # is a gate with a side door.
     page = "/" + path.strip("/")
-    # Typing the address lands a guest on the waitlist (the 10.7 packet,
-    # reversing §217): it is the front door while the waitlist runs, and its
-    # "Already off the waitlist? Sign in here" signs a member in and sends
-    # them on to the app - so a member signed out on this browser still has
-    # a way in, without the app's own sign-in being a door to nothing.
+    # A guest is never moved off the front door (§217, restored at the
+    # owner's direction in §231, reversing the 10.7 packet): typing the
+    # address opens the app on its own sign-in and sign-up. Sign Up goes to
+    # the waitlist; Sign In signs a member into the app and sends anyone
+    # still in line to their status page. The app stays closed all the same -
+    # every API call above still refuses a guest - and only a referral link,
+    # which is an invitation to join, still goes to the waitlist.
+    if target == "/waitlist" and not request.query_params.get(
+            waitlist_mod.REFERRAL_PARAM):
+        return None
     if page in WAITLIST_CLOSED_PAGES or page.startswith(WAITLIST_CLOSED_PAGE_PREFIXES):
         query = request.url.query
         return RedirectResponse(target + ("?" + query if query else ""),
