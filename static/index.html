@@ -3021,8 +3021,9 @@
         </ol>
 
         <!-- The honest wait, kept. PROBLEMS.md 55 removed the filler and put
-             this in its place: what it is waiting for, and how long it has
-             been. A brand animation that replaced it would be the same
+             this in its place: what it is waiting for. (It also counted the
+             seconds until §232 took them out; the steps above say the app is
+             alive.) A brand animation that replaced it would be the same
              mistake in a nicer font. -->
         <div class="gen-text" id="famLoadingStatus">Writing your episode…</div>
       </div>
@@ -5490,7 +5491,7 @@
     el.classList.add("stepped");
     var st = genSteps = {
       server: [false, false, false, false], shown: 0, since: Date.now(),
-      started: Date.now(), audioReady: false, release: null, plan: null,
+      audioReady: false, release: null, plan: null,
       timer: null, poll: null, asking: false, releasing: false
     };
     paintGenSteps(0);

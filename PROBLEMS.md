@@ -17253,6 +17253,13 @@ At the owner's direction:
 
 Tests: `test_the_new_mix_plus_is_circled` now pins the 1px ring.
 
+Follow-up review: `tests/test_top_right_slot_232.py` pins the shared slot
+(the pill's inset is read from the fixed header's padding), the one ring,
+both fixed headers, the small pill and the missing counter; each fails
+against the code before this change. The steps' unused `started` field and
+the two places that still described the seconds (the status line's comment,
+`SEE_THE_LOADING_SCREEN.md`) are gone.
+
 ## 233. An admin with an account can type it into the waitlist to see the page
 
 The owner (09/10): admins need to put their own email into

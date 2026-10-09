@@ -56,7 +56,7 @@ Then <http://localhost:8000>, and:
 * Search something evergreen — *"how does a heat pump work"*. The screen shows
   **Writing your episode…** and clears in about half a second.
 * Search something that moves — *"latest on the Fed"*. It shows **Answering now
-  — checking sources underneath…** with the seconds counting, because that
+  — checking sources underneath…** (since §148, five steps checked off instead; since §232 no seconds), because that
   question opts into research.
 * Tap a myFAM tile someone has already played. Cache hit: the 450 ms floor is
   the whole of it.
