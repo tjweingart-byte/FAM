@@ -260,12 +260,12 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
 ## Settled constraints — do not undo without discussing  (`constraints.md`)
 
 Audio and the opening
-- **No MP3, no audio files.** Raw PCM streams to the browser. Cached episodes
-  keep zlib PCM in `scripts.db` (§132): readable only while its script is,
-  production voice only (`keeps_audio`), whole episodes only, capped by
-  `AUDIO_CACHE_MAX_MB`, LRU evicting audio only; §134's widening rules;
-  `AUDIO_CACHE=0` restores. No download button; the device keeps finished
-  episodes in IndexedDB (`OfflineShelf`) and `sw.js` keeps the shell (§161). [no-audio-files]
+- **No MP3, no audio files to the client**: raw PCM streams. Kept audio is
+  Opus 32 kbps (§235; zlib before) in an R2 bucket, `scripts.db` keeping its
+  name and a hot copy (`AUDIO_CACHE_MAX_MB`); readable only while its script
+  is, production voice, whole episodes; a week for all, then saved, shared or
+  vibed moves to `kept/` (IA), the rest is deleted. `OfflineShelf` keeps
+  finished episodes on the device, `sw.js` the shell (§161). [no-audio-files]
 - **Duration is a ceiling, not a quota** - end early rather than pad (`ALLOW_TOPUPS=1` restores). [duration-ceiling]
 - **Two transport gestures, both stay**: draggable bar (clamped to what is
   written) and ±15s. One transport: `setPlayState` alone moves audio and redraws

@@ -17299,3 +17299,74 @@ three times the worst runner seen. A mark in the wrong place is still caught
 by `test_each_stage_is_the_step_it_names`, whose lower bounds are unchanged
 in kind. The file takes about four seconds longer.
 
+
+## 235. Kept audio moves to an R2 bucket, packed as Opus, kept a week
+
+**What was wrong.** Kept audio (§132) sat in `scripts.db` as zlib PCM - about
+4.3 MB for a two-minute episode - on a 1 GB disk shared with every other
+database, under a 512 MB ceiling. That is about 120 two-minute episodes before
+the least-played is evicted and paid for again on the GPU, so at any real
+volume §132's saving disappears. It also ties the deployment to one machine.
+
+**What the owner decided.** Audio goes to Cloudflare R2 (free egress, $0.015 a
+GB a month standard, $0.01 Infrequent Access), packed as Opus at 32 kbps. Every
+episode's audio is kept a week, so recent listening plays it; after that, audio
+somebody saved, shared or vibed moves to the cheaper class and everything else
+is deleted permanently. A bucket rule is acceptable if it is specific.
+
+**Measured** on `reference_3.wav` at 24 kHz, two minutes, one core:
+
+| | size | pack | unpack |
+|---|---|---|---|
+| zlib (before) | 4.45 MB | 0.2 s | - |
+| Opus 32 kbps | 0.48 MB | 1.6 s | ~5 ms per second of audio |
+
+The decoded PCM is exactly as long as what was voiced and aligned within one
+sample, so `starts` and captions are unchanged. PyAV costs ~35 MB resident.
+
+**What was built.**
+
+- `audio_codec.py`: Opus at `AUDIO_OPUS_BITRATE` through PyAV, zlib when PyAV
+  is missing or the rate is one Opus does not carry (the 22.05 kHz development
+  engines), each row saying which (`episode_audio.codec`, `frames`). Playback
+  decodes a slice at a time off the event loop (`_play_stored`), so the first
+  word waits for one slice, not the episode.
+- `audio_store.py`: R2 over its S3 API, SigV4 signed by hand over httpx
+  (botocore is ~50 MB resident; the signature is pinned against botocore's in
+  the tests). `recent/` for the first week, `kept/` after.
+- `episode_audio.object_key` names the object; `pcm` is a hot copy under
+  `AUDIO_CACHE_MAX_MB`, evicted to the bucket rather than deleted. A row is
+  written only after its upload; a failed upload keeps the audio local and the
+  next sweep uploads it, which is also how audio from before the bucket is
+  backfilled (200 rows a sweep).
+- `_forget_audio` is the one way a row is dropped, and queues its object in
+  `audio_deletes`; the sweep drains it. Clear, purge, re-write, slur drop and
+  `forget_author` all go through it, and a test covers each.
+- `sweep_audio`, hourly (`app._sweep_audio_forever`): week-old audio that is
+  held is copied to `kept/` with `x-amz-storage-class: STANDARD_IA` and its
+  script pinned (purge skips kept scripts too); the rest is deleted. Daily,
+  kept audio nobody holds any more is released. What is held is derived on
+  every sweep from the three stores (`_held_episode_keys`, `cache_key` of
+  question and length, as a shared link's replay builds it), never a tally.
+- `deploy/r2-lifecycle.json`: `recent/` deleted at eight days (one day after
+  FAM stops reading it, so a late sweep loses nothing); `kept/` moved to
+  Infrequent Access at one day as a backstop and never deleted by rule. A test
+  pins the eight days to `AUDIO_RECENT_DAYS`.
+- Staging: `AUDIO_STORE` forced off and the R2 keys scrubbed (`spend_guard`);
+  `export_episode` carries bytes, never a bucket name.
+- `/api/health` `audio`: store, codec, the boot check's real write/read/delete,
+  and the last sweep. `tools/verify_audio_store.py` runs the same requests the
+  sweep makes, timed, against the real bucket.
+
+**What it changes elsewhere.** §173 pinned a heard episode for the history's
+two weeks; its script still is, but its audio is now kept one week unless
+held, so the second week of history re-voices the same words in the same voice.
+Old zlib rows keep playing. `tests/test_audio_cache.py` pins zlib, because it
+proves §132's rules by comparing bytes exactly and Opus is lossy.
+
+**Not done.** Nobody has listened to Opus at 32 kbps in the production voice;
+it belongs in the listening test (`op-voice`). Opus is not sent to clients
+yet: that saves listeners' data but needs decoding in the browser and iOS and
+a PCM fallback for old clients. `scripts.db` is still SQLite on one disk, so
+more than one server still needs a database move. A saved item still plays by
+question, not by episode id.

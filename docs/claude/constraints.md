@@ -10,6 +10,22 @@
 ## Constraints that are settled — do not undo without discussing
 
 <!-- rule:no-audio-files -->
+> **Current (PROBLEMS.md §235, at the owner's direction):** kept audio is
+> packed as **Opus at 32 kbps** (`audio_codec.py`; `AUDIO_CODEC=zlib`
+> restores §132's packing) and decoded back to the same PCM, a slice at a
+> time, before it is streamed - the client still receives raw PCM and nothing
+> else. With `AUDIO_STORE=r2` it lives in a **Cloudflare R2 bucket**
+> (`audio_store.py`, AUDIO_STORE.md): `episode_audio` keeps the object's name
+> and a hot copy under `AUDIO_CACHE_MAX_MB`, a row is written only after its
+> upload, and every way a row is dropped queues its object's delete
+> (`_forget_audio`). **Every episode's audio is kept a week**
+> (`AUDIO_RECENT_DAYS`); then audio somebody saved, shared or vibed is copied
+> to `kept/` in Infrequent Access and its script pinned, and everything else
+> is deleted. The bucket's own rule (`deploy/r2-lifecycle.json`) deletes
+> `recent/` a day after that as a backstop and never deletes `kept/`. The
+> server always reads the object and streams it; no URL to an object is ever
+> handed to a client. This narrows §173's "a heard episode is kept": its
+> *script* is kept for the history's two weeks, its audio for one.
 - **No MP3, no audio files.** Raw PCM streams from the TTS engine to the browser
   and is played as it arrives. This is the core of the product. Compression
   (Opus over a stream) is compatible with it and is the right answer at scale;

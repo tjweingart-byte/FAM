@@ -61,6 +61,8 @@ PAID_CREDENTIALS = (
     "GEMINI_API_KEY", "GOOGLE_API_KEY",
     "RUNPOD_API_KEY", "RUNPOD_ENDPOINT_ID", "RUNPOD_POD", "RUNPOD_POD_ID",
     "REMOTE_VOICE_URL", "REMOTE_VOICE_TOKEN",
+    # The audio bucket (§235): every write and read is a metered operation.
+    "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY",
     # Not paid, but outbound to a third party that emails real people: a
     # staging signup must never register anybody with the vendor.
     "VIRAL_LOOPS_API_TOKEN",
@@ -104,6 +106,9 @@ FORCED = {
     # The in-process engine: with no GPU and no model it is the placeholder
     # tone, and it never rents one.
     "VOICE_BACKEND": "chatterbox",
+    # Kept audio stays in scripts.db (§235): a bucket bills per operation,
+    # and staging's replays arrive with their bytes (`export_episode`).
+    "AUDIO_STORE": "",
 }
 
 _STATE: dict = {"enabled": False, "reason": "", "scrubbed": [], "forced": {},

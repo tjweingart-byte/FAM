@@ -1195,17 +1195,25 @@ class PodcastPipeline:
         live_captions.publish(stats.caption_key, stored.sentences,
                               stored.starts if len(stored.starts)
                               == len(stored.sentences) else None)
-        pcm = stored.pcm
-        step = max(2, int(stats.sample_rate) * 2)
         stats.first_audio_at = time.perf_counter() - stats.started_at
-        log.info("stored audio for this episode: %.1fs, no synthesis",
-                 pcm_duration(len(pcm), stats.sample_rate))
+        sent = 0
+        pieces = stored.slices()
         try:
-            for i in range(0, len(pcm), step):
-                yield pcm[i:i + step]
-                await asyncio.sleep(0)
+            while True:
+                # A slice at a time, off the loop: an Opus second decodes in
+                # a few milliseconds, so the first word waits for one slice
+                # and never for the whole episode (§235).
+                piece = await asyncio.to_thread(next, pieces, None)
+                if piece is None:
+                    break
+                sent += len(piece)
+                yield piece
         finally:
-            stats.audio_seconds = pcm_duration(len(pcm), stats.sample_rate)
+            # The episode's length, not how much of it was heard - as before.
+            stats.audio_seconds = pcm_duration(
+                stored.frames * 2 or sent, stats.sample_rate)
+            log.info("stored audio for this episode: %.1fs (%s), no synthesis",
+                     stats.audio_seconds, stored.codec)
             live_captions.close(stats.caption_key)
 
     async def _keep_audio(self, pcm: bytes, stats: GenerationStats) -> None:
@@ -1353,8 +1361,11 @@ class PodcastPipeline:
                 # is the whole of §132 - a cached episode used to cost a GPU
                 # round trip on every play.
                 if self._keeps_audio():
-                    stored = self.cache.get_audio(key, self._audio_voice(),
-                                                  self.engine.sample_rate)
+                    # Off the loop (§235): with a bucket this can be a
+                    # network read, and Opus is decoded as it plays.
+                    stored = await asyncio.to_thread(
+                        self.cache.get_audio, key, self._audio_voice(),
+                        self.engine.sample_rate)
                     if stored is not None and stored.pcm:
                         async for chunk in self._play_stored(stored, stats):
                             yield chunk

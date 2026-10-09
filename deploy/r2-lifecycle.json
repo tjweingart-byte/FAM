@@ -1,0 +1,23 @@
+{
+  "rules": [
+    {
+      "id": "recent-audio-expires",
+      "enabled": true,
+      "conditions": { "prefix": "recent/" },
+      "deleteObjectsTransition": {
+        "condition": { "type": "Age", "maxAge": 691200 }
+      }
+    },
+    {
+      "id": "kept-audio-infrequent-access",
+      "enabled": true,
+      "conditions": { "prefix": "kept/" },
+      "storageClassTransitions": [
+        {
+          "condition": { "type": "Age", "maxAge": 86400 },
+          "storageClass": "InfrequentAccess"
+        }
+      ]
+    }
+  ]
+}

@@ -72,6 +72,21 @@ def play(pipeline, plan):
     return asyncio.run(run()), stats
 
 
+@pytest.fixture(autouse=True)
+def lossless_packing(monkeypatch):
+    """These tests pin §132's rules - what is kept, for how long, for whom -
+    by comparing the replay with the first stream byte for byte. Opus
+    (§235) is lossy, so they pack with zlib, which is still what any row
+    written before §235 holds; Opus has its own tests in
+    `tests/test_audio_store.py`."""
+    import dataclasses
+
+    import audio_codec
+
+    monkeypatch.setattr(audio_codec, "settings", dataclasses.replace(
+        audio_codec.settings, audio_codec="zlib"))
+
+
 @pytest.fixture(params=["memory", "sqlite"])
 def store(request, tmp_path):
     if request.param == "memory":
