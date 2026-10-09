@@ -234,3 +234,4 @@ and `limit` = Lines.
 | 16997 | 47 | 228. The Terms, agreed with a checkbox (clickwrap) |
 | 17044 | 48 | 229. Your categories: follow a category, scroll what was made in it today |
 | 17092 | 112 | 230. The finance workbook: every service, every day, one file |
+| 17204 | 21 | 232. One top-right slot on every tab; a smaller exploreFAM pill; no seconds under the loading steps |
