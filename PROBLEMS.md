@@ -17356,3 +17356,26 @@ Tests: `tests/test_categorisation_235.py`. Unverified here: the scenes the
 new rules produce (no Gemini key), and the threshold beyond the dozen
 examples it was measured on - `categories_report.py --audit` shows how often
 the writer's words go unplaced.
+
+## 236. The share sheet: Groups, Friends, and a search beside each
+
+At the owner's direction (10.9). The sheet's inside-FAM half was one row
+headed "People you follow". It is now **Groups**, then **Friends**, then
+**Anywhere else**. Groups are the group conversations from `/api/messages` -
+the same rows Messages draws - and a share to one is a message to its `g:`
+id, which `/api/messages` already accepts. The Groups heading is drawn only
+when the listener is in a group: an empty section is a control with nothing
+behind it. "Friends" is the heading over the same list as before (mutual
+friends first, then the rest of who they follow).
+
+Each heading has a search icon on its right. It opens a field that filters
+the faces that section already drew, by name or handle, and asks the server
+nothing; closing it clears the filter, and so does reopening the sheet.
+
+The story tiles are labelled "Instagram" and "Snapchat" (were "Instagram
+story" / "Snapchat story"); the keys `instagram_story` / `snapchat_story`
+are unchanged, so every installed client keeps working.
+
+Pinned by `tests/test_packet_1006.py::test_the_share_sheet_can_share_an_episode_into_a_group`
+and `smoke_preview.py::an_episode_can_be_shared_outside_fam` (labels, the
+Groups heading only over groups, the friends search).
