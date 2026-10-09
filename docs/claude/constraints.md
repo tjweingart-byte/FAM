@@ -26,6 +26,12 @@
 > server always reads the object and streams it; no URL to an object is ever
 > handed to a client. This narrows §173's "a heard episode is kept": its
 > *script* is kept for the history's two weeks, its audio for one.
+> **Opus, not MP3, for storage** (the owner's decision, §239): what this rule
+> protects is streaming as it is voiced (§1), not a ban on a format. Opus
+> carries speech cleanly at 24 kbps where MP3 needs about 48-64, and MP3's
+> one advantage - every device plays it - does not apply to a file only the
+> server reads. What format reaches a client is decided with the iOS audio
+> path (`ios-pressures`), where compatibility does matter.
 - **No MP3, no audio files.** Raw PCM streams from the TTS engine to the browser
   and is played as it arrives. This is the core of the product. Compression
   (Opus over a stream) is compatible with it and is the right answer at scale;

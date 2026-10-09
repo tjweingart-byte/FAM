@@ -240,3 +240,4 @@ and `limit` = Lines.
 | 17284 | 19 | 234. A timing test that failed on a busy CI runner |
 | 17303 | 71 | 237. Kept audio moves to an R2 bucket, packed as Opus, kept a week |
 | 17374 | 11 | 238. Opus at 24 kbps, not 32 |
+| 17385 | 17 | 239. Opus, not MP3, for kept audio |

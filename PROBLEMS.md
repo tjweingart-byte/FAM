@@ -17381,3 +17381,20 @@ speech. The saving is a quarter of the bytes, cents a month at today's volume;
 the reason it was 32 first was margin for a voice nobody has heard yet, and the
 24/32 comparison stays in the listening test (`op-voice`). Rows already packed
 at 32 keep playing: the rate is read from the stream, not the setting.
+
+## 239. Opus, not MP3, for kept audio
+
+The owner asked whether "No MP3" had been thought through, and whether kept
+audio should be MP3. The rule's reason is §1: the first FAM wrote the whole
+episode to `episode.mp3` before anything played, so the listener waited for
+all of it. What it protects is streaming as the episode is voiced, and §237
+narrowed its wording to that ("no audio files *to the client*").
+
+For storage the choice is between codecs, and Opus wins: clean speech at 24
+kbps (0.36 MB for two minutes, measured) where MP3 needs about 48-64 kbps
+mono (roughly 0.7-1 MB), and MP3 at 24 kbps is audibly smeared. MP3's
+advantage, native playback everywhere, is irrelevant to a file only the
+server decodes. The owner's decision: keep Opus for storage. The format sent
+to clients, if compressed audio is ever streamed to them, is decided with the
+iOS audio path, where native playback matters (AAC is the alternative to
+weigh against Opus there, not MP3).
