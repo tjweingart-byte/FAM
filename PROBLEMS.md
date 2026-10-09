@@ -17446,3 +17446,70 @@ separate, capped run (`LOAD_TEST_FRESH=1 LOAD_TEST_ALLOW_SPEND=1`, dozens of
 listeners, never 1,000).
 
 `LOAD_TESTING.md`; `tools/load_test.py`; `tests/test_load_test.py`.
+
+
+## 238. Where the core went: the middleware, myFAM's probes, the limiter, the shell and scrypt
+
+The owner asked for the cheap fixes from §237. Measuring before building
+changed which ones those were.
+
+**The poll's queries were not the cost.** One request at a time against a
+local server: a signed-in `/api/notifications` 1.79 ms, a guest's (which
+returns before the database) 1.68 ms, `/api/auth/me` 1.70 ms. Caching the
+poll's answer - the fix §237 proposed - would have saved ~5%. Profiling the
+ASGI app in-process put most of its 0.60 ms in Starlette's
+`BaseHTTPMiddleware`: every `@app.middleware("http")` runs the request in a
+new task and copies the response through a memory channel, and there were
+three. They are plain ASGI now (`carry_the_session`, `version_prefix`,
+`client_version` keep their names, bodies and order, as factories passed to
+`app.add_middleware`; response headers are edited as the start message goes
+out, via `_on_response_start`, so a cookie the handler asked for is already
+decided). In-process: 0.60 ms -> 0.15 ms. A test fails if a
+`BaseHTTPMiddleware` comes back.
+
+**Then py-spy on the server at 1,000 steady signed-in listeners** found the
+rest. myFAM was 38% of the server's CPU at 2% of requests: `_cached_episode`
+and `_already_written` asked `SCRIPT_CACHE.get(key)` only to learn whether an
+episode exists, and `get` loads the whole script, scrubs every sentence
+(`content_filter.scrub_all`, 11% on its own) and writes `hits = hits + 1` -
+for every candidate tile on every draw. Both caches now have `holds(key,
+current)`, one indexed read of two numbers, pinned to agree with `get` in
+every state and to count no hit; `_cache_holds` falls back to `get` for a
+cache without it. myFAM fell to 16%. And `_prune` - the limiter forgetting
+departed listeners - rescanned every listener whenever one came back after a
+quiet ten seconds once there were 512; with everyone active it found nothing
+and ran again: 7%, quadratic in listeners. Now at most once a minute per dict
+(`LIMITER_PRUNE_EVERY`).
+
+**The shell** is gzipped (`compress_pages`, innermost, so the session and
+waitlist steps still run): 1,069 KB -> 283 KB. Compressing a megabyte is ~15
+ms of CPU on a CPU-bound server, so the result is kept per (path, ETag) and
+sent as soon as the start message names a version already compressed - not
+after StaticFiles reads the file in 64 KB thread hops, which under load was
+most of the page's time (p95 5.9 s -> 1.4 s from that alone). GET only,
+never `/api/` (so never audio), only text types, a page without an ETag
+only when small. `Vary: Accept-Encoding`; a 304 is untouched.
+
+**scrypt in a thread** at sign-up, log-in (email, phone, admin), password
+change and set, and the waitlist join: `asyncio.to_thread`, same parameters.
+Measured: inline, the loop stalled up to 109 ms; threaded, 3.4 ms.
+`AccountStore` keeps a connection per thread, so this is safe. The admin
+branch of `_admin_previewing_join` still hashes inline - admins only.
+
+**Signed-in ramp, local, one process:** first audio p95 at 1,000 went from
+29 s to 250 ms, all requests from 21 s to 170 ms, the page to 660 ms,
+notifications to 78 ms, 0 errors, throughput 245 -> 430 req/s and still
+growing with listeners. The verdict is still FAIL: screens are 3-10x slower
+than with ten listeners (the baseline check), and `/api/auth/me` - only
+called while a listener is being created - is p50 1.3 s during creation
+waves, not explained; a probe saw the server stall at most 1.2 s, so part of
+it is the load generator sharing the machine. To measure on staging.
+
+Left, and why not here: the remaining myFAM cost is `rank_most_played`
+re-tallying the event log per draw (a shared tally refreshed each minute
+would fit - a crowd rail); the poll's volume (backoff is §127's call);
+raw PCM (settled); and the single process (`LOAD_TESTING.md` §5c lists the
+infrastructure in order).
+
+`app.py`, `cache.py`, `tests/test_throughput_238.py`, `LOAD_TESTING.md` §5b-5c.
+

@@ -572,6 +572,9 @@ def audio_ceiling_bytes() -> int:
 
 class ScriptCache(Protocol):
     def get(self, key: str, current: bool = True) -> Optional[list[str]]: ...
+    #: Whether `get(key, current)` would return a script, without reading it,
+    #: scrubbing it or counting a hit - for the probes that only ask (§238).
+    def holds(self, key: str, current: bool = True) -> bool: ...
     def sourced_at(self, key: str) -> Optional[float]: ...
     def put(
         self, key: str, sentences: list[str], ttl: int, query: str, thread: str = "",
@@ -797,6 +800,11 @@ class MemoryScriptCache:
         # unknown point, which must read as "long ago" and never as "no
         # script" - None is what tells myFAM a tap would write a new one.
         return self._created.get(key, 0.0)
+
+    def holds(self, key: str, current: bool = True) -> bool:
+        entry = self._data.get(key)
+        return bool(entry and entry[0] >= time.time()
+                    and (not current or self._current(key)))
 
     def get(self, key: str, current: bool = True) -> Optional[list[str]]:
         entry = self._data.get(key)
@@ -1227,6 +1235,25 @@ class SqliteScriptCache:
             conn.execute("PRAGMA journal_mode=WAL")
             self._local.conn = conn
         return conn
+
+    def holds(self, key: str, current: bool = True) -> bool:
+        """Whether `get(key, current)` would return a script (§238).
+
+        One indexed read of two numbers. `get` also loads and scrubs every
+        sentence and writes a hit, which is right for a read and wasted on
+        a probe: myFAM asks this of every candidate tile on every draw.
+        """
+        try:
+            row = self._conn().execute(
+                "SELECT expires, fresh_until FROM scripts WHERE key = ?", (key,)
+            ).fetchone()
+        except Exception:
+            log.exception("script cache probe failed; treating as unwritten")
+            return False
+        now = time.time()
+        if not row or row[0] < now:
+            return False
+        return not current or (row[1] or row[0]) >= now
 
     def get(self, key: str, current: bool = True) -> Optional[list[str]]:
         """The script under `key`, or None.

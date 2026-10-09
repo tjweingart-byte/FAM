@@ -11,6 +11,7 @@ Endpoints
 from __future__ import annotations
 
 import asyncio
+import gzip
 import base64
 import dataclasses
 import hmac
@@ -31,6 +32,7 @@ from fastapi import Response
 from fastapi.responses import (
     HTMLResponse, JSONResponse, RedirectResponse, StreamingResponse)
 from fastapi.staticfiles import StaticFiles
+from starlette.datastructures import Headers, MutableHeaders
 from pydantic import BaseModel, Field, field_validator
 
 from anthropic_client import build_async_client, describe_http_version, http2_enabled
@@ -1083,10 +1085,26 @@ def _limit_key(request: Request) -> str:
     return "ip:" + (request.client.host if request.client else "anonymous")
 
 
+#: How often a limiter may look for clients that have gone away (§238).
+LIMITER_PRUNE_EVERY = 60.0
+_last_pruned: dict = {}
+
+
 def _prune(store: dict, now: float, stamp_of) -> None:
-    """Forget clients that have gone away, so these dicts stay bounded."""
+    """Forget clients that have gone away, so these dicts stay bounded.
+
+    At most once a minute per dict (§238). It used to scan every client
+    whenever one came back after a quiet ten seconds - and past 512 listeners,
+    all of them active, a scan found nothing to forget and ran again on the
+    next request: 7% of the server's time at a thousand listeners, growing
+    with the square of them. Anyone idle for LIMITER_IDLE_SECONDS is still
+    forgotten, a minute later at most.
+    """
     if len(store) < 512:
         return
+    if now - _last_pruned.get(id(store), float("-inf")) < LIMITER_PRUNE_EVERY:
+        return
+    _last_pruned[id(store)] = now
     for key in [k for k, v in store.items() if now - stamp_of(v) > LIMITER_IDLE_SECONDS]:
         del store[key]
 
@@ -1413,12 +1431,24 @@ def _already_written(plan) -> bool:
     if not key or SCRIPT_CACHE is None:
         return False
     try:
-        return SCRIPT_CACHE.get(key) is not None
+        return _cache_holds(key)
     except Exception:
         # A limiter must never be the thing that takes the app down, and
         # "assume it will generate" is the conservative answer.
         log.exception("cache probe failed; pacing this request as a generation")
         return False
+
+
+def _cache_holds(key: str) -> bool:
+    """Whether the cache would serve `key` to a new request - without reading
+    it. `get` loads the whole script, scrubs every sentence and counts a hit;
+    myFAM asked it that of every candidate tile on every draw, which made the
+    page 38% of the server's time at a thousand listeners (§238). A cache
+    without `holds` (a test's) is asked the old way."""
+    holds = getattr(SCRIPT_CACHE, "holds", None)
+    if holds is not None:
+        return bool(holds(key))
+    return SCRIPT_CACHE.get(key) is not None
 
 
 def _validated_plan(q: str, minutes: int, context: str = "", search: bool | None = None,
@@ -1975,11 +2005,15 @@ async def auth_signup(req: CredentialsRequest, request: Request) -> dict:
     _require_terms(request, req.accept_terms)
     user, fresh = _signup_listener(request)
     try:
+        # In a thread: scrypt is ~50 ms of CPU, and on the event loop that is
+        # 50 ms in which no other listener is served (§238).
         if kind == "phone":
-            listener = ACCOUNTS.sign_up_phone(user, req.phone, req.password)
+            listener = await asyncio.to_thread(
+                ACCOUNTS.sign_up_phone, user, req.phone, req.password)
         else:
-            listener = ACCOUNTS.sign_up(user, req.email, req.password,
-                                        phone=req.phone or "")
+            listener = await asyncio.to_thread(
+                ACCOUNTS.sign_up, user, req.email, req.password,
+                phone=req.phone or "")
     except accounts_mod.AuthError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     listener = _admit_admin(listener)
@@ -2001,10 +2035,12 @@ async def auth_login(req: CredentialsRequest, request: Request) -> dict:
     """
     _rate_limit(request)
     try:
+        # scrypt off the event loop, as at sign-up (§238).
         if _one_identifier(req) == "email":
-            listener = ACCOUNTS.log_in(req.email, req.password)
+            listener = await asyncio.to_thread(ACCOUNTS.log_in, req.email, req.password)
         else:
-            listener = ACCOUNTS.log_in_phone(req.phone, req.password)
+            listener = await asyncio.to_thread(ACCOUNTS.log_in_phone, req.phone,
+                                               req.password)
     except accounts_mod.AuthError as exc:
         raise HTTPException(status_code=401, detail=str(exc)) from exc
     listener = _admit_admin(listener)
@@ -2086,7 +2122,8 @@ async def auth_password(req: PasswordChangeRequest, request: Request) -> dict:
     change that leaves old sessions alive does not do what people believe."""
     _rate_limit(request)
     try:
-        ACCOUNTS.change_password(_require_listener(request), req.current, req.new)
+        await asyncio.to_thread(ACCOUNTS.change_password,
+                                _require_listener(request), req.current, req.new)
     except accounts_mod.AuthError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     request.state.set_session = ""
@@ -2105,7 +2142,8 @@ async def auth_password_set(req: NewPasswordRequest, request: Request) -> dict:
     """
     _rate_limit(request)
     try:
-        ACCOUNTS.set_password(_require_account(request), req.new)
+        await asyncio.to_thread(ACCOUNTS.set_password,
+                                _require_account(request), req.new)
     except accounts_mod.AuthError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {"ok": True}
@@ -4218,8 +4256,131 @@ CONSENT = consent_mod.ConsentStore()
 MODERATION = moderation_mod.ModerationStore()
 
 
-@app.middleware("http")
-async def carry_the_session(request: Request, call_next):
+#: Page types worth compressing: text. Never audio (raw PCM barely
+#: compresses, and buffering it would cost the first word its latency) and
+#: never pictures, which are compressed already.
+COMPRESSIBLE_TYPES = frozenset({
+    "text/html", "text/css", "text/javascript", "application/javascript",
+    "application/json", "application/manifest+json", "image/svg+xml",
+    "text/plain",
+})
+#: A page with no ETag is compressed on each request only up to this size;
+#: one with an ETag is compressed once per version and kept.
+COMPRESS_UNTAGGED_MAX = 256 * 1024
+
+
+def compress_pages(app):
+    """gzip the app's pages and scripts, once per version of each (§238).
+
+    The app shell (`index.html`) is about a megabyte, and it went out
+    uncompressed on every open: at a thousand listeners the page was the
+    slowest thing the load test measured (p95 9.6 s), and the largest thing
+    most listeners fetch except audio. Compressed it is about a quarter
+    (1,069 KB to 283 KB).
+
+    Compressing a megabyte costs ~15 ms of CPU, and this server is CPU-bound
+    under load, so the compressed copy is **kept, keyed by the file's ETag**:
+    each version of each file is compressed once per process. A page without
+    an ETag (built per request) is compressed only when small.
+
+    Only for GET outside `/api/`: the API's JSON is small, and `/api/audio`
+    is a stream whose first byte must not wait for a compressor. Inside the
+    session and waitlist steps, so those still run for every page.
+    """
+    kept: dict = {}
+
+    async def asgi(scope, receive, send):
+        if (scope["type"] != "http" or scope.get("method") != "GET"
+                or scope.get("path", "").startswith("/api/")
+                or "gzip" not in Headers(scope=scope).get("accept-encoding", "")):
+            await app(scope, receive, send)
+            return
+        # through: False = collecting, True = passing through untouched,
+        # None = already answered from `kept`.
+        state = {"start": None, "through": False, "chunks": []}
+
+        async def capture(message):
+            if state["through"] is True:
+                await send(message)
+                return
+            if message["type"] == "http.response.start":
+                headers = Headers(raw=message.get("headers") or [])
+                kind = headers.get("content-type", "").split(";")[0].strip().lower()
+                if (message.get("status") != 200 or kind not in COMPRESSIBLE_TYPES
+                        or "content-encoding" in headers):
+                    state["through"] = True
+                    await send(message)
+                    return
+                state["start"] = message
+                # The version is known from the headers: if it was compressed
+                # already, send that now rather than waiting for the file to be
+                # read in 64 KB pieces through a busy thread pool - which was
+                # most of the page's time under load - and let the rest go.
+                etag = headers.get("etag")
+                packed = kept.get((scope.get("path", ""), etag)) if etag else None
+                if packed is not None:
+                    state["through"] = None  # sent; swallow what follows
+                    await _send_packed(send, message, packed)
+                return
+            if state["through"] is None:
+                return
+            if message["type"] != "http.response.body":
+                await send(message)
+                return
+            state["chunks"].append(message.get("body", b""))
+            if message.get("more_body"):
+                return
+            body = b"".join(state["chunks"])
+            start = state["start"]
+            etag = Headers(raw=start.get("headers") or []).get("etag")
+            key = (scope.get("path", ""), etag) if etag else None
+            packed = kept.get(key) if key else None
+            if packed is None and (key or len(body) <= COMPRESS_UNTAGGED_MAX):
+                packed = gzip.compress(body, compresslevel=6, mtime=0)
+                if key and len(packed) < len(body):
+                    if len(kept) >= 256:
+                        kept.clear()
+                    kept[key] = packed
+            if packed is None or len(packed) >= len(body):
+                await send(start)
+                await send({"type": "http.response.body", "body": body})
+                return
+            await _send_packed(send, start, packed)
+
+        await app(scope, receive, capture)
+    return asgi
+
+
+async def _send_packed(send, start: dict, packed: bytes) -> None:
+    """A response start and its body, as the gzip of what it was."""
+    headers = MutableHeaders(raw=list(start.get("headers") or []))
+    headers["content-encoding"] = "gzip"
+    headers["content-length"] = str(len(packed))
+    headers.add_vary_header("Accept-Encoding")
+    await send({**start, "headers": headers.raw})
+    await send({"type": "http.response.body", "body": packed})
+
+
+# Innermost of the per-request steps: added first.
+app.add_middleware(compress_pages)
+
+
+def _on_response_start(send, edit):
+    """`send`, with `edit(headers)` applied to the response's start message.
+
+    How a plain ASGI middleware changes a response's headers: at the moment
+    they go out, which is after the handler has run - so a cookie the handler
+    asked for (`request.state.set_session`) is already decided (§238).
+    """
+    async def wrapped(message):
+        if message["type"] == "http.response.start":
+            message = {**message, "headers": list(message.get("headers") or [])}
+            edit(MutableHeaders(raw=message["headers"]))
+        await send(message)
+    return wrapped
+
+
+def carry_the_session(app):
     """Resolve who is asking, from a cookie the client cannot forge.
 
     This is where the old hole is closed. The listener id used to arrive as
@@ -4240,44 +4401,65 @@ async def carry_the_session(request: Request, call_next):
     than a session, so without this it would mint a listener every sixty
     seconds, for ever, and each one would look like a person in the accounts
     store.
+
+    Plain ASGI rather than `@app.middleware("http")` (§238): that wrapper
+    runs every request in an extra task and copies every response - every
+    chunk of every episode - through an in-memory channel. Measured
+    in-process, that bookkeeping was three quarters of the app's own time
+    on a request (0.60 ms to 0.15 ms without it). The steps are the same,
+    in the same order.
     """
-    path = request.url.path
-    wants_identity = path == "/" or (
-        path.startswith("/api/") and path not in MACHINE_PATHS
-    )
-    # The listener's clock, from their device (10.1): what "today", "tonight"
-    # and "yesterday" mean in anything written for this request.
-    listener_clock.set_for_request(request.headers.get(listener_clock.HEADER, ""))
-    token = _session_token(request)
-    listener = ACCOUNTS.listener_for(token) if token else None
-    minted = ""
-    if listener is None and wants_identity:
-        try:
-            minted, user_id = ACCOUNTS.new_session()
-            listener = accounts_mod.Listener(user_id)
-        except Exception:
-            # Never fail a request because a session could not be written; the
-            # listener is simply anonymous-and-unrecorded for this one.
-            log.exception("could not mint a session; continuing without one")
-    request.state.listener = listener
+    async def asgi(scope, receive, send):
+        if scope["type"] != "http":
+            await app(scope, receive, send)
+            return
+        request = Request(scope, receive)
+        path = request.url.path
+        wants_identity = path == "/" or (
+            path.startswith("/api/") and path not in MACHINE_PATHS
+        )
+        # The listener's clock, from their device (10.1): what "today", "tonight"
+        # and "yesterday" mean in anything written for this request.
+        listener_clock.set_for_request(request.headers.get(listener_clock.HEADER, ""))
+        token = _session_token(request)
+        listener = ACCOUNTS.listener_for(token) if token else None
+        minted = ""
+        if listener is None and wants_identity:
+            try:
+                minted, user_id = ACCOUNTS.new_session()
+                listener = accounts_mod.Listener(user_id)
+            except Exception:
+                # Never fail a request because a session could not be written; the
+                # listener is simply anonymous-and-unrecorded for this one.
+                log.exception("could not mint a session; continuing without one")
+        request.state.listener = listener
 
-    closed = _waitlist_refusal(request, listener)
-    if closed is not None:
-        return closed
+        closed = _waitlist_refusal(request, listener)
+        if closed is not None:
+            await closed(scope, receive, send)
+            return
 
-    response = await call_next(request)
+        def cookies(headers):
+            new_token = getattr(request.state, "set_session", None)
+            if new_token is None and not minted:
+                return
+            jar = Response()
+            if new_token is not None:
+                if new_token:
+                    _set_session_cookie(jar, request, new_token)
+                else:
+                    jar.delete_cookie(accounts_mod.COOKIE_NAME, path="/")
+            else:
+                _set_session_cookie(jar, request, minted)
+            for name, value in jar.raw_headers:
+                if name == b"set-cookie":
+                    headers.append("set-cookie", value.decode("latin-1"))
 
-    # An endpoint that changes who you are (log in, log out, sign up) says so
-    # here rather than building its own response.
-    new_token = getattr(request.state, "set_session", None)
-    if new_token is not None:
-        if new_token:
-            _set_session_cookie(response, request, new_token)
-        else:
-            response.delete_cookie(accounts_mod.COOKIE_NAME, path="/")
-    elif minted:
-        _set_session_cookie(response, request, minted)
-    return response
+        await app(scope, receive, _on_response_start(send, cookies))
+    return asgi
+
+
+app.add_middleware(carry_the_session)
 
 
 #: While `WAITLIST` is on, the API a listener who is not active may still reach:
@@ -4435,8 +4617,7 @@ API_VERSION = "v1"
 API_PREFIX = f"/api/{API_VERSION}"
 
 
-@app.middleware("http")
-async def version_prefix(request: Request, call_next):
+def version_prefix(app):
     """Serve `/api/v1/x` from the same handler as `/api/x`.
 
     A rewrite rather than a second set of routes: two registrations of one
@@ -4447,14 +4628,19 @@ async def version_prefix(request: Request, call_next):
     *first* - the session middleware decides what to do from the path, and it
     has to see the real one.
     """
-    path = request.scope.get("path", "")
-    if path.startswith(API_PREFIX + "/") or path == API_PREFIX:
-        request.scope["path"] = "/api" + path[len(API_PREFIX):]
-    return await call_next(request)
+    async def asgi(scope, receive, send):
+        if scope["type"] == "http":
+            path = scope.get("path", "")
+            if path.startswith(API_PREFIX + "/") or path == API_PREFIX:
+                scope["path"] = "/api" + path[len(API_PREFIX):]
+        await app(scope, receive, send)
+    return asgi
 
 
-@app.middleware("http")
-async def client_version(request: Request, call_next):
+app.add_middleware(version_prefix)
+
+
+def client_version(app):
     """Keep the promise made to every installed client (§172, client_versions.py).
 
     A client names itself in `X-FAM-Client`. A release the registry marks
@@ -4464,23 +4650,35 @@ async def client_version(request: Request, call_next):
     suggest an update without being stopped. Anything unknown - no header, a
     TestFlight build, a simulator - is served exactly as before.
     """
-    path = request.scope.get("path", "")
-    if not path.startswith("/api/"):
-        return await call_next(request)
-    header = request.headers.get(client_versions.HEADER, "")
-    client_versions.record(header)
-    verdict = client_versions.status_for(header) if header else None
-    plain = ("/api" + path[len(API_PREFIX):]) if path.startswith(API_PREFIX + "/") else path
-    if verdict and verdict["update_required"] and plain not in client_versions.RETIRED_MAY_REACH:
-        return JSONResponse(
-            {"error": verdict["message"], "client": verdict,
-             "update_url": os.environ.get("APP_STORE_URL", "").strip() or None},
-            status_code=426,
-            headers={client_versions.STATUS_HEADER: verdict["status"]})
-    response = await call_next(request)
-    if verdict and verdict["known"]:
-        response.headers[client_versions.STATUS_HEADER] = verdict["status"]
-    return response
+    async def asgi(scope, receive, send):
+        path = scope.get("path", "") if scope["type"] == "http" else ""
+        if not path.startswith("/api/"):
+            await app(scope, receive, send)
+            return
+        header = Headers(scope=scope).get(client_versions.HEADER, "")
+        client_versions.record(header)
+        verdict = client_versions.status_for(header) if header else None
+        plain = ("/api" + path[len(API_PREFIX):]) if path.startswith(API_PREFIX + "/") else path
+        if verdict and verdict["update_required"] and plain not in client_versions.RETIRED_MAY_REACH:
+            refusal = JSONResponse(
+                {"error": verdict["message"], "client": verdict,
+                 "update_url": os.environ.get("APP_STORE_URL", "").strip() or None},
+                status_code=426,
+                headers={client_versions.STATUS_HEADER: verdict["status"]})
+            await refusal(scope, receive, send)
+            return
+        if not (verdict and verdict["known"]):
+            await app(scope, receive, send)
+            return
+
+        def status(headers):
+            headers[client_versions.STATUS_HEADER] = verdict["status"]
+
+        await app(scope, receive, _on_response_start(send, status))
+    return asgi
+
+
+app.add_middleware(client_version)
 
 
 @app.get("/api/client-status")
@@ -6074,7 +6272,7 @@ def _cached_episode(query: str, minutes: int):
     if not key:
         return None
     try:
-        if SCRIPT_CACHE.get(key) is None:
+        if not _cache_holds(key):
             return None
         title = SCRIPT_CACHE.title(key) or ""
         found = provenance_mod.Provenance.from_json(SCRIPT_CACHE.sources(key))
@@ -8876,7 +9074,7 @@ async def admin_login(req: AdminLogin, request: Request) -> JSONResponse:
     refused = HTTPException(status_code=401,
                             detail="That email and password are not an admin's.")
     try:
-        listener = ACCOUNTS.log_in(req.email, req.password)
+        listener = await asyncio.to_thread(ACCOUNTS.log_in, req.email, req.password)
     except accounts_mod.AuthError:
         raise refused from None
     if not _allowed_admin(listener):
@@ -9388,7 +9586,8 @@ async def waitlist_join(req: WaitlistJoinRequest, request: Request) -> dict:
         return admin_seen
     user, fresh = _signup_listener(request)
     try:
-        listener = ACCOUNTS.sign_up(user, req.email, req.password, waitlisted=True)
+        listener = await asyncio.to_thread(ACCOUNTS.sign_up, user, req.email,
+                                           req.password, waitlisted=True)
     except accounts_mod.AuthError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     listener = _admit_admin(listener)

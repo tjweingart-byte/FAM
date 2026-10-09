@@ -16,6 +16,10 @@ uvicorn[standard]>=0.27
 # in, so this has always been present by luck rather than by declaration - and
 # a dependency that is only there by luck is one nobody notices losing.
 pydantic>=2.0
+# The same, for starlette: app.py edits response headers directly in its
+# plain-ASGI middleware (§238, `Headers`/`MutableHeaders`). fastapi pulls it
+# in; declared so it is not here by luck. No upper bound - fastapi sets that.
+starlette>=0.27
 
 # Not part of the deep-learning stack, and needed without it. `pcm_from_float`
 # converts a float waveform to 16-bit PCM on the synthesis path, and the engine

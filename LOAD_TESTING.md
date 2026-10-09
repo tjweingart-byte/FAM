@@ -6,14 +6,16 @@ yes or a no: `tools/load_test.py` (Locust). It ends every run with **PASS**
 or **FAIL** and an exit code. It is in `PROBLEMS.md` §237, and §221 started
 it.
 
-Short answer, from the first runs (below): **not yet.** With realistic
-signed-in listeners, one server process meets every budget at 250, and
-somewhere between 250 and 500 the first audio goes from 0.2 s to more than
-2 s. At 1,000 every screen takes tens of seconds. Guests do better (fine to
-500, failing at 1,000), but the app no longer has guests. All of this ran
-on a container core, which is more CPU than the Render plan staging and
-production use. The test now tells you where the limit is
-and what uses it up. The fixes are at the end.
+Short answer: **after §238, one process now carries 1,000 signed-in
+listeners within every budget a listener feels**. With all 1,000 signed in, a
+local run had 0 errors, first audio p95 250 ms, the app page 660 ms and
+every screen under 210 ms. Before §238 the same run had first audio at 29 s.
+It still reports FAIL, for two honest reasons. Screens are 3–10× slower than
+with ten listeners (myFAM 10 ms becomes 98 ms), which the "no slower" check
+counts. And `/api/auth/me` is slow while a wave of new listeners is being
+created. That was measured on a container core, which is more CPU than the
+Render plan staging and production use. **Run the ramp on staging before
+believing it there.** §5 has the first runs, §5b what changed.
 
 ## 1. What "won't fail and won't be slower" means
 
@@ -243,6 +245,104 @@ What uses up that core, most important first:
    freezes every listener for that long. A launch-day sign-up wave is
    exactly the `spike` shape. Moving the hash to a thread
    (`asyncio.to_thread`) costs nothing and keeps the same scrypt settings.
+
+## 5b. What §238 changed, and what it measured
+
+Profiling the server under load (py-spy, 1,000 steady listeners) and timing
+a single request showed something the list above got wrong. A signed-in
+"anything new?" check cost **1.79 ms, a guest's 1.68 ms and `/api/auth/me`
+1.70 ms**. So the queries were almost free, and caching their answers would
+have saved about 5%. The cost was **what every request paid before reaching
+its handler**, and then a few specific hot spots. Five changes, none of
+them visible to a listener:
+
+1. **The three per-request steps are plain ASGI**, not
+   `@app.middleware("http")`. That wrapper runs each request in an extra task
+   and copies each response chunk through an in-memory channel. Without it,
+   the app's own time per request went from 0.60 ms to 0.15 ms.
+2. **The app page is gzipped once per version** (1,069 KB to 283 KB), keyed
+   by ETag. A version that's already compressed is sent the moment its
+   headers arrive, instead of waiting for the file to be read in 64 KB
+   pieces. Pages and scripts only; never `/api/`, so never audio.
+3. **Password hashing runs in a thread.** On the loop it froze the server for
+   up to 109 ms; in a thread the worst stall measured was 3.4 ms.
+4. **myFAM asks the cache `holds(key)` instead of `get(key)`.** `get` loaded
+   the whole script, ran the slur filter over every sentence and wrote a hit
+   counter, for every candidate tile on every draw. myFAM was **38% of the
+   server's CPU while being 2% of requests**; afterwards it was 16%.
+5. **The rate limiter looks for departed listeners once a minute.** Past 512
+   active listeners it rescanned all of them on many requests: 7% of the CPU,
+   growing with the square of the listener count.
+
+Same signed-in ramp, after all five:
+
+| listeners | req/s | errors | p95 all | p95 first audio | p95 page | p95 notifications |
+|---:|---:|---:|---:|---:|---:|---:|
+| 100 | 44 | 0.00% | 22 ms | 23 ms | 36 ms | 7 ms |
+| 250 | 113 | 0.00% | 30 ms | 48 ms | 47 ms | 8 ms |
+| 500 | 222 | 0.00% | 76 ms | 150 ms | 120 ms | 20 ms |
+| 750 | 329 | 0.00% | 120 ms | 240 ms | 420 ms | 58 ms |
+| 1,000 | 430 | 0.00% | 170 ms | 250 ms | 660 ms | 78 ms |
+
+Throughput now grows in step with listeners instead of flattening at about
+250 req/s.
+
+**What is left, biggest first** (profile at 1,000 steady listeners, after):
+
+- **Still one process on one core.** It no longer saturates at 1,000 here,
+  but staging's plan has less CPU, and nothing else can absorb a spike.
+  Infrastructure is the next step; see §5c.
+- **myFAM is still the costliest screen** (16% of CPU): `rank_most_played`
+  re-tallies the event log on every draw. One shared tally, refreshed every
+  minute or so, would remove most of it. The rail is a crowd row, the same
+  for everyone before personal filtering.
+- **The "anything new?" check is ~75% of requests.** Each one is now cheap
+  (p50 7 ms), but the volume remains. Backing off while idle is the owner's
+  call (§127).
+- **Sign-up bursts.** scrypt is about 50 ms of CPU each, by design. In a
+  thread it no longer freezes anyone, but 25 sign-ups a second needs more
+  than one core. The `spike` shape shows this. `/api/auth/me` during
+  creation waves remains slow (p50 1.3 s, p95 4 s) and is not explained: a
+  probe saw the server itself stall at most 1.2 s, so part of it is the load
+  generator sharing the machine. Measure it on staging with the generator on
+  another machine.
+- **Raw PCM** (item 3 above) is unchanged: a settled constraint, and the
+  owner's decision.
+
+## 5c. Infrastructure for more traffic, in order
+
+Each step lifts a ceiling the one before it leaves. Re-run `ramp` and
+`breakpoint` on staging after each one: the number is the point.
+
+1. **A bigger plan for both services** (staging and production together, or
+   the test measures the wrong machine). One process uses one core, so go to
+   a plan with **one full CPU** first. A second core helps only the work that
+   already runs in threads (password hashing, file reads) until step 2.
+2. **Background jobs out of the web process.** The 05:00/17:00 editions,
+   GDELT downloads, live-pool sweeps, prefetch and the weather sweep all run
+   in the same process that serves listeners, on the same core. A separate
+   worker service stops them competing. On Render a disk attaches to one
+   service, so this needs step 3, or a job runner that reaches the stores
+   through the web service's API.
+3. **A database server (Postgres) instead of SQLite on one disk.** This is
+   the "know the ceiling going in" in STAGING.md. It is what allows more
+   than one process and more than one machine to share the stores.
+4. **Shared state out of process memory** (Redis or the database): the rate
+   limiter's buckets, the typing indicator, live captions, in-process caches.
+   Then run several uvicorn workers per machine and several machines behind
+   Render's load balancer. That is the step that multiplies capacity, not
+   just raises it.
+5. **A CDN in front** (for example Cloudflare) for the page, scripts, icons
+   and tile pictures. App opens then cost the server nothing.
+6. **Push instead of the 3-second poll** (SSE or WebSocket, with a pub/sub
+   channel once there are several processes). That removes about 75% of all
+   requests. It's a product change (§127).
+7. **Audio**: Opus over the stream (`ios-pressures`) for about a tenth of the
+   bandwidth. The owner's call.
+8. **Generation, separately**: real episodes are limited by the GPU voice
+   workers (Chatterbox, about 4.6× realtime per worker) and by model rate
+   limits, not by this server. Scale RunPod workers with demand and test
+   with a capped key (§4).
 
 ## 6. Keeping it honest
 
