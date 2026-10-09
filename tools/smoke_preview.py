@@ -1587,7 +1587,7 @@ def main() -> int:
                 "the sheet's in-FAM half was empty and said nothing"
             assert not page.eval_on_selector("#shareNote", "e => e.hidden"), \
                 "the preview link is not public and the sheet did not say so"
-            # Groups, then Friends, then Anywhere else (§235): the Groups
+            # Groups, then Friends, then Anywhere else (§236): the Groups
             # heading is drawn only over groups the listener is in.
             page.wait_for_timeout(300)
             labels = page.eval_on_selector_all(

@@ -17300,7 +17300,7 @@ by `test_each_stage_is_the_step_it_names`, whose lower bounds are unchanged
 in kind. The file takes about four seconds longer.
 
 
-## 235. The share sheet: Groups, Friends, and a search beside each
+## 236. The share sheet: Groups, Friends, and a search beside each
 
 At the owner's direction (10.9). The sheet's inside-FAM half was one row
 headed "People you follow". It is now **Groups**, then **Friends**, then
@@ -17319,5 +17319,6 @@ The story tiles are labelled "Instagram" and "Snapchat" (were "Instagram
 story" / "Snapchat story"); the keys `instagram_story` / `snapchat_story`
 are unchanged, so every installed client keeps working.
 
-Pinned by `smoke_preview.py::an_episode_can_be_shared_outside_fam` (labels, the
+Pinned by `tests/test_packet_1006.py::test_the_share_sheet_can_share_an_episode_into_a_group`
+and `smoke_preview.py::an_episode_can_be_shared_outside_fam` (labels, the
 Groups heading only over groups, the friends search).

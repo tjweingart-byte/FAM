@@ -294,6 +294,33 @@ def test_groups_over_the_api(client):
     assert me
 
 
+def test_the_share_sheet_can_share_an_episode_into_a_group(client):
+    """The share sheet's Groups row (§236): it reads the group threads off
+    the inbox and sends an episode to the group's id, and every member gets
+    it as an episode share."""
+    signed_in(client, "sg1@b.com", "Sal", "sal1")
+    others, ids = [], []
+    for n in (2, 3):
+        c = TestClient(appmod.app)
+        c.__enter__()
+        ids.append(signed_in(c, f"sg{n}@b.com", f"Q{n}", f"qq{n}"))
+        others.append(c)
+    for uid in ids:
+        client.post("/api/friends/follow", json={"user_id": uid})
+    gid = client.post("/api/messages/groups",
+                      json={"user_ids": ids, "name": "Pod"}).json()["group"]["user_id"]
+    # What the sheet draws its Groups row from.
+    groups = [t for t in client.get("/api/messages").json()["threads"] if t.get("group")]
+    assert [(t["with"], t["name"]) for t in groups] == [(gid, "Pod")]
+    sent = client.post("/api/messages", json={"to": gid, "query": "why tides turn",
+                                              "minutes": 3, "title": "Tides"})
+    assert sent.status_code == 200, sent.text
+    for c in others:
+        last = c.get("/api/messages/thread", params={"with": gid}).json()["messages"][-1]
+        assert last["kind"] == "episode" and last["query"] == "why tides turn"
+        c.__exit__(None, None, None)
+
+
 def test_the_new_chat_picker_picks_several():
     assert "newChatPicked.push(i)" in _fn("startChatWith")
     body = _fn("confirmNewChat")
