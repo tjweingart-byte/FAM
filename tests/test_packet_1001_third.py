@@ -71,7 +71,7 @@ def test_the_new_mix_plus_is_circled():
     assert "new-mix-plus" in head
     assert "<svg" in button
     css = INDEX.split("  .new-mix-plus{", 1)[1].split("}", 1)[0]
-    assert "border-radius:50%" in css and "border:2px solid" in css
+    assert "border-radius:50%" in css and "border:1px solid var(--border-strong)" in css
     # Still hidden until /api/mixes answers (`showNewMixButton`).
     assert ".new-mix-plus[hidden]{ display:none; }" in INDEX
 

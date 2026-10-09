@@ -16497,3 +16497,24 @@ fix once the reasons confirm it.
 Rule: `gdelt-exports` carries a §220 Current note. Tests:
 `tests/test_gdelt_failures_220.py`; `test_the_newest_file_is_never_written_off`
 now expects `waiting`, not an error.
+
+## 221. One top-right slot on every tab; a smaller exploreFAM pill; no seconds under the loading steps
+
+At the owner's direction:
+
+1. **The top right is one slot.** DailyFAM's bookshelf, myFAM's (+) and
+   search's exploreFAM pill were three sizes in two places: the (+) had a
+   2px white ring and a smaller glyph, and the pill sat at `top:12px;
+   right:14px` while the circles sat at the header's 8px / 38px. All three
+   are now 34px tall at the same top and side inset, with the same 1px
+   `--border-strong` ring and a 19px, 1.8-stroke glyph. myFAM's header left
+   the scroller (`myfam-header-fixed`, as DailyFAM's did in §127), so its
+   wordmark and (+) sit exactly where DailyFAM's do and stay put.
+2. **The exploreFAM pill beside "Made for you" is much smaller**: 24px tall,
+   11px type (was 34px, 14px), so the heading reads as the heading. Search's
+   copy keeps the 34px height of the slot it shares (point 1) at 13px.
+3. **No seconds count up on the loading screen.** `advanceGenSteps` no
+   longer writes "Ns" under the five steps; the steps are what say the app
+   is alive. A machine that cannot write (`genStatusNote`) still says so.
+
+Tests: `test_the_new_mix_plus_is_circled` now pins the 1px ring.
