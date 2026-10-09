@@ -42,6 +42,9 @@ import pytest
 #: setting is a deliberate two-line change and not an invisible one.
 FAM_ENVIRONMENT = (
     "ALLOW_TOPUPS", "ANTHROPIC_API_KEY",
+    # Found when the name pattern above learned digits (§235): read by
+    # config.py all along, and never cleared.
+    "ANTHROPIC_HTTP2",
     "CACHE_BACKEND", "CACHE_ENABLED", "CACHE_SEMANTIC_KEY",
     "CACHE_LIFE_SECONDS", "CACHE_TTL_SECONDS", "CACHE_TTL_VOLATILE", "CACHE_MAX_AGE_SECONDS", "CACHE_VECTOR",
     "CACHE_VECTOR_OVERLAP", "CACHE_VECTOR_SCAN", "CACHE_VECTOR_THRESHOLD",
@@ -296,7 +299,7 @@ def config_environment_names() -> set:
     source = (pathlib.Path(__file__).resolve().parent.parent
               / "config.py").read_text()
     return set(re.findall(r'(?:os\.environ\.(?:get|pop)|_env_int|_env_float|'
-                          r'_env_bool)\(\s*"([A-Z_]+)"', source))
+                          r'_env_bool)\(\s*"([A-Z0-9_]+)"', source))
 
 
 @pytest.fixture(autouse=True)
