@@ -4392,11 +4392,16 @@ def _waitlist_refusal(request: Request, listener):
     # and `//` too, and a gate that matches only the spellings it thought of
     # is a gate with a side door.
     page = "/" + path.strip("/")
-    # Typing the address lands a guest on the waitlist (the 10.7 packet,
-    # reversing §217): it is the front door while the waitlist runs, and its
-    # "Already off the waitlist? Sign in here" signs a member in and sends
-    # them on to the app - so a member signed out on this browser still has
-    # a way in, without the app's own sign-in being a door to nothing.
+    # A guest is never moved off the front door (§217, restored at the
+    # owner's direction in §231, reversing the 10.7 packet): typing the
+    # address opens the app on its own sign-in and sign-up. Sign Up goes to
+    # the waitlist; Sign In signs a member into the app and sends anyone
+    # still in line to their status page. The app stays closed all the same -
+    # every API call above still refuses a guest - and only a referral link,
+    # which is an invitation to join, still goes to the waitlist.
+    if target == "/waitlist" and not request.query_params.get(
+            waitlist_mod.REFERRAL_PARAM):
+        return None
     if page in WAITLIST_CLOSED_PAGES or page.startswith(WAITLIST_CLOSED_PAGE_PREFIXES):
         query = request.url.query
         return RedirectResponse(target + ("?" + query if query else ""),
@@ -9321,6 +9326,39 @@ class WaitlistJoinRequest(BaseModel):
     accept_terms: bool = False
 
 
+def _admin_previewing_join(req, request: Request):
+    """An admin who already has an account, typing it into the join form.
+
+    The owner (09/10, PROBLEMS.md §233): admins put their own email into
+    `/waitlist` to see the page a member sees, and on production they all
+    have accounts already, so the join was refused "That email is already
+    registered". Now an admin email whose password is right is signed in, as
+    `/api/auth/login` would, and sent to the status page's admin preview
+    (§216) - never put in line. Anybody else, or a wrong password, still
+    gets the refusal, so the form says nothing new about who is an admin.
+    """
+    try:
+        email = accounts_mod.clean_email(req.email)
+    except accounts_mod.AuthError:
+        return None
+    if email not in _admin_accounts():
+        return None
+    try:
+        listener = ACCOUNTS.log_in(email, req.password)
+    except accounts_mod.AuthError:
+        return None
+    if not _allowed_admin(listener):
+        return None
+    listener = _admit_admin(listener)
+    old = _session_token(request)
+    token, _user_id = ACCOUNTS.new_session(listener.user_id)
+    if old:
+        ACCOUNTS.end_session(old)
+    request.state.set_session = token
+    return {**listener.as_dict(), "admin": True, "redirect": "/waitlist/me",
+            **_maybe_token(request, token, req.want_token)}
+
+
 @app.post("/api/waitlist/join")
 async def waitlist_join(req: WaitlistJoinRequest, request: Request) -> dict:
     """Join: the app's own email-and-password sign-up, then the waitlist half.
@@ -9336,6 +9374,9 @@ async def waitlist_join(req: WaitlistJoinRequest, request: Request) -> dict:
     """
     _rate_limit(request)
     _require_terms(request, req.accept_terms)
+    admin_seen = _admin_previewing_join(req, request)
+    if admin_seen is not None:
+        return admin_seen
     user, fresh = _signup_listener(request)
     try:
         listener = ACCOUNTS.sign_up(user, req.email, req.password, waitlisted=True)

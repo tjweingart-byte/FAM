@@ -17200,3 +17200,95 @@ earlier tabs is gone.
 `metering.db` with `surface="photo_check"`: it counts under Claude on Daily
 Spend but never as an episode written (`financials.NOT_EPISODES`), or the
 projection's "cost of one new episode" would fall with every profile photo.
+
+## 231. Typing the address opens the app's sign-in again, not the waitlist
+
+The owner (09/10), setting up staging: signing up there landed on the
+waitlist, and on production typing familiarize.net goes straight to
+`/waitlist` (§219). What they want instead:
+
+1. Typing the address does **not** go to the waitlist. The app's front door
+   opens; its **Sign Up** goes to `/waitlist` (§192, unchanged).
+2. Its **Sign In** opens the app's sign-in. An account still on the waitlist
+   is sent to its status page; one already let in goes into the app.
+
+That is §217's behaviour, so this reverses §219 item 3 and restores §217's
+code: `_waitlist_refusal` serves a guest `/`, `/index.html`, `/v/` and `/m/`
+(only a `?referralCode=` link still goes to `/waitlist`), and the shell no
+longer sends a guest to `/waitlist` - not from `/api/auth/me`, not from a
+403's `X-FAM-Waitlist: /waitlist`. A waitlisted account is still moved to
+`/waitlist/me` by the server and the shell, which is what makes (2) work:
+the app's sign-in succeeds, `refreshAuth` reads `status: waitlisted` and
+goes there. The app stays closed: every API call a guest or a waitlisted
+account makes is still refused 403. The landing page keeps its "Already off
+the waitlist? Sign in here" (§219), a second way in for a member who arrived
+there by Sign Up or a referral link.
+
+With `WAITLIST=0` (staging today) the gate does nothing, so nobody is
+redirected and a waitlisted account uses the app; Sign Up still goes to
+`/waitlist`, whose join starts the account waitlisted (§192). Set
+`WAITLIST=1` on `fam-staging` to test the closed app as production has it.
+
+Pinned in `tests/test_waitlist.py`
+(`test_guests_and_waitlisted_are_kept_out_of_the_app`,
+`test_the_apps_sign_in_sends_each_account_where_it_belongs`).
+## 232. One top-right slot on every tab; a smaller exploreFAM pill; no seconds under the loading steps
+
+At the owner's direction:
+
+1. **The top right is one slot.** DailyFAM's bookshelf, myFAM's (+) and
+   search's exploreFAM pill were three sizes in two places: the (+) had a
+   2px white ring and a smaller glyph, and the pill sat at `top:12px;
+   right:14px` while the circles sat at the header's 8px / 38px. All three
+   are now 34px tall at the same top and side inset, with the same 1px
+   `--border-strong` ring and a 19px, 1.8-stroke glyph. myFAM's header left
+   the scroller (`myfam-header-fixed`, as DailyFAM's did in §127), so its
+   wordmark and (+) sit exactly where DailyFAM's do and stay put.
+2. **The exploreFAM pill beside "Made for you" is much smaller**: 24px tall,
+   11px type (was 34px, 14px), so the heading reads as the heading. Search's
+   copy keeps the 34px height of the slot it shares (point 1) at 13px.
+3. **No seconds count up on the loading screen.** `advanceGenSteps` no
+   longer writes "Ns" under the five steps; the steps are what say the app
+   is alive. A machine that cannot write (`genStatusNote`) still says so.
+
+Tests: `test_the_new_mix_plus_is_circled` now pins the 1px ring.
+
+## 233. An admin with an account can type it into the waitlist to see the page
+
+The owner (09/10): admins need to put their own email into
+familiarize.net/waitlist to see the page a member sees, or there is no way
+to look at it to change it. §216 already sent an admin who *joins* to the
+status page's admin preview, but on production every admin already has an
+account, so the join was refused "That email is already registered".
+
+`/api/waitlist/join` now first asks `_admin_previewing_join`: an email listed
+in `FAM_ADMIN_ACCOUNTS` whose password is right is signed in, exactly as
+`/api/auth/login` signs in (a fresh session, the old one ended), and answered
+`admin: true`, `redirect: /waitlist/me` - so the page opens the profile a new
+member fills in (`?setup=1`, with Skip for now) and then the status page,
+labelled "Admin preview". Nothing is written to the line: no place, no
+invite credit, no Viral Loops. A wrong password, or an existing email that
+is not an admin's, falls through to the sign-up and gets the same refusal as
+before, so the form tells nobody who is an admin. The landing page's "Already
+off the waitlist? Sign in here" already sent an admin to the same preview.
+
+Pinned by `tests/test_waitlist.py::test_an_admin_with_an_account_can_join_to_see_the_page`.
+
+## 234. A timing test that failed on a busy CI runner
+
+`tests/test_stage_marks.py::test_the_summary_splits_what_claude_ttft_used_to_swallow`
+failed CI on `Main` (f048658, 0.063s) and on `staging` (37307f6, 0.069s)
+against a bound of 0.05s, and passed on the same commits elsewhere. It checks
+that brief + evidence + the writer's thinking account for `claude_ttft`. What
+is left over is the pipeline's own code between those spans - building the
+plan and the prompt - which is not a wait and takes whatever a loaded runner
+gives it.
+
+The bound now says what the test is for: no stubbed wait sits outside the
+three spans, because one that did would leave at least the shortest stubbed
+step uncovered (`SHORTEST_STEP`). The stubbed steps are longer (brief 0.30s,
+retrieval 0.20s, writer 0.25s, from 0.20/0.10/0.15) so that bound is 0.20s,
+three times the worst runner seen. A mark in the wrong place is still caught
+by `test_each_stage_is_the_step_it_names`, whose lower bounds are unchanged
+in kind. The file takes about four seconds longer.
+

@@ -143,14 +143,19 @@
   .scroll{ flex:1; min-height:0; overflow-y:auto; padding:2px 18px 18px; }
   .home-hero{ display:flex; flex-direction:column; }
   #screen-home{ position:relative; background:var(--bg); }
-  .home-explore{ position:absolute; top:12px; right:14px; z-index:2; }
+  /* In the same slot as DailyFAM's and myFAM's top-right circle (§232):
+     their header's top padding and side inset, and the same 34px height. */
+  .home-explore{ position:absolute; top:8px; right:38px; z-index:2; }
+  .home-explore.xfam-pill{ height:34px; padding:0 10px 0 12px; font-size:13px;
+    border-color:var(--border-strong); background:none; }
   /* The exploreFAM button (10.5 packet #7): the wordmark and an arrow in a
      pill, on search's top right and beside DailyFAM's "Made for you". */
-  .xfam-pill{ display:inline-flex; align-items:center; gap:7px; height:34px;
-    padding:0 12px 0 14px; border-radius:999px; border:1px solid var(--copper);
+  .xfam-pill{ display:inline-flex; align-items:center; gap:4px; height:24px;
+    padding:0 8px 0 9px; border-radius:999px; border:1px solid var(--copper);
     background:rgba(212,168,83,0.10); color:var(--text); cursor:pointer;
-    font-family:'Bricolage Grotesque', sans-serif; font-size:14px; line-height:1; white-space:nowrap;
+    font-family:'Bricolage Grotesque', sans-serif; font-size:11px; line-height:1; white-space:nowrap;
     flex:none; }
+  .xfam-pill .xfam-arrow{ width:1.05em; height:1.05em; }
   .xfam-pill:active{ transform:scale(0.95); }
   .xfam-word{ display:inline-flex; align-items:center; }
   .xfam-arrow{ color:var(--copper); flex:none; }
@@ -353,8 +358,10 @@
 
   .myfam-dots-btn{ background:none; border:none; color:var(--text-muted); font-size:15px; letter-spacing:1px; cursor:pointer; padding:6px; line-height:1; }
   .myfam-dots-btn[hidden]{ display:none; }
+  /* The same circle as DailyFAM's bookshelf (§232): one size, one border,
+     one place on every page's top right. */
   .new-mix-plus{ width:34px; height:34px; padding:0; border-radius:50%; display:flex; align-items:center;
-    justify-content:center; color:var(--text); border:2px solid currentColor; }
+    justify-content:center; color:var(--text); border:1px solid var(--border-strong); }
   .new-mix-plus:active{ transform:scale(0.94); }
   .new-mix-plus[hidden]{ display:none; }
   /* Offline (27/09 packet): a card whose episode is not on this device is
@@ -3669,21 +3676,23 @@
       <!-- ============ PLAYFAM (past playlists) ============ -->
       <!-- ============ PLAYFAM (daily mixes) ============ -->
       <section class="screen" id="screen-playfam">
+        <!-- Outside the scroller, like DailyFAM's (§232), so the wordmark and
+             the (+) sit exactly where DailyFAM's do and stay put. -->
+        <div class="myfam-header myfam-header-fixed">
+          <h2 class="wordmark" aria-label="myFAM">my<span class="wm-glyph f" aria-hidden="true"><svg viewBox="4.55 4.55 12.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 20V9.2A3.2 3.2 0 0 1 9.2 6H16"/><path d="M6 13h8"/></svg></span><span class="wm-a" aria-hidden="true"><svg viewBox="3.55 4.55 16.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l7-7 7 7"/><path d="M5 20l7-7 7 7"/></svg></span><span class="wm-glyph m" aria-hidden="true"><svg viewBox="4.55 4.55 14.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 20V6l6 9 6-9v14"/></svg></span></h2>
+          <!-- Hidden until `/api/mixes` says this listener has an account.
+               A mix is one of the things an account is *for*, so offering to
+               make one to somebody who cannot keep one is a control with
+               nothing behind it: it opened a naming modal, then a picker, and
+               only refused at the save. Hidden rather than shown-and-disabled,
+               and hidden to start rather than shown and taken away, because a
+               control that appears and then vanishes reads as a fault. The
+               sign-up buttons `renderMixesLocked` draws are the way in. -->
+          <!-- Circled, so it reads as the way in (10.1 packet, third set). -->
+          <button class="myfam-dots-btn new-mix-plus" id="newMixBtn" onclick="openNewMix()"
+                  aria-label="New mix" hidden><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
+        </div>
         <div class="scroll">
-          <div class="myfam-header">
-            <h2 class="wordmark" aria-label="myFAM">my<span class="wm-glyph f" aria-hidden="true"><svg viewBox="4.55 4.55 12.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 20V9.2A3.2 3.2 0 0 1 9.2 6H16"/><path d="M6 13h8"/></svg></span><span class="wm-a" aria-hidden="true"><svg viewBox="3.55 4.55 16.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l7-7 7 7"/><path d="M5 20l7-7 7 7"/></svg></span><span class="wm-glyph m" aria-hidden="true"><svg viewBox="4.55 4.55 14.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 20V6l6 9 6-9v14"/></svg></span></h2>
-            <!-- Hidden until `/api/mixes` says this listener has an account.
-                 A mix is one of the things an account is *for*, so offering to
-                 make one to somebody who cannot keep one is a control with
-                 nothing behind it: it opened a naming modal, then a picker, and
-                 only refused at the save. Hidden rather than shown-and-disabled,
-                 and hidden to start rather than shown and taken away, because a
-                 control that appears and then vanishes reads as a fault. The
-                 sign-up buttons `renderMixesLocked` draws are the way in. -->
-            <!-- Circled, so it reads as the way in (10.1 packet, third set). -->
-            <button class="myfam-dots-btn new-mix-plus" id="newMixBtn" onclick="openNewMix()"
-                    aria-label="New mix" hidden><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
-          </div>
           <!-- Other listeners' public mixes. Tapping the bar lists every
                public mix; typing narrows it by mix name, by a topic in the
                mix, or by whose it is. Anybody can search and listen; adding
@@ -4683,9 +4692,9 @@
       return raw.call(this, input, init).then(function(res){
         try {
           var go = res && res.status === 403 && res.headers.get("X-FAM-Waitlist");
-          // A waitlisted account to its status page, a guest to the
-          // waitlist, which is where they sign in (10.7, reversing §217).
-          if(go === "/waitlist/me" || go === "/waitlist") location.replace(go);
+          // Only a waitlisted account is moved: a guest refused here stays
+          // on the front door to sign in or sign up (§217, §231).
+          if(go === "/waitlist/me") location.replace(go);
         } catch(e){}
         // An old kept release (§172) hears about it (§208): `deprecated` is
         // said once, as a toast naming where the current page is; `retired`
@@ -5545,14 +5554,11 @@
         begin();
       }, GEN_STEP_LAST_BEAT_MS);
     }
-    // The seconds, as the old status line counted them: under three they
-    // are noise, past that they are what says the app has not died.
-    // A machine that cannot write says so here too, where attention is.
+    // No seconds counted up under the steps (owner's direction, §232): the
+    // steps themselves say the app has not died. A machine that cannot
+    // write still says so here, where attention is.
     var node = document.getElementById("famLoadingStatus");
-    var seconds = Math.round((now - st.started) / 1000);
-    var count = seconds < 3 ? "" : seconds + "s";
-    if(node) node.textContent = genStatusNote
-      ? genStatusNote + (count ? " " + count : "") : count;
+    if(node) node.textContent = genStatusNote;
   }
 
   function stopGenSteps(){
@@ -13062,11 +13068,9 @@
         AUTH = d;
         // A page that reached this far while the waitlist runs - opened from
         // the offline shell - is sent where the server would have sent it.
-        // A guest goes to the waitlist, where they sign in (10.7).
+        // A guest stays, on the front door, to sign in or sign up (§217, §231).
         if(d && d.waitlist && d.status === "waitlisted"){
           location.replace("/waitlist/me");
-        } else if(d && d.waitlist && !d.authenticated){
-          location.replace("/waitlist");
         }
         authUnreachable = false;
         rememberSignedIn(!!d.authenticated);

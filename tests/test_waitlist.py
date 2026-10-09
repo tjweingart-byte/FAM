@@ -236,12 +236,11 @@ def _join(email, code=""):
 
 def test_guests_and_waitlisted_are_kept_out_of_the_app(world):
     guest = TestClient(appmod.app)
-    # Typing the address lands on the waitlist, where a member signs in
-    # (the 10.7 packet, reversing §217).
-    r = guest.get("/", follow_redirects=False)
-    assert r.status_code == 302 and r.headers["location"] == "/waitlist"
-    r = guest.get("/index.html", follow_redirects=False)
-    assert r.headers["location"] == "/waitlist"
+    # Typing the address opens the app's front door, to sign in or sign up
+    # (§217, restored in §231): a guest is never sent to the waitlist.
+    for page_path in ("/", "/index.html", "/index.html/", "//"):
+        r = guest.get(page_path, follow_redirects=False)
+        assert r.status_code == 200, page_path
     r = guest.get("/?referralCode=abc", follow_redirects=False)
     assert r.headers["location"] == "/waitlist?referralCode=abc"
     r = guest.get("/api/friends")
@@ -251,8 +250,10 @@ def test_guests_and_waitlisted_are_kept_out_of_the_app(world):
     assert guest.get("/waitlist").status_code == 200
     page = (ROOT / "static" / "index.html").read_text(encoding="utf-8")
     assert 'd.status === "waitlisted"' in page
-    assert 'if(go === "/waitlist/me" || go === "/waitlist") location.replace(go);' in page
-    assert 'location.replace("/waitlist");' in page
+    assert 'if(go === "/waitlist/me") location.replace(go);' in page
+    assert 'location.replace("/waitlist");' not in page
+    # Sign Up is the one door from the app to the waitlist.
+    assert 'location.href = "/waitlist";' in page
 
     member, body = _join("w@fam.test")
     assert body["status"] == "waitlisted" and body["redirect"] == "/waitlist/me"
@@ -269,6 +270,53 @@ def test_granted_accounts_get_in(world):
     appmod.WAITLIST.grant([user])
     assert member.get("/", follow_redirects=False).status_code == 200
     assert member.get("/api/friends").status_code == 200
+
+
+def test_the_apps_sign_in_sends_each_account_where_it_belongs(world):
+    """§231: a guest on the front door signs in with the app's own form. An
+    account still in line is sent to its status page; one let in is in."""
+    waiting, _ = _join("wait@fam.test")
+    let_in, _ = _join("in@fam.test")
+    appmod.WAITLIST.grant([let_in.get("/api/auth/me").json()["user_id"]])
+
+    door = TestClient(appmod.app)
+    assert door.get("/", follow_redirects=False).status_code == 200
+    r = door.post("/api/auth/login", json={"email": "wait@fam.test",
+                                           "password": PASSWORD})
+    assert r.status_code == 200, r.text
+    assert door.get("/api/auth/me").json()["status"] == "waitlisted"
+    assert door.get("/", follow_redirects=False).headers["location"] == "/waitlist/me"
+
+    door = TestClient(appmod.app)
+    r = door.post("/api/auth/login", json={"email": "in@fam.test",
+                                           "password": PASSWORD})
+    assert r.status_code == 200, r.text
+    assert door.get("/", follow_redirects=False).status_code == 200
+    assert door.get("/api/friends").status_code == 200
+
+
+def test_an_admin_with_an_account_can_join_to_see_the_page(world, monkeypatch):
+    """§233: an admin who already has an account types it into the join form
+    and lands on the status page's admin preview, signed in, never in line.
+    A wrong password, or anybody else's existing email, is still refused."""
+    monkeypatch.setenv("FAM_ADMIN_ACCOUNTS", "boss@fam.test")
+    _join("boss@fam.test")
+    _join("member@fam.test")
+
+    again, body = _join("Boss@fam.test")
+    assert body["admin"] is True and body["status"] == "active"
+    assert body["redirect"] == "/waitlist/me"
+    me = again.get("/api/waitlist/me").json()
+    assert me["admin"] is True and me["preview"] is not None
+    user = again.get("/api/auth/me").json()["user_id"]
+    assert user not in [r["user_id"] for r in appmod.WAITLIST.ordered()]
+
+    c = TestClient(appmod.app)
+    for email, password in (("boss@fam.test", "wrong-password"),
+                            ("member@fam.test", PASSWORD)):
+        r = c.post("/api/waitlist/join", json={"email": email, "password": password,
+                                               "accept_terms": True})
+        assert r.status_code == 400 and "already registered" in r.text, r.text
 
 
 def test_admin_credentials_pass_the_gate_and_nobody_else_does(world):
