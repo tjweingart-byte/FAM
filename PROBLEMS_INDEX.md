@@ -238,3 +238,4 @@ and `limit` = Lines.
 | 17235 | 28 | 232. One top-right slot on every tab; a smaller exploreFAM pill; no seconds under the loading steps |
 | 17263 | 21 | 233. An admin with an account can type it into the waitlist to see the page |
 | 17284 | 19 | 234. A timing test that failed on a busy CI runner |
+| 17303 | 61 | 235. A thousand listeners: the load test gets a verdict, the poll, and the shell |

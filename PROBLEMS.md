@@ -17299,3 +17299,64 @@ three times the worst runner seen. A mark in the wrong place is still caught
 by `test_each_stage_is_the_step_it_names`, whose lower bounds are unchanged
 in kind. The file takes about four seconds longer.
 
+
+## 235. A thousand listeners: the load test gets a verdict, the poll, and the shell
+
+The owner asked for a way to confirm FAM will not fail or slow down with
+upwards of 1,000 listeners. §221's Locust file existed but could not answer
+that: it had no pass or fail, no load shapes, and it left out what an open
+app does most.
+
+**What it left out.** Every open app polls `/api/notifications` every three
+seconds (`NOTIF_POLL_MS`, §127). At 1,000 listeners that is ~290 of ~370
+requests a second - 80% of the load - and §221's listeners never sent one.
+Nor did they open the app: `/` is the 1 MB `index.html`, served without
+compression or `Cache-Control`. And they played a new episode every few
+seconds, where a person stays on a two-minute episode for most of two
+minutes. A load test that does less than the app measures a quieter server
+than the one people use. The listener now opens the shell and the player,
+runs the poll (a greenlet beside its tasks, cursor and all), visits the
+account screens when signed up, and listens for 30-100% of an episode
+before tapping again (`LOAD_TEST_LISTEN`; 0 is the old stress behaviour).
+A test pins the poll interval to `NOTIF_POLL_MS`.
+
+**A verdict.** `BUDGETS` (p95/p99 per kind of request, from what a listener
+notices: first audio 1 s at p95 - the spec - the shell 2 s, the poll 300 ms,
+any other read 500 ms) and a 1% error rate, with 429s counted as errors
+because every listener has its own session. `LOAD_TEST_BASELINE` adds "no
+more than 2x slower than ten listeners, plus 50 ms". A run that played no
+audio fails - it measured nothing that matters. Exit code 1 on any miss.
+
+**Shapes** (`LOAD_TEST_SHAPE`): smoke (the baseline), ramp (10/25/50/75/100%),
+spike, soak, breakpoint. Statistics reset at each step, so each row of the
+printed table is its own load; the verdict is on the full-load step. A
+manual GitHub workflow (`load-test.yml`) runs baseline + shape against
+staging and puts the verdict on the run's summary page.
+
+**What it found** (this container, one uvicorn process with a core to
+itself - more than Render's `starter` - 12 replayed episodes). Signed-in
+listeners: every budget met at 250; p95 first audio 2.3 s at 500, 29 s at
+1,000; throughput flat at ~250 req/s. Guests (the poll returns before the
+database): fine to 500, failing at 750-1,000. Without the poll: first audio
+within budget at 1,000 but every screen 3-10x slower than quiet. The
+server process was at 100% of one core; no `database is locked`. The limit
+is one Python process on one core, not SQLite locking.
+
+In order of what it costs: the single process (the lasting fix is the
+database server STAGING.md already names; the cheap step is a bigger plan
+for both services, then re-run); the poll (back-off while idle, an
+in-memory "nothing new" answer, or push - the owner's call, since §127 chose
+three seconds); raw PCM at ~50 MB/s for 1,000 listeners (`no-audio-files`
+is settled; `ios-pressures` notes Opus over a stream is compatible); the
+uncompressed shell (check whether Render's edge compresses - the run says);
+and scrypt on the event loop at sign-up and sign-in (~50 ms during which
+nobody else is served - `asyncio.to_thread` keeps the same hash). None of
+these is changed here; the test now measures each.
+
+Not tested, deliberately: the model and the voice. Their limit is the GPU
+worker and the model's rate limits, and testing them spends money - a
+separate, capped run (`LOAD_TEST_FRESH=1 LOAD_TEST_ALLOW_SPEND=1`, dozens of
+listeners, never 1,000).
+
+`LOAD_TESTING.md`; `tools/load_test.py`; `tests/test_load_test.py`.
+
