@@ -234,4 +234,7 @@ and `limit` = Lines.
 | 16997 | 47 | 228. The Terms, agreed with a checkbox (clickwrap) |
 | 17044 | 48 | 229. Your categories: follow a category, scroll what was made in it today |
 | 17092 | 112 | 230. The finance workbook: every service, every day, one file |
-| 17204 | 21 | 232. One top-right slot on every tab; a smaller exploreFAM pill; no seconds under the loading steps |
+| 17204 | 31 | 231. Typing the address opens the app's sign-in again, not the waitlist |
+| 17235 | 21 | 232. One top-right slot on every tab; a smaller exploreFAM pill; no seconds under the loading steps |
+| 17256 | 21 | 233. An admin with an account can type it into the waitlist to see the page |
+| 17277 | 19 | 234. A timing test that failed on a busy CI runner |

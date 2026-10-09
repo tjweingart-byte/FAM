@@ -53,6 +53,25 @@ feature branch --PR--> staging --(batched PR)--> Main
    URL is a build setting: staging for TestFlight, production for the App
    Store (IOS_APP.md).
 
+### How it was actually set up (09/10)
+
+`fam` predates the blueprint (it was made by hand, and Render's Blueprints
+page is empty), so applying `render.yaml` would have tried to create a second
+production service. `fam-staging` was therefore also made by hand
+(**New -> Web Service**), copying its block in `render.yaml`: branch
+`staging`, Docker, Starter, health check `/api/health`, auto-deploy on
+commit, a 1 GB disk mounted at `/data`, and only `FAM_ENV=staging`,
+`UVICORN_LOOP=asyncio`, `FAM_ADMIN_ACCOUNTS` and `FAM_ADMIN_TOKEN`. Its first
+`/api/health` read `zero_spend: true`, `network_guard: true`, and every
+database `durable`.
+
+**What that means:** neither service follows `render.yaml`. A change to
+either block there does nothing until it is made in the dashboard as well.
+`WAITLIST` is unset on staging, so the app is open there; set `WAITLIST=1` to
+test the closed app as production runs it. Staging's accounts are its own:
+sign up there once (Sign Up goes to `/waitlist`; an admin email is never put
+in line).
+
 ## Zero spend: what staging can and cannot do
 
 `FAM_ENV=staging` turns on `spend_guard.py`, and no other setting can turn it

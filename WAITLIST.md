@@ -20,9 +20,13 @@ section when a decision changes, including why.
   that creates an account (email, phone, Google, Apple) writes `waitlisted`
   in the `INSERT` itself (`AccountStore.new_account_status`).
 * **The gate** (`app._waitlist_refusal`, inside the session middleware): a
-  guest or waitlisted account asking for `/`, `/index.html`, `/v/*` or
-  `/m/*` is redirected to `/waitlist` or `/waitlist/me` (query string
-  kept, so `/?referralCode=x` survives). Any `/api/*` call answers 403 with
+  waitlisted account asking for `/`, `/index.html`, `/v/*` or `/m/*` is
+  redirected to `/waitlist/me`. A guest is served the app's front door - its
+  Sign Up goes to `/waitlist`, its Sign In signs a member into the app and
+  sends anyone still in line to `/waitlist/me` (PROBLEMS.md §231) - except a
+  referral link (`/?referralCode=x`), which goes to `/waitlist` with the
+  query string kept. An admin typing an email that already has an account
+  into the join form is signed in and shown the admin preview (§233). Any `/api/*` call answers 403 with
   `X-FAM-Waitlist`, except `/api/auth/*`, `/api/waitlist/*`, `/api/admin/*`,
   `/api/health`, `/api/client-status`, `/api/me` and `/api/preferences`,
   any request carrying an admin credential or from an admin account (an
@@ -96,7 +100,7 @@ section when a decision changes, including why.
     open, and `/api/audio` - but only for exactly what was shared (that
     question at that length, `surface=share`, nothing attached;
     `ShareStore.is_shared`), so the share page is not a way into the rest of
-    FAM. Its "Join FAM" door is the front door, which the gate sends to
+    FAM. Its "Join FAM" door is the app's front door, whose Sign Up goes to
     `/waitlist`. Mix links (`/m/<id>`) stay closed: a mix is a list to browse,
     which is the app.
 11. **A complete profile is a name, a handle and at least one topic.** A
