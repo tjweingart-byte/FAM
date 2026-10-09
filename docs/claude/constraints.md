@@ -10,7 +10,7 @@
 ## Constraints that are settled — do not undo without discussing
 
 <!-- rule:no-audio-files -->
-> **Current (PROBLEMS.md §235, at the owner's direction):** kept audio is
+> **Current (PROBLEMS.md §237, at the owner's direction):** kept audio is
 > packed as **Opus at 24 kbps** (32 until the owner chose 24) (`audio_codec.py`; `AUDIO_CODEC=zlib`
 > restores §132's packing) and decoded back to the same PCM, a slice at a
 > time, before it is streamed - the client still receives raw PCM and nothing

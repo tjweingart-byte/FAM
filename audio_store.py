@@ -1,6 +1,6 @@
 """Where kept audio lives when it is not in scripts.db: a Cloudflare R2 bucket.
 
-§235, at the owner's direction. Kept audio (§132) sat in `scripts.db` beside
+§237, at the owner's direction. Kept audio (§132) sat in `scripts.db` beside
 its script, on a 1 GB disk shared with every other database, under a 512 MB
 ceiling - about 120 two-minute episodes before the least-played was evicted
 and paid for again on the GPU. R2 holds as much as is kept, at $0.015 a GB a
@@ -149,7 +149,7 @@ class R2AudioStore:
     kind = R2
 
     def __init__(self, account_id: str, bucket: str, access_key: str,
-                 secret_key: str, timeout: float = 10.0) -> None:
+                 secret_key: str, timeout: float = 10.0, transport=None) -> None:
         if not (account_id and bucket and access_key and secret_key):
             raise AudioStoreError(
                 "AUDIO_STORE=r2 needs R2_ACCOUNT_ID, AUDIO_BUCKET,"
@@ -162,11 +162,14 @@ class R2AudioStore:
         self._local = threading.local()
         self._timeout = httpx.Timeout(timeout, connect=3.0)
         self._httpx = httpx
+        #: Tests hand in an `httpx.MockTransport`; production never does.
+        self._transport = transport
 
     def _client(self):
         client = getattr(self._local, "client", None)
         if client is None:
-            client = self._httpx.Client(timeout=self._timeout)
+            client = self._httpx.Client(timeout=self._timeout,
+                                        transport=self._transport)
             self._local.client = client
         return client
 

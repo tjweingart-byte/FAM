@@ -531,7 +531,7 @@ class ShareStore:
 
     def episodes(self):
         """Every distinct (question, length) anybody shared. Read by the
-        audio sweep (§235): a shared episode's audio is kept past its week,
+        audio sweep (§237): a shared episode's audio is kept past its week,
         because the link keeps working."""
         return self._conn().execute(
             "SELECT DISTINCT query, minutes FROM shares").fetchall()

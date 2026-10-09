@@ -89,7 +89,7 @@ services:
       # FREE_EXPLORE_PER_DAY tune the ceiling in the dashboard.
       - key: ENFORCE_QUOTAS
         value: "1"
-      # Kept audio in a Cloudflare R2 bucket (§235, AUDIO_STORE.md). Asked
+      # Kept audio in a Cloudflare R2 bucket (§237, AUDIO_STORE.md). Asked
       # for in the dashboard: `AUDIO_STORE=r2` is set once the bucket and its
       # lifecycle rules exist and `tools/verify_audio_store.py` has passed,
       # not as a side effect of a merge. Until then audio stays in scripts.db.

@@ -17300,7 +17300,7 @@ by `test_each_stage_is_the_step_it_names`, whose lower bounds are unchanged
 in kind. The file takes about four seconds longer.
 
 
-## 235. Kept audio moves to an R2 bucket, packed as Opus, kept a week
+## 237. Kept audio moves to an R2 bucket, packed as Opus, kept a week
 
 **What was wrong.** Kept audio (§132) sat in `scripts.db` as zlib PCM - about
 4.3 MB for a two-minute episode - on a 1 GB disk shared with every other
@@ -17371,7 +17371,7 @@ a PCM fallback for old clients. `scripts.db` is still SQLite on one disk, so
 more than one server still needs a database move. A saved item still plays by
 question, not by episode id.
 
-## 236. Opus at 24 kbps, not 32
+## 238. Opus at 24 kbps, not 32
 
 At the owner's direction, the default `AUDIO_OPUS_BITRATE` is 24000. Measured
 on the same two minutes of `reference_3.wav`: 0.36 MB against 32 kbps's

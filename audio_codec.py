@@ -1,7 +1,7 @@
 """How a kept episode's audio is packed: Opus at 24 kbps, or zlib.
 
 Kept audio used to be zlib-compressed PCM (§132), which on speech saves about a
-quarter. Opus at 24 kbps is about a twelfth of zlib's size for speech (§235,
+quarter. Opus at 24 kbps is about a twelfth of zlib's size for speech (§237,
 measured on `reference_3.wav`: a two-minute episode is 4.45 MB as zlib, 0.48 MB
 as Opus at 32 kbps and 0.36 MB at 24). The voice is 24 kHz, so it holds nothing
 above 12 kHz, which 24 kbps already carries; the owner chose 24 over 32. That difference is what makes it

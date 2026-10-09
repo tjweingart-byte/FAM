@@ -650,7 +650,7 @@ async def lifespan(_: FastAPI):
     # is retried here. A no-op with no token, which is every staging deploy.
     if VIRAL_LOOPS.configured:
         _BACKGROUND.add(asyncio.create_task(_drain_viral_loops_forever()))
-    # Kept audio's week (§235): keep what is saved, shared or vibed, delete
+    # Kept audio's week (§237): keep what is saved, shared or vibed, delete
     # the rest, and say whether the bucket really answers - with a write, a
     # read and a delete, never by looking at the settings.
     if hasattr(SCRIPT_CACHE, "sweep_audio"):
@@ -1748,7 +1748,7 @@ async def health(request: Request) -> dict:
                      "viral_loops": VIRAL_LOOPS.configured,
                      "outbox_pending": WAITLIST.outbox_summary()["pending"]},
         "voice_store": VOICE_STORE["dir"],
-        # Where kept audio lives and how it is packed (§235): the bucket, the
+        # Where kept audio lives and how it is packed (§237): the bucket, the
         # boot check's real write/read/delete, the codec, and the last sweep.
         "audio": {**audio_store_mod.status(), **audio_codec_mod.describe(),
                   "check": dict(_AUDIO_STORE_CHECK),
@@ -8367,6 +8367,9 @@ async def audio(
             _refund(reserved, user)
             raise HTTPException(status_code=403, detail=GUEST_GATE_MESSAGE,
                                 headers={"X-FAM-Refused-By": "account"})
+        # Kept, so it plays only what is kept (§237): a bucket that does
+        # not answer stops the episode rather than waking the GPU.
+        pipeline.stored_only = True
 
     # Ask for a GPU now, before Claude has written a word.
     #
@@ -9273,7 +9276,7 @@ VIRAL_LOOPS_FIXED_REFUSALS = (("flag", "'participants' is required"),)
 
 
 def _held_episode_keys() -> set:
-    """The cache keys of every episode somebody saved, shared or vibed (§235).
+    """The cache keys of every episode somebody saved, shared or vibed (§237).
 
     Derived from the three stores on every sweep rather than counted up and
     down as people press things: a tally kept beside the stores drifts the
@@ -9323,7 +9326,7 @@ async def _check_audio_store() -> None:
 
 
 async def _sweep_audio_forever(every: float = 3600.0) -> None:
-    """§235: once an hour, a week-old episode's audio is kept (saved, shared
+    """§237: once an hour, a week-old episode's audio is kept (saved, shared
     or vibed) or deleted, and queued bucket deletes are sent. Once a day it
     also releases kept audio nobody holds any more."""
     last_full = 0.0
@@ -9423,7 +9426,7 @@ class WaitlistJoinRequest(BaseModel):
 def _admin_previewing_join(req, request: Request):
     """An admin who already has an account, typing it into the join form.
 
-    The owner (09/10, PROBLEMS.md §235): admins put their own email into
+    The owner (09/10, PROBLEMS.md §237): admins put their own email into
     `/waitlist` to see the page a member sees, and on production they all
     have accounts already, so the join was refused "That email is already
     registered". Now an admin email whose password is right is signed in, as

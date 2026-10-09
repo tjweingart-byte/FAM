@@ -261,7 +261,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
 
 Audio and the opening
 - **No MP3, no audio files to the client**: raw PCM streams. Kept audio is
-  Opus 24 kbps (§235; zlib before) in an R2 bucket, `scripts.db` keeping its
+  Opus 24 kbps (§237; zlib before) in an R2 bucket, `scripts.db` keeping its
   name and a hot copy (`AUDIO_CACHE_MAX_MB`); readable only while its script
   is, production voice, whole episodes; a week for all, then saved, shared or
   vibed moves to `kept/` (IA), the rest is deleted. `OfflineShelf` keeps

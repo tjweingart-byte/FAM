@@ -698,7 +698,7 @@ class SavedStore:
 
     def episodes(self):
         """Every distinct (question, length) on anybody's shelf. Read by the
-        audio sweep (§235): a saved episode's audio is kept past its week."""
+        audio sweep (§237): a saved episode's audio is kept past its week."""
         return self._conn().execute(
             "SELECT DISTINCT query, minutes FROM items").fetchall()
 

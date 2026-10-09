@@ -529,7 +529,7 @@ class StoredAudio:
     replay publishes captions that match what is heard even when the original
     was cut to fit its length.
 
-    Held packed (§235): `blob` is what `codec` made of the PCM, and `slices()`
+    Held packed (§237): `blob` is what `codec` made of the PCM, and `slices()`
     decodes it a second at a time as it plays, so a five-minute Opus episode
     does not wait to be decoded whole before its first word. `pcm` decodes
     all of it, for exports and tests.
@@ -551,7 +551,7 @@ class StoredAudio:
         return audio_codec.decode(self.codec, self.blob, self.sample_rate, self.frames)
 
 
-#: zlib level 1, kept for rows packed before §235 (`audio_codec.ZLIB_LEVEL`).
+#: zlib level 1, kept for rows packed before §237 (`audio_codec.ZLIB_LEVEL`).
 AUDIO_COMPRESSION = audio_codec.ZLIB_LEVEL
 
 
@@ -586,13 +586,13 @@ def audio_ceiling_bytes() -> int:
     return max(0, int(settings.audio_cache_max_mb)) * 1024 * 1024
 
 
-#: `episode_audio.tier` for audio somebody saved, shared or vibed (§235),
+#: `episode_audio.tier` for audio somebody saved, shared or vibed (§237),
 #: kept past its first week. Anything else is "" - recent audio.
 KEPT_TIER = "kept"
 
 
 def recent_seconds() -> float:
-    """How long every episode's audio is kept (§235): AUDIO_RECENT_DAYS."""
+    """How long every episode's audio is kept (§237): AUDIO_RECENT_DAYS."""
     return max(1, int(settings.audio_recent_days)) * 86400.0
 
 
@@ -1285,7 +1285,7 @@ class SqliteScriptCache:
             conn.execute(
                 "CREATE INDEX IF NOT EXISTS episode_audio_played ON episode_audio(played)"
             )
-            # §235. `codec` says what packed `pcm` (rows before this are
+            # §237. `codec` says what packed `pcm` (rows before this are
             # zlib); `frames` is the original length in samples; `object_key`
             # names the copy in the bucket ("" when there is none); `tier` is
             # "" for a first-week episode and "kept" for one somebody saved,
@@ -1683,7 +1683,7 @@ class SqliteScriptCache:
 
     def _forget_audio(self, where: str, params: tuple) -> int:
         """Drop the audio rows matching `where`, and queue their objects for
-        deletion from the bucket (§235). The one way a row is dropped, so a
+        deletion from the bucket (§237). The one way a row is dropped, so a
         wipe, a purge, a re-write or a forgotten author can never leave an
         object behind that nothing points at."""
         conn = self._conn()
@@ -1703,7 +1703,7 @@ class SqliteScriptCache:
         already been written at the engine's rate, and PCM at another one would
         play at the wrong pitch rather than fail.
 
-        With a bucket (§235) this may make a network call - the hot copy is
+        With a bucket (§237) this may make a network call - the hot copy is
         read when there is one, else the object - so call it off the event
         loop; `PodcastPipeline` does. An object the bucket no longer has drops
         its row: the episode is voiced again and kept again, never failed.
@@ -1727,9 +1727,14 @@ class SqliteScriptCache:
                 return None
             blob = row[0] or b""
             if not blob:
-                blob = self._fetch_object(row[6])
+                blob, missing = self._read_object(row[6])
                 if not blob:
-                    self._forget_audio("key = ? AND voice = ?", (key, voice))
+                    # Only an object the bucket says is not there drops the
+                    # row. A bucket that did not answer drops nothing - an
+                    # outage must never delete what somebody saved; this play
+                    # is voiced again and the row stays for the next one.
+                    if missing:
+                        self._forget_audio("key = ? AND voice = ?", (key, voice))
                     return None
                 # A hot copy for the next play, under the same ceiling.
                 conn.execute("UPDATE episode_audio SET pcm = ? WHERE key = ? AND voice = ?",
@@ -1748,21 +1753,29 @@ class SqliteScriptCache:
             return None
 
     @staticmethod
-    def _fetch_object(name: str) -> bytes:
+    def _read_object(name: str) -> tuple[bytes, bool]:
+        """(bytes, missing). `missing` is True only when the bucket answered
+        that the object is not there; no bucket configured, a timeout or an
+        error is (b"", False) - unknown, never gone."""
         store = audio_store.get_store() if name else None
         if store is None:
-            return b""
+            return b"", False
         try:
-            return store.get(name) or b""
+            blob = store.get(name)
         except audio_store.AudioStoreError as exc:
             log.warning("audio store: %s; voicing this episode again", exc)
-            return b""
+            return b"", False
+        return (blob or b""), blob is None
+
+    @classmethod
+    def _fetch_object(cls, name: str) -> bytes:
+        return cls._read_object(name)[0]
 
     def put_audio(self, key: str, voice: str, sample_rate: int, pcm: bytes,
                   sentences: list, starts: list) -> bool:
         """Keep an episode's audio. Only beside a live script row, never alone.
 
-        Returns whether it was kept. Packing (Opus, §235) and the upload to
+        Returns whether it was kept. Packing (Opus, §237) and the upload to
         the bucket happen here, so call it off the event loop -
         `PodcastPipeline` does, after the last byte is sent. The row is
         written only after the upload succeeded, so a row with an object name
@@ -1823,7 +1836,7 @@ class SqliteScriptCache:
         """Least recently played first, until the hot copies fit the ceiling.
 
         Only audio goes: the script stays. A row whose audio is also in the
-        bucket (§235) loses only its hot copy and is read from the bucket
+        bucket (§237) loses only its hot copy and is read from the bucket
         next time; one with no object loses the row and costs one
         re-synthesis on its next play.
         """
@@ -1852,7 +1865,7 @@ class SqliteScriptCache:
 
     def sweep_audio(self, held, now: Optional[float] = None,
                     check_kept: bool = True) -> dict:
-        """Apply §235's retention to every episode's audio.
+        """Apply §237's retention to every episode's audio.
 
         Audio is kept a week (`AUDIO_RECENT_DAYS`) for everybody. At a week
         old, audio whose episode is in `held` - the cache keys of everything
@@ -2213,7 +2226,7 @@ class SqliteScriptCache:
     def purge_expired(self) -> int:
         try:
             now = time.time()
-            # Never the script of kept audio (§235): the sweep pins those,
+            # Never the script of kept audio (§237): the sweep pins those,
             # and a deployment that stopped sweeping for a while must not
             # lose something a listener saved because its clock ran out.
             cur = self._conn().execute(
@@ -2317,7 +2330,7 @@ class SqliteScriptCache:
         voiced = []
         for a in audio:
             copy = {k: a[k] for k in a.keys()}
-            # Bytes travel, never a bucket name (§235): the importing
+            # Bytes travel, never a bucket name (§237): the importing
             # deployment has its own bucket, or none (staging).
             if not copy.get("pcm"):
                 copy["pcm"] = self._fetch_object(copy.get("object_key") or "")

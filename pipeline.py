@@ -40,7 +40,7 @@ from script_buffer import ASSEMBLER_TICK, ScriptBuffer
 from script_generator import EpisodePlan, ScriptGenerator, ScriptNotes, count_words
 from speech_assembly import (AssembledChunk, AssemblyPolicy,
                              SpeechAssembler, fit_to_budget)
-from tts import TTSEngine, build_engine
+from tts import TTSEngine, TTSUnavailable, build_engine
 
 log = logging.getLogger(__name__)
 
@@ -378,6 +378,18 @@ class PodcastPipeline:
         #: Explore can be searched episodes only. Like `author`, a property
         #: of the request and never of the plan: it is not part of the key.
         self.origin = ""
+        #: True for a guest's tap (§237): `/api/audio` let it through because
+        #: its audio is kept, so it may play only that. With the audio in a
+        #: bucket, "kept" is a row naming an object; if the bucket does not
+        #: answer, this stops the episode before the voice engine rather than
+        #: waking the GPU for a listener the gate promised would cost nothing.
+        self.stored_only = False
+
+    def _may_voice(self) -> None:
+        if self.stored_only:
+            raise TTSUnavailable(
+                "This episode's kept audio could not be read, and it is not"
+                " voiced again for a listener without an account.")
 
     def _start(self, sentences: AsyncIterator[str],
                marks: Optional[EpisodeMarks] = None,
@@ -645,6 +657,7 @@ class PodcastPipeline:
         # The voice is handed numbers and abbreviations as they are said
         # (`spoken_text`) and hard names respelled (`pronunciation`, §165);
         # the captions and the cache keep the digits and the real spelling.
+        self._may_voice()
         pcm = await self.engine.synth(speakable(respell(fit.text)), wpm, self.voice)
         synth_seconds = time.perf_counter() - started
         tts_done = stats.marks.mark("first_tts_complete")
@@ -747,6 +760,7 @@ class PodcastPipeline:
         stats.marks.mark("first_tts_start")
         stats.take_synthesis_mark(stats.marks)
         started = time.perf_counter()
+        self._may_voice()
         pcm = await self.engine.synth(speakable(respell(sentence)), wpm, self.voice)
         synth_seconds = time.perf_counter() - started
         tts_done = stats.marks.mark("first_tts_complete")
@@ -1202,7 +1216,7 @@ class PodcastPipeline:
             while True:
                 # A slice at a time, off the loop: an Opus second decodes in
                 # a few milliseconds, so the first word waits for one slice
-                # and never for the whole episode (§235).
+                # and never for the whole episode (§237).
                 piece = await asyncio.to_thread(next, pieces, None)
                 if piece is None:
                     break
@@ -1361,7 +1375,7 @@ class PodcastPipeline:
                 # is the whole of §132 - a cached episode used to cost a GPU
                 # round trip on every play.
                 if self._keeps_audio():
-                    # Off the loop (§235): with a bucket this can be a
+                    # Off the loop (§237): with a bucket this can be a
                     # network read, and Opus is decoded as it plays.
                     stored = await asyncio.to_thread(
                         self.cache.get_audio, key, self._audio_voice(),

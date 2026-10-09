@@ -1,4 +1,4 @@
-"""Kept audio in a bucket, packed as Opus (PROBLEMS.md §235).
+"""Kept audio in a bucket, packed as Opus (PROBLEMS.md §237).
 
 Three promises, each tested by what it would cost if it broke:
 
@@ -381,3 +381,104 @@ def test_the_bucket_rules_agree_with_the_settings():
     assert rules[audio_store.RECENT]["deleteObjectsTransition"]["condition"]["maxAge"] \
         == (days + 1) * 86400
     assert "deleteObjectsTransition" not in rules[audio_store.KEPT]
+
+
+def test_a_guest_play_never_reaches_the_voice_when_the_bucket_fails(tmp_path, bucket, monkeypatch):
+    """The guest gate lets a tap through because its audio is kept (§237).
+    If the bucket then does not answer, the episode stops: it is never voiced
+    again on the GPU for a listener the gate promised would cost nothing."""
+    import asyncio
+
+    from pipeline import GenerationStats, PodcastPipeline
+    from script_generator import plan_episode
+    from test_audio_cache import CountingVoice
+    from test_pipeline import FakeGenerator
+    from tts import TTSUnavailable
+
+    db = SqliteScriptCache(str(tmp_path / "guest.db"))
+    engine = CountingVoice()
+    plan = plan_episode("why the sky is blue", 1)
+    writer = PodcastPipeline(generator=FakeGenerator(), engine=engine, cache=db)
+
+    async def play(pipe):
+        out = bytearray()
+        async for chunk in pipe.stream_pcm(plan, GenerationStats()):
+            out.extend(chunk)
+        return bytes(out)
+
+    asyncio.run(play(writer))  # voiced once and kept
+    db._conn().execute("UPDATE episode_audio SET pcm = x''")  # hot copy evicted
+    if not db._conn().execute("SELECT object_key FROM episode_audio").fetchone()[0]:
+        pytest.skip("the development engine's rate is kept locally, not in the bucket")
+    bucket.objects.clear()  # and the bucket does not have it
+    guest = PodcastPipeline(generator=FakeGenerator(), engine=engine, cache=db)
+    guest.stored_only = True
+    calls = engine.calls
+    with pytest.raises(TTSUnavailable):
+        asyncio.run(play(guest))
+    assert engine.calls == calls, "a guest's tap woke the voice engine"
+
+
+def test_the_r2_client_speaks_the_s3_api():
+    """The requests the bucket actually receives: path-style, signed, the
+    copy's source and class in headers, a missing object as None, and a
+    copy that failed behind a 200 as a failure."""
+    import httpx
+
+    seen, objects = [], {}
+
+    def answer(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        assert request.headers["authorization"].startswith("AWS4-HMAC-SHA256 ")
+        assert request.url.host == "acct.r2.cloudflarestorage.com"
+        name = request.url.path.split("/fam-audio/", 1)[1]
+        if request.method == "PUT" and "x-amz-copy-source" in request.headers:
+            source = request.headers["x-amz-copy-source"].split("/fam-audio/", 1)[1]
+            if source not in objects:
+                return httpx.Response(200, content=b"<Error><Code>NoSuchKey</Code></Error>")
+            objects[name] = objects[source]
+            return httpx.Response(200, content=b"<CopyObjectResult/>")
+        if request.method == "PUT":
+            objects[name] = request.content
+            return httpx.Response(200)
+        if request.method == "GET":
+            return (httpx.Response(200, content=objects[name]) if name in objects
+                    else httpx.Response(404))
+        objects.pop(name, None)
+        return httpx.Response(204)
+
+    store = audio_store.R2AudioStore("acct", "fam-audio", "AK", "SK",
+                                     transport=httpx.MockTransport(answer))
+    store.put("recent/a.opus", b"OggS...")
+    assert seen[-1].headers["content-type"] == "audio/ogg"
+    assert store.get("recent/a.opus") == b"OggS..."
+    assert store.get("recent/missing.opus") is None
+    store.copy("recent/a.opus", "kept/a.opus", audio_store.INFREQUENT)
+    assert seen[-1].headers["x-amz-storage-class"] == "STANDARD_IA"
+    assert seen[-1].headers["x-amz-copy-source"] == "/fam-audio/recent/a.opus"
+    assert objects["kept/a.opus"] == b"OggS..."
+    with pytest.raises(audio_store.AudioStoreError):
+        store.copy("recent/gone.opus", "kept/gone.opus", audio_store.INFREQUENT)
+    store.delete("recent/a.opus")
+    assert "recent/a.opus" not in objects
+    assert audio_store.verify(store)["ok"]
+
+
+def test_a_bucket_outage_deletes_nothing(db, bucket, monkeypatch):
+    """A timeout is not an answer: the row and the object both survive, and
+    the next play once the bucket is back reads them."""
+    monkeypatch.setattr(cache_mod, "audio_ceiling_bytes", lambda: 1)
+    keep(db, "saved")
+    name = row(db, "saved")[0]
+    real = bucket.get
+
+    def down(*_a, **_k):
+        raise audio_store.AudioStoreError("timed out")
+
+    monkeypatch.setattr(bucket, "get", down)
+    assert db.get_audio("saved", "v", 24000) is None
+    assert row(db, "saved") is not None, "an outage dropped a kept row"
+    db.drain_deletes()
+    assert name in bucket.objects, "an outage deleted the object"
+    monkeypatch.setattr(bucket, "get", real)
+    assert db.get_audio("saved", "v", 24000) is not None

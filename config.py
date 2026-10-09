@@ -1262,7 +1262,7 @@ class Settings:
     # 2 MB a compressed minute this is roughly 250 minutes of episodes. An
     # evicted episode keeps its script and costs one re-synthesis. 0 = none.
     audio_cache_max_mb: int = _env_int("AUDIO_CACHE_MAX_MB", 512)
-    # §235: how kept audio is packed. `opus` (the default) at
+    # §237: how kept audio is packed. `opus` (the default) at
     # AUDIO_OPUS_BITRATE is about a twelfth of zlib's size for speech; it is
     # decoded back to the same PCM before it is streamed. `zlib` restores
     # §132's packing exactly. Opus needs PyAV and a rate it carries (24 kHz
@@ -1271,7 +1271,7 @@ class Settings:
         default_factory=lambda: os.environ.get("AUDIO_CODEC", "opus").strip().lower() or "opus"
     )
     audio_opus_bitrate: int = _env_int("AUDIO_OPUS_BITRATE", 24000)
-    # §235: where kept audio lives. "" (the default) keeps it in scripts.db
+    # §237: where kept audio lives. "" (the default) keeps it in scripts.db
     # as before; `r2` puts each episode in a Cloudflare R2 bucket and keeps
     # only its object name here, with the SQLite blob as a hot copy under
     # AUDIO_CACHE_MAX_MB. Credentials are R2_ACCESS_KEY_ID and
@@ -1285,7 +1285,7 @@ class Settings:
     r2_account_id: str = field(
         default_factory=lambda: os.environ.get("R2_ACCOUNT_ID", "").strip()
     )
-    # How long every episode's audio is kept (§235, at the owner's
+    # How long every episode's audio is kept (§237, at the owner's
     # direction: a week, so recent listening plays it). After that, audio
     # somebody saved, shared or vibed moves to the bucket's Infrequent Access
     # class and the rest is deleted. The bucket's own lifecycle rule deletes

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Prove the R2 audio bucket works before turning it on (§235, AUDIO_STORE.md).
+"""Prove the R2 audio bucket works before turning it on (§237, AUDIO_STORE.md).
 
     AUDIO_STORE=r2 AUDIO_BUCKET=fam-audio R2_ACCOUNT_ID=... \\
     R2_ACCESS_KEY_ID=... R2_SECRET_ACCESS_KEY=... python tools/verify_audio_store.py

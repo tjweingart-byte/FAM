@@ -1,6 +1,6 @@
 # Kept audio in Cloudflare R2
 
-PROBLEMS.md §235. Kept audio is packed as Opus at 24 kbps and, with
+PROBLEMS.md §237. Kept audio is packed as Opus at 24 kbps and, with
 `AUDIO_STORE=r2`, lives in a Cloudflare R2 bucket. `scripts.db` keeps each
 object's name and a hot copy of recently played episodes. Until `AUDIO_STORE`
 is set, everything stays in `scripts.db` as before, still packed as Opus.
