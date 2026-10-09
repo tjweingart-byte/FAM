@@ -240,3 +240,6 @@ and `limit` = Lines.
 | 17284 | 24 | 234. A timing test that failed on a busy CI runner |
 | 17308 | 58 | 235. Where the category tree runs out: the writer grows it, meaning fills it, towns get a street |
 | 17366 | 23 | 236. The share sheet: Groups, Friends, and a search beside each |
+| 17389 | 71 | 237. Kept audio moves to an R2 bucket, packed as Opus, kept a week |
+| 17460 | 11 | 238. Opus at 24 kbps, not 32 |
+| 17471 | 17 | 239. Opus, not MP3, for kept audio |

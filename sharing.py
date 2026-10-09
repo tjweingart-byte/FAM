@@ -529,6 +529,13 @@ class ShareStore:
         except Exception:
             log.exception("could not count a share open")
 
+    def episodes(self):
+        """Every distinct (question, length) anybody shared. Read by the
+        audio sweep (§237): a shared episode's audio is kept past its week,
+        because the link keeps working."""
+        return self._conn().execute(
+            "SELECT DISTINCT query, minutes FROM shares").fetchall()
+
     def forget(self, user_id: str) -> int:
         try:
             cur = self._conn().execute("DELETE FROM shares WHERE user_id = ?",

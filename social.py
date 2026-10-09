@@ -1389,6 +1389,12 @@ class SocialStore:
                  "avatar": r[3] or "", "explicit": explicit_name(r[1], r[2])}
                 for r in rows if r[0] != exclude_user]
 
+    def vibed_episodes(self):
+        """Every distinct (question, length) anybody vibed. Read by the
+        audio sweep (§237): a vibed episode's audio is kept past its week."""
+        return self._conn().execute(
+            "SELECT DISTINCT query, minutes FROM echoes").fetchall()
+
     def forget(self, user_id: str) -> int:
         """Erase everything this store holds for one listener.
 

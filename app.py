@@ -34,6 +34,8 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, field_validator
 
 from anthropic_client import build_async_client, describe_http_version, http2_enabled
+import audio_codec as audio_codec_mod
+import audio_store as audio_store_mod
 import cache as cache_mod
 from cache import (MemoryScriptCache, SqliteScriptCache, build_cache, cache_key,
                    is_shareable, normalize_query, parse_episode_id, research_words)
@@ -656,6 +658,16 @@ async def lifespan(_: FastAPI):
     # is retried here. A no-op with no token, which is every staging deploy.
     if VIRAL_LOOPS.configured:
         _BACKGROUND.add(asyncio.create_task(_drain_viral_loops_forever()))
+    # Kept audio's week (§237): keep what is saved, shared or vibed, delete
+    # the rest, and say whether the bucket really answers - with a write, a
+    # read and a delete, never by looking at the settings.
+    if hasattr(SCRIPT_CACHE, "sweep_audio"):
+        _BACKGROUND.add(asyncio.create_task(_sweep_audio_forever()))
+    if audio_store_mod.get_store() is not None:
+        # Not awaited: a bucket that is slow to answer must not hold up boot.
+        _BACKGROUND.add(asyncio.create_task(_check_audio_store()))
+    elif audio_store_mod.status().get("error"):
+        log.error("audio store: %s", audio_store_mod.status()["error"])
     yield
     # Loops that live as long as the process end with it, rather than being
     # destroyed pending when the event loop closes under them.
@@ -1744,6 +1756,11 @@ async def health(request: Request) -> dict:
                      "viral_loops": VIRAL_LOOPS.configured,
                      "outbox_pending": WAITLIST.outbox_summary()["pending"]},
         "voice_store": VOICE_STORE["dir"],
+        # Where kept audio lives and how it is packed (§237): the bucket, the
+        # boot check's real write/read/delete, the codec, and the last sweep.
+        "audio": {**audio_store_mod.status(), **audio_codec_mod.describe(),
+                  "check": dict(_AUDIO_STORE_CHECK),
+                  "sweep": dict(_AUDIO_SWEEP)},
         # The public API surface, so a client can ask rather than assume.
         "api": {"version": API_VERSION, "prefix": API_PREFIX,
                 "cors_origins": _ALLOWED_ORIGINS},
@@ -8359,6 +8376,9 @@ async def audio(
             _refund(reserved, user)
             raise HTTPException(status_code=403, detail=GUEST_GATE_MESSAGE,
                                 headers={"X-FAM-Refused-By": "account"})
+        # Kept, so it plays only what is kept (§237): a bucket that does
+        # not answer stops the episode rather than waking the GPU.
+        pipeline.stored_only = True
 
     # Ask for a GPU now, before Claude has written a word.
     #
@@ -9262,6 +9282,83 @@ def _kick_viral_loops() -> None:
 #: Refusals caused by a request shape FAM has since corrected; their calls are
 #: sent again once at boot (PROBLEMS.md §205).
 VIRAL_LOOPS_FIXED_REFUSALS = (("flag", "'participants' is required"),)
+
+
+def _held_episode_keys() -> set:
+    """The cache keys of every episode somebody saved, shared or vibed (§237).
+
+    Derived from the three stores on every sweep rather than counted up and
+    down as people press things: a tally kept beside the stores drifts the
+    first time one path forgets to decrement it, and the failure is invisible
+    - audio kept forever, or a saved episode's audio deleted. The key is
+    `cache_key` of the question and the length, exactly as a shared link's
+    replay builds it (§106), once researched and once not, because a row
+    does not record which.
+
+    Cost: one hash per distinct episode held - about two seconds per million.
+    Past ten million or so, record the key on the row at save time instead.
+    """
+    pairs = set()
+    for read in (SAVED.episodes, SHARES.episodes, SOCIAL.vibed_episodes):
+        try:
+            pairs.update((q, int(m or 0)) for q, m in read())
+        except Exception:
+            log.exception("audio sweep: could not read what is held from %s",
+                          getattr(read, "__qualname__", read))
+            raise
+    keys = set()
+    for query, minutes in pairs:
+        if not query:
+            continue
+        for searched in (True, False):
+            keys.add(cache_key(query, minutes, None, "", searched))
+    return keys
+
+
+#: Whether the last audio sweep ran, and what it did - `/api/health` says.
+_AUDIO_SWEEP: dict = {}
+#: The boot check's answer: did the bucket take a write, a read and a delete.
+_AUDIO_STORE_CHECK: dict = {}
+
+
+async def _check_audio_store() -> None:
+    _AUDIO_STORE_CHECK.update(await asyncio.to_thread(audio_store_mod.verify))
+    if _AUDIO_STORE_CHECK.get("ok"):
+        log.info("audio store: R2 bucket %s answered in %sms",
+                 settings.audio_bucket, _AUDIO_STORE_CHECK.get("ms"))
+    else:
+        # Failing uploads fall back to scripts.db by themselves; this says so
+        # once, loudly, rather than once per episode.
+        log.error("audio store: the R2 bucket did not answer (%s); new audio"
+                  " stays in scripts.db until it does",
+                  _AUDIO_STORE_CHECK.get("why"))
+
+
+async def _sweep_audio_forever(every: float = 3600.0) -> None:
+    """§237: once an hour, a week-old episode's audio is kept (saved, shared
+    or vibed) or deleted, and queued bucket deletes are sent. Once a day it
+    also releases kept audio nobody holds any more."""
+    last_full = 0.0
+    while True:
+        try:
+            held = await asyncio.to_thread(_held_episode_keys)
+            full = time.time() - last_full >= 86400
+            counts = await asyncio.to_thread(
+                SCRIPT_CACHE.sweep_audio, held, None, full)
+            if full:
+                last_full = time.time()
+            drain = getattr(SCRIPT_CACHE, "drain_deletes", None)
+            deleted = await asyncio.to_thread(drain) if drain else 0
+            _AUDIO_SWEEP.update({"at": time.time(), "held": len(held),
+                                 "objects_deleted": deleted, **counts})
+            if any(counts.values()) or deleted:
+                log.info("audio sweep: %s, %d object(s) deleted", counts, deleted)
+        except Exception:  # noqa: BLE001 - a loop that dies stops keeping
+            # A sweep that could not read what is held must not delete
+            # anything, and does not: `_held_episode_keys` raised first.
+            log.exception("audio sweep failed; trying again next hour")
+            _AUDIO_SWEEP.update({"at": time.time(), "error": "sweep failed"})
+        await asyncio.sleep(every)
 
 
 async def _drain_viral_loops_forever(every: float = 300.0) -> None:
