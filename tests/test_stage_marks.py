@@ -25,9 +25,14 @@ from pipeline import GenerationStats, PodcastPipeline
 from script_generator import ScriptGenerator, plan_episode
 from tts import DebugEngine
 
-BRIEF_DELAY = 0.20
-RETRIEVAL_DELAY = 0.10
-WRITER_THINKING = 0.15
+BRIEF_DELAY = 0.30
+RETRIEVAL_DELAY = 0.20
+WRITER_THINKING = 0.25
+#: A stubbed wait that no marked span covered would add at least this much
+#: to `claude_ttft` (PROBLEMS.md §234). The code that runs between the spans
+#: is not a wait and takes what the machine gives it: 0.06-0.07s on a loaded
+#: CI runner, which failed a 0.05s bound on Main and on staging.
+SHORTEST_STEP = min(BRIEF_DELAY, RETRIEVAL_DELAY, WRITER_THINKING)
 
 SCRIPT = ("The committee held rates where they were on Wednesday. "
           "Two officials dissented, both wanting a cut. "
@@ -149,7 +154,9 @@ def test_the_summary_splits_what_claude_ttft_used_to_swallow(stubbed):
     parts = (summary["brief_seconds"] + summary["evidence_seconds"]
              + summary["writer_ttft"])
     assert parts <= summary["claude_ttft"] + 1e-6
-    assert summary["claude_ttft"] - parts < 0.05
+    # Nothing that waits sits outside the three spans: one that did would
+    # leave at least the shortest stubbed step uncovered.
+    assert summary["claude_ttft"] - parts < SHORTEST_STEP
 
 
 def test_an_absent_stage_is_left_out_rather_than_zero():

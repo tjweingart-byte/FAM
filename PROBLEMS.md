@@ -17274,3 +17274,21 @@ off the waitlist? Sign in here" already sent an admin to the same preview.
 
 Pinned by `tests/test_waitlist.py::test_an_admin_with_an_account_can_join_to_see_the_page`.
 
+## 234. A timing test that failed on a busy CI runner
+
+`tests/test_stage_marks.py::test_the_summary_splits_what_claude_ttft_used_to_swallow`
+failed CI on `Main` (f048658, 0.063s) and on `staging` (37307f6, 0.069s)
+against a bound of 0.05s, and passed on the same commits elsewhere. It checks
+that brief + evidence + the writer's thinking account for `claude_ttft`. What
+is left over is the pipeline's own code between those spans - building the
+plan and the prompt - which is not a wait and takes whatever a loaded runner
+gives it.
+
+The bound now says what the test is for: no stubbed wait sits outside the
+three spans, because one that did would leave at least the shortest stubbed
+step uncovered (`SHORTEST_STEP`). The stubbed steps are longer (brief 0.30s,
+retrieval 0.20s, writer 0.25s, from 0.20/0.10/0.15) so that bound is 0.20s,
+three times the worst runner seen. A mark in the wrong place is still caught
+by `test_each_stage_is_the_step_it_names`, whose lower bounds are unchanged
+in kind. The file takes about four seconds longer.
+
