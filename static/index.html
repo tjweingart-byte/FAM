@@ -143,7 +143,7 @@
   .scroll{ flex:1; min-height:0; overflow-y:auto; padding:2px 18px 18px; }
   .home-hero{ display:flex; flex-direction:column; }
   #screen-home{ position:relative; background:var(--bg); }
-  /* In the same slot as DailyFAM's and myFAM's top-right circle (§221):
+  /* In the same slot as DailyFAM's and myFAM's top-right circle (§232):
      their header's top padding and side inset, and the same 34px height. */
   .home-explore{ position:absolute; top:8px; right:38px; z-index:2; }
   .home-explore.xfam-pill{ height:34px; padding:0 10px 0 12px; font-size:13px;
@@ -358,7 +358,7 @@
 
   .myfam-dots-btn{ background:none; border:none; color:var(--text-muted); font-size:15px; letter-spacing:1px; cursor:pointer; padding:6px; line-height:1; }
   .myfam-dots-btn[hidden]{ display:none; }
-  /* The same circle as DailyFAM's bookshelf (§221): one size, one border,
+  /* The same circle as DailyFAM's bookshelf (§232): one size, one border,
      one place on every page's top right. */
   .new-mix-plus{ width:34px; height:34px; padding:0; border-radius:50%; display:flex; align-items:center;
     justify-content:center; color:var(--text); border:1px solid var(--border-strong); }
@@ -873,6 +873,34 @@
     padding:13px; border-radius:14px; background:transparent; color:var(--copper);
     border:1px dashed var(--border-strong); font-family:'Geist',sans-serif;
     font-size:12px; font-weight:700; cursor:pointer; margin-bottom:11px; }
+  /* Your categories (§229), under the mixes. */
+  .cat-head{ display:flex; align-items:flex-end; justify-content:space-between; gap:10px;
+    margin:22px 0 10px; }
+  .cat-eyebrow{ font-family:'Geist Mono', monospace; font-size:10px; letter-spacing:0.16em;
+    text-transform:uppercase; color:var(--copper); margin-bottom:4px; }
+  .cat-sub{ font-size:11.5px; line-height:1.4; color:var(--text-muted); }
+  .cat-all{ flex:none; background:none; border:0; color:var(--text); font-family:inherit;
+    font-size:12px; font-weight:700; cursor:pointer; padding:4px 0; }
+  .cat-icon{ flex:0 0 46px; height:46px; border-radius:12px; display:flex; align-items:center;
+    justify-content:center; color:var(--paper); font-family:'Bricolage Grotesque', sans-serif;
+    font-weight:600; font-size:18px; background:var(--surface-2); }
+  .cat-grid{ display:grid; grid-template-columns:1fr 1fr; gap:10px; padding:4px 0 18px; }
+  .cat-tile{ min-height:76px; border-radius:14px; padding:12px; cursor:pointer; text-align:left;
+    border:0; color:var(--paper); font-family:'Bricolage Grotesque', sans-serif;
+    font-weight:600; font-size:14px; background:var(--surface-2); }
+  .cat-tile small{ display:block; margin-top:6px; font-family:'Geist', sans-serif; font-weight:400;
+    font-size:10px; line-height:1.35; color:rgba(244,239,228,0.72); }
+  .cat-f-sports{ background:#56402F; } .cat-f-money{ background:#2F4A3E; }
+  .cat-f-business{ background:#4A4632; } .cat-f-tech{ background:#3B3A66; }
+  .cat-f-science{ background:#2C4A55; } .cat-f-health{ background:#3D4A30; }
+  .cat-f-culture{ background:#5A3A30; } .cat-f-world{ background:#2C415A; }
+  .hist-tabs[hidden]{ display:none; }
+  .cat-follow{ margin-left:auto; height:30px; padding:0 14px; border-radius:15px;
+    background:transparent; color:var(--text); border:1px solid var(--border-strong);
+    font-family:inherit; font-size:12px; font-weight:700; cursor:pointer; }
+  .cat-follow.on{ background:var(--paper); color:var(--ink); border-color:var(--paper); }
+  #catList .sv-title{ white-space:normal; overflow:visible; text-overflow:clip;
+    line-height:1.3; overflow-wrap:anywhere; }
   /* Inside a mix, and in the picker. */
   .mix-topic{ display:flex; align-items:center; gap:11px; padding:11px 12px; margin-bottom:9px;
     background:var(--surface); border:1px solid var(--border); border-radius:12px; }
@@ -2047,6 +2075,11 @@
     border:1px solid var(--border-strong); color:var(--copper); display:flex;
     align-items:center; justify-content:center; margin-bottom:12px; }
   .limit-body{ font-size:12.5px; line-height:1.5; color:var(--text-muted); margin-bottom:14px; }
+  .limit-body a, .terms-check a{ color:var(--copper); }
+  .terms-check{ display:flex; gap:10px; align-items:flex-start; text-align:left;
+    font-size:12.5px; line-height:1.45; color:var(--text-muted); margin:12px 0 14px; cursor:pointer; }
+  .terms-check[hidden]{ display:none; }
+  .terms-check input{ width:18px; height:18px; flex:0 0 18px; margin:1px 0 0; accent-color:var(--copper); }
   /* How much of the allowance is gone, because a number in a sentence is read
      and a bar is seen. Hidden when the server did not send the figures. */
   .limit-meter{ height:4px; border-radius:4px; background:var(--border-strong);
@@ -3097,6 +3130,14 @@
               <p class="auth-error" id="authError" role="alert" hidden></p>
               <button class="entry-btn primary" id="authSubmit" type="submit">Create account</button>
               <p class="entry-note" id="authNote">Password reset isn&rsquo;t available yet, so keep your password somewhere safe.</p>
+              <!-- Agreed before an account exists (App Store 1.2, §228): an
+                   unticked box the listener ticks themselves (clickwrap), sent
+                   as `accept_terms` and kept by the server with its version.
+                   Sign-up only - logging in is an account that already agreed. -->
+              <label class="terms-check" id="authTermsField">
+                <input type="checkbox" id="authTerms" onchange="clearAuthError()">
+                <span>I agree to FAM&rsquo;s <a href="/terms" target="_blank" rel="noopener">Terms and community rules</a> and <a href="/privacy" target="_blank" rel="noopener">Privacy policy</a>, and I&rsquo;m 13 or older.</span>
+              </label>
             </form>
             <div class="auth-switch" id="authSwitch"></div>
           </div>
@@ -3635,7 +3676,7 @@
       <!-- ============ PLAYFAM (past playlists) ============ -->
       <!-- ============ PLAYFAM (daily mixes) ============ -->
       <section class="screen" id="screen-playfam">
-        <!-- Outside the scroller, like DailyFAM's (§221), so the wordmark and
+        <!-- Outside the scroller, like DailyFAM's (§232), so the wordmark and
              the (+) sit exactly where DailyFAM's do and stay put. -->
         <div class="myfam-header myfam-header-fixed">
           <h2 class="wordmark" aria-label="myFAM">my<span class="wm-glyph f" aria-hidden="true"><svg viewBox="4.55 4.55 12.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 20V9.2A3.2 3.2 0 0 1 9.2 6H16"/><path d="M6 13h8"/></svg></span><span class="wm-a" aria-hidden="true"><svg viewBox="3.55 4.55 16.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l7-7 7 7"/><path d="M5 20l7-7 7 7"/></svg></span><span class="wm-glyph m" aria-hidden="true"><svg viewBox="4.55 4.55 14.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 20V6l6 9 6-9v14"/></svg></span></h2>
@@ -3669,6 +3710,10 @@
           </div>
           <div id="dailyResults" hidden></div>
           <div id="mixList"></div>
+          <!-- Your categories (§229): the categories this listener follows,
+               each opening today's episodes in it. Drawn by
+               `renderMyCategories`; cached episodes only. -->
+          <div id="catSection"></div>
         </div>
         <div class="tabbar">
           <div class="tab" data-tab="myfam" onclick="openMyFamTab()"><div class="dot"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3v10a4 4 0 004 4h8M6 3L4 5m2-2l2 2M14 13l4 4-4 4"/></svg></div><div class="lbl">DailyFAM</div></div>
@@ -3687,6 +3732,48 @@
           <div class="head-dots" onclick="openMixMenu()"><span></span><span></span><span></span></div>
         </div>
         <div class="scroll" id="mixBody"></div>
+      </section>
+
+      <!-- ============ CATEGORIES — browse all (§229) ============
+           The eight facets, and a search over every category the tree holds
+           ("NFL" is three levels down). A tap opens the category's page. -->
+      <section class="screen" id="screen-catbrowse">
+        <div class="back-row">
+          <span class="back" onclick="goBack()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M17 6l-6 6 6 6"/><path d="M10 6l-6 6 6 6"/></svg></span>
+          <h2>Categories</h2>
+        </div>
+        <label class="yf-search">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+          <input id="catBrowseInput" type="search" autocomplete="off" spellcheck="false"
+                 placeholder="Find a category, like NFL" aria-label="Find a category"
+                 oninput="drawCategoryBrowse()">
+        </label>
+        <div class="scroll" id="catBrowseBody"></div>
+      </section>
+
+      <!-- ============ CATEGORIES — one category's episodes today (§229) ============
+           Every episode made today in the category or under it, from the
+           cache only: nothing on this page writes an episode. Sorted and
+           searched by the server (`/api/categories/episodes`). -->
+      <section class="screen" id="screen-category">
+        <div class="back-row">
+          <span class="back" onclick="goBack()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M17 6l-6 6 6 6"/><path d="M10 6l-6 6 6 6"/></svg></span>
+          <h2 id="catTitle">Category</h2>
+          <button class="cat-follow" id="catFollow" onclick="toggleFollowCategory()" hidden>Follow</button>
+        </div>
+        <label class="yf-search">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+          <input id="catSearch" type="search" autocomplete="off" spellcheck="false"
+                 placeholder="Search titles in this category" aria-label="Search titles in this category"
+                 oninput="onCategorySearch()">
+        </label>
+        <div class="hist-tabs" id="catSorts">
+          <button class="hist-tab on" data-sort="popular" onclick="setCategorySort('popular')">Most popular</button>
+          <button class="hist-tab" data-sort="az" onclick="setCategorySort('az')">A to Z</button>
+          <button class="hist-tab" data-sort="recent" onclick="setCategorySort('recent')">Most recent</button>
+        </div>
+        <div class="hist-tabs" id="catSubs" hidden></div>
+        <div class="scroll" id="catList"></div>
       </section>
 
       <!-- ============ DAILYFAM — somebody else's public mix ============ -->
@@ -4286,6 +4373,9 @@
           </div>
           <input class="photo-zoom" id="photoZoom" type="range" min="100" max="300"
                  value="100" step="1" aria-label="Zoom" oninput="photoZoomed()">
+          <!-- Said before Save (§224): the photo goes to Anthropic for one
+               automated check before anybody else sees it (image_check.py). -->
+          <div class="set-note" id="photoCheckNote">Other people can see this photo, so it&rsquo;s checked automatically by our AI provider, Anthropic, for nudity, violence and hate symbols before it&rsquo;s shown.</div>
           <div class="modal-btns">
             <button class="modal-btn ghost" onclick="closePhotoEditor()">Cancel</button>
             <button class="modal-btn primary" onclick="savePhotoCrop()">Save</button>
@@ -4448,6 +4538,42 @@
         </div>
       </div>
 
+      <!-- Asking before a listener's words go to the AI (5.1.2(i), consent.py).
+           Every word on it is the server's (`/api/consent`), so this and the
+           iOS app cannot say it differently. -->
+      <div class="modal-overlay" id="aiConsentOverlay">
+        <div class="modal-card">
+          <div class="limit-mark">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l7 3v5c0 5-3.5 8.5-7 10-3.5-1.5-7-5-7-10V6z"/><path d="M9 12l2 2 4-4"/></svg>
+          </div>
+          <div class="modal-title" id="aiConsentTitle"></div>
+          <div class="limit-body" id="aiConsentBody"></div>
+          <div class="limit-reset" id="aiConsentUnaffected"></div>
+          <div class="modal-btns">
+            <button class="modal-btn ghost" id="aiConsentNo" onclick="answerAiConsent(false)"></button>
+            <button class="modal-btn primary" id="aiConsentYes" onclick="answerAiConsent(true)"></button>
+          </div>
+        </div>
+      </div>
+
+      <!-- An account whose acceptance is missing or older than the current
+           Terms (§228): asked once, on whatever screen it is on, before it
+           goes on. No "Not now" - stopping agreeing is deleting the account,
+           which Settings says. -->
+      <div class="modal-overlay" id="termsOverlay">
+        <div class="modal-card">
+          <div class="modal-title" id="termsTitle">We&rsquo;ve updated our Terms</div>
+          <div class="limit-body">To keep using your FAM account, please read and agree to the <a href="/terms" target="_blank" rel="noopener">Terms and community rules</a> and the <a href="/privacy" target="_blank" rel="noopener">Privacy policy</a>.</div>
+          <label class="terms-check">
+            <input type="checkbox" id="termsAgree" onchange="document.getElementById('termsYes').disabled = !this.checked">
+            <span>I agree, and I&rsquo;m 13 or older.</span>
+          </label>
+          <div class="modal-btns">
+            <button class="modal-btn primary" id="termsYes" disabled onclick="acceptTerms()">Continue</button>
+          </div>
+        </div>
+      </div>
+
       <!-- What a bigger plan buys, read from /api/plans so the tiers and the
            features are the server's, not a second copy that drifts. No prices:
            a number here and a number in App Store Connect are two places for
@@ -4566,9 +4692,9 @@
       return raw.call(this, input, init).then(function(res){
         try {
           var go = res && res.status === 403 && res.headers.get("X-FAM-Waitlist");
-          // A waitlisted account to its status page, a guest to the
-          // waitlist, which is where they sign in (10.7, reversing §217).
-          if(go === "/waitlist/me" || go === "/waitlist") location.replace(go);
+          // Only a waitlisted account is moved: a guest refused here stays
+          // on the front door to sign in or sign up (§217, §231).
+          if(go === "/waitlist/me") location.replace(go);
         } catch(e){}
         // An old kept release (§172) hears about it (§208): `deprecated` is
         // said once, as a toast naming where the current page is; `retired`
@@ -4985,6 +5111,7 @@
   }
 
   function openAttachMenu(){
+    if(!(AI_CONSENT && AI_CONSENT.given)){ withAiConsent(openAttachMenu); return; }
     showActionSheet([
       { label: "Photo or document", action: function(){
           document.getElementById("attachFile").click(); } },
@@ -5094,6 +5221,10 @@
   }
 
   function sendSearch(typed, titleText){
+    if(!(AI_CONSENT && AI_CONSENT.given)){
+      withAiConsent(function(){ sendSearch(typed, titleText); });
+      return;
+    }
     var val = typed;
     var attach = attachedIds();
     if(ATTACHED.some(function(a){ return a.pending; })){
@@ -5423,7 +5554,7 @@
         begin();
       }, GEN_STEP_LAST_BEAT_MS);
     }
-    // No seconds counted up under the steps (owner's direction, §221): the
+    // No seconds counted up under the steps (owner's direction, §232): the
     // steps themselves say the app has not died. A machine that cannot
     // write still says so here, where attention is.
     var node = document.getElementById("famLoadingStatus");
@@ -5495,6 +5626,16 @@
 
   function onGenerationFailed(message, err){
     clearGenOverlay();
+    // The server holds this client to the listener's answer (consent.py): a
+    // yes withdrawn elsewhere, or never given, is asked here and the same
+    // episode started again after it.
+    if(err && err.consent){
+      if(stack[stack.length - 1] === "player" && stack.length > 1) goBack();
+      AI_CONSENT = null;
+      var retry = lastGenerate;
+      askAiConsent(retry ? function(){ generate(retry.key, retry.albumContext); } : null);
+      return;
+    }
     // An allowance running out is not a failure to generate, and a toast is
     // the wrong shape for it: it vanishes, it cannot be acted on, and it does
     // not say when the allowance comes back. Everything else still toasts.
@@ -5551,6 +5692,212 @@
              + (soon ? "" : " on " + when.toLocaleDateString([], { weekday: "long" }));
     } catch(e){ return when.toISOString(); }
   }
+
+  // ---------------- Asking before a listener's words go to the AI ----------------
+  // App Store 5.1.2(i) (consent.py). A search, a Go Deeper question or an
+  // attachment is the listener's own words, and they reach Anthropic only
+  // after a yes. Asked once, kept on the server, read back from it; a "Not
+  // now" leaves everything FAM writes ahead (myFAM, DailyFAM, Explore).
+  var AI_CONSENT = null;       // `/api/consent`'s "ai" block, once read
+  var aiConsentThen = null;    // what to do after a yes
+  function loadAiConsent(){
+    return fetch("/api/consent")
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(d){ if(d && d.ai) AI_CONSENT = d.ai; return AI_CONSENT; })
+      .catch(function(){ return AI_CONSENT; });
+  }
+  // Read at start-up, so a first search with a yes on record never waits
+  // on this round trip (`one-sentence-spec`).
+  setTimeout(loadAiConsent, 0);
+  // Runs `then` straight away after a yes on record, else asks first.
+  function withAiConsent(then){
+    if(AI_CONSENT && AI_CONSENT.given){ then(); return; }
+    loadAiConsent().then(function(c){
+      if(!c){ toast("Couldn\u2019t reach FAM. Try again."); return; }
+      if(c.given){ then(); return; }
+      askAiConsent(then);
+    });
+  }
+  function aiConsentSummary(){
+    if(!AI_CONSENT) return "";
+    if(AI_CONSENT.given) return "Allowed";
+    return AI_CONSENT.asked ? "Off" : "Not asked yet";
+  }
+  // The Settings row: a yes is withdrawn after one confirm, anything else
+  // is asked with the same notice the search box shows.
+  function toggleAiConsent(){
+    if(AI_CONSENT && AI_CONSENT.given){
+      showActionSheet([
+        { group: "Stop sending your questions to AI? Searches, Go Deeper and attachments will ask again first." },
+        { label: "Turn off", danger: true, action: function(){
+            aiConsentThen = null;
+            answerAiConsent(false);
+            setTimeout(renderSettings, 400);
+          } }
+      ]);
+      return;
+    }
+    askAiConsent(function(){ renderSettings(); toast("Allowed"); });
+  }
+  function askAiConsent(then){
+    aiConsentThen = then || null;
+    var n = (AI_CONSENT && AI_CONSENT.notice) || null;
+    if(!n){
+      loadAiConsent().then(function(c){
+        if(c && c.notice) askAiConsent(then);
+        else toast("Couldn\u2019t reach FAM. Try again.");
+      });
+      return;
+    }
+    document.getElementById("aiConsentTitle").textContent = n.title || "";
+    document.getElementById("aiConsentBody").textContent = n.body || "";
+    document.getElementById("aiConsentUnaffected").textContent = n.unaffected || "";
+    document.getElementById("aiConsentYes").textContent = n.allow || "Allow";
+    document.getElementById("aiConsentNo").textContent = n.decline || "Not now";
+    document.getElementById("aiConsentOverlay").classList.add("active");
+  }
+  function answerAiConsent(allow){
+    var then = aiConsentThen;
+    aiConsentThen = null;
+    document.getElementById("aiConsentOverlay").classList.remove("active");
+    fetch("/api/consent", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ scope: "ai", allow: !!allow,
+                             version: AI_CONSENT ? AI_CONSENT.version : 1 }) })
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(d){
+        if(d && d.ai) AI_CONSENT = d.ai;
+        if(!allow) return;
+        if(AI_CONSENT && AI_CONSENT.given){ if(then) then(); }
+        else toast("Couldn\u2019t save that. Try again.");
+      })
+      .catch(function(){ if(allow) toast("Couldn\u2019t save that. Try again."); });
+  }
+
+  // ---------------- The Terms, agreed (§228) ----------------
+  // Sign-up ticks the box. An account that never did (Google or Apple, an
+  // older release) or agreed to an older version is asked once here.
+  var TERMS = null;            // `/api/consent`'s "terms" block
+  function checkTerms(){
+    if(!(AUTH && AUTH.authenticated)) return Promise.resolve(null);
+    return fetch("/api/consent")
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(d){
+        if(!d || !d.terms) return null;
+        TERMS = d.terms;
+        if(d.ai) AI_CONSENT = d.ai;
+        if(!TERMS.accepted){
+          document.getElementById("termsTitle").textContent =
+            TERMS.accepted_version ? "We’ve updated our Terms" : "One thing before you go on";
+          document.getElementById("termsAgree").checked = false;
+          document.getElementById("termsYes").disabled = true;
+          document.getElementById("termsOverlay").classList.add("active");
+        }
+        return TERMS;
+      })
+      .catch(function(){ return null; });
+  }
+  function acceptTerms(){
+    if(!document.getElementById("termsAgree").checked) return;
+    fetch("/api/consent", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ scope: "terms", allow: true,
+                             version: TERMS ? TERMS.version : 1 }) })
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(d){
+        if(d && d.terms) TERMS = d.terms;
+        if(TERMS && TERMS.accepted){
+          document.getElementById("termsOverlay").classList.remove("active");
+        } else toast("Couldn’t save that. Try again.");
+      })
+      .catch(function(){ toast("Couldn’t save that. Try again."); });
+  }
+
+  // ---------------- Reporting and blocking (App Store 1.2, moderation.py) ----------------
+  // Every comment, message, vibe, profile and episode can be reported from
+  // its menu, and anybody can be blocked from their profile or a chat. The
+  // reasons and the promise are the server's (`/api/report`).
+  var REPORT_INFO = null;
+  function loadReportInfo(){
+    if(REPORT_INFO) return Promise.resolve(REPORT_INFO);
+    return fetch("/api/report").then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(d){ if(d) REPORT_INFO = d; return REPORT_INFO; })
+      .catch(function(){ return null; });
+  }
+  // `subject` is what the server needs: {kind, target} or, for an episode,
+  // {kind: "episode", query, minutes}. `onHidden` runs once it is reported,
+  // so the thing can leave the screen at once.
+  function reportContent(subject, onHidden){
+    loadReportInfo().then(function(info){
+      if(!info){ toast("Couldn\u2019t reach FAM. Try again."); return; }
+      var items = [{ group: "Why are you reporting this?" }];
+      (info.reasons || []).forEach(function(r){
+        items.push({ label: escapeHtml(r.label), action: function(){ sendReport(subject, r.id, onHidden); } });
+      });
+      showActionSheet(items);
+    });
+  }
+  function sendReport(subject, reason, onHidden){
+    var body = { kind: subject.kind, target: String(subject.target || ""),
+                 query: subject.query || "", minutes: subject.minutes || 0, reason: reason };
+    fetch("/api/report", { method: "POST", headers: { "Content-Type": "application/json" },
+                           body: JSON.stringify(body) })
+      .then(function(r){ return r.json().then(function(d){ return { ok: r.ok, d: d }; }); })
+      .then(function(res){
+        if(!res.ok){ toast((res.d && (res.d.error || res.d.detail)) || "Couldn\u2019t send that report"); return; }
+        toast(res.d.message || "Thanks for telling us");
+        if(onHidden) onHidden();
+      })
+      .catch(function(){ toast("Couldn\u2019t send that report"); });
+  }
+  var BLOCKED = [], blockedCount = null;
+  function loadBlocked(){
+    if(!AUTH.authenticated) return Promise.resolve([]);
+    return fetch("/api/blocks").then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(d){ BLOCKED = (d && d.people) || []; blockedCount = BLOCKED.length; return BLOCKED; })
+      .catch(function(){ return BLOCKED; });
+  }
+  function blockPerson(handle, name, after){
+    if(!handle) return;
+    if(!AUTH.authenticated){ showGuestGate("Create a free account to block people."); return; }
+    showActionSheet([
+      { group: "Block " + escapeHtml(name || ("@" + handle)) + "? Neither of you will see the other\u2019s comments, messages, vibes or profile, and they can\u2019t message you. They won\u2019t be told." },
+      { label: "Block", danger: true, action: function(){
+          fetch("/api/block", { method: "POST", headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ handle: handle }) })
+            .then(function(r){ return r.json().then(function(d){ return { ok: r.ok, d: d }; }); })
+            .then(function(res){
+              if(!res.ok){ toast((res.d && (res.d.error || res.d.detail)) || "Couldn\u2019t block them"); return; }
+              toast("Blocked");
+              loadBlocked();
+              if(typeof loadFriends === "function") try { loadFriends(); } catch(e){}
+              if(after) after();
+            })
+            .catch(function(){ toast("Couldn\u2019t block them"); });
+        } }
+    ]);
+  }
+  function openBlocked(){
+    loadBlocked().then(function(people){
+      if(!people.length){ toast("You haven\u2019t blocked anyone"); return; }
+      var items = [{ group: "Blocked people \u00b7 tap to unblock" }];
+      people.forEach(function(p){
+        items.push({ label: escapeHtml(p.name || ("@" + p.handle)) + ' <span style="color:var(--text-muted);font-size:11px;">@' + escapeHtml(p.handle) + '</span>',
+          action: function(){
+            fetch("/api/block?handle=" + encodeURIComponent(p.handle), { method: "DELETE" })
+              .then(function(r){ return r.ok ? r.json() : { ok: false }; })
+              .then(function(d){
+                toast(d && d.ok ? "Unblocked @" + p.handle : "Couldn\u2019t unblock them");
+                return loadBlocked();
+              })
+              .then(renderSettings)
+              .catch(function(){ toast("Couldn\u2019t unblock them"); });
+          } });
+      });
+      showActionSheet(items);
+    });
+  }
+  function openTerms(){ openLegal("terms"); }
+  // The three pages App Store review asks for, served by the server (§223).
+  function openLegal(name){ window.open("/" + name, "_blank", "noopener"); }
 
   // ---------------- A guest reaching an episode that is not made yet ----------------
   function showGuestGate(message){
@@ -5682,7 +6029,9 @@
   // The request that has been sent and has produced no audio yet.
   var awaitingFirstAudio = "";
 
+  var lastGenerate = null;   // for a retry after the consent question
   function generate(key, albumContext){
+    lastGenerate = { key: key, albumContext: albumContext };
     // One tap is one request. The player's own topic row invites a re-tap -
     // it says "tap to generate new episode" - and a listener watching the
     // honest wait taps it again, which used to send a second identical
@@ -7097,6 +7446,8 @@
     cc: '<rect x="2.5" y="5" width="19" height="14" rx="3"/><path d="M10 10.2a2.3 2.3 0 1 0 0 3.6M16.6 10.2a2.3 2.3 0 1 0 0 3.6"/>',
     add: '<circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/>',
     remove: '<circle cx="12" cy="12" r="9"/><path d="M8 12h8"/>',
+    report: '<path d="M5 21V4"/><path d="M5 4h11l-2 4 2 4H5"/>',
+    block: '<circle cx="12" cy="12" r="9"/><path d="M5.6 5.6l12.8 12.8"/>',
     addq: '<path d="M4 6h10M4 11h10M4 16h6"/><path d="M18 13v6M15 16h6"/>',
     queue: '<path d="M4 6h16M4 11h16M4 16h10"/>',
     comment: '<path d="M20.5 11.6a8.4 8.4 0 0 1-12.3 7.4L3.5 20.5l1.5-4.6a8.4 8.4 0 1 1 15.5-4.3z"/>'
@@ -7144,6 +7495,11 @@
     items.push({ label: menuLabel("addq", "Add to Queue"),
                  action: function(){ addToQueue(queueEntryFromTopic(t, title)); } });
     items.push({ label: menuLabel("queue", "Go to Queue"), action: openQueue });
+    var playing = currentEpisode();
+    if(playing){
+      items.push({ label: menuLabel("report", "Report"), danger: true, action: function(){
+          reportContent({ kind: "episode", query: playing.query, minutes: playing.minutes }); } });
+    }
     showActionSheet(items);
   }
 
@@ -7710,7 +8066,8 @@
       FamAudio.play(title, minutes, audioHandlers,
         context, surface === "search" ? selectedVoice : null, {
         topicId: episodeTopicId, cachedOnly: !!opts.cachedOnly,
-        attach: opts.attach || "", surface: surface, episode: opts.episode || ""
+        attach: opts.attach || "", surface: surface, episode: opts.episode || "",
+        own: !!opts.own
       });
     }
 
@@ -7792,6 +8149,7 @@
     var playOpts = { cachedOnly: !!t.cachedOnly,
                      minutes: episodeMinutes(t.exploreMinutes || 0, where),
                      attach: t.attach || "", surface: where,
+                     own: !!t.own,
                      episode: t.episode || "", queueable: true };
     loadPlayerCard(key, t, playOpts.minutes);
     // A DailyFAM playlist entry ends by playing the next one (§134), and
@@ -8894,6 +9252,8 @@
   function confirmGoDeeper(){
     var val = document.getElementById("goDeeperInput").value.trim();
     if(!val){ document.getElementById("goDeeperInput").focus(); return; }
+    // A Go Deeper question is the listener's words too (consent.py).
+    if(!(AI_CONSENT && AI_CONSENT.given)){ withAiConsent(confirmGoDeeper); return; }
     var baseKey = getGoDeeperBaseKey(goDeeperContext);
     // From Explore the card kept playing under the sheet (10.1); the
     // follow-up replaces it, so its bar stops counting here.
@@ -8909,6 +9269,9 @@
     var baseTitle = baseKey && TOPICS[baseKey] ? TOPICS[baseKey].title : "this";
     var newKey = "deeper_" + Date.now();
     TOPICS[newKey] = {
+      // The listener's own words, unless they kept FAM's suggestion as it
+      // was: the server holds `own` to the AI answer (consent.py, §226).
+      own: val !== (goDeeperSuggestionText() || "").trim(),
       title: deriveTitleFromPrompt(val),
       source: "Following up on " + baseTitle,
       caption: "Picking up where that left off — " + val + "—",
@@ -9189,6 +9552,9 @@
   function loadMixes(){
     var el = document.getElementById("mixList");
     if(!el) return;
+    // §229: drawn whatever the mixes answer - a guest is offered the
+    // account, and a failed mixes read is no reason to hide categories.
+    loadMyCategories();
     Promise.all([
       fetch("/api/mixes").then(function(r){
         // 401 is not a failure: mixes are kept for you, and that is what an
@@ -9358,6 +9724,266 @@
         + '</div>';
     }).join("");
     document.getElementById("mixList").innerHTML = html;
+  }
+
+  // ---- Your categories (§229) ----
+  //
+  // Under the mixes: the categories this listener follows, each opening a
+  // page of the episodes made in it today. Everything on these screens is a
+  // read of what is already cached - a tap plays it replay-only and nothing
+  // here can cause an episode to be written. Following is kept for an
+  // account, like a mix; anybody may browse.
+  var catData = null;
+  var catReq = 0;
+  var catPage = { root: "", node: "", sort: "popular", episodes: [] };
+  var catTimer = null;
+  function loadMyCategories(){
+    var el = document.getElementById("catSection");
+    if(!el) return;
+    fetch("/api/categories")
+      .then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
+      .then(function(d){ catData = d; renderMyCategories(); })
+      .catch(function(){
+        el.innerHTML = categoryHeadHTML()
+          + '<div class="mix-empty">Your categories could not load. Try again in a moment.</div>';
+      });
+  }
+  function categoryHeadHTML(){
+    return '<div class="cat-head"><div>'
+      + '<div class="cat-eyebrow">Your categories</div>'
+      + '<div class="cat-sub">Everything made today in what you follow.</div>'
+      + '</div><button class="cat-all" onclick="openCategoryBrowse()">Browse all</button></div>';
+  }
+  // One colour per facet, as the browse grid draws them.
+  var CATEGORY_TONES = { sports: "cat-f-sports", money: "cat-f-money",
+    business: "cat-f-business", tech: "cat-f-tech", science: "cat-f-science",
+    health: "cat-f-health", culture: "cat-f-culture", world: "cat-f-world" };
+  function categoryTone(facet){ return CATEGORY_TONES[facet] || ""; }
+  function categoryLabelOf(id){
+    if(!catData) return id;
+    for(var i = 0; i < catData.facets.length; i++){
+      if(catData.facets[i].id === id) return catData.facets[i].label;
+    }
+    for(var j = 0; j < catData.all.length; j++){
+      if(catData.all[j].id === id) return catData.all[j].label;
+    }
+    return id;
+  }
+  function renderMyCategories(){
+    var el = document.getElementById("catSection");
+    if(!el || !catData) return;
+    var html = categoryHeadHTML();
+    if(!catData.saved){
+      html += '<div class="locked-note">Follow the categories you care about and scroll everything made in them today. Free with an account.'
+        + gateActions() + '</div>';
+    } else if(!catData.mine.length){
+      html += '<div class="mix-empty">No categories yet. '
+        + '<button class="sample-note-btn" onclick="openCategoryBrowse()">Choose some to follow</button></div>';
+    }
+    html += (catData.saved ? catData.mine : []).map(function(c){
+      return '<div class="mix-card" data-cat="' + escapeHtml(c.id) + '" onclick="openCategory(this.dataset.cat)">'
+        + '<div class="cat-icon ' + categoryTone(c.facet) + '">'
+        + escapeHtml((c.label || "?").charAt(0)) + '</div>'
+        + '<div class="mix-card-body">'
+        + '<div class="mix-name">' + escapeHtml(c.label) + '</div>'
+        + '<div class="mix-meta">' + (c.today ? c.today + (c.today === 1 ? " episode" : " episodes") + " today" : "Nothing yet today") + '</div>'
+        + '<div class="mix-preview">' + escapeHtml((c.children || []).join(" · ")) + '</div>'
+        + '</div>'
+        + '<div class="mix-chev"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" '
+        + 'stroke="currentColor" stroke-width="2.2"><path d="M9 6l6 6-6 6"/></svg></div>'
+        + '</div>';
+    }).join("");
+    el.innerHTML = html;
+  }
+  function openCategoryBrowse(){
+    navigate("catbrowse");
+    document.getElementById("catBrowseInput").value = "";
+    if(!catData){
+      document.getElementById("catBrowseBody").innerHTML = '<div class="sv-empty">Loading the categories…</div>';
+      fetch("/api/categories")
+        .then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
+        .then(function(d){ catData = d; drawCategoryBrowse(); })
+        .catch(function(){
+          document.getElementById("catBrowseBody").innerHTML =
+            '<div class="sv-empty">Could not load the categories right now. Try again in a moment.</div>';
+        });
+      return;
+    }
+    drawCategoryBrowse();
+  }
+  function drawCategoryBrowse(){
+    var el = document.getElementById("catBrowseBody");
+    if(!catData) return;
+    var q = document.getElementById("catBrowseInput").value.trim().toLowerCase();
+    if(!q){
+      el.innerHTML = '<div class="cat-grid">' + catData.facets.map(function(f){
+        var kids = (f.children || []).slice(0, 4).map(function(c){ return c.label; }).join(" · ");
+        return '<button class="cat-tile ' + categoryTone(f.id) + '" data-cat="' + escapeHtml(f.id)
+          + '" onclick="openCategory(this.dataset.cat)">' + escapeHtml(f.label)
+          + (kids ? '<small>' + escapeHtml(kids) + '</small>' : '') + '</button>';
+      }).join("") + '</div>';
+      return;
+    }
+    // From the start of a word: "nfl" is the NFL, not "conflict".
+    var starts = function(label){ return (" " + label.toLowerCase()).indexOf(" " + q) !== -1; };
+    var found = catData.facets.filter(function(f){ return starts(f.label); })
+      .map(function(f){ return { id: f.id, label: f.label, path: [] }; })
+      .concat(catData.all.filter(function(n){ return starts(n.label); }));
+    if(!found.length){
+      el.innerHTML = '<div class="sv-empty">No category called that yet.</div>';
+      return;
+    }
+    el.innerHTML = found.slice(0, 60).map(function(n){
+      return '<div class="sv-row" data-cat="' + escapeHtml(n.id) + '" onclick="openCategory(this.dataset.cat)">'
+        + '<div class="sv-main"><div class="sv-title">' + escapeHtml(n.label) + '</div>'
+        + '<div class="sv-meta">' + escapeHtml((n.path || []).join(" › ").toUpperCase()) + '</div></div></div>';
+    }).join("");
+  }
+  function openCategory(id){
+    catPage = { root: id, node: id, sort: "popular", episodes: [] };
+    document.getElementById("catTitle").textContent = categoryLabelOf(id);
+    document.getElementById("catSearch").value = "";
+    document.getElementById("catSubs").hidden = true;
+    drawCategorySorts();
+    drawFollowButton();
+    navigate("category");
+    loadCategoryEpisodes();
+  }
+  function isFollowed(id){
+    if(!catData || !catData.saved) return false;
+    for(var i = 0; i < catData.mine.length; i++){ if(catData.mine[i].id === id) return true; }
+    return false;
+  }
+  function drawFollowButton(){
+    var btn = document.getElementById("catFollow");
+    var on = isFollowed(catPage.node);
+    btn.hidden = !catData;
+    btn.classList.toggle("on", on);
+    btn.textContent = on ? "Following" : "Follow";
+  }
+  // The whole list is written at once, in order - the server keeps it
+  // exactly as sent, and the section redraws from what it says it kept.
+  // One write at a time: a second tap before the first answers would send
+  // a list built from the same stale copy.
+  var catFollowBusy = false;
+  function toggleFollowCategory(){
+    if(!catData || catFollowBusy) return;
+    if(!catData.saved){ openAuth("signup"); return; }
+    catFollowBusy = true;
+    var ids = catData.mine.map(function(c){ return c.id; });
+    var node = catPage.node;
+    var at = ids.indexOf(node);
+    if(at === -1) ids.push(node); else ids.splice(at, 1);
+    fetch("/api/categories/mine", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ categories: ids })
+    }).then(function(r){
+      return r.json().then(function(d){
+        if(!r.ok) throw new Error(d.detail || d.error || "Could not save that");
+        return d;
+      });
+    }).then(function(){
+      toast(at === -1 ? "Added to your categories" : "Removed from your categories");
+      return fetch("/api/categories").then(function(r){ return r.ok ? r.json() : null; });
+    }).then(function(d){
+      if(d){ catData = d; renderMyCategories(); }
+      drawFollowButton();
+    }).catch(function(err){ toast(err.message || "Could not save that"); })
+      .then(function(){ catFollowBusy = false; });
+  }
+  function drawCategorySorts(){
+    document.querySelectorAll("#catSorts .hist-tab").forEach(function(b){
+      b.classList.toggle("on", b.getAttribute("data-sort") === catPage.sort);
+    });
+  }
+  function setCategorySort(sort){
+    catPage.sort = sort;
+    drawCategorySorts();
+    loadCategoryEpisodes();
+  }
+  function setCategoryNode(id){
+    catPage.node = id;
+    document.getElementById("catTitle").textContent = categoryLabelOf(id);
+    drawFollowButton();
+    loadCategoryEpisodes();
+  }
+  function onCategorySearch(){
+    clearTimeout(catTimer);
+    catTimer = setTimeout(loadCategoryEpisodes, 250);
+  }
+  function loadCategoryEpisodes(){
+    var req = ++catReq;
+    var q = document.getElementById("catSearch").value.trim();
+    var el = document.getElementById("catList");
+    el.innerHTML = '<div class="sv-empty">Loading today’s episodes…</div>';
+    fetch("/api/categories/episodes?id=" + encodeURIComponent(catPage.node)
+          + "&sort=" + encodeURIComponent(catPage.sort)
+          + "&q=" + encodeURIComponent(q))
+      .then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
+      .then(function(d){
+        if(req !== catReq) return;
+        catPage.episodes = d.episodes || [];
+        if(catPage.node === catPage.root) drawCategorySubs(d.subcategories || []);
+        drawCategoryEpisodes(q);
+      })
+      .catch(function(){
+        if(req !== catReq) return;
+        el.innerHTML = '<div class="sv-empty">Could not load this category right now. '
+          + '<button class="sample-note-btn" onclick="loadCategoryEpisodes()">Try again</button></div>';
+      });
+  }
+  // "Narrow it down": the categories one level below that have something
+  // today. Drawn from the root's answer, so narrowing keeps the chips.
+  function drawCategorySubs(subs){
+    var row = document.getElementById("catSubs");
+    if(!subs.length){ row.hidden = true; row.innerHTML = ""; return; }
+    row.hidden = false;
+    row.innerHTML = '<button class="hist-tab" data-cat="' + escapeHtml(catPage.root)
+      + '" onclick="pickCategorySub(this)">All</button>'
+      + subs.map(function(s){
+        return '<button class="hist-tab" data-cat="' + escapeHtml(s.id) + '" onclick="pickCategorySub(this)">'
+          + escapeHtml(s.label) + ' · ' + s.count + '</button>';
+      }).join("");
+    markCategorySub();
+  }
+  function markCategorySub(){
+    document.querySelectorAll("#catSubs .hist-tab").forEach(function(b){
+      b.classList.toggle("on", b.getAttribute("data-cat") === catPage.node);
+    });
+  }
+  function pickCategorySub(btn){
+    setCategoryNode(btn.getAttribute("data-cat"));
+    markCategorySub();
+  }
+  function drawCategoryEpisodes(q){
+    var el = document.getElementById("catList");
+    var eps = catPage.episodes;
+    if(!eps.length){
+      el.innerHTML = q
+        ? '<div class="sv-empty">No title in here has those words today.</div>'
+        : '<div class="sv-empty">Nothing has been made in this category today yet. '
+          + 'Episodes come up here as people play and FAM writes them.</div>';
+      return;
+    }
+    el.innerHTML = eps.map(function(ep, i){
+      var meta = [String(ep.node_label || "").toUpperCase(), (ep.minutes || BROWSE_MINUTES) + " MIN"];
+      if(ep.plays) meta.push(ep.plays + (ep.plays === 1 ? " PLAY" : " PLAYS"));
+      if(ep.mixes) meta.push("IN " + ep.mixes + (ep.mixes === 1 ? " MIX" : " MIXES"));
+      return '<div class="sv-row" onclick="playCategoryEpisode(' + i + ')">'
+        + '<div class="sv-art"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.5v15l12.5-7.5z"/></svg></div>'
+        + '<div class="sv-main"><div class="sv-title' + (ep.explicit ? ' is-explicit' : '') + '">'
+        + escapeHtml(ep.title || ep.query) + '</div>'
+        + '<div class="sv-meta">' + escapeHtml(meta.join(" · ")) + '</div></div></div>';
+    }).join("");
+  }
+  function playCategoryEpisode(i){
+    var ep = catPage.episodes[i];
+    if(!ep) return;
+    TOPICS["_category"] = { title: ep.title || ep.query, prompt: ep.query,
+                            source: categoryLabelOf(catPage.node), caption: "",
+                            cachedOnly: true, exploreMinutes: ep.minutes || BROWSE_MINUTES,
+                            titleOverridden: true };
+    generate("_category");
   }
 
   function mixById(id){
@@ -11110,7 +11736,8 @@
       body: JSON.stringify(body)
     }).then(function(r){
       return r.json().then(function(data){
-        if(!r.ok) throw new Error(data.error || "Could not save that mix");
+        if(!r.ok) throw new Error(data.error || (typeof data.detail === "string" && data.detail)
+                                  || "Could not save that mix");
         return data;
       });
     }).then(function(saved){
@@ -12441,11 +13068,9 @@
         AUTH = d;
         // A page that reached this far while the waitlist runs - opened from
         // the offline shell - is sent where the server would have sent it.
-        // A guest goes to the waitlist, where they sign in (10.7).
+        // A guest stays, on the front door, to sign in or sign up (§217, §231).
         if(d && d.waitlist && d.status === "waitlisted"){
           location.replace("/waitlist/me");
-        } else if(d && d.waitlist && !d.authenticated){
-          location.replace("/waitlist");
         }
         authUnreachable = false;
         rememberSignedIn(!!d.authenticated);
@@ -12511,7 +13136,7 @@
       });
     }).then(function(d){
       toast(okMessage);
-      return refreshAuth().then(function(){ loadProfile(); return d; });
+      return refreshAuth().then(function(){ loadProfile(); checkTerms(); return d; });
     }).catch(function(err){ (onError || toast)(err.message); });
   }
 
@@ -12934,7 +13559,9 @@
       body: JSON.stringify({ name: name, handle: handle, avatar: dataUrl })
     }).then(function(r){
       return r.json().then(function(d){
-        if(!r.ok) throw new Error(d.error || "Could not save that picture");
+        // The server's sentence - a refused photo (§224) says why.
+        if(!r.ok) throw new Error(d.error || (typeof d.detail === "string" && d.detail)
+                                  || "Could not save that picture");
         return d;
       });
     }).then(function(saved){
@@ -13564,6 +14191,16 @@
       items.push({ label: menuLabel("remove", "Remove from your story"), danger: true,
                    action: function(){ removeFromMyStory(v); } });
     }
+    if(!person.mine){
+      if(v.id){
+        items.push({ label: menuLabel("report", "Report"), danger: true, action: function(){
+            reportContent({ kind: "vibe", target: v.id }, function(){ closeStory(); }); } });
+      }
+      if(person.handle){
+        items.push({ label: menuLabel("block", "Block " + escapeHtml(firstName(person))), danger: true,
+                     action: function(){ blockPerson(person.handle, person.name, closeStory); } });
+      }
+    }
     var sheet = document.getElementById("sheetOverlay");
     sheet.classList.add("over-story");
     showActionSheet(items);
@@ -13679,7 +14316,9 @@
     // Redrawn when it lands rather than awaited with everything else: the plan
     // is one row's value and should not hold the screen.
     loadPlan().then(function(plan){ if(plan) renderSettings(); });
+    loadAiConsent().then(renderSettings);
     if(AUTH.authenticated){
+      loadBlocked().then(renderSettings);
       fetch("/api/close-friends").then(function(r){ return r.ok ? r.json() : null; })
         .then(function(d){ if(d){ closeFriendCount = d.count || 0; renderSettings(); } })
         .catch(function(){});
@@ -13750,6 +14389,20 @@
           "setWakePhrase(" + (wakeOn ? "false" : "true") + ")")
         + '<div class="set-note">Say \u201cHey FAM\u201d or \u201cWhat\u2019s up FAM\u201d to search by voice. While it\u2019s on, the microphone listens whenever FAM is open and nothing is playing.</div>';
     }
+    // Privacy and safety (App Store 1.2 and 5.1.2(i)): the AI answer, who is
+    // blocked, and the rules everybody agreed to.
+    html += '<div class="set-group">Privacy and safety</div>'
+      + settingsRow("Send my questions to AI", escapeHtml(aiConsentSummary()),
+          "toggleAiConsent()")
+      + '<div class="set-note">FAM writes episodes for what you ask with Anthropic\u2019s Claude, and searches for sources with Exa. Turn this off and you can still listen to everything FAM writes ahead.</div>';
+    if(AUTH.authenticated){
+      html += settingsRow("Blocked people",
+          blockedCount === null ? "" : (blockedCount ? String(blockedCount) : "None"),
+          "openBlocked()");
+    }
+    html += settingsRow("Terms and community rules", "", "openTerms()")
+      + settingsRow("Privacy policy", "", "openLegal('privacy')")
+      + settingsRow("Help and support", "", "openLegal('support')");
     html += '<div class="set-group">Account settings</div>'
       // Subscription lives here rather than only behind a refusal. It used to
       // be reachable from exactly one place - the screen a listener sees when
@@ -14191,7 +14844,8 @@
     return '<div class="fr-row" onclick="openPersonProfile(\''
       + escapeHtml(person.handle || "") + '\')">'
       + '<div class="fr-av">' + avatarHTML(person, 40) + '</div>'
-      + '<div class="fr-body"><div class="fr-name">'
+      // The E beside a name that swears (§224), the same mark as an episode's.
+      + '<div class="fr-body"><div class="fr-name' + (person.explicit ? ' is-explicit' : '') + '">'
       + escapeHtml(person.name || "Someone") + '</div>'
       + '<div class="fr-at">@' + escapeHtml(person.handle || "") + '</div>'
       // Friends from the waitlist show on both sides before they are let in
@@ -14401,14 +15055,16 @@
     document.getElementById("personTop").innerHTML =
       '<button class="yf-back" onclick="goBack()" aria-label="Back">' + yfIcon("back", 20) + '</button>'
       + '<div style="flex:1"></div>'
-      + (person.user_id
+      // Shown wherever there is somebody to report or block (1.2), even
+      // when the page was opened by handle alone and Follow is not offered.
+      + ((person.user_id || person.handle)
           ? '<button class="yf-round" onclick="openPersonMenu()" aria-label="More">'
             + yfIcon("more", 17) + '</button>'
           : '');
 
     var html = '<div class="yf-person-id"><span class="yf-ring' + (fresh ? " fresh" : "") + '">'
       + yfFace(face) + '</span><div style="min-width:0;">'
-      + '<div class="yf-person-name">'
+      + '<div class="yf-person-name' + ((pub.explicit || person.explicit) ? ' is-explicit' : '') + '">'
       + escapeHtml(face.name || ("@" + (person.handle || ""))) + '</div>'
       + (pub.location ? '<div class="yf-place">' + escapeHtml(pub.location) + '</div>' : '')
       + '<div class="yf-meta">@' + escapeHtml(person.handle || "")
@@ -14505,16 +15161,24 @@
 
   function openPersonMenu(){
     var person = viewingProfile;
-    if(!person || !person.user_id) return;
-    var following = (friendsData.following || []).some(function(f){
-      return f.user_id === person.user_id;
-    });
-    showActionSheet([
-      following
+    if(!person || !(person.user_id || person.handle)) return;
+    var items = [];
+    if(person.user_id){
+      var following = (friendsData.following || []).some(function(f){
+        return f.user_id === person.user_id;
+      });
+      items.push(following
         ? { label: "Unfollow", danger: true, action: function(){ unfollowPerson(person.user_id); } }
-        : { label: "Follow", action: function(){ followPerson(person.user_id); } },
-      { label: "Your friends", action: openFriends }
-    ]);
+        : { label: "Follow", action: function(){ followPerson(person.user_id); } });
+      items.push({ label: "Your friends", action: openFriends });
+    }
+    if(person.handle){
+      items.push({ label: "Report", danger: true, action: function(){
+          reportContent({ kind: "person", target: person.handle }); } });
+      items.push({ label: "Block", danger: true, action: function(){
+          blockPerson(person.handle, person.name, function(){ goBack(); }); } });
+    }
+    showActionSheet(items);
   }
 
   function openPersonMix(i){
@@ -15120,8 +15784,9 @@
   // how many are in it (10.6 #4).
   function paintThreadHead(){
     var person = currentThread || {};
-    document.getElementById("thread-name").textContent =
-      person.name || ("@" + (person.handle || ""));
+    var nameEl = document.getElementById("thread-name");
+    nameEl.textContent = person.name || ("@" + (person.handle || ""));
+    nameEl.classList.toggle("is-explicit", !!person.explicit);
     paintPersonAv(document.getElementById("thread-av"), person);
     var sub = document.getElementById("thread-sub");
     if(sub) sub.textContent = person.group
@@ -15186,14 +15851,24 @@
         { label: "See who’s here", action: openGroupMembers },
         { label: "Name the group", action: renameGroup },
         { label: "Leave group", danger: true, action: confirmLeaveGroup },
-        { label: "Delete chat", danger: true, action: confirmDeleteChat }
+        { label: "Delete chat", danger: true, action: confirmDeleteChat },
+        { label: "Report this chat", danger: true, action: function(){
+            reportContent({ kind: "group", target: currentThread.user_id }); } }
       ]);
       return;
     }
-    showActionSheet([
+    var other = currentThread;
+    var items = [
       { label: "View profile", action: openThreadProfile },
       { label: "Delete chat", danger: true, action: confirmDeleteChat }
-    ]);
+    ];
+    if(other.handle){
+      items.push({ label: "Report " + escapeHtml(other.name || ("@" + other.handle)), danger: true,
+                   action: function(){ reportContent({ kind: "person", target: other.handle }); } });
+      items.push({ label: "Block " + escapeHtml(other.name || ("@" + other.handle)), danger: true,
+                   action: function(){ blockPerson(other.handle, other.name, function(){ goBack(); }); } });
+    }
+    showActionSheet(items);
   }
 
   // ---- Group chats (10.6 packet #4) ----
@@ -17414,7 +18089,9 @@
                        source: "exploreFAM", surface: "", cachedOnly: true,
                        thumb: ep.thumb || "", titleOverridden: true });
         } },
-      { label: menuLabel("queue", "Go to Queue"), action: openQueue }
+      { label: menuLabel("queue", "Go to Queue"), action: openQueue },
+      { label: menuLabel("report", "Report"), danger: true, action: function(){
+          reportContent({ kind: "episode", query: ep.query, minutes: ep.minutes }); } }
     ]);
   }
 
@@ -17572,16 +18249,28 @@
     return '<div class="rc-item' + (isReply ? " rc-reply" : "") + '" data-cid="' + c.id + '">'
       + '<span class="rc-av" style="background:' + personHue(c.handle || c.name) + '">'
       + avatarHTML(c, isReply ? 24 : 32) + '</span>'
-      + '<div class="rc-main"><div class="rc-who">' + escapeHtml(who)
+      + '<div class="rc-main"><div class="rc-who"><span' + (c.explicit ? ' class="is-explicit"' : '') + '>' + escapeHtml(who) + '</span>'
       + '<small>' + rcAgo(c.at) + '</small></div>'
       + '<div class="rc-text">' + escapeHtml(c.text) + '</div>'
       + '<div class="rc-acts"><button onclick="replyToReelComment(' + c.id + ')">Reply</button>'
-      + (c.mine ? '<button onclick="deleteReelComment(' + c.id + ')">Delete</button>' : '')
+      + (c.mine ? '<button onclick="deleteReelComment(' + c.id + ')">Delete</button>'
+                : '<button onclick="reportReelComment(' + c.id + ')">Report</button>')
       + '</div></div>'
       + '<button class="rc-like' + (c.liked ? " on" : "") + '" onclick="likeReelComment(' + c.id + ')"'
       + ' aria-label="' + (c.liked ? "Unlike" : "Like") + ' this comment" aria-pressed="' + (c.liked ? "true" : "false") + '">'
       + RC_HEART + '<span>' + (c.likes ? c.likes.toLocaleString() : "") + '</span></button>'
       + '</div>';
+  }
+  // Reported, it leaves this listener's list at once, with its replies.
+  function reportReelComment(cid){
+    reportContent({ kind: "comment", target: cid }, function(){
+      rcState.rows = rcState.rows.filter(function(c){ return c.id !== cid; })
+        .map(function(c){
+          if(c.replies) c.replies = c.replies.filter(function(r){ return r.id !== cid; });
+          return c;
+        });
+      drawReelComments();
+    });
   }
   function drawReelComments(){
     var list = document.getElementById("rcList");
@@ -18192,6 +18881,8 @@
     document.getElementById("authSub").textContent = mode === "login"
       ? "Welcome back." : "Takes ten seconds. Listening stays free either way.";
     document.getElementById("authNote").hidden = mode === "login";
+    document.getElementById("authTermsField").hidden = mode === "login";
+    document.getElementById("authTerms").checked = false;
     document.getElementById("authSwitch").innerHTML = mode === "login"
       ? 'New to FAM? <button type="button" onclick="switchAuthMode(\'signup\')">Sign up</button>'
       : 'Already have an account? <button type="button" onclick="switchAuthMode(\'login\')">Log in</button>';
@@ -18364,10 +19055,16 @@
     if(authMode === "signup" && password.length < 8){
       showAuthError("Use at least 8 characters for your password."); return;
     }
+    if(authMode === "signup" && !document.getElementById("authTerms").checked){
+      showAuthError("Tick the box to agree to the Terms and the Privacy Policy."); return;
+    }
     clearAuthError();
     var path = authMode === "login" ? "/api/auth/login" : "/api/auth/signup";
     var body = { email: email, password: password };
-    if(authMode === "signup" && phone) body.phone = phone;
+    if(authMode === "signup"){
+      body.accept_terms = true;
+      if(phone) body.phone = phone;
+    }
     var btn = document.getElementById("authSubmit");
     var label = btn.textContent;
     btn.disabled = true;
@@ -19593,7 +20290,7 @@
   // A failed auth check is answered the same way as a negative one - by
   // showing the front door - rather than by leaving the splash up forever,
   // which is the one outcome with nothing behind it.
-  refreshAuth().then(bootToFirstScreen, bootToFirstScreen).then(openLinkedMix);
+  refreshAuth().then(bootToFirstScreen, bootToFirstScreen).then(openLinkedMix).then(checkTerms);
 </script>
 </body>
 </html>

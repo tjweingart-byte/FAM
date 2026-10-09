@@ -215,6 +215,13 @@ DEFAULT_RESEARCH_BACKEND = "exa"
 #: is *for*; this says which one somebody who has expressed no preference
 #: lands in.
 DEFAULT_MINUTES = 2
+#: The model for the small, structured calls - the brief, the tile composer,
+#: the category placer, the thumbnail scene writer and checker (§227). They
+#: return JSON against a schema at low effort; none of them writes a word a
+#: listener hears, and Haiku 5.5 does them at a twentieth of Sonnet's price.
+#: Deliberately **not** `MODEL`: the writer stays where it is, and a
+#: deployment that sets `MODEL` no longer drags these along with it.
+SMALL_MODEL = "claude-haiku-5-5"
 
 #: How long every episode is that searchFAM did not ask for (§147, at the
 #: owner's direction): myFAM, DailyFAM, the Trending bank and prefetch. Only
@@ -429,12 +436,12 @@ class Settings:
         default_factory=lambda: os.environ.get("EPISODE_INTELLIGENCE", "1")
         not in ("0", "false", "False", ""))
     # Understanding a request is a small, well-specified extraction, not the
-    # writing. It runs on the same model as the script by default so a
-    # deployment has one model to reason about, and at low effort because the
-    # time here is time the listener waits.
+    # writing - so it runs on `SMALL_MODEL` (§227; it followed `MODEL` until
+    # then), and at low effort because the time here is time the listener
+    # waits. Its quality is measured by `tools/ei_eval.py`; `EI_MODEL`
+    # restores any other model.
     ei_model: str = field(
-        default_factory=lambda: os.environ.get(
-            "EI_MODEL", os.environ.get("MODEL", "claude-sonnet-5")))
+        default_factory=lambda: os.environ.get("EI_MODEL") or SMALL_MODEL)
     ei_effort: str = field(
         default_factory=lambda: os.environ.get("EI_EFFORT", "low"))
     ei_max_tokens: int = _env_int("EI_MAX_TOKENS", 1200)
@@ -644,11 +651,9 @@ class Settings:
         not in ("0", "false", "False", ""))
     # One call per refresh window for every listener, so this is the cheapest
     # model call in the product and still the one that decides what the whole
-    # browse page says. Same default as the rest of the app: one model to
-    # reason about per deployment.
+    # browse page says. A JSON task, so `SMALL_MODEL` (§227).
     stories_model: str = field(
-        default_factory=lambda: os.environ.get(
-            "STORIES_MODEL", os.environ.get("MODEL", "claude-sonnet-5")))
+        default_factory=lambda: os.environ.get("STORIES_MODEL") or SMALL_MODEL)
     stories_effort: str = field(
         default_factory=lambda: os.environ.get("STORIES_EFFORT", "low"))
     # Room for a first sweep's worth of tiles: since §135 the GDELT sweep
@@ -685,10 +690,9 @@ class Settings:
         default_factory=lambda: os.environ.get("CATEGORIES_PLACE", "1")
         not in ("0", "false", "False", ""))
     # One call per sweep for the whole deployment, batching every new subject
-    # at once. Same default model as everything else here.
+    # at once. A JSON task, so `SMALL_MODEL` (§227).
     categories_model: str = field(
-        default_factory=lambda: os.environ.get(
-            "CATEGORIES_MODEL", os.environ.get("MODEL", "claude-sonnet-5")))
+        default_factory=lambda: os.environ.get("CATEGORIES_MODEL") or SMALL_MODEL)
     categories_effort: str = field(
         default_factory=lambda: os.environ.get("CATEGORIES_EFFORT", "low"))
     categories_max_tokens: int = _env_int("CATEGORIES_MAX_TOKENS", 4000)
@@ -696,6 +700,21 @@ class Settings:
     # used and the new subjects are placed on the next sweep.
     categories_place_timeout_seconds: float = _env_float(
         "CATEGORIES_PLACE_TIMEOUT_SECONDS", 30.0)
+    # The photo check (image_check.py, §224): one model call per profile
+    # picture or mix cover, before strangers can see it. On by default; with
+    # no key (staging) a photo goes through unchecked and the log says so.
+    image_check: bool = field(
+        default_factory=lambda: os.environ.get("IMAGE_CHECK", "1")
+        not in ("0", "false", "False", ""))
+    # Its own model, not MODEL: a yes/no on one small picture does not need
+    # the writer's model, and at the owner's direction (§225) it runs on the
+    # cheapest current one - about $0.0002 a photo.
+    image_check_model: str = field(
+        default_factory=lambda: os.environ.get("IMAGE_CHECK_MODEL") or SMALL_MODEL)
+    image_check_max_tokens: int = _env_int("IMAGE_CHECK_MAX_TOKENS", 2000)
+    # Somebody is waiting on the save; past this the photo is let through
+    # unchecked rather than lost.
+    image_check_timeout_seconds: float = _env_float("IMAGE_CHECK_TIMEOUT_SECONDS", 12.0)
     # How far back the promotion sweep reads. Long enough that a subject
     # somebody was interested in last month still counts toward the listener
     # threshold, short enough that the vocabulary tracks what people are
@@ -733,15 +752,16 @@ class Settings:
     # The list price of one image from that model, for the spend record.
     # An estimate for a 1K image; set it from the pricing page.
     thumbnails_image_price: float = _env_float("THUMBNAILS_IMAGE_PRICE", 0.067)
-    # The model that writes scenes and checks pictures for logos and people.
+    # The model that writes scenes and checks pictures for logos and people:
+    # `SMALL_MODEL` (§227).
     thumbnails_model: str = field(
-        default_factory=lambda: os.environ.get(
-            "THUMBNAILS_MODEL", os.environ.get("MODEL", "claude-sonnet-5")))
-    # Its list prices, per million tokens, for the spend record.
+        default_factory=lambda: os.environ.get("THUMBNAILS_MODEL") or SMALL_MODEL)
+    # Its list prices, per million tokens, for the spend record - Haiku 5.5's.
+    # Change them with THUMBNAILS_MODEL.
     thumbnails_claude_input_per_mtok: float = _env_float(
-        "THUMBNAILS_CLAUDE_INPUT_PER_MTOK", 2.0)
+        "THUMBNAILS_CLAUDE_INPUT_PER_MTOK", 0.10)
     thumbnails_claude_output_per_mtok: float = _env_float(
-        "THUMBNAILS_CLAUDE_OUTPUT_PER_MTOK", 10.0)
+        "THUMBNAILS_CLAUDE_OUTPUT_PER_MTOK", 0.50)
     # How many paid paintings a node gets per run. One by default (§169): a picture that fails a check is held for a
     # person rather than paid for again. Raise it to repaint on a logo, text,
     # a real person or a real product.
@@ -1548,6 +1568,21 @@ class Settings:
     # same rule `public_base_url` above keeps, for the same reason.
     app_store_url: str = field(
         default_factory=lambda: os.environ.get("APP_STORE_URL", "").strip())
+    # The iOS app's identity, for universal links (APP_STORE.md): Apple's
+    # ten-character Team ID from the developer account, and the app's bundle
+    # id. Both unset until the account exists, and then
+    # `/.well-known/apple-app-site-association` answers 404 rather than
+    # naming an app that is not there - the same rule as `app_store_url`.
+    # The published contact for reports and the terms (App Store 1.2): an
+    # address that a person reads. Unset, the terms page and the report sheet
+    # point at the in-app report button alone - which Apple will not accept
+    # on its own, so set it before submitting (APP_STORE.md).
+    support_email: str = field(
+        default_factory=lambda: os.environ.get("SUPPORT_EMAIL", "").strip())
+    apple_team_id: str = field(
+        default_factory=lambda: os.environ.get("APPLE_TEAM_ID", "").strip())
+    ios_bundle_id: str = field(
+        default_factory=lambda: os.environ.get("IOS_BUNDLE_ID", "").strip())
     # The pre-launch waitlist (WAITLIST.md). On, the app is closed to anybody
     # whose account is not 'active': guests and waitlisted accounts are sent
     # to /waitlist, every new account starts 'waitlisted', and the app's API

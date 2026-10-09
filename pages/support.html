@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1E1B27">
+<title>FAM — Help and support</title>
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..700&family=Geist:wght@400..700&family=Geist+Mono:wght@400..700&display=swap" rel="stylesheet">
+<!-- Served by /support (app.py), which fills in the contact. The App Store's support URL (APP_STORE.md). -->
+<style>
+  :root{ --bg:#1E1B27; --text:#F4EFE4; --muted:#ABA3C4; --copper:#E0B563;
+    --border:rgba(244,239,228,0.12); }
+  *{ box-sizing:border-box; }
+  body{ margin:0; background:var(--bg); color:var(--text);
+    font:15px/1.6 'Geist', -apple-system, sans-serif; }
+  main{ max-width:680px; margin:0 auto; padding:40px 16px 64px; }
+  h1{ font-family:'Bricolage Grotesque', sans-serif; font-weight:500; font-size:32px;
+    line-height:1.15; color:var(--copper); margin:0 0 6px; }
+  h2{ font-family:'Bricolage Grotesque', sans-serif; font-weight:500; font-size:21px;
+    margin:34px 0 8px; }
+  .when{ font-family:'Geist Mono', monospace; font-size:11px; letter-spacing:0.08em;
+    text-transform:uppercase; color:var(--muted); }
+  p, li{ color:var(--text); }
+  li{ margin:4px 0; }
+  .note{ border:1px solid var(--border); border-radius:12px; padding:14px 16px;
+    color:var(--muted); font-size:14px; }
+  a{ color:var(--copper); }
+
+  table{ width:100%; border-collapse:collapse; margin:10px 0; font-size:14px; }
+  th, td{ text-align:left; vertical-align:top; padding:8px 10px 8px 0;
+    border-bottom:1px solid var(--border); }
+  th{ font-family:'Geist Mono', monospace; font-size:11px; letter-spacing:0.06em;
+    text-transform:uppercase; color:var(--muted); font-weight:500; }
+  h3{ font-size:16px; margin:22px 0 4px; }
+  .nav{ margin-top:40px; font-size:14px; color:var(--muted); }
+  @media print{
+    :root{ --bg:#fff; --text:#141413; --muted:#555; --copper:#8a5a12; --border:#ddd; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1>Help and support</h1>
+  <div class="when">FAM by Familiarize</div>
+
+  <h2>Talk to a person</h2>
+  {{CONTACT}}
+
+  <h2>Questions people ask</h2>
+
+  <h3>How are episodes made?</h3>
+  <p>When you ask something, FAM researches it, writes a short story from the
+  sources it finds with Anthropic's Claude, and reads it to you in its own
+  voice. The sources are on the player. Episodes are written by AI and can be
+  wrong; don't rely on one for medical, legal, financial or safety decisions.</p>
+
+  <h3>Why does FAM ask before my first search?</h3>
+  <p>Because what you type, say or attach is sent to Anthropic to write the
+  episode, and a search drawn from it to Exa. FAM asks first. You can change
+  your answer in Settings, Privacy and safety, Send my questions to AI. Without
+  it, myFAM, DailyFAM and Explore still work.</p>
+
+  <h3>How do I report something?</h3>
+  <p>Open the ⋯ on a comment, a chat, a profile, a story or an episode and
+  choose <b>Report</b>. It disappears for you straight away, and a person
+  reviews every report within {{REVIEW_HOURS}} hours.</p>
+
+  <h3>How do I block someone?</h3>
+  <p>Choose <b>Block</b> from the ⋯ on their profile, your chat with them, or
+  their story. Neither of you will see the other's comments, messages, vibes or
+  profile. To unblock, go to Settings, Privacy and safety, Blocked people.</p>
+
+  <h3>I forgot my password.</h3>
+  <p>FAM can't send reset emails yet. Email us from the address on your account
+  and we'll help you back in.</p>
+
+  <h3>How do I delete my account?</h3>
+  <p>Settings, Delete account. It is immediate and can't be undone; the
+  <a href="/privacy">privacy policy</a> says exactly what is removed.</p>
+
+  <h3>Why does an episode have an E on it?</h3>
+  <p>It contains swearing. FAM keeps swearing that's part of a story and marks
+  it, and replaces slurs with the words "a slur".</p>
+
+  <h3>I'm on the waitlist.</h3>
+  <p>Your place is saved and you'll be let in as space opens up. Inviting
+  friends moves you up.</p>
+  <p class="nav"><a href="/terms">Terms and community rules</a> · <a href="/privacy">Privacy policy</a> · <a href="/support">Help and support</a></p>
+</main>
+</body>
+</html>

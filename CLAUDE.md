@@ -44,12 +44,12 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   mic since §151; "hey FAM"/"what's up FAM" wake word, opt-in, since §158;
   stopping speech shows a five-second **Search now** with an X, never a silent
   search, §159; the heard words are editable in place and Search now
-  sends the corrected words, §165; mic beside attach, §182), **myFAM** (four rails over the evergreen bank and a shared live
+  sends the corrected words, §165), **myFAM** (four rails over the evergreen bank and a shared live
   story pool, plus **What you missed last week**), **DailyFAM** (named mixes of
   followed subjects `f:nfl` / `f:nfl~Eagles`, never audio; a 05:00 Eastern
   edition writes every episode ahead with EI; public mixes searchable, (+)
   copies one; the server owns the date and length a tap sends), and **Explore**
-  (not a tab; the exploreFAM pill on search and beside Made for you, and search's swipe, §203; other listeners' *searched* episodes only, from the cache, `cached_only`,
+  (not a tab; its pill (`explore-reel`) or search's swipe, §203; other listeners' *searched* episodes only, from the cache, `cached_only`,
   never generates; `scripts.author` excludes your own, `scripts.origin` excludes
   non-search surfaces). myFAM and DailyFAM are personalised. [three-surfaces]
 - **Decouple script generation from synthesis in time**: pre-generate scripts
@@ -93,6 +93,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   if `searches_public`. [player-layout]
 - **Search DailyFAM opens on an A to Z catalogue** of others' cached episodes,
   lettered (`/api/myfam/catalog`); typing shows the closest (§193). [dailyfam-catalogue]
+- **Your categories** (§229): today's cache by category, read-only. [your-categories]
 - **A queue** (§190): Add to / Go to Queue from the player's and a DailyFAM
   tile's ⋯; client state only; plays before the grid. [queue]
 
@@ -274,7 +275,7 @@ Audio and the opening
   on the speaking call; EI on every episode. Only work *before* the tap may be
   spent on latency. [nothing-before-material]
 - **No filler, ever, and no setting for it.** [no-filler]
-- **Slurs are the only words removed** ("a slur", `content_filter.py`, §171);
+- **Slurs are the only words removed** ("a slur", `content_filter.py`, §171; names and messages too, §224);
   swearing stays and puts an E before the title. Whole words only;
   `DELIBERATELY_ABSENT` says why a word is not listed. [slurs-only]
 - **Situate, never orient**, in the first two sentences: who, what, when. [situate]
@@ -360,6 +361,9 @@ Caching and prefetch
   anything personal, report `None` not `0`. [prefetch-same-key]
 - A prefetch candidate carries a reason in words; sources never call a model or
   the network. [candidate-reason]
+- **Small calls on Haiku 5.5** (§227): brief, composer, placer, thumbnails
+  default to `SMALL_MODEL`, never `MODEL`; metering prices each call at its
+  own model; brief quality unmeasured until `ei_eval.py` runs. [small-calls-haiku]
 - **Writer savings change no word and cost no episode** (§179): its
   instructions are one cacheable block (`PROMPT_CACHE`); the Trending and
   DailyFAM editions batch their writers (`EDITION_BATCH`), read by the same
@@ -411,7 +415,7 @@ Accounts, tiers, sharing
   friends; a shared episode plays for anyone (only what was shared); the landing
   page plays the three sign-up samples as replays (§190), own picture only (§214); a `/waitlist` join is
   always waitlisted (never an admin account, which previews it, §216) and the app's Sign Up goes there (§192);
-  a guest at the address goes to `/waitlist`, whose foot signs a member in (§219). [waitlist-gate]
+  a guest at the address gets the app's sign-in/sign-up, not `/waitlist` (§231). [waitlist-gate]
 - **Tiers are built; enforced in production only** (`ENFORCE_QUOTAS=1` in `render.yaml`, §207);
   admins are `unlimited`, `/api/admin/plan` moves anyone else; no checkout yet. [tiers-off]
 - A refusal names what the listener was doing (`service_label`), composed
@@ -428,6 +432,8 @@ Accounts, tiers, sharing
   `X-Forwarded-Proto`, loopback refused); story cards are PNG files to the share
   sheet. [share-link]
 - FAM posts nothing to anyone's social account and holds no token. [no-social-posting]
+- **App review** (§222): Report everywhere, block both ways (`moderation.py`, `/admin`);
+  a listener's words reach Anthropic only after a yes (`consent.py`); photos checked (§224); Terms ticked at sign-up (§228). [app-review-safety]
 - **Authorship is provenance, never identity**: `PodcastPipeline.author`, never
   on `EpisodePlan` or in `key_for`; first writer keeps it; prefetch writes none. [authorship-provenance]
 - **Type: Bricolage Grotesque (headings), Geist (body), Geist Mono (labels)**

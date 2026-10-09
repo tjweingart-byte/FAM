@@ -192,10 +192,12 @@ def clean_phone(phone: str) -> str:
 
 
 def clean_display_name(name: str) -> str:
-    """Whitespace-collapsed and bounded. Not otherwise policed: a name is
-    whatever somebody says it is, and a filter here is a filter that rejects
-    real names."""
-    return " ".join(str(name or "").split())[:MAX_DISPLAY_NAME]
+    """Whitespace-collapsed and bounded, and a slur becomes "a slur" (§224) -
+    the one thing taken out of anything FAM shows somebody else. Not
+    otherwise policed: a name is whatever somebody says it is, and a broader
+    filter here is a filter that rejects real names."""
+    import content_filter
+    return content_filter.clean_line(name, MAX_DISPLAY_NAME)
 
 
 def clean_birth_date(value: str, today: Optional[datetime.date] = None) -> str:

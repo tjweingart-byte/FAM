@@ -36,6 +36,8 @@ import sqlite3
 import threading
 import time
 import uuid
+
+import content_filter
 from dataclasses import dataclass, replace
 from datetime import date, datetime, timedelta
 from typing import Optional, Sequence
@@ -428,7 +430,8 @@ class Mix:
 
 
 def clean_name(name: str) -> str:
-    name = " ".join(str(name).split())[:MAX_NAME]
+    # A public mix's name is read by strangers: slurs out (§224).
+    name = content_filter.clean_line(name, MAX_NAME)
     if not name:
         raise MixError("Give the mix a name.")
     return name

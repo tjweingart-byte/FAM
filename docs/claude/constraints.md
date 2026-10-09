@@ -110,6 +110,13 @@
   been waiting; a wait you were warned about is a different experience from the
   same wait unexplained.
 <!-- rule:slurs-only -->
+> **Current:** since §224 (the owner's decision for App Store 1.2) the same
+> rule covers everything one listener writes for another to read - display
+> names, group and mix names, messages, comments, captions - and a handle
+> with a slur in it is refused, since "a slur" is not a handle. A name or
+> handle that swears is kept and marked E, like an episode. Images get their
+> own narrow check (`image_check.py`): nudity, sexual content, graphic
+> violence, hate symbols, anything sexualising a minor - nothing else.
 - **Slurs are the one thing taken out; swearing stays and earns an E**
   *(PROBLEMS.md §171, at the owner's direction: "we don't want any censorship
   from any media sources or speech options. The only thing we want to filter
@@ -1030,6 +1037,18 @@
   Sources are **forbidden to call a model or the network** - one that costs
   money to *ask* turns a speculative saving into a certain spend - and a test
   reads the module rather than trusting the rule.
+<!-- rule:small-calls-haiku -->
+- **The small calls run on Haiku 5.5; the writer runs on `MODEL`.**
+  *(PROBLEMS.md §227, at the owner's direction.)* The brief, the tile
+  composer, the category placer and the thumbnail calls default to
+  `config.SMALL_MODEL` (`claude-haiku-5-5`) and never follow `MODEL`; each
+  has its own setting to move it back. The admin question box follows
+  `MODEL`. Metering prices every call at its own model's rates, because one
+  episode's calls run on different models; every model the code can name
+  must be in `metering.PRICES`, or prefetch's dollar budget cannot see it.
+  The brief's quality on Haiku is unmeasured until `tools/ei_eval.py` runs
+  with a key.
+
 <!-- rule:writer-savings -->
 - **Savings on the writer never change what is written, and never cost an
   episode.** *(PROBLEMS.md §179, at the owner's direction.)* Two are in: the
@@ -1110,6 +1129,7 @@
   time: a second sign-up form left standing is one somebody wires a new gate
   to by accident.
 <!-- rule:waitlist-gate -->
+> **Current (PROBLEMS.md §231):** §219's redirect is reversed at the owner's direction, restoring §217: typing the address opens the app's front door for a guest, gate on or off; **Sign Up** goes to `/waitlist`; the app's **Sign In** lets an `active` account in and sends a `waitlisted` one to `/waitlist/me`. Only a waitlisted account and a `?referralCode=` link are redirected. The landing page keeps its "Already off the waitlist? Sign in here".
 > **Current (PROBLEMS.md §219):** §217 is reversed at the owner's direction (10.7 packet): while `WAITLIST=1` runs, a guest typing the address is sent to `/waitlist` again (server and shell), and the landing page's foot carries **Already off the waitlist? Sign in here**, which opens its sign-in - a member is sent on to the app from there. The waitlist profile marks Location and interests **(Optional)** and has **View all topics**: the app's catalogue, searchable, anything typed added as it is, saved as `topics`.
 > **Current (PROBLEMS.md §217):** a guest is never redirected off the front door - typing the address opens the app on its sign-in and sign-up, with every API call still refused; only a waitlisted account (to `/waitlist/me`) and a `?referralCode=` link (to `/waitlist`) are moved.
 > **Current (PROBLEMS.md §216):** an admin account (`FAM_ADMIN_ACCOUNTS`) is never on the waitlist: joining or signing in leaves it `active` (`app._admit_admin`), the gate lets it through, and it is sent to `/waitlist/me` to see a member's page from `/api/waitlist/me`'s `preview`, labelled "Admin preview".
@@ -1282,6 +1302,29 @@
   Instagram and Snapchat, which cannot carry a link as text - the story card.
   This is the correct shape rather than a stage: no OAuth to maintain, no
   tokens to leak, and nothing that can post while somebody is asleep.
+<!-- rule:app-review-safety -->
+- **Report anything, block both ways, and ask before a listener's words go to
+  the AI** (App Store 1.2 and 5.1.2(i), §222). Every comment, message, vibe,
+  profile and episode has Report; a report hides the thing from its reporter
+  at once and removes nothing for anybody else until a reviewer decides on
+  `/admin` (remove, suspend, dismiss), and the reporter is never shown. A
+  block is silent, both ways and total - comments, messages, vibes, profile,
+  searched episodes, follows - and every shelf of other people's episodes
+  goes through `app._visible_episodes`. A search, Go Deeper question or
+  attachment reaches Anthropic only after a yes kept on the server
+  (`consent.py`, versioned); a client that knows to ask (`web/live`, `ios/*`)
+  is refused with `X-FAM-Consent` without one, an older kept release is not
+  (`old-clients`). Asked once, before a first search, never in front of an
+  episode. The words of the notice and the report reasons are the server's.
+  Profile pictures and mix covers are checked once by a model before
+  strangers see them (`image_check.py`, §224); a check that cannot run lets
+  the photo through and says so, and Report + Remove still covers it.
+  The Terms and the Privacy Policy are agreed with an unticked checkbox at
+  sign-up (clickwrap, §228), kept as a `terms` consent with its version; a
+  client that draws the box (`web/live`, `web/waitlist`, `ios/*`) is refused
+  without `accept_terms`, an older kept release is not and is asked on its
+  first screen (`checkTerms`), and a bump of `consent.TERMS_VERSION` asks
+  every account again. A no is not an answer: leaving is deleting the account.
 <!-- rule:authorship-provenance -->
 - **Authorship is provenance, and never identity.** *(PROBLEMS.md §95.)* The
   shared cache records who first generated each script, so Explore can leave a

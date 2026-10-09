@@ -88,6 +88,10 @@
   .cta svg{ width:20px; height:20px; }
   .form-note{ min-height:20px; margin:12px 2px 0; font-size:14px; line-height:1.4; color:#F6D9A0; }
   .form-note.err{ color:#FFB4A2; }
+  .terms-note{ margin:8px 2px 0; font-size:12.5px; line-height:1.45; color:rgba(244,239,228,0.6); }
+  .terms-note a{ color:inherit; text-decoration:underline; }
+  .terms-check{ display:flex; gap:10px; align-items:flex-start; cursor:pointer; }
+  .terms-check input{ width:18px; height:18px; flex:0 0 18px; margin:1px 0 0; accent-color:#c8794a; }
   .quiet-link{ display:block; margin:18px auto 0; background:none; border:0; cursor:pointer;
     color:rgba(244,239,228,0.85); font-size:15px; letter-spacing:0.14em; }
   .invited{ margin:-14px 0 22px; font-size:15px; color:#F6D9A0; }
@@ -616,6 +620,9 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
       </button>
       <div class="form-note" id="joinNote" role="status" aria-live="polite"></div>
+      <!-- Agreed before an account exists (App Store 1.2). -->
+      <!-- Clickwrap (§228): ticked by the person, sent as accept_terms, kept with its version. -->
+      <label class="terms-note terms-check"><input type="checkbox" id="acceptTerms"><span>I agree to FAM&rsquo;s <a href="/terms" target="_blank" rel="noopener">Terms and community rules</a> and <a href="/privacy" target="_blank" rel="noopener">Privacy policy</a>, and I&rsquo;m 13 or older.</span></label>
     </form>
 
     <form id="loginForm" class="hidden" novalidate>
@@ -1256,8 +1263,11 @@
       if(pw !== $("password2").value){
         note.className = "form-note err"; note.textContent = "The two passwords don’t match."; return;
       }
+      if(!$("acceptTerms").checked){
+        note.className = "form-note err"; note.textContent = "Tick the box to agree to the Terms and the Privacy Policy."; return;
+      }
       $("joinBtn").disabled = true;
-      api("/api/waitlist/join", { email: email, password: pw, referral_code: referral })
+      api("/api/waitlist/join", { email: email, password: pw, referral_code: referral, accept_terms: true })
         .then(function(d){
           try { sessionStorage.removeItem("famReferral"); } catch(e){}
           // Straight on to the profile - the app's sign-up fields - with a
