@@ -1116,6 +1116,20 @@
   .share-contacts{ display:flex; gap:12px; overflow-x:auto; padding-bottom:2px; }
   .share-contact{ flex:none; display:flex; flex-direction:column; align-items:center; gap:5px; cursor:pointer; width:56px; }
   .share-contact:active{ transform:scale(0.95); }
+  .share-section{ margin-bottom:12px; }
+  .share-section[hidden]{ display:none; }
+  .share-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
+  .share-head .gc-label{ margin-bottom:0; }
+  .share-find{ width:30px; height:30px; border-radius:50%; border:1px solid var(--border-strong);
+    background:none; color:var(--text-muted); display:flex; align-items:center; justify-content:center;
+    cursor:pointer; padding:0; flex:none; }
+  .share-find.on{ color:var(--copper); border-color:var(--copper); }
+  .share-find-input{ width:100%; box-sizing:border-box; margin:0 0 10px; padding:8px 12px; border-radius:10px;
+    border:1px solid var(--border-strong); background:var(--bg); color:var(--text); font:inherit; font-size:13px; }
+  .share-find-input[hidden]{ display:none; }
+  .share-contact[hidden]{ display:none; }
+  .share-none{ padding:4px 0; }
+  .share-nomatch[hidden]{ display:none; }
   /* The one they are about to send to (§142). A ring rather than a tint, so a
      photo stays recognisable while it is selected. */
   .share-contact.selected .av{ box-shadow:0 0 0 2px var(--bg), 0 0 0 4px var(--copper); }
@@ -4331,8 +4345,33 @@
                question, and the recipient's tap makes the audio. A control
                with nothing behind it is the failure this project has lost the
                most time to, so it is gone rather than disabled. -->
-          <div class="gc-label" style="margin-bottom:8px;">People you follow</div>
-          <div class="share-contacts" id="shareContacts"></div>
+          <!-- Groups first, then friends (10.9): a group the listener has
+               made inside FAM is where a share most often goes. The Groups
+               section is drawn only when they are in one - an empty heading
+               is a control with nothing behind it. Each section has its own
+               search, filtering only the faces already drawn. -->
+          <div class="share-section" id="shareGroupsSection" hidden>
+            <div class="share-head">
+              <div class="gc-label">Groups</div>
+              <button class="share-find" type="button" aria-label="Search your groups"
+                      onclick="toggleShareFind('groups')"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg></button>
+            </div>
+            <input class="share-find-input" id="shareFindGroups" type="search" hidden
+                   placeholder="Search your groups" autocomplete="off"
+                   oninput="filterShareSection('groups')">
+            <div class="share-contacts" id="shareGroups"></div>
+          </div>
+          <div class="share-section">
+            <div class="share-head">
+              <div class="gc-label">Friends</div>
+              <button class="share-find" type="button" aria-label="Search your friends"
+                      onclick="toggleShareFind('friends')"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg></button>
+            </div>
+            <input class="share-find-input" id="shareFindFriends" type="search" hidden
+                   placeholder="Search your friends" autocomplete="off"
+                   oninput="filterShareSection('friends')">
+            <div class="share-contacts" id="shareContacts"></div>
+          </div>
           <!-- Tapping a person selects them and nothing else (§142). It used
                to send on the tap and close the sheet, so nobody could tell
                whether it had gone - or to whom. Now the face lights up, and
@@ -4345,7 +4384,7 @@
                sheet and each platform's own app do the posting, with the
                person looking at it - so FAM holds no token for any of them.
                See sharing.py. -->
-          <div class="gc-label" style="margin:16px 0 8px;">Anywhere else</div>
+          <div class="gc-label" style="margin:4px 0 8px;">Anywhere else</div>
           <div class="sh-grid" id="shareTargets"></div>
           <div class="sh-note" id="shareNote" hidden></div>
           <div class="modal-btns" style="margin-top:16px;">
@@ -17242,43 +17281,117 @@
 
   function loadShareContacts(){
     var el = document.getElementById("shareContacts");
+    var groupSection = document.getElementById("shareGroupsSection");
     shareContacts = [];
     // A sheet opens with nobody chosen, whoever was chosen last time.
     shareChosen = -1;
-    shareSheetSeq++;
+    var seq = ++shareSheetSeq;
     var bar = document.getElementById("shareConfirm");
     if(bar) bar.hidden = true;
+    resetShareFind();
+    groupSection.hidden = true;
+    document.getElementById("shareGroups").innerHTML = "";
     if(!AUTH.authenticated){
-      el.innerHTML = '<div class="sh-name" style="padding:4px 0;">'
+      el.innerHTML = '<div class="sh-name share-none">'
         + 'Sending inside FAM needs an account</div>';
       return;
     }
-    el.innerHTML = '<div class="sh-name" style="padding:4px 0;">Loading…</div>';
+    el.innerHTML = '<div class="sh-name share-none">Loading…</div>';
+    // Groups are the conversations of that kind in the inbox: the same rows
+    // Messages draws, so a group here is one the listener can open there.
+    // A failure leaves the section away rather than saying something about
+    // groups the listener may not have.
+    fetch("/api/messages")
+      .then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
+      .then(function(d){
+        if(seq !== shareSheetSeq) return;
+        var groups = (d.threads || []).filter(function(t){ return t.group; })
+          .map(function(t){
+            return { user_id: t["with"], name: t.name || "Group", handle: "",
+                     avatar: "", group: true };
+          });
+        if(!groups.length) return;
+        var start = shareContacts.length;
+        groups.forEach(function(g){ shareContacts.push(g); });
+        document.getElementById("shareGroups").innerHTML =
+          groups.map(function(g, i){ return shareContactHTML(g, start + i); }).join("")
+          + '<div class="sh-name share-none share-nomatch" hidden>No group matches that</div>';
+        groupSection.hidden = false;
+      })
+      .catch(function(){});
     fetch("/api/friends")
       .then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
       .then(function(d){
+        if(seq !== shareSheetSeq) return;
         var seen = {};
+        var people = [];
         (d.friends || []).concat(d.following || []).forEach(function(person){
           if(seen[person.user_id]) return;
           seen[person.user_id] = true;
-          shareContacts.push(person);
+          people.push(person);
         });
-        if(!shareContacts.length){
-          el.innerHTML = '<div class="sh-name" style="padding:4px 0;">'
+        if(!people.length){
+          el.innerHTML = '<div class="sh-name share-none">'
             + 'Nobody to send to yet — find people under Friends</div>';
           return;
         }
-        el.innerHTML = shareContacts.map(function(person, i){
-          return '<div class="share-contact" data-contact="' + i + '" onclick="sendToContact(' + i + ')">'
-            + personAvHTML(person) + '<div class="nm">'
-            + escapeHtml((person.name || person.handle || "").split(" ")[0])
-            + '</div></div>';
-        }).join("");
+        var start = shareContacts.length;
+        people.forEach(function(p){ shareContacts.push(p); });
+        el.innerHTML = people.map(function(person, i){
+          return shareContactHTML(person, start + i);
+        }).join("")
+          + '<div class="sh-name share-none share-nomatch" hidden>Nobody matches that</div>';
       })
       .catch(function(){
-        el.innerHTML = '<div class="sh-name" style="padding:4px 0;">'
+        if(seq !== shareSheetSeq) return;
+        el.innerHTML = '<div class="sh-name share-none">'
           + 'Could not load your people</div>';
       });
+  }
+  function shareContactHTML(person, i){
+    var label = person.group ? (person.name || "Group")
+      : (person.name || person.handle || "").split(" ")[0];
+    return '<div class="share-contact" data-contact="' + i + '" onclick="sendToContact(' + i + ')">'
+      + personAvHTML(person) + '<div class="nm">' + escapeHtml(label) + '</div></div>';
+  }
+
+  // The search beside Groups and beside Friends: it filters the faces that
+  // section already drew, by name or handle, and asks the server nothing.
+  var SHARE_FIND = { groups: { input: "shareFindGroups", list: "shareGroups" },
+                     friends: { input: "shareFindFriends", list: "shareContacts" } };
+  function toggleShareFind(which){
+    var f = SHARE_FIND[which];
+    var input = document.getElementById(f.input);
+    var btn = input.parentNode.querySelector(".share-find");
+    input.hidden = !input.hidden;
+    btn.classList.toggle("on", !input.hidden);
+    if(input.hidden){ input.value = ""; filterShareSection(which); }
+    else input.focus();
+  }
+  function filterShareSection(which){
+    var f = SHARE_FIND[which];
+    var term = (document.getElementById(f.input).value || "").trim().toLowerCase().replace(/^@/, "");
+    var list = document.getElementById(f.list);
+    var shown = 0;
+    list.querySelectorAll(".share-contact").forEach(function(el){
+      var person = shareContacts[+el.getAttribute("data-contact")] || {};
+      var hay = ((person.name || "") + " " + (person.handle || "")).toLowerCase();
+      var hit = !term || hay.indexOf(term) !== -1;
+      el.hidden = !hit;
+      if(hit) shown++;
+    });
+    var none = list.querySelector(".share-nomatch");
+    if(none) none.hidden = shown > 0 || !list.querySelector(".share-contact");
+  }
+  function resetShareFind(){
+    Object.keys(SHARE_FIND).forEach(function(which){
+      var input = document.getElementById(SHARE_FIND[which].input);
+      if(!input) return;
+      input.value = "";
+      input.hidden = true;
+      var btn = input.parentNode.querySelector(".share-find");
+      if(btn) btn.classList.remove("on");
+    });
   }
 
   /* Outside FAM. The server writes the link and the words; the phone posts
@@ -17568,7 +17681,7 @@
   }
 
   function drawShareChoice(){
-    document.querySelectorAll("#shareContacts .share-contact").forEach(function(el){
+    document.querySelectorAll("#shareContacts .share-contact, #shareGroups .share-contact").forEach(function(el){
       el.classList.toggle("selected", +el.getAttribute("data-contact") === shareChosen);
     });
     var bar = document.getElementById("shareConfirm");
@@ -17578,7 +17691,8 @@
     if(person){
       var btn = document.getElementById("shareConfirmBtn");
       btn.disabled = shareSending;
-      btn.textContent = "Share with " + (person.handle ? "@" + person.handle
+      btn.textContent = "Share with " + (person.group ? (person.name || "the group")
+                                         : person.handle ? "@" + person.handle
                                          : (person.name || "them"));
     }
   }
@@ -17617,7 +17731,8 @@
   function sendEpisodeToContact(person, done){
     var ep = shareEpisode();
     if(!ep){ done(false, "Play something first"); return; }
-    var first = (person.name || person.handle || "").split(" ")[0];
+    var first = person.group ? (person.name || "the group")
+      : (person.name || person.handle || "").split(" ")[0];
     fetch("/api/messages", {
       method: "POST", headers: {"Content-Type": "application/json"},
       body: JSON.stringify({ to: person.user_id, query: ep.query,
@@ -17636,7 +17751,8 @@
   function sendMixToContact(person, done){
     var t = shareTargets && shareTargets.targets && (shareTargets.targets.sms || shareTargets.targets.copy);
     if(!t){ done(false, "Still making the link \u2014 try again in a moment"); return; }
-    var first = (person.name || person.handle || "").split(" ")[0];
+    var first = person.group ? (person.name || "the group")
+      : (person.name || person.handle || "").split(" ")[0];
     fetch("/api/messages", {
       method: "POST", headers: {"Content-Type": "application/json"},
       body: JSON.stringify({ to: person.user_id, text: t.text })
