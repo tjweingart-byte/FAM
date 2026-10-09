@@ -9426,7 +9426,7 @@ class WaitlistJoinRequest(BaseModel):
 def _admin_previewing_join(req, request: Request):
     """An admin who already has an account, typing it into the join form.
 
-    The owner (09/10, PROBLEMS.md §237): admins put their own email into
+    The owner (09/10, PROBLEMS.md §233): admins put their own email into
     `/waitlist` to see the page a member sees, and on production they all
     have accounts already, so the join was refused "That email is already
     registered". Now an admin email whose password is right is signed in, as
