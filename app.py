@@ -9326,6 +9326,39 @@ class WaitlistJoinRequest(BaseModel):
     accept_terms: bool = False
 
 
+def _admin_previewing_join(req, request: Request):
+    """An admin who already has an account, typing it into the join form.
+
+    The owner (09/10, PROBLEMS.md §233): admins put their own email into
+    `/waitlist` to see the page a member sees, and on production they all
+    have accounts already, so the join was refused "That email is already
+    registered". Now an admin email whose password is right is signed in, as
+    `/api/auth/login` would, and sent to the status page's admin preview
+    (§216) - never put in line. Anybody else, or a wrong password, still
+    gets the refusal, so the form says nothing new about who is an admin.
+    """
+    try:
+        email = accounts_mod.clean_email(req.email)
+    except accounts_mod.AuthError:
+        return None
+    if email not in _admin_accounts():
+        return None
+    try:
+        listener = ACCOUNTS.log_in(email, req.password)
+    except accounts_mod.AuthError:
+        return None
+    if not _allowed_admin(listener):
+        return None
+    listener = _admit_admin(listener)
+    old = _session_token(request)
+    token, _user_id = ACCOUNTS.new_session(listener.user_id)
+    if old:
+        ACCOUNTS.end_session(old)
+    request.state.set_session = token
+    return {**listener.as_dict(), "admin": True, "redirect": "/waitlist/me",
+            **_maybe_token(request, token, req.want_token)}
+
+
 @app.post("/api/waitlist/join")
 async def waitlist_join(req: WaitlistJoinRequest, request: Request) -> dict:
     """Join: the app's own email-and-password sign-up, then the waitlist half.
@@ -9341,6 +9374,9 @@ async def waitlist_join(req: WaitlistJoinRequest, request: Request) -> dict:
     """
     _rate_limit(request)
     _require_terms(request, req.accept_terms)
+    admin_seen = _admin_previewing_join(req, request)
+    if admin_seen is not None:
+        return admin_seen
     user, fresh = _signup_listener(request)
     try:
         listener = ACCOUNTS.sign_up(user, req.email, req.password, waitlisted=True)

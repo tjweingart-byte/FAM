@@ -25,7 +25,8 @@ section when a decision changes, including why.
   Sign Up goes to `/waitlist`, its Sign In signs a member into the app and
   sends anyone still in line to `/waitlist/me` (PROBLEMS.md §231) - except a
   referral link (`/?referralCode=x`), which goes to `/waitlist` with the
-  query string kept. Any `/api/*` call answers 403 with
+  query string kept. An admin typing an email that already has an account
+  into the join form is signed in and shown the admin preview (§233). Any `/api/*` call answers 403 with
   `X-FAM-Waitlist`, except `/api/auth/*`, `/api/waitlist/*`, `/api/admin/*`,
   `/api/health`, `/api/client-status`, `/api/me` and `/api/preferences`,
   any request carrying an admin credential or from an admin account (an

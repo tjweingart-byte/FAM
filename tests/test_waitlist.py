@@ -295,6 +295,30 @@ def test_the_apps_sign_in_sends_each_account_where_it_belongs(world):
     assert door.get("/api/friends").status_code == 200
 
 
+def test_an_admin_with_an_account_can_join_to_see_the_page(world, monkeypatch):
+    """§233: an admin who already has an account types it into the join form
+    and lands on the status page's admin preview, signed in, never in line.
+    A wrong password, or anybody else's existing email, is still refused."""
+    monkeypatch.setenv("FAM_ADMIN_ACCOUNTS", "boss@fam.test")
+    _join("boss@fam.test")
+    _join("member@fam.test")
+
+    again, body = _join("Boss@fam.test")
+    assert body["admin"] is True and body["status"] == "active"
+    assert body["redirect"] == "/waitlist/me"
+    me = again.get("/api/waitlist/me").json()
+    assert me["admin"] is True and me["preview"] is not None
+    user = again.get("/api/auth/me").json()["user_id"]
+    assert user not in [r["user_id"] for r in appmod.WAITLIST.ordered()]
+
+    c = TestClient(appmod.app)
+    for email, password in (("boss@fam.test", "wrong-password"),
+                            ("member@fam.test", PASSWORD)):
+        r = c.post("/api/waitlist/join", json={"email": email, "password": password,
+                                               "accept_terms": True})
+        assert r.status_code == 400 and "already registered" in r.text, r.text
+
+
 def test_admin_credentials_pass_the_gate_and_nobody_else_does(world):
     guest = TestClient(appmod.app)
     assert guest.get("/api/admin/waitlist").status_code == 404

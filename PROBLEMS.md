@@ -17252,3 +17252,25 @@ At the owner's direction:
    is alive. A machine that cannot write (`genStatusNote`) still says so.
 
 Tests: `test_the_new_mix_plus_is_circled` now pins the 1px ring.
+
+## 233. An admin with an account can type it into the waitlist to see the page
+
+The owner (09/10): admins need to put their own email into
+familiarize.net/waitlist to see the page a member sees, or there is no way
+to look at it to change it. §216 already sent an admin who *joins* to the
+status page's admin preview, but on production every admin already has an
+account, so the join was refused "That email is already registered".
+
+`/api/waitlist/join` now first asks `_admin_previewing_join`: an email listed
+in `FAM_ADMIN_ACCOUNTS` whose password is right is signed in, exactly as
+`/api/auth/login` signs in (a fresh session, the old one ended), and answered
+`admin: true`, `redirect: /waitlist/me` - so the page opens the profile a new
+member fills in (`?setup=1`, with Skip for now) and then the status page,
+labelled "Admin preview". Nothing is written to the line: no place, no
+invite credit, no Viral Loops. A wrong password, or an existing email that
+is not an admin's, falls through to the sign-up and gets the same refusal as
+before, so the form tells nobody who is an admin. The landing page's "Already
+off the waitlist? Sign in here" already sent an admin to the same preview.
+
+Pinned by `tests/test_waitlist.py::test_an_admin_with_an_account_can_join_to_see_the_page`.
+
