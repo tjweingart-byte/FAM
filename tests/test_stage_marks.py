@@ -146,7 +146,9 @@ def test_the_parts_add_up_to_the_first_audio(stubbed):
     stages = _run(stubbed).marks.stages()
     total = stages.pop("first audio")
     assert sum(stages.values()) == pytest.approx(total, abs=1e-6)
-    assert stages["unaccounted"] < 0.05
+    # The same bound as the summary below (§234): the code between the
+    # spans is not a wait, and a loaded runner gives it 0.06-0.07s.
+    assert stages["unaccounted"] < SHORTEST_STEP
 
 
 def test_the_summary_splits_what_claude_ttft_used_to_swallow(stubbed):

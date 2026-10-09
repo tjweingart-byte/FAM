@@ -192,6 +192,7 @@ SEED: dict[str, dict] = {
         "athletic training": {"injury recovery": {}},
         "team ownership": {"stadium funding": {}, "sports stadiums": {},
                            "player contracts": {}, "sports franchise": {}},
+        "high school sports": {},
     },
     "tech": {
         "artificial intelligence": {"language models": {}, "machine learning": {},
@@ -234,6 +235,7 @@ SEED: dict[str, dict] = {
         "advertising": {},
         "labour market": {"remote work": {}},
         "streaming business": {},
+        "local business": {},
     },
     "culture": {
         "film": {"hollywood": {}, "box office": {}, "awards season": {},
@@ -242,7 +244,10 @@ SEED: dict[str, dict] = {
         "music industry": {"pop music": {}, "live touring": {}, "hip hop": {}},
         "celebrity": {"celebrity comeback": {}},
         "books": {"publishing": {}},
-        "food culture": {"restaurants": {}, "fine dining": {}},
+        # §235: a town's own table, painted as its main street.
+        "food culture": {"restaurants": {}, "fine dining": {},
+                         "food scene": {}, "local restaurants": {}},
+        "local events": {},
         "fashion": {},
         "video games": {},
         "internet trends": {"short video": {}},
@@ -284,10 +289,26 @@ SEED: dict[str, dict] = {
         "energy security": {"oil supply": {}},
         "urban policy": {"urban housing": {}, "public transport": {}},
         "food supply": {},
+        # §235: what one town is talking about - its council, its schools,
+        # what is being built - under the heading it is, never the globe.
+        "local news": {"town council": {}, "local schools": {},
+                       "school board": {}, "local elections": {},
+                       "zoning": {}},
         "international law": {},
         "global development": {},
     },
 }
+
+
+#: The local branch (§235): the nodes a town's question is filed under, one
+#: under each facet a town's news can be about. The writer is offered these
+#: first when the brief names a town (`stories.writer_vocabulary`), and the
+#: scene writer paints them as an ordinary town (`thumbnails.WRITER_SYSTEM`).
+#: Every one is also in `SEED`; a test holds the two together.
+LOCAL_NODES = ("local news", "town council", "local schools",
+               "school board", "local elections", "zoning", "food scene",
+               "local restaurants", "local events", "local business",
+               "high school sports")
 
 
 def rows() -> list[tuple[str, str]]:
