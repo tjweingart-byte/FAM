@@ -17299,6 +17299,12 @@ three times the worst runner seen. A mark in the wrong place is still caught
 by `test_each_stage_is_the_step_it_names`, whose lower bounds are unchanged
 in kind. The file takes about four seconds longer.
 
+**Follow-up (with §235).** `test_the_parts_add_up_to_the_first_audio`, in the
+same file, held the same 0.05s bound on the same leftover ("unaccounted")
+and failed it twice on CI for the §235 branch (0.071s, 0.068s) while passing
+locally at 0.0003s. It now takes the same `SHORTEST_STEP` bound, for the same
+reason.
+
 ## 235. Where the category tree runs out: the writer grows it, meaning fills it, towns get a street
 
 The owner showed two tiles whose pictures did not fit. "Iran's Pressure
