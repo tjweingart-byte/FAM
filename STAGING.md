@@ -216,5 +216,5 @@ separate decisions.
   capped key, never staging's.
 * **How:** `LOAD_TESTING.md` - the shapes (smoke, ramp, spike, soak,
   breakpoint), the budgets a run is judged on, the GitHub "Load test"
-  workflow, and what the first runs found (§235): one process tops out
+  workflow, and what the first runs found (§237): one process tops out
   between 250 and 500 signed-in listeners.

@@ -3,7 +3,7 @@
 The question is "will FAM fail, or get slower, with 1,000 people using it at
 once?". Nobody can answer that by looking. So this is a test that gives a
 yes or a no: `tools/load_test.py` (Locust). It ends every run with **PASS**
-or **FAIL** and an exit code. It is in `PROBLEMS.md` §235, and §221 started
+or **FAIL** and an exit code. It is in `PROBLEMS.md` §237, and §221 started
 it.
 
 Short answer, from the first runs (below): **not yet.** With realistic

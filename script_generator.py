@@ -866,14 +866,14 @@ and none may be supplied from memory. A short episode is the right one here.
 """
 
 
-def stories_vocabulary(text: str) -> list:
+def stories_vocabulary(text: str, town: str = "") -> list:
     """`stories.writer_vocabulary`, imported where it is used: `stories`
     reaches the composer's client, which this module has no need of at
     import time. Never raises."""
     try:
         import stories
 
-        return stories.writer_vocabulary(text)
+        return stories.writer_vocabulary(text, town=town)
     except Exception:  # noqa: BLE001 - a hint, never a reason to fail a script
         return []
 
@@ -1101,8 +1101,11 @@ never spoken.
     # question points at, so the category the writer gives is one the tree
     # can place rather than words `resolve_category` has to guess at. In this
     # user turn, never the cached system prompt: it changes as the tree grows.
+    # A town's question (the brief named a place, §194) is offered the
+    # local branch first (§235).
     vocabulary = stories_vocabulary(
-        " ".join([plan.query, getattr(plan.brief, "subject", "") or ""]))
+        " ".join([plan.query, getattr(plan.brief, "subject", "") or ""]),
+        town=(getattr(plan.brief, "place", "") or "") if plan.brief else "")
     categories = ""
     if vocabulary:
         categories = ("FAM files episodes under names like these. If the "

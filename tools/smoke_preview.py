@@ -1568,7 +1568,7 @@ def main() -> int:
             page.evaluate("openShareModal()")
             page.wait_for_selector("#shareTargets .sh-target", timeout=8000)
             names = page.eval_on_selector_all(".sh-name", "e => e.map(x => x.textContent)")
-            for wanted in ("Facebook", "LinkedIn", "Instagram story", "Snapchat story"):
+            for wanted in ("Facebook", "LinkedIn", "Instagram", "Snapchat"):
                 assert wanted in names, f"{wanted} was not offered: {names}"
             # Sharing inside FAM did not go away to make room for it: one
             # sheet, two halves, because "share this" is one intent.
@@ -1587,6 +1587,25 @@ def main() -> int:
                 "the sheet's in-FAM half was empty and said nothing"
             assert not page.eval_on_selector("#shareNote", "e => e.hidden"), \
                 "the preview link is not public and the sheet did not say so"
+            # Groups, then Friends, then Anywhere else (§236): the Groups
+            # heading is drawn only over groups the listener is in.
+            page.wait_for_timeout(300)
+            labels = page.eval_on_selector_all(
+                "#shareOverlay .gc-label",
+                "e => e.filter(x => x.offsetParent).map(x => x.textContent.trim())")
+            assert "Friends" in labels and "People you follow" not in labels, labels
+            groups = page.eval_on_selector_all("#shareGroups .share-contact", "e => e.length")
+            groups_shown = not page.eval_on_selector("#shareGroupsSection", "e => e.hidden")
+            assert groups_shown == (groups > 0), \
+                f"Groups heading shown={groups_shown} over {groups} groups"
+            # Each section's search filters only what it drew.
+            page.evaluate("toggleShareFind('friends')")
+            page.fill("#shareFindFriends", "zzzz-nobody")
+            visible = page.eval_on_selector_all(
+                "#shareContacts .share-contact", "e => e.filter(x => !x.hidden).length")
+            assert visible == 0, f"{visible} friends survived a search matching nobody"
+            page.evaluate("toggleShareFind('friends')")
+            assert page.eval_on_selector("#shareFindFriends", "e => e.hidden && !e.value")
             page.evaluate("closeShareModal()")
             page.wait_for_timeout(300)
             page.evaluate("openMyFamTab()")

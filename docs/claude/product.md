@@ -477,6 +477,45 @@ length but two minutes. Now:
   stands - a team named like weather still matches the weather in order
   ("Miami heat wave") - and is now a narrower problem.
 
+<!-- rule:category-gaps -->
+**Where the phrases run out** *(PROBLEMS.md §235, at the owner's direction).*
+Two tiles showed what the tree still could not place: "Iran's Pressure
+Campaign in the Strait of Hormuz" wore a generic desert (its node was the
+seeded `iran`, and a scene may not name a country), and "Fair Haven, New
+Jersey's River Road Food Scene" wore WORLD's globe (no phrase matched, so it
+fell to a facet). Four changes, none of which moves the §209 rules above:
+
+* **The writer's category grows the tree.** The audit already held every
+  written episode's `<<CATEGORY:>>` words. `categories.writer_subjects` reads
+  them each sweep, and words the exact reader still cannot place, given on
+  **two or more different questions** (`WRITER_MIN_EPISODES`), are minted
+  like a live story's subject (`SOURCE_WRITER`), under the facet their
+  questions pointed at, then placed by the model with everything else.
+  Short words go (`writer_phrase`: "Strait of Hormuz" is `strait hormuz`,
+  which still matches the words as written). Because the words are stored
+  as written, every older episode that named it is placed from then on.
+* **The nearest node by meaning, beneath the phrases** (`category_near`).
+  Only when no phrase matches: `resolve_category(near=True)` for a written
+  episode's category, and `thumbnails.pick` before it falls to a facet. The
+  local sentence model `taste_vectors` uses; a node's own name, at
+  `NEAR_COSINE` 0.45 (the right node scored 0.47 and up on every example,
+  the best wrong one 0.39). No model is "" - the answer before. Nothing
+  is embedded on a request: an unseen text is queued and placed next read. **The sweep
+  and the audit read exactly** (`near=False`), so the tree grows the words
+  only meaning could place, and the audit still measures the tree.
+* **A local branch** (`category_seed.LOCAL_NODES`): `local news` (town
+  council, local schools, school board, local elections, zoning) under
+  world, `food scene` and `local restaurants` under food culture, local
+  events, local business, high school sports - each under the facet it is
+  about. When the brief names a town (§194) the writer is offered these
+  lines first (`writer_vocabulary(town=)`).
+* **Scenes paint geography, never a name.** The scene writer still names no
+  country, and now paints a place's real terrain, coastline, waterways and
+  architecture ("a narrow strait ... crowded with oil tankers"), and a local
+  subject as an ordinary present-day town - a main street, a town hall, a
+  school - never a globe or the view from space. Pictures already painted
+  keep theirs until regenerated (`tools/thumbnails.py`).
+
 <!-- rule:no-inverted-pyramid -->
 Note this **replaced an earlier rule** that said to open with the answer
 immediately. That was news-writing — the inverted pyramid — and it is the

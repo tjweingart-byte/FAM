@@ -237,5 +237,7 @@ and `limit` = Lines.
 | 17204 | 31 | 231. Typing the address opens the app's sign-in again, not the waitlist |
 | 17235 | 28 | 232. One top-right slot on every tab; a smaller exploreFAM pill; no seconds under the loading steps |
 | 17263 | 21 | 233. An admin with an account can type it into the waitlist to see the page |
-| 17284 | 19 | 234. A timing test that failed on a busy CI runner |
-| 17303 | 61 | 235. A thousand listeners: the load test gets a verdict, the poll, and the shell |
+| 17284 | 24 | 234. A timing test that failed on a busy CI runner |
+| 17308 | 58 | 235. Where the category tree runs out: the writer grows it, meaning fills it, towns get a street |
+| 17366 | 24 | 236. The share sheet: Groups, Friends, and a search beside each |
+| 17390 | 60 | 237. A thousand listeners: the load test gets a verdict, the poll, and the shell |
