@@ -177,6 +177,14 @@ MIN_WORD = 3
 #: most, for the whole deployment.
 SWEEP_INTERVAL = 7200.0
 
+#: How many different episodes a writer's category has to have been given
+#: on, unplaced, before the sweep mints it (§235). Two, at the owner's
+#: direction: one episode is one writer's choice of words, and two
+#: different questions the writer filed under the same words the tree does
+#: not hold is a subject the tree is missing - the writer has read the
+#: research, which three listeners typing a phrase never have.
+WRITER_MIN_EPISODES = 2
+
 #: How long the categorisation audit keeps a row (§209). Long enough to
 #: compare a month of writing before and after a change; it is a log, not
 #: a store anything ranks on.
@@ -212,6 +220,9 @@ SOURCE_MODEL = "model"
 #: are not for: `prune` exempts it. A seeded node is a declared scaffold
 #: rather than an observation that has gone quiet.
 SOURCE_SEED = "seed"
+#: A category the writer named on two or more episodes that the tree could
+#: not place (§235, `writer_subjects`).
+SOURCE_WRITER = "writer"
 
 _WORD = re.compile(r"[a-z0-9]+")
 
@@ -1103,8 +1114,8 @@ def _containment_parent(store: "CategoryStore", phrase: str) -> str:
 
 def promote(store: "CategoryStore", texts: Iterable[tuple[str, str]],
             always: Iterable[str] = (), source: str = SOURCE_SEARCH,
-            now: Optional[float] = None, limit: int = MAX_NEW_PER_SWEEP
-            ) -> list[Node]:
+            now: Optional[float] = None, limit: int = MAX_NEW_PER_SWEEP,
+            written: Iterable[tuple[str, str]] = ()) -> list[Node]:
     """Mint whatever the log now says is a subject. The keyless sweep.
 
     `texts` is `(listener, text)` - searches, shares, saves, typed interests -
@@ -1119,9 +1130,20 @@ def promote(store: "CategoryStore", texts: Iterable[tuple[str, str]],
     `cincinnati bengals` can be put under it. Sorting the other way produces
     a flat list of orphans that the next sweep cannot repair, because
     `mint` deliberately never moves an existing node's parent.
+
+    `written` is `(phrase, facet)` from `writer_subjects` (§235): categories
+    the writer gave on `WRITER_MIN_EPISODES` episodes that the tree could
+    not place. Trusted like `always` - the writer read the research - and
+    minted as `SOURCE_WRITER` under the facet its episodes' questions
+    pointed at, unless containment finds a closer parent.
     """
     now = time.time() if now is None else now
     texts = list(texts)
+    written_facets: dict[str, str] = {}
+    for phrase, facet in written or ():
+        phrase = normalise(phrase)
+        if phrase and not store.get(phrase) and phrase not in written_facets:
+            written_facets[phrase] = facet or ""
     seen = candidates(texts)
 
     # Which facet each phrase's own sightings point at. Collected here rather
@@ -1140,8 +1162,10 @@ def promote(store: "CategoryStore", texts: Iterable[tuple[str, str]],
     eligible = [(p, users) for p, (users, wordings) in seen.items()
                 if len(users) >= MIN_LISTENERS and len(wordings) >= MIN_TEXTS
                 and p not in redundant and not store.get(p)]
+    always_set: set[str] = set()
     for phrase in always:
         phrase = normalise(phrase)
+        always_set.add(phrase)
         if phrase and not store.get(phrase):
             # A story's subject bypasses both thresholds. It has already been
             # judged worth composing a tile about, from four live sources, by
@@ -1149,6 +1173,8 @@ def promote(store: "CategoryStore", texts: Iterable[tuple[str, str]],
             # widely reported - which is a stronger statement than three
             # people typing similar words.
             eligible.append((phrase, seen.get(phrase, (set(), set()))[0]))
+    for phrase in written_facets:
+        eligible.append((phrase, seen.get(phrase, (set(), set()))[0]))
 
     # Shortest first, then the ones the most people said. De-duplicated,
     # because `always` can name something the texts also cleared.
@@ -1165,16 +1191,91 @@ def promote(store: "CategoryStore", texts: Iterable[tuple[str, str]],
         if len(minted) >= limit:
             break
         parent = _containment_parent(store, phrase)
+        if not parent and written_facets.get(phrase):
+            parent = written_facets[phrase]
         if not parent:
             facet_votes = votes.get(phrase, {})
             parent = (max(facet_votes, key=lambda f: facet_votes[f])
                       if facet_votes else "")
-        node = store.mint(phrase, parent_id=parent, source=source,
+        from_writer = phrase in written_facets and phrase not in always_set
+        node = store.mint(phrase, parent_id=parent,
+                          source=SOURCE_WRITER if from_writer else source,
                           listeners=len(users), uses=len(users), at=now,
                           degraded=True)
         if node:
             minted.append(node)
     return minted
+
+
+def writer_phrase(words: str) -> str:
+    """The writer's category words as a phrase the tree can hold, or "".
+
+    Short words and digits go, as `match` skips them inside a run, so
+    "Strait of Hormuz" is `strait hormuz` and still matches the words as
+    written; stopwords at either end go ("the federal reserve"). Longer
+    than `MAX_PHRASE_WORDS` after that is a sentence, not a subject."""
+    stop = _stopwords()
+    kept = [w for w in normalise(words).split()
+            if len(w) >= MIN_WORD and not w.isdigit()]
+    while kept and kept[0] in stop:
+        kept.pop(0)
+    while kept and kept[-1] in stop:
+        kept.pop()
+    if not kept or len(kept) > MAX_PHRASE_WORDS:
+        return ""
+    return " ".join(kept)
+
+
+def writer_subjects(store: "CategoryStore", resolve,
+                    since: float = 0.0,
+                    min_episodes: int = WRITER_MIN_EPISODES
+                    ) -> list[tuple[str, str]]:
+    """Categories the writer named that the tree still cannot place (§235).
+
+    Read from the categorisation audit (§209): every written episode's own
+    `<<CATEGORY:>>` words. A phrase qualifies when the writer gave it on
+    `min_episodes` different questions and `resolve` - the exact reader,
+    `stories.resolve_category(..., near=False)` - still places none of
+    them against the tree as it is now. Returns `(phrase, facet)`, the
+    facet being the one its episodes' questions pointed at most often
+    (`facet_hint`), or "". Never raises; never a model call."""
+    try:
+        rows = store.audit_rows(since=since)
+    except Exception:  # noqa: BLE001 - a source, never a failed sweep
+        log.exception("could not read the categorisation audit")
+        return []
+    queries: dict[str, set[str]] = {}
+    facets: dict[str, dict[str, int]] = {}
+    placed: dict[str, bool] = {}
+    for row in rows:
+        words = (row.get("words") or "").strip()
+        if not words:
+            continue
+        if words not in placed:
+            try:
+                placed[words] = bool(resolve(words))
+            except Exception:  # noqa: BLE001
+                placed[words] = True
+        if placed[words]:
+            continue
+        phrase = writer_phrase(words)
+        if not phrase or phrase in _reserved_slugs():
+            continue
+        queries.setdefault(phrase, set()).add(normalise(row.get("query", "")))
+        facet = facet_hint(row.get("query", "") or "") or (
+            (row.get("keywords") or "").split() or [""])[0]
+        if facet:
+            votes = facets.setdefault(phrase, {})
+            votes[facet] = votes.get(facet, 0) + 1
+    out = []
+    for phrase, asked in sorted(queries.items(),
+                                key=lambda kv: (-len(kv[1]), kv[0])):
+        if len(asked) < min_episodes or store.get(phrase):
+            continue
+        votes = facets.get(phrase, {})
+        facet = max(sorted(votes), key=lambda f: votes[f]) if votes else ""
+        out.append((phrase, facet))
+    return out
 
 
 # --------------------------------------------------------------------------
@@ -1379,8 +1480,8 @@ async def place(store: "CategoryStore", subjects: list[str],
 
 
 async def sweep(store: "CategoryStore", texts: Iterable[tuple[str, str]],
-                always: Iterable[str] = (), now: Optional[float] = None
-                ) -> dict:
+                always: Iterable[str] = (), now: Optional[float] = None,
+                written: Iterable[tuple[str, str]] = ()) -> dict:
     """One full growth cycle: promote, place, prune. Never raises.
 
     Called from the same background task that refreshes the story pool, and
@@ -1411,7 +1512,8 @@ async def sweep(store: "CategoryStore", texts: Iterable[tuple[str, str]],
         # add a rule here should not have to rediscover that the sweep shares
         # a thread with the product.
         minted = await asyncio.to_thread(
-            promote, store, texts, always=always, now=now)
+            promote, store, texts, always=always, now=now,
+            written=list(written or ()))
         placed = await place(store, [n.id for n in minted], now)
         pruned = await asyncio.to_thread(store.prune, now)
     except Exception:

@@ -456,11 +456,15 @@ def isolated_categories(tmp_path, monkeypatch):
 
     monkeypatch.setenv("CATEGORIES_DB",
                        str(tmp_path / "stores" / "categories.db"))
+    import category_near
+
     topics_mod.reset_category_tree()
     categories_mod.reset_sweep()
+    category_near.reset()
     yield
     topics_mod.reset_category_tree()
     categories_mod.reset_sweep()
+    category_near.reset()
 
 
 @pytest.fixture(autouse=True)

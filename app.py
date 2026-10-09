@@ -353,10 +353,18 @@ async def _grow_categories() -> None:
     try:
         since = time.time() - settings.categories_window_days * 86400
         subjects = [s.subject for s in stories_mod.pool().held()]
+        tree = topics_mod.category_tree()
+        # §235: what the writer filed two or more episodes under that the
+        # tree could not place. Re-read by the exact reader only - a near
+        # placement (`near`) is a stand-in until the tree holds the words.
+        written = await asyncio.to_thread(
+            categories_mod.writer_subjects, tree,
+            lambda words: stories_mod.resolve_category(words, near=False))
         result = await categories_mod.sweep(
-            topics_mod.category_tree(),
+            tree,
             EVENTS.subject_texts(since),
             always=subjects,
+            written=written,
         )
         if result.get("minted") or result.get("pruned"):
             log.info("categories: %s", result)
@@ -5769,7 +5777,7 @@ def _categorise_written_tile(tile: dict, words: str) -> None:
     import stories as stories_mod
     import thumbnails
 
-    node = stories_mod.resolve_category(words)
+    node = stories_mod.resolve_category(words, near=True)
     if not node:
         return
     text = " ".join(str(tile.get(k, "")) for k in ("title", "angle", "query"))
@@ -5802,7 +5810,8 @@ def _episode_category(key: str) -> str:
         return ""
     import stories as stories_mod
 
-    return stories_mod.resolve_category(words)
+    # The nearest node by meaning when no phrase matches (§235).
+    return stories_mod.resolve_category(words, near=True)
 
 
 def _heard_key(query: str, minutes: int, episode: str = "") -> str:

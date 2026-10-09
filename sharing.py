@@ -177,9 +177,9 @@ TARGETS: tuple[Target, ...] = (
     # Snapchat's Creative Kit - which takes the picture and the sticker link
     # as data, not as a URL. A web build can only open the card; the iOS app
     # does the hand-off. `needs_image` is what tells a client which it is.
-    Target("instagram_story", "Instagram story", "story", 0, True,
+    Target("instagram_story", "Instagram", "story", 0, True,
            "{title}"),
-    Target("snapchat_story", "Snapchat story", "story", 0, True,
+    Target("snapchat_story", "Snapchat", "story", 0, True,
            "{title}"),
 )
 

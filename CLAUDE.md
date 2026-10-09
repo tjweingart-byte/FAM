@@ -138,8 +138,12 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
 - **One episode, one category** (§209): the writer's `<<CATEGORY:>>` is read
   through `app._episode_category` by tile, player picture, ranking and logged
   tags; events name the heard episode; a written live story ranks under it;
-  the writer sees its branch's names; nodes match as in-order phrases; every
-  write logs each categoriser's view (`categories_report.py --audit`). [one-category]
+  the writer sees its branch's names; nodes match as in-order phrases; each
+  write is audited (`categories_report.py --audit`). [one-category]
+- **Category gaps** (§235): beneath the phrases, the nearest node by meaning
+  (`category_near`); a writer's category unplaced on 2+ episodes is minted;
+  a town's question is offered the local branch; scenes paint geography,
+  not names. [category-gaps]
 - Openings are concrete and open a question - not inverted-pyramid news style. [no-inverted-pyramid]
 
 ## The writing problem  (`product.md`)
@@ -509,9 +513,8 @@ Every change ends the same way, without being asked [ship-loop]:
 3. Reply with a short summary and the preview URL.
 4. If something cannot be automated, give the exact command.
 
-- Previews - the fixture build `dev.sh check` smoke-tests (`fam-artifact.html`)
-  and the live-DB build at the bookmarked URL - are good for layout and flow,
-  useless for writing quality or latency. [preview-fixtures]
+- Previews (the fixture `fam-artifact.html` and the live-DB build) show
+  layout and flow, never writing quality or latency. [preview-fixtures]
 - **The algorithm documents itself**: `tools/algorithm_docs.py` writes the
   PDF, deck and `ALGORITHM.md` in `docs/algorithm/` from the code; a test fails
   when they are stale; `dev.sh check` rebuilds them. Never hand-edit. [algorithm-docs]
@@ -521,9 +524,7 @@ Every change ends the same way, without being asked [ship-loop]:
 
 ## Picking up a session  (`workflow.md`)
 
-- Develop and push on the branch the session assigns (the full text names the
-  older `claude/search-podcast-audio-generator-ed4br1`, now superseded by
-  per-session branches); do not open a PR unless asked. [branch-no-pr]
+- Develop and push on the branch the session assigns; no PR unless asked. [branch-no-pr]
 - Reading order and the reference docs (`docs/`, `MYFAM.md`, `DATABASE.md`,
   `ACCOUNTS.md`, `SHARING.md`, `LIVE_FACTS.md`, ...) are listed in `workflow.md`;
   recent history is in `PROBLEMS_INDEX.md`. [reading-order]
@@ -535,7 +536,7 @@ Every change ends the same way, without being asked [ship-loop]:
   `.github/workflows/ci.yml` by hand. [landing-smoke]
 - CI runs Python 3.12, this container 3.11 - reproduce in 3.12 before blaming the environment. [ci-python]
 - **Check CI on `Main` before starting work** (`mcp__github__actions_list` on `ci.yml`). [ci-green-first]
-- Fonts differ between here and CI; suspect the environment on layout disagreements. [fonts-env]
+- Fonts differ here and in CI; suspect them on layout disagreements. [fonts-env]
 - No API key here: writing quality and latency are unverified. [no-api-key]
 - `tools/shots.py`, `stall_probe.py`, `compare_search.py` exist because claims were wrong without them. [shots-probes]
 - Deleting CSS broke the app twice: use `tools/check_css.py` and `tools/shots.py`. [css-deletion]
@@ -543,5 +544,5 @@ Every change ends the same way, without being asked [ship-loop]:
 - **A setting is settled only where it is copied** - `.env.example` must agree
   with `config.py`; interface literals pinned to their variable. [settings-copied]
 - `PROBLEMS.md` is the engineering log - add to it rather than starting new notes. [problems-log]
-- Tests run with no API key and no speech engine. [tests-no-key]
-- `diagnose_api.py` for connection failures; `compare_models.py` compares models. [diag-tools]
+- Tests run with no API key or speech engine. [tests-no-key]
+- `diagnose_api.py` for connection failures, `compare_models.py` for models. [diag-tools]
