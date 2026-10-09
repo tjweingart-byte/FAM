@@ -237,7 +237,9 @@ and `limit` = Lines.
 | 17204 | 31 | 231. Typing the address opens the app's sign-in again, not the waitlist |
 | 17235 | 28 | 232. One top-right slot on every tab; a smaller exploreFAM pill; no seconds under the loading steps |
 | 17263 | 21 | 233. An admin with an account can type it into the waitlist to see the page |
-| 17284 | 19 | 234. A timing test that failed on a busy CI runner |
-| 17303 | 71 | 237. Kept audio moves to an R2 bucket, packed as Opus, kept a week |
-| 17374 | 11 | 238. Opus at 24 kbps, not 32 |
-| 17385 | 17 | 239. Opus, not MP3, for kept audio |
+| 17284 | 18 | 234. A timing test that failed on a busy CI runner |
+| 17302 | 58 | 235. Where the category tree runs out: the writer grows it, meaning fills it, towns get a street |
+| 17360 | 23 | 236. The share sheet: Groups, Friends, and a search beside each |
+| 17383 | 71 | 237. Kept audio moves to an R2 bucket, packed as Opus, kept a week |
+| 17454 | 11 | 238. Opus at 24 kbps, not 32 |
+| 17465 | 17 | 239. Opus, not MP3, for kept audio |
