@@ -89,7 +89,7 @@ def test_the_card_says_when_its_picture_was_borrowed(client, tree):
 def test_a_borrowed_picture_is_asked_for_again_when_the_title_lands():
     assert "refreshPlayerCard(title);" in _fn("applyEpisodeTitle")
     refresh = _fn("refreshPlayerCard")
-    # Every title landing asks again (§246) - but never over the picture of
+    # Every title landing asks again (§247) - but never over the picture of
     # the tile that opened the player - and a borrowed picture is still
     # replaced by any answer.
     assert "PLAYER_CARD.fromTile) return;" in refresh

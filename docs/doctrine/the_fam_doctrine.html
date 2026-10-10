@@ -1,0 +1,302 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>The FAM Doctrine</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,700;12..96,800&family=Geist:wght@400;500;600&family=Geist+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --night: #1E1B27;
+    --night-2: #282434;
+    --gold: #E9BC62;
+    --gold-soft: #F3D9A4;
+    --paper: #FBF8F2;
+    --ink: #1E1B27;
+    --body: #4A4656;
+    --muted: #8A8597;
+    --rule: #E8E1D3;
+  }
+  @page { size: 8.5in 11in; margin: 0; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: var(--paper); }
+  body { font-family: "Geist", system-ui, sans-serif; color: var(--body); -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .page { width: 8.5in; height: 11in; position: relative; overflow: hidden; page-break-after: always; }
+  .page:last-child { page-break-after: auto; }
+  .mono { font-family: "Geist Mono", ui-monospace, monospace; letter-spacing: .18em; text-transform: uppercase; font-size: 8.5pt; }
+  h1, h2, h3 { font-family: "Bricolage Grotesque", sans-serif; color: var(--ink); }
+
+  /* ---------- Cover ---------- */
+  .cover { background: var(--night); color: #CFCAD8; padding: .85in .8in .7in; display: flex; flex-direction: column; }
+  .cover::before {
+    content: ""; position: absolute; inset: 0;
+    background:
+      radial-gradient(60% 45% at 85% 8%, rgba(233,188,98,.20), transparent 70%),
+      radial-gradient(50% 40% at 0% 100%, rgba(233,188,98,.10), transparent 70%);
+  }
+  .cover > * { position: relative; }
+  .cover-top { display: flex; justify-content: space-between; align-items: center; }
+  .cover-top .mono { color: var(--gold); }
+  .wordmark { width: 1.25in; height: auto; display: block; }
+  .mark-bg { position: absolute; right: -1.2in; top: 2.0in; width: 6.2in; opacity: .07; }
+  .cover h1 { color: #fff; font-size: 54pt; line-height: .98; font-weight: 800; letter-spacing: -.025em; margin-top: 1.55in; max-width: 6.2in; }
+  .cover h1 em { font-style: normal; color: var(--gold); }
+  .cover .lede { font-size: 14.5pt; line-height: 1.5; color: #CFCAD8; max-width: 5.9in; margin-top: .38in; }
+  .cover .lede b { color: #fff; font-weight: 500; }
+
+  .compound { margin-top: auto; }
+  .compound .mono { color: var(--muted); margin-bottom: .2in; display: block; }
+  .chips { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: .14in; }
+  .chip { border: 1px solid rgba(233,188,98,.28); background: rgba(255,255,255,.03); border-radius: 14px; padding: .2in .2in .22in; }
+  .chip .n { font-family: "Bricolage Grotesque"; font-weight: 700; color: var(--gold); font-size: 20pt; line-height: 1; }
+  .chip .t { color: #fff; font-family: "Bricolage Grotesque"; font-weight: 600; font-size: 12pt; line-height: 1.22; margin-top: .14in; }
+  .equals { display: flex; align-items: center; gap: .16in; margin-top: .18in; }
+  .equals .line { flex: 1; height: 1px; background: linear-gradient(90deg, rgba(233,188,98,0), rgba(233,188,98,.6)); }
+  .equals .line.r { background: linear-gradient(90deg, rgba(233,188,98,.6), rgba(233,188,98,0)); }
+  .equals span { color: var(--gold); font-family: "Bricolage Grotesque"; font-weight: 600; font-size: 12pt; white-space: nowrap; }
+
+  /* ---------- Body page ---------- */
+  .inner { padding: .62in .8in 0; }
+  .runner { display: flex; justify-content: space-between; align-items: center; padding-bottom: .16in; border-bottom: 1px solid var(--rule); }
+  .runner .mono { color: var(--muted); font-size: 7.5pt; }
+  .runner svg { width: .26in; height: .26in; }
+
+  .problem { display: grid; grid-template-columns: .9in 1fr; gap: .18in; padding: .27in 0 .25in; border-bottom: 1px solid var(--rule); }
+  .problem:last-of-type { border-bottom: 0; }
+  .num { font-family: "Bricolage Grotesque"; font-weight: 800; font-size: 40pt; line-height: .9; color: var(--gold); letter-spacing: -.03em; }
+  .icon { width: .42in; height: .42in; margin-top: .14in; border-radius: 10px; background: var(--night); display: grid; place-items: center; }
+  .icon svg { width: .24in; height: .24in; }
+  .problem .kicker { color: #B98A2E; margin-bottom: .06in; font-size: 7.5pt; }
+  .problem h2 { font-size: 18pt; line-height: 1.12; font-weight: 700; letter-spacing: -.012em; margin-bottom: .11in; }
+  .problem p { font-size: 10pt; line-height: 1.55; margin-bottom: .075in; }
+  .problem p:last-child { margin-bottom: 0; }
+  .problem p strong { color: var(--ink); font-weight: 600; }
+  .pull { border-left: 3px solid var(--gold); background: #F5EEDF; border-radius: 0 10px 10px 0; padding: .1in .16in; margin: .1in 0 .1in; }
+  .pull p { font-family: "Bricolage Grotesque"; font-size: 12pt !important; line-height: 1.35 !important; color: var(--ink); font-weight: 600; margin: 0 !important; }
+  .moments { display: flex; flex-wrap: wrap; gap: .06in; margin: .04in 0 .1in; }
+  .moments span { font-size: 8.5pt; font-weight: 500; color: var(--ink); background: #fff; border: 1px solid var(--rule); border-radius: 999px; padding: .03in .11in; }
+
+  .close { position: absolute; left: 0; right: 0; bottom: 0; height: 5.1in; background: var(--night); color: #CFCAD8; padding: .7in .8in; display: flex; flex-direction: column; justify-content: flex-end; }
+  .close::before { content: ""; position: absolute; inset: 0; background: radial-gradient(60% 70% at 100% 0%, rgba(233,188,98,.18), transparent 70%), radial-gradient(50% 60% at 0% 100%, rgba(233,188,98,.08), transparent 70%); }
+  .close > * { position: relative; }
+  .close .mark-bg { position: absolute; right: -.9in; top: -.6in; width: 4.6in; opacity: .07; }
+  .close .mono { color: var(--gold); margin-bottom: .3in; }
+  .close .wordmark { width: 2.1in; margin-bottom: .38in; }
+  .close p { font-family: "Bricolage Grotesque"; font-size: 21pt; line-height: 1.3; font-weight: 500; letter-spacing: -.01em; color: #CFCAD8; max-width: 6.6in; }
+  .close p b { color: var(--gold); font-weight: 700; }
+  .close p .w { color: #fff; }
+  .close { overflow: hidden; }
+  .problem { padding: .42in 0 .4in; }
+  .problem h2 { font-size: 21pt; text-wrap: balance; margin-bottom: .16in; }
+  .problem p { font-size: 11pt; line-height: 1.6; margin-bottom: .1in; }
+  .pull { margin: .16in 0; padding: .14in .2in; }
+  .pull p { font-size: 13pt !important; }
+  .moments { margin: .08in 0 .14in; }
+  .moments span { font-size: 9pt; padding: .04in .13in; }
+  .cover h1 { text-wrap: balance; }
+  .problem p { text-wrap: pretty; }
+
+  .cover .lede .iso { color: var(--gold); font-weight: 600; }
+  .result { margin-top: .1in; background: #fff; border: 1px solid var(--rule); border-radius: 16px; padding: .32in .36in .3in; }
+  .result .kicker { color: #B98A2E; font-size: 7.5pt; margin-bottom: .06in; }
+  .result h2 { font-size: 26pt; font-weight: 800; letter-spacing: -.02em; line-height: 1; margin-bottom: .2in; }
+  .result-grid { display: grid; grid-template-columns: 1fr 2.55in; gap: .3in; align-items: center; }
+  .result p { font-size: 10.5pt; line-height: 1.6; margin-bottom: .09in; text-wrap: pretty; }
+  .result p.lead-in { font-family: "Bricolage Grotesque"; font-weight: 600; font-size: 12.5pt; line-height: 1.35; color: var(--ink); }
+  .venn svg { width: 100%; height: auto; display: block; }
+  .venn .vl { font-family: "Bricolage Grotesque"; font-weight: 600; font-size: 13.5px; fill: #1E1B27; }
+  .venn .vc { font-family: "Geist"; font-weight: 600; font-size: 12px; fill: #8a6620; }
+  .punch { margin-top: .2in; padding-top: .18in; border-top: 1px solid var(--rule); font-family: "Bricolage Grotesque"; font-weight: 700; font-size: 15pt; color: var(--ink); letter-spacing: -.01em; }
+  .punch em { font-style: normal; color: #B98A2E; }
+
+  .answer { background: var(--night); color: #CFCAD8; padding: .85in .8in .9in; display: flex; flex-direction: column; }
+  .answer::before { content: ""; position: absolute; inset: 0; background: radial-gradient(60% 45% at 100% 0%, rgba(233,188,98,.20), transparent 70%), radial-gradient(55% 45% at 0% 100%, rgba(233,188,98,.12), transparent 70%); }
+  .answer > * { position: relative; }
+  .answer .cover-top .mono { color: var(--gold); }
+  .answer .mark-bg { position: absolute; right: -1.6in; top: 1.2in; width: 6.4in; opacity: .06; }
+  .answer-body { margin-top: auto; }
+  .answer .wordmark.big { width: 3.4in; margin-bottom: .55in; }
+  .answer p { font-family: "Bricolage Grotesque"; font-size: 27pt; line-height: 1.25; font-weight: 500; letter-spacing: -.015em; color: #CFCAD8; max-width: 6.8in; text-wrap: pretty; }
+  .answer p b { color: var(--gold); font-weight: 700; }
+  .answer p .w { color: #fff; }
+  .p3 .problem { padding: .3in 0 .26in; }
+  .p3 .problem p { font-size: 10.5pt; margin-bottom: .07in; }
+  .p3 .pull { margin: .1in 0; }
+  .p3 .result { padding: .24in .32in .22in; }
+  .p3 .result h2 { font-size: 23pt; margin-bottom: .13in; }
+  .p3 .result-grid { grid-template-columns: 1fr 2.25in; gap: .26in; }
+  .p3 .result p { font-size: 10pt; line-height: 1.52; margin-bottom: .06in; }
+  .p3 .result p.lead-in { font-size: 12pt; }
+  .p3 .punch { margin-top: .12in; padding-top: .13in; font-size: 14pt; }
+  .category { margin-top: .75in; }
+  .category .tag { color: var(--gold); display: inline-block; border: 1px solid rgba(233,188,98,.4); border-radius: 999px; padding: .05in .14in; font-size: 7.5pt; }
+  .category h2 { color: #fff; font-size: 56pt; font-weight: 800; letter-spacing: -.03em; line-height: 1; margin-top: .22in; }
+  .category h2 em { font-style: normal; color: var(--gold); }
+  .category .cure { font-family: "Bricolage Grotesque"; font-size: 17pt; font-weight: 500; color: #fff; margin-top: .14in; }
+  .category p { font-size: 11.5pt; line-height: 1.6; color: #CFCAD8; max-width: 6.1in; margin-top: .16in; text-wrap: pretty; }
+  .category p.big { font-family: "Bricolage Grotesque"; font-size: 15pt; line-height: 1.35; color: #CFCAD8; margin-top: .34in; padding-top: .26in; border-top: 1px solid rgba(233,188,98,.25); }
+  .category p.big b { color: var(--gold); font-weight: 700; }
+  .answer-body { border-top: 1px solid rgba(233,188,98,.25); padding-top: .4in; }
+  .fam-line { display: flex; align-items: flex-end; gap: .2in; margin-bottom: .3in; }
+  .fam-line .mono { color: var(--gold); padding-bottom: .05in; }
+  .answer .wordmark.big { width: 1.9in; margin-bottom: 0; }
+  .answer .answer-body p { font-size: 19pt; }
+  .p3 .result { padding: .34in .4in .32in; margin-top: .2in; }
+  .p3 .result h2 { font-size: 30pt; margin-bottom: .2in; }
+  .p3 .result p { font-size: 11pt; line-height: 1.62; margin-bottom: .11in; }
+  .p3 .result p.lead-in { font-size: 14pt; margin-bottom: .14in; }
+  .p3 .punch { margin-top: .2in; padding-top: .2in; font-size: 16pt; }
+  .answer .mark-bg { top: 3.4in; right: -1.9in; }
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <symbol id="chev" viewBox="0 0 24 24">
+      <g fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M5 11.5l7-7 7 7"/><path d="M5 18.5l7-7 7 7"/>
+      </g>
+    </symbol>
+    <symbol id="wm" viewBox="0 0 104 40">
+      <g fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M6 34V12a5 5 0 0 1 5-5h15"/><path d="M6 20.5h16"/>
+        <path d="M40 19l10-10 10 10"/><path d="M40 33l10-10 10 10"/>
+        <path d="M74 34V7l12 13 12-13v27"/>
+      </g>
+    </symbol>
+  </defs>
+</svg>
+
+<!-- ===================== PAGE 1 — COVER ===================== -->
+<section class="page cover">
+  <svg class="mark-bg" style="color:var(--gold)"><use href="#chev"/></svg>
+
+  <div class="cover-top">
+    <svg class="wordmark" viewBox="0 0 104 40" style="color:var(--gold)"><use href="#wm"/></svg>
+    <span class="mono">The FAM Doctrine</span>
+  </div>
+
+  <h1>The problem with how information <em>reaches us</em></h1>
+
+  <p class="lede">Three problems compound into one: <span class="iso">information isolation.</span> <b>The information you receive isn’t built around you</b>, <b>most of it is built for your eyes, not your ears</b>, and <b>the interests of the people around you are largely invisible.</b></p>
+
+  <div class="compound">
+    <span class="mono">Three problems</span>
+    <div class="chips">
+      <div class="chip"><div class="n">01</div><div class="t">What you know is shaped by what you’re shown</div></div>
+      <div class="chip"><div class="n">02</div><div class="t">The audio problem you don’t realize you have</div></div>
+      <div class="chip"><div class="n">03</div><div class="t">The interests of the people around you are invisible</div></div>
+    </div>
+    <div class="equals"><div class="line"></div><span>compound into one: information isolation</span><div class="line r"></div></div>
+  </div>
+</section>
+
+<!-- ===================== PAGE 2 — THE THREE PROBLEMS ===================== -->
+<section class="page">
+  <div class="inner">
+    <div class="runner">
+      <span class="mono">The FAM Doctrine</span>
+      <span class="mono">The problem with how information reaches us</span>
+    </div>
+
+    <article class="problem">
+      <div>
+        <div class="num">01</div>
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="#E9BC62" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></div>
+      </div>
+      <div>
+        <div class="mono kicker">Problem one</div>
+        <h2>What you know is shaped by what you’re shown.</h2>
+        <p>Every person has a different set of things you care about and are curious about. The industries, teams, places, hobbies, questions, and stories that matter specifically to you.</p>
+        <p>But the information you receive every day isn’t built around you.</p>
+        <p>News tells everyone what’s important. Social media feeds decide what to put in front of you. Search and AI chatbots wait for you to already know what you’re looking for. Algorithms optimize for what will keep you watching.</p>
+        <div class="pull"><p>You don’t have an information world that belongs to you — shaped by your interests, evolving with your curiosity, and filled with the things you actually care about.</p></div>
+        <p>Right now, you live inside everyone else’s information systems. <strong>You don’t have your own.</strong></p>
+      </div>
+    </article>
+
+    <article class="problem">
+      <div>
+        <div class="num">02</div>
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="#E9BC62" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 14v-2a9 9 0 0 1 18 0v2"/><rect x="3" y="14" width="4" height="6" rx="1.5"/><rect x="17" y="14" width="4" height="6" rx="1.5"/></svg></div>
+      </div>
+      <div>
+        <div class="mono kicker">Problem two</div>
+        <h2>The audio problem you don’t realize you have.</h2>
+        <p>There are hours every day when you could be learning about the things you care about — but today’s information systems are designed for your eyes.</p>
+        <div class="moments"><span>Driving</span><span>Walking</span><span>Working out</span><span>Getting ready</span><span>Cooking</span><span>Commuting</span></div>
+        <p>During those moments, your ears are available, but <strong>the information you want isn’t designed to reach you that way.</strong></p>
+        <p>So you either stop what you’re doing and look at a screen, or you simply don’t learn it. We’ve built an information world that competes for your eyes while leaving your ears largely unused.</p>
+      </div>
+    </article>
+
+  </div>
+</section>
+
+<!-- ===================== PAGE 3 — PROBLEM 03 + ISOLATION ===================== -->
+<section class="page p3">
+  <div class="inner">
+    <div class="runner">
+      <span class="mono">The FAM Doctrine</span>
+      <span class="mono">The problem with how information reaches us</span>
+    </div>
+
+    <article class="problem">
+      <div>
+        <div class="num">03</div>
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="#E9BC62" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.6" stroke-dasharray="2 2.2"/><path d="M17 14c2.5.3 4 2.6 4 5" stroke-dasharray="2 2.2"/></svg></div>
+      </div>
+      <div>
+        <div class="mono kicker">Problem three</div>
+        <h2>The interests of the people around you are invisible.</h2>
+        <p>What are your friends actually interested in right now? What are they learning about? What rabbit holes have they gone down?</p>
+        <p>Most of the time, you don’t know. <strong>You might discover it</strong> because it comes up in conversation, they send you something, or they post about it.</p>
+        <p>Otherwise, the interests and knowledge of the people around you are mostly invisible to you.</p>
+        <div class="pull"><p>That means you’re constantly missing things you probably would have wanted to know about too.</p></div>
+        <p>Two friends can follow each other, hang out every day, and still be shown completely different worlds by two different algorithms. <strong>They share the same lunch table, but not the same information.</strong></p>
+      </div>
+    </article>
+
+  <div class="result">
+    <div class="mono kicker">The result</div>
+    <h2>Information isolation.</h2>
+    <div class="result-body">
+      <div>
+        <p class="lead-in">Put the three problems together and you get information isolation.</p>
+        <p>Everyone lives inside their own bubble, and it holds even inside the same friend group. Two people can hang out every day and see the world completely differently, because two different algorithms decided what each of them would see.</p>
+        <p>They don’t just disagree. They don’t know what the other one knows. And there’s no easy way to bring what each of them has learned into the time they spend together.</p>
+      </div>
+    </div>
+    <div class="punch">Social media connects people. <em>It doesn’t connect what they know.</em></div>
+  </div>
+  </div>
+</section>
+
+<!-- ===================== PAGE 4 — THE ANSWER ===================== -->
+<section class="page answer">
+  <svg class="mark-bg" style="color:var(--gold)"><use href="#chev"/></svg>
+  <div class="cover-top">
+    <span class="mono">The answer</span>
+    <span class="mono">The FAM Doctrine</span>
+  </div>
+
+  <div class="category">
+    <span class="mono tag">A new category</span>
+    <h2>Social <em>information.</em></h2>
+    <p class="cure">The cure for information isolation.</p>
+    <p class="big">Social media connects people. <b>Social information connects what they know.</b></p>
+    <p>Having access to information and actually knowing something are two different things. Social information isn’t about consuming more. It takes the things you care about and the things your friends are learning, makes them easy to understand and remember, and brings them back into the real world: the lunch table, the group chat, the car ride.</p>
+  </div>
+
+  <div class="answer-body">
+    <div class="fam-line">
+      <svg class="wordmark big" viewBox="0 0 104 40" style="color:var(--gold)"><use href="#wm"/></svg>
+      <span class="mono">is social information</span>
+    </div>
+    <p><span class="w"><b>FAM</b> puts everything you care about in one place,</span> turns it into short audio stories you actually understand, and shows you what your friends are learning, <b>so you are never left out of the conversation.</b></p>
+  </div>
+</section>
+
+</body>
+</html>

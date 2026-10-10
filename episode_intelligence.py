@@ -489,7 +489,8 @@ def _respelled(a: str, b: str) -> bool:
     letter: short words are a letter apart from too many others for
     nearness to mean anything.
     """
-    if max(len(a), len(b)) < RESPELL_MIN_LETTERS or a[:1] != b[:1] and a[-1:] != b[-1:]:
+    if (max(len(a), len(b)) < RESPELL_MIN_LETTERS
+            or (a[:1] != b[:1] and a[-1:] != b[-1:])):
         return False
     return difflib.SequenceMatcher(None, a, b).ratio() >= RESPELL_RATIO
 

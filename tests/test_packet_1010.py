@@ -206,7 +206,7 @@ def test_only_fams_own_thumbnails_are_kept():
         "/api/thumb/boxing?v=1728000000"
     assert feedback.thumb_path("/api/thumb/combat%20sports") == "/api/thumb/combat%20sports"
     for bad in ("https://evil.example/x.png", "/api/thumb/../admin",
-                "javascript:alert(1)", "/api/thumb/x\" onerror=\"y", ""):
+                "javascript:alert(1)", "/api/thumb/..", "/api/thumb/.?v=1", "/api/thumb/x\" onerror=\"y", ""):
         assert feedback.thumb_path(bad) == "", bad
     snap = feedback.episode_snapshot("q", 2, "t", {}, [], thumb="/api/thumb/boxing")
     assert snap["thumb"] == "/api/thumb/boxing"

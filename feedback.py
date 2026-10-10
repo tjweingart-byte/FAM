@@ -65,7 +65,8 @@ MAX_EPISODE_SOURCES = 30
 #: The only pictures a report keeps: FAM's own thumbnail route
 #: (`thumbnails.url_for`), never an address from anywhere else - the inbox
 #: draws it, and an admin page must not load what a report names.
-THUMB_PATH = re.compile(r"^/api/thumb/[A-Za-z0-9%._~-]{1,200}(?:\?v=\d{1,12})?$")
+THUMB_PATH = re.compile(
+    r"^/api/thumb/(?!\.{1,2}(?:\?|$))[A-Za-z0-9%._~-]{1,200}(?:\?v=\d{1,12})?$")
 
 
 def thumb_path(url: str) -> str:

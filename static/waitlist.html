@@ -139,82 +139,63 @@
   .ab-intro .ab-h{ max-width:820px; margin:0 auto; }
   .ab-intro .ab-lede{ margin-left:auto; margin-right:auto; }
 
-  .ab-compare{ display:grid; grid-template-columns:1fr; gap:14px; margin-top:44px; }
-  .cmp{ border-radius:20px; padding:26px 24px; }
-  .cmp ul{ list-style:none; margin:0; padding:0; }
-  .cmp li{ position:relative; padding:11px 0 11px 34px; font-size:16.5px; line-height:1.4; border-top:1px solid var(--line); }
-  .cmp li:first-child{ border-top:0; }
-  .cmp li::before{ content:""; position:absolute; left:2px; top:13px; width:20px; height:20px; border-radius:50%;
-    background:center/12px no-repeat; }
-  .cmp-head{ font-size:15px; margin-bottom:10px; }
-  .cmp-old{ background:transparent; border:1px solid var(--line); }
-  .cmp-old .cmp-head{ color:var(--faint); }
-  .cmp-old li{ color:var(--muted); text-decoration:line-through; text-decoration-color:rgba(226,105,79,0.6); }
-  .cmp-old li::before{ background-color:rgba(226,105,79,0.14);
-    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23E2694F' stroke-width='3' stroke-linecap='round'%3E%3Cpath d='M6 6l12 12M18 6L6 18'/%3E%3C/svg%3E"); }
-  .cmp-new{ background:linear-gradient(160deg, #3A3150 0%, #2B2638 100%); border:1px solid rgba(240,195,94,0.35); }
-  .cmp-new .cmp-head{ color:var(--gold); }
-  .cmp-new li{ color:var(--text); border-top-color:rgba(240,195,94,0.15); }
-  .cmp-new li::before{ background-color:var(--gold);
-    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%231E1B27' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7'/%3E%3C/svg%3E"); }
-
-  /* ---------- the story: what passes by, the work, the morning after ---------- */
+  /* ---------- the story: the doctrine's three problems, the result, the cure ---------- */
   .tagline{ color:var(--gold); font-size:clamp(12px, 3.4vw, 15px); letter-spacing:0.14em; white-space:nowrap;
     text-align:center; margin:-30px 0 40px; }
   .ab-problem{ margin-top:110px; }
+  .ab-problem .ab-sub{ margin-left:auto; margin-right:auto; max-width:700px; }
+  .ab-problem .ab-sub b{ color:var(--gold); font-weight:600; }
   .ab-problem .car{ margin-top:36px; }
-  .ab-problem .prob-pass{ margin-top:36px; }
-  .ab-why{ margin-top:110px; }
-  .ab-why .ab-big.center{ margin-top:0; font-size:clamp(30px, 5vw, 44px); }
   .ab-h-sm{ font-size:clamp(28px, 4.6vw, 40px); }
-  .ab-big{ font-family:'Bricolage Grotesque', sans-serif; font-size:clamp(22px, 3.2vw, 28px); line-height:1.25;
-    color:#F6F0E4; margin:0 0 12px; text-wrap:balance; }
-  .ab-big.center{ text-align:center; margin:56px auto 0; }
 
-  /* What passes by: all four at once, two by two, fixed under the heading. */
-  .pass{ display:grid; grid-template-columns:1fr; gap:14px; list-style:none; margin:0 auto; padding:0; max-width:860px; }
-  .pass-card{ display:flex; align-items:center; gap:16px; padding:22px 22px;
-    border-radius:18px; background:var(--card); border:1px solid var(--line); color:#E6E0EE;
-    font-size:clamp(17px, 2.2vw, 20px); line-height:1.35; }
-  .pass-ic{ flex:none; width:46px; height:46px; border-radius:13px; display:flex; align-items:center;
+  /* The doctrine's three problems, one a slide: a number, the problem, its words. */
+  .prob{ max-width:760px; margin:0 auto; }
+  .prob-num{ font-family:'Bricolage Grotesque', sans-serif; font-weight:700; font-size:clamp(44px, 7vw, 64px);
+    line-height:0.9; color:var(--gold); letter-spacing:-0.03em; }
+  .prob-h{ font-family:'Bricolage Grotesque', sans-serif; font-weight:500; font-size:clamp(26px, 4.2vw, 38px);
+    line-height:1.12; color:#F6F0E4; margin:14px 0 18px; text-wrap:balance; }
+  .prob p{ font-size:clamp(16px, 2vw, 18px); line-height:1.6; color:#D9D2E4; margin:0 0 12px; text-wrap:pretty; }
+  .prob p b{ color:var(--text); font-weight:600; }
+  .prob .prob-pull{ font-family:'Bricolage Grotesque', sans-serif; font-size:clamp(19px, 2.6vw, 23px); line-height:1.35;
+    color:#F6F0E4; border-left:3px solid var(--gold); background:rgba(240,195,94,0.08);
+    border-radius:0 14px 14px 0; padding:16px 20px; margin:20px 0; }
+  .systems{ list-style:none; margin:18px 0 6px; padding:0; display:grid; grid-template-columns:1fr; gap:10px; }
+  .systems li{ display:flex; align-items:center; gap:14px; padding:14px 16px; border-radius:16px;
+    background:var(--card); border:1px solid var(--line); color:#D9D2E4; font-size:16px; line-height:1.4; }
+  .systems li b{ color:var(--text); font-weight:600; }
+  .sys-ic{ flex:none; width:40px; height:40px; border-radius:12px; display:flex; align-items:center;
     justify-content:center; background:rgba(240,195,94,0.12); color:var(--gold); }
-  .pass-ic svg{ width:24px; height:24px; }
+  .sys-ic svg{ width:21px; height:21px; }
+  .moments{ list-style:none; margin:6px 0 18px; padding:0; display:flex; flex-wrap:wrap; gap:8px; }
+  .moments li{ border:1px solid rgba(240,195,94,0.35); background:rgba(240,195,94,0.06); color:var(--text);
+    border-radius:999px; padding:7px 14px; font-size:15px; }
 
-  .turn{ margin:0 auto; max-width:860px; text-align:center; }
-  .turn-b{ font-family:'Bricolage Grotesque', sans-serif; font-size:clamp(30px, 5vw, 48px); line-height:1.1; color:#F6F0E4; margin:0; text-wrap:balance; }
+  /* The result: information isolation, on a card of its own. */
+  .ab-isolation{ margin-top:110px; }
+  .iso-card{ max-width:860px; margin:0 auto; padding:clamp(26px, 5vw, 48px); border-radius:26px;
+    background:var(--card); border:1px solid var(--line); }
+  .iso-card .ab-h{ margin-bottom:18px; }
+  .iso-card p{ font-size:clamp(16px, 2vw, 18px); line-height:1.6; color:#D9D2E4; margin:0 0 12px; max-width:700px; text-wrap:pretty; }
+  .iso-card .iso-lead{ font-family:'Bricolage Grotesque', sans-serif; font-size:clamp(20px, 2.8vw, 25px); line-height:1.3; color:#F6F0E4; }
+  .iso-card .iso-punch{ font-family:'Bricolage Grotesque', sans-serif; font-size:clamp(21px, 3vw, 28px); line-height:1.25;
+    color:#F6F0E4; margin:26px 0 0; padding-top:22px; border-top:1px solid var(--line); max-width:none; text-wrap:balance; }
+  .iso-punch span{ color:var(--gold); }
 
-  /* Everything you would have to get through, into FAM, out as one short
-     episode. One picture, left to right (top to bottom on a phone). */
-  .condense{ margin:44px auto 0; max-width:1000px; display:grid; grid-template-columns:1fr; justify-items:center;
-    gap:14px; text-align:left; }
-  .cd-in{ list-style:none; padding:0; margin:0; display:grid; gap:8px; width:100%; max-width:340px; }
-  .cd-in li{ display:flex; align-items:center; gap:12px; padding:11px 14px; border-radius:14px;
-    background:var(--card); border:1px solid var(--line); color:#D9D2E4; font-size:15px; }
-  .cd-ic{ flex:none; width:30px; height:30px; border-radius:9px; display:flex; align-items:center; justify-content:center;
-    background:var(--card-2); color:var(--muted); }
-  .cd-ic svg{ width:17px; height:17px; }
-  .cd-name{ flex:1; min-width:0; }
-  .cd-time{ font-size:13px; color:var(--faint); font-variant-numeric:tabular-nums; }
-  .cd-arrow{ color:var(--gold); transform:rotate(90deg); }
-  .cd-arrow svg{ width:28px; height:28px; display:block; }
-  .cd-fam{ width:104px; height:104px; border-radius:50%; display:flex; align-items:center; justify-content:center;
-    font-size:26px; color:var(--gold); background:var(--card); border:1.5px solid rgba(240,195,94,0.55);
-    box-shadow:0 0 0 10px rgba(240,195,94,0.06), 0 20px 40px rgba(0,0,0,0.35); }
-  .cd-out{ display:flex; align-items:center; gap:16px; width:100%; max-width:340px; padding:18px; border-radius:20px;
-    background:linear-gradient(160deg, #3A3150 0%, #2B2638 100%); border:1px solid rgba(240,195,94,0.45);
-    box-shadow:0 24px 50px rgba(0,0,0,0.35); }
-  .cd-play{ flex:none; width:52px; height:52px; border-radius:50%; background:var(--gold); color:var(--gold-ink);
-    display:flex; align-items:center; justify-content:center; }
-  .cd-play svg{ width:20px; height:20px; margin-left:3px; }
-  .cd-ep{ flex:1; min-width:0; }
-  .cd-ep b{ display:block; font-family:'Bricolage Grotesque', sans-serif; font-weight:400; font-size:20px; color:#F6F0E4; }
-  .cd-ep span{ display:block; font-size:13px; color:var(--gold); margin-top:3px; }
-  .cd-wave{ display:flex; align-items:center; gap:2px; height:26px; margin-top:10px; }
-  .cd-wave i{ flex:1; border-radius:2px; background:var(--gold); opacity:0.85; }
-  .condense figcaption{ grid-column:1 / -1; margin-bottom:10px; text-align:center; font-size:19px; color:#D9D2E4; }
-
-  .resign{ margin:30px auto 0; max-width:720px; text-align:center; font-size:clamp(18px, 2.4vw, 21px); line-height:1.55; color:var(--muted); }
-  .resign span{ color:var(--text); }
+  /* The cure: social information, the category FAM is in. */
+  .ab-cure{ margin-top:110px; text-align:center; }
+  .cure-tag{ display:inline-block; border:1px solid rgba(240,195,94,0.45); border-radius:999px; padding:6px 14px; font-size:13px; }
+  .cure-h{ font-family:'Bricolage Grotesque', sans-serif; font-weight:700; font-size:clamp(46px, 10vw, 96px); line-height:0.95;
+    letter-spacing:-0.03em; color:#FFFFFF; margin:8px 0 0; }
+  .cure-h span{ color:var(--gold); }
+  .cure-sub{ font-family:'Bricolage Grotesque', sans-serif; font-size:clamp(20px, 3vw, 28px); color:#F6F0E4; margin:16px 0 0; }
+  .cure-big{ font-family:'Bricolage Grotesque', sans-serif; font-size:clamp(20px, 2.8vw, 26px); line-height:1.3; color:#D9D2E4;
+    max-width:760px; margin:40px auto 0; padding-top:30px; border-top:1px solid rgba(240,195,94,0.25); text-wrap:balance; }
+  .cure-big b{ color:var(--gold); font-weight:600; }
+  .cure-body{ font-size:clamp(16px, 2vw, 18px); line-height:1.6; color:var(--muted); max-width:680px; margin:18px auto 0; text-wrap:pretty; }
+  .cure-fam{ display:flex; align-items:flex-end; justify-content:center; gap:14px; margin-top:40px; color:var(--gold); }
+  .cure-fam svg{ width:7.2em; height:2.5em; overflow:visible; font-size:18px; }
+  .cure-fam .label{ font-size:14px; padding-bottom:4px; }
+  .ab-morning{ margin-top:110px; }
 
   /* A conversation at work, drawn twice: on the outside, then in it. */
   .convo{ position:relative; background:var(--card); border:1px solid var(--line); border-radius:24px; padding:20px 18px 18px;
@@ -250,25 +231,6 @@
   .ba-label.on{ color:var(--gold); }
   .ba-out{ margin:30px auto 0; max-width:720px; text-align:center; font-size:clamp(18px, 2.4vw, 21px); line-height:1.55; color:var(--muted); }
   .ba-out b{ color:var(--gold); font-weight:500; }
-
-  .ab-origin{ text-align:center; }
-  .ab-origin .ab-h, .ab-origin .ab-lede{ margin-left:auto; margin-right:auto; }
-  .ab-origin .ab-h{ max-width:860px; }
-
-  /* The pipeline a story used to need, against one step. */
-  .pipeline{ display:grid; grid-template-columns:1fr; gap:14px; align-items:center; margin:52px auto 0; max-width:960px; text-align:left; }
-  .pipe-old, .pipe-new{ border-radius:20px; padding:22px; }
-  .pipe-old{ border:1px solid var(--line); }
-  .pipe-old .label, .pipe-new .label{ font-size:13px; margin-bottom:14px; }
-  .pipe-old .label{ color:var(--faint); }
-  .pipe-old ol{ list-style:none; padding:0; margin:0; display:flex; flex-wrap:wrap; gap:8px; counter-reset:step; }
-  .pipe-old li{ counter-increment:step; border:1px solid var(--line); border-radius:10px; padding:8px 12px; font-size:14px; color:var(--muted); }
-  .pipe-old li::before{ content:counter(step); color:var(--faint); margin-right:8px; font-variant-numeric:tabular-nums; }
-  .pipe-arrow{ justify-self:center; color:var(--gold); transform:rotate(90deg); }
-  .pipe-arrow svg{ width:28px; height:28px; }
-  .pipe-new{ background:linear-gradient(160deg, #3A3150 0%, #2B2638 100%); border:1px solid rgba(240,195,94,0.35); }
-  .pipe-new .label{ color:var(--gold); }
-  .pipe-new p{ margin:0; font-family:'Bricolage Grotesque', sans-serif; font-size:clamp(22px, 3vw, 28px); line-height:1.2; color:#F6F0E4; }
 
 
   .ab-how{ margin-top:110px; }
@@ -413,17 +375,8 @@
     .ba{ grid-template-columns:1fr 1fr; }
   }
   @media (min-width:820px){
-    .condense{ grid-template-columns:minmax(0, 1.1fr) auto auto auto minmax(0, 1.1fr); align-items:center; gap:22px; }
-    .cd-arrow{ transform:none; }
-      .pipeline{ grid-template-columns:1.4fr auto 1fr; }
-    .pipe-arrow{ transform:none; }
-    .ab-compare{ grid-template-columns:1fr 1fr; gap:18px; }
-    .pass{ grid-template-columns:1fr 1fr; gap:18px; }
     .feat{ grid-template-columns:1.05fr 1fr; gap:64px; padding:40px 0 10px; }
-    .pass-card{ flex-direction:column; align-items:flex-start; justify-content:space-between; min-height:210px;
-      padding:28px; font-size:23px; }
-    .pass-ic{ width:56px; height:56px; border-radius:15px; }
-    .pass-ic svg{ width:28px; height:28px; }
+    .systems{ grid-template-columns:1fr 1fr; }
     .fr-cards{ grid-template-columns:repeat(3, 1fr); gap:18px; }
     .ab-founders{ grid-template-columns:1fr 1.1fr; gap:64px; }
   }
@@ -648,8 +601,9 @@
     <section class="ab-wrap ab-intro reveal">
       <div class="ab-kicker label">What is FAM</div>
       <h2 class="ab-h">SOCIAL INFORMATION</h2>
-      <p class="ab-lede">FAM turns the things you care about into <b>personalized audio
-        stories</b>. Less time trying to keep up. More time being part of the conversation.</p>
+      <p class="ab-lede">FAM puts everything you care about in one place, turns it into
+        <b>short audio stories</b> you actually understand, and shows you what your friends are
+        learning, so you are never left out of the conversation.</p>
       <div class="ab-fan">
         <figure class="shot fan-l"><img src="/landing/dailyfam.jpg" alt="The DailyFAM page" width="780" height="1688"></figure>
         <figure class="shot fan-c"><img src="/landing/search.jpg" alt="Searching on FAM" width="780" height="1688"></figure>
@@ -658,125 +612,130 @@
     </section>
 
 
-    <!-- The problem, told the way the owner tells it (PROBLEMS.md §199, §200,
-         §212, the 10.7 packet): one heading with what passes you by under it,
-         fixed, then three turns - what keeping up would take, the
-         conversation you miss, why someone else decides. -->
+    <!-- The problem, told as the FAM Doctrine tells it (PROBLEMS.md §246,
+         docs/doctrine/): three problems that compound into one, information
+         isolation, and its cure, social information. The three problems
+         take turns in the carousel; the result and the cure stand on their
+         own under it. The doctrine's words, not a paraphrase of them. -->
     <section class="ab-wrap ab-problem reveal">
       <header class="ab-center">
         <div class="ab-kicker label">The problem</div>
-        <h2 class="ab-h">Being in the know shouldn’t be a full-time job.</h2>
+        <h2 class="ab-h">The problem with how information reaches us</h2>
+        <p class="ab-sub">Three problems compound into one: <b>information isolation.</b>
+          The information you receive isn’t built around you, most of it is built for your
+          eyes, not your ears, and the interests of the people around you are largely invisible.</p>
       </header>
-      <!-- What passes you by sits under the heading and stays put (10.7
-           packet); the carousel below turns the other three. -->
-      <div class="prob-pass">
-        <ul class="pass" aria-label="What passes you by"><li class="pass-card"><span class="pass-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18v12H3z"/><path d="M12 6v12M3 12h4M17 12h4"/><circle cx="12" cy="12" r="2.4"/></svg></span>A game you didn’t watch</li><li class="pass-card"><span class="pass-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v10H9l-5 4z"/><path d="M8 9h8M8 12h5"/></svg></span>A story everyone at work is suddenly talking about</li><li class="pass-card"><span class="pass-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20h18"/><path d="M5 16l4-5 4 3 6-8"/><path d="M15 6h4v4"/></svg></span>Something happening in an industry you care about</li><li class="pass-card"><span class="pass-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3v8a2 2 0 0 0 2 2v8M5 3v5M9 3v5"/><path d="M17 21V3c-2 1.5-3 4-3 7s1 3 3 3"/></svg></span>A topic your friend brings up at dinner that you wish you knew more about</li></ul>
-      </div>
       <div class="car" data-carousel role="region" aria-roledescription="carousel" aria-label="The problem">
         <div class="car-slides">
-          <div class="car-slide prob-time" role="group" aria-roledescription="slide" aria-label="1 of 3: It takes time">
-            <div class="turn">
-              <p class="turn-b">Keeping up with all the information out there takes time.</p>
-            </div>
-
-            <p class="resign">No one has time to follow everything they care about, so most
-              people accept that <span>they will miss things.</span></p>
-
-            <figure class="condense" aria-label="Everything you would have to get through, condensed by FAM into one short episode">
-              <figcaption>FAM takes all that information and condenses it into one short episode.</figcaption>
-              <ul class="cd-in"><li><span class="cd-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg></span><span class="cd-name">Search results</span></li><li><span class="cd-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h9l3 3v15H6z"/><path d="M9 9h6M9 13h6M9 17h4"/></svg></span><span class="cd-name">Articles</span></li><li><span class="cd-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="6" rx="1.5"/><rect x="4" y="11" width="16" height="6" rx="1.5"/><path d="M4 21h16"/></svg></span><span class="cd-name">Feeds</span></li><li><span class="cd-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14v-2a8 8 0 0 1 16 0v2"/><path d="M4 14h3v6H5a1 1 0 0 1-1-1zM20 14h-3v6h2a1 1 0 0 0 1-1z"/></svg></span><span class="cd-name">An hour-long podcast</span><span class="cd-time">60 min</span></li><li><span class="cd-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M10 9.5v5l4.5-2.5z"/></svg></span><span class="cd-name">A twenty-minute video</span><span class="cd-time">20 min</span></li></ul>
-              <div class="cd-arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>
-              <div class="cd-fam" aria-hidden="true"><svg viewBox="0 0 48.7 16.9" style="width:2.88em;height:1em;overflow:visible"><use href="#wm"/></svg></div>
-              <div class="cd-arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>
-              <div class="cd-out">
-                <span class="cd-play"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></span>
-                <div class="cd-ep">
-                  <b>The story you asked for</b>
-                  <span>One episode · 2 min</span>
-                  <div class="cd-wave" aria-hidden="true"><i style="height:47%"></i><i style="height:47%"></i><i style="height:71%"></i><i style="height:32%"></i><i style="height:61%"></i><i style="height:33%"></i><i style="height:77%"></i><i style="height:65%"></i><i style="height:80%"></i><i style="height:56%"></i><i style="height:68%"></i><i style="height:59%"></i><i style="height:53%"></i><i style="height:64%"></i><i style="height:46%"></i><i style="height:58%"></i><i style="height:72%"></i><i style="height:63%"></i><i style="height:57%"></i><i style="height:91%"></i><i style="height:63%"></i><i style="height:55%"></i><i style="height:65%"></i><i style="height:56%"></i><i style="height:57%"></i><i style="height:58%"></i><i style="height:89%"></i><i style="height:63%"></i></div>
-                </div>
-              </div>
-            </figure>
+          <div class="car-slide prob prob-shown" role="group" aria-roledescription="slide" aria-label="1 of 3: What you’re shown">
+            <div class="prob-num">01</div>
+            <h3 class="prob-h">What you know is shaped by what you’re shown.</h3>
+            <p>Every person has a different set of things you care about and are curious about.
+              The industries, teams, places, hobbies, questions, and stories that matter specifically to you.</p>
+            <p>But the information you receive every day isn’t built around you.</p>
+            <ul class="systems" aria-label="Everyone else’s information systems">
+              <li><span class="sys-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h12v16H7a2 2 0 0 1-2-2z"/><path d="M17 8h2v10a2 2 0 0 1-2 2"/><path d="M8 8h6M8 12h6M8 16h4"/></svg></span><span><b>News</b> tells everyone what’s important.</span></li>
+              <li><span class="sys-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="6" rx="1.5"/><rect x="4" y="11" width="16" height="6" rx="1.5"/><path d="M4 21h16"/></svg></span><span><b>Social media feeds</b> decide what to put in front of you.</span></li>
+              <li><span class="sys-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg></span><span><b>Search and AI chatbots</b> wait for you to already know what you’re looking for.</span></li>
+              <li><span class="sys-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20h18"/><path d="M5 16l4-5 4 3 6-8"/><path d="M15 6h4v4"/></svg></span><span><b>Algorithms</b> optimize for what will keep you watching.</span></li>
+            </ul>
+            <p class="prob-pull">You don’t have an information world that belongs to you — shaped by your
+              interests, evolving with your curiosity, and filled with the things you actually care about.</p>
+            <p>Right now, you live inside everyone else’s information systems. <b>You don’t have your own.</b></p>
           </div>
-          <div class="car-slide ab-morning" role="group" aria-roledescription="slide" aria-label="2 of 3: The conversation">
-            <div class="ab-copy ab-center">
-              <div class="ab-kicker label">Stay in the loop</div>
-              <h2 class="ab-h ab-h-sm">Don’t be left out of the conversation</h2>
-            </div>
-            <!-- The same conversation twice, side by side: only your line differs. -->
-            <div class="ba">
-              <figure class="ba-col">
-                <figcaption class="ba-label off">Without FAM</figcaption>
-                <div class="convo">
-                    <div class="convo-head"><span class="label">#team</span><span>Monday, 9:04 AM</span></div>
-                    <div class="msg"><span class="who" style="background:#8FAE9A">JR</span><p><b>Jordan</b>I can’t believe what came out about that NFL head coach.</p></div>
-                    <div class="msg"><span class="who" style="background:#F2D2B6">MB</span><p><b>Maya</b>I know, they kept that affair quiet for a long time.</p></div>
-                    <div class="msg"><span class="who" style="background:#C9B6F0">SP</span><p><b>Sam</b>I can’t believe they got caught on that hotel rooftop!</p></div>
-                    <div class="msg me lost"><p><b>You</b>Wait… what happened?</p><span class="who">You</span></div>
-                  </div>
-              </figure>
-              <figure class="ba-col">
-                <figcaption class="ba-label on">With FAM</figcaption>
-                <div class="convo">
-                    <div class="convo-head"><span class="label">#team</span><span>Monday, 9:04 AM</span></div>
-                    <div class="msg"><span class="who" style="background:#8FAE9A">JR</span><p><b>Jordan</b>I can’t believe what came out about that NFL head coach.</p></div>
-                    <div class="msg"><span class="who" style="background:#F2D2B6">MB</span><p><b>Maya</b>I know, they kept that affair quiet for a long time.</p></div>
-                    <div class="msg"><span class="who" style="background:#C9B6F0">SP</span><p><b>Sam</b>I can’t believe they got caught on that hotel rooftop!</p></div>
-                    <div class="msg me in"><p><b>You</b>I remember the rumors from a while ago, but I can’t believe they turned out to be true.</p><span class="who">You</span></div>
-                    <div class="convo-note on"><span class="fam-dot"></span>Caught up on FAM this morning · 2 min</div>
-                  </div>
-              </figure>
-            </div>
-            <p class="ba-out">Two minutes in the morning and <b>you’re in it</b>: you know the story,
-              you can contribute, and you have one more thing to connect with someone over.</p>
+          <div class="car-slide prob prob-audio" role="group" aria-roledescription="slide" aria-label="2 of 3: The audio problem">
+            <div class="prob-num">02</div>
+            <h3 class="prob-h">The audio problem you don’t realize you have.</h3>
+            <p>There are hours every day when you could be learning about the things you care
+              about — but today’s information systems are designed for your eyes.</p>
+            <ul class="moments" aria-label="When your ears are free"><li>Driving</li><li>Walking</li><li>Working out</li><li>Getting ready</li><li>Cooking</li><li>Commuting</li></ul>
+            <p>During those moments, your ears are available, but <b>the information you want
+              isn’t designed to reach you that way.</b></p>
+            <p>So you either stop what you’re doing and look at a screen, or you simply don’t
+              learn it. We’ve built an information world that competes for your eyes while
+              leaving your ears largely unused.</p>
           </div>
-          <div class="car-slide ab-origin" role="group" aria-roledescription="slide" aria-label="3 of 3: Why we built FAM">
-            <div class="ab-kicker label">Why we built FAM</div>
-            <h2 class="ab-h">Why should someone else decide which stories you hear?</h2>
-            <p class="ab-lede">FAM began inside a podcast company, where a handful of people decided
-              which stories became episodes and ultimately <b>controlled what listeners heard</b>.<br>
-              That raised a question: why should you wait for someone else
-              to make an episode about the things you care about?</p>
-            <div class="pipeline">
-              <div class="pipe-old">
-                <div class="label">For most of the history of media, someone had to</div>
-                <ol><li>Research it</li><li>Write it</li><li>Record it</li><li>Edit it</li><li>Publish it</li></ol>
-              </div>
-              <div class="pipe-arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>
-              <div class="pipe-new">
-                <div class="label">Now the technology exists to collapse all of that</div>
-                <p>You ask. FAM tells you the story.</p>
-              </div>
-            </div>
+          <div class="car-slide prob prob-friends" role="group" aria-roledescription="slide" aria-label="3 of 3: The people around you">
+            <div class="prob-num">03</div>
+            <h3 class="prob-h">The interests of the people around you are invisible.</h3>
+            <p>What are your friends actually interested in right now? What are they learning
+              about? What rabbit holes have they gone down?</p>
+            <p>Most of the time, you don’t know. <b>You might discover it</b> because it comes up
+              in conversation, they send you something, or they post about it.</p>
+            <p>Otherwise, the interests and knowledge of the people around you are mostly invisible to you.</p>
+            <p class="prob-pull">That means you’re constantly missing things you probably would have
+              wanted to know about too.</p>
+            <p>Two friends can follow each other, hang out every day, and still be shown completely
+              different worlds by two different algorithms. <b>They share the same lunch table, but
+              not the same information.</b></p>
           </div>
         </div>
         <button type="button" class="car-arrow car-prev" aria-label="Previous"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg></button>
         <button type="button" class="car-arrow car-next" aria-label="Next"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
-        <div class="car-dots"><button type="button" data-i="0" aria-label="Show It takes time" aria-current="true"></button><button type="button" data-i="1" aria-label="Show The conversation"></button><button type="button" data-i="2" aria-label="Show Why we built FAM"></button></div>
+        <div class="car-dots"><button type="button" data-i="0" aria-label="Show What you’re shown" aria-current="true"></button><button type="button" data-i="1" aria-label="Show The audio problem"></button><button type="button" data-i="2" aria-label="Show The people around you"></button></div>
       </div>
     </section>
 
-    <!-- What FAM changes, on its own. -->
-    <section class="ab-wrap ab-why reveal">
-      <p class="ab-big center">That’s why we built FAM.</p>
-      <div class="ab-compare" aria-label="Why FAM">
-        <div class="cmp cmp-old">
-          <div class="cmp-head label">No more</div>
-          <ul>
-            <li>Searching, then reading through articles</li>
-            <li>An hour-long podcast for the ten minutes you care about</li>
-            <li>Accepting that you’re going to miss things</li>
-          </ul>
-        </div>
-        <div class="cmp cmp-new">
-          <div class="cmp-head label">FAM gives you</div>
-          <ul>
-            <li>The things you care about, told as a story</li>
-            <li>Episodes that fit the time you have</li>
-            <li>Enough to join the conversation</li>
-          </ul>
-        </div>
+    <!-- The result: what the three problems add up to. -->
+    <section class="ab-wrap ab-isolation reveal">
+      <div class="iso-card">
+        <div class="ab-kicker label">The result</div>
+        <h2 class="ab-h">Information isolation.</h2>
+        <p class="iso-lead">Put the three problems together and you get information isolation.</p>
+        <p>Everyone lives inside their own bubble, and it holds even inside the same friend group.
+          Two people can hang out every day and see the world completely differently, because two
+          different algorithms decided what each of them would see.</p>
+        <p>They don’t just disagree. They don’t know what the other one knows. And there’s no easy
+          way to bring what each of them has learned into the time they spend together.</p>
+        <p class="iso-punch">Social media connects people. <span>It doesn’t connect what they know.</span></p>
       </div>
+    </section>
+
+    <!-- The cure: the category FAM is in. -->
+    <section class="ab-wrap ab-cure reveal">
+      <div class="ab-kicker label cure-tag">A new category</div>
+      <h2 class="cure-h">Social <span>information.</span></h2>
+      <p class="cure-sub">The cure for information isolation.</p>
+      <p class="cure-big">Social media connects people. <b>Social information connects what they know.</b></p>
+      <p class="cure-body">Having access to information and actually knowing something are two different
+        things. Social information isn’t about consuming more. It takes the things you care about and
+        the things your friends are learning, makes them easy to understand and remember, and brings
+        them back into the real world: the lunch table, the group chat, the car ride.</p>
+      <div class="cure-fam"><svg viewBox="0 0 48.7 16.9" aria-label="FAM" role="img"><use href="#wm"/></svg><span class="label">is social information</span></div>
+    </section>
+
+    <!-- Never left out of the conversation: the same chat twice, side by
+         side; only your line differs. -->
+    <section class="ab-wrap ab-morning reveal">
+      <div class="ab-copy ab-center">
+        <div class="ab-kicker label">Stay in the loop</div>
+        <h2 class="ab-h ab-h-sm">Don’t be left out of the conversation</h2>
+      </div>
+      <div class="ba">
+        <figure class="ba-col">
+          <figcaption class="ba-label off">Without FAM</figcaption>
+          <div class="convo">
+              <div class="convo-head"><span class="label">#team</span><span>Monday, 9:04 AM</span></div>
+              <div class="msg"><span class="who" style="background:#8FAE9A">JR</span><p><b>Jordan</b>I can’t believe what came out about that NFL head coach.</p></div>
+              <div class="msg"><span class="who" style="background:#F2D2B6">MB</span><p><b>Maya</b>I know, they kept that affair quiet for a long time.</p></div>
+              <div class="msg"><span class="who" style="background:#C9B6F0">SP</span><p><b>Sam</b>I can’t believe they got caught on that hotel rooftop!</p></div>
+              <div class="msg me lost"><p><b>You</b>Wait… what happened?</p><span class="who">You</span></div>
+            </div>
+        </figure>
+        <figure class="ba-col">
+          <figcaption class="ba-label on">With FAM</figcaption>
+          <div class="convo">
+              <div class="convo-head"><span class="label">#team</span><span>Monday, 9:04 AM</span></div>
+              <div class="msg"><span class="who" style="background:#8FAE9A">JR</span><p><b>Jordan</b>I can’t believe what came out about that NFL head coach.</p></div>
+              <div class="msg"><span class="who" style="background:#F2D2B6">MB</span><p><b>Maya</b>I know, they kept that affair quiet for a long time.</p></div>
+              <div class="msg"><span class="who" style="background:#C9B6F0">SP</span><p><b>Sam</b>I can’t believe they got caught on that hotel rooftop!</p></div>
+              <div class="msg me in"><p><b>You</b>I remember the rumors from a while ago, but I can’t believe they turned out to be true.</p><span class="who">You</span></div>
+              <div class="convo-note on"><span class="fam-dot"></span>Caught up on FAM this morning · 2 min</div>
+            </div>
+        </figure>
+      </div>
+      <p class="ba-out">Two minutes in the morning and <b>you’re in it</b>: you know the story,
+        you can contribute, and you have one more thing to connect with someone over.</p>
     </section>
 
     <section class="ab-wrap ab-how">

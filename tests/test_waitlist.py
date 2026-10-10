@@ -839,45 +839,47 @@ def test_the_landing_page_tells_why_fam_exists():
     assert foot.index('class="wordmark"') < foot.index("The social information network")
     # The copyright is the last line on the page.
     assert foot.index("The social information network") < foot.index("&copy; 2026 APALI. All rights reserved.") < foot.index("</footer>")
-    order = ["Being in the know shouldn’t be a full-time job.", "Keeping up with all the information out there takes time",
-             "left out of the conversation",
-             "stories you hear?", "Search. Scroll. Mix.",
+    # The FAM Doctrine (PROBLEMS.md §246, docs/doctrine/), in its order:
+    # the problem, its three parts, what they add up to, the cure, the chat.
+    order = ["The problem with how information reaches us",
+             "What you know is shaped by what you’re shown.",
+             "The audio problem you don’t realize you have.",
+             "The interests of the people around you are invisible.",
+             "Information isolation.", "Social information connects what they know.",
+             "Don’t be left out of the conversation", "Search. Scroll. Mix.",
              "actually being part of the conversation"]
     at = [landing.index(text) for text in order]
     assert at == sorted(at), "the story is told out of order"
-    # The problem and what passes you by (all four at once) stay put at the
-    # top, outside the carousel (the 10.7 packet); three slides take turns
-    # under them: the time it takes, the conversation, and why someone else
-    # decides.
+    # The intro is the doctrine's last sentence.
+    intro = landing.split('class="ab-wrap ab-intro', 1)[1].split("</section>", 1)[0]
+    assert "FAM puts everything you care about in one place" in intro
+    assert "so you are never left out of the conversation." in intro
+    # The heading and the one problem stay put; the three take turns under it.
     problem = landing.split('class="ab-wrap ab-problem', 1)[1].split("</section>", 1)[0]
-    assert (problem.index("Being in the know shouldn’t be a full-time job.")
-            < problem.index('class="prob-pass"') < problem.index("data-carousel"))
-    carousel = problem.split("data-carousel", 1)[1]
-    assert 'class="pass-card"' not in carousel
-    slides = re.findall(r'<div class="car-slide ([\w-]+)"', problem)
-    assert slides == ["prob-time", "ab-morning", "ab-origin"]
-    assert carousel.count('<button type="button" data-i=') == 3
-    assert problem.count('class="pass-card"') == 4
-    assert "animation:drift" not in page and "pass-track" not in page
-    # "That's why we built FAM" stands on its own, over what FAM changes.
-    why = landing.split('class="ab-wrap ab-why', 1)[1].split("</section>", 1)[0]
-    assert why.index("That’s why we built FAM.") < why.index('class="ab-compare"')
-    assert "That’s why we built FAM." not in problem
-    # Everything you would have to get through goes into FAM and comes out
-    # as one short episode - the owner's numbers on the way in, FAM's two out.
-    assert "Keeping up with all the information out there takes time." in problem
-    condense = problem.split('class="condense"', 1)[1].split("</figure>", 1)[0]
-    assert condense.count("<li>") == 5
-    assert ">60 min<" in condense and ">20 min<" in condense
-    assert "One episode · 2 min" in condense
-    assert condense.index('class="cd-in"') < condense.index('class="cd-fam"') < condense.index('class="cd-out"')
-    # The sentence that says what the picture shows comes before it.
-    assert condense.index("<figcaption>FAM takes all that information") < condense.index('class="cd-in"')
+    assert (problem.index("Three problems compound into one: <b>information isolation.</b>")
+            < problem.index("data-carousel"))
+    slides = re.findall(r'<div class="car-slide prob ([\w-]+)"', problem)
+    assert slides == ["prob-shown", "prob-audio", "prob-friends"]
+    assert [problem.index(f">0{n}<") for n in (1, 2, 3)] == sorted(problem.index(f">0{n}<") for n in (1, 2, 3))
+    # Four systems that decide for you; six moments your ears are free.
+    assert problem.count('<li><span class="sys-ic">') == 4
+    assert problem.split('class="moments"', 1)[1].split("</ul>", 1)[0].count("<li>") == 6
+    assert "They share the same lunch table, but\n              not the same information." in problem
+    # What they add up to, then the cure, each on its own.
+    iso = landing.split('class="ab-wrap ab-isolation', 1)[1].split("</section>", 1)[0]
+    assert iso.index("Information isolation.") < iso.index("It doesn’t connect what they know.")
+    cure = landing.split('class="ab-wrap ab-cure', 1)[1].split("</section>", 1)[0]
+    assert "The cure for information isolation." in cure
+    assert cure.index("A new category") < cure.index("Social <span>information.</span>")
+    # The old telling is gone: the doctrine replaced it, it did not join it.
+    for gone in ("full-time job", 'class="condense"', 'class="pass-card"', "ab-why", "ab-origin",
+                 "Venn", "That’s why we built FAM."):
+        assert gone not in page, gone
 
 
 def test_the_morning_after_says_it_before_it_shows_it():
     page = (ROOT / "static" / "waitlist.html").read_text(encoding="utf-8")
-    morning = page.split('class="car-slide ab-morning"', 1)[1].split('class="car-slide ab-origin"', 1)[0]
+    morning = page.split('class="ab-wrap ab-morning', 1)[1].split("</section>", 1)[0]
     # The point first, then the chat; and in the chat you plainly can't join in.
     assert morning.index("Don’t be left out of the conversation") < morning.index('class="convo"')
     assert '<div class="msg me lost"><p><b>You</b>Wait… what happened?</p>' in morning
