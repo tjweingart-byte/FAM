@@ -10,6 +10,22 @@
 ## Constraints that are settled — do not undo without discussing
 
 <!-- rule:no-audio-files -->
+> **Current (PROBLEMS.md §242, at the owner's direction):** a client that can
+> decode Opus asks for it (`/api/audio?fmt=opus`) and receives "fam-opus v1":
+> length-prefixed Opus packets as they are encoded, then an end marker with
+> the episode's true length (`audio_codec.py` has the format; `fam-audio.js`
+> decodes it with WebCodecs). A kept Opus episode is **passed through as
+> stored** - no decode, no re-encode, no second generation of loss - and
+> anything else is encoded at the edge 20 ms at a time, so first audio is not
+> delayed. About a sixteenth of PCM's bytes. It is still a stream, decoded as
+> it arrives, and nothing is written - which is what this rule protects (§1,
+> §239). `fmt=pcm` is unchanged and remains what every installed client and
+> every client that cannot decode Opus gets; a rate Opus cannot carry, a
+> server without PyAV, or `AUDIO_STREAM_OPUS=0` answers a request for Opus
+> with PCM and without `X-FAM-Audio-Format: opus`, and the player follows the
+> header. This supersedes "the client still receives raw PCM and nothing
+> else" below; the iOS app reads the same format (`IOS_APP.md`).
+>
 > **Current (PROBLEMS.md §237, at the owner's direction):** kept audio is
 > packed as **Opus at 24 kbps** (32 until the owner chose 24) (`audio_codec.py`; `AUDIO_CODEC=zlib`
 > restores §132's packing) and decoded back to the same PCM, a slice at a

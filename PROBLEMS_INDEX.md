@@ -244,4 +244,5 @@ and `limit` = Lines.
 | 17460 | 11 | 238. Opus at 24 kbps, not 32 |
 | 17471 | 18 | 239. Opus, not MP3, for kept audio |
 | 17489 | 61 | 240. A thousand listeners: the load test gets a verdict, the poll, and the shell |
-| 17550 | 65 | 241. Where the core went: the middleware, myFAM's probes, the limiter, the shell and scrypt |
+| 17550 | 66 | 241. Where the core went: the middleware, myFAM's probes, the limiter, the shell and scrypt |
+| 17616 | 64 | 242. Opus to the app |

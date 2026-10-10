@@ -88,6 +88,9 @@ jobs:
           # nothing else does - which passes every unit test while being
           # broken on the page. So the buttons are pressed here too.
           python tools/smoke_landing.py
+          # Opus to the browser (§242): one episode through FamAudio against a
+          # real zero-spend server, compared sample for sample with PCM.
+          python tools/smoke_opus.py
 
       - name: Keep the preview build
         uses: actions/upload-artifact@v4

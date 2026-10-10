@@ -8,9 +8,11 @@ above 12 kHz, which 24 kbps already carries; the owner chose 24 over 32. That di
 affordable to keep audio in object storage at all.
 
 **Nothing changes for the listener or the player.** Opus is how audio is
-*stored*; it is decoded back to the same 16-bit PCM before it is streamed, so
-every installed client, the captions' `starts` and the transport see exactly
-what they saw before. Decoding is about 200x realtime and is done a slice at a
+*stored*; it is decoded back to the same 16-bit PCM before it is streamed to
+a client that asked for PCM, so every installed client, the captions'
+`starts` and the transport see exactly what they saw before. A client that
+asks for Opus (§242, at the bottom of this file) gets the stored packets
+themselves. Decoding is about 200x realtime and is done a slice at a
 time as the episode plays, so the first word waits for one Opus page and not
 for the whole episode.
 
@@ -30,6 +32,7 @@ from __future__ import annotations
 
 import io
 import logging
+import struct
 import zlib
 from typing import Iterator, Optional
 
@@ -183,3 +186,162 @@ def ratio(codec: str, blob: Optional[bytes], frames: int) -> float:
     """Packed size over raw size, for logs."""
     raw = int(frames) * SAMPLE_BYTES
     return round(len(blob or b"") / raw, 3) if raw else 0.0
+
+
+# ------------------------------------------------------- Opus to the client
+#
+# §242, at the owner's direction: a client that can decode Opus asks for it
+# (`/api/audio?fmt=opus`) and receives about a sixteenth of the bytes raw PCM
+# costs. It is still a stream - decoded as it arrives, nothing written - which
+# is what `no-audio-files` protects (§1, §239). Every other client is served
+# PCM exactly as before.
+#
+# The wire format, "fam-opus v1", is deliberately the smallest thing a web
+# page (WebCodecs), an iPhone (AudioConverter) and a test can all read:
+#
+#   repeated:  u16 big-endian length N > 0, then N bytes of one Opus packet
+#   last:      u16 0, then u32 big-endian - the episode's length in samples
+#              at `X-Sample-Rate`, after the pre-skip is dropped
+#
+# with `X-FAM-Audio-Format: opus` and `X-FAM-Opus-Preskip` (the encoder's
+# start-up delay in 48 kHz samples, as an Ogg OpusHead states it). A client
+# drops the pre-skip, then trims to the end marker's length, and holds exactly
+# the samples PCM would have carried - so captions' `starts`, seek and the
+# offline shelf see what they always saw. A stream cut short has no marker,
+# which a client treats as the end of what arrived.
+
+#: The end-of-stream marker's first two bytes: a packet of length zero.
+END_MARKER = b"\x00\x00"
+
+#: Packets per framed chunk when a kept episode is passed through: 50 x 20 ms,
+#: the same one-second cadence `slices` streams PCM at.
+PACKETS_PER_CHUNK = 50
+
+
+class Framed(bytes):
+    """Opus bytes already in the wire format, with how much PCM they stand
+    for (`pcm_bytes`) - which is what the server's pre-roll and its
+    accounting count, so priming one second still means one second."""
+
+    pcm_bytes: int = 0
+
+    def __new__(cls, data: bytes, pcm_bytes: int = 0):
+        obj = super().__new__(cls, data)
+        obj.pcm_bytes = int(pcm_bytes)
+        return obj
+
+
+def pcm_len(chunk: bytes) -> int:
+    """The PCM a chunk stands for: its length, or a `Framed` chunk's own."""
+    return getattr(chunk, "pcm_bytes", len(chunk))
+
+
+def frame(packet: bytes) -> bytes:
+    return struct.pack(">H", len(packet)) + packet
+
+
+def end_marker(samples: int) -> bytes:
+    return END_MARKER + struct.pack(">I", max(0, int(samples)))
+
+
+def can_stream(sample_rate: int) -> bool:
+    """Whether a stream at this rate can go out as Opus here."""
+    return (bool(settings.audio_stream_opus) and av is not None
+            and int(sample_rate) in OPUS_RATES)
+
+
+def _preskip(extradata: Optional[bytes]) -> int:
+    """Pre-skip from an OpusHead, in 48 kHz samples; 0 when there is none."""
+    if extradata and extradata[:8] == b"OpusHead" and len(extradata) >= 12:
+        return struct.unpack("<H", extradata[10:12])[0]
+    return 0
+
+
+def stored_packets(blob: bytes, frames: int, sample_rate: int,
+                   ) -> tuple[int, Iterator[Framed]]:
+    """A kept Opus episode as the wire format, without decoding a sample.
+
+    (pre-skip, chunks): the packets exactly as they were stored, so a replay
+    costs neither the CPU of decoding and re-encoding nor a second generation
+    of loss. Ends with the marker, carrying the original length (`frames`).
+    """
+    container = av.open(io.BytesIO(blob), mode="r", format="ogg")
+    stream = container.streams.audio[0]
+    preskip = _preskip(stream.codec_context.extradata)
+    per_packet = max(1, int(sample_rate) // 50) * SAMPLE_BYTES
+
+    def chunks() -> Iterator[Framed]:
+        try:
+            batch, count = bytearray(), 0
+            for packet in container.demux(stream):
+                if not packet.size:
+                    continue
+                batch += frame(bytes(packet))
+                count += 1
+                if count >= PACKETS_PER_CHUNK:
+                    yield Framed(bytes(batch), count * per_packet)
+                    batch, count = bytearray(), 0
+            batch += end_marker(frames)
+            yield Framed(bytes(batch), count * per_packet)
+        finally:
+            container.close()
+
+    return preskip, chunks()
+
+
+class OpusStream:
+    """PCM in, wire-format Opus out, 20 ms at a time - for audio that is
+    being voiced as it streams, or kept as zlib. One per response."""
+
+    def __init__(self, sample_rate: int):
+        self.sample_rate = int(sample_rate)
+        codec = av.CodecContext.create("libopus", "w")
+        codec.sample_rate = self.sample_rate
+        codec.layout = "mono"
+        codec.format = "s16"
+        codec.bit_rate = _bitrate()
+        codec.options = {"application": "voip"}
+        codec.open()
+        self._codec = codec
+        self._size = codec.frame_size or (self.sample_rate // 50)
+        self._pending = bytearray()
+        self._pts = 0
+        self._fed = 0
+        self.preskip = _preskip(codec.extradata)
+
+    @property
+    def samples(self) -> int:
+        """Samples fed so far. Counted from bytes, not per chunk: a chunk
+        may end half way through a sample."""
+        return self._fed // SAMPLE_BYTES
+
+    def _encode(self, chunk: bytes) -> bytes:
+        frame_ = av.AudioFrame(format="s16", layout="mono", samples=self._size)
+        frame_.planes[0].update(chunk)
+        frame_.sample_rate = self.sample_rate
+        frame_.pts = self._pts
+        self._pts += self._size
+        return b"".join(frame(bytes(p)) for p in self._codec.encode(frame_))
+
+    def feed(self, pcm: bytes) -> bytes:
+        self._pending += pcm
+        step = self._size * SAMPLE_BYTES
+        whole = len(self._pending) - len(self._pending) % step
+        self._fed += len(pcm)
+        out = [self._encode(bytes(self._pending[i:i + step]))
+               for i in range(0, whole, step)]
+        del self._pending[:whole]
+        return b"".join(out)
+
+    def close(self) -> bytes:
+        """The tail, padded to a whole frame, the encoder flushed, and the
+        end marker with the true length."""
+        out = []
+        step = self._size * SAMPLE_BYTES
+        if self._pending:
+            tail = bytes(self._pending) + b"\x00" * (step - len(self._pending) % step)
+            out.append(self._encode(tail[:step]))
+            self._pending.clear()
+        out.extend(frame(bytes(p)) for p in self._codec.encode(None))
+        out.append(end_marker(self.samples))
+        return b"".join(out)

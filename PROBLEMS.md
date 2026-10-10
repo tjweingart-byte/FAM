@@ -17611,3 +17611,68 @@ raw PCM (settled); and the single process (`LOAD_TESTING.md` §5c lists the
 infrastructure in order).
 
 `app.py`, `cache.py`, `tests/test_throughput_241.py`, `LOAD_TESTING.md` §5b-5c.
+
+
+## 242. Opus to the app
+
+At the owner's direction, after the cost model (§240-§241 and the analysis
+around them) showed bandwidth as the largest infrastructure line at every
+size: R2 and Opus had made *storage* cheap (§237), but every listener still
+received raw PCM through Render at $0.15/GB - about 2.9 MB a minute.
+
+**What a client gets.** `/api/audio?fmt=opus` answers in "fam-opus v1"
+(`audio_codec.py`): a u16 big-endian length and one Opus packet, repeated,
+then a u16 0 and a u32 big-endian length in samples. Headers: `X-Sample-Rate`
+as before, `X-FAM-Audio-Format: opus`, `X-FAM-Opus-Preskip` (48 kHz samples,
+as an OpusHead states it). The client drops the pre-skip and trims to the end
+marker, so it holds exactly the samples PCM would have carried: captions'
+`starts`, seek and the offline shelf are untouched. Chosen over Ogg pages
+because a web page (WebCodecs), an iPhone (`AudioConverter`) and a test can
+each read it in a dozen lines, at 2 bytes a packet of overhead.
+
+**Two sources, neither paying twice.**
+
+- A **kept Opus episode is passed through as stored**
+  (`audio_codec.stored_packets`, from `_play_stored`): its Ogg is demuxed, not
+  decoded, so a replay - most plays - costs no CPU and no second generation
+  of loss. Each chunk is a `Framed` carrying the PCM it stands for, so the
+  endpoint's pre-roll still primes a second of audio, not a second's worth
+  of Opus bytes.
+- **Everything else** (an episode being voiced, a zlib row) is encoded at the
+  edge of the response by `OpusStream`, 20 ms at a time, about 9 ms of CPU
+  per second of audio. Priming and every error path run on PCM exactly as
+  before; the encoder only touches what is about to be sent. A stream cut
+  short gets no end marker, so it never claims to be complete.
+
+**Nobody is broken.** `fmt=pcm` is byte-for-byte what it was, and is what
+every installed client and kept web release (`/v/<version>/`) sends. A rate
+Opus cannot carry (the development engine's 22.05 kHz), a server without
+PyAV, or `AUDIO_STREAM_OPUS=0` answers a request for Opus with PCM and
+without the header, and `fam-audio.js` follows the header, not its request.
+The player asks for Opus only where `AudioDecoder.isConfigSupported` says it
+can decode it; a decoder that outputs at a multiple of the stream's rate
+(48 kHz is common) is decimated, which loses nothing because the voice holds
+nothing above half the stream's rate.
+
+**Measured** (local zero-spend server at 24 kHz, the placeholder tone):
+a one-minute episode is 2,879,998 bytes as PCM and 222,823 as Opus (12.9x;
+speech should land near the 13-16x of the cost model). First byte 24 ms
+against 25 ms. In headless Chromium the player held 1,439,999 samples either
+way, with first audio at 154 ms. `tools/smoke_opus.py` repeats that check in
+a browser on every `./dev.sh check` and in CI; every store goes to a
+temporary directory, found from the source's `data_path(...)` calls.
+
+**Found on the way.** `_stream_pcm` tested `stored.pcm` to ask whether kept
+audio existed - for an Opus row that decodes the whole episode, on the event
+loop, on every replay (~0.6 s for two minutes). It tests `stored.blob` now.
+And the first `OpusStream` counted samples per chunk, so a chunk ending half
+way through a sample lost it from the end marker (80,878 against 80,880 in
+the test); it counts bytes.
+
+**Not done.** The iOS app reads the same format (`IOS_APP.md` stage 3); the
+offline shelf's `fetchAll` still downloads PCM; nobody has heard the
+production voice at 24 kbps (`op-voice`). Rule `no-audio-files` updated.
+
+`audio_codec.py`, `pipeline.py`, `app.py`, `static/fam-audio.js`,
+`tests/test_opus_stream_242.py`, `tools/smoke_opus.py`.
+

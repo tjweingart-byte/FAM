@@ -8464,7 +8464,7 @@ async def audio(
     request: Request,
     q: str = Query(..., description="What the listener asked"),
     minutes: int = Query(DEFAULT_MINUTES, ge=1, le=10),
-    fmt: str = Query("wav", pattern="^(wav|pcm)$"),
+    fmt: str = Query("wav", pattern="^(wav|pcm|opus)$"),
     context: str = Query("", description="Topic the listener just heard, for a follow-up"),
     voice: str = Query("", description="Voice id from /api/voices"),
     # `None`, not False. An omitted parameter has to stay omitted all the way
@@ -8493,6 +8493,10 @@ async def audio(
     `fmt=wav` prefixes a live-stream WAV header so a plain <audio> tag works.
     `fmt=pcm` sends bare samples for the Web Audio player, which schedules
     chunks itself and therefore starts sooner and seeks better.
+    `fmt=opus` (§242) sends the same audio as "fam-opus v1" - Opus packets,
+    length-prefixed, then an end marker with the true length
+    (`audio_codec`) - when this server can; otherwise PCM, without the
+    `X-FAM-Audio-Format: opus` header, which is how the player knows.
     """
     # Every request answers to the cheap ceiling. The pace on top of it is for
     # requests that can actually spend a model call.
@@ -8598,6 +8602,8 @@ async def audio(
     started = time.monotonic()
     # The player must be told the engine's real rate, not the configured one.
     sample_rate = pipeline.engine.sample_rate
+    # §242: Opus only where it can be carried; anything else is PCM, as before.
+    stats.opus = fmt == "opus" and audio_codec_mod.can_stream(sample_rate)
 
     source = pipeline.stream_wav(plan, stats) if fmt == "wav" else pipeline.stream_pcm(plan, stats)
 
@@ -8619,9 +8625,9 @@ async def audio(
         async for chunk in source:
             primed.append(chunk)
             chunks_primed += 1
-            if first_pcm_at is None and len(chunk) > WAV_HEADER_BYTES:
+            if first_pcm_at is None and audio_codec_mod.pcm_len(chunk) > WAV_HEADER_BYTES:
                 first_pcm_at = time.monotonic() - started
-            if sum(len(c) for c in primed) - WAV_HEADER_BYTES >= preroll_bytes:
+            if sum(audio_codec_mod.pcm_len(c) for c in primed) - WAV_HEADER_BYTES >= preroll_bytes:
                 preroll_at = time.monotonic() - started
                 break
     except NotCached as exc:
@@ -8661,7 +8667,7 @@ async def audio(
 
     # `stats.sentences` is the honest test: silence is bytes, but it is not an
     # episode. A script that came back empty must not be served as one.
-    if stats.sentences == 0 or sum(len(c) for c in primed) <= WAV_HEADER_BYTES:
+    if stats.sentences == 0 or sum(audio_codec_mod.pcm_len(c) for c in primed) <= WAV_HEADER_BYTES:
         log.error("generation produced no audio for %r", plan.query)
         # The listener heard nothing, so they are not charged for an episode.
         # This was the one failure path with no refund on it at all, which on a
@@ -8680,21 +8686,35 @@ async def audio(
     # be read off the deploy's log while it is still playing.
     if stats.cache != "hit":
         log.info("%s", stats.marks.stage_report(plan.query))
-    primed_bytes = max(0, sum(len(c) for c in primed) - WAV_HEADER_BYTES)
+    primed_bytes = max(0, sum(audio_codec_mod.pcm_len(c) for c in primed) - WAV_HEADER_BYTES)
     primed_seconds = primed_bytes / (sample_rate * 2)
+    # §242: a kept Opus episode arrives already framed; anything else is
+    # encoded here, at the edge, 20 ms at a time as it streams.
+    encoder = (audio_codec_mod.OpusStream(sample_rate)
+               if stats.opus and not stats.opus_passthrough else None)
+
+    def wire(chunk: bytes) -> bytes:
+        return encoder.feed(chunk) if encoder is not None else chunk
 
     async def body():
         nonlocal first_byte_at
+        finished = False
         try:
             for chunk in primed:
                 if first_byte_at is None:
                     first_byte_at = time.monotonic() - started
-                yield chunk
+                yield wire(chunk)
             async for chunk in source:
                 if await request.is_disconnected():
                     log.info("client disconnected; abandoning generation")
                     break
-                yield chunk
+                yield wire(chunk)
+            else:
+                finished = True
+            if encoder is not None and finished:
+                # The tail and the true length: only for a whole episode, so
+                # a stream cut short never claims to be complete.
+                yield encoder.close()
         except Exception:
             # Past the first byte the status code is already sent, so this can
             # only be logged. The player detects the short stream and says so.
@@ -8785,11 +8805,17 @@ async def audio(
         except Exception:  # noqa: BLE001 - a label, never the episode
             log.exception("could not re-file a play under its category")
 
-    media_type = "audio/wav" if fmt == "wav" else "audio/L16"
+    media_type = ("audio/wav" if fmt == "wav"
+                  else "audio/x-fam-opus" if stats.opus else "audio/L16")
+    opus_headers = ({"X-FAM-Audio-Format": "opus",
+                     "X-FAM-Opus-Preskip": str(stats.opus_preskip if stats.opus_passthrough
+                                               else encoder.preskip)}
+                    if stats.opus else {})
     return StreamingResponse(
         body(),
         media_type=media_type,
         headers={
+            **opus_headers,
             "Cache-Control": "no-store",
             "X-Accel-Buffering": "no",  # tell nginx not to buffer the stream
             "X-Sample-Rate": str(sample_rate),
