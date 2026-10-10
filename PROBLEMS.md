@@ -17484,3 +17484,52 @@ server decodes. The owner's decision: keep Opus for storage. The format sent
 to clients, if compressed audio is ever streamed to them, is decided with the
 iOS audio path, where native playback matters (AAC is the alternative to
 weigh against Opus there, not MP3).
+
+## 240. Password reset by an emailed code
+
+The owner asked for a way to reset a forgotten password, with a safeguard so
+nobody can change the password on somebody else's account. Until now the rule
+was "no delivery means no password reset" (op-identity): the app could send
+nothing to anybody, so a forgotten password was a lost account. Asked which
+delivery to build, the owner chose an emailed code over SMS, recovery codes or
+an admin-only reset.
+
+**The safeguard is where the code goes.** `POST /api/auth/reset/start` sends a
+6-digit code to the address already on the account and nowhere else, so
+resetting a password needs the inbox, not the address. Around that, every way
+to guess, flood or probe is bounded (`accounts.start_reset`, `finish_reset`):
+
+* the code comes from `secrets`, is stored only as a hash keyed on the
+  account, lives 15 minutes, and is spent after 5 wrong tries or one right one;
+* 5 codes per account per hour, none within a minute of the last, so asking
+  again cannot multiply the guesses: at most 25 in a million an hour;
+* the start answer is the same sentence whether or not the address has an
+  account, and the mail goes out on its own thread (`mail.send_later`) so the
+  time taken is the same too; every bad code (wrong, expired, spent, no such
+  account) gets one refusal;
+* a weak new password is refused before the code is looked at, so it costs
+  no attempt;
+* a reset ends every session, as a password change does, signs the resetting
+  device in, and emails the owner "Your FAM password was changed", so a reset
+  they did not make does not go unnoticed;
+* both endpoints are paced by `_rate_limit` as log-in is; deleting an account
+  takes its reset row.
+
+**Delivery is `mail.py`, plain SMTP** (`SMTP_HOST`, `SMTP_PORT`,
+`SMTP_USERNAME`, `SMTP_PASSWORD` via `credentials`, `MAIL_FROM`), so Resend,
+Postmark, SES or Gmail is a setting, not code. `SMTP_PASSWORD` is a paid
+credential to `spend_guard` (providers bill per message past a free tier), and
+staging never sends. Failures are logged and counted in `/api/health` (`mail`).
+Without a host and a sender, `/api/auth/reset` says why and the log-in screen
+does not draw "Forgot password?" (a control with nothing behind it is worse
+than no control); the sign-up note "keep your password somewhere safe" shows
+only while there is no reset.
+
+On the screen: "Forgot password?" under the log-in form opens a second panel
+on the same screen - the address, then the code and a new password - and
+"Remembered it? Log in" goes back. Both previews answer the reset endpoints
+with any six digits; `tools/smoke_preview.py` walks the two steps.
+
+Still open: no address or number is verified, a phone-only account has no
+reset (that needs SMS), and a phone number is not a second factor. Nothing
+was sent from this container - the SMTP path is tested only up to the send.

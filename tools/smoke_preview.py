@@ -3966,6 +3966,58 @@ def main() -> int:
             page.evaluate("openMyFamTab()")
             page.wait_for_timeout(300)
 
+        def forgot_password_is_two_steps_on_the_log_in_screen():
+            """§240: "Forgot password?" on the log-in screen only when the
+            server can send email, an address first, then the emailed code
+            and a new password - and the sign-up warning about having no
+            reset is gone once there is one."""
+            # The menus checked before this leave their sheets standing.
+            page.evaluate("document.querySelectorAll('.modal-overlay.active,"
+                          " .sheet-overlay.active').forEach("
+                          "  function(el){ el.classList.remove('active'); })")
+            page.evaluate("openAuth('login')")
+            page.wait_for_selector("#authForgotRow:not([hidden])", timeout=5000)
+            page.evaluate("openAuth('signup')")
+            page.wait_for_timeout(300)
+            assert not page.is_visible("#authForgotRow"), \
+                "Forgot password? was offered on the sign-up form"
+            assert not page.is_visible("#authNote"), \
+                "sign-up still says there is no password reset"
+            page.evaluate("openAuth('login')")
+            page.wait_for_selector("#authForgotRow:not([hidden])", timeout=5000)
+            page.click("#authForgotRow button")
+            assert page.is_visible("#authReset") and not page.is_visible("#authForm"), \
+                "Forgot password? did not open the reset form"
+            assert not page.is_visible("#resetStep2"), \
+                "the code was asked for before one was sent"
+            # An account to reset: a check before this one may have logged
+            # out, and on the live preview a reset needs a real account row.
+            ensure_account()
+            address = page.evaluate("AUTH.email")
+            page.fill("#resetEmail", address)
+            page.click("#resetSubmit")
+            page.wait_for_selector("#resetStep2:not([hidden])", timeout=5000)
+            assert "If that address has a FAM account" in (page.text_content("#resetNote") or ""), \
+                "the reset said whether the address has an account"
+            page.fill("#resetCode", "12")
+            page.click("#resetSubmit")
+            page.wait_for_timeout(200)
+            assert "6-digit" in (page.text_content("#resetError") or ""), \
+                "a short code was not refused under the fields"
+            page.fill("#resetCode", "123456")
+            page.fill("#resetPassword", "a-brand-new-password")
+            page.click("#resetSubmit")
+            try:
+                page.wait_for_function("() => !document.getElementById('screen-auth')"
+                                       ".classList.contains('active')", timeout=10000)
+            except Exception:
+                raise AssertionError("the reset stayed on the log-in screen: "
+                                     + (page.text_content("#resetError") or "no error shown")
+                                     + f" (for {address})")
+            assert page.evaluate("AUTH.authenticated"), "a reset did not sign the device in"
+            page.evaluate("openMyFamTab()")
+            page.wait_for_timeout(300)
+
         check("The first run asks, then lets you in", first_run_asks_before_it_shows_the_app)
         check("No weekly recap pops up", no_weekly_recap_pops_up)
         check("myFAM renders a rail per signal", myfam)
@@ -4109,6 +4161,8 @@ def main() -> int:
         check("The player's menu and the queue", the_player_menu_and_the_queue)
         check("A search asks before its words go to the AI", asks_before_words_go_to_ai)
         check("Report and Block are in the menus", report_and_block_are_in_the_menus)
+        check("Forgot password is two steps on the log-in screen",
+              forgot_password_is_two_steps_on_the_log_in_screen)
 
         if errors:
             failures.append(f"page errors: {errors}")

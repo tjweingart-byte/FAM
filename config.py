@@ -905,6 +905,20 @@ class Settings:
     # Who a push service contacts about this server's notifications.
     vapid_subject: str = field(
         default_factory=lambda: os.environ.get("VAPID_SUBJECT", "").strip())
+    # Email (`mail.py`, §240): the delivery password reset needs. Any SMTP
+    # provider (Resend, Postmark, SES, Gmail); SMTP_PASSWORD is a credential
+    # and is read through `credentials`, never from here. Without a host and
+    # a sender, "Forgot password?" is not drawn and the server says why.
+    smtp_host: str = field(
+        default_factory=lambda: os.environ.get("SMTP_HOST", "").strip())
+    smtp_port: int = field(
+        default_factory=lambda: int(os.environ.get("SMTP_PORT", "587") or 587))
+    smtp_username: str = field(
+        default_factory=lambda: os.environ.get("SMTP_USERNAME", "").strip())
+    # The From line, e.g. "FAM <hello@yourdomain.com>"; the provider must
+    # have verified the address. Nothing invents one.
+    mail_from: str = field(
+        default_factory=lambda: os.environ.get("MAIL_FROM", "").strip())
     # The length DailyFAM episodes are written and played at is
     # `BROWSE_MINUTES` (§147) - no longer a setting, because only searchFAM
     # offers a length.

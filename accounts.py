@@ -262,6 +262,23 @@ def verify_password(password: str, encoded: str) -> bool:
     return hmac.compare_digest(expected, actual)
 
 
+#: Password reset (§240). Six digits, fifteen minutes, five tries a code,
+#: five codes an hour and one a minute.
+RESET_CODE_DIGITS = 6
+RESET_CODE_SECONDS = 15 * 60
+RESET_MAX_ATTEMPTS = 5
+RESET_RESEND_SECONDS = 60
+RESET_MAX_CODES = 5
+RESET_WINDOW_SECONDS = 3600
+
+
+def _reset_hash(user_id: str, code: str) -> str:
+    """Keyed on the account, so equal codes on two accounts hash differently.
+    Six digits are cheap to brute-force from a stolen copy of this table; what
+    protects a code is that it lives fifteen minutes and is then spent."""
+    return hashlib.sha256(f"fam-reset:{user_id}:{code}".encode()).hexdigest()
+
+
 def _token_hash(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
@@ -403,6 +420,21 @@ class AccountStore:
             )
             conn.execute("CREATE INDEX IF NOT EXISTS identities_user"
                          " ON identities(user_id)")
+
+            # Password reset (§240): at most one live code per account, kept
+            # only as a hash. `issued` counts the codes sent in the current
+            # window, so asking again and again cannot buy unlimited guesses.
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS password_resets (
+                       user_id      TEXT PRIMARY KEY,
+                       code_hash    TEXT NOT NULL,
+                       created      REAL NOT NULL,
+                       expires      REAL NOT NULL,
+                       attempts     INTEGER NOT NULL DEFAULT 0,
+                       issued       INTEGER NOT NULL DEFAULT 1,
+                       window_start REAL NOT NULL
+                   )"""
+            )
 
     def _conn(self) -> sqlite3.Connection:
         conn = getattr(self._local, "conn", None)
@@ -670,6 +702,106 @@ class AccountStore:
         # Every other device is logged out. A password change that leaves old
         # sessions alive does not do the thing people believe it does.
         self.end_all_sessions(user_id)
+
+    # --- password reset (§240) ---------------------------------------------
+    #
+    # What stops somebody resetting another person's password is that the
+    # code goes to the account's own address and nowhere else: knowing an
+    # address is not enough, you have to be able to read its mail. Around
+    # that, every way of guessing or flooding is bounded:
+    #
+    # * the code is six random digits from `secrets`, stored only as a keyed
+    #   hash, live for RESET_CODE_SECONDS and good for RESET_MAX_ATTEMPTS
+    #   wrong tries, after which it is spent;
+    # * RESET_MAX_CODES codes per account per RESET_WINDOW_SECONDS, and none
+    #   sooner than RESET_RESEND_SECONDS after the last, so requesting new
+    #   codes cannot multiply the guesses (5 tries x 5 codes = 25 in 10^6);
+    # * every answer is the same whether or not the address has an account,
+    #   and a wrong code, an expired one and no code at all read the same;
+    # * a successful reset ends every session on the account, as a password
+    #   change does, and the owner is told by email that it happened.
+
+    def start_reset(self, email: str, at: float = 0.0) -> Optional[tuple[str, str, str]]:
+        """Mint a reset code for the account at `email`.
+
+        Returns (user_id, address, code) to send, or None when nothing should
+        be sent - no such account, or the account has asked too often. The
+        caller answers the same way in both cases.
+        """
+        now = at or time.time()
+        try:
+            email = clean_email(email)
+        except AuthError:
+            return None
+        row = self._conn().execute(
+            "SELECT user_id FROM accounts WHERE email = ?", (email,)).fetchone()
+        if not row:
+            return None
+        user_id = row[0]
+        live = self._conn().execute(
+            "SELECT created, issued, window_start FROM password_resets"
+            " WHERE user_id = ?", (user_id,)).fetchone()
+        issued, window_start = 1, now
+        if live:
+            created, prior, started = live
+            if now - created < RESET_RESEND_SECONDS:
+                return None
+            if now - started < RESET_WINDOW_SECONDS:
+                if prior >= RESET_MAX_CODES:
+                    return None
+                issued, window_start = prior + 1, started
+        code = f"{secrets.randbelow(10 ** RESET_CODE_DIGITS):0{RESET_CODE_DIGITS}d}"
+        self._conn().execute(
+            "INSERT INTO password_resets (user_id, code_hash, created, expires,"
+            " attempts, issued, window_start) VALUES (?, ?, ?, ?, 0, ?, ?)"
+            " ON CONFLICT (user_id) DO UPDATE SET code_hash = excluded.code_hash,"
+            " created = excluded.created, expires = excluded.expires,"
+            " attempts = 0, issued = excluded.issued,"
+            " window_start = excluded.window_start",
+            (user_id, _reset_hash(user_id, code), now,
+             now + RESET_CODE_SECONDS, issued, window_start))
+        return user_id, email, code
+
+    def finish_reset(self, email: str, code: str, new: str,
+                     at: float = 0.0) -> Listener:
+        """Set a new password if `code` is the live one for `email`.
+
+        One refusal for every failure that is about the code, so the form is
+        not an oracle for which addresses have accounts or live codes. The
+        password is checked first: a weak one should not spend an attempt.
+        """
+        now = at or time.time()
+        new = check_password(new)
+        refused = AuthError("That code is wrong or has expired. Ask for a new one.")
+        try:
+            email = clean_email(email)
+        except AuthError:
+            raise refused from None
+        digits = "".join(ch for ch in str(code or "") if ch.isdigit())
+        row = self._conn().execute(
+            "SELECT a.user_id, r.code_hash, r.expires, r.attempts"
+            " FROM accounts a JOIN password_resets r ON r.user_id = a.user_id"
+            " WHERE a.email = ?", (email,)).fetchone()
+        if not row:
+            raise refused
+        user_id, code_hash, expires, attempts = row
+        if now > expires or attempts >= RESET_MAX_ATTEMPTS or code_hash == "":
+            raise refused
+        if not hmac.compare_digest(code_hash, _reset_hash(user_id, digits)):
+            self._conn().execute(
+                "UPDATE password_resets SET attempts = attempts + 1"
+                " WHERE user_id = ?", (user_id,))
+            raise refused
+        # Spent, not deleted: the row keeps the window's count, so a reset
+        # followed by another request is still bounded.
+        self._conn().execute(
+            "UPDATE password_resets SET code_hash = '', expires = 0"
+            " WHERE user_id = ?", (user_id,))
+        self._conn().execute(
+            "UPDATE accounts SET password = ?, last_login = ? WHERE user_id = ?",
+            (hash_password(new), now, user_id))
+        self.end_all_sessions(user_id)
+        return self.listener_of(user_id)
 
     def listener_of(self, user_id: str) -> Listener:
         """The Listener for an id, read straight from the account row.
@@ -999,6 +1131,8 @@ class AccountStore:
         identities = len(self.identities_for(user_id))
         sessions = self.end_all_sessions(user_id)
         self._conn().execute("DELETE FROM identities WHERE user_id = ?", (user_id,))
+        self._conn().execute("DELETE FROM password_resets WHERE user_id = ?",
+                             (user_id,))
         cur = self._conn().execute("DELETE FROM accounts WHERE user_id = ?",
                                    (user_id,))
         return {"account": bool(cur.rowcount), "identities": identities,
