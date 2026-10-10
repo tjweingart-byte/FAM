@@ -258,8 +258,8 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   are actionable sentences; an attached episode is **never cached**. [op-attachments]
 - Identity: server-minted session; account = credentials on that id, never
   the device - a signed-in browser's sign-up gets a fresh id (§190); listening
-  works with no account; email/phone/Google/Apple; **no delivery** means no
-  password reset or verification - say so. [op-identity]
+  works with no account; email/phone/Google/Apple; **reset** emails a code
+  to the account's address (`mail.py`, §244). [op-identity]
 
 ## Settled constraints — do not undo without discussing  (`constraints.md`)
 

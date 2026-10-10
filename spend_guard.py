@@ -55,6 +55,8 @@ PAID_CREDENTIALS = (
     "GNEWS_KEY",
     # Open-Meteo's paid plan (§194), for weather and place names.
     "OPEN_METEO_API_KEY",
+    # Email (§244): providers bill per message past a free tier.
+    "SMTP_PASSWORD",
     "API_SPORTS_KEY", "SPORTSDATAIO_KEY",
     "FINNHUB_KEY", "ALPHA_VANTAGE_KEY",
     "AP_ELECTIONS_KEY", "DDHQ_KEY",
