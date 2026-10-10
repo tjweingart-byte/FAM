@@ -905,7 +905,7 @@ class Settings:
     # Who a push service contacts about this server's notifications.
     vapid_subject: str = field(
         default_factory=lambda: os.environ.get("VAPID_SUBJECT", "").strip())
-    # Email (`mail.py`, §240): the delivery password reset needs. Any SMTP
+    # Email (`mail.py`, §244): the delivery password reset needs. Any SMTP
     # provider (Resend, Postmark, SES, Gmail); SMTP_PASSWORD is a credential
     # and is read through `credentials`, never from here. Without a host and
     # a sender, "Forgot password?" is not drawn and the server says why.

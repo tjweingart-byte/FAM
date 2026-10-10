@@ -3264,7 +3264,7 @@
                 <span>I agree to FAM&rsquo;s <a href="/terms" target="_blank" rel="noopener">Terms and community rules</a> and <a href="/privacy" target="_blank" rel="noopener">Privacy policy</a>, and I&rsquo;m 13 or older.</span>
               </label>
             </form>
-            <!-- Forgot password (§240): drawn only when the server can send
+            <!-- Forgot password (§244): drawn only when the server can send
                  email (`/api/auth/reset`). The code goes to the address on the
                  account and nowhere else, which is what stops anybody who
                  merely knows an address from changing its password. -->
@@ -6250,7 +6250,7 @@
       });
     }
     if (path === "/api/auth/password") return json({ ok: true });
-    // Forgot password (§240). This prototype sends no mail and stores no
+    // Forgot password (§244). This prototype sends no mail and stores no
     // credential, so any six digits are the code for a known address.
     if (path === "/api/auth/reset") return json({ available: true, reason: "" });
     if (path === "/api/auth/reset/start") {
@@ -22668,7 +22668,7 @@ window.FamAudio = (function () {
     checkResetReady();
   }
 
-  // --- forgot password (§240) ----------------------------------------------
+  // --- forgot password (§244) ----------------------------------------------
   //
   // Two steps on the log-in screen: an address, then the emailed code and a
   // new password. The server answers the first step the same way whether or

@@ -17485,7 +17485,7 @@ to clients, if compressed audio is ever streamed to them, is decided with the
 iOS audio path, where native playback matters (AAC is the alternative to
 weigh against Opus there, not MP3).
 
-## 240. Password reset by an emailed code
+## 244. Password reset by an emailed code
 
 The owner asked for a way to reset a forgotten password, with a safeguard so
 nobody can change the password on somebody else's account. Until now the rule
@@ -17533,3 +17533,13 @@ with any six digits; `tools/smoke_preview.py` walks the two steps.
 Still open: no address or number is verified, a phone-only account has no
 reset (that needs SMS), and a phone number is not a second factor. Nothing
 was sent from this container - the SMTP path is tested only up to the send.
+
+A review before merging found two holes and closed them. The wrong-guess
+count was read and then added to, so guesses sent in parallel could all pass
+the check before any counted; the attempt is now reserved in one conditional
+UPDATE before the code is compared. And a provider's refusal
+(`SMTPRecipientsRefused`) names the recipient in its own text, which would
+have put an address in the public `/api/health`; the recipient is redacted.
+The support page's "I forgot my password" and the privacy policy's list of
+who receives data (the email provider) now describe the reset. TERMS_VERSION
+was not bumped, so nobody is asked to agree again for that row.

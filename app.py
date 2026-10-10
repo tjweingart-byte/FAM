@@ -1805,7 +1805,7 @@ async def health(request: Request) -> dict:
         # if not, the sentence the mix page shows.
         "mix_notifications": {k: v for k, v in push_mod.status().items()
                               if k != "public_key"},
-        # Email (mail.py, §240): whether password reset can send, how many
+        # Email (mail.py, §244): whether password reset can send, how many
         # sends worked and failed, and the last failure's words.
         "mail": mail_mod.report(),
     }
@@ -1879,13 +1879,13 @@ class PasswordChangeRequest(BaseModel):
 
 
 class ResetStartRequest(BaseModel):
-    """"Forgot password?": the address to send a code to (§240)."""
+    """"Forgot password?": the address to send a code to (§244)."""
 
     email: str = Field("", max_length=accounts_mod.MAX_EMAIL)
 
 
 class ResetFinishRequest(BaseModel):
-    """The emailed code and the password to set with it (§240)."""
+    """The emailed code and the password to set with it (§244)."""
 
     email: str = Field("", max_length=accounts_mod.MAX_EMAIL)
     code: str = Field("", max_length=16)
@@ -2131,7 +2131,7 @@ async def auth_password(req: PasswordChangeRequest, request: Request) -> dict:
 
 
 #: What a reset request answers, whether or not the address has an account
-#: (§240): anything else would tell a stranger which addresses are registered.
+#: (§244): anything else would tell a stranger which addresses are registered.
 RESET_SENT = ("If that address has a FAM account, a 6-digit code is on its way. "
               "It works for 15 minutes.")
 
@@ -2139,14 +2139,14 @@ RESET_SENT = ("If that address has a FAM account, a 6-digit code is on its way. 
 @app.get("/api/auth/reset")
 async def auth_reset_status(request: Request) -> dict:
     """Whether this server can send a reset code, and if not, why. The log-in
-    screen draws "Forgot password?" only when it can (§240)."""
+    screen draws "Forgot password?" only when it can (§244)."""
     _read_limit(request)
     return mail_mod.status()
 
 
 @app.post("/api/auth/reset/start")
 async def auth_reset_start(req: ResetStartRequest, request: Request) -> dict:
-    """Email a one-time code to the account at this address (§240).
+    """Email a one-time code to the account at this address (§244).
 
     The security is in where the code goes: only to the address already on
     the account, so changing somebody's password needs their inbox, not just

@@ -1289,7 +1289,7 @@ __PREVIEW_PICTURE__
       me.authenticated = true;
       return json(me);
     }
-    // Forgot password (§240). No mail leaves a preview: any six digits are
+    // Forgot password (§244). No mail leaves a preview: any six digits are
     // the code, so the two steps can be walked.
     if (path === "/api/auth/reset") return json({ available: true, reason: "" });
     if (path === "/api/auth/reset/start") {

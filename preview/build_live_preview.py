@@ -1334,7 +1334,7 @@ __WRITING_SIM__
       });
     }
     if (path === "/api/auth/password") return json({ ok: true });
-    // Forgot password (§240). This prototype sends no mail and stores no
+    // Forgot password (§244). This prototype sends no mail and stores no
     // credential, so any six digits are the code for a known address.
     if (path === "/api/auth/reset") return json({ available: true, reason: "" });
     if (path === "/api/auth/reset/start") {

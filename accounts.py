@@ -262,7 +262,7 @@ def verify_password(password: str, encoded: str) -> bool:
     return hmac.compare_digest(expected, actual)
 
 
-#: Password reset (§240). Six digits, fifteen minutes, five tries a code,
+#: Password reset (§244). Six digits, fifteen minutes, five tries a code,
 #: five codes an hour and one a minute.
 RESET_CODE_DIGITS = 6
 RESET_CODE_SECONDS = 15 * 60
@@ -421,7 +421,7 @@ class AccountStore:
             conn.execute("CREATE INDEX IF NOT EXISTS identities_user"
                          " ON identities(user_id)")
 
-            # Password reset (§240): at most one live code per account, kept
+            # Password reset (§244): at most one live code per account, kept
             # only as a hash. `issued` counts the codes sent in the current
             # window, so asking again and again cannot buy unlimited guesses.
             conn.execute(
@@ -703,7 +703,7 @@ class AccountStore:
         # sessions alive does not do the thing people believe it does.
         self.end_all_sessions(user_id)
 
-    # --- password reset (§240) ---------------------------------------------
+    # --- password reset (§244) ---------------------------------------------
     #
     # What stops somebody resetting another person's password is that the
     # code goes to the account's own address and nowhere else: knowing an
@@ -784,13 +784,18 @@ class AccountStore:
             " WHERE a.email = ?", (email,)).fetchone()
         if not row:
             raise refused
-        user_id, code_hash, expires, attempts = row
-        if now > expires or attempts >= RESET_MAX_ATTEMPTS or code_hash == "":
+        user_id, code_hash, _expires, _attempts = row
+        # The attempt is counted before the code is compared, in one
+        # conditional UPDATE: checking the count and then adding to it would
+        # let guesses sent in parallel all pass the check before any of them
+        # added one, and the 5-try limit would be no limit at all.
+        spent = self._conn().execute(
+            "UPDATE password_resets SET attempts = attempts + 1"
+            " WHERE user_id = ? AND attempts < ? AND code_hash != ''"
+            " AND expires >= ?", (user_id, RESET_MAX_ATTEMPTS, now))
+        if spent.rowcount != 1:
             raise refused
         if not hmac.compare_digest(code_hash, _reset_hash(user_id, digits)):
-            self._conn().execute(
-                "UPDATE password_resets SET attempts = attempts + 1"
-                " WHERE user_id = ?", (user_id,))
             raise refused
         # Spent, not deleted: the row keeps the window's count, so a reset
         # followed by another request is still bounded.

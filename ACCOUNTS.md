@@ -128,13 +128,13 @@ every listener in the app.
 
 ### What is deliberately not verified, and say so out loud
 
-Neither the email nor the phone number is verified. Until §240 the app had
+Neither the email nor the phone number is verified. Until §244 the app had
 no route to deliver a message to either; it now sends email (password reset
 only) and still sends no SMS. That means:
 
 * **A phone number is an identifier, not a second factor.** Sign-up proves
   possession of a password and nothing else.
-* **Password reset exists for email accounts only** (§240, below). A
+* **Password reset exists for email accounts only** (§244, below). A
   forgotten password on a phone-only account is still a lost account.
 
 Both are honest gaps - SMS delivery is the missing piece for the second - and
@@ -142,7 +142,7 @@ the sign-up screen has to say so rather than letting someone find out the hard w
 Sign in with Google or Apple has no such gap, which is a real argument for
 making them the prominent options in the app.
 
-### Password reset (§240)
+### Password reset (§244)
 
 "Forgot password?" on the log-in screen, in two steps:
 `POST /api/auth/reset/start {email}` emails a 6-digit code, and

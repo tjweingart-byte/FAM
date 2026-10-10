@@ -3967,7 +3967,7 @@ def main() -> int:
             page.wait_for_timeout(300)
 
         def forgot_password_is_two_steps_on_the_log_in_screen():
-            """§240: "Forgot password?" on the log-in screen only when the
+            """§244: "Forgot password?" on the log-in screen only when the
             server can send email, an address first, then the emailed code
             and a new password - and the sign-up warning about having no
             reset is gone once there is one."""

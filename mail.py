@@ -1,4 +1,4 @@
-"""Email delivery: the one capability password reset was waiting for (§240).
+"""Email delivery: the one capability password reset was waiting for (§244).
 
 Until this file the app had no route to deliver a message to anybody, so a
 forgotten password on an email account was a lost account (ACCOUNTS.md said
@@ -119,12 +119,15 @@ def send(to: str, subject: str, body: str) -> bool:
                 server.login(s.smtp_username, _password())
             server.send_message(msg)
     except Exception as exc:  # smtplib raises half a dozen kinds
+        # The class and the provider's words, never the message or the
+        # address it was going to: SMTPRecipientsRefused, for one, puts the
+        # address in its own text, and this ends up in /api/health.
+        words = f"{type(exc).__name__}: {exc}".replace(to, "<recipient>")
+        if isinstance(exc, smtplib.SMTPRecipientsRefused):
+            words = "SMTPRecipientsRefused: the provider refused the recipient"
         with _lock:
             _counts["failed"] += 1
-            # The class and the provider's words, never the message or the
-            # address it was going to.
-            _last_error.update(at=time.time(),
-                               error=f"{type(exc).__name__}: {exc}"[:300])
+            _last_error.update(at=time.time(), error=words[:300])
         log.error("mail send failed: %s", _last_error["error"])
         return False
     with _lock:

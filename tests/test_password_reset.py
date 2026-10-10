@@ -1,4 +1,4 @@
-"""Password reset by an emailed code (§240), and what stops it being used on
+"""Password reset by an emailed code (§244), and what stops it being used on
 somebody else's account.
 
 The security property: a reset needs a code that was sent only to the address
@@ -8,7 +8,6 @@ way of guessing, flooding or probing for accounts is bounded or blind.
 from __future__ import annotations
 
 import os
-import sqlite3
 import sys
 
 import pytest
@@ -69,14 +68,14 @@ def test_a_code_resets_the_password_and_ends_every_session(store):
         store.log_in("ian@example.com", GOOD)
 
 
-def test_the_code_is_never_stored(store, tmp_path):
+def test_the_code_is_never_stored(store):
     store.sign_up("u1", "ian@example.com", GOOD)
     _, _, code = store.start_reset("ian@example.com", at=1000.0)
-    raw = (tmp_path / "accounts.db").read_bytes()
-    rows = sqlite3.connect(str(tmp_path / "accounts.db")).execute(
+    # Through the store's own connection, so this holds on either backend.
+    rows = store._conn().execute(
         "SELECT code_hash FROM password_resets").fetchall()
     assert rows and code not in rows[0][0]
-    assert code.encode() not in raw
+    assert rows[0][0] == A._reset_hash("u1", code)
 
 
 def test_no_account_sends_nothing(store):
@@ -142,11 +141,11 @@ def test_a_weak_new_password_does_not_spend_an_attempt(store):
     store.finish_reset("ian@example.com", code, NEW, at=1002.0)
 
 
-def test_deleting_the_account_takes_its_reset(store, tmp_path):
+def test_deleting_the_account_takes_its_reset(store):
     store.sign_up("u1", "ian@example.com", GOOD)
     store.start_reset("ian@example.com", at=1000.0)
     store.delete_account("u1")
-    rows = sqlite3.connect(str(tmp_path / "accounts.db")).execute(
+    rows = store._conn().execute(
         "SELECT COUNT(*) FROM password_resets").fetchone()[0]
     assert rows == 0
 
@@ -232,3 +231,39 @@ def test_a_failed_send_is_counted_and_named(monkeypatch):
     assert report["failed"] == 1 and report["last_error"]
     assert "ian@example.com" not in report["last_error"]
     mail.reset_counts()
+
+
+def test_a_refused_recipient_is_not_named_in_health(monkeypatch):
+    """The provider's refusal carries the address; health must not."""
+    import dataclasses
+    import smtplib
+    import spend_guard
+    from config import settings
+    monkeypatch.setattr(spend_guard, "enabled", lambda: False)
+    configured = dataclasses.replace(settings, smtp_host="smtp.invalid",
+                                     mail_from="FAM <hello@example.com>")
+    monkeypatch.setattr(mail, "_settings", lambda: configured)
+
+    def refuse(*args, **kwargs):
+        raise smtplib.SMTPRecipientsRefused({"ian@example.com": (550, b"no such user")})
+    monkeypatch.setattr(smtplib, "SMTP", refuse)
+    mail.reset_counts()
+    assert mail.send("ian@example.com", "subject", "body") is False
+    assert "ian@example.com" not in mail.report()["last_error"]
+    mail.reset_counts()
+
+
+def test_every_guess_is_counted_before_it_is_compared(store):
+    """The count is one conditional UPDATE taken before the comparison, so
+    guesses sent in parallel cannot all pass the check before any adds one."""
+    store.sign_up("u1", "ian@example.com", GOOD)
+    _, _, code = store.start_reset("ian@example.com", at=1000.0)
+    wrong = f"{(int(code) + 1) % 10 ** 6:06d}"
+    for _ in range(A.RESET_MAX_ATTEMPTS):
+        with pytest.raises(A.AuthError):
+            store.finish_reset("ian@example.com", wrong, NEW, at=1001.0)
+    attempts = store._conn().execute(
+        "SELECT attempts FROM password_resets").fetchone()[0]
+    assert attempts == A.RESET_MAX_ATTEMPTS
+    with pytest.raises(A.AuthError):
+        store.finish_reset("ian@example.com", code, NEW, at=1002.0)
