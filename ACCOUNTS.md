@@ -128,19 +128,47 @@ every listener in the app.
 
 ### What is deliberately not verified, and say so out loud
 
-Neither the email nor the phone number is verified, because the app has no
-route to deliver a message to either. That means:
+Neither the email nor the phone number is verified. Until §244 the app had
+no route to deliver a message to either; it now sends email (password reset
+only) and still sends no SMS. That means:
 
 * **A phone number is an identifier, not a second factor.** Sign-up proves
   possession of a password and nothing else.
-* **There is still no password reset**, and now it can be reached two ways
-  instead of one. A forgotten password on an email-or-phone account is a lost
-  account.
+* **Password reset exists for email accounts only** (§244, below). A
+  forgotten password on a phone-only account is still a lost account.
 
-Both are honest gaps, both are the same missing capability - delivery - and the
-sign-up screen has to say so rather than letting someone find out the hard way.
+Both are honest gaps - SMS delivery is the missing piece for the second - and
+the sign-up screen has to say so rather than letting someone find out the hard way.
 Sign in with Google or Apple has no such gap, which is a real argument for
 making them the prominent options in the app.
+
+### Password reset (§244)
+
+"Forgot password?" on the log-in screen, in two steps:
+`POST /api/auth/reset/start {email}` emails a 6-digit code, and
+`POST /api/auth/reset/finish {email, code, new}` sets the password and signs
+that device in. `GET /api/auth/reset` says whether this server can send; the
+control is drawn only when it can.
+
+What stops somebody resetting another person's password is **where the code
+goes**: only to the address already on the account, so the attacker needs
+the inbox, not just the address. Around that:
+
+* the code is from `secrets`, stored only as a hash keyed on the account,
+  lives 15 minutes, and is spent after 5 wrong tries or one right one;
+* 5 codes per account per hour, none within a minute of the last - asking
+  again cannot multiply the guesses (25 in a million at most an hour);
+* the start answer is identical for an address with no account, mail goes
+  out on its own thread so the timing is identical too, and every bad code
+  (wrong, expired, spent, no such account) gets one sentence;
+* a reset ends every session, like a password change, and emails the owner
+  "Your FAM password was changed";
+* `_rate_limit` paces both endpoints per client as it does log-in.
+
+Delivery is `mail.py`: plain SMTP (`SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`,
+`SMTP_PASSWORD` through `credentials`, `MAIL_FROM`), so Resend, Postmark, SES
+or Gmail is a dashboard choice. Failures are logged and counted in
+`/api/health` (`mail`). Staging never sends.
 
 ### Verifying a provider token
 
@@ -345,6 +373,9 @@ is not a browser, sends no `Origin`, and needs nothing here.
     POST   /api/auth/login            email or phone, + want_token
     POST   /api/auth/provider         a verified Google or Apple identity token
     POST   /api/auth/password/set     a first password, for a provider account
+    GET    /api/auth/reset            whether this server can email a reset code
+    POST   /api/auth/reset/start      email a 6-digit code to the account's address
+    POST   /api/auth/reset/finish     the code + a new password; signs this device in
     GET    /api/account               settings: identities, sessions, tier, usage
     POST   /api/account               change name, email, phone
     DELETE /api/account               erase everything (5.1.1(v))

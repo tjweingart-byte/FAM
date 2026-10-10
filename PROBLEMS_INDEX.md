@@ -247,3 +247,4 @@ and `limit` = Lines.
 | 17550 | 66 | 241. Where the core went: the middleware, myFAM's probes, the limiter, the shell and scrypt |
 | 17616 | 64 | 242. Opus to the app |
 | 17680 | 117 | 243. Option B: every store can live in Postgres |
+| 17797 | 59 | 244. Password reset by an emailed code |

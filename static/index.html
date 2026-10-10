@@ -3144,7 +3144,7 @@
               </div>
               <p class="auth-error" id="authError" role="alert" hidden></p>
               <button class="entry-btn primary" id="authSubmit" type="submit">Create account</button>
-              <p class="entry-note" id="authNote">Password reset isn&rsquo;t available yet, so keep your password somewhere safe.</p>
+              <p class="entry-note" id="authNote">Password reset isn&rsquo;t set up on this server yet, so keep your password somewhere safe.</p>
               <!-- Agreed before an account exists (App Store 1.2, §228): an
                    unticked box the listener ticks themselves (clickwrap), sent
                    as `accept_terms` and kept by the server with its version.
@@ -3153,6 +3153,42 @@
                 <input type="checkbox" id="authTerms" onchange="clearAuthError()">
                 <span>I agree to FAM&rsquo;s <a href="/terms" target="_blank" rel="noopener">Terms and community rules</a> and <a href="/privacy" target="_blank" rel="noopener">Privacy policy</a>, and I&rsquo;m 13 or older.</span>
               </label>
+            </form>
+            <!-- Forgot password (§244): drawn only when the server can send
+                 email (`/api/auth/reset`). The code goes to the address on the
+                 account and nowhere else, which is what stops anybody who
+                 merely knows an address from changing its password. -->
+            <div class="auth-switch" id="authForgotRow" hidden>
+              <button type="button" onclick="openReset()">Forgot password?</button>
+            </div>
+            <form id="authReset" hidden onsubmit="event.preventDefault(); submitReset();" novalidate>
+              <div class="auth-field">
+                <div class="auth-label">Email</div>
+                <input class="modal-input" id="resetEmail" type="email"
+                       autocomplete="email" placeholder="you@example.com"
+                       style="margin-bottom:0;" oninput="showResetError('')">
+              </div>
+              <div id="resetStep2" hidden>
+                <div class="auth-field">
+                  <div class="auth-label">6-digit code</div>
+                  <input class="modal-input" id="resetCode" type="text"
+                         inputmode="numeric" autocomplete="one-time-code"
+                         maxlength="6" placeholder="123456"
+                         style="margin-bottom:0;" oninput="showResetError('')">
+                </div>
+                <div class="auth-field">
+                  <div class="auth-label">New password</div>
+                  <input class="modal-input" id="resetPassword" type="password"
+                         autocomplete="new-password" placeholder="at least 8 characters"
+                         style="margin-bottom:0;" oninput="showResetError('')">
+                </div>
+              </div>
+              <p class="auth-error" id="resetError" role="alert" hidden></p>
+              <button class="entry-btn primary" id="resetSubmit" type="submit">Email me a code</button>
+              <p class="entry-note" id="resetNote">We&rsquo;ll email a code to the address on your account. Signed up with only a phone number? Reset needs an email address on the account.</p>
+              <div class="auth-switch" id="resetResendRow" hidden>
+                <button type="button" onclick="sendResetCode()">Send a new code</button>
+              </div>
             </form>
             <div class="auth-switch" id="authSwitch"></div>
           </div>
@@ -19006,6 +19042,115 @@
     clearAuthError();
     showScreen("auth");
     showAuthForm();
+    closeReset();
+    checkResetReady();
+  }
+
+  // --- forgot password (§244) ----------------------------------------------
+  //
+  // Two steps on the log-in screen: an address, then the emailed code and a
+  // new password. The server answers the first step the same way whether or
+  // not the address has an account, so this says the same thing either way.
+  var RESET_READY = false;
+  function checkResetReady(){
+    return fetch("/api/auth/reset").then(function(r){ return r.json(); })
+      .then(function(d){ RESET_READY = !!(d && d.available); drawForgot(); })
+      .catch(function(){ RESET_READY = false; drawForgot(); });
+  }
+  function drawForgot(){
+    var resetting = !document.getElementById("authReset").hidden;
+    document.getElementById("authForgotRow").hidden =
+      !(RESET_READY && authMode === "login") || resetting;
+    // The sign-up warning is true only while there is no reset to fall back on.
+    document.getElementById("authNote").hidden = authMode === "login" || RESET_READY;
+  }
+  function showResetError(message){
+    var el = document.getElementById("resetError");
+    el.textContent = message;
+    el.hidden = !message;
+  }
+  function openReset(){
+    document.getElementById("authForm").hidden = true;
+    document.getElementById("authReset").hidden = false;
+    document.getElementById("authTitle").textContent = "Reset password";
+    document.getElementById("authSub").textContent =
+      "Enter the email on your account.";
+    var typed = document.getElementById("authEmail").value.trim();
+    if(typed) document.getElementById("resetEmail").value = typed;
+    document.getElementById("resetStep2").hidden = true;
+    document.getElementById("resetResendRow").hidden = true;
+    document.getElementById("resetSubmit").textContent = "Email me a code";
+    showResetError("");
+    document.getElementById("authSwitch").innerHTML =
+      'Remembered it? <button type="button" onclick="switchAuthMode(\'login\')">Log in</button>';
+    drawForgot();
+    try { document.getElementById("resetEmail").focus({ preventScroll: true }); } catch(e){}
+  }
+  function closeReset(){
+    document.getElementById("authReset").hidden = true;
+    document.getElementById("authForm").hidden = false;
+    document.getElementById("resetCode").value = "";
+    document.getElementById("resetPassword").value = "";
+    drawForgot();
+  }
+  function resetPost(path, body){
+    return fetch(path, {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify(body)
+    }).then(function(r){
+      return r.json().then(function(d){
+        if(!r.ok) throw new Error(d.error || "That did not work");
+        return d;
+      });
+    });
+  }
+  function sendResetCode(){
+    var email = document.getElementById("resetEmail").value.trim();
+    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){
+      showResetError("Enter the email address on your account."); return;
+    }
+    var btn = document.getElementById("resetSubmit");
+    btn.disabled = true;
+    return resetPost("/api/auth/reset/start", { email: email })
+      .then(function(d){
+        btn.disabled = false;
+        document.getElementById("resetStep2").hidden = false;
+        document.getElementById("resetResendRow").hidden = false;
+        btn.textContent = "Set new password";
+        document.getElementById("resetNote").textContent = d.message ||
+          "If that address has a FAM account, a code is on its way.";
+        try { document.getElementById("resetCode").focus({ preventScroll: true }); } catch(e){}
+      })
+      .catch(function(err){ btn.disabled = false; showResetError(err.message); });
+  }
+  function submitReset(){
+    if(document.getElementById("resetStep2").hidden){ sendResetCode(); return; }
+    var email = document.getElementById("resetEmail").value.trim();
+    var code = document.getElementById("resetCode").value.replace(/\D/g, "");
+    var password = document.getElementById("resetPassword").value;
+    if(code.length !== 6){ showResetError("Enter the 6-digit code from the email."); return; }
+    if(password.length < 8){
+      showResetError("Use at least 8 characters for your password."); return;
+    }
+    var btn = document.getElementById("resetSubmit");
+    btn.disabled = true;
+    btn.textContent = "Saving\u2026";
+    postAuth("/api/auth/reset/finish", { email: email, code: code, new: password },
+             "Password changed. You\u2019re signed in.", showResetError)
+      .then(function(){
+        btn.disabled = false;
+        btn.textContent = "Set new password";
+        if(!AUTH.authenticated) return;    // the error is under the fields
+        document.getElementById("resetPassword").value = "";
+        closeReset();
+        if(authReturn){
+          var back = authReturn;
+          authReturn = "";
+          showScreen(back);
+          return;
+        }
+        afterAccount();
+      });
   }
   function signupGoesToWaitlist(){
     return !window.FAM_PREVIEW && /^https?:$/.test(location.protocol);

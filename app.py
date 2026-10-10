@@ -91,6 +91,7 @@ import viral_loops as viral_loops_mod
 import waitlist as waitlist_mod
 from paths import PROJECT_ROOT
 import mixes as mixes_mod
+import mail as mail_mod
 import push as push_mod
 import listener_clock
 import preferences as prefs_mod
@@ -1856,6 +1857,9 @@ async def health(request: Request) -> dict:
         # if not, the sentence the mix page shows.
         "mix_notifications": {k: v for k, v in push_mod.status().items()
                               if k != "public_key"},
+        # Email (mail.py, §244): whether password reset can send, how many
+        # sends worked and failed, and the last failure's words.
+        "mail": mail_mod.report(),
     }
 
 
@@ -1924,6 +1928,22 @@ class NewPasswordRequest(BaseModel):
 class PasswordChangeRequest(BaseModel):
     current: str = Field(..., max_length=accounts_mod.MAX_PASSWORD)
     new: str = Field(..., max_length=accounts_mod.MAX_PASSWORD)
+
+
+class ResetStartRequest(BaseModel):
+    """"Forgot password?": the address to send a code to (§244)."""
+
+    email: str = Field("", max_length=accounts_mod.MAX_EMAIL)
+
+
+class ResetFinishRequest(BaseModel):
+    """The emailed code and the password to set with it (§244)."""
+
+    email: str = Field("", max_length=accounts_mod.MAX_EMAIL)
+    code: str = Field("", max_length=16)
+    new: str = Field(..., max_length=accounts_mod.MAX_PASSWORD)
+    #: Native clients only; see CredentialsRequest.
+    want_token: bool = False
 
 
 @app.get("/api/auth/me")
@@ -2167,6 +2187,76 @@ async def auth_password(req: PasswordChangeRequest, request: Request) -> dict:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     request.state.set_session = ""
     return {"ok": True}
+
+
+#: What a reset request answers, whether or not the address has an account
+#: (§244): anything else would tell a stranger which addresses are registered.
+RESET_SENT = ("If that address has a FAM account, a 6-digit code is on its way. "
+              "It works for 15 minutes.")
+
+
+@app.get("/api/auth/reset")
+async def auth_reset_status(request: Request) -> dict:
+    """Whether this server can send a reset code, and if not, why. The log-in
+    screen draws "Forgot password?" only when it can (§244)."""
+    _read_limit(request)
+    return mail_mod.status()
+
+
+@app.post("/api/auth/reset/start")
+async def auth_reset_start(req: ResetStartRequest, request: Request) -> dict:
+    """Email a one-time code to the account at this address (§244).
+
+    The security is in where the code goes: only to the address already on
+    the account, so changing somebody's password needs their inbox, not just
+    their address. The answer is identical for an address with no account,
+    and the mail is sent on its own thread so the time taken is identical
+    too. Paced like the other auth endpoints, and the store caps codes per
+    account (`accounts.RESET_MAX_CODES`).
+    """
+    _rate_limit(request)
+    ready = mail_mod.status()
+    if not ready["available"]:
+        raise HTTPException(status_code=503, detail=ready["reason"])
+    minted = ACCOUNTS.start_reset(req.email)
+    if minted:
+        _user_id, address, code = minted
+        mail_mod.send_later(
+            address, f"{code} is your FAM code",
+            f"Your FAM password reset code is {code}.\n\n"
+            f"It works for {accounts_mod.RESET_CODE_SECONDS // 60} minutes. "
+            "If you did not ask to reset your password, ignore this email - "
+            "nothing changes unless the code is used.\n")
+    return {"ok": True, "message": RESET_SENT}
+
+
+@app.post("/api/auth/reset/finish")
+async def auth_reset_finish(req: ResetFinishRequest, request: Request) -> dict:
+    """Set a new password with the emailed code, and sign this device in.
+
+    Every other session on the account ends (`finish_reset`), as a password
+    change does, and the address is told it happened - so a reset the owner
+    did not make is not a silent one.
+    """
+    _rate_limit(request)
+    try:
+        listener = ACCOUNTS.finish_reset(req.email, req.code, req.new)
+    except accounts_mod.AuthError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if listener.email:
+        mail_mod.send_later(
+            listener.email, "Your FAM password was changed",
+            "The password on your FAM account was just reset with a code sent "
+            "to this address, and every device was signed out.\n\n"
+            "If that was not you, reset it again from the log-in screen now.\n")
+    listener = _admit_admin(listener)
+    old = _session_token(request)
+    token, _user_id = ACCOUNTS.new_session(listener.user_id)
+    if old:
+        ACCOUNTS.end_session(old)
+    request.state.set_session = token
+    return {**listener.as_dict(), "admin": _allowed_admin(listener),
+            **_maybe_token(request, token, req.want_token)}
 
 
 @app.post("/api/auth/password/set")
