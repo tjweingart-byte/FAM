@@ -188,7 +188,7 @@ These are list prices, not bills. Spend is recorded per image in
 | `THUMBNAILS_IMAGE_MODEL` | `gemini-3.1-flash-image` | Any Gemini image model, or an `imagen-*` name; a name the key cannot call is swapped at run time for the best one it can, and the log says which |
 | `THUMBNAILS_STYLE_DIR` | `thumbnail_style` | Reference pictures sent with every Gemini request; `0` sends none |
 | `THUMBNAILS_IMAGE_PRICE` | `0.067` | Estimated list price of one 1K image, for the spend record - check Google's pricing page |
-| `THUMBNAILS_MODEL` | `claude-haiku-5-5` (§227) | Scene writer and checker; `THUMBNAILS_CLAUDE_INPUT_PER_MTOK` / `_OUTPUT_PER_MTOK` (0.10 / 0.50) are its prices |
+| `THUMBNAILS_MODEL` | `MODEL` (§248) | Scene writer and checker; `THUMBNAILS_CLAUDE_INPUT_PER_MTOK` / `_OUTPUT_PER_MTOK` (2.0 / 10.0) are its prices |
 | `THUMBNAILS_ATTEMPTS` | `1` | Paid paintings per node. 1 holds a failing picture for review; more repaints on a logo, text, a real person or product |
 | `THUMBNAILS_DAILY_IMAGES` | `60` | Images per rolling 24h, whole deployment |
 | `THUMBNAILS_PER_SWEEP` | `20` | Nodes one background sweep paints |

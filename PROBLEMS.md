@@ -18024,3 +18024,40 @@ briefs is real, `EI_MODEL=claude-sonnet-5` restores the old brief without a
 deploy of code, at ~$0.01 a brief instead of ~$0.0005.
 
 Tests: `tests/test_ei_room_247.py`. Numbered 247: Main took §245-§246 while this waited.
+
+## 248. The pipeline back on Sonnet: §227's Haiku reversed
+
+The owner's executive decision (10.10): revert the move of part of the
+pipeline to Haiku and return it to Sonnet; outsourcing some of the Claude work
+may be looked at later. Asked two follow-ups, the owner chose to keep the
+§225 photo check on Haiku (a separate decision of theirs) and to keep §247's
+3000-token brief ceiling.
+
+**What changed.**
+
+* `ei_model`, `stories_model`, `categories_model` and `thumbnails_model`
+  follow `MODEL` again (`config._follows_model`: their own setting, else
+  `MODEL`, else `claude-sonnet-5`). An empty value still means unset.
+* `THUMBNAILS_CLAUDE_*_PER_MTOK` are Sonnet 5's again (2.0 / 10.0).
+* `config.SMALL_MODEL` stays, naming only the photo check
+  (`IMAGE_CHECK_MODEL`, §225).
+* `.env.example`, `docs/FINANCIAL.md`, `docs/SCALING_TIMELINE.md`,
+  `docs/BACKEND.md`, `MYFAM.md`, `THUMBNAILS.md`, `METERING.md` say so; the
+  `small-calls-haiku` rule carries a Current note and its CLAUDE.md line is
+  rewritten.
+
+**What stays from §227, because none of it is about Haiku:** metering prices
+every call at its own model's rates (an episode can still mix models - any
+`*_MODEL` set apart from `MODEL`, or the photo check's usage); the Opus 5.5,
+Sonnet 5.5 and Haiku 5.5 rows in `PRICES` and the per-model cache-read rates;
+the tools reading the one rate card; and `app._verify_small_models`, which
+now also checks `IMAGE_CHECK_MODEL` - the one call left on another model.
+§247's ceiling, its `out_of_room` reason and the `since_boot` counter stay.
+
+**What it costs.** The Claude bill returns to its pre-§227 shape: about
+$0.01 a brief instead of ~$0.0005, and roughly +40% on the Claude line at
+1k MAU and above on `docs/FINANCIAL.md` §4's estimates. The brief's quality is
+the pre-§227 brief's, which is the one the writing was tuned against.
+
+Tests: `tests/test_small_model_227.py` (rewritten to pin the reversal and
+what stays), `tests/test_moderation_and_consent.py` (photo check unchanged).
