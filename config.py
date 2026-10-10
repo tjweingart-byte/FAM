@@ -448,7 +448,7 @@ class Settings:
     # on Sonnet 5, whose briefs ran ~400-1,200 tokens and sometimes touched
     # it; Haiku 5.5 thinks at its own length and counts the same text as more
     # tokens, and a brief that hits the ceiling is cut off mid-JSON and
-    # searched as the raw query (§246). 3000 costs at most $0.0015 a brief on
+    # searched as the raw query (§247). 3000 costs at most $0.0015 a brief on
     # Haiku; the wall-clock bound is `EI_TIMEOUT_SECONDS`, not this.
     ei_max_tokens: int = _env_int("EI_MAX_TOKENS", 3000)
     # Past this, the brief is not worth the wait and the raw query is searched

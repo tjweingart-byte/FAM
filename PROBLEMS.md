@@ -17485,7 +17485,6 @@ to clients, if compressed audio is ever streamed to them, is decided with the
 iOS audio path, where native playback matters (AAC is the alternative to
 weigh against Opus there, not MP3).
 
-
 ## 240. A thousand listeners: the load test gets a verdict, the poll, and the shell
 
 The owner asked for a way to confirm FAM will not fail or slow down with
@@ -17853,7 +17852,112 @@ The support page's "I forgot my password" and the privacy policy's list of
 who receives data (the email provider) now describe the reset. TERMS_VERSION
 was not bumped, so nobody is asked to agree again for that row.
 
-## 246. Room for the brief on Haiku, and a count of every brief that degrades
+## 245. An episode with little to go on now says so, and is kept to itself
+
+The owner's direction (10.10): "It is preferred for us to be honest with
+customers versus trying to make up information." An episode titled along the
+lines of *No Company Called General Atomics* sat on the DailyFAM rails for
+days. General Atomics is real; the search found little, the writer reached for
+a connection to fill its minutes, and then concluded from absence that the
+company did not exist - the §88 failure (a fact about one search turned into a
+claim about the world), on a whole subject rather than one part of it. And
+because it was cached under the shared key like any other episode, every later
+listener and every rail could be handed it.
+
+What changed:
+
+* **Decided in code first** (`script_generator.limited_material`): no
+  evidence at all, or none of what the brief's `must_establish` asked for.
+  Deliberately narrow, because `research.packet_covers` is a coarse word test.
+  Never an attachment, a local question (§194 has its own sentence) or a
+  question a live provider answered. `EpisodePlan.limited` and
+  `ScriptNotes.limited` carry it; it is not in `key_for`.
+* **Then by the writer**: the trailing-lines instruction every episode reads
+  says honest beats full - what the material supports about their subject, no
+  neighbouring topic to fill time, then one plain sentence after it that this
+  is all it could find - and to mark that with a trailing `<<LIMITED>>` line
+  (stripped like TITLE). That covers a packet that looked full and turned out
+  to be about something else. A plan already `limited` gets the same in so
+  many words beside its evidence. The system prompt's "never say what you do
+  not have" bullet was folded shorter and now ends "finding little never means
+  a thing does not exist" - the dedup pass `test_the_prompt_stays_lean` asks
+  for left it 82 characters shorter than before. The §88 thin-on block points
+  a mostly-missing subject at the `<<LIMITED>>` rule. Unheard, like every
+  prompt change here (`no-api-key`): run
+  `python write.py "general atomics" --minutes 2` first.
+* **Never shared**: the pipeline writes a limited episode straight to
+  `archive_key(key, sourced)` with `ARCHIVE_ORIGIN` - never current, no
+  bucket, no play counted - so `resolve_episode` still replays it from its
+  listener's history (§173) and nothing else finds it; the shared key stays
+  free for a fresh search. The Trending bank records `limited` and
+  `stories_now` leaves the story off the rail; DailyFAM editions and prefetch
+  write nothing.
+* **Already cached**: rows written before this carry no flag. The way to take
+  one down is the one that exists - Report it in the app, then remove it from
+  `/admin`, which hides it for everybody (`moderation.hide_episode`).
+
+Also in this change: `/api/health` reports `memory` (`rss_mb`, `peak_mb`, from
+`/proc/self/status`). Render restarted production for exceeding the starter
+plan's 512 MB, and nothing could say why. The last measurement (§131) was
+about 89 MB at boot and 313 MB peak with the embedding model, before PyAV
+(§237); a live episode also holds its whole PCM in memory until it is kept.
+
+And light mode (owner's request): Settings → Appearance → Light mode, kept on
+the device under `fam.theme` (not `fam.prefs`, which logging out forgets) and
+set on `<html data-theme="light">` by a script at the top of `<body>` before
+the first paint. The chrome's colours are variables, with `--fg-rgb` and
+`--bg-rgb` for tints and fades; the Explore reel, stories, the VIBE! editor and
+the captions panel stay dark in both themes, deliberately, like a photo
+viewer.
+
+A review of the branch before merging found one real fault, now fixed: history
+is written at first audio, but a written episode's row only exists at the end
+of its stream, so `_pin_heard` dropped the id and history fell back to the
+shared question - for a limited episode, exactly what it must never be.
+`_pin_heard` now keeps a well-formed id whose row is not written yet, the end
+of a written stream pins the episode for the two weeks history shows it, and
+`history_read` treats an id whose row never arrived as no id. In light mode,
+the toned category tiles keep light words (their backgrounds are dark in both
+themes) and the play-all screen's icons take the text colour on their white
+circles.
+
+## 246. The FAM Doctrine, and "What is FAM" told as it
+
+The owner wrote **the FAM Doctrine**, "the most clearly it has ever been laid
+out", the problem FAM solves, and had it set as an investor document
+(`docs/doctrine/The_FAM_Doctrine.pdf`, built from `the_fam_doctrine.html` in
+the same folder with Chromium's print-to-PDF). Its argument: three problems
+compound into one. (01) What you know is shaped by what you're shown - news,
+feeds, search and algorithms decide, so you live inside everyone else's
+information systems and have none of your own. (02) The audio problem - the
+hours your ears are free (driving, walking, working out) get nothing,
+because information is built for eyes. (03) The interests of the people
+around you are invisible - two friends can hang out every day and be shown
+different worlds by two algorithms. Together: **information isolation**.
+The cure is **social information**, the category FAM is in: "Social media
+connects people. Social information connects what they know." The owner's
+edits along the way: the cover's summary of problem 01 is "isn't built
+around you" (not "isn't truly your own"); no Venn diagram; the cure is for
+*information* isolation.
+
+The owner then asked that the waitlist page's "What is FAM" reflect it. The
+section's problem was "Being in the know shouldn't be a full-time job"
+(§200, §212): what passes you by, the time keeping up takes condensed into
+one episode, the chat, and the origin (who decides which stories you hear).
+Now, in the doctrine's own words: the intro is its last sentence; the
+problem is its heading and summary, with its three parts taking turns in the
+carousel; the result (information isolation) and the cure (social
+information) stand on their own; then the same group chat without FAM and
+with it, kept because it shows the doctrine's last words ("never left out of
+the conversation"). Removed: the four "what passes you by" cards, the
+condense picture, the origin slide and its pipeline, and "That's why we
+built FAM" with its comparison - none is in the doctrine, and their CSS went
+with them. How to use FAM, Better together, the founders and the closing
+call are unchanged. `test_the_landing_page_tells_why_fam_exists` pins the
+doctrine's order and words and that the old telling is gone.
+`docs/claude/product.md` notes the doctrine at `social-information`.
+
+## 247. Room for the brief on Haiku, and a count of every brief that degrades
 
 The owner: since the brief moved to Haiku 5.5 (§227) some episodes say they
 lack information about things that are readily reported. Raise the brief's
@@ -17919,5 +18023,4 @@ the first search did not cover) against briefs. If Haiku's excess on complete
 briefs is real, `EI_MODEL=claude-sonnet-5` restores the old brief without a
 deploy of code, at ~$0.01 a brief instead of ~$0.0005.
 
-Tests: `tests/test_ei_room_246.py`. Numbered 246 because
-`claude/stoic-fermat-q2p9s1` already holds §240-§245.
+Tests: `tests/test_ei_room_247.py`. Numbered 247: Main took §245-§246 while this waited.

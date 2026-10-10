@@ -101,7 +101,7 @@ brief and writer differ is recorded correctly.
 **Calls per new search episode: 2.**
 
 1. **The episode-intelligence brief.** `episode_intelligence.py:745`.
-   Settings: `EI_MAX_TOKENS=3000` (1200 until §246), `EI_EFFORT=low`, 8 s timeout.
+   Settings: `EI_MAX_TOKENS=3000` (1200 until §247), `EI_EFFORT=low`, 8 s timeout.
 2. **The script writer.** `script_generator.py:1390`. It streams, carries no
    tools, and runs with `EFFORT=low` and `MAX_OUTPUT_TOKENS=16000`.
 

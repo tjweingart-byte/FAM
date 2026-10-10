@@ -768,6 +768,12 @@ class Prefetcher:
                 log.info("prefetch wrote nothing for %r: it does not keep",
                          candidate.query)
                 return "volatile"
+            if getattr(notes, "limited", False):
+                # §245: a warmed script is served to whoever taps, so one
+                # with too little to go on is never kept.
+                log.info("prefetch wrote nothing for %r: too little material",
+                         candidate.query)
+                return "limited"
             # No author, deliberately. A warmed script was nobody's tap, so
             # it belongs to everybody: stamping the listener it was guessed
             # for would hide it from the one Explore feed most likely to want

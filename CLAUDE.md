@@ -306,7 +306,8 @@ Research and truth
   are evidence of no outcome; take the smaller true reading on contradiction. [started-not-finished]
 - **A missed search establishes nothing about the world**: volatile things are
   never supplied from memory; settled things may be or are omitted; the gap is
-  never announced or ended on. [missed-not-absent]
+  unannounced, except a thin subject: what it has, then "that's all we
+  found", never shared (§245); never "doesn't exist". [missed-not-absent]
 - **Live facts** (`live_facts.py`): **never confidently invent a current fact
   without authoritative, fresh evidence; never infer one from absence.** Closed
   status vocabulary; only evidence sets it; resolution from the provider's
@@ -525,9 +526,8 @@ Every change ends the same way, without being asked [ship-loop]:
 ## Picking up a session  (`workflow.md`)
 
 - Develop and push on the branch the session assigns; no PR unless asked. [branch-no-pr]
-- Reading order and the reference docs (`docs/`, `MYFAM.md`, `DATABASE.md`,
-  `ACCOUNTS.md`, `SHARING.md`, `LIVE_FACTS.md`, ...) are listed in `workflow.md`;
-  recent history is in `PROBLEMS_INDEX.md`. [reading-order]
+- Reading order and the reference docs are listed in `workflow.md`; recent
+  history is in `PROBLEMS_INDEX.md`. [reading-order]
 - Setup: `pip install -r requirements.txt` and `pip install playwright`. [setup-deps]
 - Run `./dev.sh check` first; it ends `all checks passed` twice with the smoke
   count from `grep -c '^        check(' tools/smoke_preview.py`. [baseline-check-counts]

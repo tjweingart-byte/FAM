@@ -356,7 +356,7 @@ def clean_title(title: str, query: str) -> str:
     return text[:80]
 
 
-#: How each brief since boot ended (§246): `ok`, or the reason it degraded to
+#: How each brief since boot ended (§247): `ok`, or the reason it degraded to
 #: the raw query - `out_of_room`, `timeout`, `failed`, `refused`,
 #: `unreadable`. A degraded brief already says so per episode in the log; this
 #: is the rate, which is the number that decides whether a model or a ceiling
@@ -922,7 +922,7 @@ async def understand(query: str, minutes: int = DEFAULT_MINUTES, context: str = 
     # would be a silent degradation rather than a visible one.
     if getattr(response, "stop_reason", "") == "refusal":
         return _degrade(query, "refused", "EI declined the request")
-    # **A brief cut off by its own ceiling** (§246). The thinking and the
+    # **A brief cut off by its own ceiling** (§247). The thinking and the
     # JSON share `EI_MAX_TOKENS`, so a brief that thought for longer than the
     # ceiling allowed stops mid-object and reads as unparseable - which used
     # to be reported as "nothing readable", hiding that the cure is a setting.
@@ -1075,7 +1075,7 @@ def report() -> dict:
         "effort": settings.ei_effort,
         "timeout_seconds": settings.ei_timeout_seconds,
         "max_tokens": settings.ei_max_tokens,
-        # How the briefs since boot ended: `ok` or why each degraded (§246).
+        # How the briefs since boot ended: `ok` or why each degraded (§247).
         "since_boot": dict(_OUTCOMES),
         "default_recency_days": settings.ei_default_recency_days,
         "intents": list(INTENTS),
