@@ -103,7 +103,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   read by anyone, written with an account, one level of replies; the
   exploreFAM pill opens it from search and beside Made for you. [explore-reel]
 - **VIBE! is a story editor** (§213): a clamped layout, never an image;
-  Your story or Close Friends; holding pauses; your story rings your face. [vibe-caption]
+  Your story only (§248); holding pauses; your story rings your face. [vibe-caption]
 - **Group chats** (§213): one row per message to a `g:` thread; graph only. [group-chats]
 
 - **Names swapped for the listener** (§185): the rails screen *shows*
@@ -273,7 +273,7 @@ Audio and the opening
 - **Duration is a ceiling, not a quota** - end early rather than pad (`ALLOW_TOPUPS=1` restores). [duration-ceiling]
 - **Two transport gestures, both stay**: draggable bar (clamped to what is
   written) and ±15s. One transport: `setPlayState` alone moves audio and redraws
-  all four players. Leaving the player never stops it; the down arrow minimises; `placeNowBar`. [transport]
+  all four players. Leaving the player never stops it; the mini bar's X does (§248). [transport]
 - **Nothing speaks before its material has arrived, and no setting buys that
   back**: the writer holds brief and evidence before its first token; no tools
   on the speaking call; EI on every episode. Only work *before* the tap may be
@@ -442,7 +442,7 @@ Accounts, tiers, sharing
 - **Authorship is provenance, never identity**: `PodcastPipeline.author`, never
   on `EpisodePlan` or in `key_for`; first writer keeps it; prefetch writes none. [authorship-provenance]
 - **Type: Bricolage Grotesque (headings), Geist (body), Geist Mono (labels)**
-  (§204), one font link; Fraunces/Space Grotesk/JetBrains Mono are gone. [typefaces]
+  (§204), one font link; wordmark words at 400; light theme by default (§248). [typefaces]
 - **A speed change must not change the voice** (WSOLA; bypassed at 1x; default 1x). [speed-pitch]
 - **A control with nothing behind it is worse than no control**; never fabricate people. [no-dead-controls]
 - **The intro screen is not on the navigation stack**; screens opened over it

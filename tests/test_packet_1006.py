@@ -100,11 +100,14 @@ def test_the_story_menu_has_the_owners_five():
 
 def test_vibe_opens_the_editor_not_a_caption_box():
     assert "openVibeComposer(ep)" in _fn("toggleEcho")
-    composer = INDEX.split('id="vibeComposer"', 1)[1].split('id="closeFriendsOverlay"', 1)[0]
+    composer = INDEX.split('id="vibeComposer"', 1)[1].split('id="guestGateOverlay"', 1)[0]
     for tool in ("'text'", "'stickers'", "'mention'", "'picture'"):
         assert "vcsTool(" + tool + ")" in composer, tool
-    for door in ("postVibeStory('')", "postVibeStory('close')", "closeVibeComposer()"):
+    for door in ("postVibeStory('')", "closeVibeComposer()"):
         assert door in composer, door
+    # No Close Friends audience (§248, the 10.10 packet): a story goes to
+    # everybody who follows.
+    assert "Close Friends</button>" not in composer and "postVibeStory('close')" not in INDEX
     assert "Add a caption" in composer
     # Not music, not the colour circle, not the "more" arrow.
     for gone in ("Audio", "Music", "Background", "More"):
@@ -150,7 +153,9 @@ def test_close_friends_stories_reach_only_close_friends(store):
     assert store.echoes_among(["a"], viewer="c") == {}
 
 
-def test_close_friends_are_chosen_in_settings(client):
+def test_close_friends_still_answer_an_older_client(client):
+    """§248 took Close Friends out of the app; the endpoint stays for an
+    installed client that still offers it (`old-clients`)."""
     me = signed_in(client, "cf1@b.com", "Cal", "cal1")
     other = TestClient(appmod.app)
     with other:
@@ -163,7 +168,7 @@ def test_close_friends_are_chosen_in_settings(client):
     # Somebody outside the graph is refused.
     assert client.post("/api/close-friends",
                        json={"user_id": "nobody", "on": True}).status_code == 404
-    assert "openCloseFriends()" in _fn("renderSettings")
+    assert "openCloseFriends" not in INDEX and "closeFriendsOverlay" not in INDEX
     assert me
 
 
