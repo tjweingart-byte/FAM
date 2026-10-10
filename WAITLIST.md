@@ -153,11 +153,12 @@ section when a decision changes, including why.
     about FAM" (decision 20).
 19. **The section tells why FAM exists** (the owner, 04/10, PROBLEMS.md §199):
     FAM is social information, not social media. The tagline under both
-    wordmarks and the intro say so; then the problem (what passes you by on a
-    moving rail, the time keeping up takes, all of it condensed into one
-    short episode), the same group chat without FAM and with it, side by
-    side, and why it was built (who decides which stories you hear, and the
-    pipeline it collapses), before the product.
+    wordmarks and the intro say so. Since §240 the section is the FAM
+    Doctrine (`docs/doctrine/`), in its own words: the problem with how
+    information reaches us, its three parts taking turns (what you're shown,
+    the audio problem, the people around you), what they add up to
+    (information isolation), the cure (social information), then the same
+    group chat without FAM and with it, before the product.
 20. **The profile comes straight after joining; the status page has a gear
     and "Learn more about FAM"** (the owner, 07/10, PROBLEMS.md §215). Joining
     lands on `/waitlist/me?setup=1`: the profile and nothing else - the app's

@@ -423,7 +423,8 @@ owner.
 | Entry hand-off | Wordmark folds into the chevron, slides to the rails screen | 196 | Changed by §201: chevron **charges** (copper → yellow) instead of turning; plays **every time the app opens**; glow removed at the owner's ask; a sound effect is planned. |
 | Waitlist page explains FAM | "What is FAM", real app screens, founders Ian Solomon and TJ Weingart | 198 | Rewritten by §199, §200. |
 | Social information | Hero line "The social information network" | 199 | Current. |
-| The real problem | "Being in the know shouldn't be a full-time job"; founders' photo; "© 2026 APALI. All rights reserved." | 200 | Current. |
+| The real problem | "Being in the know shouldn't be a full-time job"; founders' photo; "© 2026 APALI. All rights reserved." | 200 | Rewritten by §240 (the problem); the photo and copyright are current. |
+| The FAM Doctrine | "What is FAM" tells the owner's doctrine: three problems → information isolation → social information, the cure | 240 | Current. |
 | The type read as generated (Fraunces / Space Grotesk / JetBrains Mono) | Bricolage Grotesque + Geist + Geist Mono, chosen by the owner from six photographed systems; a role-for-role swap | 204 | Current `[typefaces]`; the landing page's phone-screenshot cards still show the old type until retaken. |
 
 ---

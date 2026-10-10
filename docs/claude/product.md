@@ -28,6 +28,14 @@ why a listener should wait for someone else to decide. Copy, onboarding and
 features should be judged against this frame; the waitlist page's "What is
 FAM" section tells it in full (`static/waitlist.html`).
 
+> **Current:** the owner's clearest statement of the frame is **the FAM
+> Doctrine** (§240, `docs/doctrine/`): three problems - what you know is
+> shaped by what you're shown; information is built for eyes, not ears; the
+> interests of the people around you are invisible - compound into one,
+> **information isolation**, and social information is its cure. The
+> waitlist's "What is FAM" now tells the doctrine in its own words; judge
+> copy against it.
+
 <!-- rule:three-surfaces -->
 ## Where this is going
 
