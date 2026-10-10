@@ -18055,6 +18055,9 @@ Sonnet 5.5 and Haiku 5.5 rows in `PRICES` and the per-model cache-read rates;
 the tools reading the one rate card; and `app._verify_small_models`, which
 now also checks `IMAGE_CHECK_MODEL` - the one call left on another model.
 §247's ceiling, its `out_of_room` reason and the `since_boot` counter stay.
+On Sonnet the ceiling's worst case is ~$0.03 a brief (all 3000 tokens used),
+against ~$0.012 at 1200; only what is used is billed, and an ordinary brief
+(~800 tokens) costs what it did - §247's "$0.0015" was the Haiku figure.
 
 **What it costs.** The Claude bill returns to its pre-§227 shape: about
 $0.01 a brief instead of ~$0.0005, and roughly +40% on the Claude line at

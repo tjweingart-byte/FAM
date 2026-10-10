@@ -108,7 +108,7 @@ call itself, so they cost no extra call.
 
 | Call | Input | Output (incl. hidden thinking) | Cost |
 |---|---|---|---|
-| Brief | ~1,000 tokens (`EI_SYSTEM` is 2,526 chars, plus the question and schema) | 400-1,200 (capped at 1,200) | **$0.006-0.014** |
+| Brief | ~1,000 tokens (`EI_SYSTEM` is 2,526 chars, plus the question and schema) | 400-1,200 (capped at 3,000 since §247; ~$0.03 if all of it were used) | **$0.006-0.014** |
 | Writer, 2 min | ~5,500 tokens: system 7,794 chars (~1,950 tok), style example 6,215 chars (~1,550 tok), brief + evidence packet (~2,000 tok) | ~1,500-2,500: script ~400, plus thinking at `low` | **$0.026-0.036** |
 | Writer, 10 min | ~5,500 | ~3,000-4,000 | **$0.041-0.051** |
 
