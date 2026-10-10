@@ -130,7 +130,7 @@ _SUMMARY_MARKER = re.compile(r"<<\s*SUMMARY\s*:\s*([^<>]{1,240}?)\s*>>", re.I)
 #: composer that categorised the tile beforehand had read only headlines.
 _CATEGORY_MARKER = re.compile(r"<<\s*CATEGORY\s*:\s*([^<>]{1,80}?)\s*>>", re.I)
 #: The writer saying it had little to go on and told the listener so
-#: (§240). Never spoken. An episode that carries it is played to the one
+#: (§245). Never spoken. An episode that carries it is played to the one
 #: listener who asked and never served to anybody else (`cache.put(limited=)`).
 _LIMITED_MARKER = re.compile(r"<<\s*LIMITED\b[^<>]{0,40}>>", re.I)
 # Anything that would be read aloud as punctuation noise rather than speech.
@@ -537,7 +537,7 @@ class ScriptNotes:
     #: rule that fails silently is how the Dodgers opener survived a system
     #: prompt that already banned it. `write.py` prints these. PROBLEMS.md §94.
     meta_openings: tuple = ()
-    #: The episode had little to go on and said so (§240): the research came
+    #: The episode had little to go on and said so (§245): the research came
     #: back empty or missed everything the brief needed, or the writer wrote
     #: `<<LIMITED>>`. The pipeline stores it for the listener who asked and
     #: marks it so no other listener, rail or catalogue is ever served it.
@@ -689,7 +689,7 @@ class EpisodePlan:
     #: same confident voice as the researched half.
     thin_on: tuple = ()
     #: The research came back with nothing, or with none of what the brief
-    #: said the episode needed (`limited_material`, §240). The writer is told
+    #: said the episode needed (`limited_material`, §245). The writer is told
     #: to say what it has and then say plainly that it is all it found, and
     #: the episode is never served to another listener. **Never in the cache
     #: key**: it describes one search, not what the episode is.
@@ -745,7 +745,7 @@ class EpisodePlan:
 def limited_material(plan) -> bool:
     """Did the research come back with too little to build an episode on?
 
-    The owner's direction (§240): an episode on a subject there is little
+    The owner's direction (§245): an episode on a subject there is little
     written about says what it has and then says plainly that this is all it
     found - rather than reaching for a neighbouring topic to fill its minutes
     - and is never handed to another listener. This is the half decided in
@@ -1016,7 +1016,7 @@ for the script.
 """
 
     if plan.limited:
-        # §240: said to the writer in so many words, because the evidence
+        # §245: said to the writer in so many words, because the evidence
         # block alone (or its absence) does not tell it the subject is thin.
         evidence += (
             "\nThe search came back with very little on what they asked"

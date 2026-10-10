@@ -769,7 +769,7 @@ class Prefetcher:
                          candidate.query)
                 return "volatile"
             if getattr(notes, "limited", False):
-                # §240: a warmed script is served to whoever taps, so one
+                # §245: a warmed script is served to whoever taps, so one
                 # with too little to go on is never kept.
                 log.info("prefetch wrote nothing for %r: too little material",
                          candidate.query)

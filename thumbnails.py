@@ -72,6 +72,8 @@ import logging
 import os
 import re
 import sqlite3
+
+import db as store_db
 import threading
 import time
 from dataclasses import dataclass, field
@@ -376,7 +378,7 @@ class ThumbnailStore:
     def _conn(self) -> sqlite3.Connection:
         conn = getattr(self._local, "conn", None)
         if conn is None:
-            conn = sqlite3.connect(self.path, timeout=5.0,
+            conn = store_db.connect(self.path, timeout=5.0,
                                    isolation_level=None)
             conn.execute("PRAGMA journal_mode=WAL")
             self._local.conn = conn
@@ -395,14 +397,23 @@ class ThumbnailStore:
             return
         self._approved = {r[0]: (float(r[1]), r[2] or "") for r in rows}
         try:
-            self._data_version = int(self._conn().execute(
-                "PRAGMA data_version").fetchone()[0])
+            self._data_version = self._version()
         except Exception:  # noqa: BLE001
             pass
         _bump_generation()
 
     def approved(self) -> dict[str, tuple[float, str]]:
         return self._approved
+
+    def _version(self):
+        """What changes when any process writes. SQLite keeps a counter;
+        Postgres has none per schema (§243), so there it is the table's own
+        clock - every write stamps `updated_at`, and no row is deleted."""
+        if store_db.enabled():
+            return tuple(self._conn().execute(
+                "SELECT COUNT(*), COALESCE(MAX(updated_at), 0) FROM thumbnails"
+            ).fetchone())
+        return int(self._conn().execute("PRAGMA data_version").fetchone()[0])
 
     def refresh_if_changed(self, now: Optional[float] = None) -> None:
         """Pick up a write another process made - `tools/thumbnails.py`
@@ -414,8 +425,7 @@ class ThumbnailStore:
             return
         self._checked_at = now
         try:
-            version = int(self._conn().execute(
-                "PRAGMA data_version").fetchone()[0])
+            version = self._version()
         except Exception:  # noqa: BLE001 - a stale map beats a failed tile
             return
         if version != self._data_version:

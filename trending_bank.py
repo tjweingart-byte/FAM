@@ -68,6 +68,8 @@ import math
 import os
 import re
 import sqlite3
+
+import db as store_db
 import threading
 import time
 from dataclasses import asdict, dataclass, field, replace
@@ -163,7 +165,7 @@ def slot_id(slot: datetime) -> str:
 # The edition
 # --------------------------------------------------------------------------
 #: An episode's status when the research had too little to make one of
-#: (§240): not written, and its story is left off the rail.
+#: (§245): not written, and its story is left off the rail.
 LIMITED = "limited"
 
 
@@ -258,7 +260,7 @@ class BankStore:
                 n INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (day, provider))""")
 
     def _connect(self) -> sqlite3.Connection:
-        db = sqlite3.connect(self.path, timeout=10, isolation_level=None)
+        db = store_db.connect(self.path, timeout=10, isolation_level=None)
         db.execute("PRAGMA journal_mode=WAL")
         return db
 
@@ -376,7 +378,7 @@ class BankStore:
                 db.execute("ROLLBACK")
                 return False
             db.execute("INSERT INTO spend (day, provider, n) VALUES (?, ?, 1) "
-                       "ON CONFLICT(day, provider) DO UPDATE SET n = n + 1",
+                       "ON CONFLICT(day, provider) DO UPDATE SET n = spend.n + 1",
                        (day, provider))
             db.execute("COMMIT")
             return True
@@ -470,7 +472,7 @@ def stories_now(now: Optional[float] = None) -> list:
     if edition is None:
         return []
     now = time.time() if now is None else now
-    # A story whose episode came back with too little to go on (§240) is not
+    # A story whose episode came back with too little to go on (§245) is not
     # offered: its tile would promise an episode FAM declined to share.
     return [s for s in edition.stories if not s.expired(now)
             and (edition.episodes.get(s.id) or {}).get("status") != LIMITED]
@@ -864,7 +866,7 @@ def _finish(story, plan, key: str, notes, sentences: list, cache, minutes: int,
         return {"status": "volatile", "key": key, "dollars": dollars,
                 "detail": "under way; a score is never kept"}
     if getattr(notes, "limited", False):
-        # §240: too little to go on is never put in front of everybody. Not
+        # §245: too little to go on is never put in front of everybody. Not
         # written, and `stories_now` drops the story from the rail.
         return {"status": LIMITED, "key": "", "dollars": dollars,
                 "detail": "too little reporting to make an episode of"}

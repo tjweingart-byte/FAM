@@ -377,6 +377,7 @@ def test_health_reports_every_database_with_a_real_read(monkeypatch, tmp_path):
         assert entry["env_var"] in ALL_VARS
 
 
+@pytest.mark.sqlite_file
 def test_health_says_a_broken_database_is_broken(monkeypatch, tmp_path):
     """The failure that matters: a path that does not open must not be
     reported as ok."""
@@ -403,6 +404,7 @@ def test_health_says_a_broken_database_is_broken(monkeypatch, tmp_path):
 # `st_dev` is a fact about the machine rather than an echo of a setting.
 
 
+@pytest.mark.sqlite_file
 def test_every_database_says_whether_it_survives_a_redeploy(monkeypatch):
     from fastapi.testclient import TestClient
 
@@ -414,6 +416,7 @@ def test_every_database_says_whether_it_survives_a_redeploy(monkeypatch):
         assert entry["persistence"] in {"disk", "image", "memory", "unknown"}, entry
 
 
+@pytest.mark.sqlite_file
 def test_a_database_on_the_code_s_own_filesystem_goes_with_the_image(monkeypatch):
     """The application filesystem is the container image. On a laptop that is
     normal; on a container host it is every listener's account, erased on the

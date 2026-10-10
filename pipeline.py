@@ -34,6 +34,7 @@ import metering
 from episode_marks import EpisodeMarks, TimedClient
 from config import STREAMING_PIPELINES, settings
 import content_filter
+import audio_codec
 import live_captions
 from pronunciation import respell
 from spoken_text import speakable
@@ -243,6 +244,12 @@ class GenerationStats:
     #: other under one key, and two key schemes could not silently disagree
     #: about which episode a caption belonged to.
     caption_key: str = ""
+    #: §242: the client asked for Opus (`fmt=opus`). A kept Opus episode is
+    #: then passed through as stored (`opus_passthrough`), and its encoder's
+    #: pre-skip (48 kHz samples) is what the response tells the client.
+    opus: bool = False
+    opus_passthrough: bool = False
+    opus_preskip: int = 0
     #: The thread the episode left open, phrased as the follow-up a listener
     #: would ask for. Drives the one-tap suggestion in Go Deeper; empty when
     #: the model named none.
@@ -1212,7 +1219,17 @@ class PodcastPipeline:
                               == len(stored.sentences) else None)
         stats.first_audio_at = time.perf_counter() - stats.started_at
         sent = 0
-        pieces = stored.slices()
+        if (stats.opus and stored.codec == audio_codec.OPUS
+                and audio_codec.can_stream(stored.sample_rate)):
+            # §242: the stored packets themselves - no decode, no re-encode,
+            # no second generation of loss. Each chunk says how much PCM it
+            # stands for, so the pre-roll and the length below are unchanged.
+            stats.opus_preskip, pieces = await asyncio.to_thread(
+                audio_codec.stored_packets, stored.blob, stored.frames,
+                stored.sample_rate)
+            stats.opus_passthrough = True
+        else:
+            pieces = stored.slices()
         try:
             while True:
                 # A slice at a time, off the loop: an Opus second decodes in
@@ -1221,7 +1238,7 @@ class PodcastPipeline:
                 piece = await asyncio.to_thread(next, pieces, None)
                 if piece is None:
                     break
-                sent += len(piece)
+                sent += audio_codec.pcm_len(piece)
                 yield piece
         finally:
             # The episode's length, not how much of it was heard - as before.
@@ -1381,7 +1398,9 @@ class PodcastPipeline:
                     stored = await asyncio.to_thread(
                         self.cache.get_audio, key, self._audio_voice(),
                         self.engine.sample_rate)
-                    if stored is not None and stored.pcm:
+                    # `blob`, not `pcm`: `pcm` decodes the whole episode,
+                    # on the loop, only to ask whether it is empty (§242).
+                    if stored is not None and stored.blob:
                         async for chunk in self._play_stored(stored, stats):
                             yield chunk
                         return
@@ -1555,7 +1574,7 @@ class PodcastPipeline:
                 import voice_bank
 
                 extra["voice"] = voice_bank.slug_of(self._audio_voice())
-            # An episode with little to go on (§240) is kept for the one
+            # An episode with little to go on (§245) is kept for the one
             # listener who heard it - their history replays it by its
             # episode id - and for nobody else: it goes straight to the
             # archive slot that id resolves to, which is never current,

@@ -388,6 +388,40 @@ window.FamAudio = (function () {
     });
   } catch (e) {}
 
+  /* ---- Opus over the stream (§242) -----------------------------------
+   *
+   * A browser that can decode Opus (WebCodecs' AudioDecoder) asks for it and
+   * receives about a sixteenth of the bytes. The server answers in
+   * "fam-opus v1" (`audio_codec.py` on the server is the other half):
+   *
+   *   repeated:  u16 big-endian length N > 0, then one Opus packet of N bytes
+   *   last:      u16 0, then u32 big-endian - the episode's length in samples
+   *
+   * with `X-FAM-Audio-Format: opus` and `X-FAM-Opus-Preskip` (the encoder's
+   * start-up delay, in 48 kHz samples). Decoded packets go into the same
+   * Int16 buffer PCM fills, after the pre-skip is dropped and trimmed to the
+   * end marker's length - so the scheduler, seek, speed, captions and the
+   * offline shelf never learn which arrived. A server that cannot send Opus
+   * answers with PCM and without the header, and is played as PCM.
+   *
+   * Still a stream: decoded as it arrives, nothing written (no-audio-files).
+   */
+  var opusSupport = null;
+
+  function canDecodeOpus() {
+    if (opusSupport) return opusSupport;
+    opusSupport = Promise.resolve(false);
+    try {
+      if (typeof AudioDecoder === "function" && AudioDecoder.isConfigSupported) {
+        opusSupport = AudioDecoder.isConfigSupported(
+          { codec: "opus", sampleRate: 24000, numberOfChannels: 1 })
+          .then(function (r) { return !!(r && r.supported); })
+          .catch(function () { return false; });
+      }
+    } catch (e) { /* no decoder here: PCM, exactly as before */ }
+    return opusSupport;
+  }
+
   function play(query, minutes, h, context, voice, listener) {
     handlers = h || {};
     stop();
@@ -401,7 +435,7 @@ window.FamAudio = (function () {
     resetStretch(0);
 
     var url = "/api/audio?q=" + encodeURIComponent(query) +
-              "&minutes=" + encodeURIComponent(minutes) + "&fmt=pcm" +
+              "&minutes=" + encodeURIComponent(minutes) + "&fmt=FMT" +
               (context ? "&context=" + encodeURIComponent(context) : "") +
               (voice ? "&voice=" + encodeURIComponent(voice) : "") +
               // What they tapped, so myFAM can rank. *Who* is listening is no
@@ -430,7 +464,9 @@ window.FamAudio = (function () {
 
     keepable = false;
     episodeId = "";
-    ctx.resume().then(function () {
+    ctx.resume().then(canDecodeOpus).then(function (opus) {
+      // Opus where this browser can decode it, PCM everywhere else.
+      url = url.replace("&fmt=FMT", opus ? "&fmt=opus" : "&fmt=pcm");
       // A request that never reached the server is marked, so the caller can
       // tell "no connection" from a bug further down (§161's offline play).
       return fetch(url, { signal: controller.signal }).catch(function (e) {
@@ -466,6 +502,34 @@ window.FamAudio = (function () {
       var received = 0;
       var first = true;
 
+      // Samples in, from either format: buffered, and the first ones start
+      // the episode (or hand the start to the caller's gate).
+      function deliver(int16) {
+        if (!int16.length) return;
+        append(int16);
+        if (!first) return;
+        first = false;
+        var begin = function () {
+          if (myToken !== token || !ctx) return;
+          held = false;
+          playHead = ctx.currentTime;
+          tick();
+          if (handlers.onFirstAudio) handlers.onFirstAudio();
+        };
+        if (handlers.startGate) {
+          // The caller starts it. Told whether this was a replay,
+          // because a replay has no steps to finish first.
+          held = true;
+          handlers.startGate(begin, { cache: cacheState });
+        } else {
+          begin();
+        }
+      }
+
+      if (res.headers.get("X-FAM-Audio-Format") === "opus") {
+        return pumpOpus(reader, res, deliver, myToken);
+      }
+
       function pump() {
         return reader.read().then(function (r) {
           if (myToken !== token) return;
@@ -486,26 +550,8 @@ window.FamAudio = (function () {
           var usable = bytes.length - (bytes.length % 2);
           leftover = bytes.slice(usable);
           if (usable) {
-            append(new Int16Array(
+            deliver(new Int16Array(
               bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + usable)));
-            if (first) {
-              first = false;
-              var begin = function () {
-                if (myToken !== token || !ctx) return;
-                held = false;
-                playHead = ctx.currentTime;
-                tick();
-                if (handlers.onFirstAudio) handlers.onFirstAudio();
-              };
-              if (handlers.startGate) {
-                // The caller starts it. Told whether this was a replay,
-                // because a replay has no steps to finish first.
-                held = true;
-                handlers.startGate(begin, { cache: cacheState });
-              } else {
-                begin();
-              }
-            }
           }
           return pump();
         });
@@ -516,6 +562,109 @@ window.FamAudio = (function () {
       if (myToken !== token) return;
       active = false;
       if (handlers.onError) handlers.onError(err);
+    });
+  }
+
+  /* Read "fam-opus v1" off the response, decode it, and deliver Int16 at the
+     stream's rate. A decoder that outputs at a multiple of that rate (48 kHz
+     is common) is decimated: the voice holds nothing above half the stream's
+     rate, so every n-th sample loses nothing. */
+  function pumpOpus(reader, res, deliver, myToken) {
+    var streamRate = sampleRate;
+    var preskip = Math.round(
+      (Number(res.headers.get("X-FAM-Opus-Preskip")) || 0) * streamRate / 48000);
+    var dropped = 0;        // pre-skip samples dropped so far
+    var finalLength = -1;   // from the end marker, once it arrives
+    var pending = new Uint8Array(0);
+    var received = 0;
+    var stamp = 0;
+    var failure = null;
+
+    var decoder = new AudioDecoder({
+      output: function (data) {
+        try {
+          if (myToken !== token) return;
+          var n = data.numberOfFrames;
+          var f32 = new Float32Array(n);
+          data.copyTo(f32, { planeIndex: 0, format: "f32-planar" });
+          var step = Math.round(data.sampleRate / streamRate) || 1;
+          if (data.sampleRate !== streamRate * step && !totalSamples && !dropped) {
+            // An unexpected rate before anything was kept: play at its rate.
+            preskip = Math.round(preskip * data.sampleRate / streamRate);
+            sampleRate = streamRate = data.sampleRate;
+            step = 1;
+          }
+          var count = Math.ceil(n / step);
+          var out = new Int16Array(count);
+          for (var i = 0, j = 0; i < n; i += step, j++) {
+            var v = f32[i];
+            out[j] = v >= 1 ? 32767 : v <= -1 ? -32768 : Math.round(v * 32767);
+          }
+          if (dropped < preskip) {
+            var cut = Math.min(preskip - dropped, out.length);
+            dropped += cut;
+            out = out.subarray(cut);
+          }
+          deliver(out);
+        } finally {
+          data.close();
+        }
+      },
+      error: function (e) { failure = e; },
+    });
+    decoder.configure({ codec: "opus", sampleRate: streamRate, numberOfChannels: 1 });
+
+    function feed(bytes) {
+      var buf = bytes;
+      if (pending.length) {
+        buf = new Uint8Array(pending.length + bytes.length);
+        buf.set(pending, 0); buf.set(bytes, pending.length);
+      }
+      var at = 0;
+      while (finalLength < 0 && at + 2 <= buf.length) {
+        var size = (buf[at] << 8) | buf[at + 1];
+        if (size === 0) {
+          if (at + 6 > buf.length) break;
+          finalLength = ((buf[at + 2] << 24) >>> 0) + (buf[at + 3] << 16) +
+                        (buf[at + 4] << 8) + buf[at + 5];
+          at += 6;
+          break;
+        }
+        if (at + 2 + size > buf.length) break;
+        decoder.decode(new EncodedAudioChunk({
+          type: "key", timestamp: stamp, data: buf.subarray(at + 2, at + 2 + size) }));
+        stamp += 20000;
+        at += 2 + size;
+      }
+      pending = buf.slice(at);
+    }
+
+    function pump() {
+      return reader.read().then(function (r) {
+        if (myToken !== token) return;
+        if (failure) throw failure;
+        if (r.done) {
+          return decoder.flush().then(function () {
+            // Closed first: a skip during the flush must not leave a decoder
+            // open (browsers cap how many may be).
+            try { decoder.close(); } catch (e) {}
+            if (myToken !== token) return;
+            if (failure) throw failure;
+            // Exactly the episode's length: the encoder's last frame is
+            // padded, and a caption must never run past the voice.
+            if (finalLength >= 0 && totalSamples > finalLength) totalSamples = finalLength;
+            streamDone = true;
+            if (received === 0) throw new Error("The server sent an empty briefing.");
+          });
+        }
+        received += r.value.length;
+        feed(r.value);
+        return pump();
+      });
+    }
+    return pump().catch(function (err) {
+      try { decoder.close(); } catch (e) {}
+      throw err;
     });
   }
 

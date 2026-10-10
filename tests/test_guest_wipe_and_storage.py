@@ -399,6 +399,7 @@ def test_the_dry_run_counts_the_vocabulary_too(client, monkeypatch):
 # --------------------------------------------------------------------------
 # Whether a redeploy erases the listeners
 # --------------------------------------------------------------------------
+@pytest.mark.sqlite_file
 def test_health_measures_where_each_database_lives(client):
     """Measured rather than configured - §52 applied to durability. A store
     pointed at `/data` on a host with no disk attached reports `image`, which
@@ -412,6 +413,7 @@ def test_health_measures_where_each_database_lives(client):
         assert "configured" in entry
 
 
+@pytest.mark.sqlite_file
 def test_the_doctor_separates_a_laptop_from_a_broken_deployment(client):
     """A warning every developer sees on every run is a warning nobody reads,
     which is how this one got missed in the first place."""

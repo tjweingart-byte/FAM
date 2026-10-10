@@ -293,6 +293,7 @@ def test_a_signals_countries_reach_the_story_and_survive_a_resighting():
 # --------------------------------------------------------------------------
 # 3. Keeping cached episodes, and their audio, for everybody
 # --------------------------------------------------------------------------
+@pytest.mark.sqlite_file
 def test_an_evergreen_episode_that_keeps_being_played_keeps_its_life(tmp_path, monkeypatch):
     monkeypatch.setattr(cache_mod, "settings", dataclasses.replace(
         settings, cache_ttl_seconds=1000, cache_max_age_seconds=5000))
@@ -313,6 +314,7 @@ def test_an_evergreen_episode_that_keeps_being_played_keeps_its_life(tmp_path, m
     assert expires[0] <= expires[1] + 5000 + 1
 
 
+@pytest.mark.sqlite_file
 def test_a_volatile_episode_never_slides(tmp_path, monkeypatch):
     monkeypatch.setattr(cache_mod, "settings", dataclasses.replace(
         settings, cache_ttl_seconds=1000))
@@ -326,6 +328,7 @@ def test_a_volatile_episode_never_slides(tmp_path, monkeypatch):
     assert after == before
 
 
+@pytest.mark.sqlite_file
 def test_a_look_is_not_a_play_and_keeps_nothing_alive(tmp_path, monkeypatch):
     """The pacing probe, a prefetch check and the GPU-wake hint all read the
     cache; none of them is anybody listening, so none may slide an entry."""
@@ -341,6 +344,7 @@ def test_a_look_is_not_a_play_and_keeps_nothing_alive(tmp_path, monkeypatch):
     assert db.execute("SELECT expires FROM scripts").fetchone()[0] < time.time() + 11
 
 
+@pytest.mark.sqlite_file
 def test_an_entry_not_marked_free_to_slide_never_slides(tmp_path, monkeypatch):
     """Prefetch, tools and anything written about a window of time pass no
     `slide`, and a play must not keep "this week" alive for a month."""
@@ -380,6 +384,7 @@ def test_the_pipeline_marks_only_timeless_episodes_free_to_slide(
     assert bool(seen.get("slide")) is slides
 
 
+@pytest.mark.sqlite_file
 def test_sliding_off_is_the_old_fixed_lifetime(tmp_path, monkeypatch):
     monkeypatch.setattr(cache_mod, "settings", dataclasses.replace(
         settings, cache_max_age_seconds=0))
@@ -661,6 +666,7 @@ def test_finishing_a_playlist_clears_a_loading_screen():
     assert "clearGenOverlay()" in body
 
 
+@pytest.mark.sqlite_file
 def test_vibes_are_counted_through_an_index_on_the_episode(tmp_path):
     s = social_mod.SocialStore(str(tmp_path / "social.db"))
     plan = " ".join(r[3] for r in sqlite3.connect(s.path).execute(
