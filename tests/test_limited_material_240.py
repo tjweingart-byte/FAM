@@ -57,13 +57,15 @@ def test_never_on_an_attachment_a_town_or_a_live_answer():
 
 
 def test_the_writer_is_told_to_say_what_it_has_then_that_it_is_all():
-    prompt = sg.build_prompt(_plan(evidence="", limited=True))
-    assert "When there is not much to go on" in prompt
-    assert "does not exist" in prompt
-    assert "When there is not much to go on" not in sg.build_prompt(_plan(evidence="x"))
-    # The rule itself, in the cacheable system block every episode reads.
-    assert "Honest beats full" in sg.SYSTEM_PROMPT
-    assert "Never conclude that something does not exist" in sg.SYSTEM_PROMPT
+    told = sg.build_prompt(_plan(evidence="", limited=True))
+    assert "this is all you could find" in told and "does not exist" in told
+    assert "very little on what they asked" in told
+    # Every episode may judge its own material thin, and mark it.
+    plain = sg.build_prompt(_plan(evidence="x"))
+    assert "very little on what they asked" not in plain
+    assert "<<LIMITED>>" in plain and "honest beats full" in plain
+    # And never infers absence, in the cacheable block every episode reads.
+    assert "never means a thing does not exist" in sg.SYSTEM_PROMPT
 
 
 # --- the writer's own marker -----------------------------------------------

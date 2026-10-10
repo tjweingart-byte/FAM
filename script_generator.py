@@ -386,29 +386,11 @@ stands.
 better-supported one - never the argument.
 - Never fill a gap with something that merely sounds plausible. That is the \
 worst thing you can do here.
-- **Never say what you do not have.** "I don't have", "I can't confirm", "I'm \
-not going to guess" - a listener who hears one of those in the first ten \
-seconds does not stay. The line: **where a thing stands in the world is the \
-episode** - "the game is in the seventh" - and **where it stands in your \
-notes never is**. If you cannot establish something, write the part you can \
-and leave the rest out without marking its absence.
-- **Never conclude that something does not exist, or did not happen, because \
-you found little on it.** "There is no company called...", "nothing has \
-happened with..." - a search that came back thin is a fact about the search, \
-never about the world.
-
-When there is not much to go on (owner's direction, §240):
-- Sometimes the material on what they asked is simply thin - a niche subject, \
-a small company, something barely written about. **Honest beats full.** Say \
-everything you can actually stand behind about *their* subject, plainly. Do \
-not reach for a neighbouring topic, a loose connection or general background \
-to fill the time - a short true episode is the right length.
-- Then say once, plainly, that this is all you could find on it - "That's \
-about all the reporting there is on them that we could find." It is about your \
-search, never a claim about the world, and it comes *after* what you have, \
-never in the first sentences. It may be the last thing you say.
-- And when you do, add <<LIMITED>> on its own line after the four lines below. \
-Only then: an episode whose material covered the question never says it.
+- **Never say what you do not have** up front - "I don't have", "I can't \
+confirm" lose a listener in ten seconds. **Where a thing stands in the world is \
+the episode** - "the game is in the seventh" - and **where it stands in your \
+notes never is**: write the part you can and leave the rest out. Finding \
+little never means a thing does not exist.
 
 Time, handled the way a person would:
 - Give the newest information you can establish.
@@ -998,8 +980,8 @@ and do not claim anything about a document beyond what is in it.
                 "what you know. If you are not sure enough to say it plainly, "
                 "leave it out of the episode entirely.\n"
                 "- If this is most of what they asked about rather than one "
-                "part of it, follow \"When there is not much to go on\" "
-                "instead of this bullet's rule.\n"
+                "part of it, the <<LIMITED>> rule at the end applies instead "
+                "of this bullet's.\n"
                 "- Either way, **never announce the gap**. Do not say it is not "
                 "reported, not confirmed, not available, or worth checking "
                 "later. Do not narrate what you did or did not find, and never "
@@ -1040,10 +1022,11 @@ for the script.
             "\nThe search came back with very little on what they asked"
             + (" - nothing at all." if not plan.evidence else
                " - none of what this episode needed.")
-            + " Follow \"When there is not much to go on\": say what you can "
-            "actually stand behind about their subject, do not stretch to a "
-            "neighbouring one, then say once that this is all you could find, "
-            "and never that the thing does not exist. Keep it short.\n")
+            + " Say what you can actually stand behind about their subject, "
+            "do not stretch to a neighbouring one to fill the time, then say "
+            "once, after it, that this is all you could find - about your "
+            "search, never the world, and never that the thing does not exist. "
+            "Keep it short, and end with the <<LIMITED>> line.\n")
 
     # A live state outranks everything, so it goes in front of the evidence it
     # outranks - the instructions that follow refer to it as already read.
@@ -1243,8 +1226,12 @@ this:
 
 Read all four off what you actually said. All four lines are stripped before
 anything is spoken and the script must not hint at any of them. Nothing goes
-after them, except <<LIMITED>> on an episode that told the listener it had
-little to go on.
+after them, with one exception. If the material turned out to say little about
+what they asked, honest beats full: say what it does support about *their*
+subject, never stretch to a neighbouring one to fill the time, then say once,
+after it, that this is all you could find - about your search, never the
+world, and never that the thing does not exist - and add <<LIMITED>> on its
+own line after the four.
 
 The time is the listener's, not a quota. If the story resolves early, stop
 there; a short piece that lands beats a long one padded out. If you catch

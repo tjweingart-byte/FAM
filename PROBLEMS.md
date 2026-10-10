@@ -17505,15 +17505,18 @@ What changed:
   Never an attachment, a local question (§194 has its own sentence) or a
   question a live provider answered. `EpisodePlan.limited` and
   `ScriptNotes.limited` carry it; it is not in `key_for`.
-* **Then by the writer**: the system prompt's new "When there is not much to
-  go on" says honest beats full - everything it can stand behind about their
-  subject, no neighbouring topic to fill time, then one plain sentence that
-  this is all it could find, after the material. A packet that looked full
-  and turned out to be about something else is the writer's call, marked by a
-  trailing `<<LIMITED>>` line (stripped like TITLE). Beside it, for every
-  episode: never conclude that something does not exist because little was
-  found. The §88 thin-on block points a mostly-missing subject at the new
-  section. Unheard, like every prompt change here (`no-api-key`): run
+* **Then by the writer**: the trailing-lines instruction every episode reads
+  says honest beats full - what the material supports about their subject, no
+  neighbouring topic to fill time, then one plain sentence after it that this
+  is all it could find - and to mark that with a trailing `<<LIMITED>>` line
+  (stripped like TITLE). That covers a packet that looked full and turned out
+  to be about something else. A plan already `limited` gets the same in so
+  many words beside its evidence. The system prompt's "never say what you do
+  not have" bullet was folded shorter and now ends "finding little never means
+  a thing does not exist" - the dedup pass `test_the_prompt_stays_lean` asks
+  for left it 82 characters shorter than before. The §88 thin-on block points
+  a mostly-missing subject at the `<<LIMITED>>` rule. Unheard, like every
+  prompt change here (`no-api-key`): run
   `python write.py "general atomics" --minutes 2` first.
 * **Never shared**: the pipeline writes a limited episode straight to
   `archive_key(key, sourced)` with `ARCHIVE_ORIGIN` - never current, no

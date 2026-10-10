@@ -243,4 +243,4 @@ and `limit` = Lines.
 | 17389 | 71 | 237. Kept audio moves to an R2 bucket, packed as Opus, kept a week |
 | 17460 | 11 | 238. Opus at 24 kbps, not 32 |
 | 17471 | 17 | 239. Opus, not MP3, for kept audio |
-| 17488 | 56 | 240. An episode with little to go on now says so, and is kept to itself |
+| 17488 | 59 | 240. An episode with little to go on now says so, and is kept to itself |
