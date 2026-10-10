@@ -48,6 +48,7 @@ def wl(acc):
     return waitlist_mod.Waitlist(acc)
 
 
+@pytest.mark.sqlite_file
 def test_existing_accounts_are_backfilled_active(tmp_path):
     """Widening a file made before the waitlist leaves everybody in it active:
     they were let in before there was a line."""

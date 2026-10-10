@@ -157,6 +157,14 @@ matters; if it does, everything else is ordinary app work.
 **Stage 3 — compression.** Opus over the stream, both clients, measured against
 the 0.5s to first audio that the one-sentence spec protects. If it costs
 first-word latency it is wrong and gets reverted.
+*The server and the web player do it (PROBLEMS.md §242):* ask for
+`/api/audio?fmt=opus` and read "fam-opus v1" - u16 big-endian length then one
+Opus packet, repeated, then u16 0 and a u32 big-endian length in samples -
+with `X-Sample-Rate`, `X-FAM-Audio-Format: opus` and `X-FAM-Opus-Preskip`
+(48 kHz samples). On iOS the packets go straight to an `AudioConverter` for
+`kAudioFormatOpus`; drop the pre-skip, trim to the end marker, and the samples
+are exactly what PCM would have carried. Measured on the web: first byte
+unchanged (24 ms vs 25 ms locally), 12.9x fewer bytes.
 
 **Stage 4 — the app proper.** Every screen already has an endpoint:
 search → `/api/audio`, myFAM → `/api/myfam`, DailyFAM → `/api/mixes`,

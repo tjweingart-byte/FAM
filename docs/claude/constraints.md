@@ -10,6 +10,22 @@
 ## Constraints that are settled — do not undo without discussing
 
 <!-- rule:no-audio-files -->
+> **Current (PROBLEMS.md §242, at the owner's direction):** a client that can
+> decode Opus asks for it (`/api/audio?fmt=opus`) and receives "fam-opus v1":
+> length-prefixed Opus packets as they are encoded, then an end marker with
+> the episode's true length (`audio_codec.py` has the format; `fam-audio.js`
+> decodes it with WebCodecs). A kept Opus episode is **passed through as
+> stored** - no decode, no re-encode, no second generation of loss - and
+> anything else is encoded at the edge 20 ms at a time, so first audio is not
+> delayed. About a sixteenth of PCM's bytes. It is still a stream, decoded as
+> it arrives, and nothing is written - which is what this rule protects (§1,
+> §239). `fmt=pcm` is unchanged and remains what every installed client and
+> every client that cannot decode Opus gets; a rate Opus cannot carry, a
+> server without PyAV, or `AUDIO_STREAM_OPUS=0` answers a request for Opus
+> with PCM and without `X-FAM-Audio-Format: opus`, and the player follows the
+> header. This supersedes "the client still receives raw PCM and nothing
+> else" below; the iOS app reads the same format (`IOS_APP.md`).
+>
 > **Current (PROBLEMS.md §237, at the owner's direction):** kept audio is
 > packed as **Opus at 24 kbps** (32 until the owner chose 24) (`audio_codec.py`; `AUDIO_CODEC=zlib`
 > restores §132's packing) and decoded back to the same PCM, a slice at a
@@ -1618,6 +1634,13 @@
   `python tools/voice_doctor.py` against the running deployment is what turns
   that from careful into known.
 <!-- rule:storage-durability -->
+> **Current (PROBLEMS.md §243):** every store opens through
+> `db.connect(path)`, never `sqlite3.connect` - SQLite exactly as before with
+> no `DATABASE_URL`, and a schema per store in Postgres with one. The path
+> still comes from `data_path`, and names the schema (`db.schema_for`). With
+> Postgres every store reports `persistence: "database"` and the boot-time
+> warning about an image-local store is not raised.
+
 - **A running server says whether a redeploy will erase its listeners.**
   *(§107.)* Every database is pinned to the mounted disk in the `Dockerfile`,
   and that list has now been incomplete twice - the second time it was
@@ -1688,6 +1711,18 @@
   a pool of keys is failover and not headroom, and the real ceiling on
   concurrency is the GPU, not the credential.
 <!-- rule:zero-spend-staging -->
+> **Current (PROBLEMS.md §243, at the owner's direction):** one exception -
+> **staging's own database**. Option B moves the stores to Postgres, and
+> staging has to test the database production runs, so the single address in
+> `DATABASE_URL` is allowed: only when it resolves to a private or loopback
+> address (Render's private network), and nothing else is. libpq opens its
+> own sockets, which the network guard cannot see, so `db.connect` enforces
+> the rule where the connection is made (`db.check_staging_address`) and the
+> guard allows exactly that host and port for anything that goes through
+> Python's sockets (`spend_guard._DATABASE`). `/api/health` says whether the
+> exception is in force, never the address. The staging database is a cost
+> the owner accepted; it buys nothing from any provider.
+
 - **Staging spends nothing, and cannot be configured to** *(§172, at the
   owner's direction).* `FAM_ENV=staging` turns on `spend_guard.py` and no
   other variable turns it off. Every paid credential is removed before

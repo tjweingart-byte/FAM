@@ -34,6 +34,8 @@ from __future__ import annotations
 import json
 import logging
 import sqlite3
+
+import db as store_db
 import threading
 import time
 from contextlib import contextmanager
@@ -162,7 +164,7 @@ class PushStore:
     def _connect(self):
         """One connection per call, committed and closed - the loop runs
         every minute, and `with sqlite3.connect()` alone never closes."""
-        db = sqlite3.connect(self.path, timeout=5.0)
+        db = store_db.connect(self.path, timeout=5.0)
         try:
             with db:
                 yield db

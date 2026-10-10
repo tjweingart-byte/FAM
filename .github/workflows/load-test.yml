@@ -1,0 +1,89 @@
+name: Load test
+
+# A thousand listeners against staging, by hand (LOAD_TESTING.md). Never on a
+# push: a run takes up to an hour and sends real traffic at a real server.
+# Staging spends nothing, and `tools/load_test.py` refuses any server whose
+# /api/health does not say zero spend, so pointing this at production by
+# mistake stops before the first listener.
+#
+# Two runs: ten listeners for the baseline, then the chosen shape, judged
+# against its budgets and against the baseline. The job fails when a budget
+# is missed; the verdict and the latency-against-listeners table are on the
+# run's summary page, and the CSVs and Locust's HTML report are attached.
+on:
+  workflow_dispatch:
+    inputs:
+      host:
+        description: "Server to test (must report zero spend)"
+        default: "https://fam-staging.onrender.com"
+        required: true
+      shape:
+        description: "ramp, spike, soak or breakpoint"
+        type: choice
+        options: [ramp, spike, soak, breakpoint, smoke]
+        default: ramp
+      users:
+        description: "Listeners at full load"
+        default: "1000"
+        required: true
+      listen:
+        description: "Share of each episode a listener stays for (1 = real; 0 = stress)"
+        default: "1"
+        required: true
+
+concurrency:
+  group: load-test
+  cancel-in-progress: false
+
+jobs:
+  load:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install Locust
+        run: pip install -r requirements-loadtest.txt
+
+      - name: Baseline (10 listeners, 2 minutes)
+        env:
+          LOAD_TEST_SHAPE: smoke
+          LOAD_TEST_LISTEN: ${{ inputs.listen }}
+          LOAD_TEST_REPORT: baseline.md
+        run: |
+          locust -f tools/load_test.py --host "${{ inputs.host }}" --headless \
+            --csv baseline --only-summary
+
+      - name: ${{ inputs.shape }} to ${{ inputs.users }} listeners
+        env:
+          LOAD_TEST_SHAPE: ${{ inputs.shape }}
+          LOAD_TEST_USERS: ${{ inputs.users }}
+          LOAD_TEST_LISTEN: ${{ inputs.listen }}
+          LOAD_TEST_BASELINE: baseline_stats.csv
+          LOAD_TEST_REPORT: verdict.md
+        # One Locust process per core: a thousand listeners is more than one
+        # process can drive without becoming the bottleneck it is measuring.
+        run: |
+          locust -f tools/load_test.py --host "${{ inputs.host }}" --headless \
+            --processes -1 --csv run --html run.html --only-summary
+
+      - name: Summary
+        if: always()
+        run: |
+          for f in baseline.md verdict.md; do
+            [ -f "$f" ] && { cat "$f"; echo; } >> "$GITHUB_STEP_SUMMARY"
+          done
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: load-test-${{ inputs.shape }}-${{ inputs.users }}
+          path: |
+            *.csv
+            *.md
+            run.html

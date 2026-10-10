@@ -1285,6 +1285,13 @@ class Settings:
         default_factory=lambda: os.environ.get("AUDIO_CODEC", "opus").strip().lower() or "opus"
     )
     audio_opus_bitrate: int = _env_int("AUDIO_OPUS_BITRATE", 24000)
+    # §242: send Opus to a client that asks for it (`/api/audio?fmt=opus`),
+    # at AUDIO_OPUS_BITRATE - about a sixteenth of raw PCM's bytes. A kept
+    # Opus episode is passed through as stored; anything else is encoded as it
+    # streams. 0 = always answer with PCM; the player falls back by itself.
+    audio_stream_opus: bool = field(
+        default_factory=lambda: os.environ.get("AUDIO_STREAM_OPUS", "1").strip() not in ("0", "false", "no", "off")
+    )
     # §237: where kept audio lives. "" (the default) keeps it in scripts.db
     # as before; `r2` puts each episode in a Cloudflare R2 bucket and keeps
     # only its object name here, with the SQLite blob as a hot copy under

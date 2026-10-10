@@ -67,6 +67,8 @@ import asyncio
 import json
 import logging
 import sqlite3
+
+import db as store_db
 import threading
 import time
 from datetime import date, datetime, timedelta, timezone
@@ -237,7 +239,7 @@ class EditionStore:
                 built_at REAL, detail TEXT, report TEXT)""")
 
     def _connect(self) -> sqlite3.Connection:
-        db = sqlite3.connect(self.path, timeout=10, isolation_level=None)
+        db = store_db.connect(self.path, timeout=10, isolation_level=None)
         db.execute("PRAGMA journal_mode=WAL")
         return db
 

@@ -17485,6 +17485,315 @@ to clients, if compressed audio is ever streamed to them, is decided with the
 iOS audio path, where native playback matters (AAC is the alternative to
 weigh against Opus there, not MP3).
 
+
+## 240. A thousand listeners: the load test gets a verdict, the poll, and the shell
+
+The owner asked for a way to confirm FAM will not fail or slow down with
+upwards of 1,000 listeners. §221's Locust file existed but could not answer
+that: it had no pass or fail, no load shapes, and it left out what an open
+app does most.
+
+**What it left out.** Every open app polls `/api/notifications` every three
+seconds (`NOTIF_POLL_MS`, §127). At 1,000 listeners that is ~290 of ~370
+requests a second - 80% of the load - and §221's listeners never sent one.
+Nor did they open the app: `/` is the 1 MB `index.html`, served without
+compression or `Cache-Control`. And they played a new episode every few
+seconds, where a person stays on a two-minute episode for most of two
+minutes. A load test that does less than the app measures a quieter server
+than the one people use. The listener now opens the shell and the player,
+runs the poll (a greenlet beside its tasks, cursor and all), visits the
+account screens when signed up, and listens for 30-100% of an episode
+before tapping again (`LOAD_TEST_LISTEN`; 0 is the old stress behaviour).
+A test pins the poll interval to `NOTIF_POLL_MS`.
+
+**A verdict.** `BUDGETS` (p95/p99 per kind of request, from what a listener
+notices: first audio 1 s at p95 - the spec - the shell 2 s, the poll 300 ms,
+any other read 500 ms) and a 1% error rate, with 429s counted as errors
+because every listener has its own session. `LOAD_TEST_BASELINE` adds "no
+more than 2x slower than ten listeners, plus 50 ms". A run that played no
+audio fails - it measured nothing that matters. Exit code 1 on any miss.
+
+**Shapes** (`LOAD_TEST_SHAPE`): smoke (the baseline), ramp (10/25/50/75/100%),
+spike, soak, breakpoint. Statistics reset at each step, so each row of the
+printed table is its own load; the verdict is on the full-load step. A
+manual GitHub workflow (`load-test.yml`) runs baseline + shape against
+staging and puts the verdict on the run's summary page.
+
+**What it found** (this container, one uvicorn process with a core to
+itself - more than Render's `starter` - 12 replayed episodes). Signed-in
+listeners: every budget met at 250; p95 first audio 2.3 s at 500, 29 s at
+1,000; throughput flat at ~250 req/s. Guests (the poll returns before the
+database): fine to 500, failing at 750-1,000. Without the poll: first audio
+within budget at 1,000 but every screen 3-10x slower than quiet. The
+server process was at 100% of one core; no `database is locked`. The limit
+is one Python process on one core, not SQLite locking.
+
+In order of what it costs: the single process (the lasting fix is the
+database server STAGING.md already names; the cheap step is a bigger plan
+for both services, then re-run); the poll (back-off while idle, an
+in-memory "nothing new" answer, or push - the owner's call, since §127 chose
+three seconds); raw PCM at ~50 MB/s for 1,000 listeners (`no-audio-files`
+is settled; `ios-pressures` notes Opus over a stream is compatible); the
+uncompressed shell (check whether Render's edge compresses - the run says);
+and scrypt on the event loop at sign-up and sign-in (~50 ms during which
+nobody else is served - `asyncio.to_thread` keeps the same hash). None of
+these is changed here; the test now measures each.
+
+Not tested, deliberately: the model and the voice. Their limit is the GPU
+worker and the model's rate limits, and testing them spends money - a
+separate, capped run (`LOAD_TEST_FRESH=1 LOAD_TEST_ALLOW_SPEND=1`, dozens of
+listeners, never 1,000).
+
+`LOAD_TESTING.md`; `tools/load_test.py`; `tests/test_load_test.py`.
+
+
+## 241. Where the core went: the middleware, myFAM's probes, the limiter, the shell and scrypt
+
+The owner asked for the cheap fixes from §240. Measuring before building
+changed which ones those were.
+
+**The poll's queries were not the cost.** One request at a time against a
+local server: a signed-in `/api/notifications` 1.79 ms, a guest's (which
+returns before the database) 1.68 ms, `/api/auth/me` 1.70 ms. Caching the
+poll's answer - the fix §240 proposed - would have saved ~5%. Profiling the
+ASGI app in-process put most of its 0.60 ms in Starlette's
+`BaseHTTPMiddleware`: every `@app.middleware("http")` runs the request in a
+new task and copies the response through a memory channel, and there were
+three. They are plain ASGI now (`carry_the_session`, `version_prefix`,
+`client_version` keep their names, bodies and order, as factories passed to
+`app.add_middleware`; response headers are edited as the start message goes
+out, via `_on_response_start`, so a cookie the handler asked for is already
+decided). In-process: 0.60 ms -> 0.15 ms. A test fails if a
+`BaseHTTPMiddleware` comes back.
+
+**Then py-spy on the server at 1,000 steady signed-in listeners** found the
+rest. myFAM was 38% of the server's CPU at 2% of requests: `_cached_episode`
+and `_already_written` asked `SCRIPT_CACHE.get(key)` only to learn whether an
+episode exists, and `get` loads the whole script, scrubs every sentence
+(`content_filter.scrub_all`, 11% on its own) and writes `hits = hits + 1` -
+for every candidate tile on every draw. Both caches now have `holds(key,
+current)`, one indexed read of two numbers, pinned to agree with `get` in
+every state and to count no hit; `_cache_holds` falls back to `get` for a
+cache without it. myFAM fell to 16%. And `_prune` - the limiter forgetting
+departed listeners - rescanned every listener whenever one came back after a
+quiet ten seconds once there were 512; with everyone active it found nothing
+and ran again: 7%, quadratic in listeners. Now at most once a minute per dict
+(`LIMITER_PRUNE_EVERY`).
+
+**The shell** is gzipped (`compress_pages`, innermost, so the session and
+waitlist steps still run): 1,069 KB -> 283 KB. Compressing a megabyte is ~15
+ms of CPU on a CPU-bound server, so the result is kept per (path, ETag) and
+sent as soon as the start message names a version already compressed - not
+after StaticFiles reads the file in 64 KB thread hops, which under load was
+most of the page's time (p95 5.9 s -> 1.4 s from that alone). GET only,
+never `/api/` (so never audio), only text types, a page without an ETag
+only when small. `Vary: Accept-Encoding`; a 304 is untouched.
+
+**scrypt in a thread** at sign-up, log-in (email, phone, admin), password
+change and set, and the waitlist join: `asyncio.to_thread`, same parameters.
+Measured: inline, the loop stalled up to 109 ms; threaded, 3.4 ms.
+`AccountStore` keeps a connection per thread, so this is safe. The admin
+branch of `_admin_previewing_join` still hashes inline - admins only.
+
+**Signed-in ramp, local, one process:** first audio p95 at 1,000 went from
+29 s to 250 ms, all requests from 21 s to 170 ms, the page to 660 ms,
+notifications to 78 ms, 0 errors, throughput 245 -> 430 req/s and still
+growing with listeners. The verdict is still FAIL: screens are 3-10x slower
+than with ten listeners (the baseline check), and `/api/auth/me` - only
+called while a listener is being created - is p50 1.3 s during creation
+waves, not explained; a probe saw the server stall at most 1.2 s, so part of
+it is the load generator sharing the machine. To measure on staging.
+
+Left, and why not here: the remaining myFAM cost is `rank_most_played`
+re-tallying the event log per draw (a shared tally refreshed each minute
+would fit - a crowd rail); the poll's volume (backoff is §127's call);
+raw PCM (settled); and the single process (`LOAD_TESTING.md` §5c lists the
+infrastructure in order).
+
+`app.py`, `cache.py`, `tests/test_throughput_241.py`, `LOAD_TESTING.md` §5b-5c.
+
+
+## 242. Opus to the app
+
+At the owner's direction, after the cost model (§240-§241 and the analysis
+around them) showed bandwidth as the largest infrastructure line at every
+size: R2 and Opus had made *storage* cheap (§237), but every listener still
+received raw PCM through Render at $0.15/GB - about 2.9 MB a minute.
+
+**What a client gets.** `/api/audio?fmt=opus` answers in "fam-opus v1"
+(`audio_codec.py`): a u16 big-endian length and one Opus packet, repeated,
+then a u16 0 and a u32 big-endian length in samples. Headers: `X-Sample-Rate`
+as before, `X-FAM-Audio-Format: opus`, `X-FAM-Opus-Preskip` (48 kHz samples,
+as an OpusHead states it). The client drops the pre-skip and trims to the end
+marker, so it holds exactly the samples PCM would have carried: captions'
+`starts`, seek and the offline shelf are untouched. Chosen over Ogg pages
+because a web page (WebCodecs), an iPhone (`AudioConverter`) and a test can
+each read it in a dozen lines, at 2 bytes a packet of overhead.
+
+**Two sources, neither paying twice.**
+
+- A **kept Opus episode is passed through as stored**
+  (`audio_codec.stored_packets`, from `_play_stored`): its Ogg is demuxed, not
+  decoded, so a replay - most plays - costs no CPU and no second generation
+  of loss. Each chunk is a `Framed` carrying the PCM it stands for, so the
+  endpoint's pre-roll still primes a second of audio, not a second's worth
+  of Opus bytes.
+- **Everything else** (an episode being voiced, a zlib row) is encoded at the
+  edge of the response by `OpusStream`, 20 ms at a time, about 9 ms of CPU
+  per second of audio. Priming and every error path run on PCM exactly as
+  before; the encoder only touches what is about to be sent. A stream cut
+  short gets no end marker, so it never claims to be complete.
+
+**Nobody is broken.** `fmt=pcm` is byte-for-byte what it was, and is what
+every installed client and kept web release (`/v/<version>/`) sends. A rate
+Opus cannot carry (the development engine's 22.05 kHz), a server without
+PyAV, or `AUDIO_STREAM_OPUS=0` answers a request for Opus with PCM and
+without the header, and `fam-audio.js` follows the header, not its request.
+The player asks for Opus only where `AudioDecoder.isConfigSupported` says it
+can decode it; a decoder that outputs at a multiple of the stream's rate
+(48 kHz is common) is decimated, which loses nothing because the voice holds
+nothing above half the stream's rate.
+
+**Measured** (local zero-spend server at 24 kHz, the placeholder tone):
+a one-minute episode is 2,879,998 bytes as PCM and 222,823 as Opus (12.9x;
+speech should land near the 13-16x of the cost model). First byte 24 ms
+against 25 ms. In headless Chromium the player held 1,439,999 samples either
+way, with first audio at 154 ms. `tools/smoke_opus.py` repeats that check in
+a browser on every `./dev.sh check` and in CI; every store goes to a
+temporary directory, found from the source's `data_path(...)` calls.
+
+**Found on the way.** `_stream_pcm` tested `stored.pcm` to ask whether kept
+audio existed - for an Opus row that decodes the whole episode, on the event
+loop, on every replay (~0.6 s for two minutes). It tests `stored.blob` now.
+And the first `OpusStream` counted samples per chunk, so a chunk ending half
+way through a sample lost it from the end marker (80,878 against 80,880 in
+the test); it counts bytes.
+
+**Not done.** The iOS app reads the same format (`IOS_APP.md` stage 3); the
+offline shelf's `fetchAll` still downloads PCM; nobody has heard the
+production voice at 24 kbps (`op-voice`). Rule `no-audio-files` updated.
+
+`audio_codec.py`, `pipeline.py`, `app.py`, `static/fam-audio.js`,
+`tests/test_opus_stream_242.py`, `tools/smoke_opus.py`.
+
+
+## 243. Option B: every store can live in Postgres
+
+The owner's call, after the cost analysis: "Allow the one database address
+and start option B." Every store was a SQLite file on the service's disk, and
+on Render a disk is what holds a service to one instance and makes each
+deploy a brief outage. Option B moves the stores into Postgres without
+rewriting them.
+
+**One door.** All 27 stores open through `db.connect(path)`. With no
+`DATABASE_URL` that is `sqlite3.connect(path)` and nothing has changed - the
+default, every laptop, CI's first job. With one, the store is a Postgres
+schema named from its path (`messages_<8 hex of "/data">`), one connection
+per store per thread, autocommit, and the store's own SQLite is translated as
+it runs (`db.translate`, cached per statement). No store's SQL was rewritten
+for Postgres; a handful were made portable:
+
+- `INSERT OR REPLACE` becomes an upsert on the table's primary key (or first
+  unique index); `INSERT OR IGNORE` is `ON CONFLICT DO NOTHING`.
+- `REAL` becomes `DOUBLE PRECISION` - Postgres' `REAL` is four bytes, and an
+  epoch timestamp would round by minutes. `INTEGER PRIMARY KEY` numbers itself
+  (identity), and `lastrowid` reads `lastval()`.
+- `LIKE` becomes `ILIKE` (SQLite ignores ASCII case), `COLLATE NOCASE` is
+  `lower()`, two-argument `MAX`/`MIN` are `GREATEST`/`LEAST` - found with a
+  depth count, because `cache.extend_current` nests a `CASE` inside one -
+  `instr` is `strpos`, `PRAGMA table_info` reads `information_schema`.
+- A failed statement poisons a Postgres transaction where SQLite carries on;
+  the connection rolls itself back, and reconnects if the server dropped it.
+  Errors arrive as the `sqlite3` classes the stores already catch.
+- Portable fixes in the stores: upsert `SET` clauses name their table
+  (`echoes.style`, `calls.requests`, `spend.n`), a `CASE` sums instead of a
+  boolean, and three `ORDER BY created` became `scripts.created`, because a
+  `CASE` column took the same name.
+
+**Staging may reach one address** - the owner's amendment to
+`zero-spend-staging`. libpq opens its own sockets, invisible to the Python
+network guard, so `db.connect` refuses a `DATABASE_URL` whose host is not a
+private or loopback address, and the guard allows exactly that host and port
+for anything that does go through Python. `/api/health` reports
+`environment.database_allowed` and `database`.
+
+**Found on the way.** `thumbnails` notices another process's writes with
+`PRAGMA data_version`, which Postgres has no equivalent of: a painted picture
+would never have reached a tile. On Postgres it reads the table's own clock
+(row count and newest `updated_at`). The admin question box stays off on
+Postgres: SQLite's authorizer is what keeps a typed question read-only and
+hides secrets, and Postgres has no such hook. Recipes and the dashboard - SQL
+written in code - still answer; the fix is a read-only role with column
+grants.
+
+**The copy.** `tools/sqlite_to_postgres.py` reads each store's schema from its
+own `sqlite_master`, copies it in one transaction, compares counts table by
+table and moves identities past their maximum. On a seeded deployment: 26,550
+rows across 18 stores, then the app served Explore and kept audio from
+Postgres. `POSTGRES.md` is the switch-over runbook; production is never wired
+automatically.
+
+**Tests.** The whole suite runs both ways; CI's new `postgres` job runs it
+against `postgres:16`. Tests that open a store's file with `sqlite3` (old
+schemas being widened, the per-file storage report, the question box's
+sandbox) are marked `sqlite_file` and skip there. Here: 4,076 passed on SQLite; on Postgres 16, 4,043 passed and
+32 more skipped (`sqlite_file`), nothing failing.
+
+**Not done.** More than one instance still needs the eight pieces of
+in-process state shared (the story pool, API-Sports budgets, prefetch's
+ledgers, the limiter, live captions and search progress, typing, the
+DailyFAM guard, the background jobs). myFAM still asks one query per tile,
+which costs ~0.3-1 ms each over a network instead of ~0.05 ms; batch it before
+real traffic. Rules `storage-durability` and `zero-spend-staging` updated.
+
+`db.py`, `spend_guard.py`, the 27 stores, `admin_tracker.py`, `thumbnails.py`,
+`tools/sqlite_to_postgres.py`, `POSTGRES.md`, `tests/test_database_243.py`.
+
+**Review, before merging.** A review of the branch found that the first
+connection layer would have failed in staging within hours, and it was
+rebuilt:
+
+- *Connections leaked.* One per store per thread, never closed: a thread
+  that ended left its connections open, and `provider_usage` starts one
+  every ten seconds - about 360 an hour toward the plan's limit. In steady
+  state it was ~30 stores x ~45 threads. Now one pool per process
+  (`DATABASE_MAX_CONNECTIONS`, 20; 8 kept idle), each statement borrowing a
+  connection and switching its `search_path` only when it was elsewhere; a
+  transaction keeps its connection to the end. Sixty one-shot threads now
+  leave at most 8 open (a test).
+- *SQLite's writer rules were lost.* `BEGIN IMMEDIATE` became a plain
+  `BEGIN`, so two check-then-spend transactions both passed (the trending
+  bank's budget, the edition claims - reproduced). Message ids could
+  commit out of order, which skips messages for a cursor that is an id.
+  Every write now holds its store's advisory lock until it commits: one
+  writer per store, as SQLite had one per file.
+- *Transactions split silently.* A failed statement rolled the whole
+  transaction back and ran the rest in autocommit; a write is now undone
+  alone under a savepoint, as SQLite does, and the same test gives the same
+  rows on both. Stores opened with sqlite3's default isolation get its
+  implicit transaction back (they had been committing each statement).
+- *`lastrowid`* read the session's `lastval()`, wrong after an explicit id
+  and meaningless on a shared connection; it is the insert's own
+  `RETURNING` now.
+- *The staging check could be stepped around.* It read only `host=` or the
+  URL's host, so `?host=`, `hostaddr=`, `service=` or `PGHOST` could send
+  staging anywhere, and three connects skipped it altogether. The string is
+  now read as libpq reads it (`conninfo_to_dict` plus the PG* environment),
+  forms that hide the destination are refused, and every connection - the
+  pool's and `raw_connect` - is checked; a test fails if any other module
+  calls `psycopg.connect`.
+- *Health assumed.* Every store was reported readable and writable; it is
+  now what a real query said (`db.probe`, at most every ten seconds), with
+  the pool's counts.
+- Also: rewrites skip string literals; `SUM` over integers is an int, not a
+  `Decimal`; a lock wait gives up after 10 s like SQLite's busy timeout.
+
+After it: 4,090 passed on SQLite; 4,062 passed and 43 skipped on Postgres,
+nothing failing (30 minutes against 23 - the writer lock is two more round
+trips per write). CI's Postgres job had also failed for its own reason:
+Docker's 64 MB `/dev/shm` crashed the server mid-run; it gets 256 MB and
+no parallel query.
+
 ## 244. Password reset by an emailed code
 
 The owner asked for a way to reset a forgotten password, with a safeguard so

@@ -23,6 +23,8 @@ import json
 import logging
 import re
 import sqlite3
+
+import db as store_db
 import threading
 import time
 import uuid
@@ -270,7 +272,7 @@ class AttachmentStore:
     def _conn(self) -> sqlite3.Connection:
         conn = getattr(self._local, "conn", None)
         if conn is None:
-            conn = sqlite3.connect(self.path, check_same_thread=False)
+            conn = store_db.connect(self.path, check_same_thread=False)
             conn.execute("PRAGMA journal_mode=WAL")
             self._local.conn = conn
         return conn

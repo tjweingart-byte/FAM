@@ -171,6 +171,7 @@ def test_a_listener_over_the_read_pace_keeps_their_report(client, monkeypatch):
     assert report["episode"] is None and report["text"] == "Kept anyway"
 
 
+@pytest.mark.sqlite_file
 def test_an_old_inbox_gains_the_episode_column(tmp_path):
     import sqlite3
     path = tmp_path / "old.db"

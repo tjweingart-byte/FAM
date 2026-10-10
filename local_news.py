@@ -42,6 +42,8 @@ import json
 import logging
 import re
 import sqlite3
+
+import db as store_db
 import threading
 import time
 import xml.etree.ElementTree as ET
@@ -260,7 +262,7 @@ class LocalNewsStore:
             """)
 
     def _connect(self) -> sqlite3.Connection:
-        return sqlite3.connect(self.path, timeout=10)
+        return store_db.connect(self.path, timeout=10)
 
     # Outlets -------------------------------------------------------------
     def add_outlet(self, name: str, homepage: str, *, town: str = "",

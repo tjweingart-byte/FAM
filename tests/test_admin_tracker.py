@@ -25,6 +25,7 @@ from fastapi.testclient import TestClient
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import accounts as ACC  # noqa: E402
+import db as store_db  # noqa: E402
 import admin_tracker as AT  # noqa: E402
 import mixes as M  # noqa: E402
 import social as S  # noqa: E402
@@ -118,12 +119,14 @@ def test_the_dashboard_counts_every_account(world):
     "SELECT zeroblob(100000000)",
     "SELECT load_extension('x')",
 ])
+@pytest.mark.sqlite_file
 def test_nothing_but_reading(world, sql):
     with pytest.raises(AT.QueryError):
         AT.run_query(sql)
     assert AT.run_query("SELECT COUNT(*) FROM accounts.accounts")["rows"] == [[6]]
 
 
+@pytest.mark.sqlite_file
 def test_secrets_read_as_null(world):
     res = AT.run_query("SELECT email, password FROM accounts.accounts LIMIT 1")
     assert res["rows"][0][0].endswith("@fam.test")
@@ -132,12 +135,14 @@ def test_secrets_read_as_null(world):
     assert all(row == [None] for row in tokens["rows"])
 
 
+@pytest.mark.sqlite_file
 def test_a_runaway_query_is_stopped(world):
     with pytest.raises(AT.QueryError, match="stopped"):
         AT.run_query("WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM c) "
                      "SELECT COUNT(*) FROM c", seconds=0.3)
 
 
+@pytest.mark.sqlite_file
 def test_the_files_are_opened_read_only(world):
     before = {s.alias: Path(s.path).read_bytes() for s in world}
     AT.snapshot()
@@ -184,6 +189,11 @@ ENDPOINTS = [("get", "/api/admin/tracker", None), ("get", "/api/admin/schema", N
              ("post", "/api/admin/query", {"sql": "SELECT 1"})]
 
 
+#: What a signed-in admin gets from each endpoint. On Postgres the question
+#: box is off (§243): its typed SQL is refused, never run.
+OPEN = [200, 200, 200, 400 if store_db.enabled() else 200]
+
+
 def _all_status(c, headers=None):
     out = []
     for verb, path, body in ENDPOINTS:
@@ -223,7 +233,7 @@ def test_an_admin_account_gets_in_with_its_email_and_password(client, monkeypatc
     assert wrong.status_code == 401 and "fam_admin" not in wrong.cookies
     ok = c.post("/api/admin/login", json={"email": "Boss@fam.test", "password": PASSWORD})
     assert ok.status_code == 200
-    assert _all_status(c) == [200] * 4
+    assert _all_status(c) == OPEN
     snap = c.get("/api/admin/tracker").json()
     assert snap["metrics"]["accounts_total"] == 6 and snap["via"] == "account"
     answer = c.post("/api/admin/ask", json={
@@ -255,7 +265,7 @@ def test_the_token_still_works_and_a_wrong_one_does_not(client, monkeypatch):
     appmod, c = client
     monkeypatch.setattr(appmod, "ADMIN_TOKEN", "sekrit")
     assert _all_status(c, {"X-Admin-Token": "wrong"}) == [404] * 4
-    assert _all_status(c, {"X-Admin-Token": "sekrit"}) == [200] * 4
+    assert _all_status(c, {"X-Admin-Token": "sekrit"}) == OPEN
 
 
 def test_a_client_cannot_claim_to_be_an_admin(client, monkeypatch):

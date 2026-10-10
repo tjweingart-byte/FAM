@@ -88,6 +88,9 @@ jobs:
           # nothing else does - which passes every unit test while being
           # broken on the page. So the buttons are pressed here too.
           python tools/smoke_landing.py
+          # Opus to the browser (§242): one episode through FamAudio against a
+          # real zero-spend server, compared sample for sample with PCM.
+          python tools/smoke_opus.py
 
       - name: Keep the preview build
         uses: actions/upload-artifact@v4
@@ -99,3 +102,49 @@ jobs:
             preview/fam-live-artifact.html
             preview/fam-share-landing.html
           retention-days: 30
+
+  # Option B (§243): the same suite with every store in Postgres. The tests
+  # that read a store's SQLite file are marked `sqlite_file` and skip here.
+  postgres:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: fam
+          POSTGRES_DB: fam_test
+        ports: ["5432:5432"]
+        # Docker gives a container 64 MB of /dev/shm; a parallel query asked
+        # for 32 MB of it, Postgres crashed into recovery and the next four
+        # test files could not connect. More room, and parallel query off.
+        options: >-
+          --shm-size=256mb
+          --health-cmd "pg_isready -U postgres" --health-interval 5s
+          --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:fam@localhost:5432/fam_test
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest
+
+      # A throwaway database: durability only slows the suite down.
+      - name: Tune for tests
+        run: |
+          for setting in "fsync = off" "synchronous_commit = off" "full_page_writes = off" \
+                         "max_parallel_workers_per_gather = 0"; do
+            psql "$DATABASE_URL" -c "ALTER SYSTEM SET $setting"
+          done
+          psql "$DATABASE_URL" -c "SELECT pg_reload_conf()"
+
+      - name: Tests on Postgres
+        run: python -m pytest tests/ -q

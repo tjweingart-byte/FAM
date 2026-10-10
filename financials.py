@@ -34,6 +34,8 @@ import io
 import logging
 import os
 import sqlite3
+
+import db as store_db
 import time
 from contextlib import closing
 from typing import Optional
@@ -336,9 +338,12 @@ def launch_purchases(rows: list[dict]) -> list[dict]:
 def _read(var: str, name: str, sql: str, args: tuple = ()) -> list[tuple]:
     """Rows from a store, or none when it does not exist. Never creates one."""
     path = data_path(var, name)
-    if not os.path.exists(path):
+    if not store_db.has_tables(path):
         return []
     try:
+        if store_db.enabled():
+            # The store's own Postgres schema (§243); reads only.
+            return [tuple(r) for r in store_db.connect(path).execute(sql, args)]
         with closing(sqlite3.connect(f"file:{path}?mode=ro", uri=True,
                                      timeout=5)) as db:
             return list(db.execute(sql, args))

@@ -356,6 +356,7 @@ def test_progress_keeps_the_follow_up_context(tmp_path):
     assert store.progress("u")[0]["context"] == "the fed"
 
 
+@pytest.mark.sqlite_file
 def test_a_progress_table_from_before_context_is_widened(tmp_path):
     import sqlite3
     path = str(tmp_path / "saved.db")

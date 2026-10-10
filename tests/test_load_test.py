@@ -68,6 +68,99 @@ def test_importing_it_without_locust_defines_no_users():
         assert not hasattr(LT, "Listener")
 
 
+def test_the_app_it_opens_is_still_in_static():
+    for path in LT.ASSETS:
+        name = "index.html" if path == "/" else path.lstrip("/")
+        assert os.path.isfile(os.path.join(ROOT, "static", name)), path
+
+
+def test_it_polls_as_often_as_the_app_does():
+    """The poll is most of the load; a test polling slower than the app
+    measures a quieter server than the one people use (settings-copied)."""
+    import re
+    page = open(os.path.join(ROOT, "static", "index.html")).read()
+    found = re.search(r"var NOTIF_POLL_MS = (\d+);", page)
+    assert found, "NOTIF_POLL_MS is no longer in static/index.html"
+    assert LT.NOTIF_POLL_SECONDS * 1000 == int(found.group(1))
+
+
+def test_every_shape_reaches_full_load_and_is_judged_there():
+    for shape in ("smoke", "ramp", "spike", "soak", "breakpoint"):
+        steps = LT.shape_steps(shape, 1000)
+        judged = [users for _s, users, _r, gate in steps if gate]
+        assert judged, shape
+        if shape != "smoke":
+            assert max(users for _s, users, _r, _g in steps) >= 1000, shape
+            assert judged[0] >= 1000, "%s is judged below full load" % shape
+    ramp = LT.shape_steps("ramp", 1000)
+    assert [users for _s, users, _r, _g in ramp] == [100, 250, 500, 750, 1000]
+    assert LT.shape_steps("ramp", 1000, step_seconds=60)[0][0] == 60
+    try:
+        LT.shape_steps("gentle", 1000)
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("an unknown shape ran as something else")
+
+
+def test_a_listener_listens_before_tapping_again():
+    assert LT.listening_seconds(2, 1.0, 1.0) == 120
+    assert LT.listening_seconds(2, 1.0, 0.0) == 36      # a third, at least
+    assert LT.listening_seconds(2, 0.0, 1.0) == 0       # a stress run
+    assert LT.listening_seconds(0, 1.0, 1.0) == 0
+
+
+def _row(requests=100, failures=0, p95=10, p99=20):
+    return {"requests": requests, "failures": failures, "p95": p95, "p99": p99}
+
+
+def test_a_run_within_budget_passes():
+    rows = {"audio: first byte [kept]": _row(p95=400, p99=900),
+            "/api/myfam": _row(p95=120), "/api/notifications": _row(p95=20),
+            "page: app shell": _row(p95=900, p99=1500),
+            "audio: whole [kept]": _row(p95=60000, p99=90000)}
+    assert LT.verdict(rows) == []
+
+
+def test_errors_slow_audio_and_no_audio_each_fail():
+    errors = {"audio: first byte [kept]": _row(), "/api/myfam": _row(failures=5)}
+    assert "error rate" in LT.verdict(errors)[0]
+    slow = {"audio: first byte [kept]": _row(p95=1500, p99=1800)}
+    assert LT.verdict(slow) == ["audio: first byte [kept]: p95 1500 ms (budget 1000 ms)"]
+    silent = {"/api/myfam": _row()}
+    assert "no audio was played" in LT.verdict(silent)[0]
+    assert LT.verdict({}) == ["no requests were made"]
+
+
+def test_slower_than_the_baseline_fails_beyond_the_slack():
+    quiet = {"audio: first byte [kept]": _row(), "/api/myfam": _row(p95=40)}
+    busy = {"audio: first byte [kept]": _row(), "/api/myfam": _row(p95=200)}
+    assert any("slower" in p for p in LT.verdict(busy, quiet))
+    # 4 ms becoming 9 ms is inside the slack, not a regression.
+    tiny = {"audio: first byte [kept]": _row(p95=9), "/api/myfam": _row(p95=40)}
+    assert LT.verdict(tiny, {"audio: first byte [kept]": _row(p95=4)}) == []
+
+
+def test_a_locust_csv_reads_back_as_rows(tmp_path):
+    csv_file = tmp_path / "run_stats.csv"
+    csv_file.write_text(
+        "Type,Name,Request Count,Failure Count,Median Response Time,"
+        "Average Response Time,Min Response Time,Max Response Time,"
+        "Average Content Size,Requests/s,Failures/s,50%,66%,75%,80%,90%,95%,"
+        "98%,99%,99.9%,99.99%,100%\n"
+        "GET,/api/myfam,30,1,29,29.1,21,39,100,0.25,0.0,29,32,33,34,37,38,39,39,39,39,39\n"
+        ",Aggregated,30,1,29,29.1,21,39,100,0.25,0.0,29,32,33,34,37,38,39,39,39,39,39\n")
+    assert LT.rows_from_csv(str(csv_file)) == {
+        "/api/myfam": {"requests": 30, "failures": 1, "p95": 38.0, "p99": 39.0}}
+
+
+def test_the_step_table_draws_every_step():
+    table = LT.step_table([
+        {"users": 100, "rps": 40.2, "fail_ratio": 0.0, "p95_all": 30,
+         "p95_audio": 20, "p95_page": 110, "p95_notifications": None}])
+    assert "| 100 | 40 | 0.00% | 30 ms | 20 ms | 110 ms | - |" in table
+
+
 # --- Apple's universal-links file (APP_STORE.md) -----------------------------
 # Kept beside the load test because both are the App Store groundwork; the
 # file is only answered once the developer account's ids exist.
