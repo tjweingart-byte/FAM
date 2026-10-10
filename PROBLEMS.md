@@ -17909,3 +17909,15 @@ the first paint. The chrome's colours are variables, with `--fg-rgb` and
 `--bg-rgb` for tints and fades; the Explore reel, stories, the VIBE! editor and
 the captions panel stay dark in both themes, deliberately, like a photo
 viewer.
+
+A review of the branch before merging found one real fault, now fixed: history
+is written at first audio, but a written episode's row only exists at the end
+of its stream, so `_pin_heard` dropped the id and history fell back to the
+shared question - for a limited episode, exactly what it must never be.
+`_pin_heard` now keeps a well-formed id whose row is not written yet, the end
+of a written stream pins the episode for the two weeks history shows it, and
+`history_read` treats an id whose row never arrived as no id. In light mode,
+the toned category tiles keep light words (their backgrounds are dark in both
+themes) and the play-all screen's icons take the text colour on their white
+circles.
+

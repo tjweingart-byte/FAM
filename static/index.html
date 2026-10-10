@@ -914,6 +914,10 @@
   .cat-f-business{ background:#4A4632; } .cat-f-tech{ background:#3B3A66; }
   .cat-f-science{ background:#2C4A55; } .cat-f-health{ background:#3D4A30; }
   .cat-f-culture{ background:#5A3A30; } .cat-f-world{ background:#2C415A; }
+  /* A toned tile is dark in both themes, so its words are always light;
+     an untoned one sits on the theme's surface and takes its text. */
+  .cat-icon[class*="cat-f-"], .cat-tile[class*="cat-f-"]{ color:#F4EFE4; }
+  .cat-tile[class*="cat-f-"] small{ color:rgba(244,239,228,0.72); }
   .hist-tabs[hidden]{ display:none; }
   .cat-follow{ margin-left:auto; height:30px; padding:0 14px; border-radius:15px;
     background:transparent; color:var(--text); border:1px solid var(--border-strong);
@@ -1329,6 +1333,10 @@
   .sb-icon{ display:flex; flex-direction:column; align-items:center; gap:4px; cursor:pointer; }
   .sb-icon .circ{ width:30px; height:30px; border-radius:50%; background:var(--surface); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; transition:all .15s; }
   .sb-icon.on .circ{ background:var(--copper); border-color:var(--copper); }
+  /* The icons are drawn in `--paper` for the dark circle; on light mode's
+     white circle they take the text colour, except in a filled state,
+     which draws its own (§245). */
+  html[data-theme="light"] .sb-icon:not(.on):not(.saved-on):not(.echoed) .circ svg{ stroke:var(--text); }
   .sb-icon .lbl{ font-family:'Geist Mono', monospace; font-size:7.2px; color:var(--text-muted); text-align:center; line-height:1.2; }
 
   .captions-panel{ margin:12px 18px 0; background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:12px 14px; min-height:60px; flex:none; }

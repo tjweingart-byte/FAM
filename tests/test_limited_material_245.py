@@ -167,3 +167,40 @@ def test_health_reports_memory(client):
     memory = client.get("/api/health").json()["memory"]
     assert set(memory) == {"rss_mb", "peak_mb"}
     assert memory["peak_mb"] is None or memory["peak_mb"] > 0
+
+
+# --- its listener's history, in the order the app really writes it --------
+
+def test_history_written_at_first_audio_keeps_the_id_and_the_end_pins_it(client):
+    """History is written at first audio, before a written episode's row
+    exists; a limited episode's only row is its archive slot, so a dropped id
+    would fall back to the shared question - the thing it must never be."""
+    import sqlite3
+    import time
+
+    import saved as saved_mod
+    from cache import episode_id
+
+    client.post("/api/auth/signup", json={"email": "g@a.com", "password": "password12"})
+    q = "general atomics"
+    # What first audio sends: an id whose row is not written yet.
+    early = episode_id("a" * 64, 1700000000)
+    assert appmod._pin_heard(early) == early
+    # ...and a row that never arrives reads as no id, not a broken replay.
+    client.post("/api/history", json={"query": "never stored", "minutes": 1,
+                                      "surface": "search", "episode": early})
+    item = client.get("/api/history").json()["items"][0]
+    assert item["query"] == "never stored" and item["episode"] != early
+
+    heard = client.get(f"/api/audio?q={q}&minutes=1&fmt=pcm&surface=search"
+                       ).headers["X-FAM-Episode"]
+    # Pinned by the end of the stream itself, before any history call.
+    key, sourced = parse_episode_id(heard)
+    expires = sqlite3.connect(appmod.SCRIPT_CACHE.path).execute(
+        "SELECT expires FROM scripts WHERE key = ?",
+        (archive_key(key, sourced),)).fetchone()[0]
+    assert expires >= time.time() + saved_mod.HISTORY_SECONDS - 60
+    client.post("/api/history", json={"query": q, "minutes": 1,
+                                      "surface": "search", "episode": heard})
+    item = client.get("/api/history").json()["items"][0]
+    assert item["episode"] == heard
