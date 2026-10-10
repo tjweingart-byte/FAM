@@ -1088,7 +1088,7 @@
   The brief's quality on Haiku is unmeasured until `tools/ei_eval.py` runs
   with a key.
 
-  > **Current:** reversed by the owner (PROBLEMS.md §248): the brief,
+  > **Current:** reversed by the owner (PROBLEMS.md §249): the brief,
   > composer, placer and thumbnails follow `MODEL` (Sonnet) again, each still
   > settable on its own. `config.SMALL_MODEL` names only the photo check
   > (§225), which stays on Haiku. What §227 added that is not about Haiku

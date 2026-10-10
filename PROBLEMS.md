@@ -17957,7 +17957,75 @@ call are unchanged. `test_the_landing_page_tells_why_fam_exists` pins the
 doctrine's order and words and that the old telling is gone.
 `docs/claude/product.md` notes the doctrine at `social-information`.
 
-## 247. Room for the brief on Haiku, and a count of every brief that degrades
+## 247. A misspelled search, a searched episode's picture, and the picture on a feedback report
+
+The owner's 10.10 packet, three items.
+
+**1. "general automics".** The owner searched General Atomics misspelled and
+heard an episode about there being no company called "General Automics" -
+the same failure §245 is about, arrived at from the other end. Three layers
+let it through:
+
+* *The speller* (`autocorrect.py`) is cautious on purpose and stays so:
+  "atomics" is a 50-count word, under `MIN_FREQUENCY`, so it is never offered.
+  Measured while here, it also took "supr" to "spur" - a swap is taken
+  outright, and "spur" is a swap while "super" (25 times as common) is a
+  letter short. A swap now yields when another candidate is
+  `SWAP_OUTWEIGHED` (10) times as common. Go Deeper's typed box and What's
+  next's search box had every correction off (`autocorrect="off"`, no
+  `data-autocorrect`) and were never corrected at send; both now are, through
+  the search box's `acCorrectQuestion`, and a typed follow-up is `own`.
+* *EI* had no instruction about misspellings at all - only "keep the
+  listener's own sense of it" - so a typo'd name could come back as the
+  subject. `EI_SYSTEM` now says a word nearly the name of something real is
+  that thing, to search the real name and never the typo, and never to treat
+  the misspelling as an unknown entity; the `subject` bullet says to correct
+  what is misspelled. And **the gate reverted the correction when it was
+  made**: its drift check wants one shared content word by prefix, and a
+  corrected spelling shares none with the typo ("ohtanni" -> "Shohei Ohtani
+  home run record" was thrown away and the typo searched). `_respelled`
+  (difflib ratio >= 0.8, six letters or more, same first or last letter) now
+  counts as sharing. "general automics" happened to survive the gate on
+  "general"; a one-word typo did not.
+* *The writer* is told, beside the request, that it may be misspelled, that a
+  near-name is the real thing, and never to say nothing spelled that way
+  exists or mention the spelling.
+
+Unheard (`no-api-key`): `python write.py "general automics" --minutes 2`,
+and `--no-ei` beside it, is the check.
+
+**2. A searched episode's picture did not match it.** The player asked
+`/api/episode/card` once as it opened, with only the typed words - no
+category exists then - and asked again on a title landing **only if** that
+first answer was borrowed. So a word match on the question (a misspelled or
+oblique one especially) was kept for the whole episode, and the writer's
+`<<CATEGORY:>>`, which arrives with its last token, never reached a search's
+player. Now:
+
+* EI's brief carries `category` (two to four words, the writer's kind of
+  answer), decided before the first word for a handful of output tokens.
+  `_publish_title` puts it on the live track beside the provisional title
+  (`live_captions.publish_category`, never opening a track); the writer's
+  own replaces it there when the script finishes, and the cache has it once
+  kept.
+* `/api/episode/card` resolves the written category first, else the track's
+  (`app._playing_category`, through `stories.resolve_category(near=True)`),
+  takes `context` so a Go Deeper follow-up finds its own key, and says
+  `placed` when the picture came from the category.
+* The player asks again on every title landing (the brief's, then the
+  writer's) and lets a placed answer replace a word match; never the picture
+  of the tile that opened it (§209's "never a different picture from the
+  card"), and a word match never replaces a placed one.
+
+**3. Instant feedback keeps the picture.** The page sends the player's
+picture with the episode; the report keeps it only when it is FAM's own
+thumbnail route (`feedback.thumb_path`, the inbox draws it and must not load
+an address a report names), else the server picks what the player would
+have drawn (`app._player_picture`, shared with the card). `/admin`'s inbox
+shows it beside the report and above the episode; the preview's panel keeps
+its own line art the same way.
+
+## 248. Room for the brief on Haiku, and a count of every brief that degrades
 
 The owner: since the brief moved to Haiku 5.5 (§227) some episodes say they
 lack information about things that are readily reported. Raise the brief's
@@ -18023,14 +18091,14 @@ the first search did not cover) against briefs. If Haiku's excess on complete
 briefs is real, `EI_MODEL=claude-sonnet-5` restores the old brief without a
 deploy of code, at ~$0.01 a brief instead of ~$0.0005.
 
-Tests: `tests/test_ei_room_247.py`. Numbered 247: Main took §245-§246 while this waited.
+Tests: `tests/test_ei_room_248.py`. Numbered 248: Main took §245-§247 while this waited.
 
-## 248. The pipeline back on Sonnet: §227's Haiku reversed
+## 249. The pipeline back on Sonnet: §227's Haiku reversed
 
 The owner's executive decision (10.10): revert the move of part of the
 pipeline to Haiku and return it to Sonnet; outsourcing some of the Claude work
 may be looked at later. Asked two follow-ups, the owner chose to keep the
-§225 photo check on Haiku (a separate decision of theirs) and to keep §247's
+§225 photo check on Haiku (a separate decision of theirs) and to keep §248's
 3000-token brief ceiling.
 
 **What changed.**
@@ -18054,10 +18122,10 @@ every call at its own model's rates (an episode can still mix models - any
 Sonnet 5.5 and Haiku 5.5 rows in `PRICES` and the per-model cache-read rates;
 the tools reading the one rate card; and `app._verify_small_models`, which
 now also checks `IMAGE_CHECK_MODEL` - the one call left on another model.
-§247's ceiling, its `out_of_room` reason and the `since_boot` counter stay.
+§248's ceiling, its `out_of_room` reason and the `since_boot` counter stay.
 On Sonnet the ceiling's worst case is ~$0.03 a brief (all 3000 tokens used),
 against ~$0.012 at 1200; only what is used is billed, and an ordinary brief
-(~800 tokens) costs what it did - §247's "$0.0015" was the Haiku figure.
+(~800 tokens) costs what it did - §248's "$0.0015" was the Haiku figure.
 
 **What it costs.** The Claude bill returns to its pre-§227 shape: about
 $0.01 a brief instead of ~$0.0005, and roughly +40% on the Claude line at

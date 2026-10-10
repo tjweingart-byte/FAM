@@ -216,7 +216,7 @@ DEFAULT_RESEARCH_BACKEND = "exa"
 #: lands in.
 DEFAULT_MINUTES = 2
 #: The cheapest current model, for the profile-photo check only (§225).
-#: §227 moved the brief, composer, placer and thumbnails onto it too; §248
+#: §227 moved the brief, composer, placer and thumbnails onto it too; §249
 #: moved them back to `MODEL` at the owner's direction, so this names one
 #: call now.
 SMALL_MODEL = "claude-haiku-5-5"
@@ -434,7 +434,7 @@ class Settings:
         default_factory=lambda: os.environ.get("EPISODE_INTELLIGENCE", "1")
         not in ("0", "false", "False", ""))
     # Understanding a request is a small, well-specified extraction, not the
-    # writing. It runs on the same model as the script (§248, reversing
+    # writing. It runs on the same model as the script (§249, reversing
     # §227's Haiku) so a deployment has one model to reason about, and at
     # low effort because the time here is time the listener waits.
     ei_model: str = field(
@@ -443,7 +443,7 @@ class Settings:
     ei_effort: str = field(
         default_factory=lambda: os.environ.get("EI_EFFORT", "low"))
     # A ceiling on the brief's thinking and its JSON together; a brief that
-    # hits it is cut off mid-JSON and searched as the raw query (§247). 1200
+    # hits it is cut off mid-JSON and searched as the raw query (§248). 1200
     # was sized on Sonnet 5, whose briefs ran ~400-1,200 tokens and sometimes
     # touched it, so 3000 gives them room. Only what is used is billed: on
     # Sonnet a brief that used all 3000 would cost ~$0.03 (~$0.012 at 1200),
@@ -656,7 +656,7 @@ class Settings:
         not in ("0", "false", "False", ""))
     # One call per refresh window for every listener, so this is the cheapest
     # model call in the product and still the one that decides what the whole
-    # browse page says. Same model as the rest of the app (§248).
+    # browse page says. Same model as the rest of the app (§249).
     stories_model: str = field(
         default_factory=lambda: os.environ.get("STORIES_MODEL") or os.environ.get("MODEL")
         or "claude-sonnet-5")
@@ -696,7 +696,7 @@ class Settings:
         default_factory=lambda: os.environ.get("CATEGORIES_PLACE", "1")
         not in ("0", "false", "False", ""))
     # One call per sweep for the whole deployment, batching every new subject
-    # at once. Same model as everything else here (§248).
+    # at once. Same model as everything else here (§249).
     categories_model: str = field(
         default_factory=lambda: os.environ.get("CATEGORIES_MODEL") or os.environ.get("MODEL")
         or "claude-sonnet-5")
@@ -760,7 +760,7 @@ class Settings:
     # An estimate for a 1K image; set it from the pricing page.
     thumbnails_image_price: float = _env_float("THUMBNAILS_IMAGE_PRICE", 0.067)
     # The model that writes scenes and checks pictures for logos and people:
-    # follows `MODEL` (§248).
+    # follows `MODEL` (§249).
     thumbnails_model: str = field(
         default_factory=lambda: os.environ.get("THUMBNAILS_MODEL") or os.environ.get("MODEL")
         or "claude-sonnet-5")

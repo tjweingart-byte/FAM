@@ -1,4 +1,4 @@
-"""The brief has room to finish, and says when it does not (§247).
+"""The brief has room to finish, and says when it does not (§248).
 
 `EI_MAX_TOKENS` bounds the brief's thinking and its JSON together. It was
 1200, sized on Sonnet 5; on Haiku 5.5 a brief that thinks longer is cut off

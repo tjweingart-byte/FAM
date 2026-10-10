@@ -100,6 +100,9 @@
   tr.subrow .subname::before { content:"↳"; position:absolute; left:2px; color:var(--faint); }
   /* The episode a report was typed on (9.30 #6), behind its button. */
   .report .acts { display:flex; flex-direction:column; gap:6px; flex:none; }
+  /* The picture the episode was playing over (10.10 #3). */
+  .report .thumb { flex:none; width:96px; aspect-ratio:4/3; object-fit:cover; border-radius:6px; border:1px solid var(--line); background:var(--line); }
+  .report .ep .thumb-lg { display:block; width:100%; max-width:320px; aspect-ratio:4/3; object-fit:cover; border-radius:8px; margin:0 0 8px; }
   .report .ep { margin:8px 0 2px; padding:10px 12px; border:1px solid var(--line); border-radius:8px; }
   .report .ep h3 { margin:0 0 4px; font-size:14px; }
   .report .ep h4 { margin:10px 0 4px; font:600 11px var(--mono); text-transform:uppercase; letter-spacing:0.06em; color:var(--muted); }
@@ -586,7 +589,10 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
           (content ? "" : '<button class="go" type="button" style="padding:6px 12px" data-mod-act="removed" data-mod-id="' + esc(r.id) + '">Remove</button>') +
           (r.posted_by ? '<button class="ghost" type="button" style="padding:6px 12px" data-mod-act="suspended" data-mod-id="' + esc(r.id) + '">Suspend</button>' : '') +
           '<button class="ghost" type="button" style="padding:6px 12px" data-mod-act="dismissed" data-mod-id="' + esc(r.id) + '">Dismiss</button>';
-        return '<div class="report' + (done ? " done" : "") + '"><div class="body">' +
+        var pic = episodeThumb(r.episode);
+        return '<div class="report' + (done ? " done" : "") + '">' +
+          (pic ? '<img class="thumb" src="' + esc(pic) + '" alt="" loading="lazy">' : '') +
+          '<div class="body">' +
           '<p class="text">' + esc(snapshotText(r)) + '</p><div class="ctx">' + esc(ctx) + '</div>' +
           (r.note ? '<div class="ctx">note: ' + esc(r.note) + '</div>' : '') +
           '</div><div class="acts">' + acts + '</div></div>';
@@ -623,7 +629,10 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
         var ctx = [when(r.created), r.screen && ("screen " + r.screen), r.build && ("build " + r.build),
                    r.viewport, r.user_id ? "account " + r.user_id : "guest",
                    done ? "resolved " + when(r.resolved_at) : ""].filter(Boolean).join(" · ");
-        return '<div class="report' + (done ? " done" : "") + '"><div class="body">' +
+        var pic = episodeThumb(r.episode);
+        return '<div class="report' + (done ? " done" : "") + '">' +
+          (pic ? '<img class="thumb" src="' + esc(pic) + '" alt="" loading="lazy">' : '') +
+          '<div class="body">' +
           '<p class="text">' + esc(r.text) + '</p><div class="ctx">' + esc(ctx) + '</div>' +
           (r.episode ? '<div class="ep" id="ep-' + esc(r.id) + '" hidden>' + episodeHTML(r.episode) + '</div>' : '') +
           '</div><div class="acts">' +
@@ -645,10 +654,18 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
   });
   // Title, sources and transcript, as kept when the report was filed on the
   // audio player - a copy, so it is still here after the cache lets it go.
+  // Only FAM's own thumbnail route is drawn (feedback.thumb_path keeps
+  // nothing else either): an admin page never loads an address a report names.
+  function episodeThumb(e) {
+    var u = e && e.thumb ? String(e.thumb) : "";
+    return /^\/api\/thumb\/[^\s"'<>]+$/.test(u) ? u : "";
+  }
   function episodeHTML(e) {
     var sources = e.sources || [];
     var lines = e.transcript || [];
-    return '<h3>' + esc(e.title || e.query || "Untitled episode") + '</h3>' +
+    var pic = episodeThumb(e);
+    return (pic ? '<img class="thumb-lg" src="' + esc(pic) + '" alt="The picture this episode played over">' : '') +
+      '<h3>' + esc(e.title || e.query || "Untitled episode") + '</h3>' +
       '<div class="ctx">asked: ' + esc(e.query || "") + (e.minutes ? ' · ' + e.minutes + ' min' : '') + '</div>' +
       '<h4>Sources · ' + sources.length + '</h4>' +
       (sources.length ? '<ol>' + sources.map(function (x) {

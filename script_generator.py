@@ -1187,6 +1187,11 @@ Answer them. They asked because they wanted to know something, and by the end
 they must know it well enough to say it back in their own words. That is the
 job; the rest is how it arrives.
 
+The request was typed fast and may be misspelled. A name that is nearly the
+name of something real is that thing - "general automics" is General Atomics -
+so talk about it by its real name, and never tell them that nothing spelled
+the way they typed it exists, or mention the spelling at all.
+
 
 Pick a way in. Find the specific thing - the moment, the person, the number,
 the detail - that makes this worth hearing, and start there. Then keep them
@@ -2116,7 +2121,8 @@ if __name__ == "__main__":  # pragma: no cover
 
 
 def _publish_title(notes: "ScriptNotes | None", brief) -> None:
-    """Put the brief's title on the live track, before the first word (§127).
+    """Put the brief's title, and its category, on the live track, before
+    the first word (§127).
 
     Provisional: the writer's own `<<TITLE:>>` replaces it when the script
     finishes. Never raises, for the same reason `_publish_sources` does not.
@@ -2126,6 +2132,11 @@ def _publish_title(notes: "ScriptNotes | None", brief) -> None:
         if notes is not None and notes.caption_key and title:
             live_captions.publish_title(notes.caption_key,
                                         content_filter.scrub(title))
+        # What kind of thing it is, for the player's picture before the
+        # writer's own `<<CATEGORY:>>` exists (`Brief.category`).
+        category = getattr(brief, "category", "") if brief is not None else ""
+        if notes is not None and notes.caption_key and category:
+            live_captions.publish_category(notes.caption_key, category)
     except Exception:
         log.exception("could not publish a title; the episode is unaffected")
 

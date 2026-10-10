@@ -196,7 +196,7 @@ async def _verify_small_models() -> None:
 
     `_verify_credentials` checks `settings.model`. Any call configured onto
     another model - by default only the photo check (`IMAGE_CHECK_MODEL`,
-    §225), since §248 put the brief, composer, placer and thumbnails back
+    §225), since §249 put the brief, composer, placer and thumbnails back
     on `MODEL` - is checked here once the key is known good, so an account
     that cannot use it is said at boot rather than discovered per call. A
     model that fails is reported in `/api/health` (`credentials.models`)
@@ -3910,13 +3910,17 @@ class FeedbackEpisode(BaseModel):
     (a key that no longer matches finds nothing, and the report is kept), and
     minutes are whatever the page said, checked when the key is built.
     `title` is accepted from older pages and ignored - what the inbox shows is
-    read from the cache, never taken from the page."""
+    read from the cache, never taken from the page. `thumb` is the picture
+    the player was showing, kept only when it is one of FAM's own
+    thumbnails (`feedback.thumb_path`); without it the server picks the
+    player's picture itself (`_player_picture`)."""
     q: str = ""
     minutes: int = 0
     context: str = ""
     title: str = ""
+    thumb: str = ""
 
-    @field_validator("q", "context", "title", mode="before")
+    @field_validator("q", "context", "title", "thumb", mode="before")
     @classmethod
     def _cut(cls, value):
         return str(value or "")[:500]
@@ -3965,7 +3969,17 @@ async def _feedback_episode(ep: Optional[FeedbackEpisode]) -> Optional[dict]:
         pass
     except Exception:  # noqa: BLE001 - the report matters more than its attachment
         log.exception("could not read the episode for a feedback report")
-    return feedback_mod.episode_snapshot(ep.q, minutes, title, sources, sentences)
+    # The picture the episode was playing over (10.10 #3): the page's, when
+    # it is one of ours, else the one the player would have drawn.
+    thumb = feedback_mod.thumb_path(ep.thumb)
+    if not thumb:
+        try:
+            thumb = (_player_picture(ep.q, title, minutes, "", ep.context)
+                     .get("url", "") or "")
+        except Exception:  # noqa: BLE001 - a picture is never worth a report
+            log.exception("could not pick a picture for a feedback report")
+    return feedback_mod.episode_snapshot(ep.q, minutes, title, sources, sentences,
+                                         thumb=thumb)
 
 
 @app.post("/api/feedback")
@@ -6158,7 +6172,8 @@ def _episode_category(key: str) -> str:
     return stories_mod.resolve_category(words, near=True)
 
 
-def _heard_key(query: str, minutes: int, episode: str = "") -> str:
+def _heard_key(query: str, minutes: int, episode: str = "",
+               context: str = "") -> str:
     """The cache key of the episode a request is about, or "".
 
     The heard episode's id (`X-FAM-Episode`, §173) when the client sent one:
@@ -6175,7 +6190,7 @@ def _heard_key(query: str, minutes: int, episode: str = "") -> str:
                 return key
         if not query or not minutes:
             return ""
-        return _episode_key(_validated_plan(query, minutes)) or ""
+        return _episode_key(_validated_plan(query, minutes, context)) or ""
     except Exception:  # noqa: BLE001 - a lookup, never a failure
         return ""
 
@@ -6185,6 +6200,27 @@ def _written_category(query: str, minutes: int, episode: str = "") -> str:
     `episode`) says it is about (§189), or "" when it is not written, has
     none, or cannot be placed. One local read; never a model call."""
     return _episode_category(_heard_key(query, minutes, episode))
+
+
+def _playing_category(query: str, minutes: int, episode: str = "",
+                      context: str = "") -> str:
+    """The node the episode on the player is about, as early as anything
+    knows it (10.10 #2): the written episode's own category (§209) once it
+    is cached, else the one on its live track - the writer's when the script
+    has finished, the brief's from before the first word
+    (`Brief.category`). "" when neither can be placed. Local reads only."""
+    key = _heard_key(query, minutes, episode, context)
+    if not key:
+        return ""
+    node = _episode_category(key)
+    if node:
+        return node
+    words = live_captions.read_category(key)
+    if not words:
+        return ""
+    import stories as stories_mod
+
+    return stories_mod.resolve_category(words, near=True)
 
 
 #: How long one live story's written category is remembered (§209). The
@@ -6480,7 +6516,8 @@ async def episode_card(request: Request,
                        q: str = Query("", max_length=300),
                        title: str = Query("", max_length=300),
                        minutes: int = Query(0, ge=0, le=10),
-                       episode: str = Query("", max_length=80)) -> dict:
+                       episode: str = Query("", max_length=80),
+                       context: str = Query("", max_length=300)) -> dict:
     """What the player draws around an episode (§190): its picture, and who
     searched it.
 
@@ -6497,9 +6534,12 @@ async def episode_card(request: Request,
       never in the key); this is the one place it is shown, by the author's
       choice, and the response carries no id.
 
-    `minutes` and `episode` (both optional) say which written episode this
-    is, so its own category picks the picture, as it does on the tile that
-    opened it (§209).
+    `minutes`, `episode` and `context` (all optional) say which episode
+    this is, so its own category picks the picture, as it does on the tile
+    that opened it (§209) - while it is still being written, the category
+    on its live track (`_playing_category`). `placed` says the picture came
+    from that category rather than from the words, and the player lets it
+    replace one matched off the words.
 
     Reads the cache and the profile store; no model call.
     """
@@ -6508,14 +6548,12 @@ async def episode_card(request: Request,
     words = (title or "").strip()
     thumb = ""
     borrowed = False
+    placed = False
     try:
-        import thumbnails
-        node = _written_category(asked, minutes, episode)
-        found = thumbnails.pick_for_player(
-            f"{asked} {words}".strip(), key=normalize_query(asked),
-            category=node) or {}
+        found = _player_picture(asked, words, minutes, episode, context)
         thumb = found.get("url", "") or ""
         borrowed = bool(found.get("fallback"))
+        placed = bool(thumb and found.get("placed"))
     except Exception:  # noqa: BLE001 - a picture is never worth a 500
         log.exception("could not pick a picture for the player")
     searcher = ""
@@ -6534,7 +6572,23 @@ async def episode_card(request: Request,
                 handle = SOCIAL.person(author).get("handle") or ""
                 searcher = "@" + handle if handle else ""
             break
-    return {"thumb": thumb, "fallback": borrowed, "searcher": searcher}
+    return {"thumb": thumb, "fallback": borrowed, "placed": placed,
+            "searcher": searcher}
+
+
+def _player_picture(asked: str, title: str = "", minutes: int = 0,
+                    episode: str = "", context: str = "") -> dict:
+    """The player's picture for an episode, as `/api/episode/card` draws it
+    and an Instant feedback report keeps it: `thumbnails.pick_for_player`
+    over the words, with the episode's own category when one is known
+    (`placed`). {} when nothing is approved. Never a model call."""
+    import thumbnails
+
+    node = _playing_category(asked, minutes, episode, context)
+    found = thumbnails.pick_for_player(
+        f"{asked} {title}".strip(), key=normalize_query(asked),
+        category=node) or {}
+    return dict(found, placed=bool(node)) if found else {}
 
 
 @app.get("/api/episode/topic")

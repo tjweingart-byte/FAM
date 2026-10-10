@@ -63,8 +63,8 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
 - **Search is Google's shape** (§190): mic and attach inside the bar's right;
   Length (1-5 min, §219) and Voice bubbles never print the choice; back to 2 min on
   every return to the app. [search-bar]
-- A search is spell-corrected whole at send; its title never shows a
-  misspelling (`autocorrect.correct_text`). [autocorrect-at-send]
+- Searches (Go Deeper too) corrected at send, titles never misspell, EI
+  fixes typos (§247) [autocorrect-at-send]
 - The from-knowledge cover half on search is deleted (§108); search's wait is
   in front of the first word and honest - five loading steps from the
   server's marks, each ≥2s, audio held to the fifth; a replay skips them (§148). [search-no-cover]
@@ -87,7 +87,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
 
 - **The player is Spotify's layout** (§190): down arrow, picture (4:3, §192;
   centred between GO DEEPER and the title, never missing - `pick_for_player`
-  borrows, as do tiles, §214 - and on the mini player, sides cropped, §193), sources by it, GO
+  borrows, as do tiles, §214, by category §247 - and on the mini player, sides cropped, §193), sources by it, GO
   DEEPER pill at the top, share/vibe/save on the right (§192), captions sheet
   slid up, a ⋯ menu; no "exclude from taste" (§171); the searcher shown only
   if `searches_public`. [player-layout]
@@ -366,7 +366,7 @@ Caching and prefetch
   anything personal, report `None` not `0`. [prefetch-same-key]
 - A prefetch candidate carries a reason in words; sources never call a model or
   the network. [candidate-reason]
-- **One model for the pipeline** (§248): brief, composer, placer, thumbnails
+- **One model for the pipeline** (§249): brief, composer, placer, thumbnails
   follow `MODEL`; only the photo check uses `SMALL_MODEL` (§225); metering
   prices each call at its own model. [small-calls-haiku]
 - **Writer savings change no word and cost no episode** (§179): its

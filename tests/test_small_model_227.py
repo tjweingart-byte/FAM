@@ -1,4 +1,4 @@
-"""The brief, composer, placer and thumbnails follow `MODEL` again (§248).
+"""The brief, composer, placer and thumbnails follow `MODEL` again (§249).
 
 §227 put them on Haiku 5.5; the owner moved them back to Sonnet. What §227
 added that is not about Haiku stays and is pinned here: an empty setting means
