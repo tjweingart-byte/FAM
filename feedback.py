@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import sqlite3
 
 import db as store_db
@@ -61,14 +62,29 @@ MAX_EPISODE_TRANSCRIPT = 30000
 MAX_EPISODE_SOURCES = 30
 
 
+#: The only pictures a report keeps: FAM's own thumbnail route
+#: (`thumbnails.url_for`), never an address from anywhere else - the inbox
+#: draws it, and an admin page must not load what a report names.
+THUMB_PATH = re.compile(r"^/api/thumb/[A-Za-z0-9%._~-]{1,200}(?:\?v=\d{1,12})?$")
+
+
+def thumb_path(url: str) -> str:
+    """`url` when it is one of FAM's thumbnails, else ""."""
+    url = str(url or "").strip()
+    return url if THUMB_PATH.match(url) else ""
+
+
 def episode_snapshot(query: str, minutes: int, title: str = "",
                      sources: Optional[dict] = None,
-                     sentences: Optional[list] = None) -> dict:
+                     sentences: Optional[list] = None,
+                     thumb: str = "") -> dict:
     """The episode half of a report, in the shape the inbox draws.
 
     `sources` is `Provenance.as_dict()`; only what the sources panel shows is
     kept (publisher, headline, date, grade, link). `sentences` is the
     transcript, trimmed to `MAX_EPISODE_TRANSCRIPT` characters and said so.
+    `thumb` is the picture the player showed (10.10 #3), kept only when it
+    is FAM's own thumbnail route (`thumb_path`).
     """
     items = []
     for item in ((sources or {}).get("items") or [])[:MAX_EPISODE_SOURCES]:
@@ -85,7 +101,8 @@ def episode_snapshot(query: str, minutes: int, title: str = "",
         kept.append(sentence)
         used += len(sentence) + 1
     return {"query": (query or "")[:500], "minutes": int(minutes or 0),
-            "title": (title or "")[:MAX_FIELD], "sources": items,
+            "title": (title or "")[:MAX_FIELD], "thumb": thumb_path(thumb),
+            "sources": items,
             "transcript": kept, "transcript_cut": cut}
 
 

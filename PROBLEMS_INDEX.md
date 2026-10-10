@@ -249,3 +249,4 @@ and `limit` = Lines.
 | 17679 | 117 | 243. Option B: every store can live in Postgres |
 | 17796 | 59 | 244. Password reset by an emailed code |
 | 17855 | 70 | 245. An episode with little to go on now says so, and is kept to itself |
+| 17925 | 68 | 246. A misspelled search, a searched episode's picture, and the picture on a feedback report |

@@ -28,8 +28,10 @@ So a word is only changed when every one of these holds:
   never replaces a name;
 * the fix is not the word with its last letter dropped - "messi" is not a
   misspelling of "mess";
-* and it wins clearly: a swapped pair of letters is taken outright, otherwise
-  the best candidate must be `DOMINANCE` times as common as the next.
+* and it wins clearly: a swapped pair of letters is taken outright (unless
+  another candidate is `SWAP_OUTWEIGHED` times as common - "supr" is
+  "super", not "spur"), otherwise the best candidate must be `DOMINANCE`
+  times as common as the next.
 
 Anything short of that returns the word unchanged. The interface undoes a
 correction with one backspace, like a phone does, and does not offer that
@@ -60,6 +62,12 @@ SHORT_FREQUENCY = 1_000_000
 #: How much more common the winner must be than the runner-up, when the typo
 #: is not a plain swap of two letters.
 DOMINANCE = 2.0
+
+#: A swap is taken outright only while no other candidate is this many times
+#: as common. "supr" is a swap from "spur" (2,428) and a letter short of
+#: "super" (62,488), and somebody typing "who won the supr bowl" did not mean
+#: a spur: past this ratio the swap is just one candidate among the rest.
+SWAP_OUTWEIGHED = 10.0
 
 #: Chat shorthand that is not a misspelling of anything.
 SHORTHAND = frozenset("""
@@ -230,9 +238,12 @@ def _correct_lower(word: str) -> Optional[str]:
     if len(word) <= 3:
         swaps = [c for f, c in scored if _is_swap(word, c) and f >= SHORT_FREQUENCY]
         return swaps[0] if len(swaps) == 1 else None
-    swaps = [c for f, c in scored if _is_swap(word, c) and f >= MIN_FREQUENCY]
+    swaps = [(f, c) for f, c in scored if _is_swap(word, c) and f >= MIN_FREQUENCY]
     if len(swaps) == 1:
-        return swaps[0]
+        f, swap = swaps[0]
+        rival = next((g for g, c in scored if c != swap), 0)
+        if rival < SWAP_OUTWEIGHED * f:
+            return swap
     # A letter left out is the commonest typo there is, so when the typed
     # letters all survive, in order, inside a candidate one letter longer,
     # those candidates are asked first: "leage" is "league", not the more
