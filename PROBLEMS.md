@@ -18036,8 +18036,10 @@ may be looked at later. Asked two follow-ups, the owner chose to keep the
 **What changed.**
 
 * `ei_model`, `stories_model`, `categories_model` and `thumbnails_model`
-  follow `MODEL` again (`config._follows_model`: their own setting, else
-  `MODEL`, else `claude-sonnet-5`). An empty value still means unset.
+  follow `MODEL` again: their own setting, else `MODEL`, else
+  `claude-sonnet-5`. An empty value still means unset. (Each read is written
+  out in full: `tests/test_hermetic.py` finds settings by reading
+  `os.environ.get("NAME")` in config.py's source, and a helper hid them.)
 * `THUMBNAILS_CLAUDE_*_PER_MTOK` are Sonnet 5's again (2.0 / 10.0).
 * `config.SMALL_MODEL` stays, naming only the photo check
   (`IMAGE_CHECK_MODEL`, §225).

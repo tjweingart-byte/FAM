@@ -221,16 +221,6 @@ DEFAULT_MINUTES = 2
 #: call now.
 SMALL_MODEL = "claude-haiku-5-5"
 
-
-def _follows_model(name: str) -> str:
-    """A model setting that follows `MODEL` unless it is set itself (§248).
-
-    An empty value means unset - a copied `.env` once shipped
-    `CATEGORIES_MODEL=`, which meant a model named ''.
-    """
-    return (os.environ.get(name) or os.environ.get("MODEL")
-            or "claude-sonnet-5")
-
 #: How long every episode is that searchFAM did not ask for (§147, at the
 #: owner's direction): myFAM, DailyFAM, the Trending bank and prefetch. Only
 #: search offers a length; everything else is two minutes, fixed in code and
@@ -447,7 +437,9 @@ class Settings:
     # writing. It runs on the same model as the script (§248, reversing
     # §227's Haiku) so a deployment has one model to reason about, and at
     # low effort because the time here is time the listener waits.
-    ei_model: str = field(default_factory=lambda: _follows_model("EI_MODEL"))
+    ei_model: str = field(
+        default_factory=lambda: os.environ.get("EI_MODEL") or os.environ.get("MODEL")
+        or "claude-sonnet-5")
     ei_effort: str = field(
         default_factory=lambda: os.environ.get("EI_EFFORT", "low"))
     # A ceiling on the brief's thinking and its JSON together. 1200 was sized
@@ -665,7 +657,8 @@ class Settings:
     # model call in the product and still the one that decides what the whole
     # browse page says. Same model as the rest of the app (§248).
     stories_model: str = field(
-        default_factory=lambda: _follows_model("STORIES_MODEL"))
+        default_factory=lambda: os.environ.get("STORIES_MODEL") or os.environ.get("MODEL")
+        or "claude-sonnet-5")
     stories_effort: str = field(
         default_factory=lambda: os.environ.get("STORIES_EFFORT", "low"))
     # Room for a first sweep's worth of tiles: since §135 the GDELT sweep
@@ -704,7 +697,8 @@ class Settings:
     # One call per sweep for the whole deployment, batching every new subject
     # at once. Same model as everything else here (§248).
     categories_model: str = field(
-        default_factory=lambda: _follows_model("CATEGORIES_MODEL"))
+        default_factory=lambda: os.environ.get("CATEGORIES_MODEL") or os.environ.get("MODEL")
+        or "claude-sonnet-5")
     categories_effort: str = field(
         default_factory=lambda: os.environ.get("CATEGORIES_EFFORT", "low"))
     categories_max_tokens: int = _env_int("CATEGORIES_MAX_TOKENS", 4000)
@@ -767,7 +761,8 @@ class Settings:
     # The model that writes scenes and checks pictures for logos and people:
     # follows `MODEL` (§248).
     thumbnails_model: str = field(
-        default_factory=lambda: _follows_model("THUMBNAILS_MODEL"))
+        default_factory=lambda: os.environ.get("THUMBNAILS_MODEL") or os.environ.get("MODEL")
+        or "claude-sonnet-5")
     # Its list prices, per million tokens, for the spend record - Sonnet 5's.
     # Change them with THUMBNAILS_MODEL.
     thumbnails_claude_input_per_mtok: float = _env_float(
