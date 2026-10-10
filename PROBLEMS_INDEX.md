@@ -251,3 +251,5 @@ and `limit` = Lines.
 | 17855 | 69 | 245. An episode with little to go on now says so, and is kept to itself |
 | 17924 | 36 | 246. The FAM Doctrine, and "What is FAM" told as it |
 | 17960 | 68 | 247. A misspelled search, a searched episode's picture, and the picture on a feedback report |
+| 18028 | 68 | 248. Room for the brief on Haiku, and a count of every brief that degrades |
+| 18096 | 42 | 249. The pipeline back on Sonnet: §227's Haiku reversed |

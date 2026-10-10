@@ -1,12 +1,10 @@
-"""The small calls run on Haiku 5.5; the writer does not move (§227).
+"""The brief, composer, placer and thumbnails follow `MODEL` again (§249).
 
-The brief, the tile composer, the category placer and the thumbnail calls are
-JSON against a schema at low effort, and none of them writes a word a listener
-hears. They used to follow `MODEL`, so they paid the writer's rate. These pin
-that they no longer do, that `MODEL` cannot drag them back, and that metering
-prices an episode whose brief and writer run on different models call by call
-- pricing the token totals at the last call's model would charge the brief at
-the writer's rate.
+§227 put them on Haiku 5.5; the owner moved them back to Sonnet. What §227
+added that is not about Haiku stays and is pinned here: an empty setting means
+the default, metering prices an episode whose calls run on different models
+call by call, every current model has a price, and boot checks any model a
+call uses besides `MODEL` - by default only the photo check (§225).
 """
 from __future__ import annotations
 
@@ -48,26 +46,30 @@ def _small_models(settings):
             settings.categories_model, settings.thumbnails_model)
 
 
-def test_the_small_calls_default_to_haiku_5_5(fresh_config):
+def test_the_four_calls_follow_the_writers_model(fresh_config):
     config = fresh_config()
-    assert config.SMALL_MODEL == "claude-haiku-5-5"
-    assert set(_small_models(config.settings)) == {"claude-haiku-5-5"}
-    assert config.settings.model == "claude-sonnet-5", "the writer does not move"
+    assert config.settings.model == "claude-sonnet-5"
+    assert set(_small_models(config.settings)) == {"claude-sonnet-5"}
 
 
-def test_setting_model_moves_only_the_writer(fresh_config, monkeypatch):
-    """`render.yaml` sets MODEL. Before §227 that silently set all five."""
+def test_setting_model_moves_them_with_the_writer(fresh_config, monkeypatch):
+    """`render.yaml` sets MODEL; one model to reason about per deployment."""
     monkeypatch.setenv("MODEL", "claude-opus-5-5")
     config = fresh_config()
-    assert config.settings.model == "claude-opus-5-5"
-    assert set(_small_models(config.settings)) == {"claude-haiku-5-5"}
+    assert set(_small_models(config.settings)) == {"claude-opus-5-5"}
+
+
+def test_only_the_photo_check_stays_on_haiku(fresh_config):
+    """§225, the owner's separate call, is not reverted."""
+    config = fresh_config()
+    assert config.settings.image_check_model == config.SMALL_MODEL == "claude-haiku-5-5"
 
 
 @pytest.mark.parametrize("name", SMALL)
-def test_each_small_call_can_still_be_moved(fresh_config, monkeypatch, name):
-    monkeypatch.setenv(name, "claude-sonnet-5")
+def test_each_call_can_still_be_moved(fresh_config, monkeypatch, name):
+    monkeypatch.setenv(name, "claude-haiku-5-5")
     config = fresh_config()
-    assert "claude-sonnet-5" in _small_models(config.settings)
+    assert "claude-haiku-5-5" in _small_models(config.settings)
 
 
 @pytest.mark.parametrize("name", SMALL)
@@ -76,7 +78,7 @@ def test_an_empty_setting_is_the_default_not_an_empty_model(fresh_config,
     """`CATEGORIES_MODEL=` in a copied .env once meant a model named ''."""
     monkeypatch.setenv(name, "")
     config = fresh_config()
-    assert set(_small_models(config.settings)) == {"claude-haiku-5-5"}
+    assert set(_small_models(config.settings)) == {"claude-sonnet-5"}
 
 
 def test_the_admin_box_stays_on_the_writers_model(fresh_config):
@@ -88,11 +90,11 @@ def test_the_admin_box_stays_on_the_writers_model(fresh_config):
     assert admin_tracker.ask_model() == settings.model
 
 
-def test_thumbnail_spend_is_priced_at_the_small_models_rates(fresh_config):
+def test_thumbnail_spend_is_priced_at_the_writers_rates(fresh_config):
     config = fresh_config()
     assert (config.settings.thumbnails_claude_input_per_mtok,
             config.settings.thumbnails_claude_output_per_mtok) == \
-        metering.PRICES[config.SMALL_MODEL]
+        metering.PRICES[config.settings.thumbnails_model]
 
 
 @pytest.mark.parametrize("model, rate", [
@@ -176,9 +178,9 @@ def _boot_check(monkeypatch, client, state="ok"):
     return appmod.CREDENTIALS
 
 
-def test_boot_checks_the_small_model_once_beside_the_writer(monkeypatch):
-    """Before §227 the writer's check covered every call; now the small model
-    is a second thing an account may not have."""
+def test_boot_checks_the_photo_checks_model_beside_the_writer(monkeypatch):
+    """The writer's check covers every call on `MODEL`; the photo check's
+    Haiku is a second thing an account may not have."""
     client = _Retriever()
     creds = _boot_check(monkeypatch, client)
     assert client.asked == ["claude-haiku-5-5"]

@@ -192,20 +192,22 @@ async def _verify_credentials() -> None:
 
 
 async def _verify_small_models() -> None:
-    """Ask the same question of the models the small calls run on (§227).
+    """Ask the same question of every model a call uses besides `MODEL`.
 
-    Until §227 every call ran on `settings.model`, so `_verify_credentials`
-    covered them all. The brief, composer, placer and thumbnail calls now
-    default to `config.SMALL_MODEL`, and an account that cannot use it would
-    turn every brief into the raw-query fallback - each one logged, none of
-    them said at boot. A model that fails here is reported in
-    `/api/health` (`credentials.models`) and the log; nothing else changes,
-    because every one of those calls already falls back on its own.
+    `_verify_credentials` checks `settings.model`. Any call configured onto
+    another model - by default only the photo check (`IMAGE_CHECK_MODEL`,
+    §225), since §249 put the brief, composer, placer and thumbnails back
+    on `MODEL` - is checked here once the key is known good, so an account
+    that cannot use it is said at boot rather than discovered per call. A
+    model that fails is reported in `/api/health` (`credentials.models`)
+    and the log; nothing else changes, because every one of those calls
+    already falls back on its own.
     """
     if CREDENTIALS.get("state") != "ok":
         return
     small = sorted({settings.ei_model, settings.stories_model,
-                    settings.categories_model, settings.thumbnails_model}
+                    settings.categories_model, settings.thumbnails_model,
+                    settings.image_check_model}
                    - {settings.model})
     report: dict[str, str] = {}
     for model in small:
@@ -220,10 +222,9 @@ async def _verify_small_models() -> None:
                              if isinstance(exc, anthropic.NotFoundError)
                              else friendly_error(exc))
             log.error("MODEL UNAVAILABLE - %s: %s. The calls on it fall back "
-                      "(the brief searches the raw query, tiles are templated); "
-                      "set EI_MODEL / STORIES_MODEL / CATEGORIES_MODEL / "
-                      "THUMBNAILS_MODEL to a model this key can use.",
-                      model, report[model])
+                      "on their own; set EI_MODEL / STORIES_MODEL / "
+                      "CATEGORIES_MODEL / THUMBNAILS_MODEL / IMAGE_CHECK_MODEL "
+                      "to a model this key can use.", model, report[model])
     CREDENTIALS["models"] = report
 
 
