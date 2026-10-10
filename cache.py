@@ -47,6 +47,8 @@ import zlib
 from dataclasses import dataclass, field
 from datetime import datetime
 import sqlite3
+
+import db as store_db
 import threading
 import time
 from typing import Optional, Protocol
@@ -605,6 +607,9 @@ def kept_pin_seconds() -> float:
 
 class ScriptCache(Protocol):
     def get(self, key: str, current: bool = True) -> Optional[list[str]]: ...
+    #: Whether `get(key, current)` would return a script, without reading it,
+    #: scrubbing it or counting a hit - for the probes that only ask (§241).
+    def holds(self, key: str, current: bool = True) -> bool: ...
     def sourced_at(self, key: str) -> Optional[float]: ...
     def put(
         self, key: str, sentences: list[str], ttl: int, query: str, thread: str = "",
@@ -830,6 +835,11 @@ class MemoryScriptCache:
         # unknown point, which must read as "long ago" and never as "no
         # script" - None is what tells myFAM a tap would write a new one.
         return self._created.get(key, 0.0)
+
+    def holds(self, key: str, current: bool = True) -> bool:
+        entry = self._data.get(key)
+        return bool(entry and entry[0] >= time.time()
+                    and (not current or self._current(key)))
 
     def get(self, key: str, current: bool = True) -> Optional[list[str]]:
         entry = self._data.get(key)
@@ -1318,12 +1328,31 @@ class SqliteScriptCache:
     def _conn(self) -> sqlite3.Connection:
         conn = getattr(self._local, "conn", None)
         if conn is None:
-            conn = sqlite3.connect(self.path, timeout=5.0, isolation_level=None)
+            conn = store_db.connect(self.path, timeout=5.0, isolation_level=None)
             # WAL lets readers proceed while another worker is writing, which
             # matters when several episodes are being generated at once.
             conn.execute("PRAGMA journal_mode=WAL")
             self._local.conn = conn
         return conn
+
+    def holds(self, key: str, current: bool = True) -> bool:
+        """Whether `get(key, current)` would return a script (§241).
+
+        One indexed read of two numbers. `get` also loads and scrubs every
+        sentence and writes a hit, which is right for a read and wasted on
+        a probe: myFAM asks this of every candidate tile on every draw.
+        """
+        try:
+            row = self._conn().execute(
+                "SELECT expires, fresh_until FROM scripts WHERE key = ?", (key,)
+            ).fetchone()
+        except Exception:
+            log.exception("script cache probe failed; treating as unwritten")
+            return False
+        now = time.time()
+        if not row or row[0] < now:
+            return False
+        return not current or (row[1] or row[0]) >= now
 
     def get(self, key: str, current: bool = True) -> Optional[list[str]]:
         """The script under `key`, or None.
@@ -2001,7 +2030,7 @@ class SqliteScriptCache:
                 # a hit is served only a current script.
                 "SELECT key, query, vector FROM scripts"
                 f" WHERE bucket = ? AND {_CURRENT_UNTIL} >= ? AND vector IS NOT NULL"
-                " ORDER BY created DESC LIMIT ?",
+                " ORDER BY scripts.created DESC LIMIT ?",
                 (bucket, time.time(), int(settings.cache_vector_scan)),
             ).fetchall()
         except Exception:
@@ -2163,7 +2192,7 @@ class SqliteScriptCache:
                 f"   AND origin != '{ARCHIVE_ORIGIN}'"
                 "   AND (? = '' OR author != ?)"
                 "   AND (? = '' OR origin = ?)"
-                " ORDER BY created DESC LIMIT ?",
+                " ORDER BY scripts.created DESC LIMIT ?",
                 (now, exclude_author or "", exclude_author or "",
                  origin or "", origin or "", int(limit)),
             ).fetchall()
@@ -2213,7 +2242,7 @@ class SqliteScriptCache:
                 " WHERE expires >= ? AND query != '' AND minutes > 0"
                 f"   AND origin != '{ARCHIVE_ORIGIN}'"
                 f"   AND author IN ({marks}) AND created >= ?"
-                " ORDER BY created DESC LIMIT ?",
+                " ORDER BY scripts.created DESC LIMIT ?",
                 (time.time(), *wanted, float(since), int(limit)),
             ).fetchall()
         except Exception:

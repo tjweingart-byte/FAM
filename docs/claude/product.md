@@ -29,7 +29,7 @@ features should be judged against this frame; the waitlist page's "What is
 FAM" section tells it in full (`static/waitlist.html`).
 
 > **Current:** the owner's clearest statement of the frame is **the FAM
-> Doctrine** (§240, `docs/doctrine/`): three problems - what you know is
+> Doctrine** (§246, `docs/doctrine/`): three problems - what you know is
 > shaped by what you're shown; information is built for eyes, not ears; the
 > interests of the people around you are invisible - compound into one,
 > **information isolation**, and social information is its cure. The

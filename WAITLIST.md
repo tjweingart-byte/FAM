@@ -153,7 +153,7 @@ section when a decision changes, including why.
     about FAM" (decision 20).
 19. **The section tells why FAM exists** (the owner, 04/10, PROBLEMS.md §199):
     FAM is social information, not social media. The tagline under both
-    wordmarks and the intro say so. Since §240 the section is the FAM
+    wordmarks and the intro say so. Since §246 the section is the FAM
     Doctrine (`docs/doctrine/`), in its own words: the problem with how
     information reaches us, its three parts taking turns (what you're shown,
     the audio problem, the people around you), what they add up to

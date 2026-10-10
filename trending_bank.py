@@ -68,6 +68,8 @@ import math
 import os
 import re
 import sqlite3
+
+import db as store_db
 import threading
 import time
 from dataclasses import asdict, dataclass, field, replace
@@ -162,6 +164,11 @@ def slot_id(slot: datetime) -> str:
 # --------------------------------------------------------------------------
 # The edition
 # --------------------------------------------------------------------------
+#: An episode's status when the research had too little to make one of
+#: (§245): not written, and its story is left off the rail.
+LIMITED = "limited"
+
+
 @dataclass
 class Edition:
     """One build: the stories, the episodes, and how it was made."""
@@ -253,7 +260,7 @@ class BankStore:
                 n INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (day, provider))""")
 
     def _connect(self) -> sqlite3.Connection:
-        db = sqlite3.connect(self.path, timeout=10, isolation_level=None)
+        db = store_db.connect(self.path, timeout=10, isolation_level=None)
         db.execute("PRAGMA journal_mode=WAL")
         return db
 
@@ -371,7 +378,7 @@ class BankStore:
                 db.execute("ROLLBACK")
                 return False
             db.execute("INSERT INTO spend (day, provider, n) VALUES (?, ?, 1) "
-                       "ON CONFLICT(day, provider) DO UPDATE SET n = n + 1",
+                       "ON CONFLICT(day, provider) DO UPDATE SET n = spend.n + 1",
                        (day, provider))
             db.execute("COMMIT")
             return True
@@ -465,7 +472,10 @@ def stories_now(now: Optional[float] = None) -> list:
     if edition is None:
         return []
     now = time.time() if now is None else now
-    return [s for s in edition.stories if not s.expired(now)]
+    # A story whose episode came back with too little to go on (§245) is not
+    # offered: its tile would promise an episode FAM declined to share.
+    return [s for s in edition.stories if not s.expired(now)
+            and (edition.episodes.get(s.id) or {}).get("status") != LIMITED]
 
 
 def empty_reason(now: Optional[float] = None) -> str:
@@ -855,6 +865,11 @@ def _finish(story, plan, key: str, notes, sentences: list, cache, minutes: int,
     if (notes.live_status or "") == "in_progress":
         return {"status": "volatile", "key": key, "dollars": dollars,
                 "detail": "under way; a score is never kept"}
+    if getattr(notes, "limited", False):
+        # §245: too little to go on is never put in front of everybody. Not
+        # written, and `stories_now` drops the story from the rail.
+        return {"status": LIMITED, "key": "", "dollars": dollars,
+                "detail": "too little reporting to make an episode of"}
     ttl = max(60, int(expires_at - time.time()))
     sources = notes.provenance.to_json() if notes.provenance is not None else ""
     extra = {"summary": notes.summary} if notes.summary else {}

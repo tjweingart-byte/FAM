@@ -93,6 +93,10 @@ if command -v node >/dev/null 2>&1 && $PY -c "import playwright" 2>/dev/null; th
   # the page. So it is pressed rather than read.
   $PY tools/smoke_landing.py \
     || { echo "  (landing smoke test failed - the preview still built)"; smoke_failed=1; }
+  # Opus to the browser (§242): the decoding half only exists in a browser,
+  # so one episode is played through FamAudio against a real server.
+  $PY tools/smoke_opus.py \
+    || { echo "  (Opus smoke test failed)"; smoke_failed=1; }
 else
   printf '  \033[1mSKIPPED: the browser smoke test did not run.\033[0m\n'
   printf '  Nothing below was checked in a browser. To fix:\n'

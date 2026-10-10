@@ -27,6 +27,8 @@ from __future__ import annotations
 import logging
 import os
 import sqlite3
+
+import db as store_db
 import threading
 import time
 from contextlib import closing
@@ -184,7 +186,7 @@ class UsageStore:
                               PRIMARY KEY (day, provider))""")
 
     def _connect(self) -> sqlite3.Connection:
-        db = sqlite3.connect(self.path, timeout=5, isolation_level=None)
+        db = store_db.connect(self.path, timeout=5, isolation_level=None)
         db.execute("PRAGMA journal_mode=WAL")
         return db
 
@@ -204,8 +206,8 @@ class UsageStore:
                     db.executemany(
                         "INSERT INTO calls (day, provider, requests, failures) "
                         "VALUES (?, ?, ?, ?) ON CONFLICT(day, provider) DO UPDATE "
-                        "SET requests = requests + excluded.requests, "
-                        "failures = failures + excluded.failures",
+                        "SET requests = calls.requests + excluded.requests, "
+                        "failures = calls.failures + excluded.failures",
                         [(day, provider, requests, failures)
                          for (day, provider), (requests, failures)
                          in counts.items()])

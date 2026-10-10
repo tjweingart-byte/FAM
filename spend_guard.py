@@ -29,6 +29,13 @@ Two layers, because either one alone is decorative:
    treats as "that source is down" and falls back from - and is counted, so
    `/api/health` names each address something tried to reach.
 
+**One exception, at the owner's direction (§243): staging's own database.**
+Option B moves the stores to Postgres, and staging must test the database
+production runs. So the one address in `DATABASE_URL` is allowed - only when
+it resolves to a private or loopback address (Render's private network), and
+nothing else is. libpq opens its own sockets, which this guard cannot see, so
+`db.connect` enforces the same rule where the connection is made.
+
 On when it applies: `FAM_ENV=staging` turns it on **and it cannot be turned off
 there** - a staging service with `ZERO_SPEND=0` in its dashboard is still zero
 spend. `ZERO_SPEND=1` turns it on anywhere else (a laptop, a load test).
@@ -55,6 +62,8 @@ PAID_CREDENTIALS = (
     "GNEWS_KEY",
     # Open-Meteo's paid plan (§194), for weather and place names.
     "OPEN_METEO_API_KEY",
+    # Email (§244): providers bill per message past a free tier.
+    "SMTP_PASSWORD",
     "API_SPORTS_KEY", "SPORTSDATAIO_KEY",
     "FINNHUB_KEY", "ALPHA_VANTAGE_KEY",
     "AP_ELECTIONS_KEY", "DDHQ_KEY",
@@ -77,6 +86,10 @@ NOT_SPEND = {
     # Inbound secrets: they let something reach *this* server, never the reverse.
     "FAM_ADMIN_TOKEN": "inbound: who may open /admin on this server",
     "VOICE_REGISTRY_TOKEN": "inbound: who may register a voice worker here",
+    # The deployment's own database (§243, the owner's ruling): staging may
+    # reach exactly this one private address, and `db.connect` refuses any
+    # other. Not a credential that buys anything from anybody.
+    "DATABASE_URL": "the deployment's own database, private address only (§243)",
     # Push services charge nothing, and staging sends none (`push.status`).
     "VAPID_PRIVATE_KEY": "free: signs Web Push; push services do not bill",
     "VAPID_PUBLIC_KEY": "free: the public half of the Web Push key",
@@ -156,10 +169,48 @@ def scrub() -> list[str]:
     return removed
 
 
+#: (ip, port) pairs of this deployment's own database, when it is private
+#: (§243). Resolved once when the guard is installed.
+_DATABASE: set = set()
+
+
+def _database_addresses() -> set:
+    """The one database this deployment may reach, as (ip, port) pairs -
+    empty unless every host DATABASE_URL could reach is private or loopback
+    (read the way libpq reads it, `db.addresses`)."""
+    import db
+
+    dsn = os.environ.get("DATABASE_URL", "")
+    if not dsn.strip():
+        return set()
+    try:
+        hosts = db.addresses(dsn)
+    except db.DatabaseRefused:
+        return set()
+    out = set()
+    for host, port in hosts:
+        if not host or host.startswith("/"):
+            continue  # a local socket never passes through the guard
+        if not db._resolves_private(host):
+            return set()
+        try:
+            infos = socket.getaddrinfo(host, port)
+        except OSError:
+            return set()
+        out |= {(info[4][0], port) for info in infos}
+    return out
+
+
 def _is_local(address) -> bool:
-    """Loopback or a local socket. Everything else is the outside world."""
+    """Loopback or a local socket. Everything else is the outside world -
+    except this deployment's own private database (§243)."""
     if isinstance(address, (str, bytes)):  # AF_UNIX path
         return True
+    try:
+        if (str(address[0]).split("%", 1)[0], int(address[1])) in _DATABASE:
+            return True
+    except (TypeError, IndexError, ValueError):
+        pass
     try:
         host = address[0]
     except (TypeError, IndexError):
@@ -215,6 +266,8 @@ def install_network_guard() -> None:
     """Refuse every non-local connection from this process. Idempotent."""
     if _STATE["installed"]:
         return
+    _DATABASE.clear()
+    _DATABASE.update(_database_addresses())
     socket.socket.connect = _guarded_connect
     socket.socket.connect_ex = _guarded_connect_ex
     _STATE["installed"] = True
@@ -292,5 +345,8 @@ def report() -> dict:
         "credentials_removed": list(_STATE["scrubbed"]),
         "switches_overridden": sorted(_STATE["forced"]),
         "blocked_connections": blocked,
+        # §243: whether the one allowed address (staging's own private
+        # database) is in force. Never the address itself.
+        "database_allowed": bool(_DATABASE),
     }
 

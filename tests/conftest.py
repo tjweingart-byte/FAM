@@ -50,7 +50,7 @@ FAM_ENVIRONMENT = (
     "CACHE_VECTOR_OVERLAP", "CACHE_VECTOR_SCAN", "CACHE_VECTOR_THRESHOLD",
     "AUDIO_CACHE", "AUDIO_CACHE_MAX_MB",
     # §237: how kept audio is packed, and where it lives.
-    "AUDIO_CODEC", "AUDIO_OPUS_BITRATE", "AUDIO_STORE", "AUDIO_BUCKET",
+    "AUDIO_CODEC", "AUDIO_OPUS_BITRATE", "AUDIO_STREAM_OPUS", "AUDIO_STORE", "AUDIO_BUCKET",
     "R2_ACCOUNT_ID", "AUDIO_RECENT_DAYS",
     "CANONICAL_KEY_MODEL",
     "CHATTERBOX_DEVICE", "CHATTERBOX_REFERENCE", "CHATTERBOX_SEEDED",
@@ -122,6 +122,7 @@ FAM_ENVIRONMENT = (
     # mix's episodes because a developer's shell turned it on.
     "DAILY_EDITION", "DAILY_EDITION_TIMEZONE", "DAILY_EDITION_HOURS",
     "MIX_REMINDERS", "VAPID_PUBLIC_KEY", "VAPID_PRIVATE_KEY", "VAPID_SUBJECT",
+    "SMTP_HOST", "SMTP_PORT", "SMTP_USERNAME", "MAIL_FROM",
     "DAILY_EDITION_MAX_EPISODES",
     "DAILY_EDITION_MAX_DOLLARS", "DAILY_EDITION_RETRY_SECONDS",
     "GNEWS_KEY", "GNEWS_LANG", "GNEWS_CATEGORIES", "GNEWS_COUNTRIES",
@@ -288,6 +289,38 @@ def hermetic_environment():
         for name in names:
             os.environ.pop(name, None)
         os.environ.update(saved)
+
+
+def pytest_configure(config):
+    config.addinivalue_line(
+        "markers",
+        "sqlite_file: reads or writes a store's SQLite file directly - a test of the "
+        "SQLite backend, skipped when DATABASE_URL puts the stores in Postgres (§243)")
+
+
+def pytest_collection_modifyitems(config, items):
+    import db
+
+    if not db.enabled():
+        return
+    skip = pytest.mark.skip(reason="tests the SQLite file itself; the stores are in "
+                                   "Postgres in this run (DATABASE_URL, §243)")
+    for item in items:
+        if item.get_closest_marker("sqlite_file"):
+            item.add_marker(skip)
+
+
+@pytest.fixture(autouse=True)
+def close_database_connections():
+    """With DATABASE_URL set (CI's Postgres job, §243), close every store's
+    connection after each test: a server keeps one per store per thread for
+    its life, and a test run makes stores in new directories thousands of
+    times. A no-op on SQLite."""
+    yield
+    import db
+
+    if db.enabled():
+        db.close_all()
 
 
 def config_environment_names() -> set:

@@ -26,13 +26,15 @@ import time
 
 from audio_utils import PaceController, pcm_duration, silence, streaming_wav_header
 import prefetch
-from cache import (ScriptCache, build_cache, cache_key, canonical_key, episode_id,
+from cache import (ARCHIVE_ORIGIN, ScriptCache, archive_key, build_cache, cache_key,
+                   canonical_key, episode_id,
                    is_shareable, parse_episode_id,
                    key_bucket, ttl_for)
 import metering
 from episode_marks import EpisodeMarks, TimedClient
 from config import STREAMING_PIPELINES, settings
 import content_filter
+import audio_codec
 import live_captions
 from pronunciation import respell
 from spoken_text import speakable
@@ -242,6 +244,12 @@ class GenerationStats:
     #: other under one key, and two key schemes could not silently disagree
     #: about which episode a caption belonged to.
     caption_key: str = ""
+    #: §242: the client asked for Opus (`fmt=opus`). A kept Opus episode is
+    #: then passed through as stored (`opus_passthrough`), and its encoder's
+    #: pre-skip (48 kHz samples) is what the response tells the client.
+    opus: bool = False
+    opus_passthrough: bool = False
+    opus_preskip: int = 0
     #: The thread the episode left open, phrased as the follow-up a listener
     #: would ask for. Drives the one-tap suggestion in Go Deeper; empty when
     #: the model named none.
@@ -1211,7 +1219,17 @@ class PodcastPipeline:
                               == len(stored.sentences) else None)
         stats.first_audio_at = time.perf_counter() - stats.started_at
         sent = 0
-        pieces = stored.slices()
+        if (stats.opus and stored.codec == audio_codec.OPUS
+                and audio_codec.can_stream(stored.sample_rate)):
+            # §242: the stored packets themselves - no decode, no re-encode,
+            # no second generation of loss. Each chunk says how much PCM it
+            # stands for, so the pre-roll and the length below are unchanged.
+            stats.opus_preskip, pieces = await asyncio.to_thread(
+                audio_codec.stored_packets, stored.blob, stored.frames,
+                stored.sample_rate)
+            stats.opus_passthrough = True
+        else:
+            pieces = stored.slices()
         try:
             while True:
                 # A slice at a time, off the loop: an Opus second decodes in
@@ -1220,7 +1238,7 @@ class PodcastPipeline:
                 piece = await asyncio.to_thread(next, pieces, None)
                 if piece is None:
                     break
-                sent += len(piece)
+                sent += audio_codec.pcm_len(piece)
                 yield piece
         finally:
             # The episode's length, not how much of it was heard - as before.
@@ -1380,7 +1398,9 @@ class PodcastPipeline:
                     stored = await asyncio.to_thread(
                         self.cache.get_audio, key, self._audio_voice(),
                         self.engine.sample_rate)
-                    if stored is not None and stored.pcm:
+                    # `blob`, not `pcm`: `pcm` decodes the whole episode,
+                    # on the loop, only to ask whether it is empty (§242).
+                    if stored is not None and stored.blob:
                         async for chunk in self._play_stored(stored, stats):
                             yield chunk
                         return
@@ -1554,7 +1574,22 @@ class PodcastPipeline:
                 import voice_bank
 
                 extra["voice"] = voice_bank.slug_of(self._audio_voice())
-            self.cache.put(key, stats.script, ttl, plan.query, stats.thread,
+            # An episode with little to go on (§245) is kept for the one
+            # listener who heard it - their history replays it by its
+            # episode id - and for nobody else: it goes straight to the
+            # archive slot that id resolves to, which is never current,
+            # never near-matched and never on Explore, a rail or the
+            # catalogue. The shared key stays free, so the next listener to
+            # ask gets a fresh search rather than this one.
+            write_key = key
+            if getattr(notes, "limited", False):
+                write_key = archive_key(key, stats.sourced_stamp)
+                ttl, bucket = 0, ""
+                extra.pop("slide", None)
+                extra["origin"] = ARCHIVE_ORIGIN
+                log.info("limited material for %r: kept for its listener's "
+                         "history only, never shared", plan.query)
+            self.cache.put(write_key, stats.script, ttl, plan.query, stats.thread,
                            plan.minutes, bucket, sources, self.author,
                            stats.title, **extra)
             # What each categoriser said about it (§209), for the audit.
@@ -1562,12 +1597,15 @@ class PodcastPipeline:
 
             category_audit.note(plan.query, getattr(notes, "category", ""),
                                 self.origin or "tap")
-            # The listen that wrote it is its first play (§134).
-            self._count_play(key)
+            # The listen that wrote it is its first play (§134) - unless
+            # it is kept for its listener alone, when there is nothing for
+            # a play count to rank.
+            if write_key == key:
+                self._count_play(key)
             # The audio goes beside it once the tail pad is out, and only
             # when the script itself was kept - audio with no script row
             # would be an episode nothing can find or expire.
-            stats.audio_key = key
+            stats.audio_key = write_key
             log.info("cached %d sentences for %r (current for %ds, kept %ds)",
                      len(stats.script), plan.query, ttl,
                      settings.cache_life_seconds)

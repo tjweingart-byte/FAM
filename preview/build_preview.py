@@ -1289,6 +1289,19 @@ __PREVIEW_PICTURE__
       me.authenticated = true;
       return json(me);
     }
+    // Forgot password (§244). No mail leaves a preview: any six digits are
+    // the code, so the two steps can be walked.
+    if (path === "/api/auth/reset") return json({ available: true, reason: "" });
+    if (path === "/api/auth/reset/start") {
+      return json({ ok: true, message: "If that address has a FAM account, a 6-digit code is on its way. It works for 15 minutes." });
+    }
+    if (path === "/api/auth/reset/finish") {
+      var rs = JSON.parse((init && init.body) || "{}");
+      var me2 = FIXTURES["/api/auth/me"];
+      if (rs.email) me2.email = rs.email;
+      me2.authenticated = true;
+      return json(me2);
+    }
     if (path === "/api/auth/logout") {
       FIXTURES["/api/auth/me"].authenticated = false;
       return json({ ok: true });

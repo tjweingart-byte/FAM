@@ -1334,6 +1334,25 @@ __WRITING_SIM__
       });
     }
     if (path === "/api/auth/password") return json({ ok: true });
+    // Forgot password (§244). This prototype sends no mail and stores no
+    // credential, so any six digits are the code for a known address.
+    if (path === "/api/auth/reset") return json({ available: true, reason: "" });
+    if (path === "/api/auth/reset/start") {
+      return json({ ok: true, message: "If that address has a FAM account, a 6-digit code is on its way. It works for 15 minutes." });
+    }
+    if (path === "/api/auth/reset/finish") {
+      var e3 = String(body.email || "").trim().toLowerCase();
+      var racct = rows("accounts").filter(function (a) { return a.email === e3; })[0];
+      if (!racct || !/^\d{6}$/.test(String(body.code || ""))) {
+        return json({ error: "That code is wrong or has expired. Ask for a new one." }, 400);
+      }
+      var old3 = TOKEN;
+      return mint(racct.id).then(function () {
+        if (old3) del("sessions", old3);
+        EMAIL = racct.email; paint();
+        return json({ user_id: UID, email: EMAIL, authenticated: true });
+      });
+    }
 
     // ---- the surfaces
     if (path === "/api/myfam") return json(myfamBody());

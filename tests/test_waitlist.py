@@ -48,6 +48,7 @@ def wl(acc):
     return waitlist_mod.Waitlist(acc)
 
 
+@pytest.mark.sqlite_file
 def test_existing_accounts_are_backfilled_active(tmp_path):
     """Widening a file made before the waitlist leaves everybody in it active:
     they were let in before there was a line."""
@@ -838,7 +839,7 @@ def test_the_landing_page_tells_why_fam_exists():
     assert foot.index('class="wordmark"') < foot.index("The social information network")
     # The copyright is the last line on the page.
     assert foot.index("The social information network") < foot.index("&copy; 2026 APALI. All rights reserved.") < foot.index("</footer>")
-    # The FAM Doctrine (PROBLEMS.md §240, docs/doctrine/), in its order:
+    # The FAM Doctrine (PROBLEMS.md §246, docs/doctrine/), in its order:
     # the problem, its three parts, what they add up to, the cure, the chat.
     order = ["The problem with how information reaches us",
              "What you know is shaped by what you’re shown.",

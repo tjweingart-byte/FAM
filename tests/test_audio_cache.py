@@ -196,6 +196,7 @@ def test_an_abandoned_stream_keeps_nothing(store):
     assert store.stats()["audio_entries"] == 0
 
 
+@pytest.mark.sqlite_file
 def test_a_rewritten_script_drops_the_audio_it_no_longer_matches(store):
     engine = CountingVoice()
     pipe = PodcastPipeline(generator=FakeGenerator(), engine=engine, cache=store)
@@ -322,6 +323,7 @@ def test_an_episode_larger_than_the_ceiling_is_not_reported_kept(tmp_path, monke
     assert store.stats()["audio_entries"] == 0
 
 
+@pytest.mark.sqlite_file
 def test_the_wake_is_not_skipped_for_kept_audio_past_its_window(store):
     """§143: a row is kept a week but current only for its window. Past it, a
     request writes the episode again and needs the voice - only a replay

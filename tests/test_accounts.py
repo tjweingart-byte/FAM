@@ -217,12 +217,14 @@ def test_changing_a_password_logs_every_device_out(client):
 # --- the store's own rules ------------------------------------------------
 
 
+@pytest.mark.sqlite_file
 def test_a_password_is_never_stored_in_the_clear(store, tmp_path):
     store.sign_up("u1", "ian@example.com", GOOD)
     raw = (tmp_path / "accounts.db").read_bytes()
     assert GOOD.encode() not in raw
 
 
+@pytest.mark.sqlite_file
 def test_a_session_token_is_never_stored(store, tmp_path):
     """A leaked database must not hand over live sessions."""
     token, _user = store.new_session("u1")

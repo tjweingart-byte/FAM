@@ -30,6 +30,8 @@ from __future__ import annotations
 import logging
 import re
 import sqlite3
+
+import db as store_db
 import threading
 import time
 from contextlib import closing
@@ -158,7 +160,7 @@ class PlaceStore:
                 " resolved_at REAL)")
 
     def _connect(self) -> sqlite3.Connection:
-        return sqlite3.connect(self.path, timeout=10)
+        return store_db.connect(self.path, timeout=10)
 
     def get(self, key: str) -> Optional[Place]:
         with closing(self._connect()) as db:

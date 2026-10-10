@@ -349,6 +349,7 @@ def test_an_empty_pin_means_choose_for_me(tmp_path):
     assert store.save("u", profile_interests=[]).profile_interests == ()
 
 
+@pytest.mark.sqlite_file
 def test_a_database_written_before_the_column_existed_still_opens(tmp_path):
     """The case a fresh test database never reaches.
 

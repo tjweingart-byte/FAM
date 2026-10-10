@@ -35,6 +35,8 @@ from __future__ import annotations
 import logging
 import re
 import sqlite3
+
+import db as store_db
 import threading
 import time
 from dataclasses import dataclass
@@ -437,7 +439,7 @@ class SocialStore:
     def _conn(self) -> sqlite3.Connection:
         conn = getattr(self._local, "conn", None)
         if conn is None:
-            conn = sqlite3.connect(self.path, timeout=5.0, isolation_level=None)
+            conn = store_db.connect(self.path, timeout=5.0, isolation_level=None)
             conn.execute("PRAGMA journal_mode=WAL")
             self._local.conn = conn
         return conn
@@ -579,8 +581,8 @@ class SocialStore:
             " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)"
             " ON CONFLICT(user_id, query, minutes) DO UPDATE SET at = excluded.at,"
             " title = excluded.title, thread = excluded.thread,"
-            " caption = excluded.caption, style = COALESCE(?, style),"
-            " tags = COALESCE(?, tags), audience = COALESCE(?, audience),"
+            " caption = excluded.caption, style = COALESCE(?, echoes.style),"
+            " tags = COALESCE(?, echoes.tags), audience = COALESCE(?, echoes.audience),"
             " unstoried = 0",
             (user_id, query, str(title)[:200], int(minutes), str(thread)[:200], now,
              clean_caption(caption), json.dumps(layout) if layout else "",

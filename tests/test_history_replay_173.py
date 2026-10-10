@@ -206,6 +206,7 @@ def test_a_history_replay_never_writes(client):
     assert client.get("/api/audio?q=a&minutes=1&fmt=pcm&episode=junk").status_code == 400
 
 
+@pytest.mark.sqlite_file
 def test_history_pins_what_it_names(client):
     _sign_in(client)
     res = client.get("/api/audio?q=how+tides+work&minutes=1&fmt=pcm&surface=search")
