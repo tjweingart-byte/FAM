@@ -114,8 +114,12 @@ jobs:
           POSTGRES_PASSWORD: fam
           POSTGRES_DB: fam_test
         ports: ["5432:5432"]
+        # Docker gives a container 64 MB of /dev/shm; a parallel query asked
+        # for 32 MB of it, Postgres crashed into recovery and the next four
+        # test files could not connect. More room, and parallel query off.
         options: >-
-          --health-cmd pg_isready --health-interval 5s
+          --shm-size=256mb
+          --health-cmd "pg_isready -U postgres" --health-interval 5s
           --health-timeout 5s --health-retries 10
     env:
       DATABASE_URL: postgresql://postgres:fam@localhost:5432/fam_test
@@ -136,7 +140,8 @@ jobs:
       # A throwaway database: durability only slows the suite down.
       - name: Tune for tests
         run: |
-          for setting in "fsync = off" "synchronous_commit = off" "full_page_writes = off"; do
+          for setting in "fsync = off" "synchronous_commit = off" "full_page_writes = off" \
+                         "max_parallel_workers_per_gather = 0"; do
             psql "$DATABASE_URL" -c "ALTER SYSTEM SET $setting"
           done
           psql "$DATABASE_URL" -c "SELECT pg_reload_conf()"
