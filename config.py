@@ -444,7 +444,13 @@ class Settings:
         default_factory=lambda: os.environ.get("EI_MODEL") or SMALL_MODEL)
     ei_effort: str = field(
         default_factory=lambda: os.environ.get("EI_EFFORT", "low"))
-    ei_max_tokens: int = _env_int("EI_MAX_TOKENS", 1200)
+    # A ceiling on the brief's thinking and its JSON together. 1200 was sized
+    # on Sonnet 5, whose briefs ran ~400-1,200 tokens and sometimes touched
+    # it; Haiku 5.5 thinks at its own length and counts the same text as more
+    # tokens, and a brief that hits the ceiling is cut off mid-JSON and
+    # searched as the raw query (§246). 3000 costs at most $0.0015 a brief on
+    # Haiku; the wall-clock bound is `EI_TIMEOUT_SECONDS`, not this.
+    ei_max_tokens: int = _env_int("EI_MAX_TOKENS", 3000)
     # Past this, the brief is not worth the wait and the raw query is searched
     # instead. A ceiling rather than a target: EI must degrade to the old
     # behaviour rather than become a new way for an episode to hang.

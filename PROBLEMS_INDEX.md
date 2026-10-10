@@ -248,3 +248,4 @@ and `limit` = Lines.
 | 17616 | 64 | 242. Opus to the app |
 | 17680 | 117 | 243. Option B: every store can live in Postgres |
 | 17797 | 59 | 244. Password reset by an emailed code |
+| 17856 | 69 | 246. Room for the brief on Haiku, and a count of every brief that degrades |
