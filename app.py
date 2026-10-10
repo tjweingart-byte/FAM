@@ -4257,7 +4257,10 @@ if _ALLOWED_ORIGINS:
         # only the status code.
         expose_headers=["X-FAM-Quota", "X-Sample-Rate", "X-Requested-Seconds",
                     "X-FAM-Cache", "X-FAM-Keepable", "X-FAM-Client-Status",
-                    "X-FAM-Episode", "X-FAM-Consent"],
+                    "X-FAM-Episode", "X-FAM-Consent",
+                    # §242: without these a cross-origin player cannot tell
+                    # Opus from PCM, and would play the frames as noise.
+                    "X-FAM-Audio-Format", "X-FAM-Opus-Preskip"],
     )
     log.info("CORS enabled for %s", ", ".join(_ALLOWED_ORIGINS))
 
@@ -8706,11 +8709,23 @@ async def audio(
     primed_seconds = primed_bytes / (sample_rate * 2)
     # §242: a kept Opus episode arrives already framed; anything else is
     # encoded here, at the edge, 20 ms at a time as it streams.
-    encoder = (audio_codec_mod.OpusStream(sample_rate)
-               if stats.opus and not stats.opus_passthrough else None)
+    # An encoder that will not open (a PyAV built without libopus) answers in
+    # PCM, which the header then says: the episode is already reserved and
+    # primed, and a 500 here would spend it on nothing.
+    encoder = None
+    if stats.opus and not stats.opus_passthrough:
+        try:
+            encoder = audio_codec_mod.OpusStream(sample_rate)
+        except Exception:  # noqa: BLE001
+            log.exception("Opus encoder would not open; answering in PCM")
+            stats.opus = False
 
-    def wire(chunk: bytes) -> bytes:
-        return encoder.feed(chunk) if encoder is not None else chunk
+    async def wire(chunk: bytes) -> bytes:
+        # Encoding is ~5 ms of CPU per second of audio: off the event loop,
+        # like the decode beside it, so one replay never stalls every request.
+        if encoder is None:
+            return chunk
+        return await asyncio.to_thread(encoder.feed, chunk)
 
     async def body():
         nonlocal first_byte_at
@@ -8719,18 +8734,18 @@ async def audio(
             for chunk in primed:
                 if first_byte_at is None:
                     first_byte_at = time.monotonic() - started
-                yield wire(chunk)
+                yield await wire(chunk)
             async for chunk in source:
                 if await request.is_disconnected():
                     log.info("client disconnected; abandoning generation")
                     break
-                yield wire(chunk)
+                yield await wire(chunk)
             else:
                 finished = True
             if encoder is not None and finished:
                 # The tail and the true length: only for a whole episode, so
                 # a stream cut short never claims to be complete.
-                yield encoder.close()
+                yield await asyncio.to_thread(encoder.close)
         except Exception:
             # Past the first byte the status code is already sent, so this can
             # only be logged. The player detects the short stream and says so.

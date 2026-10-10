@@ -196,6 +196,33 @@ def test_a_rate_opus_cannot_carry_answers_with_pcm(tmp_path, monkeypatch):
     assert len(res.content) > 0 and len(res.content) % 2 == 0
 
 
+@needs_opus
+def test_an_encoder_that_will_not_open_answers_in_pcm(tmp_path, monkeypatch):
+    """The episode is reserved and primed by then: a 500 would spend it."""
+    client, _ = _client(tmp_path, monkeypatch, 24000)
+
+    def broken(rate):
+        raise RuntimeError("no libopus in this build")
+
+    monkeypatch.setattr(audio_codec, "OpusStream", broken)
+    res = _get(client, "opus")
+    assert res.status_code == 200
+    assert "x-fam-audio-format" not in res.headers
+    assert res.headers["content-type"].startswith("audio/L16")
+    assert len(res.content) > 0 and len(res.content) % 2 == 0
+
+
+def test_a_cross_origin_player_can_read_the_format():
+    """CORS hides any header not exposed; a player that cannot see
+    X-FAM-Audio-Format would play Opus frames as PCM noise."""
+    source = open(os.path.join(os.path.dirname(os.path.dirname(
+        os.path.abspath(__file__))), "app.py")).read()
+    exposed = source[source.index("expose_headers="):]
+    exposed = exposed[:exposed.index("]")]
+    for header in ("X-FAM-Audio-Format", "X-FAM-Opus-Preskip", "X-Sample-Rate"):
+        assert f'"{header}"' in exposed, header
+
+
 def test_the_player_asks_for_opus_only_when_it_can_decode_it():
     """fam-audio.js is the spec for every client (audio-no-browser): it asks
     for Opus only where a decoder exists, and plays PCM whenever the server
