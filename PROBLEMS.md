@@ -17748,3 +17748,48 @@ real traffic. Rules `storage-durability` and `zero-spend-staging` updated.
 
 `db.py`, `spend_guard.py`, the 27 stores, `admin_tracker.py`, `thumbnails.py`,
 `tools/sqlite_to_postgres.py`, `POSTGRES.md`, `tests/test_database_243.py`.
+
+**Review, before merging.** A review of the branch found that the first
+connection layer would have failed in staging within hours, and it was
+rebuilt:
+
+- *Connections leaked.* One per store per thread, never closed: a thread
+  that ended left its connections open, and `provider_usage` starts one
+  every ten seconds - about 360 an hour toward the plan's limit. In steady
+  state it was ~30 stores x ~45 threads. Now one pool per process
+  (`DATABASE_MAX_CONNECTIONS`, 20; 8 kept idle), each statement borrowing a
+  connection and switching its `search_path` only when it was elsewhere; a
+  transaction keeps its connection to the end. Sixty one-shot threads now
+  leave at most 8 open (a test).
+- *SQLite's writer rules were lost.* `BEGIN IMMEDIATE` became a plain
+  `BEGIN`, so two check-then-spend transactions both passed (the trending
+  bank's budget, the edition claims - reproduced). Message ids could
+  commit out of order, which skips messages for a cursor that is an id.
+  Every write now holds its store's advisory lock until it commits: one
+  writer per store, as SQLite had one per file.
+- *Transactions split silently.* A failed statement rolled the whole
+  transaction back and ran the rest in autocommit; a write is now undone
+  alone under a savepoint, as SQLite does, and the same test gives the same
+  rows on both. Stores opened with sqlite3's default isolation get its
+  implicit transaction back (they had been committing each statement).
+- *`lastrowid`* read the session's `lastval()`, wrong after an explicit id
+  and meaningless on a shared connection; it is the insert's own
+  `RETURNING` now.
+- *The staging check could be stepped around.* It read only `host=` or the
+  URL's host, so `?host=`, `hostaddr=`, `service=` or `PGHOST` could send
+  staging anywhere, and three connects skipped it altogether. The string is
+  now read as libpq reads it (`conninfo_to_dict` plus the PG* environment),
+  forms that hide the destination are refused, and every connection - the
+  pool's and `raw_connect` - is checked; a test fails if any other module
+  calls `psycopg.connect`.
+- *Health assumed.* Every store was reported readable and writable; it is
+  now what a real query said (`db.probe`, at most every ten seconds), with
+  the pool's counts.
+- Also: rewrites skip string literals; `SUM` over integers is an int, not a
+  `Decimal`; a lock wait gives up after 10 s like SQLite's busy timeout.
+
+After it: 4,090 passed on SQLite; 4,062 passed and 43 skipped on Postgres,
+nothing failing (30 minutes against 23 - the writer lock is two more round
+trips per write). CI's Postgres job had also failed for its own reason:
+Docker's 64 MB `/dev/shm` crashed the server mid-run; it gets 256 MB and
+no parallel query.

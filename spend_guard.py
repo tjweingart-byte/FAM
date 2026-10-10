@@ -174,17 +174,29 @@ _DATABASE: set = set()
 
 def _database_addresses() -> set:
     """The one database this deployment may reach, as (ip, port) pairs -
-    empty unless DATABASE_URL names a private or loopback host."""
+    empty unless every host DATABASE_URL could reach is private or loopback
+    (read the way libpq reads it, `db.addresses`)."""
     import db
 
-    host, port = db.host_of(os.environ.get("DATABASE_URL", ""))
-    if not host or host.startswith("/") or not db._resolves_private(host):
+    dsn = os.environ.get("DATABASE_URL", "")
+    if not dsn.strip():
         return set()
     try:
-        infos = socket.getaddrinfo(host, port)
-    except OSError:
+        hosts = db.addresses(dsn)
+    except db.DatabaseRefused:
         return set()
-    return {(info[4][0], port) for info in infos}
+    out = set()
+    for host, port in hosts:
+        if not host or host.startswith("/"):
+            continue  # a local socket never passes through the guard
+        if not db._resolves_private(host):
+            return set()
+        try:
+            infos = socket.getaddrinfo(host, port)
+        except OSError:
+            return set()
+        out |= {(info[4][0], port) for info in infos}
+    return out
 
 
 def _is_local(address) -> bool:

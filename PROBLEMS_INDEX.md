@@ -246,4 +246,4 @@ and `limit` = Lines.
 | 17489 | 61 | 240. A thousand listeners: the load test gets a verdict, the poll, and the shell |
 | 17550 | 66 | 241. Where the core went: the middleware, myFAM's probes, the limiter, the shell and scrypt |
 | 17616 | 64 | 242. Opus to the app |
-| 17680 | 72 | 243. Option B: every store can live in Postgres |
+| 17680 | 117 | 243. Option B: every store can live in Postgres |

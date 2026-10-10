@@ -16,7 +16,8 @@ outage on each one).
 | | SQLite (no `DATABASE_URL`) | Postgres (`DATABASE_URL` set) |
 |---|---|---|
 | A store | `/data/<name>.db` | schema `<name>_<8 hex of the directory>` |
-| Connections | one per store per thread | one per store per thread, `search_path` set once |
+| Connections | one per store per thread | one pool per process, shared by every store (`DATABASE_MAX_CONNECTIONS`, 20) |
+| Writes | one writer per file | one writer per store, by an advisory lock held to commit |
 | Kept audio's hot copy | a column in `scripts.db` | the same column in the `scripts` schema; the object is in R2 either way |
 | `/api/health` → `database` | `{"backend": "sqlite"}` | `{"backend": "postgres", "private": true, ...}` |
 | `/api/health` → `storage` | measured per file (`st_dev`) | `persistence: "database"` for every store |
@@ -49,6 +50,14 @@ databases:
 
 Then check `/api/health` → `database.backend` is `postgres` and
 `environment.database_allowed` is `true`, and run the load test (`LOAD_TESTING.md`).
+
+## Connections
+
+Each FAM process keeps at most `DATABASE_MAX_CONNECTIONS` (20) open, and
+closes idle ones beyond 8. Keep `instances x DATABASE_MAX_CONNECTIONS` (plus a
+few for the shell and the copy tool) under the plan's limit: Render's plans
+allow from about 100 connections upward - check the plan page before
+raising either number.
 
 ## Production: the switch-over
 

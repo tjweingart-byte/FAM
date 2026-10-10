@@ -124,6 +124,66 @@ def test_the_guard_allows_exactly_the_one_private_database(monkeypatch):
     assert not spend_guard._is_local(("93.184.216.34", 443))
 
 
+@pytest.mark.parametrize("dsn, env", [
+    ("postgresql:///fam?host=db.example.com", {}),
+    ("postgresql://u@/fam?host=8.8.8.8", {}),
+    ("host=10.0.0.7 hostaddr=8.8.8.8 dbname=fam", {}),
+    ("hostaddr=8.8.8.8 dbname=fam", {}),
+    ("service=prod", {}),
+    ("dbname=fam", {"PGHOST": "db.example.com"}),
+    ("dbname=fam", {"PGHOSTADDR": "8.8.8.8"}),
+    ("host=10.0.0.7,db.example.com dbname=fam", {}),
+])
+def test_staging_reads_the_address_the_way_libpq_does(monkeypatch, dsn, env):
+    """Review fix: only `host=` and the URL's host were read, so a query
+    string, hostaddr, a service file or PGHOST could send staging anywhere."""
+    for name in ("PGHOST", "PGHOSTADDR", "PGSERVICE", "PGSERVICEFILE", "PGPORT"):
+        monkeypatch.delenv(name, raising=False)
+    for name, value in env.items():
+        monkeypatch.setenv(name, value)
+    monkeypatch.setattr(spend_guard, "enabled", lambda: True)
+    monkeypatch.setattr(db, "_resolves_private", lambda host: not host or host.startswith("10."))
+    with pytest.raises(db.DatabaseRefused):
+        db.check_staging_address(dsn)
+
+
+def test_staging_may_use_its_own_socket_or_private_host(monkeypatch):
+    for name in ("PGHOST", "PGHOSTADDR", "PGSERVICE", "PGSERVICEFILE"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setattr(spend_guard, "enabled", lambda: True)
+    monkeypatch.setattr(db, "_resolves_private", lambda host: not host or host.startswith("10."))
+    db.check_staging_address("postgresql://u:p@10.0.0.7:5432/fam")
+    db.check_staging_address("postgresql:///fam")
+    db.check_staging_address("host=10.0.0.7,10.0.0.8 dbname=fam")
+
+
+def test_every_connection_path_checks_the_address():
+    """Review fix: three connects (has_tables, the admin tracker's two) went
+    straight to psycopg and skipped the check."""
+    import pathlib
+
+    root = pathlib.Path(__file__).resolve().parent.parent
+    offenders = []
+    for path in root.glob("*.py"):
+        text = path.read_text()
+        if "psycopg.connect(" in text and path.name != "db.py":
+            offenders.append(path.name)
+    assert not offenders, offenders
+    source = (root / "db.py").read_text()
+    assert source.count("psycopg.connect(") == 2  # the pool's, and raw_connect's
+    assert "check_staging_address()" in source.split("def _open")[1].split("def ")[0]
+    assert "check_staging_address()" in source.split("def raw_connect")[1].split("def ")[0]
+
+
+def test_a_literal_is_never_rewritten():
+    assert sql("SELECT 1 FROM t WHERE q = 'what?' AND id = ?") == \
+        "SELECT 1 FROM t WHERE q = 'what?' AND id = %s"
+    assert sql("SELECT 'I like it' FROM t") == "SELECT 'I like it' FROM t"
+    assert sql("SELECT ' :y' FROM t WHERE a = :y", named=True) == \
+        "SELECT ' :y' FROM t WHERE a = %(y)s"
+    assert sql("CREATE TABLE t (n TEXT COLLATE NOCASE)") == "CREATE TABLE t (n TEXT)"
+
+
 def test_a_public_database_is_not_allowed_by_the_guard(monkeypatch):
     monkeypatch.setenv("DATABASE_URL", "postgresql://u:p@db.example.com:5432/fam")
     monkeypatch.setattr(db, "_resolves_private", lambda host: False)
@@ -150,19 +210,120 @@ def test_a_replace_is_an_upsert_on_the_key(tmp_path):
     assert rows[0]["topics"] == "nba"
 
 
-@needs_postgres
-def test_a_failed_statement_does_not_poison_the_next(tmp_path):
-    conn = db.connect(str(tmp_path / "t.db"))
+def _failed_write_in_a_transaction(conn):
     conn.execute("CREATE TABLE IF NOT EXISTS t (id INTEGER PRIMARY KEY, x TEXT UNIQUE)")
     conn.execute("BEGIN")
     conn.execute("INSERT INTO t (x) VALUES (?)", ("a",))
     with pytest.raises(sqlite3.IntegrityError):
         conn.execute("INSERT INTO t (x) VALUES (?)", ("a",))
-    # SQLite would carry on; Postgres refuses until a rollback, which the
-    # connection does itself.
-    assert conn.execute("SELECT COUNT(*) FROM t").fetchone()[0] == 0
     cur = conn.execute("INSERT INTO t (x) VALUES (?)", ("b",))
     assert cur.lastrowid is not None
+    conn.execute("COMMIT")
+    return [r[0] for r in conn.execute("SELECT x FROM t ORDER BY x").fetchall()]
+
+
+@needs_postgres
+def test_a_failed_write_is_undone_alone_as_in_sqlite(tmp_path, monkeypatch):
+    """Review fix: the failed statement used to roll the whole transaction
+    back silently and run the rest in autocommit - `a` was lost."""
+    on_postgres = _failed_write_in_a_transaction(
+        db.connect(str(tmp_path / "t.db"), isolation_level=None))
+    monkeypatch.delenv("DATABASE_URL")
+    on_sqlite = _failed_write_in_a_transaction(
+        db.connect(str(tmp_path / "t.db"), isolation_level=None))
+    assert on_postgres == on_sqlite == ["a", "b"]
+
+
+@needs_postgres
+def test_short_lived_threads_do_not_leak_connections(tmp_path):
+    """Review fix: a connection per store per thread was kept forever, and
+    provider_usage starts a thread every ten seconds."""
+    import threading
+
+    path = str(tmp_path / "usage.db")
+    db.connect(path, isolation_level=None).execute(
+        "CREATE TABLE IF NOT EXISTS calls (id INTEGER PRIMARY KEY, n INTEGER)")
+
+    def flush():
+        db.connect(path, isolation_level=None).execute("INSERT INTO calls (n) VALUES (1)")
+
+    for _ in range(60):
+        t = threading.Thread(target=flush)
+        t.start()
+        t.join()
+    stats = db._POOL.stats()
+    assert stats["open"] <= db.IDLE_KEPT, stats
+    assert db.connect(path).execute("SELECT COUNT(*) FROM calls").fetchone()[0] == 60
+
+
+@needs_postgres
+def test_begin_immediate_still_keeps_out_a_second_writer(tmp_path):
+    """Review fix: a check-then-spend inside BEGIN IMMEDIATE (the trending
+    bank's budget, the edition's claim) let two writers both pass."""
+    import threading
+    import time as _time
+
+    path = str(tmp_path / "bank.db")
+    setup = db.connect(path, isolation_level=None)
+    setup.execute("CREATE TABLE IF NOT EXISTS spend (k TEXT PRIMARY KEY, n INTEGER)")
+    setup.execute("INSERT INTO spend (k, n) VALUES ('day', 0)")
+    allowed = []
+
+    def spend():
+        conn = db.connect(path, isolation_level=None)
+        conn.execute("BEGIN IMMEDIATE")
+        n = conn.execute("SELECT n FROM spend WHERE k = 'day'").fetchone()[0]
+        _time.sleep(0.2)
+        if n < 1:
+            conn.execute("UPDATE spend SET n = n + 1 WHERE k = 'day'")
+            allowed.append(True)
+        conn.execute("COMMIT")
+
+    threads = [threading.Thread(target=spend) for _ in range(2)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert allowed == [True]
+    assert setup.execute("SELECT n FROM spend").fetchone()[0] == 1
+
+
+@needs_postgres
+def test_lastrowid_is_the_row_this_insert_made(tmp_path):
+    conn = db.connect(str(tmp_path / "m.db"), isolation_level=None)
+    conn.execute("CREATE TABLE IF NOT EXISTS m (id INTEGER PRIMARY KEY, x TEXT)")
+    assert conn.execute("INSERT INTO m (id, x) VALUES (50, 'a')").lastrowid == 50
+    first = conn.execute("INSERT INTO m (x) VALUES ('b')").lastrowid
+    assert first not in (None, 50)
+
+
+@needs_postgres
+def test_default_isolation_is_one_transaction_until_commit(tmp_path):
+    """Review fix: a store opened without isolation_level=None relied on
+    sqlite3's implicit transaction; each statement used to commit alone."""
+    path = str(tmp_path / "domains.db")
+    writer = db.connect(path, timeout=10)
+    writer.execute("CREATE TABLE IF NOT EXISTS domains (d TEXT PRIMARY KEY)")
+    writer.execute("INSERT INTO domains (d) VALUES ('a.com')")
+    writer.commit()
+    with writer:
+        writer.execute("DELETE FROM domains")
+        writer.execute("INSERT INTO domains (d) VALUES ('b.com')")
+        reader = db.connect(path, timeout=10)
+        assert [r[0] for r in reader.execute("SELECT d FROM domains")] == ["a.com"], \
+            "a reader saw the table half rewritten"
+    assert [r[0] for r in db.connect(path).execute("SELECT d FROM domains")] == ["b.com"]
+    writer.execute("INSERT INTO domains (d) VALUES ('c.com')")
+    writer.rollback()
+    assert db.connect(path).execute("SELECT COUNT(*) FROM domains").fetchone()[0] == 1
+
+
+@needs_postgres
+def test_health_asks_the_database_rather_than_assuming(tmp_path):
+    db._PROBED[:] = [0.0, None]
+    report = db.report()
+    assert report["backend"] == "postgres" and report["reachable"] is True
+    assert report["pool"]["max"] == db.max_connections()
 
 
 @needs_postgres

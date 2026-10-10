@@ -847,8 +847,10 @@ window.FamAudio = (function () {
         if (failure) throw failure;
         if (r.done) {
           return decoder.flush().then(function () {
-            if (myToken !== token) return;
+            // Closed first: a skip during the flush must not leave a decoder
+            // open (browsers cap how many may be).
             try { decoder.close(); } catch (e) {}
+            if (myToken !== token) return;
             if (failure) throw failure;
             // Exactly the episode's length: the encoder's last frame is
             // padded, and a caption must never run past the voice.

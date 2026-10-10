@@ -21,21 +21,31 @@ How a store maps onto Postgres:
   is in (`messages_<8 hex>`): three pairs of stores reuse a table name
   (`reports`, `items`, `spend`), so one namespace would not hold them, and a
   test's temporary directory gets its own schemas for free.
-* **One connection per store per thread**, its `search_path` set once to the
-  store's schema - the same shape as the per-thread sqlite3 connection the
-  stores already keep, so no statement pays for switching schema.
-* **Autocommit**, as every store opened SQLite (`isolation_level=None`); an
-  explicit `BEGIN`/`COMMIT` works unchanged. A statement that fails inside a
-  transaction leaves Postgres refusing everything until a rollback, which
-  SQLite never did; the connection rolls that back itself before the next
-  statement rather than let one failure poison every later query.
+* **One pool of connections per process** (`DATABASE_MAX_CONNECTIONS`, 20 by
+  default), shared by every store: a statement borrows one, switches its
+  `search_path` to the store's schema if it was elsewhere, and gives it
+  back. A transaction keeps its connection until it ends. Per-thread
+  connections would have been one per store per thread - over a thousand
+  for one instance, and never closed when a short-lived thread ended.
+* **SQLite's rules for writing, kept.** SQLite lets one writer at a time
+  into a file; here every write to a store's schema holds that store's
+  advisory lock until it commits. That is what keeps a check-then-spend
+  inside `BEGIN IMMEDIATE` from spending twice, and message ids committing
+  in the order they were handed out (the client's cursor is an id). A
+  statement that fails inside a transaction is undone alone, under a
+  savepoint, and the transaction carries on - as in SQLite, where Postgres
+  would abandon the whole transaction. A store opened without
+  `isolation_level=None` gets sqlite3's implicit transaction: its writes are
+  one transaction until it commits.
 
 **Staging reaches its own database and nothing else** (`zero-spend-staging`,
 amended at the owner's direction, §243). The network guard patches Python's
 sockets, and libpq opens its own, so the guard cannot see this connection;
-the rule is enforced here instead: on a zero-spend deployment the only host
-allowed is the one in `DATABASE_URL`, and it must be a private or loopback
-address (Render's private network), never a public one.
+the rule is enforced here instead, on every way this module connects: on a
+zero-spend deployment every host libpq could be sent to - read from the
+whole connection string and the PG* environment, as libpq reads them - must
+be a private or loopback address (Render's private network), and a string
+that does not say where it goes (`service=`, `hostaddr=`) is refused.
 """
 from __future__ import annotations
 
@@ -47,20 +57,32 @@ import re
 import socket
 import sqlite3
 import threading
+import time
 from functools import lru_cache
 from typing import Optional
 from urllib.parse import unquote, urlparse
 
 log = logging.getLogger("fam.db")
 
-_local = threading.local()
-_LOCK = threading.Lock()
 #: Every Postgres connection opened, for `/api/health` (count only).
 _OPENED = [0]
-#: Every live connection, from every thread, so `close_all` can reach them.
-_ALL: list = []
 #: Schemas known to have tables (`has_tables`); a yes never turns into a no.
 _CREATED: set = set()
+#: Schemas this process has created (or found), so CREATE SCHEMA runs once.
+_SCHEMAS: set = set()
+#: Idle connections kept open beyond this many are closed.
+IDLE_KEPT = 8
+#: How long a statement waits for a free connection before it fails.
+WAIT_SECONDS = 30.0
+#: How long a write waits for its store's lock: SQLite's busy timeout.
+LOCK_TIMEOUT = "10s"
+
+
+def max_connections() -> int:
+    try:
+        return max(2, int(os.environ.get("DATABASE_MAX_CONNECTIONS") or 20))
+    except ValueError:
+        return 20
 
 
 def url() -> str:
@@ -72,17 +94,42 @@ def enabled() -> bool:
     return bool(url())
 
 
+def addresses(dsn: str) -> list[tuple[str, int]]:
+    """Every (host, port) libpq could connect to for this string, read the way
+    libpq reads it: the URL or key=value form, `?host=` in a URL, and the
+    PGHOST/PGPORT environment when the string leaves them out. An empty host
+    is libpq's local socket. A string that does not say where it goes -
+    `hostaddr=` (connects past the host name) or `service=` (a file names
+    it) - raises `DatabaseRefused`."""
+    from psycopg.conninfo import conninfo_to_dict
+
+    try:
+        params = conninfo_to_dict((dsn or "").strip())
+    except Exception as exc:  # noqa: BLE001 - psycopg's ProgrammingError
+        raise DatabaseRefused(f"DATABASE_URL could not be read: {exc}") from exc
+    for key, env in (("hostaddr", "PGHOSTADDR"), ("service", "PGSERVICE"),
+                     ("servicefile", "PGSERVICEFILE")):
+        if params.get(key) or os.environ.get(env):
+            raise DatabaseRefused(
+                f"DATABASE_URL may not use {key} ({env}): it would decide the "
+                f"address somewhere this check cannot see")
+    hosts = str(params.get("host") or os.environ.get("PGHOST") or "").split(",")
+    ports = str(params.get("port") or os.environ.get("PGPORT") or "5432").split(",")
+    out = []
+    for i, host in enumerate(hosts):
+        port = ports[i] if i < len(ports) else ports[-1]
+        out.append((host.strip(), int(port.strip() or 5432)))
+    return out
+
+
 def host_of(dsn: str) -> tuple[str, int]:
-    """(host, port) from a postgres:// URL or a `host=... port=...` string."""
-    dsn = (dsn or "").strip()
-    if not dsn:
+    """(host, port) of the first address, ("", 0) for no string."""
+    if not (dsn or "").strip():
         return "", 0
-    if "://" in dsn:
-        parsed = urlparse(dsn)
-        return unquote(parsed.hostname or ""), int(parsed.port or 5432)
-    parts = dict(re.findall(r"(\w+)\s*=\s*('[^']*'|\S+)", dsn))
-    host = parts.get("host", "").strip("'")
-    return host, int(parts.get("port", "5432").strip("'") or 5432)
+    try:
+        return addresses(dsn)[0]
+    except DatabaseRefused:
+        return "", 0
 
 
 def _resolves_private(host: str) -> bool:
@@ -93,12 +140,12 @@ def _resolves_private(host: str) -> bool:
         infos = socket.getaddrinfo(host, None)
     except OSError:
         return False
-    addresses = {info[4][0] for info in infos}
-    for raw in addresses:
+    addresses_ = {info[4][0] for info in infos}
+    for raw in addresses_:
         ip = ipaddress.ip_address(raw.split("%", 1)[0])
         if not (ip.is_private or ip.is_loopback):
             return False
-    return bool(addresses)
+    return bool(addresses_)
 
 
 class DatabaseRefused(RuntimeError):
@@ -106,18 +153,28 @@ class DatabaseRefused(RuntimeError):
 
 
 def check_staging_address(dsn: Optional[str] = None) -> None:
-    """Raise unless a zero-spend deployment's database is private (§243)."""
+    """Raise unless every address a zero-spend deployment's database string
+    could reach is private (§243). Called before every connection."""
     import spend_guard
 
     if not spend_guard.enabled():
         return
-    host, _ = host_of(dsn if dsn is not None else url())
-    if not _resolves_private(host):
-        raise DatabaseRefused(
-            f"zero spend: staging may reach only its own database on the private "
-            f"network, and {host or 'that address'} is not private. Wire "
-            f"DATABASE_URL from the staging database (render.yaml), never a "
-            f"public address.")
+    for host, _ in addresses(dsn if dsn is not None else url()):
+        if not _resolves_private(host):
+            raise DatabaseRefused(
+                f"zero spend: staging may reach only its own database on the "
+                f"private network, and {host} is not private. Wire DATABASE_URL "
+                f"from the staging database (render.yaml), never a public address.")
+
+
+def raw_connect(**kwargs):
+    """A psycopg connection outside the pool (the admin tracker's read-only
+    queries), after the same address check every pooled one passes."""
+    import psycopg
+
+    check_staging_address()
+    kwargs.setdefault("connect_timeout", 10)
+    return psycopg.connect(url(), **kwargs)
 
 
 def schema_for(path: str) -> str:
@@ -192,6 +249,12 @@ def _scalar_max_min(s: str) -> str:
         i = j
 
 
+def _outside_literals(s: str, change) -> str:
+    """Apply `change` to the SQL between single-quoted literals only."""
+    parts = re.split(r"('(?:[^']|'')*')", s)
+    return "".join(part if i % 2 else change(part) for i, part in enumerate(parts))
+
+
 def translate(sql: str, named: bool = False) -> tuple[str, str, str, tuple]:
     """(postgres sql, kind, table, columns) for one SQLite statement.
 
@@ -224,10 +287,16 @@ def translate(sql: str, named: bool = False) -> tuple[str, str, str, tuple]:
     s = re.sub(r"\bREAL\b", "DOUBLE PRECISION", s)
     s = re.sub(r"\bINTEGER\b", "BIGINT", s)
     s = re.sub(r"\bBLOB\b", "BYTEA", s)
-    # SQLite's LIKE ignores case for ASCII; Postgres' does not.
-    s = re.sub(r"\bNOT\s+LIKE\b", "NOT ILIKE", s, flags=re.I)
-    s = re.sub(r"(?<!NOT )\bLIKE\b", "ILIKE", s, flags=re.I)
-    s = re.sub(r"([\w.]+)\s+COLLATE\s+NOCASE\b", r"lower(\1)", s, flags=re.I)
+    # SQLite's LIKE ignores case for ASCII; Postgres' does not. Never inside
+    # a string literal: 'I like it' is text.
+    s = _outside_literals(s, lambda t: re.sub(r"\bNOT\s+LIKE\b", "NOT ILIKE", t, flags=re.I))
+    s = _outside_literals(s, lambda t: re.sub(r"(?<!NOT )\bLIKE\b", "ILIKE", t, flags=re.I))
+    if re.match(r"\s*CREATE\b", s, re.I):
+        # A column declared NOCASE: Postgres has no such collation, and the
+        # stores only sort by it, which the ORDER BY rewrite below covers.
+        s = re.sub(r"\s+COLLATE\s+NOCASE\b", "", s, flags=re.I)
+    s = _outside_literals(s, lambda t: re.sub(
+        r"([\w.]+)\s+COLLATE\s+NOCASE\b", r"lower(\1)", t, flags=re.I))
     # Two-argument MAX/MIN are SQLite's scalar greatest/least.
     s = _scalar_max_min(s)
     s = re.sub(r"\bBEGIN\s+(IMMEDIATE|EXCLUSIVE|DEFERRED)\b", "BEGIN", s, flags=re.I)
@@ -241,8 +310,8 @@ def translate(sql: str, named: bool = False) -> tuple[str, str, str, tuple]:
     # are %s and %(name)s). Only then: a colon in a string literal is text.
     s = s.replace("%", "%%")
     if named:
-        s = re.sub(r"(?<![:\w]):([A-Za-z_]\w*)", r"%(\1)s", s)
-    s = s.replace("?", "%s")
+        s = _outside_literals(s, lambda t: re.sub(r"(?<![:\w]):([A-Za-z_]\w*)", r"%(\1)s", t))
+    s = _outside_literals(s, lambda t: t.replace("?", "%s"))
     if kind == "ignore":
         s = s.rstrip().rstrip(";") + " ON CONFLICT DO NOTHING"
     return s, kind, table, columns
@@ -254,6 +323,8 @@ def _sqlite_error(exc: Exception) -> Exception:
 
     if isinstance(exc, pgerr.IntegrityError):
         out = sqlite3.IntegrityError(str(exc))
+    elif isinstance(exc, pgerr.LockNotAvailable):
+        out = sqlite3.OperationalError(f"database is locked ({exc})")
     elif isinstance(exc, (pgerr.DuplicateColumn, pgerr.DuplicateTable, pgerr.DuplicateObject,
                           pgerr.UndefinedColumn, pgerr.UndefinedTable, pgerr.SyntaxError,
                           psycopg.OperationalError)):
@@ -265,79 +336,310 @@ def _sqlite_error(exc: Exception) -> Exception:
 
 
 class Cursor:
-    def __init__(self, cur, conn: "Connection"):
-        self._cur = cur
-        self._conn = conn
+    """A statement's result, read in full before its connection went back to
+    the pool - so it can be read on any thread, at any time, like sqlite3's."""
+
+    def __init__(self, rows=None, description=None, rowcount: int = -1, lastrowid=None):
+        self._rows = list(rows or [])
+        self._at = 0
+        self.description = description
+        self.rowcount = rowcount
+        self.lastrowid = lastrowid
+
+    @classmethod
+    def read(cls, cur, returning: bool = False) -> "Cursor":
+        if returning:
+            # The id an INSERT made, read from its own RETURNING - never the
+            # session's lastval(), which a pooled connection shares.
+            got = cur.fetchall() if cur.description else []
+            return cls(rowcount=cur.rowcount, lastrowid=got[-1][0] if got else None)
+        rows = cur.fetchall() if cur.description else []
+        return cls(rows, cur.description, cur.rowcount)
 
     def fetchone(self):
-        return self._cur.fetchone() if self._cur is not None and self._cur.description else None
+        if self._at >= len(self._rows):
+            return None
+        self._at += 1
+        return self._rows[self._at - 1]
 
     def fetchall(self):
-        return self._cur.fetchall() if self._cur is not None and self._cur.description else []
+        out, self._at = self._rows[self._at:], len(self._rows)
+        return out
 
     def fetchmany(self, size: int = 1):
-        return self._cur.fetchmany(size) if self._cur is not None and self._cur.description else []
+        out = self._rows[self._at:self._at + size]
+        self._at += len(out)
+        return out
 
     def __iter__(self):
         return iter(self.fetchall())
 
-    @property
-    def rowcount(self):
-        return self._cur.rowcount if self._cur is not None else -1
 
-    @property
-    def description(self):
-        return self._cur.description if self._cur is not None else None
+def _number_loader():
+    """SUM and AVG over integers are NUMERIC in Postgres, which psycopg reads
+    as Decimal; SQLite answered int or float, and `Decimal + float` raises."""
+    from psycopg.types.numeric import NumericLoader
 
-    @property
-    def lastrowid(self):
-        # The last identity value this session generated - what sqlite3 means.
-        return self._conn._lastval()
+    class Number(NumericLoader):
+        def load(self, data):
+            value = super().load(data)
+            if not value.is_finite():
+                return float(value)
+            return int(value) if value == value.to_integral_value() else float(value)
+
+    return Number
+
+
+class _Slot:
+    """One pooled server connection and the schema its search_path names."""
+
+    def __init__(self, pg):
+        self.pg = pg
+        self.schema: Optional[str] = None
+
+
+class _Pool:
+    def __init__(self):
+        self._cond = threading.Condition()
+        self._idle: list[_Slot] = []
+        self._all: set = set()
+        self._count = 0
+
+    def _open(self) -> _Slot:
+        import psycopg
+
+        check_staging_address()
+        pg = psycopg.connect(url(), autocommit=True, row_factory=_row_factory,
+                             prepare_threshold=None, connect_timeout=10)
+        pg.adapters.register_loader("numeric", _number_loader())
+        pg.execute(f"SET lock_timeout = '{LOCK_TIMEOUT}'")
+        with _LOCK:
+            _OPENED[0] += 1
+        slot = _Slot(pg)
+        with self._cond:
+            self._all.add(slot)
+        return slot
+
+    def acquire(self, schema: Optional[str]) -> _Slot:
+        """A connection whose search_path is `schema` (None: any)."""
+        import psycopg
+
+        for attempt in (1, 2):
+            slot = self._take(schema)
+            try:
+                if schema is not None and slot.schema != schema:
+                    if schema not in _SCHEMAS:
+                        try:
+                            slot.pg.execute(f'CREATE SCHEMA IF NOT EXISTS "{schema}"')
+                        except psycopg.errors.UniqueViolation:
+                            pass  # another process created it in the same moment
+                        _SCHEMAS.add(schema)
+                    slot.pg.execute(f'SET search_path TO "{schema}"')
+                    slot.schema = schema
+                return slot
+            except psycopg.OperationalError as exc:
+                # An idle connection the server dropped (a restart, a
+                # failover): thrown away, and a fresh one tried once.
+                self.discard(slot)
+                if attempt == 2:
+                    raise _sqlite_error(exc) from exc
+        raise AssertionError("unreachable")
+
+    def _take(self, schema: Optional[str]) -> _Slot:
+        deadline = time.monotonic() + WAIT_SECONDS
+        with self._cond:
+            while True:
+                for i in range(len(self._idle) - 1, -1, -1):
+                    if schema is None or self._idle[i].schema == schema:
+                        return self._idle.pop(i)
+                if self._idle:
+                    return self._idle.pop()
+                if self._count < max_connections():
+                    self._count += 1
+                    break
+                left = deadline - time.monotonic()
+                if left <= 0:
+                    raise sqlite3.OperationalError(
+                        f"database is locked: all {max_connections()} connections "
+                        f"are in use (DATABASE_MAX_CONNECTIONS)")
+                self._cond.wait(left)
+        try:
+            return self._open()
+        except Exception:
+            with self._cond:
+                self._count -= 1
+                self._cond.notify()
+            raise
+
+    def release(self, slot: _Slot) -> None:
+        from psycopg.pq import TransactionStatus
+
+        try:
+            if slot.pg.closed:
+                return self.discard(slot)
+            if slot.pg.info.transaction_status != TransactionStatus.IDLE:
+                slot.pg.execute("ROLLBACK")
+        except Exception:  # noqa: BLE001 - a broken connection is not kept
+            return self.discard(slot)
+        surplus = None
+        with self._cond:
+            self._idle.append(slot)
+            if len(self._idle) > IDLE_KEPT:
+                surplus = self._idle.pop(0)
+                self._count -= 1
+                self._all.discard(surplus)
+            self._cond.notify()
+        if surplus is not None:
+            try:
+                surplus.pg.close()
+            except Exception:  # noqa: BLE001
+                pass
+
+    def discard(self, slot: _Slot) -> None:
+        try:
+            slot.pg.close()
+        except Exception:  # noqa: BLE001
+            pass
+        with self._cond:
+            if slot in self._all:
+                self._all.discard(slot)
+                self._count -= 1
+            self._cond.notify()
+
+    def close_all(self) -> int:
+        with self._cond:
+            slots, self._idle = list(self._all), []
+            self._all.clear()
+            self._count = 0
+            self._cond.notify_all()
+        for slot in slots:
+            try:
+                slot.pg.close()
+            except Exception:  # noqa: BLE001
+                pass
+        return len(slots)
+
+    def stats(self) -> dict:
+        with self._cond:
+            return {"open": self._count, "idle": len(self._idle), "max": max_connections()}
+
+
+_LOCK = threading.Lock()
+_POOL = _Pool()
+#: (schema, table) -> the columns an INSERT OR REPLACE conflicts on.
+_KEYS: dict = {}
+#: (schema, table) -> the self-numbering column, or "" for none.
+_IDENTITY: dict = {}
+
+_VERB = re.compile(r"\s*(\w+)")
+_DML = {"INSERT", "UPDATE", "DELETE", "REPLACE"}
+#: sqlite3 opens its implicit transaction on these only, never on DDL.
+_WRITES = _DML | {"CREATE", "ALTER", "DROP"}
+
+
+def _verb(sql: str) -> str:
+    m = _VERB.match(sql)
+    word = m.group(1).upper() if m else ""
+    if word == "END":
+        return "COMMIT"
+    if word == "WITH" and re.search(r"\b(INSERT|UPDATE|DELETE)\b", sql, re.I):
+        return "INSERT"
+    if word == "ROLLBACK" and re.match(r"\s*ROLLBACK\s+(TRANSACTION\s+)?TO\b", sql, re.I):
+        return "SAVEPOINT"
+    return word
 
 
 class Connection:
-    """Enough of sqlite3.Connection for FAM's stores, over psycopg."""
+    """Enough of sqlite3.Connection for FAM's stores, over the pool.
 
-    def __init__(self, dsn: str, schema: str):
+    Holds no server connection between statements, except while a
+    transaction is open, so a store may keep it, open one per call, or drop
+    it on a thread that ends: nothing leaks."""
+
+    def __init__(self, schema: str, implicit: bool = False):
+        self.schema = schema
+        self.row_factory = None  # rows answer by index and by name already
+        # sqlite3's default isolation: a write opens a transaction that stays
+        # open until commit. `isolation_level=None` (most stores) is autocommit.
+        self._implicit = implicit
+        self._held: Optional[_Slot] = None
+        self._lock_sql = ("SELECT pg_advisory_xact_lock(%d)" % int.from_bytes(
+            hashlib.sha1(schema.encode()).digest()[:8], "big", signed=True))
+
+    # ---------------------------------------------------- the transaction
+
+    def _begin(self) -> None:
         import psycopg
 
-        self._dsn = dsn
-        self._pg = psycopg.connect(dsn, autocommit=True, row_factory=_row_factory)
-        self.schema = schema
-        self._pg.execute(f'CREATE SCHEMA IF NOT EXISTS "{schema}"')
-        self._pg.execute(f'SET search_path TO "{schema}"')
-        self.row_factory = None  # rows answer by index and by name already
-        self._keys: dict = {}
-        with _LOCK:
-            _OPENED[0] += 1
-            _ALL.append(self)
+        if self._held is not None:
+            raise sqlite3.OperationalError("cannot start a transaction within a transaction")
+        slot = _POOL.acquire(self.schema)
+        try:
+            # The store's writer lock, taken at BEGIN as SQLite's IMMEDIATE
+            # takes it: a transaction reads what it will write under it.
+            slot.pg.execute("BEGIN; " + self._lock_sql)
+        except psycopg.Error as exc:
+            _POOL.release(slot)
+            raise _sqlite_error(exc) from exc
+        self._held = slot
 
-    # The transaction a failed statement leaves behind is rolled back before
-    # the next one: Postgres refuses everything inside an aborted transaction,
-    # SQLite never did, and the stores were written for SQLite.
-    def _heal(self) -> None:
+    def _end(self, statement: str) -> None:
         import psycopg
         from psycopg.pq import TransactionStatus
 
-        if self._pg.closed:
-            # Closed under a store that kept this object (a test's cleanup, a
-            # dropped connection): open again on the same schema.
-            self._pg = psycopg.connect(self._dsn, autocommit=True, row_factory=_row_factory)
-            self._pg.execute(f'SET search_path TO "{self.schema}"')
-            with _LOCK:
-                _OPENED[0] += 1
-                _ALL.append(self)
+        slot, self._held = self._held, None
+        if slot is None:
             return
-        if self._pg.info.transaction_status == TransactionStatus.INERROR:
-            log.warning("rolled back a failed transaction in %s", self.schema)
-            self._pg.execute("ROLLBACK")
+        try:
+            if statement == "COMMIT" and \
+                    slot.pg.info.transaction_status == TransactionStatus.INERROR:
+                slot.pg.execute("ROLLBACK")
+                raise sqlite3.OperationalError(
+                    "the transaction had failed and was rolled back, not committed")
+            slot.pg.execute(statement)
+        except psycopg.Error as exc:
+            raise _sqlite_error(exc) from exc
+        finally:
+            _POOL.release(slot)
 
-    def _index_columns(self, table: str) -> tuple:
+    def commit(self):
+        self._end("COMMIT")
+
+    def rollback(self):
+        self._end("ROLLBACK")
+
+    @property
+    def in_transaction(self) -> bool:
+        return self._held is not None
+
+    # sqlite3's `with conn:` is a transaction, not a close.
+    def __enter__(self):
+        return self
+
+    def __exit__(self, kind, value, tb):
+        self._end("ROLLBACK" if kind else "COMMIT")
+        return False
+
+    def close(self):
+        # sqlite3 discards what a closed connection had not committed.
+        self._end("ROLLBACK")
+
+    def __del__(self):
+        try:
+            if self._held is not None:
+                self._end("ROLLBACK")
+        except Exception:  # noqa: BLE001 - a collector cannot report
+            pass
+
+    # ------------------------------------------------------- statements
+
+    def _index_columns(self, slot: _Slot, table: str) -> tuple:
         """The columns of the table's primary key (or first unique index):
         what an INSERT OR REPLACE conflicts on."""
-        if table in self._keys:
-            return self._keys[table]
-        rows = self._pg.execute(
+        cached = _KEYS.get((self.schema, table))
+        if cached is not None:
+            return cached
+        rows = slot.pg.execute(
             "SELECT i.indexrelid, a.attname FROM pg_index i JOIN pg_attribute a"
             " ON a.attrelid = i.indrelid AND a.attnum = ANY(i.indkey)"
             " WHERE i.indrelid = %s::regclass AND (i.indisprimary OR i.indisunique)"
@@ -345,30 +647,39 @@ class Connection:
             (f'"{self.schema}".{table.lower()}',)).fetchall()
         first = rows[0][0] if rows else None
         key = tuple(r[1] for r in rows if r[0] == first)
-        self._keys[table] = key
+        if key:
+            _KEYS[(self.schema, table)] = key
         return key
 
-    def _columns(self, table: str) -> tuple:
-        """The table's columns in order, for an INSERT that names none."""
-        rows = self._pg.execute(
-            "SELECT column_name FROM information_schema.columns WHERE table_schema ="
-            " current_schema() AND table_name = %s ORDER BY ordinal_position",
+    def _identity(self, slot: _Slot, table: str) -> str:
+        cached = _IDENTITY.get((self.schema, table))
+        if cached is not None:
+            return cached
+        rows = slot.pg.execute(
+            "SELECT column_name, is_identity FROM information_schema.columns"
+            " WHERE table_schema = current_schema() AND table_name = %s",
             (table.lower(),)).fetchall()
-        return tuple(r[0] for r in rows)
+        found = next((r[0] for r in rows if r[1] == "YES"), "")
+        if rows:  # only a table that exists is remembered
+            _IDENTITY[(self.schema, table)] = found
+        return found
 
-    def _name_columns(self, sql: str, table: str, columns: tuple) -> tuple[str, tuple]:
+    def _name_columns(self, slot: _Slot, sql: str, table: str, columns: tuple):
         """An INSERT with no column list gets the table's own, in order."""
         if columns:
             return sql, columns
-        columns = self._columns(table)
+        columns = tuple(r[0] for r in slot.pg.execute(
+            "SELECT column_name FROM information_schema.columns WHERE table_schema ="
+            " current_schema() AND table_name = %s ORDER BY ordinal_position",
+            (table.lower(),)).fetchall())
         sql = re.sub(r"(INSERT\s+INTO\s+" + re.escape(table) + r")\s+VALUES",
                      r"\1 (" + ", ".join(columns) + ") VALUES", sql, count=1, flags=re.I)
         return sql, columns
 
-    def _replace(self, sql: str, table: str, columns: tuple) -> str:
+    def _replace(self, slot: _Slot, sql: str, table: str, columns: tuple) -> str:
         """SQLite's INSERT OR REPLACE as an upsert on the table's key."""
-        sql, columns = self._name_columns(sql, table, columns)
-        key = self._index_columns(table)
+        sql, columns = self._name_columns(slot, sql, table, columns)
+        key = self._index_columns(slot, table)
         if not key:
             return sql
         updates = [c for c in columns if c not in key]
@@ -382,86 +693,109 @@ class Connection:
         sets = ", ".join(f"{c} = EXCLUDED.{c}" for c in updates)
         return sql.rstrip().rstrip(";") + f" ON CONFLICT ({target}) DO UPDATE SET {sets}"
 
-    def _lastval(self):
-        try:
-            return self._pg.execute("SELECT lastval()").fetchone()[0]
-        except Exception:  # noqa: BLE001 - no sequence used yet in this session
-            self._heal()
-            return None
-
-    def execute(self, sql, params=()):
+    def _run(self, slot: _Slot, sql: str, pg_sql: str, kind: str, table: str,
+             columns: tuple, args, many: bool = False) -> Cursor:
         import psycopg
 
-        pg_sql, kind, table, columns = translate(sql, isinstance(params, dict))
-        if kind == "skip":
-            return Cursor(None, self)
-        self._heal()
         try:
             if kind == "replace":
-                pg_sql = self._replace(pg_sql, table, columns)
-            args = params if isinstance(params, dict) else tuple(params or ())
-            return Cursor(self._pg.execute(pg_sql, args), self)
+                pg_sql = self._replace(slot, pg_sql, table, columns)
+            if many:
+                with slot.pg.cursor() as cur:
+                    cur.executemany(pg_sql, args)
+                    return Cursor(rowcount=cur.rowcount)
+            returning = False
+            into = re.match(r"\s*INSERT\s+(?:OR\s+\w+\s+)?INTO\s+(\w+)", sql, re.I)
+            if into and not re.search(r"\bRETURNING\b", pg_sql, re.I):
+                ident = self._identity(slot, into.group(1))
+                if ident:
+                    pg_sql = pg_sql.rstrip().rstrip(";") + f" RETURNING {ident}"
+                    returning = True
+            return Cursor.read(slot.pg.execute(pg_sql, args), returning)
         except psycopg.Error as exc:
             raise _sqlite_error(exc) from exc
 
-    def executemany(self, sql, seq):
+    def _statement(self, sql: str, params, many: bool = False) -> Cursor:
         import psycopg
 
-        seq = list(seq)
-        pg_sql, kind, table, columns = translate(sql, bool(seq) and isinstance(seq[0], dict))
+        named = (bool(params) and isinstance(params[0], dict)) if many else isinstance(params, dict)
+        pg_sql, kind, table, columns = translate(sql, named)
         if kind == "skip":
-            return Cursor(None, self)
-        self._heal()
-        if kind == "replace":
-            pg_sql = self._replace(pg_sql, table, columns)
-        cur = self._pg.cursor()
+            return Cursor()
+        verb = _verb(sql)
+        if verb == "BEGIN":
+            self._begin()
+            return Cursor()
+        if verb in ("COMMIT", "ROLLBACK"):
+            self._end(verb)
+            return Cursor()
+        if many:
+            args = [p if isinstance(p, dict) else tuple(p) for p in params]
+        else:
+            args = params if isinstance(params, dict) else tuple(params or ())
+        write = verb in _WRITES
+
+        if self._held is None and not write:
+            slot = _POOL.acquire(self.schema)
+            try:
+                return self._run(slot, sql, pg_sql, kind, table, columns, args, many)
+            finally:
+                _POOL.release(slot)
+
+        if self._held is None and (not self._implicit or verb not in _DML):
+            # A write on its own: its own transaction, under the store's lock,
+            # so ids are committed in the order they were handed out.
+            slot = _POOL.acquire(self.schema)
+            try:
+                try:
+                    slot.pg.execute("BEGIN; " + self._lock_sql)
+                except psycopg.Error as exc:
+                    raise _sqlite_error(exc) from exc
+                out = self._run(slot, sql, pg_sql, kind, table, columns, args, many)
+                try:
+                    slot.pg.execute("COMMIT")
+                except psycopg.Error as exc:
+                    raise _sqlite_error(exc) from exc
+                return out
+            finally:
+                _POOL.release(slot)  # rolls back whatever did not commit
+
+        if self._held is None:
+            self._begin()  # sqlite3's implicit transaction, until commit
+        slot = self._held
+        if not write:
+            return self._run(slot, sql, pg_sql, kind, table, columns, args, many)
+        # A failed write is undone alone and the transaction carries on, as in
+        # SQLite; Postgres would otherwise abandon all of it.
         try:
-            cur.executemany(pg_sql, [p if isinstance(p, dict) else tuple(p) for p in seq])
+            slot.pg.execute("SAVEPOINT fam_statement")
         except psycopg.Error as exc:
             raise _sqlite_error(exc) from exc
-        return Cursor(cur, self)
+        try:
+            out = self._run(slot, sql, pg_sql, kind, table, columns, args, many)
+        except Exception:
+            try:
+                slot.pg.execute("ROLLBACK TO SAVEPOINT fam_statement")
+            except psycopg.Error:
+                pass
+            raise
+        try:
+            slot.pg.execute("RELEASE SAVEPOINT fam_statement")
+        except psycopg.Error as exc:
+            raise _sqlite_error(exc) from exc
+        return out
+
+    def execute(self, sql, params=()):
+        return self._statement(sql, params)
+
+    def executemany(self, sql, seq):
+        return self._statement(sql, list(seq), many=True)
 
     def executescript(self, script: str):
         for statement in script.split(";"):
             if statement.strip():
                 self.execute(statement)
-        return Cursor(None, self)
-
-    # sqlite3's `with conn:` is a transaction, not a close.
-    def __enter__(self):
-        return self
-
-    def __exit__(self, kind, value, tb):
-        from psycopg.pq import TransactionStatus
-
-        status = self._pg.info.transaction_status
-        if status in (TransactionStatus.INTRANS, TransactionStatus.INERROR):
-            self._pg.execute("ROLLBACK" if kind or status == TransactionStatus.INERROR
-                             else "COMMIT")
-        return False
-
-    def commit(self):
-        from psycopg.pq import TransactionStatus
-
-        if self._pg.info.transaction_status == TransactionStatus.INTRANS:
-            self._pg.execute("COMMIT")
-
-    def rollback(self):
-        from psycopg.pq import TransactionStatus
-
-        if self._pg.info.transaction_status != TransactionStatus.IDLE:
-            self._pg.execute("ROLLBACK")
-
-    def close(self):
-        # Kept for the thread and the store; sqlite3 callers close after each
-        # use because opening a file is cheap, and a server connection is not.
-        pass
-
-    @property
-    def in_transaction(self) -> bool:
-        from psycopg.pq import TransactionStatus
-
-        return self._pg.info.transaction_status != TransactionStatus.IDLE
+        return Cursor()
 
 
 def connect(path, *args, **kwargs):
@@ -471,31 +805,18 @@ def connect(path, *args, **kwargs):
     if not dsn or path == ":memory:" or path.startswith("file:"):
         return sqlite3.connect(path, *args, **kwargs)
     check_staging_address(dsn)
-    schema = schema_for(path)
-    conns = getattr(_local, "conns", None)
-    if conns is None:
-        conns = _local.conns = {}
-    conn = conns.get(schema)
-    if conn is None or conn._pg.closed:
-        conn = conns[schema] = Connection(dsn, schema)
-    return conn
+    # sqlite3's default isolation_level is "" (implicit transactions); the
+    # stores that pass None asked for autocommit.
+    isolation = kwargs.get("isolation_level", args[1] if len(args) > 1 else "")
+    return Connection(schema_for(path), implicit=isolation is not None)
 
 
 def close_all() -> int:
-    """Close every Postgres connection this process opened, on every thread.
+    """Close every Postgres connection this process holds.
 
-    A long-running server keeps one per store per thread for its life; a test
-    run makes new stores in new directories thousands of times, and would run
-    Postgres out of connections. `tests/conftest.py` calls this after each
-    test. Returns how many were closed."""
-    with _LOCK:
-        conns, _ALL[:] = list(_ALL), []
-    for conn in conns:
-        try:
-            conn._pg.close()
-        except Exception:  # noqa: BLE001 - closing is best effort
-            pass
-    return len(conns)
+    `tests/conftest.py` calls this after each test: a run makes stores in new
+    directories thousands of times. Returns how many were closed."""
+    return _POOL.close_all()
 
 
 def has_tables(path: str) -> bool:
@@ -508,21 +829,56 @@ def has_tables(path: str) -> bool:
     import psycopg
 
     try:
-        with psycopg.connect(url(), autocommit=True) as conn:
-            found = bool(conn.execute(
-                "SELECT 1 FROM information_schema.tables WHERE table_schema = %s LIMIT 1",
-                (schema,)).fetchone())
+        slot = _POOL.acquire(None)
+    except (sqlite3.Error, psycopg.Error, DatabaseRefused):
+        return False
+    try:
+        found = bool(slot.pg.execute(
+            "SELECT 1 FROM information_schema.tables WHERE table_schema = %s LIMIT 1",
+            (schema,)).fetchone())
     except psycopg.Error:
         return False
+    finally:
+        _POOL.release(slot)
     if found:
         _CREATED.add(schema)
     return found
+
+
+#: (when, result) of the last probe, so a busy health check asks once a while.
+_PROBED: list = [0.0, None]
+PROBE_SECONDS = 10.0
+
+
+def probe() -> dict:
+    """A real query, not a configuration read (verify-not-inspect): whether
+    the database answers, how fast, and whether this role may create tables."""
+    now = time.monotonic()
+    if _PROBED[1] is not None and now - _PROBED[0] < PROBE_SECONDS:
+        return _PROBED[1]
+    started = time.monotonic()
+    try:
+        slot = _POOL.acquire(None)
+        try:
+            can_create = bool(slot.pg.execute(
+                "SELECT has_database_privilege(current_database(), 'CREATE')").fetchone()[0])
+        finally:
+            _POOL.release(slot)
+        result = {"reachable": True, "can_create": can_create,
+                  "ms": round((time.monotonic() - started) * 1000, 1)}
+    except Exception as exc:  # noqa: BLE001 - reported, not raised
+        result = {"reachable": False, "error": str(exc)[:200]}
+    _PROBED[:] = [now, result]
+    return result
 
 
 def report() -> dict:
     """For `/api/health`: where the stores live, never the address itself."""
     if not enabled():
         return {"backend": "sqlite"}
-    host, port = host_of(url())
-    return {"backend": "postgres", "private": _resolves_private(host),
-            "connections_opened": _OPENED[0]}
+    try:
+        private = all(_resolves_private(h) for h, _ in addresses(url()))
+    except DatabaseRefused:
+        private = False
+    return {"backend": "postgres", "private": private,
+            "connections_opened": _OPENED[0], "pool": _POOL.stats(), **probe()}

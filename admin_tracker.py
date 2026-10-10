@@ -220,13 +220,11 @@ def _run_postgres(sql: str, params: Optional[dict], named: list[Store],
                   limit: int, seconds: float) -> tuple[list, list]:
     """One of our own fixed queries against the stores' Postgres schemas, in a
     read-only transaction with a deadline. `alias.table` names its schema."""
-    import psycopg
-
     for store in named:
         schema = store_db.schema_for(store.path)
         sql = re.sub(r"\b" + re.escape(store.alias) + r"\s*\.", f'"{schema}".', sql)
     pg_sql = store_db.translate(sql, isinstance(params, dict))[0]
-    with psycopg.connect(store_db.url(), autocommit=False) as conn:
+    with store_db.raw_connect(autocommit=False) as conn:
         conn.execute("SET TRANSACTION READ ONLY")
         conn.execute(f"SET LOCAL statement_timeout = {int(seconds * 1000)}")
         cur = conn.execute(pg_sql, params or {})
@@ -335,7 +333,7 @@ def _schema_postgres(stores: list[Store]) -> list[dict]:
     import psycopg
 
     out = []
-    with psycopg.connect(store_db.url(), autocommit=True) as conn:
+    with store_db.raw_connect(autocommit=True) as conn:
         for store in stores:
             schema = store_db.schema_for(store.path)
             entry = {"alias": store.alias, "file": store.filename, "env": store.env,

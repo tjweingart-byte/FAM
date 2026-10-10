@@ -995,8 +995,14 @@ def _database_report() -> list[dict]:
         }
         if path and db_mod.enabled():
             # §243: the store is a schema in Postgres, which a redeploy does
-            # not touch; the path only names the schema.
-            entry["readable"] = entry["writable"] = True
+            # not touch; the path only names the schema. Readable and
+            # writable are what a real query just said (`db.probe`, at most
+            # once every ten seconds), never assumed from the configuration.
+            answer = db_mod.probe()
+            entry["readable"] = bool(answer.get("reachable"))
+            entry["writable"] = bool(answer.get("reachable") and answer.get("can_create"))
+            if not answer.get("reachable"):
+                entry["error"] = answer.get("error", "the database did not answer")
             entry["persistence"] = "database"
             entry["schema"] = db_mod.schema_for(path)
             report.append(entry)
