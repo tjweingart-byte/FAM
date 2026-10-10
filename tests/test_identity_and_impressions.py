@@ -280,6 +280,7 @@ def _legacy_people(path):
     conn.close()
 
 
+@pytest.mark.sqlite_file
 def test_an_existing_event_log_is_widened_not_lost(tmp_path):
     """The log is not regenerable. A migration that drops it is a data loss
     bug, not an inconvenience the way a cold script cache would be."""
@@ -295,6 +296,7 @@ def test_an_existing_event_log_is_widened_not_lost(tmp_path):
     assert store.open_threads("u")[0]["thread"] == "why"
 
 
+@pytest.mark.sqlite_file
 def test_an_existing_person_keeps_their_name_and_join_date(tmp_path):
     path = str(tmp_path / "old-social.db")
     _legacy_people(path)

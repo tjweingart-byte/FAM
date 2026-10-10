@@ -41,11 +41,14 @@ that produced it.
 from __future__ import annotations
 
 import asyncio
+import functools
 import json
 import logging
 import os
 import re
 import sqlite3
+
+import db as store_db
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -75,7 +78,9 @@ class Store:
 
     @property
     def exists(self) -> bool:
-        return os.path.exists(self.path)
+        # On Postgres every store's schema is created when the app starts
+        # (§243), so there is no file to look for.
+        return store_db.enabled() or os.path.exists(self.path)
 
     def size(self) -> int:
         total = 0
@@ -201,10 +206,44 @@ def _stores_named(sql: str, stores: list[Store]) -> list[Store]:
             if s.exists and re.search(r"\b" + re.escape(s.alias) + r"\s*\.", lowered)]
 
 
+#: §243: on Postgres a question's SQL is not run. SQLite's authorizer is what
+#: makes an arbitrary query safe here (reads only, secret columns hidden, a
+#: short list of functions), and Postgres has no such hook; the equivalent is
+#: a read-only role with column grants, which is not set up yet.
+POSTGRES_QUESTIONS_OFF = (
+    "The question box is off while the stores live in Postgres: the SQLite "
+    "sandbox that keeps a question read-only and hides secrets has no Postgres "
+    "equivalent yet (PROBLEMS.md §243). The dashboard and the schema still work.")
+
+
+def _run_postgres(sql: str, params: Optional[dict], named: list[Store],
+                  limit: int, seconds: float) -> tuple[list, list]:
+    """One of our own fixed queries against the stores' Postgres schemas, in a
+    read-only transaction with a deadline. `alias.table` names its schema."""
+    import psycopg
+
+    for store in named:
+        schema = store_db.schema_for(store.path)
+        sql = re.sub(r"\b" + re.escape(store.alias) + r"\s*\.", f'"{schema}".', sql)
+    pg_sql = store_db.translate(sql, isinstance(params, dict))[0]
+    with psycopg.connect(store_db.url(), autocommit=False) as conn:
+        conn.execute("SET TRANSACTION READ ONLY")
+        conn.execute(f"SET LOCAL statement_timeout = {int(seconds * 1000)}")
+        cur = conn.execute(pg_sql, params or {})
+        columns = [d.name for d in cur.description or []]
+        rows = cur.fetchmany(limit + 1)
+        conn.rollback()
+    return columns, rows
+
+
 def run_query(sql: str, params: Optional[dict] = None, *,
               stores: Optional[list[Store]] = None,
-              limit: int = MAX_ROWS, seconds: float = QUERY_SECONDS) -> dict:
-    """Run one read-only SELECT across whichever stores it names."""
+              limit: int = MAX_ROWS, seconds: float = QUERY_SECONDS,
+              trusted: bool = False) -> dict:
+    """Run one read-only SELECT across whichever stores it names.
+
+    `trusted` is for this module's own fixed queries; a question's SQL is
+    never trusted, and on Postgres it is not run at all (§243)."""
     sql = (sql or "").strip().rstrip(";").strip()
     if not sql:
         raise QueryError("There is no query to run.")
@@ -217,6 +256,18 @@ def run_query(sql: str, params: Optional[dict] = None, *,
     if len(named) > MAX_ATTACHED:
         raise QueryError(f"A query can read at most {MAX_ATTACHED} stores at once.")
     started = time.monotonic()
+    if store_db.enabled():
+        if not trusted:
+            raise QueryError(POSTGRES_QUESTIONS_OFF)
+        try:
+            columns, rows = _run_postgres(sql, params, named, limit, seconds)
+        except Exception as exc:  # noqa: BLE001 - said, not raised
+            raise QueryError(str(exc).splitlines()[0]) from exc
+        return {"columns": columns,
+                "rows": [[_clean(v) for v in row] for row in rows[:limit]],
+                "truncated": len(rows) > limit,
+                "stores": [s.alias for s in named],
+                "ms": round((time.monotonic() - started) * 1000, 1)}
     try:
         conn = _open(named, started + seconds)
     except sqlite3.Error as exc:
@@ -253,6 +304,8 @@ def run_query(sql: str, params: Optional[dict] = None, *,
 def schema(stores: Optional[list[Store]] = None) -> list[dict]:
     """Every store, every table, its columns and its live row count."""
     stores = discover_stores() if stores is None else stores
+    if store_db.enabled():
+        return _schema_postgres(stores)
     out = []
     for store in stores:
         entry = {"alias": store.alias, "file": store.filename, "env": store.env,
@@ -274,6 +327,35 @@ def schema(stores: Optional[list[Store]] = None) -> list[dict]:
             except sqlite3.Error as exc:
                 entry["error"] = str(exc)
         out.append(entry)
+    return out
+
+
+def _schema_postgres(stores: list[Store]) -> list[dict]:
+    """The same description, read from each store's Postgres schema."""
+    import psycopg
+
+    out = []
+    with psycopg.connect(store_db.url(), autocommit=True) as conn:
+        for store in stores:
+            schema = store_db.schema_for(store.path)
+            entry = {"alias": store.alias, "file": store.filename, "env": store.env,
+                     "exists": False, "bytes": None, "tables": []}
+            try:
+                tables = [r[0] for r in conn.execute(
+                    "SELECT table_name FROM information_schema.tables"
+                    " WHERE table_schema = %s ORDER BY table_name", (schema,))]
+                entry["exists"] = bool(tables)
+                for table in tables:
+                    cols = [{"name": r[0], "type": r[1]} for r in conn.execute(
+                        "SELECT column_name, data_type FROM information_schema.columns"
+                        " WHERE table_schema = %s AND table_name = %s"
+                        " ORDER BY ordinal_position", (schema, table))]
+                    rows = conn.execute(
+                        f'SELECT COUNT(*) FROM "{schema}"."{table}"').fetchone()[0]
+                    entry["tables"].append({"name": table, "rows": rows, "columns": cols})
+            except psycopg.Error as exc:
+                entry["error"] = str(exc).splitlines()[0]
+            out.append(entry)
     return out
 
 
@@ -380,7 +462,8 @@ def _internal(sql: str, stores: dict[str, Store], names: tuple[str, ...],
     """One of our own fixed queries, through the same sandbox as a question."""
     if not all(n in stores and stores[n].exists for n in names):
         return None
-    result = run_query(sql, params, stores=[stores[n] for n in names], limit=MAX_ROWS)
+    result = run_query(sql, params, stores=[stores[n] for n in names], limit=MAX_ROWS,
+                       trusted=True)
     return result
 
 
@@ -743,7 +826,9 @@ async def ask(question: str, now: Optional[float] = None) -> dict:
     if recipe is not None:
         sql, params, label = recipe.build(question.lower(), now)
         params = {"now": now, **params}
-        result = await asyncio.to_thread(run_query, sql, params)
+        # A recipe's SQL is written here, not typed: it runs on Postgres too.
+        result = await asyncio.to_thread(functools.partial(run_query, sql, params,
+                                                           trusted=True))
         return {"question": question, "answer": _answer_text(label, result),
                 "label": label, "sql": sql, "params": params,
                 "source": "recipe", "recipe": recipe.key, **result}

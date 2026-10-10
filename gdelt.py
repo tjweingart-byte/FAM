@@ -58,6 +58,8 @@ import io
 import logging
 import re
 import sqlite3
+
+import db as store_db
 import threading
 import time
 import zipfile
@@ -353,7 +355,7 @@ class ExportStore:
             """)
 
     def _connect(self) -> sqlite3.Connection:
-        db = sqlite3.connect(self.path, timeout=10)
+        db = store_db.connect(self.path, timeout=10)
         db.execute("PRAGMA journal_mode=WAL")
         return db
 
@@ -470,7 +472,10 @@ class ExportStore:
         # Words matched are counted in SQL, before the limit: a limit taken
         # over "any word matched" let a day of one common name fill it and
         # push out the article that names both (review fix).
-        score = " + ".join("(title LIKE ? OR names LIKE ?)" for _ in words)
+        # CASE, not the comparison itself: SQLite adds booleans as 0/1 and
+        # Postgres does not add them at all (§243).
+        score = " + ".join("(CASE WHEN title LIKE ? OR names LIKE ? THEN 1 ELSE 0 END)"
+                           for _ in words)
         likes: list = []
         for word in words:
             likes += [f"%{word}%", f"%{word}%"]
@@ -509,9 +514,8 @@ def reset_store() -> None:
 
 
 def exists() -> bool:
-    import os
-
-    return os.path.exists(data_path("GDELT_EXPORT_DB", "gdelt_export.db"))
+    # Its file, or its schema when the stores are in Postgres (§243).
+    return store_db.has_tables(data_path("GDELT_EXPORT_DB", "gdelt_export.db"))
 
 
 def _results(rows: list) -> list:

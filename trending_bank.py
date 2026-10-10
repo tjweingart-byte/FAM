@@ -68,6 +68,8 @@ import math
 import os
 import re
 import sqlite3
+
+import db as store_db
 import threading
 import time
 from dataclasses import asdict, dataclass, field, replace
@@ -253,7 +255,7 @@ class BankStore:
                 n INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (day, provider))""")
 
     def _connect(self) -> sqlite3.Connection:
-        db = sqlite3.connect(self.path, timeout=10, isolation_level=None)
+        db = store_db.connect(self.path, timeout=10, isolation_level=None)
         db.execute("PRAGMA journal_mode=WAL")
         return db
 
@@ -371,7 +373,7 @@ class BankStore:
                 db.execute("ROLLBACK")
                 return False
             db.execute("INSERT INTO spend (day, provider, n) VALUES (?, ?, 1) "
-                       "ON CONFLICT(day, provider) DO UPDATE SET n = n + 1",
+                       "ON CONFLICT(day, provider) DO UPDATE SET n = spend.n + 1",
                        (day, provider))
             db.execute("COMMIT")
             return True

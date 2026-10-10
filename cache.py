@@ -47,6 +47,8 @@ import zlib
 from dataclasses import dataclass, field
 from datetime import datetime
 import sqlite3
+
+import db as store_db
 import threading
 import time
 from typing import Optional, Protocol
@@ -1326,7 +1328,7 @@ class SqliteScriptCache:
     def _conn(self) -> sqlite3.Connection:
         conn = getattr(self._local, "conn", None)
         if conn is None:
-            conn = sqlite3.connect(self.path, timeout=5.0, isolation_level=None)
+            conn = store_db.connect(self.path, timeout=5.0, isolation_level=None)
             # WAL lets readers proceed while another worker is writing, which
             # matters when several episodes are being generated at once.
             conn.execute("PRAGMA journal_mode=WAL")
@@ -2028,7 +2030,7 @@ class SqliteScriptCache:
                 # a hit is served only a current script.
                 "SELECT key, query, vector FROM scripts"
                 f" WHERE bucket = ? AND {_CURRENT_UNTIL} >= ? AND vector IS NOT NULL"
-                " ORDER BY created DESC LIMIT ?",
+                " ORDER BY scripts.created DESC LIMIT ?",
                 (bucket, time.time(), int(settings.cache_vector_scan)),
             ).fetchall()
         except Exception:
@@ -2190,7 +2192,7 @@ class SqliteScriptCache:
                 f"   AND origin != '{ARCHIVE_ORIGIN}'"
                 "   AND (? = '' OR author != ?)"
                 "   AND (? = '' OR origin = ?)"
-                " ORDER BY created DESC LIMIT ?",
+                " ORDER BY scripts.created DESC LIMIT ?",
                 (now, exclude_author or "", exclude_author or "",
                  origin or "", origin or "", int(limit)),
             ).fetchall()
@@ -2240,7 +2242,7 @@ class SqliteScriptCache:
                 " WHERE expires >= ? AND query != '' AND minutes > 0"
                 f"   AND origin != '{ARCHIVE_ORIGIN}'"
                 f"   AND author IN ({marks}) AND created >= ?"
-                " ORDER BY created DESC LIMIT ?",
+                " ORDER BY scripts.created DESC LIMIT ?",
                 (time.time(), *wanted, float(since), int(limit)),
             ).fetchall()
         except Exception:

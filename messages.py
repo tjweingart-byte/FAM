@@ -59,6 +59,8 @@ from __future__ import annotations
 
 import logging
 import sqlite3
+
+import db as store_db
 import threading
 import time
 from dataclasses import dataclass
@@ -245,7 +247,7 @@ class MessageStore:
     def _conn(self) -> sqlite3.Connection:
         conn = getattr(self._local, "conn", None)
         if conn is None:
-            conn = sqlite3.connect(self.path, timeout=5.0, isolation_level=None)
+            conn = store_db.connect(self.path, timeout=5.0, isolation_level=None)
             conn.execute("PRAGMA journal_mode=WAL")
             self._local.conn = conn
         return conn
@@ -493,7 +495,7 @@ class MessageStore:
             self._conn().execute(
                 "INSERT INTO reads (thread, user_id, read_at) VALUES (?, ?, ?)"
                 " ON CONFLICT (thread, user_id) DO UPDATE SET read_at = ?"
-                " WHERE read_at < ?", (tid, user_id, now, now, now))
+                " WHERE reads.read_at < ?", (tid, user_id, now, now, now))
         except Exception:
             log.exception("could not mark a thread read")
 
@@ -529,7 +531,7 @@ class MessageStore:
             self._conn().execute(
                 "INSERT INTO clears (thread, user_id, after_id) VALUES (?, ?, ?)"
                 " ON CONFLICT (thread, user_id) DO UPDATE SET"
-                " after_id = MAX(after_id, excluded.after_id)",
+                " after_id = MAX(clears.after_id, excluded.after_id)",
                 (tid, user_id, top))
             return top
         except Exception:

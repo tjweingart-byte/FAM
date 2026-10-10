@@ -40,6 +40,8 @@ import asyncio
 import json
 import logging
 import sqlite3
+
+import db as store_db
 import threading
 import time
 from contextlib import closing
@@ -179,7 +181,7 @@ class WeatherStore:
                 " fetched_at REAL DEFAULT 0, snapshot TEXT DEFAULT '')")
 
     def _connect(self) -> sqlite3.Connection:
-        return sqlite3.connect(self.path, timeout=10)
+        return store_db.connect(self.path, timeout=10)
 
     def asked(self, place: places.Place) -> None:
         with self._lock, closing(self._connect()) as db, db:

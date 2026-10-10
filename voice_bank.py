@@ -48,6 +48,8 @@ import logging
 import random
 import re
 import sqlite3
+
+import db as store_db
 import threading
 import time
 import wave
@@ -273,7 +275,7 @@ class VoiceBank:
     def _conn(self) -> sqlite3.Connection:
         conn = getattr(self._local, "conn", None)
         if conn is None:
-            conn = sqlite3.connect(self.path, timeout=5.0, isolation_level=None)
+            conn = store_db.connect(self.path, timeout=5.0, isolation_level=None)
             conn.execute("PRAGMA journal_mode=WAL")
             self._local.conn = conn
         return conn

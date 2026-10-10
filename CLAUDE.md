@@ -470,11 +470,11 @@ Operations and honesty
 - **A server says whether a redeploy erases its listeners** (`storage` in health,
   measured by `st_dev`; `_announce_storage` at boot); the data-path guard is
   derived - **a guard whose subject is enumerated by hand is decorative**. Open
-  every new store via `data_path("VAR", ...)` so the test and the Dockerfile's
-  disk list cover it. [storage-durability]
-- **Staging spends nothing and cannot be configured to** (`FAM_ENV=staging`,
-  `spend_guard.py`): paid keys removed, GDELT/Polymarket off, `FAM_SECRETS`
-  unread, no connection leaves the machine; real content only by replay. [zero-spend-staging]
+  every new store via `data_path("VAR", ...)` and `db.connect` (Postgres when
+  `DATABASE_URL` is set, §243). [storage-durability]
+- **Staging spends nothing and cannot be configured to** (`spend_guard.py`):
+  paid keys removed, GDELT/Polymarket off, `FAM_SECRETS` unread, nothing
+  leaves the machine but its own private database (§243); replay only. [zero-spend-staging]
 - **Every installed client keeps working**: `X-FAM-Client`, `releases/registry.json`
   (supported / deprecated / retired → 426), a contract per release replayed in
   CI; fix a break by keeping the old field, never by editing the contract;

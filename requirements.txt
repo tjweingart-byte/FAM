@@ -53,6 +53,12 @@ httpx>=0.27
 # pypdf sense: without it audio is kept as zlib and `/api/health` says why.
 av>=12.0
 
+# Postgres, for option B (§243, `db.py`): with DATABASE_URL set every store
+# lives in Postgres instead of a SQLite file. Imported only then, so a laptop
+# without a database never loads it. The binary wheel carries libpq: the image
+# needs no system package.
+psycopg[binary]>=3.2
+
 # Optional: PDF attachments. Everything else (docx, text, links, photos)
 # needs no extra package; without this a PDF fails with a message saying so.
 pypdf>=4.0

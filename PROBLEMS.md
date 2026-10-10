@@ -17676,3 +17676,75 @@ production voice at 24 kbps (`op-voice`). Rule `no-audio-files` updated.
 `audio_codec.py`, `pipeline.py`, `app.py`, `static/fam-audio.js`,
 `tests/test_opus_stream_242.py`, `tools/smoke_opus.py`.
 
+
+## 243. Option B: every store can live in Postgres
+
+The owner's call, after the cost analysis: "Allow the one database address
+and start option B." Every store was a SQLite file on the service's disk, and
+on Render a disk is what holds a service to one instance and makes each
+deploy a brief outage. Option B moves the stores into Postgres without
+rewriting them.
+
+**One door.** All 27 stores open through `db.connect(path)`. With no
+`DATABASE_URL` that is `sqlite3.connect(path)` and nothing has changed - the
+default, every laptop, CI's first job. With one, the store is a Postgres
+schema named from its path (`messages_<8 hex of "/data">`), one connection
+per store per thread, autocommit, and the store's own SQLite is translated as
+it runs (`db.translate`, cached per statement). No store's SQL was rewritten
+for Postgres; a handful were made portable:
+
+- `INSERT OR REPLACE` becomes an upsert on the table's primary key (or first
+  unique index); `INSERT OR IGNORE` is `ON CONFLICT DO NOTHING`.
+- `REAL` becomes `DOUBLE PRECISION` - Postgres' `REAL` is four bytes, and an
+  epoch timestamp would round by minutes. `INTEGER PRIMARY KEY` numbers itself
+  (identity), and `lastrowid` reads `lastval()`.
+- `LIKE` becomes `ILIKE` (SQLite ignores ASCII case), `COLLATE NOCASE` is
+  `lower()`, two-argument `MAX`/`MIN` are `GREATEST`/`LEAST` - found with a
+  depth count, because `cache.extend_current` nests a `CASE` inside one -
+  `instr` is `strpos`, `PRAGMA table_info` reads `information_schema`.
+- A failed statement poisons a Postgres transaction where SQLite carries on;
+  the connection rolls itself back, and reconnects if the server dropped it.
+  Errors arrive as the `sqlite3` classes the stores already catch.
+- Portable fixes in the stores: upsert `SET` clauses name their table
+  (`echoes.style`, `calls.requests`, `spend.n`), a `CASE` sums instead of a
+  boolean, and three `ORDER BY created` became `scripts.created`, because a
+  `CASE` column took the same name.
+
+**Staging may reach one address** - the owner's amendment to
+`zero-spend-staging`. libpq opens its own sockets, invisible to the Python
+network guard, so `db.connect` refuses a `DATABASE_URL` whose host is not a
+private or loopback address, and the guard allows exactly that host and port
+for anything that does go through Python. `/api/health` reports
+`environment.database_allowed` and `database`.
+
+**Found on the way.** `thumbnails` notices another process's writes with
+`PRAGMA data_version`, which Postgres has no equivalent of: a painted picture
+would never have reached a tile. On Postgres it reads the table's own clock
+(row count and newest `updated_at`). The admin question box stays off on
+Postgres: SQLite's authorizer is what keeps a typed question read-only and
+hides secrets, and Postgres has no such hook. Recipes and the dashboard - SQL
+written in code - still answer; the fix is a read-only role with column
+grants.
+
+**The copy.** `tools/sqlite_to_postgres.py` reads each store's schema from its
+own `sqlite_master`, copies it in one transaction, compares counts table by
+table and moves identities past their maximum. On a seeded deployment: 26,550
+rows across 18 stores, then the app served Explore and kept audio from
+Postgres. `POSTGRES.md` is the switch-over runbook; production is never wired
+automatically.
+
+**Tests.** The whole suite runs both ways; CI's new `postgres` job runs it
+against `postgres:16`. Tests that open a store's file with `sqlite3` (old
+schemas being widened, the per-file storage report, the question box's
+sandbox) are marked `sqlite_file` and skip there. Here: 4,076 passed on SQLite; on Postgres 16, 4,043 passed and
+32 more skipped (`sqlite_file`), nothing failing.
+
+**Not done.** More than one instance still needs the eight pieces of
+in-process state shared (the story pool, API-Sports budgets, prefetch's
+ledgers, the limiter, live captions and search progress, typing, the
+DailyFAM guard, the background jobs). myFAM still asks one query per tile,
+which costs ~0.3-1 ms each over a network instead of ~0.05 ms; batch it before
+real traffic. Rules `storage-durability` and `zero-spend-staging` updated.
+
+`db.py`, `spend_guard.py`, the 27 stores, `admin_tracker.py`, `thumbnails.py`,
+`tools/sqlite_to_postgres.py`, `POSTGRES.md`, `tests/test_database_243.py`.

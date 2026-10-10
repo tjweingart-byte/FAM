@@ -1634,6 +1634,13 @@
   `python tools/voice_doctor.py` against the running deployment is what turns
   that from careful into known.
 <!-- rule:storage-durability -->
+> **Current (PROBLEMS.md §243):** every store opens through
+> `db.connect(path)`, never `sqlite3.connect` - SQLite exactly as before with
+> no `DATABASE_URL`, and a schema per store in Postgres with one. The path
+> still comes from `data_path`, and names the schema (`db.schema_for`). With
+> Postgres every store reports `persistence: "database"` and the boot-time
+> warning about an image-local store is not raised.
+
 - **A running server says whether a redeploy will erase its listeners.**
   *(§107.)* Every database is pinned to the mounted disk in the `Dockerfile`,
   and that list has now been incomplete twice - the second time it was
@@ -1704,6 +1711,18 @@
   a pool of keys is failover and not headroom, and the real ceiling on
   concurrency is the GPU, not the credential.
 <!-- rule:zero-spend-staging -->
+> **Current (PROBLEMS.md §243, at the owner's direction):** one exception -
+> **staging's own database**. Option B moves the stores to Postgres, and
+> staging has to test the database production runs, so the single address in
+> `DATABASE_URL` is allowed: only when it resolves to a private or loopback
+> address (Render's private network), and nothing else is. libpq opens its
+> own sockets, which the network guard cannot see, so `db.connect` enforces
+> the rule where the connection is made (`db.check_staging_address`) and the
+> guard allows exactly that host and port for anything that goes through
+> Python's sockets (`spend_guard._DATABASE`). `/api/health` says whether the
+> exception is in force, never the address. The staging database is a cost
+> the owner accepted; it buys nothing from any provider.
+
 - **Staging spends nothing, and cannot be configured to** *(§172, at the
   owner's direction).* `FAM_ENV=staging` turns on `spend_guard.py` and no
   other variable turns it off. Every paid credential is removed before

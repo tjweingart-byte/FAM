@@ -37,6 +37,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from anthropic_client import build_async_client, describe_http_version, http2_enabled
 import audio_codec as audio_codec_mod
+import db as db_mod
 import audio_store as audio_store_mod
 import cache as cache_mod
 from cache import (MemoryScriptCache, SqliteScriptCache, build_cache, cache_key,
@@ -992,6 +993,14 @@ def _database_report() -> list[dict]:
             # Whether this machine was told where to put it, or worked it out.
             "configured": bool(os.environ.get(env_var, "").strip()),
         }
+        if path and db_mod.enabled():
+            # §243: the store is a schema in Postgres, which a redeploy does
+            # not touch; the path only names the schema.
+            entry["readable"] = entry["writable"] = True
+            entry["persistence"] = "database"
+            entry["schema"] = db_mod.schema_for(path)
+            report.append(entry)
+            continue
         if not path:
             entry["readable"] = True  # the memory backend has no file to open
             entry["writable"] = True
@@ -1047,6 +1056,10 @@ def _storage_summary(databases: list[dict]) -> dict:
     """
     at_risk = [d["name"] for d in databases if d.get("persistence") == "image"]
     unknown = [d["name"] for d in databases if d.get("persistence") == "unknown"]
+    if databases and all(d.get("persistence") == "database" for d in databases):
+        return {"durable": [d["name"] for d in databases], "ephemeral": [],
+                "unknown": [], "note": "Every store is in Postgres (DATABASE_URL, "
+                "§243), which a redeploy does not touch."}
     if not at_risk and not unknown:
         note = "Every database is on a volume separate from the code, so a redeploy keeps them."
     elif at_risk:
@@ -1779,6 +1792,9 @@ async def health(request: Request) -> dict:
         # redeploy keep the accounts people made? Measured from where the
         # files are, not from what was configured - see `_persistence_of`.
         "storage": _storage_summary(_databases),
+        # §243: where the stores live - SQLite files, or Postgres when
+        # DATABASE_URL is set (never the address).
+        "database": db_mod.report(),
         # Settable in the dashboard and in the environment, so said here
         # (WAITLIST.md): whether the app is closed to all but active accounts,
         # and whether the vendor is being told.
