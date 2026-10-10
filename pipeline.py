@@ -26,7 +26,8 @@ import time
 
 from audio_utils import PaceController, pcm_duration, silence, streaming_wav_header
 import prefetch
-from cache import (ScriptCache, build_cache, cache_key, canonical_key, episode_id,
+from cache import (ARCHIVE_ORIGIN, ScriptCache, archive_key, build_cache, cache_key,
+                   canonical_key, episode_id,
                    is_shareable, parse_episode_id,
                    key_bucket, ttl_for)
 import metering
@@ -1554,7 +1555,22 @@ class PodcastPipeline:
                 import voice_bank
 
                 extra["voice"] = voice_bank.slug_of(self._audio_voice())
-            self.cache.put(key, stats.script, ttl, plan.query, stats.thread,
+            # An episode with little to go on (§240) is kept for the one
+            # listener who heard it - their history replays it by its
+            # episode id - and for nobody else: it goes straight to the
+            # archive slot that id resolves to, which is never current,
+            # never near-matched and never on Explore, a rail or the
+            # catalogue. The shared key stays free, so the next listener to
+            # ask gets a fresh search rather than this one.
+            write_key = key
+            if getattr(notes, "limited", False):
+                write_key = archive_key(key, stats.sourced_stamp)
+                ttl, bucket = 0, ""
+                extra.pop("slide", None)
+                extra["origin"] = ARCHIVE_ORIGIN
+                log.info("limited material for %r: kept for its listener's "
+                         "history only, never shared", plan.query)
+            self.cache.put(write_key, stats.script, ttl, plan.query, stats.thread,
                            plan.minutes, bucket, sources, self.author,
                            stats.title, **extra)
             # What each categoriser said about it (§209), for the audit.
@@ -1562,12 +1578,15 @@ class PodcastPipeline:
 
             category_audit.note(plan.query, getattr(notes, "category", ""),
                                 self.origin or "tap")
-            # The listen that wrote it is its first play (§134).
-            self._count_play(key)
+            # The listen that wrote it is its first play (§134) - unless
+            # it is kept for its listener alone, when there is nothing for
+            # a play count to rank.
+            if write_key == key:
+                self._count_play(key)
             # The audio goes beside it once the tail pad is out, and only
             # when the script itself was kept - audio with no script row
             # would be an episode nothing can find or expire.
-            stats.audio_key = key
+            stats.audio_key = write_key
             log.info("cached %d sentences for %r (current for %ds, kept %ds)",
                      len(stats.script), plan.query, ttl,
                      settings.cache_life_seconds)

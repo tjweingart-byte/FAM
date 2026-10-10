@@ -1035,6 +1035,32 @@ def _persistence_of(target: str, code_device) -> str:
         return "unknown"
 
 
+def _memory_report() -> dict:
+    """Resident memory now and at its peak, in MB, read from the kernel.
+
+    `/proc/self/status` (Linux, which is every deployment) gives both; else
+    `resource` gives the peak alone. `None` for what cannot be read - never a
+    0 that looks like a measurement."""
+    now = peak = None
+    try:
+        with open("/proc/self/status", encoding="ascii") as fh:
+            for line in fh:
+                if line.startswith(("VmRSS:", "VmHWM:")):
+                    mb = round(int(line.split()[1]) / 1024, 1)
+                    if line.startswith("VmRSS:"):
+                        now = mb
+                    else:
+                        peak = mb
+    except OSError:
+        try:
+            import resource
+
+            peak = round(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024, 1)
+        except Exception:  # noqa: BLE001 - a health field never breaks health
+            pass
+    return {"rss_mb": now, "peak_mb": peak}
+
+
 def _storage_summary(databases: list[dict]) -> dict:
     """One sentence's worth of "will a redeploy erase this".
 
@@ -1749,6 +1775,10 @@ async def health(request: Request) -> dict:
         # redeploy keep the accounts people made? Measured from where the
         # files are, not from what was configured - see `_persistence_of`.
         "storage": _storage_summary(_databases),
+        # How much memory this process holds now and has ever held (§240):
+        # Render restarts a service over its plan's limit, and without these
+        # a restart cannot be told from a leak, a spike or a plan too small.
+        "memory": _memory_report(),
         # Settable in the dashboard and in the environment, so said here
         # (WAITLIST.md): whether the app is closed to all but active accounts,
         # and whether the vendor is being told.

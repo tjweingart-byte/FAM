@@ -17484,3 +17484,59 @@ server decodes. The owner's decision: keep Opus for storage. The format sent
 to clients, if compressed audio is ever streamed to them, is decided with the
 iOS audio path, where native playback matters (AAC is the alternative to
 weigh against Opus there, not MP3).
+
+## 240. An episode with little to go on now says so, and is kept to itself
+
+The owner's direction (10.10): "It is preferred for us to be honest with
+customers versus trying to make up information." An episode titled along the
+lines of *No Company Called General Atomics* sat on the DailyFAM rails for
+days. General Atomics is real; the search found little, the writer reached for
+a connection to fill its minutes, and then concluded from absence that the
+company did not exist - the §88 failure (a fact about one search turned into a
+claim about the world), on a whole subject rather than one part of it. And
+because it was cached under the shared key like any other episode, every later
+listener and every rail could be handed it.
+
+What changed:
+
+* **Decided in code first** (`script_generator.limited_material`): no
+  evidence at all, or none of what the brief's `must_establish` asked for.
+  Deliberately narrow, because `research.packet_covers` is a coarse word test.
+  Never an attachment, a local question (§194 has its own sentence) or a
+  question a live provider answered. `EpisodePlan.limited` and
+  `ScriptNotes.limited` carry it; it is not in `key_for`.
+* **Then by the writer**: the system prompt's new "When there is not much to
+  go on" says honest beats full - everything it can stand behind about their
+  subject, no neighbouring topic to fill time, then one plain sentence that
+  this is all it could find, after the material. A packet that looked full
+  and turned out to be about something else is the writer's call, marked by a
+  trailing `<<LIMITED>>` line (stripped like TITLE). Beside it, for every
+  episode: never conclude that something does not exist because little was
+  found. The §88 thin-on block points a mostly-missing subject at the new
+  section. Unheard, like every prompt change here (`no-api-key`): run
+  `python write.py "general atomics" --minutes 2` first.
+* **Never shared**: the pipeline writes a limited episode straight to
+  `archive_key(key, sourced)` with `ARCHIVE_ORIGIN` - never current, no
+  bucket, no play counted - so `resolve_episode` still replays it from its
+  listener's history (§173) and nothing else finds it; the shared key stays
+  free for a fresh search. The Trending bank records `limited` and
+  `stories_now` leaves the story off the rail; DailyFAM editions and prefetch
+  write nothing.
+* **Already cached**: rows written before this carry no flag. The way to take
+  one down is the one that exists - Report it in the app, then remove it from
+  `/admin`, which hides it for everybody (`moderation.hide_episode`).
+
+Also in this change: `/api/health` reports `memory` (`rss_mb`, `peak_mb`, from
+`/proc/self/status`). Render restarted production for exceeding the starter
+plan's 512 MB, and nothing could say why. The last measurement (§131) was
+about 89 MB at boot and 313 MB peak with the embedding model, before PyAV
+(§237); a live episode also holds its whole PCM in memory until it is kept.
+
+And light mode (owner's request): Settings → Appearance → Light mode, kept on
+the device under `fam.theme` (not `fam.prefs`, which logging out forgets) and
+set on `<html data-theme="light">` by a script at the top of `<body>` before
+the first paint. The chrome's colours are variables, with `--fg-rgb` and
+`--bg-rgb` for tints and fades; the Explore reel, stories, the VIBE! editor and
+the captions panel stay dark in both themes, deliberately, like a photo
+viewer.
+

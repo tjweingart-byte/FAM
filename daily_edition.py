@@ -498,6 +498,12 @@ def _finish(pending: "_Pending", sentences: list, cache, length: int,
                           outcome_dependent=notes.outcome_dependent,
                           recency_days=notes.recency_days),
                   int(current_until - now), 60)
+    if getattr(notes, "limited", False):
+        # §240: an edition episode is everybody's, and one with too little
+        # to go on is nobody's. Not written; a tap writes its own, which is
+        # then kept for that listener alone if it is still thin.
+        return {"status": "limited", "key": "", "dollars": dollars, "ei": ei,
+                "detail": "too little reporting to make an episode of"}
     sources = notes.provenance.to_json() if notes.provenance is not None else ""
     extra = {"summary": notes.summary} if notes.summary else {}
     if notes.sourced_at:
@@ -828,6 +834,7 @@ def _summarise(episodes: dict) -> dict:
         "volatile": statuses.count("volatile"),
         "cached": statuses.count("cached"),
         "no_evidence": statuses.count("no_evidence"),
+        "limited": statuses.count("limited"),
         "failed": statuses.count("failed"),
         # How many of the episodes written were built on a real brief. A
         # number below `written` is EI falling back, and this is where it
