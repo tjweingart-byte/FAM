@@ -82,7 +82,7 @@ KEEP_SECONDS = 900.0
 
 class _Track:
     __slots__ = ("sentences", "starts", "sources", "title", "title_final",
-                 "done", "touched", "marks", "cached")
+                 "category", "done", "touched", "marks", "cached")
 
     def __init__(self) -> None:
         self.sentences: list[str] = []
@@ -98,6 +98,10 @@ class _Track:
         #: replaces it when the script finishes, and `title_final` says which.
         self.title: str = ""
         self.title_final: bool = False
+        #: What kind of thing the episode is about, in the brief's words
+        #: (`Brief.category`), before the first word: the player's picture
+        #: is chosen from it until the writer's own category is cached.
+        self.category: str = ""
         #: Provenance JSON for this episode, as soon as it is known.
         #:
         #: Here rather than in a module of its own because it is the same fact
@@ -149,6 +153,8 @@ def open_track(key: str) -> None:
         track = _TRACKS[key] = _Track()
         if old is not None and old.title and not old.done:
             track.title, track.title_final = old.title, old.title_final
+        if old is not None and old.category and not old.done:
+            track.category = old.category
         _evict()
 
 
@@ -217,6 +223,33 @@ def publish_title(key: str, title: str, final: bool = False) -> None:
         track.title = str(title).strip()
         track.title_final = bool(final)
         track.touched = time.time()
+
+
+def publish_category(key: str, words: str) -> None:
+    """Record what kind of thing this episode is about, from its brief.
+
+    Like a provisional title: never opens a track, and is only a guess the
+    written episode's own category overrides (`app._episode_category` is
+    asked first). Never raises."""
+    words = " ".join(str(words or "").split())[:80]
+    if not key or not words:
+        return
+    with _LOCK:
+        track = _TRACKS.get(key)
+        if track is None:
+            return
+        track.category = words
+        track.touched = time.time()
+
+
+def read_category(key: str) -> str:
+    """The brief's category words for an episode in flight, or ""."""
+    if not key:
+        return ""
+    with _LOCK:
+        _expire()
+        track = _TRACKS.get(key)
+        return track.category if track is not None else ""
 
 
 def read_title(key: str) -> tuple[str, bool]:

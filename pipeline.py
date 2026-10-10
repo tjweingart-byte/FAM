@@ -1513,6 +1513,10 @@ class PodcastPipeline:
         # live track as well as in the cache - an episode that is not cached
         # (a live game, ttl 0) would otherwise keep the guess for good.
         live_captions.publish_title(stats.caption_key, notes.title, final=True)
+        # And the writer's category replaces the brief's, on the same terms:
+        # the player's picture follows it (`/api/episode/card`).
+        if getattr(notes, "category", ""):
+            live_captions.publish_category(stats.caption_key, notes.category)
 
         writes = bool(self.cache and self.cache_writes and shareable
                       and stats.script)

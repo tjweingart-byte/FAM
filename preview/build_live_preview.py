@@ -1538,6 +1538,10 @@ __WRITING_SIM__
         fbEp = {
           query: String(body.episode.q), minutes: body.episode.minutes || 0,
           title: body.episode.title || (FIXTURES["/api/next"] || {}).title || "",
+          // The picture the player showed (10.10 #3): this page's own line
+          // art, or one of the server's thumbnails - nothing else is kept.
+          thumb: /^(data:image\/|\/api\/thumb\/)/.test(String(body.episode.thumb || ""))
+            ? String(body.episode.thumb) : "",
           sources: (src.items || []).map(function (x) {
             return { label: x.label || "", title: x.title || "", at: x.at || "",
                      tier: x.tier || "", kind: x.kind || "", url: x.url || "" };
@@ -2448,6 +2452,7 @@ __WRITING_SIM__
           (open && COLTAB === "feedback"
             ? '<tr class="fd-doc"><td colspan="' + fields.length + '"><button class="fd-btn" data-fb="' +
               esc(r.id) + '">' + (r.resolved_at ? "Reopen" : "Resolve") + '</button>' +
+              (r.episode && r.episode.thumb ? ' <img class="fd-thumb" src="' + esc(r.episode.thumb) + '" alt="">' : '') +
               (r.episode ? ' <button class="fd-btn" data-fbep="' + esc(r.id) + '">' +
                            (EPOPEN[r.id] ? "Hide episode" : "Episode") + '</button>' : '') +
               (r.episode && EPOPEN[r.id] ? feedbackEpisode(r.episode) : '') +
@@ -2871,6 +2876,8 @@ STAGE = """
                    padding: 6px 11px; font-size: 12px; color: #a79eba; cursor: pointer;
                    font-family: inherit; }
   #famDb .fd-btn:hover { color: #f1eef7; border-color: #8a6a22; }
+  #famDb .fd-thumb { width: 64px; aspect-ratio: 4/3; object-fit: cover; border-radius: 5px;
+    border: 1px solid #3a3348; vertical-align: middle; background: #262233; }
   #famDb .fd-ep { margin-top: 9px; color: #dcd6e8; font-size: 10.5px; line-height: 1.45; }
   #famDb .fd-ep-h { margin: 8px 0 3px; color: #7c7391; font-size: 9.5px;
     letter-spacing: .05em; text-transform: uppercase; }

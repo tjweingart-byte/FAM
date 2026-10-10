@@ -44,6 +44,7 @@ from __future__ import annotations
 
 import asyncio
 import dataclasses
+import difflib
 import json
 import logging
 import re
@@ -266,6 +267,13 @@ class Brief:
     #: degraded brief, and the player then keeps the title derived from the
     #: question - which is what it showed before this existed (§127).
     title: str = ""
+    #: What kind of thing the episode is about, in two to four words ("drone
+    #: makers", "heavyweight boxing") - the writer's `<<CATEGORY:>>`, decided
+    #: before the first word. The player's picture is chosen from it while the
+    #: episode is still being written (`live_captions.publish_category`);
+    #: the writer's own replaces it once the script is cached (§209). Empty
+    #: on a degraded brief.
+    category: str = ""
     #: The key of the named broadcast slot the request names
     #: (`named_slots.SLOTS`), set in code and never by the model: "Sunday
     #: Night Football" is one game, and a scoreboard picks it by kick-off.
@@ -456,7 +464,35 @@ def _shares_subject(asked: set, searching: set) -> bool:
             shorter, longer = (a, b) if len(a) <= len(b) else (b, a)
             if len(shorter) >= 3 and longer.startswith(shorter):
                 return True
+            if _respelled(a, b):
+                return True
     return False
+
+
+#: How alike two words must be (`difflib` ratio) for one to be the other
+#: respelled. 0.8 takes "automics"/"atomics" (0.93), "ohtanni"/"ohtani"
+#: (0.92) and "nvidea"/"nvidia" (0.83), and leaves "eagles"/"giants" (0.33)
+#: apart; "apple"/"ample" (0.8) is under `RESPELL_MIN_LETTERS`. Loose, like
+#: the prefix test it sits beside: a false "shares" costs nothing here.
+RESPELL_RATIO = 0.8
+RESPELL_MIN_LETTERS = 6
+
+
+def _respelled(a: str, b: str) -> bool:
+    """Is one of these the other with its spelling corrected?
+
+    EI is told to search for the real name, never the typo ("general automics"
+    is General Atomics), and a corrected spelling shares no prefix with what
+    was typed - so without this the drift check below reverted exactly the
+    correction it was asked for, and the search went out for the typo.
+    Six letters or more on the longer side, and the same first or last
+    letter: short words are a letter apart from too many others for
+    nearness to mean anything.
+    """
+    if (max(len(a), len(b)) < RESPELL_MIN_LETTERS
+            or (a[:1] != b[:1] and a[-1:] != b[-1:])):
+        return False
+    return difflib.SequenceMatcher(None, a, b).ratio() >= RESPELL_RATIO
 
 
 def gate(brief: Brief, query: str) -> Brief:
@@ -648,6 +684,13 @@ BRIEF_SCHEMA = {
         # first frame. It names a subject and an angle and never a result, for
         # the same reason nothing else here may: nothing has been looked up.
         "title": {"type": "string"},
+        # **What kind of thing this is, decided before the first word.** The
+        # writer's `<<CATEGORY:>>` arrives with its last token, after a
+        # searched episode has been playing for a minute over a picture
+        # matched off the typed words - which on a misspelled or oblique
+        # question is the wrong one. Two to four words, placed on the tree in
+        # code (`stories.resolve_category`), never trusted as a node id.
+        "category": {"type": "string"},
         # **How to say the hard names, decided while the subject is being
         # resolved** (§165). The voice reads English spelling and has no
         # lexicon, so "Sagapolutele" is a guess unless somebody respells it.
@@ -668,7 +711,8 @@ BRIEF_SCHEMA = {
     "required": ["intent", "subject", "why_now", "why_now_confidence",
                  "search_query", "search_fallback", "must_establish",
                  "recency_days", "structure", "cautions", "live_domain",
-                 "outcome_dependent", "place", "title", "pronounce"],
+                 "outcome_dependent", "place", "title", "category",
+                 "pronounce"],
     "additionalProperties": False,
 }
 
@@ -724,7 +768,17 @@ or segment. When a request uses a name like that, resolve the subject to the \
 single thing it names, put the name itself in the search query verbatim (it is \
 what reports of it are headlined with), and never widen it to the category - \
 a recap of Sunday Night Football is never a recap of whichever game that \
-Sunday was reported most."""
+Sunday was reported most.
+
+**Requests are typed fast on a phone, and names are misspelled.** A word that \
+is nearly the name of something real is that thing: "general automics" is \
+General Atomics, "ohtanni" is Shohei Ohtani, "nvidea" is Nvidia. Resolve the \
+subject to the real name, spelled the way its owner spells it, and search \
+for the real name - never for the typo, which no report was written under. \
+The misspelling is never a different, unknown entity, never something to \
+investigate, and never worth mentioning: nobody wants to hear that no \
+company called "General Automics" exists. Only where two real things are \
+equally near do you keep the listener's spelling and say so in cautions."""
 
 
 def build_ei_prompt(query: str, minutes: int, context: str = "",
@@ -764,7 +818,8 @@ Work out:
 
 - **intent** - what job is being asked for.
 - **subject** - the entity or event, resolved and unambiguous. Expand what is
-  abbreviated or implied so that retrieval and writing agree on what this is
+  abbreviated or implied, and correct what is misspelled ("general automics"
+  is General Atomics), so that retrieval and writing agree on what this is
   about. Keep the listener's own sense of it; do not substitute a different
   subject that happens to be more newsworthy.
 - **why_now** - what recent development plausibly put this in their head today,
@@ -825,6 +880,11 @@ Work out:
   looked anything up. **Spelled correctly** even when the request is not -
   "elecion" is the election, and a misspelled name is spelled the way its
   owner spells it.
+- **category** - what kind of thing the subject is, in two to four words,
+  its most specific kind: "drone makers", "heavyweight boxing", "Federal
+  Reserve policy" - never just "news", "business" or "sport". It chooses the
+  picture the episode plays over, so name the kind of thing the episode is
+  about, not the kind of question asked.
 - **pronounce** - the names in the request or in your resolved subject that a
   voice reading English spelling would probably say wrong: people, places,
   teams, companies whose spelling does not tell an English reader how to say
@@ -929,6 +989,7 @@ async def understand(query: str, minutes: int = DEFAULT_MINUTES, context: str = 
         outcome_dependent=bool(data.get("outcome_dependent", False)),
         place=" ".join(str(data.get("place", "") or "").split())[:120],
         title=clean_title(str(data.get("title", "")), query),
+        category=" ".join(str(data.get("category", "") or "").split())[:80],
         pronounce=_pronounce_pairs(data.get("pronounce")),
     )
     brief = gate(brief, query)

@@ -17956,3 +17956,71 @@ with them. How to use FAM, Better together, the founders and the closing
 call are unchanged. `test_the_landing_page_tells_why_fam_exists` pins the
 doctrine's order and words and that the old telling is gone.
 `docs/claude/product.md` notes the doctrine at `social-information`.
+
+## 247. A misspelled search, a searched episode's picture, and the picture on a feedback report
+
+The owner's 10.10 packet, three items.
+
+**1. "general automics".** The owner searched General Atomics misspelled and
+heard an episode about there being no company called "General Automics" -
+the same failure §245 is about, arrived at from the other end. Three layers
+let it through:
+
+* *The speller* (`autocorrect.py`) is cautious on purpose and stays so:
+  "atomics" is a 50-count word, under `MIN_FREQUENCY`, so it is never offered.
+  Measured while here, it also took "supr" to "spur" - a swap is taken
+  outright, and "spur" is a swap while "super" (25 times as common) is a
+  letter short. A swap now yields when another candidate is
+  `SWAP_OUTWEIGHED` (10) times as common. Go Deeper's typed box and What's
+  next's search box had every correction off (`autocorrect="off"`, no
+  `data-autocorrect`) and were never corrected at send; both now are, through
+  the search box's `acCorrectQuestion`, and a typed follow-up is `own`.
+* *EI* had no instruction about misspellings at all - only "keep the
+  listener's own sense of it" - so a typo'd name could come back as the
+  subject. `EI_SYSTEM` now says a word nearly the name of something real is
+  that thing, to search the real name and never the typo, and never to treat
+  the misspelling as an unknown entity; the `subject` bullet says to correct
+  what is misspelled. And **the gate reverted the correction when it was
+  made**: its drift check wants one shared content word by prefix, and a
+  corrected spelling shares none with the typo ("ohtanni" -> "Shohei Ohtani
+  home run record" was thrown away and the typo searched). `_respelled`
+  (difflib ratio >= 0.8, six letters or more, same first or last letter) now
+  counts as sharing. "general automics" happened to survive the gate on
+  "general"; a one-word typo did not.
+* *The writer* is told, beside the request, that it may be misspelled, that a
+  near-name is the real thing, and never to say nothing spelled that way
+  exists or mention the spelling.
+
+Unheard (`no-api-key`): `python write.py "general automics" --minutes 2`,
+and `--no-ei` beside it, is the check.
+
+**2. A searched episode's picture did not match it.** The player asked
+`/api/episode/card` once as it opened, with only the typed words - no
+category exists then - and asked again on a title landing **only if** that
+first answer was borrowed. So a word match on the question (a misspelled or
+oblique one especially) was kept for the whole episode, and the writer's
+`<<CATEGORY:>>`, which arrives with its last token, never reached a search's
+player. Now:
+
+* EI's brief carries `category` (two to four words, the writer's kind of
+  answer), decided before the first word for a handful of output tokens.
+  `_publish_title` puts it on the live track beside the provisional title
+  (`live_captions.publish_category`, never opening a track); the writer's
+  own replaces it there when the script finishes, and the cache has it once
+  kept.
+* `/api/episode/card` resolves the written category first, else the track's
+  (`app._playing_category`, through `stories.resolve_category(near=True)`),
+  takes `context` so a Go Deeper follow-up finds its own key, and says
+  `placed` when the picture came from the category.
+* The player asks again on every title landing (the brief's, then the
+  writer's) and lets a placed answer replace a word match; never the picture
+  of the tile that opened it (§209's "never a different picture from the
+  card"), and a word match never replaces a placed one.
+
+**3. Instant feedback keeps the picture.** The page sends the player's
+picture with the episode; the report keeps it only when it is FAM's own
+thumbnail route (`feedback.thumb_path`, the inbox draws it and must not load
+an address a report names), else the server picks what the player would
+have drawn (`app._player_picture`, shared with the card). `/admin`'s inbox
+shows it beside the report and above the episode; the preview's panel keeps
+its own line art the same way.

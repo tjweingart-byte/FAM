@@ -4327,8 +4327,8 @@
                the lead tile never starts under somebody's typing. -->
           <form class="nextup-search" id="nextUpSearch" onsubmit="submitNextUpSearch(event)">
             <input class="nextup-search-input" id="nextUpSearchInput" type="search"
-                   enterkeyhint="search" autocomplete="off" autocorrect="off"
-                   autocapitalize="off" spellcheck="false" aria-label="Search"
+                   enterkeyhint="search" autocomplete="off" autocorrect="on"
+                   autocapitalize="sentences" spellcheck="true" data-autocorrect aria-label="Search"
                    placeholder="Search for anything"
                    onfocus="pauseNextUp()" oninput="pauseNextUp()" onpointerdown="pauseNextUp()">
             <button class="nextup-search-go" type="submit" aria-label="Search">
@@ -4386,7 +4386,7 @@
           <div class="modal-title">Go deeper</div>
           <div class="gc-label" style="margin-bottom:8px;">Ask a follow-up, or steer where this goes next</div>
           <button class="deeper-chip" id="goDeeperSuggestion" style="display:none;" onclick="useThreadSuggestion()"></button>
-          <input class="modal-input" id="goDeeperInput" type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Or type your own follow-up">
+          <input class="modal-input" id="goDeeperInput" type="text" autocomplete="off" autocorrect="on" autocapitalize="sentences" spellcheck="true" data-autocorrect placeholder="Or type your own follow-up">
           <!-- How long the follow-up runs. Chosen here rather than inherited
                from the search length, because a follow-up is asked from every
                surface and only search has a length control of its own. The
@@ -5077,7 +5077,9 @@
         var q = parts.slice(0, Math.max(1, parts.length - 2)).join("|");
         out.episode = { q: q.slice(0, 500),
                         minutes: Number(parts[parts.length - 2]) || 0,
-                        context: (parts.length > 2 ? parts[parts.length - 1] : "").slice(0, 300) };
+                        context: (parts.length > 2 ? parts[parts.length - 1] : "").slice(0, 300),
+                        // The picture the player is showing (10.10 #3).
+                        thumb: (typeof PLAYER_CARD !== "undefined" && PLAYER_CARD.thumb) || "" };
       }
       return out;
     }
@@ -5086,7 +5088,7 @@
       var c = context();
       document.getElementById("feedbackCtx").textContent =
         "Sent with: screen " + (c.screen || "unknown") + " \u00b7 " + c.build + " \u00b7 " + c.viewport
-        + (c.episode ? " \u00b7 this episode's title, sources and transcript" : "");
+        + (c.episode ? " \u00b7 this episode's title, picture, sources and transcript" : "");
       err.hidden = true;
       overlay.hidden = false;
       text.focus();
@@ -7497,7 +7499,15 @@
   // leave a searched episode over an empty screen. A borrowed one
   // (`fallback`) is asked for again once the writer's title lands, since
   // the title names the subject better than the question did.
-  var PLAYER_CARD = { key: "", thumb: "", searcher: "", borrowed: false };
+  //
+  // **A searched episode's picture follows what it is about** (10.10 #2):
+  // the brief names its category before the first word and the writer's
+  // replaces it, and each title landing asks again. An answer the server
+  // drew from the episode's own category (`placed`) replaces anything but
+  // the picture of the tile that opened it; a word match never replaces a
+  // placed one.
+  var PLAYER_CARD = { key: "", thumb: "", searcher: "", borrowed: false,
+                      placed: false, fromTile: false, asked: "" };
 
   function drawPlayerPicture(url){
     var bg = document.getElementById("playerBg");
@@ -7516,6 +7526,8 @@
     if(PLAYER_CARD.minutes) heard += "&minutes=" + PLAYER_CARD.minutes;
     var ep = PLAYER_CARD.episode || (streaming ? FamAudio.episode() : "");
     if(ep) heard += "&episode=" + encodeURIComponent(ep);
+    // A follow-up's key carries what it follows, as `/api/next`'s does.
+    if(PLAYER_CARD.context) heard += "&context=" + encodeURIComponent(PLAYER_CARD.context);
     fetch("/api/episode/card?q=" + encodeURIComponent(q)
           + "&title=" + encodeURIComponent(title || "") + heard)
       .then(function(r){ return r.ok ? r.json() : null; })
@@ -7523,8 +7535,12 @@
         // The episode may have changed while this was asked.
         if(!d || PLAYER_CARD.key !== key) return;
         PLAYER_CARD.searcher = d.searcher || PLAYER_CARD.searcher;
-        if(d.thumb && (!PLAYER_CARD.thumb || PLAYER_CARD.borrowed)){
+        var may = d.placed ? !PLAYER_CARD.fromTile
+                           : (!PLAYER_CARD.thumb
+                              || (PLAYER_CARD.borrowed && !PLAYER_CARD.placed));
+        if(d.thumb && may){
           PLAYER_CARD.borrowed = !!d.fallback;
+          PLAYER_CARD.placed = PLAYER_CARD.placed || !!d.placed;
           if(d.thumb !== PLAYER_CARD.thumb){
             PLAYER_CARD.thumb = d.thumb;
             drawPlayerPicture(d.thumb);
@@ -7535,18 +7551,23 @@
   }
   function loadPlayerCard(key, t, minutes){
     PLAYER_CARD = { key: key, thumb: t.thumb || "", searcher: "", borrowed: false,
-                    minutes: minutes || 0, episode: t.episode || "" };
+                    placed: false, fromTile: !!t.thumb, asked: "",
+                    minutes: minutes || 0, episode: t.episode || "",
+                    context: t.parentTopic || "" };
     drawPlayerPicture(PLAYER_CARD.thumb);
     var q = t.prompt || t.title || "";
     if(!q) return;
     askPlayerCard(key, q, t.title || "");
   }
-  // The writer's title has landed: a borrowed picture may now have its own.
+  // A title has landed - the brief's, then the writer's - and with it the
+  // episode's category: its picture may now be its own.
   function refreshPlayerCard(title){
     var key = currentPlayingTopicKey;
     var t = key ? TOPICS[key] : null;
-    if(!t || PLAYER_CARD.key !== key) return;
-    if(PLAYER_CARD.thumb && !PLAYER_CARD.borrowed) return;
+    if(!t || PLAYER_CARD.key !== key || PLAYER_CARD.fromTile) return;
+    // Once placed, asked again only for a new title (the writer's).
+    if(PLAYER_CARD.placed && PLAYER_CARD.asked === title) return;
+    PLAYER_CARD.asked = title;
     askPlayerCard(key, t.prompt || t.title || title, title, true);
   }
 
@@ -9383,19 +9404,28 @@
     // follow-up replaces it, so its bar stops counting here.
     if(goDeeperContext === "explore"){ stopReelProgress(); setReelPlaying(false); }
     closeGoDeeper();
-    startFollowUp(val, baseKey, goDeeperMinutes);
+    // A typed follow-up is a search, corrected whole at send as the search
+    // box's is (`acCorrectQuestion`); FAM's own suggestion is sent as written.
+    var minutes = goDeeperMinutes;
+    if(val === (goDeeperSuggestionText() || "").trim()){
+      startFollowUp(val, baseKey, minutes);
+      return;
+    }
+    var fixed = acCorrectQuestion(val);
+    if(!fixed.then){ startFollowUp(fixed.query, baseKey, minutes, true); return; }
+    fixed.then(function(r){ startFollowUp(r.query, baseKey, minutes, true); });
   }
   // A follow-up on the episode under `baseKey`: what Go Deeper plays, and
   // what What's next plays from its lead tile and its search box, so the
   // episode on offer there is the one Go Deeper would have made (9.30 #2).
-  function startFollowUp(val, baseKey, minutes){
+  function startFollowUp(val, baseKey, minutes, typed){
     recordFamEvent("search", "", val);
     var baseTitle = baseKey && TOPICS[baseKey] ? TOPICS[baseKey].title : "this";
     var newKey = "deeper_" + Date.now();
     TOPICS[newKey] = {
       // The listener's own words, unless they kept FAM's suggestion as it
       // was: the server holds `own` to the AI answer (consent.py, §226).
-      own: val !== (goDeeperSuggestionText() || "").trim(),
+      own: !!typed || val !== (goDeeperSuggestionText() || "").trim(),
       title: deriveTitleFromPrompt(val),
       source: "Following up on " + baseTitle,
       caption: "Picking up where that left off — " + val + "—",
@@ -20237,9 +20267,13 @@
     var val = input.value.trim();
     if(!val){ pauseNextUp(); input.focus(); return; }
     var baseKey = getGoDeeperBaseKey(nextUpContext());
+    var minutes = currentPlayMinutes;
     closeNextUp();
     input.blur();
-    startFollowUp(val, baseKey, currentPlayMinutes);
+    // Corrected whole at send, as every search box is (`acCorrectQuestion`).
+    var fixed = acCorrectQuestion(val);
+    if(!fixed.then){ startFollowUp(fixed.query, baseKey, minutes, true); return; }
+    fixed.then(function(r){ startFollowUp(r.query, baseKey, minutes, true); });
   }
 
   function closeNextUp(){
