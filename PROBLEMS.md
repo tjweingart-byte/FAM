@@ -17485,7 +17485,6 @@ to clients, if compressed audio is ever streamed to them, is decided with the
 iOS audio path, where native playback matters (AAC is the alternative to
 weigh against Opus there, not MP3).
 
-
 ## 240. A thousand listeners: the load test gets a verdict, the poll, and the shell
 
 The owner asked for a way to confirm FAM will not fail or slow down with
@@ -17852,3 +17851,73 @@ have put an address in the public `/api/health`; the recipient is redacted.
 The support page's "I forgot my password" and the privacy policy's list of
 who receives data (the email provider) now describe the reset. TERMS_VERSION
 was not bumped, so nobody is asked to agree again for that row.
+
+## 245. An episode with little to go on now says so, and is kept to itself
+
+The owner's direction (10.10): "It is preferred for us to be honest with
+customers versus trying to make up information." An episode titled along the
+lines of *No Company Called General Atomics* sat on the DailyFAM rails for
+days. General Atomics is real; the search found little, the writer reached for
+a connection to fill its minutes, and then concluded from absence that the
+company did not exist - the §88 failure (a fact about one search turned into a
+claim about the world), on a whole subject rather than one part of it. And
+because it was cached under the shared key like any other episode, every later
+listener and every rail could be handed it.
+
+What changed:
+
+* **Decided in code first** (`script_generator.limited_material`): no
+  evidence at all, or none of what the brief's `must_establish` asked for.
+  Deliberately narrow, because `research.packet_covers` is a coarse word test.
+  Never an attachment, a local question (§194 has its own sentence) or a
+  question a live provider answered. `EpisodePlan.limited` and
+  `ScriptNotes.limited` carry it; it is not in `key_for`.
+* **Then by the writer**: the trailing-lines instruction every episode reads
+  says honest beats full - what the material supports about their subject, no
+  neighbouring topic to fill time, then one plain sentence after it that this
+  is all it could find - and to mark that with a trailing `<<LIMITED>>` line
+  (stripped like TITLE). That covers a packet that looked full and turned out
+  to be about something else. A plan already `limited` gets the same in so
+  many words beside its evidence. The system prompt's "never say what you do
+  not have" bullet was folded shorter and now ends "finding little never means
+  a thing does not exist" - the dedup pass `test_the_prompt_stays_lean` asks
+  for left it 82 characters shorter than before. The §88 thin-on block points
+  a mostly-missing subject at the `<<LIMITED>>` rule. Unheard, like every
+  prompt change here (`no-api-key`): run
+  `python write.py "general atomics" --minutes 2` first.
+* **Never shared**: the pipeline writes a limited episode straight to
+  `archive_key(key, sourced)` with `ARCHIVE_ORIGIN` - never current, no
+  bucket, no play counted - so `resolve_episode` still replays it from its
+  listener's history (§173) and nothing else finds it; the shared key stays
+  free for a fresh search. The Trending bank records `limited` and
+  `stories_now` leaves the story off the rail; DailyFAM editions and prefetch
+  write nothing.
+* **Already cached**: rows written before this carry no flag. The way to take
+  one down is the one that exists - Report it in the app, then remove it from
+  `/admin`, which hides it for everybody (`moderation.hide_episode`).
+
+Also in this change: `/api/health` reports `memory` (`rss_mb`, `peak_mb`, from
+`/proc/self/status`). Render restarted production for exceeding the starter
+plan's 512 MB, and nothing could say why. The last measurement (§131) was
+about 89 MB at boot and 313 MB peak with the embedding model, before PyAV
+(§237); a live episode also holds its whole PCM in memory until it is kept.
+
+And light mode (owner's request): Settings → Appearance → Light mode, kept on
+the device under `fam.theme` (not `fam.prefs`, which logging out forgets) and
+set on `<html data-theme="light">` by a script at the top of `<body>` before
+the first paint. The chrome's colours are variables, with `--fg-rgb` and
+`--bg-rgb` for tints and fades; the Explore reel, stories, the VIBE! editor and
+the captions panel stay dark in both themes, deliberately, like a photo
+viewer.
+
+A review of the branch before merging found one real fault, now fixed: history
+is written at first audio, but a written episode's row only exists at the end
+of its stream, so `_pin_heard` dropped the id and history fell back to the
+shared question - for a limited episode, exactly what it must never be.
+`_pin_heard` now keeps a well-formed id whose row is not written yet, the end
+of a written stream pins the episode for the two weeks history shows it, and
+`history_read` treats an id whose row never arrived as no id. In light mode,
+the toned category tiles keep light words (their backgrounds are dark in both
+themes) and the play-all screen's icons take the text colour on their white
+circles.
+

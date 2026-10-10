@@ -242,9 +242,10 @@ and `limit` = Lines.
 | 17366 | 23 | 236. The share sheet: Groups, Friends, and a search beside each |
 | 17389 | 71 | 237. Kept audio moves to an R2 bucket, packed as Opus, kept a week |
 | 17460 | 11 | 238. Opus at 24 kbps, not 32 |
-| 17471 | 18 | 239. Opus, not MP3, for kept audio |
-| 17489 | 61 | 240. A thousand listeners: the load test gets a verdict, the poll, and the shell |
-| 17550 | 66 | 241. Where the core went: the middleware, myFAM's probes, the limiter, the shell and scrypt |
-| 17616 | 64 | 242. Opus to the app |
-| 17680 | 117 | 243. Option B: every store can live in Postgres |
-| 17797 | 59 | 244. Password reset by an emailed code |
+| 17471 | 17 | 239. Opus, not MP3, for kept audio |
+| 17488 | 61 | 240. A thousand listeners: the load test gets a verdict, the poll, and the shell |
+| 17549 | 66 | 241. Where the core went: the middleware, myFAM's probes, the limiter, the shell and scrypt |
+| 17615 | 64 | 242. Opus to the app |
+| 17679 | 117 | 243. Option B: every store can live in Postgres |
+| 17796 | 59 | 244. Password reset by an emailed code |
+| 17855 | 70 | 245. An episode with little to go on now says so, and is kept to itself |

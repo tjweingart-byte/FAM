@@ -20,6 +20,26 @@
     --text:#F4EFE4; --text-muted:#ABA3C4; --text-faint:#8A83A0;
     --border:rgba(244,239,228,0.10); --border-strong:rgba(244,239,228,0.20);
     --muted:rgba(244,239,228,0.56); --ink-muted:#ABA3C4;
+    /* The text and background colours as bare channels, for the tints and
+       fades drawn from them (rgba(var(--fg-rgb),.06)). */
+    --fg-rgb:244,239,228; --bg-rgb:42,39,51;
+    color-scheme:dark;
+  }
+  /* Light mode: the listener's choice in Settings ("Appearance"), kept on
+     the device under `fam.theme` and set on <html> before the first paint
+     by the script at the top of <body>. Only the chrome changes. Everything
+     drawn over a picture - the Explore reel, a story, the VIBE! editor, the
+     player's artwork and the captions panel - stays dark in both, the way a
+     photo viewer does, so their colours are deliberately not variables. */
+  html[data-theme="light"]{
+    --paper:#E6DECD;
+    --page-bg:#E9E3D6; --bg:#F7F3EA; --surface:#FFFFFF; --surface-2:#EEE8DC;
+    --copper:#A87520; --gold:#A87520; --coral:#C4502F; --sage:#5C8669;
+    --text:#1E1B27; --text-muted:#5E5770; --text-faint:#7D768C;
+    --border:rgba(30,27,39,0.12); --border-strong:rgba(30,27,39,0.22);
+    --muted:rgba(30,27,39,0.60); --ink-muted:#5E5770;
+    --fg-rgb:30,27,39; --bg-rgb:247,243,234;
+    color-scheme:light;
   }
   *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
   body{
@@ -28,7 +48,7 @@
       radial-gradient(1200px 600px at 15% -10%, rgba(224,181,99,0.10), transparent 60%),
       radial-gradient(900px 500px at 90% 10%, rgba(143,174,154,0.08), transparent 55%),
       var(--page-bg);
-    color:var(--paper); font-family:'Geist', sans-serif;
+    color:var(--text); font-family:'Geist', sans-serif;
     padding:48px 20px 70px; display:flex; flex-direction:column; align-items:center;
   }
   .top{ text-align:center; max-width:520px; margin-bottom:30px; }
@@ -250,7 +270,7 @@
      and the microphone stop, and Search now sends what is on screen. */
   .vs-words{ cursor:text; outline:none; border-radius:12px; padding:6px 8px;
     -webkit-user-select:text; user-select:text; transition:background .2s; }
-  .voice-search.editing .vs-words{ background:rgba(244,239,228,0.06);
+  .voice-search.editing .vs-words{ background:rgba(var(--fg-rgb),0.06);
     box-shadow:inset 0 -2px 0 var(--copper); }
   .vs-stage{ flex:1; min-height:0; display:flex; align-items:center; justify-content:center; }
   .vs-orb{ position:relative; width:250px; height:250px; }
@@ -301,7 +321,7 @@
     border:1px solid var(--border-strong); background:none; color:var(--text);
     display:flex; align-items:center; justify-content:center; cursor:pointer; }
   .vs-go-x[hidden]{ display:none; }
-  .vs-go-x:active{ background:rgba(244,239,228,0.06); }
+  .vs-go-x:active{ background:rgba(var(--fg-rgb),0.06); }
   @media (prefers-reduced-motion: reduce){
     .voice-search.open{ animation:none; }
     .voice-search.speaking .vs-waves path{ animation:none; }
@@ -412,7 +432,7 @@
     background:none; color:var(--text); cursor:pointer;
     font-family:'Geist', sans-serif; font-size:12.5px; font-weight:600; }
   .sec-refresh[hidden]{ display:none; }
-  .sec-refresh:active{ background:rgba(244,239,228,0.06); }
+  .sec-refresh:active{ background:rgba(var(--fg-rgb),0.06); }
   .sec-refresh.spinning svg{ animation:sec-spin .6s linear infinite; }
   @keyframes sec-spin{ to{ transform:rotate(360deg); } }
   .sec-grid .seed-card{ width:auto; }
@@ -464,12 +484,12 @@
   .sheet-close{ width:30px; height:30px; border-radius:50%; border:1px solid var(--border-strong);
     background:none; color:var(--text); display:flex; align-items:center;
     justify-content:center; cursor:pointer; }
-  .sheet-close:active{ background:rgba(244,239,228,0.06); }
+  .sheet-close:active{ background:rgba(var(--fg-rgb),0.06); }
 
   .myfam-head-btn{ position:relative; width:34px; height:34px; border-radius:50%;
     border:1px solid var(--border-strong); background:none; color:var(--text);
     display:flex; align-items:center; justify-content:center; cursor:pointer; }
-  .myfam-head-btn:active{ background:rgba(244,239,228,0.06); }
+  .myfam-head-btn:active{ background:rgba(var(--fg-rgb),0.06); }
 
   /* Profile. Two readings of one page: your own, and someone else's. What
      differs is what you can do, not what it looks like. */
@@ -882,18 +902,22 @@
   .cat-all{ flex:none; background:none; border:0; color:var(--text); font-family:inherit;
     font-size:12px; font-weight:700; cursor:pointer; padding:4px 0; }
   .cat-icon{ flex:0 0 46px; height:46px; border-radius:12px; display:flex; align-items:center;
-    justify-content:center; color:var(--paper); font-family:'Bricolage Grotesque', sans-serif;
+    justify-content:center; color:var(--text); font-family:'Bricolage Grotesque', sans-serif;
     font-weight:600; font-size:18px; background:var(--surface-2); }
   .cat-grid{ display:grid; grid-template-columns:1fr 1fr; gap:10px; padding:4px 0 18px; }
   .cat-tile{ min-height:76px; border-radius:14px; padding:12px; cursor:pointer; text-align:left;
-    border:0; color:var(--paper); font-family:'Bricolage Grotesque', sans-serif;
+    border:0; color:var(--text); font-family:'Bricolage Grotesque', sans-serif;
     font-weight:600; font-size:14px; background:var(--surface-2); }
   .cat-tile small{ display:block; margin-top:6px; font-family:'Geist', sans-serif; font-weight:400;
-    font-size:10px; line-height:1.35; color:rgba(244,239,228,0.72); }
+    font-size:10px; line-height:1.35; color:var(--text-muted); }
   .cat-f-sports{ background:#56402F; } .cat-f-money{ background:#2F4A3E; }
   .cat-f-business{ background:#4A4632; } .cat-f-tech{ background:#3B3A66; }
   .cat-f-science{ background:#2C4A55; } .cat-f-health{ background:#3D4A30; }
   .cat-f-culture{ background:#5A3A30; } .cat-f-world{ background:#2C415A; }
+  /* A toned tile is dark in both themes, so its words are always light;
+     an untoned one sits on the theme's surface and takes its text. */
+  .cat-icon[class*="cat-f-"], .cat-tile[class*="cat-f-"]{ color:#F4EFE4; }
+  .cat-tile[class*="cat-f-"] small{ color:rgba(244,239,228,0.72); }
   .hist-tabs[hidden]{ display:none; }
   .cat-follow{ margin-left:auto; height:30px; padding:0 14px; border-radius:15px;
     background:transparent; color:var(--text); border:1px solid var(--border-strong);
@@ -941,7 +965,7 @@
   .rec-shuffle{ flex:none; display:flex; align-items:center; gap:6px; height:28px; padding:0 11px;
     border-radius:14px; background:transparent; border:1px solid var(--border-strong); color:var(--text);
     font-family:'Geist',sans-serif; font-size:10.5px; font-weight:600; cursor:pointer; }
-  .rec-shuffle:active{ background:rgba(244,239,228,0.06); }
+  .rec-shuffle:active{ background:rgba(var(--fg-rgb),0.06); }
   .rec-list .mix-topic-act{ cursor:pointer; }
   .fol-ic{ flex:none; width:32px; height:32px; border-radius:9px; background:var(--surface-2);
     color:var(--copper); display:flex; align-items:center; justify-content:center; }
@@ -1078,7 +1102,7 @@
   }
   .cr-toggle.on{ background:var(--copper); border-color:var(--copper); }
   .cr-toggle.on .knob{ left:19px; background:var(--ink); }.recommended .rk{ font-family:'Geist Mono', monospace; font-size:9.5px; letter-spacing:0.1em; text-transform:uppercase; color:var(--text-muted); margin-bottom:6px; }.rbtns .yes{ background:var(--sage); color:var(--ink); }
-  .rbtns .no{ background:rgba(244,239,228,0.1); color:var(--text-muted); }
+  .rbtns .no{ background:rgba(var(--fg-rgb),0.1); color:var(--text-muted); }
 
   /* -------- detail (topic list) -------- */
   .topic-row{ display:flex; align-items:center; gap:10px; background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:10px; margin-bottom:8px; cursor:pointer; }
@@ -1191,7 +1215,7 @@
   .msg-fam-card .mf-body{ min-width:0; }
   .msg-fam-card .mf-title{ font-size:11.5px; font-weight:700; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .msg-fam-card .mf-src{ font-family:'Geist Mono', monospace; font-size:8.5px; color:var(--copper); margin-top:1px; }.df-art .playbtn{ width:58px; height:58px; }.segbar{ display:flex; gap:4px; padding:14px 18px 0; flex:none; }
-  .segbar .seg{ flex:1; height:3px; border-radius:3px; background:rgba(244,239,228,0.14); overflow:hidden; }
+  .segbar .seg{ flex:1; height:3px; border-radius:3px; background:rgba(var(--fg-rgb),0.14); overflow:hidden; }
   .segbar .seg .fill{ height:100%; width:0%; background:var(--copper); border-radius:3px; }
   .segbar .seg.done .fill{ width:100%; }
   .segbar .seg.current .fill{ width:100%; }
@@ -1309,6 +1333,10 @@
   .sb-icon{ display:flex; flex-direction:column; align-items:center; gap:4px; cursor:pointer; }
   .sb-icon .circ{ width:30px; height:30px; border-radius:50%; background:var(--surface); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; transition:all .15s; }
   .sb-icon.on .circ{ background:var(--copper); border-color:var(--copper); }
+  /* The icons are drawn in `--paper` for the dark circle; on light mode's
+     white circle they take the text colour, except in a filled state,
+     which draws its own (§245). */
+  html[data-theme="light"] .sb-icon:not(.on):not(.saved-on):not(.echoed) .circ svg{ stroke:var(--text); }
   .sb-icon .lbl{ font-family:'Geist Mono', monospace; font-size:7.2px; color:var(--text-muted); text-align:center; line-height:1.2; }
 
   .captions-panel{ margin:12px 18px 0; background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:12px 14px; min-height:60px; flex:none; }
@@ -1422,8 +1450,8 @@
     transform:translateY(-50%); aspect-ratio:4 / 3; z-index:0;
     background:var(--bg) center / cover no-repeat; pointer-events:none; }
   .player-bg::after{ content:""; position:absolute; inset:0;
-    background:linear-gradient(180deg, var(--bg) 0%, rgba(20,18,28,0) 12%,
-      rgba(20,18,28,0) 60%, var(--bg) 100%); }
+    background:linear-gradient(180deg, var(--bg) 0%, rgba(var(--bg-rgb),0) 12%,
+      rgba(var(--bg-rgb),0) 60%, var(--bg) 100%); }
   .player-bg:not(.has-img)::after{ display:none; }
   /* Above the stage, so a picture taller than the stage never covers the
      arrow, GO DEEPER or the dots. */
@@ -1499,7 +1527,7 @@
   .menu-row{ display:flex; align-items:center; gap:14px; }
   .menu-row svg{ flex:none; color:var(--text-muted); }
   .seed-act.tile-more{ color:#F4EFE4; }
-  .progress-bar{ height:4px; border-radius:4px; background:rgba(244,239,228,0.12); position:relative; margin-bottom:6px;
+  .progress-bar{ height:4px; border-radius:4px; background:rgba(var(--fg-rgb),0.12); position:relative; margin-bottom:6px;
     /* Draggable. touch-action:none so the browser does not claim the gesture
        as a scroll halfway through a scrub, which is what makes a bar this
        thin feel broken on a phone. */
@@ -1682,7 +1710,7 @@
   .gd-x{ position:absolute; top:4px; right:4px; width:20px; height:20px; padding:0;
     border:none; border-radius:50%; background:transparent; color:var(--text-muted);
     display:flex; align-items:center; justify-content:center; cursor:pointer; z-index:1; }
-  .gd-x:active{ background:rgba(244,239,228,0.08); }
+  .gd-x:active{ background:rgba(var(--fg-rgb),0.08); }
   .gd-card-title{ padding-right:14px; }
   /* flex:none matters. Without it the column shrinks the title below the
      lines the clamp allows, so text was cut with room still in the card -
@@ -1971,7 +1999,7 @@
   /* -------- toast -------- */
   .toast{
     position:absolute; bottom:96px; left:50%; transform:translateX(-50%) translateY(20px);
-    background:var(--surface); color:var(--paper); font-family:'Geist Mono', monospace; font-size:11.5px;
+    background:var(--surface); color:var(--text); font-family:'Geist Mono', monospace; font-size:11.5px;
     padding:11px 18px; border-radius:24px; opacity:0; pointer-events:none; transition:all .25s ease;
     box-shadow:0 20px 40px -14px rgba(0,0,0,0.6); z-index:999;
     width:max-content; max-width:calc(100% - 28px); text-align:center;
@@ -2238,7 +2266,7 @@
      See the markup note: on a phone the language list is taller than the
      screen, so the button that finishes the intro was below the fold. */
   .entry-dock{ flex:none; padding:12px 22px calc(14px + env(safe-area-inset-bottom));
-    background:linear-gradient(to top, var(--bg) 62%, rgba(42,39,51,0)); }
+    background:linear-gradient(to top, var(--bg) 62%, rgba(var(--bg-rgb),0)); }
   .entry-dock[hidden]{ display:none; }
 
   /* Interests chosen as a whole facet ("Sport") before the list replaced the
@@ -2825,11 +2853,11 @@
   .thread-row .tr-preview{ display:flex; align-items:center; gap:5px; max-width:none; }
   .thread-row .tr-preview span{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .thread-row .tr-preview svg{ flex:none; color:var(--copper); }
-  .thread-row .tr-preview.unread{ color:#CFC8DA; }
+  .thread-row .tr-preview.unread{ color:var(--text); }
   .tr-dot{ width:8px; height:8px; border-radius:50%; background:var(--copper); flex:none; }
 
   /* The chat. */
-  .yf-thread-head{ flex:none; padding:10px 16px 12px; background:#312E3F;
+  .yf-thread-head{ flex:none; padding:10px 16px 12px; background:var(--surface);
     border-bottom:1px solid var(--border); }
   .yf-thread-top{ display:flex; align-items:center; gap:8px; }
   .yf-thread-who{ flex:1; min-width:0; display:flex; align-items:center; gap:10px;
@@ -2852,7 +2880,7 @@
   .msg-row.out .yf-ep{ margin-left:auto; }
   .yf-ep-lab{ display:flex; align-items:center; gap:5px; font-family:'Geist Mono', monospace;
     font-size:9px; color:var(--copper); letter-spacing:0.04em; text-transform:uppercase; }
-  .yf-ep-card{ background:var(--surface-2); border:1px solid rgba(244,239,228,0.14);
+  .yf-ep-card{ background:var(--surface-2); border:1px solid rgba(var(--fg-rgb),0.14);
     border-radius:15px 15px 15px 5px; padding:11px; display:flex; flex-direction:column; gap:8px; }
   .msg-row.out .yf-ep-card{ border-radius:15px 15px 5px 15px; }
   .yf-ep-meta{ font-family:'Geist Mono', monospace; font-size:8.5px;
@@ -2868,8 +2896,8 @@
   .msg-row.out .msg-bubble{ border-radius:15px 15px 5px 15px; font-weight:500; }
   .yf-receipt{ margin:-2px 0 10px auto; width:max-content; max-width:80%; display:flex;
     align-items:center; gap:6px; padding:6px 10px; border-radius:11px;
-    background:#312E3F; border:1px dashed rgba(244,239,228,0.22);
-    font-size:10px; color:#CFC8DA; }
+    background:var(--surface); border:1px dashed rgba(var(--fg-rgb),0.22);
+    font-size:10px; color:var(--text-muted); }
   .yf-receipt svg{ color:var(--sage); flex:none; }
   .yf-composer{ flex:none; display:flex; align-items:flex-end; gap:7px;
     padding:10px 12px 14px; border-top:1px solid var(--border); background:var(--bg); }
@@ -2962,6 +2990,13 @@
 </style>
 </head>
 <body>
+<script>
+  // The theme before anything is drawn, so a light-mode listener never sees
+  // the app flash dark first. Its own key rather than `fam.prefs`: logging
+  // out forgets the preferences, and should not change the colours.
+  try { if(localStorage.getItem("fam.theme") === "light")
+    document.documentElement.setAttribute("data-theme", "light"); } catch(e){}
+</script>
 
   <div class="top">
     <div class="eyebrow">Clickable prototype</div>
@@ -8693,6 +8728,19 @@
     toast(pitchLocked
       ? "Speed changes keep the voice's pitch"
       : "Speed changes will shift the voice's pitch");
+  }
+
+  // ---- Appearance ----
+  //: Dark is the default; light is a choice made on this device (Settings).
+  function currentTheme(){
+    return document.documentElement.getAttribute("data-theme") === "light" ? "light" : "dark";
+  }
+  function setTheme(theme){
+    var light = theme === "light";
+    if(light) document.documentElement.setAttribute("data-theme", "light");
+    else document.documentElement.removeAttribute("data-theme");
+    try { localStorage.setItem("fam.theme", light ? "light" : "dark"); } catch(e){}
+    refreshSettingsIfOpen();
   }
 
   function refreshSettingsIfOpen(){
@@ -14442,6 +14490,9 @@
 
     // "Your interests" opens the whole list of topics directly (§142) - there
     // is no wheel in front of it any more, and no second door beside it.
+    html += '<div class="set-group">Appearance</div>'
+      + settingsRow("Light mode", currentTheme() === "light" ? "On" : "Off",
+          "setTheme('" + (currentTheme() === "light" ? "dark" : "light") + "')");
     html += '<div class="set-group">Listening</div>'
       + settingsRow("Your interests",
           chosenSummary(chosen, labels),

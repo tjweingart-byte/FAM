@@ -1053,6 +1053,32 @@ def _persistence_of(target: str, code_device) -> str:
         return "unknown"
 
 
+def _memory_report() -> dict:
+    """Resident memory now and at its peak, in MB, read from the kernel.
+
+    `/proc/self/status` (Linux, which is every deployment) gives both; else
+    `resource` gives the peak alone. `None` for what cannot be read - never a
+    0 that looks like a measurement."""
+    now = peak = None
+    try:
+        with open("/proc/self/status", encoding="utf-8", errors="replace") as fh:
+            for line in fh:
+                if line.startswith(("VmRSS:", "VmHWM:")):
+                    mb = round(int(line.split()[1]) / 1024, 1)
+                    if line.startswith("VmRSS:"):
+                        now = mb
+                    else:
+                        peak = mb
+    except OSError:
+        try:
+            import resource
+
+            peak = round(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024, 1)
+        except Exception:  # noqa: BLE001 - a health field never breaks health
+            pass
+    return {"rss_mb": now, "peak_mb": peak}
+
+
 def _storage_summary(databases: list[dict]) -> dict:
     """One sentence's worth of "will a redeploy erase this".
 
@@ -1802,6 +1828,10 @@ async def health(request: Request) -> dict:
         # §243: where the stores live - SQLite files, or Postgres when
         # DATABASE_URL is set (never the address).
         "database": db_mod.report(),
+        # How much memory this process holds now and has ever held (§245):
+        # Render restarts a service over its plan's limit, and without these
+        # a restart cannot be told from a leak, a spike or a plan too small.
+        "memory": _memory_report(),
         # Settable in the dashboard and in the environment, so said here
         # (WAITLIST.md): whether the app is closed to all but active accounts,
         # and whether the vendor is being told.
@@ -7827,14 +7857,20 @@ def _pin_heard(episode: str) -> str:
 
     The cache keeps a row a week and history is two weeks, so without this
     the second week of history could only be written again - a different
-    episode under the same title."""
+    episode under the same title.
+
+    **A well-formed id is kept even before its row exists** (§245). History
+    is written at first audio and a written episode's row only at the end of
+    its stream, so the id would otherwise be dropped - and for an episode
+    kept to its listener alone (`ScriptNotes.limited`) the shared question
+    is exactly what must not stand in for it. The end of the stream pins it
+    (`/api/audio`); a row that never arrives reads as no id (`history_read`)."""
     if not episode or SCRIPT_CACHE is None or parse_episode_id(episode) is None:
         return ""
     try:
         key = SCRIPT_CACHE.resolve_episode(episode)
-        if not key:
-            return ""
-        SCRIPT_CACHE.keep_until(key, time.time() + saved_mod.HISTORY_SECONDS)
+        if key:
+            SCRIPT_CACHE.keep_until(key, time.time() + saved_mod.HISTORY_SECONDS)
         return episode
     except Exception:
         log.exception("could not keep a heard episode; continuing")
@@ -7872,6 +7908,11 @@ async def history_read(request: Request,
     user = _require_account(request)
     items = SAVED.history(user, surface=surface)
     for item in items:
+        # An id whose episode was never stored (the listener left before the
+        # end, §245) is no id: the kept answer to the question stands in.
+        if item.get("episode") and SCRIPT_CACHE is not None \
+                and not SCRIPT_CACHE.resolve_episode(item["episode"]):
+            item["episode"] = ""
         if not item.get("episode"):
             item["episode"] = _kept_under_question(item)
     return {"items": items,
@@ -8867,6 +8908,10 @@ async def audio(
                 json.dumps(stats.marks.to_dict(), default=str),
             )
             refile_play()
+            # Kept as long as the history row written at first audio shows
+            # it (§173): that row could not pin a row that did not exist yet.
+            if play_row and write_pending and stats.episode:
+                _pin_heard(stats.episode)
             # The ledger row, written last, when the numbers are final.
             #
             # Here and not at the model call because this is the only place
