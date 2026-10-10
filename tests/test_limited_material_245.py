@@ -171,6 +171,7 @@ def test_health_reports_memory(client):
 
 # --- its listener's history, in the order the app really writes it --------
 
+@pytest.mark.sqlite_file
 def test_history_written_at_first_audio_keeps_the_id_and_the_end_pins_it(client):
     """History is written at first audio, before a written episode's row
     exists; a limited episode's only row is its archive slot, so a dropped id
