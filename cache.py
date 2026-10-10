@@ -41,6 +41,7 @@ import hashlib
 import json
 import logging
 import re
+import secrets
 import time
 import zlib
 from dataclasses import dataclass, field
@@ -50,6 +51,8 @@ import threading
 import time
 from typing import Optional, Protocol
 
+import audio_codec
+import audio_store
 import content_filter
 import embeddings
 from config import settings
@@ -525,18 +528,31 @@ class StoredAudio:
     where each began - kept with it rather than read off the script row, so a
     replay publishes captions that match what is heard even when the original
     was cut to fit its length.
+
+    Held packed (§237): `blob` is what `codec` made of the PCM, and `slices()`
+    decodes it a second at a time as it plays, so a five-minute Opus episode
+    does not wait to be decoded whole before its first word. `pcm` decodes
+    all of it, for exports and tests.
     """
 
-    pcm: bytes
+    blob: bytes
     sample_rate: int
     sentences: list = field(default_factory=list)
     starts: list = field(default_factory=list)
+    codec: str = audio_codec.ZLIB
+    #: Samples in the original PCM, so a codec's padding never moves a caption.
+    frames: int = 0
+
+    def slices(self):
+        return audio_codec.slices(self.codec, self.blob, self.sample_rate, self.frames)
+
+    @property
+    def pcm(self) -> bytes:
+        return audio_codec.decode(self.codec, self.blob, self.sample_rate, self.frames)
 
 
-#: zlib level 1: measured on the reference recording at 74% of the raw size in
-#: 30 ms a second of audio. Level 6 bought under half a percent more for twice
-#: the time, and lzma's 59% cost fifteen times as long.
-AUDIO_COMPRESSION = 1
+#: zlib level 1, kept for rows packed before §237 (`audio_codec.ZLIB_LEVEL`).
+AUDIO_COMPRESSION = audio_codec.ZLIB_LEVEL
 
 
 def _explicit_json(sentences_json) -> bool:
@@ -570,10 +586,27 @@ def audio_ceiling_bytes() -> int:
     return max(0, int(settings.audio_cache_max_mb)) * 1024 * 1024
 
 
+#: `episode_audio.tier` for audio somebody saved, shared or vibed (§237),
+#: kept past its first week. Anything else is "" - recent audio.
+KEPT_TIER = "kept"
+
+
+def recent_seconds() -> float:
+    """How long every episode's audio is kept (§237): AUDIO_RECENT_DAYS."""
+    return max(1, int(settings.audio_recent_days)) * 86400.0
+
+
+def kept_pin_seconds() -> float:
+    """How far ahead each sweep pins the script of kept audio. A week and a
+    day, so a deployment that stops sweeping for a while loses nothing - the
+    audio is only readable while its script is (§132)."""
+    return recent_seconds() + 86400.0
+
+
 class ScriptCache(Protocol):
     def get(self, key: str, current: bool = True) -> Optional[list[str]]: ...
     #: Whether `get(key, current)` would return a script, without reading it,
-    #: scrubbing it or counting a hit - for the probes that only ask (§238).
+    #: scrubbing it or counting a hit - for the probes that only ask (§241).
     def holds(self, key: str, current: bool = True) -> bool: ...
     def sourced_at(self, key: str) -> Optional[float]: ...
     def put(
@@ -742,8 +775,8 @@ class MemoryScriptCache:
         #: key -> (bucket, packed vector). Kept beside the entries rather than
         #: in the tuple so the shape the tests already assert on is unchanged.
         self._vectors: dict[str, tuple[str, bytes]] = {}
-        #: (key, voice) -> [compressed pcm, sample rate, sentences, starts,
-        #: last played]. The memory half of `episode_audio`.
+        #: (key, voice) -> {blob, rate, sentences, starts, played, created,
+        #: codec, frames, tier}. The memory half of `episode_audio`.
         self._audio: dict[tuple[str, str], list] = {}
         #: key -> how many times it was played. The memory half of the
         #: `plays` column (§134).
@@ -1014,7 +1047,7 @@ class MemoryScriptCache:
 
     def has_audio(self, key: str, voice: str, sample_rate: int) -> bool:
         row = self._audio.get((key, voice))
-        return bool(row) and self._live(key) and row[1] == int(sample_rate)
+        return bool(row) and self._live(key) and row["rate"] == int(sample_rate)
 
     def has_any_audio(self, key: str) -> bool:
         """Whether any voice's audio is kept for this episode. A marker for a
@@ -1026,22 +1059,57 @@ class MemoryScriptCache:
         if not self.has_audio(key, voice, sample_rate):
             return None
         row = self._audio[(key, voice)]
-        row[4] = time.time()
-        return StoredAudio(unpack_audio(row[0]), row[1], list(row[2]), list(row[3]))
+        row["played"] = time.time()
+        return StoredAudio(row["blob"], row["rate"], list(row["sentences"]),
+                           list(row["starts"]), row["codec"], row["frames"])
 
     def put_audio(self, key: str, voice: str, sample_rate: int, pcm: bytes,
                   sentences: list, starts: list) -> bool:
+        """The memory twin of `SqliteScriptCache.put_audio`, without a bucket:
+        this backend is tests and single-process development."""
         if not pcm or not self._live(key):
             return False
-        self._audio[(key, voice)] = [pack_audio(pcm), int(sample_rate),
-                                     list(sentences), list(starts), time.time()]
+        codec, blob = audio_codec.encode(pcm, sample_rate)
+        now = time.time()
+        self._audio[(key, voice)] = {
+            "blob": blob, "rate": int(sample_rate), "sentences": list(sentences),
+            "starts": list(starts), "played": now, "created": now,
+            "codec": codec, "frames": len(pcm) // audio_codec.SAMPLE_BYTES,
+            "tier": ""}
         ceiling = audio_ceiling_bytes()
         if ceiling:
-            while sum(len(r[0]) for r in self._audio.values()) > ceiling \
+            while sum(len(r["blob"]) for r in self._audio.values()) > ceiling \
                     and len(self._audio) > 1:
-                oldest = min(self._audio, key=lambda p: self._audio[p][4])
+                oldest = min(self._audio, key=lambda p: self._audio[p]["played"])
                 self._audio.pop(oldest)
         return (key, voice) in self._audio
+
+    def sweep_audio(self, held, now: Optional[float] = None,
+                    check_kept: bool = True) -> dict:
+        """See `SqliteScriptCache.sweep_audio`. No bucket here, so keeping is
+        a mark and deleting is a pop."""
+        now = time.time() if now is None else now
+        cutoff = now - recent_seconds()
+        counts = {"kept": 0, "deleted": 0, "released": 0, "failed": 0,
+                  "uploaded": 0}
+        for pair, row in list(self._audio.items()):
+            key = pair[0]
+            is_held = key in held and self._origins.get(key) != ARCHIVE_ORIGIN
+            if row["tier"] != KEPT_TIER and row["created"] < cutoff:
+                if is_held:
+                    row["tier"] = KEPT_TIER
+                    counts["kept"] += 1
+                else:
+                    self._audio.pop(pair)
+                    counts["deleted"] += 1
+            elif row["tier"] == KEPT_TIER and check_kept and not is_held:
+                self._audio.pop(pair)
+                counts["released"] += 1
+        for key, _voice in [p for p, r in self._audio.items() if r["tier"] == KEPT_TIER]:
+            entry = self._data.get(key)
+            if entry is not None:
+                self._data[key] = (max(entry[0], now + kept_pin_seconds()),) + entry[1:]
+        return counts
 
     def forget_author(self, author: str) -> int:
         """The memory backend's half of `SqliteScriptCache.forget_author`.
@@ -1086,7 +1154,7 @@ class MemoryScriptCache:
     def stats(self) -> dict:
         return {"backend": "memory", "entries": len(self._data), "hits": self.hits,
                 "misses": self.misses, "audio_entries": len(self._audio),
-                "audio_bytes": sum(len(r[0]) for r in self._audio.values())}
+                "audio_bytes": sum(len(r["blob"]) for r in self._audio.values())}
 
 
 class SqliteScriptCache:
@@ -1225,6 +1293,35 @@ class SqliteScriptCache:
             conn.execute(
                 "CREATE INDEX IF NOT EXISTS episode_audio_played ON episode_audio(played)"
             )
+            # §237. `codec` says what packed `pcm` (rows before this are
+            # zlib); `frames` is the original length in samples; `object_key`
+            # names the copy in the bucket ("" when there is none); `tier` is
+            # "" for a first-week episode and "kept" for one somebody saved,
+            # shared or vibed. With a bucket, `pcm` is a hot copy and may be
+            # empty - the row then still describes the episode, and a play
+            # reads the bytes from `object_key`.
+            for column, ddl in (
+                ("codec", "ALTER TABLE episode_audio ADD COLUMN codec TEXT NOT NULL DEFAULT 'zlib'"),
+                ("frames", "ALTER TABLE episode_audio ADD COLUMN frames INTEGER NOT NULL DEFAULT 0"),
+                ("object_key", "ALTER TABLE episode_audio ADD COLUMN object_key TEXT NOT NULL DEFAULT ''"),
+                ("tier", "ALTER TABLE episode_audio ADD COLUMN tier TEXT NOT NULL DEFAULT ''"),
+            ):
+                try:
+                    conn.execute(ddl)
+                except sqlite3.OperationalError:
+                    pass  # already there
+            conn.execute("CREATE INDEX IF NOT EXISTS episode_audio_tier"
+                         " ON episode_audio(tier, created)")
+            # Objects whose rows are gone, waiting to be deleted from the
+            # bucket. A row is dropped in one statement wherever it is
+            # dropped; the network call happens later, off every path a
+            # listener waits on, and survives a restart in between.
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS audio_deletes (
+                       name TEXT PRIMARY KEY,
+                       at   REAL NOT NULL
+                   )"""
+            )
 
     def _conn(self) -> sqlite3.Connection:
         conn = getattr(self._local, "conn", None)
@@ -1237,7 +1334,7 @@ class SqliteScriptCache:
         return conn
 
     def holds(self, key: str, current: bool = True) -> bool:
-        """Whether `get(key, current)` would return a script (§238).
+        """Whether `get(key, current)` would return a script (§241).
 
         One indexed read of two numbers. `get` also loads and scrubs every
         sentence and writes a hit, which is right for a read and wasted on
@@ -1509,7 +1606,7 @@ class SqliteScriptCache:
             # nothing was throwing away a whole voiced episode - one more
             # RunPod call for a thing already paid for.
             if before is None or before[0] != json.dumps(sentences):
-                self._conn().execute("DELETE FROM episode_audio WHERE key = ?", (key,))
+                self._forget_audio("key = ?", (key,))
         except Exception:
             log.exception("script cache write failed; continuing")
 
@@ -1534,7 +1631,7 @@ class SqliteScriptCache:
         conn.execute(
             f"INSERT OR REPLACE INTO scripts ({', '.join(columns)})"
             f" SELECT {picks} FROM scripts WHERE key = ?", (target, key))
-        conn.execute("DELETE FROM episode_audio WHERE key = ?", (target,))
+        self._forget_audio("key = ?", (target,))
         conn.execute("UPDATE episode_audio SET key = ? WHERE key = ?", (target, key))
         return target
 
@@ -1611,17 +1708,38 @@ class SqliteScriptCache:
             log.exception("audio cache check failed")
             return False
 
+    def _forget_audio(self, where: str, params: tuple) -> int:
+        """Drop the audio rows matching `where`, and queue their objects for
+        deletion from the bucket (§237). The one way a row is dropped, so a
+        wipe, a purge, a re-write or a forgotten author can never leave an
+        object behind that nothing points at."""
+        conn = self._conn()
+        now = time.time()
+        for (name,) in conn.execute(
+                f"SELECT object_key FROM episode_audio WHERE ({where})"
+                " AND object_key != ''", params).fetchall():
+            conn.execute("INSERT OR IGNORE INTO audio_deletes (name, at)"
+                         " VALUES (?, ?)", (name, now))
+        cur = conn.execute(f"DELETE FROM episode_audio WHERE {where}", params)
+        return cur.rowcount or 0
+
     def get_audio(self, key: str, voice: str, sample_rate: int) -> Optional[StoredAudio]:
         """The kept audio for this episode in this voice, or None.
 
         None whenever the rate differs from the engine's: the stream header has
         already been written at the engine's rate, and PCM at another one would
         play at the wrong pitch rather than fail.
+
+        With a bucket (§237) this may make a network call - the hot copy is
+        read when there is one, else the object - so call it off the event
+        loop; `PodcastPipeline` does. An object the bucket no longer has drops
+        its row: the episode is voiced again and kept again, never failed.
         """
         try:
             conn = self._conn()
             row = conn.execute(
-                "SELECT a.pcm, a.sample_rate, a.sentences, a.starts"
+                "SELECT a.pcm, a.sample_rate, a.sentences, a.starts, a.codec,"
+                " a.frames, a.object_key"
                 " FROM episode_audio a JOIN scripts s ON s.key = a.key"
                 " WHERE a.key = ? AND a.voice = ? AND s.expires >= ?",
                 (key, voice, time.time()),
@@ -1632,43 +1750,107 @@ class SqliteScriptCache:
             # it is dropped, and the episode is voiced again from the
             # scrubbed script - and kept again, clean.
             if _voiced_a_slur(row[2]):
-                conn.execute("DELETE FROM episode_audio WHERE key = ?", (key,))
+                self._forget_audio("key = ?", (key,))
                 return None
+            blob = row[0] or b""
+            if not blob:
+                blob, missing = self._read_object(row[6])
+                if not blob:
+                    # Only an object the bucket says is not there drops the
+                    # row. A bucket that did not answer drops nothing - an
+                    # outage must never delete what somebody saved; this play
+                    # is voiced again and the row stays for the next one.
+                    if missing:
+                        self._forget_audio("key = ? AND voice = ?", (key, voice))
+                    return None
+                # A hot copy for the next play, under the same ceiling.
+                conn.execute("UPDATE episode_audio SET pcm = ? WHERE key = ? AND voice = ?",
+                             (sqlite3.Binary(blob), key, voice))
+                self._evict_audio()
             conn.execute(
                 "UPDATE episode_audio SET played = ? WHERE key = ? AND voice = ?",
                 (time.time(), key, voice))
-            return StoredAudio(unpack_audio(row[0]), int(row[1]),
-                               json.loads(row[2]), json.loads(row[3]))
+            return StoredAudio(bytes(blob), int(row[1]), json.loads(row[2]),
+                               json.loads(row[3]), row[4] or audio_codec.ZLIB,
+                               int(row[5] or 0))
         except Exception:
             # Same rule as the script: a broken store means the episode is
             # synthesised the old way, never that it fails.
             log.exception("audio cache read failed; synthesising")
             return None
 
+    @staticmethod
+    def _read_object(name: str) -> tuple[bytes, bool]:
+        """(bytes, missing). `missing` is True only when the bucket answered
+        that the object is not there; no bucket configured, a timeout or an
+        error is (b"", False) - unknown, never gone."""
+        store = audio_store.get_store() if name else None
+        if store is None:
+            return b"", False
+        try:
+            blob = store.get(name)
+        except audio_store.AudioStoreError as exc:
+            log.warning("audio store: %s; voicing this episode again", exc)
+            return b"", False
+        return (blob or b""), blob is None
+
+    @classmethod
+    def _fetch_object(cls, name: str) -> bytes:
+        return cls._read_object(name)[0]
+
     def put_audio(self, key: str, voice: str, sample_rate: int, pcm: bytes,
                   sentences: list, starts: list) -> bool:
         """Keep an episode's audio. Only beside a live script row, never alone.
 
-        Returns whether it was kept. Compression happens here, so call it off
-        the event loop - `PodcastPipeline` does, after the last byte is sent.
+        Returns whether it was kept. Packing (Opus, §237) and the upload to
+        the bucket happen here, so call it off the event loop -
+        `PodcastPipeline` does, after the last byte is sent. The row is
+        written only after the upload succeeded, so a row with an object name
+        always names an object; a failed upload keeps the audio here alone
+        and says so in the log.
         """
         if not pcm:
             return False
         try:
-            blob = pack_audio(pcm)
             now = time.time()
+            live = self._conn().execute(
+                "SELECT 1 FROM scripts WHERE key = ? AND expires >= ?",
+                (key, now)).fetchone()
+            if not live:
+                return False
+            codec, blob = audio_codec.encode(pcm, sample_rate)
+            frames = len(pcm) // audio_codec.SAMPLE_BYTES
+            name = ""
+            store = audio_store.get_store()
+            if store is not None:
+                candidate = audio_store.object_name(
+                    audio_store.RECENT, secrets.token_hex(16))
+                try:
+                    store.put(candidate, blob)
+                    name = candidate
+                except audio_store.AudioStoreError as exc:
+                    log.warning("audio store: %s; keeping this episode in"
+                                " scripts.db only", exc)
+            # A row this replaces may name an object of its own.
+            self._forget_audio("key = ? AND voice = ?", (key, voice))
             cur = self._conn().execute(
                 "INSERT OR REPLACE INTO episode_audio"
                 " (key, voice, sample_rate, created, played, bytes, sentences,"
-                "  starts, pcm)"
-                " SELECT ?, ?, ?, ?, ?, ?, ?, ?, ? FROM scripts"
+                "  starts, pcm, codec, frames, object_key, tier)"
+                " SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '' FROM scripts"
                 " WHERE key = ? AND expires >= ?",
                 (key, voice, int(sample_rate), now, now, len(blob),
                  json.dumps(list(sentences)), json.dumps(list(starts)),
-                 sqlite3.Binary(blob), key, now),
+                 sqlite3.Binary(blob), codec, frames, name, key, now),
             )
             if not cur.rowcount:
+                if name:
+                    self._conn().execute("INSERT OR IGNORE INTO audio_deletes"
+                                         " (name, at) VALUES (?, ?)", (name, now))
                 return False
+            log.info("audio kept as %s (%.0f%% of raw)%s", codec,
+                     100 * audio_codec.ratio(codec, blob, frames),
+                     " and in the bucket" if name else "")
             self._evict_audio()
             # An episode larger than the whole ceiling is evicted by its own
             # write; saying it was kept would be a claim nothing can serve.
@@ -1678,28 +1860,152 @@ class SqliteScriptCache:
             return False
 
     def _evict_audio(self) -> None:
-        """Least recently played first, until the table fits its ceiling.
+        """Least recently played first, until the hot copies fit the ceiling.
 
-        Only audio goes: the script stays, so an evicted episode costs one
-        re-synthesis on its next play and is then kept again.
+        Only audio goes: the script stays. A row whose audio is also in the
+        bucket (§237) loses only its hot copy and is read from the bucket
+        next time; one with no object loses the row and costs one
+        re-synthesis on its next play.
         """
         ceiling = audio_ceiling_bytes()
         if not ceiling:
             return
         conn = self._conn()
         total = conn.execute(
-            "SELECT COALESCE(SUM(bytes), 0) FROM episode_audio").fetchone()[0]
+            "SELECT COALESCE(SUM(length(pcm)), 0) FROM episode_audio").fetchone()[0]
         if total <= ceiling:
             return
-        for key, voice, size in conn.execute(
-                "SELECT key, voice, bytes FROM episode_audio ORDER BY played ASC"
+        for key, voice, size, name in conn.execute(
+                "SELECT key, voice, length(pcm), object_key FROM episode_audio"
+                " WHERE length(pcm) > 0 ORDER BY played ASC"
         ).fetchall():
             if total <= ceiling:
                 break
-            conn.execute("DELETE FROM episode_audio WHERE key = ? AND voice = ?",
-                         (key, voice))
+            if name:
+                conn.execute("UPDATE episode_audio SET pcm = x'' WHERE key = ? AND voice = ?",
+                             (key, voice))
+            else:
+                conn.execute("DELETE FROM episode_audio WHERE key = ? AND voice = ?",
+                             (key, voice))
             total -= size
         log.info("audio cache: evicted down to %.1f MB", total / 1048576)
+
+    def sweep_audio(self, held, now: Optional[float] = None,
+                    check_kept: bool = True) -> dict:
+        """Apply §237's retention to every episode's audio.
+
+        Audio is kept a week (`AUDIO_RECENT_DAYS`) for everybody. At a week
+        old, audio whose episode is in `held` - the cache keys of everything
+        somebody saved, shared or vibed (`app._held_episode_keys`) - is copied
+        to `kept/` in the bucket's Infrequent Access class and its script is
+        pinned; everything else is deleted. `check_kept` also releases kept
+        audio nobody holds any more (once a day is enough; it reads every
+        kept row).
+
+        A copy that fails leaves the row as it was, to be tried next sweep:
+        the bucket keeps `recent/` a day past the week for exactly that.
+        Never raises; returns what it did.
+        """
+        now = time.time() if now is None else now
+        counts = {"kept": 0, "deleted": 0, "released": 0, "failed": 0,
+                  "uploaded": 0}
+        try:
+            conn = self._conn()
+            store = audio_store.get_store()
+            if store is not None:
+                counts["uploaded"] = self._upload_strays(store)
+            rows = conn.execute(
+                "SELECT a.key, a.voice, a.object_key, COALESCE(s.origin, ''), a.tier"
+                " FROM episode_audio a LEFT JOIN scripts s ON s.key = a.key"
+                " WHERE (a.tier != ? AND a.created < ?)"
+                " OR (a.tier = ? AND a.object_key LIKE ?)",
+                (KEPT_TIER, now - recent_seconds(), KEPT_TIER,
+                 audio_store.RECENT + "%")).fetchall()
+            for key, voice, name, origin, tier in rows:
+                if tier != KEPT_TIER and (key not in held or origin == ARCHIVE_ORIGIN):
+                    counts["deleted"] += self._forget_audio(
+                        "key = ? AND voice = ?", (key, voice))
+                    continue
+                target = name
+                if name and store is not None:
+                    target = audio_store.swap_prefix(name, audio_store.KEPT)
+                    try:
+                        store.copy(name, target, audio_store.INFREQUENT)
+                    except audio_store.AudioStoreError as exc:
+                        log.warning("audio store: %s; will try again next sweep", exc)
+                        counts["failed"] += 1
+                        continue
+                    conn.execute("INSERT OR IGNORE INTO audio_deletes (name, at)"
+                                 " VALUES (?, ?)", (name, now))
+                # Cold now: with an object the hot copy goes, and the next
+                # play reads the bucket. Without one, the row is all there is.
+                conn.execute(
+                    "UPDATE episode_audio SET tier = ?, object_key = ?,"
+                    " pcm = CASE WHEN ? != '' THEN x'' ELSE pcm END"
+                    " WHERE key = ? AND voice = ?",
+                    (KEPT_TIER, target, target, key, voice))
+                counts["kept"] += tier != KEPT_TIER
+            if check_kept:
+                for key, voice in conn.execute(
+                        "SELECT key, voice FROM episode_audio WHERE tier = ?",
+                        (KEPT_TIER,)).fetchall():
+                    if key not in held:
+                        counts["released"] += self._forget_audio(
+                            "key = ? AND voice = ?", (key, voice))
+            # Kept audio is only readable while its script is (§132).
+            conn.execute(
+                "UPDATE scripts SET expires = MAX(expires, ?) WHERE key IN"
+                " (SELECT key FROM episode_audio WHERE tier = ?)",
+                (now + kept_pin_seconds(), KEPT_TIER))
+        except Exception:
+            log.exception("audio sweep failed; it runs again next hour")
+        return counts
+
+    def _upload_strays(self, store, limit: int = 200) -> int:
+        """Put audio that has no object into the bucket: rows from before the
+        bucket was turned on, and rows whose upload failed. A bounded number
+        per sweep, so turning the bucket on is a backfill over hours rather
+        than one burst. As packed - an old zlib row stays zlib."""
+        conn = self._conn()
+        done = 0
+        for key, voice, blob in conn.execute(
+                "SELECT key, voice, pcm FROM episode_audio"
+                " WHERE object_key = '' AND length(pcm) > 0 LIMIT ?",
+                (int(limit),)).fetchall():
+            name = audio_store.object_name(audio_store.RECENT, secrets.token_hex(16))
+            try:
+                store.put(name, bytes(blob))
+            except audio_store.AudioStoreError as exc:
+                log.warning("audio store: %s; backfill resumes next sweep", exc)
+                break
+            cur = conn.execute(
+                "UPDATE episode_audio SET object_key = ?"
+                " WHERE key = ? AND voice = ? AND object_key = ''", (name, key, voice))
+            if not cur.rowcount:  # dropped or re-kept while uploading
+                conn.execute("INSERT OR IGNORE INTO audio_deletes (name, at)"
+                             " VALUES (?, ?)", (name, time.time()))
+            done += bool(cur.rowcount)
+        return done
+
+    def drain_deletes(self, limit: int = 500) -> int:
+        """Delete queued objects from the bucket. Deleting is free on R2 and
+        idempotent, so a name is only dequeued once its delete answered."""
+        store = audio_store.get_store()
+        if store is None:
+            return 0
+        done = 0
+        conn = self._conn()
+        for (name,) in conn.execute(
+                "SELECT name FROM audio_deletes ORDER BY at LIMIT ?",
+                (int(limit),)).fetchall():
+            try:
+                store.delete(name)
+            except audio_store.AudioStoreError as exc:
+                log.warning("audio store: %s; delete retried next sweep", exc)
+                break
+            conn.execute("DELETE FROM audio_deletes WHERE name = ?", (name,))
+            done += 1
+        return done
 
     def nearest(self, bucket: str, query: str) -> Optional[tuple[str, float]]:
         """The closest live entry in this bucket, or None.
@@ -1947,11 +2253,16 @@ class SqliteScriptCache:
     def purge_expired(self) -> int:
         try:
             now = time.time()
-            cur = self._conn().execute("DELETE FROM scripts WHERE expires < ?", (now,))
+            # Never the script of kept audio (§237): the sweep pins those,
+            # and a deployment that stopped sweeping for a while must not
+            # lose something a listener saved because its clock ran out.
+            cur = self._conn().execute(
+                "DELETE FROM scripts WHERE expires < ? AND key NOT IN"
+                " (SELECT key FROM episode_audio WHERE tier = ?)", (now, KEPT_TIER))
             # Audio has no clock of its own; it goes when its script does.
-            self._conn().execute(
-                "DELETE FROM episode_audio WHERE key NOT IN"
-                " (SELECT key FROM scripts WHERE expires >= ?)", (now,))
+            self._forget_audio(
+                "key NOT IN (SELECT key FROM scripts WHERE expires >= ?)"
+                " AND tier != ?", (now, KEPT_TIER))
             return cur.rowcount or 0
         except Exception:
             return 0
@@ -1998,9 +2309,8 @@ class SqliteScriptCache:
         if not author:
             return 0
         try:
-            self._conn().execute(
-                "DELETE FROM episode_audio WHERE key IN"
-                " (SELECT key FROM scripts WHERE author = ?)", (author,))
+            self._forget_audio(
+                "key IN (SELECT key FROM scripts WHERE author = ?)", (author,))
             cur = self._conn().execute(
                 "DELETE FROM scripts WHERE author = ?", (author,))
             return cur.rowcount or 0
@@ -2044,9 +2354,20 @@ class SqliteScriptCache:
             audio = conn.execute("SELECT * FROM episode_audio WHERE key = ?", (key,)).fetchall()
         finally:
             conn.row_factory = None
+        voiced = []
+        for a in audio:
+            copy = {k: a[k] for k in a.keys()}
+            # Bytes travel, never a bucket name (§237): the importing
+            # deployment has its own bucket, or none (staging).
+            if not copy.get("pcm"):
+                copy["pcm"] = self._fetch_object(copy.get("object_key") or "")
+            if not copy["pcm"]:
+                continue
+            copy["object_key"], copy["tier"] = "", ""
+            voiced.append({k: _portable(v) for k, v in copy.items()})
         return {"script": {k: _portable(row[k]) for k in row.keys()
                            if k not in self.PRIVATE_COLUMNS},
-                "audio": [{k: _portable(a[k]) for k in a.keys()} for a in audio]}
+                "audio": voiced}
 
     def import_episode(self, data: dict, keep_until: float) -> str:
         """Write an exported episode into this cache. Kept until at least
@@ -2066,6 +2387,9 @@ class SqliteScriptCache:
             [_restored(script[k]) for k in names])
         audio_columns = {r[1] for r in conn.execute("PRAGMA table_info(episode_audio)")}
         for audio in data.get("audio", []):
+            audio = {**audio, "object_key": "", "tier": ""}
+            if not audio.get("pcm"):
+                continue
             names = [k for k in audio if k in audio_columns]
             conn.execute(
                 f"INSERT OR REPLACE INTO episode_audio ({', '.join(names)})"
@@ -2082,7 +2406,7 @@ class SqliteScriptCache:
         script (§132) goes with it, and every entry is reproducible.
         """
         try:
-            self._conn().execute("DELETE FROM episode_audio")
+            self._forget_audio("1 = 1", ())
             cur = self._conn().execute("DELETE FROM scripts")
             return cur.rowcount or 0
         except Exception:

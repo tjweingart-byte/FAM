@@ -89,6 +89,21 @@ services:
       # FREE_EXPLORE_PER_DAY tune the ceiling in the dashboard.
       - key: ENFORCE_QUOTAS
         value: "1"
+      # Kept audio in a Cloudflare R2 bucket (§237, AUDIO_STORE.md). Asked
+      # for in the dashboard: `AUDIO_STORE=r2` is set once the bucket and its
+      # lifecycle rules exist and `tools/verify_audio_store.py` has passed,
+      # not as a side effect of a merge. Until then audio stays in scripts.db.
+      # Staging gets none of these, and spend_guard forces AUDIO_STORE off.
+      - key: AUDIO_STORE
+        sync: false
+      - key: AUDIO_BUCKET
+        sync: false
+      - key: R2_ACCOUNT_ID
+        sync: false
+      - key: R2_ACCESS_KEY_ID
+        sync: false
+      - key: R2_SECRET_ACCESS_KEY
+        sync: false
       # The pre-launch waitlist (WAITLIST.md). WAITLIST=1 closes the app to
       # anybody whose account is not active, so it is asked for in the
       # dashboard rather than set here: turning it on is a decision made when

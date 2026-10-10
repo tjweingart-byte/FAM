@@ -1,7 +1,7 @@
-"""§238: the per-request steps are plain ASGI, the app shell is compressed
+"""§241: the per-request steps are plain ASGI, the app shell is compressed
 once per version, and password hashing runs off the event loop.
 
-The load test (§237) found one Python process on one core doing all the
+The load test (§240) found one Python process on one core doing all the
 work. These are the three changes that buy back the most of that core
 without changing anything a listener sees.
 """
@@ -34,7 +34,7 @@ def test_no_request_runs_through_base_http_middleware():
     the app's own cost per request. Pinned so it does not come back."""
     wrapped = [m for m in appmod.app.user_middleware
                if m.cls is BaseHTTPMiddleware]
-    assert not wrapped, "a @app.middleware('http') was added back (§238)"
+    assert not wrapped, "a @app.middleware('http') was added back (§241)"
 
 
 def test_the_shell_is_compressed_and_unchanged_when_unpacked():

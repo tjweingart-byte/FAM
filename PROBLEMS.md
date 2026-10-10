@@ -17386,8 +17386,107 @@ Pinned by `tests/test_packet_1006.py::test_the_share_sheet_can_share_an_episode_
 and `smoke_preview.py::an_episode_can_be_shared_outside_fam` (labels, the
 Groups heading only over groups, the friends search).
 
+## 237. Kept audio moves to an R2 bucket, packed as Opus, kept a week
 
-## 237. A thousand listeners: the load test gets a verdict, the poll, and the shell
+**What was wrong.** Kept audio (§132) sat in `scripts.db` as zlib PCM - about
+4.3 MB for a two-minute episode - on a 1 GB disk shared with every other
+database, under a 512 MB ceiling. That is about 120 two-minute episodes before
+the least-played is evicted and paid for again on the GPU, so at any real
+volume §132's saving disappears. It also ties the deployment to one machine.
+
+**What the owner decided.** Audio goes to Cloudflare R2 (free egress, $0.015 a
+GB a month standard, $0.01 Infrequent Access), packed as Opus at 32 kbps. Every
+episode's audio is kept a week, so recent listening plays it; after that, audio
+somebody saved, shared or vibed moves to the cheaper class and everything else
+is deleted permanently. A bucket rule is acceptable if it is specific.
+
+**Measured** on `reference_3.wav` at 24 kHz, two minutes, one core:
+
+| | size | pack | unpack |
+|---|---|---|---|
+| zlib (before) | 4.45 MB | 0.2 s | - |
+| Opus 32 kbps | 0.48 MB | 1.6 s | ~5 ms per second of audio |
+
+The decoded PCM is exactly as long as what was voiced and aligned within one
+sample, so `starts` and captions are unchanged. PyAV costs ~35 MB resident.
+
+**What was built.**
+
+- `audio_codec.py`: Opus at `AUDIO_OPUS_BITRATE` through PyAV, zlib when PyAV
+  is missing or the rate is one Opus does not carry (the 22.05 kHz development
+  engines), each row saying which (`episode_audio.codec`, `frames`). Playback
+  decodes a slice at a time off the event loop (`_play_stored`), so the first
+  word waits for one slice, not the episode.
+- `audio_store.py`: R2 over its S3 API, SigV4 signed by hand over httpx
+  (botocore is ~50 MB resident; the signature is pinned against botocore's in
+  the tests). `recent/` for the first week, `kept/` after.
+- `episode_audio.object_key` names the object; `pcm` is a hot copy under
+  `AUDIO_CACHE_MAX_MB`, evicted to the bucket rather than deleted. A row is
+  written only after its upload; a failed upload keeps the audio local and the
+  next sweep uploads it, which is also how audio from before the bucket is
+  backfilled (200 rows a sweep).
+- `_forget_audio` is the one way a row is dropped, and queues its object in
+  `audio_deletes`; the sweep drains it. Clear, purge, re-write, slur drop and
+  `forget_author` all go through it, and a test covers each.
+- `sweep_audio`, hourly (`app._sweep_audio_forever`): week-old audio that is
+  held is copied to `kept/` with `x-amz-storage-class: STANDARD_IA` and its
+  script pinned (purge skips kept scripts too); the rest is deleted. Daily,
+  kept audio nobody holds any more is released. What is held is derived on
+  every sweep from the three stores (`_held_episode_keys`, `cache_key` of
+  question and length, as a shared link's replay builds it), never a tally.
+- `deploy/r2-lifecycle.json`: `recent/` deleted at eight days (one day after
+  FAM stops reading it, so a late sweep loses nothing); `kept/` moved to
+  Infrequent Access at one day as a backstop and never deleted by rule. A test
+  pins the eight days to `AUDIO_RECENT_DAYS`.
+- Staging: `AUDIO_STORE` forced off and the R2 keys scrubbed (`spend_guard`);
+  `export_episode` carries bytes, never a bucket name.
+- `/api/health` `audio`: store, codec, the boot check's real write/read/delete,
+  and the last sweep. `tools/verify_audio_store.py` runs the same requests the
+  sweep makes, timed, against the real bucket.
+
+**What it changes elsewhere.** §173 pinned a heard episode for the history's
+two weeks; its script still is, but its audio is now kept one week unless
+held, so the second week of history re-voices the same words in the same voice.
+Old zlib rows keep playing. `tests/test_audio_cache.py` pins zlib, because it
+proves §132's rules by comparing bytes exactly and Opus is lossy.
+
+**Not done.** Nobody has listened to Opus at 32 kbps in the production voice;
+it belongs in the listening test (`op-voice`). Opus is not sent to clients
+yet: that saves listeners' data but needs decoding in the browser and iOS and
+a PCM fallback for old clients. `scripts.db` is still SQLite on one disk, so
+more than one server still needs a database move. A saved item still plays by
+question, not by episode id.
+
+## 238. Opus at 24 kbps, not 32
+
+At the owner's direction, the default `AUDIO_OPUS_BITRATE` is 24000. Measured
+on the same two minutes of `reference_3.wav`: 0.36 MB against 32 kbps's
+0.48 MB, about a twelfth of zlib's 4.45 MB. The voice is sampled at 24 kHz, so
+it holds nothing above 12 kHz, which Opus at 24 kbps already carries for
+speech. The saving is a quarter of the bytes, cents a month at today's volume;
+the reason it was 32 first was margin for a voice nobody has heard yet, and the
+24/32 comparison stays in the listening test (`op-voice`). Rows already packed
+at 32 keep playing: the rate is read from the stream, not the setting.
+
+## 239. Opus, not MP3, for kept audio
+
+The owner asked whether "No MP3" had been thought through, and whether kept
+audio should be MP3. The rule's reason is §1: the first FAM wrote the whole
+episode to `episode.mp3` before anything played, so the listener waited for
+all of it. What it protects is streaming as the episode is voiced, and §237
+narrowed its wording to that ("no audio files *to the client*").
+
+For storage the choice is between codecs, and Opus wins: clean speech at 24
+kbps (0.36 MB for two minutes, measured) where MP3 needs about 48-64 kbps
+mono (roughly 0.7-1 MB), and MP3 at 24 kbps is audibly smeared. MP3's
+advantage, native playback everywhere, is irrelevant to a file only the
+server decodes. The owner's decision: keep Opus for storage. The format sent
+to clients, if compressed audio is ever streamed to them, is decided with the
+iOS audio path, where native playback matters (AAC is the alternative to
+weigh against Opus there, not MP3).
+
+
+## 240. A thousand listeners: the load test gets a verdict, the poll, and the shell
 
 The owner asked for a way to confirm FAM will not fail or slow down with
 upwards of 1,000 listeners. §221's Locust file existed but could not answer
@@ -17448,15 +17547,15 @@ listeners, never 1,000).
 `LOAD_TESTING.md`; `tools/load_test.py`; `tests/test_load_test.py`.
 
 
-## 238. Where the core went: the middleware, myFAM's probes, the limiter, the shell and scrypt
+## 241. Where the core went: the middleware, myFAM's probes, the limiter, the shell and scrypt
 
-The owner asked for the cheap fixes from §237. Measuring before building
+The owner asked for the cheap fixes from §240. Measuring before building
 changed which ones those were.
 
 **The poll's queries were not the cost.** One request at a time against a
 local server: a signed-in `/api/notifications` 1.79 ms, a guest's (which
 returns before the database) 1.68 ms, `/api/auth/me` 1.70 ms. Caching the
-poll's answer - the fix §237 proposed - would have saved ~5%. Profiling the
+poll's answer - the fix §240 proposed - would have saved ~5%. Profiling the
 ASGI app in-process put most of its 0.60 ms in Starlette's
 `BaseHTTPMiddleware`: every `@app.middleware("http")` runs the request in a
 new task and copies the response through a memory channel, and there were
@@ -17511,5 +17610,4 @@ would fit - a crowd rail); the poll's volume (backoff is §127's call);
 raw PCM (settled); and the single process (`LOAD_TESTING.md` §5c lists the
 infrastructure in order).
 
-`app.py`, `cache.py`, `tests/test_throughput_238.py`, `LOAD_TESTING.md` §5b-5c.
-
+`app.py`, `cache.py`, `tests/test_throughput_241.py`, `LOAD_TESTING.md` §5b-5c.

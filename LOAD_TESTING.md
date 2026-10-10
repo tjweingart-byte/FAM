@@ -3,13 +3,13 @@
 The question is "will FAM fail, or get slower, with 1,000 people using it at
 once?". Nobody can answer that by looking. So this is a test that gives a
 yes or a no: `tools/load_test.py` (Locust). It ends every run with **PASS**
-or **FAIL** and an exit code. It is in `PROBLEMS.md` §237, and §221 started
+or **FAIL** and an exit code. It is in `PROBLEMS.md` §240, and §221 started
 it.
 
-Short answer: **after §238, one process now carries 1,000 signed-in
+Short answer: **after §241, one process now carries 1,000 signed-in
 listeners within every budget a listener feels**. With all 1,000 signed in, a
 local run had 0 errors, first audio p95 250 ms, the app page 660 ms and
-every screen under 210 ms. Before §238 the same run had first audio at 29 s.
+every screen under 210 ms. Before §241 the same run had first audio at 29 s.
 It still reports FAIL, for two honest reasons. Screens are 3–10× slower than
 with ten listeners (myFAM 10 ms becomes 98 ms), which the "no slower" check
 counts. And `/api/auth/me` is slow while a wave of new listeners is being
@@ -246,7 +246,7 @@ What uses up that core, most important first:
    exactly the `spike` shape. Moving the hash to a thread
    (`asyncio.to_thread`) costs nothing and keeps the same scrypt settings.
 
-## 5b. What §238 changed, and what it measured
+## 5b. What §241 changed, and what it measured
 
 Profiling the server under load (py-spy, 1,000 steady listeners) and timing
 a single request showed something the list above got wrong. A signed-in

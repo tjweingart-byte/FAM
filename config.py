@@ -1262,6 +1262,35 @@ class Settings:
     # 2 MB a compressed minute this is roughly 250 minutes of episodes. An
     # evicted episode keeps its script and costs one re-synthesis. 0 = none.
     audio_cache_max_mb: int = _env_int("AUDIO_CACHE_MAX_MB", 512)
+    # §237: how kept audio is packed. `opus` (the default) at
+    # AUDIO_OPUS_BITRATE is about a twelfth of zlib's size for speech; it is
+    # decoded back to the same PCM before it is streamed. `zlib` restores
+    # §132's packing exactly. Opus needs PyAV and a rate it carries (24 kHz
+    # production voices do); anything else is packed as zlib and says so.
+    audio_codec: str = field(
+        default_factory=lambda: os.environ.get("AUDIO_CODEC", "opus").strip().lower() or "opus"
+    )
+    audio_opus_bitrate: int = _env_int("AUDIO_OPUS_BITRATE", 24000)
+    # §237: where kept audio lives. "" (the default) keeps it in scripts.db
+    # as before; `r2` puts each episode in a Cloudflare R2 bucket and keeps
+    # only its object name here, with the SQLite blob as a hot copy under
+    # AUDIO_CACHE_MAX_MB. Credentials are R2_ACCESS_KEY_ID and
+    # R2_SECRET_ACCESS_KEY (through FAM_SECRETS like every key).
+    audio_store: str = field(
+        default_factory=lambda: os.environ.get("AUDIO_STORE", "").strip().lower()
+    )
+    audio_bucket: str = field(
+        default_factory=lambda: os.environ.get("AUDIO_BUCKET", "").strip()
+    )
+    r2_account_id: str = field(
+        default_factory=lambda: os.environ.get("R2_ACCOUNT_ID", "").strip()
+    )
+    # How long every episode's audio is kept (§237, at the owner's
+    # direction: a week, so recent listening plays it). After that, audio
+    # somebody saved, shared or vibed moves to the bucket's Infrequent Access
+    # class and the rest is deleted. The bucket's own lifecycle rule deletes
+    # `recent/` a day later as a backstop (deploy/r2-lifecycle.json).
+    audio_recent_days: int = _env_int("AUDIO_RECENT_DAYS", 7)
 
     # Cosine a near match must clear, and the share of words it must literally
     # share. Both measured, not chosen: tools/bench_vector_cache.py sweeps them

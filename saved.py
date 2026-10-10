@@ -696,6 +696,12 @@ class SavedStore:
                  "episode": r[6] or ""}
                 for r in rows]
 
+    def episodes(self):
+        """Every distinct (question, length) on anybody's shelf. Read by the
+        audio sweep (§237): a saved episode's audio is kept past its week."""
+        return self._conn().execute(
+            "SELECT DISTINCT query, minutes FROM items").fetchall()
+
     # --- housekeeping -----------------------------------------------------
 
     def forget(self, user_id: str) -> int:
