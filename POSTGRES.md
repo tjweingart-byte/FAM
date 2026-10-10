@@ -65,30 +65,40 @@ Do this in a quiet hour. It takes a maintenance window of roughly ten to
 thirty minutes, depending on the size of `/data`.
 
 1. **Create the database** (Render dashboard or the blueprint, *without*
-   wiring `DATABASE_URL` to `fam` yet): Postgres 16, Pro-4gb ($55/mo plus
-   $0.30/GB) is the size the cost analysis recommends for ~100k listeners;
-   Basic-1gb ($19) is enough today.
-2. **Stop writes**: suspend the `fam` service, so nothing is half-written.
-3. **Copy `/data`** off the disk (Render shell: `tar czf - /data/*.db`), to
-   the machine that will run the copy.
-4. **Dry run** - reads only, says what it would copy:
+   wiring `DATABASE_URL` to `fam` yet): Postgres 16, **the same region as
+   `fam`**. Basic-1gb ($19) is enough today; Pro-4gb ($55/mo plus $0.30/GB)
+   is what the cost analysis recommends for ~100k listeners. Copy its
+   **Internal Database URL** (Connect menu); it is used twice below.
+2. **Stop listeners writing**: turn on **Maintenance Mode** for `fam`
+   (service Settings). Visitors get a maintenance page, but the instance
+   keeps running, so its shell and its disk stay reachable. (Suspending the
+   service would also stop writes, but a suspended service has no shell.)
+   Background jobs - editions, the GDELT copy, prefetch - may still write a
+   little; everything they hold is rebuilt from outside, so a few minutes'
+   gap there costs nothing.
+3. **Dry run**, in `fam`'s Render **Shell** - reads `/data` only and says
+   what it would copy:
 
-       python tools/sqlite_to_postgres.py --from ./data --database-url "$EXTERNAL_URL"
+       python tools/sqlite_to_postgres.py --from /data --database-url "<internal URL>"
 
-5. **Copy** - one transaction per store, counts checked table by table,
+4. **Copy** - one transaction per store, counts checked table by table,
    self-numbering ids moved past their maximum:
 
-       python tools/sqlite_to_postgres.py --from ./data --database-url "$EXTERNAL_URL" --yes
+       python tools/sqlite_to_postgres.py --from /data --database-url "<internal URL>" --yes
 
-6. **Wire it**: set `DATABASE_URL` on `fam` to the database's *internal*
-   URL (`fromDatabase` in `render.yaml`), and resume the service.
-7. **Check**: `/api/health` → `database.backend: postgres`,
-   `storage.note` says every store is in Postgres; sign in, open myFAM,
-   play a kept episode, send a message.
+   It stops and names the store on any mismatch; nothing has changed for
+   listeners at that point, so turn Maintenance Mode off and look.
+5. **Wire it**: set `DATABASE_URL` on `fam` to the internal URL (the
+   dashboard, or `fromDatabase` in `render.yaml`). Saving it redeploys.
+6. **Check**, then turn Maintenance Mode off: `/api/health` →
+   `database.backend: postgres`, `database.reachable: true`, `storage.note`
+   says every store is in Postgres; sign in, open myFAM, play a kept
+   episode, send a message, check the admin dashboard's counts against the
+   copy's totals.
 
 **Going back**: unset `DATABASE_URL` and redeploy. The SQLite files on the
 disk are exactly as they were at step 2; anything written to Postgres after
-step 6 is not in them.
+step 5 is not in them.
 
 Keep the disk until the switch has run for a while. After that, removing it
 is what allows a second instance - but read the next section first.
