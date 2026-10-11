@@ -658,6 +658,13 @@ class MessageStore:
                   text="changed the group photo" if avatar else "took the group photo off")
         return self.group(gid)
 
+    def remove_group_photo(self, gid: str) -> bool:
+        """A reviewer taking a reported group's photo down (§251). True if
+        there was one to take down."""
+        cur = self._conn().execute(
+            "UPDATE groups SET avatar = '' WHERE id = ? AND avatar != ''", (gid,))
+        return bool(cur.rowcount)
+
     def leave_group(self, user_id: str, gid: str) -> bool:
         """Leave a group. Said in the group first, so the others know."""
         if not self.is_member(gid, user_id):

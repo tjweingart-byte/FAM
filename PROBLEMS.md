@@ -18238,8 +18238,13 @@ list, the chat header and the share sheet draw it through `personAvHTML`.
 In the chat a paperclip - search's - sits beside the ⋯ for groups only and
 offers *Choose from library*, *Take a photo* (`capture`) and *Choose a
 file*, plus *Remove photo* when there is one; the ⋯ menu has the same door.
-The client centre-crops to `AVATAR_PX`. Additive, so installed clients are
-unaffected (`old-clients`).
+The client centre-crops to `AVATAR_PX` and shows the server's own sentence
+when a photo is refused (`error`, which is where `http_error` puts it). A
+reported group used to be "not content to remove"; with a picture everybody
+in it sees, a reviewer's *removed* now takes the photo down
+(`remove_group_photo`), and a group with no photo still answers 400. The
+report's snapshot says whether it had one. Additive, so installed clients
+are unaffected (`old-clients`).
 
 **Tab bar.** "messages" is **Messages**. The symbols are unchanged; they
 are larger (20px, search 22px), each with a soft tint inside its shape

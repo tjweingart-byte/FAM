@@ -174,7 +174,8 @@ Responses name members and carry no listener ids.
 > removes it from the paperclip in the chat's header (the library, the
 > camera or a file) or the ⋯ menu; it is a `data:` URL like a profile
 > picture, cleaned by `social.clean_avatar`, through the photo check, and
-> said in the group ("changed the group photo").
+> said in the group ("changed the group photo"). A reviewer's *removed* on a
+> reported group takes the photo down.
 
 <!-- rule:names-swapped -->
 **The listener sees myFAM and DailyFAM with their names swapped (§185), at

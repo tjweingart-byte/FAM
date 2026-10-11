@@ -4215,7 +4215,8 @@ def _report_subject(kind: str, req: ReportRequest, me: str) -> tuple[str, str, d
         if not group or not MESSAGES.is_member(target, me):
             raise missing
         return (target, "", {"name": group.get("name") or "",
-                             "members": len(group.get("members") or [])})
+                             "members": len(group.get("members") or []),
+                             "photo": bool(group.get("avatar"))})
     raise HTTPException(status_code=400, detail="That can't be reported.")
 
 
@@ -4309,8 +4310,9 @@ class ReportDecision(BaseModel):
 
 
 def _remove_reported(report: dict, owner: str) -> bool:
-    """Take the reported thing down for everybody. False for a person or a
-    group, which are not content - suspend the person instead."""
+    """Take the reported thing down for everybody. False for a person, or a
+    group with no photo, which are not content - suspend the person instead.
+    A group's photo is content everybody in it sees, so it comes down (§251)."""
     kind, target = report["kind"], report["target"]
     if kind == "comment":
         SOCIAL.delete_comment(owner, int(target), moderator=True)
@@ -4322,6 +4324,8 @@ def _remove_reported(report: dict, owner: str) -> bool:
             SOCIAL.unecho(row["user_id"], row["query"], row["minutes"])
     elif kind == "episode":
         MODERATION.hide_episode(target, report["id"])
+    elif kind == "group":
+        return MESSAGES.remove_group_photo(target)
     else:
         return False
     return True

@@ -104,6 +104,7 @@ def test_a_member_sets_and_removes_a_group_photo(client):
         c.__exit__(None, None, None)
 
 
+@pytest.mark.sqlite_file
 def test_an_old_groups_table_is_widened(tmp_path):
     import sqlite3
     path = str(tmp_path / "messages.db")
@@ -139,3 +140,42 @@ def test_the_tab_icons_are_toned_and_spring():
     assert "@keyframes tabPop" in INDEX
     # One tint per tab, two on YourFAM's (head and shoulders), on every copy.
     assert INDEX.count('class="tone"') == 6 * INDEX.count('<div class="tabbar">')
+
+
+def test_a_reviewer_takes_a_reported_group_photo_down(client, monkeypatch):
+    """A group's photo is content everybody in it sees, so "removed" on a
+    reported group takes it down; a group with no photo is still not
+    content to remove."""
+    monkeypatch.setattr(appmod, "_require_admin", lambda request: None)
+    signed_in(client, "rg1@b.com", "Rae", "rae1")
+    others, ids = [], []
+    for n in (2, 3):
+        c = TestClient(appmod.app)
+        c.__enter__()
+        ids.append(signed_in(c, f"rg{n}@b.com", f"R{n}", f"rr{n}"))
+        others.append(c)
+    for uid in ids:
+        client.post("/api/friends/follow", json={"user_id": uid})
+    gid = client.post("/api/messages/groups",
+                      json={"user_ids": ids}).json()["group"]["user_id"]
+
+    def report():
+        return others[0].post("/api/report", json={
+            "kind": "group", "target": gid, "reason": "hate"}).json()["id"]
+
+    bare = report()
+    assert client.post(f"/api/admin/reports/{bare}/resolve",
+                       json={"action": "removed"}).status_code == 400
+
+    client.post(f"/api/messages/groups/{gid}/photo", json={"avatar": PHOTO})
+    rid = report()
+    r = client.post(f"/api/admin/reports/{rid}/resolve", json={"action": "removed"})
+    assert r.status_code == 200, r.text
+    assert others[1].get("/api/messages/thread",
+                         params={"with": gid}).json()["with"]["avatar"] == ""
+    for c in others:
+        c.__exit__(None, None, None)
+
+
+def test_a_refused_photo_shows_the_servers_sentence():
+    assert "d.error || d.detail" in _fn("saveGroupPhoto")

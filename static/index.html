@@ -13912,9 +13912,9 @@
   // The faces, one sideways-scrolling row: the rails screen (shown as
   // DailyFAM, §185) draws it at its top (10.2 packet #1), so who has vibed
   // is the first thing seen. YourFAM drew it too until the 10.11 packet
-  // gave it the "View Your FAM" pill instead. One renderer and one list (`yfCircle`), because the story viewer
-  // indexes into that list from either row - `data-i` is the index, never
-  // the button's position on the page, which counts both rows.
+  // gave it the "View Your FAM" pill instead. One renderer and one list
+  // (`yfCircle`), because the story viewer indexes into that list - `data-i`
+  // is the index, never the button's position on the page.
   function circleRowHTML(){
     return '<div class="yf-friends">'
       + yfCircle.map(function(person, i){
@@ -16096,7 +16096,7 @@
       method: "POST", headers: {"Content-Type": "application/json"},
       body: JSON.stringify({ avatar: avatar })
     }).then(function(r){ return r.json().then(function(d){
-        if(!r.ok) throw new Error(d.detail || "Could not change the photo"); return d; }); })
+        if(!r.ok) throw new Error(d.error || d.detail || "Could not change the photo"); return d; }); })
       .then(function(d){
         inboxThreads.forEach(function(t){
           if(t["with"] === gid && d.group) t.avatar = d.group.avatar; });
