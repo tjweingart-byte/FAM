@@ -103,7 +103,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   read by anyone, written with an account, one level of replies; the
   exploreFAM pill opens it from search and beside Made for you. [explore-reel]
 - **VIBE! is a story editor** (§213): a clamped layout, never an image;
-  Your story only (§248); holding pauses; your story rings your face. [vibe-caption]
+  Your story only (§250); holding pauses; your story rings your face. [vibe-caption]
 - **Group chats** (§213): one row per message to a `g:` thread; graph only. [group-chats]
 
 - **Names swapped for the listener** (§185): the rails screen *shows*
@@ -273,7 +273,7 @@ Audio and the opening
 - **Duration is a ceiling, not a quota** - end early rather than pad (`ALLOW_TOPUPS=1` restores). [duration-ceiling]
 - **Two transport gestures, both stay**: draggable bar (clamped to what is
   written) and ±15s. One transport: `setPlayState` alone moves audio and redraws
-  all four players. Leaving the player never stops it; the mini bar's X does (§248). [transport]
+  all four players. Leaving the player never stops it; the mini bar's X does (§250). [transport]
 - **Nothing speaks before its material has arrived, and no setting buys that
   back**: the writer holds brief and evidence before its first token; no tools
   on the speaking call; EI on every episode. Only work *before* the tap may be
@@ -366,9 +366,9 @@ Caching and prefetch
   anything personal, report `None` not `0`. [prefetch-same-key]
 - A prefetch candidate carries a reason in words; sources never call a model or
   the network. [candidate-reason]
-- **Small calls on Haiku 5.5** (§227): brief, composer, placer, thumbnails
-  default to `SMALL_MODEL`, never `MODEL`; metering prices each call at its
-  own model; brief quality unmeasured until `ei_eval.py` runs. [small-calls-haiku]
+- **One model for the pipeline** (§249): brief, composer, placer, thumbnails
+  follow `MODEL`; only the photo check uses `SMALL_MODEL` (§225); metering
+  prices each call at its own model. [small-calls-haiku]
 - **Writer savings change no word and cost no episode** (§179): its
   instructions are one cacheable block (`PROMPT_CACHE`); the Trending and
   DailyFAM editions batch their writers (`EDITION_BATCH`), read by the same
@@ -442,7 +442,7 @@ Accounts, tiers, sharing
 - **Authorship is provenance, never identity**: `PodcastPipeline.author`, never
   on `EpisodePlan` or in `key_for`; first writer keeps it; prefetch writes none. [authorship-provenance]
 - **Type: Bricolage Grotesque (headings), Geist (body), Geist Mono (labels)**
-  (§204), one font link; wordmark words at 400; light theme by default (§248). [typefaces]
+  (§204), one font link; wordmark words at 400; light theme by default (§250). [typefaces]
 - **A speed change must not change the voice** (WSOLA; bypassed at 1x; default 1x). [speed-pitch]
 - **A control with nothing behind it is worse than no control**; never fabricate people. [no-dead-controls]
 - **The intro screen is not on the navigation stack**; screens opened over it

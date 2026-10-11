@@ -152,7 +152,7 @@ replaced when the same episode is vibed again.
 > YourFAM, and its ⋯ menu adds "Remove from your story", which takes it off
 > the story and leaves the vibe on the profile.
 >
-> **Current (§248):** Close Friends is gone from the app at the owner's
+> **Current (§250):** Close Friends is gone from the app at the owner's
 > direction: the composer posts to "Your story" only, and Settings no longer
 > lists close friends. The server keeps `/api/close-friends` and the
 > `audience` field, and still keeps a close-friends vibe private, for an

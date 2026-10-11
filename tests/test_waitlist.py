@@ -799,7 +799,7 @@ def test_the_what_is_fam_pictures_are_real_screens_that_ship():
     # Nothing ships that the page no longer shows.
     assert sorted(p.name for p in (ROOT / "static" / "landing").glob("*.jpg")) == sorted(pictures)
     # Retaken by one script, which writes exactly the files the page names,
-    # some in light and some in dark (§248).
+    # some in light and some in dark (§250).
     tool = (ROOT / "tools" / "landing_shots.py").read_text(encoding="utf-8")
     shots = dict((n, t) for n, t in re.findall(r'\("([\w-]+)", .*?, "(light|dark)"\)', tool, re.S))
     assert set(shots) == {n[:-4] for n in pictures}
@@ -827,7 +827,7 @@ def test_the_landing_page_tells_why_fam_exists():
     assert '<p class="tagline label">The social information network</p>' in landing
     # Right under the wordmark, above the headline.
     assert landing.index('class="wordmark"') < landing.index('class="tagline') < landing.index('class="headline"')
-    # Drawn as the cure's heading is (§248), not in capitals.
+    # Drawn as the cure's heading is (§250), not in capitals.
     assert '<h2 class="cure-h">Social <span>information.</span></h2>' in landing
     assert "SOCIAL INFORMATION" not in landing
     assert "social information, not social media" in page.split("</head>", 1)[0]
@@ -873,7 +873,7 @@ def test_the_landing_page_tells_why_fam_exists():
 
 
 def test_three_sections_are_off_the_page_for_a_video():
-    """§248 (the 10.10 packet): "Stay in the loop", "How to get the most out
+    """§250 (the 10.10 packet): "Stay in the loop", "How to get the most out
     of FAM" and "Better together" are becoming a video, so the page no
     longer carries them - nor the styles that only they used. (The comment
     saying so is allowed to name them.)"""
@@ -889,7 +889,7 @@ def test_three_sections_are_off_the_page_for_a_video():
 def test_the_carousels_turn_only_by_hand():
     page = (ROOT / "static" / "waitlist.html").read_text(encoding="utf-8")
     boxes = page.split(" data-carousel role=")[1:]
-    assert len(boxes) == 1  # the problem (how to use FAM went in §248)
+    assert len(boxes) == 1  # the problem (how to use FAM went in §250)
     for box in boxes:
         box = box.split("</section>", 1)[0]
         # Without script every slide shows: nothing is hidden in the markup.

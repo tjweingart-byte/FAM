@@ -24,7 +24,7 @@ Retake them whenever a screen they show changes:
     python tools/landing_shots.py
 
 Writes `static/landing/*.jpg`, the files `static/waitlist.html` names. Each
-shot names the theme it is taken in: some light, some dark (§248).
+shot names the theme it is taken in: some light, some dark (§250).
 """
 from __future__ import annotations
 
@@ -56,7 +56,7 @@ FAKE_INITIALS = {"BS": "MB", "RS": "JR", "MS": "SP", "NO": "AK"}
 
 #: file name -> the script that puts the interface on that screen, and the
 #: theme it is shown in. Some light and some dark, at the owner's direction
-#: (§248): the page shows both looks the app has. In order: the mix detail
+#: (§250): the page shows both looks the app has. In order: the mix detail
 #: opens from the mixes screen.
 SHOTS = [
     ("search", "setTab('home')", "dark"),

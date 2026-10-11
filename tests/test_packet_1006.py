@@ -105,7 +105,7 @@ def test_vibe_opens_the_editor_not_a_caption_box():
         assert "vcsTool(" + tool + ")" in composer, tool
     for door in ("postVibeStory('')", "closeVibeComposer()"):
         assert door in composer, door
-    # No Close Friends audience (§248, the 10.10 packet): a story goes to
+    # No Close Friends audience (§250, the 10.10 packet): a story goes to
     # everybody who follows.
     assert "Close Friends</button>" not in composer and "postVibeStory('close')" not in INDEX
     assert "Add a caption" in composer
@@ -154,7 +154,7 @@ def test_close_friends_stories_reach_only_close_friends(store):
 
 
 def test_close_friends_still_answer_an_older_client(client):
-    """§248 took Close Friends out of the app; the endpoint stays for an
+    """§250 took Close Friends out of the app; the endpoint stays for an
     installed client that still offers it (`old-clients`)."""
     me = signed_in(client, "cf1@b.com", "Cal", "cal1")
     other = TestClient(appmod.app)

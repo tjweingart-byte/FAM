@@ -92,7 +92,7 @@
   restores the old behaviour.
 <!-- rule:transport -->
 > **Current (PROBLEMS.md §190):** the full player minimises with a down arrow top left (`#playerDown`), not an X; it still never stops.
-> **Current (PROBLEMS.md §248):** the mini bar's X stops the episode as well as hiding the bar (`dismissNowBar` calls `stopSpeech`), at the owner's direction: with the bar gone, audio it had left playing had no control left to stop it. Leaving the player (the down arrow, a tab) still never stops it; `placeNowBar` still moves the one bar.
+> **Current (PROBLEMS.md §250):** the mini bar's X stops the episode as well as hiding the bar (`dismissNowBar` calls `stopSpeech`), at the owner's direction: with the bar gone, audio it had left playing had no control left to stop it. Leaving the player (the down arrow, a tab) still never stops it; `placeNowBar` still moves the one bar.
 - **Transport: two gestures, and both stay.** *(PROBLEMS.md §71.)* The
   progress bar is draggable on all three listening surfaces, and the
   fifteen-second buttons are untouched. They answer different questions - the
@@ -1089,6 +1089,14 @@
   The brief's quality on Haiku is unmeasured until `tools/ei_eval.py` runs
   with a key.
 
+  > **Current:** reversed by the owner (PROBLEMS.md §249): the brief,
+  > composer, placer and thumbnails follow `MODEL` (Sonnet) again, each still
+  > settable on its own. `config.SMALL_MODEL` names only the photo check
+  > (§225), which stays on Haiku. What §227 added that is not about Haiku
+  > stays: per-call pricing in metering, the 5.5 rows in `PRICES`, an empty
+  > setting meaning the default, and the boot check of any model a call uses
+  > besides `MODEL` (`credentials.models`).
+
 <!-- rule:writer-savings -->
 - **Savings on the writer never change what is written, and never cost an
   episode.** *(PROBLEMS.md §179, at the owner's direction.)* Two are in: the
@@ -1383,7 +1391,7 @@
   warmed script was nobody's tap, so it belongs to everybody, which is also
   what rows written before the column existed do.
 <!-- rule:typefaces -->
-> **Current (PROBLEMS.md §248):** the words beside the FAM mark ("Daily", "my", "Your", "explore") are all Bricolage Grotesque at its regular 400, matching exploreFAM's, at the owner's direction (the 10.10 packet's picture); they had been 500 with tightened spacing. And **light is the default theme**: dark is the choice in Settings ("Dark mode"), kept on the device under `fam.theme`; a device that cannot store it gets light. Fraunces, Space Grotesk and JetBrains Mono are gone (§204).
+> **Current (PROBLEMS.md §250):** the words beside the FAM mark ("Daily", "my", "Your", "explore") are all Bricolage Grotesque at its regular 400, matching exploreFAM's, at the owner's direction (the 10.10 packet's picture); they had been 500 with tightened spacing. And **light is the default theme**: dark is the choice in Settings ("Dark mode"), kept on the device under `fam.theme`; a device that cannot store it gets light. Fraunces, Space Grotesk and JetBrains Mono are gone (§204).
 - **The type is Bricolage Grotesque, Geist and Geist Mono.** *(§204.)* At the
   owner's direction, after a comparison of six type systems on every screen:
   Bricolage Grotesque for headings (it took Fraunces' place), Geist for body

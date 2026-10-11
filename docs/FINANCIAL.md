@@ -78,16 +78,12 @@ the most important number in this report.
 
 ### 2.1 Claude (Anthropic)
 
-The writer's model is `claude-sonnet-5`. It is set in `render.yaml` (`MODEL`)
-and is the default in `config.py`. **Since §227 every other call runs on
-`claude-haiku-5-5`** ($0.10 in / $0.50 out, `config.SMALL_MODEL`): the brief
-(`EI_MODEL`), the tile composer (`STORIES_MODEL`), the category placer
-(`CATEGORIES_MODEL`) and the thumbnail scene writer and checker
-(`THUMBNAILS_MODEL`). On the estimates below that takes a brief from ~$0.010
-to ~$0.0005 and the Claude bill down about 30% at every audience size; the
-tables in this section still show the Sonnet figures they were measured on.
-`metering` prices each call at its own model's rates, so an episode whose
-brief and writer differ is recorded correctly.
+The production model is `claude-sonnet-5`. It is set in `render.yaml`
+(`MODEL`) and is the default in `config.py`, and the brief, tile composer,
+category placer and thumbnail calls follow it (§249 - §227 had moved them to
+Haiku 5.5 for about -30% of the Claude bill; the owner moved them back). Only
+the profile-photo check runs on `claude-haiku-5-5` (§225, ~$0.0002 a photo).
+`metering` prices each call at its own model's rates.
 
 | Price (Code, `metering.py:81-96`, "checked against the rate card on 2026-09-09") | USD |
 |---|---|
@@ -95,13 +91,13 @@ brief and writer differ is recorded correctly.
 | Sonnet 5 output (thinking tokens are billed as output) | $10.00 / M tokens |
 | Prompt-cache read | 0.1x input |
 | Prompt-cache write | 1.25x input |
-| Haiku 5.5 (brief, composer, placer, thumbnails since §227) | $0.10 in / $0.50 out |
+| Haiku 5.5 (the photo check only, §225) | $0.10 in / $0.50 out |
 | Haiku 4.5 (only for the optional canonical key) | $1.00 in / $5.00 out |
 
 **Calls per new search episode: 2.**
 
 1. **The episode-intelligence brief.** `episode_intelligence.py:745`.
-   Settings: `EI_MAX_TOKENS=1200`, `EI_EFFORT=low`, 8 s timeout.
+   Settings: `EI_MAX_TOKENS=3000` (1200 until §248), `EI_EFFORT=low`, 8 s timeout.
 2. **The script writer.** `script_generator.py:1390`. It streams, carries no
    tools, and runs with `EFFORT=low` and `MAX_OUTPUT_TOKENS=16000`.
 
@@ -112,7 +108,7 @@ call itself, so they cost no extra call.
 
 | Call | Input | Output (incl. hidden thinking) | Cost |
 |---|---|---|---|
-| Brief | ~1,000 tokens (`EI_SYSTEM` is 2,526 chars, plus the question and schema) | 400-1,200 (capped at 1,200) | **$0.006-0.014** |
+| Brief | ~1,000 tokens (`EI_SYSTEM` is 2,526 chars, plus the question and schema) | 400-1,200 (capped at 3,000 since §248; ~$0.03 if all of it were used) | **$0.006-0.014** |
 | Writer, 2 min | ~5,500 tokens: system 7,794 chars (~1,950 tok), style example 6,215 chars (~1,550 tok), brief + evidence packet (~2,000 tok) | ~1,500-2,500: script ~400, plus thinking at `low` | **$0.026-0.036** |
 | Writer, 10 min | ~5,500 | ~3,000-4,000 | **$0.041-0.051** |
 
@@ -387,7 +383,8 @@ What the table shows:
    about two-thirds of each miss. The levers, from cheapest to most expensive:
    raise the cache hit rate (near-match tuning, the canonical key), shorten
    the writer prompt (the style example is ~1,550 input tokens on every
-   call). The brief moved to Haiku 5.5 in §227.
+   call). Routing the brief to Haiku 5.5 was tried in §227 and reversed in
+   §249.
 2. **Bandwidth becomes the second-largest line at 10k and above.** This is the
    case for Opus over the stream (`IOS_APP.md`). Opus is about 0.2 MB/min
    against 2.65 MB/min, which cuts the bandwidth line about 13x (24 TB → ~1.8 TB

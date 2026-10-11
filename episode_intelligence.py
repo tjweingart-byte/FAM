@@ -43,6 +43,7 @@ quality must not be able to subtract availability.
 from __future__ import annotations
 
 import asyncio
+import collections
 import dataclasses
 import difflib
 import json
@@ -361,6 +362,20 @@ def clean_title(title: str, query: str) -> str:
     if words(text) == words(query):
         return ""
     return text[:80]
+
+
+#: How each brief since boot ended (§248): `ok`, or the reason it degraded to
+#: the raw query - `out_of_room`, `timeout`, `failed`, `refused`,
+#: `unreadable`. A degraded brief already says so per episode in the log; this
+#: is the rate, which is the number that decides whether a model or a ceiling
+#: is right, and it is in /api/health (`episode_intelligence.since_boot`).
+_OUTCOMES: "collections.Counter[str]" = collections.Counter()
+
+
+def _degrade(query: str, kind: str, reason: str) -> Brief:
+    """A model call that did not produce a brief: counted, then the fallback."""
+    _OUTCOMES[kind] += 1
+    return fallback_brief(query, reason)
 
 
 def fallback_brief(query: str, reason: str) -> Brief:
@@ -954,10 +969,10 @@ async def understand(query: str, minutes: int = DEFAULT_MINUTES, context: str = 
             timeout=settings.ei_timeout_seconds,
         )
     except asyncio.TimeoutError:
-        return fallback_brief(
-            query, f"EI did not answer within {settings.ei_timeout_seconds}s")
+        return _degrade(query, "timeout",
+                        f"EI did not answer within {settings.ei_timeout_seconds}s")
     except Exception as exc:  # noqa: BLE001 - availability outranks diagnosis here
-        return fallback_brief(query, f"EI call failed: {exc}")
+        return _degrade(query, "failed", f"EI call failed: {exc}")
 
     if notes is not None:
         notes.usage.add_model_call(settings.ei_model, getattr(response, "usage", None))
@@ -966,12 +981,20 @@ async def understand(query: str, minutes: int = DEFAULT_MINUTES, context: str = 
     # but a refusal stops before any of that, and a refusal parsed as a brief
     # would be a silent degradation rather than a visible one.
     if getattr(response, "stop_reason", "") == "refusal":
-        return fallback_brief(query, "EI declined the request")
+        return _degrade(query, "refused", "EI declined the request")
+    # **A brief cut off by its own ceiling** (§248). The thinking and the
+    # JSON share `EI_MAX_TOKENS`, so a brief that thought for longer than the
+    # ceiling allowed stops mid-object and reads as unparseable - which used
+    # to be reported as "nothing readable", hiding that the cure is a setting.
+    if getattr(response, "stop_reason", "") == "max_tokens":
+        return _degrade(query, "out_of_room",
+                        f"EI ran out of room at EI_MAX_TOKENS="
+                        f"{settings.ei_max_tokens} before the brief was finished")
     try:
         text = next(b.text for b in response.content if b.type == "text")
         data = json.loads(text)
     except (StopIteration, AttributeError, ValueError, TypeError) as exc:
-        return fallback_brief(query, f"EI returned nothing readable: {exc}")
+        return _degrade(query, "unreadable", f"EI returned nothing readable: {exc}")
 
     brief = Brief(
         query=query,
@@ -993,6 +1016,7 @@ async def understand(query: str, minutes: int = DEFAULT_MINUTES, context: str = 
         pronounce=_pronounce_pairs(data.get("pronounce")),
     )
     brief = gate(brief, query)
+    _OUTCOMES["ok"] += 1
     log.info("EI %r -> intent=%s structure=%s recency=%dd outcome=%s "
              "why_now=%s(%s) search=%r fallback=%r", query, brief.intent,
              brief.structure, brief.recency_days,
@@ -1111,6 +1135,9 @@ def report() -> dict:
         "model": settings.ei_model,
         "effort": settings.ei_effort,
         "timeout_seconds": settings.ei_timeout_seconds,
+        "max_tokens": settings.ei_max_tokens,
+        # How the briefs since boot ended: `ok` or why each degraded (§248).
+        "since_boot": dict(_OUTCOMES),
         "default_recency_days": settings.ei_default_recency_days,
         "intents": list(INTENTS),
         "structures": [s for s in PICKABLE_STRUCTURES if s != "general"],

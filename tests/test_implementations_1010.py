@@ -1,4 +1,4 @@
-"""§248, the owner's 10.10 implementations packet: the app's half.
+"""§250, the owner's 10.10 implementations packet: the app's half.
 
 * **#1** "Daily", "my", "Your" and "explore" are set in the one face the
   exploreFAM wordmark uses: Bricolage Grotesque at its regular weight.

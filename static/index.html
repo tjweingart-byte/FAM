@@ -25,7 +25,7 @@
     --fg-rgb:244,239,228; --bg-rgb:42,39,51;
     color-scheme:dark;
   }
-  /* Light mode: the default since §248 (the 10.10 packet); dark is the
+  /* Light mode: the default since §250 (the 10.10 packet); dark is the
      listener's choice in Settings ("Dark mode"), kept on the device under
      `fam.theme`. Set on <html> before the first paint by the script at the
      top of <body>. Only the chrome changes. Everything
@@ -44,7 +44,7 @@
   }
   /* The surfaces that stay dark in both keep dark's gold: light's deeper
      one reads muddy on them (exploreFAM's mark, a story's "FAM · 2 MIN").
-     Mattered once light became the default (§248). */
+     Mattered once light became the default (§250). */
   html[data-theme="light"] .reel-stage, html[data-theme="light"] .story,
   html[data-theme="light"] .vcs{ --copper:#E0B563; --gold:#E0B563; }
   *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
@@ -2682,7 +2682,7 @@
   .sc-post.frame-full .sc-post-text{ position:absolute; left:0; right:0; bottom:0; padding:60px 16px 18px;
     background:linear-gradient(180deg, transparent, rgba(10,9,15,.85)); }
   .sc-cap, .sc-stk, .sc-tag{ position:absolute; transform:translate(-50%,-50%); }
-  /* As wide as its words up to 86% of the canvas (§248): without
+  /* As wide as its words up to 86% of the canvas (§250): without
      `max-content` an absolutely placed box shrinks to the room between its
      left edge and the canvas's right, so a centred caption wrapped at half
      the width. Lines break between words; only a word too long for a whole
@@ -2709,7 +2709,7 @@
 
   /* The composer, Instagram's story editor (10.6 packet #2): the picture
      in the middle, Text / Stickers / Mention / Picture down the right, a
-     caption line, then Your story and the arrow (no Close Friends, §248).
+     caption line, then Your story and the arrow (no Close Friends, §250).
      No music, no colour, no "more". */
   .vcs{ position:absolute; inset:0; z-index:85; background:#0E0C12; color:#F4EFE4;
     display:flex; flex-direction:column; padding:40px 10px 14px; border-radius:inherit;
@@ -2999,7 +2999,7 @@
 <body>
 <script>
   // The theme before anything is drawn, so the app never flashes the other
-  // one first. Light unless this device chose dark (§248, the 10.10 packet:
+  // one first. Light unless this device chose dark (§250, the 10.10 packet:
   // light is the default). Its own key rather than `fam.prefs`: logging out
   // forgets the preferences, and should not change the colours.
   try { if(localStorage.getItem("fam.theme") !== "dark")
@@ -3751,7 +3751,7 @@
                your friends. Vibing is still on all three real players, where
                there is room to see what you are vibing. -->
           <button class="nowbar-play" id="nowPlay" onclick="event.stopPropagation(); toggleNowBar()"></button>
-          <!-- The X stops the episode and takes the bar down (§248, the
+          <!-- The X stops the episode and takes the bar down (§250, the
                10.10 packet): with the bar gone there was no way left to
                stop audio it had left playing. Leaving the player (the down
                arrow, a tab) still never stops it; only this X does. -->
@@ -4590,7 +4590,7 @@
            size and frame it), Text / Stickers / Mention / Picture down the
            right, a caption line, then Your story and the arrow. The X goes
            back to the episode and posts nothing. No music, no colour, no
-           "more" - the owner's list. No Close Friends (§248, the 10.10
+           "more" - the owner's list. No Close Friends (§250, the 10.10
            packet): a story goes to everybody who follows. -->
       <div class="vcs" id="vibeComposer" hidden role="dialog" aria-label="VIBE! to your story">
         <div class="vcs-stage" id="vcsStage">
@@ -6915,7 +6915,7 @@
     if(bar) bar.hidden = true;
   }
 
-  // The mini bar's X stops the episode and takes the bar down (§248, the
+  // The mini bar's X stops the episode and takes the bar down (§250, the
   // 10.10 packet, reversing the earlier "X leaves it playing"): once the bar
   // was gone, audio it had left playing had no control left to stop it.
   // `stopSpeech` is the one way an episode ends, so an abandoned one is still
@@ -7358,7 +7358,7 @@
   }
 
   // "Your story" and the arrow both post to everybody who follows. There is
-  // no Close Friends audience any more (§248); the server still takes one
+  // no Close Friends audience any more (§250); the server still takes one
   // from an older client.
   function postVibeStory(){
     var ep = vcs.ep;
@@ -8678,7 +8678,7 @@
   }
 
   // ---- Appearance ----
-  //: Light is the default (§248); dark is a choice made on this device
+  //: Light is the default (§250); dark is a choice made on this device
   //: (Settings, "Dark mode").
   function currentTheme(){
     return document.documentElement.getAttribute("data-theme") === "light" ? "light" : "dark";

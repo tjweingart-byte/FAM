@@ -767,8 +767,8 @@ ASK_SCHEMA = {
 
 def ask_model() -> str:
     from config import settings
-    # The writer's model, not the brief's: writing SQL against a live schema
-    # is not the small extraction the brief moved to Haiku for (§227).
+    # The writer's model: writing SQL against a live schema is not a small
+    # extraction, and it stays on `MODEL` whatever `EI_MODEL` is set to.
     return os.environ.get("ADMIN_ASK_MODEL", "").strip() or settings.model
 
 

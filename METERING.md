@@ -174,8 +174,8 @@ number that excluded most of them.
 
 Rates live in `metering.PRICES`, checked against the published card on
 2026-10-08 (§227). Each Claude call is priced at its own model's rates as it
-is recorded, because one episode's calls can run on different models (the
-brief on Haiku 5.5, the writer on Sonnet); `CACHE_READ_PER_MTOK` holds the
+is recorded, because one episode's calls can run on different models (any
+`*_MODEL` set apart from `MODEL`); `CACHE_READ_PER_MTOK` holds the
 models whose cache reads are not a tenth of input. Update them there when the card changes; past rows keep what they
 cost.
 

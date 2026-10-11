@@ -3072,7 +3072,7 @@ def main() -> int:
             the episode. It minimises now (§142): the audio carries on, the
             mini bar on the screen underneath is the same episode, its button
             still pauses it, and tapping it brings the player back. The mini
-            bar's own X is the one control that stops it (§248)."""
+            bar's own X is the one control that stops it (§250)."""
             page.evaluate("setTab('home')")
             page.wait_for_timeout(300)
             page.evaluate("""
@@ -3118,7 +3118,7 @@ def main() -> int:
             assert page.evaluate("nowBarState === null"), \
                 "the mini bar still holds an episode Explore ended"
             # The mini bar's X stops the episode as well as hiding the bar
-            # (§248): with the bar gone nothing else could stop it.
+            # (§250): with the bar gone nothing else could stop it.
             page.evaluate("stopSpeech(); hideNowBar(); clearGenOverlay(); setTab('home')")
             page.wait_for_timeout(300)
             page.evaluate("generate('_smoke_min')")

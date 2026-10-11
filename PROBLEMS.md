@@ -18025,7 +18025,117 @@ have drawn (`app._player_picture`, shared with the card). `/admin`'s inbox
 shows it beside the report and above the episode; the preview's panel keeps
 its own line art the same way.
 
-## 248. The 10.10 implementations: one wordmark face, an X that stops, light by default, stories without Close Friends, and a shorter waitlist page
+## 248. Room for the brief on Haiku, and a count of every brief that degrades
+
+The owner: since the brief moved to Haiku 5.5 (§227) some episodes say they
+lack information about things that are readily reported. Raise the brief's
+output ceiling, and say how much more of this to expect on Haiku than Sonnet.
+
+**The mechanism that fits the symptom best.** `EI_MAX_TOKENS` bounds the
+brief's thinking *and* its JSON together. It was 1200, sized on Sonnet 5,
+whose briefs ran ~400-1,200 tokens (`docs/FINANCIAL.md` §2.1 - some already
+touched the ceiling). Haiku 5.5 thinks adaptively at its own length and counts
+the same text as about 30% more tokens than Haiku 4.5 did, so the same brief
+needs more room. A brief that hits the ceiling stops mid-object, `json.loads`
+fails, and `fallback_brief` searches the **raw query with no window, no
+`must_establish` and no `broader` phrasing**. For a question about something
+recent, a raw search with no window is the shape that ranks a well-linked old
+article first - and the writer, holding evidence that does not cover what was
+asked, says the short true thing about the gap. That is "it lacks information"
+on a subject with plenty of it. It was also invisible as a cause: the log
+said "EI returned nothing readable", not "ran out of room".
+
+**What changed.**
+
+* `EI_MAX_TOKENS` defaults to **3000** (`config.py`, `.env.example`). On
+  Haiku that is at most $0.0015 a brief - a full Haiku brief at 3000 still
+  costs less than an ordinary Sonnet one did. The wall-clock bound is
+  `EI_TIMEOUT_SECONDS` (8 s), unchanged; a brief that would think longer than
+  that times out and degrades as before, now counted as `timeout`.
+* `stop_reason == "max_tokens"` is checked before parsing and degrades with
+  a reason that names the setting (`EI ran out of room at EI_MAX_TOKENS=...`).
+* **Every brief's ending is counted since boot** - `ok`, `out_of_room`,
+  `timeout`, `failed`, `refused`, `unreadable` - and reported in
+  `/api/health` under `episode_intelligence.since_boot`, beside the new
+  `max_tokens`. Briefs that were never asked for (EI off, empty query) are
+  not counted. The per-episode log line was there already; the rate was not,
+  and the rate is what decides whether a model or a ceiling is right.
+
+**How much more of this to expect on Haiku than on Sonnet.** Unmeasured -
+no key here and no production logs - so this is reasoning, in two parts:
+
+1. *Truncation, which this fixes.* At 1200 a Haiku brief had less headroom
+   than a Sonnet one, which already touched the ceiling sometimes, so a
+   meaningful share of Haiku briefs were plausibly cut off; at 3000 that
+   share should fall to near zero. `since_boot.out_of_room` says whether it
+   did: anything above ~1% of briefs means raise it again.
+2. *Complete briefs that are worse, which this does not fix.* A smaller model
+   is likelier to search a phrase the index matches poorly, to set a window
+   narrower than the subject needs, to word `must_establish` so the token test
+   in `research.packet_covers` misses it (which tells the writer "one search
+   did not turn up much on ..."), or to mark a question `outcome_dependent`
+   that is not. Each of those has a code-side guard (`gate`, the windowless
+   second look on `broader`, the refusal only on an empty packet), so the
+   damage is a thinner episode rather than a wrong one. A modest excess over
+   Sonnet is the honest expectation - a few percent of episodes, not most -
+   but it is a judgment until measured.
+
+**Measure both, with a key:**
+
+    python tools/ei_eval.py                              # Haiku, the default
+    EI_MODEL=claude-sonnet-5 python tools/ei_eval.py     # the same 20 on Sonnet
+
+Compare `degraded`, the window, and `missing` per row. In production, read
+`since_boot` and count `exa packet missed` (a brief whose `must_establish`
+the first search did not cover) against briefs. If Haiku's excess on complete
+briefs is real, `EI_MODEL=claude-sonnet-5` restores the old brief without a
+deploy of code, at ~$0.01 a brief instead of ~$0.0005.
+
+Tests: `tests/test_ei_room_248.py`. Numbered 248: Main took §245-§247 while this waited.
+
+## 249. The pipeline back on Sonnet: §227's Haiku reversed
+
+The owner's executive decision (10.10): revert the move of part of the
+pipeline to Haiku and return it to Sonnet; outsourcing some of the Claude work
+may be looked at later. Asked two follow-ups, the owner chose to keep the
+§225 photo check on Haiku (a separate decision of theirs) and to keep §248's
+3000-token brief ceiling.
+
+**What changed.**
+
+* `ei_model`, `stories_model`, `categories_model` and `thumbnails_model`
+  follow `MODEL` again: their own setting, else `MODEL`, else
+  `claude-sonnet-5`. An empty value still means unset. (Each read is written
+  out in full: `tests/test_hermetic.py` finds settings by reading
+  `os.environ.get("NAME")` in config.py's source, and a helper hid them.)
+* `THUMBNAILS_CLAUDE_*_PER_MTOK` are Sonnet 5's again (2.0 / 10.0).
+* `config.SMALL_MODEL` stays, naming only the photo check
+  (`IMAGE_CHECK_MODEL`, §225).
+* `.env.example`, `docs/FINANCIAL.md`, `docs/SCALING_TIMELINE.md`,
+  `docs/BACKEND.md`, `MYFAM.md`, `THUMBNAILS.md`, `METERING.md` say so; the
+  `small-calls-haiku` rule carries a Current note and its CLAUDE.md line is
+  rewritten.
+
+**What stays from §227, because none of it is about Haiku:** metering prices
+every call at its own model's rates (an episode can still mix models - any
+`*_MODEL` set apart from `MODEL`, or the photo check's usage); the Opus 5.5,
+Sonnet 5.5 and Haiku 5.5 rows in `PRICES` and the per-model cache-read rates;
+the tools reading the one rate card; and `app._verify_small_models`, which
+now also checks `IMAGE_CHECK_MODEL` - the one call left on another model.
+§248's ceiling, its `out_of_room` reason and the `since_boot` counter stay.
+On Sonnet the ceiling's worst case is ~$0.03 a brief (all 3000 tokens used),
+against ~$0.012 at 1200; only what is used is billed, and an ordinary brief
+(~800 tokens) costs what it did - §248's "$0.0015" was the Haiku figure.
+
+**What it costs.** The Claude bill returns to its pre-§227 shape: about
+$0.01 a brief instead of ~$0.0005, and roughly +40% on the Claude line at
+1k MAU and above on `docs/FINANCIAL.md` §4's estimates. The brief's quality is
+the pre-§227 brief's, which is the one the writing was tuned against.
+
+Tests: `tests/test_small_model_227.py` (rewritten to pin the reversal and
+what stays), `tests/test_moderation_and_consent.py` (photo check unchanged).
+
+## 250. The 10.10 implementations: one wordmark face, an X that stops, light by default, stories without Close Friends, and a shorter waitlist page
 
 The owner's "10.10.26 Implementations" packet: three app items, two story
 items, three waitlist items.
@@ -18073,7 +18183,9 @@ items, three waitlist items.
    wherever it sits; and `overflow-wrap:break-word` (was `anywhere`) moves a
    word that does not fit to the next line whole, splitting only a word
    longer than a whole line. The story viewer's plain caption box takes the
-   same `break-word`.
+   same `break-word`. Dragged off centre, a caption is capped at twice its
+   distance to the nearer edge (`storyCanvasHTML`), so it never hangs off
+   the canvas.
 
 **Waitlist page.**
 
