@@ -25,9 +25,10 @@
     --fg-rgb:244,239,228; --bg-rgb:42,39,51;
     color-scheme:dark;
   }
-  /* Light mode: the listener's choice in Settings ("Appearance"), kept on
-     the device under `fam.theme` and set on <html> before the first paint
-     by the script at the top of <body>. Only the chrome changes. Everything
+  /* Light mode: the default since §250 (the 10.10 packet); dark is the
+     listener's choice in Settings ("Dark mode"), kept on the device under
+     `fam.theme`. Set on <html> before the first paint by the script at the
+     top of <body>. Only the chrome changes. Everything
      drawn over a picture - the Explore reel, a story, the VIBE! editor, the
      player's artwork and the captions panel - stays dark in both, the way a
      photo viewer does, so their colours are deliberately not variables. */
@@ -41,6 +42,11 @@
     --fg-rgb:30,27,39; --bg-rgb:247,243,234;
     color-scheme:light;
   }
+  /* The surfaces that stay dark in both keep dark's gold: light's deeper
+     one reads muddy on them (exploreFAM's mark, a story's "FAM · 2 MIN").
+     Mattered once light became the default (§250). */
+  html[data-theme="light"] .reel-stage, html[data-theme="light"] .story,
+  html[data-theme="light"] .vcs{ --copper:#E0B563; --gold:#E0B563; }
   *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
   body{
     margin:0; min-height:100vh;
@@ -1554,7 +1560,7 @@
   .ctrl-btn .lbl{ font-family:'Geist Mono', monospace; font-size:8.5px; color:var(--text-muted); }The wordmark: the A is a pair of chevrons, the same mark the app uses for
      "further in". */
   .wordmark{ white-space:nowrap; font-family:'Bricolage Grotesque', sans-serif;
-    font-weight:500; font-size:27px; color:var(--text); letter-spacing:-0.01em; }
+    font-weight:400; font-size:27px; color:var(--text); }
   /* Drawn, not set. Widths are the glyphs' own aspect ratios against one cap
      height, so they stay in proportion at any size. */
   /* Height is one cap height of whatever font actually renders - `cap` is the
@@ -2638,7 +2644,7 @@
   .story-title{ font-family:'Bricolage Grotesque', sans-serif; font-size:30px; line-height:1.15; font-weight:500; }
   .story-caption{ margin-top:16px; align-self:flex-start; max-width:100%;
     padding:9px 13px; border-radius:14px; background:rgba(244,239,228,0.12);
-    font-size:14px; line-height:1.45; color:#F4EFE4; overflow-wrap:anywhere; }
+    font-size:14px; line-height:1.45; color:#F4EFE4; overflow-wrap:break-word; }
   .story-caption[hidden]{ display:none; }
   /* The story menu (10.6 #1) and holding to pause (#3). */
   .story-more{ width:32px; height:32px; border:none; background:none; color:inherit; cursor:pointer;
@@ -2676,7 +2682,13 @@
   .sc-post.frame-full .sc-post-text{ position:absolute; left:0; right:0; bottom:0; padding:60px 16px 18px;
     background:linear-gradient(180deg, transparent, rgba(10,9,15,.85)); }
   .sc-cap, .sc-stk, .sc-tag{ position:absolute; transform:translate(-50%,-50%); }
-  .sc-cap{ max-width:86%; text-align:center; color:#F4EFE4; line-height:1.2; overflow-wrap:anywhere;
+  /* As wide as its words up to 86% of the canvas (§250): without
+     `max-content` an absolutely placed box shrinks to the room between its
+     left edge and the canvas's right, so a centred caption wrapped at half
+     the width. Lines break between words; only a word too long for a whole
+     line is ever split. */
+  .sc-cap{ width:max-content; max-width:86%; text-align:center; color:#F4EFE4; line-height:1.2;
+    overflow-wrap:break-word; word-break:normal; hyphens:none;
     text-shadow:0 1px 8px rgba(0,0,0,.55); white-space:pre-wrap; }
   .sc-cap.f-classic{ font-family:'Geist', sans-serif; font-weight:600; }
   .sc-cap.f-strong{ font-family:'Bricolage Grotesque', sans-serif; font-weight:700; }
@@ -2697,8 +2709,8 @@
 
   /* The composer, Instagram's story editor (10.6 packet #2): the picture
      in the middle, Text / Stickers / Mention / Picture down the right, a
-     caption line, then Your story / Close Friends / the arrow. No music,
-     no colour, no "more". */
+     caption line, then Your story and the arrow (no Close Friends, §250).
+     No music, no colour, no "more". */
   .vcs{ position:absolute; inset:0; z-index:85; background:#0E0C12; color:#F4EFE4;
     display:flex; flex-direction:column; padding:40px 10px 14px; border-radius:inherit;
     overflow:hidden; user-select:none; }
@@ -2760,8 +2772,6 @@
     background:#26212D; color:#F4EFE4; font:600 12.5px 'Geist', sans-serif; cursor:pointer; padding:0 8px; }
   .vcs-aud .av{ width:26px; height:26px; border-radius:50%; display:flex; align-items:center; justify-content:center;
     color:var(--ink); font-weight:700; font-size:10px; overflow:hidden; flex:none; }
-  .vcs-star{ width:26px; height:26px; border-radius:50%; background:#3BB54A; color:#fff; flex:none;
-    display:flex; align-items:center; justify-content:center; font-size:13px; }
   .vcs-go{ width:42px; height:42px; border-radius:50%; border:none; background:var(--copper); color:var(--ink);
     cursor:pointer; flex:none; display:flex; align-items:center; justify-content:center; }
   .vcs-foot button:disabled{ opacity:.5; }
@@ -2782,9 +2792,6 @@
   .share-contact{ position:relative; }
   .gc-picked{ font-size:12px; color:var(--text-muted); margin:10px 0 0; min-height:16px; }
   .group-av{ position:relative; }
-  .cf-list .vcs-person .nm{ color:var(--text); }
-  .cf-list .vcs-person .nm span{ color:var(--text-muted); }
-  .cf-list .vcs-check{ border-color:var(--border-strong); }
   .vc-ep{ font-family:'Bricolage Grotesque', sans-serif; font-size:14px; line-height:1.3; color:var(--text);
     margin:-2px 0 12px; }
   .vc-input{ width:100%; resize:none; min-height:72px; font-family:'Geist', sans-serif;
@@ -2991,11 +2998,13 @@
 </head>
 <body>
 <script>
-  // The theme before anything is drawn, so a light-mode listener never sees
-  // the app flash dark first. Its own key rather than `fam.prefs`: logging
-  // out forgets the preferences, and should not change the colours.
-  try { if(localStorage.getItem("fam.theme") === "light")
-    document.documentElement.setAttribute("data-theme", "light"); } catch(e){}
+  // The theme before anything is drawn, so the app never flashes the other
+  // one first. Light unless this device chose dark (§250, the 10.10 packet:
+  // light is the default). Its own key rather than `fam.prefs`: logging out
+  // forgets the preferences, and should not change the colours.
+  try { if(localStorage.getItem("fam.theme") !== "dark")
+    document.documentElement.setAttribute("data-theme", "light"); } catch(e){
+    document.documentElement.setAttribute("data-theme", "light"); }
 </script>
 
   <div class="top">
@@ -3742,10 +3751,10 @@
                your friends. Vibing is still on all three real players, where
                there is room to see what you are vibing. -->
           <button class="nowbar-play" id="nowPlay" onclick="event.stopPropagation(); toggleNowBar()"></button>
-          <!-- Closing the bar is not stopping the episode. Someone who wants
-               the shelf back gets it, and the audio keeps playing - which is
-               why this sits beside play/pause rather than replacing it, and
-               why it says so when tapped. -->
+          <!-- The X stops the episode and takes the bar down (§250, the
+               10.10 packet): with the bar gone there was no way left to
+               stop audio it had left playing. Leaving the player (the down
+               arrow, a tab) still never stops it; only this X does. -->
           <button class="nowbar-x" onclick="event.stopPropagation(); dismissNowBar()"
                   aria-label="Hide the player"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
           <div class="nowbar-progress"><div class="nowbar-fill" id="nowFill"></div></div>
@@ -4579,9 +4588,10 @@
       <!-- VIBE! opens a story editor (10.6 packet #2), Instagram's shape: the
            episode's picture in the middle (pinch or the Picture options to
            size and frame it), Text / Stickers / Mention / Picture down the
-           right, a caption line, then Your story, Close Friends and the
-           arrow. The X goes back to the episode and posts nothing. No music,
-           no colour, no "more" - the owner's list. -->
+           right, a caption line, then Your story and the arrow. The X goes
+           back to the episode and posts nothing. No music, no colour, no
+           "more" - the owner's list. No Close Friends (§250, the 10.10
+           packet): a story goes to everybody who follows. -->
       <div class="vcs" id="vibeComposer" hidden role="dialog" aria-label="VIBE! to your story">
         <div class="vcs-stage" id="vcsStage">
           <div class="story-canvas" id="vcsCanvas"></div>
@@ -4604,20 +4614,7 @@
         </div>
         <div class="vcs-foot">
           <button class="vcs-aud" id="vcsPostAll" onclick="postVibeStory('')"><span class="av" id="vcsMe"></span>Your story</button>
-          <button class="vcs-aud" id="vcsPostClose" onclick="postVibeStory('close')"><span class="vcs-star">&#9733;</span>Close Friends</button>
           <button class="vcs-go" id="vcsPostGo" onclick="postVibeStory('')" aria-label="Post to your story"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
-        </div>
-      </div>
-      <!-- Close friends (10.6 packet #2): who a "Close Friends" story goes
-           to, chosen in Settings. The list is yours; nobody on it is told. -->
-      <div class="sheet-overlay" id="closeFriendsOverlay" onclick="if(event.target===this) closeCloseFriends()">
-        <div class="sheet-card">
-          <div class="sheet-scroll">
-            <div class="sheet-group">Close friends</div>
-            <div class="set-note" style="margin:0 18px 8px;">A story you post to Close Friends is seen only by the people ticked here. Nobody is told they are on your list.</div>
-            <div class="cf-list" id="closeFriendsList" style="padding:0 18px;"></div>
-          </div>
-          <div class="sheet-cancel" onclick="closeCloseFriends()">Done</div>
         </div>
       </div>
       <!-- A guest tapped a sample episode that has not been made yet. Making
@@ -6918,19 +6915,14 @@
     if(bar) bar.hidden = true;
   }
 
-  // Closing the bar, which is not the same as stopping the episode. The
-  // packet is explicit: tapping X while something is playing leaves it
-  // playing. So this hides the strip and nothing else - and says so, because
-  // an X that does not stop the audio is a surprise worth one sentence.
-  //
-  // The ticker is what would otherwise keep running against a hidden
-  // element, so `hideNowBar` is reused rather than reimplemented; what
-  // differs is that nothing touches FamAudio on the way past.
+  // The mini bar's X stops the episode and takes the bar down (§250, the
+  // 10.10 packet, reversing the earlier "X leaves it playing"): once the bar
+  // was gone, audio it had left playing had no control left to stop it.
+  // `stopSpeech` is the one way an episode ends, so an abandoned one is still
+  // reported as a skip.
   function dismissNowBar(){
-    var playing = FamAudio.isActive() && !FamAudio.isPaused();
+    stopSpeech();
     hideNowBar();
-    toast(playing ? "Still playing — tap any episode to come back"
-                  : "Player hidden");
   }
   // ---------------- Vibe ----------------
   // Pushing a finished episode to the people who follow you. It generates
@@ -7041,9 +7033,13 @@
       + '<div class="sc-post-text"><div class="sc-post-title">' + escapeHtml(v.title || v.query || "") + '</div>'
       + '<div class="sc-post-meta">FAM · ' + (v.minutes || BROWSE_MINUTES) + ' MIN</div></div></div>';
     if(v.caption){
+      // Centred on cx, so it can be twice its distance to the nearer edge
+      // wide and stay on the canvas: 86% in the middle, narrower near a side.
+      var room = Math.max(10, Math.min(86, Math.round(200 * Math.min(st.cx, 1 - st.cx)) - 4));
       html += '<div class="sc-cap ' + fontCls + (edit && vcs.sel === "cap" ? " sc-sel" : "") + '"'
         + (edit ? ' data-drag="cap"' : '')
-        + ' style="left:' + st.cx * 100 + '%;top:' + st.cy * 100 + '%;font-size:calc(' + st.size + ' * 100cqw / 360);">'
+        + ' style="left:' + st.cx * 100 + '%;top:' + st.cy * 100 + '%;max-width:' + room
+        + '%;font-size:calc(' + st.size + ' * 100cqw / 360);">'
         + escapeHtml(v.caption) + '</div>';
     }
     st.stickers.forEach(function(k, i){
@@ -7067,7 +7063,7 @@
     return html;
   }
 
-  var vcs = { ep: null, model: null, sel: "", tool: "", people: null, close: null, sending: false };
+  var vcs = { ep: null, model: null, sel: "", tool: "", people: null, sending: false };
   function openVibeComposer(ep){
     var thumb = "";
     if(nowBarState && nowBarState.query === ep.query) thumb = PLAYER_CARD.thumb || "";
@@ -7075,13 +7071,13 @@
        && reelCurrent.query === ep.query) thumb = reelCurrent.thumb || "";
     var st = storyStyleDefaults();
     st.thumb = thumb;
-    vcs = { ep: ep, sel: "", tool: "", people: vcs.people, close: vcs.close, sending: false,
+    vcs = { ep: ep, sel: "", tool: "", people: vcs.people, sending: false,
             model: { query: ep.query, title: ep.title || ep.query, minutes: ep.minutes,
                      caption: "", style: st, tags: [] } };
     document.getElementById("vcsCaption").value = "";
     document.getElementById("vcsSizeInput").value = st.size;
     paintPersonAv(document.getElementById("vcsMe"), profileNow || {});
-    ["vcsPostAll", "vcsPostClose", "vcsPostGo"].forEach(function(id){
+    ["vcsPostAll", "vcsPostGo"].forEach(function(id){
       document.getElementById(id).disabled = false;
     });
     vcsTool("");
@@ -7140,7 +7136,7 @@
     document.getElementById("vcsSize").hidden = tool !== "text";
     document.getElementById("vcsFonts").hidden = tool !== "text";
     var panel = document.getElementById("vcsPanel");
-    panel.hidden = !(tool === "stickers" || tool === "mention" || tool === "picture" || tool === "close");
+    panel.hidden = !(tool === "stickers" || tool === "mention" || tool === "picture");
     if(tool === "text"){
       vcsPaintFonts();
       if(!keep){ try { document.getElementById("vcsCaption").focus(); } catch(e){} }
@@ -7148,7 +7144,6 @@
     if(tool === "stickers") vcsPaintStickers();
     if(tool === "mention") vcsPaintPeople();
     if(tool === "picture") vcsPaintPicture();
-    if(tool === "close") vcsPaintClose();
   }
   function vcsPanelHead(label){
     return '<div class="vcs-panel-head"><span>' + label + '</span>'
@@ -7261,16 +7256,6 @@
     else st.zoom = Math.max(0.4, Math.min(2.5, st.zoom * f));
     drawVibeComposer();
   }
-  // Close Friends with nobody on the list would post to nobody, so the
-  // first tap asks who they are, in place.
-  function vcsPaintClose(){
-    var panel = document.getElementById("vcsPanel");
-    panel.innerHTML = vcsPanelHead("CLOSE FRIENDS")
-      + '<div class="vcs-hint" style="margin:0 0 8px;">Pick who sees your Close Friends stories. You can change this in Settings.</div>'
-      + '<div id="vcsCloseList"><div class="vcs-hint">Loading…</div></div>';
-    loadCloseFriends(document.getElementById("vcsCloseList"));
-  }
-
   // Drag and pinch on the canvas. A pointer captured on the canvas, so the
   // piece under it can be redrawn while it moves.
   (function(){
@@ -7372,25 +7357,16 @@
     drawVibeComposer();
   }
 
-  // "Your story" (and the arrow) posts to everybody who follows; "Close
-  // Friends" only to the people on that list.
-  function postVibeStory(audience){
+  // "Your story" and the arrow both post to everybody who follows. There is
+  // no Close Friends audience any more (§250); the server still takes one
+  // from an older client.
+  function postVibeStory(){
     var ep = vcs.ep;
     if(!ep || vcs.sending) return;
-    if(audience === "close"){
-      if(!AUTH.authenticated){ toast("Close Friends needs an account"); return; }
-      if(vcs.close === null){
-        fetch("/api/close-friends").then(function(r){ return r.ok ? r.json() : null; })
-          .then(function(d){ vcs.close = d ? (d.count || 0) : 0; postVibeStory("close"); })
-          .catch(function(){ toast("Could not load your close friends"); });
-        return;
-      }
-      if(!vcs.close){ vcsTool("close"); return; }
-    }
     var model = vcs.model;
     var caption = (model.caption || "").trim();
     vcs.sending = true;
-    ["vcsPostAll", "vcsPostClose", "vcsPostGo"].forEach(function(id){
+    ["vcsPostAll", "vcsPostGo"].forEach(function(id){
       document.getElementById(id).disabled = true;
     });
     fetch("/api/vibe", {
@@ -7399,7 +7375,7 @@
                              minutes: ep.minutes,
                              thread: episodeThread || "",
                              caption: caption, style: model.style,
-                             tags: model.tags, audience: audience || "" })
+                             tags: model.tags })
     }).then(function(r){
       return r.json().then(function(d){
         if(!r.ok) throw new Error(d.error || d.detail || "Could not vibe that");
@@ -7410,66 +7386,16 @@
       // Lit only if the episode playing is still the one vibed.
       var now = currentEpisode();
       if(now && now.query === ep.query && now.minutes === ep.minutes) setEchoed(true);
-      toast(audience === "close" ? "VIBE! — posted to your Close Friends"
-                                 : "VIBE! — posted to your story");
+      toast("VIBE! — posted to your story");
       refreshVibeCount(ep);
       if(typeof loadProfileQuietly === "function") loadProfileQuietly();
     }).catch(function(err){
       vcs.sending = false;
-      ["vcsPostAll", "vcsPostClose", "vcsPostGo"].forEach(function(id){
+      ["vcsPostAll", "vcsPostGo"].forEach(function(id){
         document.getElementById(id).disabled = false;
       });
       toast(err.message || "Could not vibe that");
     });
-  }
-
-  // ---- Close friends (10.6 packet #2), from Settings and the composer ----
-  function openCloseFriends(){
-    if(!AUTH.authenticated){ toast("Close friends need an account"); return; }
-    document.getElementById("closeFriendsOverlay").classList.add("active");
-    loadCloseFriends(document.getElementById("closeFriendsList"));
-  }
-  function closeCloseFriends(){
-    document.getElementById("closeFriendsOverlay").classList.remove("active");
-    if(document.getElementById("screen-settings").classList.contains("active")) renderSettings();
-  }
-  var closeFriendRows = [];
-  var closeFriendCount = null;
-  function loadCloseFriends(el){
-    if(!el) return;
-    fetch("/api/close-friends").then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
-      .then(function(d){
-        closeFriendRows = d.people || [];
-        closeFriendCount = d.count || 0;
-        paintCloseFriends(el);
-      })
-      .catch(function(){ el.innerHTML = '<div class="vcs-hint">Could not load your people.</div>'; });
-  }
-  function paintCloseFriends(el){
-    el.innerHTML = closeFriendRows.length ? closeFriendRows.map(function(p, i){
-      return '<div class="vcs-person' + (p.close ? " on" : "") + '" onclick="toggleCloseFriend(' + i + ', this)">'
-        + personAvHTML(p) + '<div class="nm">' + escapeHtml(p.name || ("@" + p.handle))
-        + (p.handle ? '<span>@' + escapeHtml(p.handle) + '</span>' : '') + '</div>'
-        + '<span class="vcs-check">' + (p.close ? "✓" : "") + '</span></div>';
-    }).join("") : '<div class="vcs-hint">Follow somebody first, then add them here.</div>';
-  }
-  function toggleCloseFriend(i, rowEl){
-    var p = closeFriendRows[i];
-    if(!p) return;
-    var on = !p.close;
-    p.close = on;
-    var el = rowEl && rowEl.parentNode;
-    if(el) paintCloseFriends(el);
-    fetch("/api/close-friends", {
-      method: "POST", headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({ user_id: p.user_id, on: on })
-    }).then(function(r){ return r.json().then(function(d){ if(!r.ok) throw new Error(d.detail || "Could not change that"); return d; }); })
-      .then(function(d){ closeFriendCount = d.count; vcs.close = d.count; })
-      .catch(function(err){
-        p.close = !on;
-        if(el) paintCloseFriends(el);
-        toast(err.message);
-      });
   }
 
   // The X on the full player. Leaves the screen and nothing else: the audio,
@@ -8752,7 +8678,8 @@
   }
 
   // ---- Appearance ----
-  //: Dark is the default; light is a choice made on this device (Settings).
+  //: Light is the default (§250); dark is a choice made on this device
+  //: (Settings, "Dark mode").
   function currentTheme(){
     return document.documentElement.getAttribute("data-theme") === "light" ? "light" : "dark";
   }
@@ -14473,9 +14400,6 @@
     loadAiConsent().then(renderSettings);
     if(AUTH.authenticated){
       loadBlocked().then(renderSettings);
-      fetch("/api/close-friends").then(function(r){ return r.ok ? r.json() : null; })
-        .then(function(d){ if(d){ closeFriendCount = d.count || 0; renderSettings(); } })
-        .catch(function(){});
     }
   }
 
@@ -14521,8 +14445,8 @@
     // "Your interests" opens the whole list of topics directly (§142) - there
     // is no wheel in front of it any more, and no second door beside it.
     html += '<div class="set-group">Appearance</div>'
-      + settingsRow("Light mode", currentTheme() === "light" ? "On" : "Off",
-          "setTheme('" + (currentTheme() === "light" ? "dark" : "light") + "')");
+      + settingsRow("Dark mode", currentTheme() === "dark" ? "On" : "Off",
+          "setTheme('" + (currentTheme() === "dark" ? "light" : "dark") + "')");
     html += '<div class="set-group">Listening</div>'
       + settingsRow("Your interests",
           chosenSummary(chosen, labels),
@@ -14582,10 +14506,6 @@
           searchesPublic ? "On" : "Off",
           "setSearchesPublic(" + (searchesPublic ? "false" : "true") + ")")
         + '<div class="set-note">When it\u2019s on, anyone who opens an episode you searched can see your @handle in the player\u2019s menu.</div>';
-      // Who a Close Friends story goes to (10.6 packet #2).
-      html += settingsRow("Close friends",
-          closeFriendCount === null ? "" : closeFriendCount + (closeFriendCount === 1 ? " person" : " people"),
-          "openCloseFriends()");
       html += settingsRow("Signed in as", escapeHtml(AUTH.email), "")
         + settingsRow("Change password", "", "changePassword()")
         + settingsRow("Log out", "", "logOut()")

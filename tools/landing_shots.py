@@ -23,10 +23,8 @@ Retake them whenever a screen they show changes:
     python preview/build_preview.py
     python tools/landing_shots.py
 
-Writes `static/landing/*.jpg`, the files `static/waitlist.html` names. The
-STILLS are not photographed: they are cut from the owner's screenshots of the
-app (`tools/landing/stills/`) and only resized here, because the preview
-cannot show them (the player needs an episode with a painted picture).
+Writes `static/landing/*.jpg`, the files `static/waitlist.html` names. Each
+shot names the theme it is taken in: some light, some dark (§250).
 """
 from __future__ import annotations
 
@@ -56,31 +54,15 @@ FAKE_NAMES = {
 }
 FAKE_INITIALS = {"BS": "MB", "RS": "JR", "MS": "SP", "NO": "AK"}
 
-#: file name -> the script that puts the interface on that screen. In order:
-#: the mix detail opens from the mixes screen the shot before it leaves open.
+#: file name -> the script that puts the interface on that screen, and the
+#: theme it is shown in. Some light and some dark, at the owner's direction
+#: (§250): the page shows both looks the app has. In order: the mix detail
+#: opens from the mixes screen.
 SHOTS = [
-    ("search", "setTab('home')"),
-    ("dailyfam", "setTab('myfam')"),
-    ("dailyfam-rails", "setTab('myfam');"
-                       " var sc = document.querySelector('#screen-myfam .scroll');"
-                       " if(sc) sc.scrollTop = 520;"),
-    ("myfam-mixes", "openPlayFAM()"),
-    ("myfam-mix", "document.querySelectorAll('.mix-card')[0].click()"),
-    ("friends", "openProfile(); setTimeout(function(){ openFriends(); }, 400)"),
-    # A friend's own page: their interests, public mixes and vibes.
-    ("friend-profile", "openPersonProfile('beth')"),
-    # A friend's vibe, as the story it plays when their face is tapped.
-    ("friend-vibe", "setTab('myfam'); setTimeout(function(){"
-                    " for(var i = 0; i < yfCircle.length; i++){"
-                    "   if(hasStories(yfCircle[i])){ openStory(i); break; } } }, 600)"),
-]
-
-#: name -> cut from a screenshot of the app, not photographed.
-STILLS = [
-    # Its title was set over the original in the app's face at the time (Fraunces
-    # 500, 47px, the title's colour), at the owner's direction: a SpaceX
-    # story in place of the one the screenshot happened to be playing.
-    ("player", "the player on a real episode, from the owner's phone"),
+    ("search", "setTab('home')", "dark"),
+    ("dailyfam", "openMyFamTab()", "light"),
+    ("myfam-mix", "openPlayFAM(); setTimeout(function(){"
+                  " document.querySelectorAll('.mix-card')[0].click(); }, 600)", "light"),
 ]
 
 #: Whatever the last screen left open, and anything that is the preview
@@ -186,7 +168,8 @@ async def capture() -> int:
                                                                 int(p.stem.split("-")[1]))):
             cards.setdefault(path.stem.split("-")[0], []).append(
                 "data:image/jpeg;base64," + base64.b64encode(path.read_bytes()).decode())
-        for name, script in SHOTS:
+        for name, script, theme in SHOTS:
+            await page.evaluate("(t) => setTheme(t)", theme)
             await page.evaluate(TIDY)
             try:
                 await page.evaluate(script)
@@ -205,11 +188,6 @@ async def capture() -> int:
                 OUT / f"{name}.jpg", quality=80, optimize=True, progressive=True)
             print(f"  {name:15} captured")
         await browser.close()
-    for name, _why in STILLS:
-        still = Image.open(ROOT / "tools" / "landing" / "stills" / f"{name}.jpg").convert("RGB")
-        still = still.resize((780, round(780 * still.height / still.width)))
-        still.save(OUT / f"{name}.jpg", quality=82, optimize=True, progressive=True)
-        print(f"  {name:15} from its still")
     if errors:
         print("errors:", errors)
     return 1 if errors else 0

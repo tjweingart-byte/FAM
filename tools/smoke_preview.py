@@ -3071,7 +3071,8 @@ def main() -> int:
             """The X on the full player used to be `goBack()`, which stopped
             the episode. It minimises now (§142): the audio carries on, the
             mini bar on the screen underneath is the same episode, its button
-            still pauses it, and tapping it brings the player back."""
+            still pauses it, and tapping it brings the player back. The mini
+            bar's own X is the one control that stops it (§250)."""
             page.evaluate("setTab('home')")
             page.wait_for_timeout(300)
             page.evaluate("""
@@ -3108,20 +3109,29 @@ def main() -> int:
             page.wait_for_timeout(400)
             assert page.eval_on_selector(".screen.active", "e => e.id") == "screen-player"
             assert page.evaluate("FamAudio.isActive()"), "reopening the player restarted nothing - it stopped"
-            # Dismissing the bar hides it and nothing else: the next tab
-            # change must not end the episode it said was still playing.
-            page.evaluate("minimizePlayer(); dismissNowBar(); openMyFamTab()")
-            page.wait_for_timeout(400)
-            assert page.evaluate("FamAudio.isActive()"), \
-                "a dismissed bar let the next tab change stop the episode"
             # Explore's reels own the audio there: the minimised episode is
             # ended on the way in, not left playing under a reel card.
-            page.evaluate("openExplore()")
+            page.evaluate("minimizePlayer(); openExplore()")
             page.wait_for_timeout(500)
             assert page.evaluate("audioOwner !== 'player'"), \
                 "a minimised episode kept playing inside Explore"
             assert page.evaluate("nowBarState === null"), \
                 "the mini bar still holds an episode Explore ended"
+            # The mini bar's X stops the episode as well as hiding the bar
+            # (§250): with the bar gone nothing else could stop it.
+            page.evaluate("stopSpeech(); hideNowBar(); clearGenOverlay(); setTab('home')")
+            page.wait_for_timeout(300)
+            page.evaluate("generate('_smoke_min')")
+            page.wait_for_selector("#screen-player.active", timeout=15000)
+            page.wait_for_function("FamAudio.isActive()", timeout=15000)
+            page.click("#screen-player #playerDown")
+            page.wait_for_timeout(400)
+            page.click("#screen-home #nowBar .nowbar-x")
+            page.wait_for_timeout(300)
+            assert not page.evaluate("FamAudio.isActive()"), \
+                "the mini bar's X hid the bar and left the episode playing"
+            assert page.evaluate("nowBarState === null"), "the X left the bar's episode behind"
+            assert not page.is_visible("#screen-home #nowBar"), "the X did not take the bar down"
             page.evaluate("stopSpeech(); hideNowBar(); clearGenOverlay(); openMyFamTab()")
             page.wait_for_timeout(300)
 
@@ -3791,6 +3801,10 @@ def main() -> int:
             page.click('#goDeeperLengths .deeper-len[data-min="4"]')
             page.fill("#goDeeperInput", "what happens next")
             page.evaluate("confirmGoDeeper()")
+            # A typed follow-up is corrected at send (§247), which can answer
+            # after the call returns: wait for the follow-up, not a fixed beat.
+            page.wait_for_function(
+                "Object.keys(TOPICS).some(k => k.indexOf('deeper_') === 0)", timeout=10000)
             got = page.evaluate("""() => {
               var k = Object.keys(TOPICS).filter(k => k.indexOf('deeper_') === 0).pop();
               return k ? { minutes: TOPICS[k].exploreMinutes,

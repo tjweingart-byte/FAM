@@ -18134,3 +18134,80 @@ the pre-§227 brief's, which is the one the writing was tuned against.
 
 Tests: `tests/test_small_model_227.py` (rewritten to pin the reversal and
 what stays), `tests/test_moderation_and_consent.py` (photo check unchanged).
+
+## 250. The 10.10 implementations: one wordmark face, an X that stops, light by default, stories without Close Friends, and a shorter waitlist page
+
+The owner's "10.10.26 Implementations" packet: three app items, two story
+items, three waitlist items.
+
+**App.**
+
+1. *The wordmark words match exploreFAM's.* The packet's picture is
+   exploreFAM's reel header: "explore" in Bricolage Grotesque at its regular
+   weight. `.wordmark` (DailyFAM's, myFAM's and YourFAM's headings) was 500
+   with -0.01em tracking; it is 400 with none now, the same face, weight and
+   spacing as `.reel-brand` and the exploreFAM pill.
+2. *The mini player's X stops the episode.* It used to hide the bar and say
+   "Still playing", deliberately (§142's reading of an earlier packet). The
+   owner found the consequence: once the bar is gone there is no control
+   left to stop what it was playing. `dismissNowBar` now calls `stopSpeech`
+   (so an abandoned episode still reports its skip) and `hideNowBar`.
+   Leaving the player - the down arrow, a tab change - still never stops it
+   (`transport`); this X is the one control that does. The smoke check
+   plays an episode, minimises it and taps the X.
+3. *Light mode is the default.* The pre-paint script sets `data-theme=light`
+   unless the device stored `fam.theme = dark` (and when storage refuses, so
+   a private window is light too). Settings' row is "Dark mode", On/Off.
+   Nothing about the light palette changed; the dark one is untouched.
+   A device that had chosen light keeps it; one that had never chosen
+   anything turns light.
+   One follow-on: the surfaces drawn dark in both themes (Explore's reel, a
+   story, the VIBE! editor) read `--copper` for their gold, and light's
+   deeper gold looked muddy on them - exploreFAM's own mark among them. In
+   light they now keep dark's `#E0B563`.
+
+**Stories.**
+
+1. *No Close Friends.* The composer's Close Friends button, its "who are
+   they" panel, Settings' Close friends row and its sheet are gone;
+   `postVibeStory` posts to everybody who follows. The server keeps
+   `/api/close-friends`, the `audience` field and the privacy of a
+   close-friends vibe, for installed clients that still offer it
+   (`old-clients`); a story posted that way still says "Close Friends" to
+   its poster.
+2. *A caption holds more words a line and never splits one.* `.sc-cap` is
+   absolutely placed at its centre (`left: cx%`, `translate(-50%)`), and an
+   absolute box shrinks to fit the room between its left edge and the
+   canvas's right - for a centred caption, half the canvas. It is
+   `width:max-content; max-width:86%` now, so it wraps at 86% of the canvas
+   wherever it sits; and `overflow-wrap:break-word` (was `anywhere`) moves a
+   word that does not fit to the next line whole, splitting only a word
+   longer than a whole line. The story viewer's plain caption box takes the
+   same `break-word`. Dragged off centre, a caption is capped at twice its
+   distance to the nearer edge (`storyCanvasHTML`), so it never hangs off
+   the canvas.
+
+**Waitlist page.**
+
+1. *Screenshots in both themes.* `tools/landing_shots.py` names a theme per
+   shot and sets it before taking it: search in dark, DailyFAM and the
+   Morning mix in light. Same screens and content as before; DailyFAM's is
+   opened with `openMyFamTab()` so the friends row is drawn (a bare
+   `setTab` showed the feed from before sign-in, without it).
+2. *"SOCIAL INFORMATION" under What is FAM* is drawn as the cure's heading
+   is - `.cure-h`, "Social" in white and "information." in gold.
+3. *Three sections removed for a video:* "Stay in the loop" (the two chats),
+   "How to get the most out of FAM - Search. Scroll. Mix." (its carousel)
+   and "Better together". Their styles went with them, and so did the six
+   pictures only they showed (`player`, `dailyfam-rails`, `myfam-mixes`,
+   `friends`, `friend-profile`, `friend-vibe`) and the player still; the
+   capture tool no longer takes them. A test pins that nothing ships under
+   `static/landing/` that the page does not show.
+
+**Merging Main.** Main's CI at `ae42f1d` failed two preview smoke checks:
+"Explore goes deeper" read `TOPICS` the moment `confirmGoDeeper` returned,
+but since §247 a typed follow-up is corrected at send and can land later
+(`None` on CI's slower runner); the late follow-up then opened the player
+over "The interests list is alphabetical", which timed out. The check now
+waits for the follow-up. Reproduced here by slowing `acCorrectQuestion`:
+read at once it is `None`, after the wait `4`.

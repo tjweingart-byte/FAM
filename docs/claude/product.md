@@ -151,6 +151,14 @@ replaced when the same episode is vibed again.
 > pauses it until the finger lifts. Your own story rings your picture on
 > YourFAM, and its ⋯ menu adds "Remove from your story", which takes it off
 > the story and leaves the vibe on the profile.
+>
+> **Current (§250):** Close Friends is gone from the app at the owner's
+> direction: the composer posts to "Your story" only, and Settings no longer
+> lists close friends. The server keeps `/api/close-friends` and the
+> `audience` field, and still keeps a close-friends vibe private, for an
+> installed client that offers it (`old-clients`). A caption is as wide as
+> its words up to 86% of the canvas (`width:max-content`) and breaks only
+> between words.
 
 <!-- rule:group-chats -->
 **Group chats (§213).** Pick two or more people you follow under the

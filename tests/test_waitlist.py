@@ -773,9 +773,7 @@ def test_the_landing_page_says_what_fam_is_under_the_sign_up():
     # Under the form, in the landing's markup; the status page's "Learn more
     # about FAM" moves this same section into its own view (§215).
     assert landing.index('id="joinForm"') < landing.index('id="about"')
-    for heading in ("Search. Scroll. Mix.", "01 · Search", "02 · DailyFAM",
-                    "03 · myFAM", "Ian Solomon &amp; TJ Weingart"):
-        assert heading in landing
+    assert "Ian Solomon &amp; TJ Weingart" in landing
     # The founders' photo is optional: a missing file draws their initials.
     assert 'src="/founders.jpg"' in landing and "classList.add('empty')" in landing
     # The photo ships, small enough to load fast and with nothing in it but
@@ -794,18 +792,19 @@ def test_the_landing_page_says_what_fam_is_under_the_sign_up():
 def test_the_what_is_fam_pictures_are_real_screens_that_ship():
     page = (ROOT / "static" / "waitlist.html").read_text(encoding="utf-8")
     about = page.split('id="about"', 1)[1].split("</footer>", 1)[0]
-    pictures = set(re.findall(r'src="/landing/([\w-]+\.jpg)"', about))
-    assert len(pictures) >= 6
+    pictures = re.findall(r'src="/landing/([\w-]+\.jpg)"', about)
+    assert pictures == ["dailyfam.jpg", "search.jpg", "myfam-mix.jpg"]
     for name in pictures:
         assert (ROOT / "static" / "landing" / name).stat().st_size > 10_000, name
-    # Retaken by one script, which writes exactly the files the page names.
+    # Nothing ships that the page no longer shows.
+    assert sorted(p.name for p in (ROOT / "static" / "landing").glob("*.jpg")) == sorted(pictures)
+    # Retaken by one script, which writes exactly the files the page names,
+    # some in light and some in dark (§250).
     tool = (ROOT / "tools" / "landing_shots.py").read_text(encoding="utf-8")
-    assert {n[:-4] for n in pictures} <= set(re.findall(r'\("([\w-]+)", ', tool))
-    for name in re.findall(r'\("([\w-]+)", "the', tool):  # a still is cut, not shot
-        assert (ROOT / "tools" / "landing" / "stills" / f"{name}.jpg").exists(), name
-    # A pill sits under its phone: the row leaves room below the phone for it.
-    pad = re.search(r"\.shots\{[^}]*padding:10px 0 (\d+)px", page)
-    assert pad and int(pad.group(1)) >= 60
+    shots = dict((n, t) for n, t in re.findall(r'\("([\w-]+)", .*?, "(light|dark)"\)', tool, re.S))
+    assert set(shots) == {n[:-4] for n in pictures}
+    assert set(shots.values()) == {"light", "dark"}
+    assert 'setTheme(t)", theme)' in tool
     # Only painted tiles, made-up friends, a cover on the Morning mix.
     assert "if(!c.querySelector('.seed-img')) c.remove();" in tool
     assert '"Beth Solomon": "Maya Brooks"' in tool
@@ -816,11 +815,6 @@ def test_the_what_is_fam_pictures_are_real_screens_that_ship():
     tiles = {p.stem.split("-")[0] for p in (ROOT / "tools" / "landing" / "tiles").glob("*.jpg")}
     assert tiles == {"foryou", "trending", "friends"}
     assert "await page.evaluate(PAINT_TILES, cards)" in tool
-    # The Vibe card wears the player's own VIBE icon.
-    app = (ROOT / "static" / "index.html").read_text(encoding="utf-8")
-    vibe = re.search(r'id="playerEcho"[^>]*><svg[^>]*>(.*?)</svg>', app).group(1)
-    card = about.split("<b>Vibe</b>", 1)[0].rsplit('class="fr-card"', 1)[1]
-    assert vibe in card
     # Every picture says what it shows.
     assert all('alt=""' not in tag for tag in re.findall(r"<img[^>]*>", about))
 
@@ -833,7 +827,9 @@ def test_the_landing_page_tells_why_fam_exists():
     assert '<p class="tagline label">The social information network</p>' in landing
     # Right under the wordmark, above the headline.
     assert landing.index('class="wordmark"') < landing.index('class="tagline') < landing.index('class="headline"')
-    assert '<h2 class="ab-h">SOCIAL INFORMATION</h2>' in landing
+    # Drawn as the cure's heading is (§250), not in capitals.
+    assert '<h2 class="cure-h">Social <span>information.</span></h2>' in landing
+    assert "SOCIAL INFORMATION" not in landing
     assert "social information, not social media" in page.split("</head>", 1)[0]
     foot = landing.split('class="ab-foot"', 1)[1]
     assert foot.index('class="wordmark"') < foot.index("The social information network")
@@ -846,8 +842,7 @@ def test_the_landing_page_tells_why_fam_exists():
              "The audio problem you don’t realize you have.",
              "The interests of the people around you are invisible.",
              "Information isolation.", "Social information connects what they know.",
-             "Don’t be left out of the conversation", "Search. Scroll. Mix.",
-             "actually being part of the conversation"]
+             "Ian Solomon &amp; TJ Weingart", "actually being part of the conversation"]
     at = [landing.index(text) for text in order]
     assert at == sorted(at), "the story is told out of order"
     # The intro is the doctrine's last sentence.
@@ -877,35 +872,24 @@ def test_the_landing_page_tells_why_fam_exists():
         assert gone not in page, gone
 
 
-def test_the_morning_after_says_it_before_it_shows_it():
+def test_three_sections_are_off_the_page_for_a_video():
+    """§250 (the 10.10 packet): "Stay in the loop", "How to get the most out
+    of FAM" and "Better together" are becoming a video, so the page no
+    longer carries them - nor the styles that only they used. (The comment
+    saying so is allowed to name them.)"""
     page = (ROOT / "static" / "waitlist.html").read_text(encoding="utf-8")
-    morning = page.split('class="ab-wrap ab-morning', 1)[1].split("</section>", 1)[0]
-    # The point first, then the chat; and in the chat you plainly can't join in.
-    assert morning.index("Don’t be left out of the conversation") < morning.index('class="convo"')
-    assert '<div class="msg me lost"><p><b>You</b>Wait… what happened?</p>' in morning
-    # Beside it, the same chat with FAM: you're in it.
-    assert (morning.index('<figcaption class="ba-label off">Without FAM</figcaption>')
-            < morning.index('<figcaption class="ba-label on">With FAM</figcaption>'))
-    assert '<div class="msg me in"><p><b>You</b>I remember the rumors from a while ago' in morning
-    assert 'class="ab-wrap ab-payoff' not in page
-    # The story is the niche kind you only know if you kept up, not a score.
-    assert "NFL head coach" in morning and "hotel rooftop" in morning
-    assert "ninth" not in morning
-
-
-def test_how_to_use_fam_is_one_feature_at_a_time():
-    page = (ROOT / "static" / "waitlist.html").read_text(encoding="utf-8")
-    how = page.split('class="ab-wrap ab-how"', 1)[1].split("</section>", 1)[0]
-    # Its heading on its own, then the three features taking turns.
-    assert how.index("Search. Scroll. Mix.") < how.index("data-carousel")
-    assert how.count('<article class="feat car-slide"') == 3
-    assert "feat-flip" not in page
+    page = re.sub(r"<!--.*?-->", "", page, flags=re.S)
+    for gone in ("Stay in the loop", "Don’t be left out of the conversation",
+                 "How to get the most out of FAM", "Search. Scroll. Mix.",
+                 "Better together", 'class="ab-wrap ab-morning', 'class="ab-wrap ab-how',
+                 'class="ab-wrap ab-friends', ".convo{", ".feat{", ".fr-card{", ".shots{"):
+        assert gone not in page, gone
 
 
 def test_the_carousels_turn_only_by_hand():
     page = (ROOT / "static" / "waitlist.html").read_text(encoding="utf-8")
     boxes = page.split(" data-carousel role=")[1:]
-    assert len(boxes) == 2  # the problem, and how to use FAM
+    assert len(boxes) == 1  # the problem (how to use FAM went in §250)
     for box in boxes:
         box = box.split("</section>", 1)[0]
         # Without script every slide shows: nothing is hidden in the markup.
