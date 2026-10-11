@@ -18203,3 +18203,11 @@ items, three waitlist items.
    `friends`, `friend-profile`, `friend-vibe`) and the player still; the
    capture tool no longer takes them. A test pins that nothing ships under
    `static/landing/` that the page does not show.
+
+**Merging Main.** Main's CI at `ae42f1d` failed two preview smoke checks:
+"Explore goes deeper" read `TOPICS` the moment `confirmGoDeeper` returned,
+but since §247 a typed follow-up is corrected at send and can land later
+(`None` on CI's slower runner); the late follow-up then opened the player
+over "The interests list is alphabetical", which timed out. The check now
+waits for the follow-up. Reproduced here by slowing `acCorrectQuestion`:
+read at once it is `None`, after the wait `4`.
