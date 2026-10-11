@@ -71,6 +71,10 @@ def test_a_caption_wraps_between_words_at_the_canvas_width():
     # A word moves to the next line whole; "anywhere" split words mid-way.
     assert "overflow-wrap:break-word" in cap and "anywhere" not in cap
     assert "overflow-wrap:anywhere" not in _rule(".story-caption")
+    # Off centre it narrows rather than hang past the canvas's edge.
+    draw = _fn("storyCanvasHTML")
+    assert "Math.min(86, Math.round(200 * Math.min(st.cx, 1 - st.cx)) - 4)" in draw
+    assert "max-width:' + room" in draw
 
 
 def test_dark_surfaces_keep_dark_gold_in_light_mode():

@@ -7033,9 +7033,13 @@
       + '<div class="sc-post-text"><div class="sc-post-title">' + escapeHtml(v.title || v.query || "") + '</div>'
       + '<div class="sc-post-meta">FAM · ' + (v.minutes || BROWSE_MINUTES) + ' MIN</div></div></div>';
     if(v.caption){
+      // Centred on cx, so it can be twice its distance to the nearer edge
+      // wide and stay on the canvas: 86% in the middle, narrower near a side.
+      var room = Math.max(10, Math.min(86, Math.round(200 * Math.min(st.cx, 1 - st.cx)) - 4));
       html += '<div class="sc-cap ' + fontCls + (edit && vcs.sel === "cap" ? " sc-sel" : "") + '"'
         + (edit ? ' data-drag="cap"' : '')
-        + ' style="left:' + st.cx * 100 + '%;top:' + st.cy * 100 + '%;font-size:calc(' + st.size + ' * 100cqw / 360);">'
+        + ' style="left:' + st.cx * 100 + '%;top:' + st.cy * 100 + '%;max-width:' + room
+        + '%;font-size:calc(' + st.size + ' * 100cqw / 360);">'
         + escapeHtml(v.caption) + '</div>';
     }
     st.stickers.forEach(function(k, i){
