@@ -583,9 +583,25 @@ def unpack_audio(blob: bytes) -> bytes:
     return zlib.decompress(blob)
 
 
+#: The hot copy's ceiling when AUDIO_CACHE_MAX_MB is unset (§251): sized for
+#: the 1 GB disk every store shares, or - with the stores in Postgres - small,
+#: because there it is database storage, and a cold episode is one read from
+#: the bucket, which costs nothing to send.
+AUDIO_CEILING_DISK_MB = 512
+AUDIO_CEILING_POSTGRES_MB = 128
+
+
+def audio_ceiling_mb() -> int:
+    """The ceiling in force, in MB. 0 means no ceiling."""
+    mb = int(settings.audio_cache_max_mb)
+    if mb < 0:
+        return AUDIO_CEILING_POSTGRES_MB if store_db.enabled() else AUDIO_CEILING_DISK_MB
+    return mb
+
+
 def audio_ceiling_bytes() -> int:
     """0 means no ceiling."""
-    return max(0, int(settings.audio_cache_max_mb)) * 1024 * 1024
+    return audio_ceiling_mb() * 1024 * 1024
 
 
 #: `episode_audio.tier` for audio somebody saved, shared or vibed (§237),
@@ -1056,6 +1072,10 @@ class MemoryScriptCache:
         guest's sample tile only - playing still asks `has_audio` for the
         voice and rate that will actually be served."""
         return self._live(key) and any(k == key for k, _v in self._audio)
+
+    def audio_link(self, key: str, voice: str, sample_rate: int) -> Optional[dict]:
+        """No bucket here, so nothing to link to (§251): always streamed."""
+        return None
 
     def get_audio(self, key: str, voice: str, sample_rate: int) -> Optional[StoredAudio]:
         if not self.has_audio(key, voice, sample_rate):
@@ -1724,6 +1744,42 @@ class SqliteScriptCache:
                          " VALUES (?, ?)", (name, now))
         cur = conn.execute(f"DELETE FROM episode_audio WHERE {where}", params)
         return cur.rowcount or 0
+
+    def audio_link(self, key: str, voice: str, sample_rate: int) -> Optional[dict]:
+        """What a client needs to read this episode's audio out of the bucket
+        itself (§251), or None to stream it as before.
+
+        The object's name, the episode's true length in samples, the
+        sentences and starts in that audio, and when its information was
+        sourced (for its episode id). Only for Opus in a bucket, while the
+        script is readable, at the engine's rate, never for audio voiced with
+        a slur (§171) - the same tests `get_audio` applies - and with no call
+        to the bucket: an object that has gone answers the client 404 and the
+        player streams instead.
+        """
+        try:
+            conn = self._conn()
+            row = conn.execute(
+                "SELECT a.object_key, a.sample_rate, a.sentences, a.starts,"
+                " a.codec, a.frames,"
+                " CASE WHEN s.sourced_at > 0 THEN s.sourced_at ELSE s.created END"
+                " FROM episode_audio a JOIN scripts s ON s.key = a.key"
+                " WHERE a.key = ? AND a.voice = ? AND s.expires >= ?",
+                (key, voice, time.time()),
+            ).fetchone()
+            if (not row or not row[0] or row[4] != audio_codec.OPUS
+                    or int(row[1]) != int(sample_rate) or not int(row[5] or 0)
+                    or _voiced_a_slur(row[2])):
+                return None
+            conn.execute(
+                "UPDATE episode_audio SET played = ? WHERE key = ? AND voice = ?",
+                (time.time(), key, voice))
+            return {"object_key": row[0], "sample_rate": int(row[1]),
+                    "sentences": json.loads(row[2]), "starts": json.loads(row[3]),
+                    "frames": int(row[5]), "sourced": float(row[6] or 0)}
+        except Exception:
+            log.exception("audio link lookup failed; streaming")
+            return None
 
     def get_audio(self, key: str, voice: str, sample_rate: int) -> Optional[StoredAudio]:
         """The kept audio for this episode in this voice, or None.

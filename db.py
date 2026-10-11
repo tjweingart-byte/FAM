@@ -872,6 +872,43 @@ def probe() -> dict:
     return result
 
 
+#: (when, result) of the last size reading: summing every relation walks the
+#: catalogue, so a busy health check measures once every five minutes.
+_SIZED: list = [0.0, None]
+SIZE_SECONDS = 300.0
+
+_SCHEMA_SIZES = (
+    "SELECT n.nspname, COALESCE(SUM(pg_total_relation_size(c.oid)), 0)"
+    " FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace"
+    " WHERE c.relkind IN ('r', 'm')"
+    " AND n.nspname NOT IN ('pg_catalog', 'information_schema')"
+    " AND n.nspname NOT LIKE 'pg_toast%'"
+    " GROUP BY n.nspname")
+
+
+def sizes() -> dict:
+    """What the database holds, as the database measures it (§251): the
+    whole database, and each schema - one per store - with its indexes and
+    TOAST. For `/api/health`, so a plan is chosen from real numbers."""
+    now = time.monotonic()
+    if _SIZED[1] is not None and now - _SIZED[0] < SIZE_SECONDS:
+        return _SIZED[1]
+    try:
+        slot = _POOL.acquire(None)
+        try:
+            total = int(slot.pg.execute(
+                "SELECT pg_database_size(current_database())").fetchone()[0])
+            rows = slot.pg.execute(_SCHEMA_SIZES).fetchall()
+        finally:
+            _POOL.release(slot)
+        result = {"total_bytes": total,
+                  "schemas": {str(r[0]): int(r[1]) for r in rows}}
+    except Exception as exc:  # noqa: BLE001 - reported, not raised
+        result = {"error": str(exc)[:200]}
+    _SIZED[:] = [now, result]
+    return result
+
+
 def report() -> dict:
     """For `/api/health`: where the stores live, never the address itself."""
     if not enabled():

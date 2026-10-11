@@ -1,0 +1,8 @@
+[
+  {
+    "AllowedOrigins": ["https://fam.onrender.com"],
+    "AllowedMethods": ["GET"],
+    "AllowedHeaders": ["*"],
+    "MaxAgeSeconds": 3600
+  }
+]

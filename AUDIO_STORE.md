@@ -47,9 +47,28 @@ episode's script is pinned for as long as its audio is kept.
    `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID` and `R2_SECRET_ACCESS_KEY` (or the two
    keys through `FAM_SECRETS`). Redeploy.
 
-6. **Check `/api/health` → `audio`**: `store: r2`, `codec: opus`,
+6. **Let browsers read it (§251).** In the Cloudflare dashboard: R2 →
+   `fam-audio` → Settings → CORS Policy → Add CORS policy, and paste
+   `deploy/r2-cors.json` with `AllowedOrigins` listing every address the app
+   is opened at (`https://fam.onrender.com`, and any custom domain). Without
+   it every replay still plays - the player streams it instead - but each
+   one is counted as a fallback and costs Render bandwidth.
+
+7. **Check `/api/health` → `audio`**: `store: r2`, `codec: opus`,
    `check.ok: true`, and after an hour a `sweep` with an `at`. Existing audio
-   is uploaded 200 rows per hourly sweep (`sweep.uploaded`).
+   is uploaded 200 rows per hourly sweep (`sweep.uploaded`). After a few
+   replays, `links.issued` grows and `links.fallbacks` stays near 0; if
+   fallbacks match issued, the CORS policy is missing an address.
+
+## Replays read straight from the bucket (§251)
+
+A first play streams through the server as it is voiced. A **replay** -
+any play of an episode whose audio is already kept - is answered with a
+link to its file in R2, signed for `AUDIO_LINK_SECONDS` (300), and the
+player reads the file itself: R2 charges nothing to send it, where Render
+charges $0.15 a GB. Sign-up, plan limits, the play and the ledger are all
+applied before the link is made. `AUDIO_LINKS=0` turns it off. Older
+installed clients never ask for a link and keep streaming.
 
 ## Turning it off
 
@@ -62,6 +81,8 @@ already written keep playing.
 
 At 0.36 MB per two-minute episode, 10,000 new episodes a day kept a week is
 about 25 GB in `recent/`, roughly $0.38 a month, with uploads and reads inside
-R2's free operations at that volume. Reading back out is free. Kept audio costs
-$0.01 per GB a month, with a 30-day minimum per object. Prices are list prices;
+R2's free operations at that volume. Reading back out is free - by the server
+or, for a replay, by the listener's device (§251) - except that Infrequent
+Access (`kept/`) charges $0.01 per GB read. Kept audio costs $0.01 per GB a
+month, with a 30-day minimum per object. Prices are list prices;
 check Cloudflare's R2 pricing page.

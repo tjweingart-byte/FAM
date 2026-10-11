@@ -35,6 +35,7 @@ from episode_marks import EpisodeMarks, TimedClient
 from config import STREAMING_PIPELINES, settings
 import content_filter
 import audio_codec
+import audio_store
 import live_captions
 from pronunciation import respell
 from spoken_text import speakable
@@ -1167,19 +1168,54 @@ class PodcastPipeline:
         for an episode that will be read out of SQLite is paying for a boot
         nobody uses. A hint only, and it answers False rather than spend a
         model call when the key needs one. Since §134 a near match counts: see
-        below.
+        `_stored_audio_key`.
         """
+        return bool(await self._stored_audio_key(plan))
+
+    async def stored_link(self, plan: EpisodePlan, expires: int) -> Optional[dict]:
+        """A signed link to this episode's kept audio in the bucket, for a
+        client to read itself (§251), or None to stream it as before.
+
+        Only where the serving path would replay kept audio - the same key
+        `has_stored_audio` finds, near matches included - and only for Opus
+        in a bucket. Nothing here calls a model or the voice; signing the
+        link is arithmetic. The answer carries what the stream's headers and
+        captions would have: the episode's id, its true length, and the
+        sentences and starts in that audio.
+        """
+        key = await self._stored_audio_key(plan)
+        if not key:
+            return None
+        store = audio_store.get_store()
+        if store is None or not hasattr(store, "link"):
+            return None
+        info = await asyncio.to_thread(
+            self.cache.audio_link, key, self._audio_voice(), self.engine.sample_rate)
+        if not info:
+            return None
+        url = store.link(info["object_key"], int(expires))
+        if not url:
+            return None
+        episode = (plan.episode if plan.episode
+                   else episode_id(key, info["sourced"] or time.time()))
+        return {**info, "url": url, "key": key, "episode": episode,
+                "expires": int(expires)}
+
+    async def _stored_audio_key(self, plan: EpisodePlan) -> str:
+        """The key whose kept audio the serving path would replay for this
+        plan, or "" when it would voice the episode. The one definition behind
+        `has_stored_audio` (whether to wake the GPU) and `stored_link`."""
         if plan.episode and self._keeps_audio() and self.cache:
             # A heard episode, replayed by its identity (§173).
             key = self.cache.resolve_episode(plan.episode)
-            return bool(key) and self.cache.has_audio(
-                key, self._audio_voice(), self.engine.sample_rate)
+            return key if key and self.cache.has_audio(
+                key, self._audio_voice(), self.engine.sample_rate) else ""
         if (not self._keeps_audio() or settings.cache_semantic_key
                 or not is_shareable(plan.query) or plan.attachments):
-            return False
+            return ""
         key = await self._cache_key(plan)
         if not key:
-            return False
+            return ""
         voice, rate = self._audio_voice(), self.engine.sample_rate
         # Kept audio is played only when the serving path will play its
         # script: a replay plays anything kept, anything else only a current
@@ -1187,7 +1223,7 @@ class PodcastPipeline:
         # the voice (§143).
         if self.cache.has_audio(key, voice, rate) and (
                 plan.cached_only or self.cache.get(key)):
-            return True
+            return key
         # **A near match plays the neighbour's audio, so it must not wake the
         # GPU either** (§134). The serving path already swaps to the
         # neighbour's key and reads its stored audio; this hint answered for
@@ -1197,10 +1233,10 @@ class PodcastPipeline:
         # exact key has no live script - otherwise the serving path would
         # never look at a neighbour and nor may this.
         if plan.cached_only or self.cache.get(key):
-            return False
+            return ""
         bucket = self._bucket(plan)
         near = self.cache.nearest(bucket, plan.query) if bucket else None
-        return bool(near) and self.cache.has_audio(near[0], voice, rate)
+        return near[0] if near and self.cache.has_audio(near[0], voice, rate) else ""
 
     async def _play_stored(self, stored, stats: GenerationStats) -> AsyncIterator[bytes]:
         """Stream kept audio exactly as it was first streamed. No engine call.

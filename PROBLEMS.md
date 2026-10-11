@@ -18211,3 +18211,60 @@ but since §247 a typed follow-up is corrected at send and can land later
 over "The interests list is alphabetical", which timed out. The check now
 waits for the follow-up. Reproduced here by slowing `acCorrectQuestion`:
 read at once it is `None`, after the wait `4`.
+
+## 251. Replays straight from R2, the database's size, and a smaller hot copy in Postgres
+
+Three things at the owner's direction, after the cost analysis for moving
+the stores to Postgres (§243).
+
+**Replays are read from the bucket (reversing "no audio files to the
+client").** The owner: the rule was made before the backend was understood,
+and its guardrails are not needed. Render charges $0.15 a GB sent and R2
+charges nothing, and since §237 every replay's audio is already an Ogg Opus
+file in R2. Only replays can move: a first play is voiced sentence by
+sentence while it streams, and there is no file until it is whole. With the
+repo's cache-miss estimates (`docs/FINANCIAL.md`) that is ~45% of plays at
+10k MAU and ~55% at 100k - roughly $11 and $135 a month of Render bandwidth.
+
+- `/api/audio?fmt=opus&link=1`: after the guest gate, the allowance and
+  consent - so a link is spent exactly as a stream is - a replay whose Opus
+  is in the bucket (`PodcastPipeline.stored_link`, found by the same
+  `_stored_audio_key` that decides whether to wake the GPU, near matches
+  included) is answered with JSON: a SigV4 link signed for
+  `AUDIO_LINK_SECONDS` (300; `audio_store.presign`, pinned against botocore),
+  the true length in samples, and the sentences and starts in that audio.
+  The headers are the stream's (`X-FAM-Episode`, `X-FAM-Cache: hit`,
+  `X-FAM-Keepable`, `X-Sample-Rate`) plus `X-FAM-Audio-Link: 1`; the play is
+  recorded, the ledger written, the captions published. Signing is
+  arithmetic: no request to the bucket.
+- The player (`fam-audio.js`) asks for a link only where it decodes Opus,
+  reads the file, and `oggOpus` turns its pages into the stream's own
+  "fam-opus v1" packets with the end marker's true length - so `pumpOpus`,
+  the buffer, seek, speed, captions and the offline shelf are one path for
+  both. A test feeds a real encoded file to `oggOpus` in random pieces and
+  requires the stream's exact bytes. A link that fails before its first
+  sample (no CORS for this site, an object gone) is streamed instead with
+  `link_failed=1`, which the server counts: `/api/health` → `audio.links`.
+- The bucket needs a CORS policy for the app's addresses
+  (`deploy/r2-cors.json`, AUDIO_STORE.md step 6). Without it every replay
+  still plays, as a counted fallback.
+- `AUDIO_LINKS=0` streams everything as before. Installed clients that never
+  send `link=1` are unchanged.
+
+**The database's size in `/api/health`.** `database.size_mb` and the three
+`largest` stores: on SQLite each file's bytes (counted once per file), on
+Postgres `pg_database_size` and each store's schema with indexes and TOAST
+(`db.sizes`, at most every five minutes), written onto each store's entry
+in `databases`. So a database plan is chosen from what staging holds after
+a week, not from a projection.
+
+**The hot copy is 128 MB in Postgres unless chosen.** `AUDIO_CACHE_MAX_MB`
+now defaults to unset (-1): 512 with the stores on the disk, 128 with
+`DATABASE_URL` set, where the hot copy is database storage and an evicted
+one is a free read from the bucket (`cache.audio_ceiling_mb`). Any value set
+wins; 0 is still no ceiling. `.env.example` leaves it commented, so copying
+it does not pin 512 on Postgres.
+
+`app.py`, `audio_store.py`, `cache.py`, `pipeline.py`, `db.py`, `config.py`,
+`static/fam-audio.js`, `deploy/r2-cors.json`, `AUDIO_STORE.md`, `POSTGRES.md`,
+`tests/test_audio_links_251.py`.

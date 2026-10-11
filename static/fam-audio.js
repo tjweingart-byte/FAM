@@ -404,7 +404,9 @@ window.FamAudio = (function () {
    * offline shelf never learn which arrived. A server that cannot send Opus
    * answers with PCM and without the header, and is played as PCM.
    *
-   * Still a stream: decoded as it arrives, nothing written (no-audio-files).
+   * Decoded as it arrives. A replay may come instead as a link to its kept
+   * Ogg Opus file in R2 (§251); `oggOpus` below turns that file into these
+   * same packets, so it is decoded by this same code.
    */
   var opusSupport = null;
 
@@ -464,16 +466,20 @@ window.FamAudio = (function () {
 
     keepable = false;
     episodeId = "";
+    // Where to stream the episode if a link to its kept audio will not play.
+    var streamUrl = "";
     ctx.resume().then(canDecodeOpus).then(function (opus) {
-      // Opus where this browser can decode it, PCM everywhere else.
-      url = url.replace("&fmt=FMT", opus ? "&fmt=opus" : "&fmt=pcm");
+      // Opus where this browser can decode it, PCM everywhere else. A browser
+      // that decodes Opus may be handed a replay as a link (§251).
+      streamUrl = url.replace("&fmt=FMT", "&fmt=opus") + "&link_failed=1";
+      url = url.replace("&fmt=FMT", opus ? "&fmt=opus&link=1" : "&fmt=pcm");
       // A request that never reached the server is marked, so the caller can
       // tell "no connection" from a bug further down (§161's offline play).
       return fetch(url, { signal: controller.signal }).catch(function (e) {
         if (e && e.name !== "AbortError") e.network = true;
         throw e;
       });
-    }).then(function (res) {
+    }).then(function handle(res) {
       if (!res.ok) {
         return res.json().catch(function () {
           return { error: "Request failed (" + res.status + ")" };
@@ -497,7 +503,6 @@ window.FamAudio = (function () {
       keepable = res.headers.get("X-FAM-Keepable") === "1";
       episodeId = res.headers.get("X-FAM-Episode") || "";
 
-      var reader = res.body.getReader();
       var leftover = new Uint8Array(0);
       var received = 0;
       var first = true;
@@ -526,8 +531,23 @@ window.FamAudio = (function () {
         }
       }
 
+      if (res.headers.get("X-FAM-Audio-Link") === "1") {
+        // A replay read straight from the bucket (§251). If the file will not
+        // play before a sample of it has (a bucket without CORS for this
+        // site, an object gone), the episode is streamed instead and the
+        // server is told, so the fallback is counted rather than invisible.
+        return res.json().then(function (body) {
+          return playLinked(body, deliver, myToken);
+        }).catch(function (err) {
+          if ((err && err.name === "AbortError") || myToken !== token || !first) throw err;
+          return fetch(streamUrl, { signal: controller.signal }).then(handle);
+        });
+      }
+
+      var reader = res.body.getReader();
       if (res.headers.get("X-FAM-Audio-Format") === "opus") {
-        return pumpOpus(reader, res, deliver, myToken);
+        return pumpOpus(reader, Number(res.headers.get("X-FAM-Opus-Preskip")) || 0,
+                        deliver, myToken);
       }
 
       function pump() {
@@ -569,10 +589,9 @@ window.FamAudio = (function () {
      stream's rate. A decoder that outputs at a multiple of that rate (48 kHz
      is common) is decimated: the voice holds nothing above half the stream's
      rate, so every n-th sample loses nothing. */
-  function pumpOpus(reader, res, deliver, myToken) {
+  function pumpOpus(reader, preskip48, deliver, myToken) {
     var streamRate = sampleRate;
-    var preskip = Math.round(
-      (Number(res.headers.get("X-FAM-Opus-Preskip")) || 0) * streamRate / 48000);
+    var preskip = Math.round((preskip48 || 0) * streamRate / 48000);
     var dropped = 0;        // pre-skip samples dropped so far
     var finalLength = -1;   // from the end marker, once it arrives
     var pending = new Uint8Array(0);
@@ -666,6 +685,117 @@ window.FamAudio = (function () {
       try { decoder.close(); } catch (e) {}
       throw err;
     });
+  }
+
+  /* A replay's kept audio, read from the bucket by the link the server signed
+     (§251), and decoded by `pumpOpus` like the stream. */
+  function playLinked(body, deliver, myToken) {
+    return fetch(body.link, { signal: controller.signal }).then(function (file) {
+      if (!file.ok) throw new Error("The kept audio answered " + file.status + ".");
+      return oggOpus(file.body.getReader(), Number(body.frames) || 0);
+    }).then(function (opened) {
+      return pumpOpus(opened.reader, opened.preskip, deliver, myToken);
+    });
+  }
+
+  /* An Ogg Opus file, read as it arrives, as "fam-opus v1": its pages are
+     split into packets (a packet may span pages), the two header packets are
+     read - OpusHead's pre-skip - and dropped, and each audio packet is framed
+     with its u16 length; the end marker carries `frames`, the episode's true
+     length, which the file itself does not state exactly. Resolves once the
+     header is read, with { preskip, reader }. */
+  function oggOpus(source, frames) {
+    var buf = new Uint8Array(0);
+    var parts = [];
+    var queue = [];
+    var heads = 0;
+    var preskip = 0;
+    var ended = false;
+    var marked = false;
+
+    function take(bytes) {
+      var merged = new Uint8Array(buf.length + bytes.length);
+      merged.set(buf, 0); merged.set(bytes, buf.length);
+      buf = merged;
+    }
+    function emit(packet) {
+      if (heads === 0) {
+        if (String.fromCharCode.apply(null, packet.subarray(0, 8)) !== "OpusHead") {
+          throw new Error("The kept audio is not Opus.");
+        }
+        preskip = packet[10] | (packet[11] << 8);
+        heads = 1;
+      } else if (heads === 1) {
+        heads = 2;   // OpusTags: nothing the player needs
+      } else if (packet.length) {
+        queue.push(packet);
+      }
+    }
+    function parse() {
+      var pos = 0;
+      while (buf.length - pos >= 27) {
+        if (buf[pos] !== 0x4f || buf[pos + 1] !== 0x67 || buf[pos + 2] !== 0x67 ||
+            buf[pos + 3] !== 0x53) throw new Error("The kept audio is not an Ogg file.");
+        var count = buf[pos + 26];
+        if (buf.length - pos < 27 + count) break;
+        var size = 0;
+        for (var i = 0; i < count; i++) size += buf[pos + 27 + i];
+        if (buf.length - pos < 27 + count + size) break;
+        var at = pos + 27 + count;
+        for (var j = 0; j < count; j++) {
+          var len = buf[pos + 27 + j];
+          parts.push(buf.slice(at, at + len));
+          at += len;
+          if (len < 255) {
+            var total = 0;
+            parts.forEach(function (p) { total += p.length; });
+            var packet = new Uint8Array(total);
+            var k = 0;
+            parts.forEach(function (p) { packet.set(p, k); k += p.length; });
+            parts = [];
+            emit(packet);
+          }
+        }
+        pos = at;
+      }
+      buf = buf.slice(pos);
+    }
+    function framed() {
+      var total = 0;
+      queue.forEach(function (p) { total += 2 + p.length; });
+      var out = new Uint8Array(total);
+      var at = 0;
+      queue.forEach(function (p) {
+        out[at] = p.length >> 8; out[at + 1] = p.length & 255;
+        out.set(p, at + 2);
+        at += 2 + p.length;
+      });
+      queue = [];
+      return out;
+    }
+    function read() {
+      if (queue.length) return Promise.resolve({ done: false, value: framed() });
+      if (ended) {
+        if (marked || !frames) return Promise.resolve({ done: true });
+        marked = true;
+        return Promise.resolve({ done: false, value: new Uint8Array([0, 0,
+          (frames >>> 24) & 255, (frames >>> 16) & 255, (frames >>> 8) & 255, frames & 255]) });
+      }
+      return source.read().then(function (r) {
+        if (r.done) ended = true; else { take(r.value); parse(); }
+        return read();
+      });
+    }
+    function open() {
+      if (heads >= 2) return Promise.resolve({ preskip: preskip, reader: { read: read } });
+      return source.read().then(function (r) {
+        if (r.done) throw new Error("The kept audio ended before it began.");
+        take(r.value);
+        parse();
+        return open();
+      });
+    }
+    return open();
   }
 
   /* Play from samples this device already holds, rather than from the network.

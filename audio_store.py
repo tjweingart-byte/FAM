@@ -23,10 +23,15 @@ condition for a bucket rule):
   in the Infrequent Access class ($0.01 a GB a month, 30-day minimum). It is
   deleted by FAM when nobody holds it any more; no rule deletes it.
 
-**No signed URLs, ever.** The server reads the object and streams it as PCM,
-exactly as it streams everything else. A URL handed to the client would skip
-the guest gate and the tier's replay count, and R2 charges nothing for the
-server to read it.
+**A replay may be handed a signed link** (§251, at the owner's direction,
+reversing "no signed URLs, ever"). A client that asks (`/api/audio?link=1`)
+is given a link to the object - good for `AUDIO_LINK_SECONDS` - and reads
+the file from R2 itself, which costs nothing to send, instead of through
+the server, whose bandwidth is billed. The gate and the tier's count are
+applied before the link is made, exactly as before a stream; what the link
+gives up is only that, for its few minutes, whoever holds it can read that
+one file. A first play is still streamed as it is voiced: there is no file
+until the episode is whole.
 
 Requests are signed with SigV4 over `httpx`, which FAM already depends on, in
 about sixty lines, rather than pulling in boto3: botocore is ~50 MB resident on
@@ -108,6 +113,35 @@ def sign(method: str, host: str, path: str, headers: dict, payload: bytes,
     return out
 
 
+def presign(method: str, host: str, path: str, access_key: str,
+            secret_key: str, now: _dt.datetime, expires: int,
+            region: str = "auto", service: str = "s3") -> str:
+    """A SigV4 query-signed URL (§251): the request needs no headers, so a
+    browser can make it. Pinned against botocore's `generate_presigned_url`
+    in tests/test_audio_links.py."""
+    amz_date = now.strftime("%Y%m%dT%H%M%SZ")
+    day = now.strftime("%Y%m%d")
+    scope = f"{day}/{region}/{service}/aws4_request"
+    params = {
+        "X-Amz-Algorithm": "AWS4-HMAC-SHA256",
+        "X-Amz-Credential": f"{access_key}/{scope}",
+        "X-Amz-Date": amz_date,
+        "X-Amz-Expires": str(int(expires)),
+        "X-Amz-SignedHeaders": "host",
+    }
+    query = "&".join(f"{urllib.parse.quote(k, safe='-_.~')}="
+                     f"{urllib.parse.quote(v, safe='-_.~')}"
+                     for k, v in sorted(params.items()))
+    canonical = "\n".join([method, _quote(path), query, f"host:{host}\n",
+                           "host", "UNSIGNED-PAYLOAD"])
+    to_sign = "\n".join(["AWS4-HMAC-SHA256", amz_date, scope,
+                         hashlib.sha256(canonical.encode("utf-8")).hexdigest()])
+    key = _hmac(_hmac(_hmac(_hmac(("AWS4" + secret_key).encode("utf-8"), day),
+                            region), service), "aws4_request")
+    signature = hmac.new(key, to_sign.encode("utf-8"), hashlib.sha256).hexdigest()
+    return f"https://{host}{_quote(path)}?{query}&X-Amz-Signature={signature}"
+
+
 # -- stores -----------------------------------------------------------------
 
 
@@ -138,6 +172,11 @@ class MemoryAudioStore:
     def delete(self, name: str) -> None:
         self.calls.append(("delete", name))
         self.objects.pop(name, None)
+
+    def link(self, name: str, expires: int) -> Optional[str]:
+        """A stand-in for a signed link: tests read the object back by it."""
+        self.calls.append(("link", name))
+        return f"memory://{name}?expires={int(expires)}" if name in self.objects else None
 
     def describe(self) -> dict:
         return {"store": self.kind, "objects": len(self.objects)}
@@ -218,6 +257,13 @@ class R2AudioStore:
         resp = self._request("DELETE", name)
         if resp.status_code not in (200, 204, 404):
             self._check(resp, f"DELETE {name}")
+
+    def link(self, name: str, expires: int) -> Optional[str]:
+        """A link a client may GET `name` by for `expires` seconds (§251).
+        Signed here, with no request to the bucket: an object that has gone
+        answers the client 404, and the player falls back to the stream."""
+        return presign("GET", self.host, f"/{self.bucket}/{name}", self._keys[0],
+                       self._keys[1], _dt.datetime.now(_dt.timezone.utc), expires)
 
     def describe(self) -> dict:
         return {"store": self.kind, "bucket": self.bucket}
