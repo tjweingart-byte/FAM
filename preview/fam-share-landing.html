@@ -607,7 +607,7 @@ window.FamAudio = (function () {
    * answers with PCM and without the header, and is played as PCM.
    *
    * Decoded as it arrives. A replay may come instead as a link to its kept
-   * Ogg Opus file in R2 (§251); `oggOpus` below turns that file into these
+   * Ogg Opus file in R2 (§252); `oggOpus` below turns that file into these
    * same packets, so it is decoded by this same code.
    */
   var opusSupport = null;
@@ -672,7 +672,7 @@ window.FamAudio = (function () {
     var streamUrl = "";
     ctx.resume().then(canDecodeOpus).then(function (opus) {
       // Opus where this browser can decode it, PCM everywhere else. A browser
-      // that decodes Opus may be handed a replay as a link (§251).
+      // that decodes Opus may be handed a replay as a link (§252).
       streamUrl = url.replace("&fmt=FMT", "&fmt=opus") + "&link_failed=1";
       url = url.replace("&fmt=FMT", opus ? "&fmt=opus&link=1" : "&fmt=pcm");
       // A request that never reached the server is marked, so the caller can
@@ -734,7 +734,7 @@ window.FamAudio = (function () {
       }
 
       if (res.headers.get("X-FAM-Audio-Link") === "1") {
-        // A replay read straight from the bucket (§251). If the file will not
+        // A replay read straight from the bucket (§252). If the file will not
         // play before a sample of it has (a bucket without CORS for this
         // site, an object gone), the episode is streamed instead and the
         // server is told, so the fallback is counted rather than invisible.
@@ -890,7 +890,7 @@ window.FamAudio = (function () {
   }
 
   /* A replay's kept audio, read from the bucket by the link the server signed
-     (§251), and decoded by `pumpOpus` like the stream. */
+     (§252), and decoded by `pumpOpus` like the stream. */
   function playLinked(body, deliver, myToken) {
     return fetch(body.link, { signal: controller.signal }).then(function (file) {
       if (!file.ok) throw new Error("The kept audio answered " + file.status + ".");

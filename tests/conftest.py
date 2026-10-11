@@ -52,7 +52,7 @@ FAM_ENVIRONMENT = (
     # §237: how kept audio is packed, and where it lives.
     "AUDIO_CODEC", "AUDIO_OPUS_BITRATE", "AUDIO_STREAM_OPUS", "AUDIO_STORE", "AUDIO_BUCKET",
     "R2_ACCOUNT_ID", "AUDIO_RECENT_DAYS",
-    # §251: replays read straight from the bucket.
+    # §252: replays read straight from the bucket.
     "AUDIO_LINKS", "AUDIO_LINK_SECONDS",
     "CANONICAL_KEY_MODEL",
     "CHATTERBOX_DEVICE", "CHATTERBOX_REFERENCE", "CHATTERBOX_SEEDED",

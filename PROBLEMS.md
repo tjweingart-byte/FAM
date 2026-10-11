@@ -18212,7 +18212,7 @@ over "The interests list is alphabetical", which timed out. The check now
 waits for the follow-up. Reproduced here by slowing `acCorrectQuestion`:
 read at once it is `None`, after the wait `4`.
 
-## 251. Replays straight from R2, the database's size, and a smaller hot copy in Postgres
+## 252. Replays straight from R2, the database's size, and a smaller hot copy in Postgres
 
 Three things at the owner's direction, after the cost analysis for moving
 the stores to Postgres (§243).
@@ -18267,4 +18267,4 @@ it does not pin 512 on Postgres.
 
 `app.py`, `audio_store.py`, `cache.py`, `pipeline.py`, `db.py`, `config.py`,
 `static/fam-audio.js`, `deploy/r2-cors.json`, `AUDIO_STORE.md`, `POSTGRES.md`,
-`tests/test_audio_links_251.py`.
+`tests/test_audio_links_252.py`.

@@ -1,5 +1,5 @@
 """Replays straight from the bucket, the database's size, and the hot copy's
-ceiling on Postgres (PROBLEMS.md §251).
+ceiling on Postgres (PROBLEMS.md §252).
 
 What each must keep true, tested by what breaking it would cost:
 

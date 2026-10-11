@@ -887,7 +887,7 @@ _SCHEMA_SIZES = (
 
 
 def sizes() -> dict:
-    """What the database holds, as the database measures it (§251): the
+    """What the database holds, as the database measures it (§252): the
     whole database, and each schema - one per store - with its indexes and
     TOAST. For `/api/health`, so a plan is chosen from real numbers."""
     now = time.monotonic()

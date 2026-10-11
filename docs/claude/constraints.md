@@ -10,7 +10,7 @@
 ## Constraints that are settled — do not undo without discussing
 
 <!-- rule:no-audio-files -->
-> **Current (PROBLEMS.md §251, at the owner's direction):** "no audio files
+> **Current (PROBLEMS.md §252, at the owner's direction):** "no audio files
 > to the client" is reversed for replays. The owner's reasoning: the rule
 > was made before the backend was understood, and its guardrails cost more
 > than they protect. A client that decodes Opus asks with `link=1`; a replay

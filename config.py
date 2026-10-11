@@ -1283,7 +1283,7 @@ class Settings:
     # a bucket (§237) it bounds only the hot copy beside each row; an evicted
     # hot copy is read from the bucket next time, and without one an evicted
     # episode keeps its script and costs one re-synthesis. **Unset** means
-    # 512 with the stores on the disk and 128 with them in Postgres (§251),
+    # 512 with the stores on the disk and 128 with them in Postgres (§252),
     # where the hot copy is database storage at the database's price
     # (`cache.audio_ceiling_mb`). Any value set wins. 0 = none.
     audio_cache_max_mb: int = _env_int("AUDIO_CACHE_MAX_MB", -1)
@@ -1303,7 +1303,7 @@ class Settings:
     audio_stream_opus: bool = field(
         default_factory=lambda: os.environ.get("AUDIO_STREAM_OPUS", "1").strip() not in ("0", "false", "no", "off")
     )
-    # §251: a replay whose Opus is in the bucket may be read by the client
+    # §252: a replay whose Opus is in the bucket may be read by the client
     # straight from R2 - a signed link good for AUDIO_LINK_SECONDS - instead
     # of through this server, whose bandwidth is billed and R2's is not. Only
     # for a client that asks (`/api/audio?link=1`); a first play is streamed

@@ -47,7 +47,7 @@ episode's script is pinned for as long as its audio is kept.
    `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID` and `R2_SECRET_ACCESS_KEY` (or the two
    keys through `FAM_SECRETS`). Redeploy.
 
-6. **Let browsers read it (§251).** In the Cloudflare dashboard: R2 →
+6. **Let browsers read it (§252).** In the Cloudflare dashboard: R2 →
    `fam-audio` → Settings → CORS Policy → Add CORS policy, and paste
    `deploy/r2-cors.json` with `AllowedOrigins` listing every address the app
    is opened at (`https://fam.onrender.com`, and any custom domain). Without
@@ -60,7 +60,7 @@ episode's script is pinned for as long as its audio is kept.
    replays, `links.issued` grows and `links.fallbacks` stays near 0; if
    fallbacks match issued, the CORS policy is missing an address.
 
-## Replays read straight from the bucket (§251)
+## Replays read straight from the bucket (§252)
 
 A first play streams through the server as it is voiced. A **replay** -
 any play of an episode whose audio is already kept - is answered with a
@@ -82,7 +82,7 @@ already written keep playing.
 At 0.36 MB per two-minute episode, 10,000 new episodes a day kept a week is
 about 25 GB in `recent/`, roughly $0.38 a month, with uploads and reads inside
 R2's free operations at that volume. Reading back out is free - by the server
-or, for a replay, by the listener's device (§251) - except that Infrequent
+or, for a replay, by the listener's device (§252) - except that Infrequent
 Access (`kept/`) charges $0.01 per GB read. Kept audio costs $0.01 per GB a
 month, with a 30-day minimum per object. Prices are list prices;
 check Cloudflare's R2 pricing page.

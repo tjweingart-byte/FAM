@@ -583,7 +583,7 @@ def unpack_audio(blob: bytes) -> bytes:
     return zlib.decompress(blob)
 
 
-#: The hot copy's ceiling when AUDIO_CACHE_MAX_MB is unset (§251): sized for
+#: The hot copy's ceiling when AUDIO_CACHE_MAX_MB is unset (§252): sized for
 #: the 1 GB disk every store shares, or - with the stores in Postgres - small,
 #: because there it is database storage, and a cold episode is one read from
 #: the bucket, which costs nothing to send.
@@ -1074,7 +1074,7 @@ class MemoryScriptCache:
         return self._live(key) and any(k == key for k, _v in self._audio)
 
     def audio_link(self, key: str, voice: str, sample_rate: int) -> Optional[dict]:
-        """No bucket here, so nothing to link to (§251): always streamed."""
+        """No bucket here, so nothing to link to (§252): always streamed."""
         return None
 
     def get_audio(self, key: str, voice: str, sample_rate: int) -> Optional[StoredAudio]:
@@ -1747,7 +1747,7 @@ class SqliteScriptCache:
 
     def audio_link(self, key: str, voice: str, sample_rate: int) -> Optional[dict]:
         """What a client needs to read this episode's audio out of the bucket
-        itself (§251), or None to stream it as before.
+        itself (§252), or None to stream it as before.
 
         The object's name, the episode's true length in samples, the
         sentences and starts in that audio, and when its information was

@@ -1174,7 +1174,7 @@ class PodcastPipeline:
 
     async def stored_link(self, plan: EpisodePlan, expires: int) -> Optional[dict]:
         """A signed link to this episode's kept audio in the bucket, for a
-        client to read itself (§251), or None to stream it as before.
+        client to read itself (§252), or None to stream it as before.
 
         Only where the serving path would replay kept audio - the same key
         `has_stored_audio` finds, near matches included - and only for Opus

@@ -1035,7 +1035,7 @@ def _database_report() -> list[dict]:
 
 
 def _database_summary(databases: list) -> dict:
-    """`db.report()` plus the size of what the stores hold (§251).
+    """`db.report()` plus the size of what the stores hold (§252).
 
     SQLite: each file's bytes, as `_database_report` lists them, counted once
     per file (several stores share one). Postgres: the database's own count,
@@ -1864,7 +1864,7 @@ async def health(request: Request) -> dict:
         "storage": _storage_summary(_databases),
         # §243: where the stores live - SQLite files, or Postgres when
         # DATABASE_URL is set (never the address).
-        # And how big they are (§251), measured, so a database plan is
+        # And how big they are (§252), measured, so a database plan is
         # chosen from what is held rather than from a projection.
         "database": _database_summary(_databases),
         # How much memory this process holds now and has ever held (§245):
@@ -1883,7 +1883,7 @@ async def health(request: Request) -> dict:
         "audio": {**audio_store_mod.status(), **audio_codec_mod.describe(),
                   "check": dict(_AUDIO_STORE_CHECK),
                   "sweep": dict(_AUDIO_SWEEP),
-                  # §251: replays read straight from the bucket, and the ones
+                  # §252: replays read straight from the bucket, and the ones
                   # that fell back to a stream (a bucket without CORS for this
                   # site shows here as fallbacks matching links).
                   "links": {"enabled": settings.audio_links,
@@ -4446,7 +4446,7 @@ if _ALLOWED_ORIGINS:
                     # §242: without these a cross-origin player cannot tell
                     # Opus from PCM, and would play the frames as noise.
                     "X-FAM-Audio-Format", "X-FAM-Opus-Preskip",
-                    # §251: a replay answered with a link, not a stream.
+                    # §252: a replay answered with a link, not a stream.
                     "X-FAM-Audio-Link"],
     )
     log.info("CORS enabled for %s", ", ".join(_ALLOWED_ORIGINS))
@@ -8746,7 +8746,7 @@ async def audio(
                                          "their AI answer like a search"),
     link: bool = Query(False, description="With fmt=opus: a replay may be answered "
                                           "with a signed link to its kept audio "
-                                          "in the bucket (§251)"),
+                                          "in the bucket (§252)"),
     link_failed: bool = Query(False, description="This stream is the fallback "
                                                  "for a link that would not play"),
 ):
@@ -8759,7 +8759,7 @@ async def audio(
     length-prefixed, then an end marker with the true length
     (`audio_codec`) - when this server can; otherwise PCM, without the
     `X-FAM-Audio-Format: opus` header, which is how the player knows.
-    `link=1` with `fmt=opus` (§251): a replay whose Opus is in the bucket is
+    `link=1` with `fmt=opus` (§252): a replay whose Opus is in the bucket is
     answered with JSON - a signed link to the Ogg Opus file, its length and
     captions - and `X-FAM-Audio-Link: 1`; the player reads the file from R2
     and decodes it exactly as it decodes the stream. Anything else streams.
@@ -8848,7 +8848,7 @@ async def audio(
         # not answer stops the episode rather than waking the GPU.
         pipeline.stored_only = True
 
-    # §251: a replay read straight from the bucket. After every gate and the
+    # §252: a replay read straight from the bucket. After every gate and the
     # allowance, so a link is spent exactly as a stream would be; before
     # the GPU is woken, because nothing will be voiced.
     if link_failed:
@@ -9072,7 +9072,7 @@ async def audio(
     # category of an older episode under the same key.
     play_row = None
     write_pending = stats.cache != "hit"
-    # A link's fallback (§251) was already recorded when the link was made:
+    # A link's fallback (§252) was already recorded when the link was made:
     # one tap is one play, however many requests it took to sound.
     if user and _remembers(request) and not link_failed:
         SOCIAL.seen(user)
@@ -9153,7 +9153,7 @@ async def audio(
     )
 
 
-#: Links handed out for replays (§251), and streams that were a link's
+#: Links handed out for replays (§252), and streams that were a link's
 #: fallback - the player asks again with `link_failed=1` when the file would
 #: not play (a bucket without CORS for this site, an object gone). Reported
 #: in `/api/health`, since nothing else on the server would ever see it.
@@ -9163,7 +9163,7 @@ _AUDIO_LINKS = {"issued": 0, "fallbacks": 0}
 async def _linked_audio(request: Request, user: str, plan, pipeline, linked: dict,
                         *, topic_id: str, context: str, cached_only: bool,
                         attach: str) -> JSONResponse:
-    """A replay answered with a link to its kept audio (§251).
+    """A replay answered with a link to its kept audio (§252).
 
     Everything a streamed replay does except send the bytes: the play is
     recorded and remembered, the ledger row written (a replay voices

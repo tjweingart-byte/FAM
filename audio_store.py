@@ -23,7 +23,7 @@ condition for a bucket rule):
   in the Infrequent Access class ($0.01 a GB a month, 30-day minimum). It is
   deleted by FAM when nobody holds it any more; no rule deletes it.
 
-**A replay may be handed a signed link** (§251, at the owner's direction,
+**A replay may be handed a signed link** (§252, at the owner's direction,
 reversing "no signed URLs, ever"). A client that asks (`/api/audio?link=1`)
 is given a link to the object - good for `AUDIO_LINK_SECONDS` - and reads
 the file from R2 itself, which costs nothing to send, instead of through
@@ -116,7 +116,7 @@ def sign(method: str, host: str, path: str, headers: dict, payload: bytes,
 def presign(method: str, host: str, path: str, access_key: str,
             secret_key: str, now: _dt.datetime, expires: int,
             region: str = "auto", service: str = "s3") -> str:
-    """A SigV4 query-signed URL (§251): the request needs no headers, so a
+    """A SigV4 query-signed URL (§252): the request needs no headers, so a
     browser can make it. Pinned against botocore's `generate_presigned_url`
     in tests/test_audio_links.py."""
     amz_date = now.strftime("%Y%m%dT%H%M%SZ")
@@ -259,7 +259,7 @@ class R2AudioStore:
             self._check(resp, f"DELETE {name}")
 
     def link(self, name: str, expires: int) -> Optional[str]:
-        """A link a client may GET `name` by for `expires` seconds (§251).
+        """A link a client may GET `name` by for `expires` seconds (§252).
         Signed here, with no request to the bucket: an object that has gone
         answers the client 404, and the player falls back to the stream."""
         return presign("GET", self.host, f"/{self.bucket}/{name}", self._keys[0],
