@@ -3801,6 +3801,10 @@ def main() -> int:
             page.click('#goDeeperLengths .deeper-len[data-min="4"]')
             page.fill("#goDeeperInput", "what happens next")
             page.evaluate("confirmGoDeeper()")
+            # A typed follow-up is corrected at send (§247), which can answer
+            # after the call returns: wait for the follow-up, not a fixed beat.
+            page.wait_for_function(
+                "Object.keys(TOPICS).some(k => k.indexOf('deeper_') === 0)", timeout=10000)
             got = page.evaluate("""() => {
               var k = Object.keys(TOPICS).filter(k => k.indexOf('deeper_') === 0).pop();
               return k ? { minutes: TOPICS[k].exploreMinutes,
