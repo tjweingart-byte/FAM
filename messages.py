@@ -243,6 +243,12 @@ class MessageStore:
             )
             conn.execute("CREATE INDEX IF NOT EXISTS group_members_user"
                          " ON group_members(user_id)")
+            # A group's picture (10.11 packet): a `data:` URL, the same
+            # shape as a profile picture, "" for none. Widened in place.
+            try:
+                conn.execute("ALTER TABLE groups ADD COLUMN avatar TEXT NOT NULL DEFAULT ''")
+            except sqlite3.OperationalError:
+                pass
 
     def _conn(self) -> sqlite3.Connection:
         conn = getattr(self._local, "conn", None)
@@ -600,10 +606,10 @@ class MessageStore:
         return self.group(gid)
 
     def group(self, gid: str) -> dict:
-        """{id, name, members} for a group, or {} if there is none."""
+        """{id, name, avatar, members} for a group, or {} if there is none."""
         try:
             row = self._conn().execute(
-                "SELECT id, name, created_by, at FROM groups WHERE id = ?",
+                "SELECT id, name, created_by, at, avatar FROM groups WHERE id = ?",
                 (gid,)).fetchone()
         except Exception:
             log.exception("could not read a group")
@@ -611,7 +617,7 @@ class MessageStore:
         if not row:
             return {}
         return {"id": row[0], "name": row[1], "created_by": row[2], "at": row[3],
-                "members": self.members(gid)}
+                "avatar": row[4] or "", "members": self.members(gid)}
 
     def members(self, gid: str) -> list[str]:
         try:
@@ -638,6 +644,18 @@ class MessageStore:
         self._conn().execute("UPDATE groups SET name = ? WHERE id = ?", (name, gid))
         self.send(user_id, gid, kind="system",
                   text=f"named the group {name}" if name else "took the group's name off")
+        return self.group(gid)
+
+    def set_group_photo(self, user_id: str, gid: str, avatar: str) -> dict:
+        """The group's picture, set by anybody in it (10.11 packet), and said
+        in the group so the others know who changed it. `avatar` is already
+        cleaned and checked (`social.clean_avatar`, the photo check)."""
+        if not self.is_member(gid, user_id):
+            raise MessageError("You are not in that group.")
+        self._conn().execute("UPDATE groups SET avatar = ? WHERE id = ?",
+                             (avatar or "", gid))
+        self.send(user_id, gid, kind="system",
+                  text="changed the group photo" if avatar else "took the group photo off")
         return self.group(gid)
 
     def leave_group(self, user_id: str, gid: str) -> bool:

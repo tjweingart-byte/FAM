@@ -32,14 +32,16 @@
      drawn over a picture - the Explore reel, a story, the VIBE! editor, the
      player's artwork and the captions panel - stays dark in both, the way a
      photo viewer does, so their colours are deliberately not variables. */
+  /* White behind, cream tiles (10.11 packet): the two were the other way
+     round, cream page and white cards. */
   html[data-theme="light"]{
     --paper:#E6DECD;
-    --page-bg:#E9E3D6; --bg:#F7F3EA; --surface:#FFFFFF; --surface-2:#EEE8DC;
+    --page-bg:#E9E3D6; --bg:#FFFFFF; --surface:#F7F3EA; --surface-2:#EEE8DC;
     --copper:#A87520; --gold:#A87520; --coral:#C4502F; --sage:#5C8669;
     --text:#1E1B27; --text-muted:#5E5770; --text-faint:#7D768C;
     --border:rgba(30,27,39,0.12); --border-strong:rgba(30,27,39,0.22);
     --muted:rgba(30,27,39,0.60); --ink-muted:#5E5770;
-    --fg-rgb:30,27,39; --bg-rgb:247,243,234;
+    --fg-rgb:30,27,39; --bg-rgb:255,255,255;
     color-scheme:light;
   }
   /* The surfaces that stay dark in both keep dark's gold: light's deeper
@@ -1844,18 +1846,34 @@
   .tabbar .tab{ display:flex; flex-direction:column; align-items:center; gap:3px;
     cursor:pointer; flex:1; min-width:0; }
   .tabbar .tab .lbl{ font-family:'Geist Mono', monospace; font-size:8.5px;
-    color:var(--text-muted); white-space:nowrap; }
+    color:var(--text-muted); white-space:nowrap; transition:color 160ms ease; }
   .tabbar .tab.active .lbl{ color:var(--copper); font-weight:700; }
-  .tabbar .tab .dot{ width:22px; height:22px; border-radius:50%; display:flex;
-    align-items:center; justify-content:center; color:var(--text-muted); }
-  .tabbar .tab.active .dot{ background:var(--copper); color:var(--ink); }
+  /* The icons with some life in them (10.11 packet): the same symbols,
+     larger, each with a soft tint inside its shape, sitting in a copper
+     pill that springs up when the tab is chosen - rather than thin lines
+     in a dot. */
+  .tabbar .tab .dot{ width:44px; height:28px; border-radius:14px; display:flex;
+    align-items:center; justify-content:center; color:var(--text-muted);
+    transition:background 200ms ease, color 200ms ease; }
+  .tabbar .tab .dot .tone{ fill:currentColor; stroke:none; opacity:0.16;
+    transition:opacity 200ms ease; }
+  .tabbar .tab:active .dot svg{ transform:scale(0.9); }
+  .tabbar .tab .dot svg{ transition:transform 140ms ease; }
+  .tabbar .tab.active .dot{ background:color-mix(in srgb, var(--copper) 18%, transparent); color:var(--copper); }
+  .tabbar .tab.active .dot .tone{ opacity:0.45; }
+  .tabbar .tab.active .dot svg{ animation:tabPop 420ms cubic-bezier(.3,1.6,.5,1); }
+  @keyframes tabPop{ 0%{ transform:scale(0.7) translateY(2px); }
+    60%{ transform:scale(1.12) translateY(-1px); } 100%{ transform:none; } }
+  @media (prefers-reduced-motion: reduce){
+    .tabbar .tab.active .dot svg{ animation:none; }
+  }
   .tabbar .tab:focus-visible{ outline:2px solid var(--copper); outline-offset:3px; border-radius:8px; }
 
   /* The centre tab breaks the row: a larger disc lifted above the bar's top
      edge, so it reads as the primary action rather than the third of five. */
   .tabbar .tab.centre{ flex:0 0 auto; }
   .tabbar .tab.centre .dot{
-    width:50px; height:50px; margin-top:-24px; margin-bottom:2px;
+    width:50px; height:50px; border-radius:50%; margin-top:-24px; margin-bottom:2px;
     background:var(--surface); color:var(--text);
     border:1px solid var(--border-strong);
     box-shadow:0 6px 18px rgba(0,0,0,0.35);
@@ -2542,6 +2560,7 @@
   .yf-round{ width:36px; height:36px; border-radius:50%; flex:none;
     border:1px solid var(--border-strong); background:none; color:var(--text);
     display:flex; align-items:center; justify-content:center; cursor:pointer; padding:0; }
+  .yf-round[hidden]{ display:none; }
   .yf-round.gold{ background:var(--copper); border-color:var(--copper); color:var(--ink); }
   .yf-round:active{ transform:scale(0.95); }
   .yf-id{ display:flex; align-items:center; gap:12px; margin-top:14px; }
@@ -2817,6 +2836,21 @@
   .yf-friend.invite .yf-ring{ border:1.5px dashed var(--text-faint);
     display:flex; align-items:center; justify-content:center; color:var(--text-muted); }
   .yf-friend.invite .yf-friend-name{ color:var(--text-muted); }
+  /* "View Your FAM" (10.11 packet): one large pill to the Friends page, up
+     to three faces overlapping on its right. */
+  .yf-fam-pill{ width:100%; display:flex; align-items:center; gap:10px;
+    margin-top:10px; padding:10px 12px 10px 20px; border-radius:999px;
+    background:var(--surface); border:1px solid var(--border-strong);
+    color:var(--text); font-family:inherit; cursor:pointer; text-align:left; }
+  .yf-fam-pill:active{ transform:scale(0.99); }
+  .yf-fam-pill-t{ flex:1; min-width:0; font-family:'Bricolage Grotesque', sans-serif;
+    font-size:17px; font-weight:500; }
+  .yf-fam-faces{ display:flex; flex:none; }
+  .yf-fam-faces .av{ width:30px; height:30px; border-radius:50%; overflow:hidden;
+    display:flex; align-items:center; justify-content:center; color:var(--ink);
+    font-weight:700; font-size:11px; border:2px solid var(--surface); }
+  .yf-fam-faces .av + .av{ margin-left:-10px; }
+  .yf-fam-pill-go{ flex:none; display:flex; color:var(--text-muted); }
   .yf-msgcard{ width:100%; display:flex; align-items:center; gap:12px;
     margin-top:18px; padding:12px 13px; border-radius:15px; background:var(--surface);
     border:none; color:var(--text); font-family:inherit; text-align:left; cursor:pointer; }
@@ -3687,11 +3721,11 @@
         </div>
 
         <div class="tabbar">
-          <div class="tab" data-tab="myfam" onclick="openMyFamTab()"><div class="dot"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3v10a4 4 0 004 4h8M6 3L4 5m2-2l2 2M14 13l4 4-4 4"/></svg></div><div class="lbl">DailyFAM</div></div>
-          <div class="tab" data-tab="playfam" onclick="openPlayFAM()"><div class="dot"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 5l6 7-6 7M13 5l6 7-6 7"/></svg></div><div class="lbl">myFAM</div></div>
-          <div class="tab centre active" data-tab="home" onclick="setTab('home')"><div class="dot"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></div></div>
-          <div class="tab" data-tab="messages" onclick="openMessages()"><div class="dot"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16a2 2 0 012 2v9a2 2 0 01-2 2H9l-4 4v-4H4a2 2 0 01-2-2V6a2 2 0 012-2z"/></svg><span class="tab-badge" data-msg-badge hidden></span></div><div class="lbl">messages</div></div>
-          <div class="tab" data-tab="profile" onclick="openProfile()"><div class="dot"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.5"/><path d="M17 14c2.5 0 4 2 4 5"/></svg></div><div class="lbl">YourFAM</div></div>
+          <div class="tab" data-tab="myfam" onclick="openMyFamTab()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M14 13l4 4-4 4z"/><path d="M6 3v10a4 4 0 004 4h8M6 3L4 5m2-2l2 2M14 13l4 4-4 4"/></svg></div><div class="lbl">DailyFAM</div></div>
+          <div class="tab" data-tab="playfam" onclick="openPlayFAM()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M13 5l6 7-6 7z"/><path d="M6 5l6 7-6 7M13 5l6 7-6 7"/></svg></div><div class="lbl">myFAM</div></div>
+          <div class="tab centre active" data-tab="home" onclick="setTab('home')"><div class="dot"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle class="tone" cx="11" cy="11" r="7"/><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></div></div>
+          <div class="tab" data-tab="messages" onclick="openMessages()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M4 4h16a2 2 0 012 2v9a2 2 0 01-2 2H9l-4 4v-4H4a2 2 0 01-2-2V6a2 2 0 012-2z"/><path d="M4 4h16a2 2 0 012 2v9a2 2 0 01-2 2H9l-4 4v-4H4a2 2 0 01-2-2V6a2 2 0 012-2z"/></svg><span class="tab-badge" data-msg-badge hidden></span></div><div class="lbl">Messages</div></div>
+          <div class="tab" data-tab="profile" onclick="openProfile()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle class="tone" cx="9" cy="8" r="3.5"/><path class="tone" d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6z"/><circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.5"/><path d="M17 14c2.5 0 4 2 4 5"/></svg></div><div class="lbl">YourFAM</div></div>
         </div>
       </section>
 
@@ -3760,11 +3794,11 @@
           <div class="nowbar-progress"><div class="nowbar-fill" id="nowFill"></div></div>
         </div>
         <div class="tabbar">
-          <div class="tab active" data-tab="myfam" onclick="openMyFamTab()"><div class="dot"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3v10a4 4 0 004 4h8M6 3L4 5m2-2l2 2M14 13l4 4-4 4"/></svg></div><div class="lbl">DailyFAM</div></div>
-          <div class="tab" data-tab="playfam" onclick="openPlayFAM()"><div class="dot"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 5l6 7-6 7M13 5l6 7-6 7"/></svg></div><div class="lbl">myFAM</div></div>
-          <div class="tab centre" data-tab="home" onclick="setTab('home')"><div class="dot"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></div></div>
-          <div class="tab" data-tab="messages" onclick="openMessages()"><div class="dot"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16a2 2 0 012 2v9a2 2 0 01-2 2H9l-4 4v-4H4a2 2 0 01-2-2V6a2 2 0 012-2z"/></svg><span class="tab-badge" data-msg-badge hidden></span></div><div class="lbl">messages</div></div>
-          <div class="tab" data-tab="profile" onclick="openProfile()"><div class="dot"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.5"/><path d="M17 14c2.5 0 4 2 4 5"/></svg></div><div class="lbl">YourFAM</div></div>
+          <div class="tab active" data-tab="myfam" onclick="openMyFamTab()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M14 13l4 4-4 4z"/><path d="M6 3v10a4 4 0 004 4h8M6 3L4 5m2-2l2 2M14 13l4 4-4 4"/></svg></div><div class="lbl">DailyFAM</div></div>
+          <div class="tab" data-tab="playfam" onclick="openPlayFAM()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M13 5l6 7-6 7z"/><path d="M6 5l6 7-6 7M13 5l6 7-6 7"/></svg></div><div class="lbl">myFAM</div></div>
+          <div class="tab centre" data-tab="home" onclick="setTab('home')"><div class="dot"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle class="tone" cx="11" cy="11" r="7"/><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></div></div>
+          <div class="tab" data-tab="messages" onclick="openMessages()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M4 4h16a2 2 0 012 2v9a2 2 0 01-2 2H9l-4 4v-4H4a2 2 0 01-2-2V6a2 2 0 012-2z"/><path d="M4 4h16a2 2 0 012 2v9a2 2 0 01-2 2H9l-4 4v-4H4a2 2 0 01-2-2V6a2 2 0 012-2z"/></svg><span class="tab-badge" data-msg-badge hidden></span></div><div class="lbl">Messages</div></div>
+          <div class="tab" data-tab="profile" onclick="openProfile()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle class="tone" cx="9" cy="8" r="3.5"/><path class="tone" d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6z"/><circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.5"/><path d="M17 14c2.5 0 4 2 4 5"/></svg></div><div class="lbl">YourFAM</div></div>
         </div>
       </section>
 
@@ -3811,11 +3845,11 @@
           <div id="catSection"></div>
         </div>
         <div class="tabbar">
-          <div class="tab" data-tab="myfam" onclick="openMyFamTab()"><div class="dot"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3v10a4 4 0 004 4h8M6 3L4 5m2-2l2 2M14 13l4 4-4 4"/></svg></div><div class="lbl">DailyFAM</div></div>
-          <div class="tab active" data-tab="playfam" onclick="openPlayFAM()"><div class="dot"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 5l6 7-6 7M13 5l6 7-6 7"/></svg></div><div class="lbl">myFAM</div></div>
-          <div class="tab centre" data-tab="home" onclick="setTab('home')"><div class="dot"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></div></div>
-          <div class="tab" data-tab="messages" onclick="openMessages()"><div class="dot"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16a2 2 0 012 2v9a2 2 0 01-2 2H9l-4 4v-4H4a2 2 0 01-2-2V6a2 2 0 012-2z"/></svg><span class="tab-badge" data-msg-badge hidden></span></div><div class="lbl">messages</div></div>
-          <div class="tab" data-tab="profile" onclick="openProfile()"><div class="dot"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.5"/><path d="M17 14c2.5 0 4 2 4 5"/></svg></div><div class="lbl">YourFAM</div></div>
+          <div class="tab" data-tab="myfam" onclick="openMyFamTab()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M14 13l4 4-4 4z"/><path d="M6 3v10a4 4 0 004 4h8M6 3L4 5m2-2l2 2M14 13l4 4-4 4"/></svg></div><div class="lbl">DailyFAM</div></div>
+          <div class="tab active" data-tab="playfam" onclick="openPlayFAM()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M13 5l6 7-6 7z"/><path d="M6 5l6 7-6 7M13 5l6 7-6 7"/></svg></div><div class="lbl">myFAM</div></div>
+          <div class="tab centre" data-tab="home" onclick="setTab('home')"><div class="dot"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle class="tone" cx="11" cy="11" r="7"/><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></div></div>
+          <div class="tab" data-tab="messages" onclick="openMessages()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M4 4h16a2 2 0 012 2v9a2 2 0 01-2 2H9l-4 4v-4H4a2 2 0 01-2-2V6a2 2 0 012-2z"/><path d="M4 4h16a2 2 0 012 2v9a2 2 0 01-2 2H9l-4 4v-4H4a2 2 0 01-2-2V6a2 2 0 012-2z"/></svg><span class="tab-badge" data-msg-badge hidden></span></div><div class="lbl">Messages</div></div>
+          <div class="tab" data-tab="profile" onclick="openProfile()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle class="tone" cx="9" cy="8" r="3.5"/><path class="tone" d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6z"/><circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.5"/><path d="M17 14c2.5 0 4 2 4 5"/></svg></div><div class="lbl">YourFAM</div></div>
         </div>
       </section>
 
@@ -4185,11 +4219,11 @@
           </div>
         </div>
         <div class="tabbar">
-          <div class="tab" data-tab="myfam" onclick="openMyFamTab()"><div class="dot"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3v10a4 4 0 004 4h8M6 3L4 5m2-2l2 2M14 13l4 4-4 4"/></svg></div><div class="lbl">DailyFAM</div></div>
-          <div class="tab" data-tab="playfam" onclick="openPlayFAM()"><div class="dot"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 5l6 7-6 7M13 5l6 7-6 7"/></svg></div><div class="lbl">myFAM</div></div>
-          <div class="tab centre" data-tab="home" onclick="setTab('home')"><div class="dot"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></div></div>
-          <div class="tab" data-tab="messages" onclick="openMessages()"><div class="dot"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16a2 2 0 012 2v9a2 2 0 01-2 2H9l-4 4v-4H4a2 2 0 01-2-2V6a2 2 0 012-2z"/></svg><span class="tab-badge" data-msg-badge hidden></span></div><div class="lbl">messages</div></div>
-          <div class="tab" data-tab="profile" onclick="openProfile()"><div class="dot"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.5"/><path d="M17 14c2.5 0 4 2 4 5"/></svg></div><div class="lbl">YourFAM</div></div>
+          <div class="tab" data-tab="myfam" onclick="openMyFamTab()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M14 13l4 4-4 4z"/><path d="M6 3v10a4 4 0 004 4h8M6 3L4 5m2-2l2 2M14 13l4 4-4 4"/></svg></div><div class="lbl">DailyFAM</div></div>
+          <div class="tab" data-tab="playfam" onclick="openPlayFAM()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M13 5l6 7-6 7z"/><path d="M6 5l6 7-6 7M13 5l6 7-6 7"/></svg></div><div class="lbl">myFAM</div></div>
+          <div class="tab centre" data-tab="home" onclick="setTab('home')"><div class="dot"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle class="tone" cx="11" cy="11" r="7"/><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></div></div>
+          <div class="tab" data-tab="messages" onclick="openMessages()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M4 4h16a2 2 0 012 2v9a2 2 0 01-2 2H9l-4 4v-4H4a2 2 0 01-2-2V6a2 2 0 012-2z"/><path d="M4 4h16a2 2 0 012 2v9a2 2 0 01-2 2H9l-4 4v-4H4a2 2 0 01-2-2V6a2 2 0 012-2z"/></svg><span class="tab-badge" data-msg-badge hidden></span></div><div class="lbl">Messages</div></div>
+          <div class="tab" data-tab="profile" onclick="openProfile()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle class="tone" cx="9" cy="8" r="3.5"/><path class="tone" d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6z"/><circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.5"/><path d="M17 14c2.5 0 4 2 4 5"/></svg></div><div class="lbl">YourFAM</div></div>
         </div>
       </section>
 
@@ -4228,11 +4262,11 @@
           <div id="profileBody"></div>
         </div>
         <div class="tabbar">
-          <div class="tab" data-tab="myfam" onclick="openMyFamTab()"><div class="dot"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3v10a4 4 0 004 4h8M6 3L4 5m2-2l2 2M14 13l4 4-4 4"/></svg></div><div class="lbl">DailyFAM</div></div>
-          <div class="tab" data-tab="playfam" onclick="openPlayFAM()"><div class="dot"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 5l6 7-6 7M13 5l6 7-6 7"/></svg></div><div class="lbl">myFAM</div></div>
-          <div class="tab centre" data-tab="home" onclick="setTab('home')"><div class="dot"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></div></div>
-          <div class="tab" data-tab="messages" onclick="openMessages()"><div class="dot"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16a2 2 0 012 2v9a2 2 0 01-2 2H9l-4 4v-4H4a2 2 0 01-2-2V6a2 2 0 012-2z"/></svg><span class="tab-badge" data-msg-badge hidden></span></div><div class="lbl">messages</div></div>
-          <div class="tab active" data-tab="profile" onclick="openProfile()"><div class="dot"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.5"/><path d="M17 14c2.5 0 4 2 4 5"/></svg></div><div class="lbl">YourFAM</div></div>
+          <div class="tab" data-tab="myfam" onclick="openMyFamTab()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M14 13l4 4-4 4z"/><path d="M6 3v10a4 4 0 004 4h8M6 3L4 5m2-2l2 2M14 13l4 4-4 4"/></svg></div><div class="lbl">DailyFAM</div></div>
+          <div class="tab" data-tab="playfam" onclick="openPlayFAM()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M13 5l6 7-6 7z"/><path d="M6 5l6 7-6 7M13 5l6 7-6 7"/></svg></div><div class="lbl">myFAM</div></div>
+          <div class="tab centre" data-tab="home" onclick="setTab('home')"><div class="dot"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle class="tone" cx="11" cy="11" r="7"/><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></div></div>
+          <div class="tab" data-tab="messages" onclick="openMessages()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M4 4h16a2 2 0 012 2v9a2 2 0 01-2 2H9l-4 4v-4H4a2 2 0 01-2-2V6a2 2 0 012-2z"/><path d="M4 4h16a2 2 0 012 2v9a2 2 0 01-2 2H9l-4 4v-4H4a2 2 0 01-2-2V6a2 2 0 012-2z"/></svg><span class="tab-badge" data-msg-badge hidden></span></div><div class="lbl">Messages</div></div>
+          <div class="tab active" data-tab="profile" onclick="openProfile()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle class="tone" cx="9" cy="8" r="3.5"/><path class="tone" d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6z"/><circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.5"/><path d="M17 14c2.5 0 4 2 4 5"/></svg></div><div class="lbl">YourFAM</div></div>
         </div>
       </section>
 
@@ -4256,11 +4290,11 @@
         </label>
         <div class="scroll"><div id="threadList"></div></div>
         <div class="tabbar">
-          <div class="tab" data-tab="myfam" onclick="openMyFamTab()"><div class="dot"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3v10a4 4 0 004 4h8M6 3L4 5m2-2l2 2M14 13l4 4-4 4"/></svg></div><div class="lbl">DailyFAM</div></div>
-          <div class="tab" data-tab="playfam" onclick="openPlayFAM()"><div class="dot"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 5l6 7-6 7M13 5l6 7-6 7"/></svg></div><div class="lbl">myFAM</div></div>
-          <div class="tab centre" data-tab="home" onclick="setTab('home')"><div class="dot"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></div></div>
-          <div class="tab active" data-tab="messages" onclick="openMessages()"><div class="dot"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16a2 2 0 012 2v9a2 2 0 01-2 2H9l-4 4v-4H4a2 2 0 01-2-2V6a2 2 0 012-2z"/></svg><span class="tab-badge" data-msg-badge hidden></span></div><div class="lbl">messages</div></div>
-          <div class="tab" data-tab="profile" onclick="openProfile()"><div class="dot"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.5"/><path d="M17 14c2.5 0 4 2 4 5"/></svg></div><div class="lbl">YourFAM</div></div>
+          <div class="tab" data-tab="myfam" onclick="openMyFamTab()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M14 13l4 4-4 4z"/><path d="M6 3v10a4 4 0 004 4h8M6 3L4 5m2-2l2 2M14 13l4 4-4 4"/></svg></div><div class="lbl">DailyFAM</div></div>
+          <div class="tab" data-tab="playfam" onclick="openPlayFAM()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M13 5l6 7-6 7z"/><path d="M6 5l6 7-6 7M13 5l6 7-6 7"/></svg></div><div class="lbl">myFAM</div></div>
+          <div class="tab centre" data-tab="home" onclick="setTab('home')"><div class="dot"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle class="tone" cx="11" cy="11" r="7"/><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></div></div>
+          <div class="tab active" data-tab="messages" onclick="openMessages()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M4 4h16a2 2 0 012 2v9a2 2 0 01-2 2H9l-4 4v-4H4a2 2 0 01-2-2V6a2 2 0 012-2z"/><path d="M4 4h16a2 2 0 012 2v9a2 2 0 01-2 2H9l-4 4v-4H4a2 2 0 01-2-2V6a2 2 0 012-2z"/></svg><span class="tab-badge" data-msg-badge hidden></span></div><div class="lbl">Messages</div></div>
+          <div class="tab" data-tab="profile" onclick="openProfile()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle class="tone" cx="9" cy="8" r="3.5"/><path class="tone" d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6z"/><circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.5"/><path d="M17 14c2.5 0 4 2 4 5"/></svg></div><div class="lbl">YourFAM</div></div>
         </div>
       </section>
 
@@ -4280,11 +4314,19 @@
               <div style="min-width:0;"><div class="yf-thread-name" id="thread-name">Name</div>
                 <div class="yf-thread-sub" id="thread-sub">View profile</div></div>
             </button>
+            <!-- A group's picture (10.11 packet): the same paperclip as
+                 search's, offering the camera roll, the camera or a file. -->
+            <button class="yf-round" id="threadPhotoBtn" hidden onclick="openGroupPhotoMenu()" aria-label="Add a group photo"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 11.5l-8.8 8.8a5 5 0 01-7.1-7.1l9-9a3.4 3.4 0 014.8 4.8l-9 9a1.8 1.8 0 01-2.5-2.5l8.3-8.3"/></svg></button>
             <button class="yf-round" onclick="openThreadMenu()" aria-label="More"><svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/></svg></button>
           </div>
           <div class="yf-chips" id="threadChips"></div>
         </div>
         <div class="scroll" id="thread-body"></div>
+        <!-- The group photo's three doors: the library, the camera (`capture`
+             goes straight to it on a phone) and the file picker. -->
+        <input type="file" id="groupPhotoLibrary" hidden accept="image/*" onchange="groupPhotoChosen(this)">
+        <input type="file" id="groupPhotoCamera" hidden accept="image/*" capture="environment" onchange="groupPhotoChosen(this)">
+        <input type="file" id="groupPhotoFile" hidden accept="image/*,.heic,.heif" onchange="groupPhotoChosen(this)">
         <div class="yf-composer">
           <button class="yf-round" onclick="shareIntoThread()" aria-label="Share an episode"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
           <!-- Return makes a new line and the arrow sends (§142): the return
@@ -13814,12 +13856,12 @@
     // is a vibe this week. Tapping a face opens their profile, not the chat.
     yfCircle = p.circle || [];
     paintMyFamCircle();
-    html += '<div class="yf-row"><span class="yf-label">Your friends</span>'
+    html += '<div class="yf-row"><span class="yf-label">Your FAM friends</span>'
       // A pill with a plus, so it reads as the way to add somebody rather
       // than as a caption beside the heading (9.29 packet).
       + '<button class="yf-find" onclick="openFriends()">' + yfIcon("plus", 12)
       + 'Find new friends</button></div>'
-      + circleRowHTML();
+      + famPillHTML();
 
     // Messages is one entry point. The line under it is filled once the
     // inbox answers, which is its own request so the hub never waits on it.
@@ -13846,10 +13888,31 @@
     loadHubMessages();
   }
 
-  // The faces, one sideways-scrolling row: YourFAM draws it under "Your
-  // friends", and the rails screen (shown as DailyFAM, §185) draws the same
-  // row at its top (10.2 packet #1), so who has vibed is the first thing
-  // seen. One renderer and one list (`yfCircle`), because the story viewer
+  // "View Your FAM" (10.11 packet): the faces row left YourFAM for the top
+  // of DailyFAM, so the profile keeps one large pill to the Friends page,
+  // carrying up to three faces - friends first, a picture before initials.
+  var FAM_PILL_FACES = 3;
+  function famPillHTML(){
+    var faces = yfCircle.map(function(person, i){ return { p: person, i: i }; })
+      .sort(function(a, b){
+        return ((b.p.friend ? 2 : 0) + (b.p.avatar ? 1 : 0))
+             - ((a.p.friend ? 2 : 0) + (a.p.avatar ? 1 : 0)) || a.i - b.i;
+      })
+      .slice(0, FAM_PILL_FACES);
+    return '<button class="yf-fam-pill" onclick="openFriends()">'
+      + '<span class="yf-fam-pill-t">View Your FAM</span>'
+      + (faces.length
+          ? '<span class="yf-fam-faces">' + faces.map(function(f){
+              return yfFace(f.p); }).join("") + '</span>'
+          : '')
+      + '<span class="yf-fam-pill-go">' + yfIcon("chevron", 16) + '</span>'
+      + '</button>';
+  }
+
+  // The faces, one sideways-scrolling row: the rails screen (shown as
+  // DailyFAM, §185) draws it at its top (10.2 packet #1), so who has vibed
+  // is the first thing seen. YourFAM drew it too until the 10.11 packet
+  // gave it the "View Your FAM" pill instead. One renderer and one list (`yfCircle`), because the story viewer
   // indexes into that list from either row - `data-i` is the index, never
   // the button's position on the page, which counts both rows.
   function circleRowHTML(){
@@ -15869,6 +15932,8 @@
     if(sub) sub.textContent = person.group
       ? (person.members || []).length + " people · See who’s here"
       : "View profile";
+    var photoBtn = document.getElementById("threadPhotoBtn");
+    if(photoBtn) photoBtn.hidden = !person.group;
   }
 
   function loadThreadInterests(person){
@@ -15927,6 +15992,8 @@
       showActionSheet([
         { label: "See who’s here", action: openGroupMembers },
         { label: "Name the group", action: renameGroup },
+        { label: currentThread.avatar ? "Change group photo" : "Add a group photo",
+          action: openGroupPhotoMenu },
         { label: "Leave group", danger: true, action: confirmLeaveGroup },
         { label: "Delete chat", danger: true, action: confirmDeleteChat },
         { label: "Report this chat", danger: true, action: function(){
@@ -15977,6 +16044,63 @@
     }).then(function(r){ return r.json().then(function(d){ if(!r.ok) throw new Error(d.detail || "Could not rename it"); return d; }); })
       .then(function(d){
         if(currentThread && currentThread.user_id === g.user_id && d.group){
+          currentThread = d.group;
+          paintThreadHead();
+          pollThread();
+        }
+      })
+      .catch(function(err){ toast(err.message); });
+  }
+  // The group's picture (10.11 packet). Anybody in the group may set it;
+  // the server checks it the way it checks a profile picture.
+  function openGroupPhotoMenu(){
+    var g = currentThread;
+    if(!g || !g.group) return;
+    function pick(id){ return function(){ document.getElementById(id).click(); }; }
+    var items = [
+      { group: g.avatar ? "Change the group photo" : "Add a group photo" },
+      { label: "Choose from library", action: pick("groupPhotoLibrary") },
+      { label: "Take a photo", action: pick("groupPhotoCamera") },
+      { label: "Choose a file", action: pick("groupPhotoFile") }
+    ];
+    if(g.avatar) items.push({ label: "Remove photo", danger: true,
+                              action: function(){ saveGroupPhoto(g.user_id, ""); } });
+    showActionSheet(items);
+  }
+  function groupPhotoChosen(input){
+    var file = input.files && input.files[0];
+    input.value = "";
+    var g = currentThread;
+    if(!file || !g || !g.group) return;
+    var gid = g.user_id;
+    var reader = new FileReader();
+    reader.onload = function(){
+      var img = new Image();
+      img.onload = function(){
+        // The centre square, at the size a profile picture is kept.
+        var side = Math.min(img.width, img.height);
+        var canvas = document.createElement("canvas");
+        canvas.width = canvas.height = AVATAR_PX;
+        canvas.getContext("2d").drawImage(img, (img.width - side) / 2,
+          (img.height - side) / 2, side, side, 0, 0, AVATAR_PX, AVATAR_PX);
+        saveGroupPhoto(gid, canvas.toDataURL("image/jpeg", 0.85));
+      };
+      img.onerror = function(){ toast("That file is not an image FAM can read"); };
+      img.src = reader.result;
+    };
+    reader.onerror = function(){ toast("Could not read that file"); };
+    reader.readAsDataURL(file);
+  }
+  function saveGroupPhoto(gid, avatar){
+    fetch("/api/messages/groups/" + encodeURIComponent(gid) + "/photo", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ avatar: avatar })
+    }).then(function(r){ return r.json().then(function(d){
+        if(!r.ok) throw new Error(d.detail || "Could not change the photo"); return d; }); })
+      .then(function(d){
+        inboxThreads.forEach(function(t){
+          if(t["with"] === gid && d.group) t.avatar = d.group.avatar; });
+        if(currentThread && currentThread.user_id === gid && d.group){
           currentThread = d.group;
           paintThreadHead();
           pollThread();

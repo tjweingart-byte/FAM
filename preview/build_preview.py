@@ -1194,7 +1194,7 @@ __PREVIEW_PICTURE__
       var name = g.name || members.filter(function (m) { return !m.me; })
         .map(function (m) { return m.name.split(" ")[0]; }).join(", ");
       return { user_id: gid, group: true, name: name || "Group", named: !!g.name,
-               handle: "", avatar: "", members: members };
+               handle: "", avatar: g.avatar || "", members: members };
     },
     inbox: function () {
       var self = this;
@@ -1203,7 +1203,7 @@ __PREVIEW_PICTURE__
         var last = msgs[msgs.length - 1];
         if (self.groups[id]) {
           var gv = self.groupView(id);
-          return { thread: id, with: id, group: true, name: gv.name, handle: "", avatar: "",
+          return { thread: id, with: id, group: true, name: gv.name, handle: "", avatar: gv.avatar,
                    members: gv.members, last: last, unread: self.unread[id] || 0 };
         }
         var who = self.byId(id) || { name: "Someone", handle: "" };
@@ -1537,6 +1537,14 @@ __PREVIEW_PICTURE__
       PEOPLE.threads[gid] = [{ id: 1, thread: gid, mine: true, kind: "system",
         text: "started the group", query: "", minutes: 0, title: "", at: Date.now() / 1000 }];
       return json({ ok: true, group: PEOPLE.groupView(gid) });
+    }
+    // A group's picture (10.11 packet).
+    var gphoto = /^\/api\/messages\/groups\/(.+)\/photo$/.exec(path);
+    if (gphoto && method === "POST") {
+      var gp = decodeURIComponent(gphoto[1]);
+      if (!PEOPLE.groups[gp]) return json({ detail: "You are not in that group." }, 404);
+      PEOPLE.groups[gp].avatar = String(JSON.parse((init && init.body) || "{}").avatar || "");
+      return json({ ok: true, group: PEOPLE.groupView(gp) });
     }
     var gpath = /^\/api\/messages\/groups\/(.+)$/.exec(path);
     if (gpath) {
