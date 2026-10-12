@@ -108,15 +108,39 @@
   .report .ep h4 { margin:10px 0 4px; font:600 11px var(--mono); text-transform:uppercase; letter-spacing:0.06em; color:var(--muted); }
   .report .ep ol { margin:0; padding-left:18px; font-size:12.5px; }
   .report .ep .transcript { white-space:pre-wrap; font-size:12.5px; line-height:1.5; margin:0; max-height:320px; overflow:auto; }
+  /* The menu (12/10): one page at a time, chosen from a drawer opened by
+     the button at the top left, so the tracker is no longer one long scroll. */
+  .titlebar { display:flex; align-items:flex-end; gap:12px; }
+  .menubtn { flex:none; width:42px; height:42px; display:grid; place-items:center; background:var(--surface); border:1px solid var(--line); border-radius:10px; color:var(--ink); position:relative; }
+  .menubtn:hover { border-color:var(--amber-dk); }
+  .menubtn svg { width:20px; height:20px; }
+  .menubtn .pip { position:absolute; top:-4px; right:-4px; width:10px; height:10px; border-radius:50%; background:var(--rose); border:2px solid var(--ground); }
+  .scrim { position:fixed; inset:0; background:rgba(8,6,12,.55); z-index:20; }
+  nav.drawer { position:fixed; top:0; left:0; bottom:0; width:min(300px,86vw); background:var(--panel); border-right:1px solid var(--line); z-index:21; padding:18px 12px; overflow-y:auto; transform:translateX(-100%); transition:transform .18s ease, visibility .18s; visibility:hidden; }
+  nav.drawer.open { transform:none; visibility:visible; }
+  .drawer .eyebrow { padding:0 10px; }
+  .drawer .group { font:10px var(--mono); letter-spacing:.12em; text-transform:uppercase; color:var(--faint); margin:16px 10px 6px; }
+  .drawer a { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:9px 10px; border-radius:8px; color:var(--muted); text-decoration:none; font-size:14px; }
+  .drawer a:hover { background:var(--surface); color:var(--ink); }
+  .drawer a.on { background:var(--raised); color:var(--ink); box-shadow:inset 3px 0 0 var(--amber); }
+  .badge { font:11px var(--mono); background:var(--surface); border:1px solid var(--line); color:var(--muted); border-radius:999px; padding:1px 8px; }
+  .badge.hot { background:var(--rose-bg); border-color:var(--rose); color:var(--rose); }
+  @media (prefers-reduced-motion: reduce) { nav.drawer { transition:none; } }
   [hidden] { display:none !important; }
 </style>
 </head>
 <body>
 <div class="wrap">
   <header class="top">
-    <div>
-      <div class="eyebrow">FAM · admin</div>
-      <h1>Live tracker</h1>
+    <div class="titlebar">
+      <button class="menubtn" id="menuBtn" type="button" aria-label="Menu" aria-controls="drawer" aria-expanded="false" hidden>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+        <span class="pip" id="menuPip" hidden></span>
+      </button>
+      <div>
+        <div class="eyebrow">FAM · admin</div>
+        <h1 id="pageTitle">Live tracker</h1>
+      </div>
     </div>
     <div class="status">
       <span class="dot" id="dot"></span><span id="state">connecting…</span>
@@ -138,11 +162,44 @@
     </form>
   </div>
 
+  <div class="scrim" id="scrim" hidden></div>
+  <nav class="drawer" id="drawer" aria-label="Admin pages">
+    <div class="eyebrow">FAM · admin</div>
+    <div class="group">Tracker</div>
+    <a href="#overview" data-nav="overview">Overview</a>
+    <a href="#ask" data-nav="ask">Ask the database</a>
+    <a href="#accounts" data-nav="accounts">Newest accounts</a>
+    <div class="group">Inbox</div>
+    <a href="#reports" data-nav="reports">Reported content <span class="badge" id="navReports"></span></a>
+    <a href="#feedback" data-nav="feedback">Feedback <span class="badge" id="navFeedback"></span></a>
+    <div class="group">Running costs</div>
+    <a href="#services" data-nav="services">Outside service requests</a>
+    <div class="group">Voice</div>
+    <a href="#voices" data-nav="voices">Voice bank</a>
+    <a href="#names" data-nav="names">How names are said</a>
+    <div class="group">Other admin pages</div>
+    <a href="/admin/waitlist">Waitlist ↗</a>
+    <a href="/admin/thumbnails">Thumbnails ↗</a>
+  </nav>
+
   <main id="main" hidden>
+    <div class="page" data-page="overview" data-title="Overview">
     <div class="kpis" id="kpis"></div>
 
     <div class="two">
       <section class="card">
+        <h2>New accounts, last 30 days</h2>
+        <div class="chart" id="chart"><svg id="bars" role="img" aria-label="Accounts created per day"></svg><div class="tip" id="tip"></div></div>
+      </section>
+      <section class="card">
+        <h2>Top searches, last 7 days</h2>
+        <div id="searches"></div>
+      </section>
+    </div>
+    </div>
+
+    <div class="page" data-page="ask" data-title="Ask the database" hidden>
+      <section class="card section">
         <h2>Ask the database</h2>
         <p class="sub">Common questions are answered instantly without a model. Anything else is turned into one read-only query by Claude. The SQL is always shown.</p>
         <div class="thread" id="thread"></div>
@@ -160,20 +217,16 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
         </details>
       </section>
 
-      <div class="grid">
-        <section class="card">
-          <h2>New accounts, last 30 days</h2>
-          <div class="chart" id="chart"><svg id="bars" role="img" aria-label="Accounts created per day"></svg><div class="tip" id="tip"></div></div>
-        </section>
-        <section class="card">
-          <h2>Top searches, last 7 days</h2>
-          <div id="searches"></div>
-        </section>
-      </div>
+      <section class="card section">
+        <h2>Every store</h2>
+        <p class="sub">Found by reading the code, so a store added later appears here on its own. Tap a table to see its newest 100 rows.</p>
+        <div class="stores" id="stores"></div>
+      </section>
     </div>
 
     <!-- Content reports (App Store 1.2, moderation.py). Oldest open first:
          every one is answered within 24 hours, from the top of this list. -->
+    <div class="page" data-page="reports" data-title="Reported content" hidden>
     <section class="card section" id="modCard">
       <h2>Reported content <small id="modCount"></small></h2>
       <p class="sub">Comments, messages, vibes, people and episodes listeners reported, oldest first. Every report must be answered within 24 hours. <b>Remove</b> takes the content down for everyone; <b>Suspend</b> removes it and stops the account posting anything; <b>Dismiss</b> leaves it up (it stays hidden from whoever reported it).</p>
@@ -184,6 +237,9 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
       <div id="modList"></div>
     </section>
 
+    </div>
+
+    <div class="page" data-page="feedback" data-title="Feedback" hidden>
     <section class="card section" id="inboxCard">
       <h2>Feedback inbox <small id="inboxCount"></small></h2>
       <p class="sub">Bug reports typed into <b>Instant feedback</b> under the phone on the demo page, newest first, with the screen that was showing. Resolve one once it is fixed; resolved reports are kept with the date.</p>
@@ -195,17 +251,26 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
       <div id="inboxList"></div>
     </section>
 
+    </div>
+
+    <div class="page" data-page="services" data-title="Outside service requests" hidden>
     <section class="card section" id="providersCard">
       <h2>Outside services, requests per day</h2>
       <p class="sub">Every request that went out to each data service, counted where it was sent (a cached answer is never counted; a refused one is). Days are UTC, when API-Sports and GNews reset. The limit is today's; in parentheses, what the next paid plan raises it to. API-Sports is billed per sport, so each sport it serves has a row of its own under it, with its plan and what API-Sports itself last reported left. When to buy each is in <b>docs/SCALING_TIMELINE.md</b>.</p>
       <div id="providers"></div>
     </section>
 
+    </div>
+
+    <div class="page" data-page="accounts" data-title="Newest accounts" hidden>
     <section class="card section">
       <h2>Newest accounts</h2>
       <div id="recent"></div>
     </section>
 
+    </div>
+
+    <div class="page" data-page="voices" data-title="Voice bank" hidden>
     <section class="card section" id="voicesCard">
       <h2>Voice bank</h2>
       <p class="sub">The voices listeners can pick on searchFAM, and that every other episode is drawn from. A new voice is a WAV of a few seconds of clean speech, with the speaker's consent recorded.</p>
@@ -226,6 +291,9 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
       </details>
     </section>
 
+    </div>
+
+    <div class="page" data-page="names" data-title="How names are said" hidden>
     <section class="card section" id="sayCard">
       <h2>How names are said</h2>
       <p class="sub">The voice reads spelling and nothing else, so a name like Sagapolutele is respelled before it is spoken. Episode intelligence and the writer add names as they meet them; yours are never replaced by theirs. Only the voice hears these - captions and titles keep the real spelling.</p>
@@ -237,12 +305,7 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
       </form>
       <div id="sayList"></div>
     </section>
-
-    <section class="card section">
-      <h2>Every store</h2>
-      <p class="sub">Found by reading the code, so a store added later appears here on its own. Tap a table to see its newest 100 rows.</p>
-      <div class="stores" id="stores"></div>
-    </section>
+    </div>
   </main>
 </div>
 
@@ -503,6 +566,64 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
     var b = e.target.closest(".chip"); if (b) ask(b.textContent);
   });
 
+  // ----------------------------------------------------------------- pages
+  // One page at a time (12/10), named in the address after the #, so a page
+  // survives Refresh now and the browser's back button moves between pages.
+  var PAGES = Array.prototype.map.call(document.querySelectorAll("[data-page]"),
+                                       function (el) { return el.getAttribute("data-page"); });
+  function pageName() {
+    var h = (location.hash || "").replace(/^#/, "");
+    return PAGES.indexOf(h) >= 0 ? h : "overview";
+  }
+  function showPage() {
+    var name = pageName();
+    Array.prototype.forEach.call(document.querySelectorAll("[data-page]"), function (el) {
+      var on = el.getAttribute("data-page") === name;
+      el.hidden = !on;
+      if (on) {
+        $("pageTitle").textContent = el.getAttribute("data-title");
+        document.title = "FAM Admin · " + el.getAttribute("data-title");
+      }
+    });
+    Array.prototype.forEach.call(document.querySelectorAll("[data-nav]"), function (a) {
+      var on = a.getAttribute("data-nav") === name;
+      a.classList.toggle("on", on);
+      if (on) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
+    });
+    // The chart measures itself, and a hidden page has no width.
+    if (name === "overview") drawChart(series);
+    window.scrollTo(0, 0);
+  }
+  function menu(open) {
+    $("drawer").classList.toggle("open", open);
+    $("scrim").hidden = !open;
+    $("menuBtn").setAttribute("aria-expanded", open ? "true" : "false");
+    if (open) { var on = $("drawer").querySelector("a.on") || $("drawer").querySelector("a"); if (on) on.focus(); }
+    else if (document.activeElement && $("drawer").contains(document.activeElement)) $("menuBtn").focus();
+  }
+  $("menuBtn").addEventListener("click", function () { menu(!$("drawer").classList.contains("open")); });
+  $("scrim").addEventListener("click", function () { menu(false); });
+  $("drawer").addEventListener("click", function (e) { if (e.target.closest("a")) menu(false); });
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape" && $("drawer").classList.contains("open")) menu(false);
+  });
+  window.addEventListener("hashchange", showPage);
+  // What is waiting on an admin, on the menu: open reports and feedback.
+  var waiting = { reports: 0, feedback: 0, overdue: false };
+  function drawWaiting() {
+    $("navReports").textContent = waiting.reports || "";
+    $("navReports").hidden = !waiting.reports;
+    $("navReports").classList.toggle("hot", waiting.overdue);
+    $("navFeedback").textContent = waiting.feedback || "";
+    $("navFeedback").hidden = !waiting.feedback;
+    $("menuPip").hidden = !(waiting.reports || waiting.feedback);
+  }
+  function signedIn(yes) {
+    $("main").hidden = !yes; $("gate").hidden = yes;
+    $("signOut").hidden = !yes; $("menuBtn").hidden = !yes;
+    if (!yes) { menu(false); $("pageTitle").textContent = "Live tracker"; document.title = "FAM Admin Tracker"; }
+  }
+
   // --------------------------------------------------------------- refresh
   function setState(live, text) {
     $("dot").className = "dot " + (live ? "live" : "off"); $("state").textContent = text;
@@ -510,7 +631,9 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
   var chipsDrawn = false;
   function load() {
     return api("/api/admin/tracker").then(function (s) {
-      $("gate").hidden = true; $("main").hidden = false; $("signOut").hidden = false;
+      var first = $("main").hidden;
+      signedIn(true);
+      if (first) showPage();
       lastAt = s.at;
       drawKpis(s.metrics || {});
       drawChart(s.signups);
@@ -532,7 +655,7 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
     }).catch(function (e) {
       if (e.status === 404) {
         setState(false, "not authorised");
-        $("main").hidden = true; $("gate").hidden = false; $("signOut").hidden = true;
+        signedIn(false);
         stop();
       } else {
         setState(false, "refresh failed: " + e.message);
@@ -575,6 +698,7 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
   function loadReports() {
     return api("/api/admin/reports?state=" + modState).then(function (v) {
       var m = v.summary || {};
+      waiting.reports = m.open || 0; waiting.overdue = !!m.overdue; drawWaiting();
       $("modCount").textContent = (m.open || 0) + " open" +
         (m.oldest_open_hours != null ? " · oldest " + m.oldest_open_hours + "h" : "") +
         (m.overdue ? " · OVERDUE" : "");
@@ -622,6 +746,7 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
   function loadInbox() {
     return api("/api/admin/feedback?state=" + inboxState).then(function (v) {
       var c = v.counts || {};
+      waiting.feedback = c.open || 0; drawWaiting();
       $("inboxCount").textContent = (c.open || 0) + " open · " + (c.resolved || 0) + " resolved";
       var rows = v.reports || [];
       $("inboxList").innerHTML = rows.length ? rows.map(function (r) {
@@ -771,18 +896,18 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
   $("signOut").addEventListener("click", function () {
     stop();
     api("/api/admin/logout", {}).catch(function () {}).then(function () {
-      $("main").hidden = true; $("gate").hidden = false; $("signOut").hidden = true;
+      signedIn(false);
       setState(false, "signed out");
     });
   });
-  window.addEventListener("resize", function () { drawChart(series); });
+  window.addEventListener("resize", function () { if (pageName() === "overview") drawChart(series); });
   // Never signed in on arrival (27/09 packet): the server has already ended
   // any earlier admin session when it served this page, so the form is the
   // first thing shown every time. A page restored from the back/forward
   // cache is a load too, and is sent back to the form the same way.
   function toGate() {
     stop();
-    $("main").hidden = true; $("gate").hidden = false; $("signOut").hidden = true;
+    signedIn(false);
     setState(false, "sign in to continue");
   }
   window.addEventListener("pageshow", function (ev) {
