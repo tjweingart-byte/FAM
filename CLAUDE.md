@@ -93,8 +93,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   if `searches_public`. [player-layout]
 - **Search DailyFAM opens on an A to Z catalogue** of others' cached episodes,
   lettered (`/api/myfam/catalog`); typing shows the closest (§193). [dailyfam-catalogue]
-- **Your categories** (§229): today's cache by category, read-only; a grid under the
-  mixes, followed starred on top; Shuffle play; plays as a reel (§252). [your-categories]
+- **Your categories** (§229): today's cache by category, read-only; a reel (§252). [your-categories]
 - **A queue** (§190): Add to / Go to Queue from the player's and a DailyFAM
   tile's ⋯; client state only; plays before the grid. [queue]
 
