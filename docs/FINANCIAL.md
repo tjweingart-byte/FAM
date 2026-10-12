@@ -866,6 +866,27 @@ What the replacement has to do. Exa is used in two places:
 `parallel` → `perplexity` without a window → GDELT. Tavily costs more and
 does not guarantee dates.
 
+**Keep GDELT.** It has two jobs, and only the smaller one overlaps with a
+search service.
+
+- **The story pool's news source.** This is its main job. `story_sources.py`
+  uses GDELT to find which themes and countries world news is covering. That
+  feeds Made for you and What you missed. A search API answers a query and
+  cannot do this.
+- **The free last rung of research.** It returns headlines and dates without
+  passages (`retrieve_with_gdelt`), so it is the weakest evidence on the
+  ladder.
+
+Perplexity as the second rung is the better backup: it has passages and a
+second, independent index. GDELT stays below it as the floor:
+
+- It costs nothing to keep. The export files are downloaded every 15 minutes
+  for the story pool anyway.
+- It needs no key, no bill and no network at the moment of the request, so
+  it still answers if both paid accounts fail together (a lapsed card, a
+  revoked key).
+- The local-news ladder never uses it, and that does not change.
+
 **What a full replacement touches.** About 25 non-test modules name Exa, and
 about 45 test files.
 
