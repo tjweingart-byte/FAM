@@ -265,7 +265,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
 
 Audio and the opening
 - **A first play streams as voiced** (PCM, or Opus if decoded, §242); **a
-  replay may be a signed R2 link** to its Ogg Opus (§252). Kept audio is Opus 24 kbps (§237) in R2,
+  replay may be a signed R2 link** (§252). Kept audio is Opus 24 kbps (§237) in R2,
   `scripts.db` keeping its name and a hot copy; readable only while its script
   is, production voice, whole episodes; a week for all, then saved, shared or
   vibed moves to `kept/` (IA), the rest is deleted. `OfflineShelf` keeps
