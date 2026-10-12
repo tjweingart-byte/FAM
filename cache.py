@@ -2026,10 +2026,19 @@ class SqliteScriptCache:
         than one burst. As packed - an old zlib row stays zlib."""
         conn = self._conn()
         done = 0
-        for key, voice, blob in conn.execute(
-                "SELECT key, voice, pcm FROM episode_audio"
+        # Keys first, then one blob at a time (§255): fetching all of them in
+        # one `fetchall` held up to `limit` whole episodes in memory at once -
+        # hundreds of MB on a 512 MB plan, and Render restarted production.
+        for key, voice in conn.execute(
+                "SELECT key, voice FROM episode_audio"
                 " WHERE object_key = '' AND length(pcm) > 0 LIMIT ?",
                 (int(limit),)).fetchall():
+            row = conn.execute(
+                "SELECT pcm FROM episode_audio WHERE key = ? AND voice = ?"
+                " AND object_key = ''", (key, voice)).fetchone()
+            if not row or not row[0]:
+                continue
+            blob = row[0]
             name = audio_store.object_name(audio_store.RECENT, secrets.token_hex(16))
             try:
                 store.put(name, bytes(blob))

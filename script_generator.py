@@ -129,10 +129,6 @@ _SUMMARY_MARKER = re.compile(r"<<\s*SUMMARY\s*:\s*([^<>]{1,240}?)\s*>>", re.I)
 #: logged tags are read from - the writer has read the research, and the
 #: composer that categorised the tile beforehand had read only headlines.
 _CATEGORY_MARKER = re.compile(r"<<\s*CATEGORY\s*:\s*([^<>]{1,80}?)\s*>>", re.I)
-#: The writer saying it had little to go on and told the listener so
-#: (§245). Never spoken. An episode that carries it is played to the one
-#: listener who asked and never served to anybody else (`cache.put(limited=)`).
-_LIMITED_MARKER = re.compile(r"<<\s*LIMITED\b[^<>]{0,40}>>", re.I)
 # Anything that would be read aloud as punctuation noise rather than speech.
 _MARKDOWN = re.compile(r"[*_`#>\[\]]|^\s*[-•]\s+", re.MULTILINE)
 
@@ -537,11 +533,6 @@ class ScriptNotes:
     #: rule that fails silently is how the Dodgers opener survived a system
     #: prompt that already banned it. `write.py` prints these. PROBLEMS.md §94.
     meta_openings: tuple = ()
-    #: The episode had little to go on and said so (§245): the research came
-    #: back empty or missed everything the brief needed, or the writer wrote
-    #: `<<LIMITED>>`. The pipeline stores it for the listener who asked and
-    #: marks it so no other listener, rail or catalogue is ever served it.
-    limited: bool = False
     #: What kind of thing the episode is, off `<<CATEGORY:>>` (§189), as the
     #: writer worded it. Resolved against the category tree only where it is
     #: read, so a tree that grows later can still place an older episode.
@@ -688,12 +679,6 @@ class EpisodePlan:
     #: alternative is a gap filled from month-old memory and delivered in the
     #: same confident voice as the researched half.
     thin_on: tuple = ()
-    #: The research came back with nothing, or with none of what the brief
-    #: said the episode needed (`limited_material`, §245). The writer is told
-    #: to say what it has and then say plainly that it is all it found, and
-    #: the episode is never served to another listener. **Never in the cache
-    #: key**: it describes one search, not what the episode is.
-    limited: bool = False
     #: What earlier editions of this same daily episode were called, newest
     #: first - filled for a DailyFAM prompt by
     #: `daily_edition.with_earlier_editions`.
@@ -740,37 +725,6 @@ class EpisodePlan:
     @property
     def max_words(self) -> int:
         return int(self.word_budget * 1.06)
-
-
-def limited_material(plan) -> bool:
-    """Did the research come back with too little to build an episode on?
-
-    The owner's direction (§245): an episode on a subject there is little
-    written about says what it has and then says plainly that this is all it
-    found - rather than reaching for a neighbouring topic to fill its minutes
-    - and is never handed to another listener. This is the half decided in
-    code; the writer's `<<LIMITED>>` is the other half, for a packet that
-    looked full and turned out to be about something else.
-
-    Deliberately narrow, because `research.packet_covers` is a coarse word
-    test: only *nothing at all*, or *none* of what the brief asked for, counts.
-    Never on an attachment (the listener's own material, never cached), a
-    local question (it has its own composed gap sentence, §194), or a
-    question a live provider answered.
-    """
-    if not getattr(plan, "search", False) or getattr(plan, "attachments", ()):
-        return False
-    if getattr(plan, "local", None) is not None:
-        return False
-    live = getattr(plan, "live", None)
-    if live is not None and getattr(live, "facts", None) is not None:
-        return False
-    if not getattr(plan, "evidence", ""):
-        return True
-    wanted = [str(item).strip()
-              for item in (getattr(plan.brief, "must_establish", None) or [])
-              if str(item).strip()]
-    return bool(wanted) and len(getattr(plan, "thin_on", ()) or ()) >= len(wanted)
 
 
 def now_line() -> str:
@@ -979,9 +933,6 @@ and do not claim anything about a document beyond what is in it.
                 "written a news story about a thing that has not changed. Use "
                 "what you know. If you are not sure enough to say it plainly, "
                 "leave it out of the episode entirely.\n"
-                "- If this is most of what they asked about rather than one "
-                "part of it, the <<LIMITED>> rule at the end applies instead "
-                "of this bullet's.\n"
                 "- Either way, **never announce the gap**. Do not say it is not "
                 "reported, not confirmed, not available, or worth checking "
                 "later. Do not narrate what you did or did not find, and never "
@@ -1014,19 +965,6 @@ for the script.
 {plan.evidence}
 </evidence>
 """
-
-    if plan.limited:
-        # §245: said to the writer in so many words, because the evidence
-        # block alone (or its absence) does not tell it the subject is thin.
-        evidence += (
-            "\nThe search came back with very little on what they asked"
-            + (" - nothing at all." if not plan.evidence else
-               " - none of what this episode needed.")
-            + " Say what you can actually stand behind about their subject, "
-            "do not stretch to a neighbouring one to fill the time, then say "
-            "once, after it, that this is all you could find - about your "
-            "search, never the world, and never that the thing does not exist. "
-            "Keep it short, and end with the <<LIMITED>> line.\n")
 
     # A live state outranks everything, so it goes in front of the evidence it
     # outranks - the instructions that follow refer to it as already read.
@@ -1231,12 +1169,7 @@ this:
 
 Read all four off what you actually said. All four lines are stripped before
 anything is spoken and the script must not hint at any of them. Nothing goes
-after them, with one exception. If the material turned out to say little about
-what they asked, honest beats full: say what it does support about *their*
-subject, never stretch to a neighbouring one to fill the time, then say once,
-after it, that this is all you could find - about your search, never the
-world, and never that the thing does not exist - and add <<LIMITED>> on its
-own line after the four.
+after them.
 
 The time is the listener's, not a quota. If the story resolves early, stop
 there; a short piece that lands beats a long one padded out. If you catch
@@ -1386,8 +1319,6 @@ class _ScriptReader:
             self.notes.title = extract_title(self.buffer)
             self.notes.summary = extract_summary(self.buffer)
             self.notes.category = extract_category(self.buffer)
-            if _LIMITED_MARKER.search(self.buffer):
-                self.notes.limited = True
             self.notes.meta_openings = tuple(self.guard.dropped)
         return out
 
@@ -1410,7 +1341,6 @@ def clean_for_speech(text: str) -> str:
     text = _TITLE_MARKER.sub("", text)
     text = _SUMMARY_MARKER.sub("", text)
     text = _CATEGORY_MARKER.sub("", text)
-    text = _LIMITED_MARKER.sub("", text)
     text = re.sub(r"<<.*$", "", text, flags=re.S)
     # Stage directions first, while their brackets are still intact.
     text = re.sub(r"\[[^\]]{0,60}\]", "", text)
@@ -1832,13 +1762,9 @@ class ScriptGenerator:
                 "weather", live_facts.FACTS, facts=local.weather,
                 detail=local.weather.source))
 
-        self._refuse_without_evidence(plan)
-        if limited_material(plan):
-            plan = dataclasses.replace(plan, limited=True)
-            if notes is not None:
-                notes.limited = True
-            log.info("limited material for %r: the episode will say so and "
-                     "is kept from the shared cache", plan.query)
+        # No refusal here (§255, the owner's direction): an episode whose
+        # research came back empty is still written, from what the writer
+        # has - the §109 "could not reach a single source" popup is gone.
 
         # What the episode turned out to be built from, sent home on `notes`
         # because the caller's plan is the unprepared one and cannot see any of
@@ -1876,81 +1802,6 @@ class ScriptGenerator:
                 notes.provenance.add(attached)
             _publish_sources(notes)
         return plan
-
-    def _refuse_without_evidence(self, plan: EpisodePlan) -> None:
-        """Stop an episode that needs today's facts and has none of them.
-
-        **Here rather than in `research`, because a live state is evidence
-        too.** `prepare` runs the live lookup and the retrieval concurrently,
-        so this is the first point where both answers exist - and a question
-        about a game whose score came back from a scores provider is answered
-        even if no article about it has been indexed yet. Deciding this one
-        step earlier would refuse episodes FAM can actually write.
-
-        **What counts as needing today's facts**, in the same precedence
-        `cache.ttl_for` uses and for the same reason - each step is a better
-        signal than the one after it, and the last is a floor for paths that
-        have none of the others:
-
-        1. the brief says the listener asked for a *result*
-           (`outcome_dependent`), or named a freshness window at all;
-        2. failing that - a degraded brief, or EI switched off - the keyword
-           heuristic, which is the only signal left.
-
-        An evergreen question is never refused. "How does a heat pump work"
-        does not turn on anything current, the model's own knowledge is
-        accurate, and a refusal there would be a worse answer than the
-        episode. §109.
-        """
-        if not plan.search or plan.evidence:
-            return
-        # **An attachment is evidence, and it is the listener's own.** They
-        # handed FAM the document the episode is to be built on, and
-        # `build_prompt` puts it in front of the writer outranking anything
-        # recalled - so refusing here would refuse an episode that has more
-        # to go on than most researched ones. With SEARCH_MODE=always an
-        # attached question is researched too, which is the only reason this
-        # path can be reached at all.
-        if plan.attachments:
-            return
-        live = getattr(plan, "live", None)
-        if live is not None and getattr(live, "facts", None) is not None:
-            return  # a live state is current evidence, whatever the index did
-
-        # **A local question with nothing at all** (§194): no town news, no
-        # county news, nothing on the known outlets, and no weather either.
-        # Refused in the same transparent words the episode would have
-        # opened with - what our search did not find, never what is not
-        # happening there.
-        local = getattr(plan, "local", None)
-        if local is not None:
-            town = getattr(local.place, "name", "") or "there"
-            log.warning("refusing %r: the local ladder and the weather both "
-                        "came back empty for %s", plan.query, town)
-            raise research_mod.NoEvidence(
-                f"We couldn't find any recent news reports out of {town}, and "
-                "the weather there could not be reached either - so FAM is "
-                "not going to guess. Try again in a moment.")
-
-        brief = plan.brief
-        why = ""
-        if getattr(brief, "outcome_dependent", False):
-            why = "it asks for a result"
-        elif int(getattr(brief, "recency_days", 0) or 0) > 0:
-            why = "it asks about something recent"
-        elif brief is None or getattr(brief, "degraded", False):
-            reason = research_reason(plan.query)
-            if reason:
-                why = reason
-        if not why:
-            return
-
-        log.warning("refusing %r: every retriever came back empty and %s",
-                    plan.query, why)
-        raise research_mod.NoEvidence(
-            "FAM could not reach a single source for this one, and it needs "
-            "current information to answer - so it is not going to guess. "
-            "Try again in a moment.")
 
     async def stream_sentences(
         self, plan: EpisodePlan, notes: ScriptNotes | None = None

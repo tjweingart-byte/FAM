@@ -371,17 +371,13 @@ def test_weather_alone_is_a_short_honest_episode():
         local_news.gap_line(SAN_ANSELMO, weather=True, county_news=False)]
 
 
-def test_nothing_at_all_is_refused_in_the_same_transparent_words():
-    generator = sg.ScriptGenerator.__new__(sg.ScriptGenerator)
+def test_nothing_at_all_still_opens_with_the_gap_line():
+    """No refusal since §255: a town with no news and no weather is still an
+    episode, opened by the composed sentence about our search."""
     plan = gap_plan(weather_facts=False, scope="", evidence="")
-    with pytest.raises(research.NoEvidence) as refused:
-        generator._refuse_without_evidence(plan)
-    assert "couldn't find any recent news reports out of San Anselmo" in str(refused.value)
-    # With the weather there is an episode, and it is not refused.
-    plan = gap_plan(scope="", evidence="")
-    plan = dataclasses.replace(plan, live=live_facts.LiveLookup(
-        "weather", live_facts.FACTS, facts=plan.local.weather))
-    generator._refuse_without_evidence(plan)
+    assert sg._ScriptReader(plan, None).opening() == [
+        local_news.gap_line(SAN_ANSELMO, weather=False, county_news=False)]
+    assert not hasattr(sg.ScriptGenerator, "_refuse_without_evidence")
 
 
 # --------------------------------------------------------------------------

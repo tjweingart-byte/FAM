@@ -87,8 +87,7 @@ def test_a_rung_that_is_switched_off_is_not_a_rung(monkeypatch):
     tried = rungs(monkeypatch, {})
     plan = dataclasses.replace(plan_episode("who won", 3, search=True),
                                brief=BRIEF_CURRENT)
-    with pytest.raises(research.NoEvidence):
-        prepared_without_live(monkeypatch, plan)
+    prepared_without_live(monkeypatch, plan)   # never refused (§255)
     assert [b for b, _ in tried] == ["exa"], "gdelt was asked anyway"
     assert research.ladder("exa") == ["exa"]
 
@@ -126,8 +125,7 @@ def test_gdelt_is_the_last_rung_and_the_model_never_searches(monkeypatch):
     plan = dataclasses.replace(plan_episode("who won", 3, search=True),
                                brief=BRIEF_CURRENT)
     assert research.ladder("exa") == ["exa", "gdelt"]
-    with pytest.raises(research.NoEvidence):
-        prepared_without_live(monkeypatch, plan)
+    prepared_without_live(monkeypatch, plan)   # never refused (§255)
     assert [b for b, _ in tried] == ["exa", "gdelt"]
 
 
@@ -166,18 +164,18 @@ def prepared_without_live(monkeypatch, plan):
     return prepared(plan)
 
 
-def test_a_question_that_needs_today_is_refused_rather_than_guessed(monkeypatch):
+def test_a_question_that_needs_today_is_written_not_refused(monkeypatch):
+    """The §109 refusal ("could not reach a single source ... not going to
+    guess") is gone at the owner's direction (§255): it showed on a Trending
+    tile, where it never belonged. An empty search still writes the episode."""
     backend(monkeypatch, "exa")
     rungs(monkeypatch, {})
     monkeypatch.setattr(sg.live_facts, "lookup",
                         lambda brief, notes=None: _none())
     plan = dataclasses.replace(plan_episode("who won", 3, search=True),
                                brief=BRIEF_CURRENT)
-    with pytest.raises(research.NoEvidence) as raised:
-        prepared(plan)
-    said = str(raised.value)
-    assert "not going to guess" in said
-    assert "Try again" in said, "a refusal with no next step is a dead end"
+    assert prepared(plan).evidence == ""
+    assert not hasattr(sg.ScriptGenerator, "_refuse_without_evidence")
 
 
 def test_an_evergreen_question_is_still_written(monkeypatch):
@@ -226,7 +224,7 @@ def test_an_unresearched_episode_is_never_refused(monkeypatch):
     assert prepared(plan).evidence == ""
 
 
-def test_a_degraded_brief_falls_back_to_the_keyword_floor(monkeypatch):
+def test_a_degraded_brief_is_never_refused_either(monkeypatch):
     """EI is the good signal and it is allowed to be unavailable. The keyword
     heuristic is what `cache.ttl_for` already uses as the floor for paths that
     have nothing better, and this is the same job."""
@@ -239,8 +237,7 @@ def test_a_degraded_brief_falls_back_to_the_keyword_floor(monkeypatch):
         must_establish=[], degraded=True, live_domain="")
     volatile = dataclasses.replace(
         plan_episode("latest news on the fed", 3, search=True), brief=degraded)
-    with pytest.raises(research.NoEvidence):
-        prepared(volatile)
+    assert prepared(volatile).evidence == ""   # never refused (§255)
 
     timeless = dataclasses.replace(
         plan_episode("why the Roman republic fell", 3, search=True),
