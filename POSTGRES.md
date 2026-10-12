@@ -48,6 +48,11 @@ databases:
           property: connectionString
 ```
 
+Staging's disk has its own test accounts, so the server refuses to start on
+an empty staging database (§254, below). Either copy them first, from
+`fam-staging`'s Shell, exactly as production does (steps 3-4), or set
+`DATABASE_ALLOW_EMPTY=1` on `fam-staging` to start it clean on purpose.
+
 Then check `/api/health` → `database.backend` is `postgres` and
 `environment.database_allowed` is `true`, and run the load test (`LOAD_TESTING.md`).
 
@@ -87,10 +92,17 @@ thirty minutes, depending on the size of `/data`.
        python tools/sqlite_to_postgres.py --from /data --database-url "<internal URL>" --yes
 
    It stops and names the store on any mismatch; nothing has changed for
-   listeners at that point, so turn Maintenance Mode off and look.
+   listeners at that point, so turn Maintenance Mode off and look. If an
+   earlier attempt - or the server itself, pointed at the database too soon -
+   left rows there, it refuses those tables; add `--replace` to empty them
+   first. **The last line must start with `copied`** before step 5.
 5. **Wire it**: set `DATABASE_URL` on `fam` to the internal URL (the
    dashboard, or `fromDatabase` in `render.yaml`). Saving it redeploys.
-6. **Check**, then turn Maintenance Mode off: `/api/health` →
+   **If step 4 did not happen, the deploy fails** (§254): the server finds
+   accounts on the disk and none in Postgres, refuses to start, and says so
+   in the deploy log - it never serves an app whose accounts seem gone.
+6. **Turn Maintenance Mode off, then check** (the maintenance page hides the
+   app from you too): `/api/health` →
    `database.backend: postgres`, `database.reachable: true`, `storage.note`
    says every store is in Postgres; sign in, open myFAM, play a kept
    episode, send a message, check the admin dashboard's counts against the

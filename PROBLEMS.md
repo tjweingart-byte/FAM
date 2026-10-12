@@ -18369,3 +18369,49 @@ is (`cachedOnly`), so nothing here can cause an episode to be written.
 like and comment counts (with this listener's own thumb and vibe), as
 `/api/explore` does, so a card's numbers are right before it plays; still
 no author.
+
+## 254. The server refuses an empty Postgres beside a full disk
+
+**What happened (2026-10-12).** During the production switch-over (§243's
+runbook), `DATABASE_URL` was set on `fam` before
+`tools/sqlite_to_postgres.py --yes` had copied anything. The server found
+empty schemas, created its tables, and served an app with no accounts and an
+empty waitlist. The owner could not sign in. Nothing had been deleted - the
+copy tool opens the files read-only, and the SQLite files sat untouched on
+the disk - but nothing *said* that either: health reported a reachable
+Postgres, and new sign-ups were landing in the empty database. Recovery is
+to unset `DATABASE_URL` (the app reads the disk again), then copy with
+`--yes --replace` (the server had already made tables and a few rows in
+Postgres) and set it again.
+
+**The check.** At boot, before anything is served, a server with
+`DATABASE_URL` compares each store's file on the disk with its Postgres
+schema (`db.uncopied`: any row in any table, read with `mode=ro`, against
+any row in the schema). Every store with rows on the disk and none in
+Postgres is logged and listed in `/api/health` → `database.uncopied`.
+**The accounts stop the boot** (`app.UncopiedDatabase`) when *none* of the
+disk's accounts (up to 200, `db.accounts_missing`) is in Postgres. By
+identity, not emptiness - a review caught that the first version tested
+"any row", and one request to an uncopied server writes a session row, so
+production's half-made database (which already has sessions and the odd
+new sign-up) would have passed. And not by one account, since any account
+may be deleted later. A deployment's account list is never emptied
+(`wipe-derived`), so all of them missing can only mean the copy has not
+happened. The disk is opened `mode=ro&immutable=1`: `mode=ro` alone still
+leaves `-wal`/`-shm` files beside a WAL database. The deploy fails
+with a message that says nothing was lost and names the two ways forward -
+copy, or unset `DATABASE_URL`. Other stores never stop it: some are
+rebuilt from outside and can legitimately be empty (the GDELT copy).
+
+- No disk (after it is removed, §243's last step), a copied database, and
+  SQLite all start exactly as before.
+- `DATABASE_ALLOW_EMPTY=1` starts on an empty database on purpose. Staging
+  needs it, or its own copy, because its disk has test accounts
+  (POSTGRES.md).
+- The runbook says the copy's last line must start with `copied` before
+  `DATABASE_URL` is set, adds `--replace` for a second attempt, and turns
+  Maintenance Mode off *before* checking - Render's maintenance page hides
+  the app from its owner too.
+
+`db.py`, `app.py`, `POSTGRES.md`, `.env.example`,
+`docs/claude/constraints.md`, `tests/test_uncopied_database_254.py`.
