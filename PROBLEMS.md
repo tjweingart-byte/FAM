@@ -18333,3 +18333,39 @@ was real and is fixed, each with a test:
 The bucket's CORS policy (`deploy/r2-cors.json`) lists
 `https://familiarize.net` and its `www.` form beside `fam.onrender.com`; a
 native app is not a browser and needs no entry.
+
+## 253. Categories under the mixes, followed on top with a star, and a category that plays as a reel
+
+The owner's notebook sketch (10.12): "Your categories could be a huge
+feature, figure out how to display it better."
+
+**The grid moves under the mixes.** The screen that shows "myFAM"
+(`screen-playfam`) used to list only the categories a listener followed,
+as mix-shaped rows, with "Browse all" opening a separate screen of the
+eight facet tiles and a search. That screen is gone: its tiles and its
+search ("Find a category, like NFL") are drawn under the mixes themselves
+(`#catSection`, `renderMyCategories`). The categories this listener
+follows - any node, "NFL" as well as Sport - lead the grid, in the order
+followed, each with a star; then the facets not followed, each tile once.
+Typing swaps the grid for every category with a word starting with what
+was typed, a followed one starred. Only `#catGrid` is redrawn, so the box
+keeps its focus. A guest sees the same grid without stars; Follow on a
+category's page is still the account's door.
+
+**Shuffle play.** A category's page has a Shuffle play pill above its
+search (`shuffleCategory`), disabled until the page has something.
+
+**A category plays as a reel.** Tapping an episode, or Shuffle play, opens
+exploreFAM's reel (`openCategoryReel`) dealing that category's episodes -
+from the tapped one onward in the page's order, then round, or shuffled.
+The same stage, swipe, picture, buttons and comments as Explore; the
+kicker names the category in place of "Someone asked"; the back arrow
+returns to the category's page; the myFAM tab stays lit. `reelFeed` says
+which feed the stage is dealing, so Explore opened afterwards (or a swipe
+from search) deals Explore's own feed again, and an Explore fetch landing
+after a category's reel opened is dropped. Replay only, as every reel card
+is (`cachedOnly`), so nothing here can cause an episode to be written.
+`/api/categories/episodes` now carries each episode's `key` and its vibe,
+like and comment counts (with this listener's own thumb and vibe), as
+`/api/explore` does, so a card's numbers are right before it plays; still
+no author.
