@@ -901,7 +901,7 @@
     padding:13px; border-radius:14px; background:transparent; color:var(--copper);
     border:1px dashed var(--border-strong); font-family:'Geist',sans-serif;
     font-size:12px; font-weight:700; cursor:pointer; margin-bottom:11px; }
-  /* Categories (§229, §252), under the mixes: the grid, followed on top. */
+  /* Categories (§229, §253), under the mixes: the grid, followed on top. */
   .cat-h{ font-family:'Bricolage Grotesque', sans-serif; font-weight:600; font-size:19px; color:var(--text); }
   #screen-playfam .dm-search.cat-find{ margin:0 0 12px; }
   .cat-tile{ position:relative; }
@@ -3840,7 +3840,7 @@
           </div>
           <div id="dailyResults" hidden></div>
           <div id="mixList"></div>
-          <!-- Categories (§229, §252): every facet as a tile under the mixes,
+          <!-- Categories (§229, §253): every facet as a tile under the mixes,
                the ones this listener follows on top with a star, and a
                search over every category the tree holds ("NFL" is three
                levels down). Drawn by `renderMyCategories`; a tap opens the
@@ -3885,7 +3885,7 @@
           <h2 id="catTitle">Category</h2>
           <button class="cat-follow" id="catFollow" onclick="toggleFollowCategory()" hidden>Follow</button>
         </div>
-        <!-- Shuffle play (§252): every episode on this page, shuffled, on
+        <!-- Shuffle play (§253): every episode on this page, shuffled, on
              the category's reel - exploreFAM's swipe, this category's cards. -->
         <button class="mix-play cat-shuffle" id="catShuffle" onclick="shuffleCategory()" disabled>
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5"/><path d="M4 20L21 3"/><path d="M21 16v5h-5"/><path d="M15 15l6 6"/><path d="M4 4l5 5"/></svg>
@@ -9850,7 +9850,7 @@
     document.getElementById("mixList").innerHTML = html;
   }
 
-  // ---- Categories (§229, §252) ----
+  // ---- Categories (§229, §253) ----
   //
   // Under the mixes: every facet as a tile, the categories this listener
   // follows on top with a star (any node, "NFL" as well as Sport), and a
@@ -10075,7 +10075,7 @@
         + '<div class="sv-meta">' + escapeHtml(meta.join(" · ")) + '</div></div></div>';
     }).join("");
   }
-  // **A category plays as a reel** (§252, the owner's direction): a tap
+  // **A category plays as a reel** (§253, the owner's direction): a tap
   // opens exploreFAM's swipe over this page's episodes, starting at the one
   // tapped and running on in the page's order; Shuffle play deals them
   // shuffled. Replay only, as every card on Explore is.
@@ -17939,7 +17939,7 @@
   // A card dealt while Explore was only being peeked at under search: shown,
   // not played, because a swipe let go of half way is not a choice to listen.
   var reelUnplayed = false;
-  // **Which cards the reel is dealing** (§252): Explore's feed, or one
+  // **Which cards the reel is dealing** (§253): Explore's feed, or one
   // category's episodes today, opened from its page (`openCategoryReel`).
   // The same stage, swipe and buttons; the kicker names the category and
   // the back arrow returns to its page. Opening Explore after a category

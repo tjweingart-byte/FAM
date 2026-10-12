@@ -845,7 +845,7 @@ def _cache_report() -> dict:
         report["audio_entries"] = held.get("audio_entries")
         report["audio_mb"] = (round(held["audio_bytes"] / 1048576, 1)
                               if isinstance(held.get("audio_bytes"), int) else None)
-        report["audio_ceiling_mb"] = settings.audio_cache_max_mb
+        report["audio_ceiling_mb"] = cache_mod.audio_ceiling_mb()
     if settings.cache_vector:
         report["embedding"] = embeddings.describe()
         report["threshold"] = settings.cache_vector_threshold
@@ -1031,6 +1031,42 @@ def _database_report() -> list[dict]:
         entry["bytes"] = os.path.getsize(path) if os.path.exists(path) else 0
         entry["persistence"] = _persistence_of(target, code_device)
         report.append(entry)
+    return report
+
+
+def _database_summary(databases: list) -> dict:
+    """`db.report()` plus the size of what the stores hold (§252).
+
+    SQLite: each file's bytes, as `_database_report` lists them, counted once
+    per file (several stores share one). Postgres: the database's own count,
+    the whole of it and each store's schema, written onto that store's entry.
+    `largest` names the three biggest, which is where growth will come from.
+    """
+    report = db_mod.report()
+    by_store: dict[str, int] = {}
+    if report.get("backend") == "postgres":
+        measured = db_mod.sizes()
+        if "error" in measured:
+            report["size_error"] = measured["error"]
+            return report
+        schemas = measured.get("schemas", {})
+        for entry in databases:
+            if entry.get("schema"):
+                entry["bytes"] = schemas.get(entry["schema"], 0)
+                by_store[entry["name"]] = entry["bytes"]
+        total = measured.get("total_bytes", 0)
+    else:
+        seen: dict[str, int] = {}
+        for entry in databases:
+            path = entry.get("path", "")
+            if isinstance(entry.get("bytes"), int):
+                seen[path] = entry["bytes"]
+                by_store[entry["name"]] = entry["bytes"]
+        total = sum(seen.values())
+    report["size_mb"] = round(total / 1048576, 1)
+    report["largest"] = [
+        {"name": name, "mb": round(size / 1048576, 1)}
+        for name, size in sorted(by_store.items(), key=lambda kv: -kv[1])[:3]]
     return report
 
 
@@ -1828,7 +1864,9 @@ async def health(request: Request) -> dict:
         "storage": _storage_summary(_databases),
         # §243: where the stores live - SQLite files, or Postgres when
         # DATABASE_URL is set (never the address).
-        "database": db_mod.report(),
+        # And how big they are (§252), measured, so a database plan is
+        # chosen from what is held rather than from a projection.
+        "database": _database_summary(_databases),
         # How much memory this process holds now and has ever held (§245):
         # Render restarts a service over its plan's limit, and without these
         # a restart cannot be told from a leak, a spike or a plan too small.
@@ -1844,7 +1882,13 @@ async def health(request: Request) -> dict:
         # boot check's real write/read/delete, the codec, and the last sweep.
         "audio": {**audio_store_mod.status(), **audio_codec_mod.describe(),
                   "check": dict(_AUDIO_STORE_CHECK),
-                  "sweep": dict(_AUDIO_SWEEP)},
+                  "sweep": dict(_AUDIO_SWEEP),
+                  # §252: replays read straight from the bucket, and the ones
+                  # that fell back to a stream (a bucket without CORS for this
+                  # site shows here as fallbacks matching links).
+                  "links": {"enabled": settings.audio_links,
+                            "seconds": settings.audio_link_seconds,
+                            **_AUDIO_LINKS}},
         # The public API surface, so a client can ask rather than assume.
         "api": {"version": API_VERSION, "prefix": API_PREFIX,
                 "cors_origins": _ALLOWED_ORIGINS},
@@ -4437,7 +4481,9 @@ if _ALLOWED_ORIGINS:
                     "X-FAM-Episode", "X-FAM-Consent",
                     # §242: without these a cross-origin player cannot tell
                     # Opus from PCM, and would play the frames as noise.
-                    "X-FAM-Audio-Format", "X-FAM-Opus-Preskip"],
+                    "X-FAM-Audio-Format", "X-FAM-Opus-Preskip",
+                    # §252: a replay answered with a link, not a stream.
+                    "X-FAM-Audio-Link"],
     )
     log.info("CORS enabled for %s", ", ".join(_ALLOWED_ORIGINS))
 
@@ -8755,6 +8801,11 @@ async def audio(
     own: bool = Query(False, description="The question is the listener's own "
                                          "words (a typed Go Deeper), held to "
                                          "their AI answer like a search"),
+    link: bool = Query(False, description="With fmt=opus: a replay may be answered "
+                                          "with a signed link to its kept audio "
+                                          "in the bucket (§252)"),
+    link_failed: bool = Query(False, description="This stream is the fallback "
+                                                 "for a link that would not play"),
 ):
     """Stream the episode.
 
@@ -8765,6 +8816,10 @@ async def audio(
     length-prefixed, then an end marker with the true length
     (`audio_codec`) - when this server can; otherwise PCM, without the
     `X-FAM-Audio-Format: opus` header, which is how the player knows.
+    `link=1` with `fmt=opus` (§252): a replay whose Opus is in the bucket is
+    answered with JSON - a signed link to the Ogg Opus file, its length and
+    captions - and `X-FAM-Audio-Link: 1`; the player reads the file from R2
+    and decodes it exactly as it decodes the stream. Anything else streams.
     """
     # Every request answers to the cheap ceiling. The pace on top of it is for
     # requests that can actually spend a model call.
@@ -8849,6 +8904,23 @@ async def audio(
         # Kept, so it plays only what is kept (§237): a bucket that does
         # not answer stops the episode rather than waking the GPU.
         pipeline.stored_only = True
+
+    # §252: a replay read straight from the bucket. After every gate and the
+    # allowance, so a link is spent exactly as a stream would be; before
+    # the GPU is woken, because nothing will be voiced.
+    if link_failed:
+        _AUDIO_LINKS["fallbacks"] += 1
+        log.warning("a link to kept audio would not play; streaming instead")
+    elif (link and fmt == "opus" and settings.audio_links
+          and audio_codec_mod.can_stream(pipeline.engine.sample_rate)):
+        # `can_stream` is AUDIO_STREAM_OPUS too: "always PCM" means no Opus
+        # file either.
+        linked = await pipeline.stored_link(plan, settings.audio_link_seconds)
+        if linked is not None:
+            _AUDIO_LINKS["issued"] += 1
+            return await _linked_audio(request, user, plan, pipeline, linked,
+                                       topic_id=topic_id, context=context,
+                                       cached_only=cached_only, attach=attach)
 
     # Ask for a GPU now, before Claude has written a word.
     #
@@ -9035,12 +9107,16 @@ async def audio(
             # whether or not it was listened to, and a ledger that only counts
             # completed plays under-reports exactly the abusive pattern of
             # starting many episodes and finishing none.
-            _record_usage(
-                user, stats.usage,
-                surface=_surface(cached_only, topic_id, context),
-                minutes=plan.minutes, audio_seconds=stats.voiced_seconds,
-                cache_hit=stats.cache == "hit",
-            )
+            #
+            # Except a link's fallback that replayed kept audio (§252): the
+            # link already wrote this tap's row, and this one spent nothing.
+            if not (link_failed and stats.cache == "hit" and stats.audio == "stored"):
+                _record_usage(
+                    user, stats.usage,
+                    surface=_surface(cached_only, topic_id, context),
+                    minutes=plan.minutes, audio_seconds=stats.voiced_seconds,
+                    cache_hit=stats.cache == "hit",
+                )
 
     # Recorded here rather than client-side: audio is being served, so the
     # play is a fact. A dropped event costs one weak signal, never the episode.
@@ -9060,7 +9136,9 @@ async def audio(
     # category of an older episode under the same key.
     play_row = None
     write_pending = stats.cache != "hit"
-    if user and _remembers(request):
+    # A link's fallback (§252) was already recorded when the link was made:
+    # one tap is one play, however many requests it took to sound.
+    if user and _remembers(request) and not link_failed:
         SOCIAL.seen(user)
         play_row = EVENTS.record(
             topics_mod.Event(
@@ -9137,6 +9215,52 @@ async def audio(
             "X-Episode-Marks": json.dumps(stats.marks.summary(), default=str),
         },
     )
+
+
+#: Links handed out for replays (§252), and streams that were a link's
+#: fallback - the player asks again with `link_failed=1` when the file would
+#: not play (a bucket without CORS for this site, an object gone). Reported
+#: in `/api/health`, since nothing else on the server would ever see it.
+_AUDIO_LINKS = {"issued": 0, "fallbacks": 0}
+
+
+async def _linked_audio(request: Request, user: str, plan, pipeline, linked: dict,
+                        *, topic_id: str, context: str, cached_only: bool,
+                        attach: str) -> JSONResponse:
+    """A replay answered with a link to its kept audio (§252).
+
+    Everything a streamed replay does except send the bytes: the play is
+    recorded and remembered, the ledger row written (a replay voices
+    nothing), and the headers the player reads are the same; the play
+    count, captions and title are `PodcastPipeline.stored_link`'s. The body says where the Ogg Opus
+    file is, until when, its true length, and the sentences and starts in it.
+    """
+    sample_rate = int(linked["sample_rate"])
+    seconds = linked["frames"] / sample_rate if sample_rate else 0.0
+    if user and _remembers(request):
+        SOCIAL.seen(user)
+        EVENTS.record(topics_mod.Event(
+            user, "play", topic_id, plan.query,
+            _event_tags(topic_id, plan.query, plan.minutes, linked["episode"])))
+    _record_usage(user, GenerationStats().usage,
+                  surface=_surface(cached_only, topic_id, context),
+                  minutes=plan.minutes, audio_seconds=0.0, cache_hit=True)
+    log.info("episode q=%r replayed by link (%.1fs, %s)", plan.query, seconds,
+             linked["object_key"])
+    return JSONResponse(
+        {"link": linked["url"], "expires": linked["expires"],
+         "format": "ogg-opus", "frames": linked["frames"],
+         "sentences": linked["sentences"], "starts": linked["starts"]},
+        headers={
+            "X-FAM-Audio-Link": "1",
+            "Cache-Control": "no-store",
+            "X-Sample-Rate": str(sample_rate),
+            "X-Requested-Seconds": str(plan.target_seconds),
+            "X-FAM-Cache": "hit",
+            "X-FAM-Episode": linked["episode"],
+            "X-FAM-Keepable": "1" if (getattr(pipeline.engine, "keeps_audio", False)
+                                      and not DEMO_MODE and not attach) else "0",
+        })
 
 
 #: The credential that gates the usage report. Absent by default, and absent

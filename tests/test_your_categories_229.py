@@ -142,7 +142,7 @@ def test_an_episode_without_a_written_category_is_filed_by_its_words(client):
 
 
 def test_each_episode_carries_what_a_reel_card_draws(client):
-    """§252: the category's reel draws the same numbers as Explore's - the
+    """§253: the category's reel draws the same numbers as Explore's - the
     key for fresh stats and the reaction counts - and still no author."""
     _put("k1", "detroit lions win", "Lions roll on", category="detroit lions")
     ep = _episodes(client, "nfl")["episodes"][0]
@@ -259,7 +259,7 @@ def test_finding_a_category_matches_from_the_start_of_a_word():
 
 
 def test_the_mixes_screen_draws_the_categories_grid():
-    # §252: the grid sits under the mixes itself, with its search; there is
+    # §253: the grid sits under the mixes itself, with its search; there is
     # no separate "Browse all" screen any more.
     assert 'id="catSection"' in HTML and 'id="catFind"' in HTML
     assert HTML.index('id="mixList"') < HTML.index('id="catSection"')
@@ -284,7 +284,7 @@ def test_the_category_page_sorts_and_searches_on_the_server():
 
 
 def test_a_tap_plays_what_is_cached_and_nothing_else():
-    # §252: a tap opens the category's reel at that episode; the reel plays
+    # §253: a tap opens the category's reel at that episode; the reel plays
     # replay only, as Explore does.
     play = _fn("playCategoryEpisode")
     assert "openCategoryReel(" in play

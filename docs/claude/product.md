@@ -709,7 +709,7 @@ the rest of this list it needs taste rather than a key.
   somebody blocked or suspended), then one row per title, the most popular;
   who wrote an episode never leaves the server.
 
-> **Current:** §252 (the owner's sketch) draws the eight facets as a grid
+> **Current:** §253 (the owner's sketch) draws the eight facets as a grid
 > under the mixes, with the search, in place of the followed list and its
 > "Browse all" screen; followed categories lead the grid with a star. A
 > category's page has **Shuffle play**, and a tap or a shuffle opens

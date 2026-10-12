@@ -10,6 +10,26 @@
 ## Constraints that are settled — do not undo without discussing
 
 <!-- rule:no-audio-files -->
+> **Current (PROBLEMS.md §252, at the owner's direction):** "no audio files
+> to the client" is reversed for replays. The owner's reasoning: the rule
+> was made before the backend was understood, and its guardrails cost more
+> than they protect. A client that decodes Opus asks with `link=1`; a replay
+> whose Opus is in the bucket is answered with JSON - a link signed for
+> `AUDIO_LINK_SECONDS` (300) to the Ogg Opus file, its true length, its
+> sentences and starts - and reads the file from R2, which charges nothing
+> to send, instead of through Render, which charges $0.15 a GB. The gate,
+> the allowance, the play and the ledger happen before the link is made,
+> exactly as before a stream; what is given up is that, for its few
+> minutes, whoever holds the link can read that one file, and a device can
+> keep it. A **first play still streams as it is voiced** - there is no file
+> until the episode is whole - and that is what remains of §1. `fam-audio.js`
+> turns the file into the stream's own packets (`oggOpus`), so seek, speed,
+> captions and the offline shelf cannot tell the two apart; a link that will
+> not play before its first sample is streamed instead and counted
+> (`link_failed`, `/api/health` → `audio.links`). `AUDIO_LINKS=0` streams
+> everything as before. Statements below that no URL to an object is ever
+> handed to a client are superseded.
+>
 > **Current (PROBLEMS.md §242, at the owner's direction):** a client that can
 > decode Opus asks for it (`/api/audio?fmt=opus`) and receives "fam-opus v1":
 > length-prefixed Opus packets as they are encoded, then an end marker with
