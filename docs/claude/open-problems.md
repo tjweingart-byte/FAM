@@ -811,3 +811,8 @@
   `inviteFriends`; while the waitlist runs it shares the member's referral
   link, fetched before the tap), and YourFAM's header has no (+) - Messages already
   starts a chat.
+
+> **Current (PROBLEMS.md §251):** the faces row is drawn only at the top of
+> DailyFAM (10.2 #1). YourFAM has, under "Your FAM friends" and its Find new
+> friends pill, one large **View Your FAM** pill to the Friends page,
+> carrying up to three faces - friends first, a picture before initials.

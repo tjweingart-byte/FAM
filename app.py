@@ -2811,7 +2811,7 @@ async def messages_inbox(request: Request) -> dict:
             # A group (10.6 packet #4): its name, or its people's first
             # names, and who said the last thing.
             view = _group_view(row["with"], user, known)
-            row.update(name=view["name"], handle="", avatar="",
+            row.update(name=view["name"], handle="", avatar=view["avatar"],
                        members=view["members"])
             last = row.get("last") or {}
             if sender and sender != user:
@@ -2869,8 +2869,8 @@ def _group_view(gid: str, me: str, known: Optional[dict] = None) -> dict:
         _first_name(m) for m in others[:4]) + (" +%d" % (len(others) - 4)
                                                if len(others) > 4 else "")
     return {"user_id": gid, "group": True, "name": name or "Group",
-            "named": bool(group.get("name")), "handle": "", "avatar": "",
-            "members": members}
+            "named": bool(group.get("name")), "handle": "",
+            "avatar": group.get("avatar") or "", "members": members}
 
 
 def _topic_label(query: str, title: str = "") -> str:
@@ -3187,6 +3187,11 @@ class GroupNameRequest(BaseModel):
     name: str = Field("", max_length=200)
 
 
+class GroupPhotoRequest(BaseModel):
+    #: A `data:` URL, as a profile picture is; "" takes it off.
+    avatar: str = Field("", max_length=social_mod.MAX_AVATAR)
+
+
 @app.post("/api/messages/groups")
 async def messages_new_group(req: GroupRequest, request: Request) -> dict:
     """Start a group chat with the people picked (10.6 packet #4).
@@ -3225,6 +3230,33 @@ async def messages_rename_group(gid: str, req: GroupNameRequest,
     _require_can_post(user)
     try:
         MESSAGES.rename_group(user, gid, req.name)
+    except messages_mod.MessageError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return {"ok": True, "group": _group_view(gid, user)}
+
+
+@app.post("/api/messages/groups/{gid}/photo")
+async def messages_group_photo(gid: str, req: GroupPhotoRequest,
+                               request: Request) -> dict:
+    """A group chat's picture (10.11 packet): anybody in it may set it.
+
+    Checked the way a profile picture is - an image from the device, under
+    the size cap, through the photo check - because everybody in the group
+    sees it.
+    """
+    _read_limit(request)
+    user = _require_account(request)
+    _require_can_post(user)
+    if not MESSAGES.is_member(gid, user):
+        raise HTTPException(status_code=404, detail="You are not in that group.")
+    try:
+        avatar = social_mod.clean_avatar(req.avatar)
+    except social_mod.SocialError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    await _check_photo(request, user, avatar,
+                       before=MESSAGES.group(gid).get("avatar") or "")
+    try:
+        MESSAGES.set_group_photo(user, gid, avatar)
     except messages_mod.MessageError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return {"ok": True, "group": _group_view(gid, user)}
@@ -4183,7 +4215,8 @@ def _report_subject(kind: str, req: ReportRequest, me: str) -> tuple[str, str, d
         if not group or not MESSAGES.is_member(target, me):
             raise missing
         return (target, "", {"name": group.get("name") or "",
-                             "members": len(group.get("members") or [])})
+                             "members": len(group.get("members") or []),
+                             "photo": bool(group.get("avatar"))})
     raise HTTPException(status_code=400, detail="That can't be reported.")
 
 
@@ -4277,8 +4310,9 @@ class ReportDecision(BaseModel):
 
 
 def _remove_reported(report: dict, owner: str) -> bool:
-    """Take the reported thing down for everybody. False for a person or a
-    group, which are not content - suspend the person instead."""
+    """Take the reported thing down for everybody. False for a person, or a
+    group with no photo, which are not content - suspend the person instead.
+    A group's photo is content everybody in it sees, so it comes down (§251)."""
     kind, target = report["kind"], report["target"]
     if kind == "comment":
         SOCIAL.delete_comment(owner, int(target), moderator=True)
@@ -4290,6 +4324,8 @@ def _remove_reported(report: dict, owner: str) -> bool:
             SOCIAL.unecho(row["user_id"], row["query"], row["minutes"])
     elif kind == "episode":
         MODERATION.hide_episode(target, report["id"])
+    elif kind == "group":
+        return MESSAGES.remove_group_photo(target)
     else:
         return False
     return True
