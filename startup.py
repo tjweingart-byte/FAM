@@ -37,9 +37,9 @@ about why that is the right mechanism rather than a shortcut:
   research ladder is on in every deployment that can reach a search backend.
   A first impression that depends on optional configuration is one most
   deployments will not have.
-* It **degrades honestly**. With no evidence at all `research.NoEvidence`
-  refuses the episode rather than writing a stale one from memory, because
-  these questions turn on something current by construction.
+* It **degrades honestly**. With no evidence at all the episode is still
+  written (§255 deleted the refusal), and the writer's rules keep anything
+  current from being supplied from memory.
 
 The trade, stated rather than buried: a startup tile's *title* cannot promise
 what its episode will be about, the way a story-pool tile's composed angle
