@@ -135,9 +135,11 @@ def test_research_is_on_for_every_episode():
     from script_generator import plan_episode
 
     assert plan_episode("anything", 3).search is True
-    assert appmod.settings.research_backend == "exa", (
-        "the always-on default is priced on Exa retrieval; the model's own "
-        "search tool costs 10-25s and cannot be paid on every episode")
+    # Parallel since §257, at the owner's direction; Exa before it.
+    assert appmod.settings.research_backend == "parallel", (
+        "the always-on default is priced on a search vendor's retrieval; the "
+        "model's own search tool costs 10-25s and cannot be paid on every "
+        "episode")
     # The old ENABLE_WEB_SEARCH switch is the model-tool path, and forcing it
     # on is still an explicit act rather than the default.
     assert appmod.settings.enable_web_search is False
