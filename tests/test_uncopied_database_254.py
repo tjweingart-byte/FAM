@@ -1,5 +1,5 @@
 """The server refuses to start on an empty Postgres beside a full disk
-(PROBLEMS.md §253).
+(PROBLEMS.md §254).
 
 Production was pointed at its new database before the copy had run. The
 server found empty schemas and served an app with no accounts and an empty

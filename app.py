@@ -452,7 +452,7 @@ def _announce_storage() -> None:
 
 
 #: Stores whose file on the disk holds rows their Postgres schema does not
-#: (§253), measured once at boot - the disk is not written while the stores
+#: (§254), measured once at boot - the disk is not written while the stores
 #: live in Postgres, so the answer cannot change until the next deploy.
 _UNCOPIED: list[str] = []
 
@@ -464,7 +464,7 @@ class UncopiedDatabase(RuntimeError):
 
 
 def _refuse_an_uncopied_database() -> None:
-    """Refuse to start on an empty Postgres beside a full disk (§253).
+    """Refuse to start on an empty Postgres beside a full disk (§254).
 
     On 2026-10-12 production was pointed at its new database before
     `tools/sqlite_to_postgres.py --yes` had copied anything. The server
@@ -505,7 +505,7 @@ def _refuse_an_uncopied_database() -> None:
             " '<internal URL>' --yes --replace` (--replace empties what this server"
             " already made there) and deploy again, or unset DATABASE_URL to go"
             " back to the disk. To start on an empty database on purpose, set"
-            " DATABASE_ALLOW_EMPTY=1. (POSTGRES.md, PROBLEMS.md §253)")
+            " DATABASE_ALLOW_EMPTY=1. (POSTGRES.md, PROBLEMS.md §254)")
 
 
 def _announce_voice_control() -> None:
@@ -593,7 +593,7 @@ async def lifespan(_: FastAPI):
     # (§172) - uvloop goes round it, so staging runs UVICORN_LOOP=asyncio.
     spend_guard.check_loop(asyncio.get_running_loop())
     # Before anything is served or written: a Postgres the copy never
-    # reached would show every listener an app with their account gone (§253).
+    # reached would show every listener an app with their account gone (§254).
     _refuse_an_uncopied_database()
     # Pay the voice model's load cost now rather than on the first listener.
     await warm_up()
@@ -1115,7 +1115,7 @@ def _database_summary(databases: list) -> dict:
                 entry["bytes"] = schemas.get(entry["schema"], 0)
                 by_store[entry["name"]] = entry["bytes"]
         total = measured.get("total_bytes", 0)
-        # §253: stores whose rows are on the disk and not here, from boot.
+        # §254: stores whose rows are on the disk and not here, from boot.
         report["uncopied"] = list(_UNCOPIED)
     else:
         seen: dict[str, int] = {}
@@ -7035,6 +7035,10 @@ def _todays_filed() -> list[dict]:
             "query": query,
             "title": title,
             "minutes": entry["minutes"],
+            # The cache key, so a card on the category's reel can ask for
+            # its own fresh numbers (`/api/episode/stats`). It names an
+            # episode and nobody.
+            "key": entry.get("key") or "",
             "plays": plays,
             "mixes": in_mixes,
             "popularity": plays + in_mixes,
@@ -7069,6 +7073,7 @@ def _category_row(row: dict, now: float) -> dict:
     return {
         "query": row["query"], "title": row["title"],
         "minutes": row["minutes"], "plays": row["plays"],
+        "key": row.get("key", ""),
         "mixes": row["mixes"], "popularity": row["popularity"],
         "made_age_seconds": max(0.0, now - row["created"]),
         "sourced_age_seconds": max(0.0, now - row["sourced_at"]),
@@ -7202,6 +7207,22 @@ async def category_episodes(
         inside.sort(key=lambda r: (-r["popularity"], -r["created"]))
     now = time.time()
     episodes = [_category_row(row, now) for row in inside]
+    # The numbers down a reel card's right side (the category's reel, as
+    # Explore's): vibes, likes and comments, and this listener's own thumb
+    # and vibe so the buttons open in the right state. A count is never
+    # worth a failed page.
+    try:
+        pairs = [(e["query"], e["minutes"]) for e in episodes]
+        counts = SOCIAL.episode_counts_many(pairs, _listener(request))
+        comments = SOCIAL.comment_counts_many(pairs)
+        for e, pair in zip(episodes, pairs):
+            c = counts.get(pair) or {}
+            e.update({"vibes": c.get("vibes", 0), "likes": c.get("likes", 0),
+                      "rating": c.get("rating", 0),
+                      "my_vibe": bool(c.get("vibed")),
+                      "comments": comments.get(pair, 0)})
+    except Exception:  # noqa: BLE001
+        log.exception("could not count a category page's reactions")
     return {"id": node, "label": _category_label(node),
             "facet": topics_mod._root_facet(node), "sort": order,
             "q": q.strip(), "subcategories": subs, "episodes": episodes}

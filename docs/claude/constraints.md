@@ -1665,7 +1665,7 @@
   `python tools/voice_doctor.py` against the running deployment is what turns
   that from careful into known.
 <!-- rule:storage-durability -->
-> **Current (PROBLEMS.md §253):** a server pointed at Postgres compares the
+> **Current (PROBLEMS.md §254):** a server pointed at Postgres compares the
 > disk with the database at boot. Accounts in the file on the disk and none
 > of them in Postgres (by id, `db.accounts_missing`) mean the copy never
 > ran, and the boot is refused with a message

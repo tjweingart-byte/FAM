@@ -709,6 +709,13 @@ the rest of this list it needs taste rather than a key.
   somebody blocked or suspended), then one row per title, the most popular;
   who wrote an episode never leaves the server.
 
+> **Current:** §253 (the owner's sketch) draws the eight facets as a grid
+> under the mixes, with the search, in place of the followed list and its
+> "Browse all" screen; followed categories lead the grid with a star. A
+> category's page has **Shuffle play**, and a tap or a shuffle opens
+> exploreFAM's reel over that category's episodes (`openCategoryReel`,
+> `reelFeed`), its back arrow returning to the page; replay only.
+
 <!-- rule:queue -->
 - **The queue** *(PROBLEMS.md §190)*: Add to Queue from the player's menu or a
   DailyFAM tile's three dots (top right, beside save; the same menu less what

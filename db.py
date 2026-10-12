@@ -911,7 +911,7 @@ def sizes() -> dict:
 
 def allow_empty() -> bool:
     """`DATABASE_ALLOW_EMPTY=1`: start on a Postgres that holds none of the
-    accounts on the disk, on purpose (§253) - a staging database meant to
+    accounts on the disk, on purpose (§254) - a staging database meant to
     start clean. Never the default: an empty database beside a full disk is
     what a copy that never ran looks like."""
     return (os.environ.get("DATABASE_ALLOW_EMPTY") or "").strip().lower() in (
@@ -966,7 +966,7 @@ ACCOUNT_SAMPLE = 200
 
 def accounts_missing(path: str, schema: str) -> bool:
     """True when the disk's `accounts` table has accounts and *none* of them
-    (up to ACCOUNT_SAMPLE) is in Postgres (§253).
+    (up to ACCOUNT_SAMPLE) is in Postgres (§254).
 
     By identity, not emptiness: a server pointed at an uncopied database
     fills its schema within one request - a session for every visitor, an
@@ -1004,7 +1004,7 @@ def accounts_missing(path: str, schema: str) -> bool:
 
 def uncopied(stores) -> list[str]:
     """The names of the stores - `(name, path, schema)` - whose file on the
-    disk holds rows while their Postgres schema holds none (§253).
+    disk holds rows while their Postgres schema holds none (§254).
 
     What `DATABASE_URL` set before `tools/sqlite_to_postgres.py --yes` looks
     like: the server finds empty schemas, makes its tables, and every

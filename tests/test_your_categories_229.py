@@ -141,6 +141,17 @@ def test_an_episode_without_a_written_category_is_filed_by_its_words(client):
     assert [e["title"] for e in got] == ["Rates on hold"]
 
 
+def test_each_episode_carries_what_a_reel_card_draws(client):
+    """§253: the category's reel draws the same numbers as Explore's - the
+    key for fresh stats and the reaction counts - and still no author."""
+    _put("k1", "detroit lions win", "Lions roll on", category="detroit lions")
+    ep = _episodes(client, "nfl")["episodes"][0]
+    assert ep["key"] == "k1"
+    for field in ("vibes", "likes", "comments", "rating", "my_vibe"):
+        assert field in ep
+    assert "author" not in ep
+
+
 def test_an_unknown_category_is_a_404(client):
     res = client.get("/api/categories/episodes", params={"id": "not a thing at all"})
     assert res.status_code == 404
@@ -241,18 +252,27 @@ def test_labels_read_as_headings():
 
 
 def test_finding_a_category_matches_from_the_start_of_a_word():
-    assert '(" " + label.toLowerCase()).indexOf(" " + q)' in _fn("drawCategoryBrowse")
+    assert '(" " + label.toLowerCase()).indexOf(" " + q)' in _fn("renderMyCategories")
 
 
 # --- the screens -----------------------------------------------------------
 
 
-def test_the_mixes_screen_draws_your_categories():
-    assert 'id="catSection"' in HTML
+def test_the_mixes_screen_draws_the_categories_grid():
+    # §253: the grid sits under the mixes itself, with its search; there is
+    # no separate "Browse all" screen any more.
+    assert 'id="catSection"' in HTML and 'id="catFind"' in HTML
+    assert HTML.index('id="mixList"') < HTML.index('id="catSection"')
     assert "loadMyCategories();" in _fn("loadMixes")
-    head = _fn("categoryHeadHTML")
-    assert "Your categories" in head and "Browse all" in head
-    assert "categoryHeadHTML()" in _fn("renderMyCategories")
+    assert 'screen-catbrowse' not in HTML and "Browse all" not in HTML
+
+
+def test_followed_categories_lead_the_grid_with_a_star():
+    draw = _fn("renderMyCategories")
+    # Followed first, then the facets not followed - each tile once.
+    assert "mine.map(" in draw and "!followed[f.id]" in draw
+    assert draw.index("mine.map(") < draw.index("catData.facets.filter(function(f){ return !followed")
+    assert "CAT_STAR" in _fn("categoryTileHTML")
 
 
 def test_the_category_page_sorts_and_searches_on_the_server():
@@ -264,5 +284,25 @@ def test_the_category_page_sorts_and_searches_on_the_server():
 
 
 def test_a_tap_plays_what_is_cached_and_nothing_else():
+    # §253: a tap opens the category's reel at that episode; the reel plays
+    # replay only, as Explore does.
     play = _fn("playCategoryEpisode")
-    assert "cachedOnly: true" in play
+    assert "openCategoryReel(" in play
+    assert "eps.slice(i).concat(eps.slice(0, i))" in play
+    assert "{ cachedOnly: true }" in _fn("playReel")
+
+
+def test_shuffle_play_deals_the_page_shuffled_on_the_reel():
+    assert 'id="catShuffle"' in HTML and "Shuffle play" in HTML
+    shuffle = _fn("shuffleCategory")
+    assert "shuffledPool(catPage.episodes)" in shuffle and "openCategoryReel(" in shuffle
+
+
+def test_the_category_reel_is_its_own_feed():
+    opened = _fn("openCategoryReel")
+    assert 'reelFeed = "category"' in opened and 'setTab("explore")' in opened
+    # Explore after a category deals Explore's feed, not the category's.
+    assert 'if(reelFeed !== "explore")' in _fn("openExplore")
+    # Back returns to the category's page.
+    assert 'navigate("category")' in _fn("exploreBack")
+    assert 'reelFeed === "category" ? reelFeedLabel' in _fn("renderReel")
