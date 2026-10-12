@@ -668,8 +668,10 @@ class ScriptCache(Protocol):
     #: `exclude_author` drops entries this listener generated themselves -
     #: Explore is other people's episodes, and your own coming back at you
     #: reads as the app having nothing rather than as a feature.
+    #: `keys`, when given, keeps only those entries (exploreFAM's rail feeds,
+    #: §255, which look their tiles up rather than scanning the newest rows).
     def recent(self, limit: int = 40, exclude_author: str = "",
-               origin: str = "") -> list[dict]: ...
+               origin: str = "", keys=()) -> list[dict]: ...
     #: The closest *near* match in the same bucket, or None. Only consulted
     #: after an exact lookup has already missed.
     def nearest(self, bucket: str, query: str) -> Optional[tuple[str, float]]: ...
@@ -982,7 +984,8 @@ class MemoryScriptCache:
         return self._origins.get(key, "") if key in self._data else ""
 
     def recent(self, limit: int = 40, exclude_author: str = "",
-               origin: str = "") -> list[dict]:
+               origin: str = "", keys=()) -> list[dict]:
+        wanted = set(keys)
         live = [
             {"key": k, "query": v[3], "minutes": v[4],
              "created": self._created.get(k, 0.0),
@@ -999,6 +1002,7 @@ class MemoryScriptCache:
             and self._origins.get(k, "") != ARCHIVE_ORIGIN
             and not (exclude_author and self._authors.get(k) == exclude_author)
             and not (origin and self._origins.get(k, "") != origin)
+            and not (wanted and k not in wanted)
         ]
         live.sort(key=lambda e: -e["created"])
         return live[:limit]
@@ -2216,7 +2220,7 @@ class SqliteScriptCache:
         return (row[0] or "") if row else ""
 
     def recent(self, limit: int = 40, exclude_author: str = "",
-               origin: str = "") -> list[dict]:
+               origin: str = "", keys=()) -> list[dict]:
         """Live cache entries, newest first - the raw material for Explore.
 
         Only *shareable* queries are ever written here (see `is_shareable`),
@@ -2237,8 +2241,14 @@ class SqliteScriptCache:
         `origin` keeps only entries one surface wrote. Explore passes
         "search" (§147): its feed is what other people *searched*, never a
         myFAM tile, a DailyFAM edition or a warmed guess.
+
+        `keys` keeps only those entries, however old (exploreFAM's Made for
+        you and Trending, §255: a rail's tiles looked up by key, not hoped
+        for among the newest rows).
         """
         now = time.time()
+        wanted = list(dict.fromkeys(k for k in keys if k))
+        only = (" AND key IN (" + ",".join("?" * len(wanted)) + ")") if wanted else ""
         try:
             rows = self._conn().execute(
                 "SELECT key, query, minutes, created, plays, thread, title,"
@@ -2247,10 +2257,10 @@ class SqliteScriptCache:
                 " WHERE expires >= ? AND query != '' AND minutes > 0"
                 f"   AND origin != '{ARCHIVE_ORIGIN}'"
                 "   AND (? = '' OR author != ?)"
-                "   AND (? = '' OR origin = ?)"
+                "   AND (? = '' OR origin = ?)" + only +
                 " ORDER BY scripts.created DESC LIMIT ?",
                 (now, exclude_author or "", exclude_author or "",
-                 origin or "", origin or "", int(limit)),
+                 origin or "", origin or "", *wanted, int(limit)),
             ).fetchall()
         except Exception:
             log.exception("could not read recent scripts")

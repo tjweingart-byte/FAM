@@ -37,6 +37,7 @@ FAM" section tells it in full (`static/waitlist.html`).
 > copy against it.
 
 <!-- rule:three-surfaces -->
+> **Current (PROBLEMS.md §255, the owner 10.12):** Explore deals what a dropdown under its wordmark picks - Made for you, Trending (that rail's already-cached tiles, in its order), Most recent (every surface's cached episodes, newest first), What people are searching (other listeners' *searched* episodes, the old feed and the default) or Explore (the whole cached catalogue, shuffled). Made for you, Trending and Most recent run out into the shuffled catalogue. Every feed is `/api/explore?feed=`, the shared cache only, `cached_only`, never your own; "searched only" now holds for What people are searching alone.
 ## Where this is going
 
 Three surfaces, all backed by generated audio:
@@ -114,6 +115,7 @@ myFAM and dailyFAM are **personalised**, driven by a per-user model that updates
 as they interact with the app.
 
 <!-- rule:explore-reel -->
+> **Current (PROBLEMS.md §255):** the back arrow top left is the Home logo (DailyFAM's house), and the feed dropdown sits under the wordmark (see `three-surfaces`).
 **Explore is a reel, with comments (§203, the 10.5 packet), at the owner's
 direction.** The episode's picture fills the page (`/api/episode/card`,
 the player's); its title sits bottom left where a reel puts the account;
@@ -649,6 +651,7 @@ the rest of this list it needs taste rather than a key.
   `visibilitychange`); a length is chosen for one search, not kept.
 
 <!-- rule:player-layout -->
+> **Current (PROBLEMS.md §255, the owner 10.12):** the down arrow top left is the **Home logo** - DailyFAM's tab glyph, the house - doing exactly what the arrow did: it minimises and never stops.
 > **Current (PROBLEMS.md §247, the owner 10.10):** a searched or Go Deeper episode's picture **follows its category, not the typed words**: EI's brief names a `category` before the first word, put on the live track beside its title (`live_captions.publish_category`), and the writer's replaces it; `/api/episode/card` draws from the written category, else the track's (`app._playing_category`), and says `placed`. The player asks again as each title lands and lets a placed picture replace a word match - never the picture of the tile that opened it.
 > **Current (PROBLEMS.md §214, the owner 07/10):** rail tiles borrow too: `topics.Topic._thumb` draws through `thumbnails.pick_for_tile` - its own node's picture, else one borrowed in the player's order, marked `thumb_borrowed` - so every episode on the interface has a picture while any is approved. The unpainted node is still painted first. Where the text below says a rail shows the drawing, read "borrows".
 > **Current (PROBLEMS.md §193):** the picture is centred in the space between GO DEEPER and the title, not pinned to the top under the arrow. **Every episode has one**: `/api/episode/card` answers from `thumbnails.pick_for_player`, which borrows - the nearest painted ancestor, the words' facet, else one approved facet picture chosen by a hash of the words - where a rail would show the drawing (9.30 #7 is about many tiles wearing one picture; the player shows one episode). A borrowed picture (`fallback`) is asked for again when the writer's title lands. The mini player shows the same picture, its whole height with the sides cropped.
@@ -674,6 +677,7 @@ the rest of this list it needs taste rather than a key.
   the response carries no id.
 
 <!-- rule:dailyfam-catalogue -->
+> **Current (PROBLEMS.md §255):** the bookshelf that opens it is on search's top left, no longer in DailyFAM's header.
 - **Search DailyFAM opens on an A to Z catalogue** *(PROBLEMS.md §193, the
   owner's sketch)*: before anything is typed, the screen behind myFAM's
   header button lists every cached episode other listeners made
@@ -685,6 +689,7 @@ the rest of this list it needs taste rather than a key.
   (`rank_similar`, unchanged); clearing the box brings it back.
 
 <!-- rule:your-categories -->
+> **Current (PROBLEMS.md §255, the owner 10.12):** a category's reel does not go round: past its last card, "You're all caught up - Explore a different category?" offers four other categories (followed first, then facets; never this one or its heading), each of which opens and shuffles. Shuffle play is smaller. An episode filed by its words is filed under its deepest match and that branch only - never every facet its words touched - so Shuffle play holds only that category.
 - **Your categories** *(PROBLEMS.md §229, at the owner's direction)*: under
   the mixes on the screen that shows "myFAM", the categories a listener
   follows - any of the eight facets or any node of the category tree
