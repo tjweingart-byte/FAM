@@ -18481,3 +18481,57 @@ with no categories loaded the overlay had no tiles - all closed.
 `app.py`, `cache.py`, `static/index.html`, `docs/claude/product.md`,
 `tests/test_packet_1012.py` (and the tests that pinned the bookshelf in
 DailyFAM's header).
+
+## 256. No refusal popup, no "that's all we found", one tab icon, and a backfill that holds one episode
+
+Three things at the owner's direction (10.12).
+
+**The refusal is gone.** A Trending tile ("Aurora Lights Blaze Across
+Britain") answered a tap with the §109 toast: "FAM could not reach a single
+source for this one, and it needs current information to answer - so it is
+not going to guess." The owner: there is no reason a Trending episode should
+lack information, and that is not what it should look like. Go back to how
+it was. So `ScriptGenerator._refuse_without_evidence` is deleted, with both
+its refusals (the generic one and §194's local one); an empty ladder now
+reaches the writer like any thin packet, under the prompt's existing rules
+(volatile things never from memory; the gap unannounced; finding little never
+means a thing does not exist). `research.NoEvidence` stays as a class, so the
+handlers that word and refund it are unchanged if anything raises one.
+
+**§245 is reversed.** No `limited_material`, no `EpisodePlan.limited` /
+`ScriptNotes.limited`, no `<<LIMITED>>` marker, no "that's all we could find"
+sentence, and a thin episode is cached and shared again like any other:
+the pipeline writes it under its key, Trending, DailyFAM editions and
+prefetch keep it, and `stories_now` no longer drops a story whose episode
+was thin. Kept from §245: the prompt bullet "never conclude that something
+does not exist because you found little on it", `_pin_heard` keeping a
+well-formed id before its row exists, and `/api/health` → `memory`.
+Why a Trending tap found nothing at all is not answerable from here (no
+production logs in this container); `/admin`'s provider rows and the
+research fallbacks recorded on each episode are where to look.
+
+**The DailyFAM tab's chevrons are one size.** The house icon drawn in #138
+had a 7-wide chevron over a 5-wide one; both are 7 wide now
+(`M8.5 12.5L12 9l3.5 3.5M8.5 17L12 13.5l3.5 3.5`), in all six tab bars and
+on the two copies §255 added (the player's Home logo and Explore's back
+button, pinned by `tests/test_packet_1012.py`).
+Every other copy of the mark (the wordmark's A, `icon.svg`, the voice mark,
+the share and waitlist pages) already drew two identical `7-7 7 7` strokes.
+
+**Render: "Web Service FAM exceeded its memory limit".** The starter plan is
+512 MB, and §131 measured ~313 MB at peak with the embedding model loaded.
+The largest single allocation found in the code was the hourly R2 backfill
+(`ScriptCache._upload_strays`): one `fetchall` of up to 200 rows *with their
+audio*, every blob in memory at once - hundreds of MB once `AUDIO_STORE=r2`
+is on and older rows have no object yet, and it runs at boot and every hour.
+It now reads the keys and fetches one blob at a time. Other consumers, not
+changed here: a new episode's whole PCM held (and copied twice) until it is
+kept (~29 MB a 10-minute stream, x3 at the encode); two 5000-entry embedding
+caches as Python float lists (~60 MB each at the cap); the ONNX session's
+arena; the GDELT sync's domain dict rebuilt every 15 minutes.
+
+`script_generator.py`, `pipeline.py`, `trending_bank.py`, `prefetch.py`,
+`daily_edition.py`, `cache.py`, `app.py`, `static/index.html`,
+`tests/test_no_evidence.py`, `tests/test_local_news_weather_194.py`,
+`tests/test_polymarket_forecasts_211.py`; `tests/test_limited_material_245.py`
+deleted.

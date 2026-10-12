@@ -293,8 +293,8 @@ Research and truth
   ladder - backend, backend without window, GDELT - defined once in
   `research.ladder()`; **no model web search** (deleted §135); no rung raises;
   every fallback recorded; sim-league pages and (on sports) unknown outlets
-  are screened out (§178); `NoEvidence` refuses only current-dependent questions,
-  refunds, never refuses evergreen or attachments; EI writes `Brief.broader`. [always-researched]
+  are screened out (§178); nothing is refused for want of evidence (§256);
+  EI writes `Brief.broader`. [always-researched]
 - **EI decides what to search for, before the search**; the brief never asserts
   a fact; **a layer that adds quality must not subtract availability** - every
   failure falls back to the raw query and says so (`Brief.degraded`). [ei-before-search]
@@ -306,8 +306,8 @@ Research and truth
   are evidence of no outcome; take the smaller true reading on contradiction. [started-not-finished]
 - **A missed search establishes nothing about the world**: volatile things are
   never supplied from memory; settled things may be or are omitted; the gap is
-  unannounced, except a thin subject: what it has, then "that's all we
-  found", never shared (§245); never "doesn't exist". [missed-not-absent]
+  unannounced (§245's "that's all we found" reversed, §256); never
+  "doesn't exist". [missed-not-absent]
 - **Live facts** (`live_facts.py`): **never confidently invent a current fact
   without authoritative, fresh evidence; never infer one from absence.** Closed
   status vocabulary; only evidence sets it; resolution from the provider's

@@ -28,7 +28,7 @@ from cache import SqliteScriptCache  # noqa: E402
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 HTML = (ROOT / "static" / "index.html").read_text(encoding="utf-8")
-HOUSE = 'd="M8.5 12.5L12 9l3.5 3.5M9.5 17L12 14.5l2.5 2.5"'
+HOUSE = 'd="M8.5 12.5L12 9l3.5 3.5M8.5 17L12 13.5l3.5 3.5"'
 
 
 def _fn(name: str) -> str:

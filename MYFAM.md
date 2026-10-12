@@ -41,8 +41,8 @@ Three things make that affordable and honest, and they are the whole design:
 * **The freshness comes from the tap, not from a provider.** Every startup
   query asks about now, and `SEARCH_MODE=always` means every episode is
   researched — so the tile costs nothing at page load, needs no live source
-  configured, and `research.NoEvidence` refuses rather than writing a stale
-  one from memory.
+  configured, and nothing current is supplied from memory if the search
+  comes back empty (the refusal was deleted in §256).
 * **Nothing on it claims a fact about the world.** A tile is written before
   anything is retrieved, so it carries a question and never a result — §88
   and §102 applied one layer earlier. A test bans results, outcomes and even

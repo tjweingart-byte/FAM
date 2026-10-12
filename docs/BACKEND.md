@@ -191,10 +191,10 @@ sequenceDiagram
 | 14 | **EI brief** | `ScriptGenerator.understand` → `episode_intelligence.understand` | One Claude call (`EI_MODEL`, default `MODEL` = `claude-sonnet-5`; §227 moved it to Haiku, §249 back) returning a JSON `Brief`: the retrieval query and a broader one, recency window, intent, story shape, `live_domain` (sports / markets / elections / weather), `place` (a one-town question), `outcome_dependent`, cautions, pronunciations, a provisional title. **Skipped** when prefetch warmed a brief (`prefetch.warm_brief`). `gate` and `apply_named_slot` (e.g. "Sunday Night Football") run on the answer. | Timeout `EI_TIMEOUT_SECONDS` = 8 s (code). Any failure → `fallback_brief(query)`, `Brief.degraded`; the episode continues on the raw query. |
 | 15 | **Evidence** | `ScriptGenerator.prepare` | `asyncio.gather(live_lookup, research, forecast_lookup)` - independent, so they run together. | See 15a-15d. |
 | 15a | - research ladder | `ScriptGenerator.research`, `research.ladder`, `research.retrieve` | **Exa** (`fast`, `EXA_NUM_RESULTS` = 8, 3 sources × 2 highlights in the packet, code) → if empty or missing what the brief must establish, **one** second Exa search without the window on `Brief.broader` → **GDELT** on the broader query, searched in FAM's local copy of GDELT's export files (`gdelt.retrieve`: titles and names, ≥ 2 shared words; only if `GDELT=1`; on in production). `screen_results` drops simulated-league pages and, on sports, unknown outlets once two known ones answered. Every rung that ran is metered. | Each rung is caught (`_retrieve`) and recorded (`fell_back_from`). GDELT is a local read and never reaches GDELT (§211); an empty or stale (> 1 h) copy is recorded as an outage (`ExportStale`). |
-| 15b | - local ladder | `ScriptGenerator._research_local`, `local_news.research_local`, `places.resolve` | When the brief names one `place` (§194): the town's own outlets' RSS → the county's → Exa restricted to known outlets (`include_domains`, results must name the town). **Never GDELT.** The weather is fetched at the same time and used only if the town had nothing. A first question about a town reads its unread feeds inline, bounded at 2.5 s (code, `local_news.refresh_place`). | Town empty → `local_news.gap_line` opens the episode ("no news updates about …"), then the weather, then county news. Nothing at all → `NoEvidence`. |
-| 15c | - live lookup | `ScriptGenerator.live_lookup` → `live_facts.lookup` | Only when the brief has a `live_domain`. Providers: API-Sports (sports; records, last and next games counted in code from the schedule), Finnhub (markets), Polymarket (elections), `weather.WeatherSource` (NWS then Open-Meteo, plus live NWS alerts). Seven outcomes (`FACTS`, `NOT_CONFIGURED`, `NO_ENTITY`, `NO_FACTS`, `PROVIDER_FAILED`, `TIMEOUT`, `STALE`); stale data is withheld. **Beside it (§211)**, `live_facts.forecast` asks Polymarket for every question EI marks `outcome_dependent` (not live-domain elections, weather, or a town question): `EpisodePlan.forecast`, rendered after the live block (the articles win), credited as "prediction market - a forecast, not a result", never evidence for the refusal and never `plan.live`. | `LIVE_TIMEOUT_SECONDS` = 1.5 s per source, `LIVE_TOTAL_TIMEOUT_SECONDS` = 2.5 s (code). The writer is told which outcome happened and never states a result it lacks. |
+| 15b | - local ladder | `ScriptGenerator._research_local`, `local_news.research_local`, `places.resolve` | When the brief names one `place` (§194): the town's own outlets' RSS → the county's → Exa restricted to known outlets (`include_domains`, results must name the town). **Never GDELT.** The weather is fetched at the same time and used only if the town had nothing. A first question about a town reads its unread feeds inline, bounded at 2.5 s (code, `local_news.refresh_place`). | Town empty → `local_news.gap_line` opens the episode ("no news updates about …"), then the weather, then county news. Nothing at all is still written (§256). |
+| 15c | - live lookup | `ScriptGenerator.live_lookup` → `live_facts.lookup` | Only when the brief has a `live_domain`. Providers: API-Sports (sports; records, last and next games counted in code from the schedule), Finnhub (markets), Polymarket (elections), `weather.WeatherSource` (NWS then Open-Meteo, plus live NWS alerts). Seven outcomes (`FACTS`, `NOT_CONFIGURED`, `NO_ENTITY`, `NO_FACTS`, `PROVIDER_FAILED`, `TIMEOUT`, `STALE`); stale data is withheld. **Beside it (§211)**, `live_facts.forecast` asks Polymarket for every question EI marks `outcome_dependent` (not live-domain elections, weather, or a town question): `EpisodePlan.forecast`, rendered after the live block (the articles win), credited as "prediction market - a forecast, not a result", never evidence and never `plan.live`. | `LIVE_TIMEOUT_SECONDS` = 1.5 s per source, `LIVE_TOTAL_TIMEOUT_SECONDS` = 2.5 s (code). The writer is told which outcome happened and never states a result it lacks. |
 | 15d | - weather question | `ScriptGenerator.research` | `live_domain == "weather"` skips the article index entirely; the forecast is the evidence. | |
-| 16 | **Refusal check** | `ScriptGenerator._refuse_without_evidence` | No evidence and no live facts, on a question that asks for a result or a recent window (or, on a degraded brief, the keyword heuristic) → refuse. Evergreen questions and attachments are never refused. | `NoEvidence` → **503**, **refunded whatever was billed**. |
+| 16 | ~~Refusal check~~ | (deleted, §256) | Nothing is refused for want of evidence: an empty ladder goes to the writer like any thin packet. `research.NoEvidence` and its 503-and-refund handling remain for anything that still raises it. | |
 | 17 | **Writer** | `ScriptGenerator.stream_prepared` | One `messages.stream` call (`MODEL`, `EFFORT=low`, **no tools**). The house rules and style example are one cacheable system block (`writer_system`, `PROMPT_CACHE=1`, `PROMPT_CACHE_TTL=5m`, §179); the brief, evidence and question are the user turn. | Exception before the first audio → **502** with `friendly_error`; refunded only if nothing was billed. |
 | 18 | **Reading the stream** | `script_generator._ScriptReader` | `<<SAY: Name = respelling>>` lines (before the script) feed the pronunciation lexicon; text after `<<` is held back; sentences are cut on terminal punctuation and passed through `clean_for_speech` (which removes slurs, `content_filter.py`); `OpeningGuard` drops meta-disclaimers in the first `WINDOW` = 6 sentences (code) and logs each drop; a 1.35× word budget is the safety valve. At the end it extracts `<<TITLE>>`, `<<NEXT>>`, `<<SUMMARY>>`, `<<CATEGORY>>`. | Nothing but disclaimer → spoken anyway (`rescue`), never silence. |
 | 19 | **Chunking** | `speech_assembly.py` (Phase 6, `STREAMING_PIPELINE=phase6`) | The first complete sentence goes to the voice at once, whatever its length; after that chunks of min 18 / target 28 / cap 45 words (code). | |
@@ -269,10 +269,9 @@ the live lookup's outcome, the log, and `/api/health`.
 | Cache | Replay with nothing kept | 409, refunded | The card is dropped |
 | Brief | Timeout, error, bad JSON | Raw query, `Brief.degraded` | Nothing; a less precise episode |
 | Research | Exa error or empty | Second Exa look, then GDELT's local copy; each rung metered | Nothing |
-| Research | Everything empty, question needs current facts | `NoEvidence`, 503, **refunded** | "FAM could not reach a single source …" |
-| Research | Everything empty, evergreen question | Written from knowledge, no evidence block | An episode |
+| Research | Everything empty | Written from knowledge, no evidence block; nothing volatile supplied from memory (§256 deleted the refusal) | An episode |
 | Local | Town has nothing | Gap line + weather + county news | A short, honest episode |
-| Local | Nothing and no weather | `NoEvidence` | "We couldn't find any recent news reports out of …" |
+| Local | Nothing and no weather | Gap line, then the writer (§256) | A short episode |
 | Live facts | Provider down, slow or stale | Outcome recorded; writer told | No invented score |
 | Writer | API error before audio | 502, `friendly_error`; refunded only if nothing was billed | The error sentence |
 | Voice | Endpoint fails verification | Demoted; next rung | Nothing, or a slower start |
@@ -288,15 +287,13 @@ flowchart TB
   subgraph Research["Research (research.ladder)"]
     E1[Exa, recency window] -->|empty or thin| E2[Exa again, no window,<br/>Brief.broader]
     E2 -->|empty| G1[GDELT local copy, broader query<br/>outage if empty or stale]
-    G1 -->|empty| Q{Needs current facts?}
-    Q -->|yes| NO[NoEvidence 503, refunded]
-    Q -->|no| KN[Write from knowledge]
+    G1 -->|empty| KN[Write from knowledge<br/>never refused, §256]
   end
   subgraph Local["Local ladder (one town)"]
     L1[Town outlets' RSS] -->|nothing names the town| L2[County outlets]
     L2 -->|nothing| L3[Exa on known outlets]
     L3 -->|nothing| L4[gap line, then weather,<br/>then county news]
-    L4 -->|no weather either| NO2[NoEvidence]
+    L4 -->|no weather either| L5[gap line, then the writer]
   end
   subgraph Voice["Voice address (voice_control.RUNGS)"]
     V1[pinned REMOTE_VOICE_URL] -->|fails verify| V2[registered worker]
@@ -460,7 +457,7 @@ flowchart LR
 | **Exa** | `research._retrieve_blocking`, `_second_look` | `EXA_API_KEY`; `RESEARCH_BACKEND=exa` (default) | Rung 1 of every researched episode | GDELT rung |
 | | `ScriptGenerator._research_local` (`include_domains`, `must_name`) | A one-town question | Rung 3 of the local ladder; files new outlets as `mention` | Gap line |
 | **GDELT** | `gdelt.run_forever` → `gdelt.sync` | `GDELT=1`, every `GDELT_EXPORT_POLL_SECONDS` = 900 s | The only job that downloads from GDELT: the newest 15-minute GKG export file (named by `lastupdate.txt`), ≤ 8 behind it when behind, ~200 requests/day; 24 h kept in `gdelt_export.db` (§211) | Failures counted on `/api/health`; readers report the copy stale |
-| | `research.retrieve_with_gdelt` → `gdelt.retrieve` | `GDELT=1` (on in production) | Research rung 2, from the local copy | `NoEvidence` or knowledge |
+| | `research.retrieve_with_gdelt` → `gdelt.retrieve` | `GDELT=1` (on in production) | Research rung 2, from the local copy | Knowledge |
 | | `story_sources.GdeltSignals`, `GdeltTrendingSource` | `GDELT=1`, every 2 h | Story-pool discovery and outlet counts, from the local copy | Other pool sources |
 | | cross-check | `GDELT_CROSS_CHECK=1` (off) | Additive evidence | n/a |
 | **GNews** | `trending_bank.collect` → `gnews.Client` | `GNEWS_KEY`, `TRENDING_BANK=1`; `GNEWS_DAILY_REQUESTS` = 90 | The **only** source for Trending | Empty row with a reason; last edition stays up |

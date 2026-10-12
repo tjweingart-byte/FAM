@@ -8093,9 +8093,8 @@ def _pin_heard(episode: str) -> str:
 
     **A well-formed id is kept even before its row exists** (§245). History
     is written at first audio and a written episode's row only at the end of
-    its stream, so the id would otherwise be dropped - and for an episode
-    kept to its listener alone (`ScriptNotes.limited`) the shared question
-    is exactly what must not stand in for it. The end of the stream pins it
+    its stream, so the id would otherwise be dropped and history would fall
+    back to the shared question. The end of the stream pins it
     (`/api/audio`); a row that never arrives reads as no id (`history_read`)."""
     if not episode or SCRIPT_CACHE is None or parse_episode_id(episode) is None:
         return ""
