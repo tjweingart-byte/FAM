@@ -918,6 +918,14 @@ def allow_empty() -> bool:
         "1", "true", "yes", "on")
 
 
+def _read_only(path: str) -> sqlite3.Connection:
+    """The file as it stands, with nothing written beside it: `mode=ro` alone
+    still creates `-wal`/`-shm` files next to a WAL database. `immutable`
+    reads the last checkpoint - right here, where nothing writes the file
+    while the stores live in Postgres."""
+    return sqlite3.connect(f"file:{path}?mode=ro&immutable=1", uri=True, timeout=2.0)
+
+
 def file_has_rows(path: str) -> Optional[bool]:
     """Whether the SQLite file at `path` holds any row in any table, read
     without writing to it. None when there is no such file or it cannot be
@@ -925,7 +933,7 @@ def file_has_rows(path: str) -> Optional[bool]:
     if not path or not os.path.isfile(path):
         return None
     try:
-        conn = sqlite3.connect(f"file:{path}?mode=ro", uri=True, timeout=2.0)
+        conn = _read_only(path)
         try:
             names = [r[0] for r in conn.execute(
                 "SELECT name FROM sqlite_master WHERE type = 'table'"
@@ -950,6 +958,48 @@ def schema_has_rows(schema: str) -> bool:
                    for n in names)
     finally:
         _POOL.release(slot)
+
+
+#: How many of the disk's accounts are looked for in Postgres.
+ACCOUNT_SAMPLE = 200
+
+
+def accounts_missing(path: str, schema: str) -> bool:
+    """True when the disk's `accounts` table has accounts and *none* of them
+    (up to ACCOUNT_SAMPLE) is in Postgres (§253).
+
+    By identity, not emptiness: a server pointed at an uncopied database
+    fills its schema within one request - a session for every visitor, an
+    account for anyone who signs up - so "any row" stops meaning "copied"
+    at once. And not one account either: any one of them may be deleted
+    later, which a deployment must allow; all of them gone is the copy that
+    never ran."""
+    if not path or not os.path.isfile(path):
+        return False
+    try:
+        conn = _read_only(path)
+        try:
+            ids = [r[0] for r in conn.execute(
+                f"SELECT user_id FROM accounts ORDER BY created LIMIT {ACCOUNT_SAMPLE}")]
+        finally:
+            conn.close()
+    except sqlite3.Error:
+        return False
+    if not ids:
+        return False
+    slot = _POOL.acquire(None)
+    try:
+        present = slot.pg.execute(
+            "SELECT 1 FROM information_schema.tables"
+            " WHERE table_schema = %s AND table_name = 'accounts'", (schema,)).fetchone()
+        if not present:
+            return True
+        found = slot.pg.execute(
+            f'SELECT COUNT(*) FROM "{schema}".accounts WHERE user_id = ANY(%s)',
+            (ids,)).fetchone()[0]
+    finally:
+        _POOL.release(slot)
+    return int(found) == 0
 
 
 def uncopied(stores) -> list[str]:

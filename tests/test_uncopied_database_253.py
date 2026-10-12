@@ -36,6 +36,20 @@ def _file(tmp_path, name, rows=0):
     return path
 
 
+def _accounts_file(tmp_path, ids, wal=True):
+    path = str(tmp_path / "accounts.db")
+    conn = sqlite3.connect(path)
+    if wal:
+        conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("CREATE TABLE accounts (user_id TEXT PRIMARY KEY, email TEXT,"
+                 " password TEXT, created REAL, last_login REAL DEFAULT 0)")
+    conn.executemany("INSERT INTO accounts VALUES (?, ?, 'x', ?, 0)",
+                     [(i, f"{i}@x", n) for n, i in enumerate(ids)])
+    conn.commit()
+    conn.close()
+    return path
+
+
 def test_a_file_says_whether_it_holds_rows(tmp_path):
     assert db_mod.file_has_rows(str(tmp_path / "missing.db")) is None
     assert db_mod.file_has_rows("") is None
@@ -44,6 +58,22 @@ def test_a_file_says_whether_it_holds_rows(tmp_path):
     before = os.path.getmtime(full)
     assert db_mod.file_has_rows(full) is True
     assert os.path.getmtime(full) == before, "the disk must only be read"
+
+
+def test_nothing_is_written_beside_a_wal_database(tmp_path):
+    """`mode=ro` alone leaves -wal and -shm files next to a WAL database."""
+    path = _accounts_file(tmp_path, ["a", "b"])
+    for side in ("-wal", "-shm"):
+        if os.path.exists(path + side):
+            os.remove(path + side)
+    before = sorted(os.listdir(tmp_path))
+    assert db_mod.file_has_rows(path) is True
+    assert sorted(os.listdir(tmp_path)) == before, "files appeared on the disk"
+
+
+def test_no_accounts_on_the_disk_is_never_missing(tmp_path):
+    assert db_mod.accounts_missing(str(tmp_path / "none.db"), "s") is False
+    assert db_mod.accounts_missing(_accounts_file(tmp_path, []), "s") is False
 
 
 def test_uncopied_names_full_files_beside_empty_schemas(tmp_path, monkeypatch):
@@ -70,6 +100,7 @@ def appmod(monkeypatch):
         {"name": "accounts", "path": "/data/accounts.db", "schema": "accounts_x"},
         {"name": "GDELT export copy", "path": "/data/gdelt.db", "schema": "gdelt_x"}])
     monkeypatch.setattr(appmod, "_UNCOPIED", [])
+    monkeypatch.setattr(appmod.db_mod, "accounts_missing", lambda path, schema: False)
     monkeypatch.delenv("DATABASE_ALLOW_EMPTY", raising=False)
     return appmod
 
@@ -80,8 +111,19 @@ def test_accounts_that_were_never_copied_stop_the_boot(appmod, monkeypatch):
         appmod._refuse_an_uncopied_database()
     message = str(refused.value)
     assert "Nothing has been lost" in message
-    assert "sqlite_to_postgres.py" in message and "--yes" in message
+    assert "sqlite_to_postgres.py" in message and "--yes --replace" in message
     assert "DATABASE_ALLOW_EMPTY=1" in message
+    assert appmod._UNCOPIED == ["accounts"]
+
+
+def test_accounts_missing_by_id_stop_the_boot_though_the_schema_has_rows(appmod, monkeypatch):
+    """One request to an uncopied server writes a session row: "any row"
+    would pass. The accounts are looked for by id."""
+    monkeypatch.setattr(appmod.db_mod, "uncopied", lambda stores: [])
+    monkeypatch.setattr(appmod.db_mod, "accounts_missing",
+                        lambda path, schema: path == "/data/accounts.db")
+    with pytest.raises(appmod.UncopiedDatabase):
+        appmod._refuse_an_uncopied_database()
     assert appmod._UNCOPIED == ["accounts"]
 
 
@@ -129,6 +171,33 @@ def test_health_lists_what_was_not_copied(appmod, monkeypatch):
 
 
 # --- against a real Postgres ---------------------------------------------------
+
+
+@pytest.mark.skipif(not db_mod.enabled(), reason="needs DATABASE_URL (Postgres)")
+def test_real_accounts_are_looked_for_by_id(tmp_path):
+    """Production after the incident: Postgres has sessions and one new
+    sign-up, the disk the real accounts. Then the copy; then one deleted."""
+    schema = "accounts_" + uuid.uuid4().hex[:8]
+    disk = _accounts_file(tmp_path, ["old-1", "old-2", "old-3"])
+    conn = db_mod.raw_connect(autocommit=True)
+    try:
+        conn.execute(f'CREATE SCHEMA "{schema}"')
+        assert db_mod.accounts_missing(disk, schema) is True, "no accounts table yet"
+        conn.execute(f'CREATE TABLE "{schema}".accounts (user_id TEXT PRIMARY KEY,'
+                     ' email TEXT, password TEXT, created REAL, last_login REAL)')
+        conn.execute(f'CREATE TABLE "{schema}".sessions (token TEXT)')
+        conn.execute(f"INSERT INTO \"{schema}\".sessions VALUES ('t')")
+        conn.execute(f"INSERT INTO \"{schema}\".accounts VALUES ('new', 'n@x', 'x', 9, 0)")
+        assert db_mod.accounts_missing(disk, schema) is True
+        conn.execute(f"INSERT INTO \"{schema}\".accounts VALUES"
+                     " ('old-1', 'a', 'x', 0, 0), ('old-2', 'b', 'x', 1, 0),"
+                     " ('old-3', 'c', 'x', 2, 0)")
+        assert db_mod.accounts_missing(disk, schema) is False
+        conn.execute(f"DELETE FROM \"{schema}\".accounts WHERE user_id = 'old-1'")
+        assert db_mod.accounts_missing(disk, schema) is False, "a deletion is allowed"
+    finally:
+        conn.execute(f'DROP SCHEMA "{schema}" CASCADE')
+        conn.close()
 
 
 @pytest.mark.skipif(not db_mod.enabled(), reason="needs DATABASE_URL (Postgres)")

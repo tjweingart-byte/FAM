@@ -1667,7 +1667,8 @@
 <!-- rule:storage-durability -->
 > **Current (PROBLEMS.md §253):** a server pointed at Postgres compares the
 > disk with the database at boot. Accounts in the file on the disk and none
-> in Postgres mean the copy never ran, and the boot is refused with a message
+> of them in Postgres (by id, `db.accounts_missing`) mean the copy never
+> ran, and the boot is refused with a message
 > saying so (`UncopiedDatabase`) - an app that seems to have lost every
 > account is the same failure as a redeploy that erased them, said nowhere.
 > Every store found in that state is listed in `/api/health` →

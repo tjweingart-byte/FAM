@@ -18353,9 +18353,16 @@ Postgres) and set it again.
 schema (`db.uncopied`: any row in any table, read with `mode=ro`, against
 any row in the schema). Every store with rows on the disk and none in
 Postgres is logged and listed in `/api/health` → `database.uncopied`.
-**The accounts stop the boot** (`app.UncopiedDatabase`): a deployment's
-account list is never emptied (`wipe-derived`), so accounts on the disk and
-none in Postgres can only mean the copy has not happened. The deploy fails
+**The accounts stop the boot** (`app.UncopiedDatabase`) when *none* of the
+disk's accounts (up to 200, `db.accounts_missing`) is in Postgres. By
+identity, not emptiness - a review caught that the first version tested
+"any row", and one request to an uncopied server writes a session row, so
+production's half-made database (which already has sessions and the odd
+new sign-up) would have passed. And not by one account, since any account
+may be deleted later. A deployment's account list is never emptied
+(`wipe-derived`), so all of them missing can only mean the copy has not
+happened. The disk is opened `mode=ro&immutable=1`: `mode=ro` alone still
+leaves `-wal`/`-shm` files beside a WAL database. The deploy fails
 with a message that says nothing was lost and names the two ways forward -
 copy, or unset `DATABASE_URL`. Other stores never stop it: some are
 rebuilt from outside and can legitimately be empty (the GDELT copy).

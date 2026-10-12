@@ -473,8 +473,10 @@ def _refuse_an_uncopied_database() -> None:
     it, and new sign-ups landing in the wrong place. Nothing said so.
 
     The accounts are the test: a deployment's account list is never emptied
-    (`wipe-derived`), so accounts on the disk and none in Postgres can only
-    mean the copy has not happened. Every store in that state is logged and
+    (`wipe-derived`), so accounts on the disk and none of them in Postgres
+    can only mean the copy has not happened - by identity, since an
+    uncopied server has sessions and new sign-ups in that schema within a
+    request (`db.accounts_missing`). Every store in that state is logged and
     listed in `/api/health` -> `database.uncopied`; the accounts stop the
     boot unless `DATABASE_ALLOW_EMPTY=1` says starting empty is intended.
     """
@@ -482,7 +484,13 @@ def _refuse_an_uncopied_database() -> None:
         return
     stores = [(e["name"], e["path"], e["schema"])
               for e in _database_report() if e.get("schema")]
-    _UNCOPIED[:] = db_mod.uncopied(stores)
+    found = db_mod.uncopied(stores)
+    # The accounts by identity (`db.accounts_missing`): one request to an
+    # uncopied server already puts rows in their schema.
+    for name, path, schema in stores:
+        if name == "accounts" and name not in found and db_mod.accounts_missing(path, schema):
+            found.append(name)
+    _UNCOPIED[:] = found
     if not _UNCOPIED:
         return
     log.error("DATABASE: these stores have rows on the disk and none in Postgres:"
@@ -491,10 +499,11 @@ def _refuse_an_uncopied_database() -> None:
     if "accounts" in _UNCOPIED and not db_mod.allow_empty():
         raise UncopiedDatabase(
             "DATABASE_URL is set, but Postgres holds none of the accounts that are"
-            " on the disk, so the data was never copied. Nothing has been lost: the"
+            " on the disk, so they were never copied. Nothing has been lost: the"
             " files on the disk are untouched. Either run"
             " `python tools/sqlite_to_postgres.py --from /data --database-url"
-            " '<internal URL>' --yes` and deploy again, or unset DATABASE_URL to go"
+            " '<internal URL>' --yes --replace` (--replace empties what this server"
+            " already made there) and deploy again, or unset DATABASE_URL to go"
             " back to the disk. To start on an empty database on purpose, set"
             " DATABASE_ALLOW_EMPTY=1. (POSTGRES.md, PROBLEMS.md §253)")
 
