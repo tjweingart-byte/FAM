@@ -546,6 +546,142 @@ the episode continues without the fact.
    grows fastest after Claude.
 7. **Plan the move off single-disk SQLite** before outgrowing one Render Pro
    instance.
+8. **Cut Claude and Exa** in the order §7 gives: Exa trimmed before it is
+   replaced; any model move measured first and decided by the owner (§249).
+
+---
+
+## 7. Cutting Claude and Exa (research, October 2026)
+
+Claude and Exa are the two lines that grow with every new episode. This
+section weighs cheaper models and search services against what the code does
+today. **Only Anthropic's prices were read from the vendor's own page**
+(platform.claude.com, 2026-10-12); every other figure comes from third-party
+trackers dated Jul-Oct 2026, some of which disagree. Confirm on the vendor's
+page before budgeting. No cheap model's writing quality has been measured -
+`write.py` and `tools/ei_eval.py` are the only judges.
+
+### 7.1 What the code spends today
+
+- Two Claude calls per tap: EI (`episode_intelligence.py:878`, `EI_MODEL`,
+  JSON schema, up to 3,000 tokens out since §248, 8 s timeout, no caching) and the writer
+  (`script_generator.py:1988`, `MODEL`, streamed, `PROMPT_CACHE`; editions go
+  through the Batch API). Both default to `claude-sonnet-5` ($2/$10 per MTok),
+  as do the story composer, category placer and thumbnails since §249. Most
+  of the cost is output, and the writer's reasoning is the largest share (§2).
+- **Already tried:** §227 moved the brief, composer, placer and thumbnails to
+  Haiku 5.5 (about -30% of the Claude bill). §248 found briefs running out of
+  room and degrading to the raw query, so episodes said they lacked
+  information on well-reported subjects. The ceiling was raised to 3000, and
+  §249 (10.10) returned everything but the photo check to Sonnet at the
+  owner's direction, leaving "outsourcing some of the Claude work" for later.
+  This section is that later look. Moving any call off `MODEL` again is the
+  owner's decision, not a default.
+- One Exa call per episode (`research.py:635`): `type="fast"`, 8 results with
+  highlights, plus one retry on a thin packet (`RESEARCH_RETRY`). The packet
+  uses only 3 sources at 2 minutes, up to 6 at 5. **Search results are not
+  cached**; only finished episodes are, and the episode key includes minutes,
+  so the same question at two lengths searches twice.
+- No provider abstraction: every call uses Anthropic-only shapes
+  (`output_config.effort`/`format`, `cache_control`, `messages.batches`,
+  `usage.cache_*`). `anthropic_client.py:49` only builds the client.
+
+### 7.2 Models, both steps
+
+| Option | $/MTok in / out | ~Claude-line cost, 2-min episode | First token | Quality risk | Work to switch |
+|---|---|---|---|---|---|
+| Sonnet 5 (today) | 2 / 10 | $0.040 | baseline | - | - |
+| Sonnet 5.5 | 2 / 10, cache read 0.05x | ~$0.038 | similar | low | a setting |
+| **Haiku 5.5** (2026-10-07) | **0.10 / 0.50** (prompts under 100k) | **~$0.002** | fastest Anthropic tier | untested on prose; briefs degraded in §227-§248 | a setting, but reversed by the owner in §249 |
+| MiniMax M3 (direct or OpenRouter) | ~0.23-0.30 / 0.96-1.20 | ~$0.005 | ~1.3-2.4 s | unknown | an adapter |
+| gpt-oss-120B (Groq / Cerebras) | 0.15-0.35 / 0.60-0.75 | ~$0.002 | ~0.25 s | weaker prose | an adapter |
+| DeepSeek V4.1 Flash | 0.30 / 1.20 (half off-peak) | ~$0.004 | ~1.2-1.7 s | unknown | an adapter; data stored in the PRC |
+| Kimi K3 / GLM-5.3 / Qwen3.8-Max | 1.4-3 / 4.4-15 | $0.01-0.03 | not found | strong on some writing boards | an adapter; little saving |
+
+OpenRouter passes token prices through and charges 5.5% on credit purchases.
+Routing can be pinned to US hosts (`provider.order`, fallbacks off); its
+latency overhead is unverified. A non-Anthropic writer loses prompt caching
+and batch pricing wherever the provider lacks them.
+
+**EI:** short, structured, on search's latency path, and about $0.01 an
+episode on Sonnet. The §227 trial shows the risk: a degraded brief becomes a
+"no information" episode. Any candidate (Haiku 5.5 again at the 3000
+ceiling, or a non-Anthropic model) must first clear `tools/ei_eval.py` and
+show its `episode_intelligence.since_boot` endings in `/api/health` at
+Sonnet's rate. Groq's gpt-oss-120B is the non-Anthropic candidate with a
+latency case; MiniMax and DeepSeek are slower to first token than today.
+
+**Writer:** the writing is the product, so listen before switching. Run
+Haiku 5.5 and MiniMax M3 through `python write.py "<query>" --minutes 3`
+against Sonnet. If a cheap model is close but not equal, keep Sonnet on live
+search and move the Trending and DailyFAM editions, where nobody waits for
+the first token. `MODEL` is in the cache key, so a second writer model needs
+a decision against `rule:prefetch-same-key`. The writer's reasoning
+(`EFFORT=low`, 41% of cost) is the owner's direction for search
+(`rule:spec-amended-for-search`); lowering it for editions only is a choice
+for the owner, not a default.
+
+**Lowest episode risk:** the composer, placer and thumbnails never write
+what a listener hears, and each has its own setting (`STORIES_MODEL`,
+`CATEGORIES_MODEL`, `THUMBNAILS_MODEL`). They were on Haiku in §227 and went
+back with the rest in §249, so they need the owner's decision as well.
+
+### 7.3 Exa
+
+Exa is pay-as-you-go only: search $4/1k (`instant`) or $7/1k (`fast`/`auto`)
+for up to 10 results, contents $1/1k pages per content type, and a startup
+grant of up to $1,000 advertised on exa.ai/pricing. Exa's docs disagree on
+whether contents inside a search are billed; `reply.cost_dollars`, which
+`research.py` already records, settles it on one real call.
+
+Ways to cut it, best first:
+
+1. **Fetch only what the packet uses:** 8 results are fetched with highlights,
+   but the packet uses 3 at 2 minutes (`research.packet_size`, up to 8 at
+   longer lengths). Asking for the packet's size per episode cuts the contents
+   charge by about 60%. This needs a code change: lowering `EXA_NUM_RESULTS`
+   alone would cap longer episodes' packets too, because `packet_size` is
+   bounded by it. The trade-off is fewer candidates for recency and
+   credibility to sort.
+2. **`type="instant"`:** 43% off the search charge; compare quality with
+   `tools/compare_search.py`.
+3. **Cache search packets** keyed on EI's `Brief.retrieval` plus its recency
+   window: a short life for volatile results, longer for evergreen ones.
+   Different lengths and different wordings that EI resolves to one query
+   stop paying twice. Measure the hit rate first (`rule:dec-prefetch`).
+4. **Measure how often the retry fires**; if often, the fix is a better first
+   query from EI.
+5. **Apply for the startup grant.**
+
+### 7.4 Search alternatives
+
+$ per 1,000 searches:
+
+| Service | Price model | Price | Page text | Fit |
+|---|---|---|---|---|
+| **Parallel.ai** | pay as you go | **$1 fast**, $5 standard | excerpts | Closest to Exa highlights at 1/7 to 1/15 the price |
+| **Perplexity Search API** | pay as you go | $1 fast, $5 | ranked extracts | Second candidate |
+| **Tavily** | **monthly tiers** $30 / $100 / $220 / $500 | ~$5-8 basic | raw content optional | Best fit for a fixed monthly bill |
+| Brave | pay as you go, $5/month free | $5 | snippets | Too thin for a packet |
+| Serper | prepaid packs | $0.30-1 | none (Google results) | Needs a page reader as well |
+| You.com | pay as you go | $5, plus ~$1/1k pages for text | yes | No cheaper than Exa once text is included |
+| Firecrawl | yearly plans | ~$1.7, plus scrapes | with scrape | More moving parts |
+
+A replacement must return publication dates (`rule:recency-credibility`)
+and joins as a backend in `RESEARCH_BACKENDS` / `research.ladder()`, with
+provenance recorded (`rule:always-researched`, `rule:provenance-all-paths`).
+Bing's API is retired, and Google's Custom Search is closed to new customers.
+
+### 7.5 Order
+
+1. Exa first, since it needs no decision about models: fetch the packet's
+   size, try `instant`, and read the savings from `cost_dollars`.
+2. Listening test of the writer (Sonnet vs Haiku 5.5 vs MiniMax M3) and an
+   `ei_eval.py` run for each brief candidate, so the owner decides on evidence.
+3. Search-packet cache, after measuring its hit rate.
+4. Compare Parallel and Perplexity against Exa on the same queries.
+5. Whatever the owner chooses from step 2, starting with the calls nobody
+   hears.
 
 ---
 
