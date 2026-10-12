@@ -901,21 +901,22 @@
     padding:13px; border-radius:14px; background:transparent; color:var(--copper);
     border:1px dashed var(--border-strong); font-family:'Geist',sans-serif;
     font-size:12px; font-weight:700; cursor:pointer; margin-bottom:11px; }
-  /* Your categories (§229), under the mixes. */
+  /* Categories (§229, §252), under the mixes: the grid, followed on top. */
+  .cat-h{ font-family:'Bricolage Grotesque', sans-serif; font-weight:600; font-size:19px; color:var(--text); }
+  #screen-playfam .dm-search.cat-find{ margin:0 0 12px; }
+  .cat-tile{ position:relative; }
+  .cat-tile-name{ display:block; padding-right:16px; }
+  .cat-star{ position:absolute; top:11px; right:11px; color:var(--copper); }
+  .cat-tile[class*="cat-f-"] .cat-star{ color:#F2C46B; }
+  .sv-title .cat-star{ position:static; vertical-align:-1px; }
+  .cat-shuffle{ width:auto; margin:8px 16px 4px; flex:none; }
+  .cat-shuffle:disabled{ opacity:0.45; cursor:default; }
   .cat-head{ display:flex; align-items:flex-end; justify-content:space-between; gap:10px;
     margin:22px 0 10px; }
-  .cat-eyebrow{ font-family:'Geist Mono', monospace; font-size:10px; letter-spacing:0.16em;
-    text-transform:uppercase; color:var(--copper); margin-bottom:4px; }
-  .cat-sub{ font-size:11.5px; line-height:1.4; color:var(--text-muted); }
-  .cat-all{ flex:none; background:none; border:0; color:var(--text); font-family:inherit;
-    font-size:12px; font-weight:700; cursor:pointer; padding:4px 0; }
-  .cat-icon{ flex:0 0 46px; height:46px; border-radius:12px; display:flex; align-items:center;
-    justify-content:center; color:var(--text); font-family:'Bricolage Grotesque', sans-serif;
-    font-weight:600; font-size:18px; background:var(--surface-2); }
   .cat-grid{ display:grid; grid-template-columns:1fr 1fr; gap:10px; padding:4px 0 18px; }
-  .cat-tile{ min-height:76px; border-radius:14px; padding:12px; cursor:pointer; text-align:left;
+  .cat-tile{ min-height:92px; border-radius:16px; padding:13px 13px 14px; cursor:pointer; text-align:left;
     border:0; color:var(--text); font-family:'Bricolage Grotesque', sans-serif;
-    font-weight:600; font-size:14px; background:var(--surface-2); }
+    font-weight:600; font-size:16px; line-height:1.15; background:var(--surface-2); }
   .cat-tile small{ display:block; margin-top:6px; font-family:'Geist', sans-serif; font-weight:400;
     font-size:10px; line-height:1.35; color:var(--text-muted); }
   .cat-f-sports{ background:#56402F; } .cat-f-money{ background:#2F4A3E; }
@@ -924,7 +925,7 @@
   .cat-f-culture{ background:#5A3A30; } .cat-f-world{ background:#2C415A; }
   /* A toned tile is dark in both themes, so its words are always light;
      an untoned one sits on the theme's surface and takes its text. */
-  .cat-icon[class*="cat-f-"], .cat-tile[class*="cat-f-"]{ color:#F4EFE4; }
+  .cat-tile[class*="cat-f-"]{ color:#F4EFE4; }
   .cat-tile[class*="cat-f-"] small{ color:rgba(244,239,228,0.72); }
   .hist-tabs[hidden]{ display:none; }
   .cat-follow{ margin-left:auto; height:30px; padding:0 14px; border-radius:15px;
@@ -3839,10 +3840,21 @@
           </div>
           <div id="dailyResults" hidden></div>
           <div id="mixList"></div>
-          <!-- Your categories (§229): the categories this listener follows,
-               each opening today's episodes in it. Drawn by
-               `renderMyCategories`; cached episodes only. -->
-          <div id="catSection"></div>
+          <!-- Categories (§229, §252): every facet as a tile under the mixes,
+               the ones this listener follows on top with a star, and a
+               search over every category the tree holds ("NFL" is three
+               levels down). Drawn by `renderMyCategories`; a tap opens the
+               category's page; cached episodes only. -->
+          <div id="catSection">
+            <div class="cat-head"><div class="cat-h">Categories</div></div>
+            <div class="dm-search cat-find">
+              <svg class="dm-search-i" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+              <input id="catFind" type="search" enterkeyhint="search" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+                     placeholder="Find a category, like NFL" aria-label="Find a category"
+                     oninput="renderMyCategories()" onkeydown="if(event.key==='Enter') this.blur()">
+            </div>
+            <div id="catGrid"></div>
+          </div>
         </div>
         <div class="tabbar">
           <div class="tab" data-tab="myfam" onclick="openMyFamTab()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M14 13l4 4-4 4z"/><path d="M6 3v10a4 4 0 004 4h8M6 3L4 5m2-2l2 2M14 13l4 4-4 4"/></svg></div><div class="lbl">DailyFAM</div></div>
@@ -3863,23 +3875,6 @@
         <div class="scroll" id="mixBody"></div>
       </section>
 
-      <!-- ============ CATEGORIES — browse all (§229) ============
-           The eight facets, and a search over every category the tree holds
-           ("NFL" is three levels down). A tap opens the category's page. -->
-      <section class="screen" id="screen-catbrowse">
-        <div class="back-row">
-          <span class="back" onclick="goBack()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M17 6l-6 6 6 6"/><path d="M10 6l-6 6 6 6"/></svg></span>
-          <h2>Categories</h2>
-        </div>
-        <label class="yf-search">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
-          <input id="catBrowseInput" type="search" autocomplete="off" spellcheck="false"
-                 placeholder="Find a category, like NFL" aria-label="Find a category"
-                 oninput="drawCategoryBrowse()">
-        </label>
-        <div class="scroll" id="catBrowseBody"></div>
-      </section>
-
       <!-- ============ CATEGORIES — one category's episodes today (§229) ============
            Every episode made today in the category or under it, from the
            cache only: nothing on this page writes an episode. Sorted and
@@ -3890,6 +3885,12 @@
           <h2 id="catTitle">Category</h2>
           <button class="cat-follow" id="catFollow" onclick="toggleFollowCategory()" hidden>Follow</button>
         </div>
+        <!-- Shuffle play (§252): every episode on this page, shuffled, on
+             the category's reel - exploreFAM's swipe, this category's cards. -->
+        <button class="mix-play cat-shuffle" id="catShuffle" onclick="shuffleCategory()" disabled>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5"/><path d="M4 20L21 3"/><path d="M21 16v5h-5"/><path d="M15 15l6 6"/><path d="M4 4l5 5"/></svg>
+          Shuffle play
+        </button>
         <label class="yf-search">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
           <input id="catSearch" type="search" autocomplete="off" spellcheck="false"
@@ -9849,35 +9850,31 @@
     document.getElementById("mixList").innerHTML = html;
   }
 
-  // ---- Your categories (§229) ----
+  // ---- Categories (§229, §252) ----
   //
-  // Under the mixes: the categories this listener follows, each opening a
-  // page of the episodes made in it today. Everything on these screens is a
-  // read of what is already cached - a tap plays it replay-only and nothing
-  // here can cause an episode to be written. Following is kept for an
-  // account, like a mix; anybody may browse.
+  // Under the mixes: every facet as a tile, the categories this listener
+  // follows on top with a star (any node, "NFL" as well as Sport), and a
+  // search over every category the tree holds. Each opens a page of the
+  // episodes made in it today. Everything on these screens is a read of
+  // what is already cached - a tap plays it replay-only and nothing here
+  // can cause an episode to be written. Following is kept for an account,
+  // like a mix; anybody may browse.
   var catData = null;
   var catReq = 0;
   var catPage = { root: "", node: "", sort: "popular", episodes: [] };
   var catTimer = null;
   function loadMyCategories(){
-    var el = document.getElementById("catSection");
+    var el = document.getElementById("catGrid");
     if(!el) return;
     fetch("/api/categories")
       .then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
       .then(function(d){ catData = d; renderMyCategories(); })
       .catch(function(){
-        el.innerHTML = categoryHeadHTML()
-          + '<div class="mix-empty">Your categories could not load. Try again in a moment.</div>';
+        if(catData){ renderMyCategories(); return; }
+        el.innerHTML = '<div class="mix-empty">The categories could not load. Try again in a moment.</div>';
       });
   }
-  function categoryHeadHTML(){
-    return '<div class="cat-head"><div>'
-      + '<div class="cat-eyebrow">Your categories</div>'
-      + '<div class="cat-sub">Everything made today in what you follow.</div>'
-      + '</div><button class="cat-all" onclick="openCategoryBrowse()">Browse all</button></div>';
-  }
-  // One colour per facet, as the browse grid draws them.
+  // One colour per facet, as the grid draws them.
   var CATEGORY_TONES = { sports: "cat-f-sports", money: "cat-f-money",
     business: "cat-f-business", tech: "cat-f-tech", science: "cat-f-science",
     health: "cat-f-health", culture: "cat-f-culture", world: "cat-f-world" };
@@ -9892,75 +9889,52 @@
     }
     return id;
   }
+  var CAT_STAR = '<svg class="cat-star" width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-label="Following">'
+    + '<path d="M12 2.8l2.8 5.9 6.4.8-4.7 4.4 1.2 6.4L12 17.2l-5.7 3.1 1.2-6.4-4.7-4.4 6.4-.8z"/></svg>';
+  function categoryTileHTML(id, label, facet, kids, followed){
+    return '<button class="cat-tile ' + categoryTone(facet) + (followed ? ' followed' : '')
+      + '" data-cat="' + escapeHtml(id) + '" onclick="openCategory(this.dataset.cat)">'
+      + (followed ? CAT_STAR : '') + '<span class="cat-tile-name">' + escapeHtml(label) + '</span>'
+      + (kids ? '<small>' + escapeHtml(kids) + '</small>' : '') + '</button>';
+  }
+  // The grid, or - once something is typed - every category whose name
+  // has a word starting with it. Only `#catGrid` is redrawn, so the box
+  // keeps its focus while typing.
   function renderMyCategories(){
-    var el = document.getElementById("catSection");
+    var el = document.getElementById("catGrid");
     if(!el || !catData) return;
-    var html = categoryHeadHTML();
-    if(!catData.saved){
-      html += '<div class="locked-note">Follow the categories you care about and scroll everything made in them today. Free with an account.'
-        + gateActions() + '</div>';
-    } else if(!catData.mine.length){
-      html += '<div class="mix-empty">No categories yet. '
-        + '<button class="sample-note-btn" onclick="openCategoryBrowse()">Choose some to follow</button></div>';
-    }
-    html += (catData.saved ? catData.mine : []).map(function(c){
-      return '<div class="mix-card" data-cat="' + escapeHtml(c.id) + '" onclick="openCategory(this.dataset.cat)">'
-        + '<div class="cat-icon ' + categoryTone(c.facet) + '">'
-        + escapeHtml((c.label || "?").charAt(0)) + '</div>'
-        + '<div class="mix-card-body">'
-        + '<div class="mix-name">' + escapeHtml(c.label) + '</div>'
-        + '<div class="mix-meta">' + (c.today ? c.today + (c.today === 1 ? " episode" : " episodes") + " today" : "Nothing yet today") + '</div>'
-        + '<div class="mix-preview">' + escapeHtml((c.children || []).join(" · ")) + '</div>'
-        + '</div>'
-        + '<div class="mix-chev"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" '
-        + 'stroke="currentColor" stroke-width="2.2"><path d="M9 6l6 6-6 6"/></svg></div>'
-        + '</div>';
-    }).join("");
-    el.innerHTML = html;
-  }
-  function openCategoryBrowse(){
-    navigate("catbrowse");
-    document.getElementById("catBrowseInput").value = "";
-    if(!catData){
-      document.getElementById("catBrowseBody").innerHTML = '<div class="sv-empty">Loading the categories…</div>';
-      fetch("/api/categories")
-        .then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
-        .then(function(d){ catData = d; drawCategoryBrowse(); })
-        .catch(function(){
-          document.getElementById("catBrowseBody").innerHTML =
-            '<div class="sv-empty">Could not load the categories right now. Try again in a moment.</div>';
-        });
+    var input = document.getElementById("catFind");
+    var q = input ? input.value.trim().toLowerCase() : "";
+    var mine = catData.saved ? catData.mine : [];
+    var followed = {};
+    mine.forEach(function(c){ followed[c.id] = true; });
+    if(q){
+      // From the start of a word: "nfl" is the NFL, not "conflict".
+      var starts = function(label){ return (" " + label.toLowerCase()).indexOf(" " + q) !== -1; };
+      var found = catData.facets.filter(function(f){ return starts(f.label); })
+        .map(function(f){ return { id: f.id, label: f.label, path: [] }; })
+        .concat(catData.all.filter(function(n){ return starts(n.label); }));
+      if(!found.length){
+        el.innerHTML = '<div class="sv-empty">No category called that yet.</div>';
+        return;
+      }
+      el.innerHTML = found.slice(0, 60).map(function(n){
+        return '<div class="sv-row" data-cat="' + escapeHtml(n.id) + '" onclick="openCategory(this.dataset.cat)">'
+          + '<div class="sv-main"><div class="sv-title">' + (followed[n.id] ? CAT_STAR + ' ' : '')
+          + escapeHtml(n.label) + '</div>'
+          + '<div class="sv-meta">' + escapeHtml((n.path || []).join(" › ").toUpperCase()) + '</div></div></div>';
+      }).join("");
       return;
     }
-    drawCategoryBrowse();
-  }
-  function drawCategoryBrowse(){
-    var el = document.getElementById("catBrowseBody");
-    if(!catData) return;
-    var q = document.getElementById("catBrowseInput").value.trim().toLowerCase();
-    if(!q){
-      el.innerHTML = '<div class="cat-grid">' + catData.facets.map(function(f){
-        var kids = (f.children || []).slice(0, 4).map(function(c){ return c.label; }).join(" · ");
-        return '<button class="cat-tile ' + categoryTone(f.id) + '" data-cat="' + escapeHtml(f.id)
-          + '" onclick="openCategory(this.dataset.cat)">' + escapeHtml(f.label)
-          + (kids ? '<small>' + escapeHtml(kids) + '</small>' : '') + '</button>';
-      }).join("") + '</div>';
-      return;
-    }
-    // From the start of a word: "nfl" is the NFL, not "conflict".
-    var starts = function(label){ return (" " + label.toLowerCase()).indexOf(" " + q) !== -1; };
-    var found = catData.facets.filter(function(f){ return starts(f.label); })
-      .map(function(f){ return { id: f.id, label: f.label, path: [] }; })
-      .concat(catData.all.filter(function(n){ return starts(n.label); }));
-    if(!found.length){
-      el.innerHTML = '<div class="sv-empty">No category called that yet.</div>';
-      return;
-    }
-    el.innerHTML = found.slice(0, 60).map(function(n){
-      return '<div class="sv-row" data-cat="' + escapeHtml(n.id) + '" onclick="openCategory(this.dataset.cat)">'
-        + '<div class="sv-main"><div class="sv-title">' + escapeHtml(n.label) + '</div>'
-        + '<div class="sv-meta">' + escapeHtml((n.path || []).join(" › ").toUpperCase()) + '</div></div></div>';
-    }).join("");
+    // Followed first, in the order they were followed, then the facets
+    // nobody here follows yet - each tile once.
+    var tiles = mine.map(function(c){
+      return categoryTileHTML(c.id, c.label, c.facet, (c.children || []).join(" · "), true);
+    }).concat(catData.facets.filter(function(f){ return !followed[f.id]; }).map(function(f){
+      var kids = (f.children || []).slice(0, 4).map(function(c){ return c.label; }).join(" · ");
+      return categoryTileHTML(f.id, f.label, f.id, kids, false);
+    }));
+    el.innerHTML = '<div class="cat-grid">' + tiles.join("") + '</div>';
   }
   function openCategory(id){
     catPage = { root: id, node: id, sort: "popular", episodes: [] };
@@ -10039,6 +10013,7 @@
     var q = document.getElementById("catSearch").value.trim();
     var el = document.getElementById("catList");
     el.innerHTML = '<div class="sv-empty">Loading today’s episodes…</div>';
+    document.getElementById("catShuffle").disabled = true;
     fetch("/api/categories/episodes?id=" + encodeURIComponent(catPage.node)
           + "&sort=" + encodeURIComponent(catPage.sort)
           + "&q=" + encodeURIComponent(q))
@@ -10081,6 +10056,7 @@
   function drawCategoryEpisodes(q){
     var el = document.getElementById("catList");
     var eps = catPage.episodes;
+    document.getElementById("catShuffle").disabled = !eps.length;
     if(!eps.length){
       el.innerHTML = q
         ? '<div class="sv-empty">No title in here has those words today.</div>'
@@ -10099,14 +10075,18 @@
         + '<div class="sv-meta">' + escapeHtml(meta.join(" · ")) + '</div></div></div>';
     }).join("");
   }
+  // **A category plays as a reel** (§252, the owner's direction): a tap
+  // opens exploreFAM's swipe over this page's episodes, starting at the one
+  // tapped and running on in the page's order; Shuffle play deals them
+  // shuffled. Replay only, as every card on Explore is.
   function playCategoryEpisode(i){
-    var ep = catPage.episodes[i];
-    if(!ep) return;
-    TOPICS["_category"] = { title: ep.title || ep.query, prompt: ep.query,
-                            source: categoryLabelOf(catPage.node), caption: "",
-                            cachedOnly: true, exploreMinutes: ep.minutes || BROWSE_MINUTES,
-                            titleOverridden: true };
-    generate("_category");
+    var eps = catPage.episodes;
+    if(!eps[i]) return;
+    openCategoryReel(categoryLabelOf(catPage.node), eps.slice(i).concat(eps.slice(0, i)));
+  }
+  function shuffleCategory(){
+    if(!catPage.episodes.length){ toast("Nothing has been made in this category today yet"); return; }
+    openCategoryReel(categoryLabelOf(catPage.node), shuffledPool(catPage.episodes));
   }
 
   function mixById(id){
@@ -17959,9 +17939,40 @@
   // A card dealt while Explore was only being peeked at under search: shown,
   // not played, because a swipe let go of half way is not a choice to listen.
   var reelUnplayed = false;
+  // **Which cards the reel is dealing** (§252): Explore's feed, or one
+  // category's episodes today, opened from its page (`openCategoryReel`).
+  // The same stage, swipe and buttons; the kicker names the category and
+  // the back arrow returns to its page. Opening Explore after a category
+  // deals Explore's own feed again rather than the category's leftovers.
+  var reelFeed = "explore";
+  var reelFeedLabel = "";
+  function openCategoryReel(label, cards){
+    if(!cards || !cards.length) return;
+    closeReelComments();
+    reelFeed = "category";
+    reelFeedLabel = label || "";
+    exploreFrom = "category";
+    setTab("explore");
+    updateTabs("playfam");
+    var back = document.querySelector("#screen-explore .reel-back");
+    if(back) back.setAttribute("aria-label", "Back to " + (reelFeedLabel || "the category"));
+    reelQueue = cards.slice();
+    reelHistory = [];
+    reelCurrent = null;
+    reelFailures = 0;
+    reelUnplayed = false;
+    reelBusy = false;
+    nextReel();
+  }
   function openExplore(from){
     closeReelComments();
     exploreFrom = from === "home" ? "home" : "myfam";
+    if(reelFeed !== "explore"){
+      reelFeed = "explore";
+      reelCurrent = null;
+      reelQueue = [];
+      reelHistory = [];
+    }
     setTab("explore");
     updateTabs(exploreFrom);
     var back = document.querySelector("#screen-explore .reel-back");
@@ -17979,6 +17990,13 @@
     // screen; coming back draws the card again and restarts them.
     closeReelComments();
     if(reelCc.timer){ clearInterval(reelCc.timer); reelCc.timer = null; }
+    if(exploreFrom === "category"){
+      // Back to the category's page, over the screen it was opened from;
+      // the page is still drawn as it was left.
+      openPlayFAM();
+      navigate("category");
+      return;
+    }
     if(exploreFrom === "home") setTab("home"); else openMyFamTab();
   }
 
@@ -17986,14 +18004,20 @@
   // has something under it to show.
   var reelPriming = false;
   function primeExplore(){
-    if(reelCurrent || reelPriming) return;
+    if((reelCurrent && reelFeed === "explore") || reelPriming) return;
+    if(reelFeed !== "explore"){
+      // A category's card is not what a swipe from search should uncover.
+      reelCurrent = null;
+      setReelText("Loading…", "", "");
+    }
     reelPriming = true;
     fetch("/api/explore?limit=60")
       .then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
       .then(function(data){
         reelPriming = false;
         var eps = data.episodes || [];
-        if(!eps.length || reelCurrent) return;
+        if(!eps.length || (reelCurrent && reelFeed === "explore")) return;
+        reelFeed = "explore";
         reelQueue = shuffledPool(eps.slice());
         reelHistory = [];
         reelFailures = 0;
@@ -18009,6 +18033,7 @@
     fetch("/api/explore?limit=60")
       .then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
       .then(function(data){
+        if(reelFeed !== "explore") return;   // a category's reel opened meanwhile
         var eps = data.episodes || [];
         if(!eps.length){
           setReelText("Nothing here yet",
@@ -18064,7 +18089,8 @@
       }
     }
     document.getElementById("reelKicker").textContent =
-      ep.vibed_by ? "From a friend" : "Someone asked";
+      reelFeed === "category" ? reelFeedLabel
+      : ep.vibed_by ? "From a friend" : "Someone asked";
     document.getElementById("reelTitle").textContent = ep.title;
     // The E (§171), off the script the card would play.
     document.getElementById("reelTitle").classList.toggle("is-explicit", !!ep.explicit);
@@ -18306,8 +18332,11 @@
         if(reelFailures >= 3){
           reelCurrent = null;
           setReelText("These episodes have expired",
-            "Explore only replays what is still in the shared cache, and this "
-            + "batch has aged out. Pull to refresh, or search for something.", "");
+            reelFeed === "category"
+              ? "A category only replays what is still in the shared cache, and "
+                + "these have aged out. Go back and pick another."
+              : "Explore only replays what is still in the shared cache, and this "
+                + "batch has aged out. Pull to refresh, or search for something.", "");
           document.getElementById("reelHint").style.visibility = "hidden";
           return;
         }

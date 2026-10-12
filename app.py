@@ -6927,6 +6927,10 @@ def _todays_filed() -> list[dict]:
             "query": query,
             "title": title,
             "minutes": entry["minutes"],
+            # The cache key, so a card on the category's reel can ask for
+            # its own fresh numbers (`/api/episode/stats`). It names an
+            # episode and nobody.
+            "key": entry.get("key") or "",
             "plays": plays,
             "mixes": in_mixes,
             "popularity": plays + in_mixes,
@@ -6961,6 +6965,7 @@ def _category_row(row: dict, now: float) -> dict:
     return {
         "query": row["query"], "title": row["title"],
         "minutes": row["minutes"], "plays": row["plays"],
+        "key": row.get("key", ""),
         "mixes": row["mixes"], "popularity": row["popularity"],
         "made_age_seconds": max(0.0, now - row["created"]),
         "sourced_age_seconds": max(0.0, now - row["sourced_at"]),
@@ -7094,6 +7099,22 @@ async def category_episodes(
         inside.sort(key=lambda r: (-r["popularity"], -r["created"]))
     now = time.time()
     episodes = [_category_row(row, now) for row in inside]
+    # The numbers down a reel card's right side (the category's reel, as
+    # Explore's): vibes, likes and comments, and this listener's own thumb
+    # and vibe so the buttons open in the right state. A count is never
+    # worth a failed page.
+    try:
+        pairs = [(e["query"], e["minutes"]) for e in episodes]
+        counts = SOCIAL.episode_counts_many(pairs, _listener(request))
+        comments = SOCIAL.comment_counts_many(pairs)
+        for e, pair in zip(episodes, pairs):
+            c = counts.get(pair) or {}
+            e.update({"vibes": c.get("vibes", 0), "likes": c.get("likes", 0),
+                      "rating": c.get("rating", 0),
+                      "my_vibe": bool(c.get("vibed")),
+                      "comments": comments.get(pair, 0)})
+    except Exception:  # noqa: BLE001
+        log.exception("could not count a category page's reactions")
     return {"id": node, "label": _category_label(node),
             "facet": topics_mod._root_facet(node), "sort": order,
             "q": q.strip(), "subcategories": subs, "episodes": episodes}
