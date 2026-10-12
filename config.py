@@ -1279,11 +1279,14 @@ class Settings:
     audio_cache: bool = field(
         default_factory=lambda: os.environ.get("AUDIO_CACHE", "1") not in ("0", "false", "False")
     )
-    # The byte ceiling for kept audio, least recently played out first. Sized
-    # for render.yaml's 1 GB disk, which every other database shares: at about
-    # 2 MB a compressed minute this is roughly 250 minutes of episodes. An
-    # evicted episode keeps its script and costs one re-synthesis. 0 = none.
-    audio_cache_max_mb: int = _env_int("AUDIO_CACHE_MAX_MB", 512)
+    # The byte ceiling for kept audio, least recently played out first. With
+    # a bucket (§237) it bounds only the hot copy beside each row; an evicted
+    # hot copy is read from the bucket next time, and without one an evicted
+    # episode keeps its script and costs one re-synthesis. **Unset** means
+    # 512 with the stores on the disk and 128 with them in Postgres (§252),
+    # where the hot copy is database storage at the database's price
+    # (`cache.audio_ceiling_mb`). Any value set wins. 0 = none.
+    audio_cache_max_mb: int = _env_int("AUDIO_CACHE_MAX_MB", -1)
     # §237: how kept audio is packed. `opus` (the default) at
     # AUDIO_OPUS_BITRATE is about a twelfth of zlib's size for speech; it is
     # decoded back to the same PCM before it is streamed. `zlib` restores
@@ -1300,6 +1303,15 @@ class Settings:
     audio_stream_opus: bool = field(
         default_factory=lambda: os.environ.get("AUDIO_STREAM_OPUS", "1").strip() not in ("0", "false", "no", "off")
     )
+    # §252: a replay whose Opus is in the bucket may be read by the client
+    # straight from R2 - a signed link good for AUDIO_LINK_SECONDS - instead
+    # of through this server, whose bandwidth is billed and R2's is not. Only
+    # for a client that asks (`/api/audio?link=1`); a first play is streamed
+    # as it is voiced either way. 0 = always stream, exactly as before.
+    audio_links: bool = field(
+        default_factory=lambda: os.environ.get("AUDIO_LINKS", "1").strip() not in ("0", "false", "no", "off")
+    )
+    audio_link_seconds: int = _env_int("AUDIO_LINK_SECONDS", 300)
     # §237: where kept audio lives. "" (the default) keeps it in scripts.db
     # as before; `r2` puts each episode in a Cloudflare R2 bucket and keeps
     # only its object name here, with the SQLite blob as a hot copy under

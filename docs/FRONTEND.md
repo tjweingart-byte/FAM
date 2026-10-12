@@ -695,6 +695,12 @@ sit just above the active screen's tab bar.
 
 ## 8. Audio streaming in the browser (`fam-audio.js`)
 
+> **Since §242 and §252:** a browser that decodes Opus is streamed Opus
+> packets instead of PCM, and a *replay* may arrive as a signed link to its
+> Ogg Opus file in R2, which `oggOpus` turns into the same packets. What
+> follows describes the PCM stream, which is still what every other client
+> and every first play without Opus gets.
+
 **There are no audio files** (`no-audio-files`). The server streams raw
 16-bit mono PCM over a chunked response. The browser reads it with the
 Fetch streams API and plays it on a Web Audio clock. There is no `<audio>`

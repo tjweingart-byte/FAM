@@ -264,8 +264,8 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
 ## Settled constraints — do not undo without discussing  (`constraints.md`)
 
 Audio and the opening
-- **No MP3, no audio files to the client**: PCM streams, or Opus where the
-  client decodes it (§242). Kept audio is Opus 24 kbps (§237) in R2,
+- **A first play streams as voiced** (PCM, or Opus if decoded, §242); **a
+  replay may be a signed R2 link** (§252). Kept audio is Opus 24 kbps (§237) in R2,
   `scripts.db` keeping its name and a hot copy; readable only while its script
   is, production voice, whole episodes; a week for all, then saved, shared or
   vibed moves to `kept/` (IA), the rest is deleted. `OfflineShelf` keeps
@@ -491,7 +491,7 @@ Operations and honesty
 - Every feature is an API before it is a screen. [api-before-screen]
 - Nothing new on the audio path may assume a browser; `fam-audio.js` is the spec. [audio-no-browser]
 - `_listener` must be satisfiable by a header (bearer token in the Keychain). [listener-header]
-- Opus over a stream is compatible with no-files; account deletion is required. [ios-pressures]
+- First plays stream, replays may be R2 links (§252); account deletion required. [ios-pressures]
 - Server side built (`ACCOUNTS.md`); payment and delivery are not. [ios-server-built]
 - Order: hear the production voice → deploy with a GPU → Swift lock-screen spike. [ios-order]
 - Open decisions: where to deploy (bandwidth) [dec-deploy]; accounts - answered
