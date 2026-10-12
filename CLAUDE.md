@@ -49,9 +49,9 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   followed subjects `f:nfl` / `f:nfl~Eagles`, never audio; a 05:00 Eastern
   edition writes every episode ahead with EI; public mixes searchable, (+)
   copies one; the server owns the date and length a tap sends), and **Explore**
-  (not a tab; its pill (`explore-reel`) or search's swipe, §203; other listeners' *searched* episodes only, from the cache, `cached_only`,
-  never generates; `scripts.author` excludes your own, `scripts.origin` excludes
-  non-search surfaces). myFAM and DailyFAM are personalised. [three-surfaces]
+  (not a tab; its pill (`explore-reel`) or search's swipe, §203; a dropdown
+  picks its feed, §255; the cache only, `cached_only`, never generates, never
+  your own). myFAM and DailyFAM are personalised. [three-surfaces]
 - **Decouple script generation from synthesis in time**: pre-generate scripts
   and briefs for likely taps; synthesise on tap. Cached episodes keep their
   audio beside the script (§132); prefetch warms text, never audio. [decouple-script-audio]
@@ -85,7 +85,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   cached episodes; Messages is a tab where Explore was; the player's (+) adds
   the episode's topic to a mix. [interface-181]
 
-- **The player is Spotify's layout** (§190): down arrow, picture (4:3, §192;
+- **The player is Spotify's layout** (§190): Home logo (§255), picture (4:3, §192;
   centred between GO DEEPER and the title, never missing - `pick_for_player`
   borrows, as do tiles, §214, by category §247 - and on the mini player, sides cropped, §193), sources by it, GO
   DEEPER pill at the top, share/vibe/save on the right (§192), captions sheet
@@ -93,7 +93,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   if `searches_public`. [player-layout]
 - **Search DailyFAM opens on an A to Z catalogue** of others' cached episodes,
   lettered (`/api/myfam/catalog`); typing shows the closest (§193). [dailyfam-catalogue]
-- **Your categories** (§229/§253): today's cache, read-only; reels. [your-categories]
+- **Your categories** (§229/§253/§255): today's cache; reels end "all caught up". [your-categories]
 - **A queue** (§190): Add to / Go to Queue from the player's and a DailyFAM
   tile's ⋯; client state only; plays before the grid. [queue]
 
@@ -293,8 +293,8 @@ Research and truth
   ladder - backend, backend without window, GDELT - defined once in
   `research.ladder()`; **no model web search** (deleted §135); no rung raises;
   every fallback recorded; sim-league pages and (on sports) unknown outlets
-  are screened out (§178); `NoEvidence` refuses only current-dependent questions,
-  refunds, never refuses evergreen or attachments; EI writes `Brief.broader`. [always-researched]
+  are screened out (§178); nothing is refused for want of evidence (§256);
+  EI writes `Brief.broader`. [always-researched]
 - **EI decides what to search for, before the search**; the brief never asserts
   a fact; **a layer that adds quality must not subtract availability** - every
   failure falls back to the raw query and says so (`Brief.degraded`). [ei-before-search]
@@ -306,8 +306,8 @@ Research and truth
   are evidence of no outcome; take the smaller true reading on contradiction. [started-not-finished]
 - **A missed search establishes nothing about the world**: volatile things are
   never supplied from memory; settled things may be or are omitted; the gap is
-  unannounced, except a thin subject: what it has, then "that's all we
-  found", never shared (§245); never "doesn't exist". [missed-not-absent]
+  unannounced (§245's "that's all we found" reversed, §256); never
+  "doesn't exist". [missed-not-absent]
 - **Live facts** (`live_facts.py`): **never confidently invent a current fact
   without authoritative, fresh evidence; never infer one from absence.** Closed
   status vocabulary; only evidence sets it; resolution from the provider's

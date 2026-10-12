@@ -1,4 +1,4 @@
-"""The admin page is pages behind a menu, not one long scroll (§255).
+"""The admin page is pages behind a menu, not one long scroll (§257).
 
 The button at the top left opens a drawer; every page in the drawer is a
 page on the tracker, every page is reachable from the drawer, and the cards

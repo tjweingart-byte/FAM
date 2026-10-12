@@ -174,6 +174,8 @@
   /* In the same slot as DailyFAM's and myFAM's top-right circle (§232):
      their header's top padding and side inset, and the same 34px height. */
   .home-explore{ position:absolute; top:8px; right:38px; z-index:2; }
+  /* The bookshelf (10.12 packet #3), mirrored into the top left. */
+  .myfam-head-btn.home-library{ position:absolute; top:8px; left:38px; z-index:2; }
   .home-explore.xfam-pill{ height:34px; padding:0 10px 0 12px; font-size:13px;
     border-color:var(--border-strong); background:none; }
   /* The exploreFAM button (10.5 packet #7): the wordmark and an arrow in a
@@ -369,6 +371,9 @@
   .myfam-header-fixed{ flex:none; padding:8px 38px 6px; background:var(--bg);
     position:relative; z-index:2; }
   .myfam-head-actions{ display:flex; align-items:center; gap:10px; }
+  /* DailyFAM's header without its bookshelf (moved to search, 10.12 #3)
+     keeps the height the circle gave it, so the rails do not jump. */
+  #screen-myfam .myfam-header-fixed{ min-height:48px; }
   .myfam-add-btn{
     width:34px; height:34px; border-radius:50%; background:var(--copper); color:var(--ink);
     border:none; font-size:20px; font-weight:600; display:flex; align-items:center; justify-content:center;
@@ -701,6 +706,24 @@
   .reel-brand{ white-space:nowrap; font-family:'Bricolage Grotesque', sans-serif;
     font-size:19px; color:#F4EFE4; }
   .reel-more{ color:#F4EFE4; margin-right:-10px; }
+  /* The feed dropdown under the wordmark (10.12 packet #2). */
+  .reel-head-mid{ display:flex; flex-direction:column; align-items:center; gap:5px; min-width:0; }
+  .reel-feed{ display:inline-flex; align-items:center; gap:6px; height:24px; padding:0 9px 0 11px;
+    border:1px solid rgba(244,239,228,0.55); border-radius:7px; background:rgba(10,9,13,0.35);
+    color:#F4EFE4; font-family:'Geist', sans-serif; font-size:11px; font-weight:600;
+    cursor:pointer; white-space:nowrap; }
+  .reel-feed:active{ transform:scale(0.96); }
+  .reel-feed[hidden]{ display:none; }
+  /* "You're all caught up" at the end of a category's reel (10.12 #4). */
+  .reel-stage > .reel-done{ position:absolute; inset:0; z-index:5; display:flex; flex-direction:column;
+    justify-content:center; padding:24px 22px; background:rgba(10,9,13,0.86); color:#F4EFE4; }
+  .reel-stage > .reel-done[hidden]{ display:none; }
+  .reel-done h3{ margin:0 0 4px; font-family:'Bricolage Grotesque', sans-serif; font-weight:600;
+    font-size:22px; }
+  .reel-done p{ margin:0 0 16px; font-size:13px; color:rgba(244,239,228,0.75); }
+  .reel-done .cat-grid{ padding:0; }
+  .reel-done-back{ margin-top:16px; align-self:center; background:none; border:0;
+    color:rgba(244,239,228,0.8); font-size:12.5px; text-decoration:underline; cursor:pointer; }
   .reel-gap{ flex:1; min-height:40px; cursor:pointer; }
   .reel-lower{ flex:none; display:flex; align-items:flex-end; gap:12px; }
   .reel-body{ flex:1; min-width:0; display:flex; flex-direction:column;
@@ -909,7 +932,9 @@
   .cat-star{ position:absolute; top:11px; right:11px; color:var(--copper); }
   .cat-tile[class*="cat-f-"] .cat-star{ color:#F2C46B; }
   .sv-title .cat-star{ position:static; vertical-align:-1px; }
-  .cat-shuffle{ width:auto; margin:8px 16px 4px; flex:none; }
+  /* A little smaller (10.12 packet #4): shorter, narrower, lighter type. */
+  .cat-shuffle{ width:auto; margin:6px 56px 4px; padding:8px 14px; font-size:11.5px; flex:none; }
+  .cat-shuffle svg{ width:13px; height:13px; }
   .cat-shuffle:disabled{ opacity:0.45; cursor:default; }
   .cat-head{ display:flex; align-items:flex-end; justify-content:space-between; gap:10px;
     margin:22px 0 10px; }
@@ -3675,6 +3700,13 @@
           <span class="xfam-word" aria-hidden="true">explore<span class="wm-glyph f" aria-hidden="true"><svg viewBox="4.55 4.55 12.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 20V9.2A3.2 3.2 0 0 1 9.2 6H16"/><path d="M6 13h8"/></svg></span><span class="wm-a" aria-hidden="true"><svg viewBox="3.55 4.55 16.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l7-7 7 7"/><path d="M5 20l7-7 7 7"/></svg></span><span class="wm-glyph m" aria-hidden="true"><svg viewBox="4.55 4.55 14.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 20V6l6 9 6-9v14"/></svg></span></span>
           <svg class="xfam-arrow" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12h15M13 6l6 6-6 6"/></svg>
         </button>
+        <!-- The episode library (10.12 packet #3): the bookshelf moved here
+             from DailyFAM's header. It opens the same A to Z of episodes
+             other people already made (`openMyFamSearch`), in the top left,
+             level with the exploreFAM pill on the right. -->
+        <button class="myfam-head-btn home-library" id="myfamSearchBtn" onclick="openMyFamSearch()" aria-label="The episode library">
+                <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 21h19"/><rect x="4" y="5" width="3.6" height="16" rx="0.7"/><rect x="8.6" y="7.5" width="3.6" height="13.5" rx="0.7"/><path d="M8.6 10.5h3.6"/><path d="M14.3 8.6l3.4-0.9 3.5 12.6-3.4 0.9z"/></svg>
+              </button>
         <div class="scroll" style="display:flex; flex-direction:column;">
           <div style="flex:0 0 25%;"></div>
           <div class="fam-logo" aria-label="FAM">
@@ -3722,7 +3754,7 @@
         </div>
 
         <div class="tabbar">
-          <div class="tab" data-tab="myfam" onclick="openMyFamTab()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M4 10l8-7 8 7v11H4z"/><path d="M4 10l8-7 8 7v11H4z"/><path d="M8.5 12.5L12 9l3.5 3.5M9.5 17L12 14.5l2.5 2.5"/></svg></div><div class="lbl">DailyFAM</div></div>
+          <div class="tab" data-tab="myfam" onclick="openMyFamTab()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M4 10l8-7 8 7v11H4z"/><path d="M4 10l8-7 8 7v11H4z"/><path d="M8.5 12.5L12 9l3.5 3.5M8.5 17L12 13.5l3.5 3.5"/></svg></div><div class="lbl">DailyFAM</div></div>
           <div class="tab" data-tab="playfam" onclick="openPlayFAM()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M13 5l6 7-6 7z"/><path d="M6 5l6 7-6 7M13 5l6 7-6 7"/></svg></div><div class="lbl">myFAM</div></div>
           <div class="tab centre active" data-tab="home" onclick="setTab('home')"><div class="dot"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle class="tone" cx="11" cy="11" r="7"/><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></div></div>
           <div class="tab" data-tab="messages" onclick="openMessages()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M4 4h16a2 2 0 012 2v9a2 2 0 01-2 2H9l-4 4v-4H4a2 2 0 01-2-2V6a2 2 0 012-2z"/><path d="M4 4h16a2 2 0 012 2v9a2 2 0 01-2 2H9l-4 4v-4H4a2 2 0 01-2-2V6a2 2 0 012-2z"/></svg><span class="tab-badge" data-msg-badge hidden></span></div><div class="lbl">Messages</div></div>
@@ -3747,17 +3779,6 @@
              something to pick up. -->
         <div class="myfam-header myfam-header-fixed">
             <h2 class="wordmark" aria-label="DailyFAM">Daily<span class="wm-glyph f" aria-hidden="true"><svg viewBox="4.55 4.55 12.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 20V9.2A3.2 3.2 0 0 1 9.2 6H16"/><path d="M6 13h8"/></svg></span><span class="wm-a" aria-hidden="true"><svg viewBox="3.55 4.55 16.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l7-7 7 7"/><path d="M5 20l7-7 7 7"/></svg></span><span class="wm-glyph m" aria-hidden="true"><svg viewBox="4.55 4.55 14.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 20V6l6 9 6-9v14"/></svg></span></h2>
-            <div class="myfam-head-actions">
-              <!-- Search within myFAM (§181, the 9.30 interface packet): it
-                   took the messages button's place, and Messages moved to
-                   the tab bar where Explore was. -->
-              <!-- Books on a shelf (10.5 packet #5): what it opens is a
-                   library - the A to Z of episodes already made, ready to
-                   play - more than a search. -->
-              <button class="myfam-head-btn" id="myfamSearchBtn" onclick="openMyFamSearch()" aria-label="Search DailyFAM">
-                <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 21h19"/><rect x="4" y="5" width="3.6" height="16" rx="0.7"/><rect x="8.6" y="7.5" width="3.6" height="13.5" rx="0.7"/><path d="M8.6 10.5h3.6"/><path d="M14.3 8.6l3.4-0.9 3.5 12.6-3.4 0.9z"/></svg>
-              </button>
-            </div>
         </div>
         <div class="scroll">
           <!-- The friends row from YourFAM, first thing on the page (10.2
@@ -3795,7 +3816,7 @@
           <div class="nowbar-progress"><div class="nowbar-fill" id="nowFill"></div></div>
         </div>
         <div class="tabbar">
-          <div class="tab active" data-tab="myfam" onclick="openMyFamTab()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M4 10l8-7 8 7v11H4z"/><path d="M4 10l8-7 8 7v11H4z"/><path d="M8.5 12.5L12 9l3.5 3.5M9.5 17L12 14.5l2.5 2.5"/></svg></div><div class="lbl">DailyFAM</div></div>
+          <div class="tab active" data-tab="myfam" onclick="openMyFamTab()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M4 10l8-7 8 7v11H4z"/><path d="M4 10l8-7 8 7v11H4z"/><path d="M8.5 12.5L12 9l3.5 3.5M8.5 17L12 13.5l3.5 3.5"/></svg></div><div class="lbl">DailyFAM</div></div>
           <div class="tab" data-tab="playfam" onclick="openPlayFAM()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M13 5l6 7-6 7z"/><path d="M6 5l6 7-6 7M13 5l6 7-6 7"/></svg></div><div class="lbl">myFAM</div></div>
           <div class="tab centre" data-tab="home" onclick="setTab('home')"><div class="dot"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle class="tone" cx="11" cy="11" r="7"/><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></div></div>
           <div class="tab" data-tab="messages" onclick="openMessages()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M4 4h16a2 2 0 012 2v9a2 2 0 01-2 2H9l-4 4v-4H4a2 2 0 01-2-2V6a2 2 0 012-2z"/><path d="M4 4h16a2 2 0 012 2v9a2 2 0 01-2 2H9l-4 4v-4H4a2 2 0 01-2-2V6a2 2 0 012-2z"/></svg><span class="tab-badge" data-msg-badge hidden></span></div><div class="lbl">Messages</div></div>
@@ -3857,7 +3878,7 @@
           </div>
         </div>
         <div class="tabbar">
-          <div class="tab" data-tab="myfam" onclick="openMyFamTab()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M4 10l8-7 8 7v11H4z"/><path d="M4 10l8-7 8 7v11H4z"/><path d="M8.5 12.5L12 9l3.5 3.5M9.5 17L12 14.5l2.5 2.5"/></svg></div><div class="lbl">DailyFAM</div></div>
+          <div class="tab" data-tab="myfam" onclick="openMyFamTab()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M4 10l8-7 8 7v11H4z"/><path d="M4 10l8-7 8 7v11H4z"/><path d="M8.5 12.5L12 9l3.5 3.5M8.5 17L12 13.5l3.5 3.5"/></svg></div><div class="lbl">DailyFAM</div></div>
           <div class="tab active" data-tab="playfam" onclick="openPlayFAM()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M13 5l6 7-6 7z"/><path d="M6 5l6 7-6 7M13 5l6 7-6 7"/></svg></div><div class="lbl">myFAM</div></div>
           <div class="tab centre" data-tab="home" onclick="setTab('home')"><div class="dot"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle class="tone" cx="11" cy="11" r="7"/><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></div></div>
           <div class="tab" data-tab="messages" onclick="openMessages()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M4 4h16a2 2 0 012 2v9a2 2 0 01-2 2H9l-4 4v-4H4a2 2 0 01-2-2V6a2 2 0 012-2z"/><path d="M4 4h16a2 2 0 012 2v9a2 2 0 01-2 2H9l-4 4v-4H4a2 2 0 01-2-2V6a2 2 0 012-2z"/></svg><span class="tab-badge" data-msg-badge hidden></span></div><div class="lbl">Messages</div></div>
@@ -3991,7 +4012,9 @@
           <!-- Minimises, never stops (§142): the episode carries on in the
                mini player, whose button still pauses it and whose tap brings
                this screen back exactly where it is. -->
-          <button type="button" class="p-down" id="playerDown" onclick="minimizePlayer()" aria-label="Minimise the player"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></button>
+          <!-- The Home logo, DailyFAM's own tab glyph (10.12 packet #1), where
+               the down arrow was; it still only minimises the player. -->
+          <button type="button" class="p-down" id="playerDown" onclick="minimizePlayer()" aria-label="Minimise the player"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10l8-7 8 7v11H4z"/><path d="M8.5 12.5L12 9l3.5 3.5M8.5 17L12 13.5l3.5 3.5"/></svg></button>
           <!-- GO DEEPER at the top, where "Now playing" was (10.2 packet):
                the one invitation on the player to keep going, and nothing
                says "now playing" - the player is what is playing. -->
@@ -4107,8 +4130,14 @@
         <div class="reel-stage" id="reelStage">
           <div class="reel-bg" id="reelBg" aria-hidden="true"></div>
           <div class="reel-head">
-            <button class="reel-back" onclick="exploreBack()" aria-label="Back to DailyFAM"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></button>
-            <div class="reel-brand" aria-label="exploreFAM">explore<span class="wm-glyph f" aria-hidden="true"><svg viewBox="4.55 4.55 12.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 20V9.2A3.2 3.2 0 0 1 9.2 6H16"/><path d="M6 13h8"/></svg></span><span class="wm-a" aria-hidden="true"><svg viewBox="3.55 4.55 16.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l7-7 7 7"/><path d="M5 20l7-7 7 7"/></svg></span><span class="wm-glyph m" aria-hidden="true"><svg viewBox="4.55 4.55 14.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 20V6l6 9 6-9v14"/></svg></span></div>
+            <button class="reel-back" onclick="exploreBack()" aria-label="Back to DailyFAM"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10l8-7 8 7v11H4z"/><path d="M8.5 12.5L12 9l3.5 3.5M8.5 17L12 13.5l3.5 3.5"/></svg></button>
+            <div class="reel-head-mid">
+              <div class="reel-brand" aria-label="exploreFAM">explore<span class="wm-glyph f" aria-hidden="true"><svg viewBox="4.55 4.55 12.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 20V9.2A3.2 3.2 0 0 1 9.2 6H16"/><path d="M6 13h8"/></svg></span><span class="wm-a" aria-hidden="true"><svg viewBox="3.55 4.55 16.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l7-7 7 7"/><path d="M5 20l7-7 7 7"/></svg></span><span class="wm-glyph m" aria-hidden="true"><svg viewBox="4.55 4.55 14.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 20V6l6 9 6-9v14"/></svg></span></div>
+              <!-- What the reel deals (10.12 packet #2, the owner's sketch):
+                   a dropdown under the wordmark. Hidden on a category's reel,
+                   whose kicker names what it deals. -->
+              <button class="reel-feed" id="reelFeedBtn" onclick="openReelFeedMenu()" aria-haspopup="true" aria-label="Choose what exploreFAM plays"><span id="reelFeedName">What people are searching</span><svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M5 8h14l-7 9z"/></svg></button>
+            </div>
             <button class="p-more reel-more" onclick="openReelMenu()" aria-label="More for this episode"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.9"/><circle cx="12" cy="12" r="1.9"/><circle cx="19" cy="12" r="1.9"/></svg></button>
           </div>
 
@@ -4177,6 +4206,14 @@
             </div>
           </div>
 
+          <!-- The end of a category's reel (10.12 packet #4): no loop back to
+               the first card, but four other categories to go on with. -->
+          <div class="reel-done" id="reelDone" hidden>
+            <h3>You&rsquo;re all caught up</h3>
+            <p>Explore a different category?</p>
+            <div class="cat-grid" id="reelDoneGrid"></div>
+            <button class="reel-done-back" onclick="exploreBack()">Back to the category</button>
+          </div>
           <div class="reel-progress"><div class="reel-fill" id="reelFill"></div></div>
 
           <!-- Closed captions, as on the player: a strip at the bottom that
@@ -4220,7 +4257,7 @@
           </div>
         </div>
         <div class="tabbar">
-          <div class="tab" data-tab="myfam" onclick="openMyFamTab()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M4 10l8-7 8 7v11H4z"/><path d="M4 10l8-7 8 7v11H4z"/><path d="M8.5 12.5L12 9l3.5 3.5M9.5 17L12 14.5l2.5 2.5"/></svg></div><div class="lbl">DailyFAM</div></div>
+          <div class="tab" data-tab="myfam" onclick="openMyFamTab()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M4 10l8-7 8 7v11H4z"/><path d="M4 10l8-7 8 7v11H4z"/><path d="M8.5 12.5L12 9l3.5 3.5M8.5 17L12 13.5l3.5 3.5"/></svg></div><div class="lbl">DailyFAM</div></div>
           <div class="tab" data-tab="playfam" onclick="openPlayFAM()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M13 5l6 7-6 7z"/><path d="M6 5l6 7-6 7M13 5l6 7-6 7"/></svg></div><div class="lbl">myFAM</div></div>
           <div class="tab centre" data-tab="home" onclick="setTab('home')"><div class="dot"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle class="tone" cx="11" cy="11" r="7"/><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></div></div>
           <div class="tab" data-tab="messages" onclick="openMessages()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M4 4h16a2 2 0 012 2v9a2 2 0 01-2 2H9l-4 4v-4H4a2 2 0 01-2-2V6a2 2 0 012-2z"/><path d="M4 4h16a2 2 0 012 2v9a2 2 0 01-2 2H9l-4 4v-4H4a2 2 0 01-2-2V6a2 2 0 012-2z"/></svg><span class="tab-badge" data-msg-badge hidden></span></div><div class="lbl">Messages</div></div>
@@ -4263,7 +4300,7 @@
           <div id="profileBody"></div>
         </div>
         <div class="tabbar">
-          <div class="tab" data-tab="myfam" onclick="openMyFamTab()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M4 10l8-7 8 7v11H4z"/><path d="M4 10l8-7 8 7v11H4z"/><path d="M8.5 12.5L12 9l3.5 3.5M9.5 17L12 14.5l2.5 2.5"/></svg></div><div class="lbl">DailyFAM</div></div>
+          <div class="tab" data-tab="myfam" onclick="openMyFamTab()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M4 10l8-7 8 7v11H4z"/><path d="M4 10l8-7 8 7v11H4z"/><path d="M8.5 12.5L12 9l3.5 3.5M8.5 17L12 13.5l3.5 3.5"/></svg></div><div class="lbl">DailyFAM</div></div>
           <div class="tab" data-tab="playfam" onclick="openPlayFAM()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M13 5l6 7-6 7z"/><path d="M6 5l6 7-6 7M13 5l6 7-6 7"/></svg></div><div class="lbl">myFAM</div></div>
           <div class="tab centre" data-tab="home" onclick="setTab('home')"><div class="dot"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle class="tone" cx="11" cy="11" r="7"/><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></div></div>
           <div class="tab" data-tab="messages" onclick="openMessages()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M4 4h16a2 2 0 012 2v9a2 2 0 01-2 2H9l-4 4v-4H4a2 2 0 01-2-2V6a2 2 0 012-2z"/><path d="M4 4h16a2 2 0 012 2v9a2 2 0 01-2 2H9l-4 4v-4H4a2 2 0 01-2-2V6a2 2 0 012-2z"/></svg><span class="tab-badge" data-msg-badge hidden></span></div><div class="lbl">Messages</div></div>
@@ -4291,7 +4328,7 @@
         </label>
         <div class="scroll"><div id="threadList"></div></div>
         <div class="tabbar">
-          <div class="tab" data-tab="myfam" onclick="openMyFamTab()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M4 10l8-7 8 7v11H4z"/><path d="M4 10l8-7 8 7v11H4z"/><path d="M8.5 12.5L12 9l3.5 3.5M9.5 17L12 14.5l2.5 2.5"/></svg></div><div class="lbl">DailyFAM</div></div>
+          <div class="tab" data-tab="myfam" onclick="openMyFamTab()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M4 10l8-7 8 7v11H4z"/><path d="M4 10l8-7 8 7v11H4z"/><path d="M8.5 12.5L12 9l3.5 3.5M8.5 17L12 13.5l3.5 3.5"/></svg></div><div class="lbl">DailyFAM</div></div>
           <div class="tab" data-tab="playfam" onclick="openPlayFAM()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M13 5l6 7-6 7z"/><path d="M6 5l6 7-6 7M13 5l6 7-6 7"/></svg></div><div class="lbl">myFAM</div></div>
           <div class="tab centre" data-tab="home" onclick="setTab('home')"><div class="dot"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle class="tone" cx="11" cy="11" r="7"/><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></div></div>
           <div class="tab active" data-tab="messages" onclick="openMessages()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M4 4h16a2 2 0 012 2v9a2 2 0 01-2 2H9l-4 4v-4H4a2 2 0 01-2-2V6a2 2 0 012-2z"/><path d="M4 4h16a2 2 0 012 2v9a2 2 0 01-2 2H9l-4 4v-4H4a2 2 0 01-2-2V6a2 2 0 012-2z"/></svg><span class="tab-badge" data-msg-badge hidden></span></div><div class="lbl">Messages</div></div>
@@ -9863,6 +9900,7 @@
   var catReq = 0;
   var catPage = { root: "", node: "", sort: "popular", episodes: [] };
   var catTimer = null;
+  var catAutoShuffle = false;
   function loadMyCategories(){
     var el = document.getElementById("catGrid");
     if(!el) return;
@@ -9891,9 +9929,10 @@
   }
   var CAT_STAR = '<svg class="cat-star" width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-label="Following">'
     + '<path d="M12 2.8l2.8 5.9 6.4.8-4.7 4.4 1.2 6.4L12 17.2l-5.7 3.1 1.2-6.4-4.7-4.4 6.4-.8z"/></svg>';
-  function categoryTileHTML(id, label, facet, kids, followed){
+  function categoryTileHTML(id, label, facet, kids, followed, action){
     return '<button class="cat-tile ' + categoryTone(facet) + (followed ? ' followed' : '')
-      + '" data-cat="' + escapeHtml(id) + '" onclick="openCategory(this.dataset.cat)">'
+      + '" data-cat="' + escapeHtml(id) + '" onclick="' + (action || "openCategory")
+      + '(this.dataset.cat)">'
       + (followed ? CAT_STAR : '') + '<span class="cat-tile-name">' + escapeHtml(label) + '</span>'
       + (kids ? '<small>' + escapeHtml(kids) + '</small>' : '') + '</button>';
   }
@@ -10026,6 +10065,7 @@
       })
       .catch(function(){
         if(req !== catReq) return;
+        catAutoShuffle = false;
         el.innerHTML = '<div class="sv-empty">Could not load this category right now. '
           + '<button class="sample-note-btn" onclick="loadCategoryEpisodes()">Try again</button></div>';
       });
@@ -10057,6 +10097,13 @@
     var el = document.getElementById("catList");
     var eps = catPage.episodes;
     document.getElementById("catShuffle").disabled = !eps.length;
+    // A category picked from the end of another's reel (10.12 #4) plays
+    // as soon as it has something; with nothing, its page says so.
+    if(catAutoShuffle){
+      catAutoShuffle = false;
+      var here = document.querySelector(".screen.active");
+      if(eps.length && !q && here && here.id === "screen-category"){ setTimeout(shuffleCategory, 0); }
+    }
     if(!eps.length){
       el.innerHTML = q
         ? '<div class="sv-empty">No title in here has those words today.</div>'
@@ -10087,6 +10134,41 @@
   function shuffleCategory(){
     if(!catPage.episodes.length){ toast("Nothing has been made in this category today yet"); return; }
     openCategoryReel(categoryLabelOf(catPage.node), shuffledPool(catPage.episodes));
+  }
+  // **You're all caught up** (10.12 packet #4): a category's reel does not
+  // go round again. Past its last card it offers four other categories -
+  // the ones this listener follows first, then the facets - none of them
+  // the category just finished or its own heading.
+  function otherCategories(current, n){
+    if(!catData) return [];
+    var facetOf = function(id){
+      for(var i = 0; i < catData.facets.length; i++){ if(catData.facets[i].id === id) return id; }
+      for(var j = 0; j < catData.all.length; j++){ if(catData.all[j].id === id) return catData.all[j].facet; }
+      return "";
+    };
+    var mineFacet = facetOf(current);
+    var out = [], taken = {};
+    taken[current] = true;
+    if(mineFacet) taken[mineFacet] = true;
+    var followed = catData.saved ? catData.mine : [];
+    followed.forEach(function(c){
+      if(out.length >= n || taken[c.id] || !c.today) return;
+      taken[c.id] = true;
+      out.push({ id: c.id, label: c.label, facet: c.facet, kids: (c.children || []).join(" · ") });
+    });
+    shuffledPool(catData.facets.slice()).forEach(function(f){
+      if(out.length >= n || taken[f.id]) return;
+      taken[f.id] = true;
+      out.push({ id: f.id, label: f.label, facet: f.id,
+                 kids: (f.children || []).slice(0, 3).map(function(c){ return c.label; }).join(" · ") });
+    });
+    return out;
+  }
+  function playOtherCategory(id){
+    hideCategoryCaughtUp();
+    openPlayFAM();
+    catAutoShuffle = true;
+    openCategory(id);
   }
 
   function mixById(id){
@@ -17946,9 +18028,146 @@
   // deals Explore's own feed again rather than the category's leftovers.
   var reelFeed = "explore";
   var reelFeedLabel = "";
+  // **What Explore's feed is** (10.12 packet #2, the owner's sketch): the
+  // dropdown under the wordmark. Made for you, Trending and Most recent run
+  // out, and then the reel shuffles the whole cached catalogue by itself;
+  // What people are searching and Explore go round again. Every one is the
+  // shared cache only (`/api/explore?feed=`), so none can write an episode.
+  var EXPLORE_FEEDS = [
+    { id: "made_for_you", label: "Made for you", runsOut: true },
+    { id: "trending", label: "Trending", runsOut: true },
+    { id: "recent", label: "Most recent", runsOut: true },
+    { id: "searching", label: "What people are searching", shuffled: true },
+    { id: "catalog", label: "Explore", shuffled: true }
+  ];
+  // `exploreChoice` is what the listener picked (kept on the device);
+  // `exploreFeed` is what is being dealt, which is the catalogue once a
+  // choice has run out. Every new deal starts again from the choice.
+  var exploreChoice = "searching";
+  try {
+    var keptFeed = localStorage.getItem("fam.exploreFeed");
+    if(keptFeed && exploreFeedById(keptFeed)) exploreChoice = keptFeed;
+  } catch(e){}
+  var exploreFeed = exploreChoice;
+  // Bumped whenever the reel starts dealing something else, so a fetch that
+  // lands afterwards is dropped rather than taking the reel over - the way
+  // a science card reached a Sport shuffle (10.12 #5).
+  var reelEpoch = 0;
+  // What this run has dealt, so the catalogue that follows a feed running
+  // out starts with what has not been heard here.
+  var reelSeen = {};
+  // The epoch a catalogue fetch is in flight for, or -1.
+  var reelFalling = -1;
+  function exploreFeedById(id){
+    for(var i = 0; i < EXPLORE_FEEDS.length; i++){ if(EXPLORE_FEEDS[i].id === id) return EXPLORE_FEEDS[i]; }
+    return null;
+  }
+  function reelCardId(ep){ return ep.key || (ep.query + "|" + ep.minutes); }
+  function drawReelFeed(){
+    var btn = document.getElementById("reelFeedBtn");
+    if(!btn) return;
+    btn.hidden = reelFeed === "category";
+    document.getElementById("reelFeedName").textContent = exploreFeedById(exploreFeed).label;
+  }
+  function openReelFeedMenu(){
+    showActionSheet([{ group: "exploreFAM plays" }].concat(EXPLORE_FEEDS.map(function(f){
+      return { label: escapeHtml(f.label) + (f.id === exploreChoice ? " \u2713" : ""),
+               action: function(){ chooseExploreFeed(f.id); } };
+    })));
+  }
+  function chooseExploreFeed(id){
+    if(!exploreFeedById(id)) return;
+    exploreChoice = id;
+    try { localStorage.setItem("fam.exploreFeed", id); } catch(e){}
+    reelEpoch++;
+    reelFeed = "explore";
+    hideCategoryCaughtUp();
+    drawReelFeed();
+    closeReelComments();
+    stopSpeech();
+    stopReelProgress();
+    reelCurrent = null;
+    reelQueue = [];
+    reelHistory = [];
+    loadExplore();
+  }
+  // Made for you, Trending or Most recent has nothing left: the whole
+  // cached catalogue, shuffled, what this run already dealt last.
+  function shuffleCatalogAfter(label){
+    if(reelFalling === reelEpoch) return;
+    var epoch = reelFalling = reelEpoch;
+    fetch("/api/explore?limit=60&feed=catalog")
+      .then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
+      .then(function(d){
+        if(reelFalling === epoch) reelFalling = -1;
+        if(epoch !== reelEpoch || reelFeed !== "explore") return;
+        var all = d.episodes || [];
+        var fresh = all.filter(function(ep){ return !reelSeen[reelCardId(ep)]; });
+        var eps = fresh.length ? fresh : all;
+        if(!eps.length){
+          if(!reelCurrent){
+            setReelText("Nothing here yet", "exploreFAM fills up as people listen. "
+              + "Every episode anyone makes lands here for everyone else to hear.", "");
+            document.getElementById("reelHint").style.visibility = "hidden";
+          }
+          return;
+        }
+        exploreFeed = "catalog";      // shown, not kept: their choice stays theirs
+        drawReelFeed();
+        toast(reelCurrent ? "That\u2019s all of " + label + " \u2014 shuffling everything"
+                          : "Nothing in " + label + " is ready yet \u2014 shuffling everything");
+        reelQueue = shuffledPool(eps.slice());
+        reelHistory = reelCurrent ? reelHistory : [];
+        nextReel();
+      })
+      .catch(function(){
+        if(reelFalling === epoch) reelFalling = -1;
+        if(epoch !== reelEpoch || reelFeed !== "explore") return;
+        if(reelCurrent){ toast("Could not reach the feed"); return; }
+        setReelText("Could not reach the feed",
+          "Search still works \u2014 this fills in when the server is back.", "");
+      });
+  }
+  function showCategoryCaughtUp(){
+    var el = document.getElementById("reelDone");
+    if(!el) return;
+    if(!catData){
+      // The tiles need the categories; drawn again once they have come.
+      fetch("/api/categories")
+        .then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
+        .then(function(d){
+          catData = catData || d;
+          if(!el.hidden) drawCaughtUpTiles();
+        }).catch(function(){});
+    }
+    drawCaughtUpTiles();
+    closeReelComments();
+    stopSpeech();
+    stopReelProgress();
+    setReelPlaying(false);
+    el.hidden = false;
+  }
+  function drawCaughtUpTiles(){
+    var picks = otherCategories(catPage.node, 4);
+    var grid = document.getElementById("reelDoneGrid");
+    grid.innerHTML = picks.map(function(c){
+      return categoryTileHTML(c.id, c.label, c.facet, c.kids, false, "playOtherCategory");
+    }).join("");
+    grid.hidden = !picks.length;
+  }
+  function caughtUpShowing(){
+    var el = document.getElementById("reelDone");
+    return !!(el && !el.hidden);
+  }
+  function hideCategoryCaughtUp(){
+    var el = document.getElementById("reelDone");
+    if(el) el.hidden = true;
+  }
   function openCategoryReel(label, cards){
     if(!cards || !cards.length) return;
     closeReelComments();
+    hideCategoryCaughtUp();
+    reelEpoch++;
     reelFeed = "category";
     reelFeedLabel = label || "";
     exploreFrom = "category";
@@ -17962,12 +18181,16 @@
     reelFailures = 0;
     reelUnplayed = false;
     reelBusy = false;
+    reelSeen = {};
+    drawReelFeed();
     nextReel();
   }
   function openExplore(from){
     closeReelComments();
+    hideCategoryCaughtUp();
     exploreFrom = from === "home" ? "home" : "myfam";
     if(reelFeed !== "explore"){
+      reelEpoch++;
       reelFeed = "explore";
       reelCurrent = null;
       reelQueue = [];
@@ -17975,6 +18198,7 @@
     }
     setTab("explore");
     updateTabs(exploreFrom);
+    drawReelFeed();
     var back = document.querySelector("#screen-explore .reel-back");
     if(back) back.setAttribute("aria-label",
       exploreFrom === "home" ? "Back to search" : "Back to DailyFAM");
@@ -18011,17 +18235,26 @@
       setReelText("Loading…", "", "");
     }
     reelPriming = true;
-    fetch("/api/explore?limit=60")
+    hideCategoryCaughtUp();
+    if(!reelCurrent) exploreFeed = exploreChoice;
+    var epoch = reelEpoch, feed = exploreFeed;
+    fetch("/api/explore?limit=60&feed=" + encodeURIComponent(feed))
       .then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
       .then(function(data){
         reelPriming = false;
         var eps = data.episodes || [];
         if(!eps.length || (reelCurrent && reelFeed === "explore")) return;
+        // A category's reel, or another feed, opened while this was in
+        // flight: it is theirs now (10.12 #5).
+        if(epoch !== reelEpoch || feed !== exploreFeed) return;
         reelFeed = "explore";
-        reelQueue = shuffledPool(eps.slice());
+        reelSeen = {};
+        drawReelFeed();
+        reelQueue = exploreFeedById(feed).shuffled ? shuffledPool(eps.slice()) : eps.slice();
         reelHistory = [];
         reelFailures = 0;
         reelCurrent = reelQueue.shift();
+        reelSeen[reelCardId(reelCurrent)] = true;
         reelUnplayed = true;
         renderReel();
       })
@@ -18030,11 +18263,22 @@
 
   function loadExplore(){
     setReelText("Loading…", "", "");
-    fetch("/api/explore?limit=60")
+    hideCategoryCaughtUp();
+    exploreFeed = exploreChoice;
+    drawReelFeed();
+    var epoch = reelEpoch, feed = exploreFeed;
+    fetch("/api/explore?limit=60&feed=" + encodeURIComponent(feed))
       .then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
       .then(function(data){
-        if(reelFeed !== "explore") return;   // a category's reel opened meanwhile
+        // A category's reel, or another feed, opened meanwhile.
+        if(reelFeed !== "explore" || epoch !== reelEpoch || feed !== exploreFeed) return;
         var eps = data.episodes || [];
+        reelSeen = {};
+        if(!eps.length && exploreFeedById(feed).runsOut){
+          reelQueue = []; reelHistory = []; reelCurrent = null;
+          shuffleCatalogAfter(exploreFeedById(feed).label);
+          return;
+        }
         if(!eps.length){
           setReelText("Nothing here yet",
             data.reason || "Explore fills up as people search. Every episode anyone "
@@ -18044,7 +18288,8 @@
         }
         // Shuffled, so the same person opening it twice does not get the same
         // run. Ordering by recency would make it a feed; this makes it a deal.
-        reelQueue = shuffledPool(eps.slice());
+        // Made for you, Trending and Most recent keep their own order.
+        reelQueue = exploreFeedById(feed).shuffled ? shuffledPool(eps.slice()) : eps.slice();
         reelHistory = [];
         reelCurrent = null;
         reelFailures = 0;
@@ -18071,6 +18316,7 @@
 
   function renderReel(){
     if(!reelCurrent) return;
+    hideCategoryCaughtUp();
     var ep = reelCurrent;
     document.getElementById("reelDeeper").style.display = "";
     // A friend both generated this and vibed it. `vibed_by` is only ever
@@ -18210,18 +18456,34 @@
   function nextReel(){
     if(reelBusy) return false;
     if(!reelQueue.length){
+      // A category ends (10.12 #4); Made for you, Trending and Most recent
+      // carry on into the shuffled catalogue (#2); the rest go round.
+      if(reelFeed === "category"){
+        if(reelCurrent && !caughtUpShowing()) showCategoryCaughtUp();
+        return false;
+      }
+      var feed = exploreFeedById(exploreFeed);
+      if(feed && feed.runsOut){
+        shuffleCatalogAfter(feed.label);
+        return false;
+      }
       if(!reelHistory.length) return false;
       reelQueue = shuffledPool(reelHistory.slice());
       reelHistory = [];
     }
     if(reelCurrent) reelHistory.push(reelCurrent);
     reelCurrent = reelQueue.shift();
+    reelSeen[reelCardId(reelCurrent)] = true;
     turnReel(1);
     return true;
   }
 
   function previousReel(){
-    if(reelBusy || !reelHistory.length) return false;
+    if(reelBusy) return false;
+    // Back from "You're all caught up" is the last card, still on screen.
+    var done = document.getElementById("reelDone");
+    if(done && !done.hidden){ hideCategoryCaughtUp(); return false; }
+    if(!reelHistory.length) return false;
     if(reelCurrent) reelQueue.unshift(reelCurrent);
     reelCurrent = reelHistory.pop();
     turnReel(-1);
@@ -18852,6 +19114,8 @@
       // Typing a comment is not steering the reel.
       if(e.target && e.target.closest && e.target.closest("input, textarea")) return;
       if(!document.getElementById("reelComments").hidden) return;
+      // Behind "You're all caught up" only the way back works (10.12 #4).
+      if(caughtUpShowing() && e.key !== "ArrowUp") return;
       if(e.key === "ArrowDown") guard(nextReel);
       else if(e.key === "ArrowUp") guard(previousReel);
       else if(e.key === " "){ e.preventDefault(); reelTogglePlay(); }

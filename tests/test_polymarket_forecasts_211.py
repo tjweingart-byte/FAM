@@ -170,18 +170,14 @@ async def _done(plan):
     return plan
 
 
-def test_a_forecast_alone_is_never_evidence_enough(gamma):
-    """A current-dependent question with no articles and no live state is
-    refused (§109) even when a market has a price: a price is what people
-    expect, not what happened."""
+def test_a_forecast_alone_is_never_evidence(gamma):
+    """A price is what people expect, not what happened: it rides beside the
+    plan and never becomes its evidence."""
     plan = dataclasses.replace(sg.plan_episode("who won the fed vote", 3),
                                brief=brief(), evidence="",
                                forecast=run(live_facts.forecast(brief())))
     assert plan.forecast is not None
-    generator = sg.ScriptGenerator.__new__(sg.ScriptGenerator)
-    with pytest.raises(Exception) as caught:
-        generator._refuse_without_evidence(plan)
-    assert type(caught.value).__name__ == "NoEvidence"
+    assert plan.evidence == ""
 
 
 # --------------------------------------------------------------------------

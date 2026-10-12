@@ -18416,7 +18416,127 @@ rebuilt from outside and can legitimately be empty (the GDELT copy).
 `db.py`, `app.py`, `POSTGRES.md`, `.env.example`,
 `docs/claude/constraints.md`, `tests/test_uncopied_database_254.py`.
 
-## 255. The admin page is pages behind a menu
+## 255. The 10.12 implementations: the Home logo, exploreFAM's feeds, the library on search, all caught up, and one category per shuffle
+
+At the owner's direction (the 10.12 packet, with a sketch of exploreFAM):
+
+1. **The player's down arrow is the Home logo** - DailyFAM's tab glyph,
+   the house - and does exactly what the arrow did (`minimizePlayer`). The
+   reel's back button wears the same house, as the sketch draws it.
+2. **exploreFAM has a dropdown under its wordmark** (`#reelFeedBtn`, an
+   action sheet): Made for you, Trending, Most recent, What people are
+   searching, Explore. `/api/explore?feed=` deals each from the shared cache
+   and nothing else: `made_for_you` and `trending` are that myFAM rail's
+   ranking (`build_section`, or a guest's `guest_section`) kept to the tiles
+   whose script is already cached, in the rail's order, recording no
+   impressions; `recent` is every surface's cached episodes, newest first;
+   `catalog` is the whole cache (`EXPLORE_CATALOG_SCAN`), which the client
+   shuffles; `searching`, the default an installed client still gets, is
+   the old feed - searches only, vibed first. None holds the listener's own.
+   Made for you, Trending and Most recent **run out**: the reel then fetches
+   the catalogue, deals what this run has not dealt first, shuffled, and
+   says so; the dropdown shows Explore, while the listener's own choice is
+   what is remembered (`localStorage`, a convenience). What people are
+   searching and Explore go round again as before. This narrows the old
+   rule that Explore is searched episodes only to What people are searching.
+3. **The library moved to search.** The bookshelf (`#myfamSearchBtn`,
+   `openMyFamSearch`) left DailyFAM's header for search's top left, level
+   with the exploreFAM pill on the right. DailyFAM's header keeps its height.
+4. **All caught up.** A category's reel no longer goes round: past its last
+   card (a swipe, or the last episode ending) it stops the audio and shows
+   "You're all caught up - Explore a different category?" over four other
+   categories (`otherCategories`: followed ones with something today first,
+   then the facets, never the category just finished or its heading). A
+   tile opens that category and shuffles it as soon as it has something
+   (`catAutoShuffle`); a swipe down returns to the last card. Shuffle play is
+   a little smaller (shorter, inset, 11.5px).
+5. **Only that category.** Two ways a science episode reached Sport's
+   Shuffle play, both closed:
+   * `_filed_under`'s fallback (an episode the writer never categorised,
+     filed by its words) put the episode under **every** tag its words
+     touched - its chain was all of them - so words that said "match" and
+     "physics" filed it under Sport and Science both. It is now the deepest
+     match and that node's branch only (`one-category`).
+   * A late `/api/explore` fetch (`primeExplore`, from search) landing after
+     a category's reel had opened replaced that reel's cards with Explore's.
+     A `reelEpoch` bumped whenever the reel starts dealing something else
+     drops any fetch that began before it.
+
+**Pre-merge review.** A second read of the branch found, and this fixed:
+the rail feeds matched tiles against only the newest 400 cached rows, so a
+kept tile written before a busy day was missed - each tile's key is now
+looked up (`cache.recent(keys=...)`, both caches); the catalogue ignored
+`limit` and built up to 400 cards a request - it sends a random `limit`;
+a feed that ran out left "Explore" as the feed for the rest of the session
+- the listener's choice (`exploreChoice`) and what is being dealt
+(`exploreFeed`) are now two things, and every new deal starts from the
+choice; behind "You're all caught up" Space replayed the last card and
+ArrowDown re-dealt the tiles - only the way back works there; a category
+picked from the overlay that answered after the listener had left its page
+pulled them into its reel - it shuffles only while its page is on screen;
+the overlay could linger under search's peek, a failed catalogue fetch left
+"Loading…" with no word, an in-flight fetch could be unlocked twice, and
+with no categories loaded the overlay had no tiles - all closed.
+
+`app.py`, `cache.py`, `static/index.html`, `docs/claude/product.md`,
+`tests/test_packet_1012.py` (and the tests that pinned the bookshelf in
+DailyFAM's header).
+
+## 256. No refusal popup, no "that's all we found", one tab icon, and a backfill that holds one episode
+
+Three things at the owner's direction (10.12).
+
+**The refusal is gone.** A Trending tile ("Aurora Lights Blaze Across
+Britain") answered a tap with the §109 toast: "FAM could not reach a single
+source for this one, and it needs current information to answer - so it is
+not going to guess." The owner: there is no reason a Trending episode should
+lack information, and that is not what it should look like. Go back to how
+it was. So `ScriptGenerator._refuse_without_evidence` is deleted, with both
+its refusals (the generic one and §194's local one); an empty ladder now
+reaches the writer like any thin packet, under the prompt's existing rules
+(volatile things never from memory; the gap unannounced; finding little never
+means a thing does not exist). `research.NoEvidence` stays as a class, so the
+handlers that word and refund it are unchanged if anything raises one.
+
+**§245 is reversed.** No `limited_material`, no `EpisodePlan.limited` /
+`ScriptNotes.limited`, no `<<LIMITED>>` marker, no "that's all we could find"
+sentence, and a thin episode is cached and shared again like any other:
+the pipeline writes it under its key, Trending, DailyFAM editions and
+prefetch keep it, and `stories_now` no longer drops a story whose episode
+was thin. Kept from §245: the prompt bullet "never conclude that something
+does not exist because you found little on it", `_pin_heard` keeping a
+well-formed id before its row exists, and `/api/health` → `memory`.
+Why a Trending tap found nothing at all is not answerable from here (no
+production logs in this container); `/admin`'s provider rows and the
+research fallbacks recorded on each episode are where to look.
+
+**The DailyFAM tab's chevrons are one size.** The house icon drawn in #138
+had a 7-wide chevron over a 5-wide one; both are 7 wide now
+(`M8.5 12.5L12 9l3.5 3.5M8.5 17L12 13.5l3.5 3.5`), in all six tab bars and
+on the two copies §255 added (the player's Home logo and Explore's back
+button, pinned by `tests/test_packet_1012.py`).
+Every other copy of the mark (the wordmark's A, `icon.svg`, the voice mark,
+the share and waitlist pages) already drew two identical `7-7 7 7` strokes.
+
+**Render: "Web Service FAM exceeded its memory limit".** The starter plan is
+512 MB, and §131 measured ~313 MB at peak with the embedding model loaded.
+The largest single allocation found in the code was the hourly R2 backfill
+(`ScriptCache._upload_strays`): one `fetchall` of up to 200 rows *with their
+audio*, every blob in memory at once - hundreds of MB once `AUDIO_STORE=r2`
+is on and older rows have no object yet, and it runs at boot and every hour.
+It now reads the keys and fetches one blob at a time. Other consumers, not
+changed here: a new episode's whole PCM held (and copied twice) until it is
+kept (~29 MB a 10-minute stream, x3 at the encode); two 5000-entry embedding
+caches as Python float lists (~60 MB each at the cap); the ONNX session's
+arena; the GDELT sync's domain dict rebuilt every 15 minutes.
+
+`script_generator.py`, `pipeline.py`, `trending_bank.py`, `prefetch.py`,
+`daily_edition.py`, `cache.py`, `app.py`, `static/index.html`,
+`tests/test_no_evidence.py`, `tests/test_local_news_weather_194.py`,
+`tests/test_polymarket_forecasts_211.py`; `tests/test_limited_material_245.py`
+deleted.
+
+## 257. The admin page is pages behind a menu
 
 **What happened (2026-10-12).** `/admin` had grown into one long scroll -
 numbers, the question box, reports, feedback, outside services, accounts,
@@ -18444,4 +18564,4 @@ the counts on the menu are current whichever page is open. The chart is
 redrawn when Overview is shown, because a hidden page has no width to
 measure.
 
-`admin_ui/tracker.html`, `tests/test_admin_menu_255.py`.
+`admin_ui/tracker.html`, `tests/test_admin_menu_257.py`.

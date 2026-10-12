@@ -25,9 +25,9 @@ episode came to be written before anything had been looked up.
 **Which one runs is a ladder, not a setting** (§109). The configured backend
 goes first; if it comes back with nothing GDELT is tried (`ladder()` is the
 one definition of that), asking `Brief.broader` rather than the precise query
-that just failed. No rung may raise. If every rung is empty and the question
-turns on something current, `NoEvidence` refuses the episode rather than
-letting it be written from memory.
+that just failed. No rung may raise. If every rung is empty the episode is
+still written (§256, which deleted the §109 refusal); the writer's rules keep
+anything volatile from being supplied from memory.
 
 The packet shape is unchanged - `SOURCE n / Title: / Published: / Source type:
 / Key evidence:` - and is byte-for-byte the one the manual benchmark measured
@@ -959,9 +959,8 @@ async def retrieve_with_gdelt(query: str, brief=None, recency_days: int = 0
 #: web search used to be the last rung - a separate research call at 10-25
 #: seconds - and it is deleted rather than switched off: everything an episode
 #: is written from comes from Exa, GDELT and the live providers (API-Sports,
-#: Finnhub, Polymarket), and nowhere else. A question that turns on something
-#: current and finds nothing on either index is refused (`NoEvidence`), which
-#: is what this ladder always ended in anyway.
+#: Finnhub, Polymarket), and nowhere else. A question that finds nothing on
+#: either index is still written (§256 deleted the §109 refusal).
 FALLBACK_RUNGS = ("gdelt",)
 
 
@@ -1036,7 +1035,7 @@ def report() -> dict:
         # search finds nothing" is the question a health tab is being asked,
         # and the answer depends on what is configured here. §109.
         "ladder": ladder(),
-        # And what happens at the bottom of it: a question that turns on
-        # current facts is refused rather than written from memory.
-        "refuses_without_evidence": True,
+        # And what happens at the bottom of it: nothing is refused for want
+        # of evidence since §256 - the episode is written regardless.
+        "refuses_without_evidence": False,
     }
