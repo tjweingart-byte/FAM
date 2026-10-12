@@ -10101,7 +10101,8 @@
     // as soon as it has something; with nothing, its page says so.
     if(catAutoShuffle){
       catAutoShuffle = false;
-      if(eps.length && !q){ setTimeout(shuffleCategory, 0); }
+      var here = document.querySelector(".screen.active");
+      if(eps.length && !q && here && here.id === "screen-category"){ setTimeout(shuffleCategory, 0); }
     }
     if(!eps.length){
       el.innerHTML = q
@@ -18039,11 +18040,15 @@
     { id: "searching", label: "What people are searching", shuffled: true },
     { id: "catalog", label: "Explore", shuffled: true }
   ];
-  var exploreFeed = "searching";
+  // `exploreChoice` is what the listener picked (kept on the device);
+  // `exploreFeed` is what is being dealt, which is the catalogue once a
+  // choice has run out. Every new deal starts again from the choice.
+  var exploreChoice = "searching";
   try {
     var keptFeed = localStorage.getItem("fam.exploreFeed");
-    if(keptFeed && exploreFeedById(keptFeed)) exploreFeed = keptFeed;
+    if(keptFeed && exploreFeedById(keptFeed)) exploreChoice = keptFeed;
   } catch(e){}
+  var exploreFeed = exploreChoice;
   // Bumped whenever the reel starts dealing something else, so a fetch that
   // lands afterwards is dropped rather than taking the reel over - the way
   // a science card reached a Sport shuffle (10.12 #5).
@@ -18051,7 +18056,8 @@
   // What this run has dealt, so the catalogue that follows a feed running
   // out starts with what has not been heard here.
   var reelSeen = {};
-  var reelFalling = false;
+  // The epoch a catalogue fetch is in flight for, or -1.
+  var reelFalling = -1;
   function exploreFeedById(id){
     for(var i = 0; i < EXPLORE_FEEDS.length; i++){ if(EXPLORE_FEEDS[i].id === id) return EXPLORE_FEEDS[i]; }
     return null;
@@ -18065,17 +18071,17 @@
   }
   function openReelFeedMenu(){
     showActionSheet([{ group: "exploreFAM plays" }].concat(EXPLORE_FEEDS.map(function(f){
-      return { label: escapeHtml(f.label) + (f.id === exploreFeed ? " \u2713" : ""),
+      return { label: escapeHtml(f.label) + (f.id === exploreChoice ? " \u2713" : ""),
                action: function(){ chooseExploreFeed(f.id); } };
     })));
   }
   function chooseExploreFeed(id){
     if(!exploreFeedById(id)) return;
-    exploreFeed = id;
+    exploreChoice = id;
     try { localStorage.setItem("fam.exploreFeed", id); } catch(e){}
     reelEpoch++;
     reelFeed = "explore";
-    reelFalling = false;
+    hideCategoryCaughtUp();
     drawReelFeed();
     closeReelComments();
     stopSpeech();
@@ -18088,13 +18094,12 @@
   // Made for you, Trending or Most recent has nothing left: the whole
   // cached catalogue, shuffled, what this run already dealt last.
   function shuffleCatalogAfter(label){
-    if(reelFalling) return;
-    reelFalling = true;
-    var epoch = reelEpoch;
+    if(reelFalling === reelEpoch) return;
+    var epoch = reelFalling = reelEpoch;
     fetch("/api/explore?limit=60&feed=catalog")
       .then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
       .then(function(d){
-        reelFalling = false;
+        if(reelFalling === epoch) reelFalling = -1;
         if(epoch !== reelEpoch || reelFeed !== "explore") return;
         var all = d.episodes || [];
         var fresh = all.filter(function(ep){ return !reelSeen[reelCardId(ep)]; });
@@ -18115,21 +18120,44 @@
         reelHistory = reelCurrent ? reelHistory : [];
         nextReel();
       })
-      .catch(function(){ reelFalling = false; });
+      .catch(function(){
+        if(reelFalling === epoch) reelFalling = -1;
+        if(epoch !== reelEpoch || reelFeed !== "explore") return;
+        if(reelCurrent){ toast("Could not reach the feed"); return; }
+        setReelText("Could not reach the feed",
+          "Search still works \u2014 this fills in when the server is back.", "");
+      });
   }
   function showCategoryCaughtUp(){
     var el = document.getElementById("reelDone");
     if(!el) return;
-    var picks = otherCategories(catPage.node, 4);
-    document.getElementById("reelDoneGrid").innerHTML = picks.map(function(c){
-      return categoryTileHTML(c.id, c.label, c.facet, c.kids, false, "playOtherCategory");
-    }).join("");
-    document.getElementById("reelDoneGrid").hidden = !picks.length;
+    if(!catData){
+      // The tiles need the categories; drawn again once they have come.
+      fetch("/api/categories")
+        .then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
+        .then(function(d){
+          catData = catData || d;
+          if(!el.hidden) drawCaughtUpTiles();
+        }).catch(function(){});
+    }
+    drawCaughtUpTiles();
     closeReelComments();
     stopSpeech();
     stopReelProgress();
     setReelPlaying(false);
     el.hidden = false;
+  }
+  function drawCaughtUpTiles(){
+    var picks = otherCategories(catPage.node, 4);
+    var grid = document.getElementById("reelDoneGrid");
+    grid.innerHTML = picks.map(function(c){
+      return categoryTileHTML(c.id, c.label, c.facet, c.kids, false, "playOtherCategory");
+    }).join("");
+    grid.hidden = !picks.length;
+  }
+  function caughtUpShowing(){
+    var el = document.getElementById("reelDone");
+    return !!(el && !el.hidden);
   }
   function hideCategoryCaughtUp(){
     var el = document.getElementById("reelDone");
@@ -18207,6 +18235,8 @@
       setReelText("Loading…", "", "");
     }
     reelPriming = true;
+    hideCategoryCaughtUp();
+    if(!reelCurrent) exploreFeed = exploreChoice;
     var epoch = reelEpoch, feed = exploreFeed;
     fetch("/api/explore?limit=60&feed=" + encodeURIComponent(feed))
       .then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
@@ -18224,6 +18254,7 @@
         reelHistory = [];
         reelFailures = 0;
         reelCurrent = reelQueue.shift();
+        reelSeen[reelCardId(reelCurrent)] = true;
         reelUnplayed = true;
         renderReel();
       })
@@ -18232,6 +18263,9 @@
 
   function loadExplore(){
     setReelText("Loading…", "", "");
+    hideCategoryCaughtUp();
+    exploreFeed = exploreChoice;
+    drawReelFeed();
     var epoch = reelEpoch, feed = exploreFeed;
     fetch("/api/explore?limit=60&feed=" + encodeURIComponent(feed))
       .then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
@@ -18425,7 +18459,7 @@
       // A category ends (10.12 #4); Made for you, Trending and Most recent
       // carry on into the shuffled catalogue (#2); the rest go round.
       if(reelFeed === "category"){
-        if(reelCurrent) showCategoryCaughtUp();
+        if(reelCurrent && !caughtUpShowing()) showCategoryCaughtUp();
         return false;
       }
       var feed = exploreFeedById(exploreFeed);
@@ -19080,6 +19114,8 @@
       // Typing a comment is not steering the reel.
       if(e.target && e.target.closest && e.target.closest("input, textarea")) return;
       if(!document.getElementById("reelComments").hidden) return;
+      // Behind "You're all caught up" only the way back works (10.12 #4).
+      if(caughtUpShowing() && e.key !== "ArrowUp") return;
       if(e.key === "ArrowDown") guard(nextReel);
       else if(e.key === "ArrowUp") guard(previousReel);
       else if(e.key === " "){ e.preventDefault(); reelTogglePlay(); }

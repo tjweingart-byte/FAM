@@ -101,8 +101,9 @@ def test_a_categorys_reel_ends_in_all_caught_up_with_four_categories():
     assert "Explore a different category?" in done
     nxt = _fn("nextReel")
     assert 'reelFeed === "category"' in nxt and "showCategoryCaughtUp()" in nxt
-    assert "otherCategories(catPage.node, 4)" in _fn("showCategoryCaughtUp")
-    assert '"playOtherCategory"' in _fn("showCategoryCaughtUp")
+    assert "drawCaughtUpTiles();" in _fn("showCategoryCaughtUp")
+    assert "otherCategories(catPage.node, 4)" in _fn("drawCaughtUpTiles")
+    assert '"playOtherCategory"' in _fn("drawCaughtUpTiles")
 
 
 def test_shuffle_play_is_smaller():
@@ -190,3 +191,52 @@ def test_a_rail_feed_keeps_only_its_cached_tiles_in_order(client, monkeypatch):
 
 def test_an_unknown_feed_is_the_default(client):
     assert client.get("/api/explore?feed=nonsense").json()["feed"] == "searching"
+
+
+# --- the pre-merge review -----------------------------------------------------
+
+def test_the_catalogue_sends_at_most_limit(client):
+    for i in range(8):
+        _put(f"k{i}", f"question number {i}", "myfam")
+    got = client.get("/api/explore?feed=catalog&limit=3").json()["episodes"]
+    assert len(got) == 3
+
+
+def test_a_rail_tile_is_looked_up_by_key_however_old(client, monkeypatch):
+    """Not hoped for among the newest rows: a tile written before a flood of
+    newer episodes is still found."""
+    old = appmod._episode_key(appmod._validated_plan("an old tile", appmod.BROWSE_MINUTES))
+    _put(old, "an old tile", "myfam")
+    for i in range(5):
+        _put(f"new{i}", f"a newer question {i}", "prefetch")
+    monkeypatch.setattr(appmod, "EXPLORE_CATALOG_SCAN", 2)
+    monkeypatch.setattr(T, "guest_section", lambda key: {"topics": [{"query": "an old tile"}]})
+    monkeypatch.setattr(appmod, "_has_account", lambda request: False)
+    got = [e["query"] for e in client.get("/api/explore?feed=made_for_you").json()["episodes"]]
+    assert got == ["an old tile"]
+
+
+@pytest.mark.parametrize("make", ["memory", "sqlite"])
+def test_recent_keeps_only_the_keys_asked_for(make, tmp_path):
+    from cache import MemoryScriptCache
+    store = MemoryScriptCache() if make == "memory" else SqliteScriptCache(str(tmp_path / "r.db"))
+    for k in ("a", "b", "c"):
+        store.put(k, ["A sentence."], 600, f"question {k}", "", 2, origin="search")
+    assert {e["key"] for e in store.recent(10, keys=["a", "c"])} == {"a", "c"}
+    assert len(store.recent(10)) == 3
+
+
+def test_a_feed_running_out_does_not_replace_the_listeners_choice():
+    assert "exploreFeed = exploreChoice;" in _fn("loadExplore")
+    assert "exploreChoice = id;" in _fn("chooseExploreFeed")
+    assert "exploreChoice" not in _fn("shuffleCatalogAfter")
+
+
+def test_behind_all_caught_up_only_the_way_back_works():
+    assert 'caughtUpShowing() && e.key !== "ArrowUp"' in HTML
+    assert "!caughtUpShowing()" in _fn("nextReel")
+
+
+def test_a_late_category_load_does_not_pull_the_listener_into_a_reel():
+    body = _fn("drawCategoryEpisodes")
+    assert 'here.id === "screen-category"' in body

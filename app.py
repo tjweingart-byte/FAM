@@ -19,6 +19,7 @@ import html
 import os
 import json
 import logging
+import random
 import re
 import sqlite3
 import time
@@ -8417,20 +8418,21 @@ async def trending_searches(request: Request) -> dict:
 #: What exploreFAM's dropdown can deal (10.12 packet #2), the first the
 #: default an installed client that sends no `feed` still gets.
 EXPLORE_FEEDS = ("searching", "made_for_you", "trending", "recent", "catalog")
-#: How far back "Explore" (the whole cached catalogue, shuffled by the
-#: client) and the two rails' cached tiles are looked for.
+#: How far back "Explore" (the whole cached catalogue) is read; `limit` of
+#: it, chosen at random, is sent.
 EXPLORE_CATALOG_SCAN = 400
 #: The myFAM rail each rail-shaped feed is.
 _EXPLORE_RAILS = {"made_for_you": "from_history", "trending": "world_trending"}
 
 
 def _explore_rail_entries(request: Request, listener: str, feed: str,
-                          held: dict) -> list[dict]:
+                          store) -> list[dict]:
     """The cached episodes of one myFAM rail, in the rail's own order.
 
-    The rail's ranking, read as `/api/myfam/section` reads it, then kept to
-    the tiles whose script is already in the shared cache (`held`, by key):
-    a reel card only ever replays (`cached_only`). No impressions are
+    The rail's ranking, read as `/api/myfam/section` reads it, then each
+    tile's own cache key looked up (`recent(keys=...)`), so a tile written
+    days ago is found however much has been written since: a reel card only
+    ever replays (`cached_only`). Not the listener's own. No impressions are
     recorded - a ranking dealt one card at a time was not shown."""
     key = _EXPLORE_RAILS[feed]
     try:
@@ -8453,7 +8455,7 @@ def _explore_rail_entries(request: Request, listener: str, feed: str,
     except Exception:  # noqa: BLE001 - an empty rail falls to the catalogue
         log.exception("could not rank the %s rail for exploreFAM", key)
         return []
-    out, seen = [], set()
+    order: list[tuple[str, dict]] = []
     for tile in tiles:
         query = tile.get("query") or ""
         if not query:
@@ -8462,10 +8464,17 @@ def _explore_rail_entries(request: Request, listener: str, feed: str,
             cache_key = _episode_key(_validated_plan(query, BROWSE_MINUTES))
         except Exception:  # noqa: BLE001 - an unaskable tile is not cached
             continue
+        if cache_key and all(cache_key != k for k, _ in order):
+            order.append((cache_key, tile))
+    if not order:
+        return []
+    held = {e["key"]: e for e in store.recent(
+        len(order), exclude_author=listener, keys=[k for k, _ in order])}
+    out = []
+    for cache_key, tile in order:
         entry = held.get(cache_key)
-        if entry is None or cache_key in seen:
+        if entry is None:
             continue
-        seen.add(cache_key)
         if not entry.get("title") and tile.get("title"):
             entry = {**entry, "title": tile["title"]}
         out.append(entry)
@@ -8540,13 +8549,18 @@ async def explore(request: Request, limit: int = Query(30, ge=1, le=60),
         entries = store.recent(limit, exclude_author=listener, origin="search")
     elif feed == "recent":
         entries = store.recent(limit, exclude_author=listener)
+    elif feed in _EXPLORE_RAILS:
+        entries = await asyncio.to_thread(
+            _explore_rail_entries, request, listener, feed, store)
+        entries = _visible_episodes(listener, entries)[:limit]
     else:
-        entries = store.recent(EXPLORE_CATALOG_SCAN, exclude_author=listener)
-        if feed in _EXPLORE_RAILS:
-            held = {e["key"]: e for e in entries}
-            entries = await asyncio.to_thread(
-                _explore_rail_entries, request, listener, feed, held)
-    entries = _visible_episodes(listener, entries)
+        # The catalogue: a random `limit` of everything kept (the client
+        # shuffles it again), so a card is never built for rows not sent.
+        entries = _visible_episodes(listener, store.recent(
+            EXPLORE_CATALOG_SCAN, exclude_author=listener))
+        entries = random.sample(entries, min(limit, len(entries)))
+    if feed in ("searching", "recent"):
+        entries = _visible_episodes(listener, entries)
     # An untitled card is titled from its question, through the speller so a
     # misspelling never becomes a title (10.1 #4) - in a thread, like
     # `/api/spell`, and only for the cards that need it.

@@ -18462,6 +18462,22 @@ At the owner's direction (the 10.12 packet, with a sketch of exploreFAM):
      A `reelEpoch` bumped whenever the reel starts dealing something else
      drops any fetch that began before it.
 
-`app.py`, `static/index.html`, `docs/claude/product.md`,
+**Pre-merge review.** A second read of the branch found, and this fixed:
+the rail feeds matched tiles against only the newest 400 cached rows, so a
+kept tile written before a busy day was missed - each tile's key is now
+looked up (`cache.recent(keys=...)`, both caches); the catalogue ignored
+`limit` and built up to 400 cards a request - it sends a random `limit`;
+a feed that ran out left "Explore" as the feed for the rest of the session
+- the listener's choice (`exploreChoice`) and what is being dealt
+(`exploreFeed`) are now two things, and every new deal starts from the
+choice; behind "You're all caught up" Space replayed the last card and
+ArrowDown re-dealt the tiles - only the way back works there; a category
+picked from the overlay that answered after the listener had left its page
+pulled them into its reel - it shuffles only while its page is on screen;
+the overlay could linger under search's peek, a failed catalogue fetch left
+"Loading…" with no word, an in-flight fetch could be unlocked twice, and
+with no categories loaded the overlay had no tiles - all closed.
+
+`app.py`, `cache.py`, `static/index.html`, `docs/claude/product.md`,
 `tests/test_packet_1012.py` (and the tests that pinned the bookshelf in
 DailyFAM's header).
