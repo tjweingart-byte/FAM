@@ -118,7 +118,7 @@ def presign(method: str, host: str, path: str, access_key: str,
             region: str = "auto", service: str = "s3") -> str:
     """A SigV4 query-signed URL (§252): the request needs no headers, so a
     browser can make it. Pinned against botocore's `generate_presigned_url`
-    in tests/test_audio_links.py."""
+    in tests/test_audio_links_252.py."""
     amz_date = now.strftime("%Y%m%dT%H%M%SZ")
     day = now.strftime("%Y%m%d")
     scope = f"{day}/{region}/{service}/aws4_request"

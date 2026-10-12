@@ -1193,13 +1193,33 @@ class PodcastPipeline:
             self.cache.audio_link, key, self._audio_voice(), self.engine.sample_rate)
         if not info:
             return None
-        url = store.link(info["object_key"], int(expires))
+        # S3 refuses X-Amz-Expires outside one second to a week.
+        expires = max(1, min(604800, int(expires)))
+        url = store.link(info["object_key"], expires)
         if not url:
             return None
-        episode = (plan.episode if plan.episode
-                   else episode_id(key, info["sourced"] or time.time()))
+        # The id the stream would send (`GenerationStats.episode`): an
+        # `episode=` replay keeps its own key, stamped with what it resolved to.
+        named = parse_episode_id(plan.episode)[0] if plan.episode else key
+        episode = episode_id(named, info["sourced"] or time.time())
+        # Everything a streamed cache hit does at this point except the bytes
+        # (`_stream_pcm`): the play counted - it is what slides an evergreen
+        # entry and its audio forward (§134) - prefetch's hit recorded, and
+        # the captions and the final title published under the *listener's*
+        # key, which on a near hit is not `key`.
+        self._count_play(key)
+        prefetch.note_consumed(key)
+        caption_key = await self._cache_key(plan) if is_shareable(plan.query) else ""
+        if caption_key:
+            starts = info["starts"] if len(info["starts"]) == len(info["sentences"]) else None
+            live_captions.open_track(caption_key)
+            live_captions.mark_cached(caption_key)
+            live_captions.publish_title(
+                caption_key, getattr(self.cache, "title", lambda _k: "")(key), final=True)
+            live_captions.publish(caption_key, info["sentences"], starts)
+            live_captions.close(caption_key)
         return {**info, "url": url, "key": key, "episode": episode,
-                "expires": int(expires)}
+                "expires": expires}
 
     async def _stored_audio_key(self, plan: EpisodePlan) -> str:
         """The key whose kept audio the serving path would replay for this

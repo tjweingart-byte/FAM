@@ -26,7 +26,8 @@ have. Copy, onboarding and features are judged against that frame.
 
 What you hear is a **generated episode**. Claude writes it from fresh research
 and Chatterbox reads it aloud on a rented GPU. Nothing is pre-recorded, and
-FAM keeps no audio files. Raw PCM streams to the player.
+A first play streams to the player as it is voiced; a replay may be read
+straight from cloud storage (§252).
 
 **The one-sentence spec:** *type a question, and within about a second audio
 starts giving the answer.* Seconds in front of the first word are wrong.
@@ -239,7 +240,7 @@ Before you touch code that a rule covers, read the full text:
 `grep -n 'rule:ID' docs/claude/*.md`.
 
 **Audio and the opening**
-- No MP3 and no audio files. PCM streams. Kept audio is zlib PCM in SQLite, and the device's offline shelf is IndexedDB. `[no-audio-files]`
+- A first play streams as it is voiced (PCM, or Opus where decoded); a replay may be a signed link to its Ogg Opus file in R2 (§252). Kept audio is Opus in R2, and the device's offline shelf is IndexedDB. `[no-audio-files]`
 - Nothing speaks before its material has arrived, and no setting buys that back. `[nothing-before-material]`
 - No filler, ever, and no setting for it. No preamble to cover a wait. `[no-filler]` `[latency-start-earlier]`
 - Duration is a ceiling, not a quota. End early rather than pad. `[duration-ceiling]`

@@ -466,8 +466,11 @@ window.FamAudio = (function () {
 
     keepable = false;
     episodeId = "";
-    // Where to stream the episode if a link to its kept audio will not play.
+    // Where to stream the episode if a link to its kept audio will not play,
+    // and this play's own abort signal: a skip must cancel its R2 download
+    // even if another play has started since.
     var streamUrl = "";
+    var ctl = controller;
     ctx.resume().then(canDecodeOpus).then(function (opus) {
       // Opus where this browser can decode it, PCM everywhere else. A browser
       // that decodes Opus may be handed a replay as a link (§252).
@@ -537,10 +540,13 @@ window.FamAudio = (function () {
         // site, an object gone), the episode is streamed instead and the
         // server is told, so the fallback is counted rather than invisible.
         return res.json().then(function (body) {
-          return playLinked(body, deliver, myToken);
+          return playLinked(body, deliver, myToken, ctl);
         }).catch(function (err) {
           if ((err && err.name === "AbortError") || myToken !== token || !first) throw err;
-          return fetch(streamUrl, { signal: controller.signal }).then(handle);
+          return fetch(streamUrl, { signal: ctl.signal }).catch(function (e) {
+            if (e && e.name !== "AbortError") e.network = true;
+            throw e;
+          }).then(handle);
         });
       }
 
@@ -689,8 +695,8 @@ window.FamAudio = (function () {
 
   /* A replay's kept audio, read from the bucket by the link the server signed
      (§252), and decoded by `pumpOpus` like the stream. */
-  function playLinked(body, deliver, myToken) {
-    return fetch(body.link, { signal: controller.signal }).then(function (file) {
+  function playLinked(body, deliver, myToken, ctl) {
+    return fetch(body.link, { signal: ctl.signal }).then(function (file) {
       if (!file.ok) throw new Error("The kept audio answered " + file.status + ".");
       return oggOpus(file.body.getReader(), Number(body.frames) || 0);
     }).then(function (opened) {

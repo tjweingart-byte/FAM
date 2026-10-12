@@ -84,6 +84,12 @@ Ogg or WebM stream is still a stream — it is decoded as it arrives and nothing
 is ever written to disk. That is compatible with the constraint and always was.
 What is not compatible is producing a file and handing over a URL to it.
 
+> **Since §252** (the owner's direction) a *replay* of kept audio may be
+> answered with exactly that: a signed link to its Ogg Opus file in R2
+> (`/api/audio?link=1`), read by the client instead of streamed through the
+> server. A first play still streams as it is voiced. The app may ask for
+> links once it can decode an Ogg Opus file; until then it streams.
+
 Note the ordering this implies: compression is a *prerequisite* of the app, not
 a polish item after it.
 

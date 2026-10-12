@@ -300,3 +300,62 @@ def test_postgres_measures_itself():
     assert "error" not in measured, measured
     assert measured["total_bytes"] > 0
     assert all(isinstance(v, int) for v in measured["schemas"].values())
+
+
+# --- review fixes: a linked replay is a replay in every count ------------------
+
+
+def _plays(appmod, key):
+    return appmod.SCRIPT_CACHE._conn().execute(
+        "SELECT plays FROM scripts WHERE key = ?", (key,)).fetchone()[0]
+
+
+@needs_opus
+def test_a_linked_replay_counts_as_a_play_and_publishes_its_title(tmp_path, monkeypatch, bucket):
+    """The play count slides an evergreen entry forward (§134); the title is
+    what the player swaps in from /api/next."""
+    import live_captions
+
+    client, _, appmod = _client(tmp_path, monkeypatch)
+    _get(client, link=1)
+    key = appmod.SCRIPT_CACHE._conn().execute("SELECT key FROM scripts").fetchone()[0]
+    before = _plays(appmod, key)
+    appmod.SCRIPT_CACHE._conn().execute(
+        "UPDATE scripts SET title = ? WHERE key = ?", ("Why The Sky Is Blue", key))
+    linked = _get(client, link=1)
+    assert linked.headers["x-fam-audio-link"] == "1"
+    assert _plays(appmod, key) == before + 1, "a linked replay was not counted"
+    assert live_captions.read_title(key) == ("Why The Sky Is Blue", True), (
+        "a linked replay must publish its final title")
+
+
+@needs_opus
+def test_opus_switched_off_means_no_opus_file_either(tmp_path, monkeypatch, bucket):
+    client, _, appmod = _client(tmp_path, monkeypatch)
+    _get(client, link=1)
+    _set(monkeypatch, audio_codec, audio_stream_opus=False)
+    res = _get(client, link=1)
+    assert "x-fam-audio-link" not in res.headers, "AUDIO_STREAM_OPUS=0 is always PCM"
+    assert res.headers["content-type"].startswith("audio/L16")
+
+
+@needs_opus
+def test_a_fallback_writes_no_second_ledger_row(tmp_path, monkeypatch, bucket):
+    client, _, appmod = _client(tmp_path, monkeypatch)
+    _get(client, link=1)
+    rows = []
+    monkeypatch.setattr(appmod, "_record_usage", lambda *a, **k: rows.append(k))
+    assert _get(client, link=1).headers["x-fam-audio-link"] == "1"
+    _get(client, link_failed=1)
+    assert len(rows) == 1, "one tap, one ledger row"
+
+
+@needs_opus
+def test_a_bare_episode_key_gets_the_id_the_stream_would_send(tmp_path, monkeypatch, bucket):
+    client, _, appmod = _client(tmp_path, monkeypatch)
+    first = _get(client)
+    full = first.headers["x-fam-episode"]
+    bare = full.split(".", 1)[0]
+    linked = _get(client, link=1, episode=bare)
+    assert linked.headers["x-fam-audio-link"] == "1"
+    assert linked.headers["x-fam-episode"] == full

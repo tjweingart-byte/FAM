@@ -34,6 +34,13 @@ Three consequences for ordinary changes, starting now:
   token in the Keychain keeps that rule exactly; `?user=` never does.
 
 <!-- rule:ios-pressures -->
+> **Current (PROBLEMS.md §252, at the owner's direction):** "no audio files"
+> no longer holds for replays. A first play still streams as it is voiced
+> (Opus where the client decodes it); a replay of kept audio may be answered
+> with a signed link to its Ogg Opus file in R2 (`/api/audio?link=1`), which
+> the app reads itself. The iOS app may use either; `fam-audio.js`'s
+> `oggOpus` is the spec for turning the file into the stream's packets.
+>
 The two settled constraints the app pressures, and how they resolve: **no MP3,
 no audio files still holds** - Opus over a stream is decoded as it arrives and
 writes nothing, so compression was always compatible and is now a prerequisite

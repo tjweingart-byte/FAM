@@ -1,6 +1,10 @@
 [
   {
-    "AllowedOrigins": ["https://fam.onrender.com"],
+    "AllowedOrigins": [
+      "https://fam.onrender.com",
+      "https://familiarize.net",
+      "https://www.familiarize.net"
+    ],
     "AllowedMethods": ["GET"],
     "AllowedHeaders": ["*"],
     "MaxAgeSeconds": 3600

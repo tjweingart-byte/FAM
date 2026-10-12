@@ -50,7 +50,9 @@ episode's script is pinned for as long as its audio is kept.
 6. **Let browsers read it (§252).** In the Cloudflare dashboard: R2 →
    `fam-audio` → Settings → CORS Policy → Add CORS policy, and paste
    `deploy/r2-cors.json` with `AllowedOrigins` listing every address the app
-   is opened at (`https://fam.onrender.com`, and any custom domain). Without
+   is opened at (`https://fam.onrender.com`, `https://familiarize.net` and
+   its `www.` form), each exactly as the address bar shows it - no trailing
+   slash. Native apps are not browsers and need no entry. Without
    it every replay still plays - the player streams it instead - but each
    one is counted as a fallback and costs Render bandwidth.
 

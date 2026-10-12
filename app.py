@@ -8890,7 +8890,10 @@ async def audio(
     if link_failed:
         _AUDIO_LINKS["fallbacks"] += 1
         log.warning("a link to kept audio would not play; streaming instead")
-    elif link and fmt == "opus" and settings.audio_links:
+    elif (link and fmt == "opus" and settings.audio_links
+          and audio_codec_mod.can_stream(pipeline.engine.sample_rate)):
+        # `can_stream` is AUDIO_STREAM_OPUS too: "always PCM" means no Opus
+        # file either.
         linked = await pipeline.stored_link(plan, settings.audio_link_seconds)
         if linked is not None:
             _AUDIO_LINKS["issued"] += 1
@@ -9083,12 +9086,16 @@ async def audio(
             # whether or not it was listened to, and a ledger that only counts
             # completed plays under-reports exactly the abusive pattern of
             # starting many episodes and finishing none.
-            _record_usage(
-                user, stats.usage,
-                surface=_surface(cached_only, topic_id, context),
-                minutes=plan.minutes, audio_seconds=stats.voiced_seconds,
-                cache_hit=stats.cache == "hit",
-            )
+            #
+            # Except a link's fallback that replayed kept audio (§252): the
+            # link already wrote this tap's row, and this one spent nothing.
+            if not (link_failed and stats.cache == "hit" and stats.audio == "stored"):
+                _record_usage(
+                    user, stats.usage,
+                    surface=_surface(cached_only, topic_id, context),
+                    minutes=plan.minutes, audio_seconds=stats.voiced_seconds,
+                    cache_hit=stats.cache == "hit",
+                )
 
     # Recorded here rather than client-side: audio is being served, so the
     # play is a fact. A dropped event costs one weak signal, never the episode.
@@ -9203,18 +9210,12 @@ async def _linked_audio(request: Request, user: str, plan, pipeline, linked: dic
 
     Everything a streamed replay does except send the bytes: the play is
     recorded and remembered, the ledger row written (a replay voices
-    nothing), the captions published under the episode's key, and the
-    headers the player reads are the same. The body says where the Ogg Opus
+    nothing), and the headers the player reads are the same; the play
+    count, captions and title are `PodcastPipeline.stored_link`'s. The body says where the Ogg Opus
     file is, until when, its true length, and the sentences and starts in it.
     """
     sample_rate = int(linked["sample_rate"])
     seconds = linked["frames"] / sample_rate if sample_rate else 0.0
-    caption_key = await pipeline._cache_key(plan) if is_shareable(plan.query) else ""
-    if caption_key:
-        starts = linked["starts"] if len(linked["starts"]) == len(linked["sentences"]) else None
-        live_captions.open_track(caption_key)
-        live_captions.publish(caption_key, linked["sentences"], starts)
-        live_captions.close(caption_key)
     if user and _remembers(request):
         SOCIAL.seen(user)
         EVENTS.record(topics_mod.Event(

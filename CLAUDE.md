@@ -491,7 +491,7 @@ Operations and honesty
 - Every feature is an API before it is a screen. [api-before-screen]
 - Nothing new on the audio path may assume a browser; `fam-audio.js` is the spec. [audio-no-browser]
 - `_listener` must be satisfiable by a header (bearer token in the Keychain). [listener-header]
-- Opus over a stream is compatible with no-files; account deletion is required. [ios-pressures]
+- First plays stream, replays may be R2 links (§252); account deletion required. [ios-pressures]
 - Server side built (`ACCOUNTS.md`); payment and delivery are not. [ios-server-built]
 - Order: hear the production voice → deploy with a GPU → Swift lock-screen spike. [ios-order]
 - Open decisions: where to deploy (bandwidth) [dec-deploy]; accounts - answered

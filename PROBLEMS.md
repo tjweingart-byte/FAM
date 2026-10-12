@@ -18307,3 +18307,29 @@ it does not pin 512 on Postgres.
 `app.py`, `audio_store.py`, `cache.py`, `pipeline.py`, `db.py`, `config.py`,
 `static/fam-audio.js`, `deploy/r2-cors.json`, `AUDIO_STORE.md`, `POSTGRES.md`,
 `tests/test_audio_links_252.py`.
+
+**Review, before merging.** Two reviewers read the branch; what they found
+was real and is fixed, each with a test:
+
+- A linked replay was not *counted as a play* (`record_play`), so an
+  evergreen entry replayed only by link stopped sliding (§134) and expired
+  a week after it was written, and prefetch's hit rate missed it. It is
+  counted, and `note_consumed`, exactly where a streamed hit is.
+- A near-match replay by link never published its *final title* under the
+  listener's key, so the player kept its derived title. `stored_link` now
+  does what `_stream_pcm` does on a hit: `mark_cached`, the title, the
+  captions - all under the listener's key.
+- `AUDIO_STREAM_OPUS=0` ("always PCM") still handed out Opus files by link;
+  the link now needs `audio_codec.can_stream`, which reads that switch.
+- A link's fallback wrote a *second ledger row* for one tap; a fallback that
+  replayed kept audio writes none.
+- A bare `episode=<key>` was echoed as given; the id is now the stream's
+  (`key.<sourced>`). `AUDIO_LINK_SECONDS` is clamped to S3's 1 s - 7 days.
+- The player marks a fallback that cannot connect as "no connection", and
+  ties the R2 download to its own play's abort signal.
+- Docs that still stated the reversed rule (`next-phase.md`'s ios-pressures,
+  IOS_APP.md, FRONTEND.md, ONBOARDING.md) carry a §252 note.
+
+The bucket's CORS policy (`deploy/r2-cors.json`) lists
+`https://familiarize.net` and its `www.` form beside `fam.onrender.com`; a
+native app is not a browser and needs no entry.
