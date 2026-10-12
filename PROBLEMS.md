@@ -18415,3 +18415,33 @@ rebuilt from outside and can legitimately be empty (the GDELT copy).
 
 `db.py`, `app.py`, `POSTGRES.md`, `.env.example`,
 `docs/claude/constraints.md`, `tests/test_uncopied_database_254.py`.
+
+## 255. The admin page is pages behind a menu
+
+**What happened (2026-10-12).** `/admin` had grown into one long scroll -
+numbers, the question box, reports, feedback, outside services, accounts,
+the voice bank, the respelling list and every store, one under another. The
+owner sketched a menu button at the top left that turns it into several
+pages.
+
+**What changed.** A button at the top left of `admin_ui/tracker.html` opens
+a drawer; each entry is a page, shown one at a time and named after the `#`
+in the address, so Refresh now keeps the page and the browser's back button
+moves between pages. The drawer is grouped:
+
+- **Tracker** - Overview (the numbers, new accounts and top searches), Ask
+  the database (with Every store under it, since tapping a table answers in
+  the question box), Newest accounts.
+- **Inbox** - Reported content and Feedback, each with its open count on the
+  menu; reports turn rose when one is overdue, and a dot on the menu button
+  says something is waiting.
+- **Running costs** - Outside service requests.
+- **Voice** - Voice bank, How names are said.
+- **Other admin pages** - links to `/admin/waitlist` and `/admin/thumbnails`.
+
+Nothing on the server changed; every page still loads on every refresh, so
+the counts on the menu are current whichever page is open. The chart is
+redrawn when Overview is shown, because a hidden page has no width to
+measure.
+
+`admin_ui/tracker.html`, `tests/test_admin_menu_255.py`.
