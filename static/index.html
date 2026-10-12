@@ -14600,7 +14600,7 @@
     html += '<div class="set-group">Privacy and safety</div>'
       + settingsRow("Send my questions to AI", escapeHtml(aiConsentSummary()),
           "toggleAiConsent()")
-      + '<div class="set-note">FAM writes episodes for what you ask with Anthropic\u2019s Claude, and searches for sources with Exa. Turn this off and you can still listen to everything FAM writes ahead.</div>';
+      + '<div class="set-note">FAM writes episodes for what you ask with Anthropic\u2019s Claude, and searches for sources with Parallel and Perplexity. Turn this off and you can still listen to everything FAM writes ahead.</div>';
     if(AUTH.authenticated){
       html += settingsRow("Blocked people",
           blockedCount === null ? "" : (blockedCount ? String(blockedCount) : "None"),

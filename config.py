@@ -173,6 +173,13 @@ def _env_float(name: str, default: float) -> float:
 
 #: How a researched episode gets its facts.
 #:
+#: **`parallel` is the default since §257**, at the owner's direction: Parallel's
+#: Search API at about a seventh of Exa's price, with `perplexity` - a second,
+#: independent index - as the second look and the first rung below it, and
+#: GDELT as the free floor. `exa` stays selectable so the two can be compared
+#: on the same questions before it is deleted. What follows is the reasoning
+#: as it was written for Exa, and holds for whichever web backend is chosen.
+#:
 #: `exa` retrieves first and hands Claude an evidence packet to read. The
 #: retrieval is a bounded, timed step this codebase can measure - `research.py`
 #: keeps the call and the packet byte-for-byte as the manual benchmark measured
@@ -200,11 +207,14 @@ def _env_float(name: str, default: float) -> float:
 #: - rather than falling back to one silently. What the *ladder* does when a
 #: rung comes back empty is a different thing, and it is recorded on the
 #: packet every time (`fell_back_from`).
-RESEARCH_BACKENDS = ("exa", "gdelt")
+RESEARCH_BACKENDS = ("parallel", "perplexity", "exa", "gdelt")
+
+#: The ones among them that send a query to a paid search vendor (§257).
+WEB_RESEARCH_BACKENDS = ("parallel", "perplexity", "exa")
 
 #: What a deployment gets when it says nothing. Named rather than repeated as a
 #: literal, for the same reason as DEFAULT_PIPELINE.
-DEFAULT_RESEARCH_BACKEND = "exa"
+DEFAULT_RESEARCH_BACKEND = "parallel"
 
 #: How long an episode is when nobody has said. Two minutes, not three.
 #:
@@ -379,7 +389,7 @@ class Settings:
         default_factory=lambda: os.environ.get("ENABLE_WEB_SEARCH", "0") not in ("0", "false", "False", "")
     )
     max_web_searches: int = _env_int("MAX_WEB_SEARCHES", 3)  # a ceiling, not a target
-    # exa | gdelt - see RESEARCH_BACKENDS above. Only consulted when an
+    # parallel | perplexity | exa | gdelt - see RESEARCH_BACKENDS above. Only consulted when an
     # episode is actually being researched; an unresearched one costs nothing
     # either way.
     research_backend: str = field(
@@ -418,6 +428,32 @@ class Settings:
     research_retry: bool = field(
         default_factory=lambda: os.environ.get("RESEARCH_RETRY", "1")
         not in ("0", "false", "False", ""))
+    # Where that one retry goes (§257): another web backend's index, because
+    # the same index asked again tends to miss the same way. `same` keeps it
+    # on the configured backend; a backend with no key is skipped the same
+    # way, so a deployment with only one search key loses nothing.
+    research_second_look: str = field(
+        default_factory=lambda: os.environ.get(
+            "RESEARCH_SECOND_LOOK", "perplexity").strip().lower())
+    # How long one search request may take before it counts as failed and
+    # the ladder moves on. A search sits in front of the first word.
+    search_timeout_seconds: float = _env_float("SEARCH_TIMEOUT_SECONDS", 8.0)
+    # Parallel's mode (§257). `fast` is its sub-second preset at $1/1k;
+    # `turbo` is faster and `basic`/`advanced` cost $5/1k. Always sent:
+    # Parallel defaults to `advanced` when it is omitted.
+    parallel_mode: str = field(
+        default_factory=lambda: os.environ.get("PARALLEL_MODE", "fast").strip().lower())
+    # The most excerpt text Parallel returns per page, cut into passages.
+    parallel_chars_per_result: int = _env_int("PARALLEL_CHARS_PER_RESULT", 1500)
+    # Perplexity's search type (`fast` at $1/1k, `web` at $5/1k) and how much
+    # of each page it returns.
+    perplexity_search_type: str = field(
+        default_factory=lambda: os.environ.get(
+            "PERPLEXITY_SEARCH_TYPE", "fast").strip().lower())
+    perplexity_tokens_per_page: int = _env_int("PERPLEXITY_TOKENS_PER_PAGE", 512)
+    # How long one passage is when a page's excerpt text is cut up - about
+    # the size of one of Exa's highlights.
+    search_passage_chars: int = _env_int("SEARCH_PASSAGE_CHARS", 500)
 
     # --- Episode intelligence --------------------------------------------
     # The layer between the typed question and the search - see
@@ -1749,6 +1785,19 @@ class Settings:
             # `/api/health` (`research.backend_replaced`) both say so.
             object.__setattr__(self, "research_backend_replaced", "claude")
             object.__setattr__(self, "research_backend", DEFAULT_RESEARCH_BACKEND)
+        if self.research_second_look not in ("same",) + WEB_RESEARCH_BACKENDS:
+            raise ValueError(
+                f"RESEARCH_SECOND_LOOK={self.research_second_look!r} is not a "
+                f"web search backend. Use one of: same, "
+                f"{', '.join(WEB_RESEARCH_BACKENDS)}.")
+        if self.parallel_mode not in ("turbo", "fast", "basic", "advanced"):
+            raise ValueError(
+                f"PARALLEL_MODE={self.parallel_mode!r} is not one of Parallel's "
+                "modes: turbo, fast, basic, advanced.")
+        if self.perplexity_search_type not in ("fast", "web"):
+            raise ValueError(
+                f"PERPLEXITY_SEARCH_TYPE={self.perplexity_search_type!r} is not "
+                "one of: fast, web.")
         if self.research_backend not in RESEARCH_BACKENDS:
             raise ValueError(
                 f"RESEARCH_BACKEND={self.research_backend!r} is not a research "

@@ -260,3 +260,4 @@ and `limit` = Lines.
 | 18373 | 46 | 254. The server refuses an empty Postgres beside a full disk |
 | 18419 | 66 | 255. The 10.12 implementations: the Home logo, exploreFAM's feeds, the library on search, all caught up, and one category per shuffle |
 | 18485 | 54 | 256. No refusal popup, no "that's all we found", one tab icon, and a backfill that holds one episode |
+| 18539 | 64 | 257. Parallel and Perplexity replace Exa |

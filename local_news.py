@@ -1091,7 +1091,9 @@ def report() -> dict:
     return {"enabled": bool(settings.local_news),
             "poll_minutes": int(settings.local_news_poll_minutes),
             "window_days": int(settings.local_news_window_days),
-            "order": ["town", "county", "exa (known outlets)", "nothing found"],
+            "order": ["town", "county",
+                      f"{settings.research_backend} (known outlets)",
+                      "nothing found"],
             **counts}
 
 
@@ -1172,7 +1174,8 @@ def _packet(items: list, scope: str, place, backend: str):
 async def research_local(place, brief=None, exa=None) -> LocalResult:
     """Town, then county, then Exa on the known outlets. Never raises.
 
-    `exa` is the coroutine function that runs one Exa search
+    `exa` is the coroutine function that runs one web search on the
+    configured backend (Parallel since §257; the name is from when it was Exa)
     (`(query, include_domains) -> Packet`), passed in so this module does
     not reach into the writer's retrieval code and tests can stand one in.
     """
@@ -1215,12 +1218,14 @@ async def research_local(place, brief=None, exa=None) -> LocalResult:
             log.warning("local news: the Exa rung failed for %s", place.label,
                         exc_info=True)
             packet = None
-        result.attempts.append(("exa", len(getattr(packet, "sources", []) or [])
+        # Named by the backend that actually searched (Parallel since §257).
+        label = str(getattr(packet, "backend", "") or "web")
+        result.attempts.append((label, len(getattr(packet, "sources", []) or [])
                                 if packet else 0))
         if packet:
             # Every result here names the town, so this *is* town news and
             # there is no gap to announce.
-            result.scope = "exa"
+            result.scope = label
             result.gap = False
             result.packet = packet
             _learn(packet, place, target)

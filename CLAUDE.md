@@ -290,7 +290,7 @@ Audio and the opening
 
 Research and truth
 - **Every episode is researched** (`SEARCH_MODE=always`). Empty search is a
-  ladder - backend, backend without window, GDELT - defined once in
+  ladder - Parallel, Perplexity (also the second look), GDELT (§257) - defined once in
   `research.ladder()`; **no model web search** (deleted §135); no rung raises;
   every fallback recorded; sim-league pages and (on sports) unknown outlets
   are screened out (§178); nothing is refused for want of evidence (§256);
@@ -326,7 +326,7 @@ Research and truth
   the device's `X-FAM-TZ` (Settings can pin one), never a location; prefetch
   and editions use the edition's zone; the zone is not in `key_for`. [listener-clock]
 - **Local news** (§194): a town's question goes town outlets (RSS, collected
-  ahead) → county → Exa on known outlets, never GDELT; only what names the
+  ahead) → county → the search backend on known outlets, never GDELT; only what names the
   place is evidence; an empty town opens with `local_news.gap_line`, composed
   in code, then weather, then county news. [local-news-ladder]
 - **Weather** (§194): NWS first, Open-Meteo second; fetched on demand, then
