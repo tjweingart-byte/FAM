@@ -41,11 +41,15 @@ def test_the_two_circles_wear_one_ring():
 
 
 def test_myfams_header_is_fixed_like_dailyfams():
-    for screen, button in (("myfam", 'id="myfamSearchBtn"'),
-                           ("playfam", 'id="newMixBtn"')):
+    # DailyFAM's bookshelf moved to search (10.12 packet #3); its header
+    # is still fixed, and myFAM's (+) still sits in its own.
+    for screen in ("myfam", "playfam"):
         page = _section(screen)
         head = page.index('class="myfam-header myfam-header-fixed"')
-        assert head < page.index(button) < page.index('<div class="scroll"'), screen
+        assert head < page.index('<div class="scroll"'), screen
+    page = _section("playfam")
+    head = page.index('class="myfam-header myfam-header-fixed"')
+    assert head < page.index('id="newMixBtn"') < page.index('<div class="scroll"')
 
 
 def test_the_pill_beside_made_for_you_is_small():

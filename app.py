@@ -6951,7 +6951,8 @@ def _filed_under(entry: dict) -> tuple[str, frozenset]:
     (§209). An episode written before the writer named one is filed by its
     words (`topics.tags_for_text`, the keyword map and the tree) - the same
     fallback every other reader of an uncategorised episode uses - and its
-    deepest match is its node. ("", empty) when nothing places it."""
+    deepest match is its node, and only that node's branch is its chain.
+    ("", empty) when nothing places it."""
     node = _episode_category(entry.get("key", ""))
     tree = topics_mod.category_tree()
     if node:
@@ -6977,7 +6978,17 @@ def _filed_under(entry: dict) -> tuple[str, frozenset]:
         except Exception:  # noqa: BLE001
             return 0
     placed.sort(key=lambda t: (-depth(t), t))
-    return placed[0], frozenset(placed)
+    # **One episode, one category** (`one-category`): the deepest match and
+    # the nodes above it, never every tag the words touched. Filing it under
+    # all of them put a science episode, whose words also said "match", in
+    # Sport's Shuffle play (10.12 packet #5).
+    node = placed[0]
+    try:
+        above = tree.ancestors(node)
+    except Exception:  # noqa: BLE001
+        above = []
+    facet = topics_mod._root_facet(node)
+    return node, frozenset([node, *above, *([facet] if facet else [])])
 
 
 def _mix_counts() -> dict:
@@ -8403,8 +8414,67 @@ async def trending_searches(request: Request) -> dict:
     return {"searches": picks}
 
 
+#: What exploreFAM's dropdown can deal (10.12 packet #2), the first the
+#: default an installed client that sends no `feed` still gets.
+EXPLORE_FEEDS = ("searching", "made_for_you", "trending", "recent", "catalog")
+#: How far back "Explore" (the whole cached catalogue, shuffled by the
+#: client) and the two rails' cached tiles are looked for.
+EXPLORE_CATALOG_SCAN = 400
+#: The myFAM rail each rail-shaped feed is.
+_EXPLORE_RAILS = {"made_for_you": "from_history", "trending": "world_trending"}
+
+
+def _explore_rail_entries(request: Request, listener: str, feed: str,
+                          held: dict) -> list[dict]:
+    """The cached episodes of one myFAM rail, in the rail's own order.
+
+    The rail's ranking, read as `/api/myfam/section` reads it, then kept to
+    the tiles whose script is already in the shared cache (`held`, by key):
+    a reel card only ever replays (`cached_only`). No impressions are
+    recorded - a ranking dealt one card at a time was not shown."""
+    key = _EXPLORE_RAILS[feed]
+    try:
+        if not _has_account(request):
+            tiles = topics_mod.guest_section(key)["topics"]
+        else:
+            place = _place_for(request)
+            circle = SOCIAL.circle_of(listener)
+            tiles = topics_mod.build_section(
+                EVENTS, listener, key,
+                interests=_interests_for(request, ""), circle=circle,
+                written=_written_probe(BROWSE_MINUTES),
+                written_at=_written_at_probe(BROWSE_MINUTES),
+                episode_info=_episode_info_probe(BROWSE_MINUTES),
+                authored=_authored_by_circle(circle),
+                place=place.words, place_name=place.label,
+                has_account=True,
+                country=_country_for(request, place))["topics"]
+            tiles = _drop_removed(listener, tiles, BROWSE_MINUTES)
+    except Exception:  # noqa: BLE001 - an empty rail falls to the catalogue
+        log.exception("could not rank the %s rail for exploreFAM", key)
+        return []
+    out, seen = [], set()
+    for tile in tiles:
+        query = tile.get("query") or ""
+        if not query:
+            continue
+        try:
+            cache_key = _episode_key(_validated_plan(query, BROWSE_MINUTES))
+        except Exception:  # noqa: BLE001 - an unaskable tile is not cached
+            continue
+        entry = held.get(cache_key)
+        if entry is None or cache_key in seen:
+            continue
+        seen.add(cache_key)
+        if not entry.get("title") and tile.get("title"):
+            entry = {**entry, "title": tile["title"]}
+        out.append(entry)
+    return out
+
+
 @app.get("/api/explore")
-async def explore(request: Request, limit: int = Query(30, ge=1, le=60)):
+async def explore(request: Request, limit: int = Query(30, ge=1, le=60),
+                  feed: str = Query("searching", max_length=16)):
     """Episodes other listeners have already generated, newest first.
 
     This endpoint costs nothing and, by design, can cause nothing to be
@@ -8420,6 +8490,15 @@ async def explore(request: Request, limit: int = Query(30, ge=1, le=60)):
     instantly for them anywhere else, and still appears on everyone else's
     feed. Entries written before authorship was recorded have no author and
     are shown to everybody, which is what they were already doing.
+
+    **The dropdown under the wordmark** (10.12 packet #2, the owner's
+    sketch) picks the `feed`: `searching` (What people are searching - the
+    default, everything below), `made_for_you` and `trending` (that myFAM
+    rail's tiles whose episode is already cached, in the rail's order),
+    `recent` (every surface's cached episodes, newest first) and `catalog`
+    (Explore: the whole cached catalogue, which the client shuffles). Every
+    feed is the shared cache and nothing else - none can cause an episode
+    to be written - and none holds the listener's own.
 
     **And searched episodes only** (§147). Every surface writes into the one
     shared cache, and Explore is what other listeners *searched* - never a
@@ -8453,10 +8532,20 @@ async def explore(request: Request, limit: int = Query(30, ge=1, le=60)):
     anyone = SOCIAL.recent_echoes(exclude_user=listener)
 
     episodes = []
-    # Searched episodes only (§147, at the owner's direction): a myFAM tile,
-    # a DailyFAM edition, a Trending episode or a warmed guess is cached too,
-    # and none of them is on Explore.
-    entries = store.recent(limit, exclude_author=listener, origin="search")
+    feed = feed if feed in EXPLORE_FEEDS else EXPLORE_FEEDS[0]
+    if feed == "searching":
+        # Searched episodes only (§147, at the owner's direction): a myFAM
+        # tile, a DailyFAM edition, a Trending episode or a warmed guess is
+        # cached too, and none of them is on What people are searching.
+        entries = store.recent(limit, exclude_author=listener, origin="search")
+    elif feed == "recent":
+        entries = store.recent(limit, exclude_author=listener)
+    else:
+        entries = store.recent(EXPLORE_CATALOG_SCAN, exclude_author=listener)
+        if feed in _EXPLORE_RAILS:
+            held = {e["key"]: e for e in entries}
+            entries = await asyncio.to_thread(
+                _explore_rail_entries, request, listener, feed, held)
     entries = _visible_episodes(listener, entries)
     # An untitled card is titled from its question, through the speller so a
     # misspelling never becomes a title (10.1 #4) - in a thread, like
@@ -8524,10 +8613,12 @@ async def explore(request: Request, limit: int = Query(30, ge=1, le=60)):
         episodes.append(card)
 
     # A vibed episode leads, because someone chose to send it, and a friend's
-    # leads over a stranger's.
-    episodes.sort(key=lambda e: (not e.get("vibed_by"), not e["vibed"],
-                                 e["age_seconds"]))
-    return {"episodes": episodes}
+    # leads over a stranger's. The other feeds keep their own order: a rail's
+    # ranking, the newest first, or a catalogue the client shuffles.
+    if feed == "searching":
+        episodes.sort(key=lambda e: (not e.get("vibed_by"), not e["vibed"],
+                                     e["age_seconds"]))
+    return {"episodes": episodes, "feed": feed}
 
 
 #: How many cards the Topic screen asks for at a time. Six fills the
