@@ -1762,7 +1762,7 @@ class ScriptGenerator:
                 "weather", live_facts.FACTS, facts=local.weather,
                 detail=local.weather.source))
 
-        # No refusal here (§255, the owner's direction): an episode whose
+        # No refusal here (§256, the owner's direction): an episode whose
         # research came back empty is still written, from what the writer
         # has - the §109 "could not reach a single source" popup is gone.
 

@@ -196,7 +196,7 @@ asks it beside the live lookup for every question EI marks `outcome_dependent`
 markets with Gamma's `/public-search` on the brief's subject words, falling
 back to the 100 busiest markets. The forecast is rendered after the live
 block, credited as "prediction market - a forecast, not a result", and never
-counts as evidence for the `NoEvidence` refusal.
+counts as evidence (the `NoEvidence` refusal it once fed was deleted in §256).
 
 **Step 4.** Polymarket covers election *interest*, never election *results*.
 For results you need AP Elections or Decision Desk HQ — both sales-gated with

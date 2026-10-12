@@ -372,7 +372,7 @@ def test_weather_alone_is_a_short_honest_episode():
 
 
 def test_nothing_at_all_still_opens_with_the_gap_line():
-    """No refusal since §255: a town with no news and no weather is still an
+    """No refusal since §256: a town with no news and no weather is still an
     episode, opened by the composed sentence about our search."""
     plan = gap_plan(weather_facts=False, scope="", evidence="")
     assert sg._ScriptReader(plan, None).opening() == [

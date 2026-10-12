@@ -2915,12 +2915,17 @@ def main() -> int:
             page.wait_for_timeout(700)
             assert page.eval_on_selector(".screen.active", "e => e.id") == "screen-myfam", \
                 "the tab bar did not leave Messages for myFAM"
+            # The library's bookshelf is on search since the 10.12 packet (#3).
+            page.evaluate("setTab('home')")
+            page.wait_for_timeout(400)
             page.click("#myfamSearchBtn")
             page.wait_for_timeout(500)
             assert page.eval_on_selector(".screen.active", "e => e.id") == "screen-myfamsearch", \
-                "myFAM's header button does not open its search"
+                "search's bookshelf does not open the library"
             page.evaluate("goBack()")
             page.wait_for_timeout(400)
+            page.evaluate("openMyFamTab()")
+            page.wait_for_timeout(600)
             # And Explore opens from the exploreFAM pill beside Made for you
             # (10.5 packet #7).
             page.click("#myfamExploreBtn")

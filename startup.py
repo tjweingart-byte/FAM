@@ -38,7 +38,7 @@ about why that is the right mechanism rather than a shortcut:
   A first impression that depends on optional configuration is one most
   deployments will not have.
 * It **degrades honestly**. With no evidence at all the episode is still
-  written (§255 deleted the refusal), and the writer's rules keep anything
+  written (§256 deleted the refusal), and the writer's rules keep anything
   current from being supplied from memory.
 
 The trade, stated rather than buried: a startup tile's *title* cannot promise

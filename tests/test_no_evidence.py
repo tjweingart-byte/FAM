@@ -87,7 +87,7 @@ def test_a_rung_that_is_switched_off_is_not_a_rung(monkeypatch):
     tried = rungs(monkeypatch, {})
     plan = dataclasses.replace(plan_episode("who won", 3, search=True),
                                brief=BRIEF_CURRENT)
-    prepared_without_live(monkeypatch, plan)   # never refused (§255)
+    prepared_without_live(monkeypatch, plan)   # never refused (§256)
     assert [b for b, _ in tried] == ["exa"], "gdelt was asked anyway"
     assert research.ladder("exa") == ["exa"]
 
@@ -125,7 +125,7 @@ def test_gdelt_is_the_last_rung_and_the_model_never_searches(monkeypatch):
     plan = dataclasses.replace(plan_episode("who won", 3, search=True),
                                brief=BRIEF_CURRENT)
     assert research.ladder("exa") == ["exa", "gdelt"]
-    prepared_without_live(monkeypatch, plan)   # never refused (§255)
+    prepared_without_live(monkeypatch, plan)   # never refused (§256)
     assert [b for b, _ in tried] == ["exa", "gdelt"]
 
 
@@ -166,7 +166,7 @@ def prepared_without_live(monkeypatch, plan):
 
 def test_a_question_that_needs_today_is_written_not_refused(monkeypatch):
     """The §109 refusal ("could not reach a single source ... not going to
-    guess") is gone at the owner's direction (§255): it showed on a Trending
+    guess") is gone at the owner's direction (§256): it showed on a Trending
     tile, where it never belonged. An empty search still writes the episode."""
     backend(monkeypatch, "exa")
     rungs(monkeypatch, {})
@@ -237,7 +237,7 @@ def test_a_degraded_brief_is_never_refused_either(monkeypatch):
         must_establish=[], degraded=True, live_domain="")
     volatile = dataclasses.replace(
         plan_episode("latest news on the fed", 3, search=True), brief=degraded)
-    assert prepared(volatile).evidence == ""   # never refused (§255)
+    assert prepared(volatile).evidence == ""   # never refused (§256)
 
     timeless = dataclasses.replace(
         plan_episode("why the Roman republic fell", 3, search=True),

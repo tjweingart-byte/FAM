@@ -26,7 +26,7 @@ episode came to be written before anything had been looked up.
 goes first; if it comes back with nothing GDELT is tried (`ladder()` is the
 one definition of that), asking `Brief.broader` rather than the precise query
 that just failed. No rung may raise. If every rung is empty the episode is
-still written (§255, which deleted the §109 refusal); the writer's rules keep
+still written (§256, which deleted the §109 refusal); the writer's rules keep
 anything volatile from being supplied from memory.
 
 The packet shape is unchanged - `SOURCE n / Title: / Published: / Source type:
@@ -960,7 +960,7 @@ async def retrieve_with_gdelt(query: str, brief=None, recency_days: int = 0
 #: seconds - and it is deleted rather than switched off: everything an episode
 #: is written from comes from Exa, GDELT and the live providers (API-Sports,
 #: Finnhub, Polymarket), and nowhere else. A question that finds nothing on
-#: either index is still written (§255 deleted the §109 refusal).
+#: either index is still written (§256 deleted the §109 refusal).
 FALLBACK_RUNGS = ("gdelt",)
 
 
@@ -1036,6 +1036,6 @@ def report() -> dict:
         # and the answer depends on what is configured here. §109.
         "ladder": ladder(),
         # And what happens at the bottom of it: nothing is refused for want
-        # of evidence since §255 - the episode is written regardless.
+        # of evidence since §256 - the episode is written regardless.
         "refuses_without_evidence": False,
     }

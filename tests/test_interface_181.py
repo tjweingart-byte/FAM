@@ -140,7 +140,10 @@ def test_messages_took_explores_place_on_the_tab_bar():
 def test_myfams_header_searches_and_its_search_bar_is_gone():
     myfam = HTML[HTML.index('<section class="screen" id="screen-myfam">'):
                  HTML.index('id="screen-playfam"')]
-    assert 'onclick="openMyFamSearch()"' in myfam
+    # The library button moved to search (10.12 packet #3).
+    assert 'onclick="openMyFamSearch()"' not in myfam
+    home = HTML[HTML.index('<section class="screen" id="screen-home">'):]
+    assert 'onclick="openMyFamSearch()"' in home.split('class="tabbar"')[0]
     assert 'onclick="openMessages()"' not in myfam.split('class="tabbar"')[0]
     assert "search-bar-lg" not in myfam
     assert 'id="screen-myfamsearch"' in HTML

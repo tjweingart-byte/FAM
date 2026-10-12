@@ -18416,7 +18416,73 @@ rebuilt from outside and can legitimately be empty (the GDELT copy).
 `db.py`, `app.py`, `POSTGRES.md`, `.env.example`,
 `docs/claude/constraints.md`, `tests/test_uncopied_database_254.py`.
 
-## 255. No refusal popup, no "that's all we found", one tab icon, and a backfill that holds one episode
+## 255. The 10.12 implementations: the Home logo, exploreFAM's feeds, the library on search, all caught up, and one category per shuffle
+
+At the owner's direction (the 10.12 packet, with a sketch of exploreFAM):
+
+1. **The player's down arrow is the Home logo** - DailyFAM's tab glyph,
+   the house - and does exactly what the arrow did (`minimizePlayer`). The
+   reel's back button wears the same house, as the sketch draws it.
+2. **exploreFAM has a dropdown under its wordmark** (`#reelFeedBtn`, an
+   action sheet): Made for you, Trending, Most recent, What people are
+   searching, Explore. `/api/explore?feed=` deals each from the shared cache
+   and nothing else: `made_for_you` and `trending` are that myFAM rail's
+   ranking (`build_section`, or a guest's `guest_section`) kept to the tiles
+   whose script is already cached, in the rail's order, recording no
+   impressions; `recent` is every surface's cached episodes, newest first;
+   `catalog` is the whole cache (`EXPLORE_CATALOG_SCAN`), which the client
+   shuffles; `searching`, the default an installed client still gets, is
+   the old feed - searches only, vibed first. None holds the listener's own.
+   Made for you, Trending and Most recent **run out**: the reel then fetches
+   the catalogue, deals what this run has not dealt first, shuffled, and
+   says so; the dropdown shows Explore, while the listener's own choice is
+   what is remembered (`localStorage`, a convenience). What people are
+   searching and Explore go round again as before. This narrows the old
+   rule that Explore is searched episodes only to What people are searching.
+3. **The library moved to search.** The bookshelf (`#myfamSearchBtn`,
+   `openMyFamSearch`) left DailyFAM's header for search's top left, level
+   with the exploreFAM pill on the right. DailyFAM's header keeps its height.
+4. **All caught up.** A category's reel no longer goes round: past its last
+   card (a swipe, or the last episode ending) it stops the audio and shows
+   "You're all caught up - Explore a different category?" over four other
+   categories (`otherCategories`: followed ones with something today first,
+   then the facets, never the category just finished or its heading). A
+   tile opens that category and shuffles it as soon as it has something
+   (`catAutoShuffle`); a swipe down returns to the last card. Shuffle play is
+   a little smaller (shorter, inset, 11.5px).
+5. **Only that category.** Two ways a science episode reached Sport's
+   Shuffle play, both closed:
+   * `_filed_under`'s fallback (an episode the writer never categorised,
+     filed by its words) put the episode under **every** tag its words
+     touched - its chain was all of them - so words that said "match" and
+     "physics" filed it under Sport and Science both. It is now the deepest
+     match and that node's branch only (`one-category`).
+   * A late `/api/explore` fetch (`primeExplore`, from search) landing after
+     a category's reel had opened replaced that reel's cards with Explore's.
+     A `reelEpoch` bumped whenever the reel starts dealing something else
+     drops any fetch that began before it.
+
+**Pre-merge review.** A second read of the branch found, and this fixed:
+the rail feeds matched tiles against only the newest 400 cached rows, so a
+kept tile written before a busy day was missed - each tile's key is now
+looked up (`cache.recent(keys=...)`, both caches); the catalogue ignored
+`limit` and built up to 400 cards a request - it sends a random `limit`;
+a feed that ran out left "Explore" as the feed for the rest of the session
+- the listener's choice (`exploreChoice`) and what is being dealt
+(`exploreFeed`) are now two things, and every new deal starts from the
+choice; behind "You're all caught up" Space replayed the last card and
+ArrowDown re-dealt the tiles - only the way back works there; a category
+picked from the overlay that answered after the listener had left its page
+pulled them into its reel - it shuffles only while its page is on screen;
+the overlay could linger under search's peek, a failed catalogue fetch left
+"Loading…" with no word, an in-flight fetch could be unlocked twice, and
+with no categories loaded the overlay had no tiles - all closed.
+
+`app.py`, `cache.py`, `static/index.html`, `docs/claude/product.md`,
+`tests/test_packet_1012.py` (and the tests that pinned the bookshelf in
+DailyFAM's header).
+
+## 256. No refusal popup, no "that's all we found", one tab icon, and a backfill that holds one episode
 
 Three things at the owner's direction (10.12).
 
@@ -18446,7 +18512,9 @@ research fallbacks recorded on each episode are where to look.
 
 **The DailyFAM tab's chevrons are one size.** The house icon drawn in #138
 had a 7-wide chevron over a 5-wide one; both are 7 wide now
-(`M8.5 12.5L12 9l3.5 3.5M8.5 17L12 13.5l3.5 3.5`), in all six tab bars.
+(`M8.5 12.5L12 9l3.5 3.5M8.5 17L12 13.5l3.5 3.5`), in all six tab bars and
+on the two copies §255 added (the player's Home logo and Explore's back
+button, pinned by `tests/test_packet_1012.py`).
 Every other copy of the mark (the wordmark's A, `icon.svg`, the voice mark,
 the share and waitlist pages) already drew two identical `7-7 7 7` strokes.
 
