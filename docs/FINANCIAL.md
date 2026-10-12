@@ -594,7 +594,7 @@ page before budgeting. No cheap model's writing quality has been measured -
 | Sonnet 5.5 | 2 / 10, cache read 0.05x | ~$0.038 | similar | low | a setting |
 | **Haiku 5.5** (2026-10-07) | **0.10 / 0.50** (prompts under 100k) | **~$0.002** | fastest Anthropic tier | untested on prose; briefs degraded in §227-§248 | a setting, but reversed by the owner in §249 |
 | MiniMax M3 (direct or OpenRouter) | ~0.23-0.30 / 0.96-1.20 | ~$0.005 | ~1.3-2.4 s | unknown | an adapter |
-| gpt-oss-120B (Groq / Cerebras) | 0.15-0.35 / 0.60-0.75 | ~$0.002 | ~0.25 s | weaker prose | an adapter |
+| gpt-oss-120B (Groq / Cerebras) | 0.15-0.35 / 0.60-0.75 | ~$0.002 | ~1.6 s (Cerebras) to ~4.9 s (Groq) to the first answer token | weaker prose | an adapter |
 | DeepSeek V4.1 Flash | 0.30 / 1.20 (half off-peak) | ~$0.004 | ~1.2-1.7 s | unknown | an adapter; data stored in the PRC |
 | Kimi K3 / GLM-5.3 / Qwen3.8-Max | 1.4-3 / 4.4-15 | $0.01-0.03 | not found | strong on some writing boards | an adapter; little saving |
 
@@ -672,7 +672,113 @@ and joins as a backend in `RESEARCH_BACKENDS` / `research.ladder()`, with
 provenance recorded (`rule:always-researched`, `rule:provenance-all-paths`).
 Bing's API is retired, and Google's Custom Search is closed to new customers.
 
-### 7.5 Order
+### 7.5 Parallel, Perplexity and Tavily in detail
+
+Field names were read from each vendor's Python SDK (`parallel-web` 1.3.5,
+`perplexityai` 0.43.8, `tavily-python` 0.8.5). Prices, limits and latency are
+from search snippets of the vendors' pages, and the latency figures are the
+vendors' own.
+
+**Searches a month**, from §4.1 (new search episodes plus live tiles plus
+editions): about 3k at 100 MAU, 15k at 1k, 95k at 10k, 700k at 100k.
+
+| $ / month | 100 MAU (~3k) | 1k MAU (~15k) | 10k MAU (~95k) | 100k MAU (~700k) |
+|---|---|---|---|---|
+| Exa, as metered ($0.015 each) | $45 | $225 | $1,425 | $10,500 |
+| Exa, list ($7/1k, 10 results and highlights) | $21 | $105 | $665 | $4,900 |
+| **Parallel `fast`** ($1/1k, $5/month free) | ~$0 | $10 | $90 | $700 |
+| Parallel `basic` ($5/1k) | $10 | $70 | $470 | $3,500 |
+| **Perplexity `fast`** ($1/1k) | $3 | $15 | $95 | $700 |
+| Perplexity default ($5/1k) | $15 | $75 | $475 | $3,500 |
+| **Tavily** (plans: $30/4k, $100/15k, $220/38k, $500/100k; then $0.008 each) | $30 | $100 | $500 | ~$3,500-5,600 (enterprise) |
+
+| | Parallel | Perplexity Search | Tavily |
+|---|---|---|---|
+| Date per result | `publish_date`, optional | `date`, `last_updated`, optional | `published_date`, documented for `topic="news"` only |
+| Passages | `excerpts` (list, size settable) | one `snippet` per page | `content` chunks, ~500-800 chars |
+| After-date filter | `source_policy.after_date` | `search_after_date_filter` | `start_date` |
+| Domain allow-list | `include_domains` (≤200) | `search_domain_filter` | `include_domains`, `restrict` mode |
+| Latency (vendor) | turbo ~0.2-0.3 s, fast <1 s | fast ~0.16 s median | ultra-fast ~0.3 s |
+| Rate limit | 600/min | 50/s | 1,000/min (paid) |
+| Retention | ZDR configurations (third-party listing) | zero retention by default (API FAQ) | "zero data retention" (marketplace listing) |
+| Pitfall | defaults to `advanced` ($5) if `mode` is omitted; asks for an `objective` plus short queries | `fast` is two weeks old; one snippet must be split into passages | dates not guaranteed; bought by Nebius (Feb 2026); dearest of the three |
+
+**Fit to the code.** `research.py` reads results by four attributes: `url`,
+`title`, `published_date` and `highlights`. A backend that maps its results onto
+those names reaches `rank_results`, `screen_results`, `build_packet` and
+`provenance.from_results` unchanged. Parallel maps one to one. Perplexity needs
+its snippet split into passages. Tavily needs a dict-to-object shim and has
+the date risk. Each one also means:
+
+- a branch in `research.retrieve` beside `exa`;
+- a name in `RESEARCH_BACKENDS`;
+- its key in `credentials.CREDENTIAL_VARS` and `spend_guard`;
+- `provider_usage`, `diagnose`/`report` and `_rung_available`;
+- a price for metering, `.env.example` and tests;
+- the consent notice, which names Exa (`consent.AI_NOTICE`), so a new
+  `VERSION` and asking again before a listener's words reach it.
+
+About 200-300 lines with tests, one backend at a time. Compare on the same
+queries with `tools/compare_search.py` before switching.
+
+### 7.6 The model options in detail
+
+Origins and licences come from the models' GitHub READMEs; OpenRouter's fees
+and data rules come from its docs source. Prices and speeds are from search
+snippets of the vendors' pages, OpenRouter's listings and Artificial Analysis.
+"First answer token" includes thinking, which is what a streamed writer waits
+for.
+
+| | MiniMax M3 | gpt-oss-120B | Kimi K3 | OpenRouter |
+|---|---|---|---|---|
+| Maker | MiniMax (Shanghai; API run from Singapore) | OpenAI; served only by other hosts | Moonshot AI (Beijing; API run from Singapore) | A router to ~all of these, and to Claude |
+| Weights | open, MiniMax Community Licence (attribution; authorisation above $20M revenue) | open, Apache 2.0 | open, Kimi K3 Licence (MIT-like; terms above $20M revenue) | - |
+| $/MTok in / out | 0.30 / 1.20 direct; 0.23 / 0.96 cheapest on OpenRouter | 0.15 / 0.60 (Groq, Together); 0.35 / 0.75 (Cerebras) | **3.00 / 15.00**, dearer than Sonnet 5 | pass-through, plus 5.5% on buying credits |
+| Reasoning | can be disabled | always on, effort low/medium/high | **always on**, cannot be disabled | - |
+| First answer token | ~1.1-2.6 s, ~85-105 tok/s | Cerebras ~1.6 s at ~1,700 tok/s; Groq ~4.9 s | 3-56 s | +25-250 ms (reports vary) |
+| Quality evidence | AA index 29-44; no writing benchmark | AA index 24 (lowest here) | AA index 57 (near Opus 4.8); predecessor well behind Claude on creative writing | - |
+| Anthropic-format API | yes (`api.minimax.io/anthropic`) | no (OpenAI format only) | yes (reportedly) | yes (`https://openrouter.ai/api`) |
+| JSON schema output | unconfirmed | on Groq; strictness unverified | yes, but thinking can cut the JSON short | depends on the provider |
+| Data | API terms allow using inputs to improve services; no ZDR first-party | choose a ZDR host | trains on inputs by default unless enterprise | ZDR enforceable per request; stores no prompts unless opted in |
+
+**What swapping each step would take:**
+
+- **EI.** It uses `output_config.effort` and `output_config.format`, which are
+  Anthropic-only, so every option needs its own JSON path. Then: validate the
+  JSON, map `stop_reason`, map `usage` into metering, and keep `_degrade` on
+  every failure. That is about a day, plus `ei_eval.py` and the §248 counters.
+  The risk is the §227 failure again: a weaker brief becomes a "no
+  information" episode.
+- **Writer.**
+  - On an Anthropic-format endpoint (MiniMax, Kimi, OpenRouter), the writer's
+    `messages.stream` with `cache_control` may run with only a model and
+    base-URL change. `effort` would need dropping and the Batch API (editions)
+    replacing.
+  - gpt-oss needs an OpenAI-format streaming adapter for
+    `stream_prepared`/`top_up`. That is two to four days with tests, and more if
+    batching must be kept.
+  - `MODEL` is in the cache key, so a second writer model needs a decision
+    against `rule:prefetch-same-key`.
+- **Consent.** `consent.AI_NOTICE` names Anthropic and says it does not train
+  on the words. A new provider for anything a listener types means new wording,
+  a new `VERSION` and asking everyone again. MiniMax's and Moonshot's standard
+  terms would make the "does not train" sentence untrue. The editions, written
+  from FAM's own questions, are outside consent.
+
+**Where each fits:**
+
+- **Kimi K3** saves nothing and is too slow for the search path. Rule it out.
+- **MiniMax M3** with thinking off is the strongest test candidate for the
+  Trending and DailyFAM edition writers: about 8x cheaper, an Anthropic-format
+  endpoint, and no consent change. Its first token is too slow for the
+  one-second search spec.
+- **gpt-oss-120B on Cerebras** is the fastest and cheapest. It has the weakest
+  quality evidence and needs the most code; a brief candidate at most.
+- **OpenRouter** is one key and one bill for all of the above, with ZDR and
+  provider pinning. It is a convenience, not a saving, and it adds a third
+  party to the consent notice.
+
+### 7.7 Order
 
 1. Exa first, since it needs no decision about models: fetch the packet's
    size, try `instant`, and read the savings from `cost_dollars`.
