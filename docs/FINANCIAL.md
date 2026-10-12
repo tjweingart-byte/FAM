@@ -778,7 +778,121 @@ for.
   provider pinning. It is a convenience, not a saving, and it adds a third
   party to the consent notice.
 
-### 7.7 Order
+### 7.7 Where the Claude bill goes, step by step (estimate)
+
+These figures are built from §2.1's per-call estimates and §4.1's volumes.
+`python tools/usage_report.py` on production's `metering.db` replaces them.
+
+**Per-call figures, 2-minute episode:**
+
+| Call | Tokens | Cost |
+|---|---|---|
+| Brief | ~1,000 in + ~800 out, the output mostly reasoning | $0.010 |
+| Writer, live | ~2,500 cached instructions + ~2,000 brief and evidence + ~2,000 out (~1,600 reasoning, ~400 script) | $0.0245 |
+| Writer, edition | the same, batched at half price | ~$0.0145 |
+| Prefetch | at its $2/day ceiling | - |
+| Composer | | ~$25/month |
+| Placer | | ~$10/month |
+| Thumbnails | | ~$15/month |
+
+**Monthly cost by step:**
+
+| Step | 1k MAU $/month | Share | 10k MAU $/month | Share |
+|---|---|---|---|---|
+| **Search writer** (10.5k / 82.5k episodes) | $257 | **43%** | $2,021 | **62%** |
+| **Search brief** | $105 | **18%** | $825 | **25%** |
+| Live-tile writer (brief already warmed) | $37 | 6% | $74 | 2% |
+| Prefetch briefs (ceiling) | $60 | 10% | $60 | 2% |
+| DailyFAM edition: briefs + batched writers (100 / 300 subjects) | $74 | 12% | $220 | 7% |
+| Trending edition: briefs + batched writers | $15 | 3% | $15 | <1% |
+| Composer, placer, thumbnails | $50 | 8% | $50 | 2% |
+| **Total** | **~$600** | | **~$3,270** | |
+
+**By kind of work:**
+
+| Kind | 1k MAU | 10k MAU |
+|---|---|---|
+| Writer calls | ~58% | ~68% |
+| Briefs (EI) | ~34% | ~30% |
+| Everything else | ~8% | ~2% |
+
+**By kind of token:**
+
+- Output is about 80% of the bill.
+- Reasoning before the script is about 65% of every writer call, so roughly
+  40% of the whole bill. The brief's output is mostly reasoning too.
+- By raw token count the writer is about three quarters of all tokens.
+- Input is cheap, and the instructions are already cached (§179).
+
+**Levers, largest first:**
+
+- **The cache hit rate.** Every hit removes both calls; §4.1 assumes 55-85%
+  misses.
+- **The writer's reasoning.** `EFFORT=low` on search is the owner's
+  direction (§129). Editions are a separate choice.
+- **The brief's reasoning.** Set by `EI_EFFORT`.
+- **Prefetch briefs.** Measure how many are tapped before keeping the
+  ceiling (`rule:dec-prefetch`).
+- **Batching the editions' briefs as well as their writers.** Half off about
+  $36/month at 1k.
+- **Caching the brief's instructions.** `EI_SYSTEM` and the schema may now
+  exceed Sonnet 5's 1,024-token minimum; this saves cents.
+
+### 7.8 Replacing Exa entirely
+
+What the replacement has to do. Exa is used in two places:
+
+- **The research behind every search, live-tile and edition episode.** It
+  must return about 8 results with title, address, publication date and
+  passages relevant to the query, and accept an after-date filter. It must
+  answer well under a second, because it sits in front of the first word.
+  The retry drops the window.
+- **The local-news ladder's third rung.** It must accept an allow-list of
+  outlet domains.
+
+| | Parallel (`fast`) | Perplexity Search (`fast`) | Tavily (`basic`) |
+|---|---|---|---|
+| Fields | title, url, `publish_date`, `excerpts`: one to one | `date`, one `snippet`: split it | `published_date` for news only |
+| After-date | `after_date` | `search_after_date_filter` | `start_date` |
+| Domain allow-list | ≤200 | yes | `restrict` mode |
+| Query shape | an `objective` plus 2-3 short queries | one query, or up to 5 in one request | one query |
+| $ at 1k / 10k / 100k MAU | $10 / $90 / $700 | $15 / $95 / $700 | $100 / $500 / ~$3.5-5.6k |
+| Speed (vendor) | <1 s | ~0.16 s median | ~0.3 s ultra-fast |
+| Retention | ZDR on request | none by default | "zero retention" (listing) |
+
+**Primary choice: Parallel.** Its fields map one to one, and its
+`objective` can carry the listener's question beside EI's queries.
+**Perplexity** is the second choice and the natural second rung:
+`parallel` → `perplexity` without a window → GDELT. Tavily costs more and
+does not guarantee dates.
+
+**What a full replacement touches.** About 25 non-test modules name Exa, and
+about 45 test files.
+
+- **`research.py`:** a new retriever producing `url`/`title`/
+  `published_date`/`highlights`, its cost, and provenance `retriever=`.
+- **`config.py` and `.env.example`:** `RESEARCH_BACKENDS`, the default
+  backend, and the `EXA_*` packet settings renamed (or aliased) for any
+  backend.
+- **Keys and operations:** `credentials.CREDENTIAL_VARS`, `spend_guard`,
+  `provider_usage`, metering and `financials`, `/api/health`'s
+  `diagnose`/`report`, `render.yaml`, `setup_key.py`, and the tools
+  (`usage_report`, `latency_probe`, `demo_preflight`, `ei_eval`, `write.py`).
+- **The brief's instructions:** `EI_SYSTEM` says its query goes "to a neural
+  search engine", so it needs rewording for the new engine's query shape,
+  then `tools/ei_eval.py` again.
+- **Consent:** `consent.AI_NOTICE` names Exa, so new wording and a new
+  `VERSION`, and every listener is asked again.
+
+About 3-5 days with tests. Before switching, run `tools/compare_search.py`
+over a fixed set of real queries on both engines. It should show:
+
+- the share of results with a date;
+- passage relevance;
+- median and slowest latency from Render's region;
+- how often the retry fires.
+
+### 7.9 Order
 
 1. Exa first, since it needs no decision about models: fetch the packet's
    size, try `instant`, and read the savings from `cost_dollars`.
