@@ -850,15 +850,15 @@ What the replacement has to do. Exa is used in two places:
 - **The local-news ladder's third rung.** It must accept an allow-list of
   outlet domains.
 
-| | Parallel (`fast`) | Perplexity Search (`fast`) | Tavily (`basic`) |
-|---|---|---|---|
-| Fields | title, url, `publish_date`, `excerpts`: one to one | `date`, one `snippet`: split it | `published_date` for news only |
-| After-date | `after_date` | `search_after_date_filter` | `start_date` |
-| Domain allow-list | ≤200 | yes | `restrict` mode |
-| Query shape | an `objective` plus 2-3 short queries | one query, or up to 5 in one request | one query |
-| $ at 1k / 10k / 100k MAU | $10 / $90 / $700 | $15 / $95 / $700 | $100 / $500 / ~$3.5-5.6k |
-| Speed (vendor) | <1 s | ~0.16 s median | ~0.3 s ultra-fast |
-| Retention | ZDR on request | none by default | "zero retention" (listing) |
+| | Parallel (`fast`) | Perplexity Search (`fast`) | Tavily (`basic`) | Exa (`fast`, today) |
+|---|---|---|---|---|
+| Fields | title, url, `publish_date`, `excerpts`: one to one | `date`, one `snippet`: split it | `published_date` for news only | title, url, `published_date`, `highlights`: what the code is built on |
+| After-date | `after_date` | `search_after_date_filter` | `start_date` | `start_published_date` |
+| Domain allow-list | ≤200 | yes | `restrict` mode | `include_domains` |
+| Query shape | an `objective` plus 2-3 short queries | one query, or up to 5 in one request | one query | one query, written for neural search (`EI_SYSTEM`) |
+| $ at 1k / 10k / 100k MAU | $10 / $90 / $700 | $15 / $95 / $700 | $100 / $500 / ~$3.5-5.6k | $225 / $1,425 / $10,500 as metered ($0.015 a search); $105 / $665 / $4,900 at list ($7/1k) |
+| Speed (vendor) | <1 s | ~0.16 s median | ~0.3 s ultra-fast | `fast`: no published figure found; `instant` ~0.36 s (Parallel's benchmark) |
+| Retention | ZDR on request | none by default | "zero retention" (listing) | not checked |
 
 **Primary choice: Parallel.** Its fields map one to one, and its
 `objective` can carry the listener's question beside EI's queries.
