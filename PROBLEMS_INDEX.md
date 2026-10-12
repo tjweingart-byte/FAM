@@ -254,4 +254,5 @@ and `limit` = Lines.
 | 18028 | 68 | 248. Room for the brief on Haiku, and a count of every brief that degrades |
 | 18096 | 42 | 249. The pipeline back on Sonnet: §227's Haiku reversed |
 | 18138 | 77 | 250. The 10.10 implementations: one wordmark face, an X that stops, light by default, stories without Close Friends, and a shorter waitlist page |
-| 18215 | 57 | 252. Replays straight from R2, the database's size, and a smaller hot copy in Postgres |
+| 18215 | 39 | 251. The 10.11 tweaks: white behind cream tiles, View Your FAM, a group photo, tab icons with life |
+| 18254 | 57 | 252. Replays straight from R2, the database's size, and a smaller hot copy in Postgres |

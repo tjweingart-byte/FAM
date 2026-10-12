@@ -216,7 +216,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
 - A mix's **listen time** is when its "ready" push is sent (own zone, only once
   the edition is written), never when it is written; kept even where push is
   off; never shown to others. No suggested mix names. [mix-listen-time]
-- YourFAM's row puts friends with vibes up first; a swipe in the viewer goes
+- Faces on DailyFAM only, YourFAM a pill (§251); vibes first; a swipe in the viewer goes
   to the next friend's vibes, the picture opens the profile; the Friends page
   has "Invite new users +"; no (+) in YourFAM's header. [friends-vibes-first]
 - **Made for you** (§187): subjects and familiar words vouch only in their own

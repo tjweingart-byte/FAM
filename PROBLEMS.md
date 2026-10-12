@@ -18212,6 +18212,45 @@ over "The interests list is alphabetical", which timed out. The check now
 waits for the follow-up. Reproduced here by slowing `acCorrectQuestion`:
 read at once it is `None`, after the wait `4`.
 
+## 251. The 10.11 tweaks: white behind cream tiles, View Your FAM, a group photo, tab icons with life
+
+The owner's 10.11 packet, four small things.
+
+**Light mode.** The page was cream (`--bg #F7F3EA`) and the tiles white
+(`--surface #FFFFFF`); they are swapped, white behind and cream tiles
+(`--bg-rgb` follows). Dark is untouched.
+
+**YourFAM.** The faces row is already at the top of DailyFAM (10.2 #1), so
+YourFAM no longer draws it. "Your friends" reads **Your FAM friends**, with
+its Find new friends pill, and under it one large **View Your FAM** pill
+(`famPillHTML`) opens the Friends page. It carries up to three faces from
+the same circle, friends first and a picture before initials; nobody in the
+circle means no faces, never invented ones. The smoke checks that waited on
+YourFAM's row wait on the pill, and the story check opens its face from
+DailyFAM's row (`#myfamCircle`).
+
+**A group chat's photo.** `groups.avatar` (widened in place). Any member
+sets it with `POST /api/messages/groups/{gid}/photo` (`{avatar}`, "" takes
+it off): `social.clean_avatar`, then the same photo check a profile picture
+gets (`_check_photo`, skipped when unchanged), then a system line in the
+group. `_group_view` and the inbox carry it as the group's `avatar`, so the
+list, the chat header and the share sheet draw it through `personAvHTML`.
+In the chat a paperclip - search's - sits beside the ⋯ for groups only and
+offers *Choose from library*, *Take a photo* (`capture`) and *Choose a
+file*, plus *Remove photo* when there is one; the ⋯ menu has the same door.
+The client centre-crops to `AVATAR_PX` and shows the server's own sentence
+when a photo is refused (`error`, which is where `http_error` puts it). A
+reported group used to be "not content to remove"; with a picture everybody
+in it sees, a reviewer's *removed* now takes the photo down
+(`remove_group_photo`), and a group with no photo still answers 400. The
+report's snapshot says whether it had one. Additive, so installed clients
+are unaffected (`old-clients`).
+
+**Tab bar.** "messages" is **Messages**. The symbols are unchanged; they
+are larger (20px, search 22px), each with a soft tint inside its shape
+(`.tone`), and the chosen tab sits in a copper-tinted pill that springs in
+(`tabPop`, off under reduced motion) instead of a small solid dot.
+
 ## 252. Replays straight from R2, the database's size, and a smaller hot copy in Postgres
 
 Three things at the owner's direction, after the cost analysis for moving

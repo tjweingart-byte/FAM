@@ -64,7 +64,9 @@ def test_the_rails_screen_draws_the_same_row_first():
     screen = INDEX.split('id="screen-myfam"', 1)[1].split("</section>", 1)[0]
     scroll = screen.split('<div class="scroll">', 1)[1]
     assert scroll.index('id="myfamCircle"') < scroll.index('id="goDeeperBlock"')
-    assert "circleRowHTML()" in _fn("renderProfile")
+    # YourFAM gave its copy up for the View Your FAM pill (10.11 packet).
+    assert "circleRowHTML()" not in _fn("renderProfile")
+    assert "famPillHTML()" in _fn("renderProfile")
     assert "circleRowHTML()" in _fn("paintMyFamCircle")
     # Asked beside the rails, not before them.
     feed = _fn("loadMyFamFeed")

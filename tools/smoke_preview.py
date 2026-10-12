@@ -1486,7 +1486,7 @@ def main() -> int:
             generates nothing to fill itself."""
             ensure_account()
             page.evaluate("openProfile()")
-            page.wait_for_selector("#screen-profile.active .yf-friends", timeout=10000)
+            page.wait_for_selector("#screen-profile.active .yf-fam-pill", timeout=10000)
             page.wait_for_timeout(600)
             line = page.query_selector("#screen-profile .yf-interests")
             assert line, "your interests are not on your own page"
@@ -1775,7 +1775,7 @@ def main() -> int:
                                      handle: 'smoketester' }) })""")
             page.wait_for_timeout(500)
             page.evaluate("openProfile()")
-            page.wait_for_selector("#screen-profile.active .yf-friends", timeout=10000)
+            page.wait_for_selector("#screen-profile.active .yf-fam-pill", timeout=10000)
             page.wait_for_timeout(500)
             shown = page.evaluate("(profileNow.interests_shown || []).length")
             assert shown <= 5, f"the profile shares {shown} interests"
@@ -1807,7 +1807,7 @@ def main() -> int:
                 "e => e.map(x => x.textContent.trim())")
             assert "Surfing" in typed, f"a typed topic was not chosen: {typed}"
             page.evaluate("saveIdentity()")
-            page.wait_for_selector("#screen-profile.active .yf-friends", timeout=10000)
+            page.wait_for_selector("#screen-profile.active .yf-fam-pill", timeout=10000)
             page.wait_for_timeout(900)
             # Not drawn on your own page (9.29 packet), but it is what the
             # profile shares - what a friend's view of it shows.
@@ -2937,8 +2937,16 @@ def main() -> int:
             assert page.eval_on_selector_all("#screen-profile .yf-shelf-tile",
                                              "e => e.length") == 2, \
                 "the shelf is not public mixes and vibes"
-            assert page.query_selector("#screen-profile .yf-friend.invite"), \
-                "the friends row has no Invite"
+            # The faces moved to DailyFAM's top (10.11 packet); YourFAM has
+            # one "View Your FAM" pill to the Friends page instead.
+            pill = page.query_selector("#screen-profile .yf-fam-pill")
+            assert pill and "View Your FAM" in pill.text_content(), \
+                "YourFAM has no View Your FAM pill"
+            assert not page.query_selector("#screen-profile .yf-friends"), \
+                "the faces row is still on YourFAM"
+            assert page.eval_on_selector_all("#screen-profile .yf-fam-faces .av",
+                                             "e => e.length") <= 3, \
+                "the pill shows more than three faces"
             assert page.query_selector("#screen-profile .yf-msgcard"), \
                 "Messages is not one entry point on the hub"
             assert page.text_content(
@@ -3864,16 +3872,18 @@ def main() -> int:
             """27/09 packet: a face with the VIBE badge plays that friend's
             vibes of the last day as stories - bars, tap to advance, X."""
             ensure_account()
-            page.evaluate("openProfile()")
-            page.wait_for_selector("#screen-profile.active .yf-friends", timeout=10000)
-            page.wait_for_timeout(600)
+            # The faces are at the top of DailyFAM (10.2 #1); YourFAM has
+            # only the View Your FAM pill since the 10.11 packet.
+            page.evaluate("openMyFamTab()")
+            page.wait_for_selector("#screen-myfam.active", timeout=10000)
+            page.wait_for_timeout(1200)
             # The live build's database has one listener in it, so nobody's
             # vibes are there to play; the fixture build has Beth's two.
-            if not page.query_selector("#screen-profile .yf-friend .yf-vibe"):
+            if not page.query_selector("#myfamCircle .yf-friend .yf-vibe"):
                 assert page.evaluate("typeof openStory") == "function", \
                     "the story viewer is missing"
                 return
-            page.click("#screen-profile .yf-friend:has(.yf-vibe)")
+            page.click("#myfamCircle .yf-friend:has(.yf-vibe)")
             page.wait_for_selector("#storyOverlay:not([hidden])", timeout=5000)
             bars = page.eval_on_selector_all("#storyBars .story-bar", "e => e.length")
             assert bars == 2, f"{bars} story bars for two vibes"
@@ -3887,7 +3897,7 @@ def main() -> int:
             assert page.eval_on_selector("#storyOverlay", "e => e.hidden"), \
                 "the X did not close the stories"
             assert page.eval_on_selector(
-                "#screen-profile .yf-friend:has(.yf-vibe) .yf-ring",
+                "#myfamCircle .yf-friend:has(.yf-vibe) .yf-ring",
                 "e => e.classList.contains('seen')"), "a watched ring did not go grey"
 
         def offline_fades_what_is_not_on_the_device():
