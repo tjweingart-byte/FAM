@@ -909,6 +909,64 @@ def sizes() -> dict:
     return result
 
 
+def allow_empty() -> bool:
+    """`DATABASE_ALLOW_EMPTY=1`: start on a Postgres that holds none of the
+    accounts on the disk, on purpose (§253) - a staging database meant to
+    start clean. Never the default: an empty database beside a full disk is
+    what a copy that never ran looks like."""
+    return (os.environ.get("DATABASE_ALLOW_EMPTY") or "").strip().lower() in (
+        "1", "true", "yes", "on")
+
+
+def file_has_rows(path: str) -> Optional[bool]:
+    """Whether the SQLite file at `path` holds any row in any table, read
+    without writing to it. None when there is no such file or it cannot be
+    read - which the caller treats as nothing to compare."""
+    if not path or not os.path.isfile(path):
+        return None
+    try:
+        conn = sqlite3.connect(f"file:{path}?mode=ro", uri=True, timeout=2.0)
+        try:
+            names = [r[0] for r in conn.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'table'"
+                " AND name NOT LIKE 'sqlite_%'")]
+            return any(conn.execute(f'SELECT 1 FROM "{n}" LIMIT 1').fetchone()
+                       for n in names)
+        finally:
+            conn.close()
+    except sqlite3.Error:
+        return None
+
+
+def schema_has_rows(schema: str) -> bool:
+    """Whether any table in this store's Postgres schema holds a row."""
+    slot = _POOL.acquire(None)
+    try:
+        names = [r[0] for r in slot.pg.execute(
+            "SELECT table_name FROM information_schema.tables"
+            " WHERE table_schema = %s AND table_type = 'BASE TABLE'",
+            (schema,)).fetchall()]
+        return any(slot.pg.execute(f'SELECT 1 FROM "{schema}"."{n}" LIMIT 1').fetchone()
+                   for n in names)
+    finally:
+        _POOL.release(slot)
+
+
+def uncopied(stores) -> list[str]:
+    """The names of the stores - `(name, path, schema)` - whose file on the
+    disk holds rows while their Postgres schema holds none (§253).
+
+    What `DATABASE_URL` set before `tools/sqlite_to_postgres.py --yes` looks
+    like: the server finds empty schemas, makes its tables, and every
+    listener's account seems gone - though the file beside it is untouched.
+    """
+    found = []
+    for name, path, schema in stores:
+        if file_has_rows(path) and not schema_has_rows(schema):
+            found.append(name)
+    return found
+
+
 def report() -> dict:
     """For `/api/health`: where the stores live, never the address itself."""
     if not enabled():

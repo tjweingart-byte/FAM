@@ -451,6 +451,54 @@ def _announce_storage() -> None:
         "`python tools/storage_doctor.py` says the same thing on demand.")
 
 
+#: Stores whose file on the disk holds rows their Postgres schema does not
+#: (§253), measured once at boot - the disk is not written while the stores
+#: live in Postgres, so the answer cannot change until the next deploy.
+_UNCOPIED: list[str] = []
+
+
+class UncopiedDatabase(RuntimeError):
+    """`DATABASE_URL` points at a Postgres that holds none of the accounts on
+    the disk: the copy never ran. Raised at boot so the deploy fails with this
+    message instead of serving an app whose every account seems gone."""
+
+
+def _refuse_an_uncopied_database() -> None:
+    """Refuse to start on an empty Postgres beside a full disk (§253).
+
+    On 2026-10-12 production was pointed at its new database before
+    `tools/sqlite_to_postgres.py --yes` had copied anything. The server
+    found empty schemas, made its tables, and served an app with no
+    accounts and an empty waitlist - every file on the disk untouched beside
+    it, and new sign-ups landing in the wrong place. Nothing said so.
+
+    The accounts are the test: a deployment's account list is never emptied
+    (`wipe-derived`), so accounts on the disk and none in Postgres can only
+    mean the copy has not happened. Every store in that state is logged and
+    listed in `/api/health` -> `database.uncopied`; the accounts stop the
+    boot unless `DATABASE_ALLOW_EMPTY=1` says starting empty is intended.
+    """
+    if not db_mod.enabled():
+        return
+    stores = [(e["name"], e["path"], e["schema"])
+              for e in _database_report() if e.get("schema")]
+    _UNCOPIED[:] = db_mod.uncopied(stores)
+    if not _UNCOPIED:
+        return
+    log.error("DATABASE: these stores have rows on the disk and none in Postgres:"
+              " %s - the copy (tools/sqlite_to_postgres.py --yes) has not run for them.",
+              ", ".join(_UNCOPIED))
+    if "accounts" in _UNCOPIED and not db_mod.allow_empty():
+        raise UncopiedDatabase(
+            "DATABASE_URL is set, but Postgres holds none of the accounts that are"
+            " on the disk, so the data was never copied. Nothing has been lost: the"
+            " files on the disk are untouched. Either run"
+            " `python tools/sqlite_to_postgres.py --from /data --database-url"
+            " '<internal URL>' --yes` and deploy again, or unset DATABASE_URL to go"
+            " back to the disk. To start on an empty database on purpose, set"
+            " DATABASE_ALLOW_EMPTY=1. (POSTGRES.md, PROBLEMS.md §253)")
+
+
 def _announce_voice_control() -> None:
     """Say at startup how the voice will be found, and when it cannot be.
 
@@ -535,6 +583,9 @@ async def lifespan(_: FastAPI):
     # Whether zero spend's network guard can see this loop's connections
     # (§172) - uvloop goes round it, so staging runs UVICORN_LOOP=asyncio.
     spend_guard.check_loop(asyncio.get_running_loop())
+    # Before anything is served or written: a Postgres the copy never
+    # reached would show every listener an app with their account gone (§253).
+    _refuse_an_uncopied_database()
     # Pay the voice model's load cost now rather than on the first listener.
     await warm_up()
     # The autocorrect word list, likewise (§142) - in a thread and not
@@ -1055,6 +1106,8 @@ def _database_summary(databases: list) -> dict:
                 entry["bytes"] = schemas.get(entry["schema"], 0)
                 by_store[entry["name"]] = entry["bytes"]
         total = measured.get("total_bytes", 0)
+        # §253: stores whose rows are on the disk and not here, from boot.
+        report["uncopied"] = list(_UNCOPIED)
     else:
         seen: dict[str, int] = {}
         for entry in databases:
