@@ -116,7 +116,7 @@ PARALLEL_MAX_DOMAINS = 200
 #: a hard ceiling is reported at about 200 characters (unverified).
 PARALLEL_MAX_QUERY_CHARS = 200
 #: How many queries one Parallel request carries: the precise search and
-#: EI's angles (§259). Its guidance is two or three for best results.
+#: EI's angles (§260). Its guidance is two or three for best results.
 PARALLEL_MAX_QUERIES = 3
 
 
@@ -662,7 +662,7 @@ def _search_parallel(query: str, num_results: int, recency_days: int = 0,
     body: dict = {
         # Parallel wants short keyword queries; a raw question (EI off, or no
         # `retrieval` in the brief) is cut rather than sent whole.
-        # EI's other wordings ride along (§259): Parallel asks for two or
+        # EI's other wordings ride along (§260): Parallel asks for two or
         # three, and one request with three is still one request's price.
         "search_queries": list(dict.fromkeys(
             _clip(q, PARALLEL_MAX_QUERY_CHARS)
@@ -746,7 +746,7 @@ def objective_for(brief, recency_days: Optional[int] = None) -> str:
     listener's own words, which the consent notice does not send to a
     search vendor. "" without a brief.
 
-    **EI's own objective first** (§259): Parallel reads it as the question
+    **EI's own objective first** (§260): Parallel reads it as the question
     behind the search and ranks and cuts its excerpts against it, so it is
     written by the call that resolved the subject, with the moment in dates
     and the kind of source that answers it. The date the window opens and
@@ -784,7 +784,7 @@ def objective_for(brief, recency_days: Optional[int] = None) -> str:
 
 
 def queries_for(query: str, brief) -> tuple:
-    """The other wordings sent beside `query` (§259) - EI's `search_angles`,
+    """The other wordings sent beside `query` (§260) - EI's `search_angles`,
     and only when `query` is the precise search they were written beside.
     A broader retry, a wider rung or a town's own query asks something else,
     and gets no angles meant for a different string."""

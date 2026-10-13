@@ -273,7 +273,7 @@
   call that speaks carries no tools at all**, and a packet from Exa or GDELT
   (plus a live fact) is the only way evidence reaches the writer.
 <!-- rule:ei-before-search -->
-> **Current (PROBLEMS.md §259):** the brief also writes what the search engine reads - Parallel gets EI's `search_objective` (the subject, the moment as dates, which sources answer it), with `must_establish` and the window's opening date added in code, and the precise query plus up to two `search_angles` in one request. Evergreen questions are never told to want recent reporting.
+> **Current (PROBLEMS.md §260):** the brief also writes what the search engine reads - Parallel gets EI's `search_objective` (the subject, the moment as dates, which sources answer it), with `must_establish` and the window's opening date added in code, and the precise query plus up to two `search_angles` in one request. Evergreen questions are never told to want recent reporting.
 - **Something decides what to search for, before the search.** *(PROBLEMS.md
   §82.)* `episode_intelligence.py` runs one model call between the typed
   question and Exa and produces a `Brief`: intent, resolved subject, a why-now
@@ -458,6 +458,29 @@
   model call and a GPU, in place of whatever was playing. Removed with nothing
   in its place; the swipe-up gesture still moves through an album and is the
   one the `next-hint` label actually advertises.
+<!-- rule:score-guard -->
+- **A score is checked before it is spoken, in code, against the scoreboard**
+  *(PROBLEMS.md §259, `score_guard.py`)*. The owner (10.13), after an episode
+  said a finished Bills-Rams game was in the first quarter: "I don't want it
+  to be possible for the score to be wrong." The live block already said every
+  score came from the feed; that night API-Sports had suspended the account,
+  the lookup failed, and the writer took the period from a live blog. A prompt
+  is a request, so on every sports question (`live_domain == "sports"`) each
+  sentence passes `ScoreGuard` before the voice: a score must be one the
+  scoreboard's own sentences hold; a current period, "under way" or who is
+  ahead only while the scoreboard says in progress, and only as it says; a
+  result only when final, the right way round; a side is its city and its
+  nickname. With no scoreboard none of them is spoken, and a game is
+  resolved by the most whole words of the question it names, never the
+  first row sharing one. History ("in 2022", "last season") is not a score of this
+  game. Removed sentences are logged and kept on `ScriptNotes.score_drops`;
+  an episode of nothing else says one fixed line. The feed is held to the
+  clock too: "live" past `Sport.max_live_hours` or "not started" four hours
+  after kick-off is `unknown`, and `unknown` carries no score. A refused
+  API-Sports account (`AccountRefused`) is held for `ACCOUNT_RETRY_SECONDS`,
+  shown red on /admin and in `/api/health`, and never remembered as a
+  refused catalogue. Narrowing any of this needs the owner.
+
 <!-- rule:api-sports-per-sport -->
 - **API-Sports is a plan per sport.** *(PROBLEMS.md §180, at the owner's
   direction.)* API-Sports sells and limits each sport as its own subscription

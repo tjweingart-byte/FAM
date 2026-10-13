@@ -1,4 +1,4 @@
-"""EI writes Parallel's inputs (§259).
+"""EI writes Parallel's inputs (§260).
 
 Parallel reads an objective in plain language beside two or three short
 keyword queries. EI used to give it one query and a templated objective that

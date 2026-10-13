@@ -262,4 +262,5 @@ and `limit` = Lines.
 | 18485 | 54 | 256. No refusal popup, no "that's all we found", one tab icon, and a backfill that holds one episode |
 | 18539 | 30 | 257. The admin page is pages behind a menu |
 | 18569 | 64 | 258. Parallel and Perplexity replace Exa |
-| 18633 | 57 | 259. EI writes Parallel's inputs: an objective and two or three queries |
+| 18633 | 95 | 259. A score is never spoken unless the scoreboard said it |
+| 18728 | 57 | 260. EI writes Parallel's inputs: an objective and two or three queries |

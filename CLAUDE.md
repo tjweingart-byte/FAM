@@ -296,7 +296,7 @@ Research and truth
   are screened out (§178); nothing is refused for want of evidence (§256);
   EI writes `Brief.broader`. [always-researched]
 - **EI decides what to search for, before the search**, in the search
-  engine's own inputs (Parallel's objective and 2-3 queries, §259); the brief never asserts
+  engine's own inputs (Parallel's objective and 2-3 queries, §260); the brief never asserts
   a fact; **a layer that adds quality must not subtract availability** - every
   failure falls back to the raw query and says so (`Brief.degraded`). [ei-before-search]
 - **Recency filters; credibility sorts.** The packet carries date and grade,
@@ -315,6 +315,7 @@ Research and truth
   catalogue, never a model; seven lookup outcomes; freshness enforced in code,
   stale data withheld; NFL records, last and next games are counted from the
   provider's schedule (§178). Don't claim live scores until a provider returns them. [live-facts]
+- **A score is checked before it is spoken** (§259, `score_guard.py`). [score-guard]
 - **API-Sports is a plan per sport**: a budget, a tier (`API_SPORTS_TIERS`,
   all free until bought) and an `/admin` row per sport; the provider's own
   count bounds ours; ten products wired (§180). [api-sports-per-sport]

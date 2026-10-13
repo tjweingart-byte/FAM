@@ -231,13 +231,13 @@ class Brief:
     #: call to rephrase a thin search, and this is not one. §109.
     search_fallback: str = ""
     #: Other wordings of the precise search, sent beside it in the same
-    #: request (§259). Parallel takes several short keyword queries and asks
+    #: request (§260). Parallel takes several short keyword queries and asks
     #: for two or three; one query was one guess at the words a report would
     #: use. Never the broader search: these hunt the same thing, and
     #: `search_fallback` is still kept for when they all miss.
     search_angles: list = field(default_factory=list)
     #: What the search is for, in a sentence or two a search engine reads
-    #: (§259): the thing wanted, the moment in dates, and which sources
+    #: (§260): the thing wanted, the moment in dates, and which sources
     #: answer it. Parallel ranks and cuts its excerpts against this, so it is
     #: the retriever's half of the brief. Never a result and never the
     #: listener's words. Empty on a degraded brief, and
@@ -347,7 +347,7 @@ class Brief:
 #: Zero is untouched and means evergreen: no window at all.
 RECENCY_FLOOR_DAYS = 2
 
-#: How many other wordings go beside the precise search (§259). Parallel's
+#: How many other wordings go beside the precise search (§260). Parallel's
 #: own guidance is two or three queries in all.
 MAX_ANGLES = 2
 #: Parallel wants keyword queries of three to six words; a longer one is a
@@ -608,11 +608,11 @@ def gate(brief: Brief, query: str) -> Brief:
             f"the question; searching what was asked instead")
         brief.search_query = query.strip()
         # Written about the same drifted subject, so neither is kept: the
-        # objective falls back to one composed in code (§259).
+        # objective falls back to one composed in code (§260).
         brief.search_angles = []
         brief.search_objective = ""
 
-    # **The other wordings are held to the same subject** (§259): one that
+    # **The other wordings are held to the same subject** (§260): one that
     # drifted would pull reports of something else into the same request.
     # Held to the question *or* the resolved search, because an angle may
     # rightly name what the question only implies - the quarterback of
@@ -727,7 +727,7 @@ BRIEF_SCHEMA = {
         # and it is the reason §82's "never a model call to rephrase" is
         # untouched - this is not another call.
         "search_fallback": {"type": "string"},
-        # **Written for the search engine that reads them** (§259): Parallel
+        # **Written for the search engine that reads them** (§260): Parallel
         # takes an objective in plain language beside two or three short
         # keyword queries, and ranks and cuts its excerpts against both.
         "search_angles": {"type": "array", "items": {"type": "string"}},

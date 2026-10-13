@@ -189,6 +189,9 @@ async def main() -> int:
     # PROBLEMS.md §94.
     for dropped in notes.meta_openings:
         print(f'  NOTE: held back a meta opening before it was spoken: "{dropped}"')
+    # §259: a score, period or result the scoreboard did not vouch for.
+    for dropped in getattr(notes, "score_drops", ()):
+        print(f'  NOTE: score guard removed before it was spoken: "{dropped}"')
     if words < plan.word_budget * 0.8:
         print("  NOTE: came in short. That is allowed now - it should mean it ran "
               "out of things worth saying, not that it gave up.")
