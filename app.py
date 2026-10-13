@@ -258,7 +258,8 @@ def _say_where_a_key_could_come_from() -> None:
 def _announce_research() -> None:
     """Say at startup whether the configured research backend can actually run.
 
-    `exa` is the default and needs a second credential. Without it a researched
+    `parallel` is the default since §258 (`exa` before it) and needs a
+    second credential. Without it a researched
     episode fails - it does not quietly search another way - and finding that
     out on a listener's first researched question is the shape of failure this
     project has paid for most. So it is said here, once, loudly, and again on
@@ -281,22 +282,25 @@ def _announce_research() -> None:
         log.warning(
             "RESEARCH_BACKEND=%s is no longer a backend (PROBLEMS.md §135: the "
             "model never searches the web for FAM). Running as %s. Remove the "
-            "variable, or set it to exa or gdelt.",
+            "variable, or set it to parallel, perplexity, exa or gdelt.",
             report["backend_replaced"], report["backend"])
     if not report["unavailable"]:
-        log.info("research: %s (%s)", report["backend"], report["exa_detail"])
+        log.info("research: %s (%s)", report["backend"], report["backend_detail"])
         return
     log.warning(
         "RESEARCH UNAVAILABLE: RESEARCH_BACKEND=%s but %s.", report["backend"],
-        report["exa_detail"])
+        report["backend_detail"])
     log.warning(
         "  Every researched episode will fall down the ladder to %s - weaker "
         "evidence, and a question that needs today's facts and finds none is "
         "refused.",
         " then ".join(report["ladder"][1:]) or "nothing else")
+    import research as research_mod
+
+    key = research_mod.KEYS.get(report["backend"], "the backend's key")
     log.warning(
-        "  Set EXA_API_KEY, or set RESEARCH_BACKEND=gdelt with GDELT=1 to make "
-        "the keyless index the configured path.")
+        "  Set %s, or set RESEARCH_BACKEND=gdelt with GDELT=1 to make "
+        "the keyless index the configured path.", key)
     log.warning("  Every tab says the same thing; /api/health carries it too.")
 
 

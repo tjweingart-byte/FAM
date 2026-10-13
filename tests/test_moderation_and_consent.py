@@ -48,7 +48,7 @@ def test_the_notice_names_the_provider_and_starts_unasked():
     assert ai["provider"] == "Anthropic"
     assert "Anthropic" in ai["notice"]["body"]
     # The search drawn from the question goes to Parallel and Perplexity
-    # (§257), and the notice says so - and no longer names Exa.
+    # (§258), and the notice says so - and no longer names Exa.
     assert "Parallel" in ai["notice"]["body"]
     assert "Perplexity" in ai["notice"]["body"]
     assert "Exa" not in ai["notice"]["body"]

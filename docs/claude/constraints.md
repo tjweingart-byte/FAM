@@ -197,7 +197,7 @@
   goes in `EXCEPTIONS`. Mild words (damn, hell, crap, ass) carry no E. Add to
   the lists with a test of an innocent sentence beside each addition.
 <!-- rule:always-researched -->
-> **Current (PROBLEMS.md §257, at the owner's direction):** Exa is replaced. The configured backend is **Parallel** (`RESEARCH_BACKEND=parallel`); the one retry on a thin packet goes to **Perplexity**, a second index, without the window (`RESEARCH_SECOND_LOOK`, falling back to the same backend when Perplexity has no key); the rungs below are **Perplexity, then GDELT**, and a rung that already ran as the second look is not asked again. Exa stays selectable for comparison. Wherever the text below says Exa, read the configured search backend.
+> **Current (PROBLEMS.md §258, at the owner's direction):** Exa is replaced. The configured backend is **Parallel** (`RESEARCH_BACKEND=parallel`); the one retry on a thin packet goes to **Perplexity**, a second index, without the window (`RESEARCH_SECOND_LOOK`, falling back to the same backend when Perplexity has no key); the rungs below are **Perplexity, then GDELT**, and a rung that already ran as the second look is not asked again. Exa stays selectable for comparison. Wherever the text below says Exa, read the configured search backend.
 > **Current (PROBLEMS.md §256, at the owner's direction):** nothing is refused for want of evidence any more. The §109 `NoEvidence` refusal ("FAM could not reach a single source ... not going to guess") and the §194 local one are deleted with `_refuse_without_evidence`: the owner saw it as a popup on a Trending tile and wants the episode written. The ladder below is unchanged; an empty one now goes to the writer like any thin packet. `research.NoEvidence` stays as a class, so its handlers still word one if anything raises it.
 > **Current (PROBLEMS.md §211):** the GDELT rung is a read of GDELT's export copy on disk (rule:gdelt-exports), not "one HTTP call" - no request reaches GDELT from an episode.
 > **Current (PROBLEMS.md §194, at the owner's direction):** a question about one town (`Brief.place`) does not take this ladder. It takes the local one (rule:local-news-ladder): the town's own outlets, its county's, then Exa limited to their known outlets, and **never GDELT**. A weather question (`live_domain == "weather"`) searches no index at all; the forecast is its evidence. Everything below still governs every other question.
@@ -587,7 +587,7 @@
   real request rather than confirming a credential exists. Do not say FAM
   supports live scores until a real provider is returning them.
 <!-- rule:local-news-ladder -->
-> **Current (PROBLEMS.md §257):** the third rung searches the town's known outlets on the configured search backend (Parallel), not Exa; the record names the backend that searched.
+> **Current (PROBLEMS.md §258):** the third rung searches the town's known outlets on the configured search backend (Parallel), not Exa; the record names the backend that searched.
 - **A town's news comes from the town's own outlets, and its gap is said in
   words composed in code.** *(PROBLEMS.md §194, at the owner's direction;
   `local_news.py`, `places.py`.)* A national index weights a town's two or

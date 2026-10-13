@@ -6,9 +6,10 @@
     python setup_key.py --show --exa
     python setup_key.py --remove [--exa] # forget it
 
-Two credentials, one file, one habit. `--exa` is needed when
-RESEARCH_BACKEND=exa - which is the default - and a researched episode fails
-without it rather than quietly searching another way.
+Two credentials, one file, one habit. `--exa` is needed only when
+RESEARCH_BACKEND=exa: the default has been `parallel` since §258, and Exa is
+kept for comparing the two. `PARALLEL_API_KEY=` and `PERPLEXITY_API_KEY=`
+lines go in the same file, or come from FAM_SECRETS.
 
 The key goes in `~/.fam/env`, next to the shared voice store and for the same
 reason: it lives **outside the project folder**, so unpacking a new copy of the
@@ -242,10 +243,10 @@ def exa_main(path, show: bool) -> int:
     print(f"The Exa key is stored once, in {path}, and every copy of the app "
           "reads it.")
     print("It is never written into the source, and never committed.\n")
-    print("It is needed because RESEARCH_BACKEND defaults to `exa`: a "
-          "researched episode\nretrieves first and Claude reads the packet. "
-          "Without a key those episodes fail\nrather than quietly searching "
-          "another way.\n")
+    print("It is needed only with RESEARCH_BACKEND=exa (the default is "
+          "`parallel` since\n§258, and Exa is kept for comparing the two). "
+          "Parallel's and Perplexity's keys go\nin the same file as "
+          "PARALLEL_API_KEY= and PERPLEXITY_API_KEY=, or in FAM_SECRETS.\n")
     if stored:
         print(f"There is already an Exa key ({describe_exa_key()}).")
         print("Entering a new one replaces it.\n")

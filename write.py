@@ -101,7 +101,8 @@ async def main() -> int:
         print(f"  REFUSED after {time.perf_counter() - prep_started:.1f}s")
         print(f"    {refused}")
         print("    Every rung of the retrieval ladder came back empty. Check "
-              "EXA_API_KEY, then the log for which rungs ran.")
+              "PARALLEL_API_KEY and PERPLEXITY_API_KEY, then the log for "
+              "which rungs ran.")
         # Non-zero: a refused episode and a written one must not look the
         # same to whatever ran this - a sweep over twenty prompts reads exit
         # codes, not prose.

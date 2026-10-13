@@ -173,7 +173,7 @@ def _env_float(name: str, default: float) -> float:
 
 #: How a researched episode gets its facts.
 #:
-#: **`parallel` is the default since §257**, at the owner's direction: Parallel's
+#: **`parallel` is the default since §258**, at the owner's direction: Parallel's
 #: Search API at about a seventh of Exa's price, with `perplexity` - a second,
 #: independent index - as the second look and the first rung below it, and
 #: GDELT as the free floor. `exa` stays selectable so the two can be compared
@@ -209,7 +209,7 @@ def _env_float(name: str, default: float) -> float:
 #: packet every time (`fell_back_from`).
 RESEARCH_BACKENDS = ("parallel", "perplexity", "exa", "gdelt")
 
-#: The ones among them that send a query to a paid search vendor (§257).
+#: The ones among them that send a query to a paid search vendor (§258).
 WEB_RESEARCH_BACKENDS = ("parallel", "perplexity", "exa")
 
 #: What a deployment gets when it says nothing. Named rather than repeated as a
@@ -389,9 +389,9 @@ class Settings:
         default_factory=lambda: os.environ.get("ENABLE_WEB_SEARCH", "0") not in ("0", "false", "False", "")
     )
     max_web_searches: int = _env_int("MAX_WEB_SEARCHES", 3)  # a ceiling, not a target
-    # parallel | perplexity | exa | gdelt - see RESEARCH_BACKENDS above. Only consulted when an
-    # episode is actually being researched; an unresearched one costs nothing
-    # either way.
+    # parallel | perplexity | exa | gdelt - see RESEARCH_BACKENDS above.
+    # Only consulted when an episode is actually being researched; an
+    # unresearched one costs nothing either way.
     research_backend: str = field(
         default_factory=lambda: os.environ.get(
             "RESEARCH_BACKEND", DEFAULT_RESEARCH_BACKEND).strip().lower())
@@ -428,7 +428,7 @@ class Settings:
     research_retry: bool = field(
         default_factory=lambda: os.environ.get("RESEARCH_RETRY", "1")
         not in ("0", "false", "False", ""))
-    # Where that one retry goes (§257): another web backend's index, because
+    # Where that one retry goes (§258): another web backend's index, because
     # the same index asked again tends to miss the same way. `same` keeps it
     # on the configured backend; a backend with no key is skipped the same
     # way, so a deployment with only one search key loses nothing.
@@ -438,7 +438,7 @@ class Settings:
     # How long one search request may take before it counts as failed and
     # the ladder moves on. A search sits in front of the first word.
     search_timeout_seconds: float = _env_float("SEARCH_TIMEOUT_SECONDS", 8.0)
-    # Parallel's mode (§257). `fast` is its sub-second preset at $1/1k;
+    # Parallel's mode (§258). `fast` is its sub-second preset at $1/1k;
     # `turbo` is faster and `basic`/`advanced` cost $5/1k. Always sent:
     # Parallel defaults to `advanced` when it is omitted.
     parallel_mode: str = field(

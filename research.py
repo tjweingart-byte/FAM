@@ -2,7 +2,7 @@
 
 The retrievers, and **all of them finish before the first word is written**:
 
-* **parallel** - the default since §257: Parallel's Search API
+* **parallel** - the default since §258: Parallel's Search API
   retrieves, this module builds an evidence packet, and the packet goes into
   the prompt as context. About a seventh of Exa's price.
 * **perplexity** - Perplexity's Search API, a second, independent index. It is
@@ -105,8 +105,9 @@ PARALLEL_URL = "https://api.parallel.ai/v1/search"
 PERPLEXITY_URL = "https://api.perplexity.ai/search"
 KEYS = {"parallel": "PARALLEL_API_KEY", "perplexity": "PERPLEXITY_API_KEY",
         "exa": "EXA_API_KEY"}
-#: Perplexity accepts at most this many results per request, and this many
-#: domains in its allow-list.
+#: Perplexity accepts at most 20 results per request (its SDK's own note).
+#: The allow-list ceiling is not in the SDK; 20 is the figure reported for its
+#: docs, unverified - a longer list is cut, best-known outlets first.
 PERPLEXITY_MAX_RESULTS = 20
 PERPLEXITY_MAX_DOMAINS = 20
 #: Parallel's allow-list ceiling (include plus exclude, combined).
@@ -449,16 +450,6 @@ class Packet:
     #: The ladder reads it so a rung that already ran as the second look is
     #: not asked the same thing again.
     tried: list = field(default_factory=list)
-    #: Dollars by backend, when the searches went to more than one vendor.
-    #: Empty means all of `cost` belongs to `backend`; read it through
-    #: `cost_by_backend`.
-    costs: dict = field(default_factory=dict)
-
-    def cost_by_backend(self) -> dict:
-        """What each vendor billed for this packet's searches."""
-        if self.costs:
-            return dict(self.costs)
-        return {self.backend: self.cost} if self.backend else {}
 
     def __bool__(self) -> bool:
         return bool(self.context.strip())
@@ -580,6 +571,9 @@ def _clip(text: str, limit: int) -> str:
     return cut[:end + 1] if end > limit // 2 else cut.rstrip() + "..."
 
 
+_MARKDOWN_LEAD = re.compile(r"^(#{1,6}\s+|[-*+]\s+|>\s*|\|\s*)+")
+
+
 def passages(text, limit: int = 0) -> list:
     """A page's excerpt text as passages the size of Exa's highlights.
 
@@ -593,8 +587,11 @@ def passages(text, limit: int = 0) -> list:
     out: list = []
     for chunk in chunks:
         for paragraph in re.split(r"\n\s*\n", str(chunk or "")):
+            # Markdown's headings, bullets, quotes and table bars are not
+            # words to read out; a leading minus on a number ("-3.5%") is,
+            # so a bullet is only a mark followed by a space.
             paragraph = " ".join(
-                line.strip().lstrip("#*->|").strip()
+                _MARKDOWN_LEAD.sub("", line.strip())
                 for line in paragraph.splitlines()).strip()
             if not paragraph:
                 continue
@@ -1091,7 +1088,7 @@ async def retrieve(query: str, backend: Optional[str] = None,
         broader = (getattr(brief, "broader", "") or "").strip()
         if not broader:
             broader = (getattr(brief, "subject", "") or "").strip() or query
-        # **On a second index where there is one** (§257): the same index
+        # **On a second index where there is one** (§258): the same index
         # asked again tends to miss the same way, so the second look goes to
         # `RESEARCH_SECOND_LOOK` (Perplexity) when that can serve, and to the
         # configured backend otherwise.
@@ -1113,11 +1110,7 @@ async def retrieve(query: str, backend: Optional[str] = None,
             # it. A retry that finds sources and then discards them for an
             # empty packet is worse than no retry: it pays for the search and
             # reports it as thin.
-            # Each packet's cost is kept apart by backend (`costs`), so
-            # metering can bill each vendor its own searches.
-            costs = {}
-            for one in (packet, second):
-                costs[one.backend] = costs.get(one.backend, 0.0) + one.cost
+            # Both backends, when the second look went to another index.
             tried = list(dict.fromkeys(packet.tried + second.tried))
             if second and (not packet or len(second_missing) < len(missing)):
                 second.searches += packet.searches
@@ -1130,7 +1123,6 @@ async def retrieve(query: str, backend: Optional[str] = None,
                 packet.cost += second.cost
                 packet.seconds += second.seconds
             packet.tried = tried
-            packet.costs = costs
             packet.retried = True
 
     # **The second opinion.** One vendor's index is one vendor's blind spots,
@@ -1239,7 +1231,7 @@ async def retrieve_with_gdelt(query: str, brief=None, recency_days: int = 0
 
 #: The rungs below the configured backend, in the order they are tried.
 #:
-#: **Perplexity, then GDELT** (§257). Perplexity is a second, independent
+#: **Perplexity, then GDELT** (§258). Perplexity is a second, independent
 #: index with passages, so it is the better backup; GDELT stays below it as
 #: the floor - free, keyless and read from disk, so it still answers when both
 #: paid accounts fail together. A rung that cannot serve (no key, `GDELT=0`)
@@ -1256,7 +1248,7 @@ FALLBACK_RUNGS = ("perplexity", "gdelt")
 
 def second_look_backend(primary: str) -> str:
     """Where the one retry goes: `RESEARCH_SECOND_LOOK` when it names another
-    web backend that can serve, the configured backend otherwise (§257)."""
+    web backend that can serve, the configured backend otherwise (§258)."""
     other = (settings.research_second_look or "").strip().lower()
     if other in WEB_BACKENDS and other != primary and backend_available(other):
         return other
@@ -1308,7 +1300,13 @@ def report() -> dict:
         "backends": list(RESEARCH_BACKENDS),
         "exa_configured": ok,
         "exa_detail": detail,
-        # Every web backend, configured or not, and why (§257).
+        # Why the *configured* backend can or cannot serve, whichever it is
+        # - what the startup warning and the preflight print (§258).
+        "backend_detail": (backend_diagnose(settings.research_backend)[1]
+                           if settings.research_backend in WEB_BACKENDS
+                           else ("GDELT=1" if _rung_available("gdelt")
+                                 else "GDELT=0 or no export copy yet")),
+        # Every web backend, configured or not, and why (§258).
         "web_backends": {name: dict(zip(("configured", "detail"),
                                         backend_diagnose(name)))
                          for name in WEB_BACKENDS},

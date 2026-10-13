@@ -260,7 +260,7 @@ services:
       # (§191) - every other league is looked up on demand; with FINNHUB_KEY
       # set, markets are swept every 2h. Neither needs a second line naming
       # its provider.
-      # Search (§257): Parallel first, Perplexity as the second look and the
+      # Search (§258): Parallel first, Perplexity as the second look and the
       # backup, GDELT below both. Exa's key is kept only while the two are
       # compared; with RESEARCH_BACKEND unset the default is parallel.
       - key: PARALLEL_API_KEY

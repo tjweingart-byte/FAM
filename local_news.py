@@ -1172,10 +1172,10 @@ def _packet(items: list, scope: str, place, backend: str):
 
 
 async def research_local(place, brief=None, exa=None) -> LocalResult:
-    """Town, then county, then Exa on the known outlets. Never raises.
+    """Town, then county, then a web search on the known outlets. Never raises.
 
     `exa` is the coroutine function that runs one web search on the
-    configured backend (Parallel since §257; the name is from when it was Exa)
+    configured backend (Parallel since §258; the name is from when it was Exa)
     (`(query, include_domains) -> Packet`), passed in so this module does
     not reach into the writer's retrieval code and tests can stand one in.
     """
@@ -1215,10 +1215,10 @@ async def research_local(place, brief=None, exa=None) -> LocalResult:
             # (`research.names_place`) - the fix that stops invention.
             packet = await exa(query, tuple(known), place.name)
         except Exception:  # noqa: BLE001
-            log.warning("local news: the Exa rung failed for %s", place.label,
+            log.warning("local news: the web search rung failed for %s", place.label,
                         exc_info=True)
             packet = None
-        # Named by the backend that actually searched (Parallel since §257).
+        # Named by the backend that actually searched (Parallel since §258).
         label = str(getattr(packet, "backend", "") or "web")
         result.attempts.append((label, len(getattr(packet, "sources", []) or [])
                                 if packet else 0))

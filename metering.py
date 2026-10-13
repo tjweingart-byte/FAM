@@ -179,7 +179,7 @@ class Usage:
     cache_read_tokens: int = 0
     cache_write_tokens: int = 0
     #: Every paid web search and what it cost - Parallel and Perplexity
-    #: since §257, Exa before. The column keeps its name so every stored
+    #: since §258, Exa before. The column keeps its name so every stored
     #: row and report reads on; it was never only about the vendor.
     exa_searches: int = 0
     exa_cost: float = 0.0

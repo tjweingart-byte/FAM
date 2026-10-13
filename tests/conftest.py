@@ -62,7 +62,7 @@ FAM_ENVIRONMENT = (
     "ESPEAK_VOICE", "EXA_DATED_PACKET", "EXA_HIGHLIGHTS_PER_SOURCE",
     "EXA_NUM_RESULTS", "EXA_PACKET_SOURCES", "RESEARCH_BACKEND",
     "RESEARCH_RETRY",
-    # §257: the search backends that replaced Exa.
+    # §258: the search backends that replaced Exa.
     "RESEARCH_SECOND_LOOK", "SEARCH_TIMEOUT_SECONDS", "PARALLEL_MODE",
     "PARALLEL_CHARS_PER_RESULT", "PERPLEXITY_SEARCH_TYPE",
     "PERPLEXITY_TOKENS_PER_PAGE", "SEARCH_PASSAGE_CHARS",
@@ -252,7 +252,7 @@ NO_EMBED_MODEL = str(pathlib.Path(__file__).resolve().parent / "no-embed-model-h
 #: either in their shell would run a suite with every key removed and the
 #: network guard on - a different suite from CI's.
 VOICE_ENVIRONMENT = ("FAM_VOICES_DIR", "VOICES_DIR", "EXA_API_KEY",
-                     # §257: read by research.py the same way.
+                     # §258: read by research.py the same way.
                      "PARALLEL_API_KEY", "PARALLEL_API_KEYS",
                      "PERPLEXITY_API_KEY", "PERPLEXITY_API_KEYS",
                      "FAM_ENV", "ZERO_SPEND")

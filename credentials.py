@@ -105,7 +105,7 @@ DEFAULT_TTL = 0.0
 
 #: Credentials this module manages. A pool is the same name with an S.
 CREDENTIAL_VARS = ("ANTHROPIC_API_KEY", "EXA_API_KEY",
-                   # §257: the search backends that replaced Exa.
+                   # §258: the search backends that replaced Exa.
                    "PARALLEL_API_KEY", "PERPLEXITY_API_KEY")
 
 #: A variable name, for telling `NAME=command` apart from a command that

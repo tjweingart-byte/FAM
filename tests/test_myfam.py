@@ -560,7 +560,9 @@ def test_a_tile_shown_and_never_played_stops_being_pushed(store):
 
 def test_refreshing_the_page_is_not_a_rejection(store):
     """A feed load writes a row per tile; opening myFAM twice is not evidence."""
-    now = time.time()
+    # From the start of a bucket: twelve seconds from the wall clock crossed
+    # an hour boundary whenever the test ran in an hour's last eleven seconds.
+    now = time.time() // T.FATIGUE_BUCKET * T.FATIGUE_BUCKET
     for i in range(12):
         store.record_impressions("u", [("most_played", "ai-agents")], at=now + i)
     assert store.impression_occasions("u")["ai-agents"] == 1, (

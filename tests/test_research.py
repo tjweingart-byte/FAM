@@ -257,7 +257,7 @@ def test_the_claude_backend_is_gone_and_says_so():
     on - and a deployment that still sets it is told what happened, by name,
     rather than being refused as though it had made a typo."""
     assert "claude" not in RESEARCH_BACKENDS
-    # Perplexity is a search vendor's index, not a model searching (§257).
+    # Perplexity is a search vendor's index, not a model searching (§258).
     assert research.FALLBACK_RUNGS == ("perplexity", "gdelt")
     for name in ("retrieve_with_claude", "shape_claude_packet",
                  "research_client", "CLAUDE_RESEARCH_SYSTEM"):
@@ -590,7 +590,7 @@ def test_what_retrieval_cost_is_recorded_for_a_person_to_read(exa, monkeypatch):
 # configuration
 # --------------------------------------------------------------------------
 def test_a_fresh_deployment_researches_with_parallel():
-    """The production default since §257, at the owner's direction, with a
+    """The production default since §258, at the owner's direction, with a
     real cost attached: it needs a credential. Perplexity is the second look
     and the next rung, Exa stays selectable for comparison, and the keyless
     alternative is GDELT; the model's own search is not an alternative any

@@ -79,7 +79,7 @@ def _plans() -> dict:
         "api_sports": (
             "billed and limited per sport - see each sport below",
             "each sport's own next plan"),
-        # §257: the default search and its second look.
+        # §258: the default search and its second look.
         "parallel": (
             "pay-as-you-go, $1/1k (fast); 600 requests/min",
             "Enterprise: volume price and zero data retention"),

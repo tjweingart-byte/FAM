@@ -135,7 +135,7 @@ def test_research_is_on_for_every_episode():
     from script_generator import plan_episode
 
     assert plan_episode("anything", 3).search is True
-    # Parallel since §257, at the owner's direction; Exa before it.
+    # Parallel since §258, at the owner's direction; Exa before it.
     assert appmod.settings.research_backend == "parallel", (
         "the always-on default is priced on a search vendor's retrieval; the "
         "model's own search tool costs 10-25s and cannot be paid on every "

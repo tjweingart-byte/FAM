@@ -1,4 +1,4 @@
-"""Parallel and Perplexity replace Exa (§257, at the owner's direction).
+"""Parallel and Perplexity replace Exa (§258, at the owner's direction).
 
 Parallel is the default backend; Perplexity, a second index, is the second
 look on a thin packet and the first rung below it; GDELT stays the free
@@ -182,6 +182,9 @@ def test_one_long_snippet_becomes_several_passages():
     # Markdown headings and bullets do not reach the voice.
     assert research.passages(["## Heading\n- a bullet that is long enough"]) == [
         "Heading a bullet that is long enough"]
+    # A minus sign is not a bullet.
+    assert research.passages(["-3.5% was the fall in the index on Monday."]) == [
+        "-3.5% was the fall in the index on Monday."]
 
 
 # --------------------------------------------------------------------------
@@ -198,7 +201,7 @@ def test_the_second_look_goes_to_perplexity_without_the_window(wire, monkeypatch
     assert sent[1]["body"]["query"] == "Eagles season", "not the broader query"
     assert packet.retried and packet.backend == "perplexity"
     assert packet.tried == ["parallel", "perplexity"]
-    assert packet.cost_by_backend() == {"parallel": 0.001, "perplexity": 0.001}
+    assert packet.cost == pytest.approx(0.002), "both searches are paid for"
 
 
 def test_without_a_perplexity_key_the_second_look_stays_on_parallel(

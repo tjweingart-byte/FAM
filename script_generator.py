@@ -1473,7 +1473,7 @@ class ScriptGenerator:
             if packet:
                 break
             # A rung the first one already asked, as its second look
-            # (§257), would only be asked the same thing again.
+            # (§258), would only be asked the same thing again.
             if rung in getattr(packet, "tried", ()):
                 continue
             log.info("%s found nothing usable for %r; trying %s on %r before "
@@ -1508,7 +1508,7 @@ class ScriptGenerator:
                     continue
                 # The vendor's own reported cost where it gave one, its
                 # published rate otherwise. **Only for the paid web
-                # backends** (§257: Parallel, Perplexity, Exa):
+                # backends** (§258: Parallel, Perplexity, Exa):
                 # `Usage.exa_searches` is the column every paid search is
                 # counted in, and filing GDELT's fetches under it would make
                 # the one number `usage_report.py` prints about retrieval a
@@ -1551,7 +1551,7 @@ class ScriptGenerator:
 
         async def exa(query: str, domains: tuple, must_name: str):
             # The configured web backend on the known outlets (§194; Parallel
-            # since §257) - never GDELT, which is off this path entirely.
+            # since §258) - never GDELT, which is off this path entirely.
             backend = settings.research_backend
             if backend not in research_mod.WEB_BACKENDS \
                     or not research_mod.backend_available(backend):

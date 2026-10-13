@@ -146,11 +146,12 @@ def keys_present() -> tuple[bool, str]:
                        "can be produced. Run `python setup_key.py`, or set "
                        "FAM_SECRETS - see CREDENTIALS.md.")
     backend = (sg.settings.research_backend or "").lower()
-    if backend == "exa":
-        ok, detail = research_mod.diagnose()
+    if backend in research_mod.WEB_BACKENDS:
+        ok, detail = research_mod.backend_diagnose(backend)
         if not ok:
-            return False, (f"RESEARCH_BACKEND=exa but {detail}. Set EXA_API_KEY, "
-                           "or RESEARCH_BACKEND=gdelt (with GDELT=1) to use the keyless index.")
+            return False, (f"RESEARCH_BACKEND={backend} but {detail}. Set "
+                           f"{research_mod.KEYS[backend]}, or RESEARCH_BACKEND=gdelt "
+                           "(with GDELT=1) to use the keyless index.")
     return True, ""
 
 

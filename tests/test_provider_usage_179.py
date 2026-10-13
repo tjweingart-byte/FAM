@@ -31,7 +31,7 @@ DAY = 86400
 def test_every_provider_the_owner_named_is_reported_in_order():
     rows = provider_usage.report(NOON)
     assert [r["label"] for r in rows] == [
-        # §257: the search that replaced Exa, and its second look.
+        # §258: the search that replaced Exa, and its second look.
         "API-Sports", "Parallel", "Perplexity", "Exa", "GDELT", "Polymarket", "GNews", "Finnhub",
         # §194: weather and the local news collector.
         "National Weather Service", "Open-Meteo", "Local news feeds"]

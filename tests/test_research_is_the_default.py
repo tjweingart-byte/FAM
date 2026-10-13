@@ -161,7 +161,7 @@ def test_a_backend_that_cannot_run_is_recorded_rather_than_hidden(monkeypatch):
         plan_episode("what is the NASDAQ", 3), notes))
 
     assert researched.evidence
-    # The configured backend is named, whichever it is (parallel since §257).
+    # The configured backend is named, whichever it is (parallel since §258).
     assert notes.research["fell_back_from"] == config_mod.settings.research_backend
 
     # And the sentence still names the remedy where one does reach a listener.

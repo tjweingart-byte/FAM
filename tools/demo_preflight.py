@@ -107,12 +107,12 @@ def main() -> int:
             say(f"{DIM}             without research. Production is "
                 f"SEARCH_MODE=always.{RESET}")
             worst = max(worst, 1)
-        elif settings.research_backend == "exa":
+        elif settings.research_backend in research.WEB_BACKENDS:
             # "Verify, do not inspect": ask the backend why it can or cannot
             # serve rather than checking that a variable is set. With every
             # episode researched, a backend that cannot run is not a degraded
             # demo, it is a demo where nothing generates at all.
-            ok, why = research.diagnose()
+            ok, why = research.backend_diagnose(settings.research_backend)
             if not ok:
                 say(f"  {BOLD}Research cannot run{RESET} - {why}.")
                 say(f"{DIM}             Every episode is researched, so every "
@@ -159,21 +159,23 @@ def main() -> int:
     # them a question the heuristic marks time-sensitive fails outright rather
     # than quietly answering from memory. That is deliberate, but it is not
     # something to discover by asking about today's news.
-    research_ok, research_detail = research.diagnose()
     backend = settings.research_backend
+    research_ok, research_detail = (research.backend_diagnose(backend)
+                                    if backend in research.WEB_BACKENDS
+                                    else research.diagnose())
     rungs = research.ladder()
     if backend == "gdelt":
         say(f"  research   {BOLD}gdelt{RESET} - keyless article index, titles and "
             f"dates only")
     elif research_ok:
-        say(f"  research   {BOLD}exa{RESET} - retrieves first, then Claude writes "
-            f"from the packet")
+        say(f"  research   {BOLD}{backend}{RESET} - retrieves first, then Claude "
+            f"writes from the packet")
     else:
         # **Not "will FAIL" any more** (§109). Every researched episode falls
         # down the ladder instead, so this says what will actually serve -
         # and a preflight describing a failure mode the code no longer has is
         # exactly the thing this file exists to prevent.
-        say(f"  research   {BOLD}UNAVAILABLE{RESET} - backend is \"exa\" but "
+        say(f"  research   {BOLD}UNAVAILABLE{RESET} - backend is \"{backend}\" but "
             f"{research_detail}.")
         say(f"{DIM}             Researched questions fall to "
             f"{' then '.join(rungs[1:]) or 'nothing else'} - slower, weaker "
@@ -181,8 +183,7 @@ def main() -> int:
         say(f"             A question that turns on today's facts and finds "
             f"nothing is refused,")
         say(f"             not guessed. Everything else is unaffected.")
-        say(f"             Fix: pip install -r requirements-exa.txt and set "
-            f"EXA_API_KEY,")
+        say(f"             Fix: set {research.KEYS.get(backend, 'its key')},")
         say(f"             or set RESEARCH_BACKEND=gdelt with GDELT=1.{RESET}")
         worst = max(worst, 1)
 
@@ -202,7 +203,8 @@ def main() -> int:
     fresh = "writes a real episode" if live else "plays the canned sample"
     researched = ("  ·  research falls back to "
                   f"{' then '.join(research.ladder()[1:]) or 'nothing'}"
-                  if settings.research_backend == "exa" and not research_ok else "")
+                  if settings.research_backend in research.WEB_BACKENDS
+                  and not research_ok else "")
     say(f"  search     type anything, pick a length  ->  {fresh}{researched}")
     say(f"  myFAM      tap a tile  ->  {fresh}; rails rank the shared bank")
     say(f"  DailyFAM   starter mixes work cold; tap a mix to play it through")

@@ -18536,7 +18536,37 @@ arena; the GDELT sync's domain dict rebuilt every 15 minutes.
 `tests/test_polymarket_forecasts_211.py`; `tests/test_limited_material_245.py`
 deleted.
 
-## 257. Parallel and Perplexity replace Exa
+## 257. The admin page is pages behind a menu
+
+**What happened (2026-10-12).** `/admin` had grown into one long scroll -
+numbers, the question box, reports, feedback, outside services, accounts,
+the voice bank, the respelling list and every store, one under another. The
+owner sketched a menu button at the top left that turns it into several
+pages.
+
+**What changed.** A button at the top left of `admin_ui/tracker.html` opens
+a drawer; each entry is a page, shown one at a time and named after the `#`
+in the address, so Refresh now keeps the page and the browser's back button
+moves between pages. The drawer is grouped:
+
+- **Tracker** - Overview (the numbers, new accounts and top searches), Ask
+  the database (with Every store under it, since tapping a table answers in
+  the question box), Newest accounts.
+- **Inbox** - Reported content and Feedback, each with its open count on the
+  menu; reports turn rose when one is overdue, and a dot on the menu button
+  says something is waiting.
+- **Running costs** - Outside service requests.
+- **Voice** - Voice bank, How names are said.
+- **Other admin pages** - links to `/admin/waitlist` and `/admin/thumbnails`.
+
+Nothing on the server changed; every page still loads on every refresh, so
+the counts on the menu are current whichever page is open. The chart is
+redrawn when Overview is shown, because a hidden page has no width to
+measure.
+
+`admin_ui/tracker.html`, `tests/test_admin_menu_257.py`.
+
+## 258. Parallel and Perplexity replace Exa
 
 The owner (10.12): replace Exa, which was expected to be one of the two
 largest costs, with Parallel as the search and Perplexity as its backup. The
@@ -18595,7 +18625,7 @@ wording was only de-Exa'd; whether Parallel wants shorter queries is for
 `tools/ei_eval.py` with a key. Nothing was measured against the live APIs:
 there is no key in this environment.
 
-Tests: `tests/test_search_backends_257.py` (new); `tests/test_research.py`,
+Tests: `tests/test_search_backends_258.py` (new); `tests/test_research.py`,
 `tests/test_research_is_the_default.py`, `tests/test_provider_usage_179.py`,
 `tests/test_moderation_and_consent.py` and `tests/conftest.py` follow the new
 default.
