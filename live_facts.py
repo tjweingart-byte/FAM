@@ -251,8 +251,10 @@ class LiveFacts:
         UNKNOWN: (
             "The provider did not establish whether this has started or "
             "finished, so **you do not know that it has**. Do not state a "
-            "result, and do not infer one from anything below - an article "
-            "written before the event cannot report its outcome."),
+            "result, a score, who is ahead or what period it is, and do not "
+            "infer one from anything below - an article written before the "
+            "event cannot report its outcome, and one written during it "
+            "says where it stood then, not now."),
     }
 
     def as_prompt_block(self, now: Optional[datetime] = None) -> str:
@@ -334,7 +336,10 @@ class LiveFacts:
                 "Where it and the articles below disagree, this is what is "
                 "true and the articles are older or wrong. Every number you "
                 "say about this - a score, a record, a date, who won - comes "
-                "from here; leave out any article's figure that differs. "
+                "from here, and so does where it stands (the quarter, half, "
+                "period or inning, and who is ahead); leave out any article's "
+                "figure or period that differs. A sentence whose score or "
+                "period is not the one here is removed before it is spoken. "
                 "Never tell the listener that sources disagree, never "
                 "describe a source or tell them to ignore one: say what is "
                 "true and carry on.")
@@ -561,6 +566,12 @@ result, do not describe it in the past tense, and do not tell the listener
 that nothing has been reported - what is missing here is our view of it, not
 the event. Say what is genuinely established below, say plainly that the
 current state is not something we have, and carry on.
+
+**No current state from an article, either.** Do not say what the score is,
+who is ahead, what quarter, half, period, inning or minute it is, or that it
+is under way - even when an article below says so. An article that says "in
+the first quarter" says when it was written, not where things stand now. A
+sentence that states any of these is removed before it is spoken.
 """
 
 

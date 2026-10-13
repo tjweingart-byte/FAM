@@ -18629,3 +18629,98 @@ Tests: `tests/test_search_backends_258.py` (new); `tests/test_research.py`,
 `tests/test_research_is_the_default.py`, `tests/test_provider_usage_179.py`,
 `tests/test_moderation_and_consent.py` and `tests/conftest.py` follow the new
 default.
+
+## 259. A score is never spoken unless the scoreboard said it
+
+The owner (10.13) searched the Bills-Rams Monday night game just after it
+finished and heard that it was in the first quarter. Render's log for that
+search:
+
+    live facts: team schedules did not resolve 'Buffalo Bills vs Los Angeles
+      Rams NFL game (Monday Night Football, October 12, 2026)' (RuntimeError)
+    live facts: API-Sports failed for '...': API-Sports refused:
+      {'access': 'Your account is suspended, check on https://dashboard.api-football.com.'}
+
+So EI did its part (subject, `live_domain=sports`, the named slot), the
+Parallel/Perplexity swap (§258) touched none of this, and **API-Sports had
+suspended the account**. The writer got the "live feed FAILED" block, whose
+rule was only "do not state a result"; a live blog in the packet said "first
+quarter", and nothing forbade saying where a game *stands*. The owner: "I
+don't want it to be possible for the score to be wrong" once API-Sports is
+back.
+
+**What changed.**
+
+* **`score_guard.ScoreGuard`**, beside `OpeningGuard` in `_ScriptReader`, so
+  every writer (search, prefetch, Trending, DailyFAM, batches) is held to it.
+  On a sports question each sentence is checked before the voice: a score
+  (digits or words, "-" or "to") must be a pair the scoreboard's sentences
+  contain - tonight's score, a record, a last result; a current period or
+  "under way" only while in progress and only the period the feed names; a
+  period not yet reached is refused; a result only when final and the right
+  way round; who leads only as the feed says. No scoreboard (any of the six
+  failure outcomes, or `unknown`) means none of these is spoken. A sentence
+  plainly about another season ("in 2022", "last season") is history and
+  kept; "4-3 defense", yardage ranges, dates and clocks are not scores.
+  Drops are logged, kept on `ScriptNotes.score_drops` and printed by
+  `write.py`; an episode with nothing else says one fixed line.
+* **The writer is told** in both blocks: with no feed, no score, period,
+  leader or "under way" from an article ("an article that says 'in the first
+  quarter' says when it was written"); with a feed, the period and the leader
+  come from it like the numbers do.
+* **The feed is held to the clock** (`ApiSportsSource._believable`): a row
+  still "live" past `Sport.max_live_hours` (6h; soccer 3.5, baseball 7, MMA 9)
+  or "not started" four hours after kick-off is a stuck scoreboard and reads
+  `unknown`, on episodes and on tiles' `live_line`. An `unknown` row never
+  carries a score - before this, an unrecognised code still produced "A lead
+  B 3 to 1".
+* **A just-finished game is found.** When the swept card and the team
+  schedules miss, `resolve` now asks for today's and then yesterday's games
+  by UTC date instead of `live=all`, which drops a game the moment it ends.
+  `ApiSportsSource.timeout_seconds = 3.0` (it runs beside retrieval) so the
+  team path - a schedule then the game - fits.
+* **A refused account is loud.** `errors` keyed `access`/`token`/`key`, or
+  saying "suspended", raise `AccountRefused`: logged at error once, held in
+  `ACCOUNT_REFUSAL`, reported as `live_sources.api_sports_account` in
+  `/api/health` and as a red line above /admin's providers table. Requests
+  are not sent for `ACCOUNT_RETRY_SECONDS` (10 minutes) after a refusal - a
+  suspended account is not hammered by every sweep and lookup - and the first
+  good answer clears it. **Keyed, not worded**: the free plan's season limit
+  says "do not have access" under `plan`, and must not silence every sport.
+  `league_teams` no longer files an account refusal as "this catalogue was
+  refused today", which would have outlived the fix until midnight UTC.
+
+**The branch's own review** (10.13, before merge) found what the first cut
+let through, each now a test:
+
+* **Who is ahead was unguarded without a scoreboard.** "The Rams lead at
+  SoFi", "the game is tied", "Los Angeles leads" passed when no number was
+  in them. A standing claim (`_STANDING`: lead, trail, ahead, behind, tied,
+  level - not "leads the league in sacks") is now spoken only while the
+  scoreboard says in progress, and only the right way round.
+* **"Last week" excused tonight's score.** "Buffalo leads 24-17 after beating
+  Miami last week" read as history. A standing claim is now always the
+  present, so its score is checked.
+* **Sides were matched by nickname only**, so "Los Angeles won 24-17" passed
+  when the Rams lost. Each side is now its city and nickname, less the words
+  both share ("New York").
+* **"Twenty-four" was read as twenty to four**, so "Allen threw twenty-four
+  passes" was removed as a score. A tens word hyphenated to a ones word is
+  one number. Odds ("two-to-one underdogs") are not scores either.
+* **The lookup could resolve the wrong game.** The first row containing any
+  word of the question won, so "angeles" could pick a Chargers game - a
+  fresh, authoritative, wrong score that nothing downstream can catch. Now
+  whole words, and the game naming the most of them wins, on the card, by
+  date (yesterday asked only when today has no game naming both sides) and
+  in a named slot.
+* `AccountRefused` logs without a traceback: one per sports lookup would
+  bury the line that matters.
+
+**On the suspension.** One key across many API-Sports products is how
+API-Sports is meant to be used - each product is its own subscription on one
+account - so that alone is not a reason. The usual reasons are a payment
+problem, several accounts for one person, or traffic their abuse checks
+flag. Only their dashboard or support can say which.
+
+Tests: `tests/test_score_guard_259.py` (new); `tests/conftest.py` resets
+`ACCOUNT_REFUSAL` and `CARD`.
