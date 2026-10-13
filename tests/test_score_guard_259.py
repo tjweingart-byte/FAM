@@ -122,6 +122,27 @@ def test_a_game_under_way_is_said_as_the_scoreboard_has_it(sentence, kept):
     assert (guard(LIVE_Q2).why_not(sentence) == "") is kept
 
 
+# Found on the branch's own review: claims that slipped past the first cut.
+@pytest.mark.parametrize("which, sentence, kept", [
+    ("none", "Buffalo leads 24-17 after beating Miami last week.", False),
+    ("none", "The Rams lead at SoFi.", False),
+    ("none", "The Rams are ahead by a touchdown.", False),
+    ("none", "The game is tied.", False),
+    ("none", "Allen threw twenty-four passes before the break.", True),
+    ("none", "Allen has thirty-one touchdowns over two seasons.", True),
+    ("none", "The Rams came in as two-to-one underdogs.", True),
+    ("none", "Allen leads the league in rushing touchdowns.", True),
+    ("final", "The Bills lead 24-17.", False),
+    ("final", "Los Angeles won 24-17.", False),     # the city, not the nickname
+    ("live", "The Bills are tied with the Rams.", False),
+    ("live", "Los Angeles leads.", False),
+    ("live", "The score is 14 to 7.", True),
+])
+def test_standing_claims_and_compound_numbers(which, sentence, kept):
+    live = {"none": failed(), "final": FINAL, "live": LIVE_Q2}[which]
+    assert (guard(live).why_not(sentence) == "") is kept
+
+
 def test_the_guard_is_off_outside_sports():
     off = score_guard.ScoreGuard(NS(brief=NS(live_domain="markets"), live=None))
     assert off.why_not("The vote was 52 to 48.") == ""
@@ -240,6 +261,28 @@ def test_a_finished_game_is_found_by_date_not_live_all(monkeypatch):
         NS(subject="Buffalo Bills vs Los Angeles Rams", query="", named_slot="")))
     assert found is not None and found.id == "american-football:9"
     assert not any(p.get("live") == "all" for p in asked)
+
+
+def test_the_game_naming_both_sides_wins_over_one_sharing_a_city(monkeypatch):
+    """"Los Angeles" is the Rams and the Chargers. The first row containing
+    "angeles" used to win - somebody else's game, with a real score."""
+    settings(monkeypatch, api_sports_key="k")
+    kick = datetime.now(timezone.utc) - timedelta(hours=3)
+    chargers = nfl_row("FT", kick)
+    chargers["game"]["id"] = 5
+    chargers["teams"] = {"home": {"id": 3, "name": "Los Angeles Chargers"},
+                         "away": {"id": 4, "name": "Denver Broncos"}}
+
+    async def fake(url, headers, params, timeout):
+        return {"response": [chargers, nfl_row("FT", kick)]}
+    monkeypatch.setattr(LS, "_json", fake)
+
+    async def no_team_path(*a, **k):
+        return None
+    monkeypatch.setattr(LS.ApiSportsSource, "_resolve_by_team", no_team_path)
+    found = asyncio.run(LS.ApiSportsSource().resolve(
+        NS(subject="Buffalo Bills vs Los Angeles Rams", query="", named_slot="")))
+    assert found.id == "american-football:9"
 
 
 def test_the_sports_source_has_time_for_two_requests():

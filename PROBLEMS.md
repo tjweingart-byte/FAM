@@ -18690,6 +18690,32 @@ back.
   `league_teams` no longer files an account refusal as "this catalogue was
   refused today", which would have outlived the fix until midnight UTC.
 
+**The branch's own review** (10.13, before merge) found what the first cut
+let through, each now a test:
+
+* **Who is ahead was unguarded without a scoreboard.** "The Rams lead at
+  SoFi", "the game is tied", "Los Angeles leads" passed when no number was
+  in them. A standing claim (`_STANDING`: lead, trail, ahead, behind, tied,
+  level - not "leads the league in sacks") is now spoken only while the
+  scoreboard says in progress, and only the right way round.
+* **"Last week" excused tonight's score.** "Buffalo leads 24-17 after beating
+  Miami last week" read as history. A standing claim is now always the
+  present, so its score is checked.
+* **Sides were matched by nickname only**, so "Los Angeles won 24-17" passed
+  when the Rams lost. Each side is now its city and nickname, less the words
+  both share ("New York").
+* **"Twenty-four" was read as twenty to four**, so "Allen threw twenty-four
+  passes" was removed as a score. A tens word hyphenated to a ones word is
+  one number. Odds ("two-to-one underdogs") are not scores either.
+* **The lookup could resolve the wrong game.** The first row containing any
+  word of the question won, so "angeles" could pick a Chargers game - a
+  fresh, authoritative, wrong score that nothing downstream can catch. Now
+  whole words, and the game naming the most of them wins, on the card, by
+  date (yesterday asked only when today has no game naming both sides) and
+  in a named slot.
+* `AccountRefused` logs without a traceback: one per sports lookup would
+  bury the line that matters.
+
 **On the suspension.** One key across many API-Sports products is how
 API-Sports is meant to be used - each product is its own subscription on one
 account - so that alone is not a reason. The usual reasons are a payment

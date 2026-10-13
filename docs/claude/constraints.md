@@ -468,8 +468,10 @@
   sentence passes `ScoreGuard` before the voice: a score must be one the
   scoreboard's own sentences hold; a current period, "under way" or who is
   ahead only while the scoreboard says in progress, and only as it says; a
-  result only when final, the right way round. With no scoreboard none of
-  them is spoken. History ("in 2022", "last season") is not a score of this
+  result only when final, the right way round; a side is its city and its
+  nickname. With no scoreboard none of them is spoken, and a game is
+  resolved by the most whole words of the question it names, never the
+  first row sharing one. History ("in 2022", "last season") is not a score of this
   game. Removed sentences are logged and kept on `ScriptNotes.score_drops`;
   an episode of nothing else says one fixed line. The feed is held to the
   clock too: "live" past `Sport.max_live_hours` or "not started" four hours

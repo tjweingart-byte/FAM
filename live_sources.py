@@ -911,6 +911,11 @@ class AccountRefused(RuntimeError):
     """API-Sports refused the account itself (§259). Said, never retried
     into a quiet day with no games."""
 
+    #: Read by `live_facts._ask`: a provider's refusal is a sentence, not a
+    #: crash, so it is logged without a traceback (§144) - one per sports
+    #: lookup while the account is down would bury the line that matters.
+    status = 200
+
 
 def _account_refused(errors) -> bool:
     if isinstance(errors, dict):
@@ -1524,10 +1529,38 @@ class ApiSportsSource(LiveSource):
         # did not see costs one. The state itself is always fetched fresh -
         # see `fetch`.
         rows = card_rows(sport.key, max_age=6 * 3600.0)
-        wanted = {w for w in subject.lower().split() if len(w) > 3}
-        on_card = rows is not None and any(
-            wanted and any(w in " ".join(self._team_names(r)).lower()
-                           for w in wanted) for r in rows)
+        wanted = {w for w in re.findall(r"[a-z0-9]+", subject.lower())
+                  if len(w) > 3}
+
+        def fit(row) -> int:
+            """How many of the question's words name this game's sides.
+            **Whole words, and the most of them wins** (§259): "Los Angeles"
+            is the Rams and the Chargers, and the first row containing
+            "angeles" was somebody else's game - fresh, authoritative and
+            the wrong score."""
+            names = set(re.findall(r"[a-z0-9]+",
+                                   " ".join(self._team_names(row)).lower()))
+            return len(wanted & names)
+
+        def named(rows) -> tuple:
+            """`(entity, fit)` for the best-fitting game, or `(None, 0)`."""
+            best, score = None, 0
+            for row in rows or []:
+                got = fit(row)
+                if got > score:
+                    best, score = row, got
+            if best is None:
+                return None, 0
+            home, away = self._team_names(best)
+            return Entity(
+                domain="sports", provider=self.name,
+                # The sport rides in the id, because a bare game id is
+                # meaningless without knowing which API issued it - and
+                # `fetch` gets only the entity.
+                id=f"{sport.key}:{self._game_id(best)}",
+                label=f"{home} v {away}"), score
+
+        on_card = named(rows)[1] > 0
         if not on_card and sport.team_league:
             # The teams' own schedules first: they hold a game under way as
             # well as last week's and next week's, so `live=all` would be a
@@ -1539,26 +1572,12 @@ class ApiSportsSource(LiveSource):
                     timeout=self.timeout_seconds * TEAM_PATH_SHARE)
             except Exception as exc:  # noqa: BLE001 - the card path still runs
                 log.info("live facts: team schedules did not resolve %r (%s); "
-                         "trying today's live games", subject,
+                         "trying the day's games", subject,
                          type(exc).__name__)
                 found = None
             if found is not None:
                 return found
-        def named(rows) -> Optional[Entity]:
-            for row in rows or []:
-                names = " ".join(self._team_names(row)).lower()
-                if wanted and any(word in names for word in wanted):
-                    home, away = self._team_names(row)
-                    return Entity(
-                        domain="sports", provider=self.name,
-                        # The sport rides in the id, because a bare game id
-                        # is meaningless without knowing which API issued
-                        # it - and `fetch` gets only the entity.
-                        id=f"{sport.key}:{self._game_id(row)}",
-                        label=f"{home} v {away}")
-            return None
-
-        found = named(rows)
+        found, _ = named(rows)
         if found is not None:
             return found
         # **By date, never `live=all`** (§259): a game that finished ten
@@ -1566,15 +1585,20 @@ class ApiSportsSource(LiveSource):
         # how "who won" found nothing the moment there was an answer. Today
         # and then yesterday in UTC, because a US night game kicks off
         # after midnight UTC and is filed under the next day.
+        # Yesterday is asked only when today has no game naming both sides,
+        # and the better fit of the two days wins (today on a tie).
         now = datetime.now(timezone.utc)
+        best, best_fit = None, 0
         for day in (now, now - timedelta(days=1)):
             data = await api_sports_json(f"{sport.host}/{sport.path}",
                                          {"date": day.strftime("%Y-%m-%d")},
                                          settings.live_timeout_seconds)
-            found = named((data or {}).get("response", []) or [])
-            if found is not None:
-                return found
-        return None
+            found, score = named((data or {}).get("response", []) or [])
+            if score > best_fit:
+                best, best_fit = found, score
+            if best_fit >= 2:
+                break
+        return best
 
     async def _resolve_race(self, sport: Sport, subject: str) -> Optional[Entity]:
         """The race a question is about: the season's calendar (one request,
@@ -1715,11 +1739,15 @@ class ApiSportsSource(LiveSource):
         timed = [r for r in rows if named_slots.in_slot(slot, self._kickoff(r))]
         typed = " ".join((getattr(brief, "query", "") or "").lower().split())
         slot_words = set(slot.name.lower().split()) | {slot.key, "recap", "score"}
-        team_words = {w for w in typed.split() if len(w) > 3 and w not in slot_words}
+        team_words = {w for w in re.findall(r"[a-z0-9]+", typed)
+                      if len(w) > 3 and w not in slot_words}
         if team_words:
-            timed = [r for r in timed
-                     if any(w in " ".join(self._team_names(r)).lower()
-                            for w in team_words)] or timed
+            # The most whole words wins (§259): "angeles" names two teams.
+            def fit(row) -> int:
+                return len(team_words & set(re.findall(
+                    r"[a-z0-9]+", " ".join(self._team_names(row)).lower())))
+            top = max((fit(r) for r in timed), default=0)
+            timed = [r for r in timed if top and fit(r) == top] or timed
         if not timed:
             return None
         # The latest kick-off in the window: a Monday doubleheader's second

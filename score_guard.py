@@ -67,12 +67,13 @@ _NOT_A_SCORE_AFTER = re.compile(
     r"^\s*(?:-\s*)?(?:yards?|yd|minutes?|seconds?|hours?|days?|weeks?|months?|"
     r"years?|percent|per ?cent|%|million|billion|thousand|miles?|inch(?:es)?|"
     r"feet|foot|degrees?|defen[cs]e|front|scheme|formation|base|split|ratio|"
-    r"times|o'clock|am\b|pm\b|p\.m\.|a\.m\.)", re.I)
+    r"times|o'clock|am\b|pm\b|p\.m\.|a\.m\.|underdogs?|favou?rites?|odds|"
+    r"shots?|chance)", re.I)
 _MONTHS = ("january|february|march|april|may|june|july|august|september|"
            "october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|sept|"
            "oct|nov|dec")
 _SCORE = re.compile(
-    rf"(?<![\w.:])({_NUM})\s*(?:-|–|—|\bto\b)\s*({_NUM})(?![\w%]|[.:]\d)", re.I)
+    rf"(?<![\w.:])({_NUM})(\s*(?:-|–|—|\bto\b)\s*)({_NUM})(?![\w%]|[.:]\d)", re.I)
 
 
 def _value(token: str) -> Optional[int]:
@@ -94,7 +95,12 @@ def scores_in(text: str) -> list:
     range with a unit ("five to ten yards", "a 4-3 defense")."""
     out = []
     for match in _SCORE.finditer(text):
-        a, b = _value(match.group(1)), _value(match.group(2))
+        # "twenty-four" is one number, not twenty to four: a tens word
+        # joined to a ones word by a hyphen is how a voice script spells it.
+        if (match.group(1).lower() in _TENS and match.group(2).strip() in ("-", "")
+                and match.group(3).lower() in _ONES.split("|")):
+            continue
+        a, b = _value(match.group(1)), _value(match.group(3))
         if a is None or b is None or a > 200 or b > 200:
             continue
         if _NOT_A_SCORE_AFTER.match(text[match.end():]):
@@ -171,6 +177,16 @@ _RESULT = re.compile(
 _PERFECT = re.compile(r"\b(?:have|has|had)\s+(?:won|lost|beaten)\b", re.I)
 _LEAD = re.compile(
     r"\b(?:lead|leads|leading|are ahead|is ahead|are up|is up|in front)\b", re.I)
+#: A claim about where a game stands *now*: who is ahead, or level. Not
+#: "leads the league in sacks", which is a season and not this game.
+_STANDING = re.compile(
+    r"\b(?:lead|leads|trail|trails|are ahead|is ahead|are behind|is behind|"
+    r"are leading|is leading|leading by|are trailing|is trailing|trailing by|"
+    r"are up|is up|are down|is down|are tied|is tied|tied at|are level|is level|"
+    r"level at|in front)\b(?!\s+(?:the|all|every)\s+(?:league|nfl|nba|nhl|mlb|"
+    r"afc|nfc|division|conference|nation|country|series|majors|wnba|team|way)\b)",
+    re.I)
+_LEVEL = re.compile(r"\b(?:tied|level)\b", re.I)
 
 
 def _periods_in(text: str) -> list:
@@ -198,10 +214,14 @@ def _years_other_than_now(text: str) -> bool:
                for y in re.findall(r"\b((?:19|20)\d\d)\b", text))
 
 
-def _nickname(team: str) -> str:
-    """What a script calls a team: "Los Angeles Rams" -> "rams"."""
-    words = re.findall(r"[A-Za-z0-9]+", team or "")
-    return words[-1].lower() if words else ""
+def _team_words(team: str, other: str) -> str:
+    """A regex alternation of what a script may call one side: its city and
+    its nickname ("los|angeles|rams"), less any word the other side shares
+    ("New York" names neither the Jets nor the Giants)."""
+    mine = {w.lower() for w in re.findall(r"[A-Za-z0-9]+", team or "")}
+    theirs = {w.lower() for w in re.findall(r"[A-Za-z0-9]+", other or "")}
+    words = sorted(w for w in mine - theirs - {"the", "fc", "sc", "cf"} if len(w) > 1)
+    return "|".join(re.escape(w) for w in words)
 
 
 class ScoreGuard:
@@ -232,10 +252,13 @@ class ScoreGuard:
         self.periods = [p for s in sentences for p in _periods_in(s)]
         self.leader = self.trailer = ""
         self.winner = self.loser = ""
+        #: Whether the scoreboard says the sides are level.
+        self.level = any(" are level at " in s for s in sentences[:1])
         for sentence in sentences[:1]:
             m = re.match(r"(.+?) (beat|lead) (.+?) \S+ to \S+\.$", sentence)
             if m:
-                first, second = _nickname(m.group(1)), _nickname(m.group(3))
+                first = _team_words(m.group(1), m.group(3))
+                second = _team_words(m.group(3), m.group(1))
                 if m.group(2) == "beat":
                     self.winner, self.loser = first, second
                 else:
@@ -247,7 +270,8 @@ class ScoreGuard:
         if not self.active or not sentence.strip():
             return ""
         text = " ".join(sentence.split())
-        now = bool(_NOW.search(text) or _TONIGHT.search(text))
+        standing = bool(_STANDING.search(text))
+        now = bool(_NOW.search(text) or _TONIGHT.search(text) or standing)
         past = bool(_PAST.search(text) or _years_other_than_now(text))
         history = past and not now
         status = self.status
@@ -290,18 +314,29 @@ class ScoreGuard:
             if status != live_facts.FINAL and _TONIGHT.search(text):
                 return f"states tonight's result; the scoreboard says {status}"
             if status == live_facts.FINAL and self.loser and re.search(
-                    rf"\b{re.escape(self.loser)}\b[^.?!]{{0,40}}\b(?:won|beat|"
+                    rf"\b(?:{self.loser})\b[^.?!]{{0,40}}\b(?:won|beat|"
                     rf"defeated|topped|edged|held off|outlasted)\b", lower):
-                return f"says the {self.loser} won; the scoreboard says they lost"
+                return "says the losing side won; the scoreboard says they lost"
             if status == live_facts.FINAL and self.winner and re.search(
-                    rf"\b{re.escape(self.winner)}\b[^.?!]{{0,30}}\b(?:lost|fell)\b",
+                    rf"\b(?:{self.winner})\b[^.?!]{{0,30}}\b(?:lost|fell)\b",
                     lower):
-                return f"says the {self.winner} lost; the scoreboard says they won"
+                return "says the winning side lost; the scoreboard says they won"
 
-        if status == live_facts.IN_PROGRESS and self.trailer and re.search(
-                rf"\b{re.escape(self.trailer)}\b[^.?!]{{0,25}}{_LEAD.pattern}",
-                lower) and not history:
-            return f"says the {self.trailer} lead; the scoreboard says they trail"
+        if standing and not history:
+            # Who is ahead is a live state: only a game under way has one,
+            # and only the one its scoreboard says.
+            if status != live_facts.IN_PROGRESS:
+                return f"says who is ahead; the scoreboard says {status}"
+            if _LEVEL.search(text) and not self.level:
+                return "says the game is level; the scoreboard says it is not"
+            if self.trailer and re.search(
+                    rf"\b(?:{self.trailer})\b[^.?!]{{0,25}}{_STANDING.pattern}",
+                    lower) and not re.search(r"\b(?:trail|trails|behind|down)\b", lower):
+                return "says the trailing side leads; the scoreboard says they trail"
+            if self.leader and re.search(
+                    rf"\b(?:{self.leader})\b[^.?!]{{0,25}}\b(?:trail|trails|are behind|"
+                    rf"is behind|are down|is down)\b", lower):
+                return "says the leading side trails; the scoreboard says they lead"
         return ""
 
     def allow(self, sentence: str) -> bool:
