@@ -257,7 +257,8 @@ def test_the_claude_backend_is_gone_and_says_so():
     on - and a deployment that still sets it is told what happened, by name,
     rather than being refused as though it had made a typo."""
     assert "claude" not in RESEARCH_BACKENDS
-    assert research.FALLBACK_RUNGS == ("gdelt",)
+    # Perplexity is a search vendor's index, not a model searching (§258).
+    assert research.FALLBACK_RUNGS == ("perplexity", "exa", "gdelt")
     for name in ("retrieve_with_claude", "shape_claude_packet",
                  "research_client", "CLAUDE_RESEARCH_SYSTEM"):
         assert not hasattr(research, name), f"research.{name} is still here"
@@ -588,13 +589,16 @@ def test_what_retrieval_cost_is_recorded_for_a_person_to_read(exa, monkeypatch):
 # --------------------------------------------------------------------------
 # configuration
 # --------------------------------------------------------------------------
-def test_a_fresh_deployment_researches_with_exa():
-    """The production default, with a real cost attached: it needs a
-    credential. The keyless alternative is GDELT; the model's own search is
-    not an alternative any more (§135)."""
-    assert config.DEFAULT_RESEARCH_BACKEND == "exa"
-    assert settings.research_backend == "exa"
-    assert RESEARCH_BACKENDS == ("exa", "gdelt")
+def test_a_fresh_deployment_researches_with_parallel():
+    """The production default since §258, at the owner's direction, with a
+    real cost attached: it needs a credential. Perplexity is the second look
+    and the next rung, Exa stays selectable for comparison, and the keyless
+    alternative is GDELT; the model's own search is not an alternative any
+    more (§135)."""
+    assert config.DEFAULT_RESEARCH_BACKEND == "parallel"
+    assert settings.research_backend == "parallel"
+    assert RESEARCH_BACKENDS == ("parallel", "perplexity", "exa", "gdelt")
+    assert settings.research_second_look == "perplexity"
 
 
 def test_the_default_is_one_fact_in_one_place():
@@ -669,13 +673,14 @@ def test_the_packet_cannot_ask_for_more_sources_than_were_fetched():
 
 def test_health_says_which_backend_and_whether_it_can_run():
     report = research.report()
-    assert report["backend"] == "exa"
+    assert report["backend"] == "parallel"
     assert "exa_detail" in report
-    # In this container there is no EXA_API_KEY, and the default is now exa -
-    # so `unavailable` is true, and that is the honest answer rather than a
-    # test failure. What must never happen is it reading false while research
-    # cannot run.
-    ok, _ = research.diagnose()
+    assert set(report["web_backends"]) == {"parallel", "perplexity", "exa"}
+    # In this container there is no PARALLEL_API_KEY, and the default is
+    # parallel - so `unavailable` is true, and that is the honest answer
+    # rather than a test failure. What must never happen is it reading false
+    # while research cannot run.
+    ok, _ = research.backend_diagnose("parallel")
     assert report["unavailable"] is (not ok)
 
 

@@ -77,7 +77,9 @@ CATEGORIES = (HOSTING, VOICE, AI, DATA, GROWTH, DEV, CONFIRM)
 # Ledger columns that hold recorded, usage-billed spend.
 LEDGER_USAGE = {
     "claude": "Claude API ($)",
-    "exa": "Exa search ($)",
+    # Every paid web search (Parallel and Perplexity since §258, Exa
+    # before); the key keeps its name with metering.db's `exa_usd`.
+    "exa": "Web search ($)",
     "gpu": "GPU voice ($)",
     "images": "Tile pictures ($)",
 }
@@ -208,11 +210,19 @@ def catalogue() -> list[dict]:
              "Usage-billed" if thumbnails_on else "Off (THUMBNAILS=0)",
              None, "usage", "",
              "Recorded per picture in thumbnails.db (spend)", ledger="images"),
-        _row(DATA, "Exa", "Search API",
-             "Researches every new episode", "Pay as you go, ~$0.015/search",
+        _row(DATA, "Parallel and Perplexity", "Search APIs (§258)",
+             "Research every new episode: Parallel first, Perplexity the "
+             "second look and backup", "Pay as you go, ~$0.001/search each",
              "Usage-billed", None, "usage",
-             "$10 free credit a month (~1,400 searches)",
-             "Recorded per episode in metering.db (exa_usd)", ledger="exa"),
+             "Parallel: $5 free credit a month; Enterprise for zero retention",
+             "Recorded per episode in metering.db (exa_usd, every paid search)",
+             ledger="exa"),
+        _row(DATA, "Exa", "Search API (replaced, §258)",
+             "Kept selectable to compare against Parallel, and a rung below "
+             "Perplexity while its key is set",
+             "Pay as you go, ~$0.015/search",
+             "In use" if _setting("research_backend") == "exa" else "Fallback only",
+             0, "/month", "Remove EXA_API_KEY once the comparison is done"),
     ]
 
     gnews_plan = str(_setting("gnews_plan", "free") or "free")

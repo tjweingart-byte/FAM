@@ -46,7 +46,8 @@ services:
         sync: false
       - key: FAM_ADMIN_TOKEN
         sync: false
-      # Deliberately absent: ANTHROPIC_API_KEY, EXA_API_KEY, GNEWS_KEY,
+      # Deliberately absent: ANTHROPIC_API_KEY, EXA_API_KEY, PARALLEL_API_KEY,
+      # PERPLEXITY_API_KEY, GNEWS_KEY,
       # API_SPORTS_KEY, FINNHUB_KEY, GEMINI_API_KEY, RUNPOD_*, GDELT,
       # STORIES_POLYMARKET, LIVE_*_PROVIDER, FAM_SECRETS. Adding one here does
       # nothing (spend_guard removes it and health lists it under
@@ -259,6 +260,13 @@ services:
       # (§191) - every other league is looked up on demand; with FINNHUB_KEY
       # set, markets are swept every 2h. Neither needs a second line naming
       # its provider.
+      # Search (§258): Parallel first, Perplexity as the second look and the
+      # backup, GDELT below both. Exa's key is kept only while the two are
+      # compared; with RESEARCH_BACKEND unset the default is parallel.
+      - key: PARALLEL_API_KEY
+        sync: false
+      - key: PERPLEXITY_API_KEY
+        sync: false
       - key: EXA_API_KEY
         sync: false
       - key: API_SPORTS_KEY

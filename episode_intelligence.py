@@ -740,7 +740,7 @@ So you never state what happened. You state what must be established, and you \
 flag what the writer must not assume.
 
 The search query is the most important thing you produce. It is sent verbatim \
-to a neural search engine over news and web content. Write what a good \
+to a web search engine over news and web content. Write what a good \
 researcher would type - the resolved subject, the specific event or figure \
 wanted, and the words that would appear in a report of it. Not a question, not \
 a sentence, and never just the listener's words repeated back.

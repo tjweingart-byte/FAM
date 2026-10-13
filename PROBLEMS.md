@@ -18565,3 +18565,67 @@ redrawn when Overview is shown, because a hidden page has no width to
 measure.
 
 `admin_ui/tracker.html`, `tests/test_admin_menu_257.py`.
+
+## 258. Parallel and Perplexity replace Exa
+
+The owner (10.12): replace Exa, which was expected to be one of the two
+largest costs, with Parallel as the search and Perplexity as its backup. The
+research behind the choice is `docs/FINANCIAL.md` §7 on
+`claude/cost-reduction-research`: at the same volumes Parallel's `fast` mode
+and Perplexity's `fast` search are each $1 per 1,000 searches against Exa's
+~$15 as metered, and Parallel's results map field for field onto what the
+packet reads.
+
+**What changed.**
+
+* `RESEARCH_BACKENDS` is `parallel`, `perplexity`, `exa`, `gdelt`, and the
+  default is `parallel`. Exa stays selectable so the two can be compared on
+  the same questions (`tools/compare_search.py`) before it is deleted.
+* `research.py` calls both vendors over `httpx` (already a dependency) - no
+  new package. Request shapes were read from their published SDKs
+  (`parallel-web` 1.3.5: `POST /v1/search`, `x-api-key`; `perplexityai`
+  0.43.8: `POST /search`, bearer). Results are translated into Exa's four
+  attributes (`SearchResult`), so ranking, screening, the packet and
+  provenance are unchanged. Perplexity's one snippet per page and Parallel's
+  markdown excerpts are cut into highlight-sized passages (`passages`,
+  `SEARCH_PASSAGE_CHARS`). A `last_updated` date is never read as
+  publication.
+* Parallel is always sent `mode=fast` (it defaults to `advanced`, $5/1k) and
+  an `objective` written from the brief's subject and `must_establish` -
+  never the listener's own words, which the consent notice does not send to
+  a search vendor.
+* **The retry goes to another index** (`RESEARCH_SECOND_LOOK=perplexity`):
+  the same index asked again tends to miss the same way. Without a
+  Perplexity key, or with `same`, it stays on the configured backend.
+* **The ladder is Parallel → Perplexity → GDELT** (`FALLBACK_RUNGS`); a rung
+  that already ran as the second look is skipped (`Packet.tried`). GDELT
+  stays: it is the story pool's news source, and as the last rung it is free,
+  keyless and read from disk, so it answers when both paid accounts fail
+  together.
+* The local ladder's third rung searches the known outlets on the configured
+  backend; its record names that backend instead of "exa".
+* Metering: every paid search is counted in the existing `exa_*` columns
+  (kept by name so stored rows read on), priced from `SEARCH_COSTS` when a
+  vendor reports no dollars. `/admin` has a row each for Parallel and
+  Perplexity; staging removes both keys; `/api/health` reports each web
+  backend and where the second look goes.
+* Consent: `AI_NOTICE` names Parallel and Perplexity instead of Exa and
+  `consent.VERSION` is 2, so every listener is asked again; the privacy page
+  and the Settings note say the same. `EI_SYSTEM` says "a web search engine"
+  rather than "a neural search engine".
+
+**What the vendors' terms say** (search snippets of their pages, 10.12 - to
+be read on the live pages): Exa and Parallel may train on queries by default
+and offer zero data retention on Enterprise plans; Perplexity's Search
+Addendum keeps search data and excludes the Search API from its zero-retention
+commitments. The privacy page says both may keep searches.
+
+**Not done here.** The packet settings keep their `EXA_` names. EI's query
+wording was only de-Exa'd; whether Parallel wants shorter queries is for
+`tools/ei_eval.py` with a key. Nothing was measured against the live APIs:
+there is no key in this environment.
+
+Tests: `tests/test_search_backends_258.py` (new); `tests/test_research.py`,
+`tests/test_research_is_the_default.py`, `tests/test_provider_usage_179.py`,
+`tests/test_moderation_and_consent.py` and `tests/conftest.py` follow the new
+default.

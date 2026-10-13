@@ -1472,6 +1472,10 @@ class ScriptGenerator:
         for rung in research_mod.ladder(configured)[1:]:
             if packet:
                 break
+            # A rung the first one already asked, as its second look
+            # (§258), would only be asked the same thing again.
+            if rung in getattr(packet, "tried", ()):
+                continue
             log.info("%s found nothing usable for %r; trying %s on %r before "
                      "writing", configured, query, rung, wider)
             better = await self._retrieve(wider, plan.brief, rung, plan.minutes)
@@ -1502,12 +1506,14 @@ class ScriptGenerator:
             for rung in spent:
                 if rung is None:
                     continue
-                # Exa's own reported cost where it gave one, its published
-                # rate otherwise. **Only for Exa**: `Usage.exa_searches` is a
-                # count of Exa searches, and filing GDELT's fetches under it
-                # would make the one number `usage_report.py` prints about
-                # retrieval a mixture of two things.
-                if rung.backend == "exa":
+                # The vendor's own reported cost where it gave one, its
+                # published rate otherwise. **Only for the paid web
+                # backends** (§258: Parallel, Perplexity, Exa):
+                # `Usage.exa_searches` is the column every paid search is
+                # counted in, and filing GDELT's fetches under it would make
+                # the one number `usage_report.py` prints about retrieval a
+                # mixture of two things.
+                if rung.backend in research_mod.WEB_BACKENDS:
                     notes.usage.add_research(rung.searches, rung.cost)
                 # A searching model call's tokens, should a rung ever spend
                 # them again. None does since §135; kept because metering a
@@ -1544,19 +1550,32 @@ class ScriptGenerator:
         spent: list = []
 
         async def exa(query: str, domains: tuple, must_name: str):
-            if research_mod.ladder(settings.research_backend)[:1] != ["exa"] \
-                    or not research_mod.available():
-                return None
-            try:
-                packet = await research_mod.retrieve(
-                    query, backend="exa", brief=plan.brief,
-                    include_domains=domains, must_name=must_name)
-            except Exception:  # noqa: BLE001 - see `_retrieve`
-                log.warning("the local Exa rung failed for %r", query,
-                            exc_info=True)
-                return None
-            spent.append(packet)
-            return packet
+            # A web search on the known outlets (§194; Parallel since §258),
+            # down the same web backends the ladder would use when one cannot
+            # serve - never GDELT, which is off this path entirely.
+            backends = [b for b in research_mod.ladder(settings.research_backend)
+                        if b in research_mod.WEB_BACKENDS]
+            tried: list = []
+            last = None
+            for backend in backends:
+                # One that already ran as the last one's second look would
+                # only be asked the same thing again.
+                if backend in tried:
+                    continue
+                try:
+                    packet = await research_mod.retrieve(
+                        query, backend=backend, brief=plan.brief,
+                        include_domains=domains, must_name=must_name)
+                except Exception:  # noqa: BLE001 - see `_retrieve`
+                    log.warning("the local %s rung failed for %r", backend,
+                                query, exc_info=True)
+                    continue
+                spent.append(packet)
+                tried.extend(packet.tried)
+                last = packet
+                if packet:
+                    return packet
+            return last
 
         forecast = None
         if place.located and settings.weather:

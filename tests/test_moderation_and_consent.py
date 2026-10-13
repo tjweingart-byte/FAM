@@ -47,8 +47,11 @@ def test_the_notice_names_the_provider_and_starts_unasked():
     ai = c.get("/api/consent").json()["ai"]
     assert ai["provider"] == "Anthropic"
     assert "Anthropic" in ai["notice"]["body"]
-    # The search drawn from the question goes to Exa, and the notice says so.
-    assert "Exa" in ai["notice"]["body"]
+    # The search drawn from the question goes to Parallel and Perplexity
+    # (§258), and the notice says so - and no longer names Exa.
+    assert "Parallel" in ai["notice"]["body"]
+    assert "Perplexity" in ai["notice"]["body"]
+    assert "Exa" not in ai["notice"]["body"]
     assert ai["asked"] is False and ai["given"] is False
 
 
@@ -289,7 +292,8 @@ def test_the_privacy_and_support_pages_are_served_with_the_contact():
     privacy = c.get("/privacy")
     assert privacy.status_code == 200
     # Every company the policy says receives something is one the code uses.
-    for company in ("Anthropic", "Exa", "RunPod", "Render", "Viral Loops"):
+    for company in ("Anthropic", "Parallel", "Perplexity", "RunPod", "Render",
+                    "Viral Loops"):
         assert company in privacy.text, company
     assert c.get("/support").status_code == 200
 

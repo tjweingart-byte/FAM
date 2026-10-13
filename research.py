@@ -1,12 +1,24 @@
 """Retrieval that runs *before* Claude writes, so Claude reads rather than searches.
 
-Two retrievers, and **both finish before the first word is written**:
+The retrievers, and **all of them finish before the first word is written**:
 
-* **exa** - Exa retrieves, this module builds an evidence packet, and the
-  packet goes into the prompt as context.
-* **gdelt** - a keyless article index. Thinner than Exa - titles, dates and
-  grades, no passages - and available to a deployment with no retrieval
-  credential at all.
+* **parallel** - the default since §258: Parallel's Search API
+  retrieves, this module builds an evidence packet, and the packet goes into
+  the prompt as context. About a seventh of Exa's price.
+* **perplexity** - Perplexity's Search API, a second, independent index. It is
+  the second look on a thin packet and the first rung below the configured
+  backend, so one vendor's blind spot is not the episode's.
+* **exa** - the backend every packet was measured on until the swap. Kept
+  selectable (`RESEARCH_BACKEND=exa`) so the two can be compared on the same
+  questions before it is deleted.
+* **gdelt** - a keyless article index. Thinner than the others - titles,
+  dates and grades, no passages - and available to a deployment with no
+  retrieval credential at all.
+
+All three web backends hand back results with the same four attributes -
+`url`, `title`, `published_date`, `highlights` - which is the whole of what
+ranking, screening, the packet and provenance read. A backend is a function
+that produces those, and nothing downstream knows which one ran.
 
 Beside them, `live_facts` asks API-Sports, Finnhub and Polymarket for a
 current state when the brief says the question turns on one. Those five are
@@ -62,7 +74,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
-from config import BROWSE_MINUTES, RESEARCH_BACKENDS, settings
+from config import (BROWSE_MINUTES, RESEARCH_BACKENDS, WEB_RESEARCH_BACKENDS,
+                    settings)
 
 log = logging.getLogger("research")
 
@@ -76,6 +89,32 @@ DEFAULT_SEARCH_TYPE = "fast"
 #: of, about $0.015 (docs/FINANCIAL.md §2.2). Was 0.005, a third of that, so
 #: every row priced from the fallback under-reported (§207).
 COST_PER_SEARCH = 0.015
+
+#: The web-search backends - every retriever that sends a query to a paid
+#: search vendor. GDELT is a retriever too, but reads a copy on disk.
+WEB_BACKENDS = WEB_RESEARCH_BACKENDS
+
+#: What one search costs on each paid backend when its reply carries no
+#: dollar figure of its own (Parallel and Perplexity never do). Parallel's
+#: `fast` mode and Perplexity's `fast` search are $1 per 1,000 requests with
+#: up to 10 results and their excerpts included (docs/FINANCIAL.md §7.5).
+SEARCH_COSTS = {"exa": COST_PER_SEARCH, "parallel": 0.001, "perplexity": 0.001}
+
+#: Where each vendor's search lives, and the credential it reads.
+PARALLEL_URL = "https://api.parallel.ai/v1/search"
+PERPLEXITY_URL = "https://api.perplexity.ai/search"
+KEYS = {"parallel": "PARALLEL_API_KEY", "perplexity": "PERPLEXITY_API_KEY",
+        "exa": "EXA_API_KEY"}
+#: Perplexity accepts at most 20 results per request (its SDK's own note).
+#: The allow-list ceiling is not in the SDK; 20 is the figure reported for its
+#: docs, unverified - a longer list is cut, best-known outlets first.
+PERPLEXITY_MAX_RESULTS = 20
+PERPLEXITY_MAX_DOMAINS = 20
+#: Parallel's allow-list ceiling (include plus exclude, combined).
+PARALLEL_MAX_DOMAINS = 200
+#: How long one Parallel search query may be. Its SDK asks for 3-6 words;
+#: a hard ceiling is reported at about 200 characters (unverified).
+PARALLEL_MAX_QUERY_CHARS = 200
 
 
 # --------------------------------------------------------------------------
@@ -409,6 +448,11 @@ class Packet:
     #: search and GDELT not at all - and kept because the metering path reads
     #: it on every rung and a missing attribute would be a crash on each one.
     usage: object = None
+    #: Every web backend this packet's searches went to, in order - the
+    #: configured one and, when the second look went elsewhere, that one.
+    #: The ladder reads it so a rung that already ran as the second look is
+    #: not asked the same thing again.
+    tried: list = field(default_factory=list)
 
     def __bool__(self) -> bool:
         return bool(self.context.strip())
@@ -426,6 +470,7 @@ class Packet:
             "missing": list(self.missing),
             "retried": self.retried,
             "fell_back_from": self.fell_back_from,
+            "tried": list(self.tried),
         }
 
 
@@ -473,6 +518,234 @@ def diagnose() -> tuple[bool, str]:
 
 def available() -> bool:
     return diagnose()[0]
+
+
+# --------------------------------------------------------------------------
+# Parallel and Perplexity
+# --------------------------------------------------------------------------
+@dataclass
+class SearchResult:
+    """One result from any web backend, in the shape Exa's results have.
+
+    Exa's result objects are what every reader in this module was written
+    against (`getattr(result, "highlights")` and so on), so the other two
+    backends are translated into the same four attributes rather than the
+    readers learning three shapes.
+    """
+
+    url: str = ""
+    title: str = ""
+    #: The page's own publication date, `YYYY-MM-DD`, or "" when the vendor
+    #: does not know it. Never a "last updated" date: an old article edited
+    #: yesterday is not news from yesterday, and `published_at` turns this
+    #: into the words the episode says.
+    published_date: str = ""
+    highlights: list = field(default_factory=list)
+
+
+def _key(backend: str) -> str:
+    import credentials
+
+    return (credentials.active(KEYS[backend]) or "").strip()
+
+
+def backend_diagnose(backend: str) -> tuple[bool, str]:
+    """Why a web backend can or cannot serve, in one sentence. No request."""
+    if backend == "exa":
+        return diagnose()
+    if backend not in KEYS:
+        return False, f"{backend!r} is not a web search backend"
+    if not _key(backend):
+        return False, f"{KEYS[backend]} is not set"
+    return True, f"{KEYS[backend]} present"
+
+
+def backend_available(backend: str) -> bool:
+    return backend_diagnose(backend)[0]
+
+
+def _clip(text: str, limit: int) -> str:
+    """`text` cut to `limit` characters at a sentence end where one is near."""
+    text = " ".join(str(text or "").split())
+    if len(text) <= limit:
+        return text
+    cut = text[:limit]
+    end = max(cut.rfind(". "), cut.rfind("? "), cut.rfind("! "))
+    return cut[:end + 1] if end > limit // 2 else cut.rstrip() + "..."
+
+
+_MARKDOWN_LEAD = re.compile(r"^(#{1,6}\s+|[-*+]\s+|>\s*|\|\s*)+")
+
+
+def passages(text, limit: int = 0) -> list:
+    """A page's excerpt text as passages the size of Exa's highlights.
+
+    Perplexity returns one snippet per page and Parallel a few markdown
+    excerpts; the packet reads `highlights_per_source` passages from each
+    source, so both are cut into paragraphs and then into runs of sentences
+    of about `limit` characters (`SEARCH_PASSAGE_CHARS`).
+    """
+    limit = int(limit or settings.search_passage_chars)
+    chunks = text if isinstance(text, (list, tuple)) else [text]
+    out: list = []
+    for chunk in chunks:
+        for paragraph in re.split(r"\n\s*\n", str(chunk or "")):
+            # Markdown's headings, bullets, quotes and table bars are not
+            # words to read out; a leading minus on a number ("-3.5%") is,
+            # so a bullet is only a mark followed by a space.
+            paragraph = " ".join(
+                _MARKDOWN_LEAD.sub("", line.strip())
+                for line in paragraph.splitlines()).strip()
+            if not paragraph:
+                continue
+            if len(paragraph) <= limit:
+                out.append(paragraph)
+                continue
+            current = ""
+            for sentence in re.split(r"(?<=[.!?])\s+", paragraph):
+                if current and len(current) + 1 + len(sentence) > limit:
+                    out.append(_clip(current, limit))
+                    current = sentence
+                else:
+                    current = f"{current} {sentence}".strip()
+            if current:
+                out.append(_clip(current, limit))
+    return [p for p in out if len(p) > 20]
+
+
+def _post(url: str, headers: dict, body: dict) -> dict:
+    """One JSON request to a search vendor. Raises on any failure.
+
+    `httpx` is already a dependency (remote voice), so neither vendor's SDK
+    is needed; the request shapes were read from their published SDKs
+    (`parallel-web` 1.3.5, `perplexityai` 0.43.8).
+    """
+    import httpx
+
+    with httpx.Client(timeout=float(settings.search_timeout_seconds)) as client:
+        reply = client.post(url, headers=headers, json=body)
+    reply.raise_for_status()
+    return reply.json()
+
+
+def _cutoff(recency_days: int) -> Optional[datetime]:
+    if recency_days <= 0:
+        return None
+    return datetime.now(timezone.utc) - timedelta(days=recency_days)
+
+
+def _search_parallel(query: str, num_results: int, recency_days: int = 0,
+                     include_domains: tuple = (), objective: str = ""
+                     ) -> tuple[list, float]:
+    """One Parallel search: (results, dollars). Raises on any failure."""
+    key = _key("parallel")
+    if not key:
+        raise ResearchUnavailable(
+            "PARALLEL_API_KEY is not set, so Parallel cannot retrieve "
+            "anything. Set it, or set RESEARCH_BACKEND to another backend.")
+    advanced: dict = {
+        "max_results": int(num_results),
+        "excerpt_settings": {
+            "max_chars_per_result": int(settings.parallel_chars_per_result)},
+    }
+    policy: dict = {}
+    cutoff = _cutoff(recency_days)
+    if cutoff is not None:
+        policy["after_date"] = cutoff.strftime("%Y-%m-%d")
+    if include_domains:
+        policy["include_domains"] = list(include_domains)[:PARALLEL_MAX_DOMAINS]
+    if policy:
+        advanced["source_policy"] = policy
+    body: dict = {
+        # Parallel wants short keyword queries; a raw question (EI off, or no
+        # `retrieval` in the brief) is cut rather than sent whole.
+        "search_queries": [_clip(query, PARALLEL_MAX_QUERY_CHARS)],
+        # Always named: Parallel defaults to `advanced` ($5/1k, seconds)
+        # when it is omitted.
+        "mode": settings.parallel_mode,
+        "advanced_settings": advanced,
+    }
+    if objective:
+        body["objective"] = objective
+    data = _post(PARALLEL_URL, {"x-api-key": key}, body)
+    results = [
+        SearchResult(url=str(item.get("url") or ""),
+                     title=str(item.get("title") or ""),
+                     published_date=str(item.get("publish_date") or ""),
+                     highlights=passages(item.get("excerpts") or []))
+        for item in (data.get("results") or []) if isinstance(item, dict)]
+    return results, SEARCH_COSTS["parallel"]
+
+
+def _search_perplexity(query: str, num_results: int, recency_days: int = 0,
+                       include_domains: tuple = (), objective: str = ""
+                       ) -> tuple[list, float]:
+    """One Perplexity search: (results, dollars). Raises on any failure."""
+    key = _key("perplexity")
+    if not key:
+        raise ResearchUnavailable(
+            "PERPLEXITY_API_KEY is not set, so Perplexity cannot retrieve "
+            "anything. Set it, or set RESEARCH_SECOND_LOOK=same.")
+    body: dict = {
+        "query": query,
+        "max_results": min(int(num_results), PERPLEXITY_MAX_RESULTS),
+        "search_type": settings.perplexity_search_type,
+        "max_tokens_per_page": int(settings.perplexity_tokens_per_page),
+    }
+    cutoff = _cutoff(recency_days)
+    if cutoff is not None:
+        # Perplexity's date filters are written month/day/year.
+        body["search_after_date_filter"] = cutoff.strftime("%m/%d/%Y")
+    if include_domains:
+        body["search_domain_filter"] = list(include_domains)[:PERPLEXITY_MAX_DOMAINS]
+    data = _post(PERPLEXITY_URL, {"Authorization": f"Bearer {key}"}, body)
+    results = [
+        SearchResult(url=str(item.get("url") or ""),
+                     title=str(item.get("title") or ""),
+                     # `date` is publication; `last_updated` is not, and is
+                     # deliberately not read (see `SearchResult`).
+                     published_date=str(item.get("date") or ""),
+                     highlights=passages(item.get("snippet") or ""))
+        for item in (data.get("results") or []) if isinstance(item, dict)]
+    return results, SEARCH_COSTS["perplexity"]
+
+
+def _search_exa(query: str, num_results: int, recency_days: int = 0,
+                include_domains: tuple = (), objective: str = "",
+                search_type: str = DEFAULT_SEARCH_TYPE) -> tuple[list, float]:
+    """One Exa search: (results, dollars). Raises on any failure."""
+    client = _client()
+    kwargs: dict = {
+        "type": search_type,
+        "num_results": num_results,
+        "highlights": True,
+    }
+    cutoff = _cutoff(recency_days)
+    if cutoff is not None:
+        kwargs["start_published_date"] = cutoff.strftime("%Y-%m-%dT%H:%M:%S.000Z")
+    # The local ladder's third rung (§194): only the town's and county's
+    # known outlets.
+    if include_domains:
+        kwargs["include_domains"] = list(include_domains)
+    reply = client.search_and_contents(query, **kwargs)
+    cost = getattr(getattr(reply, "cost_dollars", None), "total", None)
+    return (list(getattr(reply, "results", []) or []),
+            float(cost) if cost is not None else COST_PER_SEARCH)
+
+
+def objective_for(brief) -> str:
+    """What Parallel is told the search is for, from the brief - never the
+    listener's own words, which the consent notice does not send to a
+    search vendor. "" without a brief."""
+    subject = str(getattr(brief, "subject", "") or "").strip()
+    wanted = [str(w).strip() for w in (getattr(brief, "must_establish", None) or [])
+              if str(w).strip()]
+    if not subject and not wanted:
+        return ""
+    text = f"Recent, dated reporting about {subject or 'this subject'}"
+    if wanted:
+        text += " that establishes: " + "; ".join(wanted[:4])
+    return text + "."
 
 
 def build_packet(results, packet_sources: int, highlights_per_source: int,
@@ -605,46 +878,42 @@ def domains(results) -> list:
 def _retrieve_blocking(query: str, num_results: int, packet_sources: int,
                        highlights_per_source: int, search_type: str,
                        recency_days: int = 0, live_domain: str = "",
-                       include_domains: tuple = (), must_name: str = ""
+                       include_domains: tuple = (), must_name: str = "",
+                       backend: str = "exa", objective: str = ""
                        ) -> Packet:
-    """One Exa call, ranked, packed and costed.
+    """One web search, ranked, packed and costed.
 
-    `recency_days` becomes `start_published_date`, which is the *filter* half
-    of "recency filters, credibility sorts". Zero means an evergreen question
-    and no window at all - a piece on how something works is not improved by
-    refusing to look at anything written last year.
+    `recency_days` becomes the backend's after-date filter, which is the
+    *filter* half of "recency filters, credibility sorts". Zero means an
+    evergreen question and no window at all - a piece on how something works
+    is not improved by refusing to look at anything written last year.
     """
-    client = _client()
-    kwargs: dict = {
-        "type": search_type,
-        "num_results": num_results,
-        "highlights": True,
-    }
-    if recency_days > 0:
-        cutoff = datetime.now(timezone.utc) - timedelta(days=recency_days)
-        kwargs["start_published_date"] = cutoff.strftime("%Y-%m-%dT%H:%M:%S.000Z")
-    # The local ladder's third rung (§194): only the town's and county's
-    # known outlets.
-    if include_domains:
-        kwargs["include_domains"] = list(include_domains)
-
     started = time.perf_counter()
     import provider_usage
 
     try:
-        reply = client.search_and_contents(query, **kwargs)
-    except Exception:
-        provider_usage.record("exa", ok=False)
+        if backend == "parallel":
+            returned, cost = _search_parallel(query, num_results, recency_days,
+                                              include_domains, objective)
+        elif backend == "perplexity":
+            returned, cost = _search_perplexity(query, num_results, recency_days,
+                                                include_domains, objective)
+        else:
+            returned, cost = _search_exa(query, num_results, recency_days,
+                                         include_domains, objective, search_type)
+    except ResearchUnavailable:
+        # Configuration, not an outage: nothing was asked of the vendor.
         raise
-    provider_usage.record("exa")
+    except Exception:
+        provider_usage.record(backend, ok=False)
+        raise
+    provider_usage.record(backend)
     elapsed = time.perf_counter() - started
 
-    returned = list(getattr(reply, "results", []) or [])
     results = screen_results(rank_results(returned), query=query,
                              live_domain=live_domain)
     if must_name:
         results = names_place(results, must_name)
-    cost = getattr(getattr(reply, "cost_dollars", None), "total", None)
     import provenance as provenance_mod
 
     return Packet(
@@ -654,20 +923,22 @@ def _retrieve_blocking(query: str, num_results: int, packet_sources: int,
         # Listing everything the search returned would claim corroboration
         # from passages the writer never saw.
         provenance=provenance_mod.from_results(
-            list(results)[:packet_sources], retriever="exa"),
+            list(results)[:packet_sources], retriever=backend),
         searches=1,
         seconds=elapsed,
-        cost=float(cost) if cost is not None else COST_PER_SEARCH,
+        cost=float(cost),
         results_returned=len(returned),
-        backend="exa",
+        backend=backend,
         window_days=recency_days,
+        tried=[backend],
     )
 
 
 async def _second_look(query: str, num_results: int, packet_sources: int,
                        highlights_per_source: int,
                        search_type: str, live_domain: str = "",
-                       include_domains: tuple = (), must_name: str = ""
+                       include_domains: tuple = (), must_name: str = "",
+                       backend: str = "exa", objective: str = ""
                        ) -> Optional[Packet]:
     """The one extra search, which is allowed to fail quietly. `retrieve` is not.
 
@@ -691,7 +962,7 @@ async def _second_look(query: str, num_results: int, packet_sources: int,
         return await asyncio.to_thread(
             _retrieve_blocking, query, num_results, packet_sources,
             highlights_per_source, search_type, 0, live_domain,
-            include_domains, must_name)
+            include_domains, must_name, backend, objective)
     except Exception as exc:  # noqa: BLE001 - see docstring
         log.warning("the second look failed for %r: %s; keeping the first "
                     "packet", query, exc)
@@ -787,6 +1058,7 @@ async def retrieve(query: str, backend: Optional[str] = None,
     highlights_per_source = int(
         overrides.get("highlights_per_source", settings.exa_highlights_per_source))
     search_type = str(overrides.get("search_type", DEFAULT_SEARCH_TYPE))
+    objective = str(overrides.get("objective", "") or objective_for(brief))
     recency_days = int(overrides.get(
         "recency_days", getattr(brief, "recency_days", 0) or 0))
     must_establish = list(overrides.get(
@@ -800,7 +1072,7 @@ async def retrieve(query: str, backend: Optional[str] = None,
     packet = await asyncio.to_thread(
         _retrieve_blocking, query, num_results, packet_sources,
         highlights_per_source, search_type, recency_days, live_domain,
-        include_domains, must_name)
+        include_domains, must_name, chosen, objective)
 
     covered, missing = packet_covers(packet.context, must_establish)
     packet.missing = list(missing)
@@ -821,11 +1093,17 @@ async def retrieve(query: str, backend: Optional[str] = None,
         broader = (getattr(brief, "broader", "") or "").strip()
         if not broader:
             broader = (getattr(brief, "subject", "") or "").strip() or query
-        log.info("exa packet missed %s for %r; one more search on %r with no "
-                 "window", missing, query, broader)
+        # **On a second index where there is one** (§258): the same index
+        # asked again tends to miss the same way, so the second look goes to
+        # `RESEARCH_SECOND_LOOK` (Perplexity) when that can serve, and to the
+        # configured backend otherwise.
+        other = second_look_backend(chosen)
+        log.info("%s packet missed %s for %r; one more search on %s for %r "
+                 "with no window", chosen, missing, query, other, broader)
         second = await _second_look(broader, num_results, packet_sources,
                                     highlights_per_source, search_type,
-                                    live_domain, include_domains, must_name)
+                                    live_domain, include_domains, must_name,
+                                    other, objective)
         if second is not None:
             _, second_missing = packet_covers(second.context, must_establish)
             # Keep whichever packet answers more of the brief; on a tie keep
@@ -837,6 +1115,8 @@ async def retrieve(query: str, backend: Optional[str] = None,
             # it. A retry that finds sources and then discards them for an
             # empty packet is worse than no retry: it pays for the search and
             # reports it as thin.
+            # Both backends, when the second look went to another index.
+            tried = list(dict.fromkeys(packet.tried + second.tried))
             if second and (not packet or len(second_missing) < len(missing)):
                 second.searches += packet.searches
                 second.cost += packet.cost
@@ -847,6 +1127,7 @@ async def retrieve(query: str, backend: Optional[str] = None,
                 packet.searches += second.searches
                 packet.cost += second.cost
                 packet.seconds += second.seconds
+            packet.tried = tried
             packet.retried = True
 
     # **The second opinion.** One vendor's index is one vendor's blind spots,
@@ -890,12 +1171,12 @@ async def retrieve(query: str, backend: Optional[str] = None,
         # Retrieval succeeded and found nothing usable. Not an exception - the
         # episode is still answerable from knowledge - but it must not pass as
         # research, so it says so and the prompt gets no evidence block.
-        log.warning("exa returned %d result(s) but no usable evidence for %r",
-                    packet.results_returned, query)
+        log.warning("%s returned %d result(s) but no usable evidence for %r",
+                    chosen, packet.results_returned, query)
     else:
-        log.info("exa: %d chars from %d source(s) in %.2fs (~$%.4f) for %r "
+        log.info("%s: %d chars from %d source(s) in %.2fs (~$%.4f) for %r "
                  "[window=%sd, searches=%d%s]",
-                 len(packet.context), len(packet.sources), packet.seconds,
+                 chosen, len(packet.context), len(packet.sources), packet.seconds,
                  packet.cost, query, packet.window_days or "none",
                  packet.searches, ", still thin" if packet.missing else "")
     return packet
@@ -955,13 +1236,32 @@ async def retrieve_with_gdelt(query: str, brief=None, recency_days: int = 0
 
 #: The rungs below the configured backend, in the order they are tried.
 #:
-#: **GDELT and nothing else** (§135, at the owner's direction). The model's own
-#: web search used to be the last rung - a separate research call at 10-25
-#: seconds - and it is deleted rather than switched off: everything an episode
-#: is written from comes from Exa, GDELT and the live providers (API-Sports,
-#: Finnhub, Polymarket), and nowhere else. A question that finds nothing on
-#: either index is still written (§256 deleted the §109 refusal).
-FALLBACK_RUNGS = ("gdelt",)
+#: **Perplexity, then GDELT** (§258). Perplexity is a second, independent
+#: index with passages, so it is the better backup; GDELT stays below it as
+#: the floor - free, keyless and read from disk, so it still answers when both
+#: paid accounts fail together. A rung that cannot serve (no key, `GDELT=0`)
+#: is left out by `ladder()`.
+#:
+#: The model's own web search used to be the last rung (§135, at the owner's
+#: direction) - a separate research call at 10-25 seconds - and it is deleted
+#: rather than switched off: everything an episode is written from comes from
+#: the search backends, GDELT and the live providers (API-Sports, Finnhub,
+#: Polymarket), and nowhere else. A question that finds nothing on any index
+#: is still written (§256 deleted the §109 refusal).
+#:
+#: **Exa sits between them while it is kept for comparison**: a deploy that
+#: arrives before the new keys are set still researches on the old one, and
+#: `ladder()` drops it the day `EXA_API_KEY` is removed.
+FALLBACK_RUNGS = ("perplexity", "exa", "gdelt")
+
+
+def second_look_backend(primary: str) -> str:
+    """Where the one retry goes: `RESEARCH_SECOND_LOOK` when it names another
+    web backend that can serve, the configured backend otherwise (§258)."""
+    other = (settings.research_second_look or "").strip().lower()
+    if other in WEB_BACKENDS and other != primary and backend_available(other):
+        return other
+    return primary
 
 
 def ladder(backend: Optional[str] = None) -> list:
@@ -992,8 +1292,8 @@ def _rung_available(rung: str) -> bool:
         import gdelt
 
         return gdelt.available()[0]
-    if rung == "exa":
-        return available()
+    if rung in WEB_BACKENDS:
+        return backend_available(rung)
     # Nothing else is a retriever (§135). An unknown name is not a rung.
     return False
 
@@ -1009,6 +1309,17 @@ def report() -> dict:
         "backends": list(RESEARCH_BACKENDS),
         "exa_configured": ok,
         "exa_detail": detail,
+        # Why the *configured* backend can or cannot serve, whichever it is
+        # - what the startup warning and the preflight print (§258).
+        "backend_detail": (backend_diagnose(settings.research_backend)[1]
+                           if settings.research_backend in WEB_BACKENDS
+                           else ("GDELT=1" if _rung_available("gdelt")
+                                 else "GDELT=0 or no export copy yet")),
+        # Every web backend, configured or not, and why (§258).
+        "web_backends": {name: dict(zip(("configured", "detail"),
+                                        backend_diagnose(name)))
+                         for name in WEB_BACKENDS},
+        "second_look": second_look_backend(settings.research_backend),
         # True when the *configured* backend cannot run - whichever it is.
         # It used to ask only about Exa, so `RESEARCH_BACKEND=gdelt` with
         # `GDELT=0` reported healthy and retrieved nothing, for ever.
