@@ -434,8 +434,30 @@ def report(now: Optional[float] = None, days: int = 7) -> list[dict]:
             row["failure_reasons"] = why
         if provider == "api_sports":
             row["breakdown"] = _api_sports_breakdown(seen, today, yesterday, days)
+            alert = _api_sports_alert()
+            if alert:
+                row["alert"] = alert
         rows.append(row)
     return rows
+
+
+def _api_sports_alert() -> str:
+    """One red sentence when API-Sports refused the account itself (§259):
+    every sport's scoreboard is off until it is fixed on their dashboard."""
+    try:
+        import live_sources
+
+        refused = live_sources.account_report()
+    except Exception as exc:  # noqa: BLE001 - a report is never load-bearing
+        log.warning("could not read API-Sports' account state: %s", exc)
+        return ""
+    if not refused:
+        return ""
+    return ("API-Sports refused this account (" + refused.get("message", "")
+            + ") since " + refused.get("since", "")[:16].replace("T", " ")
+            + " UTC. No sport has live scores until it is fixed at "
+            "dashboard.api-football.com; sports episodes are written without "
+            "a scoreboard and say no score.")
 
 
 def _api_sports_breakdown(seen: dict, today: str, yesterday: str,

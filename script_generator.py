@@ -27,6 +27,7 @@ import credentials
 import episode_intelligence
 import pronunciation
 import live_facts
+import score_guard
 import metering
 import prefetch
 from anthropic_client import build_async_client
@@ -533,6 +534,10 @@ class ScriptNotes:
     #: rule that fails silently is how the Dodgers opener survived a system
     #: prompt that already banned it. `write.py` prints these. PROBLEMS.md §94.
     meta_openings: tuple = ()
+    #: Sentences `score_guard.ScoreGuard` removed before they were spoken
+    #: (§259): a score, period or result the scoreboard did not vouch for.
+    #: Each is a prompt rule failing; `write.py` prints them.
+    score_drops: tuple = ()
     #: What kind of thing the episode is, off `<<CATEGORY:>>` (§189), as the
     #: writer worded it. Resolved against the category tree only where it is
     #: read, so a tree that grows later can still place an older episode.
@@ -1252,6 +1257,9 @@ class _ScriptReader:
         self.buffer = ""
         self.emitted_words = 0
         self.guard = OpeningGuard()
+        # A sports episode's scores, periods and results, held to the
+        # scoreboard before they are spoken (§259).
+        self.scores = score_guard.ScoreGuard(plan)
         self.shared = _names_are_shared(plan)
 
     @property
@@ -1297,7 +1305,7 @@ class _ScriptReader:
                 break
             sentence = clean_for_speech(speech[: match.end()])
             speech = speech[match.end() :]
-            if sentence and self.guard.allow(sentence):
+            if sentence and self.scores.allow(sentence) and self.guard.allow(sentence):
                 self.emitted_words += count_words(sentence)
                 out.append(sentence)
         self.buffer = speech + marker + rest
@@ -1308,18 +1316,24 @@ class _ScriptReader:
         out: list[str] = []
         self.buffer = _take_pronunciations(self.buffer, self.notes, self.shared)
         tail = clean_for_speech(self.buffer)
-        if tail and self.guard.allow(tail):
+        if tail and self.scores.allow(tail) and self.guard.allow(tail):
             out.append(tail)
         # Nothing but disclaimer is still better than nothing at all.
         rescued = self.guard.rescue()
         if rescued:
             out.append(rescued)
+        # Nothing but unvouched scores is not (§259): one fixed line instead.
+        if not out and not self.emitted_words:
+            line = self.scores.rescue()
+            if line:
+                out.append(line)
         if self.notes is not None:
             self.notes.thread = extract_thread(self.buffer)
             self.notes.title = extract_title(self.buffer)
             self.notes.summary = extract_summary(self.buffer)
             self.notes.category = extract_category(self.buffer)
             self.notes.meta_openings = tuple(self.guard.dropped)
+            self.notes.score_drops = tuple(self.scores.dropped)
         return out
 
 

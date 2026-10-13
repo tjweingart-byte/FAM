@@ -485,6 +485,10 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
             return esc(f.why) + ' ×' + Number(f.count).toLocaleString();
           }).join(', ') + '</small>';
       }
+      // A refused account (§259): every sport's scoreboard is off.
+      if (!sub && r.alert) {
+        said += ' <strong style="color:var(--bad, #c0392b)">· ' + esc(r.alert) + '</strong>';
+      }
       if (sub && r.mismatch) {
         said += ' <small style="color:var(--bad, #c0392b)">· API-Sports reports a different plan - check API_SPORTS_TIERS</small>';
       }
@@ -499,7 +503,12 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
     var body = rows.map(function (r) {
       return line(r, false) + (r.breakdown || []).map(function (b) { return line(b, true); }).join("");
     }).join("");
-    $("providers").innerHTML = '<div class="tbl"><table><thead><tr><th>Service</th><th>Today</th><th>Yesterday</th>' +
+    // Above the table as well as in its row: nobody reads row nine.
+    var alerts = rows.filter(function (r) { return r.alert; }).map(function (r) {
+      return '<p class="sub" style="color:var(--bad, #c0392b);font-weight:600;margin:0 0 8px">' +
+        esc(r.label) + ': ' + esc(r.alert) + '</p>';
+    }).join("");
+    $("providers").innerHTML = alerts + '<div class="tbl"><table><thead><tr><th>Service</th><th>Today</th><th>Yesterday</th>' +
       '<th>7-day average</th><th>Limit (next plan)</th></tr></thead><tbody>' + body + '</tbody></table></div>';
   }
 

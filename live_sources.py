@@ -267,6 +267,8 @@ def report() -> dict:
             "api_sports_budget": API_SPORTS_BUDGET.as_dict(),
             # Per sport since §180: each is its own plan and its own day.
             "api_sports_budgets": budgets_report(),
+            # A refused account (§259): every sport's scores are off.
+            "api_sports_account": account_report(),
             "known": {d: sorted(v) for d, v in BUILDERS.items()}}
 
 
@@ -406,6 +408,11 @@ class Sport:
     season_month: int = 8
     #: What the listener would call it.
     label: str = ""
+    #: The longest one of its games can plausibly run, kick-off to final
+    #: whistle, in hours (§259). A row still saying "live" past this - or
+    #: still "not started" this long after its kick-off - is a scoreboard
+    #: that has stopped updating, and its status is not believed.
+    max_live_hours: float = 6.0
 
 
 #: The four with the clearest demand. Adding one is a row here plus its status
@@ -430,6 +437,7 @@ SPORTS = {
     "football": Sport(
         key="football",
         host="https://v3.football.api-sports.io",
+        max_live_hours=3.5,
         path="fixtures", unit="goals",
         words=("soccer", "premier league", "la liga", "serie a", "bundesliga",
                "champions league", "world cup", "fifa", "ligue 1", "mls",
@@ -461,6 +469,7 @@ SPORTS = {
         season_style="span", season_month=10, label="Basketball"),
     "baseball": Sport(
         key="baseball",
+        max_live_hours=7.0,
         host="https://v1.baseball.api-sports.io",
         path="games", unit="runs",
         words=("mlb", "baseball", "world series", "innings"),
@@ -554,6 +563,7 @@ SPORTS = {
         label="Formula 1"),
     "mma": Sport(
         key="mma",
+        max_live_hours=9.0,
         host="https://v1.mma.api-sports.io",
         path="fights", unit="",
         words=("mma", "ufc", "bellator", "pfl", "mixed martial arts"),
@@ -877,9 +887,77 @@ def _limit_reached(data: dict) -> bool:
     return bool(errors) and ("request" in text and "limit" in text)
 
 
+#: API-Sports refusing the *account* rather than one request (§259): a
+#: suspension, a bad or revoked key. Every sport shares the one key, so one
+#: refusal is every sport's - and nothing about a game can be known until
+#: somebody fixes it on API-Sports' dashboard. Held here so `/admin` and
+#: `/api/health` say so in red instead of one warning line in the logs.
+ACCOUNT_REFUSAL: dict = {}
+
+#: How long a refused account is left alone before it is asked again. Long
+#: enough that a suspended account is not hammered by every sweep and every
+#: lookup (each refusal still spends our count - the §180 hockey lesson);
+#: short enough that a fixed account is back within minutes, untouched.
+ACCOUNT_RETRY_SECONDS = 600.0
+
+#: The keys of API-Sports' `errors` that are about the account, not the
+#: request. **Keys, not words:** the free plan's season limit says "do not
+#: have access to this season" under `plan`, and reading that as a dead
+#: account would silence every sport over one sport's season.
+_ACCOUNT_KEYS = ("access", "token", "key", "apikey", "suspended")
+
+
+class AccountRefused(RuntimeError):
+    """API-Sports refused the account itself (§259). Said, never retried
+    into a quiet day with no games."""
+
+
+def _account_refused(errors) -> bool:
+    if isinstance(errors, dict):
+        if any(str(k).lower() in _ACCOUNT_KEYS for k in errors):
+            return True
+    return "suspended" in str(errors or "").lower()
+
+
+def note_account_refusal(errors, sport: str = "",
+                         now: Optional[float] = None) -> None:
+    now = time.time() if now is None else now
+    first = not ACCOUNT_REFUSAL
+    ACCOUNT_REFUSAL.update({
+        "message": log_redaction.redact(str(errors))[:300],
+        "sport": sport, "last": now,
+        "since": ACCOUNT_REFUSAL.get("since", now)})
+    if first:
+        # Error, not warning: until this is fixed every sports episode is
+        # written without a scoreboard, for every listener.
+        log.error("live facts: API-Sports REFUSED THE ACCOUNT (%s): %s - no "
+                  "sport has scores until this is fixed on API-Sports' "
+                  "dashboard", sport or "?", ACCOUNT_REFUSAL["message"])
+
+
+def account_report(now: Optional[float] = None) -> dict:
+    """`{}` while the account works; otherwise what API-Sports said and
+    since when, for `/admin` and `/api/health`."""
+    if not ACCOUNT_REFUSAL:
+        return {}
+    now = time.time() if now is None else now
+    return {"refused": True, "message": ACCOUNT_REFUSAL.get("message", ""),
+            "sport": ACCOUNT_REFUSAL.get("sport", ""),
+            "since": datetime.fromtimestamp(
+                ACCOUNT_REFUSAL.get("since", now), tz=timezone.utc).isoformat(),
+            "last": datetime.fromtimestamp(
+                ACCOUNT_REFUSAL.get("last", now), tz=timezone.utc).isoformat(),
+            "retry_in_seconds": max(0, int(
+                ACCOUNT_REFUSAL.get("last", now) + ACCOUNT_RETRY_SECONDS - now))}
+
+
 async def api_sports_json(url: str, params: dict, timeout: float) -> dict:
     """One API-Sports request, counted against its sport's daily allowance."""
     sport = sport_of_url(url)
+    if ACCOUNT_REFUSAL and time.time() - ACCOUNT_REFUSAL.get("last", 0.0) \
+            < ACCOUNT_RETRY_SECONDS:
+        raise AccountRefused(
+            f"API-Sports refused this account: {ACCOUNT_REFUSAL.get('message')}")
     budget = budget_for(sport)
     if budget.remaining() <= 0:
         raise BudgetSpent(
@@ -896,7 +974,14 @@ async def api_sports_json(url: str, params: dict, timeout: float) -> dict:
         # A bad key, a bad parameter, a suspended account: all answered 200
         # with the reason in `errors` and an empty `response`. Read as data,
         # that is a day with no games and nothing to say it is wrong.
+        if _account_refused(errors):
+            note_account_refusal(errors, sport)
+            raise AccountRefused(f"API-Sports refused this account: {errors}")
         raise RuntimeError(f"API-Sports refused: {errors}")
+    if ACCOUNT_REFUSAL:
+        log.warning("live facts: API-Sports answered again; the account "
+                    "refusal since %s is over", account_report().get("since"))
+        ACCOUNT_REFUSAL.clear()
     return data
 
 
@@ -1044,8 +1129,13 @@ SCHEDULE_SECONDS = 600.0
 #: prefix it ("NBA - Regular Season").
 REGULAR_SEASON = "regular season"
 #: The share of a resolve's time the team path may take, leaving the rest
-#: for today's live games if it finds nothing.
+#: for the day's games by date if it finds nothing (§259).
 TEAM_PATH_SHARE = 0.6
+
+#: How long past its kick-off a game may still be "not started" before the
+#: row is taken for a scoreboard that stopped updating (§259). A delay or a
+#: postponement is real; the provider marks those with codes of their own.
+STUCK_SCHEDULED_HOURS = 4.0
 
 
 def _row_block(row: dict, name: str) -> dict:
@@ -1078,6 +1168,10 @@ async def league_teams(sport: Sport, now: Optional[float] = None) -> list:
                                      settings.live_timeout_seconds)
     except BudgetSpent:
         raise          # the allowance, not the catalogue: tomorrow says
+    except AccountRefused:
+        # The account, not the catalogue (§259): remembered as "refused
+        # today" it would outlive the fix by up to a day.
+        raise
     except ProviderHTTPError as exc:
         # A 4xx is the provider saying no; a 5xx is the provider unwell,
         # which the next sweep may find better.
@@ -1359,6 +1453,13 @@ class ApiSportsSource(LiveSource):
     domain = "sports"
     cost_per_call = 0.0  # flat-rate plan; the bill is not per call
     delayed_seconds = 0.0
+    #: Its own clock (§259), as weather has: a game nobody swept is found
+    #: from a team's season schedule and then fetched, two requests in a
+    #: row, which `LIVE_TIMEOUT_SECONDS` alone could not hold. It runs
+    #: beside retrieval, which takes longer than this on most searches, so
+    #: the first word rarely waits on it; and a scoreboard that is not
+    #: asked is a score the writer has to go without.
+    timeout_seconds = 3.0
 
     def diagnose(self) -> tuple[bool, str]:
         if not settings.api_sports_key:
@@ -1435,7 +1536,7 @@ class ApiSportsSource(LiveSource):
             try:
                 found = await asyncio.wait_for(
                     self._resolve_by_team(brief, sport, subject),
-                    timeout=settings.live_timeout_seconds * TEAM_PATH_SHARE)
+                    timeout=self.timeout_seconds * TEAM_PATH_SHARE)
             except Exception as exc:  # noqa: BLE001 - the card path still runs
                 log.info("live facts: team schedules did not resolve %r (%s); "
                          "trying today's live games", subject,
@@ -1443,25 +1544,36 @@ class ApiSportsSource(LiveSource):
                 found = None
             if found is not None:
                 return found
-        if rows is None or not any(
-                wanted and any(w in " ".join(self._team_names(r)).lower()
-                               for w in wanted) for r in rows):
-            data = await api_sports_json(f"{sport.host}/{sport.path}",
-                                         {"live": "all"},
-                                         settings.live_timeout_seconds)
-            rows = (data or {}).get("response", []) or []
+        def named(rows) -> Optional[Entity]:
+            for row in rows or []:
+                names = " ".join(self._team_names(row)).lower()
+                if wanted and any(word in names for word in wanted):
+                    home, away = self._team_names(row)
+                    return Entity(
+                        domain="sports", provider=self.name,
+                        # The sport rides in the id, because a bare game id
+                        # is meaningless without knowing which API issued
+                        # it - and `fetch` gets only the entity.
+                        id=f"{sport.key}:{self._game_id(row)}",
+                        label=f"{home} v {away}")
+            return None
 
-        for row in rows:
-            names = " ".join(self._team_names(row)).lower()
-            if wanted and any(word in names for word in wanted):
-                home, away = self._team_names(row)
-                return Entity(
-                    domain="sports", provider=self.name,
-                    # The sport rides in the id, because a bare game id is
-                    # meaningless without knowing which API issued it - and
-                    # `fetch` gets only the entity.
-                    id=f"{sport.key}:{self._game_id(row)}",
-                    label=f"{home} v {away}")
+        found = named(rows)
+        if found is not None:
+            return found
+        # **By date, never `live=all`** (§259): a game that finished ten
+        # minutes ago is no longer live, so asking only for live games is
+        # how "who won" found nothing the moment there was an answer. Today
+        # and then yesterday in UTC, because a US night game kicks off
+        # after midnight UTC and is filed under the next day.
+        now = datetime.now(timezone.utc)
+        for day in (now, now - timedelta(days=1)):
+            data = await api_sports_json(f"{sport.host}/{sport.path}",
+                                         {"date": day.strftime("%Y-%m-%d")},
+                                         settings.live_timeout_seconds)
+            found = named((data or {}).get("response", []) or [])
+            if found is not None:
+                return found
         return None
 
     async def _resolve_race(self, sport: Sport, subject: str) -> Optional[Entity]:
@@ -1790,6 +1902,7 @@ class ApiSportsSource(LiveSource):
         status_block = cls._status_block(row)
         status = sport.statuses.get(str(status_block.get("short") or "").upper(),
                                     live_facts.UNKNOWN)
+        status = cls._believable(status, row, sport)
         home, away = cls._team_names(row)
         if sport.kind == "race":
             # A race has a field, not two sides: its name and where it is.
@@ -1928,6 +2041,34 @@ class ApiSportsSource(LiveSource):
                 return None
         return None
 
+    @classmethod
+    def _believable(cls, status: str, row: dict, sport: Sport,
+                    entity: Optional[Entity] = None,
+                    now: Optional[datetime] = None) -> str:
+        """The row's status, unless the clock says the scoreboard is stuck
+        (§259). A game "in the first quarter" nine hours after kick-off, or
+        "not started" four hours after it, is a feed that stopped updating -
+        and a stuck feed reports the wrong period with a fresh timestamp,
+        which nothing downstream could catch. `unknown` is the state in which
+        no score, period or result may be spoken."""
+        kick = cls._kickoff(row)
+        if kick is None or status not in (live_facts.IN_PROGRESS,
+                                          live_facts.SCHEDULED):
+            return status
+        now = now or datetime.now(timezone.utc)
+        hours = (now - kick).total_seconds() / 3600.0
+        label = entity.key if entity is not None else cls._game_id(row)
+        if status == live_facts.IN_PROGRESS and hours > sport.max_live_hours:
+            log.warning("live facts: %s says %s is still live %.1fh after "
+                        "kick-off (longest plausible %.1fh); not believed",
+                        sport.key, label, hours, sport.max_live_hours)
+            return live_facts.UNKNOWN
+        if status == live_facts.SCHEDULED and hours > STUCK_SCHEDULED_HOURS:
+            log.warning("live facts: %s says %s has not started %.1fh after "
+                        "its kick-off; not believed", sport.key, label, hours)
+            return live_facts.UNKNOWN
+        return status
+
     def to_facts(self, row: dict, entity: Entity,
                  sport: Optional[Sport] = None) -> Optional[LiveFacts]:
         """One game row -> LiveFacts. Split out so tests can drive it."""
@@ -1940,6 +2081,7 @@ class ApiSportsSource(LiveSource):
         # guess - so a provider that changes its codes degrades to silence
         # rather than to a confident wrong tense.
         status = sport.statuses.get(short, live_facts.UNKNOWN)
+        status = self._believable(status, row, sport, entity)
 
         home, away = self._team_names(row)
         home = home or "the home side"
@@ -1949,7 +2091,11 @@ class ApiSportsSource(LiveSource):
         said: list = []
         # A game that has not started has no score, whatever the row holds: a
         # pre-game tracker's nought-nought is not "level" (9.30 #5).
-        if hs is not None and as_ is not None and status != live_facts.SCHEDULED:
+        # And only from a status that says the score is one (§259): a row
+        # whose status is `unknown` - a code we do not know, or a stuck
+        # scoreboard - has numbers nobody can say are current.
+        if hs is not None and as_ is not None and status in (
+                live_facts.IN_PROGRESS, live_facts.FINAL):
             first, second, lead, trail = home, away, hs, as_
             if as_ > hs:
                 first, second, lead, trail = away, home, as_, hs
@@ -1971,6 +2117,12 @@ class ApiSportsSource(LiveSource):
             when = _kickoff_said(kick, sport)
             said.append(f"{home} and {away} have not started yet."
                         + (f" Kick-off is {when}." if when else ""))
+        elif status == live_facts.UNKNOWN:
+            # Said, not left blank (§259): with no sentence the writer is told
+            # the feed had nothing, and fills the gap from an article.
+            said.append(f"The scoreboard does not say whether {home} and "
+                        f"{away} have started, are playing or have finished, "
+                        "so there is no score or period to give.")
 
         if not said:
             return None
