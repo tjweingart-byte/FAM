@@ -79,10 +79,10 @@ the most important number in this report.
 ### 2.1 Claude (Anthropic)
 
 The production model is `claude-sonnet-5`. It is set in `render.yaml`
-(`MODEL`) and is the default in `config.py`, and the brief, tile composer,
-category placer and thumbnail calls follow it (§249 - §227 had moved them to
-Haiku 5.5 for about -30% of the Claude bill; the owner moved them back). Only
-the profile-photo check runs on `claude-haiku-5-5` (§225, ~$0.0002 a photo).
+(`MODEL`) and is the default in `config.py`, and the tile composer, category
+placer and thumbnail calls follow it (§249 - §227 had moved them to Haiku 5.5;
+the owner moved them back). **The brief runs on `claude-haiku-5-5` at medium
+effort** (§261), as does the profile-photo check (§225, ~$0.0002 a photo).
 `metering` prices each call at its own model's rates.
 
 | Price (Code, `metering.py:81-96`, "checked against the rate card on 2026-09-09") | USD |
@@ -97,7 +97,10 @@ the profile-photo check runs on `claude-haiku-5-5` (§225, ~$0.0002 a photo).
 **Calls per new search episode: 2.**
 
 1. **The episode-intelligence brief.** `episode_intelligence.py:745`.
-   Settings: `EI_MAX_TOKENS=3000` (1200 until §248), `EI_EFFORT=low`, 8 s timeout.
+   Settings: `EI_MODEL=claude-haiku-5-5` and `EI_EFFORT=medium` (§261; Sonnet 5
+   at low before), `EI_MAX_TOKENS=3000` (1200 until §248), 8 s timeout. On
+   Haiku at medium a brief is estimated at ~$0.0009 (~1,000 in, ~1,500 out at
+   $0.10 / $0.50), against the Sonnet figures in the tables below.
 2. **The script writer.** `script_generator.py:1390`. It streams, carries no
    tools, and runs with `EFFORT=low` and `MAX_OUTPUT_TOKENS=16000`.
 
@@ -383,8 +386,9 @@ What the table shows:
    about two-thirds of each miss. The levers, from cheapest to most expensive:
    raise the cache hit rate (near-match tuning, the canonical key), shorten
    the writer prompt (the style example is ~1,550 input tokens on every
-   call). Routing the brief to Haiku 5.5 was tried in §227 and reversed in
-   §249.
+   call). Routing the brief to Haiku 5.5 was tried in §227, reversed in
+   §249, and made again at medium effort in §261 (about -26% of the Claude
+   bill on new episodes, estimated).
 2. **Bandwidth becomes the second-largest line at 10k and above.** This is the
    case for Opus over the stream (`IOS_APP.md`). Opus is about 0.2 MB/min
    against 2.65 MB/min, which cuts the bandwidth line about 13x (24 TB → ~1.8 TB
