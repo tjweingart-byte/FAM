@@ -367,8 +367,8 @@ Caching and prefetch
   anything personal, report `None` not `0`. [prefetch-same-key]
 - A prefetch candidate carries a reason in words; sources never call a model or
   the network. [candidate-reason]
-- **One model for the pipeline** (§249): brief, composer, placer, thumbnails
-  follow `MODEL`; only the photo check uses `SMALL_MODEL` (§225); metering
+- **The brief on Haiku 5.5 at medium** (§261); composer, placer, thumbnails
+  follow `MODEL` (§249); the photo check on `SMALL_MODEL` (§225); metering
   prices each call at its own model. [small-calls-haiku]
 - **Writer savings change no word and cost no episode** (§179): its
   instructions are one cacheable block (`PROMPT_CACHE`); the Trending and

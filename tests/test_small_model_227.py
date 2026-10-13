@@ -1,10 +1,12 @@
-"""The brief, composer, placer and thumbnails follow `MODEL` again (§249).
+"""The composer, placer and thumbnails follow `MODEL` again (§249).
 
-§227 put them on Haiku 5.5; the owner moved them back to Sonnet. What §227
+§227 put them and the brief on Haiku 5.5; the owner moved them back to
+Sonnet (§249), then moved the brief alone back to Haiku at medium effort
+(§261, pinned in `test_ei_haiku_261.py`). What §227
 added that is not about Haiku stays and is pinned here: an empty setting means
 the default, metering prices an episode whose calls run on different models
 call by call, every current model has a price, and boot checks any model a
-call uses besides `MODEL` - by default only the photo check (§225).
+call uses besides `MODEL` - by default the brief and the photo check.
 """
 from __future__ import annotations
 
@@ -46,17 +48,23 @@ def _small_models(settings):
             settings.categories_model, settings.thumbnails_model)
 
 
-def test_the_four_calls_follow_the_writers_model(fresh_config):
+def _following_model(settings):
+    """The three that still follow `MODEL`; the brief has its own (§261)."""
+    return (settings.stories_model, settings.categories_model,
+            settings.thumbnails_model)
+
+
+def test_three_calls_follow_the_writers_model(fresh_config):
     config = fresh_config()
     assert config.settings.model == "claude-sonnet-5"
-    assert set(_small_models(config.settings)) == {"claude-sonnet-5"}
+    assert set(_following_model(config.settings)) == {"claude-sonnet-5"}
 
 
 def test_setting_model_moves_them_with_the_writer(fresh_config, monkeypatch):
-    """`render.yaml` sets MODEL; one model to reason about per deployment."""
+    """`render.yaml` sets MODEL; the three move with the writer."""
     monkeypatch.setenv("MODEL", "claude-opus-5-5")
     config = fresh_config()
-    assert set(_small_models(config.settings)) == {"claude-opus-5-5"}
+    assert set(_following_model(config.settings)) == {"claude-opus-5-5"}
 
 
 def test_only_the_photo_check_stays_on_haiku(fresh_config):
@@ -78,7 +86,8 @@ def test_an_empty_setting_is_the_default_not_an_empty_model(fresh_config,
     """`CATEGORIES_MODEL=` in a copied .env once meant a model named ''."""
     monkeypatch.setenv(name, "")
     config = fresh_config()
-    assert set(_small_models(config.settings)) == {"claude-sonnet-5"}
+    assert set(_following_model(config.settings)) == {"claude-sonnet-5"}
+    assert config.settings.ei_model == config.SMALL_MODEL
 
 
 def test_the_admin_box_stays_on_the_writers_model(fresh_config):
@@ -178,9 +187,10 @@ def _boot_check(monkeypatch, client, state="ok"):
     return appmod.CREDENTIALS
 
 
-def test_boot_checks_the_photo_checks_model_beside_the_writer(monkeypatch):
-    """The writer's check covers every call on `MODEL`; the photo check's
-    Haiku is a second thing an account may not have."""
+def test_boot_checks_the_small_model_beside_the_writer(monkeypatch):
+    """The writer's check covers every call on `MODEL`; the brief's and the
+    photo check's Haiku is a second thing an account may not have, asked
+    once for both."""
     client = _Retriever()
     creds = _boot_check(monkeypatch, client)
     assert client.asked == ["claude-haiku-5-5"]
