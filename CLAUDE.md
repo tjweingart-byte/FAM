@@ -295,8 +295,7 @@ Research and truth
   every fallback recorded; sim-league pages and (on sports) unknown outlets
   are screened out (§178); nothing is refused for want of evidence (§256);
   EI writes `Brief.broader`. [always-researched]
-- **EI decides what to search for, before the search**, in the search
-  engine's own inputs (Parallel's objective and 2-3 queries, §260); the brief never asserts
+- **EI decides what to search for, before the search**; the brief never asserts
   a fact; **a layer that adds quality must not subtract availability** - every
   failure falls back to the raw query and says so (`Brief.degraded`). [ei-before-search]
 - **Recency filters; credibility sorts.** The packet carries date and grade,
