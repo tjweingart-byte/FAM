@@ -230,6 +230,19 @@ class Brief:
     #: output tokens, which is what makes it affordable: §82 ruled out a model
     #: call to rephrase a thin search, and this is not one. §109.
     search_fallback: str = ""
+    #: Other wordings of the precise search, sent beside it in the same
+    #: request (§260). Parallel takes several short keyword queries and asks
+    #: for two or three; one query was one guess at the words a report would
+    #: use. Never the broader search: these hunt the same thing, and
+    #: `search_fallback` is still kept for when they all miss.
+    search_angles: list = field(default_factory=list)
+    #: What the search is for, in a sentence or two a search engine reads
+    #: (§260): the thing wanted, the moment in dates, and which sources
+    #: answer it. Parallel ranks and cuts its excerpts against this, so it is
+    #: the retriever's half of the brief. Never a result and never the
+    #: listener's words. Empty on a degraded brief, and
+    #: `research.objective_for` then writes one from the fields above.
+    search_objective: str = ""
     #: What the evidence has to contain for this episode to be worth making.
     #: Read by the sufficiency check, which retries once when the packet
     #: mentions none of it.
@@ -334,6 +347,16 @@ class Brief:
 #: Zero is untouched and means evergreen: no window at all.
 RECENCY_FLOOR_DAYS = 2
 
+#: How many other wordings go beside the precise search (§260). Parallel's
+#: own guidance is two or three queries in all.
+MAX_ANGLES = 2
+#: Parallel wants keyword queries of three to six words; a longer one is a
+#: sentence, and is cut rather than sent.
+MAX_ANGLE_CHARS = 80
+#: The objective is a sentence or two. Longer is the model writing the
+#: episode into the search.
+MAX_OBJECTIVE_CHARS = 600
+
 
 def _window(days) -> int:
     """The recency window to apply, with the floor above enforced."""
@@ -414,6 +437,12 @@ def apply_named_slot(brief: Brief, query: str) -> Brief:
         brief.search_fallback = f"{slot.name} {brief.search_fallback}".strip()
     if name not in (brief.subject or "").lower():
         brief.subject = f"{slot.name} ({slot.definition})"
+    brief.search_angles = [
+        a if name in a.lower() else f"{slot.name} {a}"
+        for a in (brief.search_angles or [])]
+    if brief.search_objective and name not in brief.search_objective.lower():
+        brief.search_objective = (f"{slot.name} is {slot.definition}. "
+                                  f"{brief.search_objective}")
     caution = (
         f'"{slot.name}" is the name of one specific game: {slot.definition}. '
         f"The episode is about that game and no other - identify which teams "
@@ -578,6 +607,34 @@ def gate(brief: Brief, query: str) -> Brief:
             f"the search query {brief.search_query!r} shares no subject with "
             f"the question; searching what was asked instead")
         brief.search_query = query.strip()
+        # Written about the same drifted subject, so neither is kept: the
+        # objective falls back to one composed in code (§260).
+        brief.search_angles = []
+        brief.search_objective = ""
+
+    # **The other wordings are held to the same subject** (§260): one that
+    # drifted would pull reports of something else into the same request.
+    # Held to the question *or* the resolved search, because an angle may
+    # rightly name what the question only implies - the quarterback of
+    # "did my eagles win" - and the search it rides beside has already
+    # been held to the question above.
+    anchors = (_content_words(query) | _content_words(brief.search_query)
+               | _content_words(brief.subject))
+    angles: list = []
+    for angle in brief.search_angles or []:
+        text = " ".join(str(angle or "").split())[:MAX_ANGLE_CHARS]
+        if not text or text.lower() == brief.search_query.strip().lower():
+            continue
+        if text.lower() in (a.lower() for a in angles):
+            continue
+        if anchors and not _shares_subject(anchors, _content_words(text)):
+            problems.append(f"the search angle {text!r} shares no subject "
+                            "with the question; dropped")
+            continue
+        angles.append(text)
+    brief.search_angles = angles[:MAX_ANGLES]
+    brief.search_objective = " ".join(
+        str(brief.search_objective or "").split())[:MAX_OBJECTIVE_CHARS]
 
     # **One place decides the window**, and this is it - the gate is where
     # every other field of the brief is normalised, so a floor applied at
@@ -670,6 +727,11 @@ BRIEF_SCHEMA = {
         # and it is the reason §82's "never a model call to rephrase" is
         # untouched - this is not another call.
         "search_fallback": {"type": "string"},
+        # **Written for the search engine that reads them** (§260): Parallel
+        # takes an objective in plain language beside two or three short
+        # keyword queries, and ranks and cuts its excerpts against both.
+        "search_angles": {"type": "array", "items": {"type": "string"}},
+        "search_objective": {"type": "string"},
         "must_establish": {"type": "array", "items": {"type": "string"}},
         "recency_days": {"type": "integer"},
         "structure": {"type": "string", "enum": list(PICKABLE_STRUCTURES)},
@@ -724,7 +786,8 @@ BRIEF_SCHEMA = {
         },
     },
     "required": ["intent", "subject", "why_now", "why_now_confidence",
-                 "search_query", "search_fallback", "must_establish",
+                 "search_query", "search_fallback", "search_angles",
+                 "search_objective", "must_establish",
                  "recency_days", "structure", "cautions", "live_domain",
                  "outcome_dependent", "place", "title", "category",
                  "pronounce"],
@@ -847,6 +910,24 @@ Work out:
   interest rate decision". It should be hard for this one to return nothing at
   all. Never identical to the first, and never so broad it is a different
   subject.
+- **search_angles** - one or two more keyword queries for the same thing,
+  sent beside search_query in the same request: three to six words each,
+  worded the way a *different* report of it would be headlined - the box
+  score rather than the recap, the filing rather than the coverage, the
+  person's name rather than the team's ("Jalen Hurts touchdowns Giants",
+  "Eagles Giants box score"). Never the broader search, never a question,
+  never a repeat of search_query.
+- **search_objective** - one or two sentences telling the search engine what
+  this search is for, read on its own with nothing else: the resolved subject;
+  for anything recent, **the moment as dates** worked out from the current time
+  above ("the Eagles-Giants game played on or about Sunday 11 October 2026",
+  never "last night"); what a useful source contains; and the kind of source
+  that answers it best (a league's own site, a wire report, a company filing,
+  a central bank's statement, the town's own paper, an explainer from a
+  university or a manufacturer) and what does not (previews, opinion,
+  fantasy advice, a simulated or video-game season). Never a result - you have
+  not looked anything up - and never the listener's own words: write it as
+  a researcher briefing a colleague.
 - **must_establish** - the two to four things the evidence has to contain for
   this episode to work. Short noun phrases, not sentences. These are checked
   against what comes back, so make them things a report would actually say.
@@ -1004,6 +1085,9 @@ async def understand(query: str, minutes: int = DEFAULT_MINUTES, context: str = 
         why_now_confidence=str(data.get("why_now_confidence", "")),
         search_query=str(data.get("search_query", "")),
         search_fallback=str(data.get("search_fallback", "")),
+        search_angles=[str(a) for a in (data.get("search_angles") or [])
+                       if isinstance(a, str)],
+        search_objective=str(data.get("search_objective", "") or ""),
         must_establish=list(data.get("must_establish") or []),
         recency_days=data.get("recency_days", 0),
         structure=str(data.get("structure", "")),

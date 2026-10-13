@@ -18724,3 +18724,60 @@ flag. Only their dashboard or support can say which.
 
 Tests: `tests/test_score_guard_259.py` (new); `tests/conftest.py` resets
 `ACCOUNT_REFUSAL` and `CARD`.
+
+## 260. EI writes Parallel's inputs: an objective and two or three queries
+
+The owner (10.13), with a screenshot of the five test requests in Parallel's
+playground: tune EI so Parallel gets the best information it can, and later
+do the same for the other providers. The five showed what §258 left behind:
+one keyword query, and an objective composed in code as "Recent, dated
+reporting about <subject> that establishes: ..." - which told the evergreen
+heat-pump question to want recent reporting, and named no date, no kind of
+source and nothing to avoid.
+
+Parallel's SDK (`parallel-web` 1.3.5, `client_search_params.py`) says what it
+reads: `search_queries` are "concise keyword search queries, 3-6 words each
+... provide 2-3 for best results"; `objective` is "the underlying question or
+goal ... self-contained with enough context to understand the intent".
+
+**What changed.**
+
+* The brief has two more fields, written in the same EI call (no second
+  call): `search_angles`, one or two more 3-6 word queries worded the way a
+  *different* report would be headlined (the box score beside the recap, the
+  player beside the team), and `search_objective`, one or two sentences a
+  researcher would brief a colleague with - the resolved subject, **the
+  moment as dates** worked out from the listener's clock, what a useful
+  source contains, which kind of source answers it (league site, wire,
+  filing, central bank statement, the town's paper, a university explainer)
+  and which does not (previews, opinion, fantasy, simulated seasons).
+* `research.objective_for` takes EI's objective and adds, in code, what the
+  request already enforces: "A useful source establishes: ..." from
+  `must_establish`, and "Only sources published on or after <after_date>"
+  when there is a window. With no window the date line is left off, and the
+  fallback template says "Reliable reporting or explanation", not "Recent".
+  The second look, which drops the window, drops the line too.
+* Parallel's request carries the precise query and the angles together
+  (`PARALLEL_MAX_QUERIES` = 3), one request at one request's price. Angles
+  go only beside the string they were written for (`research.queries_for`):
+  the broader retry, a wider rung and a town's own query get none.
+* The gate holds each angle to the subject (the question, the resolved
+  search or the subject - an angle may rightly name the quarterback the
+  question only implies), drops repeats, caps them at two and at 80
+  characters, and clips the objective at 600. A search that drifted takes
+  its angles and objective with it. A named slot ("Sunday Night Football")
+  is put into every angle and the objective, as it already was into both
+  searches.
+* `write.py` prints the angles and the objective Parallel was sent;
+  `tools/ei_eval.py` records them.
+
+**The cost.** EI writes perhaps 60-100 more output tokens, in front of the
+first word on search only (myFAM, DailyFAM and Explore build their briefs
+before the tap). Not measured: there is no key here.
+
+**Not done here.** Perplexity (also takes a list of queries) and the other
+providers; `client_model` and `exclude_domains`, which Parallel accepts but
+whose effect could not be checked without a key. Whether this beats §258's
+one query is for `tools/ei_eval.py` and `tools/compare_search.py` with a key.
+
+Tests: `tests/test_parallel_inputs_260.py` (new).

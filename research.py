@@ -115,6 +115,9 @@ PARALLEL_MAX_DOMAINS = 200
 #: How long one Parallel search query may be. Its SDK asks for 3-6 words;
 #: a hard ceiling is reported at about 200 characters (unverified).
 PARALLEL_MAX_QUERY_CHARS = 200
+#: How many queries one Parallel request carries: the precise search and
+#: EI's angles (§260). Its guidance is two or three for best results.
+PARALLEL_MAX_QUERIES = 3
 
 
 # --------------------------------------------------------------------------
@@ -635,8 +638,8 @@ def _cutoff(recency_days: int) -> Optional[datetime]:
 
 
 def _search_parallel(query: str, num_results: int, recency_days: int = 0,
-                     include_domains: tuple = (), objective: str = ""
-                     ) -> tuple[list, float]:
+                     include_domains: tuple = (), objective: str = "",
+                     extra_queries: tuple = ()) -> tuple[list, float]:
     """One Parallel search: (results, dollars). Raises on any failure."""
     key = _key("parallel")
     if not key:
@@ -659,7 +662,12 @@ def _search_parallel(query: str, num_results: int, recency_days: int = 0,
     body: dict = {
         # Parallel wants short keyword queries; a raw question (EI off, or no
         # `retrieval` in the brief) is cut rather than sent whole.
-        "search_queries": [_clip(query, PARALLEL_MAX_QUERY_CHARS)],
+        # EI's other wordings ride along (§260): Parallel asks for two or
+        # three, and one request with three is still one request's price.
+        "search_queries": list(dict.fromkeys(
+            _clip(q, PARALLEL_MAX_QUERY_CHARS)
+            for q in (query, *extra_queries) if str(q or "").strip()
+        ))[:PARALLEL_MAX_QUERIES],
         # Always named: Parallel defaults to `advanced` ($5/1k, seconds)
         # when it is omitted.
         "mode": settings.parallel_mode,
@@ -733,19 +741,60 @@ def _search_exa(query: str, num_results: int, recency_days: int = 0,
             float(cost) if cost is not None else COST_PER_SEARCH)
 
 
-def objective_for(brief) -> str:
+def objective_for(brief, recency_days: Optional[int] = None) -> str:
     """What Parallel is told the search is for, from the brief - never the
     listener's own words, which the consent notice does not send to a
-    search vendor. "" without a brief."""
+    search vendor. "" without a brief.
+
+    **EI's own objective first** (§260): Parallel reads it as the question
+    behind the search and ranks and cuts its excerpts against it, so it is
+    written by the call that resolved the subject, with the moment in dates
+    and the kind of source that answers it. The date the window opens and
+    what must be established are added here, in code, because they are
+    facts the request already enforces - and the window's line is left off
+    when there is none, so an evergreen question is never told to want
+    "recent, dated reporting". `recency_days` defaults to the brief's;
+    the second look, which drops the window, passes 0.
+    """
+    if brief is None:
+        return ""
+    days = int(getattr(brief, "recency_days", 0) or 0) \
+        if recency_days is None else int(recency_days or 0)
     subject = str(getattr(brief, "subject", "") or "").strip()
+    written = " ".join(str(getattr(brief, "search_objective", "") or "").split())
     wanted = [str(w).strip() for w in (getattr(brief, "must_establish", None) or [])
               if str(w).strip()]
-    if not subject and not wanted:
+    if not written and not subject and not wanted:
         return ""
-    text = f"Recent, dated reporting about {subject or 'this subject'}"
-    if wanted:
-        text += " that establishes: " + "; ".join(wanted[:4])
-    return text + "."
+    if written:
+        text = written if written[-1] in ".!?" else written + "."
+        if wanted:
+            text += " A useful source establishes: " + "; ".join(wanted[:4]) + "."
+    else:
+        kind = "Recent, dated reporting" if days else "Reliable reporting or explanation"
+        text = f"{kind} about {subject or 'this subject'}"
+        if wanted:
+            text += " that establishes: " + "; ".join(wanted[:4])
+        text += "."
+    cutoff = _cutoff(days)
+    if cutoff is not None:
+        text += (f" Only sources published on or after "
+                 f"{cutoff.strftime('%Y-%m-%d')} answer this.")
+    return text
+
+
+def queries_for(query: str, brief) -> tuple:
+    """The other wordings sent beside `query` (§260) - EI's `search_angles`,
+    and only when `query` is the precise search they were written beside.
+    A broader retry, a wider rung or a town's own query asks something else,
+    and gets no angles meant for a different string."""
+    if brief is None:
+        return ()
+    retrieval = str(getattr(brief, "retrieval", "") or "").strip().lower()
+    if not retrieval or (query or "").strip().lower() != retrieval:
+        return ()
+    return tuple(a for a in (getattr(brief, "search_angles", None) or [])
+                 if str(a).strip() and str(a).strip().lower() != retrieval)
 
 
 def build_packet(results, packet_sources: int, highlights_per_source: int,
@@ -879,8 +928,8 @@ def _retrieve_blocking(query: str, num_results: int, packet_sources: int,
                        highlights_per_source: int, search_type: str,
                        recency_days: int = 0, live_domain: str = "",
                        include_domains: tuple = (), must_name: str = "",
-                       backend: str = "exa", objective: str = ""
-                       ) -> Packet:
+                       backend: str = "exa", objective: str = "",
+                       extra_queries: tuple = ()) -> Packet:
     """One web search, ranked, packed and costed.
 
     `recency_days` becomes the backend's after-date filter, which is the
@@ -894,7 +943,8 @@ def _retrieve_blocking(query: str, num_results: int, packet_sources: int,
     try:
         if backend == "parallel":
             returned, cost = _search_parallel(query, num_results, recency_days,
-                                              include_domains, objective)
+                                              include_domains, objective,
+                                              extra_queries)
         elif backend == "perplexity":
             returned, cost = _search_perplexity(query, num_results, recency_days,
                                                 include_domains, objective)
@@ -1058,9 +1108,10 @@ async def retrieve(query: str, backend: Optional[str] = None,
     highlights_per_source = int(
         overrides.get("highlights_per_source", settings.exa_highlights_per_source))
     search_type = str(overrides.get("search_type", DEFAULT_SEARCH_TYPE))
-    objective = str(overrides.get("objective", "") or objective_for(brief))
     recency_days = int(overrides.get(
         "recency_days", getattr(brief, "recency_days", 0) or 0))
+    written = str(overrides.get("objective", "") or "")
+    objective = written or objective_for(brief, recency_days)
     must_establish = list(overrides.get(
         "must_establish", getattr(brief, "must_establish", []) or []))
 
@@ -1072,7 +1123,8 @@ async def retrieve(query: str, backend: Optional[str] = None,
     packet = await asyncio.to_thread(
         _retrieve_blocking, query, num_results, packet_sources,
         highlights_per_source, search_type, recency_days, live_domain,
-        include_domains, must_name, chosen, objective)
+        include_domains, must_name, chosen, objective,
+        queries_for(query, brief))
 
     covered, missing = packet_covers(packet.context, must_establish)
     packet.missing = list(missing)
@@ -1103,7 +1155,7 @@ async def retrieve(query: str, backend: Optional[str] = None,
         second = await _second_look(broader, num_results, packet_sources,
                                     highlights_per_source, search_type,
                                     live_domain, include_domains, must_name,
-                                    other, objective)
+                                    other, written or objective_for(brief, 0))
         if second is not None:
             _, second_missing = packet_covers(second.context, must_establish)
             # Keep whichever packet answers more of the brief; on a tie keep
