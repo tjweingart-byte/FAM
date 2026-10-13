@@ -118,6 +118,9 @@ async def main() -> int:
         print(f"    why now     {brief.why_now or '-'} ({brief.why_now_confidence})")
         print(f"    searched    {brief.retrieval!r}"
               f"{f' · last {brief.recency_days}d' if brief.recency_days else ' · no window'}")
+        for angle in brief.search_angles:
+            print(f"    and         {angle!r}")
+        print(f"    objective   {research.objective_for(brief)}")
         if brief.broader:
             print(f"    if empty    {brief.broader!r}")
         if brief.must_establish:

@@ -273,6 +273,7 @@
   call that speaks carries no tools at all**, and a packet from Exa or GDELT
   (plus a live fact) is the only way evidence reaches the writer.
 <!-- rule:ei-before-search -->
+> **Current (PROBLEMS.md §259):** the brief also writes what the search engine reads - Parallel gets EI's `search_objective` (the subject, the moment as dates, which sources answer it), with `must_establish` and the window's opening date added in code, and the precise query plus up to two `search_angles` in one request. Evergreen questions are never told to want recent reporting.
 - **Something decides what to search for, before the search.** *(PROBLEMS.md
   §82.)* `episode_intelligence.py` runs one model call between the typed
   question and Exa and produces a `Brief`: intent, resolved subject, a why-now
