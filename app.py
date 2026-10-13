@@ -198,8 +198,9 @@ async def _verify_small_models() -> None:
     `_verify_credentials` checks `settings.model`. Any call configured onto
     another model - by default the brief (`EI_MODEL`, §261) and the photo
     check (`IMAGE_CHECK_MODEL`, §225), both on Haiku 5.5, while the
-    composer, placer and thumbnails follow `MODEL` (§249) - is checked here once the key is known good, so an account
-    that cannot use it is said at boot rather than discovered per call. A
+    composer, placer and thumbnails follow `MODEL` (§249) - is checked here
+    once the key is known good, so an account that cannot use it is said
+    at boot rather than discovered per call. A
     model that fails is reported in `/api/health` (`credentials.models`)
     and the log; nothing else changes, because every one of those calls
     already falls back on its own.

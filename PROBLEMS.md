@@ -18835,5 +18835,17 @@ a key, run it against the same prompts on Sonnet:
     python tools/ei_eval.py
     EI_MODEL=claude-sonnet-5 EI_EFFORT=low python tools/ei_eval.py
 
+**Review, before merging into Main.** A second pass over the diff found
+nothing that changes behaviour beyond the two defaults: the request is the
+same call §227 ran on Haiku in production (structured output, `effort`,
+`stop_reason` checks), at a level Haiku 5.5 accepts; metering already prices
+the brief at its own model's rates, so prefetch's dollar budget sees the
+cheaper brief without a change; `/api/health` → `episode_intelligence`
+reports `model` and `effort`. Two over-long lines were reflowed. The deploy
+needs nothing in `render.yaml`, which sets neither setting - but a value left
+on the Render dashboard (`EI_MODEL` or `EI_EFFORT`) would silently keep the
+old brief, so check there after the merge.
+
 Tests: `tests/test_ei_haiku_261.py` (new), `tests/test_small_model_227.py`
-(the brief no longer follows `MODEL`).
+(the brief no longer follows `MODEL`), `tests/test_episode_intelligence.py`
+(medium effort).

@@ -70,8 +70,8 @@ pays a cold start (boot plus a ~10 s model load). **The owner's decision on
 **Today:** `claude-sonnet-5` ($2 in / $10 out per million tokens) for the
 writer, the tile composer, the category placer and thumbnails (§249); the
 brief (at medium effort, §261) and the photo check (§225) are on Haiku 5.5.
-About $0.03 per new episode, $0 per replay. Prompt caching on the writer's instructions and
-batch pricing on both editions are **on (§179)**.
+About $0.03 per new episode, $0 per replay. Prompt caching on the writer's
+instructions and batch pricing on both editions are **on (§179)**.
 
 | When | Trigger | Action | Cost change |
 |---|---|---|---|
