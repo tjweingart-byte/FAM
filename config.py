@@ -1105,8 +1105,6 @@ class Settings:
     # itself over the whole allowance, and a lookup borrows from later sweeps.
     # Raise it if lookups are refused late in the day (/admin shows it).
     api_sports_lookup_reserve: float = _env_float("API_SPORTS_LOOKUP_RESERVE", 0.0)
-    sportsdataio_key: str = field(
-        default_factory=lambda: os.environ.get("SPORTSDATAIO_KEY", "").strip())
     finnhub_key: str = field(
         default_factory=lambda: os.environ.get("FINNHUB_KEY", "").strip())
     # Which plan each licensed provider is on, as bought on its dashboard
@@ -1119,8 +1117,6 @@ class Settings:
         default_factory=lambda: os.environ.get("GNEWS_PLAN", "free").strip().lower())
     finnhub_plan: str = field(
         default_factory=lambda: os.environ.get("FINNHUB_PLAN", "free").strip().lower())
-    alpha_vantage_key: str = field(
-        default_factory=lambda: os.environ.get("ALPHA_VANTAGE_KEY", "").strip())
     ap_elections_key: str = field(
         default_factory=lambda: os.environ.get("AP_ELECTIONS_KEY", "").strip())
     ddhq_key: str = field(

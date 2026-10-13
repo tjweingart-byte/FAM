@@ -151,8 +151,8 @@ MOST_PLAYED_WINDOW = 24 * 3600
 
 #: No constant names the live feeds "What you missed last week" refuses, on
 #: purpose. The owner named Polymarket, Finnhub and API-Sports; the rule is
-#: every `provenance.LIVE` attribution, because SportsDataIO and Alpha Vantage
-#: are the same kind of feed and a name list is what misses the next one. A
+#: every `provenance.LIVE` attribution, because any feed added later is the
+#: same kind and a name list is what misses the next one. A
 #: price, a score or a market line from four days ago replayed as though it
 #: were news is the stale-fact failure LIVE_FACTS.md is built against.
 

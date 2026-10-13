@@ -144,7 +144,7 @@ FAM_ENVIRONMENT = (
     "GDELT_EXPORT_WAIT_SECONDS", "GDELT_EXPORT_RETRY_SECONDS",
     "GNEWS_PLAN", "FINNHUB_PLAN",
     "BOOT_STAGGER_SECONDS",
-    "API_SPORTS_KEY", "API_SPORTS_SPORT", "SPORTSDATAIO_KEY", "FINNHUB_KEY", "ALPHA_VANTAGE_KEY",
+    "API_SPORTS_KEY", "API_SPORTS_SPORT", "FINNHUB_KEY",
     "AP_ELECTIONS_KEY", "DDHQ_KEY", "POLYMARKET_BASE",
     # Prefetch: whether episodes are written before anybody asks, how much is
     # paid in advance and what the day's ceiling is. A developer with

@@ -18781,3 +18781,29 @@ whose effect could not be checked without a key. Whether this beats §258's
 one query is for `tools/ei_eval.py` and `tools/compare_search.py` with a key.
 
 Tests: `tests/test_parallel_inputs_260.py` (new).
+
+## 261. SportsDataIO and Alpha Vantage are removed
+
+The owner (13/10) asked for both adapters to come out. Neither ever had a key
+on either service: SportsDataIO was the sales-gated upgrade for NFL player
+stats (§178 listed it among the options for injuries and lineups, still an
+open decision), and Alpha Vantage was the fallback for when Finnhub's
+personal-use terms would not fit. API-Sports is now the only sports provider
+and Finnhub the only markets provider. A monetised FAM pays for Finnhub's
+commercial plan (`FINNHUB_PLAN=commercial`, §207) rather than switching.
+
+Gone: `SportsDataIOSource`, `AlphaVantageSource` and `_nfl_season` in
+`live_sources.py`; their `BUILDERS` entries; `sportsdataio_key` and
+`alpha_vantage_key` in `config.py`; both keys from `.env.example`,
+`spend_guard.py` and `tests/conftest.py`; their rows in `LIVE_FACTS.md` and
+`PROVIDER_ROLLOUT.md`; their names in the privacy policy's list of services.
+
+A deployment still set to `LIVE_SPORTS_PROVIDER=sportsdataio` or
+`LIVE_MARKETS_PROVIDER=alpha-vantage` is not silently served nothing: the
+existing unknown-provider path in `live_sources.install` names the setting,
+lists the providers this build knows, and says no live data will be available
+for that domain (`[failures-visible]`).
+
+Tests: the two SportsDataIO tests and both parametrised rows in
+`tests/test_live_providers.py` and the `api.sportsdata.io` row in
+`tests/test_provider_usage_179.py` went with the code.
