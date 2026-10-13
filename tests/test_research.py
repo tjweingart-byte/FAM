@@ -258,7 +258,7 @@ def test_the_claude_backend_is_gone_and_says_so():
     rather than being refused as though it had made a typo."""
     assert "claude" not in RESEARCH_BACKENDS
     # Perplexity is a search vendor's index, not a model searching (§258).
-    assert research.FALLBACK_RUNGS == ("perplexity", "gdelt")
+    assert research.FALLBACK_RUNGS == ("perplexity", "exa", "gdelt")
     for name in ("retrieve_with_claude", "shape_claude_packet",
                  "research_client", "CLAUDE_RESEARCH_SYSTEM"):
         assert not hasattr(research, name), f"research.{name} is still here"

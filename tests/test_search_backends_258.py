@@ -198,7 +198,7 @@ def test_the_second_look_goes_to_perplexity_without_the_window(wire, monkeypatch
     assert [r["url"] for r in sent] == [research.PARALLEL_URL,
                                         research.PERPLEXITY_URL]
     assert "search_after_date_filter" not in sent[1]["body"]
-    assert sent[1]["body"]["query"] == "Eagles season", "not the broader query"
+    assert sent[1]["body"]["query"] == "Eagles season", "the second look asks the broader query"
     assert packet.retried and packet.backend == "perplexity"
     assert packet.tried == ["parallel", "perplexity"]
     assert packet.cost == pytest.approx(0.002), "both searches are paid for"
@@ -235,6 +235,55 @@ def test_the_ladder_is_parallel_then_perplexity_then_gdelt(wire, monkeypatch):
     assert research.ladder() == ["parallel", "perplexity", "gdelt"]
 
 
+def test_exa_still_researches_while_its_key_is_kept(wire, monkeypatch):
+    """A deploy that lands before the new keys are set must not lose research:
+    with only EXA_API_KEY, Exa is the rung that serves."""
+    use(monkeypatch, research_backend="parallel")
+    monkeypatch.setattr(research, "_rung_available", lambda rung: rung == "exa")
+    assert research.ladder() == ["parallel", "exa"]
+
+
+def test_the_local_rung_falls_to_perplexity_when_parallel_cannot_serve(
+        wire, monkeypatch):
+    """The town's outlets are still searched with only one search key."""
+    sent, _ = wire
+    monkeypatch.delenv("PARALLEL_API_KEY")
+    import credentials
+
+    credentials.reset()
+    use(monkeypatch, research_backend="parallel")
+    seen = {}
+
+    async def research_local(place, brief=None, exa=None):
+        seen["packet"] = await exa("San Anselmo council", ("marinij.com",), "")
+        return types.SimpleNamespace(packet=seen["packet"], gap=False,
+                                     attempts=[], as_dict=lambda: {})
+
+    import local_news
+    import places
+
+    async def resolve(text):
+        return None
+
+    monkeypatch.setattr(local_news, "research_local", research_local)
+    monkeypatch.setattr(places, "resolve", resolve)
+    monkeypatch.setattr(sg, "settings", dataclasses.replace(
+        sg.settings, weather=False))
+    generator = sg.ScriptGenerator.__new__(sg.ScriptGenerator)
+    plan = dataclasses.replace(plan_episode("san anselmo news", 2, search=True),
+                               brief=brief(place="San Anselmo, CA"))
+    asyncio.run(generator._research_local(plan, ScriptNotes(), "San Anselmo, CA"))
+    assert [r["url"] for r in sent] == [research.PERPLEXITY_URL]
+    assert seen["packet"].backend == "perplexity"
+
+
+def test_a_long_question_is_cut_for_parallel(wire, monkeypatch):
+    sent, _ = wire
+    use(monkeypatch, research_backend="parallel")
+    asyncio.run(research.retrieve("why " * 200, brief=brief()))
+    assert len(sent[0]["body"]["search_queries"][0]) <= research.PARALLEL_MAX_QUERY_CHARS + 3
+
+
 def test_a_parallel_outage_falls_to_perplexity_and_says_so(wire, monkeypatch):
     sent, replies = wire
     replies[research.PARALLEL_URL] = [RuntimeError("502 from parallel")]
@@ -249,7 +298,8 @@ def test_a_parallel_outage_falls_to_perplexity_and_says_so(wire, monkeypatch):
     assert notes.research["fell_back_from"] == "parallel"
     assert notes.research["rungs"][:2] == ["parallel", "perplexity"]
     # The failed vendor is counted as a failure on /admin.
-    assert provider_usage.report()[1]["provider"] == "parallel"
+    row = [r for r in provider_usage.report() if r["provider"] == "parallel"][0]
+    assert row["failed_today"] >= 1, row
 
 
 def test_a_rung_that_ran_as_the_second_look_is_not_asked_again(wire, monkeypatch):
@@ -287,6 +337,18 @@ def test_every_paid_search_is_metered(wire, monkeypatch):
 def test_a_value_that_is_not_a_choice_is_refused(field_name, value):
     with pytest.raises(ValueError):
         dataclasses.replace(config.settings, **{field_name: value})
+
+
+@pytest.mark.parametrize("name, attr, default", [
+    ("RESEARCH_SECOND_LOOK", "research_second_look", "perplexity"),
+    ("PARALLEL_MODE", "parallel_mode", "fast"),
+    ("PERPLEXITY_SEARCH_TYPE", "perplexity_search_type", "fast"),
+])
+def test_an_empty_setting_is_its_default_not_a_crash(monkeypatch, name, attr,
+                                                     default):
+    """A key added in a dashboard with no value must not stop the server."""
+    monkeypatch.setenv(name, "")
+    assert getattr(config.Settings(), attr) == default
 
 
 def test_staging_removes_both_keys():

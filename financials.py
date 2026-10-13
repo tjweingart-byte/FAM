@@ -218,9 +218,11 @@ def catalogue() -> list[dict]:
              "Recorded per episode in metering.db (exa_usd, every paid search)",
              ledger="exa"),
         _row(DATA, "Exa", "Search API (replaced, §258)",
-             "Kept selectable to compare against Parallel; unused by default",
-             "Pay as you go, ~$0.015/search", "Not in use", 0, "/month",
-             "Remove EXA_API_KEY once the comparison is done"),
+             "Kept selectable to compare against Parallel, and a rung below "
+             "Perplexity while its key is set",
+             "Pay as you go, ~$0.015/search",
+             "In use" if _setting("research_backend") == "exa" else "Fallback only",
+             0, "/month", "Remove EXA_API_KEY once the comparison is done"),
     ]
 
     gnews_plan = str(_setting("gnews_plan", "free") or "free")

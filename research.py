@@ -112,6 +112,9 @@ PERPLEXITY_MAX_RESULTS = 20
 PERPLEXITY_MAX_DOMAINS = 20
 #: Parallel's allow-list ceiling (include plus exclude, combined).
 PARALLEL_MAX_DOMAINS = 200
+#: How long one Parallel search query may be. Its SDK asks for 3-6 words;
+#: a hard ceiling is reported at about 200 characters (unverified).
+PARALLEL_MAX_QUERY_CHARS = 200
 
 
 # --------------------------------------------------------------------------
@@ -654,7 +657,9 @@ def _search_parallel(query: str, num_results: int, recency_days: int = 0,
     if policy:
         advanced["source_policy"] = policy
     body: dict = {
-        "search_queries": [query],
+        # Parallel wants short keyword queries; a raw question (EI off, or no
+        # `retrieval` in the brief) is cut rather than sent whole.
+        "search_queries": [_clip(query, PARALLEL_MAX_QUERY_CHARS)],
         # Always named: Parallel defaults to `advanced` ($5/1k, seconds)
         # when it is omitted.
         "mode": settings.parallel_mode,
@@ -1243,7 +1248,11 @@ async def retrieve_with_gdelt(query: str, brief=None, recency_days: int = 0
 #: the search backends, GDELT and the live providers (API-Sports, Finnhub,
 #: Polymarket), and nowhere else. A question that finds nothing on any index
 #: is still written (§256 deleted the §109 refusal).
-FALLBACK_RUNGS = ("perplexity", "gdelt")
+#:
+#: **Exa sits between them while it is kept for comparison**: a deploy that
+#: arrives before the new keys are set still researches on the old one, and
+#: `ladder()` drops it the day `EXA_API_KEY` is removed.
+FALLBACK_RUNGS = ("perplexity", "exa", "gdelt")
 
 
 def second_look_backend(primary: str) -> str:

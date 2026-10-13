@@ -434,7 +434,7 @@ class Settings:
     # way, so a deployment with only one search key loses nothing.
     research_second_look: str = field(
         default_factory=lambda: os.environ.get(
-            "RESEARCH_SECOND_LOOK", "perplexity").strip().lower())
+            "RESEARCH_SECOND_LOOK", "").strip().lower() or "perplexity")
     # How long one search request may take before it counts as failed and
     # the ladder moves on. A search sits in front of the first word.
     search_timeout_seconds: float = _env_float("SEARCH_TIMEOUT_SECONDS", 8.0)
@@ -442,14 +442,15 @@ class Settings:
     # `turbo` is faster and `basic`/`advanced` cost $5/1k. Always sent:
     # Parallel defaults to `advanced` when it is omitted.
     parallel_mode: str = field(
-        default_factory=lambda: os.environ.get("PARALLEL_MODE", "fast").strip().lower())
+        default_factory=lambda: os.environ.get(
+            "PARALLEL_MODE", "").strip().lower() or "fast")
     # The most excerpt text Parallel returns per page, cut into passages.
     parallel_chars_per_result: int = _env_int("PARALLEL_CHARS_PER_RESULT", 1500)
     # Perplexity's search type (`fast` at $1/1k, `web` at $5/1k) and how much
     # of each page it returns.
     perplexity_search_type: str = field(
         default_factory=lambda: os.environ.get(
-            "PERPLEXITY_SEARCH_TYPE", "fast").strip().lower())
+            "PERPLEXITY_SEARCH_TYPE", "").strip().lower() or "fast")
     perplexity_tokens_per_page: int = _env_int("PERPLEXITY_TOKENS_PER_PAGE", 512)
     # How long one passage is when a page's excerpt text is cut up - about
     # the size of one of Exa's highlights.

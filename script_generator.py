@@ -1550,22 +1550,32 @@ class ScriptGenerator:
         spent: list = []
 
         async def exa(query: str, domains: tuple, must_name: str):
-            # The configured web backend on the known outlets (§194; Parallel
-            # since §258) - never GDELT, which is off this path entirely.
-            backend = settings.research_backend
-            if backend not in research_mod.WEB_BACKENDS \
-                    or not research_mod.backend_available(backend):
-                return None
-            try:
-                packet = await research_mod.retrieve(
-                    query, backend=backend, brief=plan.brief,
-                    include_domains=domains, must_name=must_name)
-            except Exception:  # noqa: BLE001 - see `_retrieve`
-                log.warning("the local %s rung failed for %r", backend, query,
-                            exc_info=True)
-                return None
-            spent.append(packet)
-            return packet
+            # A web search on the known outlets (§194; Parallel since §258),
+            # down the same web backends the ladder would use when one cannot
+            # serve - never GDELT, which is off this path entirely.
+            backends = [b for b in research_mod.ladder(settings.research_backend)
+                        if b in research_mod.WEB_BACKENDS]
+            tried: list = []
+            last = None
+            for backend in backends:
+                # One that already ran as the last one's second look would
+                # only be asked the same thing again.
+                if backend in tried:
+                    continue
+                try:
+                    packet = await research_mod.retrieve(
+                        query, backend=backend, brief=plan.brief,
+                        include_domains=domains, must_name=must_name)
+                except Exception:  # noqa: BLE001 - see `_retrieve`
+                    log.warning("the local %s rung failed for %r", backend,
+                                query, exc_info=True)
+                    continue
+                spent.append(packet)
+                tried.extend(packet.tried)
+                last = packet
+                if packet:
+                    return packet
+            return last
 
         forecast = None
         if place.located and settings.weather:
