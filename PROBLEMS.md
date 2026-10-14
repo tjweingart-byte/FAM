@@ -18849,3 +18849,34 @@ old brief, so check there after the merge.
 Tests: `tests/test_ei_haiku_261.py` (new), `tests/test_small_model_227.py`
 (the brief no longer follows `MODEL`), `tests/test_episode_intelligence.py`
 (medium effort).
+
+## 262. A playlist goes past an episode that fails to play
+
+**Reported (10.13):** a myFAM playlist of eight played two episodes, then the
+third went through the loading steps and nothing played; the playlist was over.
+
+**Cause.** §134 made a playlist a queue that advances from an episode's *end*
+(`mixOnEnd` → `advanceMix`). A failure never reaches that path: an error from
+`/api/audio` and the 45-second give-up in `generate` both go to
+`onGenerationFailed`, which toasted and left `mixPlay` where it was. So one
+episode that would not play - a slow or failed write, a voice that did not
+answer, one refused stream - ended the playlist without saying so. Which of
+those it was on 10.13 is not knowable from here (no production logs).
+
+**Fix.** `mixItemFailed` (index.html): a playlist episode that fails is named
+in a toast and the next one starts. Two failures in a row, or no connection,
+end the playlist and say so - the next would fail the same way. A quota or
+account refusal ends the queue before its screen, since every later episode
+would be refused too. Smoke: "A playlist goes past an episode that fails".
+
+**Diagnosed, not yet changed** (each touches a settled rule, so put to the
+owner first): the 10.13 market episodes (Nasdaq, Oracle, Meta) and the 10.10
+airshow episode. Markets: `MAX_AGE_SECONDS["markets"]` is 300s against the
+quote's own timestamp, so after the close every Finnhub quote is withheld as
+stale - always so at the 05:00 DailyFAM edition - and Finnhub declares itself
+20 minutes delayed, which never passes 300s; `/quote` cannot answer a move on
+a named date; the recency window is a vendor hint only and the thin-packet
+retry drops it (window 0), so a March 2025 article can win. Airshow: EI sends
+"its events" to `place`, the local ladder replaces the general one, its web
+rung restricts `include_domains` to outlets `_learn` filed from earlier
+results (hoodline.com), and "names the place" is the only relevance test.
