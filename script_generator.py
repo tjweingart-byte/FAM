@@ -27,6 +27,7 @@ import credentials
 import episode_intelligence
 import pronunciation
 import live_facts
+import live_routing
 import score_guard
 import metering
 import prefetch
@@ -1834,6 +1835,9 @@ class ScriptGenerator:
             for attached in provenance_mod.from_attachments(plan.attachments):
                 notes.provenance.add(attached)
             _publish_sources(notes)
+        # Which live provider this episode was routed to and what it said
+        # (§264), one row for /admin. In memory; written off this path.
+        live_routing.record(plan.query, plan.brief, plan.live)
         return plan
 
     async def stream_sentences(

@@ -18916,3 +18916,35 @@ them. `render.yaml` now declares `SMTP_HOST`, `SMTP_USERNAME`,
 so the dashboard asks; once they are filled the link appears, emails a
 6-digit code, and the code plus a new password changes it. The link stays
 undrawn without mail (`no-dead-controls`). Staging keeps none (`spend_guard`).
+
+## 264. Which live provider each episode was routed to, on /admin
+
+The owner (10.14): episodes seemed to lean on Parallel/Perplexity alone for
+questions the live providers exist for. Every episode is searched; a provider
+(API-Sports, Finnhub, Polymarket, weather) is asked **beside** the search only
+when the brief names a `live_domain`, and the brief is a model's judgement -
+nothing in code routes. So a missing scoreboard has four causes that looked
+identical from outside: the brief named no domain; EI degraded, so there was
+no brief to name one (`fallback_brief`); a provider was asked and answered
+`no_entity` / `timeout` / `not_configured` / `stale` (`live_facts.OUTCOMES`);
+or it answered. `live_facts.lookup` knew which, per provider, and kept it only
+on the episode's notes and a log line.
+
+`live_routing.py` keeps one row per written episode (`prepare` records it,
+in memory, flushed by a background thread like `provider_usage`): the question,
+the brief's subject, intent and domain, whether EI degraded and why, the
+lookup's outcome and every provider attempt, and a verdict - `answered`,
+`routed, no answer`, `not routed`, `not routed, EI degraded`. A not-routed row
+is also marked `suspect`, in code and without a request, when it names a team
+in a league catalogue this server already holds, a named broadcast slot, or a
+market word - a pointer for whoever reads the page, never a route. No listener
+id; 14 days kept (`LIVE_ROUTING_DB`, `live_routing.db`). `/admin`'s Outside
+services page draws the totals, routed/answered per domain, the commonest
+reasons a routed episode had no answer, the suspect rows and the newest 40.
+Cached replays and prefetched scripts write no row (neither runs a lookup).
+
+This only measures. What to change follows from which verdict dominates:
+`not routed` + `suspect` → routing (the brief's examples, or a code floor
+that asks a provider when its own catalogue confirms the subject); `routed,
+no answer` with `no_entity` → matching (`resolve` reads only
+`brief.subject`; `sport_for` falls back to `API_SPORTS_SPORT`).

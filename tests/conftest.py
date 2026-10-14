@@ -211,6 +211,7 @@ DATA_ENVIRONMENT = (
     "MYFAM_DB", "PREFS_DB", "QUOTAS_DB", "SAVED_DB", "SHARES_DB", "SOCIAL_DB",
     "VOICE_REGISTRY_DB", "TRENDING_BANK_DB", "FEEDBACK_DB", "PROVIDER_USAGE_DB",
     "LOCAL_NEWS_DB", "GDELT_EXPORT_DB", "CONSENT_DB", "MODERATION_DB",
+    "LIVE_ROUTING_DB",
 )
 
 #: Tier limits. Read by `entitlements.py` rather than `config.py`, so the
@@ -522,6 +523,19 @@ def isolated_provider_usage(tmp_path, monkeypatch):
     provider_usage.reset()
     yield
     provider_usage.reset()
+
+
+@pytest.fixture(autouse=True)
+def isolated_live_routing(tmp_path, monkeypatch):
+    """The per-episode routing rows (§264), per test: every episode a test
+    writes records one, which must not land in the project root."""
+    import live_routing
+
+    monkeypatch.setenv("LIVE_ROUTING_DB",
+                       str(tmp_path / "stores" / "live_routing.db"))
+    live_routing.reset()
+    yield
+    live_routing.reset()
 
 
 @pytest.fixture(autouse=True)

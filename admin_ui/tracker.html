@@ -259,6 +259,11 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
       <p class="sub">Every request that went out to each data service, counted where it was sent (a cached answer is never counted; a refused one is). Days are UTC, when API-Sports and GNews reset. The limit is today's; in parentheses, what the next paid plan raises it to. API-Sports is billed per sport, so each sport it serves has a row of its own under it, with its plan and what API-Sports itself last reported left. When to buy each is in <b>docs/SCALING_TIMELINE.md</b>.</p>
       <div id="providers"></div>
     </section>
+    <section class="card section" id="routingCard">
+      <h2>Live routing, per written episode</h2>
+      <p class="sub">Every episode is searched; a live provider (API-Sports, Finnhub, Polymarket, weather) is asked beside the search only when the brief names a live domain. Each written episode is one of: <b>answered</b> (a provider's facts reached the writer), <b>routed, no answer</b> (asked, and why not), <b>not routed</b> (the brief named no domain) or <b>not routed, EI degraded</b> (there was no brief). <b>Suspect</b> marks a not-routed question that names a team this server has a catalogue for, a named broadcast slot or a market word - worth a look, never a route. Last 7 days; cached replays and prefetched scripts write no row.</p>
+      <div id="routing"></div>
+    </section>
 
     </div>
 
@@ -512,6 +517,37 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
       '<th>7-day average</th><th>Limit (next plan)</th></tr></thead><tbody>' + body + '</tbody></table></div>';
   }
 
+  // ---------------------------------------------------------- live routing
+  function drawRouting(r) {
+    if (!r || !r.episodes) { $("routing").innerHTML = '<p class="sub">No episodes written in the last ' + ((r && r.days) || 7) + ' days.</p>'; return; }
+    var t = r.totals || {};
+    var kp = ["answered", "routed, no answer", "not routed", "not routed, EI degraded"].map(function (k) {
+      return '<span class="chip" style="cursor:default">' + esc(k) + ' <b>' + Number(t[k] || 0).toLocaleString() + '</b></span>';
+    }).join(" ") + ' <span class="chip" style="cursor:default">suspect <b>' + Number(r.suspects || 0).toLocaleString() + '</b></span>';
+    var doms = Object.keys(r.domains || {}).map(function (d) {
+      var x = r.domains[d];
+      return '<tr><td>' + esc(d) + '</td><td class="n">' + x.routed + '</td><td class="n">' + x.answered + '</td></tr>';
+    }).join("");
+    var why = (r.no_answer_reasons || []).map(function (w) {
+      return '<tr><td title="' + esc(w.why) + '">' + esc(w.why) + '</td><td class="n">' + w.count + '</td></tr>';
+    }).join("");
+    function rows(list) {
+      return '<div class="tbl" style="max-height:340px"><table><thead><tr><th>When</th><th>Question</th><th>Brief subject</th><th>Domain</th><th>Verdict</th><th>Providers</th><th>Suspect</th></tr></thead><tbody>' +
+        list.map(function (e) {
+          var tried = (e.attempts || []).map(function (a) { return a[0] + ': ' + a[1] + (a[2] && a[1] !== 'facts' ? ' (' + a[2] + ')' : ''); }).join('; ') ||
+            (e.degraded_why ? 'EI: ' + e.degraded_why : '');
+          return '<tr><td>' + esc(new Date(e.at * 1000).toLocaleString()) + '</td><td title="' + esc(e.query) + '">' + esc(e.query) +
+            '</td><td title="' + esc(e.subject) + '">' + esc(e.subject) + '</td><td>' + esc(e.domain || '-') + '</td><td>' + esc(e.verdict) +
+            '</td><td title="' + esc(tried) + '">' + esc(tried) + '</td><td>' + esc(e.suspect || '') + '</td></tr>';
+        }).join("") + '</tbody></table></div>';
+    }
+    $("routing").innerHTML = '<p>' + kp + '</p>' +
+      (doms ? '<div class="tbl"><table><thead><tr><th>Domain</th><th>Routed</th><th>Answered</th></tr></thead><tbody>' + doms + '</tbody></table></div>' : '') +
+      (why ? '<h3 style="margin-top:12px">Why routed episodes had no answer</h3><div class="tbl"><table><thead><tr><th>Domain - outcome: first provider\'s reason</th><th>Episodes</th></tr></thead><tbody>' + why + '</tbody></table></div>' : '') +
+      ((r.recent_suspects || []).length ? '<h3 style="margin-top:12px">Not routed, but suspect</h3>' + rows(r.recent_suspects) : '') +
+      '<h3 style="margin-top:12px">Newest episodes</h3>' + rows(r.recent || []);
+  }
+
   // ---------------------------------------------------------------- stores
   function drawStores(stores) {
     $("stores").innerHTML = stores.map(function (s) {
@@ -648,6 +684,7 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
       drawChart(s.signups);
       drawRecent(s.recent_accounts);
       drawProviders(s.providers);
+      drawRouting(s.routing);
       $("searches").innerHTML = table(s.top_searches, { short: true });
       if (!chipsDrawn) {
         $("chips").innerHTML = (s.suggestions || []).slice(0, 10).map(function (q) {

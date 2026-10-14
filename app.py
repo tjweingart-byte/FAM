@@ -1029,6 +1029,16 @@ def _database_report() -> list[dict]:
                            provider_usage.store().path))
     except Exception:  # pragma: no cover - a report is never load-bearing
         pass
+    # Live routing per written episode (§264). Created by the first episode
+    # written, and reported once it exists, like the provider counts above.
+    try:
+        import live_routing
+
+        if live_routing.exists():
+            stores.append(("live routing", "LIVE_ROUTING_DB",
+                           live_routing.store().path))
+    except Exception:  # pragma: no cover - a report is never load-bearing
+        pass
     # Local news outlets, their stories and resolved places (§194). Created
     # by the collector's first sweep, and reported once it exists, like the
     # provider counts above.
