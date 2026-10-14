@@ -18850,7 +18850,39 @@ Tests: `tests/test_ei_haiku_261.py` (new), `tests/test_small_model_227.py`
 (the brief no longer follows `MODEL`), `tests/test_episode_intelligence.py`
 (medium effort).
 
-## 262. The first loading step, the playlist skip, and where "Forgot password?" went
+## 262. SportsDataIO and Alpha Vantage are removed
+
+The owner (13/10) asked for both adapters to come out. Neither ever had a key
+on either service: SportsDataIO was the sales-gated upgrade for NFL player
+stats (§178 listed it among the options for injuries and lineups, still an
+open decision), and Alpha Vantage was the fallback for when Finnhub's
+personal-use terms would not fit. API-Sports is now the only sports provider
+and Finnhub the only markets provider. A monetised FAM pays for Finnhub's
+commercial plan (`FINNHUB_PLAN=commercial`, §207) rather than switching.
+
+Gone: `SportsDataIOSource`, `AlphaVantageSource` and `_nfl_season` in
+`live_sources.py`; their `BUILDERS` entries; `sportsdataio_key` and
+`alpha_vantage_key` in `config.py`; both keys from `.env.example`,
+`spend_guard.py` and `tests/conftest.py`; their rows in `LIVE_FACTS.md` and
+`PROVIDER_ROLLOUT.md`; their names in the privacy policy's list of services.
+
+A deployment still set to `LIVE_SPORTS_PROVIDER=sportsdataio` or
+`LIVE_MARKETS_PROVIDER=alpha-vantage` is not silently served nothing: the
+existing unknown-provider path in `live_sources.install` names the setting,
+lists the providers this build knows, and says no live data will be available
+for that domain (`[failures-visible]`).
+
+Tests: the two SportsDataIO tests and both parametrised rows in
+`tests/test_live_providers.py` and the `api.sportsdata.io` row in
+`tests/test_provider_usage_179.py` went with the code.
+
+**The contact address.** The same day the owner moved FAM's accounts to
+admin@familiarize.net, so `FAM_CONTACT_EMAIL` - the contact NWS requires on
+every request and the feed collector sends (`places.py`) - now defaults to
+that address in `config.py` and `.env.example` rather than a personal one. A
+value set in Render's environment still wins.
+
+## 263. The first loading step, the playlist skip, and where "Forgot password?" went
 
 Three things from the owner (10.14).
 

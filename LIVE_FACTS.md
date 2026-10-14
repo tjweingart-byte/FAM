@@ -324,9 +324,7 @@ recorded payloads in `tests/test_live_providers.py`. Run
 | domain | name | provider | credential | notes |
 |---|---|---|---|---|
 | sports | `api-sports` | API-Sports | `API_SPORTS_KEY` + `API_SPORTS_SPORT` | self-serve; **one API per sport** |
-| sports | `sportsdataio` | SportsDataIO | `SPORTSDATAIO_KEY` | player-level stats; sales-gated |
 | markets | `finnhub` | Finnhub | `FINNHUB_KEY` | ~20 min delayed; knows if the market is open |
-| markets | `alpha-vantage` | Alpha Vantage | `ALPHA_VANTAGE_KEY` | ~15 min delayed |
 | elections | `polymarket` | Polymarket | none | **forecast, never a result**; since §211 also asked beside every outcome-dependent question |
 | elections | `ap` | AP Elections | — | declared, unimplemented: quote-only |
 | elections | `ddhq` | Decision Desk HQ | — | declared, unimplemented: quote-only |
@@ -411,9 +409,7 @@ wrong tense.
 
     API-Sports     NS/TBD -> scheduled   1H/2H/HT/ET/P/LIVE -> in_progress
                    FT/AET/PEN -> final   anything else -> unknown
-    SportsDataIO   Scheduled -> scheduled  InProgress -> in_progress
-                   Final/F-OT -> final     anything else -> unknown
-    Finnhub / AV   always unknown — a price is not an event
+    Finnhub        always unknown — a price is not an event
     Polymarket     always unknown — a forecast is not an event
 
 
@@ -471,9 +467,3 @@ Its symbol resolution prefers ordinary common stock over the warrants, units
 and foreign listings that share a prefix, so "Apple" finds `AAPL` and not
 `AAPL.SW`. Never a guessed ticker: a hallucinated symbol returns somebody
 else's price, fresh and confident and wrong.
-
-## SportsDataIO's free key returns scrambled data
-
-Worth naming because it is a trap: a trial key *looks* like it works, and
-`verify()` cannot tell the difference. `diagnose()` says so whenever the key is
-set. Do not run it in production on a trial key.

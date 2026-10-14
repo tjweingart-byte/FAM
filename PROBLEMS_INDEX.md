@@ -265,4 +265,5 @@ and `limit` = Lines.
 | 18633 | 95 | 259. A score is never spoken unless the scoreboard said it |
 | 18728 | 57 | 260. EI writes Parallel's inputs: an objective and two or three queries |
 | 18785 | 68 | 261. The brief on Haiku 5.5 at medium effort |
-| 18853 | 35 | 262. The first loading step, the playlist skip, and where "Forgot password?" went |
+| 18853 | 32 | 262. SportsDataIO and Alpha Vantage are removed |
+| 18885 | 35 | 263. The first loading step, the playlist skip, and where "Forgot password?" went |

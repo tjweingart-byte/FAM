@@ -1,8 +1,8 @@
 """The real providers, against recorded payloads.
 
 **None of these has ever made a live request from this build.** The container's
-egress proxy blocks `api-sports.io`, `sportsdata.io`, `finnhub.io`,
-`alphavantage.co`, `gamma-api.polymarket.com` and `api.gdeltproject.org`, so
+egress proxy blocks `api-sports.io`, `finnhub.io`,
+`gamma-api.polymarket.com` and `api.gdeltproject.org`, so
 every shape here is written from the vendors' documentation and pinned against
 payloads recorded by hand.
 
@@ -161,33 +161,6 @@ def test_a_row_with_no_score_yields_nothing_rather_than_a_blank_fact():
         row, entity(), ls.SPORTS["american-football"]) is None
 
 
-def test_sportsdataio_reads_its_own_nfl_shape():
-    """A different vendor entirely - flat rows, PascalCase, its own statuses.
-    Subclassing the API-Sports adapter for it was wrong."""
-    row = {"GameKey": "1", "Status": "InProgress", "HomeTeam": "KC",
-           "AwayTeam": "DEN", "HomeScore": 21, "AwayScore": 7,
-           "Quarter": "3", "TimeRemaining": "10:04"}
-    facts = ls.SportsDataIOSource().to_facts(row, entity())
-    assert facts.status == live_facts.IN_PROGRESS
-    assert "KC lead DEN 21 to 7." == facts.facts[0]
-    assert "10:04" in facts.facts[1]
-
-
-def test_sportsdataio_warns_that_a_free_key_returns_scrambled_data(monkeypatch):
-    """A trap worth naming: a trial key looks like it works, and `verify`
-    cannot tell the difference - so the warning has to travel with the
-    configured state rather than waiting to be discovered."""
-    import dataclasses
-
-    import config
-
-    monkeypatch.setattr(ls, "settings", dataclasses.replace(
-        config.settings, sportsdataio_key="a-key"))
-    ok, why = ls.SportsDataIOSource().diagnose()
-    assert ok
-    assert "scrambled" in why
-
-
 # --------------------------------------------------------------------------
 # markets: honest about the delay
 # --------------------------------------------------------------------------
@@ -295,8 +268,7 @@ def test_quote_only_election_providers_say_what_they_would_need(name):
 # every provider is honest about not being configured
 # --------------------------------------------------------------------------
 @pytest.mark.parametrize("domain, name", [
-    ("sports", "api-sports"), ("sports", "sportsdataio"),
-    ("markets", "finnhub"), ("markets", "alpha-vantage"),
+    ("sports", "api-sports"), ("markets", "finnhub"),
 ])
 def test_a_provider_with_no_credential_refuses_and_says_which_one(domain, name):
     source = ls.BUILDERS[domain][name]()

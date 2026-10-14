@@ -289,7 +289,7 @@ owner.
 | Quality/relevance (see 2.8) | EI decides what to search **before** the search; recency filters, credibility sorts; dates computed in code; hostnames never in the packet | 82 | Current `[ei-before-search]`, `[recency-credibility]`. |
 | Live scores / prices | `live_facts.py` seam; closed status vocabulary; seven lookup outcomes; freshness enforced | 82, 88, 89 | Current `[live-facts]`. |
 | Sources visible to the listener | Provenance panel; hostnames never reach a prompt | 91 | Current `[provenance-all-paths]`. |
-| Providers | API-Sports, SportsDataIO, Finnhub, Alpha Vantage, Polymarket (always "a forecast, never an outcome"); AP Elections and Decision Desk declared, unimplemented | 91–93 | Current. |
+| Providers | API-Sports, SportsDataIO, Finnhub, Alpha Vantage, Polymarket (always "a forecast, never an outcome"); AP Elections and Decision Desk declared, unimplemented | 91–93 | SportsDataIO and Alpha Vantage removed at the owner's direction (§262); the rest current. |
 | Nothing written before retrieval | Both research backends retrieve before the writing call; the writing call has no tools | 108 | Current `[nothing-before-material]`. |
 | What if search comes back empty? | A ladder; a narrow refusal (`NoEvidence`) only for current-dependent questions, refunded (at the owner's direction) | 109, 110 | Current; ladder changed by §135. |
 | Owner's four instructions | **Claude's web search is deleted**; information comes only from Exa, GDELT, Polymarket, Finnhub and API-Sports; API-Sports uses the full daily allowance and shows **the score** (as a live line, never in a title); providers switched on by their keys | 135 | Current `[always-researched]`. Sweep cadence changed by §156, §191. |
