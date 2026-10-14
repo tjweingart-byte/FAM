@@ -269,3 +269,5 @@ and `limit` = Lines.
 | 18885 | 35 | 263. The first loading step, the playlist skip, and where "Forgot password?" went |
 | 18920 | 32 | 264. Which live provider each episode was routed to, on /admin |
 | 18952 | 87 | 265. The provider is asked when the question names what it covers |
+| 19039 | 22 | 266. A market price is fresh for an hour |
+| 19061 | 93 | 267. What the sweeps know reaches the writer, and survives a redeploy |

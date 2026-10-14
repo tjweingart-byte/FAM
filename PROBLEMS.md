@@ -19035,3 +19035,118 @@ answers both once this is deployed.
   routed question spends API-Sports requests - up to two resolves - from the
   same daily allowance as the sweep; asking only when somebody asked keeps it
   inside [sweep-on-demand].
+
+## 266. A market price is fresh for an hour
+
+From the owner (10.14): five minutes was too severe for what an episode does
+with a price. `live_facts.MAX_AGE_SECONDS["markets"]` is now 3600 s (was 300).
+
+The old limit withheld more than it seemed to. `FinnhubSource.to_facts` dates
+a quote by Finnhub's `t` (the last trade), and the free tier is declared
+twenty minutes delayed (`delayed_seconds = 1200`), so a delayed quote was past
+five minutes on arrival and the lookup came back `stale`. And because a quote's
+status is `unknown`, `FACT_CACHE` never holds one, so nothing softened it.
+
+What did not change: freshness is still checked in code before the writer
+sees anything, data past the limit is still withheld, and the live block still
+says when the price was observed and that it is delayed, so an hour-old price
+is said as an hour-old price (`live-facts`). Outside trading hours `t` is the
+close, hours old, so a quote is still withheld overnight and at weekends -
+unchanged, and a separate question (the close is the current fact then).
+
+`tests/test_live_facts.py::test_each_domain_has_its_own_clock` pinned
+sports < markets < elections; markets now outlasts elections, so the test pins
+sports below both and markets at an hour.
+
+## 267. What the sweeps know reaches the writer, and survives a redeploy
+
+From the owner (10.14), four changes, all about giving the writer more of what
+the background sweeps already hold without putting a second in front of the
+first word.
+
+**A closing price is current until the market reopens.** §266 gave a market
+price an hour, but Finnhub dates a quote by its last trade, so with the market
+closed (about 80% of the week) every quote was hours old and withheld. When
+Finnhub's own market status says *closed*, `LiveFacts.market_closed` is set and
+`is_fresh` allows `CLOSED_MARKET_MAX_AGE_SECONDS` (96 h - a holiday weekend is
+about 90 h; anything older is a symbol that stopped trading). The live block
+says "the market is CLOSED ... the last closing price ... cannot move until the
+market reopens", never "trading at". An unknown session keeps the hour; only
+the provider's "closed" buys the longer window.
+
+**The story sweep's watchlist quotes are reused on a tap.**
+`story_sources.FinnhubSignals` now keeps every watchlist quote it reads (moved
+or not) in `live_sources.QUOTES`, with the market session it was taken in - one
+extra `/stock/market-status` request per sweep. Only the watchlist
+(`FINNHUB_WATCHLIST`, default twelve symbols, at most 24), never the whole
+market. `FinnhubSource.fetch` uses a swept quote when the session is still the
+same (asked live: a quote swept at 9:25 is a close, at 9:35 it is not) and it
+passes the same freshness check; otherwise it asks for the quote as before. It
+saves no time - the live lookup already runs beside research - it saves
+requests and covers a slow Finnhub.
+
+**A tapped story brings its sweep with it** (`stories.context_for`, the one
+function that builds it). `Story` now keeps `observation` (the provider's
+measurement, written in code), `observed_at` and `urls` (the GDELT cluster's
+articles), refreshed every sweep. On a tap, `ScriptGenerator.research` looks
+the story up by the question the tile sent and:
+
+* searches **the outlets that ran the story's articles** beside the first
+  rung - same backend, query, window and objective, held to those hosts
+  (`research._story_look`). It is started before the main search and never
+  waited for: whatever it has when the main packet (with its retry and
+  cross-check) is done is merged, minus anything the main packet already
+  holds, and anything later is dropped. A failure is logged and costs nothing
+  (`_second_look`'s exemption, for its reason). This is the owner's "run the
+  story's top URLs alongside the normal search": the outlets rather than the
+  exact pages, because fetching named pages needs an extract API FAM does not
+  call today - the search finds the same reporting through a path already
+  measured;
+* appends **WHAT FAM MEASURED** to the packet, after the articles: dated in
+  code, no hostname, said to be a measurement and never an outcome, never
+  mentioned and never the opening. Left out past
+  `STORY_MEASUREMENT_MAX_AGE` (6 h) and when the packet is otherwise empty.
+
+`two-crowd-rows` says `why_now` is never evidence and a tap researches from
+scratch: both still hold. Research still runs from scratch; what is added is
+the provider's dated measurement and more articles, never the composer's
+title, angle or `why_now`. The packet is not in `key_for` and neither is this,
+for the reason evidence is not: the story is found by the question, so every
+request under one key finds the same story.
+
+**Guardrails on the brief** (the "trap": a brief that read the measurement
+would miss the brief prefetch warmed a sweep earlier, and each miss pays the
+whole EI call after the tap): EI never sees any of this - research reads it,
+after the tap; `context_for` is the one builder; the brief store stays keyed on
+the question and minutes alone; and `tests/test_story_pool_265.py` reads EI,
+prefetch and `understand` for any use of it and warms a story's brief, changes
+its measurement with a sweep and asserts the tap still takes the brief. The
+prefetch ledger's warmed-vs-taken counts (`note_brief_taken`) on
+`/api/health` are the number to watch.
+
+**The pool is kept on the disk** (`story_store.py`, `STORY_POOL_DB`, through
+`data_path` and `db.connect`, so Postgres when `DATABASE_URL` is set). Saved
+after every refresh - the pool and the `_FIRST_SEEN` / `_RETIRED` ledgers, two
+JSON rows - and restored at boot before the warming sweep (`stories.restore`):
+a redeploy keeps every story's clock and composed title, so yesterday's story
+is not new again (`tile-title-angle`) and nothing is composed twice. Only into
+an empty pool, only what has not expired; a wipe empties it
+(`stories.forget_saved`). A few hundred kilobytes on the existing 1 GB disk.
+
+**The pre-merge review (§267) found the measurement too wide, and fixed it.**
+`as_evidence` handed the writer *any* source's observation - a trending
+item's `why_now` (`two-crowd-rows`), a Polymarket price (`forecast-beside`),
+an API-Sports score up to six hours old (`live-facts` withholds one after two
+minutes). Only GDELT's sweep sets `Signal.measured` now (an outlet count and
+the headlines they ran, from the export copy), and nothing else ever reaches
+the packet; the outlets are still searched for every story. Also: an outlet
+search that finished too late is metered at the published rate (the request
+was sent); a missing key is not logged as a vendor outage; `thin_on` is
+recomputed after the outlets' passages are merged; a swept quote needs its own
+trade time and a sweep no older than two market intervals
+(`live_sources.usable_sweep`); the stale-withholding message names the
+closed-market limit when that applied. Not changed: with the session changed
+since the sweep, `FinnhubSource.fetch` asks the session and then the quote one
+after the other - only at the open and the close, and inside the patient
+episode budget §265 gave the lookup.
+

@@ -15,9 +15,10 @@ disagree, the code wins: fix this document.
 `DATABASE.md` is out of date in these places, and where it disagrees with this
 document, this document follows the code:
 
-- It says "fourteen" stores. There are **twenty-one** (§2). It is missing
+- It says "fourteen" stores. There are **twenty-three** (§2). It is missing
   `voice_bank.db`, `trending_bank.db`, `thumbnails.db`, `provider_usage.db`,
-  `feedback.db`, `local_news.db` and `gdelt_export.db` (§211).
+  `feedback.db`, `local_news.db`, `gdelt_export.db` (§211),
+  `live_routing.db` (§264) and `story_pool.db` (§267).
 - It says the `share` event is dropped. It is not; it is an event with a
   taste weight.
 - It says location is not stored. It is (`preferences.city/region/country`).
@@ -81,13 +82,13 @@ Render deployment; since §208 it pins every store there (21 since §211), as th
 
 ---
 
-## 2. The twenty-one SQLite databases
+## 2. The twenty-three SQLite databases
 
 - **Files:** each database is one SQLite file, opened through
   `paths.data_path(ENV_VAR, filename)`. Unset, the file lands in the project
   root. Some files are shared by more than one module (`mixes.db`,
   `local_news.db`, `accounts.db`).
-- **Location on Render:** the `Dockerfile` (lines 78-98) pins all twenty-one to
+- **Location on Render:** the `Dockerfile` (lines 78-98) pins all twenty-three to
   `/data`.
 - **Joins:** there are no cross-file foreign keys. `user_id` is joined in
   Python.
@@ -128,6 +129,7 @@ Render deployment; since §208 it pins every store there (21 since §211), as th
 | **thumbnails.db** (`THUMBNAILS_DB`) | `thumbnails.py` | `thumbnails`, `spend`, `runs` | No, shared | ≤ 1 picture per tree node | n/a · kept |
 | **local_news.db** (`LOCAL_NEWS_DB`) | `local_news.py`, `places.py`, `weather.py` | `outlets`, `items`, `demand`, `excluded`, `places`, `weather` | No (no `user_id`) | Items pruned daily past 30 days (`LOCAL_NEWS_KEEP_DAYS`, never below the 14-day window; each outlet keeps its newest 200, §208); demand 30 days | n/a · kept |
 | **gdelt_export.db** (`GDELT_EXPORT_DB`, §211) | `gdelt.py` (`ExportStore`) | `files`, `articles`, `theme_counts`, `domains`, `meta` | No, shared | 24 hours of GDELT's 15-minute export files (`GDELT_EXPORT_KEEP_HOURS`), ≤ 1,500 articles per file | n/a · kept |
+| **story_pool.db** (`STORY_POOL_DB`, §267) | `story_store.py` (`StoryStore`), `stories.py` | `snapshots` | No, shared | One row each for the pool (≤ 96 stories) and its ledgers, rewritten every refresh | n/a · **Emptied** |
 
 ### 2.2 Each store: what it holds, who writes it, who reads it
 
@@ -300,6 +302,12 @@ WebP **BLOB**), its scene, prompt, the checker's verdict, status; `spend`
 - `weather` (`weather.py`): one structured forecast snapshot per place,
   fetched on first ask and swept at 05:00 and 17:00 local time. US warnings
   are asked live, not stored.
+
+**story_pool.db** (`story_store.StoryStore`, §267): the live story pool and
+its ledgers (`_FIRST_SEEN`, `_RETIRED`), as two JSON rows in `snapshots`,
+rewritten after every refresh and read back at boot (`stories.restore`), so a
+redeploy keeps every story's clock and composed title. A wipe empties it
+(`stories.forget_saved`).
 
 **gdelt_export.db** (`gdelt.ExportStore`, §211): FAM's own copy of GDELT's
 15-minute GKG 2.1 export files, written by one background job (`gdelt.sync`,

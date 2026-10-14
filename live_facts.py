@@ -104,18 +104,28 @@ def normalise_status(value: object) -> str:
 
 #: How old a live fact may be and still be described as the state *now*,
 #: per domain, in seconds. Different clocks: a score changes every few seconds,
-#: a quote every second the market is open but a minute-old one is still
-#: honestly "around", and a vote count is published in batches an hour apart.
+#: a quote every second the market is open but an episode explains a move
+#: rather than quoting a ticker, so an hour-old price (said with its time and
+#: its delay) is still honest - an hour at the owner's direction (§266; it was
+#: five minutes, less than the free tier's declared twenty-minute delay) -
+#: and a vote count is published in batches an hour apart.
 #: One universal threshold would be wrong for at least two of the three.
 MAX_AGE_SECONDS = {
     "sports": 120.0,
-    "markets": 300.0,
+    "markets": 3600.0,
     "elections": 1800.0,
     # A place's forecast is swept twice a day (§194), and NWS may have issued
     # it a few hours before that; an observation inside it is checked
     # separately, at two hours, in `weather.render`.
     "weather": 18 * 3600.0,
 }
+
+#: How old a closing price may be while the provider says the market is
+#: closed (§267). A close holds until the next open, and the longest closure a
+#: US market has is a holiday weekend - Thursday's close to Monday's open is
+#: about 90 hours - so four days. Past it the quote is not the last close of
+#: an ordinary closure but a symbol that stopped trading, and is withheld.
+CLOSED_MARKET_MAX_AGE_SECONDS = 96 * 3600.0
 
 
 @dataclass(frozen=True)
@@ -197,6 +207,13 @@ class LiveFacts:
     #: a named constant rather than a string each provider spells for itself.
     kind: str = ""
     url: str = ""
+    #: The provider said the market is **closed** (§267). A closing price
+    #: cannot move until the next open, so it is the current price however
+    #: many hours ago the closing trade was - `is_fresh` holds it to
+    #: `CLOSED_MARKET_MAX_AGE_SECONDS` instead of the open-market hour, and
+    #: the prompt calls it the last close, never "trading at". Only a
+    #: provider's own session status sets it, never a clock FAM keeps.
+    market_closed: bool = False
 
     def __post_init__(self) -> None:
         self.status = normalise_status(self.status)
@@ -213,6 +230,8 @@ class LiveFacts:
         will be judged generously.
         """
         limit = MAX_AGE_SECONDS.get(self.domain)
+        if self.market_closed and self.domain == "markets":
+            limit = CLOSED_MARKET_MAX_AGE_SECONDS
         if limit is None:
             return True
         return self.age_seconds(now) <= limit
@@ -269,7 +288,15 @@ class LiveFacts:
         # feed described as current is the one failure mode this whole module
         # exists to prevent, so the delay is stated in the same breath as the
         # timestamp rather than left in a field nobody reads.
-        if self.delayed_seconds > 0:
+        if self.market_closed:
+            # A close is not a delayed price: nothing has moved since, so
+            # "may already have moved" would be false the other way (§267).
+            freshness = (
+                f"The market is CLOSED. This is the last closing price, set at "
+                f"{listener_clock.say(self.as_of)} - {self.age_phrase(now)} - "
+                f"and it cannot move until the market reopens. Give it as the "
+                f"most recent close, never as a price it is trading at now.")
+        elif self.delayed_seconds > 0:
             freshness = (
                 f"This provider is DELAYED by about "
                 f"{int(round(self.delayed_seconds / 60)) or 1} minute(s) by "
@@ -362,6 +389,7 @@ article about it. {freshness}{kind}
                 "as_of": self.as_of.isoformat(), "facts": list(self.facts),
                 "status": self.status, "url": self.url,
                 "delayed_seconds": self.delayed_seconds, "kind": self.kind,
+                "market_closed": self.market_closed,
                 "entity": self.entity.key if self.entity else ""}
 
 
@@ -821,8 +849,9 @@ async def _ask(source: LiveSource, brief, notes, deadline: float,
         return LiveLookup(
             domain, STALE, detail=(
                 f"{source.name} returned data {int(facts.age_seconds())}s old, "
-                f"past the {int(MAX_AGE_SECONDS.get(domain, 0))}s limit for "
-                f"{domain}"))
+                f"past the "
+                f"{int(CLOSED_MARKET_MAX_AGE_SECONDS if facts.market_closed else MAX_AGE_SECONDS.get(domain, 0))}"
+                f"s limit for {domain}"))
 
     FACT_CACHE.put(entity, facts)
     log.info("live facts: %s answered %s with %d fact(s), status=%s, as of %s",

@@ -314,6 +314,10 @@ async def _warm_stories() -> None:
     empty page.
     """
     try:
+        # What the last process held, first (§267): its stories keep their
+        # clocks and their composed titles, so a redeploy neither makes
+        # yesterday's story new again nor pays to compose it twice.
+        await asyncio.to_thread(stories_mod.restore)
         await stories_mod.refresh()
     except Exception:  # noqa: BLE001 - a browse page is never worth a failed boot
         log.exception("stories: the warming sweep failed; myFAM will serve its "
@@ -1056,6 +1060,16 @@ def _database_report() -> list[dict]:
         if gdelt_mod.exists():
             stores.append(("GDELT export copy", "GDELT_EXPORT_DB",
                            gdelt_mod.store().path))
+    except Exception:  # pragma: no cover - a report is never load-bearing
+        pass
+    # The saved story pool (§267). Created by the first refresh, and reported
+    # once it exists, like the stores above.
+    try:
+        import story_store
+
+        if story_store.exists():
+            stores.append(("story pool", "STORY_POOL_DB",
+                           story_store.store().path))
     except Exception:  # pragma: no cover - a report is never load-bearing
         pass
     try:

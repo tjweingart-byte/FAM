@@ -125,6 +125,83 @@ def test_a_quiet_market_produces_no_tiles_rather_than_dull_ones(monkeypatch):
     assert run(story_sources.FinnhubSignals().collect(8)) == []
 
 
+def test_the_sweep_keeps_every_watchlist_quote_for_a_tap(monkeypatch):
+    """§267: the sweep remembers each watchlist quote, moved or not, with the
+    session it was taken in - and only the watchlist, never the market."""
+    import live_sources
+
+    async def _json(url, headers, params, timeout):
+        if url.endswith("/stock/market-status"):
+            return {"isOpen": False}
+        return QUOTES.get(params.get("symbol"), {})
+
+    monkeypatch.setattr(story_sources, "_json", _json)
+    monkeypatch.setattr(live_sources, "QUOTES", {})
+    with_settings(monkeypatch, finnhub_key="k",
+                  finnhub_watchlist="NVDA,AAPL,XOM",
+                  stories_market_move_percent=3.0)
+    run(story_sources.FinnhubSignals().collect(8))
+    assert set(live_sources.QUOTES) == {"NVDA", "AAPL"}, (
+        "both readable quotes kept, the unreadable one not")
+    assert live_sources.swept_quote("aapl")["is_open"] is False
+
+
+def test_a_tap_uses_the_swept_quote_only_in_the_same_session(monkeypatch):
+    import asyncio
+    import time as _time
+    from datetime import datetime, timezone
+
+    import live_facts
+    import live_sources
+
+    asked = []
+
+    async def _json(url, headers, params, timeout):
+        asked.append(url.rsplit("/", 1)[-1])
+        return {"c": 300.0, "dp": 1.0,
+                "t": datetime.now(timezone.utc).timestamp()}
+
+    monkeypatch.setattr(live_sources, "_json", _json)
+    monkeypatch.setattr(live_sources, "QUOTES", {})
+    source = live_sources.FinnhubSource()
+    entity = live_facts.Entity(domain="markets", provider="Finnhub", id="AAPL",
+                               label="Apple")
+    live_sources.remember_quote(
+        "AAPL", {"c": 231.5, "dp": -1.0, "t": _time.time() - 17 * 3600}, False)
+
+    async def closed():
+        return False
+
+    monkeypatch.setattr(source, "market_open", closed)
+    facts = asyncio.run(source.fetch(entity))
+    assert asked == [], "a closed market's swept close needs no quote request"
+    assert facts.market_closed and "231.50" in " ".join(facts.facts)
+
+    async def opened():
+        return True
+
+    monkeypatch.setattr(source, "market_open", opened)
+    facts = asyncio.run(source.fetch(entity))
+    assert asked == ["quote"], "the session changed, so the quote is asked live"
+    assert "300.00" in " ".join(facts.facts)
+
+    # A swept quote too old to use even in its own session costs no round
+    # trip: the quote and the session are asked together, as before.
+    asked.clear()
+    live_sources.remember_quote(
+        "AAPL", {"c": 231.5, "dp": -1.0, "t": _time.time() - 3 * 3600}, True)
+    sessions = []
+
+    async def counted():
+        sessions.append(1)
+        return True
+
+    monkeypatch.setattr(source, "market_open", counted)
+    facts = asyncio.run(source.fetch(entity))
+    assert asked == ["quote"] and sessions == [1]
+    assert "300.00" in " ".join(facts.facts)
+
+
 def test_finnhub_without_a_key_is_off_and_says_which_key(monkeypatch):
     with_settings(monkeypatch, finnhub_key="")
     ok, why = story_sources.FinnhubSignals().diagnose()
@@ -579,3 +656,20 @@ def test_only_a_followed_league_becomes_a_tile(monkeypatch):
     rows = sports(monkeypatch, card=card)
     assert [r.subject for r in rows] == ["Chiefs vs Broncos"]
     assert rows[0].countries == (("united states", 1.0),)
+
+
+def test_a_swept_quote_needs_its_own_time_and_a_recent_sweep():
+    """§267 review: without a trade time `to_facts` would date it now and it
+    would never age; and a close kept through a weekend of failed sweeps is
+    not one a matching session vouches for."""
+    import time as _time
+
+    import live_sources
+
+    now = _time.time()
+    good = {"data": {"c": 1.0, "t": now - 60}, "is_open": False, "at": now - 60}
+    assert live_sources.usable_sweep(good, now)
+    assert not live_sources.usable_sweep({**good, "data": {"c": 1.0}}, now)
+    assert not live_sources.usable_sweep({**good, "is_open": None}, now)
+    assert not live_sources.usable_sweep({**good, "at": now - 3 * 86400}, now)
+    assert not live_sources.usable_sweep(None, now)

@@ -217,10 +217,18 @@ def test_data_too_old_for_its_domain_is_withheld_rather_than_relabelled(registry
 
 def test_each_domain_has_its_own_clock():
     """A score is stale in two minutes; a vote count published in hourly
-    batches is not. One universal threshold would be wrong for two of three."""
+    batches is not. One universal threshold would be wrong for two of three.
+    A market price keeps an hour (§266): an episode explains a move, and the
+    free tier's twenty-minute delay alone outlasted the old five minutes."""
     assert (live_facts.MAX_AGE_SECONDS["sports"]
-            < live_facts.MAX_AGE_SECONDS["markets"]
             < live_facts.MAX_AGE_SECONDS["elections"])
+    assert (live_facts.MAX_AGE_SECONDS["sports"]
+            < live_facts.MAX_AGE_SECONDS["markets"])
+    assert live_facts.MAX_AGE_SECONDS["markets"] == 3600.0
+    forty_minutes = datetime.now(timezone.utc) - timedelta(minutes=40)
+    assert facts(domain="markets", as_of=forty_minutes).is_fresh()
+    two_hours = datetime.now(timezone.utc) - timedelta(hours=2)
+    assert not facts(domain="markets", as_of=two_hours).is_fresh()
     ten_minutes = datetime.now(timezone.utc) - timedelta(minutes=10)
     assert not facts(domain="sports", as_of=ten_minutes).is_fresh()
     assert facts(domain="elections", as_of=ten_minutes).is_fresh()

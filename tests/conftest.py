@@ -212,7 +212,7 @@ DATA_ENVIRONMENT = (
     "MYFAM_DB", "PREFS_DB", "QUOTAS_DB", "SAVED_DB", "SHARES_DB", "SOCIAL_DB",
     "VOICE_REGISTRY_DB", "TRENDING_BANK_DB", "FEEDBACK_DB", "PROVIDER_USAGE_DB",
     "LOCAL_NEWS_DB", "GDELT_EXPORT_DB", "CONSENT_DB", "MODERATION_DB",
-    "LIVE_ROUTING_DB",
+    "LIVE_ROUTING_DB", "STORY_POOL_DB",
 )
 
 #: Tier limits. Read by `entitlements.py` rather than `config.py`, so the
@@ -573,6 +573,7 @@ def isolated_api_sports(monkeypatch):
     # §259: a refused account and the swept card are process-globals too.
     monkeypatch.setattr(live_sources, "ACCOUNT_REFUSAL", {})
     monkeypatch.setattr(live_sources, "CARD", {})
+    monkeypatch.setattr(live_sources, "QUOTES", {})
     import story_sources
 
     monkeypatch.setattr(story_sources, "SPORT_SWEPT_AT", {})
@@ -596,6 +597,20 @@ def isolated_gdelt_export(tmp_path, monkeypatch):
     yield
     gdelt_mod.reset_store()
     gdelt_mod.STATE.__init__()
+
+
+@pytest.fixture(autouse=True)
+def isolated_story_store(tmp_path, monkeypatch):
+    """The saved story pool (§267), per test - every refresh writes it, and
+    the suite must never write `story_pool.db` into the project root, nor
+    restore one test's pool into the next."""
+    import story_store
+
+    monkeypatch.setenv("STORY_POOL_DB",
+                       str(tmp_path / "stores" / "story_pool.db"))
+    story_store.reset_store()
+    yield
+    story_store.reset_store()
 
 
 @pytest.fixture(autouse=True)
