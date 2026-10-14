@@ -741,6 +741,49 @@ def _search_exa(query: str, num_results: int, recency_days: int = 0,
             float(cost) if cost is not None else COST_PER_SEARCH)
 
 
+#: **A floor on the search's window from the words of the request** (§266).
+#: "What happened today" searched with no window is how a well-ranked article
+#: from last year answers a question about this morning: credibility sorts
+#: inside the window, so with no window the best-sourced old report wins. A
+#: brief that degraded has no window at all, and a brief that called a "latest"
+#: question evergreen has none either. This puts a floor under the *search*
+#: only: `Brief.recency_days` is untouched, so how long the episode stays
+#: current is still decided by what it was built on and never by these words
+#: ([ttl-from-evidence]). A floor too narrow for the subject costs one more
+#: search - the second look drops the window - and never the episode.
+_DAY_WORDS = re.compile(
+    r"\b(today|today's|tonight|tonight's|yesterday|yesterday's|last night|"
+    r"this morning|this afternoon|this evening|right now)\b", re.I)
+_WEEK_WORDS = re.compile(
+    r"\b(this week|this weekend|latest|lately|these days|currently|so far)\b",
+    re.I)
+SEARCH_FLOOR_DAY_DAYS = 3
+SEARCH_FLOOR_WEEK_DAYS = 7
+
+
+def search_window(brief) -> int:
+    """The window the search uses: the brief's, or - when it has none - the
+    floor its request's words call for. Never read by the cache.
+
+    Not for a `teaching` brief: "today's stoic quote" asks for one good
+    example of a kind of thing, and a window would only make the search
+    for its substance come back thin (§149)."""
+    if brief is None:
+        return 0
+    days = int(getattr(brief, "recency_days", 0) or 0)
+    if days > 0:
+        return days
+    if getattr(brief, "intent", "") == "teaching" and \
+            not getattr(brief, "degraded", False):
+        return 0
+    words = str(getattr(brief, "query", "") or "")
+    if _DAY_WORDS.search(words):
+        return SEARCH_FLOOR_DAY_DAYS
+    if _WEEK_WORDS.search(words):
+        return SEARCH_FLOOR_WEEK_DAYS
+    return 0
+
+
 def objective_for(brief, recency_days: Optional[int] = None) -> str:
     """What Parallel is told the search is for, from the brief - never the
     listener's own words, which the consent notice does not send to a
@@ -1093,8 +1136,7 @@ async def retrieve(query: str, backend: Optional[str] = None,
     if chosen == "gdelt":
         packet = await retrieve_with_gdelt(
             query, brief=brief,
-            recency_days=int(overrides.get(
-                "recency_days", getattr(brief, "recency_days", 0) or 0)))
+            recency_days=int(overrides.get("recency_days", search_window(brief))))
         # The same sufficiency check every other rung runs. Skipping it left
         # `thin_on` empty on this backend, so a packet of headlines with no
         # passages under them reached the writer as though it answered the
@@ -1108,8 +1150,7 @@ async def retrieve(query: str, backend: Optional[str] = None,
     highlights_per_source = int(
         overrides.get("highlights_per_source", settings.exa_highlights_per_source))
     search_type = str(overrides.get("search_type", DEFAULT_SEARCH_TYPE))
-    recency_days = int(overrides.get(
-        "recency_days", getattr(brief, "recency_days", 0) or 0))
+    recency_days = int(overrides.get("recency_days", search_window(brief)))
     written = str(overrides.get("objective", "") or "")
     objective = written or objective_for(brief, recency_days)
     must_establish = list(overrides.get(

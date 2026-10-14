@@ -561,6 +561,11 @@ class ScriptNotes:
     #: stale by the tap (PROBLEMS.md §89) - and a brief that named no domain
     #: reached no provider before code could route one.
     prefetch: bool = False
+    #: True when nobody is waiting on this brief - prefetch and the DailyFAM
+    #: and Trending editions (§266) - so it may take
+    #: `EI_AHEAD_TIMEOUT_SECONDS` rather than the search path's 8 s. A
+    #: prefetch warm counts as ahead whether or not this is set.
+    ahead: bool = False
 
 
 async def _live_by(task, plan, domain: str, began: float):
@@ -1726,6 +1731,11 @@ class ScriptGenerator:
         # `covered` only when there is some, so a call for anything that is
         # not a later daily edition is exactly the call it always was.
         extra = {"covered": plan.covered} if plan.covered else {}
+        # Nobody waiting, more time (§266): only a listener in front of the
+        # first word is held to `EI_TIMEOUT_SECONDS`.
+        if notes is not None and (getattr(notes, "ahead", False)
+                                  or getattr(notes, "prefetch", False)):
+            extra["ahead"] = True
         brief = await episode_intelligence.understand(
             plan.query, plan.minutes, plan.context, notes, **extra)
         _publish_title(notes, brief)

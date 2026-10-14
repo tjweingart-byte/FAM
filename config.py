@@ -496,6 +496,26 @@ class Settings:
     # instead. A ceiling rather than a target: EI must degrade to the old
     # behaviour rather than become a new way for an episode to hang.
     ei_timeout_seconds: float = _env_float("EI_TIMEOUT_SECONDS", 8.0)
+    # **The same ceiling for a brief nobody is waiting on** (§266): myFAM's
+    # prefetch, the DailyFAM edition and the Trending edition build their
+    # briefs before any tap, and on Haiku at medium about half of them ran
+    # past the search path's 8 s and degraded to the raw query for no
+    # listener's benefit. Only the search path pays `EI_TIMEOUT_SECONDS`.
+    ei_ahead_timeout_seconds: float = _env_float("EI_AHEAD_TIMEOUT_SECONDS", 30.0)
+    # **The brief as two calls at once** (§266): one works out the request
+    # (intent, subject, window, cautions, domain, place), the other words
+    # the searches and names the episode. Each writes about half, so each
+    # finishes in about half the time, and they run side by side. `0` sends
+    # the one call every brief made before.
+    ei_split: bool = field(
+        default_factory=lambda: os.environ.get("EI_SPLIT", "1")
+        not in ("0", "false", "False", ""))
+    # **Worked example briefs in the brief's instructions** (§266), sent as
+    # one cacheable block with them. A smaller model follows an example
+    # better than a rule; `0` sends the instructions alone, for comparing.
+    ei_examples: bool = field(
+        default_factory=lambda: os.environ.get("EI_EXAMPLES", "1")
+        not in ("0", "false", "False", ""))
     # The window applied to a question about a moment when the brief names no
     # other. Two weeks is wide enough to catch a story that broke over a
     # weekend and narrow enough to keep an old well-ranked explainer out of the

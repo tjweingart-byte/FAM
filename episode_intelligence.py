@@ -49,6 +49,7 @@ import difflib
 import json
 import logging
 import re
+import time
 from dataclasses import dataclass, field
 
 import credentials
@@ -408,12 +409,6 @@ def clean_title(title: str, query: str) -> str:
 _OUTCOMES: "collections.Counter[str]" = collections.Counter()
 
 
-def _degrade(query: str, kind: str, reason: str) -> Brief:
-    """A model call that did not produce a brief: counted, then the fallback."""
-    _OUTCOMES[kind] += 1
-    return fallback_brief(query, reason)
-
-
 def fallback_brief(query: str, reason: str) -> Brief:
     """The brief FAM uses when EI could not produce one.
 
@@ -712,6 +707,25 @@ def gate(brief: Brief, query: str) -> Brief:
     if not brief.subject.strip():
         brief.subject = query.strip()
 
+    # **A team is not a town** (§266). "Did the Eagles win" named as
+    # Philadelphia sends the question down the local ladder, which keeps only
+    # what names the town (§194) - and a national story about a team reached
+    # the writer with no sources at all. When the question, or the subject
+    # and provider name it was resolved to, names a team in the league roster
+    # (`live_route.ROSTER`), it is about the team, never its city's news.
+    # Read from the resolved names too because the roster takes a nickname
+    # alone only where it means nothing else: "eagles" is a college's as well.
+    if brief.place:
+        import live_route
+
+        teams = live_route.teams_in(
+            " ".join([query, brief.subject, brief.live_entity]))
+        if teams:
+            problems.append(
+                f"place {brief.place!r} dropped: the question names "
+                f"{teams[0][1]}, a team, not a town's news")
+            brief.place = ""
+
     apply_named_slot(brief, query)
 
     if problems:
@@ -876,42 +890,7 @@ company called "General Automics" exists. Only where two real things are \
 equally near do you keep the listener's spelling and say so in cautions."""
 
 
-def build_ei_prompt(query: str, minutes: int, context: str = "",
-                    now: str = "", covered=()) -> str:
-    depth_name, depth_mix = depth_for(minutes)
-    follow_up = ""
-    if context:
-        follow_up = (
-            f"\nThis is a follow-up. They have already heard a briefing on: "
-            f"{context}\nThe search must find what is *new* relative to that, "
-            "not the same ground again.\n")
-    if covered:
-        # A daily episode's earlier editions
-        # (`daily_edition.with_earlier_editions`).
-        # Without them "a new one every day" is a promise nothing can keep:
-        # the same request on consecutive days is the same request, and the
-        # likeliest example is the likeliest example every morning.
-        follow_up += (
-            "\nThis is today's edition of an episode they get every day. "
-            "Earlier editions were called: "
-            + "; ".join(f'"{t}"' for t in covered)
-            + ".\nPick something different for today and aim the search at "
-            "it - a different example if they asked for a kind of thing, "
-            "what is new since then if it is news.\n")
-    return f"""Someone asked a briefing app this:
-
-<request>{query}</request>
-
-It is currently {now}.
-{follow_up}
-The episode will run about {minutes} minute{"s" if minutes != 1 else ""}, which
-is room for {depth_name}: {depth_mix}. Let that shape how much the search needs
-to find - a short episode needs the core established well, a long one needs the
-surrounding factors too.
-
-Work out:
-
-- **intent** - what job is being asked for.
+FIELD_GUIDE = """- **intent** - what job is being asked for.
 - **subject** - the entity or event, resolved and unambiguous. Expand what is
   abbreviated or implied, and correct what is misspelled ("general automics"
   is General Atomics), so that retrieval and writing agree on what this is
@@ -1017,6 +996,127 @@ Work out:
   nothing an English speaker already says right. Empty for most requests."""
 
 
+def _entries(guide: str) -> dict:
+    """`FIELD_GUIDE` cut at each "- **name**", in order, text unchanged."""
+    out: dict = {}
+    for chunk in re.split(r"\n(?=- \*\*)", guide.strip("\n")):
+        name = re.match(r"- \*\*([a-z_]+)\*\*", chunk).group(1)
+        out[name] = chunk
+    return out
+
+
+#: Each field's instructions, keyed by the field. `why_now` carries
+#: `why_now_confidence` with it, as the guide always has.
+FIELD_ENTRIES = _entries(FIELD_GUIDE)
+
+
+def field_guide(fields=None) -> str:
+    """The guide for these fields, or for all of them, joined as written."""
+    names = list(FIELD_ENTRIES) if fields is None else [
+        n for n in FIELD_ENTRIES if n in set(fields)]
+    return "\n".join(FIELD_ENTRIES[n] for n in names)
+
+
+# --------------------------------------------------------------------------
+# The brief as two calls at once (§266)
+# --------------------------------------------------------------------------
+#: **Two halves of one brief, asked at the same moment.** On Haiku at medium
+#: effort the one call wrote ~1,500 tokens of thinking and JSON, and at Haiku's
+#: rate that is 6-9 s - so about half the briefs passed the 8 s ceiling and
+#: searched the raw query (`since_boot` read 5 timeouts in 11, 10.14). Each
+#: half writes about half of that and they run side by side, so the brief takes
+#: about as long as the slower half. The cut is by what each needs to reason
+#: about, and neither reads the other:
+#:
+#: * **understand** - what the request is: the job, the resolved subject, why
+#:   now, what the evidence must contain, the window, the shape, the cautions,
+#:   which provider it turns on and under what name, whether the answer is a
+#:   result, and the town. Everything downstream that decides *how* the
+#:   episode is researched and written reads these.
+#: * **search** - the words: the precise and broader searches, the other
+#:   wordings, the objective a search engine reads, and the episode's title,
+#:   category and pronunciations.
+#:
+#: Each half resolves the subject for itself; the gate holds the searches to
+#: the question exactly as it held the one call's.
+PARTS = {
+    "understand": ("intent", "subject", "why_now", "must_establish",
+                   "recency_days", "structure", "cautions", "live_domain",
+                   "live_entity", "outcome_dependent", "place"),
+    "search": ("search_query", "search_fallback", "search_angles",
+               "search_objective", "title", "category", "pronounce"),
+}
+
+
+def _schema_for(fields) -> dict:
+    """`BRIEF_SCHEMA` cut to these fields - the same definitions, never a
+    second copy that could drift from the first."""
+    names = [n for n in BRIEF_SCHEMA["properties"]
+             if n in fields or (n == "why_now_confidence" and "why_now" in fields)]
+    return {
+        "type": "object",
+        "properties": {n: BRIEF_SCHEMA["properties"][n] for n in names},
+        "required": names,
+        "additionalProperties": False,
+    }
+
+
+UNDERSTAND_SCHEMA = _schema_for(PARTS["understand"])
+SEARCH_SCHEMA = _schema_for(PARTS["search"])
+
+#: What each call is asked to return. Written out so every schema FAM sends
+#: is one `tests/test_structured_output_schemas.py` can find and check.
+FORMATS = {
+    "whole": {"type": "json_schema", "schema": BRIEF_SCHEMA},
+    "understand": {"type": "json_schema", "schema": UNDERSTAND_SCHEMA},
+    "search": {"type": "json_schema", "schema": SEARCH_SCHEMA},
+}
+
+
+def build_ei_prompt(query: str, minutes: int, context: str = "",
+                    now: str = "", covered=(), fields=None) -> str:
+    """The brief's user turn: the request, the moment, and what to work out.
+
+    `fields` names the entries of `FIELD_GUIDE` to ask for, in its order;
+    `None` asks for all of them, which is the one-call brief's text exactly.
+    The two halves of a split brief each ask for their own (§266).
+    """
+    depth_name, depth_mix = depth_for(minutes)
+    follow_up = ""
+    if context:
+        follow_up = (
+            f"\nThis is a follow-up. They have already heard a briefing on: "
+            f"{context}\nThe search must find what is *new* relative to that, "
+            "not the same ground again.\n")
+    if covered:
+        # A daily episode's earlier editions
+        # (`daily_edition.with_earlier_editions`).
+        # Without them "a new one every day" is a promise nothing can keep:
+        # the same request on consecutive days is the same request, and the
+        # likeliest example is the likeliest example every morning.
+        follow_up += (
+            "\nThis is today's edition of an episode they get every day. "
+            "Earlier editions were called: "
+            + "; ".join(f'"{t}"' for t in covered)
+            + ".\nPick something different for today and aim the search at "
+            "it - a different example if they asked for a kind of thing, "
+            "what is new since then if it is news.\n")
+    return f"""Someone asked a briefing app this:
+
+<request>{query}</request>
+
+It is currently {now}.
+{follow_up}
+The episode will run about {minutes} minute{"s" if minutes != 1 else ""}, which
+is room for {depth_name}: {depth_mix}. Let that shape how much the search needs
+to find - a short episode needs the core established well, a long one needs the
+surrounding factors too.
+
+Work out:
+
+""" + field_guide(fields)
+
+
 def _pronounce_pairs(raw) -> list:
     """The model's `pronounce` list, cleaned to what `pronunciation` accepts."""
     out = []
@@ -1029,8 +1129,269 @@ def _pronounce_pairs(raw) -> list:
     return out
 
 
+#: **Worked examples, in the instructions' own cached block** (§266). A
+#: smaller model follows a finished example more closely than a rule, and the
+#: failures that reached listeners were ones an example shows at a glance: a
+#: window that matched the words of the request ("today" is days, "how does"
+#: is none), the bare name a provider lists, a caution about time, searches a
+#: report would be headlined with. Each is a whole brief, so both halves of a
+#: split brief read the same block and the cache holds one copy of it. None
+#: of them asserts a result, and every date in them is worked out from the
+#: moment the example names.
+EXAMPLE_BRIEFS = (
+    ("did the eagles win", "Monday 12 October 2026 at 08:10 EDT", 2, {
+        "intent": "recap",
+        "subject": "the Philadelphia Eagles' most recent NFL game, played on "
+                   "or about Sunday 11 October 2026",
+        "why_now": "an NFL Sunday has just been played and the Eagles were "
+                   "likely on it",
+        "why_now_confidence": "medium",
+        "search_query": "Philadelphia Eagles game result",
+        "search_fallback": "Philadelphia Eagles",
+        "search_angles": ["Eagles box score", "Jalen Hurts Eagles game"],
+        "search_objective": "The Philadelphia Eagles' NFL game played on or "
+                            "about Sunday 11 October 2026: the final score, "
+                            "the plays that decided it and what it does to "
+                            "their record. Best answered by a wire report, the "
+                            "NFL's own site or the team's; not previews, "
+                            "betting lines or fantasy advice.",
+        "must_establish": ["final score", "opponent", "deciding plays"],
+        "recency_days": 3,
+        "structure": "sports_recap",
+        "cautions": ["the game may not have been played or finished; state a "
+                     "result only if a source reports it as final",
+                     "work out the day of the game from the source dates - "
+                     "a Thursday game is not last night on a Monday"],
+        "live_domain": "sports",
+        "live_entity": "Philadelphia Eagles",
+        "outcome_dependent": True,
+        "place": "",
+        "title": "The Eagles' Latest Game and What Decided It",
+        "category": "NFL football",
+        "pronounce": [],
+    }),
+    ("nvda stock today", "Wednesday 14 October 2026 at 11:30 EDT", 2, {
+        "intent": "update",
+        "subject": "NVIDIA's share price on Wednesday 14 October 2026",
+        "why_now": "",
+        "why_now_confidence": "low",
+        "search_query": "NVIDIA stock price today",
+        "search_fallback": "NVIDIA shares",
+        "search_angles": ["NVDA shares move", "Nvidia stock analysts"],
+        "search_objective": "How NVIDIA (NASDAQ: NVDA) shares are trading on "
+                            "Wednesday 14 October 2026 and why: the move, the "
+                            "reason given for it and any company news behind "
+                            "it. Best answered by financial wires and market "
+                            "news; not long-term price targets, opinion or "
+                            "trading tips.",
+        "must_establish": ["share price move", "reason for the move"],
+        "recency_days": 2,
+        "structure": "business",
+        "cautions": ["the price moves through the day: give it as of when it "
+                     "was reported, and never as a close unless a source "
+                     "reports the close",
+                     "any figure recalled rather than reported is months old"],
+        "live_domain": "markets",
+        "live_entity": "NVIDIA",
+        "outcome_dependent": False,
+        "place": "",
+        "title": "Why Nvidia Shares Are Moving Today",
+        "category": "semiconductor stocks",
+        "pronounce": [],
+    }),
+    ("latest on shohei ohtani", "Tuesday 13 October 2026 at 19:05 PDT", 3, {
+        "intent": "update",
+        "subject": "Shohei Ohtani, the Los Angeles Dodgers' two-way player",
+        "why_now": "the MLB postseason is played in October",
+        "why_now_confidence": "medium",
+        "search_query": "Shohei Ohtani Dodgers news",
+        "search_fallback": "Shohei Ohtani",
+        "search_angles": ["Ohtani Dodgers playoff game",
+                          "Shohei Ohtani stats October 2026"],
+        "search_objective": "The newest reporting on Shohei Ohtani of the Los "
+                            "Angeles Dodgers in the week to Tuesday 13 October "
+                            "2026: his latest games, his health and his role. "
+                            "Best answered by wire reports, MLB's own site and "
+                            "Dodgers coverage; not fantasy advice, betting "
+                            "lines or reviews of earlier seasons.",
+        "must_establish": ["most recent game", "current status"],
+        "recency_days": 7,
+        "structure": "breaking",
+        "cautions": ["\"latest\" means the last week: earlier seasons are "
+                     "background, never the news",
+                     "whether the Dodgers are still playing comes from dated "
+                     "evidence, not from memory"],
+        "live_domain": "sports",
+        "live_entity": "Los Angeles Dodgers",
+        "outcome_dependent": False,
+        "place": "",
+        "title": "Shohei Ohtani's October So Far",
+        "category": "Major League Baseball",
+        "pronounce": [{"name": "Shohei", "say": "SHOH-hay"},
+                      {"name": "Ohtani", "say": "oh-TAH-nee"}],
+    }),
+    ("how do heat pumps work", "Friday 9 October 2026 at 12:00 BST", 4, {
+        "intent": "explainer",
+        "subject": "how air-source heat pumps heat and cool a home",
+        "why_now": "",
+        "why_now_confidence": "low",
+        "search_query": "how air source heat pumps work refrigerant cycle",
+        "search_fallback": "how heat pumps work",
+        "search_angles": ["heat pump cold weather efficiency",
+                          "heat pump versus gas boiler explained"],
+        "search_objective": "An explanation of how air-source heat pumps move "
+                            "heat into and out of a home: the refrigerant "
+                            "cycle, why they use less energy than resistance "
+                            "heating and how cold weather affects them. Best "
+                            "answered by an explainer from a university, an "
+                            "energy agency or a manufacturer; not installers' "
+                            "sales pages.",
+        "must_establish": ["refrigerant cycle", "efficiency against boilers",
+                           "cold-weather performance"],
+        "recency_days": 0,
+        "structure": "explainer",
+        "cautions": [],
+        "live_domain": "",
+        "live_entity": "",
+        "outcome_dependent": False,
+        "place": "",
+        "title": "How a Heat Pump Moves Heat Uphill",
+        "category": "home heating",
+        "pronounce": [],
+    }),
+)
+
+
+def examples_block() -> str:
+    """The worked examples as the instructions carry them."""
+    parts = ["\n\nWorked examples. They show the shape of a good brief - how "
+             "specific the searches are, how the window follows the words of "
+             "the request, how a caution is worded, which bare name a "
+             "scoreboard or a quote search lists. Nothing in them is a fact to "
+             "reuse: each was written before anything was looked up, at the "
+             "moment it names."]
+    for query, now, minutes, brief in EXAMPLE_BRIEFS:
+        parts.append(f"\n<example>\nRequest: {query}\nIt is currently {now}. "
+                     f"About {minutes} minutes.\nBrief: "
+                     f"{json.dumps(brief, ensure_ascii=False)}\n</example>")
+    return "".join(parts)
+
+
+def ei_system():
+    """The brief's `system`: its instructions and, unless `EI_EXAMPLES=0`, the
+    worked examples - one block, marked cacheable unless `PROMPT_CACHE=0`.
+
+    Byte-identical from call to call and shared by both halves of a split
+    brief, so after the first brief the instructions are read from the cache
+    (§266). Everything that varies - the request, the moment, the fields
+    asked for - is in the user turn after it.
+    """
+    text = EI_SYSTEM + (examples_block() if settings.ei_examples else "")
+    if not settings.prompt_cache:
+        return text
+    marker: dict = {"type": "ephemeral"}
+    if str(settings.prompt_cache_ttl or "").strip() == "1h":
+        marker["ttl"] = "1h"
+    return [{"type": "text", "text": text, "cache_control": marker}]
+
+
+#: How many recent briefs' wall-clock times each path keeps (§266).
+SECONDS_KEPT = 200
+#: Every brief's ending by path - `search` (a listener is waiting) or `ahead`
+#: (prefetch and the editions, built before any tap) - and how long each took
+#: from the moment it was asked to the moment the pipeline had it, degraded
+#: or not. `_OUTCOMES` stays the total. The per-path figures are what decide
+#: whether an effort level or a timeout is right for each.
+_BY_PATH: dict = {"search": collections.Counter(), "ahead": collections.Counter()}
+_SECONDS: dict = {"search": collections.deque(maxlen=SECONDS_KEPT),
+                  "ahead": collections.deque(maxlen=SECONDS_KEPT)}
+#: How each half of a split brief ended - or the one call, as `whole`.
+_PART_OUTCOMES: dict = {}
+
+
+def _count(kind: str, path: str) -> None:
+    _OUTCOMES[kind] += 1
+    _BY_PATH.setdefault(path, collections.Counter())[kind] += 1
+
+
+async def _ask(client, part: str, query: str, minutes: int, context: str,
+               now: str, covered: tuple, timeout: float, notes) -> tuple:
+    """One brief call: `(kind, data, reason)`, `kind` "ok" or why it failed.
+    Never raises."""
+    fields = None if part == "whole" else PARTS[part]
+    try:
+        response = await asyncio.wait_for(
+            client.messages.create(
+                model=settings.ei_model,
+                max_tokens=settings.ei_max_tokens,
+                system=ei_system(),
+                output_config={
+                    "effort": settings.ei_effort,
+                    "format": FORMATS[part],
+                },
+                messages=[{
+                    "role": "user",
+                    "content": build_ei_prompt(query, minutes, context, now,
+                                               covered, fields),
+                }],
+            ),
+            timeout=timeout,
+        )
+    except asyncio.TimeoutError:
+        return "timeout", None, f"EI did not answer within {timeout:g}s"
+    except Exception as exc:  # noqa: BLE001 - availability outranks diagnosis here
+        return "failed", None, f"EI call failed: {exc}"
+
+    if notes is not None:
+        notes.usage.add_model_call(settings.ei_model, getattr(response, "usage", None))
+
+    # `output_config.format` guarantees valid JSON in the first text block -
+    # but a refusal stops before any of that, and a refusal parsed as a brief
+    # would be a silent degradation rather than a visible one.
+    if getattr(response, "stop_reason", "") == "refusal":
+        return "refused", None, "EI declined the request"
+    # **A brief cut off by its own ceiling** (§248). The thinking and the
+    # JSON share `EI_MAX_TOKENS`, so a brief that thought for longer than the
+    # ceiling allowed stops mid-object and reads as unparseable - which used
+    # to be reported as "nothing readable", hiding that the cure is a setting.
+    if getattr(response, "stop_reason", "") == "max_tokens":
+        return ("out_of_room", None,
+                f"EI ran out of room at EI_MAX_TOKENS={settings.ei_max_tokens} "
+                "before the brief was finished")
+    try:
+        text = next(b.text for b in response.content if b.type == "text")
+        data = json.loads(text)
+        if not isinstance(data, dict):
+            raise ValueError("not an object")
+    except (StopIteration, AttributeError, ValueError, TypeError) as exc:
+        return "unreadable", None, f"EI returned nothing readable: {exc}"
+    return "ok", data, ""
+
+
+#: The fields the search half writes, which a brief keeps from it even when
+#: the other half failed and the brief is degraded (§266): a resolved search
+#: is worth having beside a raw-query brief, and the gate still holds it to
+#: the question.
+_SEARCH_FIELDS = PARTS["search"]
+
+
+def _search_fields(data: dict, query: str) -> dict:
+    """The search half's fields as `Brief` holds them."""
+    return {
+        "search_query": str(data.get("search_query", "")),
+        "search_fallback": str(data.get("search_fallback", "")),
+        "search_angles": [str(a) for a in (data.get("search_angles") or [])
+                          if isinstance(a, str)],
+        "search_objective": str(data.get("search_objective", "") or ""),
+        "title": clean_title(str(data.get("title", "")), query),
+        "category": " ".join(str(data.get("category", "") or "").split())[:80],
+        "pronounce": _pronounce_pairs(data.get("pronounce")),
+    }
+
+
 async def understand(query: str, minutes: int = DEFAULT_MINUTES, context: str = "",
-                     notes=None, now: str | None = None, covered=()) -> Brief:
+                     notes=None, now: str | None = None, covered=(),
+                     ahead: bool = False) -> Brief:
     """Work out what this request is, before anything is retrieved.
 
     Never raises. Every failure path returns `fallback_brief`, which searches
@@ -1041,6 +1402,17 @@ async def understand(query: str, minutes: int = DEFAULT_MINUTES, context: str = 
     real model call on the generation path and must land in the same usage
     total as the writing call, or a researched episode reports at less than it
     cost.
+
+    `ahead` is True for a brief nobody is waiting on - prefetch and the
+    editions - which may take `EI_AHEAD_TIMEOUT_SECONDS` rather than the
+    search path's `EI_TIMEOUT_SECONDS` (§266).
+
+    **Two calls at once unless `EI_SPLIT=0`** (§266, `PARTS`). The brief is
+    the understanding half's: when that half fails the brief is degraded,
+    as the one call's failure always made it, but keeps the search half's
+    wording if that half answered. When only the search half fails the brief
+    stands and the gate searches the question, as it does for any brief
+    without a search.
     """
     query = (query or "").strip()
     if not query:
@@ -1052,65 +1424,51 @@ async def understand(query: str, minutes: int = DEFAULT_MINUTES, context: str = 
     import listener_clock
 
     now = now or listener_clock.now_line()
+    path = "ahead" if ahead else "search"
+    timeout = float(settings.ei_ahead_timeout_seconds if ahead
+                    else settings.ei_timeout_seconds)
+    parts = ("understand", "search") if settings.ei_split else ("whole",)
+    started = time.monotonic()
 
     try:
         client = build_async_client(credentials.active("ANTHROPIC_API_KEY"))
-        response = await asyncio.wait_for(
-            client.messages.create(
-                model=settings.ei_model,
-                max_tokens=settings.ei_max_tokens,
-                system=EI_SYSTEM,
-                output_config={
-                    "effort": settings.ei_effort,
-                    "format": {"type": "json_schema", "schema": BRIEF_SCHEMA},
-                },
-                messages=[{
-                    "role": "user",
-                    "content": build_ei_prompt(query, minutes, context, now,
-                                               tuple(covered or ())),
-                }],
-            ),
-            timeout=settings.ei_timeout_seconds,
-        )
-    except asyncio.TimeoutError:
-        return _degrade(query, "timeout",
-                        f"EI did not answer within {settings.ei_timeout_seconds}s")
-    except Exception as exc:  # noqa: BLE001 - availability outranks diagnosis here
-        return _degrade(query, "failed", f"EI call failed: {exc}")
+    except Exception as exc:  # noqa: BLE001
+        answers = [("failed", None, f"EI call failed: {exc}")] * len(parts)
+    else:
+        answers = await asyncio.gather(*(
+            _ask(client, part, query, minutes, context, now,
+                 tuple(covered or ()), timeout, notes) for part in parts))
+    _SECONDS.setdefault(path, collections.deque(maxlen=SECONDS_KEPT)).append(
+        round(time.monotonic() - started, 3))
+    for part, (kind, _data, _why) in zip(parts, answers):
+        _PART_OUTCOMES.setdefault(part, collections.Counter())[kind] += 1
 
-    if notes is not None:
-        notes.usage.add_model_call(settings.ei_model, getattr(response, "usage", None))
+    head_kind, head, head_why = answers[0]
+    words: dict = {}
+    if len(parts) == 2:
+        search_kind, search, search_why = answers[1]
+        if search_kind == "ok":
+            words = _search_fields(search, query)
 
-    # `output_config.format` guarantees valid JSON in the first text block -
-    # but a refusal stops before any of that, and a refusal parsed as a brief
-    # would be a silent degradation rather than a visible one.
-    if getattr(response, "stop_reason", "") == "refusal":
-        return _degrade(query, "refused", "EI declined the request")
-    # **A brief cut off by its own ceiling** (§248). The thinking and the
-    # JSON share `EI_MAX_TOKENS`, so a brief that thought for longer than the
-    # ceiling allowed stops mid-object and reads as unparseable - which used
-    # to be reported as "nothing readable", hiding that the cure is a setting.
-    if getattr(response, "stop_reason", "") == "max_tokens":
-        return _degrade(query, "out_of_room",
-                        f"EI ran out of room at EI_MAX_TOKENS="
-                        f"{settings.ei_max_tokens} before the brief was finished")
-    try:
-        text = next(b.text for b in response.content if b.type == "text")
-        data = json.loads(text)
-    except (StopIteration, AttributeError, ValueError, TypeError) as exc:
-        return _degrade(query, "unreadable", f"EI returned nothing readable: {exc}")
+    if head_kind != "ok":
+        _count(head_kind, path)
+        brief = fallback_brief(query, head_why)
+        if words:
+            for name, value in words.items():
+                setattr(brief, name, value)
+            brief.notes.append("the search half answered; its searches are kept")
+            brief = gate(brief, query)
+        return brief
 
+    data = dict(head)
+    if len(parts) == 2:
+        data.update({k: v for k, v in (search or {}).items() if k in _SEARCH_FIELDS})
     brief = Brief(
         query=query,
         intent=str(data.get("intent", "")),
         subject=str(data.get("subject", "")),
         why_now=str(data.get("why_now", "")),
         why_now_confidence=str(data.get("why_now_confidence", "")),
-        search_query=str(data.get("search_query", "")),
-        search_fallback=str(data.get("search_fallback", "")),
-        search_angles=[str(a) for a in (data.get("search_angles") or [])
-                       if isinstance(a, str)],
-        search_objective=str(data.get("search_objective", "") or ""),
         must_establish=list(data.get("must_establish") or []),
         recency_days=data.get("recency_days", 0),
         structure=str(data.get("structure", "")),
@@ -1119,18 +1477,19 @@ async def understand(query: str, minutes: int = DEFAULT_MINUTES, context: str = 
         live_entity=" ".join(str(data.get("live_entity", "") or "").split())[:120],
         outcome_dependent=bool(data.get("outcome_dependent", False)),
         place=" ".join(str(data.get("place", "") or "").split())[:120],
-        title=clean_title(str(data.get("title", "")), query),
-        category=" ".join(str(data.get("category", "") or "").split())[:80],
-        pronounce=_pronounce_pairs(data.get("pronounce")),
+        **_search_fields(data, query),
     )
+    if len(parts) == 2 and search_kind != "ok":
+        brief.notes.append(f"the search half did not answer ({search_kind}): "
+                           f"{search_why}")
     brief = gate(brief, query)
-    _OUTCOMES["ok"] += 1
+    _count("ok", path)
     log.info("EI %r -> intent=%s structure=%s recency=%dd outcome=%s "
-             "why_now=%s(%s) search=%r fallback=%r", query, brief.intent,
-             brief.structure, brief.recency_days,
+             "why_now=%s(%s) search=%r fallback=%r [%s, %.2fs]", query,
+             brief.intent, brief.structure, brief.recency_days,
              "pending" if brief.outcome_dependent else "n/a",
              brief.why_now or "-", brief.why_now_confidence, brief.retrieval,
-             brief.broader)
+             brief.broader, path, _SECONDS[path][-1])
     return brief
 
 
@@ -1230,6 +1589,19 @@ def build_brief_block(brief: Brief, minutes: int) -> str:
     return "\n".join(lines) + "\n" + build_structure_note(brief)
 
 
+def _spread(seconds) -> dict:
+    """`n`, median, 90th percentile and slowest of some brief times."""
+    values = sorted(seconds)
+    if not values:
+        return {"n": 0}
+
+    def at(share: float) -> float:
+        return values[min(len(values) - 1, int(share * len(values)))]
+
+    return {"n": len(values), "median": at(0.5), "p90": at(0.9),
+            "max": values[-1]}
+
+
 def report() -> dict:
     """What EI will do on this server right now - for /api/health.
 
@@ -1246,6 +1618,17 @@ def report() -> dict:
         "max_tokens": settings.ei_max_tokens,
         # How the briefs since boot ended: `ok` or why each degraded (§248).
         "since_boot": dict(_OUTCOMES),
+        # The same, split by who was waiting (§266): `search` is a listener
+        # in front of the first word, `ahead` is prefetch and the editions.
+        "since_boot_by_path": {p: dict(c) for p, c in _BY_PATH.items()},
+        # How long the recent briefs on each path took, failures included -
+        # the number that says whether an effort level fits its timeout.
+        "seconds_by_path": {p: _spread(s) for p, s in _SECONDS.items()},
+        # Each half of a split brief, or the one call as `whole`.
+        "parts_since_boot": {p: dict(c) for p, c in _PART_OUTCOMES.items()},
+        "split": bool(settings.ei_split),
+        "examples": bool(settings.ei_examples),
+        "ahead_timeout_seconds": settings.ei_ahead_timeout_seconds,
         "default_recency_days": settings.ei_default_recency_days,
         "intents": list(INTENTS),
         "structures": [s for s in PICKABLE_STRUCTURES if s != "general"],

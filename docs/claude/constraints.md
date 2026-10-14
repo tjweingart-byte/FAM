@@ -1186,6 +1186,18 @@
   > a deploy of code. Watch `episode_intelligence.since_boot` in
   > `/api/health`: `timeout` above ~1% of briefs means drop to
   > `EI_EFFORT=low`; `out_of_room` above ~1% means raise `EI_MAX_TOKENS`.
+  >
+  > **Current:** the brief stays on Haiku at medium and is given the room
+  > and shape it needs (PROBLEMS.md §266, at the owner's direction, after
+  > `since_boot` read 5 timeouts in 11): it is **two calls at once**
+  > (`PARTS`: one works out the request, one words the searches and names
+  > the episode; `EI_SPLIT=0` sends the one call); briefs nobody waits on -
+  > prefetch and the DailyFAM and Trending editions - get
+  > `EI_AHEAD_TIMEOUT_SECONDS` (30), and only a listener in front of the
+  > first word is held to `EI_TIMEOUT_SECONDS`; the instructions carry
+  > worked example briefs in one cacheable block (`EI_EXAMPLES`); and
+  > `/api/health` counts and times briefs by path (`since_boot_by_path`,
+  > `seconds_by_path`, `parts_since_boot`). `since_boot` stays the total.
 
 <!-- rule:writer-savings -->
 - **Savings on the writer never change what is written, and never cost an

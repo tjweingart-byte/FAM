@@ -836,6 +836,8 @@ async def _start(story, generator, cache, minutes: int, rewrite: bool = False):
     if not rewrite and cache.get(key):
         return {"status": "cached", "key": key}
     notes = ScriptNotes()
+    # Written ahead of every tap: the brief may take its time (§266).
+    notes.ahead = True
     plan = await generator.understand(plan, notes)
     if getattr(plan.brief, "outcome_dependent", False):
         return {"status": "volatile", "key": key,

@@ -19035,3 +19035,111 @@ answers both once this is deployed.
   routed question spends API-Sports requests - up to two resolves - from the
   same daily allowance as the sweep; asking only when somebody asked keeps it
   inside [sweep-on-demand].
+
+## 266. The brief on Haiku, given the room and the shape it needs
+
+The owner (10.14), after three kinds of weak episode since §261 moved the
+brief to Haiku 5.5 at medium - no sources on a topic that is not niche,
+confusion over a score and a share price, and dated material on questions
+that did not ask for it - and with `/api/health` showing
+`episode_intelligence.since_boot` at **`{"timeout": 5, "ok": 6}`**: build the
+room the brief needs, keep it on Haiku at medium, and then prepare the writer
+for Haiku.
+
+**What the reading said.** 5 of 11 briefs since boot ran past the 8 s ceiling
+- §261's alarm was 1%. A timed-out brief is `fallback_brief`: the raw
+question searched with no window, no `must_establish`, no broader phrasing,
+no live domain (so no `ScoreGuard`, and no provider unless §265's code route
+catches it), and `build_brief_block` hands the writer nothing. That alone
+produces all three symptoms. Why it times out: Haiku at medium was estimated
+at ~1,500 tokens of thinking and JSON (§261), which at the ~165-235 tokens/s
+§261 quotes is 6.4-9.1 s before reading ~3,200 input tokens; §260 and §265
+added three more fields. Haiku is faster per token, but medium writes more
+tokens than Sonnet 5 at low did (400-1,200, `docs/FINANCIAL.md` §2.1), so
+the brief is slower, not faster. Whether the six briefs that finished were
+worse than Sonnet's is not known; nothing here assumes they were.
+
+**What changed.**
+
+1. **Briefs nobody waits on get their own ceiling.** Prefetch, the DailyFAM
+   edition and the Trending edition used the search path's 8 s, so they
+   degraded at the same rate at 05:00 with every listener asleep.
+   `EI_AHEAD_TIMEOUT_SECONDS` (30) applies when `ScriptNotes.ahead` (set by
+   `daily_edition` and `trending_bank`) or `ScriptNotes.prefetch` is true;
+   only a listener in front of the first word pays `EI_TIMEOUT_SECONDS`.
+   A flag on the notes rather than an argument, because every fake
+   generator in the tests takes `understand(plan, notes)`.
+2. **The brief is two calls at once** (`PARTS`, `EI_SPLIT=1`). *understand*
+   writes the request's meaning - intent, subject, why now, what must be
+   established, window, shape, cautions, live domain and entity, whether the
+   answer is a result, place; *search* writes the words - the precise,
+   broader and other searches, the objective, title, category and
+   pronunciations. Each asks for its own fields (`build_ei_prompt(fields=)`,
+   cut from one `FIELD_GUIDE` whose default text is byte-identical to the
+   one-call prompt) under its own schema cut from `BRIEF_SCHEMA` (the same
+   definitions, never copies). Each writes about half, they run together,
+   so the brief takes about as long as the slower half. When *understand*
+   fails the brief is degraded as before but keeps the *search* half's
+   wording, held to the question by the gate; when only *search* fails the
+   brief stands and the gate searches the question. One brief is counted
+   once. **A change from what the owner was shown:** the cut proposed in
+   conversation was "routing and searches" against "title, category and
+   pronunciations", which would have left ~80% of the output in one call;
+   the cut made is by what each call reasons about, which halves it.
+3. **Counted and timed by who was waiting.** `/api/health` →
+   `episode_intelligence` now also carries `since_boot_by_path`
+   (`search` / `ahead`), `seconds_by_path` (n, median, p90, slowest over the
+   last 200 briefs each, failures included - the wait a listener actually
+   had), `parts_since_boot` (each half, or `whole`), `split`, `examples` and
+   `ahead_timeout_seconds`. `since_boot` keeps its shape as the total.
+4. **What §265 left of "a code-built floor".** §265 already routes a
+   provider in code, degraded briefs included, and deliberately leaves
+   `live_domain` alone; nothing here changes that. Two gaps remained:
+   - *A team is not a town.* A brief that named a team's city as `place`
+     sent the question down the local ladder, which keeps only what names
+     the town (§194) - a national story with no sources. The gate drops
+     `place` when the question, the subject or `live_entity` names a team in
+     `live_route.ROSTER` (the resolved names too, because the roster takes
+     "Eagles" alone as a college's as well).
+   - *A floor under the search's window.* `research.search_window`: when
+     the brief has no window (degraded, or a "latest" question called
+     evergreen) and the request says "today", "tonight", "yesterday", "last
+     night", "this morning" or "right now", the search uses 3 days; "this
+     week", "latest", "lately", "currently" or "so far", 7. Not for a
+     `teaching` brief (a kind of thing, §149). **The search's only:**
+     `Brief.recency_days`, and so `cache.ttl_for`, are untouched - how long
+     an episode stays current still never comes from the question's words
+     ([ttl-from-evidence]). A floor too narrow for its subject ("the history
+     of the Today show") costs one more search, because the second look
+     drops the window; the test pins that case as a known false positive.
+5. **Worked examples, cached** (`EXAMPLE_BRIEFS`, `EI_EXAMPLES=1`): four
+   whole briefs - a score, a share price today, "latest on" a player, an
+   evergreen explainer - after `EI_SYSTEM` in one block marked cacheable
+   (`ei_system()`, `PROMPT_CACHE`), shared by both halves. They show what
+   rules said: the window following the request's words, the bare provider
+   name, a caution about the day of the game, searches a report would be
+   headlined with. A test holds every example to the schema's enums and the
+   gate (no drift, a clean title, a zero window only on an explainer).
+
+**What it costs (estimates; no key here).** Money: about the same per
+brief. Each half reads the ~2,300-token cached instructions (~$0.00002 a
+read, ~$0.0003 to write the cache once per five minutes) and ~1,050 tokens
+of its own; the one call read ~3,000 uncached. Output may rise ~10-30%,
+because each half resolves the subject for itself: ~$0.001-0.0012 a brief
+against ~$0.001. Latency: on the search path each half should finish in
+roughly half the old time; ahead, up to 30 s that nobody hears. The search
+floor can cost one extra search (Parallel or Perplexity, under a cent) when
+it is too narrow.
+
+**Not done, by the owner's choice.** `EI_EFFORT=low` on the search path
+(the owner preferred to keep medium and measure); a second, low-effort call
+started when the first is slow.
+
+**How to read it after deploying.** `/api/health` →
+`seconds_by_path.search.p90` under 8 and `since_boot_by_path.search.timeout`
+near zero mean medium fits; the `episode timing` log line's `brief
+(episode intelligence)` row gives each search's brief time. `EI_SPLIT=0`
+and `EI_EXAMPLES=0` each undo one change without a deploy of code.
+
+Tests: `tests/test_ei_split_266.py` (new), `tests/test_episode_intelligence.py`
+(a brief is two billed calls when split).

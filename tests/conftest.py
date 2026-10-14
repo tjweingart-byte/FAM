@@ -70,7 +70,8 @@ FAM_ENVIRONMENT = (
     # how. A developer with EPISODE_INTELLIGENCE=0 set must not run a suite
     # that quietly skips every EI behaviour and still reports green.
     "EPISODE_INTELLIGENCE", "EI_MODEL", "EI_EFFORT", "EI_MAX_TOKENS",
-    "EI_TIMEOUT_SECONDS", "EI_DEFAULT_RECENCY_DAYS",
+    "EI_TIMEOUT_SECONDS", "EI_DEFAULT_RECENCY_DAYS", "EI_AHEAD_TIMEOUT_SECONDS",
+    "EI_SPLIT", "EI_EXAMPLES",
     # Live facts. A developer with LIVE_SPORTS_PROVIDER=fake set must not run
     # a suite that quietly has a scoreboard in it - a test asserting FAM says
     # "no live feed" would pass or fail on their shell rather than the code.
