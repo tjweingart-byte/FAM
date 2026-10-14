@@ -5829,10 +5829,18 @@
     // An allowance running out is not a failure to generate, and a toast is
     // the wrong shape for it: it vanishes, it cannot be acted on, and it does
     // not say when the allowance comes back. Everything else still toasts.
-    if(err && err.refusedBy === "quota" && err.quota){ showLimitReached(err.quota); return; }
+    if(err && err.refusedBy === "quota" && err.quota){
+      // The next episode would be refused the same way: the playlist is over.
+      endMixQueue();
+      showLimitReached(err.quota);
+      return;
+    }
     // A guest's tap on a sample episode that has not been made yet: the way
     // on is an account, so that is what is offered.
-    if(err && err.refusedBy === "account"){ showGuestGate(message); return; }
+    if(err && err.refusedBy === "account"){ endMixQueue(); showGuestGate(message); return; }
+    // One episode of a playlist that would not play is that episode's
+    // failure, not the playlist's: it goes on to the next one.
+    if(mixItemFailed(message, err)) return;
     toast(message || "Could not generate that briefing");
   }
 
@@ -8297,7 +8305,10 @@
     var mixOnEnd = null;
     if(t.fromMix && mixPlay && mixPlay.key === key){
       playOpts.nextUp = false;
-      mixOnEnd = function(){ advanceMix(key); };
+      mixOnEnd = function(){
+        if(mixPlay) mixPlay.failures = 0;   // one played through
+        advanceMix(key);
+      };
     } else if(!t.fromMix){
       mixPlay = null;
     }
@@ -10643,7 +10654,7 @@
   // Its own state rather than `currentMixId`, which is only the mix whose
   // screen was last opened - opening another mix while this one plays must
   // not change what plays next.
-  var mixPlay = null;   // { name, order: [items], pos, key }
+  var mixPlay = null;   // { name, order: [items], pos, key, failures }
 
   function playMix(){
     var m = mixById(currentMixId);
@@ -10680,9 +10691,38 @@
     finishMix();
   }
 
+  // An episode of the playlist that failed - an error from the server, or
+  // the 45-second give-up in `generate`. It used to toast and leave the
+  // queue where it was, so a playlist stopped at the first episode that
+  // would not play and nothing said the rest had been abandoned. Now the
+  // failure is named and the next one starts. Two failures in a row, or no
+  // connection, end it instead: the next would fail the same way, and a
+  // playlist toasting its way to the end is not playing anything.
+  var MIX_FAILURES_IN_A_ROW = 2;
+  function mixItemFailed(message, err){
+    if(!mixPlay || !mixPlay.key || mixPlay.key !== currentPlayingTopicKey) return false;
+    var from = mixPlay.key;
+    var t = TOPICS[from];
+    var what = t ? t.title.replace(/ \u00b7 today$/, "") : "That episode";
+    mixPlay.failures = (mixPlay.failures || 0) + 1;
+    var last = mixPlay.pos + 1 >= mixPlay.order.length;
+    if((err && err.network) || mixPlay.failures >= MIX_FAILURES_IN_A_ROW){
+      endMixQueue();
+      setPlayState(false);
+      toast(what + " couldn\u2019t play" + ((err && err.network)
+        ? " (no connection), so the playlist stopped."
+        : ", and neither could the one before it, so the playlist stopped."));
+      return true;
+    }
+    toast(what + " couldn\u2019t play" + (last ? "." : " \u2014 playing the next one."));
+    advanceMix(from);
+    return true;
+  }
+
   function skipMixItem(){
     // No playlist: the button is the queue's next (§190).
     if(!mixPlay){ stopSpeech(); setPlayState(false); playQueueNext(); return; }
+    mixPlay.failures = 0;
     var from = mixPlay.key;
     // The same bookkeeping as leaving any episode early - a skip is evidence
     // - and then the next in line, never the What's next popup.
