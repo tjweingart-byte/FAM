@@ -1144,6 +1144,15 @@
   > stays: per-call pricing in metering, the 5.5 rows in `PRICES`, an empty
   > setting meaning the default, and the boot check of any model a call uses
   > besides `MODEL` (`credentials.models`).
+  >
+  > **Current:** the brief alone is back on Haiku 5.5, at **medium** effort,
+  > at the owner's direction (PROBLEMS.md §261): `EI_MODEL` defaults to
+  > `config.SMALL_MODEL` and does not follow `MODEL`; `EI_EFFORT` defaults to
+  > `medium`. The writer, composer, placer and thumbnails are unchanged.
+  > `EI_MODEL=claude-sonnet-5 EI_EFFORT=low` restores §249's brief without
+  > a deploy of code. Watch `episode_intelligence.since_boot` in
+  > `/api/health`: `timeout` above ~1% of briefs means drop to
+  > `EI_EFFORT=low`; `out_of_room` above ~1% means raise `EI_MAX_TOKENS`.
 
 <!-- rule:writer-savings -->
 - **Savings on the writer never change what is written, and never cost an

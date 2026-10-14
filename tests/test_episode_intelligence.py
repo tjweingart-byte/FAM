@@ -176,10 +176,12 @@ def test_the_prompt_says_an_empty_search_is_the_worst_outcome(model):
     assert "hard for this one to return nothing at all" in prompt
 
 
-def test_understanding_runs_at_low_effort_because_the_listener_is_waiting(model):
+def test_understanding_runs_at_medium_effort_on_haiku(model):
+    """§261: the brief moved to Haiku 5.5, and medium buys back the checking
+    a smaller model needs; the 8 s timeout still bounds the listener's wait."""
     calls, _ = model
     asyncio.run(ei.understand("who won the 49ers game", 3))
-    assert calls[0]["output_config"]["effort"] == "low"
+    assert calls[0]["output_config"]["effort"] == "medium"
 
 
 def test_the_brief_reaches_the_fields_the_rest_of_the_system_reads(model):

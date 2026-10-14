@@ -143,7 +143,7 @@ immediately. This costs one extra call per lookup and is worth it.
 **Step 5, the licensing one.** Finnhub's free tier is **personal,
 non-commercial**. A monetised FAM needs the paid plan ($11.99/mo), then
 `FINNHUB_PLAN=commercial`. Alpha Vantage, the old fallback, was removed
-(PROBLEMS.md §261).
+(PROBLEMS.md §262).
 
 ---
 

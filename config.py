@@ -225,10 +225,10 @@ DEFAULT_RESEARCH_BACKEND = "parallel"
 #: is *for*; this says which one somebody who has expressed no preference
 #: lands in.
 DEFAULT_MINUTES = 2
-#: The cheapest current model, for the profile-photo check only (§225).
-#: §227 moved the brief, composer, placer and thumbnails onto it too; §249
-#: moved them back to `MODEL` at the owner's direction, so this names one
-#: call now.
+#: The cheapest current model: the profile-photo check (§225) and, since
+#: §261, the brief. §227 moved the brief, composer, placer and thumbnails
+#: onto it; §249 moved them back to `MODEL` at the owner's direction; §261
+#: moved the brief alone back, at medium effort.
 SMALL_MODEL = "claude-haiku-5-5"
 
 #: How long every episode is that searchFAM did not ask for (§147, at the
@@ -471,14 +471,19 @@ class Settings:
         default_factory=lambda: os.environ.get("EPISODE_INTELLIGENCE", "1")
         not in ("0", "false", "False", ""))
     # Understanding a request is a small, well-specified extraction, not the
-    # writing. It runs on the same model as the script (§249, reversing
-    # §227's Haiku) so a deployment has one model to reason about, and at
-    # low effort because the time here is time the listener waits.
+    # writing. **Haiku 5.5 at medium effort, at the owner's direction
+    # (PROBLEMS.md §261)**, reversing §249 for the brief only: Haiku at
+    # medium scores above Sonnet 5 at low on reasoning and level with it on
+    # what it knows, at about a tenth of the brief's cost. Medium, not low,
+    # buys back the checking a smaller model needs; §227's degraded briefs
+    # were mostly the 1,200-token ceiling (§248). It does not follow `MODEL`:
+    # `render.yaml` sets MODEL, so following it would keep production on
+    # Sonnet. `EI_MODEL=claude-sonnet-5 EI_EFFORT=low` restores §249's brief
+    # without a deploy of code.
     ei_model: str = field(
-        default_factory=lambda: os.environ.get("EI_MODEL") or os.environ.get("MODEL")
-        or "claude-sonnet-5")
+        default_factory=lambda: os.environ.get("EI_MODEL") or SMALL_MODEL)
     ei_effort: str = field(
-        default_factory=lambda: os.environ.get("EI_EFFORT", "low"))
+        default_factory=lambda: os.environ.get("EI_EFFORT", "medium"))
     # A ceiling on the brief's thinking and its JSON together; a brief that
     # hits it is cut off mid-JSON and searched as the raw query (§248). 1200
     # was sized on Sonnet 5, whose briefs ran ~400-1,200 tokens and sometimes

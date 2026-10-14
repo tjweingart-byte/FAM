@@ -18782,7 +18782,75 @@ one query is for `tools/ei_eval.py` and `tools/compare_search.py` with a key.
 
 Tests: `tests/test_parallel_inputs_260.py` (new).
 
-## 261. SportsDataIO and Alpha Vantage are removed
+## 261. The brief on Haiku 5.5 at medium effort
+
+The owner (10.13), after a comparison of every option for moving work off
+Sonnet - other vendors priced, ranked on fit, cost, latency and quality, and
+DeepSeek ruled out by the owner on data-security grounds: move the brief to
+Haiku 5.5 at medium effort, and leave the writer for later.
+
+**Why Haiku again, after §249 reversed §227.** The published numbers
+(Artificial Analysis, all from secondary snapshots; no key here) put Haiku
+5.5 at or above Sonnet 5 at matched settings: Intelligence Index 29 / 34 /
+38 at low / medium / high against Sonnet 5's 25 at low, FAM's setting; at max,
+long-document reasoning 83% against 82%. What it knows is about level:
+AA-Omniscience accuracy ~36% against Sonnet 5's 32-40%, hallucination ~40%
+against 39-47%, and its training data is newer (June 2026 against January).
+§227's thin episodes fit §248's finding better than a weaker model: at the
+old 1,200-token ceiling a Haiku brief could reach the ceiling in about seven
+seconds, before the 8 s timeout, and degrade to the raw query. **Medium**,
+not low, buys back the checking a smaller model needs (window, whether an
+outcome is pending, what the evidence must establish) for ~1.7x the
+reasoning tokens.
+
+**What changed.**
+
+* `config.ei_model` defaults to `config.SMALL_MODEL` (`claude-haiku-5-5`) and
+  does **not** follow `MODEL`, which `render.yaml` sets; `EI_MODEL` still
+  overrides, and an empty value still means the default. `config.ei_effort`
+  defaults to `medium`. `.env.example` agrees.
+* The boot check (`app._verify_small_models`) now asks for Haiku on the
+  brief's behalf as well as the photo check's - one model, asked once.
+* The writer (`MODEL`, `EFFORT=low`), composer, placer and thumbnails are
+  unchanged; only `MODEL` is in `cache_key`, so no cached episode moves.
+* The `small-calls-haiku` rule carries a second Current note and its
+  CLAUDE.md line is rewritten; FINANCIAL.md, SCALING_TIMELINE.md and
+  BACKEND.md say so.
+
+**What it should save (estimate).** A brief from ~$0.010 to ~$0.0009 (~1,000
+in, ~1,500 out at $0.10 / $0.50): about -26% of the Claude cost of a new
+episode, ~$6k a month at 100k MAU on FINANCIAL.md §4's volumes.
+
+**What it may cost, and how to see it.** The 8 s timeout, not the 3,000-token
+ceiling, is the limit that binds: at Haiku's published ~165-235 tokens/s a
+brief can write ~1,300-1,850 tokens in 8 s, and medium is estimated at ~1,500.
+A brief that runs over degrades to the raw query, visibly, as before. Read
+`/api/health` → `episode_intelligence.since_boot` after deploying:
+`timeout` above ~1% of briefs means `EI_EFFORT=low` (Haiku at low still
+scores 29 against 25); `out_of_room` above ~1% means raise `EI_MAX_TOKENS`.
+`EI_MODEL=claude-sonnet-5 EI_EFFORT=low` restores §249's brief without a
+deploy of code. Nobody has run `tools/ei_eval.py` on Haiku at medium - with
+a key, run it against the same prompts on Sonnet:
+
+    python tools/ei_eval.py
+    EI_MODEL=claude-sonnet-5 EI_EFFORT=low python tools/ei_eval.py
+
+**Review, before merging into Main.** A second pass over the diff found
+nothing that changes behaviour beyond the two defaults: the request is the
+same call §227 ran on Haiku in production (structured output, `effort`,
+`stop_reason` checks), at a level Haiku 5.5 accepts; metering already prices
+the brief at its own model's rates, so prefetch's dollar budget sees the
+cheaper brief without a change; `/api/health` → `episode_intelligence`
+reports `model` and `effort`. Two over-long lines were reflowed. The deploy
+needs nothing in `render.yaml`, which sets neither setting - but a value left
+on the Render dashboard (`EI_MODEL` or `EI_EFFORT`) would silently keep the
+old brief, so check there after the merge.
+
+Tests: `tests/test_ei_haiku_261.py` (new), `tests/test_small_model_227.py`
+(the brief no longer follows `MODEL`), `tests/test_episode_intelligence.py`
+(medium effort).
+
+## 262. SportsDataIO and Alpha Vantage are removed
 
 The owner (13/10) asked for both adapters to come out. Neither ever had a key
 on either service: SportsDataIO was the sales-gated upgrade for NFL player
@@ -18807,3 +18875,9 @@ for that domain (`[failures-visible]`).
 Tests: the two SportsDataIO tests and both parametrised rows in
 `tests/test_live_providers.py` and the `api.sportsdata.io` row in
 `tests/test_provider_usage_179.py` went with the code.
+
+**The contact address.** The same day the owner moved FAM's accounts to
+admin@familiarize.net, so `FAM_CONTACT_EMAIL` - the contact NWS requires on
+every request and the feed collector sends (`places.py`) - now defaults to
+that address in `config.py` and `.env.example` rather than a personal one. A
+value set in Render's environment still wins.
