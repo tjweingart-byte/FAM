@@ -107,9 +107,10 @@ def test_a_closing_quote_hours_old_is_kept_not_withheld(monkeypatch):
     assert got.status == live_facts.UNKNOWN, "a price never establishes an outcome"
 
 
-def test_a_stale_score_is_still_withheld(monkeypatch):
-    """Only markets keep old readings: a score is a claim about now."""
-    assert "sports" not in live_facts.KEPT_WHEN_OLD
+def test_only_markets_and_sports_keep_old_readings():
+    """Elections and weather still withhold what is too old (§264 added
+    sports, at the owner's direction)."""
+    assert live_facts.KEPT_WHEN_OLD == {"markets", "sports"}
 
 
 def test_a_delayed_quote_can_be_fresh_mid_session():

@@ -633,6 +633,17 @@ SWEPT_LEAGUES = {
 #: card's "Starts 20:15" line turns into a live score on the first sweep
 #: after kick-off rather than one interval late.
 WATCH_LEAD_SECONDS = 900.0
+#: How long a followed game is still swept after it is first seen final
+#: (§264, at the owner's direction): a provider that marks "final" before
+#: its last correction, or an overtime the first final missed, is caught,
+#: and the final score is never the one sweep that was skipped.
+FINAL_WATCH_SECONDS = 1800.0
+#: When each followed game was first seen final, by `sport:game id`, after
+#: being seen not final. A game already final at the day's first read is
+#: not watched: there was no transition to catch.
+FINAL_SEEN: dict = {}
+#: Followed games seen scheduled or under way, by `sport:game id`.
+SEEN_UNFINISHED: set = set()
 
 
 def followed(sport, row: dict) -> bool:
@@ -670,12 +681,26 @@ def watching(sport, rows: list, now: float) -> bool:
         status = sport.statuses.get(
             str(source._status_block(row).get("short") or "").upper(),  # noqa: SLF001
             live_facts.UNKNOWN)
+        key = f"{sport.key}:{source._game_id(row)}"  # noqa: SLF001
+        if len(SEEN_UNFINISHED) > 5000:   # a season's ids, never forever
+            SEEN_UNFINISHED.clear()
+            FINAL_SEEN.clear()
+        if status == live_facts.FINAL:
+            # Swept on for half an hour after it ends (§264), so the final
+            # score and any correction to it are read.
+            if key in SEEN_UNFINISHED:
+                first = FINAL_SEEN.setdefault(key, now)
+                if now - first < FINAL_WATCH_SECONDS:
+                    return True
+            continue
         if status == live_facts.IN_PROGRESS:
+            SEEN_UNFINISHED.add(key)
             return True
         if status != live_facts.SCHEDULED:
-            # Final, or a code nobody mapped (postponed, cancelled): nothing
-            # a sweep would change on a tile.
+            # A code nobody mapped (postponed, cancelled): nothing a sweep
+            # would change on a tile.
             continue
+        SEEN_UNFINISHED.add(key)
         kick = source._kickoff(row)  # noqa: SLF001
         if kick is None:
             continue

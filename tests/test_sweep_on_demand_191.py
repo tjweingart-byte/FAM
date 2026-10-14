@@ -282,3 +282,28 @@ def test_a_failed_first_read_waits_the_interval_not_every_tick(provider, monkeyp
     gap = story_sources.settings.stories_sports_interval_seconds
     assert source.dates_due(key, NOON + 60) == []
     assert source.dates_due(key, NOON + gap) == [source._days(NOON)[0]]
+
+
+# --------------------------------------------------------------------------
+# §264: half an hour past the final
+# --------------------------------------------------------------------------
+def test_a_game_is_swept_for_half_an_hour_after_it_goes_final():
+    sport = live_sources.SPORTS["american-football"]
+    under_way = [game("Chiefs", "Broncos", "Q4", NOON - 3 * 3600)]
+    final = [dict(under_way[0], game={"status": {"short": "FT"},
+                                      "date": {"timestamp": int(NOON - 3 * 3600)},
+                                      "id": 1})]
+    under_way[0]["game"]["id"] = 1
+    assert story_sources.watching(sport, under_way, NOON)
+    assert story_sources.watching(sport, final, NOON + 60), \
+        "the sweep stopped at the first final"
+    assert story_sources.watching(sport, final, NOON + 60 + 29 * 60)
+    assert not story_sources.watching(sport, final, NOON + 60 + 31 * 60), \
+        "a finished game was swept forever"
+
+
+def test_a_game_already_final_at_the_first_read_is_not_watched():
+    sport = live_sources.SPORTS["american-football"]
+    final = [game("Rams", "Seahawks", "FT", NOON - 6 * 3600)]
+    final[0]["game"]["id"] = 2
+    assert not story_sources.watching(sport, final, NOON)

@@ -576,6 +576,8 @@ def isolated_api_sports(monkeypatch):
 
     monkeypatch.setattr(story_sources, "SPORT_SWEPT_AT", {})
     monkeypatch.setattr(story_sources, "SPORT_CARDS", {})
+    monkeypatch.setattr(story_sources, "FINAL_SEEN", {})
+    monkeypatch.setattr(story_sources, "SEEN_UNFINISHED", set())
     monkeypatch.setattr(story_sources, "SPORT_FAILURES", {})
     monkeypatch.setattr(live_sources.ApiSportsSource, "_PODIUMS", {})
     yield

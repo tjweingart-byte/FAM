@@ -50,6 +50,7 @@ import json
 import logging
 import re
 from dataclasses import dataclass, field
+from typing import Optional
 
 import credentials
 import live_facts
@@ -360,6 +361,52 @@ MAX_ANGLE_CHARS = 80
 MAX_OBJECTIVE_CHARS = 600
 
 
+#: Words that put a question at a moment. Only the *guardrail* reads these
+#: (§263b): they decide whether a window may apply at all, never what it is
+#: and never the episode's TTL (`ttl-from-evidence`). A year is a marker only
+#: when it is this year or last - "the 1969 moon landing" is history.
+_MOMENT_WORDS = re.compile(
+    r"\b(today|tonight|yesterday|tomorrow|now|currently|current|latest|"
+    r"recent|recently|lately|breaking|news|update|updates|so far|upcoming|"
+    r"this (morning|afternoon|evening|week|weekend|month|year|season|quarter)|"
+    r"last (night|week|weekend|month|game|match|season|quarter)|"
+    r"next (week|weekend|month|game|match|season)|"
+    r"as of|still|anymore|any more|just|happening|"
+    r"monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b",
+    re.IGNORECASE)
+
+
+def _names_a_recent_year(text: str, now_year: int) -> bool:
+    return any(int(y) in (now_year, now_year - 1, now_year + 1)
+               for y in re.findall(r"\b(20\d\d)\b", text or ""))
+
+
+def time_bound(brief: "Brief", query: str, now_year: Optional[int] = None) -> bool:
+    """Is this question about a moment, so a recency window may apply?
+
+    **The guardrail for evergreen questions** (§263b, at the owner's
+    direction). §263 made the window a filter in code - dated results older
+    than it are dropped - so a window on "who was Abraham Lincoln" would
+    throw away every good biography. The model is told to give 0 for those,
+    and this is what holds when it does not: a window survives only when
+    something says the question is about a moment - a live domain, an
+    outcome that has to be waited for, a recap/update/preview, or the
+    question naming a time (today, latest, this week, this year's date).
+    A `causal` question alone is not one ("why did Rome fall").
+    """
+    import datetime as _dt
+
+    year = now_year or _dt.datetime.now(_dt.timezone.utc).year
+    if getattr(brief, "live_domain", ""):
+        return True
+    if getattr(brief, "outcome_dependent", False):
+        return True
+    if getattr(brief, "intent", "") in ("recap", "update", "preview"):
+        return True
+    text = " ".join([query or "", getattr(brief, "search_query", "") or ""])
+    return bool(_MOMENT_WORDS.search(text)) or _names_a_recent_year(text, year)
+
+
 def _window(days) -> int:
     """The recency window to apply, with the floor above enforced."""
     try:
@@ -657,11 +704,22 @@ def gate(brief: Brief, query: str) -> Brief:
     # window it competes against every well-ranked article ever written on the
     # subject, which is how a two-year-old explainer ends up being the evidence
     # for "what happened last night".
-    if brief.intent in ("recap", "update", "preview", "causal") and not brief.recency_days:
+    bound = time_bound(brief, query)
+    if brief.intent in ("recap", "update", "preview", "causal") and not brief.recency_days \
+            and bound:
         problems.append(
             f"a {brief.intent} with no recency window; defaulting to "
             f"{settings.ei_default_recency_days} days")
         brief.recency_days = _window(settings.ei_default_recency_days)
+
+    # **No window on an evergreen question** (§263b): the window now drops
+    # results in code, so one the model gave "who was Abraham Lincoln" would
+    # leave the episode with only what was published this month.
+    if brief.recency_days and not bound:
+        problems.append(
+            f"a {brief.recency_days}-day window on a question about no "
+            f"particular moment; searched with no window")
+        brief.recency_days = 0
 
     # A question whose answer is a result is outcome-dependent whether or not
     # the model said so. Both of these are asking for something that does not
@@ -934,8 +992,9 @@ Work out:
   this episode to work. Short noun phrases, not sentences. These are checked
   against what comes back, so make them things a report would actually say.
 - **recency_days** - how recent evidence must be to answer this. A question
-  about a specific recent event is days; a question about how something works
-  is 0, meaning age does not matter. **Give the widest window that is still
+  about a specific recent event is days; a question about how something works,
+  a person, a place, history or an idea is 0, meaning age does not matter
+  ("who was Abraham Lincoln" is 0). **Give the widest window that is still
   honest**, not the narrowest that would do. This filters what the search may
   even consider, and the evidence is sorted newest-first inside it anyway - so
   a window that is too wide costs nothing and a window that is too narrow

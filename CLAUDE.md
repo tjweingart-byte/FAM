@@ -298,9 +298,9 @@ Research and truth
 - **EI decides what to search for, before the search**; the brief never asserts
   a fact; **a layer that adds quality must not subtract availability** - every
   failure falls back to the raw query and says so (`Brief.degraded`). [ei-before-search]
-- **Recency filters (in code); credibility sorts.** The packet carries date and grade,
-  **never the hostname**; relative dates are computed in code; one retry on a
-  thin packet, gap named to the writer. [recency-credibility]
+- **Recency filters (in code; none if timeless); credibility sorts.** Packet: date and grade,
+  **never the hostname**; relative dates in code; one retry on a
+  thin packet, gap named to writer. [recency-credibility]
 - **Started is not finished**: EI may only say a request is `outcome_dependent`;
   status comes from dated evidence; three states incl. `in_progress`; previews
   are evidence of no outcome; take the smaller true reading on contradiction. [started-not-finished]
@@ -312,7 +312,7 @@ Research and truth
   without authoritative, fresh evidence; never infer one from absence.** Closed
   status vocabulary; only evidence sets it; resolution from the provider's
   catalogue, never a model; seven lookup outcomes; freshness in code,
-  stale withheld, markets kept dated (§263); NFL records, last and next games are counted from the
+  stale withheld, markets/scores kept (§263-4); NFL records, last/next games from the
   provider's schedule (§178). Don't claim live scores until a provider returns them. [live-facts]
 - **A score is checked before it is spoken** (§259, `score_guard.py`). [score-guard]
 - **API-Sports is a plan per sport**: a budget, a tier (`API_SPORTS_TIERS`,
@@ -320,7 +320,7 @@ Research and truth
   count bounds ours; ten products wired (§180). [api-sports-per-sport]
 - **Ask outside services when somebody is looking and there is something to
   see** (§191): API-Sports sweeps only `SWEPT_LEAGUES`, only while one of
-  their games is on, only if myFAM was drawn recently; other leagues and
+  their games is on (+30 min, §264), only if myFAM was drawn recently; other leagues and
   sports are looked up on demand; Finnhub every 2h, round the clock; a
   refused catalogue is not re-asked that day. [sweep-on-demand]
 - **The listener's clock, never the server's** (§186): `listener_clock` from

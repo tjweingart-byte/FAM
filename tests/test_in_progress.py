@@ -209,18 +209,27 @@ class _StaleSource(live_sources.FakeSportsSource):
 
 
 def test_stale_data_cannot_be_represented_as_current(registry):
-    """Stale live data is more dangerous than none: it carries a timestamp and
-    outranks the packet. It is withheld, not annotated and passed on."""
+    """Stale live data passed off as current is the §88 failure. Since §264
+    an old score is not withheld - it is the last known state, given with
+    its time - so what this pins is the wording: never "now", and a game
+    under way then is still not finished."""
     live_facts.register(_StaleSource(live_facts.IN_PROGRESS))
     result = asyncio.run(live_facts.lookup(brief()))
 
-    assert result.outcome == live_facts.STALE
-    assert result.facts is None
-    assert result.status == live_facts.UNKNOWN
+    assert result.outcome == live_facts.FACTS
+    assert result.status == live_facts.IN_PROGRESS, \
+        "an old in-progress reading must never let the episode be cached as settled"
+    text = " ".join(prompt_for(live=result, evidence=PREGAME).split())
+    assert "LAST KNOWN state of this contest" in text
+    assert "never as the score now" in text
+    assert "UNDER WAY" in text
 
-    text = prompt_for(live=result, evidence=PREGAME)
-    assert "too old to describe the state now" in " ".join(text.split())
-    assert "twenty-one to seven" not in text, "stale figures reached the writer"
+
+def test_an_old_scheduled_reading_never_says_the_game_is_still_to_come(registry):
+    live_facts.register(_StaleSource(live_facts.SCHEDULED))
+    result = asyncio.run(live_facts.lookup(brief()))
+    assert result.outcome == live_facts.FACTS
+    assert result.status == live_facts.UNKNOWN
 
 
 def test_a_delayed_feed_says_delayed_rather_than_current():

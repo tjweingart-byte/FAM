@@ -18945,3 +18945,55 @@ rise 3.2 percent on 13 October 2026" --minutes 2` and `python write.py
 "Airshow in San Francisco bay today" --minutes 2` are the listening checks,
 and `/api/health`'s `live` attempts show "latest reading" on an evening
 market question. Tests: `tests/test_kept_readings_263.py`.
+
+## 264. A score kept until a newer one, the sweep past the final, and no window on a timeless question
+
+**The owner's direction (10.14), on §263:** (1) an old sports score should
+be discarded only when the score has changed; what is known about the
+contest is never discarded, only the score updated; and the sweep runs until
+30 minutes after the contest is over so the final is not missed. (3) A
+question that is not about a moment - "who is Abraham Lincoln" - must never
+have §263's recency filter applied.
+
+**Scores.** `live_facts.KEPT_WHEN_OLD` is now markets *and sports*. A score
+past `MAX_AGE_SECONDS["sports"]` (120s) is no longer withheld: the writer is
+given it as the "LAST KNOWN state of this contest", with its time, "never as
+the score now; a final score is final". `live_facts.LAST_KNOWN` holds the
+newest reading per entity (two days, 4,000 entities): a reading older than
+the one held never replaces it, and a provider that fails, times out or
+reports nothing gives the last known reading, dated, instead of a failure. An
+old reading that said *scheduled* becomes `unknown` - the game may have
+started since - so the writer never puts a started game in the future tense.
+An old in-progress reading keeps `in_progress`, so the episode is never
+cached as settled (`ttl-from-evidence`). Elections and weather are still
+withheld when stale. Two tests that pinned "stale is withheld" for sports now
+pin the wording instead (`test_in_progress.py`, `test_live_facts.py`).
+
+**The sweep.** `story_sources.watching` used to stop a sport the moment every
+followed game read final. A game seen scheduled or under way and then final
+is now watched for `FINAL_WATCH_SECONDS` (1,800s) after the first final, so
+the final score and any correction (an overtime, a late stat fix) are read.
+A game already final at the day's first read is not watched - there was no
+transition. The sweep still runs only when somebody drew myFAM recently
+(§191); an episode asked about a game always looks it up on demand.
+
+**Evergreen questions.** `episode_intelligence.time_bound` decides whether a
+window may apply at all: a live domain, an outcome-dependent question, a
+recap/update/preview, or the question or search naming a time (today,
+latest, this week, a weekday, this year or last). Otherwise the gate sets
+`recency_days` to 0 and notes why, whatever the model said; a `causal`
+intent alone no longer brings the 14-day default ("why did Rome fall"). A
+year two or more back is history ("the 1969 moon landing"). The word list
+decides only whether a window is allowed - never the window, never the TTL.
+The EI prompt now names people, places, history and ideas as 0.
+
+**Historical prices (asked, not built).** Finnhub's `/stock/candle` is a
+premium endpoint (the free key gets 403), and the free key is personal,
+non-commercial. Finnhub's pricing page could not be reached from the
+container; third-party figures put premium at roughly $50-$100+ per market
+per month. Cheaper daily-history alternatives: EODHD (~$20/mo all-world end
+of day, indices included), Twelve Data (~$29/mo), Tiingo (~$30/mo). Confirm
+current prices and commercial terms with each vendor before buying.
+
+Tests: `tests/test_evergreen_and_scores_264.py`, the §264 block in
+`tests/test_sweep_on_demand_191.py`.

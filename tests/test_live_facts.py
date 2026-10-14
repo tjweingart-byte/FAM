@@ -205,14 +205,34 @@ def test_a_failure_outranks_a_missing_provider_in_what_gets_reported(registry):
 # --------------------------------------------------------------------------
 def test_data_too_old_for_its_domain_is_withheld_rather_than_relabelled(registry):
     """Stale live data is more dangerous than none: it arrives with a
-    timestamp and outranks the packet. It is refused, not annotated."""
+    timestamp and outranks the packet. It is refused, not annotated - in
+    every domain but the two that keep their last reading, dated (§263,
+    §264)."""
+    class Count(Scoreboard):
+        domain = "elections"
+
+    old = facts(domain="elections",
+                as_of=datetime.now(timezone.utc) - timedelta(hours=3))
+    live_facts.register(Count(old))
+    got = asyncio.run(live_facts.lookup(
+        ei.Brief(query="who is ahead", live_domain="elections")))
+    assert got.outcome == live_facts.STALE
+    assert got.facts is None, "stale facts must not reach the writer"
+    assert got.status == live_facts.UNKNOWN
+
+
+def test_an_old_score_is_the_last_known_state_never_the_score_now(registry):
+    """§264, at the owner's direction: a score is replaced by a newer one,
+    never discarded for its age, and the contest's details stay with it."""
     old = facts(as_of=datetime.now(timezone.utc) - timedelta(minutes=30))
     live_facts.register(Scoreboard(old))
     got = asyncio.run(live_facts.lookup(
         ei.Brief(query="who won", live_domain="sports")))
-    assert got.outcome == live_facts.STALE
-    assert got.facts is None, "stale facts must not reach the writer"
-    assert got.status == live_facts.UNKNOWN
+    assert got.outcome == live_facts.FACTS
+    block = " ".join(got.as_prompt_block().split())
+    assert "LAST KNOWN state of this contest" in block
+    assert "never as the score now" in block
+    assert "24-17" in block
 
 
 def test_each_domain_has_its_own_clock():

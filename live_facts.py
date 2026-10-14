@@ -43,6 +43,7 @@ result that arrived four minutes ago is not described as last night's.
 from __future__ import annotations
 
 import asyncio
+import dataclasses
 import logging
 import time
 from dataclasses import dataclass, field
@@ -98,7 +99,15 @@ WEATHER = "weather-forecast"
 #: reading" - always so at the 05:00 DailyFAM edition, and soon round the
 #: clock as markets trade 24 hours. Such a reading is passed to the writer
 #: with its time and told never to call it the state now.
-KEPT_WHEN_OLD = frozenset({"markets"})
+#:
+#: **Sports joined at the owner's direction (§264)**: an old score is
+#: replaced only by a newer one, never discarded for its age, and what the
+#: provider said about the contest - who, where, when, the records - is kept
+#: with it. A score past `MAX_AGE_SECONDS` reaches the writer as the *last
+#: known* state, with its time ("21-14 as of 8:42"), never as the score now;
+#: a final is final. What §88 forbade - a stale score passed off as current -
+#: is still forbidden, by the wording rather than by silence.
+KEPT_WHEN_OLD = frozenset({"markets", "sports"})
 
 
 def normalise_status(value: object) -> str:
@@ -283,7 +292,18 @@ class LiveFacts:
         # feed described as current is the one failure mode this whole module
         # exists to prevent, so the delay is stated in the same breath as the
         # timestamp rather than left in a field nobody reads.
-        if self.domain in KEPT_WHEN_OLD and not self.is_fresh(now):
+        if self.domain == "sports" and not self.is_fresh(now):
+            # The last known state of the contest (§264): kept until a newer
+            # reading replaces it, said with its time.
+            freshness = (
+                f"This is the LAST KNOWN state of this contest, true at "
+                f"{listener_clock.say(self.as_of)} - {self.age_phrase(now)}. "
+                f"Everything below about the contest itself stands. If it was "
+                f"under way then, the score and the period may have moved "
+                f"since: give them with their time (\"21-14 as of "
+                f"{listener_clock.say(self.as_of, '%H:%M')}\"), never as the "
+                f"score now. A final score is final.")
+        elif self.domain in KEPT_WHEN_OLD and not self.is_fresh(now):
             # The latest reading, not the current one (§263). Its day is
             # stated in full, since "at 16:00" alone is a time on no date.
             freshness = (
@@ -736,9 +756,76 @@ ENTITIES = _EntityCache()
 FACT_CACHE = _FactCache()
 
 
+class _LastKnown:
+    """The newest reading of each entity, kept until a newer one replaces it.
+
+    §264: an old score is discarded only when the score has changed - which
+    is to say, only when a newer reading arrives. A provider that fails, times
+    out or has nothing this minute then leaves the episode with the last
+    known state, dated, instead of nothing. An older reading never replaces a
+    newer one. Bounded: two days, and a few thousand entities.
+    """
+
+    MAX_ENTRIES = 4000
+    MAX_AGE = 48 * 3600.0
+
+    def __init__(self) -> None:
+        self._held: dict = {}
+
+    def put(self, entity: Entity, facts: "LiveFacts") -> "LiveFacts":
+        """Keep `facts` unless what is held is newer. Returns the newer."""
+        held = self._held.get(entity.key)
+        if held is not None and held.as_of > facts.as_of:
+            return held
+        if len(self._held) >= self.MAX_ENTRIES:
+            self._prune()
+        self._held[entity.key] = facts
+        return facts
+
+    def get(self, entity: Optional[Entity], now: Optional[datetime] = None):
+        if entity is None:
+            return None
+        held = self._held.get(entity.key)
+        if held is None or held.domain not in KEPT_WHEN_OLD:
+            return None
+        if held.age_seconds(now) > self.MAX_AGE:
+            self._held.pop(entity.key, None)
+            return None
+        return held
+
+    def _prune(self) -> None:
+        now = datetime.now(timezone.utc)
+        for key, held in list(self._held.items()):
+            if held.age_seconds(now) > self.MAX_AGE:
+                self._held.pop(key, None)
+        while len(self._held) >= self.MAX_ENTRIES:
+            oldest = min(self._held, key=lambda k: self._held[k].as_of)
+            self._held.pop(oldest, None)
+
+    def clear(self) -> None:
+        self._held.clear()
+
+
+LAST_KNOWN = _LastKnown()
+
+
+def _last_known(domain: str, entity, source_name: str, outcome: str,
+                detail: str) -> "LiveLookup":
+    """The held reading in place of a failure, or the failure itself."""
+    held = LAST_KNOWN.get(entity) if domain in KEPT_WHEN_OLD else None
+    if held is None:
+        return LiveLookup(domain, outcome, detail=detail)
+    log.info("live facts: %s %s for %s; giving the last known reading from %s",
+             source_name, outcome, entity.key, held.as_of.isoformat())
+    return LiveLookup(domain, FACTS, facts=held, detail=(
+        f"{source_name} (last known reading, {int(held.age_seconds())}s old; "
+        f"this time: {outcome})"))
+
+
 def clear_caches() -> None:
     ENTITIES.clear()
     FACT_CACHE.clear()
+    LAST_KNOWN.clear()
 
 
 # --------------------------------------------------------------------------
@@ -756,6 +843,7 @@ async def _ask(source: LiveSource, brief, notes, deadline: float) -> LiveLookup:
     def left() -> float:
         return min(per_call, max(0.0, deadline - time.monotonic()))
 
+    entity = None
     try:
         entity = ENTITIES.get(source.name, subject)
         if entity is None:
@@ -782,20 +870,21 @@ async def _ask(source: LiveSource, brief, notes, deadline: float) -> LiveLookup:
 
         budget = left()
         if budget <= 0:
-            return LiveLookup(domain, TIMEOUT,
-                              detail=f"{source.name}: no time left to fetch")
+            return _last_known(domain, entity, source.name, TIMEOUT,
+                               f"{source.name}: no time left to fetch")
         facts = await asyncio.wait_for(source.fetch(entity), timeout=budget)
     except asyncio.TimeoutError:
         log.warning("live facts: %s timed out for %r", source.name, subject)
-        return LiveLookup(domain, TIMEOUT, detail=f"{source.name} timed out")
+        return _last_known(domain, entity, source.name, TIMEOUT,
+                           f"{source.name} timed out")
     except Exception as exc:  # noqa: BLE001 - a provider must not end an episode
         # A traceback only for the unexpected. A provider answering with an
         # HTTP status is a sentence, not a crash, and its traceback was what
         # made a Finnhub 422 read as an outage in Render's logs (§144).
         log.warning("live facts: %s failed for %r: %s", source.name, subject, exc,
                     exc_info=not hasattr(exc, "status"))
-        return LiveLookup(domain, PROVIDER_FAILED,
-                          detail=f"{source.name} failed: {type(exc).__name__}: {exc}")
+        return _last_known(domain, entity, source.name, PROVIDER_FAILED,
+                           f"{source.name} failed: {type(exc).__name__}: {exc}")
 
     if notes is not None and source.cost_per_call:
         notes.usage.add_live_call(1, source.cost_per_call)
@@ -803,16 +892,25 @@ async def _ask(source: LiveSource, brief, notes, deadline: float) -> LiveLookup:
         notes.usage.add_live_call(1, 0.0)
 
     if not facts or not facts.facts:
-        return LiveLookup(domain, NO_FACTS,
-                          detail=f"{source.name} is reporting nothing for {entity.key}")
+        return _last_known(domain, entity, source.name, NO_FACTS,
+                           f"{source.name} is reporting nothing for {entity.key}")
 
     facts.entity = facts.entity or entity
     if not facts.delayed_seconds and source.delayed_seconds:
         facts.delayed_seconds = float(source.delayed_seconds)
 
+    if domain in KEPT_WHEN_OLD:
+        # Replaced only by something newer (§264): a provider answering with
+        # an older state than one already held does not take it back.
+        facts = LAST_KNOWN.put(entity, facts)
+
     if not facts.is_fresh() and domain in KEPT_WHEN_OLD:
         # The latest reading, kept and dated (§263): its prompt block says
         # when it was true and that it is not "now".
+        if facts.status == SCHEDULED:
+            # "Has not started" was true when it was read and may not be now:
+            # an old reading never says a game is still to come (§264).
+            facts = dataclasses.replace(facts, status=UNKNOWN)
         log.info("live facts: %s returned %s data %.0fs old for %s; kept as "
                  "the latest reading", source.name, domain, facts.age_seconds(),
                  entity.key)

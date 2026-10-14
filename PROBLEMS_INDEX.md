@@ -267,3 +267,4 @@ and `limit` = Lines.
 | 18785 | 68 | 261. The brief on Haiku 5.5 at medium effort |
 | 18853 | 31 | 262. A playlist goes past an episode that fails to play |
 | 18884 | 65 | 263. Market readings kept, recency enforced, and a town question that asks what it is about |
+| 18949 | 52 | 264. A score kept until a newer one, the sweep past the final, and no window on a timeless question |
