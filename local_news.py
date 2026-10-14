@@ -1274,8 +1274,12 @@ async def research_local(place, brief=None, exa=None) -> LocalResult:
         known = sorted({o.host for o in (target.for_place(
             place.name, place.county, place.region) if target else [])
             if o.host and o.state != EXCLUDED and o.source != "learned"})
-        query = " ".join(filter(None, [
-            getattr(brief, "retrieval", "") or "", place.name, place.region]))
+        # The town and region once (§267): a retrieval that already names
+        # them is not sent "San Francisco ... San Francisco California".
+        retrieval = getattr(brief, "retrieval", "") or ""
+        query = " ".join(filter(None, [retrieval] + [
+            w for w in (place.name, place.region)
+            if w and w.lower() not in retrieval.lower()]))
         try:
             # Only results that name the place survive inside the search
             # (`research.names_place`) - the fix that stops invention.

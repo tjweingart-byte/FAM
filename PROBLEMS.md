@@ -19064,3 +19064,84 @@ current prices and commercial terms with each vendor before buying.
 
 Tests: `tests/test_evergreen_and_scores_266.py`, the §266 block in
 `tests/test_sweep_on_demand_191.py`.
+
+## 267. Each provider's input in its own terms, and what an all-inclusive market feed would cost
+
+**The owner's direction (10.14):** EI should write the best input for every
+downstream plugin in that plugin's own format - Parallel's objective and
+queries as Parallel advises, and every other provider tailored to how it
+searches. And rank the market-data options for an all-inclusive feed, with
+prices, so gaps are closed with foresight rather than one at a time.
+
+**What each provider was getting (audit).** Parallel already had its
+objective and 3-6 word queries (§260). Everything else read `subject`, a
+field written as "the entity or event": Finnhub refused an event-shaped
+subject ("Meta's stock rise on 13 October 2026") before searching, so a
+question about a move was never looked up; API-Sports routed "Celtics game
+tonight" to the default sport; Polymarket dropped every word of three letters
+("Fed", "GOP", "NYC") and never met "Fed decision in October?"; GDELT spent its
+ten-word budget on "decision" and "game" when it matches on the names its
+extraction lists; Perplexity was handed an objective it has no field for and
+silently dropped it; neither web backend was told a town's country.
+
+**Now, three new brief fields** (all optional in code - a degraded brief has
+none and every reader falls back to `subject`):
+- `entities`: up to four named things with a kind (company, fund_or_index,
+  team, league, person, organisation, place, event). Names, never a ticker or
+  id - `clean_entities` drops a company "name" that is a ticker. Finnhub
+  resolves the first listed name through its own `/search`; API-Sports adds
+  team and league names to what `sport_for` and `teams_named` read; GDELT
+  (`research.gdelt_query`) is searched with the names first; Polymarket adds
+  their words. The live-facts entity cache is keyed on subject and names.
+- `forecast_query`: two to five words as a market would title the outcome;
+  Polymarket's search (`live_sources.market_words`) keeps its three-letter
+  words.
+- `source_kind` (general, news, official, filings, academic, local):
+  Perplexity's `search_mode` (`sec`, `academic`) and a source-preference line
+  in Parallel's objective ("be specific about source preferences", Parallel's
+  own guidance).
+And in code only: a town's ISO country from `places` becomes Parallel's
+`location` and Perplexity's `country`; the local web query no longer repeats
+a town the retrieval already names; `place` is asked for as "Town, full
+state name, two-letter country code" (`places._pick` matches the full state
+name); `search_query` is asked for at three to eight words.
+
+**Not done, and why.** Perplexity's `query` accepts a list, but a community
+report says multi-query does not work and the response shape for a list is
+unconfirmed, so it still gets one string. Perplexity's SDK (0.43.8) types
+`search_type` as "web" or "people", and `PERPLEXITY_SEARCH_TYPE` defaults to
+"fast" - check with a key that "fast" is still accepted. Model-written
+tickers or ids: never (`live-facts`).
+
+**Cost.** The three fields add roughly 60-120 output tokens to the brief:
+about half a second on search on Haiku, against the 8 s `EI_TIMEOUT_SECONDS`
+that already binds near 1,500 tokens (§261). Watch `since_boot.timeout` and
+`out_of_room` in `/api/health`; `EI_TIMEOUT_SECONDS` is the knob.
+
+**Market data, ranked (research, not built; prices from vendor-page snippets
+and third parties - finnhub.io, massive.com, FMP and EODHD could not be
+fetched from the container, so every price needs confirming).** FAM needs
+commercial redistribution rights, which most self-serve plans exclude.
+1. Financial Modeling Prep - the broadest single API (quotes, index levels,
+   movers, pre/after-hours, fundamentals, estimates, earnings/IPO/dividend
+   calendars, analyst grades and targets, insider, 13F, ETF holdings, news,
+   crypto, FX, commodities, Treasuries, economic calendar). Ultimate $139/mo
+   personal; commercial display needs an Enterprise licence (quote).
+2. Massive (formerly Polygon.io) - best US price quality; business plans
+   $2,499 stocks + $2,500 indices + $699 financials; weak on macro/global.
+3. Twelve Data - Enterprise $1,099/mo (published) with redistribution;
+   good global breadth, thinner ratings/insider/macro.
+4. EODHD - All-In-One $99.99 personal; business from ~$1,099.
+5. Intrinio - Startup from $333/mo with commercial display rights; US-centric.
+6. Finnhub - **one** All-In-One plan exists at about $3,500/mo (annual),
+   otherwise per market and per dataset ($50-$200 each); every self-serve plan,
+   All-In-One included, is "Personal Use", so FAM's use needs a negotiated
+   licence. Not the right vendor for a commercial app.
+Free complements: SEC EDGAR (filings, insider, 13F), BLS/BEA/Treasury (macro,
+yields; public domain), FRED (only its public-domain series commercially),
+CoinGecko Basic ~$35/mo for crypto. Index values (S&P, Dow, Nasdaq) carry
+their own licences; confirm in writing what the vendor's plan covers.
+Recommended: FMP Enterprise (quote) or Twelve Data Enterprise ($1,099) as the
+one feed, plus the free complements - about $1,130/mo on the published route.
+
+Tests: `tests/test_provider_inputs_267.py`.

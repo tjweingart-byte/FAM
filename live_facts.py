@@ -835,6 +835,12 @@ async def _ask(source: LiveSource, brief, notes, deadline: float) -> LiveLookup:
     """One source, resolved then fetched, on the clock. Never raises."""
     domain = source.domain
     subject = (getattr(brief, "subject", "") or getattr(brief, "query", "") or "")
+    # The names EI listed resolve too (§267), so they are part of what a
+    # resolution is remembered under: one subject, two different named
+    # companies, is two lookups.
+    named = "|".join(str(e.get("name", "")) for e in (getattr(brief, "entities", None) or [])
+                     if isinstance(e, dict))
+    key = f"{subject}|{named}" if named else subject
     # A source may need longer than the default - weather asks one provider
     # and falls back to a second inside its own call (§194).
     per_call = max(float(settings.live_timeout_seconds),
@@ -845,7 +851,7 @@ async def _ask(source: LiveSource, brief, notes, deadline: float) -> LiveLookup:
 
     entity = None
     try:
-        entity = ENTITIES.get(source.name, subject)
+        entity = ENTITIES.get(source.name, key)
         if entity is None:
             budget = left()
             if budget <= 0:
@@ -856,7 +862,7 @@ async def _ask(source: LiveSource, brief, notes, deadline: float) -> LiveLookup:
                 return LiveLookup(
                     domain, NO_ENTITY,
                     detail=f"{source.name} has nothing matching {subject!r}")
-            ENTITIES.put(source.name, subject, entity)
+            ENTITIES.put(source.name, key, entity)
 
         cached = FACT_CACHE.get(entity)
         if cached is not None:

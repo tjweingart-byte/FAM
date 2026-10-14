@@ -688,7 +688,8 @@ def _cutoff(recency_days: int) -> Optional[datetime]:
 
 def _search_parallel(query: str, num_results: int, recency_days: int = 0,
                      include_domains: tuple = (), objective: str = "",
-                     extra_queries: tuple = ()) -> tuple[list, float]:
+                     extra_queries: tuple = (), hints: Optional[dict] = None
+                     ) -> tuple[list, float]:
     """One Parallel search: (results, dollars). Raises on any failure."""
     key = _key("parallel")
     if not key:
@@ -708,6 +709,10 @@ def _search_parallel(query: str, num_results: int, recency_days: int = 0,
         policy["include_domains"] = list(include_domains)[:PARALLEL_MAX_DOMAINS]
     if policy:
         advanced["source_policy"] = policy
+    # A town's question is searched from its country (§267): Parallel's
+    # `location`, an ISO code from the place catalogue.
+    if (hints or {}).get("country"):
+        advanced["location"] = hints["country"]
     body: dict = {
         # Parallel wants short keyword queries; a raw question (EI off, or no
         # `retrieval` in the brief) is cut rather than sent whole.
@@ -735,8 +740,8 @@ def _search_parallel(query: str, num_results: int, recency_days: int = 0,
 
 
 def _search_perplexity(query: str, num_results: int, recency_days: int = 0,
-                       include_domains: tuple = (), objective: str = ""
-                       ) -> tuple[list, float]:
+                       include_domains: tuple = (), objective: str = "",
+                       hints: Optional[dict] = None) -> tuple[list, float]:
     """One Perplexity search: (results, dollars). Raises on any failure."""
     key = _key("perplexity")
     if not key:
@@ -755,6 +760,15 @@ def _search_perplexity(query: str, num_results: int, recency_days: int = 0,
         body["search_after_date_filter"] = cutoff.strftime("%m/%d/%Y")
     if include_domains:
         body["search_domain_filter"] = list(include_domains)[:PERPLEXITY_MAX_DOMAINS]
+    # Perplexity's own modes for its own indexes (§267): SEC filings and
+    # academic papers, from EI's `source_kind`; its `country` on a town's
+    # question. Perplexity has no objective field - the objective is not
+    # sent, and the query carries the question.
+    mode = PERPLEXITY_MODES.get((hints or {}).get("source_kind", ""))
+    if mode:
+        body["search_mode"] = mode
+    if (hints or {}).get("country"):
+        body["country"] = hints["country"]
     data = _post(PERPLEXITY_URL, {"Authorization": f"Bearer {key}"}, body)
     results = [
         SearchResult(url=str(item.get("url") or ""),
@@ -788,6 +802,46 @@ def _search_exa(query: str, num_results: int, recency_days: int = 0,
     cost = getattr(getattr(reply, "cost_dollars", None), "total", None)
     return (list(getattr(reply, "results", []) or []),
             float(cost) if cost is not None else COST_PER_SEARCH)
+
+
+#: EI's `source_kind` as a sentence in Parallel's objective (§267). "general"
+#: and an unknown kind add nothing.
+SOURCE_PREFERENCES = {
+    "news": "Prefer wire services and established news outlets' reports.",
+    "official": "Prefer the official source itself: the government body, "
+                "league, company or institution's own statement or site.",
+    "filings": "Prefer the company's own filings and results releases "
+               "(SEC filings, earnings releases, investor relations).",
+    "academic": "Prefer peer-reviewed research, universities and scientific "
+                "institutions.",
+    "local": "Prefer the town's own newspapers, broadcasters and official sites.",
+}
+#: EI's `source_kind` as Perplexity's `search_mode` (§267). Everything else
+#: is the default web search, which is not sent.
+PERPLEXITY_MODES = {"filings": "sec", "academic": "academic"}
+
+
+def gdelt_query(query: str, brief) -> str:
+    """What GDELT's export copy is searched with (§267): EI's named things
+    first, then the query. GDELT matches words against titles and the
+    people and organisations its own extraction names, keeps the first ten
+    words and wants two to hit - so a name is worth more than "decision" or
+    "game", and the names go where they cannot be cut off."""
+    import episode_intelligence as ei
+
+    names = [n for n in ei.entity_names(brief) if n.lower() not in query.lower()]
+    return " ".join(names + [query]).strip()
+
+
+def hints_for(brief, country: str = "") -> dict:
+    """What each backend may be told beyond the query (§267): the source
+    kind and, on a local question, the place's country from the catalogue
+    (`places`), never from the model."""
+    out = {"source_kind": str(getattr(brief, "source_kind", "") or "general")}
+    code = (country or "").strip().upper()
+    if len(code) == 2 and code.isalpha():
+        out["country"] = code
+    return out
 
 
 def objective_for(brief, recency_days: Optional[int] = None) -> str:
@@ -825,6 +879,10 @@ def objective_for(brief, recency_days: Optional[int] = None) -> str:
         if wanted:
             text += " that establishes: " + "; ".join(wanted[:4])
         text += "."
+    # Parallel's own advice: "be specific about source preferences" (§267).
+    prefer = SOURCE_PREFERENCES.get(str(getattr(brief, "source_kind", "") or ""))
+    if prefer and prefer.lower() not in text.lower():
+        text += " " + prefer
     cutoff = _cutoff(days)
     if cutoff is not None:
         text += (f" Only sources published on or after "
@@ -978,7 +1036,8 @@ def _retrieve_blocking(query: str, num_results: int, packet_sources: int,
                        recency_days: int = 0, live_domain: str = "",
                        include_domains: tuple = (), must_name: str = "",
                        backend: str = "exa", objective: str = "",
-                       extra_queries: tuple = ()) -> Packet:
+                       extra_queries: tuple = (),
+                       hints: Optional[dict] = None) -> Packet:
     """One web search, ranked, packed and costed.
 
     `recency_days` becomes the backend's after-date filter, which is the
@@ -993,10 +1052,10 @@ def _retrieve_blocking(query: str, num_results: int, packet_sources: int,
         if backend == "parallel":
             returned, cost = _search_parallel(query, num_results, recency_days,
                                               include_domains, objective,
-                                              extra_queries)
+                                              extra_queries, hints)
         elif backend == "perplexity":
             returned, cost = _search_perplexity(query, num_results, recency_days,
-                                                include_domains, objective)
+                                                include_domains, objective, hints)
         else:
             returned, cost = _search_exa(query, num_results, recency_days,
                                          include_domains, objective, search_type)
@@ -1039,7 +1098,8 @@ async def _second_look(query: str, num_results: int, packet_sources: int,
                        search_type: str, live_domain: str = "",
                        include_domains: tuple = (), must_name: str = "",
                        backend: str = "exa", objective: str = "",
-                       recency_days: int = 0) -> Optional[Packet]:
+                       recency_days: int = 0,
+                       hints: Optional[dict] = None) -> Optional[Packet]:
     """The one extra search, which is allowed to fail quietly. `retrieve` is not.
 
     The distinction is the whole reason this is a separate function, and it is
@@ -1062,7 +1122,7 @@ async def _second_look(query: str, num_results: int, packet_sources: int,
         return await asyncio.to_thread(
             _retrieve_blocking, query, num_results, packet_sources,
             highlights_per_source, search_type, recency_days, live_domain,
-            include_domains, must_name, backend, objective)
+            include_domains, must_name, backend, objective, (), hints)
     except Exception as exc:  # noqa: BLE001 - see docstring
         log.warning("the second look failed for %r: %s; keeping the first "
                     "packet", query, exc)
@@ -1170,11 +1230,12 @@ async def retrieve(query: str, backend: Optional[str] = None,
     live_domain = str(getattr(brief, "live_domain", "") or "")
     include_domains = tuple(overrides.get("include_domains", ()) or ())
     must_name = str(overrides.get("must_name", "") or "")
+    hints = hints_for(brief, str(overrides.get("country", "") or ""))
     packet = await asyncio.to_thread(
         _retrieve_blocking, query, num_results, packet_sources,
         highlights_per_source, search_type, recency_days, live_domain,
         include_domains, must_name, chosen, objective,
-        queries_for(query, brief))
+        queries_for(query, brief), hints)
 
     covered, missing = packet_covers(packet.context, must_establish)
     packet.missing = list(missing)
@@ -1209,7 +1270,7 @@ async def retrieve(query: str, backend: Optional[str] = None,
                                     highlights_per_source, search_type,
                                     live_domain, include_domains, must_name,
                                     other, written or objective_for(brief, wider),
-                                    wider)
+                                    wider, hints)
         if second is not None:
             _, second_missing = packet_covers(second.context, must_establish)
             # Keep whichever packet answers more of the brief; on a tie keep
@@ -1251,7 +1312,8 @@ async def retrieve(query: str, backend: Optional[str] = None,
         import gdelt
         import provenance as provenance_mod
 
-        second = await gdelt.retrieve(query, recency_days=recency_days)
+        second = await gdelt.retrieve(gdelt_query(query, brief),
+                                      recency_days=recency_days)
         if second:
             ranked = within_window(
                 screen_results(rank_results(second), query=query,
@@ -1316,7 +1378,8 @@ async def retrieve_with_gdelt(query: str, brief=None, recency_days: int = 0
         import gdelt
         import provenance as provenance_mod
 
-        results = await gdelt.retrieve(query, recency_days=recency_days)
+        results = await gdelt.retrieve(gdelt_query(query, brief),
+                                       recency_days=recency_days)
     except Exception:  # noqa: BLE001 - a rung that raises is a rung that fails
         packet.seconds = time.perf_counter() - started
         log.warning("gdelt failed while retrieving %r", query, exc_info=True)

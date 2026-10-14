@@ -127,6 +127,13 @@ async def main() -> int:
             print(f"    must answer {'; '.join(brief.must_establish)}")
         if brief.cautions:
             print(f"    careful of  {'; '.join(brief.cautions)}")
+        if getattr(brief, "entities", None):
+            print("    names       " + "; ".join(
+                f"{e['name']} ({e['kind']})" for e in brief.entities))
+        if getattr(brief, "forecast_query", ""):
+            print(f"    market      {brief.forecast_query!r}")
+        if getattr(brief, "source_kind", "general") != "general":
+            print(f"    sources     {brief.source_kind}")
         if brief.pronounce:
             print("    say as      " + "; ".join(
                 f"{p['name']} = {p['say']}" for p in brief.pronounce))

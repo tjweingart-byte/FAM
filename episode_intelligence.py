@@ -302,6 +302,22 @@ class Brief:
     #: personal, and applied only to the text handed to the voice. Empty when there are none, and on a
     #: degraded brief.
     pronounce: list = field(default_factory=list)
+    #: The named things the request turns on, each `{"name", "kind"}` (§267):
+    #: a company's listed name, a team's full name, a league, a person. Names
+    #: only - every provider resolves them in its own catalogue
+    #: (`live-facts`: never a model's ticker or id). Finnhub reads the company
+    #: or fund, API-Sports the teams and league, GDELT and Polymarket the
+    #: names. Empty on a degraded brief, and every reader then falls back to
+    #: `subject` exactly as before.
+    entities: list = field(default_factory=list)
+    #: Two to five words as a prediction market would title this outcome
+    #: ("Fed decision October"), for Polymarket's search (§267). Empty when
+    #: there is no outcome to bet on.
+    forecast_query: str = ""
+    #: What kind of source answers this best (`SOURCE_KINDS`, §267): read by
+    #: Perplexity as its `search_mode` (filings, academic) and by Parallel's
+    #: objective as a stated source preference. "general" says nothing.
+    source_kind: str = "general"
     #: True when the model call did not happen or could not be used, and this
     #: brief was assembled from the raw query. Reported, never hidden: an EI
     #: layer that silently degrades is the "quietly worse than intended"
@@ -771,6 +787,19 @@ def gate(brief: Brief, query: str) -> Brief:
 # --------------------------------------------------------------------------
 # The model call
 # --------------------------------------------------------------------------
+#: The kinds of named thing EI may list in `entities` (§267).
+ENTITY_KINDS = ("company", "fund_or_index", "team", "league", "person",
+                "organisation", "place", "event")
+#: Which entity kinds name something a market lists.
+LISTED_KINDS = ("company", "fund_or_index")
+#: The kind of source that answers a question best (§267).
+SOURCE_KINDS = ("general", "news", "official", "filings", "academic", "local")
+#: At most this many entities are kept, and each name at most this long.
+MAX_ENTITIES = 4
+MAX_ENTITY_CHARS = 80
+MAX_FORECAST_QUERY_CHARS = 60
+
+
 BRIEF_SCHEMA = {
     "type": "object",
     "properties": {
@@ -834,6 +863,23 @@ BRIEF_SCHEMA = {
         # This call already names the subject, so a handful of output tokens
         # respells it too - and it runs before the first word, which is the
         # only mention a pronunciation arriving later could miss.
+        # **Inputs written for each provider in its own terms** (§267). Names
+        # for the catalogues (Finnhub, API-Sports), a market-style title for
+        # Polymarket, a source kind for Perplexity's mode and Parallel's
+        # objective. Never an id: the catalogue resolves the name.
+        "entities": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {"name": {"type": "string"},
+                               "kind": {"type": "string",
+                                        "enum": list(ENTITY_KINDS)}},
+                "required": ["name", "kind"],
+                "additionalProperties": False,
+            },
+        },
+        "forecast_query": {"type": "string"},
+        "source_kind": {"type": "string", "enum": list(SOURCE_KINDS)},
         "pronounce": {
             "type": "array",
             "items": {
@@ -850,7 +896,7 @@ BRIEF_SCHEMA = {
                  "search_objective", "must_establish",
                  "recency_days", "structure", "cautions", "live_domain",
                  "outcome_dependent", "place", "title", "category",
-                 "pronounce"],
+                 "entities", "forecast_query", "source_kind", "pronounce"],
     "additionalProperties": False,
 }
 
@@ -963,7 +1009,9 @@ Work out:
 - **why_now** - what recent development plausibly put this in their head today,
   if any, and **why_now_confidence** for how sure that is. Nothing plausible
   means empty and low. Do not claim to know their motive.
-- **search_query** - what to actually search for. See the rules above.
+- **search_query** - what to actually search for. See the rules above. Three
+  to eight words: the names and the specific thing, as a headline would put
+  them.
 - **search_fallback** - the same search, broader, for when the first one comes
   back with nothing. Drop the qualifiers and keep the subject: if the first is
   "Bank of England November rate decision vote split", this is "Bank of England
@@ -1020,8 +1068,9 @@ Work out:
   for how something works, what someone is like, or what is at stake.
 - **place** - when the request is about what is going on in one particular
   town, city or county in general - its local news, what's on there, its
-  council, its weather - that place as "Town, State or Region, Country",
-  spelled correctly ("San Anselmo, California, US"). Empty when the request
+  council, its weather - that place as "Town, full State or Region name,
+  two-letter country code", spelled correctly ("San Anselmo, California, US";
+  never "CA" for the state). Empty when the request
   asks about one specific thing that happens to be there - a named or
   particular event, show, game, festival, storm, crash or protest ("airshow
   in San Francisco Bay today", "Fleet Week", "the marathon in Boston"):
@@ -1057,7 +1106,62 @@ Work out:
   hard word on its own as well as the full name, because an episode names
   somebody in full once and by surname after that. Only names you actually
   know how to say - a confident wrong respelling is worse than none - and
-  nothing an English speaker already says right. Empty for most requests."""
+  nothing an English speaker already says right. Empty for most requests.
+- **entities** - the up to four named things this turns on, each with its
+  kind, spelled in full the way its owner spells it: a company by its listed
+  name ("Meta Platforms", not "Facebook" or "META"), a team by its full name
+  ("Philadelphia Eagles"), a league as it is usually written ("NBA",
+  "Premier League"), an index by its name ("Nasdaq Composite"), an
+  institution ("US Federal Reserve"), a person. Names only - never a ticker, an id, a
+  score or a result: each one is looked up in a provider's own catalogue.
+  Empty when nothing is named ("a stoic quote", "how vaccines work").
+- **forecast_query** - only when the answer is an outcome people bet on (an
+  election, a rate decision, a championship, a court ruling): two to five
+  words as a prediction market would title it, with the short forms markets
+  use ("Fed decision October", "Eagles win Super Bowl", "NYC mayoral
+  election"). Empty otherwise.
+- **source_kind** - the kind of source that answers this best: `news` for
+  something that happened, `official` for a government, league or company
+  statement, `filings` for a company's SEC filings or results, `academic`
+  for research and science, `local` for a town's own reporting, `general`
+  when no one kind is better."""
+
+
+_TICKERISH = re.compile(r"^[A-Z]{1,5}(\.[A-Z])?$")
+
+
+def clean_entities(raw) -> list:
+    """The model's `entities`, cleaned (§267): known kinds, real names, four.
+
+    A bare ticker ("META", "NVDA") is dropped - a name is looked up in a
+    catalogue, and a ticker handed in as a name would be trusted as one.
+    """
+    out, seen = [], set()
+    for item in list(raw or []):
+        if not isinstance(item, dict):
+            continue
+        name = " ".join(str(item.get("name", "") or "").split())[:MAX_ENTITY_CHARS]
+        kind = str(item.get("kind", "") or "")
+        if not name or kind not in ENTITY_KINDS:
+            continue
+        # A league's or an agency's short name is its name ("NFL", "SEC"); a
+        # company's or fund's capitals are a ticker.
+        if kind in LISTED_KINDS and _TICKERISH.match(name):
+            continue
+        if not re.search(r"[A-Za-z]", name) or name.lower() in seen:
+            continue
+        seen.add(name.lower())
+        out.append({"name": name, "kind": kind})
+        if len(out) >= MAX_ENTITIES:
+            break
+    return out
+
+
+def entity_names(brief, kinds=()) -> list:
+    """The brief's entity names, of these kinds (all kinds when none given)."""
+    return [e["name"] for e in (getattr(brief, "entities", None) or [])
+            if isinstance(e, dict) and e.get("name")
+            and (not kinds or e.get("kind") in kinds)]
 
 
 def _pronounce_pairs(raw) -> list:
@@ -1164,6 +1268,12 @@ async def understand(query: str, minutes: int = DEFAULT_MINUTES, context: str = 
         title=clean_title(str(data.get("title", "")), query),
         category=" ".join(str(data.get("category", "") or "").split())[:80],
         pronounce=_pronounce_pairs(data.get("pronounce")),
+        entities=clean_entities(data.get("entities")),
+        forecast_query=" ".join(str(data.get("forecast_query", "") or "").split()
+                                )[:MAX_FORECAST_QUERY_CHARS],
+        source_kind=(str(data.get("source_kind", "") or "general")
+                     if str(data.get("source_kind", "")) in SOURCE_KINDS
+                     else "general"),
     )
     brief = gate(brief, query)
     _OUTCOMES["ok"] += 1

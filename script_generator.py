@@ -1589,9 +1589,12 @@ class ScriptGenerator:
                 if backend in tried:
                     continue
                 try:
+                    # The town's country from the catalogue (§267):
+                    # Parallel's `location`, Perplexity's `country`.
                     packet = await research_mod.retrieve(
                         query, backend=backend, brief=plan.brief,
-                        include_domains=domains, must_name=must_name)
+                        include_domains=domains, must_name=must_name,
+                        country=getattr(place, "country", "") or "")
                 except Exception:  # noqa: BLE001 - see `_retrieve`
                     log.warning("the local %s rung failed for %r", backend,
                                 query, exc_info=True)

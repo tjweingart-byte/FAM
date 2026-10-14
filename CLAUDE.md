@@ -295,9 +295,9 @@ Research and truth
   every fallback recorded; sim-league pages and (on sports) unknown outlets
   are screened out (§178); nothing is refused for want of evidence (§256);
   EI writes `Brief.broader`. [always-researched]
-- **EI decides what to search for, before the search**; the brief never asserts
-  a fact; **a layer that adds quality must not subtract availability** - every
-  failure falls back to the raw query and says so (`Brief.degraded`). [ei-before-search]
+- **EI decides what to search for, before the search**; the brief asserts
+  no fact; **a layer that adds quality must not subtract availability** - every
+  failure falls back to the raw query, saying so (`Brief.degraded`); inputs per provider (§267). [ei-before-search]
 - **Recency filters (in code; none if timeless); credibility sorts.** Packet: date and grade,
   **never the hostname**; relative dates in code; one retry on a
   thin packet, gap named to writer. [recency-credibility]
@@ -312,7 +312,7 @@ Research and truth
   without authoritative, fresh evidence; never infer one from absence.** Closed
   status vocabulary; only evidence sets it; resolution from the provider's
   catalogue, never a model; seven lookup outcomes; freshness in code,
-  stale withheld, markets/scores kept (§265-6); NFL records, last/next games from
+  stale withheld but markets/scores kept (§265-6); NFL records, games from
   the schedule (§178). Don't claim live scores until a provider returns them. [live-facts]
 - **A score is checked before it is spoken** (§259, `score_guard.py`). [score-guard]
 - **API-Sports is a plan per sport**: a budget, a tier (`API_SPORTS_TIERS`,
@@ -320,14 +320,14 @@ Research and truth
   count bounds ours; ten products wired (§180). [api-sports-per-sport]
 - **Ask outside services when somebody is looking and there is something to
   see** (§191): API-Sports sweeps only `SWEPT_LEAGUES`, only while one of
-  their games is on (+30m, §266), only if myFAM was drawn recently; other leagues and
+  their games is on (+30m, §266), if myFAM was drawn recently; other leagues and
   sports are looked up on demand; Finnhub every 2h, round the clock; a
   refused catalogue is not re-asked that day. [sweep-on-demand]
 - **The listener's clock, never the server's** (§186): `listener_clock` from
   the device's `X-FAM-TZ` (Settings can pin one), never a location; prefetch
   and editions use the edition's zone; the zone is not in `key_for`. [listener-clock]
 - **Local news** (§194): a town's question goes town outlets (RSS, read
-  ahead) → county → vetted outlets, never GDELT; only what names the
+  ahead) → county → vetted outlets, never GDELT; only what names
   place and question counts (§265); an empty town opens with `local_news.gap_line`, composed
   in code, then weather, then county news. [local-news-ladder]
 - **Weather** (§194): NWS first, Open-Meteo second; fetched on demand, then

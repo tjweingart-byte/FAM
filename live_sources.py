@@ -1518,6 +1518,15 @@ class ApiSportsSource(LiveSource):
         if slot is not None and slot.sport in SPORTS:
             return await self._resolve_slot(brief, slot)
 
+        # EI's named teams and league ride along (§267): "Celtics game
+        # tonight" names no sport, and the league it lists does. Names only -
+        # the provider's catalogue still decides what they are.
+        import episode_intelligence as ei
+
+        named_sides = ei.entity_names(brief, ("team", "league"))
+        if named_sides:
+            subject = " ".join([subject] + [n for n in named_sides
+                                            if n.lower() not in subject.lower()])
         sport = sport_for(subject)
         # A race or a fight is not a game between two teams (§180).
         if sport.kind == "race":
@@ -2279,6 +2288,16 @@ class FinnhubSource(LiveSource):
         # which is how a degraded brief hands it over. The heading is not part
         # of the name.
         subject = re.sub(r"\s*\([^)]*\)", "", subject).strip()
+        # **EI's listed name first** (§267): "Meta Platforms", where the
+        # subject is "Meta's stock rise on 13 October 2026" - an event, which
+        # `looks_like_a_listing` rightly refuses, so a question about a
+        # move was never looked up at all. A name, never a ticker: Finnhub's
+        # own search still decides the symbol.
+        import episode_intelligence as ei
+
+        listed = ei.entity_names(brief, ei.LISTED_KINDS)
+        if listed:
+            subject = listed[0]
         if not subject:
             return None
         proxy = index_proxy(subject)
@@ -2481,8 +2500,7 @@ class PolymarketSource(LiveSource):
         return True, "Polymarket answered"
 
     async def resolve(self, brief) -> Optional[Entity]:
-        subject = (getattr(brief, "subject", "") or getattr(brief, "query", "")).strip()
-        wanted = subject_words(subject)
+        wanted = market_words(brief)
         if not wanted:
             return None
         try:
@@ -2610,13 +2628,31 @@ going expected chance odds market markets prediction predictions
 """.split())
 
 
-def subject_words(subject: str) -> list:
-    """A brief's subject as the words a market would be named by."""
+def subject_words(subject: str, shortest: int = 4) -> list:
+    """A brief's subject as the words a market would be named by.
+
+    `shortest` is 3 for EI's `forecast_query` (§267), which is written in a
+    market's own short forms - "Fed", "GOP", "NYC" - and 4 for a subject,
+    where a three-letter word is more often noise than a name."""
     out: list = []
     for word in re.findall(r"[^\W_]+", (subject or "").lower()):
-        if len(word) > 3 and word not in _MARKET_STOPWORDS and word not in out:
+        if len(word) >= shortest and word not in _MARKET_STOPWORDS and word not in out:
             out.append(word)
     return out
+
+
+def market_words(brief) -> list:
+    """What Polymarket is searched with (§267): EI's market-style title
+    first, then the named things, then the subject - six words at most."""
+    import episode_intelligence as ei
+
+    subject = (getattr(brief, "subject", "") or getattr(brief, "query", "")).strip()
+    words = subject_words(getattr(brief, "forecast_query", "") or "", shortest=3)
+    for name in ei.entity_names(brief):
+        words += [w for w in subject_words(name) if w not in words]
+    if not words:
+        words = subject_words(subject)
+    return words[:6]
 
 
 def _best_match(candidates, wanted: list):
