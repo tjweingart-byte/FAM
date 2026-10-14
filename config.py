@@ -531,6 +531,10 @@ class Settings:
     # is a provider the listener should not be waiting for.
     live_timeout_seconds: float = _env_float("LIVE_TIMEOUT_SECONDS", 1.5)
     live_total_timeout_seconds: float = _env_float("LIVE_TOTAL_TIMEOUT_SECONDS", 2.5)
+    # How long the live lookup may run while the search beside it is still
+    # running (§265). The first word never waits longer for it than the
+    # ceiling above: past the evidence it is given only what is left of that.
+    live_patient_seconds: float = _env_float("LIVE_PATIENT_SECONDS", 8.0)
     # How long one entity's facts may be reused, by status. In-progress is
     # short enough to only collapse a burst of simultaneous listeners; final
     # does not move, so it is generous.

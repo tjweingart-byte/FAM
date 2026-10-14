@@ -160,7 +160,7 @@ def prepared(plan):
 
 def prepared_without_live(monkeypatch, plan):
     monkeypatch.setattr(sg.live_facts, "lookup",
-                        lambda brief, notes=None: _none())
+                        lambda brief, notes=None, **_: _none())
     return prepared(plan)
 
 
@@ -171,7 +171,7 @@ def test_a_question_that_needs_today_is_written_not_refused(monkeypatch):
     backend(monkeypatch, "exa")
     rungs(monkeypatch, {})
     monkeypatch.setattr(sg.live_facts, "lookup",
-                        lambda brief, notes=None: _none())
+                        lambda brief, notes=None, **_: _none())
     plan = dataclasses.replace(plan_episode("who won", 3, search=True),
                                brief=BRIEF_CURRENT)
     assert prepared(plan).evidence == ""
@@ -184,7 +184,7 @@ def test_an_evergreen_question_is_still_written(monkeypatch):
     backend(monkeypatch, "exa")
     rungs(monkeypatch, {})
     monkeypatch.setattr(sg.live_facts, "lookup",
-                        lambda brief, notes=None: _none())
+                        lambda brief, notes=None, **_: _none())
     plan = dataclasses.replace(
         plan_episode("how does a heat pump work", 3, search=True),
         brief=BRIEF_EVERGREEN)
@@ -204,7 +204,7 @@ def test_a_live_state_is_evidence_even_when_the_index_found_nothing(monkeypatch)
         domain="sports", outcome="facts", facts=facts, status="final",
         as_prompt_block=lambda: "THE SCORE", attempts=[], detail="")
 
-    async def live(brief, notes=None):
+    async def live(brief, notes=None, **_):
         return lookup
 
     monkeypatch.setattr(sg.live_facts, "lookup", live)
@@ -218,7 +218,7 @@ def test_an_unresearched_episode_is_never_refused(monkeypatch):
     backend(monkeypatch, "exa")
     rungs(monkeypatch, {})
     monkeypatch.setattr(sg.live_facts, "lookup",
-                        lambda brief, notes=None: _none())
+                        lambda brief, notes=None, **_: _none())
     plan = dataclasses.replace(
         plan_episode("who won", 3, search=False), brief=BRIEF_CURRENT)
     assert prepared(plan).evidence == ""
@@ -231,7 +231,7 @@ def test_a_degraded_brief_is_never_refused_either(monkeypatch):
     backend(monkeypatch, "exa")
     rungs(monkeypatch, {})
     monkeypatch.setattr(sg.live_facts, "lookup",
-                        lambda brief, notes=None: _none())
+                        lambda brief, notes=None, **_: _none())
     degraded = types.SimpleNamespace(
         retrieval="", subject="", recency_days=0, outcome_dependent=False,
         must_establish=[], degraded=True, live_domain="")

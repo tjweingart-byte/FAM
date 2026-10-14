@@ -124,6 +124,7 @@ Render deployment; since §208 it pins every store there (21 since §211), as th
 | **categories.db** (`CATEGORIES_DB`) | `categories.py` | `categories` | No, shared | ≤ 4,000 nodes; 180 days unseen | n/a · **Wiped and re-seeded** |
 | **trending_bank.db** (`TRENDING_BANK_DB`) | `trending_bank.py` | `editions`, `spend` | No, shared | 2 editions per day (+ startup slots) | n/a · **Wiped** |
 | **provider_usage.db** (`PROVIDER_USAGE_DB`) | `provider_usage.py` | `calls` | No, shared | Forever | n/a · **never wiped** (like metering) |
+| **live_routing.db** (`LIVE_ROUTING_DB`, §264) | `live_routing.py` | `episodes` | No `user_id`; holds the typed question | 14 days (`KEEP_DAYS`) | n/a · kept |
 | **thumbnails.db** (`THUMBNAILS_DB`) | `thumbnails.py` | `thumbnails`, `spend`, `runs` | No, shared | ≤ 1 picture per tree node | n/a · kept |
 | **local_news.db** (`LOCAL_NEWS_DB`) | `local_news.py`, `places.py`, `weather.py` | `outlets`, `items`, `demand`, `excluded`, `places`, `weather` | No (no `user_id`) | Items pruned daily past 30 days (`LOCAL_NEWS_KEEP_DAYS`, never below the 14-day window; each outlet keeps its newest 200, §208); demand 30 days | n/a · kept |
 | **gdelt_export.db** (`GDELT_EXPORT_DB`, §211) | `gdelt.py` (`ExportStore`) | `files`, `articles`, `theme_counts`, `domains`, `meta` | No, shared | 24 hours of GDELT's 15-minute export files (`GDELT_EXPORT_KEEP_HOURS`), ≤ 1,500 articles per file | n/a · kept |

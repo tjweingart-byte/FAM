@@ -91,6 +91,7 @@ ENV FAM_STATE=/state \
     TRENDING_BANK_DB=/state/data/trending_bank.db \
     THUMBNAILS_DB=/state/data/thumbnails.db \
     PROVIDER_USAGE_DB=/state/data/provider_usage.db \
+    LIVE_ROUTING_DB=/state/data/live_routing.db \
     LOCAL_NEWS_DB=/state/data/local_news.db \
     GDELT_EXPORT_DB=/state/data/gdelt_export.db \
     PORT=8000

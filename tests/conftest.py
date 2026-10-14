@@ -76,7 +76,8 @@ FAM_ENVIRONMENT = (
     # "no live feed" would pass or fail on their shell rather than the code.
     "LIVE_FACTS", "LIVE_SPORTS_PROVIDER", "LIVE_MARKETS_PROVIDER",
     "LIVE_ELECTIONS_PROVIDER", "LIVE_TIMEOUT_SECONDS",
-    "LIVE_TOTAL_TIMEOUT_SECONDS", "LIVE_CACHE_IN_PROGRESS_SECONDS",
+    "LIVE_TOTAL_TIMEOUT_SECONDS", "LIVE_PATIENT_SECONDS",
+    "LIVE_CACHE_IN_PROGRESS_SECONDS",
     "LIVE_CACHE_SCHEDULED_SECONDS", "LIVE_CACHE_FINAL_SECONDS",
     "LIVE_FAKE_SPORTS_STATUS",
     # Local news and weather (§194). A developer with WEATHER=1 and a key in
@@ -211,6 +212,7 @@ DATA_ENVIRONMENT = (
     "MYFAM_DB", "PREFS_DB", "QUOTAS_DB", "SAVED_DB", "SHARES_DB", "SOCIAL_DB",
     "VOICE_REGISTRY_DB", "TRENDING_BANK_DB", "FEEDBACK_DB", "PROVIDER_USAGE_DB",
     "LOCAL_NEWS_DB", "GDELT_EXPORT_DB", "CONSENT_DB", "MODERATION_DB",
+    "LIVE_ROUTING_DB",
 )
 
 #: Tier limits. Read by `entitlements.py` rather than `config.py`, so the
@@ -522,6 +524,19 @@ def isolated_provider_usage(tmp_path, monkeypatch):
     provider_usage.reset()
     yield
     provider_usage.reset()
+
+
+@pytest.fixture(autouse=True)
+def isolated_live_routing(tmp_path, monkeypatch):
+    """The per-episode routing rows (§264), per test: every episode a test
+    writes records one, which must not land in the project root."""
+    import live_routing
+
+    monkeypatch.setenv("LIVE_ROUTING_DB",
+                       str(tmp_path / "stores" / "live_routing.db"))
+    live_routing.reset()
+    yield
+    live_routing.reset()
 
 
 @pytest.fixture(autouse=True)
