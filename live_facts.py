@@ -716,31 +716,55 @@ def clear_caches() -> None:
 # --------------------------------------------------------------------------
 # The lookup
 # --------------------------------------------------------------------------
-async def _ask(source: LiveSource, brief, notes, deadline: float) -> LiveLookup:
-    """One source, resolved then fetched, on the clock. Never raises."""
+async def _ask(source: LiveSource, brief, notes, deadline: float,
+               patience: float = 0.0) -> LiveLookup:
+    """One source, resolved then fetched, on the clock. Never raises.
+
+    Resolved against the brief's bare `live_entity` first and, when that
+    matches nothing, once more against its subject (§265): the bare name is
+    what a catalogue search wants, and the subject is what it was asked with
+    before the field existed, so a brief that named the entity badly costs
+    one more search rather than the scoreboard."""
+    import live_route
+
     domain = source.domain
-    subject = (getattr(brief, "subject", "") or getattr(brief, "query", "") or "")
     # A source may need longer than the default - weather asks one provider
-    # and falls back to a second inside its own call (§194).
+    # and falls back to a second inside its own call (§194) - and a lookup
+    # running beside a search may take as long as the search does (§265).
     per_call = max(float(settings.live_timeout_seconds),
-                   float(getattr(source, "timeout_seconds", 0.0) or 0.0))
+                   float(getattr(source, "timeout_seconds", 0.0) or 0.0),
+                   float(patience or 0.0))
 
     def left() -> float:
         return min(per_call, max(0.0, deadline - time.monotonic()))
 
+    tries = [brief]
+    plain = live_route.without_entity(brief) \
+        if (getattr(brief, "live_entity", "") or "") else None
+    if plain is not None and live_route.entity_of(plain) \
+            != live_route.entity_of(brief):
+        tries.append(plain)
+
     try:
-        entity = ENTITIES.get(source.name, subject)
-        if entity is None:
+        entity, subject = None, live_route.entity_of(brief)
+        for asked in tries:
+            subject = live_route.entity_of(asked)
+            entity = ENTITIES.get(source.name, subject)
+            if entity is not None:
+                break
             budget = left()
             if budget <= 0:
                 return LiveLookup(domain, TIMEOUT,
                                   detail=f"{source.name}: no time left to resolve")
-            entity = await asyncio.wait_for(source.resolve(brief), timeout=budget)
-            if entity is None:
-                return LiveLookup(
-                    domain, NO_ENTITY,
-                    detail=f"{source.name} has nothing matching {subject!r}")
-            ENTITIES.put(source.name, subject, entity)
+            entity = await asyncio.wait_for(source.resolve(asked), timeout=budget)
+            if entity is not None:
+                ENTITIES.put(source.name, subject, entity)
+                break
+        if entity is None:
+            said = " or ".join(repr(live_route.entity_of(a)) for a in tries)
+            return LiveLookup(
+                domain, NO_ENTITY,
+                detail=f"{source.name} has nothing matching {said}")
 
         cached = FACT_CACHE.get(entity)
         if cached is not None:
@@ -801,7 +825,7 @@ async def _ask(source: LiveSource, brief, notes, deadline: float) -> LiveLookup:
     return LiveLookup(domain, FACTS, facts=facts, detail=source.name)
 
 
-async def lookup(brief, notes=None) -> Optional[LiveLookup]:
+async def lookup(brief, notes=None, patience: float = 0.0) -> Optional[LiveLookup]:
     """Ask the registered sources for this brief's domain, in order.
 
     Returns `None` only when the brief names no live domain - meaning the
@@ -813,8 +837,17 @@ async def lookup(brief, notes=None) -> Optional[LiveLookup]:
     Bounded twice: each source gets `LIVE_TIMEOUT_SECONDS` and the whole thing
     gets `LIVE_TOTAL_TIMEOUT_SECONDS`, so a dead provider costs a known slice
     of time-to-first-audio and never the episode.
+
+    `patience` (§265) lets it run that many seconds instead, for a caller
+    that runs it beside a search and stops waiting for it once the search is
+    in (`ScriptGenerator.prepare`): time the listener is waiting anyway.
+
+    The domain is the brief's own, else the one code routed it to
+    (`live_route`, §265).
     """
-    domain = getattr(brief, "live_domain", "") or ""
+    import live_route
+
+    domain = live_route.domain_of(brief)
     if domain not in LIVE_DOMAINS:
         return None
     if not settings.live_facts:
@@ -823,8 +856,7 @@ async def lookup(brief, notes=None) -> Optional[LiveLookup]:
 
     sources = sources_for(domain)
     deadline = time.monotonic() + max(
-        [float(settings.live_total_timeout_seconds)]
-        + [float(getattr(s, "timeout_seconds", 0.0) or 0.0) for s in sources])
+        [budget_seconds(domain), float(patience or 0.0)])
     attempts: list = []
     fallback: Optional[LiveLookup] = None
 
@@ -835,7 +867,7 @@ async def lookup(brief, notes=None) -> Optional[LiveLookup]:
             attempts.append((source.name, NOT_CONFIGURED, why))
             continue
 
-        result = await _ask(source, brief, notes, deadline)
+        result = await _ask(source, brief, notes, deadline, patience)
         attempts.append((source.name, result.outcome, result.detail))
         if result.outcome == FACTS:
             result.attempts = attempts
@@ -856,6 +888,14 @@ async def lookup(brief, notes=None) -> Optional[LiveLookup]:
             detail=f"no {domain} provider is configured on this deployment")
     fallback.attempts = attempts
     return fallback
+
+
+def budget_seconds(domain: str) -> float:
+    """How long a lookup in `domain` may take with no patience: the whole-
+    lookup ceiling, or a slower source's own clock."""
+    return max([float(settings.live_total_timeout_seconds)]
+               + [float(getattr(s, "timeout_seconds", 0.0) or 0.0)
+                  for s in sources_for(domain)])
 
 
 def wants_forecast(brief) -> bool:

@@ -12,6 +12,9 @@ they all look the same:
   `timeout`, `not_configured` and so on (`live_facts.OUTCOMES`);
 * **answered** - a provider's facts reached the writer.
 
+Since §265 a domain may also come from code (`live_route`): `route` says
+which - `brief`, `code: <why>`, or `local weather`.
+
 `live_facts.lookup` already knew which, per provider, and kept it only on the
 episode's notes and in a log line. This keeps one row per written episode so
 `/admin` can say which cause is the common one before anyone changes the
@@ -107,10 +110,17 @@ def suspect(query: str, subject: str = "") -> str:
 def row_for(query: str, brief, live) -> dict:
     """One row from an episode's brief and its `LiveLookup` (either may be None)."""
     domain = str(getattr(brief, "live_domain", "") or "") if brief else ""
+    route = "brief" if domain else ""
+    coded = str(getattr(brief, "live_route", "") or "") if brief else ""
+    if not domain and coded:
+        # Asked because code routed it (`live_route`, §265).
+        domain = coded
+        route = "code: " + str(getattr(brief, "live_route_why", "") or "")
     # The local ladder's weather is a live answer in the weather domain
     # (`ScriptGenerator.prepare`), whatever the brief named.
     if live is not None and not domain:
         domain = str(getattr(live, "domain", "") or "")
+        route = "local weather" if domain else ""
     degraded = bool(getattr(brief, "degraded", False)) if brief else True
     outcome = str(getattr(live, "outcome", "") or "") if live is not None else ""
     if domain and not outcome:
@@ -131,6 +141,7 @@ def row_for(query: str, brief, live) -> dict:
         "subject": subject[:300],
         "intent": str(getattr(brief, "intent", "") or "") if brief else "",
         "domain": domain,
+        "route": route[:160],
         "degraded": degraded,
         "degraded_why": why[:200],
         "outcome": outcome,
@@ -153,6 +164,7 @@ class RoutingStore:
                               subject      TEXT NOT NULL DEFAULT '',
                               intent       TEXT NOT NULL DEFAULT '',
                               domain       TEXT NOT NULL DEFAULT '',
+                              route        TEXT NOT NULL DEFAULT '',
                               degraded     INTEGER NOT NULL DEFAULT 0,
                               degraded_why TEXT NOT NULL DEFAULT '',
                               outcome      TEXT NOT NULL DEFAULT '',
@@ -177,11 +189,12 @@ class RoutingStore:
                 with db:
                     db.executemany(
                         "INSERT INTO episodes (at, query, subject, intent, "
-                        "domain, degraded, degraded_why, outcome, answered_by, "
-                        "attempts, suspect, verdict) "
-                        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                        "domain, route, degraded, degraded_why, outcome, "
+                        "answered_by, attempts, suspect, verdict) "
+                        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                         [(r["at"], r["query"], r["subject"], r["intent"],
-                          r["domain"], int(r["degraded"]), r["degraded_why"],
+                          r["domain"], r.get("route", ""), int(r["degraded"]),
+                          r["degraded_why"],
                           r["outcome"], r["answered_by"],
                           json.dumps(r["attempts"]), r["suspect"],
                           verdict(r["domain"], r["outcome"], r["degraded"]))
@@ -194,7 +207,7 @@ class RoutingStore:
     def since(self, at: float) -> list:
         with closing(self._connect()) as db:
             cursor = db.execute(
-                "SELECT at, query, subject, intent, domain, degraded, "
+                "SELECT at, query, subject, intent, domain, route, degraded, "
                 "degraded_why, outcome, answered_by, attempts, suspect, verdict "
                 "FROM episodes WHERE at >= ? ORDER BY at DESC", (at,))
             names = [c[0] for c in cursor.description]
@@ -323,12 +336,15 @@ def report(now: Optional[float] = None, days: int = 7) -> dict:
         log.warning("could not read live routing: %s", exc)
     totals = {v: 0 for v in VERDICTS}
     domains: dict = {}
+    by_code = 0
     reasons: dict = {}
     for row in rows:
         v = row.get("verdict") or verdict(row["domain"], row["outcome"],
                                           row["degraded"])
         row["verdict"] = v
         totals[v] = totals.get(v, 0) + 1
+        if (row.get("route") or "").startswith("code"):
+            by_code += 1
         if row["domain"]:
             d = domains.setdefault(row["domain"], {"routed": 0, "answered": 0})
             d["routed"] += 1
@@ -345,6 +361,7 @@ def report(now: Optional[float] = None, days: int = 7) -> dict:
         "no_answer_reasons": [{"why": k, "count": n} for k, n in
                               sorted(reasons.items(), key=lambda kv: -kv[1])][:12],
         "suspects": len(suspects),
+        "routed_by_code": by_code,
         "recent": rows[:RECENT],
         "recent_suspects": suspects[:RECENT],
     }

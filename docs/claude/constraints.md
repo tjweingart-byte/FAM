@@ -610,6 +610,34 @@
   unavailable* from *not configured*, and `python tools/verify_live.py` makes a
   real request rather than confirming a credential exists. Do not say FAM
   supports live scores until a real provider is returning them.
+<!-- rule:live-route -->
+- **A provider is asked when the question names what it covers, whatever the
+  brief said** *(§264, §265, `live_route.py`)*. `Brief.live_domain` is a
+  model's judgement of what the answer turns on, and "how are the Eagles
+  looking" came back empty on one tap and `sports` on the next, while a
+  degraded brief never reached a provider at all. §264's per-episode record
+  (`live_routing.py`, on `/admin`) is how this is measured. So code routes,
+  spending nothing: a team in `live_route.ROSTER` (the four US major leagues;
+  a nickname alone only where it means nothing but the team), a named slot, or
+  a team in a catalogue already read routes to `sports`; a market word with a
+  `live_entity` that could be a listing routes to `markets`. Only where a
+  source here can serve.
+  **The route only asks.** It sets `Brief.live_route`, never `live_domain`,
+  because the domain also makes a question outcome-dependent, screens the
+  packet for sim leagues and decides the cache window - none of which should
+  change because code saw a team name. A routed lookup reaches the writer only
+  when it answered; a miss is recorded and dropped, or it would bring the "no
+  live state" block and the score guard. What the provider answers is resolved
+  from its own catalogue, as ever.
+  **Providers resolve a bare name** (`Brief.live_entity`, "Kansas City
+  Chiefs"), then the subject once if that matched nothing: the subject is a
+  description written for retrieval, and Finnhub's listing check refuses
+  anything over five words or with a year. `sport_for` places a rostered team
+  in its league before the deployment's default.
+  **The lookup runs as long as the search beside it** (`LIVE_PATIENT_SECONDS`),
+  and once the evidence is in it is waited for only until its old ceiling
+  (`live_facts.budget_seconds`): the first word never waits longer than before.
+
 <!-- rule:local-news-ladder -->
 > **Current (PROBLEMS.md §258):** the third rung searches the town's known outlets on the configured search backend (Parallel), not Exa; the record names the backend that searched.
 - **A town's news comes from the town's own outlets, and its gap is said in

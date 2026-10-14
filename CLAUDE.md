@@ -310,10 +310,11 @@ Research and truth
   "doesn't exist". [missed-not-absent]
 - **Live facts** (`live_facts.py`): **never confidently invent a current fact
   without authoritative, fresh evidence; never infer one from absence.** Closed
-  status vocabulary; only evidence sets it; resolution from the provider's
-  catalogue, never a model; seven lookup outcomes; freshness enforced in code,
-  stale data withheld; NFL records, last and next games are counted from the
-  provider's schedule (§178). Don't claim live scores until a provider returns them. [live-facts]
+  status vocabulary, set by evidence; resolution from the provider's catalogue,
+  never a model; seven lookup outcomes; stale data withheld in code; NFL
+  records, last/next games from the provider's schedule (§178); no score
+  without a provider. [live-facts] Code routes named teams/listings (§265);
+  it only asks. [live-route]
 - **A score is checked before it is spoken** (§259, `score_guard.py`). [score-guard]
 - **API-Sports is a plan per sport**: a budget, a tier (`API_SPORTS_TIERS`,
   all free until bought) and an `/admin` row per sport; the provider's own

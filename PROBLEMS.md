@@ -18948,3 +18948,54 @@ This only measures. What to change follows from which verdict dominates:
 that asks a provider when its own catalogue confirms the subject); `routed,
 no answer` with `no_entity` → matching (`resolve` reads only
 `brief.subject`; `sport_for` falls back to `API_SPORTS_SPORT`).
+
+## 265. The provider is asked when the question names what it covers
+
+The owner (10.14), after §264: fix both halves - routing and matching.
+
+**Routing.** `live_route.py` decides in code, spending nothing, that a
+provider is asked when the brief named no live domain but the question (or
+the brief's subject or bare name) names a team in `ROSTER` - every NFL, NBA,
+MLB and NHL team by full name, and by nickname alone only where the nickname
+means nothing else ("Steelers", "Maple Leafs"; never "Heat", "Bills",
+"Giants", "Kings") - a named broadcast slot, or a team in a league catalogue
+already read; or says a market word ("shares", "stock", "earnings", a
+`$TICKER`) about a `live_entity` that could be a listing. A degraded brief is
+routed from the raw query, so EI failing no longer means no scoreboard. Only
+domains something on this deployment can serve are routed, so staging routes
+nothing.
+
+The route sets `Brief.live_route` and is read only by the lookup
+(`live_route.domain_of`). `live_domain` is untouched on purpose: it forces
+`outcome_dependent`, makes `research.screen_results` drop unknown sports
+outlets and decides `cache.ttl_for`'s window, and code noticing a team name
+is not a reason for any of that. For the same reason **a routed lookup
+reaches the writer only when it answered**: a miss would bring the "no live
+state" block and switch on `ScoreGuard`, which removes scores the articles
+gave, on a question the brief never said turned on one - so a miss is kept
+for §264's record and nothing else. `prepare` copies the brief before routing,
+so a prefetched brief is never changed under its owner. `/admin`'s routing
+card says per episode whether the brief or code routed it.
+
+**Matching.** The brief now writes `live_entity`: the bare name(s) a provider
+lists ("Kansas City Chiefs", "NVIDIA"), no description, year or angle.
+`subject` stays what it was - a description for retrieval and the writer -
+and was what every `resolve` searched with, which is how "the Kansas City
+Chiefs' 2026 playoff chances" missed Finnhub's listing check (five words, no
+year) and API-Sports' word match. `live_facts._ask` resolves the bare name
+first and, when it matches nothing, the subject once; a `no_entity` names
+both. `sport_for` reads the whole request for sport words and then places a
+rostered team in its league before falling back to `API_SPORTS_SPORT`, so a
+Bruins question on a football-default deployment goes to hockey.
+
+**The clock.** The lookup ran beside retrieval but stopped at 2.5 s (3 s for
+API-Sports) while retrieval usually took longer, so a scoreboard that needed
+four seconds was dropped two seconds before the writer could have used it.
+It may now run `LIVE_PATIENT_SECONDS` (8). `prepare` awaits the evidence,
+then waits for the lookup only until its old ceiling from when it began
+(`live_facts.budget_seconds`), and otherwise records a `timeout` "still asking
+when the evidence was in" - so the first word never waits longer than it did.
+
+Unverified here: how often EI fills `live_entity` well, and how many episodes
+the route moves from `not routed` to `answered`. §264's card on `/admin`
+answers both once this is deployed.

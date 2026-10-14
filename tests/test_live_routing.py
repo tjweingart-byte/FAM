@@ -151,7 +151,7 @@ def test_prepare_records_one_row(monkeypatch):
     async def understand(self, plan, notes=None):
         return plan
 
-    async def asked(b, notes=None):
+    async def asked(b, notes=None, **_):
         return lookup("sports", live_facts.NO_ENTITY,
                       [("API-Sports", "no_entity", "nothing matching")])
 

@@ -143,7 +143,7 @@ def test_the_forecast_never_takes_the_live_slot(gamma, monkeypatch):
     scoreboard = live_facts.LiveLookup("sports", live_facts.NOT_CONFIGURED,
                                        detail="no sports provider")
 
-    async def lookup(b, notes=None):
+    async def lookup(b, notes=None, **_):
         return scoreboard
 
     async def research(self, plan, notes=None):
@@ -301,11 +301,11 @@ def test_a_slow_forecast_never_holds_the_first_word(gamma, monkeypatch):
     """Review fix: the forecast was gathered with research, so a slow
     Polymarket held the episode up to the live timeout after the evidence was
     in. It now gets `FORECAST_GRACE_SECONDS` past the evidence and no more."""
-    async def slow_forecast(b, notes=None):
+    async def slow_forecast(b, notes=None, **_):
         await asyncio.sleep(5)
         return None
 
-    async def lookup(b, notes=None):
+    async def lookup(b, notes=None, **_):
         return None
 
     async def research(self, plan, notes=None):

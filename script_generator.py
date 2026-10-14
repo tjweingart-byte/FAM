@@ -15,6 +15,7 @@ Two things matter here:
 from __future__ import annotations
 
 import asyncio
+import copy
 import dataclasses
 import logging
 import re
@@ -28,6 +29,7 @@ import episode_intelligence
 import pronunciation
 import live_facts
 import live_routing
+import live_route
 import score_guard
 import metering
 import prefetch
@@ -554,6 +556,29 @@ class ScriptNotes:
     #: did 45 seconds go" unanswerable from a production log. Written to and
     #: never read back: instrumentation must not change what is heard.
     marks: object = None
+
+
+async def _live_by(task, plan, domain: str, began: float):
+    """The live lookup's plan, once the evidence is in: waited for until the
+    lookup's own ceiling from when it began (`live_facts.budget_seconds`),
+    then abandoned as a timeout the writer is told about (§265)."""
+    if not domain:
+        # Nothing to ask: the lookup returns at once with no answer.
+        return await task
+    ceiling = live_facts.budget_seconds(domain)
+    wait = max(0.0, began + ceiling - time.monotonic())
+    try:
+        return await asyncio.wait_for(asyncio.shield(task), wait) \
+            if not task.done() else task.result()
+    except asyncio.TimeoutError:
+        task.cancel()
+        log.info("live facts: %s still asking when the evidence was in; "
+                 "writing without it", domain or "lookup")
+        return dataclasses.replace(plan, live=live_facts.LiveLookup(
+            domain, live_facts.TIMEOUT,
+            detail="still asking when the evidence was in",
+            attempts=[("lookup", live_facts.TIMEOUT,
+                       "still asking when the evidence was in")]))
 
 
 def _mark(notes: "ScriptNotes | None", name: str) -> None:
@@ -1718,7 +1743,10 @@ class ScriptGenerator:
         """
         if plan.brief is None or plan.live is not None:
             return plan
-        result = await live_facts.lookup(plan.brief, notes)
+        # As long as `LIVE_PATIENT_SECONDS` (§265): `prepare` stops waiting
+        # for it once the evidence is in and its old ceiling has passed.
+        result = await live_facts.lookup(
+            plan.brief, notes, patience=float(settings.live_patient_seconds))
         _mark(notes, "live_ready")
         return plan if result is None else dataclasses.replace(plan, live=result)
 
@@ -1752,6 +1780,16 @@ class ScriptGenerator:
         _mark(notes, "brief_start")
         plan = await self.understand(plan, notes)
         _mark(notes, "brief_ready")
+        # A brief that named no live domain still asks a provider when the
+        # question names something one covers (§265) - decided in code,
+        # spending nothing, and changing nothing but who is asked.
+        if plan.brief is not None and not getattr(plan.brief, "live_domain", ""):
+            routed = copy.copy(plan.brief)
+            live_route.apply(routed, plan.query)
+            if getattr(routed, "live_route", ""):
+                log.info("live route: %s for %r (%s)", routed.live_route,
+                         plan.query, routed.live_route_why)
+                plan = dataclasses.replace(plan, brief=routed)
 
         # **Concurrent, and verified independent before it was made so.** Both
         # read `plan.brief` and neither reads the other's output: `live_lookup`
@@ -1765,12 +1803,34 @@ class ScriptGenerator:
         # word**: once the evidence is in it gets `FORECAST_GRACE_SECONDS`
         # more, then the episode goes without it.
         forecast_task = asyncio.ensure_future(self.forecast_lookup(plan, notes))
+        # **The live lookup may take as long as the search does** (§265).
+        # It used to stop at `LIVE_TOTAL_TIMEOUT_SECONDS` while retrieval,
+        # beside it, usually ran longer - so a scoreboard that needed four
+        # seconds was abandoned two seconds before the first word could have
+        # used it. It now has up to `LIVE_PATIENT_SECONDS`, and once the
+        # evidence is in it is waited for only until its old ceiling: the
+        # first word never waits longer for it than it did.
+        live_began = time.monotonic()
+        domain = live_route.domain_of(plan.brief)
+        live_task = asyncio.ensure_future(self.live_lookup(plan, notes))
         try:
-            live_plan, research_plan = await asyncio.gather(
-                self.live_lookup(plan, notes), self.research(plan, notes))
+            research_plan = await self.research(plan, notes)
         except BaseException:
             forecast_task.cancel()
+            live_task.cancel()
             raise
+        live_plan = await _live_by(live_task, plan, domain, live_began)
+        # **A route only asks** (§265): a lookup code routed reaches the
+        # writer only when it answered. A miss would hand the writer the
+        # "no live state" block and switch on the score guard - for a
+        # question the brief never said turned on one - so it is kept for
+        # the record and nothing else.
+        routed_miss = None
+        live = live_plan.live
+        if (live is not None and live.outcome != live_facts.FACTS
+                and not getattr(plan.brief, "live_domain", "")
+                and getattr(plan.brief, "live_route", "")):
+            routed_miss, live_plan = live, dataclasses.replace(live_plan, live=None)
         forecast = None
         try:
             forecast = (await asyncio.wait_for(
@@ -1837,7 +1897,8 @@ class ScriptGenerator:
             _publish_sources(notes)
         # Which live provider this episode was routed to and what it said
         # (§264), one row for /admin. In memory; written off this path.
-        live_routing.record(plan.query, plan.brief, plan.live)
+        live_routing.record(plan.query, plan.brief,
+                            routed_miss if plan.live is None else plan.live)
         return plan
 
     async def stream_sentences(

@@ -259,6 +259,19 @@ class Brief:
     #: Which live-fact domain this belongs to, if any - see `live_facts`. An
     #: article index lags a scoreboard, and this is what routes around it.
     live_domain: str = ""
+    #: The bare name(s) a live provider would list the subject under -
+    #: "Kansas City Chiefs", "NVIDIA", "Kansas City Chiefs, Buffalo Bills" -
+    #: with no description, year or angle (§265). `subject` is written for
+    #: retrieval and the writer ("the Chiefs' 2026 playoff chances"), and a
+    #: provider's search matched nothing against that. Only ever what a
+    #: provider's own catalogue is searched with; never an id.
+    live_entity: str = ""
+    #: The domain code chose to ask a provider on when `live_domain` was
+    #: empty (`live_route`, §265), and why. Set in code, never by the model,
+    #: and never read as `live_domain`: it asks a provider and changes
+    #: nothing else about the episode.
+    live_route: str = ""
+    live_route_why: str = ""
     #: True when what the listener wants *is* a result - a final score, a
     #: winner, a verdict, a closing price - which does not exist until the thing
     #: it comes from concludes.
@@ -747,6 +760,10 @@ BRIEF_SCHEMA = {
         # it that way.
         "live_domain": {"type": "string",
                         "enum": [""] + list(live_facts.LIVE_DOMAINS)},
+        # **The bare name a provider lists the subject under** (§265), so a
+        # scoreboard or a quote search is asked with "Kansas City Chiefs"
+        # rather than a sentence about them.
+        "live_entity": {"type": "string"},
         "outcome_dependent": {"type": "boolean"},
         # **The town a local question is about** (§194). It routes the
         # question to that town's own outlets and its weather, instead of a
@@ -789,7 +806,7 @@ BRIEF_SCHEMA = {
                  "search_query", "search_fallback", "search_angles",
                  "search_objective", "must_establish",
                  "recency_days", "structure", "cautions", "live_domain",
-                 "outcome_dependent", "place", "title", "category",
+                 "live_entity", "outcome_dependent", "place", "title", "category",
                  "pronounce"],
     "additionalProperties": False,
 }
@@ -951,6 +968,12 @@ Work out:
   college work" is an explainer and empty, "who is ahead in the Senate race"
   is `elections`. `weather` if what they want is the weather or a forecast
   somewhere - and then **place** names where.
+- **live_entity** - whenever the request is about a team, a game between
+  teams, a company or fund or index, or a race, its bare name as a scoreboard
+  or a stock search lists it, whatever live_domain is: "Kansas City Chiefs",
+  "Kansas City Chiefs, Buffalo Bills", "NVIDIA", "S&P 500". Full official
+  names, no description, no year, no angle, no possessive. Empty when the
+  request names none of these.
 - **outcome_dependent** - true if what they want is a result that only exists
   once something concludes: a final score, a winner, a verdict, a closing
   price, a vote count. This is about their question, not about the world - you
@@ -1093,6 +1116,7 @@ async def understand(query: str, minutes: int = DEFAULT_MINUTES, context: str = 
         structure=str(data.get("structure", "")),
         cautions=list(data.get("cautions") or []),
         live_domain=str(data.get("live_domain", "")),
+        live_entity=" ".join(str(data.get("live_entity", "") or "").split())[:120],
         outcome_dependent=bool(data.get("outcome_dependent", False)),
         place=" ".join(str(data.get("place", "") or "").split())[:120],
         title=clean_title(str(data.get("title", "")), query),
