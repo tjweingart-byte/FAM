@@ -90,8 +90,10 @@ def test_suspect_reads_a_held_catalogue_and_spends_nothing(monkeypatch):
         raise AssertionError("a suspect check must never make a request")
 
     monkeypatch.setattr(live_sources, "_json", no_requests)
-    row = LR.row_for("how are the chiefs looking", brief(), None)
+    row = LR.row_for("how are the kansas city chiefs looking", brief(), None)
     assert row["suspect"].startswith("sports: names Kansas City Chiefs")
+    # By full name only (§265): a nickname alone is too often a word.
+    assert LR.row_for("how are the chiefs looking", brief(), None)["suspect"] == ""
 
 
 def test_suspect_flags_a_named_slot_and_market_words():

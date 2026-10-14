@@ -367,3 +367,175 @@ def test_the_score_guard_is_unchanged_for_an_unrouted_question():
     plan = types.SimpleNamespace(brief=brief(query="how are the steelers looking"),
                                  live=None)
     assert score_guard.ScoreGuard(plan).active is False
+
+
+# --- the review (§265) ------------------------------------------------------------
+
+
+@pytest.mark.parametrize("text", [
+    "how do I pay my bills on time", "why is the heat wave so bad in Phoenix",
+])
+def test_a_held_catalogue_routes_by_full_name_only(provider, monkeypatch, text):
+    """`teams_named` matches a last word, which is right for `resolve` and
+    wrong for deciding a question is about sports at all."""
+    provider("sports")
+    monkeypatch.setitem(live_sources.TEAMS, "american-football", (time.time(), [
+        {"name": "Buffalo Bills", "city": "Buffalo"},
+        {"name": "Miami Heat", "city": "Miami"}]))
+    assert live_route.apply(brief(query=text)).live_route == ""
+    assert live_routing.suspect(text) == ""
+    named = live_route.apply(brief(query="did the buffalo bills win"))
+    assert named.live_route == "sports"
+
+
+@pytest.mark.parametrize("text", [
+    "pats on the back", "trail blazers in AI", "draft dodgers in vietnam",
+    "blue jays at the feeder", "release the kraken", "raptors in jurassic park",
+    "ucla bruins basketball", "virginia cavaliers", "boise state broncos",
+    "orioles migrate south", "sabres and swords",
+])
+def test_nicknames_with_other_meanings_need_their_city(text):
+    assert live_route.teams_in(text) == []
+
+
+def test_saint_louis_is_spelled_both_ways():
+    assert live_route.teams_in("saint louis cardinals") == \
+        [("mlb", "St. Louis Cardinals")]
+    assert live_route.teams_in("st. louis blues") == [("nhl", "St. Louis Blues")]
+
+
+def test_a_prefetch_warm_never_routes(provider, monkeypatch):
+    provider("sports")
+    asked = {}
+
+    async def lookup(b, notes=None, patience=0.0):
+        asked["domain"] = live_route.domain_of(b)
+        return None
+
+    async def research(self, plan, notes=None):
+        return dataclasses.replace(plan, evidence="SOURCE 1\nTitle: x")
+
+    async def understand(self, plan, notes=None):
+        return plan
+
+    monkeypatch.setattr(live_facts, "lookup", lookup)
+    monkeypatch.setattr(sg.ScriptGenerator, "research", research)
+    monkeypatch.setattr(sg.ScriptGenerator, "understand", understand)
+    query = "how are the steelers looking"
+    plan = dataclasses.replace(sg.plan_episode(query, 3), brief=brief(query=query))
+    notes = sg.ScriptNotes()
+    notes.prefetch = True
+    generator = sg.ScriptGenerator.__new__(sg.ScriptGenerator)
+    asyncio.run(generator.prepare(plan, notes))
+    assert asked["domain"] == ""
+
+
+def test_prefetch_marks_its_notes():
+    import inspect
+    import prefetch
+
+    assert "notes.prefetch = True" in inspect.getsource(prefetch.Prefetcher._warm)
+
+
+def test_a_forecast_searches_by_subject_not_the_bare_name(provider, monkeypatch):
+    source = provider("elections", names={"will nvidia beat earnings"},
+                      name="forecaster")
+    source.forecasts = True
+    b = brief(query="will nvidia beat earnings", subject="will nvidia beat earnings",
+              live_entity="NVIDIA", outcome_dependent=True)
+    asyncio.run(live_facts.forecast(b))
+    assert source.asked == ["will nvidia beat earnings"]
+
+
+def test_a_bare_name_that_missed_is_no_entity_not_a_timeout(provider):
+    class Slow(Stub):
+        async def resolve(self, b):
+            self.asked.append(live_route.entity_of(b))
+            await asyncio.sleep(0.4)
+            return None
+
+    source = Slow("sports", name="slow")
+    live_facts.register(source)
+    try:
+        b = brief(live_domain="sports", live_entity="KC", subject="the Chiefs")
+        result = asyncio.run(live_facts.lookup(b, patience=0.5))
+    finally:
+        live_facts.unregister("slow")
+    assert result.outcome == live_facts.NO_ENTITY
+
+
+def test_leaving_cancels_both_lookups(monkeypatch):
+    """A listener who leaves while `prepare` waits on the scoreboard must not
+    leave it (or the forecast) spending requests in the background."""
+    quick = dataclasses.replace(settings, live_total_timeout_seconds=5.0,
+                                live_patient_seconds=5.0)
+    monkeypatch.setattr(live_facts, "settings", quick)
+    monkeypatch.setattr(sg, "settings", quick)
+    state = {}
+
+    async def lookup(b, notes=None, patience=0.0):
+        try:
+            await asyncio.sleep(5)
+        except asyncio.CancelledError:
+            state["live"] = "cancelled"
+            raise
+
+    async def forecast(b, notes=None):
+        try:
+            await asyncio.sleep(5)
+        except asyncio.CancelledError:
+            state["forecast"] = "cancelled"
+            raise
+
+    async def research(self, plan, notes=None):
+        return dataclasses.replace(plan, evidence="SOURCE 1\nTitle: x")
+
+    async def understand(self, plan, notes=None):
+        return plan
+
+    monkeypatch.setattr(live_facts, "lookup", lookup)
+    monkeypatch.setattr(live_facts, "forecast", forecast)
+    monkeypatch.setattr(sg.ScriptGenerator, "research", research)
+    monkeypatch.setattr(sg.ScriptGenerator, "understand", understand)
+    plan = dataclasses.replace(sg.plan_episode("chiefs score", 3),
+                               brief=brief(query="chiefs score", live_domain="sports"))
+    generator = sg.ScriptGenerator.__new__(sg.ScriptGenerator)
+
+    async def run():
+        task = asyncio.ensure_future(generator.prepare(plan, sg.ScriptNotes()))
+        await asyncio.sleep(0.2)
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        await asyncio.sleep(0.05)
+
+    asyncio.run(run())
+    assert state == {"live": "cancelled", "forecast": "cancelled"}
+
+
+def test_a_routed_sports_answer_sets_the_cache_windows_domain(provider, monkeypatch):
+    provider("sports")
+    facts = live_facts.LiveFacts(domain="sports", source="stub",
+                                 as_of=datetime.now(timezone.utc),
+                                 facts=["x"], status=live_facts.SCHEDULED)
+
+    async def lookup(b, notes=None, patience=0.0):
+        return live_facts.LiveLookup("sports", live_facts.FACTS, facts=facts,
+                                     detail="stub")
+
+    async def research(self, plan, notes=None):
+        return dataclasses.replace(plan, evidence="SOURCE 1\nTitle: x")
+
+    async def understand(self, plan, notes=None):
+        return plan
+
+    monkeypatch.setattr(live_facts, "lookup", lookup)
+    monkeypatch.setattr(sg.ScriptGenerator, "research", research)
+    monkeypatch.setattr(sg.ScriptGenerator, "understand", understand)
+    query = "how are the steelers looking"
+    plan = dataclasses.replace(sg.plan_episode(query, 3), brief=brief(query=query))
+    notes = sg.ScriptNotes()
+    generator = sg.ScriptGenerator.__new__(sg.ScriptGenerator)
+    asyncio.run(generator.prepare(plan, notes))
+    assert notes.live_domain == "sports"
+    assert notes.live_status == live_facts.SCHEDULED

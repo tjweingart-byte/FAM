@@ -717,14 +717,16 @@ def clear_caches() -> None:
 # The lookup
 # --------------------------------------------------------------------------
 async def _ask(source: LiveSource, brief, notes, deadline: float,
-               patience: float = 0.0) -> LiveLookup:
+               patience: float = 0.0, bare: bool = True) -> LiveLookup:
     """One source, resolved then fetched, on the clock. Never raises.
 
     Resolved against the brief's bare `live_entity` first and, when that
     matches nothing, once more against its subject (§265): the bare name is
     what a catalogue search wants, and the subject is what it was asked with
     before the field existed, so a brief that named the entity badly costs
-    one more search rather than the scoreboard."""
+    one more search rather than the scoreboard. `bare=False` skips the bare
+    name: a forecast searches by subject (§211), and "NVIDIA" alone would
+    find the busiest NVIDIA market rather than the one asked about."""
     import live_route
 
     domain = source.domain
@@ -743,7 +745,7 @@ async def _ask(source: LiveSource, brief, notes, deadline: float,
         if (getattr(brief, "live_entity", "") or "") else None
     if plain is not None and live_route.entity_of(plain) \
             != live_route.entity_of(brief):
-        tries.append(plain)
+        tries = [plain] if not bare else [brief, plain]
 
     try:
         entity, subject = None, live_route.entity_of(brief)
@@ -754,6 +756,10 @@ async def _ask(source: LiveSource, brief, notes, deadline: float,
                 break
             budget = left()
             if budget <= 0:
+                if asked is not tries[0]:
+                    # The bare name already matched nothing; that is the
+                    # answer, not the clock (§265 review).
+                    break
                 return LiveLookup(domain, TIMEOUT,
                                   detail=f"{source.name}: no time left to resolve")
             entity = await asyncio.wait_for(source.resolve(asked), timeout=budget)
@@ -947,7 +953,7 @@ async def forecast(brief, notes=None) -> Optional[LiveLookup]:
         return None
     deadline = time.monotonic() + float(settings.live_total_timeout_seconds)
     for source in sources:
-        result = await _ask(source, brief, notes, deadline)
+        result = await _ask(source, brief, notes, deadline, bare=False)
         if result.outcome == FACTS and result.facts is not None \
                 and result.facts.kind == PREDICTION_MARKET:
             result.attempts = [(source.name, result.outcome, result.detail)]

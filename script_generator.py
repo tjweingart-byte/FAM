@@ -556,6 +556,11 @@ class ScriptNotes:
     #: did 45 seconds go" unanswerable from a production log. Written to and
     #: never read back: instrumentation must not change what is heard.
     marks: object = None
+    #: True on a prefetch warm (§265 review): `prepare` then routes nothing
+    #: in code. Prefetch never asks a live provider - a warmed live fact is
+    #: stale by the tap (PROBLEMS.md §89) - and a brief that named no domain
+    #: reached no provider before code could route one.
+    prefetch: bool = False
 
 
 async def _live_by(task, plan, domain: str, began: float):
@@ -1783,7 +1788,8 @@ class ScriptGenerator:
         # A brief that named no live domain still asks a provider when the
         # question names something one covers (§265) - decided in code,
         # spending nothing, and changing nothing but who is asked.
-        if plan.brief is not None and not getattr(plan.brief, "live_domain", ""):
+        if plan.brief is not None and not getattr(plan.brief, "live_domain", "") \
+                and not getattr(notes, "prefetch", False):
             routed = copy.copy(plan.brief)
             live_route.apply(routed, plan.query)
             if getattr(routed, "live_route", ""):
@@ -1815,11 +1821,13 @@ class ScriptGenerator:
         live_task = asyncio.ensure_future(self.live_lookup(plan, notes))
         try:
             research_plan = await self.research(plan, notes)
+            live_plan = await _live_by(live_task, plan, domain, live_began)
         except BaseException:
+            # A listener who leaves, or a lookup that raised, ends both: a
+            # shielded wait does not cancel what it shields.
             forecast_task.cancel()
             live_task.cancel()
             raise
-        live_plan = await _live_by(live_task, plan, domain, live_began)
         # **A route only asks** (§265): a lookup code routed reaches the
         # writer only when it answered. A miss would hand the writer the
         # "no live state" block and switch on the score guard - for a
@@ -1872,6 +1880,12 @@ class ScriptGenerator:
             if plan.live is not None and plan.live.domain == "weather":
                 # Weather decides how long the episode stays current (§194).
                 notes.live_domain = "weather"
+            elif (plan.live is not None and not notes.live_domain
+                    and plan.live.outcome == live_facts.FACTS):
+                # A scoreboard code routed to (§265) answered: the window is
+                # the evidence's, so a sports update short of `final` is
+                # never current - as it is when the brief named the domain.
+                notes.live_domain = plan.live.domain
             notes.intent = str(getattr(plan.brief, "intent", "") or "")
             if plan.live is not None:
                 notes.live_status = plan.live.status

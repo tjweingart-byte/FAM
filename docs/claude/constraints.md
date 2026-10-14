@@ -628,11 +628,16 @@
   change because code saw a team name. A routed lookup reaches the writer only
   when it answered; a miss is recorded and dropped, or it would bring the "no
   live state" block and the score guard. What the provider answers is resolved
-  from its own catalogue, as ever.
+  from its own catalogue, as ever. A catalogue already read counts a team by
+  its full name only (`teams_named`'s last-word match routed "pay my bills"
+  to the Buffalo Bills). A prefetch warm never routes (`ScriptNotes.prefetch`),
+  and a routed question spends API-Sports requests from the sweep's daily
+  allowance - on demand, so inside [sweep-on-demand].
   **Providers resolve a bare name** (`Brief.live_entity`, "Kansas City
   Chiefs"), then the subject once if that matched nothing: the subject is a
   description written for retrieval, and Finnhub's listing check refuses
-  anything over five words or with a year. `sport_for` places a rostered team
+  anything over five words or with a year; a forecast still searches by
+  subject (§211). `sport_for` places a rostered team
   in its league before the deployment's default.
   **The lookup runs as long as the search beside it** (`LIVE_PATIENT_SECONDS`),
   and once the evidence is in it is waited for only until its old ceiling

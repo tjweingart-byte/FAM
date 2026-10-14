@@ -25,7 +25,10 @@ a route to a domain nothing on this deployment can serve is not taken.
 serves here. A full name always counts. A nickname on its own counts only
 where it means nothing but the team ("Steelers", "Maple Leafs") - "Heat",
 "Bills", "Giants", "Kings" and the like are everyday words, other teams, or
-both, and need their city. Relocations and renames are rare; the test
+both, and need their city; so do nicknames a college shares ("Bruins",
+"Cavaliers", "Broncos") or that mean something else ("Raptors", "Kraken",
+"Dodgers", "Trail Blazers"). A team in a league catalogue already read
+counts by its full name only, for the same reason (`full_names_in`). Relocations and renames are rare; the test
 `test_roster_has_every_team` keeps the counts.
 """
 from __future__ import annotations
@@ -49,7 +52,7 @@ _ROSTER_TEXT = {
         Cincinnati Bengals | Bengals
         Cleveland Browns
         Dallas Cowboys
-        Denver Broncos | Broncos
+        Denver Broncos
         Detroit Lions
         Green Bay Packers | Packers
         Houston Texans
@@ -61,7 +64,7 @@ _ROSTER_TEXT = {
         Los Angeles Rams
         Miami Dolphins
         Minnesota Vikings
-        New England Patriots | Pats
+        New England Patriots
         New Orleans Saints
         New York Giants
         New York Jets
@@ -69,7 +72,7 @@ _ROSTER_TEXT = {
         Pittsburgh Steelers | Steelers
         San Francisco 49ers | 49ers | Niners
         Seattle Seahawks | Seahawks
-        Tampa Bay Buccaneers | Buccaneers | Bucs
+        Tampa Bay Buccaneers
         Tennessee Titans
         Washington Commanders
     """,
@@ -79,7 +82,7 @@ _ROSTER_TEXT = {
         Brooklyn Nets
         Charlotte Hornets
         Chicago Bulls
-        Cleveland Cavaliers | Cavaliers | Cavs
+        Cleveland Cavaliers
         Dallas Mavericks | Mavs
         Denver Nuggets
         Detroit Pistons
@@ -98,17 +101,17 @@ _ROSTER_TEXT = {
         Orlando Magic
         Philadelphia 76ers | 76ers | Sixers
         Phoenix Suns
-        Portland Trail Blazers | Trail Blazers
+        Portland Trail Blazers
         Sacramento Kings
         San Antonio Spurs
-        Toronto Raptors | Raptors
+        Toronto Raptors
         Utah Jazz
         Washington Wizards
     """,
     "mlb": """
         Arizona Diamondbacks | Diamondbacks
         Atlanta Braves
-        Baltimore Orioles | Orioles
+        Baltimore Orioles
         Boston Red Sox | Red Sox
         Chicago Cubs
         Chicago White Sox | White Sox
@@ -119,28 +122,28 @@ _ROSTER_TEXT = {
         Houston Astros | Astros
         Kansas City Royals
         Los Angeles Angels
-        Los Angeles Dodgers | Dodgers
+        Los Angeles Dodgers
         Miami Marlins
         Milwaukee Brewers
         Minnesota Twins
         New York Mets | Mets
         New York Yankees | Yankees
-        Oakland Athletics | Sacramento Athletics
+        Oakland Athletics
         Philadelphia Phillies | Phillies
         Pittsburgh Pirates
         San Diego Padres | Padres
         San Francisco Giants
         Seattle Mariners
-        St. Louis Cardinals
+        St. Louis Cardinals | Saint Louis Cardinals
         Tampa Bay Rays
         Texas Rangers
-        Toronto Blue Jays | Blue Jays
+        Toronto Blue Jays
         Washington Nationals
     """,
     "nhl": """
         Anaheim Ducks
-        Boston Bruins | Bruins
-        Buffalo Sabres | Sabres
+        Boston Bruins
+        Buffalo Sabres
         Calgary Flames
         Carolina Hurricanes
         Chicago Blackhawks | Blackhawks
@@ -161,12 +164,12 @@ _ROSTER_TEXT = {
         Philadelphia Flyers
         Pittsburgh Penguins
         San Jose Sharks
-        Seattle Kraken | Kraken
-        St. Louis Blues
+        Seattle Kraken
+        St. Louis Blues | Saint Louis Blues
         Tampa Bay Lightning
         Toronto Maple Leafs | Maple Leafs
         Utah Mammoth
-        Vancouver Canucks | Canucks
+        Vancouver Canucks
         Vegas Golden Knights | Golden Knights
         Washington Capitals
         Winnipeg Jets
@@ -224,6 +227,37 @@ MARKET_WORDS = re.compile(
 _CASHTAG = re.compile(r"(?<![A-Za-z0-9])\$[A-Za-z]{1,5}\b")
 
 
+def full_names_in(teams: list, text: str) -> list:
+    """Teams from a provider catalogue that `text` names by full name.
+
+    Never by nickname or city alone: `live_sources.teams_named` matches the
+    last word of a name for `resolve`, where the question is already about
+    sports, and that is how "pay my bills" named the Buffalo Bills (§265
+    review). Routing decides whether a question is about sports at all."""
+    padded = _words(text)
+    found = []
+    for team in teams or []:
+        name = _words(str(team.get("name") or "")).strip()
+        if len(name.split()) >= 2 and f" {name} " in padded:
+            found.append(team)
+    return found
+
+
+def catalogue_team(text: str) -> str:
+    """"<team> (<sport>)" for a team in a catalogue this server already
+    read that `text` names in full, or ""."""
+    try:
+        import live_sources
+
+        for key, held in list(live_sources.TEAMS.items()):
+            named = full_names_in(held[1] if held else [], text)
+            if named:
+                return f"{named[0].get('name', '')} ({key})"
+    except Exception:  # noqa: BLE001 - a hint is never load-bearing
+        pass
+    return ""
+
+
 def _can_serve(domain: str) -> bool:
     import live_facts
 
@@ -263,16 +297,9 @@ def route(brief, query: str = "") -> tuple:
         except Exception:  # noqa: BLE001 - a hint is never load-bearing
             pass
     if not why:
-        try:
-            import live_sources
-
-            for key, held in list(live_sources.TEAMS.items()):
-                named = live_sources.teams_named(held[1] if held else [], text)
-                if named:
-                    why = f"names {named[0].get('name', '')} ({key})"
-                    break
-        except Exception:  # noqa: BLE001
-            pass
+        held = catalogue_team(text)
+        if held:
+            why = f"names {held}"
     if why and _can_serve("sports"):
         return "sports", why
 

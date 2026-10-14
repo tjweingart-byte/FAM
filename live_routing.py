@@ -35,7 +35,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import re
 import sqlite3
 import threading
@@ -92,15 +91,11 @@ def suspect(query: str, subject: str = "") -> str:
             return f"sports: names {slot.name}"
     except Exception:  # noqa: BLE001 - a hint is never load-bearing
         pass
-    try:
-        import live_sources
+    import live_route
 
-        for key, held in list(live_sources.TEAMS.items()):
-            teams = live_sources.teams_named(held[1] if held else [], text)
-            if teams:
-                return f"sports: names {teams[0].get('name', '')} ({key})"
-    except Exception:  # noqa: BLE001
-        pass
+    held = live_route.catalogue_team(text)
+    if held:
+        return f"sports: names {held}"
     found = _MARKET_WORDS.search(text)
     if found:
         return f"markets: says {found.group(0).lower()!r}"
@@ -262,7 +257,8 @@ def exists() -> bool:
     with _PENDING_LOCK:
         if _PENDING:
             return True
-    return os.path.exists(data_path("LIVE_ROUTING_DB", "live_routing.db"))
+    # Its file, or its schema under Postgres (`db.has_tables`).
+    return store_db.has_tables(data_path("LIVE_ROUTING_DB", "live_routing.db"))
 
 
 def record(query: str, brief, live) -> None:
@@ -294,6 +290,10 @@ def _flush_in_background() -> None:
 def flush() -> None:
     """Write the rows held in memory. Never raises; a failed write keeps them."""
     with _FLUSH_LOCK:
+        # Stamped first, so a store that cannot be opened is retried at the
+        # flush interval rather than by a new thread on every `record`.
+        with _PENDING_LOCK:
+            _LAST_FLUSH[0] = time.monotonic()
         try:
             target = store()
         except Exception as exc:  # noqa: BLE001
@@ -302,7 +302,6 @@ def flush() -> None:
         with _PENDING_LOCK:
             taken = list(_PENDING)
             _PENDING.clear()
-            _LAST_FLUSH[0] = time.monotonic()
         if not taken:
             return
         try:

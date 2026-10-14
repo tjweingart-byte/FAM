@@ -18999,3 +18999,39 @@ when the evidence was in" - so the first word never waits longer than it did.
 Unverified here: how often EI fills `live_entity` well, and how many episodes
 the route moves from `not routed` to `answered`. §264's card on `/admin`
 answers both once this is deployed.
+
+**Reviewed before merging (§265).** An independent review of the branch found:
+
+- *Blocking, fixed:* routing through a league catalogue already read used
+  `live_sources.teams_named`, which matches a team by the last word of its
+  name - right for `resolve`, where the question is already about sports, and
+  wrong for deciding whether it is: "how do I pay my bills on time" routed to
+  the Buffalo Bills, and an answered route reaches the writer. Routing (and
+  §264's `suspect`) now match a catalogue team by full name only
+  (`live_route.full_names_in`).
+- *Fixed:* cancelling `prepare` while it waited on the scoreboard left the
+  lookup and the forecast running (a shielded wait does not cancel what it
+  shields); the wait is inside the `try` again.
+- *Fixed:* a prefetch script warm goes through `prepare`, so it would have
+  routed and asked a provider - prefetch never does (§89). `ScriptNotes.prefetch`
+  switches the route off.
+- *Fixed:* forecasts searched Polymarket with the bare name ("NVIDIA" finds
+  the busiest NVIDIA market, and the entity cache then served it for every
+  NVIDIA forecast); `forecast` resolves by subject, as §211 says.
+- *Fixed:* nicknames that mean something else, or that a college shares, need
+  their city ("Pats", "Trail Blazers", "Dodgers", "Blue Jays", "Kraken",
+  "Raptors", "Orioles", "Sabres", "Bucs", "Bruins", "Cavaliers", "Broncos");
+  "Saint Louis" is accepted beside "St. Louis".
+- *Fixed:* an answered routed scoreboard now sets `notes.live_domain`, so a
+  sports update short of `final` is never current, as when the brief named it;
+  a bare name that missed and left no time is `no_entity`, not `timeout`; a
+  store that cannot be opened no longer starts a flush thread per episode;
+  `exists()` asks `db.has_tables` (Postgres); the admin card says which
+  episodes write a row.
+- *Known, not changed:* each provider request is still capped at
+  `LIVE_TIMEOUT_SECONDS` inside the adapters, so `LIVE_PATIENT_SECONDS` helps a
+  lookup that needs two or three requests in a row (a game found from a
+  team's schedule, then fetched) rather than one slow request. And every
+  routed question spends API-Sports requests - up to two resolves - from the
+  same daily allowance as the sweep; asking only when somebody asked keeps it
+  inside [sweep-on-demand].
