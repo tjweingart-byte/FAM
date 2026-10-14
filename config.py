@@ -592,7 +592,7 @@ class Settings:
     # every caller for a contact; a polite feed reader gives one too.
     fetch_contact: str = field(
         default_factory=lambda: os.environ.get(
-            "FAM_CONTACT_EMAIL", "isolly10@gmail.com").strip())
+            "FAM_CONTACT_EMAIL", "admin@familiarize.net").strip())
 
     # --- world trending --------------------------------------------------
     # The myFAM row that says what the *world* is paying attention to, as
