@@ -569,8 +569,8 @@
   story: it must name something the listener follows.
 
 <!-- rule:live-facts -->
-> **Current (PROBLEMS.md §265):** with Finnhub's own status *closed*, a closing price stays fresh until the next open (`market_closed`, `CLOSED_MARKET_MAX_AGE_SECONDS` = 96h) and is said as the last close; and the story sweep's watchlist quotes (`live_sources.QUOTES`) are reused on a tap when the session is unchanged and the quote passes the same check.
-> **Current (PROBLEMS.md §264):** a market price is fresh for an hour (`MAX_AGE_SECONDS["markets"]` = 3600s, was 300s), at the owner's direction; still withheld past it, still said with its time and delay.
+> **Current (PROBLEMS.md §267):** with Finnhub's own status *closed*, a closing price stays fresh until the next open (`market_closed`, `CLOSED_MARKET_MAX_AGE_SECONDS` = 96h) and is said as the last close; and the story sweep's watchlist quotes (`live_sources.QUOTES`) are reused on a tap when the session is unchanged and the quote passes the same check.
+> **Current (PROBLEMS.md §266):** a market price is fresh for an hour (`MAX_AGE_SECONDS["markets"]` = 3600s, was 300s), at the owner's direction; still withheld past it, still said with its time and delay.
 > **Current (PROBLEMS.md §178):** for the NFL, API-Sports also supplies each team's record (counted in code from regular-season finals on the team's own schedule), last result and next game, beside the game; a game not on today's card is resolved from the teams' schedules by the provider's own team catalogue. A game that has not started never has a score. The live block tells the writer that every number comes from it and never to describe the sources.
 
 - **An article index is the wrong instrument for a scoreboard, and the seam is
@@ -612,6 +612,39 @@
   unavailable* from *not configured*, and `python tools/verify_live.py` makes a
   real request rather than confirming a credential exists. Do not say FAM
   supports live scores until a real provider is returning them.
+<!-- rule:live-route -->
+- **A provider is asked when the question names what it covers, whatever the
+  brief said** *(§264, §265, `live_route.py`)*. `Brief.live_domain` is a
+  model's judgement of what the answer turns on, and "how are the Eagles
+  looking" came back empty on one tap and `sports` on the next, while a
+  degraded brief never reached a provider at all. §264's per-episode record
+  (`live_routing.py`, on `/admin`) is how this is measured. So code routes,
+  spending nothing: a team in `live_route.ROSTER` (the four US major leagues;
+  a nickname alone only where it means nothing but the team), a named slot, or
+  a team in a catalogue already read routes to `sports`; a market word with a
+  `live_entity` that could be a listing routes to `markets`. Only where a
+  source here can serve.
+  **The route only asks.** It sets `Brief.live_route`, never `live_domain`,
+  because the domain also makes a question outcome-dependent, screens the
+  packet for sim leagues and decides the cache window - none of which should
+  change because code saw a team name. A routed lookup reaches the writer only
+  when it answered; a miss is recorded and dropped, or it would bring the "no
+  live state" block and the score guard. What the provider answers is resolved
+  from its own catalogue, as ever. A catalogue already read counts a team by
+  its full name only (`teams_named`'s last-word match routed "pay my bills"
+  to the Buffalo Bills). A prefetch warm never routes (`ScriptNotes.prefetch`),
+  and a routed question spends API-Sports requests from the sweep's daily
+  allowance - on demand, so inside [sweep-on-demand].
+  **Providers resolve a bare name** (`Brief.live_entity`, "Kansas City
+  Chiefs"), then the subject once if that matched nothing: the subject is a
+  description written for retrieval, and Finnhub's listing check refuses
+  anything over five words or with a year; a forecast still searches by
+  subject (§211). `sport_for` places a rostered team
+  in its league before the deployment's default.
+  **The lookup runs as long as the search beside it** (`LIVE_PATIENT_SECONDS`),
+  and once the evidence is in it is waited for only until its old ceiling
+  (`live_facts.budget_seconds`): the first word never waits longer than before.
+
 <!-- rule:local-news-ladder -->
 > **Current (PROBLEMS.md §258):** the third rung searches the town's known outlets on the configured search backend (Parallel), not Exa; the record names the backend that searched.
 - **A town's news comes from the town's own outlets, and its gap is said in
@@ -786,7 +819,7 @@
   mechanism, not yet about the writing.
 
 <!-- rule:tile-title-angle -->
-> **Current (PROBLEMS.md §265):** the pool and its ledgers are saved after every refresh and restored at boot (`story_store.py`, `STORY_POOL_DB`), so a redeploy no longer forgets a story's clock.
+> **Current (PROBLEMS.md §267):** the pool and its ledgers are saved after every refresh and restored at boot (`story_store.py`, `STORY_POOL_DB`), so a redeploy no longer forgets a story's clock.
 - **A browse tile is a title and an angle; the script waits for the tap.**
   *(§102, `stories.py`, `MYFAM.md`.)* myFAM's inventory is now the evergreen
   bank **plus** a live story pool built from four sources, and the pool is the
@@ -958,7 +991,7 @@
   holding that story back would cost the personal rail its tile and still
   leave Trending short.
 <!-- rule:two-crowd-rows -->
-> **Current (PROBLEMS.md §265):** a tap still researches from scratch and `why_now` is still never evidence; research now also searches the tapped story's own outlets beside the first rung (never waited for) and appends the provider's dated measurement (`stories.context_for`), never the composer's words, never read by EI.
+> **Current (PROBLEMS.md §267):** a tap still researches from scratch and `why_now` is still never evidence; research now also searches the tapped story's own outlets beside the first rung (never waited for) and appends the provider's dated measurement (`stories.context_for`), never the composer's words, never read by EI.
 - **Two rows on myFAM, two questions, and they are not blended.** *(§90,
   `trending.py`, `TRENDING.md`.)* **"What FAM can't stop listening to"** is this
   app's own play counts over its own bank — it already existed under the key

@@ -143,7 +143,7 @@ def wipe(*, cache, events, erase_listener, scope: str = "seed",
             import stories
 
             report["stories_dropped"] = stories.pool().clear()
-            # And its saved copy (§265), or the next boot restores it.
+            # And its saved copy (§267), or the next boot restores it.
             stories.forget_saved()
         except Exception:  # noqa: BLE001 - a browse cache is never load-bearing
             log.exception("could not drop the story pool")

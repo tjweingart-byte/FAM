@@ -314,7 +314,7 @@ async def _warm_stories() -> None:
     empty page.
     """
     try:
-        # What the last process held, first (§265): its stories keep their
+        # What the last process held, first (§267): its stories keep their
         # clocks and their composed titles, so a redeploy neither makes
         # yesterday's story new again nor pays to compose it twice.
         await asyncio.to_thread(stories_mod.restore)
@@ -1033,6 +1033,16 @@ def _database_report() -> list[dict]:
                            provider_usage.store().path))
     except Exception:  # pragma: no cover - a report is never load-bearing
         pass
+    # Live routing per written episode (§264). Created by the first episode
+    # written, and reported once it exists, like the provider counts above.
+    try:
+        import live_routing
+
+        if live_routing.exists():
+            stores.append(("live routing", "LIVE_ROUTING_DB",
+                           live_routing.store().path))
+    except Exception:  # pragma: no cover - a report is never load-bearing
+        pass
     # Local news outlets, their stories and resolved places (§194). Created
     # by the collector's first sweep, and reported once it exists, like the
     # provider counts above.
@@ -1052,7 +1062,7 @@ def _database_report() -> list[dict]:
                            gdelt_mod.store().path))
     except Exception:  # pragma: no cover - a report is never load-bearing
         pass
-    # The saved story pool (§265). Created by the first refresh, and reported
+    # The saved story pool (§267). Created by the first refresh, and reported
     # once it exists, like the stores above.
     try:
         import story_store

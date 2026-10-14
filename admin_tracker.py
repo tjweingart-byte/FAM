@@ -522,11 +522,14 @@ def snapshot(now: Optional[float] = None) -> dict:
     # Requests per outside service per day, beside each one's limit and the
     # plan that would raise it (§179). Its own store, read without creating it.
     import provider_usage
+    # Which live provider each written episode was routed to (§264).
+    import live_routing
 
     return {"at": now, "metrics": metrics, "errors": errors,
             "signups": series, "recent_accounts": recent,
             "top_searches": top_searches, "stores": stores,
-            "providers": provider_usage.report(now)}
+            "providers": provider_usage.report(now),
+            "routing": live_routing.report(now)}
 
 
 # ----------------------------------------------------------------- recipes

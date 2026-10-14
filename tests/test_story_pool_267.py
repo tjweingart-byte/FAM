@@ -1,4 +1,4 @@
-"""§265: the story pool on the disk, and what a tap carries from it.
+"""§267: the story pool on the disk, and what a tap carries from it.
 
 Three things are pinned here:
 

@@ -126,7 +126,7 @@ def test_a_quiet_market_produces_no_tiles_rather_than_dull_ones(monkeypatch):
 
 
 def test_the_sweep_keeps_every_watchlist_quote_for_a_tap(monkeypatch):
-    """§265: the sweep remembers each watchlist quote, moved or not, with the
+    """§267: the sweep remembers each watchlist quote, moved or not, with the
     session it was taken in - and only the watchlist, never the market."""
     import live_sources
 

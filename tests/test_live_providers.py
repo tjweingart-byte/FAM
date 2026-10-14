@@ -184,7 +184,7 @@ def test_a_quote_never_establishes_an_event_status():
 
 
 def test_a_close_is_current_until_the_market_reopens():
-    """§265: with the market closed the last close cannot move, so a close
+    """§267: with the market closed the last close cannot move, so a close
     from last night (or Thursday, over a holiday weekend) reaches the writer,
     said as the last close. The open-market hour still holds otherwise."""
     from datetime import timedelta

@@ -175,7 +175,7 @@ POOL_STORE = 96
 #: would be one region's worth.
 MAX_PER_SOURCE = 8
 
-#: How many of a story's articles it keeps (§265): the outlets a tap searches
+#: How many of a story's articles it keeps (§267): the outlets a tap searches
 #: beside the ordinary search are drawn from these.
 MAX_STORY_URLS = 8
 
@@ -264,7 +264,7 @@ class Signal:
     region_hint: str = ""
     #: The articles behind it, when the source clustered articles (GDELT's
     #: does): the cluster's URLs, most representative first. A tap searches
-    #: the outlets that ran them beside the ordinary search (§265,
+    #: the outlets that ran them beside the ordinary search (§267,
     #: `context_for`); never read out, never a hostname in the packet.
     urls: tuple = ()
     #: A live state the tile carries beside its title, written in code from
@@ -484,11 +484,11 @@ class Story:
     minor_league: bool = False
     #: What the provider *measured* - `Signal.observation`, written in code,
     #: never by the composer - and when, refreshed every sweep the story is
-    #: seen on. Handed to the writer on a tap as dated evidence (§265,
+    #: seen on. Handed to the writer on a tap as dated evidence (§267,
     #: `StoryContext`), never to EI, so a warmed brief survives the sweep.
     observation: str = ""
     observed_at: float = 0.0
-    #: `Signal.urls`, carried through and refreshed (§265).
+    #: `Signal.urls`, carried through and refreshed (§267).
     urls: tuple = ()
 
     @property
@@ -1775,7 +1775,7 @@ def _seen_again(previous: Story, signal, now: float,
                          else previous.outcome_pending),
         query=query,
         # The measurement moves with every sweep, like the strength does; a
-        # sweep that said nothing keeps the last one and its time (§265).
+        # sweep that said nothing keeps the last one and its time (§267).
         observation=signal.observation or previous.observation,
         observed_at=now if signal.observation else previous.observed_at,
         urls=(tuple(getattr(signal, "urls", ()) or ())[:MAX_STORY_URLS]
@@ -1886,7 +1886,7 @@ async def refresh(now: Optional[float] = None) -> Pool:
                  len(_POOL.stories), len(_POOL.live(now)), len(composed),
                  _POOL.degraded,
                  ", ".join(f"{r.name}:{r.outcome}" for r in reports) or "no sources")
-        # Kept on the disk (§265), off the event loop. A write that fails is
+        # Kept on the disk (§267), off the event loop. A write that fails is
         # logged and the pool carries on in memory.
         await asyncio.to_thread(save, now)
         return _POOL
@@ -1966,7 +1966,7 @@ def report() -> dict:
 
 
 # --------------------------------------------------------------------------
-# Kept on the disk (§265)
+# Kept on the disk (§267)
 # --------------------------------------------------------------------------
 def _story_from_row(row: dict) -> Story:
     """A saved story back into a `Story`, tuples and all. Unknown keys from
@@ -2063,7 +2063,7 @@ def forget_saved() -> None:
 
 
 # --------------------------------------------------------------------------
-# What a tap carries to the writer (§265)
+# What a tap carries to the writer (§267)
 # --------------------------------------------------------------------------
 #: How old a measurement may be and still go to the writer. Past it the
 #: number is a stale blurb, which is what `two-crowd-rows` forbids becoming

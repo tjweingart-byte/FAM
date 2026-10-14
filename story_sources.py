@@ -445,7 +445,7 @@ class FinnhubSignals(stories.StorySource):
 
         import live_sources
 
-        # The session beside the quotes, so a tap can reuse them (§265):
+        # The session beside the quotes, so a tap can reuse them (§267):
         # one more request per sweep, and the quotes are kept for every
         # watchlist symbol, moved or not - a tap asks about any of them.
         async def session():

@@ -1,4 +1,4 @@
-"""The story pool, kept on the data disk (§265).
+"""The story pool, kept on the data disk (§267).
 
 `stories._POOL` and the ledgers beside it (`_FIRST_SEEN`, `_RETIRED`) lived in
 memory only, so every redeploy dropped them: the first listener after a push

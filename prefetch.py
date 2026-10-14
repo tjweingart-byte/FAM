@@ -665,6 +665,9 @@ class Prefetcher:
 
         plan = plan_episode(candidate.query, candidate.minutes)
         notes = ScriptNotes()
+        # No live provider is asked on a warm, not even one code would route
+        # to (§265): see the comment above `understand` below.
+        notes.prefetch = True
 
         # Already there? Then the prediction was right and somebody else's
         # spend already paid for it. Counted, because "we did not need to" is

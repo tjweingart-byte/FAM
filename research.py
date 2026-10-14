@@ -1022,7 +1022,7 @@ async def _second_look(query: str, num_results: int, packet_sources: int,
 def _story_look_blocking(query: str, num_results: int, hosts: tuple,
                          recency_days: int, live_domain: str, backend: str,
                          objective: str, extra_queries: tuple) -> tuple:
-    """The tapped story's own outlets, searched for the same thing (§265).
+    """The tapped story's own outlets, searched for the same thing (§267).
 
     The same backend, query, window and objective as the main search, held
     to the outlets that ran the story's articles (`stories.context_for`) -
@@ -1197,7 +1197,7 @@ async def retrieve(query: str, backend: Optional[str] = None,
     live_domain = str(getattr(brief, "live_domain", "") or "")
     include_domains = tuple(overrides.get("include_domains", ()) or ())
     must_name = str(overrides.get("must_name", "") or "")
-    # **The tapped story's own outlets, beside the main search** (§265).
+    # **The tapped story's own outlets, beside the main search** (§267).
     # Started first and never awaited for longer than the rest of this
     # function takes: whatever it has found when the main packet (and its one
     # retry, and the cross-check) are done is merged, and anything later is

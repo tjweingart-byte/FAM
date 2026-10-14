@@ -58,6 +58,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 import live_facts
+import live_route
 import named_slots
 from config import settings
 from live_facts import Entity, LiveFacts, LiveSource
@@ -101,7 +102,7 @@ class FakeSportsSource(LiveSource):
         return True, "the fake scoreboard needs nothing and proves nothing"
 
     async def resolve(self, brief) -> Optional[Entity]:
-        subject = (getattr(brief, "subject", "") or getattr(brief, "query", "")).lower()
+        subject = live_route.entity_of(brief).lower()
         if not any(word in subject for word in ("chief", "bronco", "game", "match")):
             return None
         return Entity(domain="sports", provider=self.name, id="fake-game-1",
@@ -1000,7 +1001,7 @@ CARD: dict = {}
 #: symbol -> {"data": Finnhub's quote, "is_open": the session then, "at": when
 #: swept}. Written by the story sweep (`story_sources.FinnhubSignals`) for
 #: the watchlist only - never the whole market - and read by
-#: `FinnhubSource.fetch` (§265), the same seam `CARD` is for scores.
+#: `FinnhubSource.fetch` (§267), the same seam `CARD` is for scores.
 QUOTES: dict = {}
 
 
@@ -1082,10 +1083,19 @@ def is_major(name: str, country: str) -> bool:
     return (name, "") in MAJOR_LEAGUES or (name, country) in MAJOR_LEAGUES
 
 
-def sport_for(subject: str) -> Sport:
+def sport_for(subject: str, context: str = "") -> Sport:
     """Which API-Sports product answers this question.
 
-    A named sport wins; otherwise the deployment's configured default.
+    A named sport wins; then a team the roster places in one league
+    (`live_route.ROSTER`, §265); then a team in a catalogue already read;
+    otherwise the deployment's configured default. `context` is the rest of
+    the request's wording (the brief's subject, the typed question), read
+    for those as well: the bare entity "Kansas City Chiefs" says no sport,
+    and the question it came from may.
+
+    *Before §265, the next paragraph's limitation stood; the roster now
+    answers it for the four US leagues, and the paragraph is kept as why
+    nothing beyond them is guessed.*
 
     **The honest limitation**, and it is the motivating case: "Chiefs game"
     contains no sport word. Team-name routing would need a maintained roster
@@ -1097,7 +1107,7 @@ def sport_for(subject: str) -> Sport:
     provider's own team search across sports, which is N requests rather than
     one. Deliberately not guessed at here.
     """
-    text = " ".join((subject or "").lower().split())
+    text = " ".join(f"{subject or ''} {context or ''}".lower().split())
     padded = " " + " ".join(re.findall(r"[a-z0-9]+", text)) + " "
     enabled = enabled_sports()
 
@@ -1113,12 +1123,16 @@ def sport_for(subject: str) -> Sport:
             return sport
     if matched:
         return matched[0]
-    # No sport named: a team this deployment has already read a league's
+    # No sport named: a team the roster places in one league (§265).
+    rostered = live_route.sport_of(text)
+    if rostered in enabled:
+        return SPORTS[rostered]
+    # Then a team this deployment has already read a league's
     # catalogue for ("Maple Leafs game") names its sport (§180). Only cached
     # catalogues are asked - routing never spends a request.
     for key in enabled:
         held = TEAMS.get(key)
-        if held and teams_named(held[1], subject):
+        if held and teams_named(held[1], f"{subject} {context}"):
             return SPORTS[key]
     default = settings.api_sports_sport if settings.api_sports_sport in enabled \
         else (enabled[0] if enabled else "american-football")
@@ -1529,7 +1543,7 @@ class ApiSportsSource(LiveSource):
         return ok_all, "API-Sports per sport: " + "; ".join(said)
 
     async def resolve(self, brief) -> Optional[Entity]:
-        subject = (getattr(brief, "subject", "") or getattr(brief, "query", "")).strip()
+        subject = live_route.entity_of(brief)
         if not subject:
             return None
         # A named slot ("Sunday Night Football") names one game by when it
@@ -1539,7 +1553,7 @@ class ApiSportsSource(LiveSource):
         if slot is not None and slot.sport in SPORTS:
             return await self._resolve_slot(brief, slot)
 
-        sport = sport_for(subject)
+        sport = sport_for(subject, live_route.context_of(brief))
         # A race or a fight is not a game between two teams (§180).
         if sport.kind == "race":
             return await self._resolve_race(sport, subject)
@@ -2232,7 +2246,7 @@ class FinnhubSource(LiveSource):
         listings that share a prefix, because "Apple" should find AAPL and not
         AAPL.SW.
         """
-        subject = (getattr(brief, "subject", "") or getattr(brief, "query", "")).strip()
+        subject = live_route.entity_of(brief)
         if not subject:
             return None
         if not looks_like_a_listing(subject):
@@ -2291,7 +2305,7 @@ class FinnhubSource(LiveSource):
         return bool(value) if isinstance(value, bool) else None
 
     async def fetch(self, entity: Entity) -> Optional[LiveFacts]:
-        # A watchlist symbol the story sweep already quoted (§265): its quote
+        # A watchlist symbol the story sweep already quoted (§267): its quote
         # is used when the session it was taken in is still the session now
         # and it passes the same freshness check a live quote must. The
         # session itself is always asked live - one cheap call, run beside
@@ -2354,7 +2368,7 @@ class FinnhubSource(LiveSource):
         return LiveFacts(domain="markets", source=self.name, as_of=when,
                          facts=said, status=live_facts.UNKNOWN, entity=entity,
                          delayed_seconds=self.delayed_seconds,
-                         # Only Finnhub's own "closed" (§265); an unknown
+                         # Only Finnhub's own "closed" (§267); an unknown
                          # session keeps the open-market hour.
                          market_closed=is_open is False)
 
@@ -2408,7 +2422,7 @@ class PolymarketSource(LiveSource):
         return True, "Polymarket answered"
 
     async def resolve(self, brief) -> Optional[Entity]:
-        subject = (getattr(brief, "subject", "") or getattr(brief, "query", "")).strip()
+        subject = live_route.entity_of(brief)
         wanted = subject_words(subject)
         if not wanted:
             return None

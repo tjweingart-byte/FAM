@@ -85,7 +85,7 @@ def stubbed(monkeypatch):
         return research_mod.Packet(context="Reuters, yesterday: rates held.",
                                    backend="exa", searches=1)
 
-    async def lookup(brief, notes=None):
+    async def lookup(brief, notes=None, **_):
         return None
 
     monkeypatch.setattr(episode_intelligence, "understand", understand)

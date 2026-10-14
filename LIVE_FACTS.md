@@ -77,7 +77,7 @@ rather than to a confident wrong tense.
 
 ## Freshness
 
-`MAX_AGE_SECONDS` per domain: sports 120s, markets 3600s (§264; was 300s), elections 1800s. With the market closed (Finnhub's own status), a closing price stays fresh up to 96h and is said as the last close (§265). One
+`MAX_AGE_SECONDS` per domain: sports 120s, markets 3600s (§266; was 300s), elections 1800s. With the market closed (Finnhub's own status), a closing price stays fresh up to 96h and is said as the last close (§267). One
 universal threshold would be wrong for at least two of the three — a score is
 stale in two minutes, a vote count published in hourly batches is not.
 
