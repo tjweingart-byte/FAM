@@ -252,6 +252,10 @@ is still the answer to latency - it is just that on search there is nothing
 left to start earlier than the tap, which is why the browse surfaces, where
 there is, matter more than they did.
 
+> **Current:** the first step is held 0.5 s, not two, and polled every
+> 250 ms until it lands (§263, owner's direction) - still checked only on the
+> server's mark. The other four keep two seconds.
+
 <!-- rule:one-sentence-spec -->
 ## The one-sentence spec
 

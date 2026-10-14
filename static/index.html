@@ -1337,10 +1337,13 @@
   /* DailyFAM's "skip to next" (§134). Beside the transport rather than in
      it, so the play button stays dead centre on every surface and the row
      is the same three controls wherever this button is not drawn - which is
-     everywhere but a mix. */
-  .mix-skip{ position:absolute; left:calc(100% + 16px); top:50%;
-    transform:translateY(-50%); }
-  .mix-skip:active{ transform:translateY(-50%) scale(0.94); }
+     everywhere but a mix.
+     Centred by its box, never a transform: `.mini-ctrl-btn:active` below
+     sets `transform` and wins the tie, so a translate here was dropped the
+     moment it was pressed - the button jumped half its height down under
+     the finger, the release landed on the row, and the tap never clicked. */
+  .mix-skip{ position:absolute; left:calc(100% + 16px); top:0; bottom:0;
+    margin:auto 0; }
   .mix-skip[hidden], .mini-ctrl-btn[hidden]{ display:none; }
   /* The extra bottom padding is the icon captions' room. */
   .pc-row2{ display:flex; align-items:center; gap:10px; padding-bottom:11px; }
@@ -5652,8 +5655,16 @@
   // slow. To keep that honest the audio is *held* (FamAudio's `startGate`)
   // until the fifth check lands, rather than playing behind the list. A
   // replay has no steps and is never held: it shows all five done and starts.
+  //
+  // The first step is the exception (owner's direction): its two seconds
+  // came on top of the brief, so the screen sat with nothing checked long
+  // enough to look broken. It is held only GEN_STEP_FIRST_MIN_MS, and asked
+  // about every GEN_STEP_FIRST_POLL_MS until it lands, so it checks off as
+  // soon as the server says the brief is done - still never before.
   var GEN_STEP_MIN_MS = 2000;
+  var GEN_STEP_FIRST_MIN_MS = 500;
   var GEN_STEP_POLL_MS = 700;
+  var GEN_STEP_FIRST_POLL_MS = 250;
   //: How long the fifth check is seen before the episode starts.
   var GEN_STEP_LAST_BEAT_MS = 400;
   var GEN_STEP_COUNT = 5;
@@ -5703,8 +5714,13 @@
       + (context ? "&context=" + encodeURIComponent(context) : "")
       + (surface ? "&surface=" + encodeURIComponent(surface) : "")
       + (topicId ? "&topic_id=" + encodeURIComponent(topicId) : "");
-    pollGenSteps(st);
-    st.poll = setInterval(function(){ pollGenSteps(st); }, GEN_STEP_POLL_MS);
+    var tick = function(){
+      if(st !== genSteps) return;
+      pollGenSteps(st);
+      st.poll = setTimeout(tick,
+        st.server[0] ? GEN_STEP_POLL_MS : GEN_STEP_FIRST_POLL_MS);
+    };
+    tick();
   }
 
   function pollGenSteps(st){
@@ -5724,7 +5740,8 @@
   function advanceGenSteps(st){
     if(st !== genSteps) return;
     var now = Date.now();
-    if(st.shown < GEN_STEP_COUNT && now - st.since >= GEN_STEP_MIN_MS){
+    var floor = st.shown === 0 ? GEN_STEP_FIRST_MIN_MS : GEN_STEP_MIN_MS;
+    if(st.shown < GEN_STEP_COUNT && now - st.since >= floor){
       // Audio existing means every step before it happened, whatever the
       // poll managed to see - another worker, or a missed answer.
       var finished = st.shown < GEN_STEP_COUNT - 1
@@ -5756,7 +5773,7 @@
     genSteps = null;
     if(!st) return;
     if(st.timer) clearInterval(st.timer);
-    if(st.poll) clearInterval(st.poll);
+    if(st.poll) clearTimeout(st.poll);
   }
 
   // Handed to FamAudio as `startGate`: audio has arrived, start it when the
