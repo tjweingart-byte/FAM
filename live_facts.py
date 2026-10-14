@@ -104,12 +104,15 @@ def normalise_status(value: object) -> str:
 
 #: How old a live fact may be and still be described as the state *now*,
 #: per domain, in seconds. Different clocks: a score changes every few seconds,
-#: a quote every second the market is open but a minute-old one is still
-#: honestly "around", and a vote count is published in batches an hour apart.
+#: a quote every second the market is open but an episode explains a move
+#: rather than quoting a ticker, so an hour-old price (said with its time and
+#: its delay) is still honest - an hour at the owner's direction (§264; it was
+#: five minutes, less than the free tier's declared twenty-minute delay) -
+#: and a vote count is published in batches an hour apart.
 #: One universal threshold would be wrong for at least two of the three.
 MAX_AGE_SECONDS = {
     "sports": 120.0,
-    "markets": 300.0,
+    "markets": 3600.0,
     "elections": 1800.0,
     # A place's forecast is swept twice a day (§194), and NWS may have issued
     # it a few hours before that; an observation inside it is checked

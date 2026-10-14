@@ -569,6 +569,7 @@
   story: it must name something the listener follows.
 
 <!-- rule:live-facts -->
+> **Current (PROBLEMS.md §264):** a market price is fresh for an hour (`MAX_AGE_SECONDS["markets"]` = 3600s, was 300s), at the owner's direction; still withheld past it, still said with its time and delay.
 > **Current (PROBLEMS.md §178):** for the NFL, API-Sports also supplies each team's record (counted in code from regular-season finals on the team's own schedule), last result and next game, beside the game; a game not on today's card is resolved from the teams' schedules by the provider's own team catalogue. A game that has not started never has a score. The live block tells the writer that every number comes from it and never to describe the sources.
 
 - **An article index is the wrong instrument for a scoreboard, and the seam is

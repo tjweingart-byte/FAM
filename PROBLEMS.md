@@ -18916,3 +18916,26 @@ them. `render.yaml` now declares `SMTP_HOST`, `SMTP_USERNAME`,
 so the dashboard asks; once they are filled the link appears, emails a
 6-digit code, and the code plus a new password changes it. The link stays
 undrawn without mail (`no-dead-controls`). Staging keeps none (`spend_guard`).
+
+## 264. A market price is fresh for an hour
+
+From the owner (10.14): five minutes was too severe for what an episode does
+with a price. `live_facts.MAX_AGE_SECONDS["markets"]` is now 3600 s (was 300).
+
+The old limit withheld more than it seemed to. `FinnhubSource.to_facts` dates
+a quote by Finnhub's `t` (the last trade), and the free tier is declared
+twenty minutes delayed (`delayed_seconds = 1200`), so a delayed quote was past
+five minutes on arrival and the lookup came back `stale`. And because a quote's
+status is `unknown`, `FACT_CACHE` never holds one, so nothing softened it.
+
+What did not change: freshness is still checked in code before the writer
+sees anything, data past the limit is still withheld, and the live block still
+says when the price was observed and that it is delayed, so an hour-old price
+is said as an hour-old price (`live-facts`). Outside trading hours `t` is the
+close, hours old, so a quote is still withheld overnight and at weekends -
+unchanged, and a separate question (the close is the current fact then).
+
+`tests/test_live_facts.py::test_each_domain_has_its_own_clock` pinned
+sports < markets < elections; markets now outlasts elections, so the test pins
+sports below both and markets at an hour.
+

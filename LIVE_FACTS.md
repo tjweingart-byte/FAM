@@ -77,7 +77,7 @@ rather than to a confident wrong tense.
 
 ## Freshness
 
-`MAX_AGE_SECONDS` per domain: sports 120s, markets 300s, elections 1800s. One
+`MAX_AGE_SECONDS` per domain: sports 120s, markets 3600s (§264; was 300s), elections 1800s. One
 universal threshold would be wrong for at least two of the three — a score is
 stale in two minutes, a vote count published in hourly batches is not.
 
