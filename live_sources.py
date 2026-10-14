@@ -1019,6 +1019,24 @@ def swept_quote(symbol: str) -> Optional[dict]:
     return QUOTES.get((symbol or "").upper())
 
 
+def usable_sweep(held: Optional[dict], now: Optional[float] = None) -> bool:
+    """Whether a swept quote may stand in for a live one at all (§267).
+
+    It needs its own trade time - without one `to_facts` would date it now
+    and it would never age - a session the sweep could read, and a sweep no
+    older than two of its own intervals: a Friday close kept through a
+    weekend of failed sweeps is not what "the session has not changed"
+    vouches for on Monday evening.
+    """
+    if not held or held.get("is_open") is None:
+        return False
+    if not (held.get("data") or {}).get("t"):
+        return False
+    now = time.time() if now is None else now
+    limit = 2 * float(settings.stories_markets_interval_seconds)
+    return now - float(held.get("at") or 0.0) <= limit
+
+
 def remember_card(sport_key: str, rows: list, now: Optional[float] = None) -> None:
     CARD[sport_key] = (time.time() if now is None else now, list(rows or []))
 
@@ -2320,8 +2338,7 @@ class FinnhubSource(LiveSource):
         # and only a session that changed since costs the quote after it.
         held = swept_quote(entity.id)
         candidate = (self.to_facts(held["data"], entity, held["is_open"])
-                     if held is not None and held["is_open"] is not None
-                     else None)
+                     if usable_sweep(held) else None)
         if candidate is not None and candidate.is_fresh():
             is_open = await self.market_open()
             if is_open == held["is_open"]:

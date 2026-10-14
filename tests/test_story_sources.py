@@ -656,3 +656,20 @@ def test_only_a_followed_league_becomes_a_tile(monkeypatch):
     rows = sports(monkeypatch, card=card)
     assert [r.subject for r in rows] == ["Chiefs vs Broncos"]
     assert rows[0].countries == (("united states", 1.0),)
+
+
+def test_a_swept_quote_needs_its_own_time_and_a_recent_sweep():
+    """§267 review: without a trade time `to_facts` would date it now and it
+    would never age; and a close kept through a weekend of failed sweeps is
+    not one a matching session vouches for."""
+    import time as _time
+
+    import live_sources
+
+    now = _time.time()
+    good = {"data": {"c": 1.0, "t": now - 60}, "is_open": False, "at": now - 60}
+    assert live_sources.usable_sweep(good, now)
+    assert not live_sources.usable_sweep({**good, "data": {"c": 1.0}}, now)
+    assert not live_sources.usable_sweep({**good, "is_open": None}, now)
+    assert not live_sources.usable_sweep({**good, "at": now - 3 * 86400}, now)
+    assert not live_sources.usable_sweep(None, now)

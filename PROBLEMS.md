@@ -19133,3 +19133,20 @@ is not new again (`tile-title-angle`) and nothing is composed twice. Only into
 an empty pool, only what has not expired; a wipe empties it
 (`stories.forget_saved`). A few hundred kilobytes on the existing 1 GB disk.
 
+**The pre-merge review (§267) found the measurement too wide, and fixed it.**
+`as_evidence` handed the writer *any* source's observation - a trending
+item's `why_now` (`two-crowd-rows`), a Polymarket price (`forecast-beside`),
+an API-Sports score up to six hours old (`live-facts` withholds one after two
+minutes). Only GDELT's sweep sets `Signal.measured` now (an outlet count and
+the headlines they ran, from the export copy), and nothing else ever reaches
+the packet; the outlets are still searched for every story. Also: an outlet
+search that finished too late is metered at the published rate (the request
+was sent); a missing key is not logged as a vendor outage; `thin_on` is
+recomputed after the outlets' passages are merged; a swept quote needs its own
+trade time and a sweep no older than two market intervals
+(`live_sources.usable_sweep`); the stale-withholding message names the
+closed-market limit when that applied. Not changed: with the session changed
+since the sweep, `FinnhubSource.fetch` asks the session and then the quote one
+after the other - only at the open and the close, and inside the patient
+episode budget §265 gave the lookup.
+

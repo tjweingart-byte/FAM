@@ -58,7 +58,9 @@ def signal(subject="undersea cables", **kw):
     kw.setdefault("tags", ("tech",))
     kw.setdefault("urls", ("https://www.reuters.com/a", "https://apnews.com/b",
                            "https://www.reuters.com/c"))
-    return stories.Signal(subject=subject, domain=stories.ATTENTION, **kw)
+    kw.setdefault("measured", True)       # as GDELT's sweep files it
+    kw.setdefault("domain", stories.ATTENTION)
+    return stories.Signal(subject=subject, **kw)
 
 
 def sweep(rows, now):
@@ -154,7 +156,7 @@ def test_the_measurement_is_dated_and_carries_no_hostname():
     assert block.startswith("WHAT FAM MEASURED")
     assert "Measured:" in block and "12 different outlets" in block
     assert "reuters" not in block.lower() and "apnews" not in block.lower()
-    assert "never why" in block
+    assert "never says why" in block and "settles" in block
 
 
 def test_a_stale_measurement_is_left_out():
@@ -299,7 +301,8 @@ def test_a_slow_outlet_search_is_never_waited_for(parallel):
     packet, seconds = asyncio.run(timed())
     assert seconds < 1.0
     assert "from the outlets" not in packet.context
-    assert packet.searches == 1
+    assert packet.searches == 2, "the late search was still sent, so it is metered"
+    assert packet.cost == pytest.approx(0.002)
 
 
 def test_a_broken_outlet_search_costs_the_episode_nothing(parallel):
@@ -340,3 +343,60 @@ def test_a_tap_carries_the_story_into_the_packet(parallel, monkeypatch):
     plain = asyncio.run(generator.research(dataclasses.replace(
         sg.plan_episode("how do undersea cables work", 2), search=True)))
     assert "WHAT FAM MEASURED" not in plain.evidence
+
+
+# --------------------------------------------------------------------------
+# the review (§267): only a measurement is evidence
+# --------------------------------------------------------------------------
+@pytest.mark.parametrize("domain, observation", [
+    # a trending item's own reason (`two-crowd-rows`: why_now is never evidence)
+    (stories.ATTENTION, "a new class cleared a late-stage trial"),
+    # a betting price (`forecast-beside`: never evidence)
+    (stories.PREDICTION, "the contract is trading around 62 percent"),
+    # a score (`live-facts` would withhold it within two minutes)
+    (stories.SPORTS, "is under way right now: 21-14 (as of 19:02 UTC)"),
+])
+def test_only_gdelts_measurement_ever_becomes_evidence(domain, observation):
+    t0 = time.time()
+    sweep([signal(domain=domain, observation=observation, measured=False)], t0)
+    ctx = stories.context_for(stories.pool().stories[0].query)
+    assert ctx is not None, "the outlets are still searched"
+    assert ctx.as_evidence(now=t0 + 60) == ""
+
+
+def test_gdelts_sweep_is_the_one_source_that_measures():
+    import inspect
+
+    import story_sources
+
+    assert "measured=True" in inspect.getsource(story_sources.GdeltSignals)
+    for name in ("TrendingRegistrySignals", "FinnhubSignals",
+                 "PolymarketSignals", "ApiSportsSignals"):
+        assert "measured=True" not in inspect.getsource(
+            getattr(story_sources, name)), name
+
+
+def test_a_measurement_survives_a_restart_as_a_measurement():
+    t0 = time.time()
+    sweep([signal()], t0)
+    stories.reset()
+    stories.restore(now=t0 + 60)
+    assert stories.pool().stories[0].measured is True
+
+
+def test_a_missing_key_is_not_logged_as_an_outage(monkeypatch):
+    import provider_usage
+    import research
+
+    recorded = []
+    monkeypatch.setattr(provider_usage, "record",
+                        lambda backend, ok=True: recorded.append(ok))
+
+    def no_key(*_a, **_k):
+        raise research.ResearchUnavailable("PARALLEL_API_KEY is not set")
+
+    monkeypatch.setattr(research, "_search_parallel", no_key)
+    with pytest.raises(research.ResearchUnavailable):
+        research._story_look_blocking("q", 5, ("apnews.com",), 0, "",
+                                      "parallel", "", ())
+    assert recorded == []

@@ -278,6 +278,9 @@ class GdeltSignals(stories.StorySource):
             as_of=now,
             url=group.urls[0] if group.urls else "",
             urls=tuple(group.urls[:stories.MAX_STORY_URLS]),
+            # An outlet count and headlines from the export copy: the one
+            # observation fit to be evidence on a tap (§267).
+            measured=True,
             countries=countries,
             keywords=group.keywords(),
             coverage=group.outlets,

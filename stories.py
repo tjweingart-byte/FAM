@@ -267,6 +267,13 @@ class Signal:
     #: the outlets that ran them beside the ordinary search (§267,
     #: `context_for`); never read out, never a hostname in the packet.
     urls: tuple = ()
+    #: Whether `observation` is fit to be evidence (§267). Set only by
+    #: GDELT's own sweep (`story_sources.GdeltSignals`), whose observation is
+    #: an outlet count and the headlines those outlets ran, written in code
+    #: from the export copy. Never a source's reason (a trending item's
+    #: `why_now`, `two-crowd-rows`), a betting price (`forecast-beside`) or a
+    #: score (which `live-facts` would withhold within minutes).
+    measured: bool = False
     #: A live state the tile carries beside its title, written in code from
     #: the provider's own numbers and refreshed on every sweep - a score and
     #: the period, today. Never composed and never part of the title, so it
@@ -490,6 +497,8 @@ class Story:
     observed_at: float = 0.0
     #: `Signal.urls`, carried through and refreshed (§267).
     urls: tuple = ()
+    #: `Signal.measured`: only then is `observation` handed to the writer.
+    measured: bool = False
 
     @property
     def id(self) -> str:
@@ -1046,6 +1055,7 @@ def _story_from(signal: Signal, title: str, angle: str, query: str,
         observation=signal.observation,
         observed_at=now,
         urls=tuple(getattr(signal, "urls", ()) or ())[:MAX_STORY_URLS],
+        measured=bool(getattr(signal, "measured", False)),
     )
 
 
@@ -1778,6 +1788,8 @@ def _seen_again(previous: Story, signal, now: float,
         # sweep that said nothing keeps the last one and its time (§267).
         observation=signal.observation or previous.observation,
         observed_at=now if signal.observation else previous.observed_at,
+        measured=(bool(getattr(signal, "measured", False))
+                  if signal.observation else previous.measured),
         urls=(tuple(getattr(signal, "urls", ()) or ())[:MAX_STORY_URLS]
               or previous.urls),
     )
@@ -2042,9 +2054,9 @@ def restore(now: Optional[float] = None) -> int:
         _POOL = Pool(stories=held[:POOL_STORE],
                      fetched_at=float(saved.get("fetched_at") or 0.0),
                      sources=reports)
-        log.info("stories: restored %d held stories from %s", len(held),
-                 target.path)
-        return len(held)
+        log.info("stories: restored %d held stories from %s",
+                 len(_POOL.stories), target.path)
+        return len(_POOL.stories)
     except Exception:  # noqa: BLE001 - see docstring
         log.exception("stories: could not restore the saved pool; sweeping "
                       "from empty")
@@ -2091,6 +2103,8 @@ class StoryContext:
     observed_at: float = 0.0
     #: The outlets that ran the story's articles (hosts, never shown).
     hosts: tuple = ()
+    #: `Story.measured`. False means the observation is never evidence.
+    measured: bool = False
 
     def as_evidence(self, now: Optional[float] = None) -> str:
         """The measurement as one dated block for the packet, or "".
@@ -2101,7 +2115,7 @@ class StoryContext:
         """
         now = time.time() if now is None else now
         text = " ".join((self.observation or "").split())
-        if not text or not self.observed_at:
+        if not self.measured or not text or not self.observed_at:
             return ""
         if now - self.observed_at > STORY_MEASUREMENT_MAX_AGE:
             return ""
@@ -2113,11 +2127,13 @@ class StoryContext:
             "WHAT FAM MEASURED\n"
             f"Measured: {listener_clock.say(when)} "
             f"({research.age_phrase(when, listener_clock.now())})\n"
-            "Source type: FAM's own sweep of the news and markets - a "
-            "measurement of attention or price, not an article.\n"
+            "Source type: FAM's own count of the outlets running this story, "
+            "with the headlines they ran - a measurement of coverage, not an "
+            "article.\n"
             f"Key evidence:\n{text[:900]}\n"
-            "It says how much this is being covered or how far a price moved, "
-            "never why and never how anything ended. Use it to know what the "
+            "It says how widely this is being covered and how outlets "
+            "headlined it at that time; it never says why, and it settles "
+            "nothing the dated sources above do not. Use it to know what the "
             "story is and why it is in front of the listener now; never "
             "mention FAM's measuring, and never open with the coverage "
             "numbers unless the coverage itself is the story.\n")
@@ -2150,7 +2166,8 @@ def context_for(query: str, now: Optional[float] = None) -> Optional[StoryContex
             return StoryContext(subject=story.subject, domain=story.domain,
                                 observation=story.observation,
                                 observed_at=story.observed_at,
-                                hosts=tuple(hosts[:MAX_STORY_HOSTS]))
+                                hosts=tuple(hosts[:MAX_STORY_HOSTS]),
+                                measured=bool(story.measured))
     except Exception:  # noqa: BLE001 - a tap researches as before
         log.exception("stories: could not read the story behind %r", query)
     return None

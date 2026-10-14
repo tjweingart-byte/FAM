@@ -1043,6 +1043,9 @@ def _story_look_blocking(query: str, num_results: int, hosts: tuple,
         else:
             returned, cost = _search_exa(query, num_results, recency_days,
                                          hosts, objective, DEFAULT_SEARCH_TYPE)
+    except ResearchUnavailable:
+        # Configuration, not an outage - `_retrieve_blocking`'s rule.
+        raise
     except Exception:
         provider_usage.record(backend, ok=False)
         raise
@@ -1320,12 +1323,20 @@ async def retrieve(query: str, backend: Optional[str] = None,
                 and story_look.result() is not None:
             added = _merge_story_look(packet, story_look.result(),
                                       packet_sources, highlights_per_source)
+            if added:
+                # What the brief still lacks, now the outlets' passages are in.
+                _, packet.missing = packet_covers(packet.context, must_establish)
             log.info("the story's outlets added %d source(s) for %r",
                      added, query)
         else:
             # Too late for this episode, by design: it was started beside
-            # the main search and is never waited for.
+            # the main search and is never waited for. Its request was sent
+            # all the same, so it is metered at the published rate (the
+            # vendor's own figure never arrives) - `metering` counts what
+            # was spent, not what was used.
             story_look.cancel()
+            packet.searches += 1
+            packet.cost += SEARCH_COSTS.get(chosen, 0.0)
             log.info("the story's outlets had not answered by the time the "
                      "main packet was ready for %r; not waited for", query)
 

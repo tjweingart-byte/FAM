@@ -849,8 +849,9 @@ async def _ask(source: LiveSource, brief, notes, deadline: float,
         return LiveLookup(
             domain, STALE, detail=(
                 f"{source.name} returned data {int(facts.age_seconds())}s old, "
-                f"past the {int(MAX_AGE_SECONDS.get(domain, 0))}s limit for "
-                f"{domain}"))
+                f"past the "
+                f"{int(CLOSED_MARKET_MAX_AGE_SECONDS if facts.market_closed else MAX_AGE_SECONDS.get(domain, 0))}"
+                f"s limit for {domain}"))
 
     FACT_CACHE.put(entity, facts)
     log.info("live facts: %s answered %s with %d fact(s), status=%s, as of %s",
