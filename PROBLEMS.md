@@ -18849,3 +18849,38 @@ old brief, so check there after the merge.
 Tests: `tests/test_ei_haiku_261.py` (new), `tests/test_small_model_227.py`
 (the brief no longer follows `MODEL`), `tests/test_episode_intelligence.py`
 (medium effort).
+
+## 262. The first loading step, the playlist skip, and where "Forgot password?" went
+
+Three things from the owner (10.14).
+
+**The first of the five loading steps checks off faster.** §148 held every
+step on screen for at least two seconds, and the first step's two seconds
+started with the screen - on top of the brief - so the list sat with nothing
+checked long enough to read as broken. The first step is now held
+`GEN_STEP_FIRST_MIN_MS` (0.5 s) and polled every `GEN_STEP_FIRST_POLL_MS`
+(250 ms) until it lands; the other four keep two seconds and 700 ms. It is
+still checked only when `/api/progress` says the brief is done: faster, never
+earlier than the server's mark. (When the poll reaches a worker that does not
+know the episode, `known` is false and every step still waits for the audio -
+unchanged.)
+
+**The skip button beside +15 did nothing when tapped.** `.mix-skip` centred
+itself with `transform: translateY(-50%)` and pressed with
+`.mix-skip:active { transform: translateY(-50%) scale(.94) }`; the later
+`.mini-ctrl-btn:active { transform: scale(.94) }` has the same specificity and
+won, so on press the translate was dropped and the button jumped half its
+height down under the finger. The release landed on `.player-controls-2row`,
+the click went to the row, and `skipMixItem` never ran. The smoke check
+called `skipMixItem()` directly, so it passed throughout. The button is now
+centred by its box (`top:0; bottom:0; margin:auto 0`), so `:active` only
+scales it, and the smoke check presses the real button (`page.click`).
+
+**"Forgot password?" was already built (§244) and hidden on purpose.** The
+log-in screen draws it only when `/api/auth/reset` says the server can send
+mail, and production has no `SMTP_HOST` / `MAIL_FROM` - nothing asked for
+them. `render.yaml` now declares `SMTP_HOST`, `SMTP_USERNAME`,
+`SMTP_PASSWORD`, `MAIL_FROM` (`sync: false`) and `SMTP_PORT=587` on `fam`,
+so the dashboard asks; once they are filled the link appears, emails a
+6-digit code, and the code plus a new password changes it. The link stays
+undrawn without mail (`no-dead-controls`). Staging keeps none (`spend_guard`).
