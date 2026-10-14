@@ -1,7 +1,7 @@
-"""§264: no recency window on a question about no particular moment, and an
+"""§266: no recency window on a question about no particular moment, and an
 old score kept as the last known state.
 
-§263 made the window a filter in code, so a window on "who was Abraham
+§265 made the window a filter in code, so a window on "who was Abraham
 Lincoln" would drop every good biography. These pin the guardrail in
 `episode_intelligence.gate` that holds when the model gives one anyway.
 """

@@ -206,8 +206,8 @@ def test_a_failure_outranks_a_missing_provider_in_what_gets_reported(registry):
 def test_data_too_old_for_its_domain_is_withheld_rather_than_relabelled(registry):
     """Stale live data is more dangerous than none: it arrives with a
     timestamp and outranks the packet. It is refused, not annotated - in
-    every domain but the two that keep their last reading, dated (§263,
-    §264)."""
+    every domain but the two that keep their last reading, dated (§265,
+    §266)."""
     class Count(Scoreboard):
         domain = "elections"
 
@@ -222,7 +222,7 @@ def test_data_too_old_for_its_domain_is_withheld_rather_than_relabelled(registry
 
 
 def test_an_old_score_is_the_last_known_state_never_the_score_now(registry):
-    """§264, at the owner's direction: a score is replaced by a newer one,
+    """§266, at the owner's direction: a score is replaced by a newer one,
     never discarded for its age, and the contest's details stay with it."""
     old = facts(as_of=datetime.now(timezone.utc) - timedelta(minutes=30))
     live_facts.register(Scoreboard(old))

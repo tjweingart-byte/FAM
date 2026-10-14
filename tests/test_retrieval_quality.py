@@ -199,7 +199,7 @@ def test_the_retry_widens_the_window_and_searches_the_resolved_subject(exa):
     """Not a rephrasing by another model call - that would put a second round
     trip in front of the first word. The two things most likely to have caused
     an empty result are the window and the wording, so it changes both - the
-    window wider, never dropped (§263)."""
+    window wider, never dropped (§265)."""
     calls, queue = exa
     queue.append([])
     queue.append([FakeResult("Found", "https://reuters.com/x",

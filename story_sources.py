@@ -385,7 +385,7 @@ WATCHLIST = {
     "DIA": "the Dow", "IWM": "the Russell 2000",
 }
 #: How many symbols an episode looked up are swept beside the watchlist
-#: (§263), so a followed company's sessions are kept every two hours.
+#: (§265), so a followed company's sessions are kept every two hours.
 FOLLOWED_SYMBOLS = 12
 
 
@@ -436,7 +436,7 @@ class FinnhubSignals(stories.StorySource):
     async def collect(self, limit: int) -> list:
         timeout = float(settings.live_timeout_seconds)
         tiles = self.watchlist()
-        # And whatever episodes have asked about this week (§263): read and
+        # And whatever episodes have asked about this week (§265): read and
         # kept on the same clock, never made into tiles - a tile names its
         # subject from the watchlist, and "ORCL is up" is not a title.
         import quote_book
@@ -454,7 +454,7 @@ class FinnhubSignals(stories.StorySource):
                 return symbol, None
 
         rows = await asyncio.gather(*(quote(s) for s in symbols))
-        # Every reading is kept (§263), moved or not: the threshold decides
+        # Every reading is kept (§265), moved or not: the threshold decides
         # what becomes a tile, never what FAM knows. An episode about any of
         # these then has every session the sweep saw, round the clock.
         for symbol, data in rows:
@@ -634,7 +634,7 @@ SWEPT_LEAGUES = {
 #: after kick-off rather than one interval late.
 WATCH_LEAD_SECONDS = 900.0
 #: How long a followed game is still swept after it is first seen final
-#: (§264, at the owner's direction): a provider that marks "final" before
+#: (§266, at the owner's direction): a provider that marks "final" before
 #: its last correction, or an overtime the first final missed, is caught,
 #: and the final score is never the one sweep that was skipped.
 FINAL_WATCH_SECONDS = 1800.0
@@ -686,7 +686,7 @@ def watching(sport, rows: list, now: float) -> bool:
             SEEN_UNFINISHED.clear()
             FINAL_SEEN.clear()
         if status == live_facts.FINAL:
-            # Swept on for half an hour after it ends (§264), so the final
+            # Swept on for half an hour after it ends (§266), so the final
             # score and any correction to it are read.
             if key in SEEN_UNFINISHED:
                 first = FINAL_SEEN.setdefault(key, now)

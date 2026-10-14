@@ -67,7 +67,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   fixes typos (§247) [autocorrect-at-send]
 - The from-knowledge cover half on search is deleted (§108); search's wait is
   in front of the first word and honest - five loading steps from the
-  server's marks, each ≥2s, audio held to the fifth; a replay skips them (§148). [search-no-cover]
+  server's marks, each ≥2s (first ≥0.5s, §263), audio held to the fifth; a replay skips them (§148). [search-no-cover]
 - **The spec: type a question, and within about a second audio starts giving
   the answer.** Seconds in front of the first word are wrong. [one-sentence-spec]
 - **Amended for search only**, at the owner's direction (§82, §108, §129): EI
@@ -312,23 +312,23 @@ Research and truth
   without authoritative, fresh evidence; never infer one from absence.** Closed
   status vocabulary; only evidence sets it; resolution from the provider's
   catalogue, never a model; seven lookup outcomes; freshness in code,
-  stale withheld, markets/scores kept (§263-4); NFL records, last/next games from the
-  provider's schedule (§178). Don't claim live scores until a provider returns them. [live-facts]
+  stale withheld, markets/scores kept (§265-6); NFL records, last/next games from
+  the schedule (§178). Don't claim live scores until a provider returns them. [live-facts]
 - **A score is checked before it is spoken** (§259, `score_guard.py`). [score-guard]
 - **API-Sports is a plan per sport**: a budget, a tier (`API_SPORTS_TIERS`,
   all free until bought) and an `/admin` row per sport; the provider's own
   count bounds ours; ten products wired (§180). [api-sports-per-sport]
 - **Ask outside services when somebody is looking and there is something to
   see** (§191): API-Sports sweeps only `SWEPT_LEAGUES`, only while one of
-  their games is on (+30 min, §264), only if myFAM was drawn recently; other leagues and
+  their games is on (+30m, §266), only if myFAM was drawn recently; other leagues and
   sports are looked up on demand; Finnhub every 2h, round the clock; a
   refused catalogue is not re-asked that day. [sweep-on-demand]
 - **The listener's clock, never the server's** (§186): `listener_clock` from
   the device's `X-FAM-TZ` (Settings can pin one), never a location; prefetch
   and editions use the edition's zone; the zone is not in `key_for`. [listener-clock]
 - **Local news** (§194): a town's question goes town outlets (RSS, read
-  ahead) → county → search on vetted outlets, never GDELT; only what names the
-  place and question counts (§263); an empty town opens with `local_news.gap_line`, composed
+  ahead) → county → vetted outlets, never GDELT; only what names the
+  place and question counts (§265); an empty town opens with `local_news.gap_line`, composed
   in code, then weather, then county news. [local-news-ladder]
 - **Weather** (§194): NWS first, Open-Meteo second; fetched on demand, then
   swept at 05:00/17:00 in each asked place's own time; US warnings asked live;

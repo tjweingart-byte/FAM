@@ -558,7 +558,7 @@ def test_a_packet_with_nothing_in_it_always_buys_the_second_look(monkeypatch):
                                     retrieval="what happened overnight",
                                     must_establish=[])))
     assert len(calls) == 2, "the second look never ran"
-    # §263: wider, never none - a dropped window let a March 2025 article
+    # §265: wider, never none - a dropped window let a March 2025 article
     # into a "last 24 hours" episode.
     assert calls[0] and calls[1], "the second look must keep a window"
     assert calls[1] < calls[0], "the second look's window must be wider"

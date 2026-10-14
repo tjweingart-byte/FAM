@@ -79,7 +79,6 @@ def test_the_rationed_limits_are_read_from_the_settings_in_force(monkeypatch):
     ("v3.football.api-sports.io", "api_sports"),
     ("finnhub.io", "finnhub"),
     ("gamma-api.polymarket.com", "polymarket"),
-    ("api.sportsdata.io", ""),
     ("evil-finnhub.io", ""),
 ])
 def test_a_request_is_counted_against_the_host_it_went_to(host, provider):

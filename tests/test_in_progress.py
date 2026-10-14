@@ -209,7 +209,7 @@ class _StaleSource(live_sources.FakeSportsSource):
 
 
 def test_stale_data_cannot_be_represented_as_current(registry):
-    """Stale live data passed off as current is the §88 failure. Since §264
+    """Stale live data passed off as current is the §88 failure. Since §266
     an old score is not withheld - it is the last known state, given with
     its time - so what this pins is the wording: never "now", and a game
     under way then is still not finished."""

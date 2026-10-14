@@ -275,7 +275,7 @@ class Brief:
     #: when what they want is what is happening *there* - its news, its
     #: events, its weather (§194). Empty for one specific happening there
     #: (an airshow, a game, a storm), which is a news question searched
-    #: everywhere (§263), and for a question that merely mentions a place
+    #: everywhere (§265), and for a question that merely mentions a place
     #: ("the history of Paris"). Named
     #: as typed; where it is comes from a catalogue (`places`), never from
     #: here, and never from the listener's saved location.
@@ -385,7 +385,7 @@ def time_bound(brief: "Brief", query: str, now_year: Optional[int] = None) -> bo
     """Is this question about a moment, so a recency window may apply?
 
     **The guardrail for evergreen questions** (§263b, at the owner's
-    direction). §263 made the window a filter in code - dated results older
+    direction). §265 made the window a filter in code - dated results older
     than it are dropped - so a window on "who was Abraham Lincoln" would
     throw away every good biography. The model is told to give 0 for those,
     and this is what holds when it does not: a window survives only when

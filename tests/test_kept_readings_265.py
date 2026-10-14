@@ -1,4 +1,4 @@
-"""§263: market readings are kept, recency is enforced, the local ladder asks
+"""§265: market readings are kept, recency is enforced, the local ladder asks
 what the question is about, and an older article cannot move the listener's
 date.
 
@@ -108,7 +108,7 @@ def test_a_closing_quote_hours_old_is_kept_not_withheld(monkeypatch):
 
 
 def test_only_markets_and_sports_keep_old_readings():
-    """Elections and weather still withhold what is too old (§264 added
+    """Elections and weather still withhold what is too old (§266 added
     sports, at the owner's direction)."""
     assert live_facts.KEPT_WHEN_OLD == {"markets", "sports"}
 

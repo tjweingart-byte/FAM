@@ -16,9 +16,7 @@ routing around it:
     data.gdeltproject.org   (GDELT's export files, §211)
     gamma-api.polymarket.com
     v1.american-football.api-sports.io   (and the sibling sport hosts)
-    api.sportsdata.io
     finnhub.io
-    www.alphavantage.co
 
 `api.exa.ai` is blocked from the build container too, and Exa works in
 production — which is how we know this is a container policy and not
@@ -143,14 +141,9 @@ A closing price described as "is trading at" is a small lie a listener catches
 immediately. This costs one extra call per lookup and is worth it.
 
 **Step 5, the licensing one.** Finnhub's free tier is **personal,
-non-commercial**. A monetised FAM needs the paid plan ($11.99/mo) — or switch
-to Alpha Vantage, which is the only real argument for it:
-
-    LIVE_MARKETS_PROVIDER=alpha-vantage
-    ALPHA_VANTAGE_KEY=...
-
-Alpha Vantage is worse on both axes that matter (25 req/**day** free against
-60/min; $49.99/mo entry against $11.99), so take it only if the terms force it.
+non-commercial**. A monetised FAM needs the paid plan ($11.99/mo), then
+`FINNHUB_PLAN=commercial`. Alpha Vantage, the old fallback, was removed
+(PROBLEMS.md §262).
 
 ---
 

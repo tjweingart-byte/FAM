@@ -1964,7 +1964,11 @@ def main() -> int:
             assert page.eval_on_selector("#mixSkipBtn", "e => !e.hidden"), \
                 "no skip-to-next on the DailyFAM player"
             for step in range(1, count):
-                page.evaluate("skipMixItem()")
+                # A real click, not `skipMixItem()`: the button once jumped
+                # half its height when pressed (a transform lost to
+                # `.mini-ctrl-btn:active`), so the release missed it and every
+                # tap did nothing while the function itself worked.
+                page.click("#mixSkipBtn", timeout=3000)
                 page.wait_for_timeout(1200)
                 assert page.evaluate("() => mixPlay && mixPlay.pos") == step, \
                     f"skip did not move to episode {step + 1}"

@@ -144,7 +144,7 @@ FAM_ENVIRONMENT = (
     "GDELT_EXPORT_WAIT_SECONDS", "GDELT_EXPORT_RETRY_SECONDS",
     "GNEWS_PLAN", "FINNHUB_PLAN",
     "BOOT_STAGGER_SECONDS",
-    "API_SPORTS_KEY", "API_SPORTS_SPORT", "SPORTSDATAIO_KEY", "FINNHUB_KEY", "ALPHA_VANTAGE_KEY",
+    "API_SPORTS_KEY", "API_SPORTS_SPORT", "FINNHUB_KEY",
     "AP_ELECTIONS_KEY", "DDHQ_KEY", "POLYMARKET_BASE",
     # Prefetch: whether episodes are written before anybody asks, how much is
     # paid in advance and what the day's ceiling is. A developer with
@@ -527,7 +527,7 @@ def isolated_provider_usage(tmp_path, monkeypatch):
 
 @pytest.fixture(autouse=True)
 def isolated_quote_book(tmp_path, monkeypatch):
-    """Every market reading FAM keeps (§263), per test - a mocked quote must
+    """Every market reading FAM keeps (§265), per test - a mocked quote must
     not be the next test's history, and the suite must never write
     `quote_book.db` into the project root."""
     import quote_book

@@ -1,6 +1,6 @@
-"""The quote book: every market reading FAM has been given, kept (§263).
+"""The quote book: every market reading FAM has been given, kept (§265).
 
-**The most recent reading is never discarded.** Until §263 a market quote was
+**The most recent reading is never discarded.** Until §265 a market quote was
 used once, in the episode that asked for it, and only if it was under five
 minutes old - so after the close every quote was withheld, the 05:00 DailyFAM
 edition never had one, and the two-hourly sweep (§191) threw away every quote
@@ -160,7 +160,7 @@ class QuoteBook:
                        now: Optional[float] = None) -> list:
         """Symbols an episode or the sweep read in the last `days`, newest first.
 
-        What the sweep follows beyond its watchlist (§263): a listener who
+        What the sweep follows beyond its watchlist (§265): a listener who
         follows Oracle has Oracle's every session kept from then on, not only
         the ones somebody happened to ask about.
         """

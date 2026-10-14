@@ -372,7 +372,7 @@ def rank_results(results, now: Optional[datetime] = None) -> list:
 #: article stamped late yesterday in one zone is inside "the last day" in
 #: another.
 WINDOW_GRACE_DAYS = 1
-#: The thin-packet retry keeps a window rather than dropping it (§263): this
+#: The thin-packet retry keeps a window rather than dropping it (§265): this
 #: many times the first, and never under a week.
 RETRY_WINDOW_FACTOR = 3
 RETRY_WINDOW_MIN_DAYS = 7
@@ -384,7 +384,7 @@ def retry_window(recency_days: int) -> int:
     It used to be zero always, so a "last 24 hours" question whose first
     search came back thin was searched again with no date at all - and a
     March 2025 article about a Nasdaq correction out-scored everything dated
-    this week on the word test (§263). An evergreen question (no window) is
+    this week on the word test (§265). An evergreen question (no window) is
     unchanged.
     """
     if recency_days <= 0:
@@ -400,7 +400,7 @@ def within_window(results, recency_days: int,
     `search_after_date_filter`), and a vendor's filter is its own idea of a
     date: nothing here checked what came back, so an article from last year
     reached a "today" episode dated and graded and looking like evidence
-    (§263). An undated result is kept - its date is "not stated" in the
+    (§265). An undated result is kept - its date is "not stated" in the
     packet, never filled in - because dropping it would make "undated" a
     reason to exclude a live quotes page.
     """
@@ -803,7 +803,7 @@ def objective_for(brief, recency_days: Optional[int] = None) -> str:
     facts the request already enforces - and the window's line is left off
     when there is none, so an evergreen question is never told to want
     "recent, dated reporting". `recency_days` defaults to the brief's;
-    the second look passes its wider one (`retry_window`, §263).
+    the second look passes its wider one (`retry_window`, §265).
     """
     if brief is None:
         return ""
@@ -1185,7 +1185,7 @@ async def retrieve(query: str, backend: Optional[str] = None,
     # exactly this case never ran. The commonest way to get here is the
     # recency window: a narrow one on a subject nothing was published about
     # in that window returns zero results, and the second look is the one that
-    # widens it (never drops it - §263).
+    # widens it (never drops it - §265).
     if (not packet or not covered) and settings.research_retry:
         # **EI's own broader phrasing first**, then the resolved subject, then
         # the raw query - `Brief.broader` picks whichever exists and differs
@@ -1200,7 +1200,7 @@ async def retrieve(query: str, backend: Optional[str] = None,
         # `RESEARCH_SECOND_LOOK` (Perplexity) when that can serve, and to the
         # configured backend otherwise.
         other = second_look_backend(chosen)
-        # A wider window, never none (§263): see `retry_window`.
+        # A wider window, never none (§265): see `retry_window`.
         wider = retry_window(recency_days)
         log.info("%s packet missed %s for %r; one more search on %s for %r "
                  "with window %sd", chosen, missing, query, other, broader,

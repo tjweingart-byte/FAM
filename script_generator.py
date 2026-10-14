@@ -835,7 +835,7 @@ def build_local_block(plan: EpisodePlan) -> str:
 This is a question about {town}. The evidence below comes from outlets that
 cover {town}, or from stories that name it. It is what was found, not all
 that is happening there: never say something is not happening in {town}
-because it is not below (§263). Stay on {town}. It is fine for the episode
+because it is not below (§265). Stay on {town}. It is fine for the episode
 to be shorter than the time allows: end when the material ends rather than
 padding it.
 """
@@ -936,7 +936,7 @@ and do not claim anything about a document beyond what is in it.
                 "thing in passing and keep going. **Whether something is "
                 "happening or exists at all** - an event, a show, a closure - "
                 "is never established by a search that missed it: never say "
-                "it is not happening (§263).\n"
+                "it is not happening (§265).\n"
                 "- If it is something **already settled** - a scheduled date, a "
                 "fixture, a rule, a figure that was fixed some time ago - then "
                 "the search missing it proves nothing, because nobody has "
@@ -1054,7 +1054,7 @@ Time, and this is where these go wrong most often:
   a score, a figure or an outcome for anything still to come, however
   confidently you could guess it. Talk about it in the future tense.
 - An undated source cannot date anything. Do not use it to decide when.
-- **An article cannot speak for a day it was written before** (§263). When
+- **An article cannot speak for a day it was written before** (§265). When
   the listener names a day and something on it - a move, a result, a
   decision - a source published before that day says nothing about it. Never
   move their date to the day an older article describes, and never tell them

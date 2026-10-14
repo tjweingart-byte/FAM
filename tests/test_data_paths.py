@@ -125,7 +125,7 @@ ALL_VARS = sorted(DECLARED)
 #: `LOCAL_NEWS_DB` (§194) is created by the local news collector's first
 #: sweep or the first local question, and reported once it exists - the
 #: same case again. `GDELT_EXPORT_DB` (§211) is created by the first export
-#: download, and reported once it exists. `QUOTE_BOOK_DB` (§263) by the
+#: download, and reported once it exists. `QUOTE_BOOK_DB` (§265) by the
 #: first market reading.
 LAZY_STORES = {"VOICE_REGISTRY_DB", "TRENDING_BANK_DB", "VOICE_BANK_DB",
                "THUMBNAILS_DB", "PROVIDER_USAGE_DB", "LOCAL_NEWS_DB",

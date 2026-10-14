@@ -121,6 +121,21 @@ services:
       # is an admin by account and /admin 404s unless FAM_ADMIN_TOKEN is set.
       - key: FAM_ADMIN_ACCOUNTS
         sync: false
+      # Email (mail.py, §244, §263): the one thing "Forgot password?" waits
+      # on. Without SMTP_HOST and MAIL_FROM the log-in screen does not draw
+      # it at all (a control with nothing behind it is worse than none), so
+      # they are asked for here; nothing else prompts for them. Any SMTP
+      # provider - Resend, Postmark, SES, Gmail. Port 587 is STARTTLS.
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_USERNAME
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: MAIL_FROM
+        sync: false
       # Tile pictures (THUMBNAILS.md, §160): the Google AI Studio key the image
       # model is billed on. Unset, nothing is painted and every tile draws its old
       # icon; /api/health says which. THUMBNAILS=1 then paints new branches of

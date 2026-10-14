@@ -197,7 +197,7 @@ def test_the_second_look_goes_to_perplexity_with_a_wider_window(wire, monkeypatc
     packet = asyncio.run(research.retrieve("Eagles Giants score", brief=brief()))
     assert [r["url"] for r in sent] == [research.PARALLEL_URL,
                                         research.PERPLEXITY_URL]
-    # §263: wider, never dropped.
+    # §265: wider, never dropped.
     assert "search_after_date_filter" in sent[1]["body"]
     assert sent[1]["body"]["query"] == "Eagles season", "the second look asks the broader query"
     assert packet.retried and packet.backend == "perplexity"

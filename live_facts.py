@@ -91,7 +91,7 @@ PREDICTION_MARKET = "prediction-market"
 WEATHER = "weather-forecast"
 
 
-#: Domains whose old readings are **kept, dated, never withheld** (§263, at
+#: Domains whose old readings are **kept, dated, never withheld** (§265, at
 #: the owner's direction). A score is a claim about *now* and a stale one is
 #: worse than none; a market reading is a fact about the moment it was taken.
 #: Where something closed on Tuesday is true forever, and withholding it after
@@ -100,7 +100,7 @@ WEATHER = "weather-forecast"
 #: clock as markets trade 24 hours. Such a reading is passed to the writer
 #: with its time and told never to call it the state now.
 #:
-#: **Sports joined at the owner's direction (§264)**: an old score is
+#: **Sports joined at the owner's direction (§266)**: an old score is
 #: replaced only by a newer one, never discarded for its age, and what the
 #: provider said about the contest - who, where, when, the records - is kept
 #: with it. A score past `MAX_AGE_SECONDS` reaches the writer as the *last
@@ -129,7 +129,7 @@ def normalise_status(value: object) -> str:
 #: One universal threshold would be wrong for at least two of the three.
 MAX_AGE_SECONDS = {
     "sports": 120.0,
-    # The feed's own twenty-minute delay plus five minutes (§263): at 300s
+    # The feed's own twenty-minute delay plus five minutes (§265): at 300s
     # a delayed quote could never be "now", even mid-session. Past this a
     # reading is still given - see `KEPT_WHEN_OLD` - as the latest, dated.
     "markets": 1500.0,
@@ -293,7 +293,7 @@ class LiveFacts:
         # exists to prevent, so the delay is stated in the same breath as the
         # timestamp rather than left in a field nobody reads.
         if self.domain == "sports" and not self.is_fresh(now):
-            # The last known state of the contest (§264): kept until a newer
+            # The last known state of the contest (§266): kept until a newer
             # reading replaces it, said with its time.
             freshness = (
                 f"This is the LAST KNOWN state of this contest, true at "
@@ -304,7 +304,7 @@ class LiveFacts:
                 f"{listener_clock.say(self.as_of, '%H:%M')}\"), never as the "
                 f"score now. A final score is final.")
         elif self.domain in KEPT_WHEN_OLD and not self.is_fresh(now):
-            # The latest reading, not the current one (§263). Its day is
+            # The latest reading, not the current one (§265). Its day is
             # stated in full, since "at 16:00" alone is a time on no date.
             freshness = (
                 f"This is the MOST RECENT reading the feed has, true at "
@@ -759,7 +759,7 @@ FACT_CACHE = _FactCache()
 class _LastKnown:
     """The newest reading of each entity, kept until a newer one replaces it.
 
-    §264: an old score is discarded only when the score has changed - which
+    §266: an old score is discarded only when the score has changed - which
     is to say, only when a newer reading arrives. A provider that fails, times
     out or has nothing this minute then leaves the episode with the last
     known state, dated, instead of nothing. An older reading never replaces a
@@ -900,16 +900,16 @@ async def _ask(source: LiveSource, brief, notes, deadline: float) -> LiveLookup:
         facts.delayed_seconds = float(source.delayed_seconds)
 
     if domain in KEPT_WHEN_OLD:
-        # Replaced only by something newer (§264): a provider answering with
+        # Replaced only by something newer (§266): a provider answering with
         # an older state than one already held does not take it back.
         facts = LAST_KNOWN.put(entity, facts)
 
     if not facts.is_fresh() and domain in KEPT_WHEN_OLD:
-        # The latest reading, kept and dated (§263): its prompt block says
+        # The latest reading, kept and dated (§265): its prompt block says
         # when it was true and that it is not "now".
         if facts.status == SCHEDULED:
             # "Has not started" was true when it was read and may not be now:
-            # an old reading never says a game is still to come (§264).
+            # an old reading never says a game is still to come (§266).
             facts = dataclasses.replace(facts, status=UNKNOWN)
         log.info("live facts: %s returned %s data %.0fs old for %s; kept as "
                  "the latest reading", source.name, domain, facts.age_seconds(),

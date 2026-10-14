@@ -981,7 +981,7 @@ def _database_report() -> list[dict]:
         ("categories", "CATEGORIES_DB",
          getattr(topics_mod.category_tree(), "path", "")),
     ]
-    # Every market reading kept (§263): a copy inside the image would forget
+    # Every market reading kept (§265): a copy inside the image would forget
     # every session on each push. Reported once it exists, like the trending
     # bank: the first quote creates it, never a health page.
     try:

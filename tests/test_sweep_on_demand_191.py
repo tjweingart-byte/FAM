@@ -285,7 +285,7 @@ def test_a_failed_first_read_waits_the_interval_not_every_tick(provider, monkeyp
 
 
 # --------------------------------------------------------------------------
-# §264: half an hour past the final
+# §266: half an hour past the final
 # --------------------------------------------------------------------------
 def test_a_game_is_swept_for_half_an_hour_after_it_goes_final():
     sport = live_sources.SPORTS["american-football"]

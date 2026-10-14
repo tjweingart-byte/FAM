@@ -1193,7 +1193,7 @@ def _wanted(brief, place) -> list:
 def relevant(packet, brief, place) -> bool:
     """Does this rung's packet answer the question, not only name the place?
 
-    **Naming the town was the only test** (§263), so a question about an
+    **Naming the town was the only test** (§265), so a question about an
     airshow over San Francisco Bay was answered by a Valkyries fan story that
     said "Chase Center in San Francisco", and the writer was told it was the
     town's news. A rung whose stories name the place and cover none of what
@@ -1265,7 +1265,7 @@ async def research_local(place, brief=None, exa=None) -> LocalResult:
         return result
 
     if exa is not None:
-        # **Only outlets somebody vetted** (§263): seeded and registry ones.
+        # **Only outlets somebody vetted** (§265): seeded and registry ones.
         # A learned outlet (`_learn`) is any non-national site an earlier
         # search happened to find, and restricting the search to those
         # collapsed it to one site - hoodline.com - for every later San

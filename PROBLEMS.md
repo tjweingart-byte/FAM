@@ -18850,7 +18850,74 @@ Tests: `tests/test_ei_haiku_261.py` (new), `tests/test_small_model_227.py`
 (the brief no longer follows `MODEL`), `tests/test_episode_intelligence.py`
 (medium effort).
 
-## 262. A playlist goes past an episode that fails to play
+## 262. SportsDataIO and Alpha Vantage are removed
+
+The owner (13/10) asked for both adapters to come out. Neither ever had a key
+on either service: SportsDataIO was the sales-gated upgrade for NFL player
+stats (§178 listed it among the options for injuries and lineups, still an
+open decision), and Alpha Vantage was the fallback for when Finnhub's
+personal-use terms would not fit. API-Sports is now the only sports provider
+and Finnhub the only markets provider. A monetised FAM pays for Finnhub's
+commercial plan (`FINNHUB_PLAN=commercial`, §207) rather than switching.
+
+Gone: `SportsDataIOSource`, `AlphaVantageSource` and `_nfl_season` in
+`live_sources.py`; their `BUILDERS` entries; `sportsdataio_key` and
+`alpha_vantage_key` in `config.py`; both keys from `.env.example`,
+`spend_guard.py` and `tests/conftest.py`; their rows in `LIVE_FACTS.md` and
+`PROVIDER_ROLLOUT.md`; their names in the privacy policy's list of services.
+
+A deployment still set to `LIVE_SPORTS_PROVIDER=sportsdataio` or
+`LIVE_MARKETS_PROVIDER=alpha-vantage` is not silently served nothing: the
+existing unknown-provider path in `live_sources.install` names the setting,
+lists the providers this build knows, and says no live data will be available
+for that domain (`[failures-visible]`).
+
+Tests: the two SportsDataIO tests and both parametrised rows in
+`tests/test_live_providers.py` and the `api.sportsdata.io` row in
+`tests/test_provider_usage_179.py` went with the code.
+
+**The contact address.** The same day the owner moved FAM's accounts to
+admin@familiarize.net, so `FAM_CONTACT_EMAIL` - the contact NWS requires on
+every request and the feed collector sends (`places.py`) - now defaults to
+that address in `config.py` and `.env.example` rather than a personal one. A
+value set in Render's environment still wins.
+
+## 263. The first loading step, the playlist skip, and where "Forgot password?" went
+
+Three things from the owner (10.14).
+
+**The first of the five loading steps checks off faster.** §148 held every
+step on screen for at least two seconds, and the first step's two seconds
+started with the screen - on top of the brief - so the list sat with nothing
+checked long enough to read as broken. The first step is now held
+`GEN_STEP_FIRST_MIN_MS` (0.5 s) and polled every `GEN_STEP_FIRST_POLL_MS`
+(250 ms) until it lands; the other four keep two seconds and 700 ms. It is
+still checked only when `/api/progress` says the brief is done: faster, never
+earlier than the server's mark. (When the poll reaches a worker that does not
+know the episode, `known` is false and every step still waits for the audio -
+unchanged.)
+
+**The skip button beside +15 did nothing when tapped.** `.mix-skip` centred
+itself with `transform: translateY(-50%)` and pressed with
+`.mix-skip:active { transform: translateY(-50%) scale(.94) }`; the later
+`.mini-ctrl-btn:active { transform: scale(.94) }` has the same specificity and
+won, so on press the translate was dropped and the button jumped half its
+height down under the finger. The release landed on `.player-controls-2row`,
+the click went to the row, and `skipMixItem` never ran. The smoke check
+called `skipMixItem()` directly, so it passed throughout. The button is now
+centred by its box (`top:0; bottom:0; margin:auto 0`), so `:active` only
+scales it, and the smoke check presses the real button (`page.click`).
+
+**"Forgot password?" was already built (§244) and hidden on purpose.** The
+log-in screen draws it only when `/api/auth/reset` says the server can send
+mail, and production has no `SMTP_HOST` / `MAIL_FROM` - nothing asked for
+them. `render.yaml` now declares `SMTP_HOST`, `SMTP_USERNAME`,
+`SMTP_PASSWORD`, `MAIL_FROM` (`sync: false`) and `SMTP_PORT=587` on `fam`,
+so the dashboard asks; once they are filled the link appears, emails a
+6-digit code, and the code plus a new password changes it. The link stays
+undrawn without mail (`no-dead-controls`). Staging keeps none (`spend_guard`).
+
+## 264. A playlist goes past an episode that fails to play
 
 **Reported (10.13):** a myFAM playlist of eight played two episodes, then the
 third went through the loading steps and nothing played; the playlist was over.
@@ -18881,9 +18948,9 @@ retry drops it (window 0), so a March 2025 article can win. Airshow: EI sends
 rung restricts `include_domains` to outlets `_learn` filed from earlier
 results (hoodline.com), and "names the place" is the only relevance test.
 
-## 263. Market readings kept, recency enforced, and a town question that asks what it is about
+## 265. Market readings kept, recency enforced, and a town question that asks what it is about
 
-**The owner's direction (10.14), after §262's diagnosis:** markets should
+**The owner's direction (10.14), after §264's diagnosis:** markets should
 never throw away a result, least of all a close - accumulate as much as can
 be had - and the sweep runs every two hours round the clock (§191), because
 markets are heading for 24-hour trading. And do the other three fixes.
@@ -18944,16 +19011,16 @@ Unverified here (no key): the writing. `python write.py "Why did Meta's stock
 rise 3.2 percent on 13 October 2026" --minutes 2` and `python write.py
 "Airshow in San Francisco bay today" --minutes 2` are the listening checks,
 and `/api/health`'s `live` attempts show "latest reading" on an evening
-market question. Tests: `tests/test_kept_readings_263.py`.
+market question. Tests: `tests/test_kept_readings_265.py`.
 
-## 264. A score kept until a newer one, the sweep past the final, and no window on a timeless question
+## 266. A score kept until a newer one, the sweep past the final, and no window on a timeless question
 
-**The owner's direction (10.14), on §263:** (1) an old sports score should
+**The owner's direction (10.14), on §265:** (1) an old sports score should
 be discarded only when the score has changed; what is known about the
 contest is never discarded, only the score updated; and the sweep runs until
 30 minutes after the contest is over so the final is not missed. (3) A
 question that is not about a moment - "who is Abraham Lincoln" - must never
-have §263's recency filter applied.
+have §265's recency filter applied.
 
 **Scores.** `live_facts.KEPT_WHEN_OLD` is now markets *and sports*. A score
 past `MAX_AGE_SECONDS["sports"]` (120s) is no longer withheld: the writer is
@@ -18995,5 +19062,5 @@ per month. Cheaper daily-history alternatives: EODHD (~$20/mo all-world end
 of day, indices included), Twelve Data (~$29/mo), Tiingo (~$30/mo). Confirm
 current prices and commercial terms with each vendor before buying.
 
-Tests: `tests/test_evergreen_and_scores_264.py`, the §264 block in
+Tests: `tests/test_evergreen_and_scores_266.py`, the §266 block in
 `tests/test_sweep_on_demand_191.py`.
