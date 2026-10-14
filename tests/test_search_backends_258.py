@@ -190,14 +190,15 @@ def test_one_long_snippet_becomes_several_passages():
 # --------------------------------------------------------------------------
 # the second look and the ladder
 # --------------------------------------------------------------------------
-def test_the_second_look_goes_to_perplexity_without_the_window(wire, monkeypatch):
+def test_the_second_look_goes_to_perplexity_with_a_wider_window(wire, monkeypatch):
     sent, replies = wire
     replies[research.PARALLEL_URL] = [{"results": []}]
     use(monkeypatch, research_backend="parallel")
     packet = asyncio.run(research.retrieve("Eagles Giants score", brief=brief()))
     assert [r["url"] for r in sent] == [research.PARALLEL_URL,
                                         research.PERPLEXITY_URL]
-    assert "search_after_date_filter" not in sent[1]["body"]
+    # §263: wider, never dropped.
+    assert "search_after_date_filter" in sent[1]["body"]
     assert sent[1]["body"]["query"] == "Eagles season", "the second look asks the broader query"
     assert packet.retried and packet.backend == "perplexity"
     assert packet.tried == ["parallel", "perplexity"]

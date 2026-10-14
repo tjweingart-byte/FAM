@@ -90,6 +90,17 @@ PREDICTION_MARKET = "prediction-market"
 WEATHER = "weather-forecast"
 
 
+#: Domains whose old readings are **kept, dated, never withheld** (§263, at
+#: the owner's direction). A score is a claim about *now* and a stale one is
+#: worse than none; a market reading is a fact about the moment it was taken.
+#: Where something closed on Tuesday is true forever, and withholding it after
+#: the close is what left a 7pm question about the Nasdaq with "I have no
+#: reading" - always so at the 05:00 DailyFAM edition, and soon round the
+#: clock as markets trade 24 hours. Such a reading is passed to the writer
+#: with its time and told never to call it the state now.
+KEPT_WHEN_OLD = frozenset({"markets"})
+
+
 def normalise_status(value: object) -> str:
     """Map whatever a provider said onto the closed vocabulary.
 
@@ -109,7 +120,10 @@ def normalise_status(value: object) -> str:
 #: One universal threshold would be wrong for at least two of the three.
 MAX_AGE_SECONDS = {
     "sports": 120.0,
-    "markets": 300.0,
+    # The feed's own twenty-minute delay plus five minutes (§263): at 300s
+    # a delayed quote could never be "now", even mid-session. Past this a
+    # reading is still given - see `KEPT_WHEN_OLD` - as the latest, dated.
+    "markets": 1500.0,
     "elections": 1800.0,
     # A place's forecast is swept twice a day (§194), and NWS may have issued
     # it a few hours before that; an observation inside it is checked
@@ -269,7 +283,21 @@ class LiveFacts:
         # feed described as current is the one failure mode this whole module
         # exists to prevent, so the delay is stated in the same breath as the
         # timestamp rather than left in a field nobody reads.
-        if self.delayed_seconds > 0:
+        if self.domain in KEPT_WHEN_OLD and not self.is_fresh(now):
+            # The latest reading, not the current one (§263). Its day is
+            # stated in full, since "at 16:00" alone is a time on no date.
+            freshness = (
+                f"This is the MOST RECENT reading the feed has, true at "
+                f"{listener_clock.say(self.as_of)} - {self.age_phrase(now)}. "
+                f"It is not where things stand this minute, and it is not "
+                f"withheld: a close or a reading is a fact about its own "
+                f"session. Give every figure with its day (\"closed at 245.10 "
+                f"on Tuesday\"); never call it the current price, and never "
+                f"say there is no reading."
+                + (f" The feed is also DELAYED by about "
+                   f"{int(round(self.delayed_seconds / 60)) or 1} minute(s) by "
+                   f"design." if self.delayed_seconds > 0 else ""))
+        elif self.delayed_seconds > 0:
             freshness = (
                 f"This provider is DELAYED by about "
                 f"{int(round(self.delayed_seconds / 60)) or 1} minute(s) by "
@@ -781,6 +809,16 @@ async def _ask(source: LiveSource, brief, notes, deadline: float) -> LiveLookup:
     facts.entity = facts.entity or entity
     if not facts.delayed_seconds and source.delayed_seconds:
         facts.delayed_seconds = float(source.delayed_seconds)
+
+    if not facts.is_fresh() and domain in KEPT_WHEN_OLD:
+        # The latest reading, kept and dated (§263): its prompt block says
+        # when it was true and that it is not "now".
+        log.info("live facts: %s returned %s data %.0fs old for %s; kept as "
+                 "the latest reading", source.name, domain, facts.age_seconds(),
+                 entity.key)
+        FACT_CACHE.put(entity, facts)
+        return LiveLookup(domain, FACTS, facts=facts, detail=(
+            f"{source.name} (latest reading, {int(facts.age_seconds())}s old)"))
 
     if not facts.is_fresh():
         # Withheld rather than passed on. Stale live data is more dangerous

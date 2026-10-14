@@ -83,6 +83,7 @@ ENV FAM_STATE=/state \
     SHARES_DB=/state/data/shares.db \
     FEEDBACK_DB=/state/data/feedback.db \
     CONSENT_DB=/state/data/consent.db \
+    QUOTE_BOOK_DB=/state/data/quote_book.db \
     MODERATION_DB=/state/data/moderation.db \
     QUOTAS_DB=/state/data/quotas.db \
     VOICE_REGISTRY_DB=/state/data/voice_registry.db \

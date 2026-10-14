@@ -18880,3 +18880,68 @@ retry drops it (window 0), so a March 2025 article can win. Airshow: EI sends
 "its events" to `place`, the local ladder replaces the general one, its web
 rung restricts `include_domains` to outlets `_learn` filed from earlier
 results (hoodline.com), and "names the place" is the only relevance test.
+
+## 263. Market readings kept, recency enforced, and a town question that asks what it is about
+
+**The owner's direction (10.14), after §262's diagnosis:** markets should
+never throw away a result, least of all a close - accumulate as much as can
+be had - and the sweep runs every two hours round the clock (§191), because
+markets are heading for 24-hour trading. And do the other three fixes.
+
+**Markets.** `MAX_AGE_SECONDS["markets"]` was 300s against the quote's own
+time, so every quote after the close was withheld as STALE - always so at the
+05:00 DailyFAM edition - and Finnhub's free tier is twenty minutes late by
+design, so even mid-session no quote passed. Now:
+- `live_facts.KEPT_WHEN_OLD` (markets only): a reading past its limit is
+  passed as the *most recent reading*, dated in full, "never the current
+  price, never say there is no reading". The limit is 1500s (delay + 5 min).
+  Scores and other domains are still withheld when stale.
+- `quote_book.py` (`QUOTE_BOOK_DB`, new store, not personal, never wiped):
+  every quote FAM reads - each episode's lookup and the two-hourly sweep's
+  whole watchlist, not only what moved past the tile threshold - kept per
+  symbol per New York session, the latest reading of a session winning, 30
+  sessions a symbol. The sweep also reads the symbols episodes asked about
+  in the last week (up to 12), so a followed company's sessions accumulate;
+  those never become tiles. DIA and IWM joined the watchlist.
+- `FinnhubSource.to_facts` says everything the quote holds, each figure with
+  its day: "closed at 245.10 on Tuesday, October 13" (a reading at or after
+  16:00 Eastern) or "was at ... at 2:10 PM Eastern on Monday, October 12";
+  the move with the previous close; the session's range and open; then the
+  earlier sessions from the book. "Tuesday's move" is answerable on Wednesday.
+- An index is resolved in code (`INDEX_PROXIES`), never by Finnhub's search,
+  which answers "Nasdaq" with Nasdaq Inc.: Nasdaq → QQQ, S&P 500 → SPY, Dow →
+  DIA, Russell 2000 → IWM, and the writer is told it is the fund - percent
+  moves, never the fund's price as the index level. A DailyFAM subject's
+  "(Stocks & Economy)" heading is stripped before resolution.
+Not done: a move on an arbitrary past date the book never saw needs
+Finnhub's `/stock/candle`, a paid endpoint.
+
+**Recency, in code.** The window was only a hint to the vendor; nothing
+checked what came back, and the thin-packet retry searched with no window at
+all. `research.within_window` now drops dated results older than the window
+(a day's grace; undated kept, still shown undated) on the search, the second
+look and the GDELT cross-check, and the retry *widens* the window
+(`retry_window`: 3x, at least 7 days). Tests that pinned "the retry drops the
+window" now pin "wider, never none".
+
+**The local ladder.** `local_news.relevant`: a rung whose stories name the
+place but cover none of the brief's `must_establish` (minus the place's own
+words and "news"-type words) counts as empty - a plain "what's on in X" still
+takes any X story. The web rung's `include_domains` is vetted outlets only
+(seed, registry), never `learned`; with none it searches open and still
+requires the place's name. EI's `place` field now excludes one specific
+happening in a town (an airshow, a game, a storm): that is a news question on
+the general ladder, the place in `retrieval`.
+
+**The writer.** The temporal block: "An article cannot speak for a day it was
+written before" - never move the listener's date to an older article's, never
+"that belongs to a different day". The thin-on block: whether something is
+happening or exists is never established by a search that missed it. The
+local block no longer says the evidence "is about {town} itself"; it says
+what was found is not all that is happening there.
+
+Unverified here (no key): the writing. `python write.py "Why did Meta's stock
+rise 3.2 percent on 13 October 2026" --minutes 2` and `python write.py
+"Airshow in San Francisco bay today" --minutes 2` are the listening checks,
+and `/api/health`'s `live` attempts show "latest reading" on an evening
+market question. Tests: `tests/test_kept_readings_263.py`.

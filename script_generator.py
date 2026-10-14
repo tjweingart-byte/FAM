@@ -833,9 +833,11 @@ def build_local_block(plan: EpisodePlan) -> str:
     if not local.gap:
         return f"""
 This is a question about {town}. The evidence below comes from outlets that
-cover {town}, or from stories that name it, and is about {town} itself. Stay
-on {town}. It is fine for the episode to be shorter than the time allows:
-end when the material ends rather than padding it.
+cover {town}, or from stories that name it. It is what was found, not all
+that is happening there: never say something is not happening in {town}
+because it is not below (§263). Stay on {town}. It is fine for the episode
+to be shorter than the time allows: end when the material ends rather than
+padding it.
 """
     has_weather = getattr(local, "weather", None) is not None
     county_news = local.scope == "county" and bool(plan.evidence)
@@ -931,7 +933,10 @@ and do not claim anything about a document beyond what is in it.
                 "supply it from memory: what you remember is months old and "
                 "arrives in the same confident voice as the researched half, "
                 "and a listener cannot tell the two apart. Say the short true "
-                "thing in passing and keep going.\n"
+                "thing in passing and keep going. **Whether something is "
+                "happening or exists at all** - an event, a show, a closure - "
+                "is never established by a search that missed it: never say "
+                "it is not happening (§263).\n"
                 "- If it is something **already settled** - a scheduled date, a "
                 "fixture, a rule, a figure that was fixed some time ago - then "
                 "the search missing it proves nothing, because nobody has "
@@ -1049,6 +1054,13 @@ Time, and this is where these go wrong most often:
   a score, a figure or an outcome for anything still to come, however
   confidently you could guess it. Talk about it in the future tense.
 - An undated source cannot date anything. Do not use it to decide when.
+- **An article cannot speak for a day it was written before** (§263). When
+  the listener names a day and something on it - a move, a result, a
+  decision - a source published before that day says nothing about it. Never
+  move their date to the day an older article describes, and never tell them
+  their figure "belongs to a different day" on the strength of one. Say what
+  is established about their day; give an older figure only with its own
+  date, as the background it is.
 """
 
     follow_up = ""

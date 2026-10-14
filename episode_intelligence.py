@@ -272,8 +272,10 @@ class Brief:
     outcome_dependent: bool = False
     #: The town or city the request is about, as "Town, Region, Country",
     #: when what they want is what is happening *there* - its news, its
-    #: events, its weather (§194). Empty for everything else, including a
-    #: question that merely mentions a place ("the history of Paris"). Named
+    #: events, its weather (§194). Empty for one specific happening there
+    #: (an airshow, a game, a storm), which is a news question searched
+    #: everywhere (§263), and for a question that merely mentions a place
+    #: ("the history of Paris"). Named
     #: as typed; where it is comes from a catalogue (`places`), never from
     #: here, and never from the listener's saved location.
     place: str = ""
@@ -958,12 +960,17 @@ Work out:
   outcome-dependent whether it finished an hour ago or is still going. False
   for how something works, what someone is like, or what is at stake.
 - **place** - when the request is about what is going on in one particular
-  town, city or county - its local news, its events, its council, its
-  weather - that place as "Town, State or Region, Country", spelled correctly
-  ("San Anselmo, California, US"). Empty when the request only mentions a
-  place on the way to something else ("the history of Paris", "why is
-  Detroit's car industry shrinking"), and empty for a whole country. Never a
-  place they did not name: if they say "my town" without naming it, empty.
+  town, city or county in general - its local news, what's on there, its
+  council, its weather - that place as "Town, State or Region, Country",
+  spelled correctly ("San Anselmo, California, US"). Empty when the request
+  asks about one specific thing that happens to be there - a named or
+  particular event, show, game, festival, storm, crash or protest ("airshow
+  in San Francisco Bay today", "Fleet Week", "the marathon in Boston"):
+  that is a news question, searched everywhere, with the place in
+  `retrieval`. Empty when the request only mentions a place on the way to
+  something else ("the history of Paris", "why is Detroit's car industry
+  shrinking"), and empty for a whole country. Never a place they did not
+  name: if they say "my town" without naming it, empty.
 - **title** - what this episode is called in a list: three to seven words
   naming the resolved subject and the angle, in title case. **Clear first,
   curious second**: the actual person, team, company or event by name, so a

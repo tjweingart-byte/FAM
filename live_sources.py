@@ -2257,6 +2257,69 @@ def _nfl_season() -> str:
     return str(now.year if now.month >= 3 else now.year - 1)
 
 
+#: An index is not a listing Finnhub's free tier quotes, and its search
+#: answers "Nasdaq" with Nasdaq Inc.'s shares - somebody else's price, fresh
+#: and confident and wrong. So the indices a listener names are mapped, here
+#: in code and never by a model, to the fund that tracks each one, and the
+#: episode is told it is the fund (§263): its percent move is the index's to
+#: within a rounding, its price is not the index level. Keys are compared
+#: lower-cased with "the", "index" and punctuation removed.
+INDEX_PROXIES = {
+    "nasdaq": ("QQQ", "the Nasdaq-100"),
+    "nasdaq 100": ("QQQ", "the Nasdaq-100"),
+    "nasdaq composite": ("QQQ", "the Nasdaq-100"),
+    "nasdaq stock market": ("QQQ", "the Nasdaq-100"),
+    "tech stocks": ("QQQ", "the Nasdaq-100"),
+    "s&p 500": ("SPY", "the S&P 500"),
+    "s&p": ("SPY", "the S&P 500"),
+    "sp 500": ("SPY", "the S&P 500"),
+    "sp500": ("SPY", "the S&P 500"),
+    "stock market": ("SPY", "the S&P 500"),
+    "stocks": ("SPY", "the S&P 500"),
+    "dow": ("DIA", "the Dow Jones Industrial Average"),
+    "dow jones": ("DIA", "the Dow Jones Industrial Average"),
+    "dow jones industrial average": ("DIA", "the Dow Jones Industrial Average"),
+    "russell 2000": ("IWM", "the Russell 2000"),
+}
+
+
+def index_proxy(subject: str) -> Optional[tuple]:
+    """(symbol, index name) when `subject` names an index, else None."""
+    text = re.sub(r"\([^)]*\)", " ", (subject or "").lower())
+    text = re.sub(r"[-_,.]", " ", text)
+    text = re.sub(r"\b(the|index|indices|indexes|today|latest)\b", " ", text)
+    text = re.sub(r"\s+", " ", text).strip()
+    return INDEX_PROXIES.get(text)
+
+
+def _session_day(stamp: float) -> str:
+    """'Tuesday, October 13' - a session's day on the exchange's clock."""
+    import quote_book
+
+    when = datetime.fromtimestamp(stamp, tz=timezone.utc).astimezone(
+        quote_book.EXCHANGE_ZONE)
+    return when.strftime("%A, %B %d").replace(" 0", " ")
+
+
+def _session_time(stamp: float) -> str:
+    import quote_book
+
+    when = datetime.fromtimestamp(stamp, tz=timezone.utc).astimezone(
+        quote_book.EXCHANGE_ZONE)
+    return when.strftime("%I:%M %p Eastern").lstrip("0")
+
+
+def _move(row: dict) -> str:
+    change = row.get("dp")
+    if change is None:
+        return ""
+    way = "up" if float(change) >= 0 else "down"
+    out = f"{way} about {abs(float(change)):.1f} percent on the day"
+    if row.get("pc"):
+        out += f", from a previous close of {float(row['pc']):.2f}"
+    return out
+
+
 class FinnhubSource(LiveSource):
     """Finnhub quotes. The most generous free tier in market data.
 
@@ -2311,8 +2374,17 @@ class FinnhubSource(LiveSource):
         AAPL.SW.
         """
         subject = (getattr(brief, "subject", "") or getattr(brief, "query", "")).strip()
+        # "Nasdaq (Stocks & Economy)" - a DailyFAM subject with its heading,
+        # which is how a degraded brief hands it over. The heading is not part
+        # of the name.
+        subject = re.sub(r"\s*\([^)]*\)", "", subject).strip()
         if not subject:
             return None
+        proxy = index_proxy(subject)
+        if proxy is not None:
+            symbol, index = proxy
+            return Entity(domain="markets", provider=self.name, id=symbol,
+                          label=f"{symbol}, the fund that tracks {index}")
         if not looks_like_a_listing(subject):
             # "Startup and venture capital industry news" is a topic, not a
             # company. Finnhub refuses it with a 422 - and if it did not, the
@@ -2374,32 +2446,83 @@ class FinnhubSource(LiveSource):
                   {"symbol": entity.id, "token": settings.finnhub_key},
                   settings.live_timeout_seconds),
             self.market_open())
-        return self.to_facts(quote, entity, is_open)
+        # Kept before it is used (§263): every reading FAM is given goes in
+        # the quote book, so the next question about this symbol has the
+        # sessions before it.
+        import quote_book
+
+        quote_book.record(entity.id, quote or {})
+        return self.to_facts(quote, entity, is_open,
+                             history=quote_book.sessions(entity.id, 6))
 
     def to_facts(self, data: dict, entity: Entity,
-                 is_open: Optional[bool] = None) -> Optional[LiveFacts]:
+                 is_open: Optional[bool] = None,
+                 history: Optional[list] = None) -> Optional[LiveFacts]:
+        """Everything the quote says, and every earlier session kept (§263).
+
+        Each figure carries its own day, because the reading may be hours or
+        days old by the time it is spoken - an evening question about the day
+        is answered by the close, and the close is a fact about its session,
+        not a stale "now". Nothing is withheld for age (`live_facts`).
+        """
+        import quote_book
+
         price = (data or {}).get("c")
         if price in (None, 0):
             return None
+        stamp = (data or {}).get("t")
+        dated = isinstance(stamp, (int, float)) and bool(stamp)
+        day = _session_day(stamp) if dated else ""
 
         # The sentence changes with the session, because the fact does. A
         # closing price described as "is trading at" is a small lie a listener
         # catches instantly.
         if is_open is True:
-            said = [f"{entity.label} is trading at {price:.2f}."]
+            said = [f"{entity.label} is trading at {price:.2f}"
+                    + (f" (a reading from {_session_time(stamp)})" if dated else "")
+                    + "."]
+        elif dated and quote_book.is_close(stamp):
+            said = [f"{entity.label} closed at {price:.2f} on {day}."]
+        elif dated:
+            said = [f"{entity.label} was at {price:.2f} at {_session_time(stamp)} "
+                    f"on {day}, its most recent reading."]
         elif is_open is False:
             said = [f"{entity.label} closed at {price:.2f}."]
         else:
             said = [f"{entity.label} was most recently at {price:.2f}."]
 
-        change = (data or {}).get("dp")
-        if change is not None:
-            way = "up" if change >= 0 else "down"
-            said.append(f"That is {way} about {abs(change):.1f} percent on the day.")
+        row = dict(data or {})
+        move = _move(row)
+        if move:
+            said.append(f"That is {move}" + (f" ({day})." if day else "."))
+        low, high, opened = row.get("l"), row.get("h"), row.get("o")
+        if low and high:
+            said.append(f"That session's range was {float(low):.2f} to "
+                        f"{float(high):.2f}"
+                        + (f", opening at {float(opened):.2f}." if opened else "."))
 
-        stamp = (data or {}).get("t")
-        when = (datetime.fromtimestamp(stamp, tz=timezone.utc)
-                if isinstance(stamp, (int, float)) and stamp
+        # The sessions before this one, from the quote book, each with its
+        # own day: "Tuesday's move" is answerable on Wednesday.
+        current = quote_book.session_of(stamp) if dated else ""
+        for past in (history or []):
+            if past.get("session") == current or not past.get("t"):
+                continue
+            when = _session_day(past["t"])
+            verb = ("closed at" if quote_book.is_close(past["t"])
+                    else f"was last read at {_session_time(past['t'])} at")
+            line = f"On {when}, {entity.id} {verb} {float(past['c']):.2f}"
+            past_move = _move(past)
+            said.append(line + (f", {past_move}." if past_move else "."))
+            if len(said) >= 10:
+                break
+
+        if entity.label.startswith(f"{entity.id}, the fund that tracks"):
+            said.append(
+                f"{entity.id} is a fund, not the index itself: its percent moves "
+                f"follow the index closely, its price is not the index level. "
+                f"Give moves in percent and never call its price the index's.")
+
+        when = (datetime.fromtimestamp(stamp, tz=timezone.utc) if dated
                 else datetime.now(timezone.utc))
         # A quote is a price, not an event. `unknown` is the honest status and
         # is what stops a market question being answered as a result.

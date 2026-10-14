@@ -195,10 +195,11 @@ def test_a_thin_packet_buys_exactly_one_more_search(exa):
     assert packet.searches == 2, "a retry that is not counted is a cost nobody sees"
 
 
-def test_the_retry_drops_the_window_and_searches_the_resolved_subject(exa):
+def test_the_retry_widens_the_window_and_searches_the_resolved_subject(exa):
     """Not a rephrasing by another model call - that would put a second round
     trip in front of the first word. The two things most likely to have caused
-    an empty result are the window and the wording, so it changes both."""
+    an empty result are the window and the wording, so it changes both - the
+    window wider, never dropped (§263)."""
     calls, queue = exa
     queue.append([])
     queue.append([FakeResult("Found", "https://reuters.com/x",
@@ -209,7 +210,7 @@ def test_the_retry_drops_the_window_and_searches_the_resolved_subject(exa):
 
     asyncio.run(research.retrieve("49ers result last night", brief=brief))
     assert calls[1]["query"] == "San Francisco 49ers game result"
-    assert "start_published_date" not in calls[1]
+    assert calls[1]["start_published_date"] < calls[0]["start_published_date"]
 
 
 def test_the_better_packet_wins_and_its_cost_is_the_sum_of_both(exa):

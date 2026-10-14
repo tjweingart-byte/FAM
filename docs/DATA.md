@@ -114,6 +114,7 @@ Render deployment; since §208 it pins every store there (21 since §211), as th
 | **shares.db** (`SHARES_DB`) | `sharing.py` | `shares` | Yes | Forever | Erased · kept |
 | **feedback.db** (`FEEDBACK_DB`) | `feedback.py` | `reports` | Account id only | Forever | **Anonymised** · kept |
 | **consent.db** (`CONSENT_DB`) | `consent.py` | `consents` | Yes | 1 row per listener per scope | Erased · kept |
+| **quote_book.db** (`QUOTE_BOOK_DB`) | `quote_book.py` | `quotes` | No | 30 sessions per symbol | Not personal · kept |
 | **moderation.db** (`MODERATION_DB`) | `moderation.py` | `reports`, `blocks`, `suspended`, `hidden_episodes` | Yes | Forever | Erased (blocks, suspension) · reports **anonymised** · kept |
 | **mixes.db** (`MIXES_DB`) | `mixes.py`, `push.py`, `daily_edition.py` | `mixes`, `push_subscriptions`, `push_sent`, `daily_editions` | Yes (mixes, push) | ≤ 30 mixes per listener | Erased · `daily_editions` **wiped** |
 | **quotas.db** (`QUOTAS_DB`) | `quotas.py` | `counters`, `charges` | Yes | 60 days | Erased · kept |

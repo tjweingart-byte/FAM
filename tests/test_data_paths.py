@@ -31,6 +31,7 @@ import categories as CAT  # noqa: E402
 import quotas as Q  # noqa: E402
 import feedback as FB  # noqa: E402
 import consent as CON  # noqa: E402
+import quote_book as QB  # noqa: E402
 import moderation as MOD  # noqa: E402
 import saved as SV  # noqa: E402
 import sharing as SH  # noqa: E402
@@ -62,6 +63,7 @@ STORES = [
     ("SHARES_DB", "shares.db", SH.ShareStore),
     ("FEEDBACK_DB", "feedback.db", FB.FeedbackStore),
     ("CONSENT_DB", "consent.db", CON.ConsentStore),
+    ("QUOTE_BOOK_DB", "quote_book.db", QB.QuoteBook),
     ("MODERATION_DB", "moderation.db", MOD.ModerationStore),
     ("QUOTAS_DB", "quotas.db", Q.QuotaStore),
     ("VOICE_REGISTRY_DB", "voice_registry.db", VR.VoiceRegistry),
@@ -123,10 +125,11 @@ ALL_VARS = sorted(DECLARED)
 #: `LOCAL_NEWS_DB` (§194) is created by the local news collector's first
 #: sweep or the first local question, and reported once it exists - the
 #: same case again. `GDELT_EXPORT_DB` (§211) is created by the first export
-#: download, and reported once it exists.
+#: download, and reported once it exists. `QUOTE_BOOK_DB` (§263) by the
+#: first market reading.
 LAZY_STORES = {"VOICE_REGISTRY_DB", "TRENDING_BANK_DB", "VOICE_BANK_DB",
                "THUMBNAILS_DB", "PROVIDER_USAGE_DB", "LOCAL_NEWS_DB",
-               "GDELT_EXPORT_DB"}
+               "GDELT_EXPORT_DB", "QUOTE_BOOK_DB"}
 
 
 @pytest.fixture(autouse=True)

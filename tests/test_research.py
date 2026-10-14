@@ -541,8 +541,8 @@ def test_a_packet_with_nothing_in_it_always_buys_the_second_look(monkeypatch):
 
         def search_and_contents(self, query, **kwargs):
             calls.append(kwargs.get("start_published_date"))
-            # Nothing inside the window; everything outside it.
-            if kwargs.get("start_published_date"):
+            # Nothing inside the first window; something in the wider one.
+            if len(calls) == 1:
                 return FakeReply([])
             return FakeReply(RESULTS, cost=0.0031)
 
@@ -557,8 +557,11 @@ def test_a_packet_with_nothing_in_it_always_buys_the_second_look(monkeypatch):
         brief=types.SimpleNamespace(recency_days=1, subject="the thing",
                                     retrieval="what happened overnight",
                                     must_establish=[])))
-    assert len(calls) == 2, "the windowless second look never ran"
-    assert calls[0] and not calls[1], "the second look must drop the window"
+    assert len(calls) == 2, "the second look never ran"
+    # §263: wider, never none - a dropped window let a March 2025 article
+    # into a "last 24 hours" episode.
+    assert calls[0] and calls[1], "the second look must keep a window"
+    assert calls[1] < calls[0], "the second look's window must be wider"
     assert packet, "the retry found sources and they did not reach the packet"
     assert packet.retried
 

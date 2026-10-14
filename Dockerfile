@@ -88,6 +88,7 @@ ENV CACHE_PATH=/data/scripts.db \
     SHARES_DB=/data/shares.db \
     FEEDBACK_DB=/data/feedback.db \
     CONSENT_DB=/data/consent.db \
+    QUOTE_BOOK_DB=/data/quote_book.db \
     MODERATION_DB=/data/moderation.db \
     QUOTAS_DB=/data/quotas.db \
     VOICE_REGISTRY_DB=/data/voice_registry.db \

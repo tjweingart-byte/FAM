@@ -368,6 +368,55 @@ def rank_results(results, now: Optional[datetime] = None) -> list:
     return sorted(results, key=key)
 
 
+#: A day either side of the window, for the publisher's clock and ours: an
+#: article stamped late yesterday in one zone is inside "the last day" in
+#: another.
+WINDOW_GRACE_DAYS = 1
+#: The thin-packet retry keeps a window rather than dropping it (§263): this
+#: many times the first, and never under a week.
+RETRY_WINDOW_FACTOR = 3
+RETRY_WINDOW_MIN_DAYS = 7
+
+
+def retry_window(recency_days: int) -> int:
+    """The window the second look searches with. Zero only for zero.
+
+    It used to be zero always, so a "last 24 hours" question whose first
+    search came back thin was searched again with no date at all - and a
+    March 2025 article about a Nasdaq correction out-scored everything dated
+    this week on the word test (§263). An evergreen question (no window) is
+    unchanged.
+    """
+    if recency_days <= 0:
+        return 0
+    return max(recency_days * RETRY_WINDOW_FACTOR, RETRY_WINDOW_MIN_DAYS)
+
+
+def within_window(results, recency_days: int,
+                  now: Optional[datetime] = None) -> list:
+    """Drop what is dated before the window. **Recency filters** - here, in code.
+
+    The window was only ever a hint to the search vendor (`after_date`,
+    `search_after_date_filter`), and a vendor's filter is its own idea of a
+    date: nothing here checked what came back, so an article from last year
+    reached a "today" episode dated and graded and looking like evidence
+    (§263). An undated result is kept - its date is "not stated" in the
+    packet, never filled in - because dropping it would make "undated" a
+    reason to exclude a live quotes page.
+    """
+    if recency_days <= 0:
+        return list(results)
+    now = now or datetime.now(timezone.utc)
+    cutoff = now - timedelta(days=recency_days + WINDOW_GRACE_DAYS)
+    kept = []
+    for result in results:
+        when = published_at(result)
+        if when is not None and when < cutoff:
+            continue
+        kept.append(result)
+    return kept
+
+
 def names_place(results, place: str) -> list:
     """Only the results that name `place` (§194, the fix that stops invention).
 
@@ -754,7 +803,7 @@ def objective_for(brief, recency_days: Optional[int] = None) -> str:
     facts the request already enforces - and the window's line is left off
     when there is none, so an evergreen question is never told to want
     "recent, dated reporting". `recency_days` defaults to the brief's;
-    the second look, which drops the window, passes 0.
+    the second look passes its wider one (`retry_window`, §263).
     """
     if brief is None:
         return ""
@@ -962,6 +1011,7 @@ def _retrieve_blocking(query: str, num_results: int, packet_sources: int,
 
     results = screen_results(rank_results(returned), query=query,
                              live_domain=live_domain)
+    results = within_window(results, recency_days)
     if must_name:
         results = names_place(results, must_name)
     import provenance as provenance_mod
@@ -988,8 +1038,8 @@ async def _second_look(query: str, num_results: int, packet_sources: int,
                        highlights_per_source: int,
                        search_type: str, live_domain: str = "",
                        include_domains: tuple = (), must_name: str = "",
-                       backend: str = "exa", objective: str = ""
-                       ) -> Optional[Packet]:
+                       backend: str = "exa", objective: str = "",
+                       recency_days: int = 0) -> Optional[Packet]:
     """The one extra search, which is allowed to fail quietly. `retrieve` is not.
 
     The distinction is the whole reason this is a separate function, and it is
@@ -1011,7 +1061,7 @@ async def _second_look(query: str, num_results: int, packet_sources: int,
     try:
         return await asyncio.to_thread(
             _retrieve_blocking, query, num_results, packet_sources,
-            highlights_per_source, search_type, 0, live_domain,
+            highlights_per_source, search_type, recency_days, live_domain,
             include_domains, must_name, backend, objective)
     except Exception as exc:  # noqa: BLE001 - see docstring
         log.warning("the second look failed for %r: %s; keeping the first "
@@ -1135,7 +1185,7 @@ async def retrieve(query: str, backend: Optional[str] = None,
     # exactly this case never ran. The commonest way to get here is the
     # recency window: a narrow one on a subject nothing was published about
     # in that window returns zero results, and the second look is the one that
-    # drops the window.
+    # widens it (never drops it - §263).
     if (not packet or not covered) and settings.research_retry:
         # **EI's own broader phrasing first**, then the resolved subject, then
         # the raw query - `Brief.broader` picks whichever exists and differs
@@ -1150,12 +1200,16 @@ async def retrieve(query: str, backend: Optional[str] = None,
         # `RESEARCH_SECOND_LOOK` (Perplexity) when that can serve, and to the
         # configured backend otherwise.
         other = second_look_backend(chosen)
+        # A wider window, never none (§263): see `retry_window`.
+        wider = retry_window(recency_days)
         log.info("%s packet missed %s for %r; one more search on %s for %r "
-                 "with no window", chosen, missing, query, other, broader)
+                 "with window %sd", chosen, missing, query, other, broader,
+                 wider or "none")
         second = await _second_look(broader, num_results, packet_sources,
                                     highlights_per_source, search_type,
                                     live_domain, include_domains, must_name,
-                                    other, written or objective_for(brief, 0))
+                                    other, written or objective_for(brief, wider),
+                                    wider)
         if second is not None:
             _, second_missing = packet_covers(second.context, must_establish)
             # Keep whichever packet answers more of the brief; on a tie keep
@@ -1199,8 +1253,10 @@ async def retrieve(query: str, backend: Optional[str] = None,
 
         second = await gdelt.retrieve(query, recency_days=recency_days)
         if second:
-            ranked = screen_results(rank_results(second), query=query,
-                                    live_domain=live_domain)[:packet_sources]
+            ranked = within_window(
+                screen_results(rank_results(second), query=query,
+                               live_domain=live_domain),
+                recency_days)[:packet_sources]
             extra = build_packet(ranked, packet_sources, highlights_per_source)
             if extra.strip():
                 packet.context = (packet.context or "") + "\n" + extra

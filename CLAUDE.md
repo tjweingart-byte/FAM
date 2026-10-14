@@ -298,7 +298,7 @@ Research and truth
 - **EI decides what to search for, before the search**; the brief never asserts
   a fact; **a layer that adds quality must not subtract availability** - every
   failure falls back to the raw query and says so (`Brief.degraded`). [ei-before-search]
-- **Recency filters; credibility sorts.** The packet carries date and grade,
+- **Recency filters (in code); credibility sorts.** The packet carries date and grade,
   **never the hostname**; relative dates are computed in code; one retry on a
   thin packet, gap named to the writer. [recency-credibility]
 - **Started is not finished**: EI may only say a request is `outcome_dependent`;
@@ -311,8 +311,8 @@ Research and truth
 - **Live facts** (`live_facts.py`): **never confidently invent a current fact
   without authoritative, fresh evidence; never infer one from absence.** Closed
   status vocabulary; only evidence sets it; resolution from the provider's
-  catalogue, never a model; seven lookup outcomes; freshness enforced in code,
-  stale data withheld; NFL records, last and next games are counted from the
+  catalogue, never a model; seven lookup outcomes; freshness in code,
+  stale withheld, markets kept dated (§263); NFL records, last and next games are counted from the
   provider's schedule (§178). Don't claim live scores until a provider returns them. [live-facts]
 - **A score is checked before it is spoken** (§259, `score_guard.py`). [score-guard]
 - **API-Sports is a plan per sport**: a budget, a tier (`API_SPORTS_TIERS`,
@@ -326,9 +326,9 @@ Research and truth
 - **The listener's clock, never the server's** (§186): `listener_clock` from
   the device's `X-FAM-TZ` (Settings can pin one), never a location; prefetch
   and editions use the edition's zone; the zone is not in `key_for`. [listener-clock]
-- **Local news** (§194): a town's question goes town outlets (RSS, collected
-  ahead) → county → the search backend on known outlets, never GDELT; only what names the
-  place is evidence; an empty town opens with `local_news.gap_line`, composed
+- **Local news** (§194): a town's question goes town outlets (RSS, read
+  ahead) → county → search on vetted outlets, never GDELT; only what names the
+  place and question counts (§263); an empty town opens with `local_news.gap_line`, composed
   in code, then weather, then county news. [local-news-ladder]
 - **Weather** (§194): NWS first, Open-Meteo second; fetched on demand, then
   swept at 05:00/17:00 in each asked place's own time; US warnings asked live;

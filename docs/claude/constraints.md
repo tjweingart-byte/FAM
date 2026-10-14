@@ -294,6 +294,7 @@
   `Brief.degraded`, the log and `/api/health`. An EI that had quietly stopped
   running would look identical from outside to one that was working.
 <!-- rule:recency-credibility -->
+> **Current (PROBLEMS.md §263, at the owner's direction):** the window is enforced in code, not only asked of the vendor: `research.within_window` drops every dated result published before it (a day's grace; undated results are kept and shown as undated), on the main search, the second look and the GDELT cross-check. The thin-packet retry **widens** the window (`retry_window`: three times, at least a week) and never drops it - a dropped window let a March 2025 article into a "last 24 hours" episode.
 > **Current (PROBLEMS.md §178):** before anything is graded, `research.screen_results` drops a simulated or video-game league's page (a Madden league's "result" for a game not yet played) unless the question is about one, and on a sports question (`live_domain == "sports"`) drops unknown outlets once two known ones answered. The writer never argues a factual disagreement aloud: it says the better-supported reading and nothing about the sources.
 
 - **Recency filters; credibility sorts.** *(§82.)* Two mechanisms doing two
@@ -569,6 +570,7 @@
   story: it must name something the listener follows.
 
 <!-- rule:live-facts -->
+> **Current (PROBLEMS.md §263, at the owner's direction):** **market readings are never discarded.** `live_facts.KEPT_WHEN_OLD` (markets only) passes a reading past its age limit to the writer as the *most recent* reading, dated, never "now" - a close is a fact about its session. The market limit is 1500s (the feed's 20-minute delay plus five). Every quote FAM reads, the two-hourly sweep's included, is kept per symbol per session in `quote_book.py`; an episode gets the latest reading plus the earlier sessions, each with its day, the previous close and the session's range. An index a listener names (Nasdaq, S&P 500, Dow, Russell 2000) is resolved in code to the fund that tracks it (`live_sources.INDEX_PROXIES`), said to be the fund. Scores and every other domain are still withheld when stale.
 > **Current (PROBLEMS.md §178):** for the NFL, API-Sports also supplies each team's record (counted in code from regular-season finals on the team's own schedule), last result and next game, beside the game; a game not on today's card is resolved from the teams' schedules by the provider's own team catalogue. A game that has not started never has a score. The live block tells the writer that every number comes from it and never to describe the sources.
 
 - **An article index is the wrong instrument for a scoreboard, and the seam is
@@ -611,6 +613,7 @@
   real request rather than confirming a credential exists. Do not say FAM
   supports live scores until a real provider is returning them.
 <!-- rule:local-news-ladder -->
+> **Current (PROBLEMS.md §263, at the owner's direction):** naming the place is required and no longer sufficient: a rung whose stories name the place and cover none of what the brief asks (`local_news.relevant`, the place's own words and "news"-type words removed) counts as empty. The web rung's `include_domains` is only vetted outlets (seed and registry), never `learned` ones; with none it searches open and still keeps only what names the place. EI's `place` is for what is going on in a town in general; one specific happening there (an airshow, a game, a storm) is a news question on the general ladder with the place in `retrieval`. The writer's local block says what was found is not all that is happening there.
 > **Current (PROBLEMS.md §258):** the third rung searches the town's known outlets on the configured search backend (Parallel), not Exa; the record names the backend that searched.
 - **A town's news comes from the town's own outlets, and its gap is said in
   words composed in code.** *(PROBLEMS.md §194, at the owner's direction;

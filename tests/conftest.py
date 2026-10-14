@@ -211,6 +211,7 @@ DATA_ENVIRONMENT = (
     "MYFAM_DB", "PREFS_DB", "QUOTAS_DB", "SAVED_DB", "SHARES_DB", "SOCIAL_DB",
     "VOICE_REGISTRY_DB", "TRENDING_BANK_DB", "FEEDBACK_DB", "PROVIDER_USAGE_DB",
     "LOCAL_NEWS_DB", "GDELT_EXPORT_DB", "CONSENT_DB", "MODERATION_DB",
+    "QUOTE_BOOK_DB",
 )
 
 #: Tier limits. Read by `entitlements.py` rather than `config.py`, so the
@@ -522,6 +523,19 @@ def isolated_provider_usage(tmp_path, monkeypatch):
     provider_usage.reset()
     yield
     provider_usage.reset()
+
+
+@pytest.fixture(autouse=True)
+def isolated_quote_book(tmp_path, monkeypatch):
+    """Every market reading FAM keeps (§263), per test - a mocked quote must
+    not be the next test's history, and the suite must never write
+    `quote_book.db` into the project root."""
+    import quote_book
+
+    monkeypatch.setenv("QUOTE_BOOK_DB", str(tmp_path / "stores" / "quote_book.db"))
+    quote_book.reset()
+    yield
+    quote_book.reset()
 
 
 @pytest.fixture(autouse=True)

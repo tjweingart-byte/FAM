@@ -981,6 +981,17 @@ def _database_report() -> list[dict]:
         ("categories", "CATEGORIES_DB",
          getattr(topics_mod.category_tree(), "path", "")),
     ]
+    # Every market reading kept (§263): a copy inside the image would forget
+    # every session on each push. Reported once it exists, like the trending
+    # bank: the first quote creates it, never a health page.
+    try:
+        from paths import data_path as _data_path
+
+        book_path = _data_path("QUOTE_BOOK_DB", "quote_book.db")
+        if os.path.exists(book_path):
+            stores.append(("quote book", "QUOTE_BOOK_DB", book_path))
+    except Exception:  # pragma: no cover - a report is never load-bearing
+        pass
     # Trending's editions (§139). Holds the GNews request ledger as well as
     # the editions, so an image-local copy would reset the daily ceiling on
     # every push as well as the rail. Reported once it exists, like the voice

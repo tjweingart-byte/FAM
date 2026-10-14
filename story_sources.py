@@ -382,7 +382,11 @@ WATCHLIST = {
     "GOOGL": "Alphabet", "AMZN": "Amazon", "META": "Meta",
     "TSLA": "Tesla", "JPM": "JPMorgan", "XOM": "ExxonMobil",
     "SPY": "the S&P 500", "QQQ": "the Nasdaq 100", "GLD": "the gold price",
+    "DIA": "the Dow", "IWM": "the Russell 2000",
 }
+#: How many symbols an episode looked up are swept beside the watchlist
+#: (§263), so a followed company's sessions are kept every two hours.
+FOLLOWED_SYMBOLS = 12
 
 
 class FinnhubSignals(stories.StorySource):
@@ -431,7 +435,14 @@ class FinnhubSignals(stories.StorySource):
 
     async def collect(self, limit: int) -> list:
         timeout = float(settings.live_timeout_seconds)
-        symbols = self.watchlist()
+        tiles = self.watchlist()
+        # And whatever episodes have asked about this week (§263): read and
+        # kept on the same clock, never made into tiles - a tile names its
+        # subject from the watchlist, and "ORCL is up" is not a title.
+        import quote_book
+
+        symbols = list(dict.fromkeys(
+            tiles + quote_book.recent_symbols(limit=FOLLOWED_SYMBOLS)))
 
         async def quote(symbol: str):
             try:
@@ -443,6 +454,13 @@ class FinnhubSignals(stories.StorySource):
                 return symbol, None
 
         rows = await asyncio.gather(*(quote(s) for s in symbols))
+        # Every reading is kept (§263), moved or not: the threshold decides
+        # what becomes a tile, never what FAM knows. An episode about any of
+        # these then has every session the sweep saw, round the clock.
+        for symbol, data in rows:
+            if data:
+                quote_book.record(symbol, data)
+        rows = [(symbol, data) for symbol, data in rows if symbol in tiles]
         threshold = float(settings.stories_market_move_percent)
         moved = []
         for symbol, data in rows:
