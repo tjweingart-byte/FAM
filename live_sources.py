@@ -2159,111 +2159,12 @@ class ApiSportsSource(LiveSource):
                          status=status, entity=entity)
 
 
-class SportsDataIOSource(LiveSource):
-    """SportsDataIO. Deeper US coverage, including player-level statistics.
-
-    The reason to reach for this over API-Sports is the motivating failure:
-    *"Mahomes had a great game"* needs player data, and API-Sports does not
-    carry it for the NFL. Pricing is sales-gated above roughly a $99-149/mo
-    "Discovery Lab" tier, so this is the upgrade rather than the start.
-
-    **Its free key returns deliberately scrambled data**, which is a trap worth
-    naming: a free key looks like it works. `verify()` cannot tell the
-    difference, so a deployment on a trial key will produce confident nonsense.
-    Do not run this in production without a paid key.
-    """
-
-    name = "SportsDataIO"
-    domain = "sports"
-    cost_per_call = 0.0
-    delayed_seconds = 0.0
-    BASE = "https://api.sportsdata.io/v3/nfl/scores/json"
-    STATUS = {
-        "Scheduled": live_facts.SCHEDULED, "InProgress": live_facts.IN_PROGRESS,
-        "Final": live_facts.FINAL, "F/OT": live_facts.FINAL,
-        "Suspended": live_facts.IN_PROGRESS, "Halftime": live_facts.IN_PROGRESS,
-    }
-
-    def diagnose(self) -> tuple[bool, str]:
-        if not settings.sportsdataio_key:
-            return False, "SPORTSDATAIO_KEY is not set"
-        return True, ("SPORTSDATAIO_KEY present (not verified from this machine; "
-                      "note a free trial key returns scrambled data)")
-
-    def _headers(self) -> dict:
-        return {"Ocp-Apim-Subscription-Key": settings.sportsdataio_key}
-
-    async def verify(self) -> tuple[bool, str]:
-        try:
-            await _json(f"{self.BASE}/AreAnyGamesInProgress", self._headers(),
-                        {}, settings.live_timeout_seconds)
-        except Exception as exc:  # noqa: BLE001
-            return False, f"SportsDataIO did not answer: {type(exc).__name__}: {exc}"
-        return True, ("SportsDataIO accepted the key - but this cannot tell a "
-                      "paid key from a trial key returning scrambled data")
-
-    async def resolve(self, brief) -> Optional[Entity]:
-        subject = (getattr(brief, "subject", "") or getattr(brief, "query", "")).strip()
-        if not subject:
-            return None
-        data = await _json(f"{self.BASE}/ScoresByWeek/{_nfl_season()}/current",
-                           self._headers(), {}, settings.live_timeout_seconds)
-        wanted = {w for w in subject.lower().split() if len(w) > 3}
-        for row in (data if isinstance(data, list) else []):
-            names = f"{row.get('HomeTeam', '')} {row.get('AwayTeam', '')}".lower()
-            if wanted and any(word in names for word in wanted):
-                return Entity(domain="sports", provider=self.name,
-                              id=str(row.get("GameKey") or row.get("ScoreID") or ""),
-                              label=f"{row.get('AwayTeam')} at {row.get('HomeTeam')}")
-        return None
-
-    async def fetch(self, entity: Entity) -> Optional[LiveFacts]:
-        data = await _json(f"{self.BASE}/ScoresByWeek/{_nfl_season()}/current",
-                           self._headers(), {}, settings.live_timeout_seconds)
-        for row in (data if isinstance(data, list) else []):
-            if str(row.get("GameKey") or row.get("ScoreID") or "") == entity.id:
-                return self.to_facts(row, entity)
-        return None
-
-    def to_facts(self, row: dict, entity: Entity) -> Optional[LiveFacts]:
-        status = self.STATUS.get(str(row.get("Status") or ""), live_facts.UNKNOWN)
-        home, away = str(row.get("HomeTeam") or ""), str(row.get("AwayTeam") or "")
-        hs, as_ = row.get("HomeScore"), row.get("AwayScore")
-        said: list = []
-        if hs is not None and as_ is not None:
-            first, second, lead, trail = home, away, hs, as_
-            if as_ > hs:
-                first, second, lead, trail = away, home, as_, hs
-            if lead == trail:
-                said.append(f"{home} and {away} are level at {lead} points each.")
-            elif status == live_facts.FINAL:
-                said.append(f"{first} beat {second} {lead} to {trail}.")
-            else:
-                said.append(f"{first} lead {second} {lead} to {trail}.")
-        quarter, clock = row.get("Quarter"), row.get("TimeRemaining")
-        if status == live_facts.IN_PROGRESS and quarter:
-            said.append(f"It is the {quarter} quarter"
-                        + (f", {clock} left." if clock else "."))
-        if not said:
-            return None
-        return LiveFacts(domain="sports", source=self.name,
-                         as_of=datetime.now(timezone.utc), facts=said,
-                         status=status, entity=entity)
-
-
-def _nfl_season() -> str:
-    """The NFL season a date belongs to. A January game is last season's."""
-    now = datetime.now(timezone.utc)
-    return str(now.year if now.month >= 3 else now.year - 1)
-
-
 class FinnhubSource(LiveSource):
     """Finnhub quotes. The most generous free tier in market data.
 
-    60 requests a minute free against Alpha Vantage's 25 a *day*, and paid
-    starts at $11.99/mo against $49.99. The one catch is licensing rather than
-    engineering: the free tier is personal/non-commercial, so a monetised app
-    needs a paid plan - which is the only real argument for Alpha Vantage.
+    60 requests a minute free, and paid starts at $11.99/mo. The one catch is
+    licensing rather than engineering: the free tier is personal/non-commercial,
+    so a monetised app needs the paid plan (`FINNHUB_PLAN`).
 
     **Delayed by about twenty minutes on the free tier**, which is fine here
     and not fine elsewhere: `delayed_seconds` makes the prompt say "delayed by
@@ -2405,78 +2306,6 @@ class FinnhubSource(LiveSource):
         # is what stops a market question being answered as a result.
         return LiveFacts(domain="markets", source=self.name, as_of=when,
                          facts=said, status=live_facts.UNKNOWN, entity=entity,
-                         delayed_seconds=self.delayed_seconds)
-
-
-class AlphaVantageSource(LiveSource):
-    """Alpha Vantage. The alternative when Finnhub's terms do not fit.
-
-    Free tier is 25 requests a *day* against Finnhub's 60 a minute, and paid
-    starts at $49.99/mo against Finnhub's $11.99 - so this is the second
-    choice on both axes. It is here because Finnhub's free tier is
-    personal/non-commercial, and that is a licensing question rather than a
-    technical one.
-    """
-
-    name = "Alpha Vantage"
-    domain = "markets"
-    cost_per_call = 0.0
-    delayed_seconds = 900.0
-    BASE = "https://www.alphavantage.co"
-
-    def diagnose(self) -> tuple[bool, str]:
-        if not settings.alpha_vantage_key:
-            return False, "ALPHA_VANTAGE_KEY is not set"
-        return True, "ALPHA_VANTAGE_KEY present (not verified from this machine)"
-
-    async def verify(self) -> tuple[bool, str]:
-        try:
-            data = await _json(f"{self.BASE}/query", {},
-                               {"function": "GLOBAL_QUOTE", "symbol": "AAPL",
-                                "apikey": settings.alpha_vantage_key},
-                               settings.live_timeout_seconds)
-        except Exception as exc:  # noqa: BLE001
-            return False, f"Alpha Vantage did not answer: {type(exc).__name__}: {exc}"
-        if "Global Quote" not in (data or {}):
-            return False, f"Alpha Vantage answered without a quote: {str(data)[:120]}"
-        return True, "Alpha Vantage accepted the key"
-
-    async def resolve(self, brief) -> Optional[Entity]:
-        subject = (getattr(brief, "subject", "") or getattr(brief, "query", "")).strip()
-        if not subject:
-            return None
-        data = await _json(f"{self.BASE}/query", {},
-                           {"function": "SYMBOL_SEARCH", "keywords": subject,
-                            "apikey": settings.alpha_vantage_key},
-                           settings.live_timeout_seconds)
-        for row in (data or {}).get("bestMatches", []) or []:
-            symbol = str(row.get("1. symbol") or "").strip()
-            if symbol:
-                return Entity(domain="markets", provider=self.name, id=symbol,
-                              label=str(row.get("2. name") or symbol))
-        return None
-
-    async def fetch(self, entity: Entity) -> Optional[LiveFacts]:
-        data = await _json(f"{self.BASE}/query", {},
-                           {"function": "GLOBAL_QUOTE", "symbol": entity.id,
-                            "apikey": settings.alpha_vantage_key},
-                           settings.live_timeout_seconds)
-        quote = (data or {}).get("Global Quote") or {}
-        try:
-            price = float(quote.get("05. price"))
-        except (TypeError, ValueError):
-            return None
-        said = [f"{entity.label} is trading at {price:.2f}."]
-        percent = str(quote.get("10. change percent") or "").strip().rstrip("%")
-        try:
-            change = float(percent)
-            way = "up" if change >= 0 else "down"
-            said.append(f"That is {way} about {abs(change):.1f} percent on the day.")
-        except (TypeError, ValueError):
-            pass
-        return LiveFacts(domain="markets", source=self.name,
-                         as_of=datetime.now(timezone.utc), facts=said,
-                         status=live_facts.UNKNOWN, entity=entity,
                          delayed_seconds=self.delayed_seconds)
 
 
@@ -2768,9 +2597,7 @@ class _QuoteOnlyElections(LiveSource):
 
 
 BUILDERS["sports"]["api-sports"] = ApiSportsSource
-BUILDERS["sports"]["sportsdataio"] = SportsDataIOSource
 BUILDERS["markets"]["finnhub"] = FinnhubSource
-BUILDERS["markets"]["alpha-vantage"] = AlphaVantageSource
 BUILDERS["elections"]["polymarket"] = PolymarketSource
 BUILDERS["elections"]["ap"] = lambda: _QuoteOnlyElections(
     "AP Elections", "a contract with the Associated Press and their API guide")
