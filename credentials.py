@@ -420,6 +420,12 @@ def pool(name: str) -> list[str]:
     _POOL[name] = keys
     _SOURCED[name] = raw
     _CURSOR[name] = 0
+    # A key published before this rebuild is no longer ours to recognise:
+    # left in place, the same value set again later read as our own
+    # failover, and the memo built without it was kept (an empty pool with
+    # the key in the environment).
+    if _PUBLISHED.get(name) != raw[1]:
+        _PUBLISHED.pop(name, None)
     return keys
 
 

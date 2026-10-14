@@ -15,10 +15,50 @@ import types
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import dataclasses  # noqa: E402
+
+import pytest  # noqa: E402
+
+import config  # noqa: E402
 import episode_intelligence as ei  # noqa: E402
 import live_sources as ls  # noqa: E402
 import research  # noqa: E402
-from test_search_backends_258 import brief, use, wire  # noqa: E402,F401
+
+REPLY = {"results": [{"url": "https://www.reuters.com/a", "title": "x",
+                      "publish_date": "2026-10-11", "date": "2026-10-11",
+                      "excerpts": ["Something long enough to be kept as evidence."],
+                      "snippet": "Something long enough to be kept as evidence."}]}
+
+
+@pytest.fixture
+def wire(monkeypatch):
+    """Every request either backend makes, answered with `REPLY`."""
+    sent: list = []
+
+    def post(url, headers, body):
+        sent.append({"url": url, "body": body})
+        return REPLY
+
+    monkeypatch.setattr(research, "_post", post)
+    monkeypatch.setenv("PARALLEL_API_KEY", "par-key")
+    monkeypatch.setenv("PERPLEXITY_API_KEY", "ppx-key")
+    import credentials
+
+    credentials.reset()
+    yield sent, None
+    credentials.reset()
+
+
+def use(monkeypatch, **changes):
+    monkeypatch.setattr(research, "settings",
+                        dataclasses.replace(config.settings, **changes))
+
+
+def brief(**fields):
+    base = dict(recency_days=3, subject="the Eagles", retrieval="Eagles Giants score",
+                broader="Eagles season", must_establish=[], live_domain="")
+    base.update(fields)
+    return types.SimpleNamespace(**base)
 
 
 def run(coro):

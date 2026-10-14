@@ -19144,4 +19144,10 @@ their own licences; confirm in writing what the vendor's plan covers.
 Recommended: FMP Enterprise (quote) or Twelve Data Enterprise ($1,099) as the
 one feed, plus the free complements - about $1,130/mo on the published route.
 
+Also fixed on the way: `credentials.pool` kept a memo built while a key
+was absent once the same key was set again, because the value matched one
+it had published before the rebuild and read as its own failover - an empty
+pool with the key in the environment. A rebuild now forgets a publish it
+no longer sees. Found by test order, not in production.
+
 Tests: `tests/test_provider_inputs_267.py`.

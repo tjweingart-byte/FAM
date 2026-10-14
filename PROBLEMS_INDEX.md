@@ -270,4 +270,4 @@ and `limit` = Lines.
 | 18920 | 31 | 264. A playlist goes past an episode that fails to play |
 | 18951 | 65 | 265. Market readings kept, recency enforced, and a town question that asks what it is about |
 | 19016 | 52 | 266. A score kept until a newer one, the sweep past the final, and no window on a timeless question |
-| 19068 | 81 | 267. Each provider's input in its own terms, and what an all-inclusive market feed would cost |
+| 19068 | 87 | 267. Each provider's input in its own terms, and what an all-inclusive market feed would cost |
