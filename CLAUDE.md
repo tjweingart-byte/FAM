@@ -369,7 +369,7 @@ Caching and prefetch
 - A prefetch candidate carries a reason in words; sources never call a model or
   the network. [candidate-reason]
 - **The brief: Haiku 5.5, medium** (§261), two calls at once, 8 s only if
-  a listener waits (§266); composer, placer, thumbnails on `MODEL`; photo
+  a listener waits (§268); composer, placer, thumbnails on `MODEL`; photo
   check `SMALL_MODEL`; priced per model. [small-calls-haiku]
 - **Writer savings change no word and cost no episode** (§179): its
   instructions are one cacheable block (`PROMPT_CACHE`); the Trending and

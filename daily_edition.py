@@ -465,7 +465,7 @@ async def _start(query: str, generator, cache, length: int,
                 return {"status": "cached", "key": key}
         notes = ScriptNotes()
         # Written at 05:00 for a listener who is asleep: the brief may take
-        # its time (§266).
+        # its time (§268).
         notes.ahead = True
         # What the earlier editions were, so today's is a different one.
         plan = await with_earlier_editions(plan, cache)

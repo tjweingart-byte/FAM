@@ -707,7 +707,7 @@ def gate(brief: Brief, query: str) -> Brief:
     if not brief.subject.strip():
         brief.subject = query.strip()
 
-    # **A team is not a town** (§266). "Did the Eagles win" named as
+    # **A team is not a town** (§268). "Did the Eagles win" named as
     # Philadelphia sends the question down the local ladder, which keeps only
     # what names the town (§194) - and a national story about a team reached
     # the writer with no sources at all. When the question, or the subject
@@ -1018,7 +1018,7 @@ def field_guide(fields=None) -> str:
 
 
 # --------------------------------------------------------------------------
-# The brief as two calls at once (§266)
+# The brief as two calls at once (§268)
 # --------------------------------------------------------------------------
 #: **Two halves of one brief, asked at the same moment.** On Haiku at medium
 #: effort the one call wrote ~1,500 tokens of thinking and JSON, and at Haiku's
@@ -1079,7 +1079,7 @@ def build_ei_prompt(query: str, minutes: int, context: str = "",
 
     `fields` names the entries of `FIELD_GUIDE` to ask for, in its order;
     `None` asks for all of them, which is the one-call brief's text exactly.
-    The two halves of a split brief each ask for their own (§266).
+    The two halves of a split brief each ask for their own (§268).
     """
     depth_name, depth_mix = depth_for(minutes)
     follow_up = ""
@@ -1129,7 +1129,7 @@ def _pronounce_pairs(raw) -> list:
     return out
 
 
-#: **Worked examples, in the instructions' own cached block** (§266). A
+#: **Worked examples, in the instructions' own cached block** (§268). A
 #: smaller model follows a finished example more closely than a rule, and the
 #: failures that reached listeners were ones an example shows at a glance: a
 #: window that matched the words of the request ("today" is days, "how does"
@@ -1283,7 +1283,7 @@ def ei_system():
 
     Byte-identical from call to call and shared by both halves of a split
     brief, so after the first brief the instructions are read from the cache
-    (§266). Everything that varies - the request, the moment, the fields
+    (§268). Everything that varies - the request, the moment, the fields
     asked for - is in the user turn after it.
     """
     text = EI_SYSTEM + (examples_block() if settings.ei_examples else "")
@@ -1295,7 +1295,7 @@ def ei_system():
     return [{"type": "text", "text": text, "cache_control": marker}]
 
 
-#: How many recent briefs' wall-clock times each path keeps (§266).
+#: How many recent briefs' wall-clock times each path keeps (§268).
 SECONDS_KEPT = 200
 #: Every brief's ending by path - `search` (a listener is waiting) or `ahead`
 #: (prefetch and the editions, built before any tap) - and how long each took
@@ -1369,7 +1369,7 @@ async def _ask(client, part: str, query: str, minutes: int, context: str,
 
 
 #: The fields the search half writes, which a brief keeps from it even when
-#: the other half failed and the brief is degraded (§266): a resolved search
+#: the other half failed and the brief is degraded (§268): a resolved search
 #: is worth having beside a raw-query brief, and the gate still holds it to
 #: the question.
 _SEARCH_FIELDS = PARTS["search"]
@@ -1405,9 +1405,9 @@ async def understand(query: str, minutes: int = DEFAULT_MINUTES, context: str = 
 
     `ahead` is True for a brief nobody is waiting on - prefetch and the
     editions - which may take `EI_AHEAD_TIMEOUT_SECONDS` rather than the
-    search path's `EI_TIMEOUT_SECONDS` (§266).
+    search path's `EI_TIMEOUT_SECONDS` (§268).
 
-    **Two calls at once unless `EI_SPLIT=0`** (§266, `PARTS`). The brief is
+    **Two calls at once unless `EI_SPLIT=0`** (§268, `PARTS`). The brief is
     the understanding half's: when that half fails the brief is degraded,
     as the one call's failure always made it, but keeps the search half's
     wording if that half answered. When only the search half fails the brief
@@ -1618,7 +1618,7 @@ def report() -> dict:
         "max_tokens": settings.ei_max_tokens,
         # How the briefs since boot ended: `ok` or why each degraded (§248).
         "since_boot": dict(_OUTCOMES),
-        # The same, split by who was waiting (§266): `search` is a listener
+        # The same, split by who was waiting (§268): `search` is a listener
         # in front of the first word, `ahead` is prefetch and the editions.
         "since_boot_by_path": {p: dict(c) for p, c in _BY_PATH.items()},
         # How long the recent briefs on each path took, failures included -

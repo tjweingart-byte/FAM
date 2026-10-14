@@ -228,7 +228,7 @@ def _story(row: dict, cls):
     """A stored story back into a `stories.Story`, tuples and all."""
     known = {f for f in cls.__dataclass_fields__}
     row = {k: v for k, v in row.items() if k in known}
-    for name in ("tags", "keywords", "anchors"):
+    for name in ("tags", "keywords", "anchors", "urls"):
         if name in row:
             row[name] = tuple(row[name] or ())
     if "countries" in row:
@@ -836,7 +836,7 @@ async def _start(story, generator, cache, minutes: int, rewrite: bool = False):
     if not rewrite and cache.get(key):
         return {"status": "cached", "key": key}
     notes = ScriptNotes()
-    # Written ahead of every tap: the brief may take its time (§266).
+    # Written ahead of every tap: the brief may take its time (§268).
     notes.ahead = True
     plan = await generator.understand(plan, notes)
     if getattr(plan.brief, "outcome_dependent", False):

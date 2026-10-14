@@ -1,4 +1,4 @@
-"""The brief on Haiku, given the room and the shape it needs (§266).
+"""The brief on Haiku, given the room and the shape it needs (§268).
 
 `/api/health` read 5 timeouts in 11 briefs (10.14): Haiku at medium effort
 writes ~1,500 tokens of thinking and JSON, which at its rate is 6-9 s against

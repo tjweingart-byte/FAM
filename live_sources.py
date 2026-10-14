@@ -998,6 +998,45 @@ async def api_sports_json(url: str, params: dict, timeout: float) -> dict:
 CARD: dict = {}
 
 
+#: symbol -> {"data": Finnhub's quote, "is_open": the session then, "at": when
+#: swept}. Written by the story sweep (`story_sources.FinnhubSignals`) for
+#: the watchlist only - never the whole market - and read by
+#: `FinnhubSource.fetch` (§267), the same seam `CARD` is for scores.
+QUOTES: dict = {}
+
+
+def remember_quote(symbol: str, data: dict, is_open: Optional[bool],
+                   now: Optional[float] = None) -> None:
+    if not symbol or not data or data.get("c") in (None, 0):
+        return
+    QUOTES[symbol.upper()] = {"data": dict(data), "is_open": is_open,
+                              "at": time.time() if now is None else now}
+
+
+def swept_quote(symbol: str) -> Optional[dict]:
+    """The sweep's quote for `symbol`, if it took one. Freshness is the
+    caller's check (`LiveFacts.is_fresh`), on the quote's own time."""
+    return QUOTES.get((symbol or "").upper())
+
+
+def usable_sweep(held: Optional[dict], now: Optional[float] = None) -> bool:
+    """Whether a swept quote may stand in for a live one at all (§267).
+
+    It needs its own trade time - without one `to_facts` would date it now
+    and it would never age - a session the sweep could read, and a sweep no
+    older than two of its own intervals: a Friday close kept through a
+    weekend of failed sweeps is not what "the session has not changed"
+    vouches for on Monday evening.
+    """
+    if not held or held.get("is_open") is None:
+        return False
+    if not (held.get("data") or {}).get("t"):
+        return False
+    now = time.time() if now is None else now
+    limit = 2 * float(settings.stories_markets_interval_seconds)
+    return now - float(held.get("at") or 0.0) <= limit
+
+
 def remember_card(sport_key: str, rows: list, now: Optional[float] = None) -> None:
     CARD[sport_key] = (time.time() if now is None else now, list(rows or []))
 
@@ -2284,6 +2323,31 @@ class FinnhubSource(LiveSource):
         return bool(value) if isinstance(value, bool) else None
 
     async def fetch(self, entity: Entity) -> Optional[LiveFacts]:
+        # A watchlist symbol the story sweep already quoted (§267): its quote
+        # is used when the session it was taken in is still the session now
+        # and it passes the same freshness check a live quote must. The
+        # session itself is always asked live - one cheap call, run beside
+        # research, so it costs the first word nothing - because a quote
+        # swept at 9:25 is a close, and at 9:35 it is not.
+        #
+        # Judged first in the session it was swept in: a quote that would be
+        # stale even there is not worth a round trip, so the lookup goes
+        # straight to the two requests in parallel, exactly as before - it
+        # never puts a second request behind the first under the live
+        # timeout. Only a quote that could be used costs the session check,
+        # and only a session that changed since costs the quote after it.
+        held = swept_quote(entity.id)
+        candidate = (self.to_facts(held["data"], entity, held["is_open"])
+                     if usable_sweep(held) else None)
+        if candidate is not None and candidate.is_fresh():
+            is_open = await self.market_open()
+            if is_open == held["is_open"]:
+                log.info("finnhub: %s from the story sweep's quote", entity.id)
+                return candidate
+            quote = await _json(f"{self.BASE}/quote", {},
+                                {"symbol": entity.id, "token": settings.finnhub_key},
+                                settings.live_timeout_seconds)
+            return self.to_facts(quote, entity, is_open)
         quote, is_open = await asyncio.gather(
             _json(f"{self.BASE}/quote", {},
                   {"symbol": entity.id, "token": settings.finnhub_key},
@@ -2320,7 +2384,10 @@ class FinnhubSource(LiveSource):
         # is what stops a market question being answered as a result.
         return LiveFacts(domain="markets", source=self.name, as_of=when,
                          facts=said, status=live_facts.UNKNOWN, entity=entity,
-                         delayed_seconds=self.delayed_seconds)
+                         delayed_seconds=self.delayed_seconds,
+                         # Only Finnhub's own "closed" (§267); an unknown
+                         # session keeps the open-market hour.
+                         market_closed=is_open is False)
 
 
 class PolymarketSource(LiveSource):
