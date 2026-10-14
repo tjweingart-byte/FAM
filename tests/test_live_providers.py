@@ -183,6 +183,34 @@ def test_a_quote_never_establishes_an_event_status():
     assert facts.status == live_facts.UNKNOWN
 
 
+def test_a_close_is_current_until_the_market_reopens():
+    """§265: with the market closed the last close cannot move, so a close
+    from last night (or Thursday, over a holiday weekend) reaches the writer,
+    said as the last close. The open-market hour still holds otherwise."""
+    from datetime import timedelta
+
+    now = datetime.now(timezone.utc)
+    stamp = (now - timedelta(hours=17)).timestamp()
+    closed = ls.FinnhubSource().to_facts(
+        {"c": 231.5, "dp": -1.2, "t": stamp},
+        entity(domain="markets", label="Apple"), is_open=False)
+    assert closed.market_closed and closed.is_fresh()
+    block = closed.as_prompt_block()
+    assert "CLOSED" in block and "last closing price" in block
+    assert "closed at 231.50" in " ".join(closed.facts)
+
+    for is_open in (True, None):
+        same = ls.FinnhubSource().to_facts(
+            {"c": 231.5, "t": stamp}, entity(domain="markets"), is_open=is_open)
+        assert not same.market_closed and not same.is_fresh(), (
+            "only the provider's own 'closed' buys the longer window")
+
+    stopped = ls.FinnhubSource().to_facts(
+        {"c": 1.0, "t": (now - timedelta(days=5)).timestamp()},
+        entity(domain="markets"), is_open=False)
+    assert not stopped.is_fresh(), "a five-day-old close is a symbol that stopped"
+
+
 def test_an_empty_quote_is_not_a_price_of_zero():
     assert ls.FinnhubSource().to_facts({"c": 0}, entity(domain="markets")) is None
     assert ls.FinnhubSource().to_facts({}, entity(domain="markets")) is None

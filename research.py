@@ -1019,6 +1019,83 @@ async def _second_look(query: str, num_results: int, packet_sources: int,
         return None
 
 
+def _story_look_blocking(query: str, num_results: int, hosts: tuple,
+                         recency_days: int, live_domain: str, backend: str,
+                         objective: str, extra_queries: tuple) -> tuple:
+    """The tapped story's own outlets, searched for the same thing (§265).
+
+    The same backend, query, window and objective as the main search, held
+    to the outlets that ran the story's articles (`stories.context_for`) -
+    which is how the cluster's own reporting reaches the writer without a
+    page-fetching call nobody here has measured. Returns the screened,
+    ranked results and the cost; packing waits until the main packet is in,
+    so nothing it already holds is counted twice.
+    """
+    import provider_usage
+
+    try:
+        if backend == "parallel":
+            returned, cost = _search_parallel(query, num_results, recency_days,
+                                              hosts, objective, extra_queries)
+        elif backend == "perplexity":
+            returned, cost = _search_perplexity(query, num_results, recency_days,
+                                                hosts, objective)
+        else:
+            returned, cost = _search_exa(query, num_results, recency_days,
+                                         hosts, objective, DEFAULT_SEARCH_TYPE)
+    except Exception:
+        provider_usage.record(backend, ok=False)
+        raise
+    provider_usage.record(backend)
+    return (screen_results(rank_results(returned), query=query,
+                           live_domain=live_domain), float(cost))
+
+
+async def _story_look(*args) -> Optional[tuple]:
+    """`_story_look_blocking`, allowed to fail quietly - `_second_look`'s
+    exemption and for its reason: the main packet is real evidence, and an
+    optional addition breaking must never cost the episode it."""
+    try:
+        return await asyncio.to_thread(_story_look_blocking, *args)
+    except Exception as exc:  # noqa: BLE001 - see docstring
+        log.warning("the story's outlets could not be searched: %s; keeping "
+                    "the main packet", exc)
+        return None
+
+
+def _merge_story_look(packet: "Packet", found: tuple, packet_sources: int,
+                      highlights_per_source: int) -> int:
+    """Add the story look's results the main packet does not already hold.
+
+    Appended after the main packet, numbered as the GDELT cross-check's are,
+    dated and graded by `build_packet`, never a hostname. Returns how many
+    sources it added.
+    """
+    import provenance as provenance_mod
+
+    results, cost = found
+    packet.searches += 1
+    packet.cost += cost
+    held = {getattr(item, "url", "") for item in
+            getattr(packet.provenance, "items", []) or []}
+    fresh = [r for r in results if getattr(r, "url", "") not in held]
+    fresh = fresh[:max(1, packet_sources // 2)]
+    extra = build_packet(fresh, len(fresh), highlights_per_source)
+    if not fresh or not extra.strip():
+        return 0
+    packet.context = (packet.context or "") + "\n" + extra
+    for host in domains(fresh):
+        if host not in packet.sources:
+            packet.sources.append(host)
+    added = provenance_mod.from_results(fresh, retriever=packet.backend)
+    if packet.provenance is None:
+        packet.provenance = added
+    else:
+        for item in added.items:
+            packet.provenance.add(item)
+    return len(fresh)
+
+
 def _note_gaps(packet: "Packet", must_establish: list) -> "Packet":
     """Name what the brief asked for and this packet does not appear to hold.
 
@@ -1120,11 +1197,30 @@ async def retrieve(query: str, backend: Optional[str] = None,
     live_domain = str(getattr(brief, "live_domain", "") or "")
     include_domains = tuple(overrides.get("include_domains", ()) or ())
     must_name = str(overrides.get("must_name", "") or "")
-    packet = await asyncio.to_thread(
-        _retrieve_blocking, query, num_results, packet_sources,
-        highlights_per_source, search_type, recency_days, live_domain,
-        include_domains, must_name, chosen, objective,
-        queries_for(query, brief))
+    # **The tapped story's own outlets, beside the main search** (§265).
+    # Started first and never awaited for longer than the rest of this
+    # function takes: whatever it has found when the main packet (and its one
+    # retry, and the cross-check) are done is merged, and anything later is
+    # dropped. So it adds evidence and never a second to the first word.
+    story_hosts = tuple(overrides.get("story_hosts", ()) or ())
+    story_look = None
+    if story_hosts and not include_domains and not must_name:
+        story_look = asyncio.ensure_future(_story_look(
+            query, num_results, story_hosts, recency_days, live_domain,
+            chosen, objective, queries_for(query, brief)))
+    searched = False
+    try:
+        packet = await asyncio.to_thread(
+            _retrieve_blocking, query, num_results, packet_sources,
+            highlights_per_source, search_type, recency_days, live_domain,
+            include_domains, must_name, chosen, objective,
+            queries_for(query, brief))
+        searched = True
+    finally:
+        # A main search that raised takes the story look with it: there is
+        # no packet to add to, and the ladder will search again.
+        if story_look is not None and not searched:
+            story_look.cancel()
 
     covered, missing = packet_covers(packet.context, must_establish)
     packet.missing = list(missing)
@@ -1218,6 +1314,20 @@ async def retrieve(query: str, backend: Optional[str] = None,
                         packet.provenance.retrievers.append("gdelt")
                 log.info("gdelt cross-check added %d source(s) for %r",
                          len(ranked), query)
+
+    if story_look is not None:
+        if story_look.done() and not story_look.cancelled() \
+                and story_look.result() is not None:
+            added = _merge_story_look(packet, story_look.result(),
+                                      packet_sources, highlights_per_source)
+            log.info("the story's outlets added %d source(s) for %r",
+                     added, query)
+        else:
+            # Too late for this episode, by design: it was started beside
+            # the main search and is never waited for.
+            story_look.cancel()
+            log.info("the story's outlets had not answered by the time the "
+                     "main packet was ready for %r; not waited for", query)
 
     if not packet:
         # Retrieval succeeded and found nothing usable. Not an exception - the

@@ -43,6 +43,7 @@ import thumbnails as TH  # noqa: E402
 import provider_usage as PU  # noqa: E402
 import local_news as LN  # noqa: E402
 import gdelt as GD  # noqa: E402
+import story_store as SS  # noqa: E402
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 
@@ -72,6 +73,7 @@ STORES = [
     ("PROVIDER_USAGE_DB", "provider_usage.db", PU.UsageStore),
     ("LOCAL_NEWS_DB", "local_news.db", LN.LocalNewsStore),
     ("GDELT_EXPORT_DB", "gdelt_export.db", GD.ExportStore),
+    ("STORY_POOL_DB", "story_pool.db", SS.StoryStore),
 ]
 
 #: Every `data_path(...)` call in the app, read out of the source.
@@ -123,10 +125,11 @@ ALL_VARS = sorted(DECLARED)
 #: `LOCAL_NEWS_DB` (§194) is created by the local news collector's first
 #: sweep or the first local question, and reported once it exists - the
 #: same case again. `GDELT_EXPORT_DB` (§211) is created by the first export
-#: download, and reported once it exists.
+#: download, and reported once it exists. `STORY_POOL_DB` (§265) is created
+#: by the first story refresh, and reported once it exists.
 LAZY_STORES = {"VOICE_REGISTRY_DB", "TRENDING_BANK_DB", "VOICE_BANK_DB",
                "THUMBNAILS_DB", "PROVIDER_USAGE_DB", "LOCAL_NEWS_DB",
-               "GDELT_EXPORT_DB"}
+               "GDELT_EXPORT_DB", "STORY_POOL_DB"}
 
 
 @pytest.fixture(autouse=True)

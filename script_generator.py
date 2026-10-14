@@ -1457,6 +1457,14 @@ class ScriptGenerator:
 
         query = (getattr(plan.brief, "retrieval", "") or plan.query)
         configured = settings.research_backend
+        # **The story a tapped tile came from** (§265), looked up by the
+        # question the tile sent. Read here, after the tap and never by EI,
+        # so a brief prefetch warmed a sweep ago still matches: its outlets
+        # are searched beside the first rung, and its dated measurement
+        # joins the packet below.
+        import stories as stories_mod
+
+        story = stories_mod.context_for(plan.query)
 
         # **The ladder**, in cost order, stopping at the first rung that
         # brings back evidence. Each rung is the same call with a different
@@ -1467,7 +1475,8 @@ class ScriptGenerator:
         # deployment chose, then GDELT because it is keyless and takes one
         # HTTP call. Since §135 there is nothing below GDELT: the model's own
         # search was the last rung and is deleted.
-        packet = await self._retrieve(query, plan.brief, configured, plan.minutes)
+        packet = await self._retrieve(query, plan.brief, configured, plan.minutes,
+                                      story_hosts=story.hosts if story else ())
         _mark(notes, "first_rung_ready")
         spent = [packet]
 
@@ -1538,7 +1547,17 @@ class ScriptGenerator:
             return plan
         if notes is not None and packet.provenance is not None:
             notes.provenance = packet.provenance
-        return dataclasses.replace(plan, evidence=packet.context,
+        context = packet.context
+        measured = story.as_evidence() if story else ""
+        if measured:
+            # After the articles: what was reported leads, and the
+            # measurement says what the story is and why it is in front of
+            # the listener now. Only beside real evidence - alone it is a
+            # number with no story under it.
+            context = f"{context.rstrip()}\n\n{measured}"
+            if notes is not None:
+                notes.research["story_measured"] = True
+        return dataclasses.replace(plan, evidence=context,
                                    thin_on=tuple(packet.missing))
 
     async def _research_local(self, plan: EpisodePlan,
@@ -1621,7 +1640,7 @@ class ScriptGenerator:
             thin_on=tuple(getattr(packet, "missing", ()) or ()))
 
     async def _retrieve(self, query: str, brief, backend: str,
-                        minutes: int = 0):
+                        minutes: int = 0, story_hosts: tuple = ()):
         """One rung of the retrieval ladder. Never raises.
 
         **Every failure is caught here, not just `ResearchUnavailable`.** A
@@ -1643,6 +1662,8 @@ class ScriptGenerator:
         try:
             # More evidence for a longer episode (`research.packet_size`).
             size = research_mod.packet_size(minutes) if minutes else {}
+            if story_hosts:
+                size = {**size, "story_hosts": tuple(story_hosts)}
             return await research_mod.retrieve(query, backend=backend, brief=brief,
                                                **size)
         except research_mod.ResearchUnavailable as exc:

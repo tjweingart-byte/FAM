@@ -569,6 +569,7 @@
   story: it must name something the listener follows.
 
 <!-- rule:live-facts -->
+> **Current (PROBLEMS.md §265):** with Finnhub's own status *closed*, a closing price stays fresh until the next open (`market_closed`, `CLOSED_MARKET_MAX_AGE_SECONDS` = 96h) and is said as the last close; and the story sweep's watchlist quotes (`live_sources.QUOTES`) are reused on a tap when the session is unchanged and the quote passes the same check.
 > **Current (PROBLEMS.md §264):** a market price is fresh for an hour (`MAX_AGE_SECONDS["markets"]` = 3600s, was 300s), at the owner's direction; still withheld past it, still said with its time and delay.
 > **Current (PROBLEMS.md §178):** for the NFL, API-Sports also supplies each team's record (counted in code from regular-season finals on the team's own schedule), last result and next game, beside the game; a game not on today's card is resolved from the teams' schedules by the provider's own team catalogue. A game that has not started never has a score. The live block tells the writer that every number comes from it and never to describe the sources.
 
@@ -785,6 +786,7 @@
   mechanism, not yet about the writing.
 
 <!-- rule:tile-title-angle -->
+> **Current (PROBLEMS.md §265):** the pool and its ledgers are saved after every refresh and restored at boot (`story_store.py`, `STORY_POOL_DB`), so a redeploy no longer forgets a story's clock.
 - **A browse tile is a title and an angle; the script waits for the tap.**
   *(§102, `stories.py`, `MYFAM.md`.)* myFAM's inventory is now the evergreen
   bank **plus** a live story pool built from four sources, and the pool is the
@@ -956,6 +958,7 @@
   holding that story back would cost the personal rail its tile and still
   leave Trending short.
 <!-- rule:two-crowd-rows -->
+> **Current (PROBLEMS.md §265):** a tap still researches from scratch and `why_now` is still never evidence; research now also searches the tapped story's own outlets beside the first rung (never waited for) and appends the provider's dated measurement (`stories.context_for`), never the composer's words, never read by EI.
 - **Two rows on myFAM, two questions, and they are not blended.** *(§90,
   `trending.py`, `TRENDING.md`.)* **"What FAM can't stop listening to"** is this
   app's own play counts over its own bank — it already existed under the key

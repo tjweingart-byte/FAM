@@ -175,6 +175,10 @@ POOL_STORE = 96
 #: would be one region's worth.
 MAX_PER_SOURCE = 8
 
+#: How many of a story's articles it keeps (§265): the outlets a tap searches
+#: beside the ordinary search are drawn from these.
+MAX_STORY_URLS = 8
+
 
 # --------------------------------------------------------------------------
 # What a source reports
@@ -258,6 +262,11 @@ class Signal:
     #: Where the source that found it was looking, when it knows better than
     #: the publisher countries: a regional sweep's region, a league's country.
     region_hint: str = ""
+    #: The articles behind it, when the source clustered articles (GDELT's
+    #: does): the cluster's URLs, most representative first. A tap searches
+    #: the outlets that ran them beside the ordinary search (§265,
+    #: `context_for`); never read out, never a hostname in the packet.
+    urls: tuple = ()
     #: A live state the tile carries beside its title, written in code from
     #: the provider's own numbers and refreshed on every sweep - a score and
     #: the period, today. Never composed and never part of the title, so it
@@ -473,6 +482,14 @@ class Story:
     anchors: tuple = ()
     #: `Signal.minor_league`, carried through (§187).
     minor_league: bool = False
+    #: What the provider *measured* - `Signal.observation`, written in code,
+    #: never by the composer - and when, refreshed every sweep the story is
+    #: seen on. Handed to the writer on a tap as dated evidence (§265,
+    #: `StoryContext`), never to EI, so a warmed brief survives the sweep.
+    observation: str = ""
+    observed_at: float = 0.0
+    #: `Signal.urls`, carried through and refreshed (§265).
+    urls: tuple = ()
 
     @property
     def id(self) -> str:
@@ -1026,6 +1043,9 @@ def _story_from(signal: Signal, title: str, angle: str, query: str,
         live_status=signal.live_status,
         live_as_of=now if signal.live_line else 0.0,
         minor_league=bool(getattr(signal, "minor_league", False)),
+        observation=signal.observation,
+        observed_at=now,
+        urls=tuple(getattr(signal, "urls", ()) or ())[:MAX_STORY_URLS],
     )
 
 
@@ -1664,6 +1684,7 @@ def corroborate(signals: list) -> list:
             strength=max(float(signal.strength),
                          CORROBORATION_SHARE * float(story.strength)),
             keywords=tuple(signal.keywords) or tuple(story.keywords),
+            urls=tuple(signal.urls) or tuple(story.urls),
             observation=(f"{signal.observation}. The press is running it too: "
                          f"{story.coverage} outlets"),
         ))
@@ -1753,6 +1774,12 @@ def _seen_again(previous: Story, signal, now: float,
         outcome_pending=(bool(signal.outcome_pending) if signal.live_status
                          else previous.outcome_pending),
         query=query,
+        # The measurement moves with every sweep, like the strength does; a
+        # sweep that said nothing keeps the last one and its time (§265).
+        observation=signal.observation or previous.observation,
+        observed_at=now if signal.observation else previous.observed_at,
+        urls=(tuple(getattr(signal, "urls", ()) or ())[:MAX_STORY_URLS]
+              or previous.urls),
     )
 
 
@@ -1859,6 +1886,9 @@ async def refresh(now: Optional[float] = None) -> Pool:
                  len(_POOL.stories), len(_POOL.live(now)), len(composed),
                  _POOL.degraded,
                  ", ".join(f"{r.name}:{r.outcome}" for r in reports) or "no sources")
+        # Kept on the disk (§265), off the event loop. A write that fails is
+        # logged and the pool carries on in memory.
+        await asyncio.to_thread(save, now)
         return _POOL
     finally:
         _REFRESHING = False
@@ -1933,6 +1963,197 @@ def report() -> dict:
             if not ready else
             f"myFAM's story pool is fed by: {', '.join(ready)}"),
     }
+
+
+# --------------------------------------------------------------------------
+# Kept on the disk (§265)
+# --------------------------------------------------------------------------
+def _story_from_row(row: dict) -> Story:
+    """A saved story back into a `Story`, tuples and all. Unknown keys from
+    an older or newer build are dropped rather than refused."""
+    known = set(Story.__dataclass_fields__)
+    row = {k: v for k, v in (row or {}).items() if k in known}
+    for name in ("tags", "keywords", "anchors", "urls"):
+        if name in row:
+            row[name] = tuple(row[name] or ())
+    if "countries" in row:
+        row["countries"] = tuple(tuple(pair) for pair in row["countries"] or ())
+    return Story(**row)
+
+
+def save(now: Optional[float] = None) -> bool:
+    """Write the pool and its ledgers to `story_store`. Never raises.
+
+    After every refresh, so what a redeploy loses is at most one window's
+    sweep - and never a clock (`_FIRST_SEEN`, `_RETIRED`), which is what
+    makes a story age (`tile-title-angle`).
+    """
+    from dataclasses import asdict
+
+    now = time.time() if now is None else now
+    try:
+        import story_store
+
+        target = story_store.store()
+        target.put(story_store.POOL, {
+            "fetched_at": _POOL.fetched_at,
+            "stories": [asdict(story) for story in _POOL.stories],
+            "sources": [asdict(report) for report in _POOL.sources],
+        }, now)
+        target.put(story_store.LEDGERS, {
+            "first_seen": dict(_FIRST_SEEN), "retired": dict(_RETIRED),
+        }, now)
+        return True
+    except Exception:  # noqa: BLE001 - the pool still works in memory
+        log.exception("stories: could not save the pool; it is held in "
+                      "memory only until the next refresh")
+        return False
+
+
+def restore(now: Optional[float] = None) -> int:
+    """Read the saved pool back at boot. Returns how many stories it holds.
+
+    Only into an empty pool - a refresh that already ran is newer than the
+    disk - and only what has not expired. The ledgers are merged, never
+    replaced: a clock already running in this process is the earlier one.
+    Never raises: an unreadable store is a boot that sweeps as it always did.
+    """
+    global _POOL
+    now = time.time() if now is None else now
+    if not settings.stories or _POOL.stories:
+        return 0
+    try:
+        import story_store
+
+        if not story_store.exists():
+            return 0
+        target = story_store.store()
+        ledgers = target.get(story_store.LEDGERS) or {}
+        for key, at in (ledgers.get("first_seen") or {}).items():
+            _FIRST_SEEN.setdefault(str(key), float(at))
+        for key, at in (ledgers.get("retired") or {}).items():
+            _RETIRED.setdefault(str(key), float(at))
+        saved = target.get(story_store.POOL) or {}
+        held = [_story_from_row(row) for row in saved.get("stories") or []]
+        held = [story for story in held if not story.expired(now)]
+        known = set(SourceReport.__dataclass_fields__)
+        reports = [SourceReport(**{k: v for k, v in row.items() if k in known})
+                   for row in saved.get("sources") or [] if isinstance(row, dict)]
+        _POOL = Pool(stories=held[:POOL_STORE],
+                     fetched_at=float(saved.get("fetched_at") or 0.0),
+                     sources=reports)
+        log.info("stories: restored %d held stories from %s", len(held),
+                 target.path)
+        return len(held)
+    except Exception:  # noqa: BLE001 - see docstring
+        log.exception("stories: could not restore the saved pool; sweeping "
+                      "from empty")
+        return 0
+
+
+def forget_saved() -> None:
+    """Empty the saved copy, for a wipe (`demo_data`). Never raises."""
+    try:
+        import story_store
+
+        if story_store.exists():
+            story_store.store().clear()
+    except Exception:  # noqa: BLE001 - a browse cache is never load-bearing
+        log.exception("stories: could not empty the saved pool")
+
+
+# --------------------------------------------------------------------------
+# What a tap carries to the writer (§265)
+# --------------------------------------------------------------------------
+#: How old a measurement may be and still go to the writer. Past it the
+#: number is a stale blurb, which is what `two-crowd-rows` forbids becoming
+#: a stale episode, so it is left out and the tap is researched as before.
+STORY_MEASUREMENT_MAX_AGE = 6 * 3600.0
+#: How many of the story's outlets the tap's second search may look in.
+MAX_STORY_HOSTS = 6
+
+
+@dataclass(frozen=True)
+class StoryContext:
+    """What the sweep knew about the story a tapped tile came from.
+
+    **The one place this is built** (`context_for`), read by research and
+    nowhere else. In particular **never by EI**: the observation moves on
+    every sweep, and a brief that depended on it would miss the brief
+    prefetch warmed for the same tile a sweep earlier - each miss paying the
+    whole EI call after the tap. Research runs after the tap anyway, so this
+    costs the first word nothing.
+    """
+
+    subject: str
+    domain: str
+    observation: str = ""
+    observed_at: float = 0.0
+    #: The outlets that ran the story's articles (hosts, never shown).
+    hosts: tuple = ()
+
+    def as_evidence(self, now: Optional[float] = None) -> str:
+        """The measurement as one dated block for the packet, or "".
+
+        Dated in code like every source (`recency-credibility`); it carries
+        no hostname, because the observation is written from numbers and
+        headlines (`story_sources`), never from outlet names.
+        """
+        now = time.time() if now is None else now
+        text = " ".join((self.observation or "").split())
+        if not text or not self.observed_at:
+            return ""
+        if now - self.observed_at > STORY_MEASUREMENT_MAX_AGE:
+            return ""
+        import listener_clock
+        import research
+
+        when = datetime.fromtimestamp(self.observed_at, tz=timezone.utc)
+        return (
+            "WHAT FAM MEASURED\n"
+            f"Measured: {listener_clock.say(when)} "
+            f"({research.age_phrase(when, listener_clock.now())})\n"
+            "Source type: FAM's own sweep of the news and markets - a "
+            "measurement of attention or price, not an article.\n"
+            f"Key evidence:\n{text[:900]}\n"
+            "It says how much this is being covered or how far a price moved, "
+            "never why and never how anything ended. Use it to know what the "
+            "story is and why it is in front of the listener now; never "
+            "mention FAM's measuring, and never open with the coverage "
+            "numbers unless the coverage itself is the story.\n")
+
+
+def _same_question(a: str, b: str) -> bool:
+    return " ".join((a or "").lower().split()) == " ".join((b or "").lower().split())
+
+
+def context_for(query: str, now: Optional[float] = None) -> Optional[StoryContext]:
+    """The held story whose question this is, as a `StoryContext`, or None.
+
+    Matched on the question itself, which is what a tile tap sends and what
+    the cache is keyed on - so a typed search of the very same question gets
+    the same evidence, and two listeners under one key were written from the
+    same inputs. Expired stories are not matched. Never raises.
+    """
+    try:
+        import provenance
+
+        now = time.time() if now is None else now
+        for story in _POOL.held(now):
+            if not _same_question(story.query, query):
+                continue
+            hosts: list = []
+            for url in story.urls or ((story.url,) if story.url else ()):
+                host = provenance.clean_host(url)
+                if host and host not in hosts:
+                    hosts.append(host)
+            return StoryContext(subject=story.subject, domain=story.domain,
+                                observation=story.observation,
+                                observed_at=story.observed_at,
+                                hosts=tuple(hosts[:MAX_STORY_HOSTS]))
+    except Exception:  # noqa: BLE001 - a tap researches as before
+        log.exception("stories: could not read the story behind %r", query)
+    return None
 
 
 def install() -> dict:

@@ -228,7 +228,7 @@ def _story(row: dict, cls):
     """A stored story back into a `stories.Story`, tuples and all."""
     known = {f for f in cls.__dataclass_fields__}
     row = {k: v for k, v in row.items() if k in known}
-    for name in ("tags", "keywords", "anchors"):
+    for name in ("tags", "keywords", "anchors", "urls"):
         if name in row:
             row[name] = tuple(row[name] or ())
     if "countries" in row:

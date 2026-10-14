@@ -277,6 +277,7 @@ class GdeltSignals(stories.StorySource):
             strength=0.5,
             as_of=now,
             url=group.urls[0] if group.urls else "",
+            urls=tuple(group.urls[:stories.MAX_STORY_URLS]),
             countries=countries,
             keywords=group.keywords(),
             coverage=group.outlets,
@@ -442,7 +443,27 @@ class FinnhubSignals(stories.StorySource):
                 log.debug("stories/finnhub: %s failed: %s", symbol, exc)
                 return symbol, None
 
-        rows = await asyncio.gather(*(quote(s) for s in symbols))
+        import live_sources
+
+        # The session beside the quotes, so a tap can reuse them (§265):
+        # one more request per sweep, and the quotes are kept for every
+        # watchlist symbol, moved or not - a tap asks about any of them.
+        async def session():
+            try:
+                data = await _json(f"{self.BASE}/stock/market-status", {},
+                                   {"exchange": "US",
+                                    "token": settings.finnhub_key}, timeout)
+            except Exception as exc:  # noqa: BLE001 - unknown, never a guess
+                log.debug("stories/finnhub: market status failed: %s", exc)
+                return None
+            value = (data or {}).get("isOpen")
+            return value if isinstance(value, bool) else None
+
+        rows, is_open = await asyncio.gather(
+            asyncio.gather(*(quote(s) for s in symbols)), session())
+        for symbol, data in rows:
+            if data:
+                live_sources.remember_quote(symbol, data, is_open)
         threshold = float(settings.stories_market_move_percent)
         moved = []
         for symbol, data in rows:

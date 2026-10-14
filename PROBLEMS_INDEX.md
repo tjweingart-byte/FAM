@@ -267,4 +267,5 @@ and `limit` = Lines.
 | 18785 | 68 | 261. The brief on Haiku 5.5 at medium effort |
 | 18853 | 32 | 262. SportsDataIO and Alpha Vantage are removed |
 | 18885 | 35 | 263. The first loading step, the playlist skip, and where "Forgot password?" went |
-| 18920 | 23 | 264. A market price is fresh for an hour |
+| 18920 | 22 | 264. A market price is fresh for an hour |
+| 18942 | 76 | 265. What the sweeps know reaches the writer, and survives a redeploy |
