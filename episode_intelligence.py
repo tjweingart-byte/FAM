@@ -4,12 +4,12 @@ FAM EI is the layer between what someone typed and what the pipeline goes and
 looks up. It answers the questions the blueprint asks - what is being asked for,
 why it might be being asked now, what the retrieval must actually find, what
 shape the story takes, and how deep the chosen duration should go - and it does
-all of that **before** Exa is called, so that the one search FAM pays for is a
+all of that **before** the search is called, so that the one search FAM pays for is a
 search for the right thing.
 
 Why it sits here and not after retrieval
 ----------------------------------------
-A gate downstream of Exa can only judge an episode built on whatever the packet
+A gate downstream of the search can only judge an episode built on whatever the packet
 happened to contain. If the query that produced the packet was wrong - "Nvidia"
 searched literally when what the listener wanted was yesterday's results - then
 by the time anything is checked the evidence is already the wrong evidence and
@@ -225,7 +225,7 @@ class Brief:
     #: high | medium | low. Governs how hard the episode may lean on `why_now`.
     #: `low` means treat the request as evergreen and do not invent a trigger.
     why_now_confidence: str = "low"
-    #: What actually goes to Exa. The single highest-value field here.
+    #: What actually goes to the search. The single highest-value field here.
     search_query: str = ""
     #: The same search, broader, for when the first comes back with nothing.
     #: Written in the same call as `search_query` and costing a handful of
@@ -961,7 +961,8 @@ FIELD_GUIDE = """- **intent** - what job is being asked for.
 - **cautions** - what the writer must not assume, especially about time. If
   something may not have happened yet, or may have happened days rather than
   hours ago, say so here. This is where a wrong tense gets caught.
-- **live_domain** - `sports` if this turns on a score, fixture or standing;
+- **live_domain** - `sports` if this turns on a score, fixture or standing,
+  or on a player's season, form or injury;
   `markets` if it turns on a price, index or rate; `elections` if it turns on
   a vote, a race, a referendum or the odds on one; empty otherwise. Pick the
   thing the answer *turns on*, not the subject area: "how does the electoral
@@ -969,9 +970,10 @@ FIELD_GUIDE = """- **intent** - what job is being asked for.
   is `elections`. `weather` if what they want is the weather or a forecast
   somewhere - and then **place** names where.
 - **live_entity** - whenever the request is about a team, a game between
-  teams, a company or fund or index, or a race, its bare name as a scoreboard
-  or a stock search lists it, whatever live_domain is: "Kansas City Chiefs",
-  "Kansas City Chiefs, Buffalo Bills", "NVIDIA", "S&P 500". Full official
+  teams, a player or athlete, a company or fund or index, or a race, its bare
+  name as a scoreboard, a roster or a stock search lists it, whatever
+  live_domain is: "Kansas City Chiefs", "Kansas City Chiefs, Buffalo Bills",
+  "Patrick Mahomes", "NVIDIA", "S&P 500". Full official
   names, no description, no year, no angle, no possessive. Empty when the
   request names none of these.
 - **outcome_dependent** - true if what they want is a result that only exists

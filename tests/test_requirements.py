@@ -51,13 +51,6 @@ DELIBERATELY_OPTIONAL = {
     # near matching degrades rather than breaking. PROBLEMS.md 68.
     "onnxruntime": "optional; embeddings.py falls back and says so",
     "tokenizers": "optional; embeddings.py falls back and says so",
-    # The Exa research backend, installed from requirements-exa.txt and needed
-    # only when RESEARCH_BACKEND=exa. The default backend is `claude`, which
-    # uses Anthropic's server-side search and needs nothing here. Imported
-    # inside research._client, which raises ResearchUnavailable naming the
-    # missing package, and research.diagnose() reports it on /api/health - so
-    # the app starts and says what it cannot do.
-    "exa_py": "requirements-exa.txt",
     # Sign in with Google and Sign in with Apple, installed from
     # requirements-oauth.txt. Imported inside `oauth._library`, which raises
     # OAuthUnavailable naming the pip line; /api/health reports it per
@@ -127,8 +120,9 @@ def imported() -> dict:
 def normalise(name: str) -> str:
     """One spelling for a package, whichever side of the comparison it is on.
 
-    `exa_py` the module is `exa-py` the package. This used to normalise the
-    import names and not the keys of DELIBERATELY_OPTIONAL, so an entry for a
+    `typing_extensions` the module is `typing-extensions` the package. This
+    used to normalise the import names and not the keys of
+    DELIBERATELY_OPTIONAL, so an entry for a
     package with an underscore in it never matched - the list looked right and
     the guard failed anyway. Every existing entry happened to be a single word,
     which is why nothing caught it until one wasn't.

@@ -296,7 +296,7 @@ FEATURES: tuple[Feature, ...] = (
             "Costs one cached lookup and offers the predicted follow-up. "
             "Gating it would make the free tier feel like a demo."),
     Feature("research", "Live research", "free",
-            "Exa searches are billed per call and are the one per-episode "
+            "Web searches are billed per call and are the one per-episode "
             "cost that is not the model. The strongest candidate for a gate."),
     Feature("attachments", "Documents and photos", "free",
             "Extraction is done at attach time, so the marginal cost is "

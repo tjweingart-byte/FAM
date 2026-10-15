@@ -3,8 +3,9 @@
 Two jobs from one upstream, because GDELT answers two different questions and
 FAM has two different clocks for them:
 
-* **Evidence** (`retrieve`) - a second index beside Exa: the rung an episode
-  falls to when Exa comes back empty, and the optional cross-check.
+* **Evidence** (`retrieve`) - a second index beside the web search: the rung
+  an episode falls to when the web backends come back empty, and the
+  optional cross-check.
 * **Attention** (`discover`, `volume_for`, `GdeltTrendingSource`) - what the
   world's press is running, for the story pool and the Trending registry.
 
@@ -124,7 +125,7 @@ _FIPS_NAMES = {
 
 
 class _Result:
-    """One article, shaped like the Exa result the rest of FAM already reads.
+    """One article, shaped like the search result the rest of FAM already reads.
 
     Duck-typed rather than adapted at the call site, so `research.rank_results`,
     `research.credibility`, `research.published_at` and `provenance.from_results`
@@ -873,7 +874,7 @@ def available() -> tuple[bool, str]:
 
 async def retrieve(query: str, limit: int = 0,
                    recency_days: int = 0) -> list:
-    """Articles for `query` from the copy, as Exa-shaped results. Never raises.
+    """Articles for `query` from the copy, as search-shaped results. Never raises.
 
     A local read: nothing here reaches GDELT, so an episode's fallback rung
     costs GDELT nothing however many listeners there are. `[]` on any

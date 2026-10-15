@@ -603,6 +603,22 @@ async def _live_by(task, plan, domain: str, began: float):
                        "still asking when the evidence was in")]))
 
 
+async def _players_by(task, began: float):
+    """The player report, once the evidence is in: waited for until its own
+    clock from when it began (`live_facts.players_budget_seconds`), then
+    dropped - a report that is late is an episode written without one."""
+    wait = max(0.0, began + live_facts.players_budget_seconds() - time.monotonic())
+    try:
+        plan = await asyncio.wait_for(asyncio.shield(task), wait) \
+            if not task.done() else task.result()
+    except asyncio.TimeoutError:
+        task.cancel()
+        log.info("player report: still asking when the evidence was in; "
+                 "writing without it")
+        return None
+    return plan.players
+
+
 def _mark(notes: "ScriptNotes | None", name: str) -> None:
     """Record one pre-writing stage on the episode's clock, if it has one."""
     marks = getattr(notes, "marks", None)
@@ -703,12 +719,9 @@ class EpisodePlan:
     #: these is theirs alone: `pipeline` refuses to cache it, so it never
     #: reaches Explore or another listener.
     attachments: tuple = ()
-    #: Retrieved evidence for a researched episode, when the `exa` backend
-    #: fetched it. Empty on the `claude` backend, where the model searches
-    #: inside its own turn and there is nothing to carry. Its presence is what
-    #: `_request_kwargs` reads to decide whether to attach the search tool -
-    #: the two are alternatives, never both, or the model would search on top
-    #: of evidence it was already given.
+    #: Retrieved evidence for a researched episode, as the packet the search
+    #: built. Empty when nothing was found; the writing call never carries a
+    #: search tool either way (§135).
     #:
     #: Last on purpose. This class is built positionally below, so a field
     #: inserted anywhere earlier silently shifts every argument after it -
@@ -757,6 +770,11 @@ class EpisodePlan:
     #: market only what people expect - and never evidence of an outcome.
     #: **Never in the cache key**: it is derived from the request.
     forecast: object = None
+    #: A player's or a team's report (§275): season figures and the league's
+    #: injury report, from `live_facts.players`. Beside `live`, never in its
+    #: place - a season average is not the state of tonight's game. **Never
+    #: in the cache key**: it is derived from the request.
+    players: object = None
     #: The packet as the writer reads it when the evidence cut ran (§270,
     #: `evidence_digest`): the sources' own sentences, fewer of them. ""
     #: means the writer reads `evidence` whole. Only the writer's prompt
@@ -998,6 +1016,16 @@ and do not claim anything about a document beyond what is in it.
                 "later. Do not narrate what you did or did not find, and never "
                 "end the episode on one of these - the last line is the "
                 "strongest thing you have, and a missing fact is never it.\n")
+        reference = ""
+        if research_mod.TIER_LABELS["reference"] in plan.evidence:
+            # §278: the encyclopedia entry, and what it may be used for.
+            reference = (
+                "\nA source marked as a reference encyclopedia is background: "
+                "use it for settled facts - who someone is, when they were "
+                "born, what an organisation is - and take anything that "
+                "changes from the dated sources, which win wherever the two "
+                "differ. Never repeat its sentences word for word; say it in "
+                "your own words.\n")
         evidence = f"""
 Someone has already searched the web for this and pulled out the passages
 below. They are your source for anything current: read them and use what they
@@ -1020,7 +1048,7 @@ long settled may be.
 Never read a source's title, number, date or URL aloud. This is someone
 listening, not reading a citation list - the dates are for your reasoning, not
 for the script.
-{thin}
+{reference}{thin}
 <evidence>
 {plan.evidence_digest or plan.evidence}
 </evidence>
@@ -1041,6 +1069,14 @@ for the script.
             log.warning("a live-facts block could not be rendered; continuing "
                         "without it", exc_info=True)
             live = ""
+    # A player's or a team's report (§275), after the scoreboard: its own
+    # block, its own rules, and only a found one is rendered.
+    if plan.players is not None:
+        try:
+            live += plan.players.as_prompt_block()
+        except Exception:  # noqa: BLE001
+            log.warning("a player report could not be rendered; continuing "
+                        "without it", exc_info=True)
     # A market forecast (§211), after the live state it never outranks. Its
     # own block says the articles win; only a found forecast is rendered.
     if plan.forecast is not None:
@@ -1068,7 +1104,7 @@ for the script.
     # winner is named on Friday - are not failures of reasoning but of nobody
     # having said that the tense has to be derived rather than chosen.
     temporal = ""
-    if plan.evidence or plan.live is not None:
+    if plan.evidence or plan.live is not None or plan.players is not None:
         temporal = """
 Time, and this is where these go wrong most often:
 
@@ -1619,7 +1655,7 @@ class ScriptGenerator:
         that the retrieval is a step a caller can see, time and skip, rather
         than something buried inside the streaming call.
 
-        **Exa and GDELT, and nothing else** (§135). The model never searches:
+        **The web backends and GDELT, and nothing else** (§135). The model never searches:
         a `claude` backend used to run Anthropic's `web_search` in a research
         call of its own, and before that on the writing call itself (§108).
         Both are deleted. The writing call never carries a tool.
@@ -1642,7 +1678,7 @@ class ScriptGenerator:
             return plan
 
         # **A question about one town takes the local ladder** (§194):
-        # its own outlets, its county's, then Exa on its known outlets - and
+        # its own outlets, its county's, then a web search on its known outlets - and
         # never GDELT, at the owner's direction.
         place_text = str(getattr(plan.brief, "place", "") or "").strip()
         if place_text and settings.local_news:
@@ -1658,6 +1694,10 @@ class ScriptGenerator:
         import stories as stories_mod
 
         story = stories_mod.context_for(plan.query)
+        # **The reference look** (§278): the name the brief resolved, looked
+        # up on Wikipedia and Wikidata beside each rung's search and added
+        # as one extra source when it is back in time. "" for none.
+        reference = research_mod.reference_name_for(plan.brief)
 
         # **The ladder**, in cost order, stopping at the first rung that
         # brings back evidence. Each rung is the same call with a different
@@ -1669,7 +1709,8 @@ class ScriptGenerator:
         # HTTP call. Since §135 there is nothing below GDELT: the model's own
         # search was the last rung and is deleted.
         packet = await self._retrieve(query, plan.brief, configured, plan.minutes,
-                                      story_hosts=story.hosts if story else ())
+                                      story_hosts=story.hosts if story else (),
+                                      reference_name=reference)
         _mark(notes, "first_rung_ready")
         spent = [packet]
 
@@ -1694,7 +1735,8 @@ class ScriptGenerator:
                 continue
             log.info("%s found nothing usable for %r; trying %s on %r before "
                      "writing", configured, query, rung, wider)
-            better = await self._retrieve(wider, plan.brief, rung, plan.minutes)
+            better = await self._retrieve(wider, plan.brief, rung, plan.minutes,
+                                          reference_name=reference)
             spent.append(better)
             if better:
                 better.fell_back_from = configured
@@ -1724,8 +1766,8 @@ class ScriptGenerator:
                     continue
                 # The vendor's own reported cost where it gave one, its
                 # published rate otherwise. **Only for the paid web
-                # backends** (§258: Parallel, Perplexity, Exa):
-                # `Usage.exa_searches` is the column every paid search is
+                # backends** (§258: Parallel, Perplexity):
+                # `Usage.web_searches` is the column every paid search is
                 # counted in, and filing GDELT's fetches under it would make
                 # the one number `usage_report.py` prints about retrieval a
                 # mixture of two things.
@@ -1765,7 +1807,7 @@ class ScriptGenerator:
     async def _research_local(self, plan: EpisodePlan,
                               notes: ScriptNotes | None,
                               place_text: str) -> EpisodePlan:
-        """The local ladder (§194): town, county, Exa on known outlets.
+        """The local ladder (§194): town, county, a web search on known outlets.
 
         The weather is asked for at the same time, because when the town
         has nothing the episode opens with that and then the weather, and
@@ -1784,7 +1826,7 @@ class ScriptGenerator:
 
         spent: list = []
 
-        async def exa(query: str, domains: tuple, must_name: str):
+        async def search(query: str, domains: tuple, must_name: str):
             # A web search on the known outlets (§194; Parallel since §258),
             # down the same web backends the ladder would use when one cannot
             # serve - never GDELT, which is off this path entirely.
@@ -1815,7 +1857,7 @@ class ScriptGenerator:
         forecast = None
         if place.located and settings.weather:
             forecast = asyncio.create_task(weather.forecast_for(place))
-        local = await local_news.research_local(place, plan.brief, exa=exa)
+        local = await local_news.research_local(place, plan.brief, search=search)
         if forecast is not None:
             if local.gap:
                 local.weather, weather_attempts = await forecast
@@ -1842,11 +1884,12 @@ class ScriptGenerator:
             thin_on=tuple(getattr(packet, "missing", ()) or ()))
 
     async def _retrieve(self, query: str, brief, backend: str,
-                        minutes: int = 0, story_hosts: tuple = ()):
+                        minutes: int = 0, story_hosts: tuple = (),
+                        reference_name: str = ""):
         """One rung of the retrieval ladder. Never raises.
 
         **Every failure is caught here, not just `ResearchUnavailable`.** A
-        missing key raises that; an Exa 500, a timeout, a DNS failure, a
+        missing key raises that; a vendor 500, a timeout, a DNS failure, a
         rate limit and a malformed reply raise something else entirely, and
         `research.retrieve` does not wrap them. While the from-knowledge
         cover existed, an exception on this path was survivable - the cover
@@ -1866,6 +1909,8 @@ class ScriptGenerator:
             size = research_mod.packet_size(minutes) if minutes else {}
             if story_hosts:
                 size = {**size, "story_hosts": tuple(story_hosts)}
+            if reference_name:
+                size = {**size, "reference_name": reference_name}
             return await research_mod.retrieve(query, backend=backend, brief=brief,
                                                **size)
         except research_mod.ResearchUnavailable as exc:
@@ -1956,6 +2001,22 @@ class ScriptGenerator:
         _mark(notes, "live_ready")
         return plan if result is None else dataclasses.replace(plan, live=result)
 
+    async def players_lookup(self, plan: EpisodePlan,
+                             notes: ScriptNotes | None = None) -> EpisodePlan:
+        """A player's or a team's report, on a sports question (§275).
+        Started beside the scoreboard by `prepare`, and waited for the same
+        way: never longer than its own clock past the evidence."""
+        if plan.brief is None or plan.players is not None:
+            return plan
+        try:
+            result = await live_facts.players(
+                plan.brief, notes, patience=float(settings.live_patient_seconds))
+        except Exception:  # noqa: BLE001 - a report is never worth an episode
+            log.warning("the player lookup failed; writing without one",
+                        exc_info=True)
+            return plan
+        return plan if result is None else dataclasses.replace(plan, players=result)
+
     async def forecast_lookup(self, plan: EpisodePlan,
                               notes: ScriptNotes | None = None) -> EpisodePlan:
         """What prediction markets expect, when the brief says the answer
@@ -2024,6 +2085,8 @@ class ScriptGenerator:
         live_began = time.monotonic()
         domain = live_route.domain_of(plan.brief)
         live_task = asyncio.ensure_future(self.live_lookup(plan, notes))
+        # A player's or a team's report (§275), beside the scoreboard.
+        players_task = asyncio.ensure_future(self.players_lookup(plan, notes))
         # When the lookup itself finished, not when the search beside it did
         # (review, §273): it is awaited only after the search.
         live_done: list = []
@@ -2053,6 +2116,7 @@ class ScriptGenerator:
                         getattr(notes, "ahead", False)
                         or getattr(notes, "prefetch", False)))))
             live_plan = await _live_by(live_task, plan, domain, live_began)
+            players = await _players_by(players_task, live_began)
             if live_plan.live is not None:
                 pipeline_errors.step("live lookup", path,
                                      str(getattr(live_plan.live, "outcome", "") or ""),
@@ -2063,6 +2127,7 @@ class ScriptGenerator:
             # shielded wait does not cancel what it shields.
             forecast_task.cancel()
             live_task.cancel()
+            players_task.cancel()
             if digest_task is not None:
                 digest_task.cancel()
             raise
@@ -2109,7 +2174,7 @@ class ScriptGenerator:
             plan, live=live_plan.live, evidence=research_plan.evidence,
             evidence_digest=cut,
             thin_on=research_plan.thin_on, local=research_plan.local,
-            forecast=forecast)
+            forecast=forecast, players=players)
 
         # The weather the local ladder fetched when the town had nothing
         # (§194) reaches the writer the way any live state does - one block,
@@ -2160,6 +2225,9 @@ class ScriptGenerator:
             live_source = provenance_mod.from_live(plan.live)
             if live_source is not None:
                 notes.provenance.add(live_source)
+            players_source = provenance_mod.from_live(plan.players)
+            if players_source is not None:
+                notes.provenance.add(players_source)
             forecast_source = provenance_mod.from_live(plan.forecast)
             if forecast_source is not None:
                 notes.provenance.add(forecast_source)

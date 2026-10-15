@@ -1,7 +1,7 @@
 """Every way the pipeline went wrong, in one place, for `/admin` (§269).
 
 The owner (10.14): "a section in the admin page that tracks errors happening
-with any part of the pipeline (API-Sports refused, EI timed out, etc.) to help
+with any part of the pipeline (a sports provider refused, EI timed out, etc.) to help
 us react faster to bugs". Each of those was already *said* somewhere - a log
 line, a counter in `/api/health`, a row on the routing card - and none of them
 was where somebody looks first. Five timeouts in eleven briefs (§268) sat in

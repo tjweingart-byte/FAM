@@ -173,44 +173,43 @@ def _env_float(name: str, default: float) -> float:
 
 #: How a researched episode gets its facts.
 #:
-#: **`parallel` is the default since §258**, at the owner's direction: Parallel's
-#: Search API at about a seventh of Exa's price, with `perplexity` - a second,
-#: independent index - as the second look and the first rung below it, and
-#: GDELT as the free floor. `exa` stays selectable so the two can be compared
-#: on the same questions before it is deleted. What follows is the reasoning
-#: as it was written for Exa, and holds for whichever web backend is chosen.
+#: **`parallel` is the default since §258**, at the owner's direction:
+#: Parallel's Search API retrieves first and hands the writer an evidence
+#: packet to read, with `perplexity` - a second, independent index - as the
+#: second look and the first rung below it, and GDELT as the free floor. The
+#: retrieval is a bounded, timed step this codebase can measure.
 #:
-#: `exa` retrieves first and hands Claude an evidence packet to read. The
-#: retrieval is a bounded, timed step this codebase can measure - `research.py`
-#: keeps the call and the packet byte-for-byte as the manual benchmark measured
-#: them, so the numbers already taken by hand stay comparable.
-#:
-#: `exa` is the default. That is a real cost: it needs a credential, and a
-#: deployment without EXA_API_KEY falls to GDELT (when `GDELT=1`) or refuses a
-#: question that needs today's facts. The app says so at startup and on every
-#: /api/health, because a missing credential discovered on a listener's first
-#: researched question is the shape of failure this project has paid for most.
+#: The default needs a credential (PARALLEL_API_KEY), and a deployment
+#: without one falls to Perplexity, then GDELT (when `GDELT=1`). The app says
+#: so at startup and on every /api/health, because a missing credential
+#: discovered on a listener's first researched question is the shape of
+#: failure this project has paid for most.
 #:
 #: **`gdelt` is the keyless one** (§109). A retriever in its own right and the
-#: ladder's fallback rung: weaker than Exa - an article index with no
-#: highlights - and available to a deployment with no retrieval credential.
+#: ladder's floor: weaker than the web backends - an article index with no
+#: passages - and available to a deployment with no retrieval credential.
 #:
-#: **`claude` is gone** (§135, at the owner's direction): everything an episode
-#: is written from comes from Exa, GDELT and the live providers, and the model
-#: never searches the web for FAM. A deployment that still sets it runs on the
-#: default backend and is told so at startup and on /api/health - not refused,
-#: because it was a working value until now and a refusal would stop the
-#: server booting on the deploy that removed it.
+#: **A retired value is replaced, loudly, never refused.** `claude` (§135:
+#: the model never searches the web for FAM) was a working value once, so a
+#: deployment may still set it; it runs on the default backend and is told
+#: so at startup and on /api/health, because a refusal would stop the server
+#: booting on the deploy that removed it.
 #:
-#: A value outside this tuple is refused - at import by
+#: Any other value outside this tuple is refused - at import by
 #: `Settings.__post_init__`, and again at retrieval time by `research.retrieve`
 #: - rather than falling back to one silently. What the *ladder* does when a
 #: rung comes back empty is a different thing, and it is recorded on the
 #: packet every time (`fell_back_from`).
-RESEARCH_BACKENDS = ("parallel", "perplexity", "exa", "gdelt")
+RESEARCH_BACKENDS = ("parallel", "perplexity", "gdelt")
+
+#: Values `RESEARCH_BACKEND` used to accept, run as the default instead.
+#: "exa" since §279: the vendor is gone from the code, but a dashboard may
+#: still name it, and refusing it would make the merge a server that will
+#: not boot.
+RETIRED_RESEARCH_BACKENDS = ("claude", "exa")
 
 #: The ones among them that send a query to a paid search vendor (§258).
-WEB_RESEARCH_BACKENDS = ("parallel", "perplexity", "exa")
+WEB_RESEARCH_BACKENDS = ("parallel", "perplexity")
 
 #: What a deployment gets when it says nothing. Named rather than repeated as a
 #: literal, for the same reason as DEFAULT_PIPELINE.
@@ -394,7 +393,7 @@ class Settings:
     # `web_search` tool, which front-loads 10-25 seconds; at that price a
     # keyword guess about which questions "read as time-sensitive" was worth
     # making, because the ones guessed wrong only lost freshness while the ones
-    # guessed right saved half a minute. With `RESEARCH_BACKEND=exa` -
+    # guessed right saved half a minute. With a web search backend -
     # DEFAULT_RESEARCH_BACKEND above - retrieval is about half a second, and at
     # that price the guess costs more than it saves: every question it gets
     # wrong is answered from memory that may be years stale, and nothing
@@ -406,7 +405,7 @@ class Settings:
     # already written.
     #
     # `auto` and `never` are kept, and are what `write.py`, `compare_search.py`
-    # and a deployment without an Exa key use. They are not production.
+    # and a deployment without a search key use. They are not production.
     # A request can still say search=1 or search=0 explicitly and win.
     search_mode: str = field(
         default_factory=lambda: (
@@ -420,7 +419,7 @@ class Settings:
         default_factory=lambda: os.environ.get("ENABLE_WEB_SEARCH", "0") not in ("0", "false", "False", "")
     )
     max_web_searches: int = _env_int("MAX_WEB_SEARCHES", 3)  # a ceiling, not a target
-    # parallel | perplexity | exa | gdelt - see RESEARCH_BACKENDS above.
+    # parallel | perplexity | gdelt - see RESEARCH_BACKENDS above.
     # Only consulted when an episode is actually being researched; an
     # unresearched one costs nothing either way.
     research_backend: str = field(
@@ -429,25 +428,29 @@ class Settings:
     # The retired value `research_backend` was set to and replaced from, or
     # "" - see `__post_init__`. Reported, never read to decide anything.
     research_backend_replaced: str = ""
-    # The three numbers the manual Exa benchmark hard-coded, which are exactly
-    # the knobs worth sweeping. Their defaults reproduce that run: 8 results
-    # fetched, the top 3 in the packet, 2 highlights each. Raising
-    # `exa_packet_sources` buys more evidence and costs prompt tokens on every
-    # researched episode; nobody has measured where that stops paying.
-    exa_num_results: int = _env_int("EXA_NUM_RESULTS", 8)
-    exa_packet_sources: int = _env_int("EXA_PACKET_SOURCES", 3)
-    exa_highlights_per_source: int = _env_int("EXA_HIGHLIGHTS_PER_SOURCE", 2)
-    # Whether the evidence packet carries a publication date and a publisher
+    # How much evidence a researched episode is handed: 10 results fetched
+    # (Parallel's and Perplexity's fast price covers up to 10),
+    # the top 5 in the packet, 3 passages each - what every two-minute
+    # episode gets, and so every myFAM, DailyFAM and Trending episode
+    # (§276). It was 3 sources x 2 passages (the hand-measured 2026-09-05
+    # benchmark), about 3 KB, and lists, tables, schedules and rankings were
+    # the first thing it cut. Longer episodes get more
+    # (`research.packet_size`). The cost is prompt tokens - roughly a
+    # thousand more per researched episode - never another search; set 3
+    # and 2 to go back.
+    search_num_results: int = _env_int("SEARCH_NUM_RESULTS", 10)
+    search_packet_sources: int = _env_int("SEARCH_PACKET_SOURCES", 5)
+    search_highlights_per_source: int = _env_int("SEARCH_HIGHLIGHTS_PER_SOURCE", 3)
+    # Whether the evidence packet carries a publication date and a grade
     # beside each source.
     #
     # **On, and this is the cheapest quality fix in the codebase.** The packet
-    # used to be title plus highlights, so an episode was asked whether
+    # used to be title plus passages, so an episode was asked whether
     # something happened last night or two days ago from evidence with no dates
-    # in it. Exa was already returning both fields and `build_packet` was
-    # discarding them. Set to 0 only to reproduce the hand-measured 2026-09-05
+    # in it. Set to 0 only to reproduce the hand-measured 2026-09-05
     # benchmark, whose numbers were taken on the undated shape.
-    exa_dated_packet: bool = field(
-        default_factory=lambda: os.environ.get("EXA_DATED_PACKET", "1")
+    search_dated_packet: bool = field(
+        default_factory=lambda: os.environ.get("SEARCH_DATED_PACKET", "1")
         not in ("0", "false", "False", ""))
     # Whether a packet missing what the brief asked for buys one more search.
     #
@@ -476,15 +479,18 @@ class Settings:
         default_factory=lambda: os.environ.get(
             "PARALLEL_MODE", "").strip().lower() or "fast")
     # The most excerpt text Parallel returns per page, cut into passages.
-    parallel_chars_per_result: int = _env_int("PARALLEL_CHARS_PER_RESULT", 1500)
+    # 3,000 since §276 (was 1,500): three passages of about 500 characters
+    # need a page to say more than three, or the packet's third is empty.
+    parallel_chars_per_result: int = _env_int("PARALLEL_CHARS_PER_RESULT", 3000)
     # Perplexity's search type (`fast` at $1/1k, `web` at $5/1k) and how much
     # of each page it returns.
     perplexity_search_type: str = field(
         default_factory=lambda: os.environ.get(
             "PERPLEXITY_SEARCH_TYPE", "").strip().lower() or "fast")
-    perplexity_tokens_per_page: int = _env_int("PERPLEXITY_TOKENS_PER_PAGE", 512)
+    # 1,024 since §276 (was 512), for the same reason as Parallel's 3,000.
+    perplexity_tokens_per_page: int = _env_int("PERPLEXITY_TOKENS_PER_PAGE", 1024)
     # How long one passage is when a page's excerpt text is cut up - about
-    # the size of one of Exa's highlights.
+    # the size of the highlights every packet was first measured on.
     search_passage_chars: int = _env_int("SEARCH_PASSAGE_CHARS", 500)
 
     # --- Episode intelligence --------------------------------------------
@@ -497,7 +503,7 @@ class Settings:
     # the wrong thing is worth less than a slower one about the right thing.
     # The browse surfaces pay none of it - there the brief is built before the
     # tap. Set to 0 to get the old behaviour exactly: the raw query goes to
-    # Exa, no structure, no why-now, no temporal cautions.
+    # the search, no structure, no why-now, no temporal cautions.
     episode_intelligence: bool = field(
         default_factory=lambda: os.environ.get("EPISODE_INTELLIGENCE", "1")
         not in ("0", "false", "False", ""))
@@ -641,7 +647,7 @@ class Settings:
     # --- local news and weather (§194) ------------------------------------
     # A question about one town is answered from that town's own outlets,
     # collected ahead of time from their RSS feeds, then from its county's,
-    # then from Exa limited to the town's known outlets - and never from
+    # then from a web search limited to the town's known outlets - and never from
     # GDELT, at the owner's direction. See `local_news.py`.
     local_news: bool = field(
         default_factory=lambda: os.environ.get("LOCAL_NEWS", "1")
@@ -742,8 +748,8 @@ class Settings:
     stories_ttl_seconds: float = _env_float("STORIES_TTL_SECONDS", 900.0)
     # How often the pool refreshes itself with nobody looking (§135). It used
     # to refresh only when somebody drew myFAM and found it stale, so a quiet
-    # hour left Trending an hour old for the next listener and the API-Sports
-    # allowance unspent. A background loop on the same clock keeps both
+    # hour left Trending an hour old for the next listener and today's scores
+    # stale. A background loop on the same clock keeps both
     # current. 0 switches the loop off and leaves the page-load trigger.
     stories_background_seconds: float = _env_float(
         "STORIES_BACKGROUND_SECONDS", 900.0)
@@ -930,10 +936,6 @@ class Settings:
     # one anyway is how a browse page fills with tiles nobody wants.
     stories_market_move_percent: float = _env_float(
         "STORIES_MARKET_MOVE_PERCENT", 3.0)
-    # Which API-Sports products to sweep for today's card. Empty follows
-    # API_SPORTS_SPORT, which is the one a deployment says it mostly serves.
-    stories_sports: str = field(
-        default_factory=lambda: os.environ.get("STORIES_SPORTS", "").strip())
     # Polymarket is keyless, so without a switch of its own it would be the
     # one source that turned itself on - and on a fresh deployment it would
     # then be the *only* live source, which would make the browse page a
@@ -950,7 +952,7 @@ class Settings:
         default_factory=lambda: os.environ.get("FINNHUB_WATCHLIST", "").strip())
 
     # --- GDELT -----------------------------------------------------------
-    # A second article index beside Exa, and the source behind the story
+    # A second article index beside the web search, and the source behind the story
     # pool's news. Keyless, so the only switch that matters is this one.
     #
     # **Read from GDELT's 15-minute export files, never its search API**
@@ -1002,11 +1004,37 @@ class Settings:
     # Files fetched behind the newest when the copy is behind - after a boot
     # or an outage - so a first sweep has more than fifteen minutes to read.
     gdelt_export_backfill_files: int = _env_int("GDELT_EXPORT_BACKFILL_FILES", 8)
-    # Whether a researched episode searches the copy as well as Exa. It costs
+    # Whether a researched episode searches the copy as well as the web. It costs
     # GDELT nothing now; it costs the episode a local read.
     gdelt_cross_check: bool = field(
         default_factory=lambda: os.environ.get("GDELT_CROSS_CHECK", "0")
         not in ("0", "false", "False", ""))
+
+    # --- The reference look: Wikipedia and Wikidata (§278) ---------------
+    # Beside the main search, when the brief names a person or organisation,
+    # its Wikipedia summary and Wikidata's facts (born, age computed in code,
+    # current positions) join the packet as ONE extra source after the web
+    # sources - background, never a current state. Never on an
+    # outcome-dependent, weather or local question. See `wikimedia.py`.
+    wikipedia: bool = field(
+        default_factory=lambda: os.environ.get("WIKIPEDIA", "1")
+        not in ("0", "false", "False", ""))
+    # Wikimedia Enterprise's On-demand API (a free account is 50,000
+    # requests a month). Empty: Wikipedia's keyless summary only.
+    wikimedia_enterprise_username: str = field(
+        default_factory=lambda: os.environ.get(
+            "WIKIMEDIA_ENTERPRISE_USERNAME", "").strip())
+    wikimedia_enterprise_password: str = field(
+        default_factory=lambda: os.environ.get(
+            "WIKIMEDIA_ENTERPRISE_PASSWORD", ""))
+    # Enterprise requests a calendar month (UTC) before the keyless summary
+    # takes over. Counted in `wikimedia.db`, so a restart does not reset it.
+    wikimedia_monthly_requests: int = _env_int("WIKIMEDIA_MONTHLY_REQUESTS", 45000)
+    # One request to Wikimedia.
+    wikipedia_timeout_seconds: float = _env_float("WIKIPEDIA_TIMEOUT_SECONDS", 2.0)
+    # How long past the main search the reference may still arrive. It never
+    # holds the first word longer than this; later than this it is dropped.
+    wikipedia_grace_seconds: float = _env_float("WIKIPEDIA_GRACE_SECONDS", 0.5)
 
     # How far apart the boot's background jobs start (§144): the story sweep
     # at once, the trending bank one stagger later, the DailyFAM edition two.
@@ -1164,41 +1192,36 @@ class Settings:
     # information in the world". Keys are never written into source; these
     # come through the same chain as every other credential (process env >
     # FAM_SECRETS > .env > ~/.fam/env). See CREDENTIALS.md.
-    api_sports_key: str = field(
-        default_factory=lambda: os.environ.get("API_SPORTS_KEY", "").strip())
-    # API-Sports is one API per sport - different host, different response
-    # shape, different status codes - so a deployment says which one it mostly
-    # serves. An explicit sport word in the question still overrides it. See
-    # `live_sources.sport_for` for why team-name routing is not attempted.
-    api_sports_sport: str = field(
+    # --- Player facts (§275) -------------------------------------------
+    # A player's season figures and the league's injury report, beside the
+    # scoreboard - never instead of it. Off with 0; nothing is asked without
+    # BALLDONTLIE_API_KEY either way. See `balldontlie.py`.
+    player_facts: bool = field(
+        default_factory=lambda: os.environ.get("PLAYER_FACTS", "1")
+        not in ("0", "false", "False", ""))
+    balldontlie_api_key: str = field(
+        default_factory=lambda: os.environ.get("BALLDONTLIE_API_KEY", "").strip())
+    # The plan bought on BALLDONTLIE's dashboard: free | all-star | goat. One
+    # account covers every league. Nothing in an answer says which plan a key
+    # is on, so the deploy says it, and an endpoint the plan does not reach
+    # is not asked (`balldontlie.ENDPOINT_TIERS`). Free reaches players and
+    # teams only - no injuries and no season figures.
+    balldontlie_tier: str = field(
         default_factory=lambda: os.environ.get(
-            "API_SPORTS_SPORT", "american-football").strip())
-    # API-Sports' daily request allowance, shared by the story sweep and the
-    # live lookups episodes make (§135). The sweep is paced to spend what is
-    # left evenly over what is left of the UTC day, less a reserve for the
-    # lookups. Counted per process, and checked against the count API-Sports
-    # reports on every answer.
-    # **Per sport** since §180: API-Sports counts each product separately, so
-    # each sport has its own day. 0 means the sport's plan (below); a number
-    # is a ceiling of its own, for several workers sharing one plan.
-    api_sports_daily_requests: int = _env_int("API_SPORTS_DAILY_REQUESTS", 0)
-    # Each sport's plan (§180): `free` (100/day), `pro` (7,500), `ultra`
-    # (75,000) or `mega` (150,000). API_SPORTS_TIER is every sport's;
-    # API_SPORTS_TIERS names the ones that differ ("hockey=pro,football=ultra").
-    # Buying a plan is done on API-Sports' dashboard, per sport; this only
-    # tells FAM what was bought. The admin page warns when the two disagree.
-    api_sports_tier: str = field(
-        default_factory=lambda: os.environ.get("API_SPORTS_TIER", "free").strip())
-    api_sports_tiers: str = field(
-        default_factory=lambda: os.environ.get("API_SPORTS_TIERS", "").strip())
-    # Which API-Sports products this deployment uses. Empty is all ten.
-    api_sports_sports: str = field(
-        default_factory=lambda: os.environ.get("API_SPORTS_SPORTS", "").strip())
-    # A share of each sport's day the myFAM sweep leaves untouched for
-    # episodes' own lookups (§180). 0 keeps §135's direction - the sweep paces
-    # itself over the whole allowance, and a lookup borrows from later sweeps.
-    # Raise it if lookups are refused late in the day (/admin shows it).
-    api_sports_lookup_reserve: float = _env_float("API_SPORTS_LOOKUP_RESERVE", 0.0)
+            "BALLDONTLIE_TIER", "free").strip().lower())
+    # Which leagues a player is searched in when the question names none,
+    # in order (`balldontlie.LEAGUES` keys). Empty is the built-in order.
+    balldontlie_leagues: str = field(
+        default_factory=lambda: os.environ.get("BALLDONTLIE_LEAGUES", "").strip())
+    # How many leagues one unplaced name may be searched in. Each is one
+    # request against the plan's per-minute limit.
+    balldontlie_max_searches: int = _env_int("BALLDONTLIE_MAX_SEARCHES", 4)
+    # How long one player's or team's report is reused, in seconds. Season
+    # figures move once a game and an injury report a few times a day.
+    balldontlie_cache_seconds: int = _env_int("BALLDONTLIE_CACHE_SECONDS", 900)
+    balldontlie_base: str = field(
+        default_factory=lambda: os.environ.get(
+            "BALLDONTLIE_BASE", "https://api.balldontlie.io").strip().rstrip("/"))
     finnhub_key: str = field(
         default_factory=lambda: os.environ.get("FINNHUB_KEY", "").strip())
     # Which plan each licensed provider is on, as bought on its dashboard
@@ -1867,20 +1890,30 @@ class Settings:
                 raise ValueError(
                     f"VOICE_DISCOVERY={self.voice_discovery!r} is not a "
                     f"setting. Use one of: {', '.join(VOICE_DISCOVERY)}.")
-        if self.research_backend == "claude":
-            # **Replaced, loudly, rather than refused** (§135). `claude` was a
-            # working value until this change, so a deployment may still carry
-            # it in its dashboard - and refusing it here would turn merging
-            # the change that removed it into a server that will not boot.
-            # It runs as the default backend instead; the startup log and
+        if self.research_backend in RETIRED_RESEARCH_BACKENDS:
+            # **Replaced, loudly, rather than refused** (§135). It was a
+            # working value until the change that removed it, so a deployment
+            # may still carry it in its dashboard - and refusing it here would
+            # turn merging that change into a server that will not boot. It
+            # runs as the default backend instead; the startup log and
             # `/api/health` (`research.backend_replaced`) both say so.
-            object.__setattr__(self, "research_backend_replaced", "claude")
+            object.__setattr__(self, "research_backend_replaced",
+                               self.research_backend)
             object.__setattr__(self, "research_backend", DEFAULT_RESEARCH_BACKEND)
+        if self.research_second_look in RETIRED_RESEARCH_BACKENDS:
+            # The same reasoning for the second look (§279): a retired vendor
+            # means "the configured backend", which is what `same` says.
+            object.__setattr__(self, "research_second_look", "same")
         if self.research_second_look not in ("same",) + WEB_RESEARCH_BACKENDS:
             raise ValueError(
                 f"RESEARCH_SECOND_LOOK={self.research_second_look!r} is not a "
                 f"web search backend. Use one of: same, "
                 f"{', '.join(WEB_RESEARCH_BACKENDS)}.")
+        if self.balldontlie_tier not in ("free", "all-star", "goat"):
+            raise ValueError(
+                f"BALLDONTLIE_TIER={self.balldontlie_tier!r} is not one of "
+                "BALLDONTLIE's plans: free, all-star, goat. Refusing rather "
+                "than guessing a plan upward and spending refused requests.")
         if self.parallel_mode not in ("turbo", "fast", "basic", "advanced"):
             raise ValueError(
                 f"PARALLEL_MODE={self.parallel_mode!r} is not one of Parallel's "
@@ -1901,18 +1934,18 @@ class Settings:
                 "than picking one - an unrecognised level that quietly meant "
                 "`script` would spend a full episode per guess."
             )
-        for name in ("exa_num_results", "exa_packet_sources",
-                     "exa_highlights_per_source"):
+        for name in ("search_num_results", "search_packet_sources",
+                     "search_highlights_per_source"):
             if getattr(self, name) < 1:
                 raise ValueError(
                     f"{name.upper()}={getattr(self, name)} must be at least 1. "
                     "Zero would send Claude an empty evidence packet and call "
                     "it research.")
-        if self.exa_packet_sources > self.exa_num_results:
+        if self.search_packet_sources > self.search_num_results:
             raise ValueError(
-                f"EXA_PACKET_SOURCES={self.exa_packet_sources} exceeds "
-                f"EXA_NUM_RESULTS={self.exa_num_results}: the packet cannot "
-                "hold more sources than were fetched.")
+                f"SEARCH_PACKET_SOURCES={self.search_packet_sources} exceeds "
+                f"SEARCH_NUM_RESULTS={self.search_num_results}: the packet "
+                "cannot hold more sources than were fetched.")
 
     @property
     def bytes_per_second(self) -> int:

@@ -56,15 +56,16 @@ secret is "change it in the manager" - no redeploy, no restart. It is called on
 startup, on the TTL, and when Claude rejects the key in force, which is the
 moment the app finds out a rotation happened.
 
-A pool is several keys under `ANTHROPIC_API_KEYS` / `EXA_API_KEYS`. Be precise
+A pool is several keys under `ANTHROPIC_API_KEYS` (or `PARALLEL_API_KEYS`,
+`PERPLEXITY_API_KEYS`). Be precise
 about what it buys, because the obvious assumption is wrong:
 
 * **Anthropic rate limits are per organisation, not per key.** A second key from
   the same org shares one bucket and buys **no headroom at all**. What a pool
   buys here is *failover*: a key that is revoked, expired or spend-capped mid
   demo steps aside for the next one instead of ending the demo.
-* **Exa's limits are per key** (10 rps on /search). There a pool is real
-  headroom.
+* **The search vendors' limits are per key or per account** - check the
+  vendor's terms before assuming a second key adds rate.
 
 Anything that claims otherwise is claiming the thing this file exists to stop.
 
@@ -104,8 +105,8 @@ TTL_VAR = "FAM_SECRETS_TTL"
 DEFAULT_TTL = 0.0
 
 #: Credentials this module manages. A pool is the same name with an S.
-CREDENTIAL_VARS = ("ANTHROPIC_API_KEY", "EXA_API_KEY",
-                   # §258: the search backends that replaced Exa.
+CREDENTIAL_VARS = ("ANTHROPIC_API_KEY",
+                   # §258: the search backends.
                    "PARALLEL_API_KEY", "PERPLEXITY_API_KEY")
 
 #: A variable name, for telling `NAME=command` apart from a command that
@@ -440,7 +441,7 @@ def _publish(name: str) -> str:
 
     This is the seam that makes rotation cost nothing at the call sites. The
     Anthropic SDK resolves `ANTHROPIC_API_KEY` from the environment on every
-    client it builds, and `research.py` reads `EXA_API_KEY` there at call time,
+    client it builds, and `research.py` reads the search keys there at call time,
     so writing the current key here is enough for both to follow a failover
     without a single one of them knowing this module exists.
 

@@ -109,28 +109,18 @@ def test_an_everyday_word_names_no_team(text):
     assert live_route.teams_in(text) == []
 
 
-def test_a_team_names_its_sport_and_two_leagues_name_none():
-    assert live_route.sport_of("Kansas City Chiefs") == "american-football"
-    assert live_route.sport_of("Kansas City Chiefs and Kansas City Royals") == ""
+def test_a_team_places_the_scoreboard_s_league():
+    """§280: the roster's leagues are BALLDONTLIE's own keys, so a named team
+    places the question in its league without a request; a sport word in the
+    question still names its league outright."""
+    import balldontlie
 
-
-def _sports_settings(monkeypatch, default):
-    monkeypatch.setattr(live_sources, "settings", dataclasses.replace(
-        settings, api_sports_sport=default, api_sports_sports=""))
-
-
-def test_sport_for_takes_the_roster_over_the_default(monkeypatch):
-    _sports_settings(monkeypatch, "basketball")
-    assert live_sources.sport_for("Kansas City Chiefs").key == "american-football"
-    assert live_sources.sport_for("Boston Bruins").key == "hockey"
-    # A sport word still wins, and nothing named still means the default.
-    assert live_sources.sport_for("Bruins", "nba trade talk").key == "basketball"
-    assert live_sources.sport_for("a game tonight").key == "basketball"
-
-
-def test_sport_for_reads_the_context_for_a_sport_word(monkeypatch):
-    _sports_settings(monkeypatch, "american-football")
-    assert live_sources.sport_for("Rangers", "mlb wild card").key == "baseball"
+    assert {l for l, _ in live_route.teams_in("Kansas City Chiefs")} == {"nfl"}
+    assert {l for l, _ in live_route.teams_in(
+        "Kansas City Chiefs and Kansas City Royals")} == {"nfl", "mlb"}
+    assert set(live_route.ROSTER) <= set(balldontlie.LEAGUES)
+    assert balldontlie.leagues_named("Rangers mlb wild card")[0] == "mlb"
+    assert balldontlie.leagues_named("Bruins nba trade talk")[0] == "nba"
 
 
 # --- the routing check ----------------------------------------------------------
@@ -376,12 +366,14 @@ def test_the_score_guard_is_unchanged_for_an_unrouted_question():
     "how do I pay my bills on time", "why is the heat wave so bad in Phoenix",
 ])
 def test_a_held_catalogue_routes_by_full_name_only(provider, monkeypatch, text):
-    """`teams_named` matches a last word, which is right for `resolve` and
-    wrong for deciding a question is about sports at all."""
+    """A scoreboard's `teams_named` may match a short name, which is right
+    for `resolve` and wrong for deciding a question is about sports at all."""
     provider("sports")
-    monkeypatch.setitem(live_sources.TEAMS, "american-football", (time.time(), [
-        {"name": "Buffalo Bills", "city": "Buffalo"},
-        {"name": "Miami Heat", "city": "Miami"}]))
+    import balldontlie_scores
+
+    monkeypatch.setitem(balldontlie_scores.TEAMS, "nfl", (time.time(), {
+        1: {"id": 1, "full_name": "Buffalo Bills", "name": "Bills"},
+        2: {"id": 2, "full_name": "Miami Heat", "name": "Heat"}}))
     assert live_route.apply(brief(query=text)).live_route == ""
     assert live_routing.suspect(text) == ""
     named = live_route.apply(brief(query="did the buffalo bills win"))

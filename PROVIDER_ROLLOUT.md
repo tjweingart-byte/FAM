@@ -15,7 +15,7 @@ routing around it:
 
     data.gdeltproject.org   (GDELT's export files, §211)
     gamma-api.polymarket.com
-    v1.american-football.api-sports.io   (and the sibling sport hosts)
+    api.balldontlie.io
     finnhub.io
 
 `api.exa.ai` is blocked from the build container too, and Exa works in
@@ -45,7 +45,7 @@ real sync into a scratch copy and reads it back: volume, and retrieval.
 
 That is all a deployment needs: the background job keeps the copy (~200
 requests a day, whatever the traffic), the story pool reads it, and it is the
-last rung of the research ladder when Exa comes back empty. No proxy and no
+last rung of the research ladder when the search comes back empty. No proxy and no
 paid plan are needed.
 
 **`GDELT_CROSS_CHECK`** (off by default) searches GDELT on every researched
@@ -77,41 +77,35 @@ written topics have taste in them a generated row will not.
 
 ---
 
-## 2. API-Sports — $0 to start, $19–39/mo at scale
+## 2. BALLDONTLIE — sports, every league on one key
 
-**Step 1.** Sign up at api-sports.io. Free tier is 100 requests/day, which is
-enough to verify but not to serve.
+BALLDONTLIE is FAM's only sports provider (PROBLEMS.md §277, §280): the
+scoreboard, the myFAM sweep's live scores, standings, last and next games,
+Formula 1, UFC, and player and injury reports (§275).
 
-**Step 2.** Pick the sport this deployment mostly serves. API-Sports is four
-separate APIs wearing one brand — different hosts, response shapes and status
-codes:
+**Step 1.** Sign up at balldontlie.io. The free plan reads rosters, teams and
+games at 5 requests a minute - enough to verify; standings, injuries and
+season figures need ALL-STAR, soccer injuries and golf and tennis figures
+GOAT.
 
-    API_SPORTS_SPORT=american-football   # or football, basketball, baseball
+**Step 2.**
 
-**Step 3.**
+    BALLDONTLIE_API_KEY=...
+    BALLDONTLIE_TIER=free          # the plan you bought: free | all-star | goat
+    python tools/verify_live.py --domain sports --query "Kansas City Chiefs game"
 
-    LIVE_SPORTS_PROVIDER=api-sports
-    API_SPORTS_KEY=...
-    python tools/verify_live.py --domain sports --query "Chiefs game"
+The key is the switch (`LIVE_SPORTS_PROVIDER` unset means `balldontlie` once
+the key is present). A pass prints the resolved entity, the status, the age
+against the sports limit, and the spoken facts. Read them — a pass means the
+pipe works, not that the data is right.
 
-A pass prints the resolved entity, the status, the age against the 120-second
-sports limit, and the spoken facts. Read them — a pass means the pipe works,
-not that the data is right.
+**Step 3.** Watch for `status unknown`. That means a game's `status_state` was
+not one `balldontlie_scores.status_of` maps, and **nothing downstream will
+speak a result while it is true** — which is safe but useless.
 
-**Step 4.** Watch for `status unknown`. That means API-Sports returned a code
-`live_sources.SPORTS[...].statuses` does not map, and **nothing downstream will
-speak a result while it is true** — which is safe but useless. Add the code to
-that sport's table.
-
-**Step 5.** Upgrade when the free tier bites: $19/mo for 7,500 req/day, $29 for
-75,000, $39 for 150,000.
-
-**Known limitation to plan around.** "Chiefs game" names no sport, so it falls
-to `API_SPORTS_SPORT`. Team-name routing would need a maintained roster of
-every team in every league, and a stale one sends an NFL question to a soccer
-endpoint — worse than a default you chose. Resolving sport from team wants the
-provider's own team search across sports, which is N requests rather than one.
-That is the next step if you serve more than one sport seriously.
+**Step 4.** Upgrade when the plan bites: an endpoint above the plan is never
+asked, and `/admin` counts every request with a row per league. Set
+`BALLDONTLIE_TIER` to what was bought on balldontlie.io.
 
 ---
 
@@ -233,7 +227,7 @@ and not the one you are turning on.
     STORIES=1                # already the default
     GDELT=1                  # the attention half, keyless, does the most work
     STORIES_POLYMARKET=1     # keyless; a betting product, so it is opt-in
-    API_SPORTS_KEY=...       # today's card; already set if you did §2 above
+    BALLDONTLIE_API_KEY=...  # today's games; already set if you did §2 above
     FINNHUB_KEY=...          # what moved; already set if you did §3 above
 
 **What to watch afterwards.** `/api/health` carries `stories`, which reports
@@ -247,14 +241,10 @@ pool of six tiles all from one source is a browse page about one corner of the
 world. That is a configuration finding rather than a bug, and the fix is the
 next provider in the list.
 
-**And one step that is only possible once API-Sports has a real key**:
-`ApiSportsSignals` asks for one date per product and gets that day's fixtures
-from every league on earth, so the tiles it produces are stable but not
-necessarily interesting - a third-division match ranks exactly as a marquee
-one. Add a `league` (and, where the product needs it, `season`) parameter once
-you can see real responses, and decide which leagues this deployment serves.
-It is deliberately not guessed at from the documentation: the wrong parameter
-name does not fail, it returns somebody else's fixtures.
+The sports sweep (`balldontlie_scores.make_signals`) follows only the leagues
+the owner named (`balldontlie_scores.SWEPT`), only while one of their games is
+on and somebody drew myFAM recently (§191); every other league is looked up
+on demand.
 
 ## Recommended order, and why
 
@@ -263,11 +253,12 @@ name does not fail, it returns somebody else's fixtures.
    prove: two retrievers rather than one.
 2. **Polymarket** — free, no account, broadest topical coverage for the least
    work.
-3. **API-Sports** — the motivating case, and the first one that costs money.
+3. **BALLDONTLIE** — the motivating case, and the first one that costs money.
 4. **Finnhub** — narrowest audience of the four; do it when someone asks about
    a price.
 
-Total to run all four: **$0** until API-Sports' free tier bites, then **$19/mo**.
+Total to run all four: **$0** until BALLDONTLIE's free plan bites, then its
+flat plan for every league.
 
 ## After each one
 

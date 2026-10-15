@@ -346,7 +346,7 @@ def test_several_listeners_at_once_produce_one_sweep(monkeypatch):
 
 
 def test_a_source_with_a_daily_quota_is_not_swept_every_window(monkeypatch):
-    """API-Sports allows a hundred requests a day. At fifteen-minute windows a
+    """A free plan may allow a hundred requests a day. At fifteen-minute windows a
     source with no floor would spend its quota on a page nobody opened."""
     no_composer(monkeypatch)
     source = Source([signal("a game", stories.SPORTS, tags=("sports",))],

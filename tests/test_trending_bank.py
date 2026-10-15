@@ -458,7 +458,7 @@ def test_trending_never_reads_the_live_pool_while_the_bank_is_on(bank, monkeypat
     With no edition the row is empty and says why - never the pool."""
     configure(monkeypatch, gnews_key="")
     stories.reset()
-    stories.seed([_pool_story("A pool story from GDELT or API-Sports")])
+    stories.seed([_pool_story("A pool story from GDELT or BALLDONTLIE")])
     store = T.EventStore(str(tmp_path / "myfam.db"))
     sections = {s["key"]: s for s in T.build_feed(store, "u")["sections"]}
     trending = sections["world_trending"]
@@ -471,7 +471,7 @@ def test_trending_never_reads_the_live_pool_while_the_bank_is_on(bank, monkeypat
     # belongs. (It used to reach the page through What you missed's top-up,
     # which no longer reads the pool at all.)
     offered = [t.id for t in T.browse_inventory(T.live_topics(), False)]
-    assert stories.story_id("A pool story from GDELT or API-Sports") in offered
+    assert stories.story_id("A pool story from GDELT or BALLDONTLIE") in offered
     stories.reset()
 
 

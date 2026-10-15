@@ -1,4 +1,4 @@
-"""Parallel and Perplexity replace Exa (§258, at the owner's direction).
+"""Parallel and Perplexity are the search (§258, at the owner's direction).
 
 Parallel is the default backend; Perplexity, a second index, is the second
 look on a thin packet and the first rung below it; GDELT stays the free
@@ -108,7 +108,7 @@ def test_parallel_is_asked_in_fast_mode_with_the_window_and_no_listener_words(
     # Omitted, Parallel would run `advanced` at five times the price.
     assert body["mode"] == "fast"
     assert body["search_queries"] == ["Eagles Giants score"]
-    assert body["advanced_settings"]["max_results"] == config.settings.exa_num_results
+    assert body["advanced_settings"]["max_results"] == config.settings.search_num_results
     assert body["advanced_settings"]["source_policy"]["after_date"].count("-") == 2
     # The objective is written from the brief, never the listener's words.
     assert "Hurts touchdowns" in body["objective"]
@@ -235,12 +235,16 @@ def test_the_ladder_is_parallel_then_perplexity_then_gdelt(wire, monkeypatch):
     assert research.ladder() == ["parallel", "perplexity", "gdelt"]
 
 
-def test_exa_still_researches_while_its_key_is_kept(wire, monkeypatch):
-    """A deploy that lands before the new keys are set must not lose research:
-    with only EXA_API_KEY, Exa is the rung that serves."""
+def test_with_only_a_perplexity_key_perplexity_is_the_rung_that_serves(
+        wire, monkeypatch):
+    """A deployment holding one search key still researches: with only
+    PERPLEXITY_API_KEY, Perplexity is the rung below the configured one."""
     use(monkeypatch, research_backend="parallel")
-    monkeypatch.setattr(research, "_rung_available", lambda rung: rung == "exa")
-    assert research.ladder() == ["parallel", "exa"]
+    monkeypatch.setattr(research, "_rung_available",
+                        lambda rung: rung == "perplexity")
+    assert research.ladder() == ["parallel", "perplexity"]
+    monkeypatch.setattr(research, "_rung_available", lambda rung: True)
+    assert research.ladder() == ["parallel", "perplexity", "gdelt"]
 
 
 def test_the_local_rung_falls_to_perplexity_when_parallel_cannot_serve(
@@ -254,8 +258,8 @@ def test_the_local_rung_falls_to_perplexity_when_parallel_cannot_serve(
     use(monkeypatch, research_backend="parallel")
     seen = {}
 
-    async def research_local(place, brief=None, exa=None):
-        seen["packet"] = await exa("San Anselmo council", ("marinij.com",), "")
+    async def research_local(place, brief=None, search=None):
+        seen["packet"] = await search("San Anselmo council", ("marinij.com",), "")
         return types.SimpleNamespace(packet=seen["packet"], gap=False,
                                      attempts=[], as_dict=lambda: {})
 
@@ -323,8 +327,8 @@ def test_every_paid_search_is_metered(wire, monkeypatch):
     plan = dataclasses.replace(plan_episode("eagles score", 2, search=True),
                                brief=brief())
     asyncio.run(generator.research(plan, notes))
-    assert notes.usage.exa_searches == 2
-    assert notes.usage.exa_cost == pytest.approx(0.002)
+    assert notes.usage.web_searches == 2
+    assert notes.usage.web_search_cost == pytest.approx(0.002)
 
 
 # --------------------------------------------------------------------------
@@ -369,7 +373,7 @@ def test_a_missing_key_is_named_and_refused_not_searched(monkeypatch):
 
 
 def test_the_new_wording_asks_everyone_again():
-    """A yes to a notice that named Exa is not a yes to Parallel."""
+    """A yes to the notice before §258 is not a yes to Parallel."""
     assert consent.VERSION >= 2
     body = consent.AI_NOTICE["body"]
-    assert "Parallel" in body and "Perplexity" in body and "Exa" not in body
+    assert "Parallel" in body and "Perplexity" in body

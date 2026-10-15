@@ -1,7 +1,7 @@
 """Requests per outside service per day, beside each one's limit (§179).
 
-The admin page shows how often API-Sports, Exa, GDELT, Polymarket, GNews and
-Finnhub are called, today and on average, with the limit in force and - in
+The admin page shows how often BALLDONTLIE, Parallel, Perplexity, GDELT,
+Polymarket, GNews and Finnhub are called, today and on average, with the limit in force and - in
 parentheses - what the next paid plan would raise it to. Pinned: a request is
 counted where it goes out (so every provider behind `live_sources._json` is
 counted once, by host), a failed request still counts, counting never costs a
@@ -31,8 +31,11 @@ DAY = 86400
 def test_every_provider_the_owner_named_is_reported_in_order():
     rows = provider_usage.report(NOON)
     assert [r["label"] for r in rows] == [
-        # §258: the search that replaced Exa, and its second look.
-        "API-Sports", "Parallel", "Perplexity", "Exa", "GDELT", "Polymarket", "GNews", "Finnhub",
+        # §258: the search and its second look.
+        "BALLDONTLIE", "Parallel", "Perplexity", "GDELT", "Polymarket",
+        "GNews", "Finnhub",
+        # §278: the reference look.
+        "Wikidata", "Wikipedia", "Wikimedia Enterprise",
         # §194: weather and the local news collector.
         "National Weather Service", "Open-Meteo", "Local news feeds"]
     for row in rows:
@@ -52,31 +55,27 @@ def test_counts_are_per_utc_day_and_failures_are_kept_beside_them(tmp_path):
         usage.record("gnews", now=NOON)
     usage.record("gnews", ok=False, now=NOON)
     usage.record("gnews", now=NOON - DAY)
-    usage.record("exa", now=NOON - 3 * DAY)
+    usage.record("parallel", now=NOON - 3 * DAY)
     rows = {r["provider"]: r for r in provider_usage.report(NOON)}
     assert rows["gnews"]["today"] == 4 and rows["gnews"]["failed_today"] == 1
     assert rows["gnews"]["yesterday"] == 1
     assert rows["gnews"]["average"] == round(5 / 7, 1)
-    assert rows["exa"]["today"] == 0 and rows["exa"]["average"] == round(1 / 7, 1)
+    assert rows["parallel"]["today"] == 0 and rows["parallel"]["average"] == round(1 / 7, 1)
 
 
 def test_the_rationed_limits_are_read_from_the_settings_in_force(monkeypatch):
-    patched = dataclasses.replace(config.settings, api_sports_daily_requests=7500,
+    patched = dataclasses.replace(config.settings, balldontlie_tier="all-star",
                                   gnews_daily_requests=950)
     monkeypatch.setattr(config, "settings", patched)
     rows = {r["provider"]: r for r in provider_usage.report(NOON)}
-    # API-Sports is per sport since §180: the ceiling setting caps each sport
-    # at its plan, and the free plan's 100 is below 7,500.
-    sports = {b["sport"]: b for b in rows["api_sports"]["breakdown"]}
-    assert sports["american-football"]["limit"].startswith("Free: 100/day")
-    assert "Pro $19/mo: 7,500/day" in sports["american-football"]["next"]
+    # BALLDONTLIE is one plan for every league (§280), named by its setting.
+    assert rows["balldontlie"]["limit"].startswith("all-star plan: 60 requests/min")
     assert rows["gnews"]["limit"].startswith("950/day")
     assert "1,000/day" in rows["gnews"]["next"]
 
 
 @pytest.mark.parametrize("host, provider", [
-    ("v1.american-football.api-sports.io", "api_sports"),
-    ("v3.football.api-sports.io", "api_sports"),
+    ("api.balldontlie.io", "balldontlie"),
     ("finnhub.io", "finnhub"),
     ("gamma-api.polymarket.com", "polymarket"),
     ("evil-finnhub.io", ""),
@@ -109,10 +108,13 @@ def test_a_refused_request_still_counts_against_the_allowance(monkeypatch):
     _serve(monkeypatch, 429)
     with pytest.raises(live_sources.ProviderHTTPError):
         asyncio.run(live_sources._json(
-            "https://v1.american-football.api-sports.io/games", {}, {}, 2.0))
+            "https://api.balldontlie.io/nfl/v1/games", {}, {}, 2.0))
     rows = {r["provider"]: r for r in provider_usage.report()}
-    assert rows["api_sports"]["today"] == 1
-    assert rows["api_sports"]["failed_today"] == 1
+    assert rows["balldontlie"]["today"] == 1
+    assert rows["balldontlie"]["failed_today"] == 1
+    # Counted against its league too (§280): one row per league asked.
+    leagues = {b["league"]: b for b in rows["balldontlie"]["breakdown"]}
+    assert leagues["nfl"]["today"] == 1 and leagues["nfl"]["failed_today"] == 1
 
 
 def test_counting_never_costs_a_request(monkeypatch):
@@ -121,7 +123,7 @@ def test_counting_never_costs_a_request(monkeypatch):
             raise OSError("disk full")
 
     provider_usage.reset(Broken())
-    provider_usage.record("exa")          # logs, does not raise
+    provider_usage.record("parallel")          # logs, does not raise
 
 
 def test_the_admin_snapshot_carries_the_rows():
@@ -150,12 +152,12 @@ def test_counting_never_touches_the_disk_on_the_callers_thread(tmp_path):
 
     provider_usage.reset(Watching(str(tmp_path / "u.db")))
     for _ in range(5):
-        provider_usage.record("exa")
+        provider_usage.record("parallel")
     for thread in threading.enumerate():
         if thread.name == "provider-usage-flush":
             thread.join(5)
     assert writers and all(w is not caller for w in writers)
-    assert {r["provider"]: r for r in provider_usage.report()}["exa"]["today"] == 5
+    assert {r["provider"]: r for r in provider_usage.report()}["parallel"]["today"] == 5
 
 
 def test_a_failed_write_keeps_its_counts_for_the_next_one(tmp_path):

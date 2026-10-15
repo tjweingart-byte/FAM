@@ -19691,3 +19691,460 @@ errors page saying its timings are capped, run through the page's own
 its fix and watching the test fail; the cancellation test reads its result
 before `asyncio.run` ends, which cancels every leftover task on the way out
 and so hid a leak the first version of the test missed.
+
+## 274. Exa deleted; the search is Parallel, then Perplexity
+
+**What was wrong.** §258 replaced Exa with Parallel and Perplexity but kept
+Exa selectable "so the two can be compared before it is deleted", and kept
+it as a fallback rung while `EXA_API_KEY` was set. The comparison never
+happened, and the leftovers kept describing the system wrongly:
+
+- The packet's sizes were still `EXA_NUM_RESULTS`, `EXA_PACKET_SOURCES`,
+  `EXA_HIGHLIGHTS_PER_SOURCE` and `EXA_DATED_PACKET`, so anyone reasoning
+  about how much evidence the writer gets reached for an Exa setting.
+- **`Dockerfile.gpu` baked `RESEARCH_BACKEND=exa`** into the image as a
+  "production default", so a deployment from that image searched on Exa,
+  not Parallel, whatever §258 said. Both Dockerfiles still installed
+  `requirements-exa.txt`.
+- `render.yaml` still asked for `EXA_API_KEY`; `setup_key.py --exa`,
+  `credentials`, `spend_guard`, `provider_usage`, the Costs sheet and the
+  health report (`exa_configured`, `exa_detail`) all still named it.
+
+**What changed, at the owner's direction.**
+
+- `research.py`: the Exa client, `diagnose`/`available`, `_search_exa`,
+  `COST_PER_SEARCH`, `DEFAULT_SEARCH_TYPE` and the `search_type` parameter
+  are deleted. `FALLBACK_RUNGS` is `("perplexity", "gdelt")`.
+  `/api/health` → `research` no longer carries `exa_configured` /
+  `exa_detail` (no client contract read them).
+- `config.py`: `RESEARCH_BACKENDS` is `parallel | perplexity | gdelt`.
+  `exa` joins `claude` in `RETIRED_RESEARCH_BACKENDS`: **replaced, loudly,
+  never refused**, so a dashboard still carrying it boots on `parallel` and
+  says so (`research.backend_replaced`). `RESEARCH_SECOND_LOOK=exa` becomes
+  `perplexity`. The packet's settings are renamed `SEARCH_*`; the old names
+  are **no longer read** and `_announce_research` names the replacement at
+  startup (`config.RENAMED_SETTINGS`). Defaults are unchanged (8 / 3 / 2 /
+  dated), so a deployment that never set them sees no difference.
+- `metering.Usage.exa_searches` / `exa_cost` are `web_searches` /
+  `web_search_cost` and `Cost.exa` is `Cost.web_search`. **The stored
+  columns keep their names** (`exa_searches`, `exa_cost`, `exa_usd`) and so
+  does the Daily Spend JSON's `exa_usd` column: renaming a column under a
+  running ledger and the sheet's Apps Script costs rows for nothing.
+- `local_news.research_local(..., search=)` (was `exa=`).
+- `Dockerfile` / `Dockerfile.gpu` no longer install anything for search
+  (Parallel and Perplexity are spoken to over `httpx`); `Dockerfile.gpu`
+  sets `RESEARCH_BACKEND=parallel`. `requirements-exa.txt`,
+  `setup_key.py --exa` and its test are deleted; `EXA_API_KEY` leaves
+  `render.yaml`, `credentials.CREDENTIAL_VARS` and `spend_guard`.
+- Docs that told an operator to set up Exa (README, CREDENTIALS, DEPLOY,
+  ONBOARDING, BACKEND, METERING, DATA, STAGING, LOCAL_NEWS_AND_WEATHER) now
+  say Parallel and Perplexity. History here and in `docs/FINANCIAL.md` is
+  left as written.
+
+*To do after deploying:* remove `EXA_API_KEY` (and any `EXA_*` setting) from
+the Render dashboard and RunPod template; nothing reads them. A GPU
+deployment built before this change was running on Exa - its first episodes
+on Parallel are the first measured ones there.
+
+## 275. A player's season and the injury report, from BALLDONTLIE
+
+**What was wrong.** A sports episode's live block knew a game - its score,
+period and a team's record - and nothing about the people in it. "How is
+Jokic playing", "is Mahomes playing Sunday" and "who is out for the Chiefs"
+were answered from three short article excerpts, and API-Sports, the
+scoreboard, publishes player figures and injuries for only two of its ten
+sports. The owner is moving the sports provider to BALLDONTLIE and asked for
+player stats and injuries now, for every sport.
+
+**What changed.**
+
+- `balldontlie.py`: one source for **22 leagues** - NBA, WNBA, NFL, MLB, NHL,
+  men's and women's college basketball, college football and baseball, the
+  Premier League, La Liga, Serie A, Bundesliga, Ligue 1, Champions League,
+  MLS, the World Cup, ATP, WTA, PGA Tour, Formula 1 and UFC. Written from
+  BALLDONTLIE's own OpenAPI specs (balldontlie-api/mcp at source commit
+  3b8fdeee), field by field; **never run against the live API from here** -
+  `verify()` is the first real request.
+- **What it says**: who a player is (team, position, from the roster); season
+  figures to date, per sport (basketball averages, football totals by role,
+  batting or pitching, hockey's named figures, soccer summed over the
+  season's own matches, a tennis player's year, a golfer's world ranking and
+  season stats, a driver's championship place, a fighter's record); and the
+  injury report - a player's listing or a whole team's - in the twelve
+  leagues that publish one. A season that has not started falls back to the
+  last one and says which.
+- **Where it sits**: `live_facts.players`, a registry of its own beside
+  `lookup`, run beside the scoreboard in `prepare` and waited for on its own
+  clock; `plan.players` is its own prompt block (`PLAYER_REPORT`: settled
+  figures, a listing said as a listing, unlisted never "fit"), credited on the
+  sources panel. Fresh for six hours, not the scoreboard's two minutes.
+  ScoreGuard reads its numbers as vouched for, never as the game's state.
+- **Resolution** is the catalogue's own row: searched by surname, accepted
+  only when the whole name is the question's, ambiguity is no answer. A
+  league named in the question (or a rostered team) decides where; else
+  `BALLDONTLIE_LEAGUES` order, at most `BALLDONTLIE_MAX_SEARCHES` leagues.
+  A team the wording names fully resolves to its injury report.
+- **The plan**: `BALLDONTLIE_TIER` (free | all-star | goat, default free).
+  Free reads rosters only; injuries and season figures are taken to need
+  ALL-STAR unless a league's spec says GOAT (soccer injuries, golf and tennis
+  figures, the World Cup). Never asked above the plan; refused anyway, not
+  asked again that day; paced to 5 / 60 / 600 a minute; counted per league
+  under BALLDONTLIE on /admin. The key is the switch; staging removes it.
+- EI's guidance: a player's season, form or injury is `sports`, and a
+  player's name is a `live_entity`.
+
+*Not changed:* API-Sports stays the scoreboard until the switch. Nothing in
+BALLDONTLIE's answers says which plan a key is on; if the plan is set wrong,
+the first refused endpoint says so on /admin's pipeline errors.
+
+## 276. The writer's evidence gaps: a bigger packet, more trusted sources, standings, Trending's outlets, local seeds
+
+The 15/10 review of what reaches the writer, category by category, found
+five gaps cheap enough to close at once (the owner's list):
+
+- **A bigger packet.** Every two-minute episode - so every myFAM, DailyFAM
+  and Trending one - got 3 sources x 2 passages, about 3 KB. Now 5 x 3, from
+  10 results fetched (Parallel's and Perplexity's fast price covers ten), with
+  `PARALLEL_CHARS_PER_RESULT` 3,000 and `PERPLEXITY_TOKENS_PER_PAGE` 1,024 so
+  a page has three passages to give. Longer episodes still get more
+  (`packet_size`, up to 10 x 4), never less than a browse one. Cost: about a
+  thousand prompt tokens per researched episode, no extra search.
+  **Unmeasured** - no key in the build container. Compare before and after
+  with `python write.py "<query>" --minutes 2` and
+  `SEARCH_PACKET_SOURCES=3 SEARCH_HIGHLIGHTS_PER_SOURCE=2 PARALLEL_CHARS_PER_RESULT=1500 python write.py "<query>" --minutes 2`.
+- **Trusted sources.** `.gov`/`.edu` were already primary, so CDC, NIH, BLS
+  and the Census were never "unverified" (the review's first draft said they
+  were). Added: the medical journals (NEJM, Lancet, JAMA, BMJ, Cell, PNAS,
+  Cochrane), the NHS, EU institutions, the IMF, World Bank, OECD, UN and Bank
+  of England, other countries' government domains; and, as established, the
+  science and health press (STAT, MedPage, Scientific American, New
+  Scientist), the entertainment trade press and trackers (Variety, THR,
+  Deadline, Billboard, Rolling Stone, Pitchfork, IndieWire, Vulture, Box
+  Office Mojo, The Numbers) and the games press (IGN, Polygon, GameSpot).
+- **Standings from API-Sports.** A team's place in its division or
+  conference, from the league's own `/standings` (one request per league,
+  cached three hours, run beside the schedules), joins its record. Injuries
+  and player figures come from §275 for every league rather than from
+  API-Sports' two, on a provider being replaced.
+- **Trending's outlets.** `stories.context_for` matched the live pool only,
+  so a Trending tap searched the whole web alone. It now matches the
+  edition's stories too, and the edition keeps every corroborating article's
+  address: their outlets are searched beside the main search, as a myFAM
+  live story's are. The GNews headlines stay out of the packet
+  (`measured=False`): a tile's headline is never evidence.
+- **Local outlets.** `tools/local_outlets.py --top 50 --seed` walks the 50
+  most populous US counties on Wikidata and merges what it finds into
+  `local_outlets.json` by homepage. Wikidata is blocked from the build
+  container, so the file still holds one outlet until somebody runs it where
+  `query.wikidata.org` is reachable.
+
+
+## 277. BALLDONTLIE is the scoreboard: games, standings, F1, UFC and the sweep (2026-10-15)
+
+The owner is moving sports to BALLDONTLIE (§275). §275 brought its player and
+injury reports; this brings the rest of what the old provider did, so nothing
+is lost when it goes (§280).
+
+`balldontlie_scores.py`: `ScoreBoard` is a `LiveSource` that resolves the game a
+question is about from the teams it names in the league's own catalogue
+(`TEAMS`, one cached request per league), a named slot ("Sunday Night
+Football"), a Formula 1 weekend or a UFC card, and fetches the game in the
+scoreboard's own sentence shapes - word for word, because ScoreGuard (§259)
+reads them. `status_state` maps onto the closed vocabulary at the boundary;
+anything else is `unknown`; a stuck feed is not believed. Beside the game:
+both teams' records and places from the league's standings (`STANDINGS`,
+`standing_facts`), their last and next games (`SCHEDULES`). `SHAPES` holds
+seventeen leagues' paths and parameter names, read from BALLDONTLIE's
+OpenAPI specs. `make_signals` is the myFAM sweep (§191's pacing: only while a
+followed game is on, only if myFAM was drawn recently), each tile carrying its
+`live_line`; a swept card is dated by its window (`_window_read`).
+
+Tiers: games are Free, standings All-Star, F1 sessions All-Star, FIFA games
+GOAT (`balldontlie.ENDPOINT_TIERS`); a refused endpoint is remembered for the
+day and never asked again. Tests: `tests/test_scores_277.py`. Written from
+specs; **never run against the live API from this repository** (the build
+container cannot reach it).
+
+
+## 278. The reference look: Wikipedia and Wikidata beside the search (2026-10-15)
+
+**What.** A web search answers what happened; it is a poor way to learn that a
+quarterback was born in 1998 or who a company's chief executive is. Those are
+settled facts and an encyclopedia keeps them. `wikimedia.py` asks for them
+beside the main search, and `research.retrieve` adds the answer to the packet
+as **one extra source after every web source** - background, never a current
+state, never in place of anything the search found.
+
+**How a name becomes an entry - from the catalogue, never a guess** (the
+`balldontlie.pick_player` rule). Wikidata's `wbsearchentities` is asked for
+the name; a hit is accepted only when its English label, or the alias the
+search matched on (`match.text`), equals the name ignoring case, accents and
+punctuation. Several exact hits are told apart by the question's own words
+against their descriptions; anything but exactly one survivor is no answer.
+`wbgetentities` then gives the claims and the enwiki title
+(`sitelinks.enwiki.title`), and one batched `wbgetentities` (≤ 50 ids,
+`props=labels`) names everything the claims point at.
+
+**Facts are computed in code**, each sentence beginning "Wikidata lists ...":
+date of birth (P569) and an age subtracted on the listener's clock - a
+year- or month-precision date gives no age; date of death (P570, and the age
+at death); citizenship (P27); up to three occupations (P106); positions (P39),
+teams (P54) and employers (P108) only when the statement has no end-time
+qualifier (P582), with their start (P580). For an organisation: inception
+(P571), founders (P112), headquarters (P159) and the current chief executive
+(P169). Deprecated statements are skipped; preferred ones win where they
+exist. The cache keeps the raw material, not the sentences, so an age is
+recomputed on every read.
+
+**The summary, two routes.** Wikimedia Enterprise's On-demand API
+(`structured-contents`, filtered to enwiki) when `WIKIMEDIA_ENTERPRISE_USERNAME`
+and `_PASSWORD` are set: login, then refresh, tokens kept in memory, one
+re-login on a 401. Every Enterprise request (auth included) is counted in
+`wikimedia.db`'s `enterprise` table before it is sent, and at
+`WIKIMEDIA_MONTHLY_REQUESTS` (45,000 of the free account's 50,000) the month
+goes to the keyless REST summary (`/api/rest_v1/page/summary/<title>`). A reply
+about another item (main entity / `wikibase_item` differs) or a disambiguation
+page is not used. Enterprise's infoboxes are ignored: they are free text, and
+the facts come from Wikidata's statements.
+
+**Where it is used - only here.** `research.reference_name_for(brief)` picks the
+name: `live_entity` (one name; a list of several is none), else `subject` when
+it is ≤ 6 words with no "?". None with no brief (EI off), on an
+`outcome_dependent` question (a reference never settles an outcome), weather,
+or a town question. `ScriptGenerator.research` passes it to every rung's
+`_retrieve` as `reference_name`, the way `story_hosts` is passed (§267);
+`research.retrieve` starts the look first and merges it after the main packet,
+the retry, the GDELT cross-check and the story look, if it is back within
+`WIKIPEDIA_GRACE_SECONDS` (0.5) - never longer - and only beside web sources
+(a reference alone would make an empty packet look researched and stop the
+ladder). The entry is `Title`, `Published: last revised <date> (<age>)`,
+`Source type: reference encyclopedia - background facts, never a current
+state` (`research.TIER_LABELS["reference"]`), then the description, the
+summary (≤ 700 characters, cut at a sentence end) and the fact sentences. No
+hostname reaches the packet. When the evidence carries such a source,
+`build_prompt` adds two sentences: a reference is background for settled
+facts, anything that changes comes from the dated sources and they win, and
+its sentences are never repeated word for word (Wikipedia's text is CC BY-SA).
+`notes.research` records `reference` (`added` / `late` / `no match` /
+`no web sources`) and `reference_via` (`enterprise` / `public`). The sources
+panel credits "Wikipedia" with the article link (the CC BY-SA attribution) and
+"Wikidata" with the item link when facts were used (`provenance.from_reference`).
+Nothing else: no prefetch of references, no thumbnails, no live facts. (A
+prefetched *script* is written by the same `research` path, so it carries a
+reference exactly as a live one would.)
+
+**Limits and operations.** Every request carries `places.user_agent()` plus
+"(reference look)" (Wikimedia's policy asks for a contact; ~200 requests/min
+identified), at most three are in flight (`CONCURRENCY`), each is bounded by
+`WIKIPEDIA_TIMEOUT_SECONDS` (2.0), and a 429 sets a per-provider backoff for its
+`Retry-After` - nothing is retried inside the request path. Each name's answer,
+"no match" included, is kept 24 h (an answer that needed the question's words
+to decide is kept under the name and those words). Every request is counted in
+`provider_usage` as `wikidata`, `wikipedia` or `wikimedia_enterprise`, shown on
+/admin with its plan. `/api/health` has a `wikipedia` block (enabled, route,
+the month's Enterprise count against the cap, any backoff), and the database
+report lists `wikimedia.db` once it exists. Staging forces `WIKIPEDIA=0` and
+scrubs both credentials (`spend_guard`); production asks for the credentials
+in `render.yaml` (`sync: false`). The suite runs with the look off
+(`isolated_wikimedia` in `tests/conftest.py` sets `ENABLED_OVERRIDE=False` and
+replaces `_transport` with one that refuses); `tests/test_reference_278.py`
+turns it on against stubs.
+
+**Unverified.** No request has reached Wikimedia from this container: the
+build container's egress blocks en.wikipedia.org, www.wikidata.org and
+*.enterprise.wikimedia.com. The request and reply shapes were taken from the
+MediaWiki Action API and REST summary documentation and from
+`wikimedia-enterprise/wme-sdk-python` (`modules/auth/auth_client.py`,
+`modules/api/api_client.py`), and are exercised only against stubs. First
+thing on a machine with network: ask a known name (`python -c "import
+wikimedia; wikimedia.ENABLED_OVERRIDE=True; print(wikimedia.lookup('Jalen
+Hurts'))"`), with and without the Enterprise credentials, and check
+`/api/health`'s `wikipedia` block and /admin's three rows. Whether the writer
+uses the entry as background rather than echoing it is unheard, like all
+writing here.
+
+
+## 279. The last of Exa is gone from the code (2026-10-15)
+
+The owner (15/10): Exa is no longer part of the pipeline and must not appear
+in the code. §274 removed the backend; what was left were names. The metering
+ledger's columns `exa_searches`, `exa_cost` and `exa_usd` are now
+`web_searches`, `web_search_cost` and `web_search_usd`; `MeterStore` renames
+them in place on an existing database (`ALTER TABLE ... RENAME COLUMN`,
+guarded and once), so every stored row keeps its spend
+(`tests/test_removals_279.py`). The financials view and `/admin`'s daily spend
+read the new name. `RESEARCH_BACKEND=exa` runs as `parallel` and says so, as
+`claude` does (§281: refusing it would stop a server that still names it). The frozen web release `releases/web/2026.09.29/` is
+hash-checked and keeps its old comments; it is not code that runs a search.
+
+**Owner action:** remove `RESEARCH_BACKEND=exa` and `RESEARCH_SECOND_LOOK=exa`
+wherever they are still set (they run as the default, and say so - §281).
+The Google Sheet's Apps Script reads the metering export by
+column name - rename `exa_usd` to `web_search_usd` there. The rename migration
+can be deleted once every deployment has started once on this build.
+
+
+## 280. API-Sports is removed; BALLDONTLIE is the only sports provider
+
+The owner (15/10) asked for API-Sports to come out of the code entirely.
+BALLDONTLIE already did everything it did (§275, §277): the scoreboard
+(`balldontlie_scores.ScoreBoard`: the game, its state and score, both teams'
+records and places from the league's own standings, last and next games,
+a Formula 1 weekend, a UFC card), the myFAM sweep with a live score on each
+tile (`balldontlie_scores.make_signals`, §191's on-demand pacing), and player
+and injury reports (`balldontlie.PlayerReports`). It was already preferred
+whenever its key was set; this removes the fallback and everything behind it.
+
+Gone from `live_sources.py`: `ApiSportsSource`, the `Sport` table (`SPORTS`,
+`season_of`, `sport_of_url`, `enabled_sports`, `sport_for`), the per-sport
+plans and budgets (`TIERS`, `configured_tiers`, `tier_of`, `next_tier`,
+`daily_allowance`, `RequestBudget`, `API_SPORTS_BUDGET`, `BUDGETS`,
+`budget_for`, `budgets_report`, `BudgetSpent`, `_note_quota`), the account
+hold (`ACCOUNT_REFUSAL`, `AccountRefused`, `note_account_refusal`,
+`account_report`), the swept card (`CARD`, `remember_card`, `card_rows`),
+team seasons and standings (`TEAMS`, `league_teams`, `team_schedule`,
+`SCHEDULES`, `season_facts`, `teams_named`, `league_standings`,
+`standings_rows`, `standing_facts`, `STANDINGS`), the major-league filter
+(`MAJOR_LEAGUES`, `is_major`, `is_major_event`, `league_of`),
+`api_sports_json`, the `api-sports` builder and its `DERIVED_FROM_KEY` row.
+`live_sources.py` went from 2,810 lines to about 900; `RequestBudget` had no
+other user. `report()` (`/api/health`'s `live_sources`) no longer carries
+`api_sports_budget`, `api_sports_budgets` or `api_sports_account`:
+`/api/health` is a shallow contract (only its top-level keys are held,
+`release_contracts.SHALLOW`), so no installed client reads them.
+
+Gone from `story_sources.py`: `ApiSportsSignals`, `SWEPT_LEAGUES`,
+`followed`, `watching`, `SPORT_SWEPT_AT`/`SPORT_CARDS`/`SPORT_FAILURES`,
+`date_before`, `_status_code` and its `BUILDERS` row. Settings: every
+`API_SPORTS_*` (`KEY`, `SPORT`, `SPORTS`, `TIER`, `TIERS`,
+`DAILY_REQUESTS`, `LOOKUP_RESERVE`) and `STORIES_SPORTS`, whose only reader
+was the API-Sports sweep (BALLDONTLIE's is `balldontlie_scores.SWEPT`) - from
+`config.py`, `.env.example`, `tests/conftest.py`, `render.yaml` (the
+production key and the staging comment) and `spend_guard.py`.
+
+Moved rather than deleted:
+
+* **Routing.** `live_route.LEAGUE_SPORT`/`sport_of` (roster league to an
+  API-Sports sport) are gone: the roster's leagues are BALLDONTLIE's own keys
+  and `ScoreBoard.resolve` already reads them. `catalogue_team` reads only
+  `balldontlie_scores.TEAMS`. `named_slots.NamedSlot.sport` is gone;
+  `league` ("NFL", "MLB") is what the scoreboard reads.
+* **The ranker's sport words** (`topics._names_a_sport`, §187) read
+  `live_sources.SPORTS`' words and team catalogues. They now read every
+  league's words in `balldontlie.LEAGUES` plus `topics.SPORT_WORDS` (the old
+  table's sport vocabulary - "stanley cup", "rugby", "grand prix" - kept,
+  because a sport with no scoreboard is still sport to the ranker), and
+  BALLDONTLIE's held catalogues.
+* **A score off the sweep is as old as the sweep** (§135's review rule,
+  pinned for API-Sports in `test_trending_135`). BALLDONTLIE's `fetch`
+  stamped a row read off the sweep's card with the moment of the lookup, so
+  a card nine minutes old passed the freshness check as current.
+  `ScoreBoard._window_read` returns the card's time with its rows and
+  `fetch` dates the facts by it.
+* **/admin.** `provider_usage`'s `api_sports` row, its per-sport breakdown
+  (plan, next plan, the provider's own count, mismatch) and the red account
+  alert are gone; BALLDONTLIE's row gains a breakdown with a row per league,
+  from the `balldontlie/<league>` counts `_json` already kept. The tracker
+  page's API-Sports wording and mismatch line went with them.
+* **The finance workbook.** The API-Sports cost rows and the projection's
+  per-sport Pro/Ultra/Mega arithmetic are replaced by one BALLDONTLIE row
+  named by `BALLDONTLIE_TIER`. Its price is not in the repository, so a paid
+  plan reads "Paying, enter price" and the projection has a yellow rate cell
+  ("BALLDONTLIE plan from launch, per month", 0 until entered) rather than a
+  guessed number. The "Sports offered" assumption is gone.
+* **Privacy policy**: BALLDONTLIE is named for sports data.
+
+What a refused account does now: API-Sports' account hold (held for ten
+minutes, a red line on /admin) has no BALLDONTLIE twin. A key BALLDONTLIE
+refuses raises `balldontlie.AccountRefused` on every lookup, recorded as a
+failed provider on /admin's pipeline errors (§269); a plan refusal is
+remembered for the day (`Client.refused`).
+
+**On deploy.** Production derives the sports provider from the key
+(`render.yaml` names none). With `BALLDONTLIE_API_KEY` set nothing changes;
+a deployment that still has only `API_SPORTS_KEY` now has no sports provider
+and says so on `/api/health`. `LIVE_SPORTS_PROVIDER=api-sports` or
+`STORIES_SOURCES=...,api-sports` is reported as a provider this build does
+not know, by the existing unknown-name path (`[failures-visible]`). Remove
+`API_SPORTS_KEY` from Render's dashboard; nothing reads it.
+
+**The kept web release.** `releases/web/2026.09.29/index.html` still says
+"API-Sports budget" in a comment. It is hashed (`manifest.json`,
+`test_a_kept_web_release_is_intact`), so it is left as shipped. §279's
+commit had edited one comment line in it (Exa), which failed that test; the
+file is restored to the bytes that shipped.
+
+Tests: `tests/test_sports_180.py` is deleted (API-Sports internals only).
+Converted to BALLDONTLIE: `test_score_guard_259` (the stuck-feed checks
+against `believable`/`game_facts`, finding a finished game and the game
+naming both sides, a refused key raising, a plan refusal not re-asked),
+`test_sweep_on_demand_191` (`SWEPT`, `Signals.due`/`idle`, `watching`),
+`test_story_sources` (the score on the tile, strength, unknown not offered,
+a spent minute, a 429 as an outage, a league not due not re-asked),
+`test_trending_135` (key switch, the sweep's card read before spending, a
+score as old as the sweep), `test_live_providers`, `test_packet_930`,
+`test_named_slots`, `test_live_route_265`, `test_live_routing`,
+`test_writer_gaps_276` (standings), `test_made_for_you_187`,
+`test_provider_usage_179` (a row per league), `test_financials`,
+`test_scores_277`, and wording in five more. `CLAUDE.md`'s
+`[api-sports-per-sport]` is now `[sports-balldontlie]`; `[sweep-on-demand]`
+names `balldontlie_scores.SWEPT`; §280 notes are at `always-researched`,
+`score-guard`, `sports-balldontlie`, `sweep-on-demand`, `live-facts`,
+`live-route`, `tile-title-angle` and `op-myfam`.
+
+## 281. Review fixes before the merge into Main (2026-10-15)
+
+The branch (§274-§280) was reviewed in three parts before going to Main;
+everything below was reproduced first, and each has a test
+(`tests/test_review_fixes_281.py`, `tests/test_sports_review_281.py`).
+
+**Renumbered.** Main took §270-§273 while this branch was open, so the
+branch's own sections were renumbered §274-§280 (code, tests, docs and the
+test file names), and Main was merged in. Three `.env.example` citations
+written as "PROBLEMS.md 27x" had escaped the renumber and were corrected.
+
+**Research and the reference look.**
+- `RESEARCH_BACKEND=exa` refused at start-up (§279 had dropped it from the
+  backends without retiring it): a dashboard still naming it would have made
+  the merge a server that will not boot. It is retired like `claude` (§135):
+  runs as the default and says so; `RESEARCH_SECOND_LOOK=exa` runs as `same`.
+- An empty rung waited the whole reference grace (0.5 s) before deciding a
+  reference could not be added - once per empty rung, in front of the first
+  word. Decided first now.
+- The look ran on the default thread pool, the one the main search's threads
+  use, and an abandoned look cannot be stopped. It has its own pool
+  (`wikimedia.EXECUTOR`); a network failure holds the provider for
+  `FAILURE_BACKOFF_SECONDS`; a refused Enterprise login is not retried for an
+  hour; an Enterprise request is counted only once it is certain to be sent.
+- On the GDELT rung the reference was added before the gaps were judged, so
+  an encyclopedia line could "cover" a current fact the dated sources lacked.
+  Gaps first, as on the web path.
+- Known, not fixed: two Wikidata items with the same label (a person and an
+  album) are told apart only by the question's words; and the User-Agent
+  carries a contact only when `FETCH_CONTACT` is set - set it in production.
+
+**BALLDONTLIE.**
+- A swept card was reused for 600 s but sports facts expire at 120 s, so
+  every game on myFAM read as stale from two to ten minutes after a sweep.
+  Reused only while under `CARD_REUSE_SECONDS` (the sports limit less 20 s).
+- The Free plan (5 requests a minute, the default) could not cover a sweep
+  (twelve leagues at once) nor one question (six requests). The sweep does
+  not run on Free (`sweeps_on_plan`); on a paid plan it asks one league at a
+  time and stops with `SWEEP_RESERVE` requests left for listeners; a lookup's
+  window is reused by its fetch; player reports share the scoreboard's team
+  catalogue. **Production wants All-Star or above** for the myFAM sweep.
+- ScoreGuard took every pair of numbers in a player report as an allowed
+  score ("2025-26 ... 29 points" let "29 to 26" through). A report now
+  vouches only for pairs it states as pairs or as wins and losses.
+- A named slot with nothing in it fell back to a game outside the slot; none
+  in the slot is none.
+- The NHL injury report and team schedules read one page of 100; they follow
+  the cursor (bounded), and absence is never said when the bound stopped the
+  read.
+- The World Cup (GOAT only) failed every sweep below GOAT and failed a quiet
+  day's whole sweep; a league the plan cannot reach is not asked, and a plan
+  refusal is not a failure.
+- A schedule row was stamped as read now though held for half an hour; it
+  carries its real fetch time.
+- A 401 was taken for a plan refusal; it is an account refusal now
+  (`AccountRefused`), shown on /admin as such.

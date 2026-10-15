@@ -60,10 +60,10 @@ FAM_ENVIRONMENT = (
     "VOICE_REFERENCE_FINGERPRINT", "DURATION_TOLERANCE",
     "EFFORT", "ENABLE_WEB_SEARCH", "ESPEAK_BIN", "EDITION_WRITER_MODEL",
     "EDITION_WRITER_EFFORT",
-    "ESPEAK_VOICE", "EXA_DATED_PACKET", "EXA_HIGHLIGHTS_PER_SOURCE",
-    "EXA_NUM_RESULTS", "EXA_PACKET_SOURCES", "RESEARCH_BACKEND",
+    "ESPEAK_VOICE", "SEARCH_DATED_PACKET", "SEARCH_HIGHLIGHTS_PER_SOURCE",
+    "SEARCH_NUM_RESULTS", "SEARCH_PACKET_SOURCES", "RESEARCH_BACKEND",
     "RESEARCH_RETRY",
-    # §258: the search backends that replaced Exa.
+    # §258: the search backends.
     "RESEARCH_SECOND_LOOK", "SEARCH_TIMEOUT_SECONDS", "PARALLEL_MODE",
     "PARALLEL_CHARS_PER_RESULT", "PERPLEXITY_SEARCH_TYPE",
     "PERPLEXITY_TOKENS_PER_PAGE", "SEARCH_PASSAGE_CHARS",
@@ -120,11 +120,10 @@ FAM_ENVIRONMENT = (
     "STORIES", "STORIES_SOURCES", "STORIES_TTL_SECONDS",
     "STORIES_BACKGROUND_SECONDS", "STORIES_NEWS_INTERVAL_SECONDS",
     "STORIES_MARKETS_INTERVAL_SECONDS", "STORIES_SPORTS_INTERVAL_SECONDS",
-    "STORIES_DEMAND_SECONDS", "API_SPORTS_DAILY_REQUESTS",
-    "API_SPORTS_TIER", "API_SPORTS_TIERS", "API_SPORTS_SPORTS", "API_SPORTS_LOOKUP_RESERVE",
+    "STORIES_DEMAND_SECONDS",
     "STORIES_TIMEOUT_SECONDS", "STORIES_COMPOSE", "STORIES_MODEL",
     "STORIES_EFFORT", "STORIES_MAX_TOKENS", "STORIES_COMPOSE_TIMEOUT_SECONDS",
-    "STORIES_MARKET_MOVE_PERCENT", "STORIES_SPORTS", "STORIES_POLYMARKET",
+    "STORIES_MARKET_MOVE_PERCENT", "STORIES_POLYMARKET",
     "FINNHUB_WATCHLIST",
     # The trending bank and GNews (§139). A developer with GNEWS_KEY set must
     # not run a suite that reaches gnews.io and spends their plan.
@@ -151,8 +150,18 @@ FAM_ENVIRONMENT = (
     "GDELT_EXPORT_WAIT_SECONDS", "GDELT_EXPORT_RETRY_SECONDS",
     "GNEWS_PLAN", "FINNHUB_PLAN",
     "BOOT_STAGGER_SECONDS",
-    "API_SPORTS_KEY", "API_SPORTS_SPORT", "FINNHUB_KEY",
+    "FINNHUB_KEY",
+    # §275: player and team reports.
+    "PLAYER_FACTS", "BALLDONTLIE_API_KEY", "BALLDONTLIE_TIER",
+    "BALLDONTLIE_LEAGUES", "BALLDONTLIE_MAX_SEARCHES",
+    "BALLDONTLIE_CACHE_SECONDS", "BALLDONTLIE_BASE",
     "AP_ELECTIONS_KEY", "DDHQ_KEY", "POLYMARKET_BASE",
+    # §278: the reference look. Keyless, so a shell with WIKIPEDIA=1 (the
+    # default) is not enough to reach Wikimedia: `isolated_wikimedia` below
+    # keeps it off for every test that does not turn it on.
+    "WIKIPEDIA", "WIKIMEDIA_ENTERPRISE_USERNAME", "WIKIMEDIA_ENTERPRISE_PASSWORD",
+    "WIKIMEDIA_MONTHLY_REQUESTS", "WIKIPEDIA_TIMEOUT_SECONDS",
+    "WIKIPEDIA_GRACE_SECONDS",
     # Prefetch: whether episodes are written before anybody asks, how much is
     # paid in advance and what the day's ceiling is. A developer with
     # PREFETCH=1 set must not run a suite that spends money where CI does not.
@@ -218,7 +227,7 @@ DATA_ENVIRONMENT = (
     "MYFAM_DB", "PREFS_DB", "QUOTAS_DB", "SAVED_DB", "SHARES_DB", "SOCIAL_DB",
     "VOICE_REGISTRY_DB", "TRENDING_BANK_DB", "FEEDBACK_DB", "PROVIDER_USAGE_DB",
     "LOCAL_NEWS_DB", "GDELT_EXPORT_DB", "CONSENT_DB", "MODERATION_DB",
-    "LIVE_ROUTING_DB", "STORY_POOL_DB", "PIPELINE_ERRORS_DB",
+    "LIVE_ROUTING_DB", "STORY_POOL_DB", "PIPELINE_ERRORS_DB", "WIKIMEDIA_DB",
 )
 
 #: Tier limits. Read by `entitlements.py` rather than `config.py`, so the
@@ -253,14 +262,13 @@ NO_EMBED_MODEL = str(pathlib.Path(__file__).resolve().parent / "no-embed-model-h
 
 #: Per-machine state that reaches a module other than config.py, so it is not
 #: in the list above and the staleness guard does not expect it there.
-#: EXA_API_KEY is read by research.py, and a developer who has one must not run
-#: a different suite from CI - a real retrieval in a test would cost money and
-#: reach the network.
+#: The search keys are read by research.py, and a developer who has one must
+#: not run a different suite from CI - a real retrieval in a test would cost
+#: money and reach the network.
 #: FAM_ENV and ZERO_SPEND are read by spend_guard.py (§172): a developer with
 #: either in their shell would run a suite with every key removed and the
 #: network guard on - a different suite from CI's.
-VOICE_ENVIRONMENT = ("FAM_VOICES_DIR", "VOICES_DIR", "EXA_API_KEY",
-                     # §258: read by research.py the same way.
+VOICE_ENVIRONMENT = ("FAM_VOICES_DIR", "VOICES_DIR",
                      "PARALLEL_API_KEY", "PARALLEL_API_KEYS",
                      "PERPLEXITY_API_KEY", "PERPLEXITY_API_KEYS",
                      "FAM_ENV", "ZERO_SPEND")
@@ -580,25 +588,17 @@ def isolated_local_news(tmp_path, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
-def isolated_api_sports(monkeypatch):
-    """API-Sports' per-sport budgets and caches (§180) are process-globals:
-    one test's spending, schedules or catalogues must not be the next one's."""
+def isolated_live_caches(monkeypatch):
+    """The swept quotes (§267) and the scoreboard's catalogues, standings,
+    schedules and cards (§277) are process-globals: one test's sweep or
+    catalogue must not be the next one's."""
+    import balldontlie_scores
     import live_sources
 
-    monkeypatch.setattr(live_sources, "BUDGETS", {})
-    monkeypatch.setattr(live_sources, "TEAMS", {})
-    monkeypatch.setattr(live_sources, "TEAMS_REFUSED", {})
-    monkeypatch.setattr(live_sources, "SCHEDULES", {})
-    # §259: a refused account and the swept card are process-globals too.
-    monkeypatch.setattr(live_sources, "ACCOUNT_REFUSAL", {})
-    monkeypatch.setattr(live_sources, "CARD", {})
     monkeypatch.setattr(live_sources, "QUOTES", {})
-    import story_sources
-
-    monkeypatch.setattr(story_sources, "SPORT_SWEPT_AT", {})
-    monkeypatch.setattr(story_sources, "SPORT_CARDS", {})
-    monkeypatch.setattr(story_sources, "SPORT_FAILURES", {})
-    monkeypatch.setattr(live_sources.ApiSportsSource, "_PODIUMS", {})
+    for name in ("TEAMS", "STANDINGS", "SCHEDULES", "CARDS", "SWEPT_AT",
+                 "FAILURES"):
+        monkeypatch.setattr(balldontlie_scores, name, {})
     yield
 
 
@@ -616,6 +616,26 @@ def isolated_gdelt_export(tmp_path, monkeypatch):
     yield
     gdelt_mod.reset_store()
     gdelt_mod.STATE.__init__()
+
+
+@pytest.fixture(autouse=True)
+def isolated_wikimedia(tmp_path, monkeypatch):
+    """The reference look (§278): off for the suite, its store per test, and
+    its one sending function refusing - so no test reaches Wikimedia, which
+    is keyless and so not kept away by a missing credential. A test that
+    wants it sets `wikimedia.ENABLED_OVERRIDE` and stubs `_transport`."""
+    import wikimedia
+
+    monkeypatch.setenv("WIKIMEDIA_DB", str(tmp_path / "stores" / "wikimedia.db"))
+    monkeypatch.setattr(wikimedia, "ENABLED_OVERRIDE", False)
+
+    def refuse(*_args, **_kwargs):
+        raise ConnectionRefusedError("the suite never reaches Wikimedia")
+
+    monkeypatch.setattr(wikimedia, "_transport", refuse)
+    wikimedia.reset_store()
+    yield
+    wikimedia.reset_store()
 
 
 @pytest.fixture(autouse=True)

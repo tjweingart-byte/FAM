@@ -58,15 +58,17 @@ STAGING = "staging"
 #: plural pool form (`credentials.pool` reads `NAME` and `NAMES`).
 PAID_CREDENTIALS = (
     "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN",
-    "EXA_API_KEY",
-    # §258: the search backends that replaced Exa.
+    # §258: the search backends.
     "PARALLEL_API_KEY", "PERPLEXITY_API_KEY",
     "GNEWS_KEY",
     # Open-Meteo's paid plan (§194), for weather and place names.
     "OPEN_METEO_API_KEY",
     # Email (§244): providers bill per message past a free tier.
     "SMTP_PASSWORD",
-    "API_SPORTS_KEY",
+    # §275, §277: sports - scores, standings, player and team reports.
+    "BALLDONTLIE_API_KEY",
+    # §278: Wikimedia Enterprise's account (a monthly allowance).
+    "WIKIMEDIA_ENTERPRISE_USERNAME", "WIKIMEDIA_ENTERPRISE_PASSWORD",
     "FINNHUB_KEY",
     "AP_ELECTIONS_KEY", "DDHQ_KEY",
     "GEMINI_API_KEY", "GOOGLE_API_KEY",
@@ -104,6 +106,9 @@ FORCED = {
     "GDELT": "0",
     "GDELT_CROSS_CHECK": "0",
     "STORIES_POLYMARKET": "0",
+    # §278: the reference look's keyless route reaches Wikipedia and
+    # Wikidata - outbound all the same.
+    "WIKIPEDIA": "0",
     "LIVE_SPORTS_PROVIDER": "",
     "LIVE_MARKETS_PROVIDER": "",
     "LIVE_ELECTIONS_PROVIDER": "",

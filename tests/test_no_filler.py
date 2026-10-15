@@ -11,8 +11,8 @@ invitation to turn it back on, so there is no setting.
 **Search used to be opt-in, and the question opted in. It no longer is** - the
 production default is `SEARCH_MODE=always` and every episode is researched
 (config.search_mode has the arithmetic; the short version is that the keyword
-guess was priced against 10-25 second research and Exa retrieves in about half
-a second). The heuristic itself is still here, still tested, and still what
+guess was priced against 10-25 second research and a web search retrieves in
+about half a second). The heuristic itself is still here, still tested, and still what
 `SEARCH_MODE=auto` runs - it is just no longer in the production path.
 """
 from __future__ import annotations

@@ -246,7 +246,7 @@ many times the price.
     GDELT        what the world's press is writing about   (keyless)
     Finnhub      what moved in the market today            (free key)
     Polymarket   what people are betting on                (keyless)
-    API-Sports   what is being played today                (free/cheap key)
+    BALLDONTLIE  what is being played today                (flat-rate key, §277, §280)
 
 Plus the `trending` registry, which is where `TRENDING_SOURCE` installs a feed;
 it became one source among several rather than being deprecated, so anything
@@ -257,8 +257,9 @@ few hundred recent headlines worldwide and from each region's press (since
 §211 from FAM's own copy of GDELT's 15-minute export files, kept by one
 background job, so a sweep sends GDELT no request; it idles until the first
 file lands), groups
-them (`news_clusters`), and counts the outlets running each. API-Sports sweeps
-only the followed leagues, only while one of their games is on and somebody
+them (`news_clusters`), and counts the outlets running each. BALLDONTLIE's
+sweep (`balldontlie_scores.make_signals`) follows only the followed leagues
+(`balldontlie_scores.SWEPT`), only while one of their games is on and somebody
 has drawn myFAM recently (§191, which replaced §135's "whole daily allowance"),
 and carries each game's score as a `live_line` drawn beside the tile. A signal from
 any source that matches a news story takes that story's coverage
@@ -266,7 +267,7 @@ any source that matches a news story takes that story's coverage
 (`geography.py`), the Trending rail keeps two of its four places for the
 listener's own part of the world, and "View more" on Trending is grouped by
 place. The pool refreshes itself every `STORIES_BACKGROUND_SECONDS` (fifteen
-minutes), and each source keeps its own floor (§156): API-Sports on demand while a
+minutes), and each source keeps its own floor (§156): sports on demand while a
 followed game is on (§191) and Finnhub every two hours (§191), while GDELT,
 the trending registry and Polymarket are asked every two hours
 (`STORIES_NEWS_INTERVAL_SECONDS`). Stories a source found are carried until it
@@ -301,7 +302,8 @@ researched, so a result on one is a claim nobody checked.
 
 * Sources put coverage volume, a traded price, a betting line or a fixture
   status into `Signal.observation` — never a score, a winner or a settled
-  market. API-Sports *knows* the score and deliberately does not pass it on.
+  market. *(Since §135 the sports sweep passes a game's score on as
+  `live_line`, drawn beside the tile and never composed into it.)*
 * The composer is told in its system prompt that it has researched nothing and
   must write a tile that is true whichever way the thing turns out.
 * `_RESULT_WORDS` catches the case where the prompt did not hold, sends that
@@ -545,9 +547,10 @@ Trending empty while the pool served perfectly well. Saying "the live sources
 had nothing" there would be our own page's arrangement reported as a fact about
 the world, so `_world_empty_reason` says where the stories went instead.
 
-`skipped` is the one that is not an error. API-Sports allows a hundred requests
-a *day*, so it sweeps at most every two hours; a quota spent on a browse page
-nobody opened is a quota that is not there when somebody does. Its stories stay
+`skipped` is the one that is not an error. The sports sweep is asked only
+while somebody drew myFAM recently and a followed game is on (§191); a request
+spent on a browse page nobody opened is one that is not there when somebody
+does. Its stories stay
 in the pool until they expire, so a skipped sweep is invisible to a listener
 and honest on `/api/health`. Reporting it as `empty` would have made a working
 source look broken.
@@ -563,7 +566,6 @@ source look broken.
     STORIES_COMPOSE=1               # 0 = templated tiles, which is a real product
     STORIES_MODEL=                  # defaults to MODEL (§249)
     STORIES_MARKET_MOVE_PERCENT=3.0
-    STORIES_SPORTS=                 # empty follows API_SPORTS_SPORT
     STORIES_POLYMARKET=0            # keyless, so it needs a switch of its own
     FINNHUB_WATCHLIST=              # empty = story_sources.WATCHLIST
 

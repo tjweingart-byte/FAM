@@ -1,15 +1,11 @@
 """Set an API key once, for this machine, and check that it actually works.
 
     python setup_key.py                  # the Anthropic key, which writes episodes
-    python setup_key.py --exa            # the Exa key, which researches them
     python setup_key.py --show           # where the key came from, and whether it works
-    python setup_key.py --show --exa
-    python setup_key.py --remove [--exa] # forget it
+    python setup_key.py --remove         # forget it
 
-Two credentials, one file, one habit. `--exa` is needed only when
-RESEARCH_BACKEND=exa: the default has been `parallel` since §258, and Exa is
-kept for comparing the two. `PARALLEL_API_KEY=` and `PERPLEXITY_API_KEY=`
-lines go in the same file, or come from FAM_SECRETS.
+The search keys that research episodes - `PARALLEL_API_KEY=` and
+`PERPLEXITY_API_KEY=` lines - go in the same file, or come from FAM_SECRETS.
 
 The key goes in `~/.fam/env`, next to the shared voice store and for the same
 reason: it lives **outside the project folder**, so unpacking a new copy of the
@@ -39,42 +35,6 @@ import credentials
 from config import describe_key, key_source, settings, shared_env_path
 
 VAR = "ANTHROPIC_API_KEY"
-EXA_VAR = "EXA_API_KEY"
-
-
-async def exa_works(key: str) -> tuple[bool, str]:
-    """Ask Exa whether it accepts this key, before writing it anywhere.
-
-    A one-result search, which is the cheapest call that proves the credential
-    - about half a cent. Exa has no free "who am I" endpoint, so checking costs
-    something; a key stored without checking costs more. "A key is set" is not
-    "the key works" (PROBLEMS.md 52), and this is the one place where finding
-    out is cheap.
-    """
-    os.environ[EXA_VAR] = key
-    try:
-        from exa_py import Exa
-    except ImportError:
-        return False, ("exa_py is not installed, so the key cannot be checked. "
-                       "`pip install -r requirements-exa.txt`")
-    try:
-        reply = await asyncio.to_thread(
-            lambda: Exa(key).search_and_contents(
-                "test", type="fast", num_results=1, highlights=True))
-    except Exception as exc:  # noqa: BLE001 - the reason matters, not the class
-        detail = getattr(exc, "message", "") or str(exc)
-        return False, f"{type(exc).__name__}: {detail[:200]}"
-    found = len(list(getattr(reply, "results", []) or []))
-    return True, f"Exa accepted it and returned {found} result(s)."
-
-
-def describe_exa_key(key: str = "") -> str:
-    """A safe fingerprint, for the same reason `describe_key` exists: an error
-    about the wrong key looks identical whichever wrong key produced it."""
-    key = key or os.environ.get(EXA_VAR, "")
-    if not key:
-        return "not set"
-    return f"{len(key)} chars, ending {key[-4:]}"
 
 
 async def works(key: str) -> tuple[bool, str]:
@@ -131,26 +91,17 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--show", action="store_true", help="report the key in force and test it")
     ap.add_argument("--remove", action="store_true", help="delete the stored key")
-    ap.add_argument("--exa", action="store_true",
-                    help="the Exa key, which researches episodes, rather than "
-                         "the Anthropic one, which writes them")
     args = ap.parse_args()
 
     path = shared_env_path()
-    name = EXA_VAR if args.exa else VAR
+    name = VAR
 
     if args.remove:
         kept = without(name)
         if path.exists():
             path.write_text("\n".join(kept + [""]) if kept else "")
         print(f"Removed {name} from {path}")
-        if args.exa:
-            print("Researched episodes will now fall to GDELT (GDELT=1) or be "
-                  "refused unless you also set RESEARCH_BACKEND=gdelt.")
         return 0
-
-    if args.exa:
-        return exa_main(path, args.show)
 
     if args.show:
         print(f"  stored in : {path}{'' if path.exists() else '  (does not exist yet)'}")
@@ -216,67 +167,6 @@ def main() -> int:
               "CI runner,\na colleague's laptop - is a fresh ~/.fam and will ask "
               f"again. One variable\nends that for all of them: set "
               f"{credentials.PROVIDER_VAR}. See CREDENTIALS.md.")
-    return 0
-
-
-def exa_main(path, show: bool) -> int:
-    """The Exa half. Deliberately the same shape as the Anthropic half above -
-    verify, then store, and store nothing that does not work."""
-    stored = os.environ.get(EXA_VAR, "")
-
-    if show:
-        print(f"  stored in : {path}{'' if path.exists() else '  (does not exist yet)'}")
-        print(f"  backend   : RESEARCH_BACKEND={settings.research_backend}")
-        print(f"  key       : {describe_exa_key()}")
-        if not stored:
-            print("\nNo Exa key. Run: python setup_key.py --exa")
-            if settings.research_backend == "exa":
-                print("Researched episodes fall to GDELT (GDELT=1) or are "
-                      "refused until you do, or until you set "
-                      "RESEARCH_BACKEND=gdelt.")
-            return 1
-        print("  checking it with Exa (one search, about half a cent)…")
-        ok, detail = asyncio.run(exa_works(stored))
-        print(f"  accepted  : {'YES - ' + detail if ok else 'NO - ' + detail}")
-        return 0 if ok else 1
-
-    print(f"The Exa key is stored once, in {path}, and every copy of the app "
-          "reads it.")
-    print("It is never written into the source, and never committed.\n")
-    print("It is needed only with RESEARCH_BACKEND=exa (the default is "
-          "`parallel` since\n§258, and Exa is kept for comparing the two). "
-          "Parallel's and Perplexity's keys go\nin the same file as "
-          "PARALLEL_API_KEY= and PERPLEXITY_API_KEY=, or in FAM_SECRETS.\n")
-    if stored:
-        print(f"There is already an Exa key ({describe_exa_key()}).")
-        print("Entering a new one replaces it.\n")
-
-    try:
-        key = getpass.getpass("Paste your Exa API key (input hidden): ").strip()
-    except (EOFError, KeyboardInterrupt):
-        print("\nNothing changed.")
-        return 1
-    if not key:
-        print("Nothing entered; nothing changed.")
-        return 1
-
-    print("Checking it with Exa before storing it (one search, about half a "
-          "cent)…")
-    ok, detail = asyncio.run(exa_works(key))
-    if not ok:
-        print(f"\nREJECTED - {detail}")
-        print(f"  key tried: {describe_exa_key(key)}")
-        print("\nNothing was stored. A key that does not work is worse stored "
-              "than not stored:\n  the server would start, report research as "
-              "configured, and fail on the first\n  researched episode.")
-        return 1
-
-    write_key(key, EXA_VAR)
-    print(f"\nAccepted - {detail}")
-    print(f"Stored in {path} (readable only by you).")
-    print("\nYou will not be asked again on this machine, including by a new "
-          "copy of the app.\nCheck it any time with:  python setup_key.py "
-          "--show --exa")
     return 0
 
 

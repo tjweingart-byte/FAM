@@ -1,7 +1,7 @@
 """Which live provider each written episode was routed to, and what it said (§264).
 
 Every researched episode is searched (Parallel, Perplexity, GDELT), and a live
-provider - API-Sports, Finnhub, Polymarket, weather - is asked **beside** the
+provider - BALLDONTLIE, Finnhub, Polymarket, weather - is asked **beside** the
 search only when the brief names a `live_domain`. So an episode that should
 have had a scoreboard and did not has one of four causes, and from the outside
 they all look the same:

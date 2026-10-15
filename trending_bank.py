@@ -759,6 +759,10 @@ async def gnews_signals(client, now: float, size: int) -> list:
             source=GNEWS, tags=_tags(" ".join(titles[:3])),
             strength=round(max(0.3, candidate.score() / peak), 3), as_of=at,
             url=group.urls[0] if group.urls else "",
+            # Every corroborating article's address, so a tap searches the
+            # outlets that ran the story beside the main search (§276) -
+            # the hosts are used to look, never read to the writer.
+            urls=tuple(group.urls),
             countries=stories.country_shares(candidate.countries),
             keywords=group.keywords(), coverage=covered,
             anchors=anchors_of(group),

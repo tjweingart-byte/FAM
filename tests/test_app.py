@@ -124,8 +124,8 @@ def test_health_reports_demo_mode(client, monkeypatch):
 #
 # The promise is: type a question, hear the answer within about a second. The
 # model's own web_search tool put 10-25 seconds in front of the first word,
-# which no amount of buffering can disguise. Exa retrieval costs about half a
-# second, so every episode is now researched (PROBLEMS.md 76) - and the tool
+# which no amount of buffering can disguise. A web search backend's retrieval
+# costs about half a second, so every episode is now researched (PROBLEMS.md 76) - and the tool
 # that cost the 10-25 seconds is still not what production uses.
 # --------------------------------------------------------------------------
 
@@ -135,7 +135,7 @@ def test_research_is_on_for_every_episode():
     from script_generator import plan_episode
 
     assert plan_episode("anything", 3).search is True
-    # Parallel since §258, at the owner's direction; Exa before it.
+    # Parallel since §258, at the owner's direction.
     assert appmod.settings.research_backend == "parallel", (
         "the always-on default is priced on a search vendor's retrieval; the "
         "model's own search tool costs 10-25s and cannot be paid on every "

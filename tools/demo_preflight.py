@@ -155,14 +155,14 @@ def main() -> int:
         worst = max(worst, 2)
 
     # Research is the fourth way this can look like it is working. The default
-    # backend is Exa, which needs an optional package and a second key; without
-    # them a question the heuristic marks time-sensitive fails outright rather
-    # than quietly answering from memory. That is deliberate, but it is not
-    # something to discover by asking about today's news.
+    # backend is Parallel, which needs a second key; without it a researched
+    # question falls down the ladder to a thinner index. That is deliberate,
+    # but it is not something to discover by asking about today's news.
     backend = settings.research_backend
     research_ok, research_detail = (research.backend_diagnose(backend)
                                     if backend in research.WEB_BACKENDS
-                                    else research.diagnose())
+                                    else (research._rung_available(backend),
+                                          research.report()["backend_detail"]))
     rungs = research.ladder()
     if backend == "gdelt":
         say(f"  research   {BOLD}gdelt{RESET} - keyless article index, titles and "

@@ -278,7 +278,7 @@ def _say_where_a_key_could_come_from() -> None:
 def _announce_research() -> None:
     """Say at startup whether the configured research backend can actually run.
 
-    `parallel` is the default since §258 (`exa` before it) and needs a
+    `parallel` is the default since §258 and needs a
     second credential. Without it a researched
     episode fails - it does not quietly search another way - and finding that
     out on a listener's first researched question is the shape of failure this
@@ -292,17 +292,16 @@ def _announce_research() -> None:
     **What it says changed with §109**, and this is the kind of line that goes
     stale silently: it used to say researched episodes would FAIL rather than
     search another way, which was true when the configured backend was the
-    only one. They now fall down a ladder - GDELT, since §135 the only rung
-    below Exa - so the consequence is weaker research rather than no episode,
+    only one. They now fall down a ladder - Perplexity, then GDELT - so the consequence is weaker research rather than no episode,
     and saying otherwise would send somebody looking for failures that are not
     happening.
     """
     report = research_report()
     if report.get("backend_replaced"):
         log.warning(
-            "RESEARCH_BACKEND=%s is no longer a backend (PROBLEMS.md §135: the "
-            "model never searches the web for FAM). Running as %s. Remove the "
-            "variable, or set it to parallel, perplexity, exa or gdelt.",
+            "RESEARCH_BACKEND=%s is no longer a backend (PROBLEMS.md §135). "
+            "Running as %s. Remove the variable, or set it to "
+            "parallel, perplexity or gdelt.",
             report["backend_replaced"], report["backend"])
     if not report["unavailable"]:
         log.info("research: %s (%s)", report["backend"], report["backend_detail"])
@@ -349,14 +348,14 @@ async def _refresh_stories_forever() -> None:
     The pool used to refresh only when somebody drew myFAM and found it
     stale, so the first listener after a quiet hour saw an hour-old Trending
     row while the sweep they had just triggered ran behind it, and the
-    API-Sports allowance the owner asked to be spent on fresh scores sat
+    sports allowance the owner asked to be spent on fresh scores sat
     unused overnight. This ticks once a minute and sweeps whenever the pool
     is `STORIES_BACKGROUND_SECONDS` old - every fifteen minutes by default,
     one sweep for every listener, exactly as a page load would have paid.
 
     Since §191 a tick spends only on what is due: the news and Finnhub every
-    two hours, and API-Sports only when somebody drew myFAM recently and a
-    followed game is on (`ApiSportsSignals.idle`). A tick with nothing due
+    two hours, and BALLDONTLIE's sports only when somebody drew myFAM
+    recently and a followed game is on (`balldontlie_scores` `Signals.idle`). A tick with nothing due
     asks nobody.
 
     Never raises: a sweep that fails is logged by `_warm_stories` and the
@@ -833,8 +832,8 @@ def friendly_error(exc: Exception) -> str:
         # ways - the rule `entitlements.service_label` already follows.
         return str(exc)
     if isinstance(exc, ResearchUnavailable):
-        # This one already carries the remedy - "exa_py is not installed,
-        # `pip install -r requirements-exa.txt`", or which key is missing.
+        # This one already carries the remedy - which key is missing, or
+        # which value is not a backend.
         # Replacing that with "see the server log" throws away the one
         # sentence that would let the person fix it, which is the whole job
         # of this function. Every other component names what is wrong.
@@ -1089,6 +1088,16 @@ def _database_report() -> list[dict]:
         if story_store.exists():
             stores.append(("story pool", "STORY_POOL_DB",
                            story_store.store().path))
+    except Exception:  # pragma: no cover - a report is never load-bearing
+        pass
+    # The reference look's answers and Enterprise's monthly count (§278).
+    # Created by the first look, and reported once it exists.
+    try:
+        import wikimedia
+
+        if wikimedia.exists():
+            stores.append(("reference look", "WIKIMEDIA_DB",
+                           wikimedia.store().path))
     except Exception:  # pragma: no cover - a report is never load-bearing
         pass
     try:
@@ -1520,7 +1529,7 @@ def _refund_if_unspent(verdict, user: str, usage: metering.Usage) -> None:
     """
     if verdict is None or not user or not getattr(verdict, "charged", True):
         return
-    if usage.model_calls or usage.exa_searches:
+    if usage.model_calls or usage.web_searches:
         return
     QUOTAS.refund(user, verdict.resource, verdict.window,
                   episode_key=getattr(verdict, "episode_key", ""))
@@ -1842,7 +1851,7 @@ async def health(request: Request) -> dict:
         # EI that has been switched off looks identical from outside to one
         # that is working - the episodes are merely less relevant - which is
         # the "quietly worse than intended" shape this project keeps paying
-        # for. `enabled: false` means the raw query is going to Exa.
+        # for. `enabled: false` means the raw query is going to the search.
         "episode_intelligence": ei_report(),
         # The evidence cut in front of the writer (§270): on or off, and how
         # each cut ended since boot, by who was waiting.
@@ -1904,9 +1913,13 @@ async def health(request: Request) -> dict:
                        "min_wordings": categories_mod.MIN_TEXTS,
                        "stale": categories_mod.is_stale()},
         # The second retrieval index, and the Trending row's feed. Reported
-        # separately from `research` because they fail separately: Exa can be
-        # healthy while this is off, and vice versa.
+        # separately from `research` because they fail separately: the web
+        # search can be healthy while this is off, and vice versa.
         "gdelt": gdelt_report(),
+        # The reference look (§278): on or off, which route serves it
+        # (Wikimedia Enterprise or the keyless summary), and the month's
+        # Enterprise requests against the cap.
+        "wikipedia": _wikipedia_report(),
         # Whether every licensed provider in use may be used commercially
         # (§207): GNews' and Finnhub's free plans and Open-Meteo's keyless
         # endpoint may not. The question to ask before charging anybody.
@@ -3902,6 +3915,17 @@ async def entitlements_read(request: Request) -> dict:
         **entitlements.describe(tier_name),
         "usage": _quota_snapshot(user, tier_name),
     }
+
+
+def _wikipedia_report() -> dict:
+    """`wikimedia.report`, never raising (§278)."""
+    try:
+        import wikimedia
+
+        return wikimedia.report()
+    except Exception as exc:  # noqa: BLE001 - a report is never load-bearing
+        log.warning("could not report the reference look: %s", exc)
+        return {"enabled": False, "error": type(exc).__name__}
 
 
 def _licences_report() -> dict:
@@ -9673,7 +9697,7 @@ def admin_financials_daily(request: Request) -> JSONResponse:
     now = time.time()
     return JSONResponse(
         {"as_of": time.strftime("%Y-%m-%d", time.gmtime(now)),
-         "columns": ["date", "episodes", "claude_usd", "exa_usd", "gpu_usd",
+         "columns": ["date", "episodes", "claude_usd", "web_search_usd", "gpu_usd",
                      "pictures_usd"],
          "rows": financials.daily_rows(now)},
         headers={"Cache-Control": "no-store"})

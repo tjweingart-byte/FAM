@@ -991,7 +991,7 @@ def test_the_marker_is_never_spoken_even_when_it_arrives_in_pieces():
     async def run():
         # search=False: every episode is researched by default now
         # (PROBLEMS.md 76), and this test is about marker stripping. A
-        # real retrieval here would fail on a machine with no EXA_API_KEY
+        # real retrieval here would fail on a machine with no PARALLEL_API_KEY
         # and say nothing about the marker.
         plan = plan_episode("the appeal", 1, search=False)
         return [s async for s in gen.stream_sentences(plan, notes)]

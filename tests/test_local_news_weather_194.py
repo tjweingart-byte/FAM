@@ -1,7 +1,7 @@
 """Local news from a town's own outlets, and weather for the place asked (§194).
 
-At the owner's direction: a local question goes town, then county, then Exa
-on the town's known outlets - never GDELT - and when the town has nothing the
+At the owner's direction: a local question goes town, then county, then a web
+search (Parallel, then Perplexity) on the town's known outlets - never GDELT - and when the town has nothing the
 episode opens with a sentence composed in code saying so, then the weather
 there, then the nearest news. Weather is the National Weather Service first
 for a US place, Open-Meteo everywhere else and when NWS fails.
@@ -266,19 +266,19 @@ def test_the_packet_never_carries_a_hostname():
 # --------------------------------------------------------------------------
 # The ladder
 # --------------------------------------------------------------------------
-def ladder(exa=None):
+def ladder(search=None):
     return asyncio.run(local_news.research_local(
         SAN_ANSELMO, types.SimpleNamespace(retrieval="San Anselmo news"),
-        exa=exa))
+        search=search))
 
 
 def test_the_town_answers_first_and_nothing_else_is_asked():
     store = marin_store()
     keep(store, "https://ross.example/", item("https://ross.example/1", "Library reopens"))
 
-    async def exa(*_):
-        raise AssertionError("Exa was asked after the town answered")
-    result = ladder(exa)
+    async def search(*_):
+        raise AssertionError("the web search was asked after the town answered")
+    result = ladder(search)
     assert result.scope == "town" and not result.gap
     assert "Library reopens" in result.packet.context
 
@@ -287,40 +287,40 @@ def test_an_empty_town_falls_to_its_county_and_says_so():
     store = marin_store()
     keep(store, "https://ij.example/", item("https://ij.example/2", "Novato school board"))
 
-    async def exa(*_):
-        raise AssertionError("Exa was asked after the county answered")
-    result = ladder(exa)
+    async def search(*_):
+        raise AssertionError("the web search was asked after the county answered")
+    result = ladder(search)
     assert result.scope == "county" and result.gap
     assert "Novato" in result.packet.context
 
 
-def test_exa_is_asked_only_on_known_outlets_and_must_name_the_town():
+def test_the_web_search_is_asked_only_on_known_outlets_and_must_name_the_town():
     marin_store()
     asked = {}
 
-    async def exa(query, domains, must_name):
+    async def search(query, domains, must_name):
         asked.update(query=query, domains=domains, must_name=must_name)
         return research.Packet(context="SOURCE 1\nTitle: San Anselmo news",
-                               backend="exa", sources=["ross.example"])
-    result = ladder(exa)
+                               backend="parallel", sources=["ross.example"])
+    result = ladder(search)
     # The shipped seed files the Marin IJ for the county, so it is asked too.
     assert set(asked["domains"]) == {"ross.example", "ij.example",
                                      "bay.example", "marinij.com"}
     assert asked["must_name"] == "San Anselmo"
     # Every result names the town, so it *is* town news: no gap to announce.
-    assert result.scope == "exa" and not result.gap
+    assert result.scope == "parallel" and not result.gap
 
 
 def test_nothing_anywhere_is_a_gap_with_no_packet():
     marin_store()
 
-    async def exa(*_):
-        return research.Packet(backend="exa")
-    result = ladder(exa)
+    async def search(*_):
+        return research.Packet(backend="parallel")
+    result = ladder(search)
     assert result.gap and result.packet is None and result.scope == ""
 
 
-def test_exa_results_that_do_not_name_the_place_are_dropped():
+def test_search_results_that_do_not_name_the_place_are_dropped():
     results = [types.SimpleNamespace(title="Marin County fire", highlights=[]),
                types.SimpleNamespace(title="x", highlights=["In San Anselmo, ..."])]
     kept = research.names_place(results, "San Anselmo")

@@ -4,8 +4,8 @@ Ask a question, pick a length from 1 to 5 minutes, and hear the answer as a
 short audio story. **New to the project? Start with `docs/ONBOARDING.md`.**
 
 Every episode is researched before a word is written (`SEARCH_MODE=always`):
-episode intelligence decides what to look for, the research ladder (Exa, then
-GDELT) and the live providers bring back dated evidence, and only then does
+episode intelligence decides what to look for, the research ladder (Parallel, then
+Perplexity, then GDELT) and the live providers bring back dated evidence, and only then does
 Claude write. There is no model web search (deleted, `PROBLEMS.md` §135) and no
 from-knowledge cover to fill the wait (deleted, §108). A search's wait is shown
 honestly in front of the first word; myFAM, DailyFAM and Explore pay none of it
@@ -48,7 +48,6 @@ On macOS the built-in `say` voice is used automatically — nothing to install.
 pip install -r requirements.txt
 
 python setup_key.py                   # the Anthropic key, once per machine
-python setup_key.py --exa             # the Exa key, which researches episodes
 ./run.sh                              # http://localhost:8000
 ```
 
@@ -74,7 +73,7 @@ query + minutes
       │
       ├─ plan_episode()      minutes → word budget + section outline
       │
-      ├─ EI brief → research (Exa / GDELT / live providers)
+      ├─ EI brief → research (Parallel / Perplexity / GDELT / live providers)
       │
       ├─ Claude (streaming, no tools) ──→ sentences, as they are written
       │                                          │

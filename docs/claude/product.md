@@ -284,7 +284,7 @@ seconds is.
 > episodes and generates nothing.
 >
 > `EPISODE_INTELLIGENCE=0` restores the old latency exactly, and with it the
-> old behaviour: the raw query goes to Exa, with no structure, no why-now and
+> old behaviour: the raw query goes to the search, with no structure, no why-now and
 > no temporal cautions.
 >
 > **Current (PROBLEMS.md §270, the owner's call):** the brief's third part
@@ -590,7 +590,7 @@ day the company had done something; the evidence packet carried no dates, so an
 episode was asked to choose between "last night" and "two days ago" with
 nothing to choose on; and duration was a word count, so more minutes bought
 more words on the same material. **No amount of prompt work would have fixed
-any of those.** `episode_intelligence.py` decides what to search for before Exa
+any of those.** `episode_intelligence.py` decides what to search for before the search
 is called, `research.build_packet` now dates and grades every source, and
 `DEPTH_BANDS` says what each band of minutes is *for*.
 

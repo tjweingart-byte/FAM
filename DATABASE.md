@@ -211,7 +211,7 @@ call** — there is no path from opening myFAM to generating anything.
   distinct tag signatures across 28 topics.
 * **The live story pool** — up to 24, composed by one small model call per
   refresh window *for the whole deployment*, from four sources (GDELT,
-  Finnhub, Polymarket, API-Sports). Off until `GDELT=1`; no deployment has it.
+  Finnhub, Polymarket, BALLDONTLIE). Off until `GDELT=1`; no deployment has it.
 * **The startup set** — 8 time-anchored questions, one per facet, for a
   listener with no history at all.
 

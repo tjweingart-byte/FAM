@@ -1,6 +1,6 @@
 """The seam for facts an article index cannot be fresh enough to hold.
 
-Exa retrieves *writing about* the world. A game ends and the scoreboard knows
+A web search retrieves *writing about* the world. A game ends and the scoreboard knows
 instantly; the recap saying so is written, published and indexed later, and in
 between a search returns the preview. An episode built on that describes a
 finished match as though it is still coming - which is not a writing bug, the

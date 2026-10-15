@@ -1,7 +1,7 @@
 """Local news from the outlets that actually cover a town (§194).
 
 **The hole this fills.** A question about a small town - "what's going on in
-San Anselmo" - went to Exa and GDELT, national indexes that weight a town's
+San Anselmo" - went to the web search and GDELT, national indexes that weight a town's
 two or three outlets at nothing. They came back with Marin County or San
 Francisco stories, nothing checked that those named the town, and the writer
 bridged the gap from memory. That is the invention §88 and §109 forbid,
@@ -11,14 +11,15 @@ reached by a side door.
 
 1. **Town items**: stories already collected from the town's own outlets, or
    from any outlet in its state that names it. A local database read - faster
-   than an Exa call, and it follows [latency-start-earlier]: the collecting
+   than a web search, and it follows [latency-start-earlier]: the collecting
    happens before anybody taps.
 2. **County items**: the county's outlets, or stories naming the county. The
    writer is told plainly that this is county-level evidence, and the episode
    opens with a sentence composed in code that says the town itself had
    nothing (`gap_line`) - so county news is never presented as the town's.
-3. **Exa, limited to the town's and county's known outlets** - or, for a
-   place with no known outlet, an Exa search that must name the place.
+3. **A web search (Parallel, then Perplexity), limited to the town's and
+   county's known outlets** - or, for a place with no known outlet, a search
+   that must name the place.
    Avoided whenever 1 or 2 answered.
 4. **Nothing**: the gap sentence and the weather there, said as exactly that.
 
@@ -33,7 +34,7 @@ feed again from the homepage), blocked and retired on its own. It polls only
 outlets for places somebody has asked about recently, so the work scales with
 demand. It reads `robots.txt` and keeps a do-not-use list for publishers who
 object. Outlets come from a seed file, `tools/local_outlets.py` (Wikidata) and
-- automatically - from any site the Exa rung finds writing about the town.
+- automatically - from any site the web search rung finds writing about the town.
 """
 from __future__ import annotations
 
@@ -82,12 +83,12 @@ POLLED = (NEW, HEALTHY, STALE, BROKEN, NO_FEED, BLOCKED)
 
 TOWN = "town"
 COUNTY = "county"
-#: An outlet found by the Exa rung rather than filed by hand: a regional
+#: An outlet found by the web search rung rather than filed by hand: a regional
 #: site, usually, so its stories count for a place only when they name it.
 MENTION = "mention"
 
 #: The seed list shipped with the code. Small on purpose: Wikidata and the
-#: Exa rung grow it; this only makes the first town work on a fresh disk.
+#: web search rung grow it; this only makes the first town work on a fresh disk.
 SEED_FILE = PROJECT_ROOT / "local_outlets.json"
 
 #: Paths a feed usually lives at, tried when a homepage does not say.
@@ -1117,7 +1118,8 @@ class LocalResult:
     """What the local ladder found for a place, and what it did."""
 
     place: object
-    #: Which rung answered: "town", "county", "exa" or "" for none.
+    #: Which rung answered: "town", "county", the web backend that searched
+    #: ("parallel", "perplexity") or "" for none.
     scope: str = ""
     packet: object = None
     #: True when the town itself had nothing - the gap sentence is said.
@@ -1171,12 +1173,11 @@ def _packet(items: list, scope: str, place, backend: str):
     return packet
 
 
-async def research_local(place, brief=None, exa=None) -> LocalResult:
+async def research_local(place, brief=None, search=None) -> LocalResult:
     """Town, then county, then a web search on the known outlets. Never raises.
 
-    `exa` is the coroutine function that runs one web search on the
-    configured backend (Parallel since §258; the name is from when it was Exa)
-    (`(query, include_domains) -> Packet`), passed in so this module does
+    `search` is the coroutine function that runs one web search on the
+    configured backend (`(query, include_domains, must_name) -> Packet`), passed in so this module does
     not reach into the writer's retrieval code and tests can stand one in.
     """
     result = LocalResult(place=place)
@@ -1204,7 +1205,7 @@ async def research_local(place, brief=None, exa=None) -> LocalResult:
         result.packet = _packet(county, COUNTY, place, "local-county")
         return result
 
-    if exa is not None:
+    if search is not None:
         known = sorted({o.host for o in (target.for_place(
             place.name, place.county, place.region) if target else [])
             if o.host and o.state != EXCLUDED})
@@ -1213,7 +1214,7 @@ async def research_local(place, brief=None, exa=None) -> LocalResult:
         try:
             # Only results that name the place survive inside the search
             # (`research.names_place`) - the fix that stops invention.
-            packet = await exa(query, tuple(known), place.name)
+            packet = await search(query, tuple(known), place.name)
         except Exception:  # noqa: BLE001
             log.warning("local news: the web search rung failed for %s", place.label,
                         exc_info=True)
@@ -1234,7 +1235,7 @@ async def research_local(place, brief=None, exa=None) -> LocalResult:
 
 
 def _learn(packet, place, target: Optional[LocalNewsStore]) -> None:
-    """Keep any site Exa found writing about the town as a candidate outlet.
+    """Keep any site the web search found writing about the town as a candidate outlet.
 
     This is how the registry grows without anybody typing an outlet in: the
     next question about the town finds its stories already collected. A

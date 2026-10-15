@@ -18,18 +18,12 @@ RUN apt-get update \
  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-# Both files. `exa_py` is declared only in requirements-exa.txt, and
-# RESEARCH_BACKEND defaults to `exa` (config.py DEFAULT_RESEARCH_BACKEND), so
-# without it this image starts with research already broken: `research.diagnose`
-# reports "exa_py is not installed" and every researched episode raises
-# ResearchUnavailable rather than searching another way. Dockerfile.gpu has
-# always installed both; this image was the one left behind.
-#
-# It costs nothing to carry: exa-py is pure Python, no torch, no CUDA.
+# The search backends (Parallel, Perplexity) need no SDK: `research.py`
+# speaks to them over `httpx`, which requirements.txt already carries.
 # requirements-push.txt: "your mix is ready" by Web Push (push.py). Pure
 # Python plus `cryptography`; inert until VAPID keys are set.
-COPY requirements.txt requirements-exa.txt requirements-embed.txt requirements-push.txt ./
-RUN pip install --no-cache-dir -r requirements.txt -r requirements-exa.txt -r requirements-push.txt
+COPY requirements.txt requirements-embed.txt requirements-push.txt ./
+RUN pip install --no-cache-dir -r requirements.txt -r requirements-push.txt
 
 # The local sentence embedder that orders "Made for you" by meaning as well as
 # by tag (PROBLEMS.md §131). ~110 MB with its runtime, CPU only, no torch.
@@ -101,6 +95,7 @@ ENV CACHE_PATH=/data/scripts.db \
     LOCAL_NEWS_DB=/data/local_news.db \
     GDELT_EXPORT_DB=/data/gdelt_export.db \
     STORY_POOL_DB=/data/story_pool.db \
+    WIKIMEDIA_DB=/data/wikimedia.db \
     PORT=8000
 RUN mkdir -p /data
 

@@ -176,7 +176,7 @@ def cluster(articles: Iterable, scope_of=None,
     """Group articles into stories. Largest first, singletons dropped.
 
     `articles` are anything with `title`, `url`, and optionally `country` and
-    `published_date` - the Exa-shaped results `gdelt.parse_articles` returns.
+    `published_date` - the search-shaped results `gdelt.parse_articles` returns.
     `scope_of(article)` says which sweep found it, when the caller knows.
     Duplicate URLs are read once.
 

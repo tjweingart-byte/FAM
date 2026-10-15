@@ -11,7 +11,7 @@
 # because every one of those steps is a chance to set it up differently from
 # last time, and none of them is recorded anywhere.
 #
-# Here, the slow and fragile half - CUDA, torch, chatterbox, exa - is baked
+# Here, the slow and fragile half - CUDA, torch, chatterbox - is baked
 # once at build time. Nothing is installed on the pod. The three things that
 # must NOT be baked are:
 #
@@ -42,14 +42,12 @@ RUN apt-get update \
 WORKDIR /app
 
 # Requirements first, so a code change does not reinstall CUDA-sized wheels.
-# All three: the base, the voice, and the research backend. Exa is optional in
-# the repo on purpose - a laptop and CI must not need it - but this image is a
-# deployment of the default configuration, and the default backend is Exa.
-COPY requirements.txt requirements-chatterbox.txt requirements-exa.txt ./
+# Both: the base and the voice. The search backends need no SDK of their own
+# (`research.py` speaks to them over httpx).
+COPY requirements.txt requirements-chatterbox.txt ./
 RUN python -m pip install --upgrade pip \
  && python -m pip install -r requirements.txt \
- && python -m pip install -r requirements-chatterbox.txt \
- && python -m pip install -r requirements-exa.txt
+ && python -m pip install -r requirements-chatterbox.txt
 
 COPY . .
 
@@ -96,12 +94,13 @@ ENV FAM_STATE=/state \
     LOCAL_NEWS_DB=/state/data/local_news.db \
     GDELT_EXPORT_DB=/state/data/gdelt_export.db \
     STORY_POOL_DB=/state/data/story_pool.db \
+    WIKIMEDIA_DB=/state/data/wikimedia.db \
     PORT=8000
 
 # Production defaults, named here so the image is self-describing and a host
 # that sets nothing still gets the configuration that was validated.
 ENV STREAMING_PIPELINE=phase6 \
-    RESEARCH_BACKEND=exa \
+    RESEARCH_BACKEND=parallel \
     CHATTERBOX_DEVICE=auto
 
 # **ANSWER_FIRST is gone, and this image is where it did its damage.**

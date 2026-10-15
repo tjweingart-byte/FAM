@@ -86,9 +86,9 @@ Learn these words before reading code. A `§` number is a section of
 | Term | Meaning |
 |---|---|
 | **EI / brief** | Episode intelligence (`episode_intelligence.py`). One Claude call turns the typed question into a `Brief`: the retrieval query, the recency window, the story shape and the cautions. It may say a request is `outcome_dependent`. It never asserts a fact. If it fails, the raw query is used and `Brief.degraded` records that. |
-| **Research ladder** | `research.ladder()`: Exa, then Exa without the recency window, then GDELT. No rung raises an error, and every fallback is recorded. The model never searches the web itself; that was deleted in §135. |
+| **Research ladder** | `research.ladder()`: Parallel, then one retry on Perplexity without the recency window, then Perplexity as a rung, then GDELT. No rung raises an error, and every fallback is recorded. The model never searches the web itself; that was deleted in §135. |
 | **Packet** | The evidence handed to the writer. Each source carries a date and a credibility grade, **never a hostname**. Recency filters the sources; credibility sorts them. |
-| **Live facts** | `live_facts.py`. Scores, prices and results come from a provider (API-Sports, Finnhub, Polymarket), use a closed status vocabulary, and are enforced fresh in code. The model never supplies them. |
+| **Live facts** | `live_facts.py`. Scores, prices and results come from a provider (BALLDONTLIE, Finnhub, Polymarket), use a closed status vocabulary, and are enforced fresh in code. The model never supplies them. |
 | **Writer** | `script_generator.py`. A streaming Claude call with no tools. It emits sentences plus stripped control lines: `<<TITLE:>>`, `<<NEXT:>>`, `<<CATEGORY:>>` and `<<SAY: Name = respelling>>`. |
 | **`key_for` / `bucket_for`** | `pipeline.key_for` and `pipeline.bucket_for` are the **only** cache key. Prefetch and live requests write the same cache under the same key. A new field that changes an episode goes there and nowhere else. |
 | **Cache hit / miss** | A hit is an exact key, or a near match by stored embedding (`CACHE_VECTOR`, on by default). A hit with kept audio plays from SQLite with no Claude and no GPU. A miss runs the whole pipeline. |
@@ -139,10 +139,10 @@ flowchart LR
     CL["Claude<br/>(EI, writer, composer, admin Q&A)"]
   end
   subgraph Evidence
-    EXA[Exa]
+    WEBS["Parallel / Perplexity"]
     GD["GDELT<br/>(export files, local copy)"]
     GN[GNews]
-    AS[API-Sports]
+    AS[BALLDONTLIE]
     FH[Finnhub]
     PM[Polymarket]
     WX[NWS / Open-Meteo]
@@ -157,7 +157,7 @@ flowchart LR
   end
   WEB & IOS & PAGES -- "HTTPS JSON + raw PCM stream" --> APP
   APP --> PIPE --> CL
-  PIPE --> EXA & GD & AS & FH & PM & WX & RSS
+  PIPE --> WEBS & GD & AS & FH & PM & WX & RSS
   PIPE -- "~33-word chunks" --> TTS
   TTS -- PCM --> PIPE
   APP <--> DB
@@ -199,10 +199,10 @@ Points to hold on to:
 4. **The brief.** EI makes one Claude call, or a brief already warmed by
    prefetch is used. If EI fails, the raw query is used and the failure is
    recorded.
-5. **The evidence.** The research ladder (Exa, then Exa wider, then GDELT)
+5. **The evidence.** The research ladder (Parallel, then Perplexity wider, then GDELT)
    and, for sports, markets and elections, the live-facts lookup run
    concurrently. A local question uses the local-news ladder instead (town
-   RSS, then county, then Exa on known outlets, then weather; never GDELT).
+   RSS, then county, then a web search on known outlets, then weather; never GDELT).
    If a question depends on current events and nothing comes back, it is
    refused and refunded. An evergreen question is never refused.
 6. **The writer.** It holds the brief and the packet before its first token.
@@ -326,7 +326,7 @@ the offsets in `PROBLEMS_INDEX.md`).
    of the ten steps in section 3.2 happens.
 
 **You understand it when you can answer:**
-- What happens when Exa returns nothing for a question about last night's
+- What happens when the search returns nothing for a question about last night's
   game? And for a question about how tides work?
 - Where would a new field that changes the episode go, and why only there?
 - Why is the hostname kept out of the packet?
@@ -519,14 +519,14 @@ They share nothing: no disk, key, admin token or voice worker.
 
 | Variable | What it does |
 |---|---|
-| `ANTHROPIC_API_KEY`, `EXA_API_KEY` | Writing and research. Without the first, every episode is the demo script |
+| `ANTHROPIC_API_KEY`, `PARALLEL_API_KEY`, `PERPLEXITY_API_KEY` | Writing and research. Without the first, every episode is the demo script |
 | `MODEL` | The writer model (`claude-sonnet-5` in `render.yaml`) |
 | `VOICE_BACKEND`, `REMOTE_VOICE_TRANSPORT`, `RUNPOD_ENDPOINT_ID`, `RUNPOD_API_KEY`, `RUNPOD_POD`, `VOICE_REGISTRY_TOKEN`, `VOICE_WORKER_PORT`, `VOICE_ALLOW_PLAIN_HTTP` | Where the voice is and how it is found (`REMOTE_VOICE.md`) |
 | `ENFORCE_QUOTAS`, `FREE_EPISODES_PER_DAY` (5), `FREE_EXPLORE_PER_DAY` (25) | Tier limits (§207) |
 | `WAITLIST`, `VIRAL_LOOPS_CAMPAIGN_ID`, `VIRAL_LOOPS_API_TOKEN` | The pre-launch gate and its vendor (`WAITLIST.md`) |
 | `FAM_ADMIN_ACCOUNTS`, `FAM_ADMIN_TOKEN` | Who can open `/admin` (by account), and the token for terminals. With neither set, admin routes return 404 |
 | `GNEWS_KEY`, `GNEWS_DAILY_REQUESTS`, `GNEWS_PLAN` | Trending's only source, its daily ceiling, and the plan bought |
-| `API_SPORTS_KEY`, `FINNHUB_KEY`, `FINNHUB_PLAN`, `LIVE_ELECTIONS_PROVIDER`, `STORIES_POLYMARKET` | Live facts and the story pool |
+| `BALLDONTLIE_API_KEY`, `BALLDONTLIE_TIER`, `FINNHUB_KEY`, `FINNHUB_PLAN`, `LIVE_ELECTIONS_PROVIDER`, `STORIES_POLYMARKET` | Live facts and the story pool |
 | `GDELT`, `GDELT_EXPORT_DB`, `GDELT_EXPORT_POLL_SECONDS`, `GDELT_EXPORT_KEEP_HOURS` | The story pool's news source and the research ladder's last rung, read from a local copy of GDELT's 15-minute export files (§211) |
 | `OPEN_METEO_API_KEY` | Weather outside the US, the NWS fallback, and place names (§194) |
 | `GEMINI_API_KEY`, `THUMBNAILS` | Tile pictures (`THUMBNAILS.md`) |
@@ -620,8 +620,7 @@ top N, because nothing about a signup is verified.
   metering ledger, which is written at spend time from the providers' own
   usage figures (`METERING.md`).
 - **Per outside service, per day:** `/admin`, under **Outside services,
-  requests per day**. Each sport on API-Sports has its own row and budget
-  (§180).
+  requests per day**. BALLDONTLIE has a row per league under its own (§280).
 - **Prefetch:** the budget block in `/api/health` (`PREFETCH_DAILY_DOLLARS`).
 - **The plan and its triggers:** [`FINANCIAL.md`](FINANCIAL.md) for unit
   costs and [`SCALING_TIMELINE.md`](SCALING_TIMELINE.md) for when to change
@@ -639,15 +638,15 @@ There is no checkout yet. Before one exists:
    is for personal use only.
 3. **Open-Meteo API Standard.** Set `OPEN_METEO_API_KEY` and keep
    `OPEN_METEO_KEYLESS=0`. The keyless endpoint is non-commercial.
-4. **API-Sports Pro** for the sports the product leads with, one plan per
-   sport (§180).
+4. **BALLDONTLIE ALL-STAR** (or GOAT for soccer injuries, golf and tennis
+   figures). Then set `BALLDONTLIE_TIER`. One plan covers every league (§280).
 5. ~~**A static-IP proxy for GDELT** (QuotaGuard Static)~~. Not needed since
    §211: GDELT is read from its export files, which have no per-address limit.
    `tools/gdelt_probe.py` checks a real sync.
 
 The test is `/api/health` → `licences.commercial_ready: true`. The rest of
 the launch checklist (RunPod workers, Render plan and disk, Anthropic tier,
-Exa top-up) is in [`SCALING_TIMELINE.md`](SCALING_TIMELINE.md).
+Parallel and Perplexity top-ups) is in [`SCALING_TIMELINE.md`](SCALING_TIMELINE.md).
 
 ---
 

@@ -154,8 +154,8 @@ def test_a_longer_search_is_handed_more_evidence(monkeypatch):
     import research
     from config import BROWSE_MINUTES
     monkeypatch.setattr(research, "settings", dataclasses.replace(
-        research.settings, exa_num_results=8, exa_packet_sources=3,
-        exa_highlights_per_source=2))
+        research.settings, search_num_results=8, search_packet_sources=3,
+        search_highlights_per_source=2))
     assert research.packet_size(1) == {} and research.packet_size(BROWSE_MINUTES) == {}
     assert research.packet_size(3) == {"packet_sources": 4, "highlights_per_source": 2}
     assert research.packet_size(4) == {"packet_sources": 5, "highlights_per_source": 3}

@@ -272,24 +272,26 @@ def test_made_for_you_reads_what_the_pool_is_holding():
     assert [t.id for t in T.made_for_you_candidates(shown, held)] == ["a", "b"]
 
 
-def test_the_sports_source_marks_a_minor_league():
-    import live_facts
-    import live_sources
-    import story_sources
+def test_the_sports_sweep_files_a_game_under_sport_and_majors_only():
+    """§280: BALLDONTLIE's sweep is the sports source. It covers major
+    leagues only, so a game it offers is never a minor league abroad, and it
+    is filed under sport, never under its teams' city."""
+    from datetime import datetime, timezone
 
-    sport = live_sources.SPORTS["basketball"]
-    row = {"league": {"name": "Ligat HaAl", "country": {"name": "Israel"}},
-           "teams": {"home": {"name": "Maccabi Rishon"},
-                     "away": {"name": "Hapoel Holon"}},
-           "status": {"short": "NS"}, "scores": {}}
-    source = story_sources.ApiSportsSignals()
-    signal = source._signal(sport, row, __import__("datetime").datetime.now(
-        __import__("datetime").timezone.utc))
-    if signal is None:
-        pytest.skip("this row shape is not one the basketball card reads")
-    assert signal.minor_league is True
+    import balldontlie
+    import balldontlie_scores
+
+    row = {"id": 5, "status_state": "scheduled",
+           "date": datetime.now(timezone.utc).isoformat(),
+           "home_team": {"id": 1, "full_name": "Los Angeles Lakers"},
+           "visitor_team": {"id": 2, "full_name": "Boston Celtics"}}
+    source = balldontlie_scores.make_signals()(client=object())
+    signal = source._signal(balldontlie.LEAGUES["nba"], row, {},
+                            datetime.now(timezone.utc))
+    assert signal is not None
+    assert signal.minor_league is False
     assert "sports" in signal.tags
-    assert live_facts  # imported for the status vocabulary the row uses
+    assert not set(signal.tags) & {"los angeles", "boston", "united states"}
 
 
 def test_filing_a_long_history_stays_cheap(tree):

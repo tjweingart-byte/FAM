@@ -155,7 +155,7 @@ def test_a_failed_episode_is_still_recorded(metered, monkeypatch):
     class DiesAfterResearch:
         async def stream_sentences(self, plan, notes=None):
             if notes is not None:
-                notes.usage.add_research(1, 0.005)   # Exa has billed
+                notes.usage.add_research(1, 0.005)   # the web search has billed
             raise RuntimeError("the model call failed")
             yield ""  # pragma: no cover
 
@@ -170,4 +170,6 @@ def test_a_failed_episode_is_still_recorded(metered, monkeypatch):
     assert client.get("/api/audio?q=anything&minutes=1&fmt=pcm").status_code == 502
     rows = store.rows()
     assert len(rows) == 1, "money was spent and nothing recorded it"
-    assert rows[0]["exa_cost"] == pytest.approx(0.005)
+    # The column keeps its first vendor's name (§274); it holds every paid
+    # web search.
+    assert rows[0]["web_search_cost"] == pytest.approx(0.005)

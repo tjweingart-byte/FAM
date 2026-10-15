@@ -9,8 +9,8 @@ The split that makes it repeatable:
 
 | baked into the image | set once on the host | never anywhere |
 |---|---|---|
-| CUDA, torch, chatterbox, exa, the app | `FAM_SECRETS` (or the two keys) | credentials in the image |
-| the validated settings (phase6, exa) | the persistent volume | the voice in the repo |
+| CUDA, torch, chatterbox, the app | `FAM_SECRETS` (or the two keys) | credentials in the image |
+| the validated settings (phase6, parallel) | the persistent volume | the voice in the repo |
 
 **Prefer `FAM_SECRETS` to the two keys.** It is one *non-secret* variable that
 names where the credentials live, so the host template carries no secret at all,
@@ -37,7 +37,7 @@ The mechanism is deleted in PROBLEMS.md §108 - deleted rather than defaulted
 off, because this line is the proof that a leftover knob gets turned back on.
 A container from this image now resolves
 
-    phase6 · exa · one stream, written after the evidence lands
+    phase6 · parallel · one stream, written after the evidence lands
 
 and there is no setting here to get wrong.
 
@@ -79,7 +79,7 @@ One line is enough, and it is not a secret:
     FAM_SECRETS=cmd:aws secretsmanager get-secret-value --secret-id fam --query SecretString --output text
 
 The pod authenticates as itself - an IAM role, a service account - and fetches
-`ANTHROPIC_API_KEY` and `EXA_API_KEY` at startup. Setting the two keys directly
+`ANTHROPIC_API_KEY` and `PARALLEL_API_KEY` at startup. Setting the two keys directly
 still works and is one step simpler; what it costs is that rotating either one
 means editing the template and restarting, where the provider is picked up by a
 running server the next time a key is rejected. See `CREDENTIALS.md`.

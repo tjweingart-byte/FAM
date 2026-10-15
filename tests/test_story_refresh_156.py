@@ -130,7 +130,7 @@ def test_a_news_sweep_that_drops_the_game_drops_its_lift(pool):
 
 
 def test_a_stale_score_does_not_claim_to_be_live():
-    """Scores refresh on the API-Sports budget; when it runs low a score can
+    """Scores refresh on the sports sweep's clock; when it is behind a score can
     sit for a while. It keeps its age and loses the badge that says it is
     happening now."""
     html = open(os.path.join(ROOT, "static", "index.html")).read()

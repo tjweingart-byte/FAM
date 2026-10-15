@@ -371,9 +371,12 @@ def test_gdelts_sweep_is_the_one_source_that_measures():
 
     assert "measured=True" in inspect.getsource(story_sources.GdeltSignals)
     for name in ("TrendingRegistrySignals", "FinnhubSignals",
-                 "PolymarketSignals", "ApiSportsSignals"):
+                 "PolymarketSignals"):
         assert "measured=True" not in inspect.getsource(
             getattr(story_sources, name)), name
+    import balldontlie_scores
+
+    assert "measured=True" not in inspect.getsource(balldontlie_scores.make_signals)
 
 
 def test_a_measurement_survives_a_restart_as_a_measurement():

@@ -18,7 +18,7 @@ real request yet**: the build container blocks every host involved. Steps
 | NWS | A place's forecast on its first question, then at 05:00 and 17:00 in the place's own time while asked about in the last 30 days. US warnings on every US question (at most every 10 min per place). | Free |
 | Open-Meteo | Weather outside the US and when NWS fails, on the same schedule. Place names (county and coordinates) the first time a town is asked about; kept for good. | $29/month to 1M calls, $99 to 5M |
 
-Order on a local question: town news → county news → Exa on the known
+Order on a local question: town news → county news → a web search (Parallel, then Perplexity) on the known
 outlets → "We couldn't find any recent news reports out of ___. Here's the
 weather there, and the closest news we have, from across ___ County." Never
 GDELT.

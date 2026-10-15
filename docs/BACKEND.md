@@ -48,10 +48,10 @@ flowchart LR
   end
   subgraph Ext["Outside services"]
     CL["Claude API"]
-    EXA["Exa"]
+    WEBS["Parallel / Perplexity"]
     GD["GDELT"]
     GN["GNews"]
-    AS["API-Sports (10 sports)"]
+    AS["BALLDONTLIE (every league)"]
     FH["Finnhub"]
     PM["Polymarket"]
     WX["NWS / Open-Meteo"]
@@ -66,7 +66,7 @@ flowchart LR
   UI -- "HTTPS; raw PCM stream" --> MW --> APP
   APP --> PIPE --> GEN
   GEN --> EI --> CL
-  GEN --> RES --> EXA & GD & FEEDS
+  GEN --> RES --> WEBS & GD & FEEDS
   GEN --> LF --> AS & FH & PM & WX
   GEN -- "writer stream" --> CL
   PIPE -- "text chunks" --> TTS
@@ -158,7 +158,7 @@ sequenceDiagram
     P->>E: understand() (or a brief prefetch warmed)
     E-->>P: Brief: retrieval query, recency, intent, place, live_domain
     par concurrently
-      P->>R: Exa, then GDELT's local copy (or the local ladder)
+      P->>R: Parallel, Perplexity, then GDELT's local copy (or the local ladder)
       P->>L: live lookup (sports, markets, elections, weather)
       P->>L: Polymarket forecast (outcome-dependent questions, §211)
     end
@@ -190,10 +190,11 @@ sequenceDiagram
 | 13 | **Earlier editions** | `daily_edition.with_earlier_editions` | A dated DailyFAM prompt nobody wrote ahead is told the earlier editions' titles, exactly as the background edition is. | Local reads only. |
 | 14 | **EI brief** | `ScriptGenerator.understand` → `episode_intelligence.understand` | One Claude call (`EI_MODEL`, default `claude-haiku-5-5` at `EI_EFFORT=medium` since §261; §227 moved it to Haiku, §249 back to `MODEL`) returning a JSON `Brief`: the retrieval query and a broader one, recency window, intent, story shape, `live_domain` (sports / markets / elections / weather), `place` (a one-town question), `outcome_dependent`, cautions, pronunciations, a provisional title. **Skipped** when prefetch warmed a brief (`prefetch.warm_brief`). `gate` and `apply_named_slot` (e.g. "Sunday Night Football") run on the answer. | Timeout `EI_TIMEOUT_SECONDS` = 8 s (code). Any failure → `fallback_brief(query)`, `Brief.degraded`; the episode continues on the raw query. |
 | 15 | **Evidence** | `ScriptGenerator.prepare` | `asyncio.gather(live_lookup, research, forecast_lookup)` - independent, so they run together. | See 15a-15d. |
-| 15a | - research ladder | `ScriptGenerator.research`, `research.ladder`, `research.retrieve` | **Exa** (`fast`, `EXA_NUM_RESULTS` = 8, 3 sources × 2 highlights in the packet, code) → if empty or missing what the brief must establish, **one** second Exa search without the window on `Brief.broader` → **GDELT** on the broader query, searched in FAM's local copy of GDELT's export files (`gdelt.retrieve`: titles and names, ≥ 2 shared words; only if `GDELT=1`; on in production). `screen_results` drops simulated-league pages and, on sports, unknown outlets once two known ones answered. Every rung that ran is metered. | Each rung is caught (`_retrieve`) and recorded (`fell_back_from`). GDELT is a local read and never reaches GDELT (§211); an empty or stale (> 1 h) copy is recorded as an outage (`ExportStale`). |
-| 15b | - local ladder | `ScriptGenerator._research_local`, `local_news.research_local`, `places.resolve` | When the brief names one `place` (§194): the town's own outlets' RSS → the county's → Exa restricted to known outlets (`include_domains`, results must name the town). **Never GDELT.** The weather is fetched at the same time and used only if the town had nothing. A first question about a town reads its unread feeds inline, bounded at 2.5 s (code, `local_news.refresh_place`). | Town empty → `local_news.gap_line` opens the episode ("no news updates about …"), then the weather, then county news. Nothing at all is still written (§256). |
-| 15c | - live lookup | `ScriptGenerator.live_lookup` → `live_facts.lookup` | Only when the brief has a `live_domain`. Providers: API-Sports (sports; records, last and next games counted in code from the schedule), Finnhub (markets), Polymarket (elections), `weather.WeatherSource` (NWS then Open-Meteo, plus live NWS alerts). Seven outcomes (`FACTS`, `NOT_CONFIGURED`, `NO_ENTITY`, `NO_FACTS`, `PROVIDER_FAILED`, `TIMEOUT`, `STALE`); stale data is withheld. **Beside it (§211)**, `live_facts.forecast` asks Polymarket for every question EI marks `outcome_dependent` (not live-domain elections, weather, or a town question): `EpisodePlan.forecast`, rendered after the live block (the articles win), credited as "prediction market - a forecast, not a result", never evidence and never `plan.live`. | `LIVE_TIMEOUT_SECONDS` = 1.5 s per source, `LIVE_TOTAL_TIMEOUT_SECONDS` = 2.5 s (code). The writer is told which outcome happened and never states a result it lacks. |
+| 15a | - research ladder | `ScriptGenerator.research`, `research.ladder`, `research.retrieve` | **Parallel** (`fast`, `SEARCH_NUM_RESULTS` = 10, 5 sources × 3 passages in the packet (§276), more past 2 minutes, code) → if empty or missing what the brief must establish, **one** second look on **Perplexity** (`RESEARCH_SECOND_LOOK`) without the window on `Brief.broader` → Perplexity as a rung if Parallel could not serve → **GDELT** on the broader query, searched in FAM's local copy of GDELT's export files (`gdelt.retrieve`: titles and names, ≥ 2 shared words; only if `GDELT=1`; on in production). `screen_results` drops simulated-league pages and, on sports, unknown outlets once two known ones answered. Every rung that ran is metered. | Each rung is caught (`_retrieve`) and recorded (`fell_back_from`). GDELT is a local read and never reaches GDELT (§211); an empty or stale (> 1 h) copy is recorded as an outage (`ExportStale`). |
+| 15b | - local ladder | `ScriptGenerator._research_local`, `local_news.research_local`, `places.resolve` | When the brief names one `place` (§194): the town's own outlets' RSS → the county's → a web search (Parallel, then Perplexity) restricted to known outlets (`include_domains`, results must name the town). **Never GDELT.** The weather is fetched at the same time and used only if the town had nothing. A first question about a town reads its unread feeds inline, bounded at 2.5 s (code, `local_news.refresh_place`). | Town empty → `local_news.gap_line` opens the episode ("no news updates about …"), then the weather, then county news. Nothing at all is still written (§256). |
+| 15c | - live lookup | `ScriptGenerator.live_lookup` → `live_facts.lookup` | Only when the brief has a `live_domain`. Providers: BALLDONTLIE (sports, §277; records and places from the league's standings, last and next games from the team's schedule; player and injury reports beside it, §275), Finnhub (markets), Polymarket (elections), `weather.WeatherSource` (NWS then Open-Meteo, plus live NWS alerts). Seven outcomes (`FACTS`, `NOT_CONFIGURED`, `NO_ENTITY`, `NO_FACTS`, `PROVIDER_FAILED`, `TIMEOUT`, `STALE`); stale data is withheld. **Beside it (§211)**, `live_facts.forecast` asks Polymarket for every question EI marks `outcome_dependent` (not live-domain elections, weather, or a town question): `EpisodePlan.forecast`, rendered after the live block (the articles win), credited as "prediction market - a forecast, not a result", never evidence and never `plan.live`. | `LIVE_TIMEOUT_SECONDS` = 1.5 s per source, `LIVE_TOTAL_TIMEOUT_SECONDS` = 2.5 s (code). The writer is told which outcome happened and never states a result it lacks. |
 | 15d | - weather question | `ScriptGenerator.research` | `live_domain == "weather"` skips the article index entirely; the forecast is the evidence. | |
+| 15e | - reference look (§278) | `research.reference_name_for` → `research.retrieve` (`reference_name`) → `wikimedia.lookup` | Beside each rung's search, when `WIKIPEDIA=1` and the brief names one entity (`live_entity`, else a `subject` of ≤ 6 words with no "?"); never with no brief, on an `outcome_dependent` question, weather or a town question. Wikidata resolves the name from its catalogue (exact label or alias; two exact matches told apart by the question's words, else nothing), its statements give the facts in code (born and age on the listener's clock, citizenship, occupation, positions/teams/employers with no end date, an organisation's founding, founders, headquarters and current chief executive), and the summary comes from **Wikimedia Enterprise** (`WIKIMEDIA_ENTERPRISE_USERNAME`/`_PASSWORD`, ≤ `WIKIMEDIA_MONTHLY_REQUESTS` = 45,000 a month, counted in `wikimedia.db`) or Wikipedia's keyless REST summary. Appended after every web source as one `reference encyclopedia - background facts, never a current state` source, dated by its last revision; credited "Wikipedia" / "Wikidata" on the sources panel. Each name's answer is kept 24 h. `notes.research.reference` says `added` / `late` / `no match` / `no web sources`, and `reference_via` the route. | Merged only if back within `WIKIPEDIA_GRACE_SECONDS` = 0.5 s of the main packet, and only beside web sources; any failure is no reference. Each request ≤ `WIKIPEDIA_TIMEOUT_SECONDS` = 2 s, ≤ 3 at once, a 429 backs off for its `Retry-After`. |
 | 16 | ~~Refusal check~~ | (deleted, §256) | Nothing is refused for want of evidence: an empty ladder goes to the writer like any thin packet. `research.NoEvidence` and its 503-and-refund handling remain for anything that still raises it. | |
 | 17 | **Writer** | `ScriptGenerator.stream_prepared` | One `messages.stream` call (`MODEL`, `EFFORT=low`, **no tools**). The house rules and style example are one cacheable system block (`writer_system`, `PROMPT_CACHE=1`, `PROMPT_CACHE_TTL=5m`, §179); the brief, evidence and question are the user turn. | Exception before the first audio → **502** with `friendly_error`; refunded only if nothing was billed. |
 | 18 | **Reading the stream** | `script_generator._ScriptReader` | `<<SAY: Name = respelling>>` lines (before the script) feed the pronunciation lexicon; text after `<<` is held back; sentences are cut on terminal punctuation and passed through `clean_for_speech` (which removes slurs, `content_filter.py`); `OpeningGuard` drops meta-disclaimers in the first `WINDOW` = 6 sentences (code) and logs each drop; a 1.35× word budget is the safety valve. At the end it extracts `<<TITLE>>`, `<<NEXT>>`, `<<SUMMARY>>`, `<<CATEGORY>>`. | Nothing but disclaimer → spoken anyway (`rescue`), never silence. |
@@ -202,7 +203,7 @@ sequenceDiagram
 | 21 | **Preroll and stream** | `app.py:audio` | Chunks are pulled until `PREROLL_SECONDS` = 1.5 s of PCM exists (code), so a failure before that is a proper HTTP error. Then a `StreamingResponse` of raw `audio/L16` (or WAV). Headers: `X-FAM-Cache`, `X-FAM-Episode` (the id the history keeps), `X-FAM-Keepable` (may the phone keep it offline), `X-Sample-Rate`, `X-Stage-Seconds`, `X-Episode-Marks`. | Empty episode → 502, refunded. After the first byte a failure can only be logged; the player notices the short stream. |
 | 22 | **Captions and progress** | `live_captions.py` | Each sentence is published as it is voiced, keyed on the cache key, with measured start times; `/api/transcript` reads it, `/api/progress` reads the marks. The title is replaced by the writer's own once it lands. | |
 | 23 | **Cache store** | `pipeline._stream_pcm` tail, `cache.put`, `cache.put_audio` | Script, title, thread, summary, category, sources, `sourced_at`, `origin`, `author`, voice. **Current** for `ttl_for(...)`; **kept** for `CACHE_LIFE_SECONDS` = 7 days (code). Audio (zlib PCM) is kept only after the whole episode went out, only in a production voice, inside `AUDIO_CACHE_MAX_MB` = 512 (code), LRU. A key re-written with different words archives the old row and audio (`archive_key`). | Demo mode (no key) reads the cache and never writes it. |
-| 24 | **Metering and events** | `app.py:_record_usage` → `metering.MeterStore`; `EVENTS.record(play)` | One ledger row per request at the end of the stream (disconnects included), with model tokens, Exa searches and audio seconds. A `play` event is logged only for an account (`_remembers`). Every outside request is also counted per provider per UTC day (`provider_usage.record`). | Recording never fails a request. |
+| 24 | **Metering and events** | `app.py:_record_usage` → `metering.MeterStore`; `EVENTS.record(play)` | One ledger row per request at the end of the stream (disconnects included), with model tokens, web searches and audio seconds. A `play` event is logged only for an account (`_remembers`). Every outside request is also counted per provider per UTC day (`provider_usage.record`). | Recording never fails a request. |
 
 **How `ttl_for` decides "current"** (`cache.py:ttl_for`, from what the episode
 was built on, never from the question's words alone): live status
@@ -223,7 +224,7 @@ when the stream ends. The same breakdown rides on `X-Stage-Seconds`.
 |---|---|---|---|
 | 0 | setup: limits, plan, quota, voice, cache lookup | origin → `claude_start` | Near-match scan **8.93 ms** on a miss (measured) |
 | 1 | brief | `brief_start` → `brief_ready` | Timeout **8 s** (code, `EI_TIMEOUT_SECONDS`). Real duration **not yet measured**. Zero when prefetch warmed it. |
-| 2 | evidence | `evidence_start` → `evidence_ready` | Exa ≈ **0.5 s** (measured). Live: 1.5 s per source, 2.5 s total (code). GDELT: a local read (§211). Local ladder's inline feed read ≤ 2.5 s (code). |
+| 2 | evidence | `evidence_start` → `evidence_ready` | Web search ≈ **0.5 s** (Exa's, measured; Parallel and Perplexity unmeasured here). Live: 1.5 s per source, 2.5 s total (code). GDELT: a local read (§211). Local ladder's inline feed read ≤ 2.5 s (code). |
 | 3 | writer thinking | `writer_request` → `claude_first_token` | §129 expects this to be **the largest single step**. Not yet measured. Prompt caching shortens it (§179, unmeasured). |
 | 4 | first sentence | → `first_sentence` | Model text runs ~16× faster than speech (estimate, §129) |
 | 5 | first synthesis | → `first_tts_complete` | Warm: ~2-3 s per 28-41-word chunk on an RTX 4090 (**measured**, `speech_assembly.py`: 0.1086 s/word). Cold serverless worker: boot + ~10 s model load. |
@@ -268,7 +269,7 @@ the live lookup's outcome, the log, and `/api/health`.
 | Guest | Tile with no kept audio | 403, refunded | Sign-up |
 | Cache | Replay with nothing kept | 409, refunded | The card is dropped |
 | Brief | Timeout, error, bad JSON | Raw query, `Brief.degraded` | Nothing; a less precise episode |
-| Research | Exa error or empty | Second Exa look, then GDELT's local copy; each rung metered | Nothing |
+| Research | Parallel error or empty | Perplexity second look, then Perplexity as a rung, then GDELT's local copy; each rung metered | Nothing |
 | Research | Everything empty | Written from knowledge, no evidence block; nothing volatile supplied from memory (§256 deleted the refusal) | An episode |
 | Local | Town has nothing | Gap line + weather + county news | A short, honest episode |
 | Local | Nothing and no weather | Gap line, then the writer (§256) | A short episode |
@@ -285,13 +286,13 @@ flowchart TB
     B2 -->|any failure| B3[raw query, Brief.degraded]
   end
   subgraph Research["Research (research.ladder)"]
-    E1[Exa, recency window] -->|empty or thin| E2[Exa again, no window,<br/>Brief.broader]
+    E1[Parallel, recency window] -->|empty or thin| E2[Perplexity, no window,<br/>Brief.broader]
     E2 -->|empty| G1[GDELT local copy, broader query<br/>outage if empty or stale]
     G1 -->|empty| KN[Write from knowledge<br/>never refused, §256]
   end
   subgraph Local["Local ladder (one town)"]
     L1[Town outlets' RSS] -->|nothing names the town| L2[County outlets]
-    L2 -->|nothing| L3[Exa on known outlets]
+    L2 -->|nothing| L3[Web search on known outlets]
     L3 -->|nothing| L4[gap line, then weather,<br/>then county news]
     L4 -->|no weather either| L5[gap line, then the writer]
   end
@@ -318,7 +319,7 @@ request**. All of them catch their own exceptions.
 | - trending registry | `story_sources.TrendingRegistrySignals` | Every 2 h | `trending.py` registry (`TRENDING_SOURCE`; unset in production) | Attention signals |
 | - Finnhub | `story_sources.FinnhubSignals` | Every `STORIES_MARKETS_INTERVAL_SECONDS` = 2 h, round the clock (§191) | 12 quotes (`WATCHLIST`) | Moves ≥ `STORIES_MARKET_MOVE_PERCENT` = 3% |
 | - Polymarket | `story_sources.PolymarketSignals` | Every 2 h, only if `STORIES_POLYMARKET=1` (on in production) | Gamma API | Prediction-market tiles |
-| - API-Sports | `story_sources.ApiSportsSignals` | **On demand only** (§191): an account drew myFAM within `STORIES_DEMAND_SECONDS` = 1800 s (`idle`), only `SWEPT_LEAGUES` (NFL, NCAA football; NBA, NCAA, WNBA; MLB, NCAA baseball; NHL; Champions League, Premier League, La Liga, Bundesliga, World Cup; every F1 race; numbered UFC cards). The card is read once per UTC day, then every `STORIES_SPORTS_INTERVAL_SECONDS` = 900 s only while a followed game is on or within 15 min of starting. | One request per sport per read; team catalogues once a day (`live_sources.league_teams`), a refused one not re-asked that day | Game tiles with a `live_line` |
+| - BALLDONTLIE | `balldontlie_scores.make_signals` (`Signals`) | **On demand only** (§191): an account drew myFAM within `STORIES_DEMAND_SECONDS` = 1800 s (`idle`), only `balldontlie_scores.SWEPT` (NFL, college football; NBA, men's college basketball, WNBA; MLB; NHL; Champions League, Premier League, La Liga, Bundesliga, World Cup). A league's card is read once per UTC day, then every `STORIES_SPORTS_INTERVAL_SECONDS` = 900 s only while one of its games is on or within 15 min of starting (`due`, `watching`). | One request per league per read; team catalogues once a day (`balldontlie_scores.league_teams`); an endpoint refused is not re-asked that day | Game tiles with a `live_line` |
 | **GDELT export download** (§211) | `app.py` → `gdelt.run_forever` → `gdelt.sync` | Every `GDELT_EXPORT_POLL_SECONDS` = 900 s, only if `GDELT=1` | `lastupdate.txt`, then the newest GKG 2.1 file (and up to `GDELT_EXPORT_BACKFILL_FILES` = 8 behind it when the copy is behind); GDELT's domain-by-country list monthly. ~200 requests/day, whatever the traffic | `gdelt_export.db`: 24 h of articles (≤ 1,500 per file) and theme counts, read by every GDELT caller |
 | **Trending edition** | `trending_bank.run_forever` → `build` | 05:00 and 17:00 `America/New_York` (`TRENDING_BANK_HOURS`), catching up on boot after `BOOT_STAGGER_SECONDS` = 60 s; wakes ≤ every 60 s. One worker wins a per-slot claim. | GNews (`trending_bank.collect`; `GNEWS_DAILY_REQUESTS` = 90 guard) → `stories.compose` (category + anchors, §188) → for each of `TRENDING_BANK_SIZE` = 10 stories: EI + research + writer, **writers batched** through the Message Batches API (`claude_batch.run`, `EDITION_BATCH=1`, ≤ `EDITION_BATCH_WAIT_SECONDS` = 3600 s, then live from the prepared plan) | 10 whole scripts in `scripts.db` (`origin="trending"`), current until the edition can no longer be shown (`TRENDING_BANK_MAX_AGE_HOURS` = 36 h + 1 h grace) |
 | **Start here write-ahead** | `trending_bank.write_startup` | Same loop, same slots, **before** the edition (§179) so its deadline is met; `STARTUP_WRITE_AHEAD=1`; needs no GNews key | EI + research + writer (live, not batched) for the 8 `startup.STARTUP_TOPICS` | 8 scripts per slot, current until the next slot + 1 h; the local ninth question is never written (personal). Outcome-dependent briefs and live scores are left for the tap. |
@@ -338,7 +339,7 @@ flowchart TB
   subgraph Timers["Timers (America/New_York unless said)"]
     T1["05:00 and 17:00<br/>Start here write-ahead, then trending_bank.build"]
     T2["05:00<br/>daily_edition.build"]
-    T3["tick 60 s, sweep at 15 min<br/>stories.refresh: news, Finnhub, Polymarket every 2 h;<br/>API-Sports on demand"]
+    T3["tick 60 s, sweep at 15 min<br/>stories.refresh: news, Finnhub, Polymarket every 2 h;<br/>sports on demand"]
     T4["05:00 and 17:00 each place's own time<br/>weather sweep"]
     T5["every 5 min<br/>local feeds, Viral Loops outbox"]
     T6["every 60 s<br/>mix-ready pushes, voice supervisor"]
@@ -348,7 +349,7 @@ flowchart TB
     D2["categories sweep if 2 h stale<br/>(+ thumbnails if THUMBNAILS=1)"]
     D3["story sweep if stale or demand woke"]
   end
-  T1 -->|GNews, compose, EI + Exa + batched writers| CACHE[("scripts.db")]
+  T1 -->|GNews, compose, EI + search + batched writers| CACHE[("scripts.db")]
   T2 -->|1 episode per subject, EI on each| CACHE
   T3 -->|signals, 1 compose call| POOL[("in-memory story pool")]
   D1 -->|EI brief only| BRIEFS[("in-memory briefs, 1 h")]
@@ -395,7 +396,7 @@ weights, field and variety rules, the learned re-order) is documented in
 flowchart LR
   subgraph Inventories
     TB["Trending edition<br/>(GNews, twice a day)"]
-    LP["Live story pool<br/>GDELT, API-Sports, Finnhub, Polymarket"]
+    LP["Live story pool<br/>GDELT, BALLDONTLIE, Finnhub, Polymarket"]
     BANK["Evergreen bank, 28 topics<br/>(guests)"]
     ST["Start here set, 8 questions<br/>(+1 local)"]
     CACHE[("scripts.db + play log")]
@@ -454,16 +455,18 @@ flowchart LR
 | | `admin_tracker.py` | An admin asks a question | One read-only SELECT | Built-in recipes, then the error |
 | | `cache.py` canonical key | `CACHE_SEMANTIC_KEY=1` (off) | A canonical cache key | Exact key |
 | | `app.py:_verify_credentials` | Boot | `models.retrieve` (free) | `credentials.state` on `/api/health` |
-| **Exa** | `research._retrieve_blocking`, `_second_look` | `EXA_API_KEY`; `RESEARCH_BACKEND=exa` (default) | Rung 1 of every researched episode | GDELT rung |
+| **Parallel / Perplexity** | `research._retrieve_blocking`, `_second_look` | `PARALLEL_API_KEY`, `PERPLEXITY_API_KEY`; `RESEARCH_BACKEND=parallel` (default) | Rung 1 of every researched episode, and the second look | Perplexity, then the GDELT rung |
 | | `ScriptGenerator._research_local` (`include_domains`, `must_name`) | A one-town question | Rung 3 of the local ladder; files new outlets as `mention` | Gap line |
 | **GDELT** | `gdelt.run_forever` → `gdelt.sync` | `GDELT=1`, every `GDELT_EXPORT_POLL_SECONDS` = 900 s | The only job that downloads from GDELT: the newest 15-minute GKG export file (named by `lastupdate.txt`), ≤ 8 behind it when behind, ~200 requests/day; 24 h kept in `gdelt_export.db` (§211) | Failures counted on `/api/health`; readers report the copy stale |
 | | `research.retrieve_with_gdelt` → `gdelt.retrieve` | `GDELT=1` (on in production) | Research rung 2, from the local copy | Knowledge |
 | | `story_sources.GdeltSignals`, `GdeltTrendingSource` | `GDELT=1`, every 2 h | Story-pool discovery and outlet counts, from the local copy | Other pool sources |
 | | cross-check | `GDELT_CROSS_CHECK=1` (off) | Additive evidence | n/a |
+| **Wikipedia / Wikidata** (§278) | `wikimedia.lookup` (from `research.retrieve`) | `WIKIPEDIA=1` (default); Enterprise when `WIKIMEDIA_ENTERPRISE_USERNAME`/`_PASSWORD` are set | The reference look: Wikidata search + entity + labels, then the summary (Enterprise, else `en.wikipedia.org/api/rest_v1/page/summary`); 24 h cache per name | No reference; the packet is unchanged |
 | **GNews** | `trending_bank.collect` → `gnews.Client` | `GNEWS_KEY`, `TRENDING_BANK=1`; `GNEWS_DAILY_REQUESTS` = 90 | The **only** source for Trending | Empty row with a reason; last edition stays up |
-| **API-Sports** (10 products: soccer, American football, basketball, baseball, hockey, rugby, volleyball, AFL, Formula 1, MMA) | `live_sources.ApiSportsSource` | `API_SPORTS_KEY`; a sports brief | Live state, team records, last/next games inside an episode | Outcome recorded; never a result it lacks |
-| | `story_sources.ApiSportsSignals` | On demand, followed leagues only (§4) | Game tiles with `live_line` | Other pool sources; failures kept in `SPORT_FAILURES` |
-| | budgets | One `RequestBudget` per sport (`budget_for`), plan per sport (`API_SPORTS_TIER`, `API_SPORTS_TIERS`; free = 100/day), reads the provider's `x-ratelimit-*` headers | | `BudgetSpent` |
+| **BALLDONTLIE** (every league it covers: NFL, NBA, WNBA, NHL, MLB, college football, basketball and baseball, European soccer, Champions League, MLS, World Cup, Formula 1, UFC; §277, §280) | `balldontlie_scores.ScoreBoard` | `BALLDONTLIE_API_KEY`; a sports brief | Live state, records and places, last/next games inside an episode | Outcome recorded; never a result it lacks |
+| | `balldontlie.PlayerReports` (§275) | `BALLDONTLIE_API_KEY`, `PLAYER_FACTS=1` | A player's season figures and injury reports, beside the scoreboard | Its own block, or nothing |
+| | `balldontlie_scores` `Signals` | On demand, followed leagues only (§4) | Game tiles with `live_line` | Other pool sources; failures kept in `balldontlie_scores.FAILURES` |
+| | the plan | One flat plan (`BALLDONTLIE_TIER`: free 5/min, all-star 60/min, goat 600/min); an endpoint above it is never asked (`ENDPOINT_TIERS`) | | `RateLimited`, `TierRefused`, `AccountRefused` |
 | **Finnhub** | `live_sources.FinnhubSource` | `FINNHUB_KEY`; the subject looks like a listing | Delayed quotes inside a markets episode | As above |
 | | `story_sources.FinnhubSignals` | Every 2 h | Market-move tiles | Other pool sources |
 | **Polymarket** | `live_sources.PolymarketSource` (`live_facts.forecast`) | `LIVE_ELECTIONS_PROVIDER=polymarket` (production) | Odds inside an elections episode, and since §211 a forecast beside every outcome-dependent episode; markets found by Gamma's `/public-search` on the brief's subject words, else the 100 busiest | As above; never evidence |
@@ -481,7 +484,7 @@ flowchart LR
 | **Chatterbox** | `voice_worker/` on RunPod; `tts.ChatterboxEngine` in-process on a GPU host | A worker that passes `verify` (and matches `VOICE_REFERENCE_FINGERPRINT` when set) | Speech | **Placeholder tone**, never a lesser voice |
 | **Render** | Not called; it is the host | n/a | `RENDER_GIT_COMMIT` feeds `/api/health` `build`; `X-Forwarded-Proto` builds share links; the `/data` disk holds every store | n/a |
 
-Every request to API-Sports (and per sport), Exa, GDELT, Polymarket, GNews,
+Every request to BALLDONTLIE (and per league), Parallel, Perplexity, GDELT, Polymarket, GNews,
 Finnhub, NWS, Open-Meteo and the local feeds is counted, with failures,
 per UTC day in `provider_usage.db` and drawn on `/admin`.
 
@@ -709,7 +712,7 @@ deployment does not advertise them. Admins are named by
 
 | Surface | What is on it |
 |---|---|
-| **`/admin`** (tracker) | New accounts (30 days), top searches (7 days), newest accounts, the **feedback inbox** (with each report's episode snapshot), **outside services, requests per day** (today, yesterday, 7-day average, the limit and the next plan; API-Sports split per sport with the provider's own "left" count; a red flag on any free plan in commercial use, `provider_usage.licences`), the **voice bank**, **how names are said**, every store with row counts, "Ask the database" (recipe or one Claude-written SELECT) and a raw SELECT box. Loading the page ends any admin session, so it always asks for the password. |
+| **`/admin`** (tracker) | New accounts (30 days), top searches (7 days), newest accounts, the **feedback inbox** (with each report's episode snapshot), **outside services, requests per day** (today, yesterday, 7-day average, the limit and the next plan; BALLDONTLIE split per league; a red flag on any free plan in commercial use, `provider_usage.licences`), the **voice bank**, **how names are said**, every store with row counts, "Ask the database" (recipe or one Claude-written SELECT) and a raw SELECT box. Loading the page ends any admin session, so it always asks for the password. |
 | **`/admin/waitlist`** | The line (invites, then join time), place numbers, grant one / several / top N, the cutoff, the Viral Loops outbox (pending, failed, refused). |
 | **`/admin/thumbnails`** | Every tree node's picture: live, waiting for review, failed; approve / reject / repaint; Paint with the last run's outcome. |
 | **Local news** | `GET/POST /api/admin/local-news*`: feeds and states, add an outlet, exclude a publisher. API only; `tools/local_outlets.py` files a county's outlets from Wikidata. |
@@ -732,8 +735,9 @@ at `/data`, sharing nothing (`STAGING.md`). Feature branches merge into
 | Quotas | `ENFORCE_QUOTAS=1` | code default 0 |
 | Waitlist | `WAITLIST` set in the dashboard (`sync: false`) | off |
 | Voice | `VOICE_BACKEND=remote`, RunPod serverless | forced `chatterbox` → placeholder tone |
-| Research | Exa + `GDELT=1` (export files, §211) | Exa key scrubbed; `GDELT=0` |
-| Live providers | API-Sports, Finnhub (by key), Polymarket (named) | all forced off |
+| Research | Parallel + Perplexity + `GDELT=1` (export files, §211) | Search keys scrubbed; `GDELT=0` |
+| Reference look (§278) | `WIKIPEDIA=1`, Enterprise credentials | `WIKIPEDIA=0`, credentials scrubbed |
+| Live providers | BALLDONTLIE, Finnhub (by key), Polymarket (named) | all forced off |
 | Trending | GNews key, `GNEWS_DAILY_REQUESTS=90` | key scrubbed → empty row |
 | Local news / weather | on (`OPEN_METEO_API_KEY`) | `LOCAL_NEWS=0`, `WEATHER=0` |
 | Pictures | `THUMBNAILS=0` (paint by hand from `/admin/thumbnails`) | forced off |

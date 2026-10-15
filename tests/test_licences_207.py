@@ -66,7 +66,7 @@ def test_the_admin_rows_carry_the_licence(deploy, monkeypatch, tmp_path):
     monkeypatch.setattr(provider_usage, "exists", lambda: False)
     rows = {r["provider"]: r for r in provider_usage.report()}
     assert rows["gnews"]["licence"]["commercial"] is False
-    assert "licence" not in rows["exa"]
+    assert "licence" not in rows["parallel"]
 
 
 def test_health_reports_it():
