@@ -195,3 +195,40 @@ def test_a_packet_with_no_sources_is_left_alone():
     result = _run(_plan(evidence="Some local notes with no source blocks."),
                   _client({"keep": [1]}))
     assert result.outcome == "no_gain" and result.text == ""
+
+
+def test_a_plan_prepared_twice_is_cut_once(monkeypatch):
+    """Review, §273: `write.py` prepares a plan, prints it and streams it,
+    which prepares it again - the second must not cut again."""
+    calls = []
+
+    async def fake_digest(plan, notes=None, ahead=False, client=None):
+        calls.append(plan.query)
+        return ed.Digest("cut", text="SOURCE 1\nTitle: t\nKey evidence:\nCut.\n")
+
+    monkeypatch.setattr(sg.evidence_digest, "digest", fake_digest)
+    monkeypatch.setattr(sg.evidence_digest, "wanted", lambda plan: True)
+
+    class Gen(sg.ScriptGenerator):
+        def __init__(self):
+            pass
+
+        async def understand(self, plan, notes=None):
+            return plan
+
+        async def live_lookup(self, plan, notes=None):
+            return plan
+
+        async def forecast_lookup(self, plan, notes=None):
+            return types.SimpleNamespace(forecast=None)
+
+        async def research(self, plan, notes=None):
+            if plan.evidence:
+                return plan
+            return dataclasses.replace(plan, evidence=PACKET)
+
+    gen = Gen()
+    once = asyncio.run(gen.prepare(sg.plan_episode("what did the fed do", 2)))
+    twice = asyncio.run(gen.prepare(once))
+    assert len(calls) == 1
+    assert twice.evidence_digest == once.evidence_digest != ""

@@ -307,3 +307,51 @@ def test_the_briefs_names_are_never_asked_for_twice():
     assert "already have a pronunciation on file" in prompt
     tail = prompt.split("already have a pronunciation on file", 1)[1][:200]
     assert "Sagapolutele" in tail
+
+
+def test_a_degraded_brief_does_not_wait_for_the_plan(model, monkeypatch):
+    """Review, §273: a degraded brief shows no plan, so it is not waited for."""
+    _with(monkeypatch, ei_outline_grace_seconds=5.0)
+    model["delay"]["outline"] = 3.0
+    import time
+
+    original = ei._ask
+
+    async def ask(client, part, *rest, **kw):
+        if part == "understand":
+            return "failed", None, "boom"
+        return await original(client, part, *rest, **kw)
+
+    monkeypatch.setattr(ei, "_ask", ask)
+    started = time.monotonic()
+    brief = asyncio.run(ei.understand("did the eagles win", 2, ahead=True))
+    assert brief.degraded and time.monotonic() - started < 1.0
+
+
+def test_a_listener_who_leaves_takes_the_plan_with_them(model, monkeypatch):
+    """Review, §273: cancelling the brief cancels the plan, rather than a
+    shield keeping it running to its own ceiling."""
+    _with(monkeypatch, ei_outline_grace_seconds=5.0)
+    model["delay"]["outline"] = 3.0
+    seen = {}
+    original = ei._outline_by
+
+    async def watched(task, *a):
+        seen["task"] = task
+        return await original(task, *a)
+
+    monkeypatch.setattr(ei, "_outline_by", watched)
+
+    async def leave():
+        brief = asyncio.ensure_future(ei.understand("did the eagles win", 2))
+        await asyncio.sleep(0.2)
+        brief.cancel()
+        try:
+            await brief
+        except asyncio.CancelledError:
+            pass
+        await asyncio.sleep(0)
+        return seen["task"]
+
+    task = asyncio.run(leave())
+    assert task.cancelled() or task.done()

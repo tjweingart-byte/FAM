@@ -19641,3 +19641,45 @@ retry on another model would have to rescue, and so the number that decides
 whether to build one.
 
 Tests: `tests/test_refusals_273.py` (new).
+
+**Reviewed before merging (§270-§273).** The owner (10.15) asked for every
+change on the branch to be checked and the branch made ready for `Main`
+(not merged, no PR). `Main` had nothing the branch lacked. Two independent
+reviews of the diff, one for §270 and one for §271-§273; nothing high
+severity, every finding fixed:
+
+- *The evidence cut ran twice when a plan was prepared twice* - `write.py`
+  prepares, prints and then streams, which prepares again - adding up to
+  2.5 s to the "first sentence after" figure §270 asks to be measured, and a
+  second row on /admin. It now runs only for a packet that call retrieved,
+  and a plan keeps the cut it already has.
+- *A budget-valve stop read as "ran out of room".* After FAM stops a writer
+  at its word budget the rest of the stream is drained, and a `max_tokens`
+  then was recorded as an error that nothing had been lost to. It is
+  `over_budget` now, not an error.
+- *The live lookup's time was the search's*: it was taken when the lookup
+  was awaited, after the search. It is now the lookup's own finish.
+- *An unavailable edition writer fell back to `MODEL`* (Sonnet) while every
+  tap was on Haiku; it falls back to the everyday writer.
+- *A listener who left during the outline's grace* left the outline running
+  to its own ceiling (a shield); it is cancelled. A degraded brief no longer
+  waits for an outline it would discard. The evidence cut (and the forecast,
+  already so) is cancelled if the listener leaves during the forecast wait.
+- *A batched refusal on a gap-line episode* counted the gap line as heard;
+  only the writer's sentences count.
+- `writer_model_source` says when the configured writer was refused and the
+  writer fell back to `MODEL`; the admin report reads at most the newest
+  50,000 steps (`STEPS_READ`) and says when it did; `write.py --compare`
+  prints cache reads and writes, because the first writer of a model pays
+  the cold read.
+
+*Checked and fine*: the warm-up matches the writer's request where the cache
+is keyed; the prompt is byte-identical with the cut off; `EI_SPLIT=0` is
+unchanged; no outcome or refusal counted twice; the new tables are portable
+to Postgres (`call`, `path`, `step` are not reserved there; `?` and the
+column types are translated by `db.py`) and opened through `data_path` and
+`db.connect`; every model- or listener-supplied value on the admin page is
+escaped; `writer_for` is the only reader of the writer's model.
+
+Tests: `tests/test_evidence_digest_270.py`, `tests/test_writer_latency_270.py`,
+`tests/test_pipeline_health_271.py`, `tests/test_haiku_writer_272.py`.

@@ -2042,7 +2042,10 @@ class ScriptGenerator:
                     "search", path,
                     "sources" if research_plan.evidence else "no_sources",
                     time.monotonic() - searched_at)
-            if evidence_digest.wanted(research_plan):
+            # Only for a packet this call retrieved: a plan prepared twice
+            # (`write.py` prints one, then streams it) is cut once (review,
+            # §273), and keeps the cut it already has.
+            if not plan.evidence and evidence_digest.wanted(research_plan):
                 _mark(notes, "digest_start")
                 digest_task = asyncio.ensure_future(evidence_digest.digest(
                     research_plan, notes,
@@ -2075,21 +2078,30 @@ class ScriptGenerator:
                 and getattr(plan.brief, "live_route", "")):
             routed_miss, live_plan = live, dataclasses.replace(live_plan, live=None)
         forecast = None
+        cut = getattr(plan, "evidence_digest", "") or ""
         try:
-            forecast = (await asyncio.wait_for(
-                asyncio.shield(forecast_task), FORECAST_GRACE_SECONDS)).forecast
-        except asyncio.TimeoutError:
+            try:
+                forecast = (await asyncio.wait_for(
+                    asyncio.shield(forecast_task), FORECAST_GRACE_SECONDS)).forecast
+            except asyncio.TimeoutError:
+                forecast_task.cancel()
+                log.info("forecast: not back when the evidence was; writing "
+                         "without it")
+            if digest_task is not None:
+                # Never raises, and holds the first word no longer than its
+                # own ceiling (`EVIDENCE_DIGEST_TIMEOUT_SECONDS`).
+                result = await digest_task
+                _mark(notes, "digest_ready")
+                cut = result.text
+                if notes is not None and isinstance(notes.research, dict):
+                    notes.research["digest"] = result.as_dict()
+        except BaseException:
+            # A listener who leaves while these are awaited ends them too
+            # (review, §273): a shielded wait does not cancel what it shields.
             forecast_task.cancel()
-            log.info("forecast: not back when the evidence was; writing without it")
-        cut = ""
-        if digest_task is not None:
-            # Never raises, and holds the first word no longer than its own
-            # ceiling (`EVIDENCE_DIGEST_TIMEOUT_SECONDS`).
-            result = await digest_task
-            _mark(notes, "digest_ready")
-            cut = result.text
-            if notes is not None and isinstance(notes.research, dict):
-                notes.research["digest"] = result.as_dict()
+            if digest_task is not None:
+                digest_task.cancel()
+            raise
         _mark(notes, "evidence_ready")
         if notes is not None:
             notes.sourced_at = time.time()

@@ -1534,7 +1534,11 @@ async def understand(query: str, minutes: int = DEFAULT_MINUTES, context: str = 
             if outline_task is not None:
                 outline_task.cancel()
             raise
-        if outline_task is not None:
+        if outline_task is not None and answers[0][0] != "ok":
+            # A degraded brief shows no plan, so it is not waited for
+            # (review, §273).
+            outline_task.cancel()
+        elif outline_task is not None:
             outline = await _outline_by(outline_task, ahead, started, timeout)
     _SECONDS.setdefault(path, collections.deque(maxlen=SECONDS_KEPT)).append(
         round(time.monotonic() - started, 3))
@@ -1632,10 +1636,15 @@ async def _outline_by(task, ahead: bool, started: float, timeout: float) -> tupl
     else:
         wait = float(settings.ei_outline_grace_seconds)
     try:
-        return await asyncio.wait_for(asyncio.shield(task), wait)
+        # `wait_for` cancels the task itself on a timeout, and on a cancel
+        # of this coroutine - a listener who left - takes the task with it
+        # (review, §273: a shield kept it running to its own ceiling).
+        return await asyncio.wait_for(task, wait)
     except asyncio.TimeoutError:
-        task.cancel()
         return "late", None, f"not back {wait:g}s after the rest of the brief"
+    except asyncio.CancelledError:
+        task.cancel()
+        raise
     except Exception as exc:  # noqa: BLE001 - the brief stands without it
         return "failed", None, f"{type(exc).__name__}: {exc}"
 

@@ -288,8 +288,13 @@ async def compare(generator, plan, spec: str) -> int:
         # The writer's tokens: input is what it read, output is its thinking
         # plus the script - so between two writers of the same script length,
         # the difference in output is the difference in thinking.
-        print(f"  writer read {notes.usage.input_tokens + notes.usage.cache_read_tokens}"
-              f" tokens, wrote {notes.usage.output_tokens} (thinking + script)")
+        # Cache writes too (review, §273): the first writer of a model and
+        # effort pays the cold read, so compare `from cache` before timings.
+        read = (notes.usage.input_tokens + notes.usage.cache_read_tokens
+                + notes.usage.cache_write_tokens)
+        print(f"  writer read {read} tokens ({notes.usage.cache_read_tokens} from "
+              f"cache, {notes.usage.cache_write_tokens} written to it), wrote "
+              f"{notes.usage.output_tokens} (thinking + script)")
         if notes.title:
             print(f'  title: "{notes.title}"')
         if notes.thread:
