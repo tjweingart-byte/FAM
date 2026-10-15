@@ -41,14 +41,13 @@ log = logging.getLogger("provider_usage")
 DAY = 86400
 
 #: The services the admin page reports, in the order it draws them.
-PROVIDERS = ("api_sports", "parallel", "perplexity", "exa", "gdelt", "polymarket", "gnews", "finnhub",
+PROVIDERS = ("api_sports", "parallel", "perplexity", "gdelt", "polymarket", "gnews", "finnhub",
              "nws", "open_meteo", "local_feeds")
 
 LABELS = {
     "api_sports": "API-Sports",
     "parallel": "Parallel",
     "perplexity": "Perplexity",
-    "exa": "Exa",
     "gdelt": "GDELT",
     "polymarket": "Polymarket",
     "gnews": "GNews",
@@ -86,9 +85,6 @@ def _plans() -> dict:
         "perplexity": (
             "pay-as-you-go, $1/1k (fast); 50 requests/s",
             "no daily cap to buy; higher rate on request"),
-        "exa": (
-            "pay-as-you-go, ~10 requests/s per key",
-            "no daily cap to buy; a second key adds rate"),
         "gdelt": (
             "export files, no per-address limit: ~2 requests per 15 min "
             "(~200/day), whatever the traffic (§211)",

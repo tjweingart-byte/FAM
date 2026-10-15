@@ -66,7 +66,7 @@ def test_the_display_side_does_carry_the_publisher():
     person needs to judge the episode."""
     found = P.from_results(
         [FakeResult("https://www.reuters.com/a", "A headline", "2026-09-14")],
-        retriever="exa")
+        retriever="parallel")
     item = found.items[0]
     assert item.label == "reuters.com"
     assert item.title == "A headline"
@@ -170,13 +170,13 @@ def test_provenance_survives_a_cache_hit(backend, tmp_path):
     the `thread` column already solved."""
     store = (cache_mod.MemoryScriptCache() if backend == "memory"
              else cache_mod.SqliteScriptCache(str(tmp_path / "c.db")))
-    found = P.Provenance(retrievers=["exa"])
+    found = P.Provenance(retrievers=["parallel"])
     found.add(P.Attribution(label="apnews.com", kind=P.ARTICLE, tier="wire service"))
     store.put("k", ["One."], 60, "q", "thread", 3, "", found.to_json())
 
     back = P.Provenance.from_json(store.sources("k"))
     assert [i.label for i in back.items] == ["apnews.com"]
-    assert back.retrievers == ["exa"]
+    assert back.retrievers == ["parallel"]
 
 
 def test_an_expired_entry_reports_no_sources(tmp_path, kept_only_while_current):
@@ -199,14 +199,14 @@ def test_one_outlet_quoted_three_times_is_one_line():
         FakeResult("https://reuters.com/a", "A"),
         FakeResult("https://reuters.com/b", "B"),
         FakeResult("https://apnews.com/c", "C"),
-    ], retriever="exa")
+    ], retriever="parallel")
     assert sorted(i.label for i in found.items) == ["apnews.com", "reuters.com"]
 
 
 def test_which_indexes_were_consulted_is_separate_from_which_outlets_published():
     """"Two indexes agreed" is a different claim from "two newspapers agreed",
     and collapsing them would overstate the corroboration."""
-    found = P.from_results([FakeResult("https://reuters.com/a")], retriever="exa")
+    found = P.from_results([FakeResult("https://reuters.com/a")], retriever="parallel")
     second = P.from_results([FakeResult("https://bbc.co.uk/b")], retriever="gdelt")
     for item in second.items:
         found.add(item)
@@ -214,7 +214,7 @@ def test_which_indexes_were_consulted_is_separate_from_which_outlets_published()
 
     body = found.as_dict()
     assert body["count"] == 2
-    assert body["retrievers"] == ["exa", "gdelt"]
+    assert body["retrievers"] == ["parallel", "gdelt"]
 
 
 def test_a_source_with_no_date_says_so_rather_than_being_filled_in():

@@ -1,7 +1,7 @@
-"""Exa retrieval, and Claude reading the packet instead of searching.
+"""Web retrieval, and Claude reading the packet instead of searching.
 
-This codebase retrieves first - Exa, then GDELT when Exa comes back empty -
-builds an evidence packet and puts it in the prompt, so the model reads rather
+This codebase retrieves first - Parallel, then Perplexity, then GDELT when
+the web backends come back empty - builds an evidence packet and puts it in the prompt, so the model reads rather
 than searches. The model never searches: the `claude` backend that gave a
 research call Anthropic's `web_search` tool is deleted (§135).
 
@@ -10,9 +10,12 @@ The packet is byte-for-byte the one the manual benchmark measured on
 the numbers already taken by hand stay comparable, so a change of shape has to
 be deliberate. Several tests below pin that shape for exactly that reason.
 
-Nothing here needs an EXA_API_KEY, `exa_py`, or the network. The client is
-stubbed at its import, so the real call signature is still exercised - a test
-that stubbed `retrieve` itself would prove only that the stub works.
+Nothing here needs a PARALLEL_API_KEY or the network. The one Parallel
+request (`research._search_parallel`) is stubbed, so the real retrieve path -
+ranking, screening, packing, the retry and the ladder - still runs; a test
+that stubbed `retrieve` itself would prove only that the stub works. The
+request Parallel and Perplexity actually receive is pinned at `research._post`
+in `test_search_backends_258.py`. Exa is deleted (§270).
 """
 from __future__ import annotations
 
@@ -37,17 +40,12 @@ from script_generator import ScriptNotes, build_prompt, plan_episode  # noqa: E4
 class FakeResult:
     def __init__(self, title, url, highlights, published_date=None):
         self.title, self.url, self.highlights = title, url, highlights
-        # Exa returns this and `build_packet` used to throw it away, which is
+        # Every web backend returns this and `build_packet` used to throw it
+        # away, which is
         # what left episodes dating events by guesswork. Defaulted to None so
         # the undated case - a real one - stays exercised by the tests that do
         # not care about dates.
         self.published_date = published_date
-
-
-class FakeReply:
-    def __init__(self, results, cost=None):
-        self.results = results
-        self.cost_dollars = types.SimpleNamespace(total=cost) if cost else None
 
 
 RESULTS = [
@@ -59,27 +57,39 @@ RESULTS = [
 ]
 
 
-@pytest.fixture
-def exa(monkeypatch):
-    """A stubbed Exa client, recording exactly how it was called."""
+def stub_parallel(monkeypatch, answer) -> list:
+    """Replace the one Parallel request with `answer(call)`, recording calls.
+
+    `answer` gets the recorded call and returns the results, or raises as the
+    vendor would. Everything around the request - ranking, screening, the
+    packet, the retry, the ladder - is the real code.
+    """
     calls: list = []
 
-    class FakeExa:
-        def __init__(self, key):
-            calls.append({"key": key})
+    def fake(query, num_results, recency_days=0, include_domains=(),
+             objective="", extra_queries=()):
+        call = {"query": query, "num_results": num_results,
+                "recency_days": recency_days,
+                "include_domains": tuple(include_domains),
+                "objective": objective, "extra_queries": tuple(extra_queries),
+                "thread": threading.current_thread().name}
+        calls.append(call)
+        return answer(call), WEB_COST
 
-        def search_and_contents(self, query, **kwargs):
-            calls.append({"query": query, "thread": threading.current_thread().name,
-                          **kwargs})
-            return FakeReply(RESULTS, cost=0.0031)
-
-    module = types.ModuleType("exa_py")
-    module.Exa = FakeExa
-    monkeypatch.setitem(sys.modules, "exa_py", module)
-    monkeypatch.setenv("EXA_API_KEY", "exa-test-key-not-real")
-    monkeypatch.setattr(research, "settings",
-                        dataclasses.replace(settings, research_backend="exa"))
+    monkeypatch.setattr(research, "_search_parallel", fake)
+    use_backend(monkeypatch, "parallel")
     return calls
+
+
+#: What the stubbed search says it spent - deliberately not Parallel's
+#: published rate, so a test can tell the backend's own figure was carried.
+WEB_COST = 0.0031
+
+
+@pytest.fixture
+def web(monkeypatch):
+    """A stubbed Parallel search, recording exactly how it was called."""
+    return stub_parallel(monkeypatch, lambda call: RESULTS)
 
 
 @pytest.fixture
@@ -120,7 +130,7 @@ def use_backend(monkeypatch, value: str):
 def test_the_packet_is_shaped_as_the_benchmark_built_it():
     """The benchmark's shape, still reachable, still pinned.
 
-    `EXA_DATED_PACKET=0` reproduces the packet the hand-measured 2026-09-05 run
+    `SEARCH_DATED_PACKET=0` reproduces the packet the hand-measured 2026-09-05 run
     used - `SOURCE n / Title: / Key evidence:`, top 3, 2 highlights each - so
     those numbers stay comparable to anything measured against it today.
     """
@@ -128,7 +138,7 @@ def test_the_packet_is_shaped_as_the_benchmark_built_it():
 
     import config
 
-    undated = dataclasses.replace(config.settings, exa_dated_packet=False)
+    undated = dataclasses.replace(config.settings, search_dated_packet=False)
     original, config.settings = config.settings, undated
     research.settings = undated
     try:
@@ -148,7 +158,7 @@ def test_the_packet_dates_and_grades_every_source():
 
     An episode has to decide between "last night" and "two days ago", and the
     packet used to give it a title and some highlights to decide on. Both
-    fields were already in Exa's reply and were being discarded. The relative
+    fields were already in the search's reply and were being discarded. The relative
     phrase is computed here rather than left to the model, so the blueprint's
     rule - relative labels come from normalized time, never guessed from prose
     - is enforced rather than requested.
@@ -164,7 +174,7 @@ def test_the_packet_dates_and_grades_every_source():
 
 
 def test_an_undated_source_says_so_rather_than_being_dated_today():
-    """The one thing worse than no date is a wrong one. A source Exa did not
+    """The one thing worse than no date is a wrong one. A source the search did not
     date must not acquire today's date on the way into the prompt."""
     packet = research.build_packet(
         [FakeResult("No date", "https://example.org/x", ["Something."])], 1, 1)
@@ -200,52 +210,66 @@ def test_domains_are_distinct_and_ordered_for_a_person_to_judge():
 # --------------------------------------------------------------------------
 # the call
 # --------------------------------------------------------------------------
-def test_retrieval_makes_the_call_the_benchmark_made(exa):
+def test_retrieval_makes_the_call_the_benchmark_made(web):
     packet = asyncio.run(research.retrieve("what did the fed do"))
-    call = [c for c in exa if "query" in c][0]
+    assert len(web) == 1
+    call = web[0]
     assert call["query"] == "what did the fed do"
-    assert call["type"] == research.DEFAULT_SEARCH_TYPE == "fast"
-    assert call["num_results"] == 8
-    assert call["highlights"] is True
-    assert packet.backend == "exa" and packet.searches == 1
+    assert call["num_results"] == settings.search_num_results == 8
+    # No brief: no window, no outlets, and nothing else to search for.
+    assert call["recency_days"] == 0
+    assert call["include_domains"] == ()
+    assert packet.backend == "parallel" and packet.searches == 1
+    assert packet.tried == ["parallel"]
     assert packet.results_returned == 4
 
 
-def test_retrieval_does_not_run_on_the_event_loop(exa):
+def test_retrieval_does_not_run_on_the_event_loop(web):
     """The cover is speaking and the assembler is batching while this runs. A
     synchronous HTTP call on the loop would stop both - the same guarantee the
     speech engines are held to."""
     asyncio.run(research.retrieve("anything"))
-    call = [c for c in exa if "query" in c][0]
+    call = web[0]
     assert call["thread"] != "MainThread", (
         f"retrieval ran on the event loop, in {call['thread']}")
 
 
-def test_the_reported_cost_is_the_response_s_own_when_it_gives_one(exa):
-    assert asyncio.run(research.retrieve("q")).cost == pytest.approx(0.0031)
+def test_the_reported_cost_is_the_backend_s_own(web):
+    assert asyncio.run(research.retrieve("q")).cost == pytest.approx(WEB_COST)
 
 
-def test_a_response_without_a_cost_falls_back_to_the_published_rate(monkeypatch):
-    class Silent:
-        def __init__(self, key):
-            pass
-
-        def search_and_contents(self, query, **kwargs):
-            return FakeReply(RESULTS, cost=None)
-
-    module = types.ModuleType("exa_py")
-    module.Exa = Silent
-    monkeypatch.setitem(sys.modules, "exa_py", module)
-    monkeypatch.setenv("EXA_API_KEY", "k")
-    monkeypatch.setattr(research, "settings",
-                        dataclasses.replace(settings, research_backend="exa"))
-    assert asyncio.run(research.retrieve("q")).cost == research.COST_PER_SEARCH
-
-
-def test_the_credential_never_reaches_the_result(exa):
+def test_a_parallel_search_costs_its_published_rate(monkeypatch):
+    """Parallel's reply carries no price, so a search is metered at the
+    published rate (`SEARCH_COSTS`) - through the real request function."""
+    monkeypatch.setenv("PARALLEL_API_KEY", "parallel-test-key-not-real")
+    monkeypatch.setattr(research, "_post", lambda url, headers, body: {
+        "results": [{"url": "https://reuters.com/a", "title": "Fed holds rates",
+                     "excerpts": ["Rates held at 4.25% for a third meeting."]}]})
+    use_backend(monkeypatch, "parallel")
     packet = asyncio.run(research.retrieve("q"))
-    assert "exa-test-key-not-real" not in str(packet.as_dict())
-    assert "exa-test-key-not-real" not in packet.context
+    assert packet.cost == research.SEARCH_COSTS["parallel"]
+    assert packet.searches == 1
+
+
+def test_the_credential_never_reaches_the_result(monkeypatch):
+    """The key goes in the request's header and nowhere else."""
+    sent: list = []
+
+    def post(url, headers, body):
+        sent.append(headers)
+        return {"results": [{"url": "https://reuters.com/a",
+                             "title": "Fed holds rates",
+                             "excerpts": ["Rates held at 4.25% for a third "
+                                          "meeting running."]}]}
+
+    monkeypatch.setenv("PARALLEL_API_KEY", "parallel-test-key-not-real")
+    monkeypatch.setattr(research, "_post", post)
+    use_backend(monkeypatch, "parallel")
+    packet = asyncio.run(research.retrieve("q"))
+    assert sent and sent[0]["x-api-key"] == "parallel-test-key-not-real"
+    assert packet, "the stubbed reply did not reach the packet"
+    assert "parallel-test-key-not-real" not in str(packet.as_dict())
+    assert "parallel-test-key-not-real" not in packet.context
 
 
 # --------------------------------------------------------------------------
@@ -258,7 +282,7 @@ def test_the_claude_backend_is_gone_and_says_so():
     rather than being refused as though it had made a typo."""
     assert "claude" not in RESEARCH_BACKENDS
     # Perplexity is a search vendor's index, not a model searching (§258).
-    assert research.FALLBACK_RUNGS == ("perplexity", "exa", "gdelt")
+    assert research.FALLBACK_RUNGS == ("perplexity", "gdelt")
     for name in ("retrieve_with_claude", "shape_claude_packet",
                  "research_client", "CLAUDE_RESEARCH_SYSTEM"):
         assert not hasattr(research, name), f"research.{name} is still here"
@@ -271,60 +295,92 @@ def test_the_claude_backend_is_gone_and_says_so():
         asyncio.run(research.retrieve("q", backend="claude"))
 
 
-@pytest.mark.parametrize("value", ["exaa", "web", "google", "none", "exa-py",
-                                   "claude"])
+def test_exa_is_deleted_and_a_deployment_still_setting_it_runs_on_parallel(
+        monkeypatch, caplog):
+    """§270: Parallel and Perplexity replaced Exa and its code is deleted -
+    no backend, no rung, no key, no price. A deployment whose dashboard still
+    says `RESEARCH_BACKEND=exa` runs on the default and is told so, by name,
+    exactly as a left-over `claude` is: replaced rather than refused, so the
+    deploy that removed it still boots."""
+    import logging
+
+    import app
+
+    assert "exa" not in RESEARCH_BACKENDS
+    assert "exa" not in config.WEB_RESEARCH_BACKENDS
+    assert "exa" in config.RETIRED_RESEARCH_BACKENDS
+    assert "exa" not in research.FALLBACK_RUNGS
+    assert "exa" not in research.KEYS and "exa" not in research.SEARCH_COSTS
+    for name in ("_search_exa", "_client", "diagnose", "available",
+                 "DEFAULT_SEARCH_TYPE", "COST_PER_SEARCH"):
+        assert not hasattr(research, name), f"research.{name} is still here"
+
+    left_over = dataclasses.replace(settings, research_backend="exa")
+    assert left_over.research_backend == config.DEFAULT_RESEARCH_BACKEND
+    assert left_over.research_backend_replaced == "exa"
+    monkeypatch.setattr(research, "settings", left_over)
+    report = research.report()
+    assert report["backend"] == "parallel"
+    assert report["backend_replaced"] == "exa"
+    assert "exa" not in report["backends"]
+    assert "exa" not in report["web_backends"]
+    assert "exa" not in research.ladder()
+    with caplog.at_level(logging.WARNING, logger="app"):
+        app._announce_research()
+    assert any("RESEARCH_BACKEND=exa is no longer a backend" in r.getMessage()
+               for r in caplog.records)
+    # Asked for by name, it is not a backend at retrieval either.
+    with pytest.raises(research.ResearchUnavailable, match="is not a backend"):
+        asyncio.run(research.retrieve("q", backend="exa"))
+
+
+def test_an_exa_second_look_becomes_perplexity():
+    """The retry's backend gets the same courtesy (§270)."""
+    left_over = dataclasses.replace(settings, research_second_look="exa")
+    assert left_over.research_second_look == "perplexity"
+
+
+@pytest.mark.parametrize("value", ["exa", "parallell", "web", "google", "none",
+                                   "exa-py", "claude"])
 def test_an_unrecognised_backend_is_refused_at_retrieval(value, monkeypatch):
     """The second gate. `Settings.__post_init__` is bypassable; this is not.
 
     `""` is deliberately not here: an empty override means "not specified", so
     it falls through to the configured backend rather than being a bad value.
-    Nor is `"Exa "` - case and surrounding whitespace normalise, exactly as
-    they do for STREAMING_PIPELINE, because a deployment writing `EXA` means
-    exa and refusing that is pedantry rather than safety.
+    Nor is `"Parallel "` - case and surrounding whitespace normalise, exactly
+    as they do for STREAMING_PIPELINE, because a deployment writing `PARALLEL`
+    means parallel and refusing that is pedantry rather than safety.
     """
-    monkeypatch.setattr(research, "settings",
-                        dataclasses.replace(settings, research_backend="exa"))
+    use_backend(monkeypatch, "parallel")
     with pytest.raises(research.ResearchUnavailable) as exc:
         asyncio.run(research.retrieve("q", backend=value))
     assert "is not a backend" in str(exc.value)
     assert "falling back" in str(exc.value)
 
 
-@pytest.mark.parametrize("value", ["EXA", " exa ", "Exa"])
+@pytest.mark.parametrize("value", ["PARALLEL", " parallel ", "Parallel"])
 def test_case_and_whitespace_normalise_rather_than_being_refused(value,
                                                                  monkeypatch,
-                                                                 exa):
+                                                                 web):
     """The tolerance is deliberate, and the same as STREAMING_PIPELINE's: a
-    deployment writing `RESEARCH_BACKEND=EXA` means exa. It is the
+    deployment writing `RESEARCH_BACKEND=PARALLEL` means parallel. It is the
     unrecognisable that is refused, not the differently-cased."""
     packet = asyncio.run(research.retrieve("q", backend=value))
     assert packet.backend == value.strip().lower()
 
 
-def test_a_missing_package_says_so_rather_than_failing_obscurely(monkeypatch):
-    monkeypatch.setitem(sys.modules, "exa_py", None)
-    monkeypatch.setenv("EXA_API_KEY", "k")
-    monkeypatch.setattr(research, "settings",
-                        dataclasses.replace(settings, research_backend="exa"))
-    with pytest.raises(research.ResearchUnavailable, match="exa_py is not installed"):
-        asyncio.run(research.retrieve("q"))
-
-
 def test_a_missing_key_names_the_variable_and_the_way_out(monkeypatch):
-    module = types.ModuleType("exa_py")
-    module.Exa = lambda key: None
-    monkeypatch.setitem(sys.modules, "exa_py", module)
-    monkeypatch.delenv("EXA_API_KEY", raising=False)
-    monkeypatch.setattr(research, "settings",
-                        dataclasses.replace(settings, research_backend="exa"))
+    monkeypatch.delenv("PARALLEL_API_KEY", raising=False)
+    monkeypatch.delenv("PARALLEL_API_KEYS", raising=False)
+    use_backend(monkeypatch, "parallel")
     with pytest.raises(research.ResearchUnavailable) as exc:
         asyncio.run(research.retrieve("q"))
-    assert "EXA_API_KEY" in str(exc.value)
-    assert "RESEARCH_BACKEND=gdelt" in str(exc.value)
+    assert "PARALLEL_API_KEY" in str(exc.value)
+    assert "RESEARCH_BACKEND" in str(exc.value)
 
 
-def test_exa_failure_does_not_fall_back_inside_retrieve():
-    """The failure this refuses. An episode that asked for Exa and quietly got
+def test_a_search_failure_does_not_fall_back_inside_retrieve():
+    """The failure this refuses. An episode that asked for Parallel and quietly got
     another retriever is unattributable - the fallback belongs to the ladder,
     which records it, and never to `retrieve`, which would not.
 
@@ -357,9 +413,9 @@ def test_exa_failure_does_not_fall_back_inside_retrieve():
 
 def test_a_backend_that_cannot_run_raises_instead_of_switching(monkeypatch):
     """The behaviour that check is about, exercised rather than read."""
-    monkeypatch.setitem(sys.modules, "exa_py", None)
-    monkeypatch.setattr(research, "settings",
-                        dataclasses.replace(settings, research_backend="exa"))
+    monkeypatch.delenv("PARALLEL_API_KEY", raising=False)
+    monkeypatch.delenv("PARALLEL_API_KEYS", raising=False)
+    use_backend(monkeypatch, "parallel")
     with pytest.raises(research.ResearchUnavailable):
         asyncio.run(research.retrieve("q"))
 
@@ -367,11 +423,8 @@ def test_a_backend_that_cannot_run_raises_instead_of_switching(monkeypatch):
 # --------------------------------------------------------------------------
 # Claude reads the packet
 # --------------------------------------------------------------------------
-def test_evidence_reaches_the_prompt_and_the_tool_does_not(exa, monkeypatch):
-    """The whole point: on `exa`, Claude reads rather than searches."""
-    use_backend(monkeypatch, "exa")
-    monkeypatch.setattr(research, "settings",
-                        dataclasses.replace(settings, research_backend="exa"))
+def test_evidence_reaches_the_prompt_and_the_tool_does_not(web, monkeypatch):
+    """The whole point: Claude reads rather than searches."""
     generator = sg.ScriptGenerator.__new__(sg.ScriptGenerator)
     plan = plan_episode("what did the fed do today", 3, search=True)
     notes = ScriptNotes()
@@ -393,8 +446,9 @@ def test_a_search_that_cannot_run_leaves_the_episode_answerable(monkeypatch):
     thing this app already knows how to be."""
     import gdelt
 
-    use_backend(monkeypatch, "exa")
-    monkeypatch.setitem(sys.modules, "exa_py", None)
+    use_backend(monkeypatch, "parallel")
+    monkeypatch.delenv("PARALLEL_API_KEY", raising=False)
+    monkeypatch.delenv("PARALLEL_API_KEYS", raising=False)
     monkeypatch.setattr(gdelt, "settings",
                         dataclasses.replace(gdelt.settings, gdelt=False))
     generator = sg.ScriptGenerator.__new__(sg.ScriptGenerator)
@@ -404,35 +458,24 @@ def test_a_search_that_cannot_run_leaves_the_episode_answerable(monkeypatch):
     assert "tools" not in generator._request_kwargs(researched)
 
 
-def test_an_unresearched_episode_never_retrieves(exa, monkeypatch):
-    """The default question costs nothing either way, and must not reach Exa."""
-    use_backend(monkeypatch, "exa")
+def test_an_unresearched_episode_never_retrieves(web, monkeypatch):
+    """The default question costs nothing either way, and must not reach the
+    search."""
     generator = sg.ScriptGenerator.__new__(sg.ScriptGenerator)
     plan = plan_episode("what is the nasdaq", 3, search=False)
     assert asyncio.run(generator.research(plan, ScriptNotes())) is plan
-    assert not [c for c in exa if "query" in c], "an unresearched episode searched"
+    assert not web, "an unresearched episode searched"
 
 
 def test_an_empty_packet_falls_to_gdelt_before_writing(monkeypatch,
                                                        fake_gdelt):
     """Retrieval succeeded and found nothing usable.
 
-    The next rung is GDELT - the only one since §135 - and it runs before
-    the first word, and the episode's own record names the backend that
-    could not serve it.
+    With no Perplexity key the next rung is GDELT, and it runs before the
+    first word, and the episode's own record names the backend that could not
+    serve it.
     """
-    class Empty:
-        def __init__(self, key):
-            pass
-
-        def search_and_contents(self, query, **kwargs):
-            return FakeReply([])
-
-    module = types.ModuleType("exa_py")
-    module.Exa = Empty
-    monkeypatch.setitem(sys.modules, "exa_py", module)
-    monkeypatch.setenv("EXA_API_KEY", "k")
-    use_backend(monkeypatch, "exa")
+    stub_parallel(monkeypatch, lambda call: [])
 
     generator = sg.ScriptGenerator.__new__(sg.ScriptGenerator)
     plan = plan_episode("todays news", 3, search=True)
@@ -441,16 +484,17 @@ def test_an_empty_packet_falls_to_gdelt_before_writing(monkeypatch,
     assert "Fed holds rates" in researched.evidence
     assert "tools" not in generator._request_kwargs(researched)
     assert notes.research["backend"] == "gdelt"
-    assert notes.research["fell_back_from"] == "exa"
+    assert notes.research["fell_back_from"] == "parallel"
 
 
 def test_a_backend_that_cannot_run_falls_back_out_loud(monkeypatch, fake_gdelt):
-    """Exa with no key used to raise, and the episode failed. What made that
-    survivable was the cover half speaking underneath it, which is gone - so
-    the other retriever gets one go, and says on the record that it did."""
-    use_backend(monkeypatch, "exa")
-    monkeypatch.delenv("EXA_API_KEY", raising=False)
-    monkeypatch.setitem(sys.modules, "exa_py", None)
+    """A web backend with no key used to raise, and the episode failed. What
+    made that survivable was the cover half speaking underneath it, which is
+    gone - so the other retriever gets one go, and says on the record that
+    it did."""
+    use_backend(monkeypatch, "parallel")
+    monkeypatch.delenv("PARALLEL_API_KEY", raising=False)
+    monkeypatch.delenv("PARALLEL_API_KEYS", raising=False)
 
     generator = sg.ScriptGenerator.__new__(sg.ScriptGenerator)
     notes = ScriptNotes()
@@ -458,7 +502,7 @@ def test_a_backend_that_cannot_run_falls_back_out_loud(monkeypatch, fake_gdelt):
         plan_episode("todays news", 3, search=True), notes))
     assert researched.evidence
     assert notes.research["backend"] == "gdelt"
-    assert notes.research["fell_back_from"] == "exa"
+    assert notes.research["fell_back_from"] == "parallel"
 
 
 def test_a_retriever_that_breaks_never_takes_the_episode_with_it(monkeypatch,
@@ -474,18 +518,10 @@ def test_a_retriever_that_breaks_never_takes_the_episode_with_it(monkeypatch,
     episode, so a blip at a search vendor would be a listener getting no
     audio at all.
     """
-    class Broken:
-        def __init__(self, key):
-            pass
+    def broken(call):
+        raise RuntimeError("502 from the index")
 
-        def search_and_contents(self, query, **kwargs):
-            raise RuntimeError("502 from the index")
-
-    module = types.ModuleType("exa_py")
-    module.Exa = Broken
-    monkeypatch.setitem(sys.modules, "exa_py", module)
-    monkeypatch.setenv("EXA_API_KEY", "k")
-    use_backend(monkeypatch, "exa")
+    stub_parallel(monkeypatch, broken)
 
     generator = sg.ScriptGenerator.__new__(sg.ScriptGenerator)
     notes = ScriptNotes()
@@ -494,24 +530,16 @@ def test_a_retriever_that_breaks_never_takes_the_episode_with_it(monkeypatch,
 
     # It did not raise, and it did not give up either: the next rung ran.
     assert "Fed holds rates" in researched.evidence
-    assert notes.research["fell_back_from"] == "exa"
+    assert notes.research["fell_back_from"] == "parallel"
 
 
 def test_every_rung_failing_is_an_unresearched_episode_not_a_dead_one(monkeypatch):
     """The bottom of the ladder. Nothing retrieved, and the episode still
     exists - which is the state an unresearched episode has always been in."""
-    class Broken:
-        def __init__(self, key):
-            pass
+    def broken(call):
+        raise RuntimeError("502 from the index")
 
-        def search_and_contents(self, query, **kwargs):
-            raise RuntimeError("502 from the index")
-
-    module = types.ModuleType("exa_py")
-    module.Exa = Broken
-    monkeypatch.setitem(sys.modules, "exa_py", module)
-    monkeypatch.setenv("EXA_API_KEY", "k")
-    use_backend(monkeypatch, "exa")
+    stub_parallel(monkeypatch, broken)
 
     import gdelt
 
@@ -533,38 +561,23 @@ def test_a_packet_with_nothing_in_it_always_buys_the_second_look(monkeypatch):
     `packet_covers("", [])` is True - so a search that found *absolutely
     nothing* counted as satisfied and the one retry that exists for this case
     never ran. The commonest way in is the recency window."""
-    calls: list = []
-
-    class WindowedMiss:
-        def __init__(self, key):
-            pass
-
-        def search_and_contents(self, query, **kwargs):
-            calls.append(kwargs.get("start_published_date"))
-            # Nothing inside the window; everything outside it.
-            if kwargs.get("start_published_date"):
-                return FakeReply([])
-            return FakeReply(RESULTS, cost=0.0031)
-
-    module = types.ModuleType("exa_py")
-    module.Exa = WindowedMiss
-    monkeypatch.setitem(sys.modules, "exa_py", module)
-    monkeypatch.setenv("EXA_API_KEY", "k")
-    use_backend(monkeypatch, "exa")
+    # Nothing inside the window; everything outside it.
+    searched = stub_parallel(
+        monkeypatch, lambda call: [] if call["recency_days"] else RESULTS)
 
     packet = asyncio.run(research.retrieve(
         "what happened overnight",
         brief=types.SimpleNamespace(recency_days=1, subject="the thing",
                                     retrieval="what happened overnight",
                                     must_establish=[])))
+    calls = [call["recency_days"] for call in searched]
     assert len(calls) == 2, "the windowless second look never ran"
     assert calls[0] and not calls[1], "the second look must drop the window"
     assert packet, "the retry found sources and they did not reach the packet"
     assert packet.retried
 
 
-def test_the_prompt_tells_the_model_not_to_read_sources_aloud(exa, monkeypatch):
-    use_backend(monkeypatch, "exa")
+def test_the_prompt_tells_the_model_not_to_read_sources_aloud(web, monkeypatch):
     generator = sg.ScriptGenerator.__new__(sg.ScriptGenerator)
     plan = asyncio.run(generator.research(
         plan_episode("what did the fed do today", 3, search=True), ScriptNotes()))
@@ -574,15 +587,14 @@ def test_the_prompt_tells_the_model_not_to_read_sources_aloud(exa, monkeypatch):
         "the model must be told the evidence outranks what it recalls")
 
 
-def test_what_retrieval_cost_is_recorded_for_a_person_to_read(exa, monkeypatch):
-    use_backend(monkeypatch, "exa")
+def test_what_retrieval_cost_is_recorded_for_a_person_to_read(web, monkeypatch):
     generator = sg.ScriptGenerator.__new__(sg.ScriptGenerator)
     notes = ScriptNotes()
     asyncio.run(generator.research(
         plan_episode("what did the fed do today", 3, search=True), notes))
-    assert notes.research["backend"] == "exa"
+    assert notes.research["backend"] == "parallel"
     assert notes.research["sources"] == ["reuters.com", "ft.com", "bbc.co.uk"]
-    assert notes.research["cost"] == pytest.approx(0.0031)
+    assert notes.research["cost"] == pytest.approx(WEB_COST)
     assert notes.research["packet_chars"] > 0
 
 
@@ -592,12 +604,12 @@ def test_what_retrieval_cost_is_recorded_for_a_person_to_read(exa, monkeypatch):
 def test_a_fresh_deployment_researches_with_parallel():
     """The production default since §258, at the owner's direction, with a
     real cost attached: it needs a credential. Perplexity is the second look
-    and the next rung, Exa stays selectable for comparison, and the keyless
-    alternative is GDELT; the model's own search is not an alternative any
-    more (§135)."""
+    and the next rung, and the keyless alternative is GDELT; Exa is deleted
+    (§270) and the model's own search is not an alternative any more
+    (§135)."""
     assert config.DEFAULT_RESEARCH_BACKEND == "parallel"
     assert settings.research_backend == "parallel"
-    assert RESEARCH_BACKENDS == ("parallel", "perplexity", "exa", "gdelt")
+    assert RESEARCH_BACKENDS == ("parallel", "perplexity", "gdelt")
     assert settings.research_second_look == "perplexity"
 
 
@@ -612,7 +624,7 @@ def test_the_default_is_one_fact_in_one_place():
 
 
 def test_a_keyless_configuration_is_still_one_variable(monkeypatch, fake_gdelt):
-    """A deployment with no Exa key must have a working configuration to move
+    """A deployment with no search key must have a working configuration to move
     to, not a broken one to endure - and since §135 that is GDELT."""
     patched = dataclasses.replace(settings, research_backend="gdelt")
     monkeypatch.setattr(research, "settings", patched)
@@ -630,36 +642,38 @@ def test_the_env_example_ships_the_default_it_documents():
     assert f"RESEARCH_BACKEND={config.DEFAULT_RESEARCH_BACKEND}" in lines
 
 
-def test_every_image_installs_the_backend_it_defaults_to():
-    """Render started with research already broken, and said so in a log line.
+def test_every_image_installs_what_the_default_backend_needs():
+    """Render once started with research already broken, and said so in a log
+    line: the default backend's package was declared in a requirements file
+    the CPU Dockerfile did not install (§54's shape - a setting settled in one
+    place and not in the one that shipped).
 
-    `research.py` imports `exa_py`, which is declared only in
-    requirements-exa.txt. The CPU Dockerfile - the one Render builds - installed
-    requirements.txt alone, so the image came up with RESEARCH_BACKEND=exa and
-    no Exa: `diagnose` reported "exa_py is not installed" and every researched
-    episode would raise ResearchUnavailable rather than search another way.
-    Dockerfile.gpu had always installed both; this is the same shape as §54,
-    where a setting was settled in one place and not in the one that shipped.
+    Parallel and Perplexity need nothing but `httpx`, which every image gets
+    from requirements.txt; and no image may still install Exa's file, which
+    is deleted (§270) - a COPY of a missing file fails the build.
     """
     from pathlib import Path
 
     root = Path(__file__).resolve().parent.parent
+    requirements = [line.split("#", 1)[0].strip().lower() for line in
+                    (root / "requirements.txt").read_text().splitlines()]
+    assert any(line.startswith("httpx") for line in requirements)
     for name in ("Dockerfile", "Dockerfile.gpu"):
         text = (root / name).read_text()
-        assert "requirements-exa.txt" in text, (
-            f"{name} does not install exa_py, but RESEARCH_BACKEND defaults to "
-            f"{config.DEFAULT_RESEARCH_BACKEND!r}")
+        assert "requirements.txt" in text
+        assert "requirements-exa.txt" not in text, (
+            f"{name} still installs Exa's requirements, which are deleted")
 
 
-@pytest.mark.parametrize("value", ["exaa", "web", "", "google"])
+@pytest.mark.parametrize("value", ["exaa", "parallell", "web", "", "google"])
 def test_an_unrecognised_backend_is_refused_at_import(value):
     with pytest.raises(ValueError, match="is not a research backend"):
         dataclasses.replace(settings, research_backend=value)
 
 
 @pytest.mark.parametrize("field, value", [
-    ("exa_num_results", 0), ("exa_packet_sources", 0),
-    ("exa_highlights_per_source", 0), ("exa_num_results", -1),
+    ("search_num_results", 0), ("search_packet_sources", 0),
+    ("search_highlights_per_source", 0), ("search_num_results", -1),
 ])
 def test_a_zero_knob_is_refused_rather_than_sending_an_empty_packet(field, value):
     with pytest.raises(ValueError, match="must be at least 1"):
@@ -668,14 +682,14 @@ def test_a_zero_knob_is_refused_rather_than_sending_an_empty_packet(field, value
 
 def test_the_packet_cannot_ask_for_more_sources_than_were_fetched():
     with pytest.raises(ValueError, match="exceeds"):
-        dataclasses.replace(settings, exa_num_results=3, exa_packet_sources=5)
+        dataclasses.replace(settings, search_num_results=3, search_packet_sources=5)
 
 
 def test_health_says_which_backend_and_whether_it_can_run():
     report = research.report()
     assert report["backend"] == "parallel"
-    assert "exa_detail" in report
-    assert set(report["web_backends"]) == {"parallel", "perplexity", "exa"}
+    assert "backend_detail" in report
+    assert set(report["web_backends"]) == {"parallel", "perplexity"}
     # In this container there is no PARALLEL_API_KEY, and the default is
     # parallel - so `unavailable` is true, and that is the honest answer
     # rather than a test failure. What must never happen is it reading false
@@ -685,7 +699,7 @@ def test_health_says_which_backend_and_whether_it_can_run():
 
 
 def test_a_deployment_that_cannot_research_says_so_at_startup(caplog):
-    """Not on a listener's first researched question. `exa` is the default and
+    """Not on a listener's first researched question. `parallel` is the default and
     needs a credential; a missing one discovered mid-episode is the shape of
     failure this project has paid for most."""
     import logging
@@ -695,7 +709,7 @@ def test_a_deployment_that_cannot_research_says_so_at_startup(caplog):
     with caplog.at_level(logging.WARNING, logger="app"):
         app._announce_research()
 
-    if research.available():  # pragma: no cover - not in this container
+    if research.backend_available(research.settings.research_backend):  # pragma: no cover - not in this container
         pytest.skip("this machine can research; nothing to announce")
     messages = [record.getMessage() for record in caplog.records]
     assert any("RESEARCH UNAVAILABLE" in m for m in messages), messages
@@ -727,74 +741,45 @@ def test_the_startup_warning_is_not_fatal():
     assert app._announce_research() is None
 
 
-def _exa_backend(monkeypatch):
-    monkeypatch.setattr(research, "settings",
-                        dataclasses.replace(settings, research_backend="exa"))
-
-
-def _exa_py(monkeypatch, installed: bool):
-    """Decide whether `import exa_py` succeeds, whatever this machine has.
-
-    `diagnose()` reports the *first* missing prerequisite, so on a machine
-    without the package the key branch is unreachable and a test that asserts
-    on it fails for a reason that has nothing to do with the behaviour. A None
-    entry in sys.modules makes the import raise; a bare module makes it
-    succeed. Both are deterministic, which matters because the suite must pass
-    with exa_py absent - see test_exa_is_not_a_fresh_install_requirement.
-    """
-    monkeypatch.setitem(sys.modules, "exa_py",
-                        types.ModuleType("exa_py") if installed else None)
-
-
-def test_health_names_the_missing_package_when_exa_py_is_absent(monkeypatch):
-    _exa_backend(monkeypatch)
-    _exa_py(monkeypatch, installed=False)
+def test_health_names_the_missing_key(monkeypatch):
+    """The prerequisite a deployment hits is named, by variable."""
+    use_backend(monkeypatch, "parallel")
+    monkeypatch.delenv("PARALLEL_API_KEY", raising=False)
+    monkeypatch.delenv("PARALLEL_API_KEYS", raising=False)
     report = research.report()
     assert report["unavailable"] is True
-    assert "exa_py" in report["exa_detail"]
+    assert "PARALLEL_API_KEY" in report["backend_detail"]
+    assert report["web_backends"]["parallel"]["configured"] is False
+    assert "PARALLEL_API_KEY" in report["web_backends"]["parallel"]["detail"]
 
 
-def test_health_names_the_missing_key_once_the_package_is_there(monkeypatch):
-    """The prerequisite a deployment hits second must be reported too.
-
-    This is the case that used to be untestable on a machine without the
-    package: it reported "exa_py is not installed" and never reached the key.
-    """
-    _exa_backend(monkeypatch)
-    _exa_py(monkeypatch, installed=True)
-    monkeypatch.delenv("EXA_API_KEY", raising=False)
+def test_health_is_clear_when_parallel_can_actually_run(monkeypatch):
+    use_backend(monkeypatch, "parallel")
+    monkeypatch.setenv("PARALLEL_API_KEY", "parallel-test-key")
     report = research.report()
-    assert report["unavailable"] is True
-    assert "EXA_API_KEY" in report["exa_detail"]
-
-
-def test_health_is_clear_when_exa_can_actually_run(monkeypatch):
-    _exa_backend(monkeypatch)
-    _exa_py(monkeypatch, installed=True)
-    monkeypatch.setenv("EXA_API_KEY", "exa-test-key")
-    report = research.report()
-    assert report["exa_configured"] is True
+    assert report["web_backends"]["parallel"]["configured"] is True
     assert report["unavailable"] is False
+    assert "parallel-test-key" not in str(report)
 
 
-def test_the_gdelt_backend_never_reports_unavailable_for_a_missing_exa_key(monkeypatch):
-    """Exa's prerequisites are not GDELT's problem."""
+def test_the_gdelt_backend_never_reports_unavailable_for_a_missing_search_key(monkeypatch):
+    """The web backends' prerequisites are not GDELT's problem."""
     import gdelt
 
     monkeypatch.setattr(research, "settings",
                         dataclasses.replace(settings, research_backend="gdelt"))
     monkeypatch.setattr(gdelt, "settings",
                         dataclasses.replace(gdelt.settings, gdelt=True))
-    _exa_py(monkeypatch, installed=False)
-    monkeypatch.delenv("EXA_API_KEY", raising=False)
+    monkeypatch.delenv("PARALLEL_API_KEY", raising=False)
+    monkeypatch.delenv("PERPLEXITY_API_KEY", raising=False)
     assert research.report()["unavailable"] is False
 
 
 def test_a_listener_is_told_why_research_failed_not_to_read_a_log():
     """The remedy is already in the exception; throwing it away wastes it.
 
-    ResearchUnavailable says "exa_py is not installed, pip install -r
-    requirements-exa.txt" or which key is missing. friendly_error used to
+    ResearchUnavailable says which key is missing and what to set instead.
+    friendly_error used to
     reduce that to "Generation failed: ResearchUnavailable. See the server log
     for details." - which is the one thing a person in a browser cannot do.
     """
@@ -802,41 +787,93 @@ def test_a_listener_is_told_why_research_failed_not_to_read_a_log():
 
     message = friendly_error(
         research.ResearchUnavailable(
-            "exa_py is not installed. `pip install -r requirements-exa.txt`"))
-    assert "exa_py is not installed" in message
-    assert "requirements-exa.txt" in message
+            "PARALLEL_API_KEY is not set, so Parallel cannot retrieve "
+            "anything. Set it, or set RESEARCH_BACKEND to another backend."))
+    assert "PARALLEL_API_KEY is not set" in message
+    assert "RESEARCH_BACKEND" in message
     assert "server log" not in message
 
 
-def test_exa_is_not_a_fresh_install_requirement():
-    """`requirements.txt` must not pull it in - the default backend needs it
-    never, and the suite runs without it."""
+def test_nothing_installs_or_imports_exa():
+    """Deleted, not switched off (§270): no requirement pulls it in, its
+    requirements file is gone, and no source file imports `exa_py`. Parsed
+    rather than grepped, so a comment recording the history does not count.
+    """
+    import ast
+    import warnings
     from pathlib import Path
 
     root = Path(__file__).resolve().parent.parent
     for line in (root / "requirements.txt").read_text().splitlines():
         assert "exa" not in line.split("#", 1)[0].lower()
-    assert (root / "requirements-exa.txt").exists()
+    assert not (root / "requirements-exa.txt").exists()
+    importers = []
+    for path in root.rglob("*.py"):
+        if any(part in {".git", "node_modules", ".venv", "venv"}
+               for part in path.parts) or "tests" in path.relative_to(root).parts:
+            continue
+        try:
+            with warnings.catch_warnings():
+                # Somebody else's invalid escape is not this test's subject.
+                warnings.simplefilter("ignore", SyntaxWarning)
+                tree = ast.parse(path.read_text(encoding="utf-8"))
+        except (SyntaxError, UnicodeDecodeError):
+            continue
+        for node in ast.walk(tree):
+            names = ([a.name for a in node.names] if isinstance(node, ast.Import)
+                     else [node.module or ""] if isinstance(node, ast.ImportFrom)
+                     else [])
+            if any(n.split(".")[0] == "exa_py" for n in names):
+                importers.append(str(path.relative_to(root)))
+    assert not importers, f"still importing exa_py: {importers}"
+
+
+def test_an_old_exa_setting_is_no_longer_read_and_says_which_replaced_it(
+        monkeypatch, caplog):
+    """The packet's sizes were renamed `SEARCH_*` with Exa's deletion
+    (§270). The old name is not honoured - a fresh interpreter with only
+    `EXA_NUM_RESULTS` set fetches the default - and the startup log names the
+    variable to set instead, so a dashboard value is never ignored in silence.
+    """
+    import logging
+    import subprocess
+
+    import app
+
+    assert config.RENAMED_SETTINGS["EXA_NUM_RESULTS"] == "SEARCH_NUM_RESULTS"
+    env = {k: v for k, v in os.environ.items()
+           if k not in ("SEARCH_NUM_RESULTS", "SEARCH_PACKET_SOURCES")}
+    env["EXA_NUM_RESULTS"] = "2"
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    out = subprocess.run(
+        [sys.executable, "-c",
+         "import config; print(config.settings.search_num_results)"],
+        cwd=root, env=env, capture_output=True, text=True, timeout=120)
+    assert out.returncode == 0, out.stderr
+    assert out.stdout.strip().splitlines()[-1] == "8"
+
+    monkeypatch.setenv("EXA_NUM_RESULTS", "2")
+    with caplog.at_level(logging.WARNING, logger="app"):
+        app._announce_research()
+    assert any("EXA_NUM_RESULTS is no longer read" in r.getMessage()
+               and "SEARCH_NUM_RESULTS" in r.getMessage()
+               for r in caplog.records)
 
 
 # --------------------------------------------------------------------------
 # through the real pipeline, end to end
 # --------------------------------------------------------------------------
-def test_a_researched_episode_plays_with_claude_reading_the_exa_packet(exa,
-                                                                       monkeypatch):
-    """The whole path: Exa retrieves, the packet reaches the prompt, the model
+def test_a_researched_episode_plays_with_claude_reading_the_search_packet(
+        web, monkeypatch):
+    """The whole path: Parallel retrieves, the packet reaches the prompt, the model
     writes from it, the assembler chunks it and the engine speaks it.
 
-    Nothing is stubbed but Exa itself and the two things that always are in
+    Nothing is stubbed but the search request itself and the two things that always are in
     this suite - the model and the voice. In particular the pipeline, the
     Phase 6 assembler and the duration contract are the real ones.
     """
     from pipeline import GenerationStats, PodcastPipeline
     from tts import DebugEngine
-
-    use_backend(monkeypatch, "exa")
-    monkeypatch.setattr(research, "settings",
-                        dataclasses.replace(settings, research_backend="exa"))
 
     seen_prompts: list = []
 
@@ -882,16 +919,13 @@ def test_a_researched_episode_plays_with_claude_reading_the_exa_packet(exa,
     assert "Yields fell 6bp." in seen_prompts[0], "only one source reached the prompt"
 
     # One retrieval for the episode - not one per sentence.
-    assert len([c for c in exa if "query" in c]) == 1
+    assert len(web) == 1
     assert stats.audio_seconds <= 60 + 5, "the duration ceiling did not hold"
 
 
-def test_research_runs_once_per_episode_not_once_per_sentence(exa, monkeypatch):
+def test_research_runs_once_per_episode_not_once_per_sentence(web, monkeypatch):
     """`stream_sentences` calls `research` on entry. If that were inside the
     streaming loop it would pay for a retrieval per sentence, silently."""
-    use_backend(monkeypatch, "exa")
-    monkeypatch.setattr(research, "settings",
-                        dataclasses.replace(settings, research_backend="exa"))
     generator = sg.ScriptGenerator.__new__(sg.ScriptGenerator)
     plan = plan_episode("what did the fed do today", 3, search=True)
 
@@ -900,22 +934,19 @@ def test_research_runs_once_per_episode_not_once_per_sentence(exa, monkeypatch):
     # -first path (two calls on one plan) would retrieve twice.
     again = asyncio.run(generator.research(researched, ScriptNotes()))
     assert again is researched
-    assert len([c for c in exa if "query" in c]) == 1
+    assert len(web) == 1
 
 
-def test_the_evidence_survives_being_replaced_onto_the_plan(exa, monkeypatch):
+def test_the_evidence_survives_being_replaced_onto_the_plan(web, monkeypatch):
     """`research` returns a copy rather than mutating, and several steps in
     `prepare` do the same. The packet must survive all of them."""
-    use_backend(monkeypatch, "exa")
-    monkeypatch.setattr(research, "settings",
-                        dataclasses.replace(settings, research_backend="exa"))
     generator = sg.ScriptGenerator.__new__(sg.ScriptGenerator)
     plan = plan_episode("what did the fed do today", 3, search=True)
 
     # An unresearched plan never retrieves, whatever the backend is set to.
     unresearched = dataclasses.replace(plan, search=False)
     assert asyncio.run(generator.research(unresearched, ScriptNotes())) is unresearched
-    assert not [c for c in exa if "query" in c], "an unresearched episode searched"
+    assert not web, "an unresearched episode searched"
 
     done = asyncio.run(generator.research(plan, ScriptNotes()))
     assert done.evidence

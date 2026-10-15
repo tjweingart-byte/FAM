@@ -4,12 +4,12 @@ FAM EI is the layer between what someone typed and what the pipeline goes and
 looks up. It answers the questions the blueprint asks - what is being asked for,
 why it might be being asked now, what the retrieval must actually find, what
 shape the story takes, and how deep the chosen duration should go - and it does
-all of that **before** Exa is called, so that the one search FAM pays for is a
+all of that **before** the search is called, so that the one search FAM pays for is a
 search for the right thing.
 
 Why it sits here and not after retrieval
 ----------------------------------------
-A gate downstream of Exa can only judge an episode built on whatever the packet
+A gate downstream of the search can only judge an episode built on whatever the packet
 happened to contain. If the query that produced the packet was wrong - "Nvidia"
 searched literally when what the listener wanted was yesterday's results - then
 by the time anything is checked the evidence is already the wrong evidence and
@@ -225,7 +225,7 @@ class Brief:
     #: high | medium | low. Governs how hard the episode may lean on `why_now`.
     #: `low` means treat the request as evergreen and do not invent a trigger.
     why_now_confidence: str = "low"
-    #: What actually goes to Exa. The single highest-value field here.
+    #: What actually goes to the search. The single highest-value field here.
     search_query: str = ""
     #: The same search, broader, for when the first comes back with nothing.
     #: Written in the same call as `search_query` and costing a handful of

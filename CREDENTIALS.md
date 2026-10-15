@@ -73,7 +73,7 @@ FAM_SECRETS='cmd:doppler secrets download --no-file --format json'
 
 # 1Password — one secret per line
 FAM_SECRETS='cmd:ANTHROPIC_API_KEY=op read op://vault/fam/anthropic
-cmd:EXA_API_KEY=op read op://vault/fam/exa'
+cmd:PARALLEL_API_KEY=op read op://vault/fam/parallel'
 
 # Docker / Kubernetes secrets, mounted as files
 FAM_SECRETS='file:ANTHROPIC_API_KEY=/run/secrets/anthropic'
@@ -142,7 +142,7 @@ Several keys, comma separated:
 
 ```sh
 ANTHROPIC_API_KEYS=sk-ant-a,sk-ant-b
-EXA_API_KEYS=exa-a,exa-b
+PARALLEL_API_KEYS=par-a,par-b
 ```
 
 A key that is rejected steps aside and the next one takes over, published into
@@ -156,8 +156,8 @@ either of them knowing this module exists.
   pool buys here is *failover*: a key that is revoked, expired or spend-capped
   halfway through a demo steps aside instead of ending the demo. Real headroom
   is a higher usage tier, or separate workspaces — not more keys.
-* **Exa's limits are per key** (10 rps on `/search` and `/answer` on standard
-  plans). There a pool is genuine headroom.
+* **The search vendors (Parallel, Perplexity)** publish per-account rate
+  limits; check their terms before assuming a second key adds headroom.
 
 One key is a pool of one and behaves exactly as it did before any of this
 existed.

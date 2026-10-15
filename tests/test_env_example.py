@@ -63,7 +63,7 @@ def test_text_settings_match(defaults, key, attr):
 
 def test_search_is_on_for_every_episode(defaults):
     """Reversed, deliberately. `auto` was priced against research that cost
-    10-25 seconds; Exa retrieves in about half a second, and at that price a
+    10-25 seconds; a web search retrieves in about half a second, and at that price a
     keyword guess about which questions "read as time-sensitive" only ever
     costs freshness. The example file has to move with the code or following
     the documented setup configures the product against itself again - which
@@ -126,5 +126,5 @@ def test_the_example_does_not_ship_an_enabled_secrets_provider():
 def test_the_example_does_not_ship_a_key_pool():
     """Same reason, and one more: a pool of one real key and one placeholder
     fails over from a working key to a broken one on the first rate limit."""
-    for name in ("ANTHROPIC_API_KEYS", "EXA_API_KEYS"):
+    for name in ("ANTHROPIC_API_KEYS", "PARALLEL_API_KEYS"):
         assert name not in example_values(), f".env.example enables {name}"

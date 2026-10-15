@@ -2,7 +2,7 @@
 
 CLAUDE.md's §72 note ends "per-listener metering still does not exist", and the
 reason it has to is structural: **the provider only ever sees one account.**
-Anthropic bills this organisation, Exa bills this key, the GPU bills by the
+Anthropic bills this organisation, the search vendors bill their keys, the GPU bills by the
 hour. None of them can say which listener produced which request, so if that
 question is not answered here it cannot be answered anywhere - and every
 question about pricing, per-user limits and abuse is that question wearing a
@@ -15,7 +15,7 @@ One row per episode, written where the listener id is known (`app.py`, from
 appended, never updated. A row carries what was actually consumed:
 
     tokens in / out / cached      what Claude billed
-    exa searches and their cost   what retrieval billed
+    web searches and their cost   what retrieval billed
     audio seconds                 what the GPU did
     cache hit                     whether a script was written at all
 
@@ -28,7 +28,7 @@ quietly restate what last quarter cost.
 This is the part that matters for pricing, and the part a single "cost per
 user" number hides:
 
-* **Claude tokens and Exa searches are marginal.** Nobody listens, nobody is
+* **Claude tokens and web searches are marginal.** Nobody listens, nobody is
   billed. These scale with use, per listener, and are what a price per listener
   has to cover.
 * **The GPU is fixed.** Chatterbox runs in-process on a card that costs the
@@ -50,8 +50,8 @@ expensive at ten users and free at ten thousand.
 
 Every number here is one of three things, and the report says which:
 
-* **billed** - from the provider's own usage figures (Claude's `usage`, Exa's
-  reported `cost_dollars`).
+* **billed** - from the provider's own usage figures (Claude's `usage`, each
+  search vendor's published per-search rate).
 * **priced** - billed quantities times a published rate in `PRICES`.
 * **assumed** - the GPU allocation and the cache saving, which rest on
   configuration (`GPU_USD_PER_HOUR`, `SYNTHESIS_REALTIME_FACTOR`) rather than
@@ -178,13 +178,14 @@ class Usage:
     output_tokens: int = 0
     cache_read_tokens: int = 0
     cache_write_tokens: int = 0
-    #: Every paid web search and what it cost - Parallel and Perplexity
-    #: since §258, Exa before. The column keeps its name so every stored
-    #: row and report reads on; it was never only about the vendor.
-    exa_searches: int = 0
-    exa_cost: float = 0.0
+    #: Every paid web search and what it cost - Parallel and Perplexity.
+    #: Stored in the `exa_searches` / `exa_cost` / `exa_usd` columns, named
+    #: for the first vendor (deleted, §270) and kept so every stored row,
+    #: report and the Daily Spend sheet read on.
+    web_searches: int = 0
+    web_search_cost: float = 0.0
     #: Calls to a live-data provider, and what they cost. A third category
-    #: rather than a line in `exa_*`, because they are a different supplier
+    #: rather than a line in `web_search*`, because they are a different supplier
     #: with a different failure mode and a report that blends them cannot
     #: answer "what would turning on live scores cost". A cache hit is never
     #: counted here - `live_facts._ask` counts at the fetch, not at the ask.
@@ -247,8 +248,8 @@ class Usage:
             self.batch_discount += _claude_list_cost(call) * BATCH_DISCOUNT
 
     def add_research(self, searches: int, cost: float) -> None:
-        self.exa_searches += int(searches or 0)
-        self.exa_cost += float(cost or 0.0)
+        self.web_searches += int(searches or 0)
+        self.web_search_cost += float(cost or 0.0)
 
     def add_live_call(self, calls: int, cost: float) -> None:
         """One provider request that actually went out. Never a cache hit."""
@@ -284,7 +285,7 @@ class Cost:
     claude_output: float = 0.0
     cache_read: float = 0.0
     cache_write: float = 0.0
-    exa: float = 0.0
+    web_search: float = 0.0
     live: float = 0.0
     gpu_marginal: float = 0.0
     #: Taken off the Claude lines above by the Message Batches API (§179). A
@@ -300,7 +301,7 @@ class Cost:
 
     @property
     def total(self) -> float:
-        return round(self.claude + self.exa + self.live + self.gpu_marginal, 6)
+        return round(self.claude + self.web_search + self.live + self.gpu_marginal, 6)
 
     def as_dict(self) -> dict:
         out = {k: round(v, 6) for k, v in asdict(self).items() if k != "priced"}
@@ -313,7 +314,7 @@ def price_of(usage: Usage) -> Cost:
     """What that usage cost, at today's published rates.
 
     A model with no price yields a Cost with `priced=False` and zeroes for the
-    Claude half - the Exa and GPU parts are still real and still counted. The
+    Claude half - the search and GPU parts are still real and still counted. The
     caller stores the flag so the report can say "N episodes on an unpriced
     model" rather than quietly averaging them in at nothing.
     """
@@ -335,8 +336,8 @@ def price_of(usage: Usage) -> Cost:
             (cost.claude_input, cost.claude_output, cost.cache_read,
              cost.cache_write) = lines
             cost.batch_discount = float(usage.batch_discount or 0.0)
-    cost.exa = float(usage.exa_cost or 0.0)
-    # Billed, like Exa: the provider's own figure, recorded when it was spent.
+    cost.web_search = float(usage.web_search_cost or 0.0)
+    # Billed, like the searches: the provider's own figure, recorded when it was spent.
     cost.live = float(usage.live_cost or 0.0)
     cost.gpu_marginal = gpu_cost(usage.audio_seconds)
     return cost
@@ -478,10 +479,11 @@ class MeterStore:
             at or time.time(), user_id or "", entitlements.normalise(plan),
             surface, usage.model, int(minutes or 0), usage.model_calls,
             usage.input_tokens, usage.output_tokens, usage.cache_read_tokens,
-            usage.cache_write_tokens, usage.exa_searches, round(usage.exa_cost, 6),
+            usage.cache_write_tokens, usage.web_searches,
+            round(usage.web_search_cost, 6),
             usage.live_calls, round(usage.live_cost, 6),
             round(usage.audio_seconds, 3), 1 if usage.cache_hit else 0,
-            cost.total, round(claude_usd, 6), round(cost.exa, 6),
+            cost.total, round(claude_usd, 6), round(cost.web_search, 6),
             round(cost.live, 6), round(cost.gpu_marginal, 8),
             1 if cost.priced else 0,
         )

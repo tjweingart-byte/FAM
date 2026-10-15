@@ -371,7 +371,7 @@ def test_the_search_uses_the_floor(monkeypatch):
     seen = {}
 
     def fake_blocking(query, num_results, packet_sources, highlights,
-                      search_type, recency_days, *rest):
+                      recency_days, *rest):
         seen["days"] = recency_days
         return research.Packet(context="SOURCE 1\n", backend="parallel")
 

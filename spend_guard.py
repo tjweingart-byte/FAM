@@ -58,8 +58,7 @@ STAGING = "staging"
 #: plural pool form (`credentials.pool` reads `NAME` and `NAMES`).
 PAID_CREDENTIALS = (
     "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN",
-    "EXA_API_KEY",
-    # §258: the search backends that replaced Exa.
+    # §258: the search backends.
     "PARALLEL_API_KEY", "PERPLEXITY_API_KEY",
     "GNEWS_KEY",
     # Open-Meteo's paid plan (§194), for weather and place names.

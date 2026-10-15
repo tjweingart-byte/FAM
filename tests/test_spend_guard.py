@@ -58,14 +58,16 @@ def test_nothing_is_zero_spend_unless_asked(monkeypatch):
 def test_every_paid_credential_is_removed_and_every_paid_switch_forced(guard, monkeypatch):
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-not-a-real-key")
     monkeypatch.setenv("ANTHROPIC_API_KEYS", "sk-ant-a,sk-ant-b")
-    monkeypatch.setenv("EXA_API_KEY", "exa")
+    monkeypatch.setenv("PARALLEL_API_KEY", "parallel")
+    monkeypatch.setenv("PERPLEXITY_API_KEY", "perplexity")
     monkeypatch.setenv("GNEWS_KEY", "gnews")
     monkeypatch.setenv("GDELT", "1")
     monkeypatch.setenv("STORIES_POLYMARKET", "1")
     monkeypatch.setenv("LIVE_ELECTIONS_PROVIDER", "polymarket")
     monkeypatch.setenv("VOICE_BACKEND", "remote")
     assert guard.apply() is True
-    for name in ("ANTHROPIC_API_KEY", "ANTHROPIC_API_KEYS", "EXA_API_KEY", "GNEWS_KEY"):
+    for name in ("ANTHROPIC_API_KEY", "ANTHROPIC_API_KEYS", "PARALLEL_API_KEY",
+                 "PERPLEXITY_API_KEY", "GNEWS_KEY"):
         assert name not in os.environ
     assert os.environ["GDELT"] == "0"
     assert os.environ["STORIES_POLYMARKET"] == "0"
@@ -204,7 +206,7 @@ def test_a_staging_boot_holds_no_key_calls_nothing_and_still_makes_an_episode(tm
         "FAM_ENV": "staging",
         "ZERO_SPEND": "0",  # cannot turn staging off
         "ANTHROPIC_API_KEY": "sk-ant-this-would-cost-money",
-        "EXA_API_KEY": "exa-this-would-cost-money",
+        "PARALLEL_API_KEY": "parallel-this-would-cost-money",
         "GDELT": "1", "STORIES_POLYMARKET": "1",
         "LIVE_ELECTIONS_PROVIDER": "polymarket", "THUMBNAILS": "1",
         "GEMINI_API_KEY": "gemini-this-would-cost-money",

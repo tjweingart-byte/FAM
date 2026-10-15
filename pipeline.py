@@ -1540,7 +1540,7 @@ class PodcastPipeline:
         # Pointed at the live accumulator *now*, not when generation finishes.
         # `Usage` is mutable and shared, so this makes `stats.usage` track the
         # episode as it goes - which is the difference between an episode that
-        # dies after Exa has already billed being recorded and being free.
+        # dies after the search has already billed being recorded and being free.
         stats.usage = notes.usage
 
         # One call, one stream, and it does not start until the writer has

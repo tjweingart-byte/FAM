@@ -16,8 +16,8 @@ across them:
     voice queue      first sentence to its synthesis starting
     first synthesis  the voice rendering that sentence
 
-Needs what the server needs: ANTHROPIC_API_KEY, EXA_API_KEY for the `exa`
-backend, and a voice (`python verify_voice.py`). Without a voice it still
+Needs what the server needs: ANTHROPIC_API_KEY, PARALLEL_API_KEY for the
+default `parallel` backend, and a voice (`python verify_voice.py`). Without a voice it still
 times everything up to the first sentence and says the voice was a stand-in.
 
     python tools/latency_probe.py --minutes 3 \\

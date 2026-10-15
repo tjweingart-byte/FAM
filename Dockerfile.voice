@@ -34,7 +34,7 @@ RUN apt-get update \
 WORKDIR /app
 
 # Requirements first, so a code change does not reinstall CUDA-sized wheels.
-# No requirements-exa.txt here: this container never researches anything. It
+# No research dependencies here: this container never researches anything. It
 # receives text that has already been written and returns audio.
 COPY requirements.txt requirements-chatterbox.txt requirements-voice-worker.txt ./
 RUN python -m pip install --upgrade pip \

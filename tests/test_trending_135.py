@@ -3,7 +3,8 @@
 Four instructions from the owner, one file:
 
 1. **The model never searches.** Everything an episode is written from comes
-   from Exa, GDELT, API-Sports, Finnhub and Polymarket - pinned in
+   from the web search backends (Parallel, Perplexity), GDELT, API-Sports,
+   Finnhub and Polymarket - pinned in
    `test_research.py` and `test_no_evidence.py`; here only the one rule that
    crosses modules: a live provider with a key is switched on by the key.
 2. **API-Sports sweeps on its whole allowance, with the score** - the budget

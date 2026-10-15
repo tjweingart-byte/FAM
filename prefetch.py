@@ -882,7 +882,7 @@ def _dollars(notes) -> float:
         cost = metering.price_of(usage)
     except Exception as exc:  # noqa: BLE001 - never let accounting stop a warm
         log.warning("prefetch could not price a warmed episode: %s", exc)
-        return float(getattr(usage, "exa_cost", 0.0) or 0.0)
+        return float(getattr(usage, "web_search_cost", 0.0) or 0.0)
     if not cost.priced:
         log.warning("prefetch warmed an episode on %r, which has no price in "
                     "metering.PRICES; the dollar budget cannot see it and only "

@@ -143,7 +143,7 @@ BUILDERS = {
 
 #: The provider a domain gets when nobody named one and its credential is
 #: present (§135). The owner's rule is that an episode's information comes
-#: from Exa, GDELT, API-Sports, Finnhub and Polymarket - so a deployment that
+#: from the web search, GDELT, API-Sports, Finnhub and Polymarket - so a deployment that
 #: holds an API-Sports or Finnhub key and forgot the second line naming it was
 #: quietly answering live questions from articles alone, which is the "a
 #: capability configured and not used" shape §119 was paid for. The key is

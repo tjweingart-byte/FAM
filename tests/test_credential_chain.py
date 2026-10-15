@@ -33,8 +33,8 @@ def clean(monkeypatch):
     credentials._PUBLISHED.clear()
     credentials._STATE.update(configured=False, state="unset", detail="", at=0.0,
                               names=[])
-    for name in ("ANTHROPIC_API_KEY", "ANTHROPIC_API_KEYS", "EXA_API_KEY",
-                 "EXA_API_KEYS", credentials.PROVIDER_VAR,
+    for name in ("ANTHROPIC_API_KEY", "ANTHROPIC_API_KEYS", "PARALLEL_API_KEY",
+                 "PARALLEL_API_KEYS", credentials.PROVIDER_VAR,
                  credentials.TTL_VAR, credentials.TIMEOUT_VAR):
         monkeypatch.delenv(name, raising=False)
     yield
@@ -84,14 +84,14 @@ def test_a_failover_still_keeps_the_keys_behind_it(monkeypatch):
 
 def test_json_output_is_understood():
     """What AWS, Vault and Doppler all emit."""
-    found = credentials.parse_payload('{"ANTHROPIC_API_KEY": "sk-ant-1", "EXA_API_KEY": "exa-1"}')
-    assert found == {"ANTHROPIC_API_KEY": "sk-ant-1", "EXA_API_KEY": "exa-1"}
+    found = credentials.parse_payload('{"ANTHROPIC_API_KEY": "sk-ant-1", "PARALLEL_API_KEY": "par-1"}')
+    assert found == {"ANTHROPIC_API_KEY": "sk-ant-1", "PARALLEL_API_KEY": "par-1"}
 
 
 def test_dotenv_output_is_understood():
     """What `gcloud secrets versions access` returns if you stored a .env in it."""
-    found = credentials.parse_payload('export ANTHROPIC_API_KEY="sk-ant-2"\n# comment\nEXA_API_KEY=exa-2\n')
-    assert found == {"ANTHROPIC_API_KEY": "sk-ant-2", "EXA_API_KEY": "exa-2"}
+    found = credentials.parse_payload('export ANTHROPIC_API_KEY="sk-ant-2"\n# comment\nPARALLEL_API_KEY=par-2\n')
+    assert found == {"ANTHROPIC_API_KEY": "sk-ant-2", "PARALLEL_API_KEY": "par-2"}
 
 
 def test_a_nested_value_is_skipped_rather_than_guessed_at():
@@ -140,10 +140,10 @@ def test_several_providers_are_merged_in_order(monkeypatch):
     """A manager that returns one secret per call needs one line per secret."""
     monkeypatch.setenv(credentials.PROVIDER_VAR,
                        "cmd:ANTHROPIC_API_KEY=echo sk-ant-a\n"
-                       "cmd:EXA_API_KEY=echo exa-b")
+                       "cmd:PARALLEL_API_KEY=echo par-b")
     credentials.load()
     assert os.environ["ANTHROPIC_API_KEY"] == "sk-ant-a"
-    assert os.environ["EXA_API_KEY"] == "exa-b"
+    assert os.environ["PARALLEL_API_KEY"] == "par-b"
 
 
 # --- the order, which is the whole design --------------------------------
@@ -276,11 +276,11 @@ def test_a_duplicated_key_is_not_a_pool_of_two(monkeypatch):
 def test_the_report_never_contains_a_key(monkeypatch):
     monkeypatch.setenv("ANTHROPIC_API_KEYS", "sk-ant-secret-1,sk-ant-secret-2")
     monkeypatch.setenv(credentials.PROVIDER_VAR,
-                       'cmd:echo \'{"EXA_API_KEY": "exa-secret"}\'')
+                       'cmd:echo \'{"PARALLEL_API_KEY": "par-secret"}\'')
     credentials.load()
     blob = repr(credentials.report())
     assert "sk-ant-secret" not in blob
-    assert "exa-secret" not in blob
+    assert "par-secret" not in blob
     assert credentials.report()["pools"]["ANTHROPIC_API_KEY"]["keys"] == 2
 
 

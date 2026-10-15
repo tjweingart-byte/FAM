@@ -9,18 +9,18 @@ file it is tested in::
 That was production, on Render, on a question about a game played the previous
 evening. The heuristic was not broken so much as mispriced: it was written when
 research meant Anthropic's server-side `web_search`, which front-loads 10-25
-seconds, and at that price guessing was worth it. With `RESEARCH_BACKEND=exa`
-retrieval costs about half a second, so every question the guess gets wrong is
+seconds, and at that price guessing was worth it. With a web search backend
+(`RESEARCH_BACKEND=parallel`) retrieval costs about half a second, so every question the guess gets wrong is
 answered from memory that may be a year stale and every question it gets right
 saves nothing a listener can hear. A keyword list can always be widened by one
 more word, and the next question it misses is already written somewhere.
 
 So `SEARCH_MODE=always` is the production default, and these tests exist to
 stop it drifting back. `auto` and `never` are kept - `write.py` offline,
-`tools/compare_search.py`, a deployment with no Exa key - and are proved here
+`tools/compare_search.py`, a deployment with no search key - and are proved here
 to be reachable *only* by asking for them explicitly.
 
-Nothing here needs a key, `exa_py`, or the network: the retrieval is stubbed at
+Nothing here needs a key or the network: the retrieval is stubbed at
 `research_mod.retrieve`, which is the seam production actually calls.
 """
 from __future__ import annotations
@@ -149,13 +149,13 @@ def test_a_backend_that_cannot_run_is_recorded_rather_than_hidden(monkeypatch):
 
     async def retrieve(q, backend=None, brief=None, **_size):
         if backend != "gdelt":
-            raise research_mod.ResearchUnavailable("EXA_API_KEY is not set")
+            raise research_mod.ResearchUnavailable("PARALLEL_API_KEY is not set")
         return Packet(context="SOURCE 1\nTitle: x", backend="gdelt",
                       sources=["reuters.com"])
 
     monkeypatch.setattr(research_mod, "retrieve", retrieve)
     monkeypatch.setattr(research_mod, "ladder",
-                        lambda backend=None: ["exa", "gdelt"])
+                        lambda backend=None: ["parallel", "gdelt"])
     notes = ScriptNotes()
     researched = asyncio.run(ScriptGenerator(api_key="").research(
         plan_episode("what is the NASDAQ", 3), notes))
@@ -166,8 +166,8 @@ def test_a_backend_that_cannot_run_is_recorded_rather_than_hidden(monkeypatch):
 
     # And the sentence still names the remedy where one does reach a listener.
     said = app_mod.friendly_error(
-        research_mod.ResearchUnavailable("EXA_API_KEY is not set"))
-    assert "EXA_API_KEY is not set" in said, "the remedy was thrown away"
+        research_mod.ResearchUnavailable("PARALLEL_API_KEY is not set"))
+    assert "PARALLEL_API_KEY is not set" in said, "the remedy was thrown away"
 
 
 # --- the non-production modes are still reachable, and only on request ------
@@ -233,7 +233,7 @@ def _ask(client, **params):
 # The always-on default made an older, quieter bug reachable on every episode
 # instead of the few the keyword list flagged. `_request_kwargs` attaches the
 # web_search tool whenever an episode is researched and no evidence packet came
-# back - the `claude` backend, or Exa returning nothing usable - and
+# back - the `claude` backend, or a search returning nothing usable - and
 # `build_prompt` said nothing about it. So the model was handed a capability it
 # was never asked to use, wrote from memory, and reported honestly that it had
 # nothing: "I don't have any information on the 49ers game last night. I can't
@@ -279,8 +279,8 @@ def test_nothing_in_the_prompt_asks_the_model_to_go_and_look():
 
 def test_the_gdelt_backend_retrieves_like_any_other(monkeypatch):
     """The keyless backend is a retriever in its own right, run once when it
-    is the configured one - and since §135 it is the only alternative to
-    Exa; the model's own search is gone."""
+    is the configured one - and since §135 it is the keyless alternative to
+    the web search backends; the model's own search is gone."""
     from research import Packet
 
     seen: list = []

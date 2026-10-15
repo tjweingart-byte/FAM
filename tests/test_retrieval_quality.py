@@ -13,7 +13,8 @@ information", and each does a different job:
   what the brief said the episode needs. One, never more: an unbounded loop is
   an unbounded wait in front of the first word.
 
-Nothing here needs an EXA_API_KEY, `exa_py` or the network.
+Nothing here needs a PARALLEL_API_KEY or the network: the one Parallel
+request is stubbed and the rest of the retrieve path is the real one.
 """
 from __future__ import annotations
 
@@ -21,7 +22,6 @@ import asyncio
 import dataclasses
 import os
 import sys
-import types
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -46,21 +46,23 @@ def days_ago(n: int) -> str:
 
 
 @pytest.fixture
-def exa(monkeypatch):
-    """A stubbed Exa client that records every call and replays queued replies."""
+def web(monkeypatch):
+    """A stubbed Parallel search that records every call and replays queued
+    replies, each at Parallel's published rate."""
     calls: list = []
     queue: list = []
 
-    class FakeClient:
-        def search_and_contents(self, query, **kwargs):
-            calls.append({"query": query, **kwargs})
-            results = queue.pop(0) if queue else []
-            return types.SimpleNamespace(results=results, cost_dollars=None)
+    def fake(query, num_results, recency_days=0, include_domains=(),
+             objective="", extra_queries=()):
+        calls.append({"query": query, "recency_days": recency_days,
+                      "include_domains": tuple(include_domains)})
+        results = queue.pop(0) if queue else []
+        return results, research.SEARCH_COSTS["parallel"]
 
-    monkeypatch.setattr(research, "_client", lambda: FakeClient())
+    monkeypatch.setattr(research, "_search_parallel", fake)
     monkeypatch.setattr(research, "settings",
                         dataclasses.replace(config.settings,
-                                            research_backend="exa"))
+                                            research_backend="parallel"))
     return calls, queue
 
 
@@ -126,28 +128,28 @@ def test_an_undated_source_sorts_last_within_its_tier():
 # --------------------------------------------------------------------------
 # the window
 # --------------------------------------------------------------------------
-def test_a_question_about_a_moment_is_searched_inside_a_window(exa):
-    calls, queue = exa
+def test_a_question_about_a_moment_is_searched_inside_a_window(web):
+    calls, queue = web
     queue.append([FakeResult("x", "https://reuters.com/a", ["y"], days_ago(1))])
     brief = ei.Brief(query="what did the fed do", search_query="fed decision",
                      recency_days=7)
     asyncio.run(research.retrieve("fed decision", brief=brief))
-    assert "start_published_date" in calls[0]
+    assert calls[0]["recency_days"] == 7
 
 
-def test_an_evergreen_question_is_not_confined_to_a_window(exa):
+def test_an_evergreen_question_is_not_confined_to_a_window(web):
     """A piece on how something works is not improved by refusing to look at
     anything written last year."""
-    calls, queue = exa
+    calls, queue = web
     queue.append([FakeResult("x", "https://reuters.com/a", ["y"], days_ago(400))])
     brief = ei.Brief(query="how does a heat pump work",
                      search_query="heat pump mechanism", recency_days=0)
     asyncio.run(research.retrieve("heat pump mechanism", brief=brief))
-    assert "start_published_date" not in calls[0]
+    assert calls[0]["recency_days"] == 0
 
 
-def test_the_window_reaches_the_packet_for_a_person_to_read(exa):
-    _, queue = exa
+def test_the_window_reaches_the_packet_for_a_person_to_read(web):
+    _, queue = web
     queue.append([FakeResult("x", "https://reuters.com/a", ["y"], days_ago(1))])
     packet = asyncio.run(research.retrieve(
         "fed decision", brief=ei.Brief(recency_days=7)))
@@ -179,8 +181,8 @@ def test_a_brief_that_asked_for_nothing_is_always_satisfied():
     assert research.packet_covers("anything", None) == (True, [])
 
 
-def test_a_thin_packet_buys_exactly_one_more_search(exa):
-    calls, queue = exa
+def test_a_thin_packet_buys_exactly_one_more_search(web):
+    calls, queue = web
     queue.append([FakeResult("Unrelated", "https://a.example/x",
                              ["Nothing to do with it."], days_ago(1))])
     queue.append([FakeResult("Still unrelated", "https://b.example/x",
@@ -195,11 +197,11 @@ def test_a_thin_packet_buys_exactly_one_more_search(exa):
     assert packet.searches == 2, "a retry that is not counted is a cost nobody sees"
 
 
-def test_the_retry_drops_the_window_and_searches_the_resolved_subject(exa):
+def test_the_retry_drops_the_window_and_searches_the_resolved_subject(web):
     """Not a rephrasing by another model call - that would put a second round
     trip in front of the first word. The two things most likely to have caused
     an empty result are the window and the wording, so it changes both."""
-    calls, queue = exa
+    calls, queue = web
     queue.append([])
     queue.append([FakeResult("Found", "https://reuters.com/x",
                              ["The 49ers won 24-17."], days_ago(1))])
@@ -209,11 +211,11 @@ def test_the_retry_drops_the_window_and_searches_the_resolved_subject(exa):
 
     asyncio.run(research.retrieve("49ers result last night", brief=brief))
     assert calls[1]["query"] == "San Francisco 49ers game result"
-    assert "start_published_date" not in calls[1]
+    assert calls[1]["recency_days"] == 0
 
 
-def test_the_better_packet_wins_and_its_cost_is_the_sum_of_both(exa):
-    calls, queue = exa
+def test_the_better_packet_wins_and_its_cost_is_the_sum_of_both(web):
+    calls, queue = web
     queue.append([])
     queue.append([FakeResult("Found", "https://reuters.com/x",
                              ["The 49ers final score was 24-17."], days_ago(1))])
@@ -223,13 +225,13 @@ def test_the_better_packet_wins_and_its_cost_is_the_sum_of_both(exa):
     packet = asyncio.run(research.retrieve("x", brief=brief))
     assert "24-17" in packet.context, "the retry's evidence was thrown away"
     assert packet.searches == 2
-    assert packet.cost == pytest.approx(research.COST_PER_SEARCH * 2)
+    assert packet.cost == pytest.approx(research.SEARCH_COSTS["parallel"] * 2)
 
 
-def test_a_retry_that_also_misses_still_returns_its_evidence(exa):
+def test_a_retry_that_also_misses_still_returns_its_evidence(web):
     """Half an answer beats none. The writer is told which parts are thin
     rather than the episode being abandoned."""
-    calls, queue = exa
+    calls, queue = web
     queue.append([FakeResult("Partial", "https://reuters.com/x",
                              ["The 49ers played."], days_ago(1))])
     queue.append([FakeResult("Partial", "https://reuters.com/x",
@@ -242,17 +244,17 @@ def test_a_retry_that_also_misses_still_returns_its_evidence(exa):
     assert packet.missing, "the writer was not told which part is thin"
 
 
-def test_a_second_look_that_fails_keeps_the_first_packet(exa, monkeypatch):
+def test_a_second_look_that_fails_keeps_the_first_packet(web, monkeypatch):
     """The distinction that earns `_second_look` its exemption from the
     no-handlers rule: a *first* retrieval failing means research never
     happened and must reach the caller; a *second* failing means research
     happened and a bonus attempt did not."""
-    calls, queue = exa
+    calls, queue = web
     queue.append([FakeResult("First", "https://reuters.com/x",
                              ["Something partial."], days_ago(1))])
 
     async def explode(*args, **kwargs):
-        raise RuntimeError("exa fell over")
+        raise RuntimeError("the second look fell over")
 
     monkeypatch.setattr(research, "_second_look", explode)
     brief = ei.Brief(query="who won", search_query="x", subject="49ers",
@@ -261,8 +263,8 @@ def test_a_second_look_that_fails_keeps_the_first_packet(exa, monkeypatch):
         asyncio.run(research.retrieve("x", brief=brief))
 
 
-def test_the_retry_can_be_switched_off(exa, monkeypatch):
-    calls, queue = exa
+def test_the_retry_can_be_switched_off(web, monkeypatch):
+    calls, queue = web
     monkeypatch.setattr(research, "settings",
                         dataclasses.replace(research.settings,
                                             research_retry=False))
@@ -277,13 +279,13 @@ def test_the_retry_can_be_switched_off(exa, monkeypatch):
 # --------------------------------------------------------------------------
 # no brief at all
 # --------------------------------------------------------------------------
-def test_without_a_brief_retrieval_behaves_exactly_as_it_did_before(exa):
+def test_without_a_brief_retrieval_behaves_exactly_as_it_did_before(web):
     """EI off, or a degraded brief: one search, no window, no retry. The floor
     this whole layer must never drop below."""
-    calls, queue = exa
+    calls, queue = web
     queue.append([FakeResult("x", "https://reuters.com/a", ["y"], days_ago(1))])
     packet = asyncio.run(research.retrieve("what did the fed do"))
     assert len(calls) == 1
     assert calls[0]["query"] == "what did the fed do"
-    assert "start_published_date" not in calls[0]
+    assert calls[0]["recency_days"] == 0
     assert packet.retried is False and not packet.missing

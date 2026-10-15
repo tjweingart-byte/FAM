@@ -4,18 +4,15 @@ The retrievers, and **all of them finish before the first word is written**:
 
 * **parallel** - the default since §258: Parallel's Search API
   retrieves, this module builds an evidence packet, and the packet goes into
-  the prompt as context. About a seventh of Exa's price.
+  the prompt as context.
 * **perplexity** - Perplexity's Search API, a second, independent index. It is
   the second look on a thin packet and the first rung below the configured
   backend, so one vendor's blind spot is not the episode's.
-* **exa** - the backend every packet was measured on until the swap. Kept
-  selectable (`RESEARCH_BACKEND=exa`) so the two can be compared on the same
-  questions before it is deleted.
 * **gdelt** - a keyless article index. Thinner than the others - titles,
   dates and grades, no passages - and available to a deployment with no
   retrieval credential at all.
 
-All three web backends hand back results with the same four attributes -
+Both web backends hand back results with the same four attributes -
 `url`, `title`, `published_date`, `highlights` - which is the whole of what
 ranking, screening, the packet and provenance read. A backend is a function
 that produces those, and nothing downstream knows which one ran.
@@ -29,7 +26,7 @@ owner's direction). A `claude` backend used to give a separate research call
 Anthropic's `web_search` tool, and it was the last rung of the ladder below.
 It is deleted rather than switched off - the Piper reasoning: a backend left
 behind is a knob somebody turns back on - and a deployment still setting
-`RESEARCH_BACKEND=claude` runs on Exa and is told so at startup and on
+`RESEARCH_BACKEND=claude` runs on the default backend and is told so at startup and on
 `/api/health`. Before that it was attached to the
 *writing* call (PROBLEMS.md §108), which is how the first sentence of an
 episode came to be written before anything had been looked up.
@@ -43,7 +40,7 @@ anything volatile from being supplied from memory.
 
 The packet shape is unchanged - `SOURCE n / Title: / Published: / Source type:
 / Key evidence:` - and is byte-for-byte the one the manual benchmark measured
-on 2026-09-05 for the Exa path. Keeping it identical is the point: the numbers
+on 2026-09-05. Keeping it identical is the point: the numbers
 already measured stay comparable, a change of packet shape is a deliberate act
 rather than a drift, and the writing prompt has exactly one thing to read
 however the evidence was found.
@@ -53,14 +50,11 @@ used to be the one cost this product refused, and for a while it was covered by
 a second model call speaking from knowledge while this ran. That cover is gone
 (§108): it wrote the opening of every researched episode without a brief,
 without evidence, and without knowing what the episode was going to be about.
-So the wait is real and it is in front of the first word, deliberately - Exa
-answers in about half a second and GDELT from its export copy on disk (§211).
+So the wait is real and it is in front of the first word, deliberately - a
+web search answers in about half a second and GDELT from its export copy on disk (§211).
 
-**It does not block the event loop.** The experiment ran `exa_py` synchronously
-because trials were pinned to one at a time and a thread hand-off would have
-added its own time to a number meant to be Exa's. Production is the opposite
-case: other episodes are being served on this loop, and a synchronous HTTP call
-on it would stop all of them. So the call goes to a worker thread, exactly as
+**It does not block the event loop.** Other episodes are being served on this
+loop, and a synchronous HTTP call on it would stop all of them. So the call goes to a worker thread, exactly as
 speech synthesis does.
 """
 from __future__ import annotations
@@ -79,17 +73,6 @@ from config import (BROWSE_MINUTES, RESEARCH_BACKENDS, WEB_RESEARCH_BACKENDS,
 
 log = logging.getLogger("research")
 
-#: The manual benchmark's settings, as defaults. Changing one here silently
-#: breaks comparability with the hand-measured run; override per request or by
-#: configuration instead.
-DEFAULT_SEARCH_TYPE = "fast"
-
-#: Exa's published rate, used only when a response reports no cost of its own:
-#: $7 per 1,000 searches plus contents for the 8 results FAM asks highlights
-#: of, about $0.015 (docs/FINANCIAL.md §2.2). Was 0.005, a third of that, so
-#: every row priced from the fallback under-reported (§207).
-COST_PER_SEARCH = 0.015
-
 #: The web-search backends - every retriever that sends a query to a paid
 #: search vendor. GDELT is a retriever too, but reads a copy on disk.
 WEB_BACKENDS = WEB_RESEARCH_BACKENDS
@@ -98,13 +81,12 @@ WEB_BACKENDS = WEB_RESEARCH_BACKENDS
 #: dollar figure of its own (Parallel and Perplexity never do). Parallel's
 #: `fast` mode and Perplexity's `fast` search are $1 per 1,000 requests with
 #: up to 10 results and their excerpts included (docs/FINANCIAL.md §7.5).
-SEARCH_COSTS = {"exa": COST_PER_SEARCH, "parallel": 0.001, "perplexity": 0.001}
+SEARCH_COSTS = {"parallel": 0.001, "perplexity": 0.001}
 
 #: Where each vendor's search lives, and the credential it reads.
 PARALLEL_URL = "https://api.parallel.ai/v1/search"
 PERPLEXITY_URL = "https://api.perplexity.ai/search"
-KEYS = {"parallel": "PARALLEL_API_KEY", "perplexity": "PERPLEXITY_API_KEY",
-        "exa": "EXA_API_KEY"}
+KEYS = {"parallel": "PARALLEL_API_KEY", "perplexity": "PERPLEXITY_API_KEY"}
 #: Perplexity accepts at most 20 results per request (its SDK's own note).
 #: The allow-list ceiling is not in the SDK; 20 is the figure reported for its
 #: docs, unverified - a longer list is cut, best-known outlets first.
@@ -295,7 +277,7 @@ _DATE = re.compile(r"(\d{4})-(\d{2})-(\d{2})")
 def published_at(result) -> Optional[datetime]:
     """When a result was published, as a timezone-aware datetime, or None.
 
-    Exa reports this as an ISO string and sometimes not at all. `None` is a
+    A backend reports this as an ISO string and sometimes not at all. `None` is a
     real answer and is passed through to the packet as "not stated" rather than
     being filled with today - an undated source that looks dated is how an old
     article becomes "last night".
@@ -350,7 +332,7 @@ def age_phrase(when: Optional[datetime], now: Optional[datetime] = None) -> str:
 def rank_results(results, now: Optional[datetime] = None) -> list:
     """Order what came back: best-sourced first, newest first within a tier.
 
-    Stable, so Exa's own relevance ordering survives as the final tie-break -
+    Stable, so the backend's own relevance ordering survives as the final tie-break -
     this re-sorts by source quality and date without discarding what the
     retrieval thought was most relevant.
     """
@@ -443,12 +425,12 @@ class Packet:
     provenance: object = None
     #: The backend that was asked for and could not serve, when this packet
     #: came from the other one. Never empty silently: a deployment measuring
-    #: Exa and actually being served by the model's own search has to be able
-    #: to see that from the episode's own record.
+    #: one backend and actually being served by another has to be able to
+    #: see that from the episode's own record.
     fell_back_from: str = ""
     #: The `usage` block of a model call that did the searching. Always
-    #: `None` since the `claude` backend was deleted (§135) - Exa bills per
-    #: search and GDELT not at all - and kept because the metering path reads
+    #: `None` since the `claude` backend was deleted (§135) - the web
+    #: backends bill per search and GDELT not at all - and kept because the metering path reads
     #: it on every rung and a missing attribute would be a crash on each one.
     usage: object = None
     #: Every web backend this packet's searches went to, in order - the
@@ -478,62 +460,16 @@ class Packet:
 
 
 # --------------------------------------------------------------------------
-# Exa
-# --------------------------------------------------------------------------
-def _client():
-    """Build the Exa client, or say precisely what is missing.
-
-    Imported here rather than at module scope so that `exa_py` is an optional
-    dependency: a deployment on the `gdelt` backend must not need it, and the
-    test suite must run without it.
-    """
-    try:
-        from exa_py import Exa
-    except ImportError as exc:
-        raise ResearchUnavailable(
-            "exa_py is not installed. `pip install -r requirements-exa.txt`"
-        ) from exc
-    key = (os.environ.get("EXA_API_KEY") or "").strip()
-    if not key:
-        raise ResearchUnavailable(
-            "EXA_API_KEY is not set, so Exa cannot retrieve anything. Set it, "
-            "or set RESEARCH_BACKEND=gdelt (with GDELT=1) to use the keyless "
-            "index instead.")
-    return Exa(key)
-
-
-def diagnose() -> tuple[bool, str]:
-    """Why Exa can or cannot serve, in one sentence.
-
-    The same shape as `ChatterboxEngine.diagnose`, and for the same reason:
-    something that reports readiness must name what is wrong, not just answer
-    no. Does not perform a retrieval - that would cost money on every health
-    check - so it reports *configured*, and `retrieve` is what proves it works.
-    """
-    try:
-        import exa_py  # noqa: F401
-    except ImportError:
-        return False, "exa_py is not installed"
-    if not (os.environ.get("EXA_API_KEY") or "").strip():
-        return False, "EXA_API_KEY is not set"
-    return True, "exa_py installed and EXA_API_KEY present"
-
-
-def available() -> bool:
-    return diagnose()[0]
-
-
-# --------------------------------------------------------------------------
 # Parallel and Perplexity
 # --------------------------------------------------------------------------
 @dataclass
 class SearchResult:
-    """One result from any web backend, in the shape Exa's results have.
+    """One result from any web backend, in one shape.
 
-    Exa's result objects are what every reader in this module was written
-    against (`getattr(result, "highlights")` and so on), so the other two
-    backends are translated into the same four attributes rather than the
-    readers learning three shapes.
+    Every reader in this module reads these four attributes
+    (`getattr(result, "highlights")` and so on), and GDELT's results have
+    them too, so each backend is translated into them rather than the
+    readers learning several shapes.
     """
 
     url: str = ""
@@ -554,8 +490,6 @@ def _key(backend: str) -> str:
 
 def backend_diagnose(backend: str) -> tuple[bool, str]:
     """Why a web backend can or cannot serve, in one sentence. No request."""
-    if backend == "exa":
-        return diagnose()
     if backend not in KEYS:
         return False, f"{backend!r} is not a web search backend"
     if not _key(backend):
@@ -581,7 +515,7 @@ _MARKDOWN_LEAD = re.compile(r"^(#{1,6}\s+|[-*+]\s+|>\s*|\|\s*)+")
 
 
 def passages(text, limit: int = 0) -> list:
-    """A page's excerpt text as passages the size of Exa's highlights.
+    """A page's excerpt text as passages of about `SEARCH_PASSAGE_CHARS`.
 
     Perplexity returns one snippet per page and Parallel a few markdown
     excerpts; the packet reads `highlights_per_source` passages from each
@@ -718,29 +652,6 @@ def _search_perplexity(query: str, num_results: int, recency_days: int = 0,
     return results, SEARCH_COSTS["perplexity"]
 
 
-def _search_exa(query: str, num_results: int, recency_days: int = 0,
-                include_domains: tuple = (), objective: str = "",
-                search_type: str = DEFAULT_SEARCH_TYPE) -> tuple[list, float]:
-    """One Exa search: (results, dollars). Raises on any failure."""
-    client = _client()
-    kwargs: dict = {
-        "type": search_type,
-        "num_results": num_results,
-        "highlights": True,
-    }
-    cutoff = _cutoff(recency_days)
-    if cutoff is not None:
-        kwargs["start_published_date"] = cutoff.strftime("%Y-%m-%dT%H:%M:%S.000Z")
-    # The local ladder's third rung (§194): only the town's and county's
-    # known outlets.
-    if include_domains:
-        kwargs["include_domains"] = list(include_domains)
-    reply = client.search_and_contents(query, **kwargs)
-    cost = getattr(getattr(reply, "cost_dollars", None), "total", None)
-    return (list(getattr(reply, "results", []) or []),
-            float(cost) if cost is not None else COST_PER_SEARCH)
-
-
 #: **A floor on the search's window from the words of the request** (§268).
 #: "What happened today" searched with no window is how a well-ranked article
 #: from last year answers a question about this morning: credibility sorts
@@ -852,8 +763,8 @@ def build_packet(results, packet_sources: int, highlights_per_source: int,
     An episode was asked to say whether a game finished last night or two days
     ago, from evidence with no dates in it, and the only other time it had was
     `now_line()` - the current moment. There was nothing to subtract from it.
-    The two new lines are the fix, and they cost nothing: Exa already returns
-    the date and the URL, and this function was throwing both away.
+    The two new lines are the fix, and they cost nothing: the search already
+    returns the date and the URL, and this function was throwing both away.
 
     `Published` is computed here rather than left as an ISO string on purpose.
     The relative phrase is the thing the episode actually says, so deriving it
@@ -862,10 +773,10 @@ def build_packet(results, packet_sources: int, highlights_per_source: int,
     normalized time rather than being guessed from prose is enforced rather
     than requested.
 
-    The old shape is still reachable with `EXA_DATED_PACKET=0`, for comparing
+    The old shape is still reachable with `SEARCH_DATED_PACKET=0`, for comparing
     against the hand-measured numbers.
     """
-    if not settings.exa_dated_packet:
+    if not settings.search_dated_packet:
         parts: list[str] = []
         for index, result in enumerate(list(results)[:packet_sources], 1):
             parts.append(f"SOURCE {index}")
@@ -967,10 +878,10 @@ def domains(results) -> list:
 
 
 def _retrieve_blocking(query: str, num_results: int, packet_sources: int,
-                       highlights_per_source: int, search_type: str,
+                       highlights_per_source: int,
                        recency_days: int = 0, live_domain: str = "",
                        include_domains: tuple = (), must_name: str = "",
-                       backend: str = "exa", objective: str = "",
+                       backend: str = "parallel", objective: str = "",
                        extra_queries: tuple = ()) -> Packet:
     """One web search, ranked, packed and costed.
 
@@ -991,8 +902,9 @@ def _retrieve_blocking(query: str, num_results: int, packet_sources: int,
             returned, cost = _search_perplexity(query, num_results, recency_days,
                                                 include_domains, objective)
         else:
-            returned, cost = _search_exa(query, num_results, recency_days,
-                                         include_domains, objective, search_type)
+            raise ResearchUnavailable(
+                f"{backend!r} is not a web search backend. Use one of: "
+                f"{', '.join(WEB_BACKENDS)}.")
     except ResearchUnavailable:
         # Configuration, not an outage: nothing was asked of the vendor.
         raise
@@ -1027,10 +939,9 @@ def _retrieve_blocking(query: str, num_results: int, packet_sources: int,
 
 
 async def _second_look(query: str, num_results: int, packet_sources: int,
-                       highlights_per_source: int,
-                       search_type: str, live_domain: str = "",
+                       highlights_per_source: int, live_domain: str = "",
                        include_domains: tuple = (), must_name: str = "",
-                       backend: str = "exa", objective: str = ""
+                       backend: str = "parallel", objective: str = ""
                        ) -> Optional[Packet]:
     """The one extra search, which is allowed to fail quietly. `retrieve` is not.
 
@@ -1040,7 +951,7 @@ async def _second_look(query: str, num_results: int, packet_sources: int,
 
     * A **first** retrieval that fails means the episode was never researched.
       That has to reach the caller, or a deployment believes it is researching
-      when it is not - the failure `test_exa_failure_does_not_fall_back_inside_retrieve`
+      when it is not - the failure `test_a_search_failure_does_not_fall_back_inside_retrieve`
       exists to prevent, and the reason `retrieve` handles nothing.
     * A **second** retrieval that fails means research happened and an optional
       improvement to it did not. The first packet is still real evidence, and
@@ -1053,7 +964,7 @@ async def _second_look(query: str, num_results: int, packet_sources: int,
     try:
         return await asyncio.to_thread(
             _retrieve_blocking, query, num_results, packet_sources,
-            highlights_per_source, search_type, 0, live_domain,
+            highlights_per_source, 0, live_domain,
             include_domains, must_name, backend, objective)
     except Exception as exc:  # noqa: BLE001 - see docstring
         log.warning("the second look failed for %r: %s; keeping the first "
@@ -1083,8 +994,8 @@ def _story_look_blocking(query: str, num_results: int, hosts: tuple,
             returned, cost = _search_perplexity(query, num_results, recency_days,
                                                 hosts, objective)
         else:
-            returned, cost = _search_exa(query, num_results, recency_days,
-                                         hosts, objective, DEFAULT_SEARCH_TYPE)
+            raise ResearchUnavailable(
+                f"{backend!r} is not a web search backend.")
     except ResearchUnavailable:
         # Configuration, not an outage - `_retrieve_blocking`'s rule.
         raise
@@ -1166,15 +1077,16 @@ def packet_size(minutes: int) -> dict:
     each extra minute brings one more source, and four minutes or more a
     third highlight each. Two minutes and under overrides nothing, so every
     browse episode is unchanged. The sources come out of the results the one
-    Exa call already returns, so a longer episode costs prompt tokens, never
+    search already returns, so a longer episode costs prompt tokens, never
     another search.
     """
     extra = max(0, int(minutes) - BROWSE_MINUTES)
     if not extra:
         return {}
-    highlights = settings.exa_highlights_per_source + (1 if int(minutes) >= 4 else 0)
-    return {"packet_sources": min(settings.exa_num_results,
-                                  settings.exa_packet_sources + extra),
+    highlights = settings.search_highlights_per_source + (
+        1 if int(minutes) >= 4 else 0)
+    return {"packet_sources": min(settings.search_num_results,
+                                  settings.search_packet_sources + extra),
             "highlights_per_source": highlights}
 
 
@@ -1183,8 +1095,8 @@ async def retrieve(query: str, backend: Optional[str] = None,
     """Research `query` with the configured backend.
 
     Raises `ResearchUnavailable` when the *configured* backend cannot run. It
-    does not fall back to the other one here: a deployment that asked for Exa
-    and silently got GDELT would be measuring one thing while believing
+    does not fall back to the other one here: a deployment that asked for
+    Parallel and silently got GDELT would be measuring one thing while believing
     another, and this project has paid for that shape more than once.
     The caller may fall back, and when it does the packet says so out loud in
     `fell_back_from`.
@@ -1224,11 +1136,11 @@ async def retrieve(query: str, backend: Optional[str] = None,
         return _note_gaps(packet, list(overrides.get(
             "must_establish", getattr(brief, "must_establish", []) or [])))
 
-    num_results = int(overrides.get("num_results", settings.exa_num_results))
-    packet_sources = int(overrides.get("packet_sources", settings.exa_packet_sources))
-    highlights_per_source = int(
-        overrides.get("highlights_per_source", settings.exa_highlights_per_source))
-    search_type = str(overrides.get("search_type", DEFAULT_SEARCH_TYPE))
+    num_results = int(overrides.get("num_results", settings.search_num_results))
+    packet_sources = int(overrides.get("packet_sources",
+                                       settings.search_packet_sources))
+    highlights_per_source = int(overrides.get(
+        "highlights_per_source", settings.search_highlights_per_source))
     recency_days = int(overrides.get("recency_days", search_window(brief)))
     written = str(overrides.get("objective", "") or "")
     objective = written or objective_for(brief, recency_days)
@@ -1255,7 +1167,7 @@ async def retrieve(query: str, backend: Optional[str] = None,
     try:
         packet = await asyncio.to_thread(
             _retrieve_blocking, query, num_results, packet_sources,
-            highlights_per_source, search_type, recency_days, live_domain,
+            highlights_per_source, recency_days, live_domain,
             include_domains, must_name, chosen, objective,
             queries_for(query, brief))
         searched = True
@@ -1292,7 +1204,7 @@ async def retrieve(query: str, backend: Optional[str] = None,
         log.info("%s packet missed %s for %r; one more search on %s for %r "
                  "with no window", chosen, missing, query, other, broader)
         second = await _second_look(broader, num_results, packet_sources,
-                                    highlights_per_source, search_type,
+                                    highlights_per_source,
                                     live_domain, include_domains, must_name,
                                     other, written or objective_for(brief, 0))
         if second is not None:
@@ -1322,7 +1234,7 @@ async def retrieve(query: str, backend: Optional[str] = None,
             packet.retried = True
 
     # **The second opinion.** One vendor's index is one vendor's blind spots,
-    # and a question Exa covers poorly currently produces a thin episode with
+    # and a question one index covers poorly currently produces a thin episode with
     # nothing to show that another index would have done better. GDELT is
     # read from its export copy on disk (§211), so a cross-check sends GDELT
     # nothing and costs the episode a local read - and it
@@ -1402,7 +1314,7 @@ async def retrieve_with_gdelt(query: str, brief=None, recency_days: int = 0
                               ) -> Packet:
     """An article index that needs no credential. Never raises.
 
-    It was already here as the additive cross-check beside an Exa packet. The
+    It was already here as the additive cross-check beside a web packet. The
     reason it is also a rung of its own (§109): when the configured retriever
     comes back with nothing, the alternative rungs are the model's own search
     at 10-25 seconds, or writing from memory. Since §211 it is a read of
@@ -1411,7 +1323,7 @@ async def retrieve_with_gdelt(query: str, brief=None, recency_days: int = 0
 
     What it cannot do is carry highlights: GDELT returns articles, so the
     packet is titles, dates and grades, with no passages under them. That is
-    thinner evidence than Exa's and it is *evidence*, which is the distinction
+    thinner evidence than a web backend's and it is *evidence*, which is the distinction
     the whole ladder turns on - the writer is reading what was published
     rather than recalling what it read in training.
     """
@@ -1430,9 +1342,9 @@ async def retrieve_with_gdelt(query: str, brief=None, recency_days: int = 0
     ranked = screen_results(
         rank_results(list(results or [])), query=query,
         live_domain=str(getattr(brief, "live_domain", "") or "")
-    )[:settings.exa_packet_sources]
-    packet.context = build_packet(ranked, settings.exa_packet_sources,
-                                  settings.exa_highlights_per_source)
+    )[:settings.search_packet_sources]
+    packet.context = build_packet(ranked, settings.search_packet_sources,
+                                  settings.search_highlights_per_source)
     packet.sources = domains(ranked)
     packet.results_returned = len(results or [])
     packet.searches = 1 if results else 0
@@ -1462,10 +1374,9 @@ async def retrieve_with_gdelt(query: str, brief=None, recency_days: int = 0
 #: Polymarket), and nowhere else. A question that finds nothing on any index
 #: is still written (§256 deleted the §109 refusal).
 #:
-#: **Exa sits between them while it is kept for comparison**: a deploy that
-#: arrives before the new keys are set still researches on the old one, and
-#: `ladder()` drops it the day `EXA_API_KEY` is removed.
-FALLBACK_RUNGS = ("perplexity", "exa", "gdelt")
+#: Exa sat between them while it was kept for comparison; it is deleted
+#: (§270).
+FALLBACK_RUNGS = ("perplexity", "gdelt")
 
 
 def second_look_backend(primary: str) -> str:
@@ -1513,15 +1424,12 @@ def _rung_available(rung: str) -> bool:
 
 def report() -> dict:
     """What the server can actually do for research right now - for /api/health."""
-    ok, detail = diagnose()
     return {
         "backend": settings.research_backend,
         # A retired value this deployment still sets, and was run as the
         # default instead (§135). "" when nothing was replaced.
         "backend_replaced": getattr(settings, "research_backend_replaced", ""),
         "backends": list(RESEARCH_BACKENDS),
-        "exa_configured": ok,
-        "exa_detail": detail,
         # Why the *configured* backend can or cannot serve, whichever it is
         # - what the startup warning and the preflight print (§258).
         "backend_detail": (backend_diagnose(settings.research_backend)[1]
@@ -1534,7 +1442,7 @@ def report() -> dict:
                          for name in WEB_BACKENDS},
         "second_look": second_look_backend(settings.research_backend),
         # True when the *configured* backend cannot run - whichever it is.
-        # It used to ask only about Exa, so `RESEARCH_BACKEND=gdelt` with
+        # It used to ask only about one backend, so `RESEARCH_BACKEND=gdelt` with
         # `GDELT=0` reported healthy and retrieved nothing, for ever.
         # A researched episode no longer fails when this is true (it falls
         # down the ladder), but it is not being researched the way this
@@ -1545,7 +1453,7 @@ def report() -> dict:
         # because an undated packet does not look broken from outside - it
         # produces an episode that is confidently wrong about *when*, which is
         # the one failure mode that reads as a writing problem and is not.
-        "dated_packet": bool(settings.exa_dated_packet),
+        "dated_packet": bool(settings.search_dated_packet),
         "retry_on_thin_packet": bool(settings.research_retry),
         # Whether anything searches while the episode is being spoken. It is
         # always False now and is reported rather than assumed: from outside,

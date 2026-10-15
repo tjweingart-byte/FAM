@@ -3,8 +3,8 @@
 What it is for
 --------------
 One job: telling `trending_bank` what the world's press is leading with, twice
-a day. Not evidence for an episode - an episode is still researched on Exa and
-GDELT exactly as before, and a tile's headline is never read to the writer as
+a day. Not evidence for an episode - an episode is still researched on the
+web search and GDELT exactly as before, and a tile's headline is never read to the writer as
 fact. GNews decides *which* stories are trending; research decides what is
 true about them.
 

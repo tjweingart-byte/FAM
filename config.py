@@ -173,44 +173,53 @@ def _env_float(name: str, default: float) -> float:
 
 #: How a researched episode gets its facts.
 #:
-#: **`parallel` is the default since §258**, at the owner's direction: Parallel's
-#: Search API at about a seventh of Exa's price, with `perplexity` - a second,
-#: independent index - as the second look and the first rung below it, and
-#: GDELT as the free floor. `exa` stays selectable so the two can be compared
-#: on the same questions before it is deleted. What follows is the reasoning
-#: as it was written for Exa, and holds for whichever web backend is chosen.
+#: **`parallel` is the default since §258**, at the owner's direction:
+#: Parallel's Search API retrieves first and hands the writer an evidence
+#: packet to read, with `perplexity` - a second, independent index - as the
+#: second look and the first rung below it, and GDELT as the free floor. The
+#: retrieval is a bounded, timed step this codebase can measure.
 #:
-#: `exa` retrieves first and hands Claude an evidence packet to read. The
-#: retrieval is a bounded, timed step this codebase can measure - `research.py`
-#: keeps the call and the packet byte-for-byte as the manual benchmark measured
-#: them, so the numbers already taken by hand stay comparable.
-#:
-#: `exa` is the default. That is a real cost: it needs a credential, and a
-#: deployment without EXA_API_KEY falls to GDELT (when `GDELT=1`) or refuses a
-#: question that needs today's facts. The app says so at startup and on every
-#: /api/health, because a missing credential discovered on a listener's first
-#: researched question is the shape of failure this project has paid for most.
+#: The default needs a credential (PARALLEL_API_KEY), and a deployment
+#: without one falls to Perplexity, then GDELT (when `GDELT=1`). The app says
+#: so at startup and on every /api/health, because a missing credential
+#: discovered on a listener's first researched question is the shape of
+#: failure this project has paid for most.
 #:
 #: **`gdelt` is the keyless one** (§109). A retriever in its own right and the
-#: ladder's fallback rung: weaker than Exa - an article index with no
-#: highlights - and available to a deployment with no retrieval credential.
+#: ladder's floor: weaker than the web backends - an article index with no
+#: passages - and available to a deployment with no retrieval credential.
 #:
-#: **`claude` is gone** (§135, at the owner's direction): everything an episode
-#: is written from comes from Exa, GDELT and the live providers, and the model
-#: never searches the web for FAM. A deployment that still sets it runs on the
-#: default backend and is told so at startup and on /api/health - not refused,
-#: because it was a working value until now and a refusal would stop the
-#: server booting on the deploy that removed it.
+#: **Retired values are replaced, loudly, never refused.** `claude` (§135:
+#: the model never searches the web for FAM) and `exa` (§270: Parallel and
+#: Perplexity replaced it, and its code is deleted) were working values once,
+#: so a deployment may still set them; it runs on the default backend and is
+#: told so at startup and on /api/health, because a refusal would stop the
+#: server booting on the deploy that removed them.
 #:
-#: A value outside this tuple is refused - at import by
+#: Any other value outside this tuple is refused - at import by
 #: `Settings.__post_init__`, and again at retrieval time by `research.retrieve`
 #: - rather than falling back to one silently. What the *ladder* does when a
 #: rung comes back empty is a different thing, and it is recorded on the
 #: packet every time (`fell_back_from`).
-RESEARCH_BACKENDS = ("parallel", "perplexity", "exa", "gdelt")
+RESEARCH_BACKENDS = ("parallel", "perplexity", "gdelt")
+
+#: Values `RESEARCH_BACKEND` used to accept, run as the default instead.
+RETIRED_RESEARCH_BACKENDS = ("claude", "exa")
+
+#: Settings renamed when Exa was deleted (§270): the packet's sizes were
+#: never about one vendor. The old names are no longer read; a deployment
+#: that still sets one is told at startup which name replaced it
+#: (`app._announce_research`), rather than having its value ignored in
+#: silence.
+RENAMED_SETTINGS = {
+    "EXA_NUM_RESULTS": "SEARCH_NUM_RESULTS",
+    "EXA_PACKET_SOURCES": "SEARCH_PACKET_SOURCES",
+    "EXA_HIGHLIGHTS_PER_SOURCE": "SEARCH_HIGHLIGHTS_PER_SOURCE",
+    "EXA_DATED_PACKET": "SEARCH_DATED_PACKET",
+}
 
 #: The ones among them that send a query to a paid search vendor (§258).
-WEB_RESEARCH_BACKENDS = ("parallel", "perplexity", "exa")
+WEB_RESEARCH_BACKENDS = ("parallel", "perplexity")
 
 #: What a deployment gets when it says nothing. Named rather than repeated as a
 #: literal, for the same reason as DEFAULT_PIPELINE.
@@ -374,7 +383,7 @@ class Settings:
     # `web_search` tool, which front-loads 10-25 seconds; at that price a
     # keyword guess about which questions "read as time-sensitive" was worth
     # making, because the ones guessed wrong only lost freshness while the ones
-    # guessed right saved half a minute. With `RESEARCH_BACKEND=exa` -
+    # guessed right saved half a minute. With a web search backend -
     # DEFAULT_RESEARCH_BACKEND above - retrieval is about half a second, and at
     # that price the guess costs more than it saves: every question it gets
     # wrong is answered from memory that may be years stale, and nothing
@@ -386,7 +395,7 @@ class Settings:
     # already written.
     #
     # `auto` and `never` are kept, and are what `write.py`, `compare_search.py`
-    # and a deployment without an Exa key use. They are not production.
+    # and a deployment without a search key use. They are not production.
     # A request can still say search=1 or search=0 explicitly and win.
     search_mode: str = field(
         default_factory=lambda: (
@@ -400,7 +409,7 @@ class Settings:
         default_factory=lambda: os.environ.get("ENABLE_WEB_SEARCH", "0") not in ("0", "false", "False", "")
     )
     max_web_searches: int = _env_int("MAX_WEB_SEARCHES", 3)  # a ceiling, not a target
-    # parallel | perplexity | exa | gdelt - see RESEARCH_BACKENDS above.
+    # parallel | perplexity | gdelt - see RESEARCH_BACKENDS above.
     # Only consulted when an episode is actually being researched; an
     # unresearched one costs nothing either way.
     research_backend: str = field(
@@ -409,25 +418,26 @@ class Settings:
     # The retired value `research_backend` was set to and replaced from, or
     # "" - see `__post_init__`. Reported, never read to decide anything.
     research_backend_replaced: str = ""
-    # The three numbers the manual Exa benchmark hard-coded, which are exactly
-    # the knobs worth sweeping. Their defaults reproduce that run: 8 results
-    # fetched, the top 3 in the packet, 2 highlights each. Raising
-    # `exa_packet_sources` buys more evidence and costs prompt tokens on every
-    # researched episode; nobody has measured where that stops paying.
-    exa_num_results: int = _env_int("EXA_NUM_RESULTS", 8)
-    exa_packet_sources: int = _env_int("EXA_PACKET_SOURCES", 3)
-    exa_highlights_per_source: int = _env_int("EXA_HIGHLIGHTS_PER_SOURCE", 2)
-    # Whether the evidence packet carries a publication date and a publisher
+    # How much evidence a researched episode is handed: 8 results fetched,
+    # the top 3 in the packet, 2 passages each (the defaults reproduce the
+    # hand-measured 2026-09-05 benchmark). Longer episodes get more
+    # (`research.packet_size`). Raising `search_packet_sources` buys more
+    # evidence and costs prompt tokens on every researched episode; nobody
+    # has measured where that stops paying. Named `EXA_*` until §270 - see
+    # `RENAMED_SETTINGS`.
+    search_num_results: int = _env_int("SEARCH_NUM_RESULTS", 8)
+    search_packet_sources: int = _env_int("SEARCH_PACKET_SOURCES", 3)
+    search_highlights_per_source: int = _env_int("SEARCH_HIGHLIGHTS_PER_SOURCE", 2)
+    # Whether the evidence packet carries a publication date and a grade
     # beside each source.
     #
     # **On, and this is the cheapest quality fix in the codebase.** The packet
-    # used to be title plus highlights, so an episode was asked whether
+    # used to be title plus passages, so an episode was asked whether
     # something happened last night or two days ago from evidence with no dates
-    # in it. Exa was already returning both fields and `build_packet` was
-    # discarding them. Set to 0 only to reproduce the hand-measured 2026-09-05
+    # in it. Set to 0 only to reproduce the hand-measured 2026-09-05
     # benchmark, whose numbers were taken on the undated shape.
-    exa_dated_packet: bool = field(
-        default_factory=lambda: os.environ.get("EXA_DATED_PACKET", "1")
+    search_dated_packet: bool = field(
+        default_factory=lambda: os.environ.get("SEARCH_DATED_PACKET", "1")
         not in ("0", "false", "False", ""))
     # Whether a packet missing what the brief asked for buys one more search.
     #
@@ -464,7 +474,7 @@ class Settings:
             "PERPLEXITY_SEARCH_TYPE", "").strip().lower() or "fast")
     perplexity_tokens_per_page: int = _env_int("PERPLEXITY_TOKENS_PER_PAGE", 512)
     # How long one passage is when a page's excerpt text is cut up - about
-    # the size of one of Exa's highlights.
+    # the size of the highlights every packet was first measured on.
     search_passage_chars: int = _env_int("SEARCH_PASSAGE_CHARS", 500)
 
     # --- Episode intelligence --------------------------------------------
@@ -477,7 +487,7 @@ class Settings:
     # the wrong thing is worth less than a slower one about the right thing.
     # The browse surfaces pay none of it - there the brief is built before the
     # tap. Set to 0 to get the old behaviour exactly: the raw query goes to
-    # Exa, no structure, no why-now, no temporal cautions.
+    # the search, no structure, no why-now, no temporal cautions.
     episode_intelligence: bool = field(
         default_factory=lambda: os.environ.get("EPISODE_INTELLIGENCE", "1")
         not in ("0", "false", "False", ""))
@@ -587,7 +597,7 @@ class Settings:
     # --- local news and weather (§194) ------------------------------------
     # A question about one town is answered from that town's own outlets,
     # collected ahead of time from their RSS feeds, then from its county's,
-    # then from Exa limited to the town's known outlets - and never from
+    # then from a web search limited to the town's known outlets - and never from
     # GDELT, at the owner's direction. See `local_news.py`.
     local_news: bool = field(
         default_factory=lambda: os.environ.get("LOCAL_NEWS", "1")
@@ -896,7 +906,7 @@ class Settings:
         default_factory=lambda: os.environ.get("FINNHUB_WATCHLIST", "").strip())
 
     # --- GDELT -----------------------------------------------------------
-    # A second article index beside Exa, and the source behind the story
+    # A second article index beside the web search, and the source behind the story
     # pool's news. Keyless, so the only switch that matters is this one.
     #
     # **Read from GDELT's 15-minute export files, never its search API**
@@ -948,7 +958,7 @@ class Settings:
     # Files fetched behind the newest when the copy is behind - after a boot
     # or an outage - so a first sweep has more than fifteen minutes to read.
     gdelt_export_backfill_files: int = _env_int("GDELT_EXPORT_BACKFILL_FILES", 8)
-    # Whether a researched episode searches the copy as well as Exa. It costs
+    # Whether a researched episode searches the copy as well as the web. It costs
     # GDELT nothing now; it costs the episode a local read.
     gdelt_cross_check: bool = field(
         default_factory=lambda: os.environ.get("GDELT_CROSS_CHECK", "0")
@@ -1813,15 +1823,20 @@ class Settings:
                 raise ValueError(
                     f"VOICE_DISCOVERY={self.voice_discovery!r} is not a "
                     f"setting. Use one of: {', '.join(VOICE_DISCOVERY)}.")
-        if self.research_backend == "claude":
-            # **Replaced, loudly, rather than refused** (§135). `claude` was a
-            # working value until this change, so a deployment may still carry
-            # it in its dashboard - and refusing it here would turn merging
-            # the change that removed it into a server that will not boot.
-            # It runs as the default backend instead; the startup log and
-            # `/api/health` (`research.backend_replaced`) both say so.
-            object.__setattr__(self, "research_backend_replaced", "claude")
+        if self.research_backend in RETIRED_RESEARCH_BACKENDS:
+            # **Replaced, loudly, rather than refused** (§135 `claude`, §270
+            # `exa`). Each was a working value until the change that removed
+            # it, so a deployment may still carry it in its dashboard - and
+            # refusing it here would turn merging that change into a server
+            # that will not boot. It runs as the default backend instead; the
+            # startup log and `/api/health` (`research.backend_replaced`)
+            # both say so.
+            object.__setattr__(self, "research_backend_replaced",
+                               self.research_backend)
             object.__setattr__(self, "research_backend", DEFAULT_RESEARCH_BACKEND)
+        if self.research_second_look == "exa":
+            # The same courtesy for the retry's backend (§270): the default.
+            object.__setattr__(self, "research_second_look", "perplexity")
         if self.research_second_look not in ("same",) + WEB_RESEARCH_BACKENDS:
             raise ValueError(
                 f"RESEARCH_SECOND_LOOK={self.research_second_look!r} is not a "
@@ -1847,18 +1862,18 @@ class Settings:
                 "than picking one - an unrecognised level that quietly meant "
                 "`script` would spend a full episode per guess."
             )
-        for name in ("exa_num_results", "exa_packet_sources",
-                     "exa_highlights_per_source"):
+        for name in ("search_num_results", "search_packet_sources",
+                     "search_highlights_per_source"):
             if getattr(self, name) < 1:
                 raise ValueError(
                     f"{name.upper()}={getattr(self, name)} must be at least 1. "
                     "Zero would send Claude an empty evidence packet and call "
                     "it research.")
-        if self.exa_packet_sources > self.exa_num_results:
+        if self.search_packet_sources > self.search_num_results:
             raise ValueError(
-                f"EXA_PACKET_SOURCES={self.exa_packet_sources} exceeds "
-                f"EXA_NUM_RESULTS={self.exa_num_results}: the packet cannot "
-                "hold more sources than were fetched.")
+                f"SEARCH_PACKET_SOURCES={self.search_packet_sources} exceeds "
+                f"SEARCH_NUM_RESULTS={self.search_num_results}: the packet "
+                "cannot hold more sources than were fetched.")
 
     @property
     def bytes_per_second(self) -> int:

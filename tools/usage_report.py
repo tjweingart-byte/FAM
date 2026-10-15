@@ -93,7 +93,7 @@ def render(report: dict, price: float = 0.0, flagged: list | None = None) -> str
         f"   over {days:.1f} days")
     b = report["breakdown"]
     peak = max(b.values()) if b else 0
-    for label, key in (("Claude", "claude_usd"), ("Exa", "exa_usd"),
+    for label, key in (("Claude", "claude_usd"), ("Web search", "exa_usd"),
                        ("GPU (marginal)", "gpu_marginal_usd")):
         share = b[key] / totals["cost_usd"] * 100 if totals["cost_usd"] else 0
         say(f"    {label:<18} {money(b[key]):>12}  {share:5.1f}%  {bar(b[key], peak)}")

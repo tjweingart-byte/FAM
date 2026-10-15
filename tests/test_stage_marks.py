@@ -83,7 +83,7 @@ def stubbed(monkeypatch):
     async def retrieve(query, backend=None, brief=None, **overrides):
         await asyncio.sleep(RETRIEVAL_DELAY)
         return research_mod.Packet(context="Reuters, yesterday: rates held.",
-                                   backend="exa", searches=1)
+                                   backend="parallel", searches=1)
 
     async def lookup(brief, notes=None, **_):
         return None

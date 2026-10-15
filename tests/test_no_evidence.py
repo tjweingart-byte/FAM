@@ -83,62 +83,63 @@ def research_with(plan, notes=None):
 def test_a_rung_that_is_switched_off_is_not_a_rung(monkeypatch):
     """`GDELT=0` ships as the default, and a health report that promised a
     fallback which cannot fetch anything would be describing a wish."""
-    backend(monkeypatch, "exa", gdelt=False)
+    backend(monkeypatch, "parallel", gdelt=False)
     tried = rungs(monkeypatch, {})
     plan = dataclasses.replace(plan_episode("who won", 3, search=True),
                                brief=BRIEF_CURRENT)
     prepared_without_live(monkeypatch, plan)   # never refused (§256)
-    assert [b for b, _ in tried] == ["exa"], "gdelt was asked anyway"
-    assert research.ladder("exa") == ["exa"]
+    assert [b for b, _ in tried] == ["parallel"], "gdelt was asked anyway"
+    assert research.ladder("parallel") == ["parallel"]
 
 
 def test_the_ladder_stops_at_the_first_rung_that_finds_anything(monkeypatch):
-    backend(monkeypatch, "exa")
-    tried = rungs(monkeypatch, {"exa": found("exa")})
+    backend(monkeypatch, "parallel")
+    tried = rungs(monkeypatch, {"parallel": found("parallel")})
     plan = dataclasses.replace(plan_episode("who won", 3, search=True),
                                brief=BRIEF_CURRENT)
-    assert "from exa" in research_with(plan).evidence
-    assert tried == [("exa", "who won")], "a rung ran after a success"
+    assert "from parallel" in research_with(plan).evidence
+    assert tried == [("parallel", "who won")], "a rung ran after a success"
 
 
 def test_an_empty_backend_falls_to_the_keyless_one(monkeypatch):
-    """GDELT is the only rung below the configured backend (§135)."""
-    backend(monkeypatch, "exa")
+    """With no Perplexity key, GDELT is the only rung below the configured
+    backend (§135)."""
+    backend(monkeypatch, "parallel")
     tried = rungs(monkeypatch, {"gdelt": found("gdelt")})
     plan = dataclasses.replace(plan_episode("who won", 3, search=True),
                                brief=BRIEF_CURRENT)
     notes = ScriptNotes()
     assert "from gdelt" in research_with(plan, notes).evidence
-    assert [b for b, _ in tried] == ["exa", "gdelt"], "a rung ran after a success"
+    assert [b for b, _ in tried] == ["parallel", "gdelt"], "a rung ran after a success"
     # The precise query already found nothing, so the second index is asked
     # the wider question rather than the same one again.
     assert tried[0][1] == "who won" and tried[1][1] == "the game, result"
-    assert notes.research["fell_back_from"] == "exa", "the fallback was silent"
+    assert notes.research["fell_back_from"] == "parallel", "the fallback was silent"
 
 
 def test_gdelt_is_the_last_rung_and_the_model_never_searches(monkeypatch):
     """The model's own search was the last rung until §135, at the owner's
-    direction: everything an episode is written from comes from Exa, GDELT
-    and the live providers. Below GDELT is the refusal, never a model."""
-    backend(monkeypatch, "exa")
+    direction: everything an episode is written from comes from the web
+    search backends, GDELT and the live providers. Below GDELT is the refusal, never a model."""
+    backend(monkeypatch, "parallel")
     tried = rungs(monkeypatch, {})
     plan = dataclasses.replace(plan_episode("who won", 3, search=True),
                                brief=BRIEF_CURRENT)
-    assert research.ladder("exa") == ["exa", "gdelt"]
+    assert research.ladder("parallel") == ["parallel", "gdelt"]
     prepared_without_live(monkeypatch, plan)   # never refused (§256)
-    assert [b for b, _ in tried] == ["exa", "gdelt"]
+    assert [b for b, _ in tried] == ["parallel", "gdelt"]
 
 
 def test_a_rung_that_raises_is_a_rung_that_failed(monkeypatch):
     """Not an episode that failed. `research.retrieve` raises whatever the
     vendor raised, and with one stream that would be the whole episode."""
-    backend(monkeypatch, "exa")
-    tried = rungs(monkeypatch, {"exa": RuntimeError("502"),
+    backend(monkeypatch, "parallel")
+    tried = rungs(monkeypatch, {"parallel": RuntimeError("502"),
                                 "gdelt": found("gdelt")})
     plan = dataclasses.replace(plan_episode("who won", 3, search=True),
                                brief=BRIEF_CURRENT)
     assert "from gdelt" in research_with(plan).evidence
-    assert [b for b, _ in tried] == ["exa", "gdelt"]
+    assert [b for b, _ in tried] == ["parallel", "gdelt"]
 
 
 def test_the_configured_backend_is_never_tried_twice(monkeypatch):
@@ -168,7 +169,7 @@ def test_a_question_that_needs_today_is_written_not_refused(monkeypatch):
     """The §109 refusal ("could not reach a single source ... not going to
     guess") is gone at the owner's direction (§256): it showed on a Trending
     tile, where it never belonged. An empty search still writes the episode."""
-    backend(monkeypatch, "exa")
+    backend(monkeypatch, "parallel")
     rungs(monkeypatch, {})
     monkeypatch.setattr(sg.live_facts, "lookup",
                         lambda brief, notes=None, **_: _none())
@@ -181,7 +182,7 @@ def test_a_question_that_needs_today_is_written_not_refused(monkeypatch):
 def test_an_evergreen_question_is_still_written(monkeypatch):
     """The model's own knowledge is accurate here, and a refusal would be a
     worse answer than the episode."""
-    backend(monkeypatch, "exa")
+    backend(monkeypatch, "parallel")
     rungs(monkeypatch, {})
     monkeypatch.setattr(sg.live_facts, "lookup",
                         lambda brief, notes=None, **_: _none())
@@ -196,7 +197,7 @@ def test_a_live_state_is_evidence_even_when_the_index_found_nothing(monkeypatch)
     anybody has published an article about it yet - which is the whole reason
     `live_facts` exists, and the reason this check is in `prepare` rather than
     in `research`."""
-    backend(monkeypatch, "exa")
+    backend(monkeypatch, "parallel")
     rungs(monkeypatch, {})
 
     facts = types.SimpleNamespace(status="final", as_dict=lambda: {})
@@ -215,7 +216,7 @@ def test_a_live_state_is_evidence_even_when_the_index_found_nothing(monkeypatch)
 
 
 def test_an_unresearched_episode_is_never_refused(monkeypatch):
-    backend(monkeypatch, "exa")
+    backend(monkeypatch, "parallel")
     rungs(monkeypatch, {})
     monkeypatch.setattr(sg.live_facts, "lookup",
                         lambda brief, notes=None, **_: _none())
@@ -228,7 +229,7 @@ def test_a_degraded_brief_is_never_refused_either(monkeypatch):
     """EI is the good signal and it is allowed to be unavailable. The keyword
     heuristic is what `cache.ttl_for` already uses as the floor for paths that
     have nothing better, and this is the same job."""
-    backend(monkeypatch, "exa")
+    backend(monkeypatch, "parallel")
     rungs(monkeypatch, {})
     monkeypatch.setattr(sg.live_facts, "lookup",
                         lambda brief, notes=None, **_: _none())
@@ -273,7 +274,7 @@ def test_an_attachment_is_evidence_and_is_never_refused(monkeypatch):
     """The listener handed FAM the document. `build_prompt` puts it in front
     of the writer outranking anything recalled, so refusing here would refuse
     the episode with the most to go on."""
-    backend(monkeypatch, "exa")
+    backend(monkeypatch, "parallel")
     rungs(monkeypatch, {})
     attached = types.SimpleNamespace(
         kind="document", as_prompt_block=lambda: "THEIR DOCUMENT")
@@ -288,32 +289,32 @@ def test_every_rung_that_ran_is_metered_even_when_it_is_discarded(monkeypatch):
     """A rung whose packet is discarded still spent, and it is most likely
     to be discarded on exactly the episodes that then get refused and
     refunded. Recording only the winner reports the failures as free."""
-    backend(monkeypatch, "exa")
-    empty_but_paid = research.Packet(backend="exa", searches=2, cost=0.01)
-    rungs(monkeypatch, {"exa": empty_but_paid, "gdelt": found("gdelt")})
+    backend(monkeypatch, "parallel")
+    empty_but_paid = research.Packet(backend="parallel", searches=2, cost=0.01)
+    rungs(monkeypatch, {"parallel": empty_but_paid, "gdelt": found("gdelt")})
 
     notes = ScriptNotes()
     plan = dataclasses.replace(plan_episode("who won", 3, search=True),
                                brief=BRIEF_CURRENT)
     research_with(plan, notes)
-    assert notes.usage.exa_searches == 2, "a rung that spent was reported free"
+    assert notes.usage.web_searches == 2, "a rung that spent was reported free"
 
 
-def test_only_exa_searches_are_counted_as_exa_searches(monkeypatch):
-    """`Usage.exa_searches` is a count of Exa searches. Filing GDELT's
+def test_only_web_searches_are_counted_as_web_searches(monkeypatch):
+    """`Usage.web_searches` is a count of paid web searches. Filing GDELT's
     fetches under it makes the one retrieval number `usage_report.py`
     prints a mixture of two things."""
-    backend(monkeypatch, "exa")
+    backend(monkeypatch, "parallel")
     rungs(monkeypatch, {"gdelt": research.Packet(
         context="SOURCE 1\nTitle: x", backend="gdelt", searches=3)})
     notes = ScriptNotes()
     plan = dataclasses.replace(plan_episode("who won", 3, search=True),
                                brief=BRIEF_CURRENT)
     research_with(plan, notes)
-    assert notes.usage.exa_searches == 0
+    assert notes.usage.web_searches == 0
     # But the episode's own record still says what the whole ladder did.
     assert notes.research["searches"] == 3
-    assert notes.research["rungs"] == ["exa", "gdelt"]
+    assert notes.research["rungs"] == ["parallel", "gdelt"]
 
 
 def test_the_script_endpoint_refuses_and_refunds_like_the_audio_one(monkeypatch):

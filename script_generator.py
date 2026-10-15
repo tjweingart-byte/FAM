@@ -700,12 +700,9 @@ class EpisodePlan:
     #: these is theirs alone: `pipeline` refuses to cache it, so it never
     #: reaches Explore or another listener.
     attachments: tuple = ()
-    #: Retrieved evidence for a researched episode, when the `exa` backend
-    #: fetched it. Empty on the `claude` backend, where the model searches
-    #: inside its own turn and there is nothing to carry. Its presence is what
-    #: `_request_kwargs` reads to decide whether to attach the search tool -
-    #: the two are alternatives, never both, or the model would search on top
-    #: of evidence it was already given.
+    #: Retrieved evidence for a researched episode, as the packet the search
+    #: built. Empty when nothing was found; the writing call never carries a
+    #: search tool either way (§135).
     #:
     #: Last on purpose. This class is built positionally below, so a field
     #: inserted anywhere earlier silently shifts every argument after it -
@@ -1511,7 +1508,7 @@ class ScriptGenerator:
         that the retrieval is a step a caller can see, time and skip, rather
         than something buried inside the streaming call.
 
-        **Exa and GDELT, and nothing else** (§135). The model never searches:
+        **The web backends and GDELT, and nothing else** (§135). The model never searches:
         a `claude` backend used to run Anthropic's `web_search` in a research
         call of its own, and before that on the writing call itself (§108).
         Both are deleted. The writing call never carries a tool.
@@ -1534,7 +1531,7 @@ class ScriptGenerator:
             return plan
 
         # **A question about one town takes the local ladder** (§194):
-        # its own outlets, its county's, then Exa on its known outlets - and
+        # its own outlets, its county's, then a web search on its known outlets - and
         # never GDELT, at the owner's direction.
         place_text = str(getattr(plan.brief, "place", "") or "").strip()
         if place_text and settings.local_news:
@@ -1616,8 +1613,8 @@ class ScriptGenerator:
                     continue
                 # The vendor's own reported cost where it gave one, its
                 # published rate otherwise. **Only for the paid web
-                # backends** (§258: Parallel, Perplexity, Exa):
-                # `Usage.exa_searches` is the column every paid search is
+                # backends** (§258: Parallel, Perplexity):
+                # `Usage.web_searches` is the column every paid search is
                 # counted in, and filing GDELT's fetches under it would make
                 # the one number `usage_report.py` prints about retrieval a
                 # mixture of two things.
@@ -1657,7 +1654,7 @@ class ScriptGenerator:
     async def _research_local(self, plan: EpisodePlan,
                               notes: ScriptNotes | None,
                               place_text: str) -> EpisodePlan:
-        """The local ladder (§194): town, county, Exa on known outlets.
+        """The local ladder (§194): town, county, a web search on known outlets.
 
         The weather is asked for at the same time, because when the town
         has nothing the episode opens with that and then the weather, and
@@ -1676,7 +1673,7 @@ class ScriptGenerator:
 
         spent: list = []
 
-        async def exa(query: str, domains: tuple, must_name: str):
+        async def search(query: str, domains: tuple, must_name: str):
             # A web search on the known outlets (§194; Parallel since §258),
             # down the same web backends the ladder would use when one cannot
             # serve - never GDELT, which is off this path entirely.
@@ -1707,7 +1704,7 @@ class ScriptGenerator:
         forecast = None
         if place.located and settings.weather:
             forecast = asyncio.create_task(weather.forecast_for(place))
-        local = await local_news.research_local(place, plan.brief, exa=exa)
+        local = await local_news.research_local(place, plan.brief, search=search)
         if forecast is not None:
             if local.gap:
                 local.weather, weather_attempts = await forecast
@@ -1738,7 +1735,7 @@ class ScriptGenerator:
         """One rung of the retrieval ladder. Never raises.
 
         **Every failure is caught here, not just `ResearchUnavailable`.** A
-        missing key raises that; an Exa 500, a timeout, a DNS failure, a
+        missing key raises that; a vendor 500, a timeout, a DNS failure, a
         rate limit and a malformed reply raise something else entirely, and
         `research.retrieve` does not wrap them. While the from-knowledge
         cover existed, an exception on this path was survivable - the cover

@@ -38,7 +38,7 @@ def _episode(store, at, *, hit=False):
     u = metering.Usage()
     u.model, u.model_calls = "claude-sonnet-5", 2
     u.input_tokens, u.output_tokens = 6000, 2500
-    u.exa_searches, u.exa_cost = 1, 0.015
+    u.web_searches, u.web_search_cost = 1, 0.015
     u.audio_seconds = 120
     u.cache_hit = hit
     store.record("listener", u, surface="search", minutes=2, at=at)
@@ -59,6 +59,8 @@ def test_spend_lands_on_the_day_it_happened(stores):
     assert days["2026-10-06"]["hits"] == 1
     claude = metering.price_of(_usage()).claude
     assert days["2026-10-07"]["claude"] == pytest.approx(claude, abs=1e-6)
+    # Every paid web search lands in the ledger's search column (§270).
+    assert days["2026-10-07"]["search"] == pytest.approx(0.015, abs=1e-6)
 
 
 def _usage():
@@ -82,14 +84,16 @@ def test_usage_billed_rows_read_the_ledger_never_a_typed_price(stores):
     cs = _book(financials.build(NOW))["Costs"]
     usage = [r for r in range(10, cs.max_row + 1)
              if str(cs.cell(row=r, column=8).value or "").startswith("Recorded")]
-    assert len(usage) >= 3, "Claude, Exa and the GPU are usage-billed"
+    assert len(usage) >= 3, "Claude, web search and the GPU are usage-billed"
     for r in usage:
         assert str(cs.cell(row=r, column=6).value).startswith("=SUMIFS('Daily Spend'")
 
 
 def test_every_service_the_code_calls_has_a_row(stores):
     vendors = {r["vendor"] for r in financials.catalogue()}
-    for needed in ("Render", "RunPod", "Anthropic", "Exa", "GNews", "API-Sports",
+    assert "Exa" not in vendors, "Exa is deleted (§270); its row went with it"
+    for needed in ("Render", "RunPod", "Anthropic", "Parallel and Perplexity",
+                   "GNews", "API-Sports",
                    "Finnhub", "Open-Meteo", "Polymarket", "GDELT",
                    "National Weather Service", "Google AI Studio", "Viral Loops",
                    "Apple"):

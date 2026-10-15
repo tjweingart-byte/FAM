@@ -48,7 +48,7 @@ flowchart LR
   end
   subgraph Ext["Outside services"]
     CL["Claude API"]
-    EXA["Exa"]
+    WEBS["Parallel / Perplexity"]
     GD["GDELT"]
     GN["GNews"]
     AS["API-Sports (10 sports)"]
@@ -66,7 +66,7 @@ flowchart LR
   UI -- "HTTPS; raw PCM stream" --> MW --> APP
   APP --> PIPE --> GEN
   GEN --> EI --> CL
-  GEN --> RES --> EXA & GD & FEEDS
+  GEN --> RES --> WEBS & GD & FEEDS
   GEN --> LF --> AS & FH & PM & WX
   GEN -- "writer stream" --> CL
   PIPE -- "text chunks" --> TTS
@@ -158,7 +158,7 @@ sequenceDiagram
     P->>E: understand() (or a brief prefetch warmed)
     E-->>P: Brief: retrieval query, recency, intent, place, live_domain
     par concurrently
-      P->>R: Exa, then GDELT's local copy (or the local ladder)
+      P->>R: Parallel, Perplexity, then GDELT's local copy (or the local ladder)
       P->>L: live lookup (sports, markets, elections, weather)
       P->>L: Polymarket forecast (outcome-dependent questions, §211)
     end
@@ -190,8 +190,8 @@ sequenceDiagram
 | 13 | **Earlier editions** | `daily_edition.with_earlier_editions` | A dated DailyFAM prompt nobody wrote ahead is told the earlier editions' titles, exactly as the background edition is. | Local reads only. |
 | 14 | **EI brief** | `ScriptGenerator.understand` → `episode_intelligence.understand` | One Claude call (`EI_MODEL`, default `claude-haiku-5-5` at `EI_EFFORT=medium` since §261; §227 moved it to Haiku, §249 back to `MODEL`) returning a JSON `Brief`: the retrieval query and a broader one, recency window, intent, story shape, `live_domain` (sports / markets / elections / weather), `place` (a one-town question), `outcome_dependent`, cautions, pronunciations, a provisional title. **Skipped** when prefetch warmed a brief (`prefetch.warm_brief`). `gate` and `apply_named_slot` (e.g. "Sunday Night Football") run on the answer. | Timeout `EI_TIMEOUT_SECONDS` = 8 s (code). Any failure → `fallback_brief(query)`, `Brief.degraded`; the episode continues on the raw query. |
 | 15 | **Evidence** | `ScriptGenerator.prepare` | `asyncio.gather(live_lookup, research, forecast_lookup)` - independent, so they run together. | See 15a-15d. |
-| 15a | - research ladder | `ScriptGenerator.research`, `research.ladder`, `research.retrieve` | **Exa** (`fast`, `EXA_NUM_RESULTS` = 8, 3 sources × 2 highlights in the packet, code) → if empty or missing what the brief must establish, **one** second Exa search without the window on `Brief.broader` → **GDELT** on the broader query, searched in FAM's local copy of GDELT's export files (`gdelt.retrieve`: titles and names, ≥ 2 shared words; only if `GDELT=1`; on in production). `screen_results` drops simulated-league pages and, on sports, unknown outlets once two known ones answered. Every rung that ran is metered. | Each rung is caught (`_retrieve`) and recorded (`fell_back_from`). GDELT is a local read and never reaches GDELT (§211); an empty or stale (> 1 h) copy is recorded as an outage (`ExportStale`). |
-| 15b | - local ladder | `ScriptGenerator._research_local`, `local_news.research_local`, `places.resolve` | When the brief names one `place` (§194): the town's own outlets' RSS → the county's → Exa restricted to known outlets (`include_domains`, results must name the town). **Never GDELT.** The weather is fetched at the same time and used only if the town had nothing. A first question about a town reads its unread feeds inline, bounded at 2.5 s (code, `local_news.refresh_place`). | Town empty → `local_news.gap_line` opens the episode ("no news updates about …"), then the weather, then county news. Nothing at all is still written (§256). |
+| 15a | - research ladder | `ScriptGenerator.research`, `research.ladder`, `research.retrieve` | **Parallel** (`fast`, `SEARCH_NUM_RESULTS` = 8, 3 sources × 2 passages in the packet, more past 2 minutes, code) → if empty or missing what the brief must establish, **one** second look on **Perplexity** (`RESEARCH_SECOND_LOOK`) without the window on `Brief.broader` → Perplexity as a rung if Parallel could not serve → **GDELT** on the broader query, searched in FAM's local copy of GDELT's export files (`gdelt.retrieve`: titles and names, ≥ 2 shared words; only if `GDELT=1`; on in production). `screen_results` drops simulated-league pages and, on sports, unknown outlets once two known ones answered. Every rung that ran is metered. | Each rung is caught (`_retrieve`) and recorded (`fell_back_from`). GDELT is a local read and never reaches GDELT (§211); an empty or stale (> 1 h) copy is recorded as an outage (`ExportStale`). |
+| 15b | - local ladder | `ScriptGenerator._research_local`, `local_news.research_local`, `places.resolve` | When the brief names one `place` (§194): the town's own outlets' RSS → the county's → a web search (Parallel, then Perplexity) restricted to known outlets (`include_domains`, results must name the town). **Never GDELT.** The weather is fetched at the same time and used only if the town had nothing. A first question about a town reads its unread feeds inline, bounded at 2.5 s (code, `local_news.refresh_place`). | Town empty → `local_news.gap_line` opens the episode ("no news updates about …"), then the weather, then county news. Nothing at all is still written (§256). |
 | 15c | - live lookup | `ScriptGenerator.live_lookup` → `live_facts.lookup` | Only when the brief has a `live_domain`. Providers: API-Sports (sports; records, last and next games counted in code from the schedule), Finnhub (markets), Polymarket (elections), `weather.WeatherSource` (NWS then Open-Meteo, plus live NWS alerts). Seven outcomes (`FACTS`, `NOT_CONFIGURED`, `NO_ENTITY`, `NO_FACTS`, `PROVIDER_FAILED`, `TIMEOUT`, `STALE`); stale data is withheld. **Beside it (§211)**, `live_facts.forecast` asks Polymarket for every question EI marks `outcome_dependent` (not live-domain elections, weather, or a town question): `EpisodePlan.forecast`, rendered after the live block (the articles win), credited as "prediction market - a forecast, not a result", never evidence and never `plan.live`. | `LIVE_TIMEOUT_SECONDS` = 1.5 s per source, `LIVE_TOTAL_TIMEOUT_SECONDS` = 2.5 s (code). The writer is told which outcome happened and never states a result it lacks. |
 | 15d | - weather question | `ScriptGenerator.research` | `live_domain == "weather"` skips the article index entirely; the forecast is the evidence. | |
 | 16 | ~~Refusal check~~ | (deleted, §256) | Nothing is refused for want of evidence: an empty ladder goes to the writer like any thin packet. `research.NoEvidence` and its 503-and-refund handling remain for anything that still raises it. | |
@@ -202,7 +202,7 @@ sequenceDiagram
 | 21 | **Preroll and stream** | `app.py:audio` | Chunks are pulled until `PREROLL_SECONDS` = 1.5 s of PCM exists (code), so a failure before that is a proper HTTP error. Then a `StreamingResponse` of raw `audio/L16` (or WAV). Headers: `X-FAM-Cache`, `X-FAM-Episode` (the id the history keeps), `X-FAM-Keepable` (may the phone keep it offline), `X-Sample-Rate`, `X-Stage-Seconds`, `X-Episode-Marks`. | Empty episode → 502, refunded. After the first byte a failure can only be logged; the player notices the short stream. |
 | 22 | **Captions and progress** | `live_captions.py` | Each sentence is published as it is voiced, keyed on the cache key, with measured start times; `/api/transcript` reads it, `/api/progress` reads the marks. The title is replaced by the writer's own once it lands. | |
 | 23 | **Cache store** | `pipeline._stream_pcm` tail, `cache.put`, `cache.put_audio` | Script, title, thread, summary, category, sources, `sourced_at`, `origin`, `author`, voice. **Current** for `ttl_for(...)`; **kept** for `CACHE_LIFE_SECONDS` = 7 days (code). Audio (zlib PCM) is kept only after the whole episode went out, only in a production voice, inside `AUDIO_CACHE_MAX_MB` = 512 (code), LRU. A key re-written with different words archives the old row and audio (`archive_key`). | Demo mode (no key) reads the cache and never writes it. |
-| 24 | **Metering and events** | `app.py:_record_usage` → `metering.MeterStore`; `EVENTS.record(play)` | One ledger row per request at the end of the stream (disconnects included), with model tokens, Exa searches and audio seconds. A `play` event is logged only for an account (`_remembers`). Every outside request is also counted per provider per UTC day (`provider_usage.record`). | Recording never fails a request. |
+| 24 | **Metering and events** | `app.py:_record_usage` → `metering.MeterStore`; `EVENTS.record(play)` | One ledger row per request at the end of the stream (disconnects included), with model tokens, web searches and audio seconds. A `play` event is logged only for an account (`_remembers`). Every outside request is also counted per provider per UTC day (`provider_usage.record`). | Recording never fails a request. |
 
 **How `ttl_for` decides "current"** (`cache.py:ttl_for`, from what the episode
 was built on, never from the question's words alone): live status
@@ -223,7 +223,7 @@ when the stream ends. The same breakdown rides on `X-Stage-Seconds`.
 |---|---|---|---|
 | 0 | setup: limits, plan, quota, voice, cache lookup | origin → `claude_start` | Near-match scan **8.93 ms** on a miss (measured) |
 | 1 | brief | `brief_start` → `brief_ready` | Timeout **8 s** (code, `EI_TIMEOUT_SECONDS`). Real duration **not yet measured**. Zero when prefetch warmed it. |
-| 2 | evidence | `evidence_start` → `evidence_ready` | Exa ≈ **0.5 s** (measured). Live: 1.5 s per source, 2.5 s total (code). GDELT: a local read (§211). Local ladder's inline feed read ≤ 2.5 s (code). |
+| 2 | evidence | `evidence_start` → `evidence_ready` | Web search ≈ **0.5 s** (Exa's, measured; Parallel and Perplexity unmeasured here). Live: 1.5 s per source, 2.5 s total (code). GDELT: a local read (§211). Local ladder's inline feed read ≤ 2.5 s (code). |
 | 3 | writer thinking | `writer_request` → `claude_first_token` | §129 expects this to be **the largest single step**. Not yet measured. Prompt caching shortens it (§179, unmeasured). |
 | 4 | first sentence | → `first_sentence` | Model text runs ~16× faster than speech (estimate, §129) |
 | 5 | first synthesis | → `first_tts_complete` | Warm: ~2-3 s per 28-41-word chunk on an RTX 4090 (**measured**, `speech_assembly.py`: 0.1086 s/word). Cold serverless worker: boot + ~10 s model load. |
@@ -268,7 +268,7 @@ the live lookup's outcome, the log, and `/api/health`.
 | Guest | Tile with no kept audio | 403, refunded | Sign-up |
 | Cache | Replay with nothing kept | 409, refunded | The card is dropped |
 | Brief | Timeout, error, bad JSON | Raw query, `Brief.degraded` | Nothing; a less precise episode |
-| Research | Exa error or empty | Second Exa look, then GDELT's local copy; each rung metered | Nothing |
+| Research | Parallel error or empty | Perplexity second look, then Perplexity as a rung, then GDELT's local copy; each rung metered | Nothing |
 | Research | Everything empty | Written from knowledge, no evidence block; nothing volatile supplied from memory (§256 deleted the refusal) | An episode |
 | Local | Town has nothing | Gap line + weather + county news | A short, honest episode |
 | Local | Nothing and no weather | Gap line, then the writer (§256) | A short episode |
@@ -285,13 +285,13 @@ flowchart TB
     B2 -->|any failure| B3[raw query, Brief.degraded]
   end
   subgraph Research["Research (research.ladder)"]
-    E1[Exa, recency window] -->|empty or thin| E2[Exa again, no window,<br/>Brief.broader]
+    E1[Parallel, recency window] -->|empty or thin| E2[Perplexity, no window,<br/>Brief.broader]
     E2 -->|empty| G1[GDELT local copy, broader query<br/>outage if empty or stale]
     G1 -->|empty| KN[Write from knowledge<br/>never refused, §256]
   end
   subgraph Local["Local ladder (one town)"]
     L1[Town outlets' RSS] -->|nothing names the town| L2[County outlets]
-    L2 -->|nothing| L3[Exa on known outlets]
+    L2 -->|nothing| L3[Web search on known outlets]
     L3 -->|nothing| L4[gap line, then weather,<br/>then county news]
     L4 -->|no weather either| L5[gap line, then the writer]
   end
@@ -348,7 +348,7 @@ flowchart TB
     D2["categories sweep if 2 h stale<br/>(+ thumbnails if THUMBNAILS=1)"]
     D3["story sweep if stale or demand woke"]
   end
-  T1 -->|GNews, compose, EI + Exa + batched writers| CACHE[("scripts.db")]
+  T1 -->|GNews, compose, EI + search + batched writers| CACHE[("scripts.db")]
   T2 -->|1 episode per subject, EI on each| CACHE
   T3 -->|signals, 1 compose call| POOL[("in-memory story pool")]
   D1 -->|EI brief only| BRIEFS[("in-memory briefs, 1 h")]
@@ -454,7 +454,7 @@ flowchart LR
 | | `admin_tracker.py` | An admin asks a question | One read-only SELECT | Built-in recipes, then the error |
 | | `cache.py` canonical key | `CACHE_SEMANTIC_KEY=1` (off) | A canonical cache key | Exact key |
 | | `app.py:_verify_credentials` | Boot | `models.retrieve` (free) | `credentials.state` on `/api/health` |
-| **Exa** | `research._retrieve_blocking`, `_second_look` | `EXA_API_KEY`; `RESEARCH_BACKEND=exa` (default) | Rung 1 of every researched episode | GDELT rung |
+| **Parallel / Perplexity** | `research._retrieve_blocking`, `_second_look` | `PARALLEL_API_KEY`, `PERPLEXITY_API_KEY`; `RESEARCH_BACKEND=parallel` (default) | Rung 1 of every researched episode, and the second look | Perplexity, then the GDELT rung |
 | | `ScriptGenerator._research_local` (`include_domains`, `must_name`) | A one-town question | Rung 3 of the local ladder; files new outlets as `mention` | Gap line |
 | **GDELT** | `gdelt.run_forever` → `gdelt.sync` | `GDELT=1`, every `GDELT_EXPORT_POLL_SECONDS` = 900 s | The only job that downloads from GDELT: the newest 15-minute GKG export file (named by `lastupdate.txt`), ≤ 8 behind it when behind, ~200 requests/day; 24 h kept in `gdelt_export.db` (§211) | Failures counted on `/api/health`; readers report the copy stale |
 | | `research.retrieve_with_gdelt` → `gdelt.retrieve` | `GDELT=1` (on in production) | Research rung 2, from the local copy | Knowledge |
@@ -481,7 +481,7 @@ flowchart LR
 | **Chatterbox** | `voice_worker/` on RunPod; `tts.ChatterboxEngine` in-process on a GPU host | A worker that passes `verify` (and matches `VOICE_REFERENCE_FINGERPRINT` when set) | Speech | **Placeholder tone**, never a lesser voice |
 | **Render** | Not called; it is the host | n/a | `RENDER_GIT_COMMIT` feeds `/api/health` `build`; `X-Forwarded-Proto` builds share links; the `/data` disk holds every store | n/a |
 
-Every request to API-Sports (and per sport), Exa, GDELT, Polymarket, GNews,
+Every request to API-Sports (and per sport), Parallel, Perplexity, GDELT, Polymarket, GNews,
 Finnhub, NWS, Open-Meteo and the local feeds is counted, with failures,
 per UTC day in `provider_usage.db` and drawn on `/admin`.
 
@@ -732,7 +732,7 @@ at `/data`, sharing nothing (`STAGING.md`). Feature branches merge into
 | Quotas | `ENFORCE_QUOTAS=1` | code default 0 |
 | Waitlist | `WAITLIST` set in the dashboard (`sync: false`) | off |
 | Voice | `VOICE_BACKEND=remote`, RunPod serverless | forced `chatterbox` → placeholder tone |
-| Research | Exa + `GDELT=1` (export files, §211) | Exa key scrubbed; `GDELT=0` |
+| Research | Parallel + Perplexity + `GDELT=1` (export files, §211) | Search keys scrubbed; `GDELT=0` |
 | Live providers | API-Sports, Finnhub (by key), Polymarket (named) | all forced off |
 | Trending | GNews key, `GNEWS_DAILY_REQUESTS=90` | key scrubbed → empty row |
 | Local news / weather | on (`OPEN_METEO_API_KEY`) | `LOCAL_NEWS=0`, `WEATHER=0` |

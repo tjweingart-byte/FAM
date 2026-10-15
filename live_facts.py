@@ -1,7 +1,7 @@
 """A seam for facts an article index cannot be fresh enough to hold.
 
-Exa retrieves *writing about* the world. For most questions that is the right
-shape - an explainer, a cause, a trend. For two kinds it is structurally wrong,
+The web search retrieves *writing about* the world. For most questions that
+is the right shape - an explainer, a cause, a trend. For two kinds it is structurally wrong,
 and no amount of better querying fixes it:
 
 * **Scores, fixtures and standings.** A game ends and the scoreboard knows

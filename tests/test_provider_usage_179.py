@@ -1,7 +1,7 @@
 """Requests per outside service per day, beside each one's limit (§179).
 
-The admin page shows how often API-Sports, Exa, GDELT, Polymarket, GNews and
-Finnhub are called, today and on average, with the limit in force and - in
+The admin page shows how often API-Sports, Parallel, Perplexity, GDELT,
+Polymarket, GNews and Finnhub are called, today and on average, with the limit in force and - in
 parentheses - what the next paid plan would raise it to. Pinned: a request is
 counted where it goes out (so every provider behind `live_sources._json` is
 counted once, by host), a failed request still counts, counting never costs a
@@ -31,10 +31,12 @@ DAY = 86400
 def test_every_provider_the_owner_named_is_reported_in_order():
     rows = provider_usage.report(NOON)
     assert [r["label"] for r in rows] == [
-        # §258: the search that replaced Exa, and its second look.
-        "API-Sports", "Parallel", "Perplexity", "Exa", "GDELT", "Polymarket", "GNews", "Finnhub",
+        # §258: the search and its second look (Exa, which they replaced,
+        # is deleted - §270).
+        "API-Sports", "Parallel", "Perplexity", "GDELT", "Polymarket", "GNews", "Finnhub",
         # §194: weather and the local news collector.
         "National Weather Service", "Open-Meteo", "Local news feeds"]
+    assert "exa" not in provider_usage.PROVIDERS
     for row in rows:
         assert row["limit"] and row["next"]
 
@@ -52,12 +54,12 @@ def test_counts_are_per_utc_day_and_failures_are_kept_beside_them(tmp_path):
         usage.record("gnews", now=NOON)
     usage.record("gnews", ok=False, now=NOON)
     usage.record("gnews", now=NOON - DAY)
-    usage.record("exa", now=NOON - 3 * DAY)
+    usage.record("parallel", now=NOON - 3 * DAY)
     rows = {r["provider"]: r for r in provider_usage.report(NOON)}
     assert rows["gnews"]["today"] == 4 and rows["gnews"]["failed_today"] == 1
     assert rows["gnews"]["yesterday"] == 1
     assert rows["gnews"]["average"] == round(5 / 7, 1)
-    assert rows["exa"]["today"] == 0 and rows["exa"]["average"] == round(1 / 7, 1)
+    assert rows["parallel"]["today"] == 0 and rows["parallel"]["average"] == round(1 / 7, 1)
 
 
 def test_the_rationed_limits_are_read_from_the_settings_in_force(monkeypatch):
@@ -121,7 +123,7 @@ def test_counting_never_costs_a_request(monkeypatch):
             raise OSError("disk full")
 
     provider_usage.reset(Broken())
-    provider_usage.record("exa")          # logs, does not raise
+    provider_usage.record("parallel")          # logs, does not raise
 
 
 def test_the_admin_snapshot_carries_the_rows():
@@ -150,12 +152,12 @@ def test_counting_never_touches_the_disk_on_the_callers_thread(tmp_path):
 
     provider_usage.reset(Watching(str(tmp_path / "u.db")))
     for _ in range(5):
-        provider_usage.record("exa")
+        provider_usage.record("parallel")
     for thread in threading.enumerate():
         if thread.name == "provider-usage-flush":
             thread.join(5)
     assert writers and all(w is not caller for w in writers)
-    assert {r["provider"]: r for r in provider_usage.report()}["exa"]["today"] == 5
+    assert {r["provider"]: r for r in provider_usage.report()}["parallel"]["today"] == 5
 
 
 def test_a_failed_write_keeps_its_counts_for_the_next_one(tmp_path):

@@ -275,7 +275,7 @@ def _say_where_a_key_could_come_from() -> None:
 def _announce_research() -> None:
     """Say at startup whether the configured research backend can actually run.
 
-    `parallel` is the default since §258 (`exa` before it) and needs a
+    `parallel` is the default since §258 and needs a
     second credential. Without it a researched
     episode fails - it does not quietly search another way - and finding that
     out on a listener's first researched question is the shape of failure this
@@ -289,18 +289,26 @@ def _announce_research() -> None:
     **What it says changed with §109**, and this is the kind of line that goes
     stale silently: it used to say researched episodes would FAIL rather than
     search another way, which was true when the configured backend was the
-    only one. They now fall down a ladder - GDELT, since §135 the only rung
-    below Exa - so the consequence is weaker research rather than no episode,
+    only one. They now fall down a ladder - Perplexity, then GDELT - so the consequence is weaker research rather than no episode,
     and saying otherwise would send somebody looking for failures that are not
     happening.
     """
     report = research_report()
     if report.get("backend_replaced"):
         log.warning(
-            "RESEARCH_BACKEND=%s is no longer a backend (PROBLEMS.md §135: the "
-            "model never searches the web for FAM). Running as %s. Remove the "
-            "variable, or set it to parallel, perplexity, exa or gdelt.",
+            "RESEARCH_BACKEND=%s is no longer a backend (PROBLEMS.md §135, "
+            "§270). Running as %s. Remove the variable, or set it to "
+            "parallel, perplexity or gdelt.",
             report["backend_replaced"], report["backend"])
+    from config import RENAMED_SETTINGS
+
+    for old, new in RENAMED_SETTINGS.items():
+        # Renamed with Exa's deletion (§270). Said rather than honoured, so
+        # a dashboard still carrying the old name finds out which one to set.
+        if os.environ.get(old, "").strip():
+            log.warning("%s is no longer read (PROBLEMS.md §270): set %s "
+                        "instead. Running with %s=%s.", old, new, new,
+                        os.environ.get(new, "") or "its default")
     if not report["unavailable"]:
         log.info("research: %s (%s)", report["backend"], report["backend_detail"])
         return
@@ -830,8 +838,8 @@ def friendly_error(exc: Exception) -> str:
         # ways - the rule `entitlements.service_label` already follows.
         return str(exc)
     if isinstance(exc, ResearchUnavailable):
-        # This one already carries the remedy - "exa_py is not installed,
-        # `pip install -r requirements-exa.txt`", or which key is missing.
+        # This one already carries the remedy - which key is missing, or
+        # which value is not a backend.
         # Replacing that with "see the server log" throws away the one
         # sentence that would let the person fix it, which is the whole job
         # of this function. Every other component names what is wrong.
@@ -1517,7 +1525,7 @@ def _refund_if_unspent(verdict, user: str, usage: metering.Usage) -> None:
     """
     if verdict is None or not user or not getattr(verdict, "charged", True):
         return
-    if usage.model_calls or usage.exa_searches:
+    if usage.model_calls or usage.web_searches:
         return
     QUOTAS.refund(user, verdict.resource, verdict.window,
                   episode_key=getattr(verdict, "episode_key", ""))
@@ -1839,7 +1847,7 @@ async def health(request: Request) -> dict:
         # EI that has been switched off looks identical from outside to one
         # that is working - the episodes are merely less relevant - which is
         # the "quietly worse than intended" shape this project keeps paying
-        # for. `enabled: false` means the raw query is going to Exa.
+        # for. `enabled: false` means the raw query is going to the search.
         "episode_intelligence": ei_report(),
         # Which questions this server can answer from a live state rather than
         # from an article about one. Everything unconfigured is *named* here
@@ -1891,8 +1899,8 @@ async def health(request: Request) -> dict:
                        "min_wordings": categories_mod.MIN_TEXTS,
                        "stale": categories_mod.is_stale()},
         # The second retrieval index, and the Trending row's feed. Reported
-        # separately from `research` because they fail separately: Exa can be
-        # healthy while this is off, and vice versa.
+        # separately from `research` because they fail separately: the web
+        # search can be healthy while this is off, and vice versa.
         "gdelt": gdelt_report(),
         # Whether every licensed provider in use may be used commercially
         # (§207): GNews' and Finnhub's free plans and Open-Meteo's keyless

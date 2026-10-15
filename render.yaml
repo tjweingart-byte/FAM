@@ -46,7 +46,7 @@ services:
         sync: false
       - key: FAM_ADMIN_TOKEN
         sync: false
-      # Deliberately absent: ANTHROPIC_API_KEY, EXA_API_KEY, PARALLEL_API_KEY,
+      # Deliberately absent: ANTHROPIC_API_KEY, PARALLEL_API_KEY,
       # PERPLEXITY_API_KEY, GNEWS_KEY,
       # API_SPORTS_KEY, FINNHUB_KEY, GEMINI_API_KEY, RUNPOD_*, GDELT,
       # STORIES_POLYMARKET, LIVE_*_PROVIDER, FAM_SECRETS. Adding one here does
@@ -266,8 +266,8 @@ services:
         value: "1"
       # --- Where an episode's information comes from (§135) ----------------
       #
-      # Exa, GDELT, API-Sports, Finnhub and Polymarket, and nothing else: the
-      # model never searches the web for FAM. The three with credentials are
+      # Parallel and Perplexity, GDELT, API-Sports, Finnhub and Polymarket, and
+      # nothing else: the model never searches the web for FAM. The three with credentials are
       # asked for once in the dashboard. A key is also the switch - with
       # API_SPORTS_KEY set, sports questions get live scores, and the story
       # pool sweeps only the followed leagues (story_sources.SWEPT_LEAGUES),
@@ -276,13 +276,12 @@ services:
       # set, markets are swept every 2h. Neither needs a second line naming
       # its provider.
       # Search (§258): Parallel first, Perplexity as the second look and the
-      # backup, GDELT below both. Exa's key is kept only while the two are
-      # compared; with RESEARCH_BACKEND unset the default is parallel.
+      # backup, GDELT below both; with RESEARCH_BACKEND unset the default is
+      # parallel. Exa is deleted (§270): an EXA_API_KEY left in the dashboard
+      # is read by nothing.
       - key: PARALLEL_API_KEY
         sync: false
       - key: PERPLEXITY_API_KEY
-        sync: false
-      - key: EXA_API_KEY
         sync: false
       - key: API_SPORTS_KEY
         sync: false

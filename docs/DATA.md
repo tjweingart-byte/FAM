@@ -244,7 +244,7 @@ was playing: transcript ≤ 30,000 chars, ≤ 30 sources, §175), `resolved_at`,
 production since §207 (`ENFORCE_QUOTAS=1` on `fam` in `render.yaml`).
 
 **metering.db**: `usage`, one row per episode: tokens (including
-`cache_read_tokens`/`cache_write_tokens`, §179), Exa searches, live calls,
+`cache_read_tokens`/`cache_write_tokens`, §179), web searches (stored as `exa_searches`, named for the first vendor), live calls,
 `audio_seconds`, `cache_hit`, and cost split `claude_usd` / `exa_usd` /
 `gpu_usd`. Since §207 the GPU line uses the measured Chatterbox speed
 (`SYNTHESIS_REALTIME_FACTOR` 4.6) at `GPU_USD_PER_HOUR` 0.69.
@@ -274,7 +274,7 @@ stored**; it is computed from `events` and `preferences` on each request.
 `spend` (GNews requests per day).
 
 **provider_usage.db** (`provider_usage.py`, §179): `calls` per UTC day per
-provider: `api_sports` (and `api_sports/<sport>` per sport, §180), `exa`,
+provider: `api_sports` (and `api_sports/<sport>` per sport, §180), `parallel`, `perplexity`,
 `gdelt`, `polymarket`, `gnews`, `finnhub`, `nws`, `open_meteo`, `local_feeds`.
 Counted in memory and flushed at most every 10 s (`FLUSH_SECONDS`). Feeds
 `/admin`. Since §211 `gdelt` counts the export-file downloads (~200 a day,
@@ -292,7 +292,7 @@ WebP **BLOB**), its scene, prompt, the checker's verdict, status; `spend`
   town/county/region/country, `scope` (town, county, mention), feed `state`
   (new, healthy, stale, broken, no_feed, blocked, disallowed, excluded,
   retired), polling clocks (`etag`, `next_poll`, `typical_gap`). Seeded from
-  `local_outlets.json`; grows from `tools/local_outlets.py` and the Exa rung.
+  `local_outlets.json`; grows from `tools/local_outlets.py` and the web search rung.
 - `items`: collected feed items (title, summary, body, published). Only items
   within `LOCAL_NEWS_WINDOW_DAYS` (14) are used as evidence.
 - `demand`: which towns were asked about (no listener id); polling and

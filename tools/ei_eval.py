@@ -327,7 +327,7 @@ async def main() -> int:
     print(f"  {len(undated)} had no dated evidence at all"
           + ("   <- these cannot get tense right by anything but luck" if undated else ""))
 
-    spend = sum(r.get("cost", {}).get("exa_cost", 0.0) for r in rows)
+    spend = sum(r.get("cost", {}).get("web_search_cost", 0.0) for r in rows)
     calls = sum(r.get("cost", {}).get("model_calls", 0) for r in rows)
     print(f"  {calls} model calls, ${spend:.3f} of retrieval")
     if rows and not args.script:

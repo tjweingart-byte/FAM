@@ -70,8 +70,8 @@ def prompt_for(live=None, evidence="", thin_on=(), the_brief=None) -> str:
     return build_prompt(plan)
 
 
-#: An evidence packet made entirely of pregame writing - which is what Exa
-#: returns while a game is being played, because the recap does not exist yet.
+#: An evidence packet made entirely of pregame writing - which is what a web
+#: search returns while a game is being played, because the recap does not exist yet.
 PREGAME = """SOURCE 1
 Title: Chiefs vs Broncos: how to watch, odds, injury report
 Published: 2026-09-14 (yesterday)

@@ -77,9 +77,9 @@ CATEGORIES = (HOSTING, VOICE, AI, DATA, GROWTH, DEV, CONFIRM)
 # Ledger columns that hold recorded, usage-billed spend.
 LEDGER_USAGE = {
     "claude": "Claude API ($)",
-    # Every paid web search (Parallel and Perplexity since §258, Exa
-    # before); the key keeps its name with metering.db's `exa_usd`.
-    "exa": "Web search ($)",
+    # Every paid web search (Parallel and Perplexity), stored in
+    # metering.db's `exa_usd` column - named for the first vendor (§270).
+    "search": "Web search ($)",
     "gpu": "GPU voice ($)",
     "images": "Tile pictures ($)",
 }
@@ -216,13 +216,7 @@ def catalogue() -> list[dict]:
              "Usage-billed", None, "usage",
              "Parallel: $5 free credit a month; Enterprise for zero retention",
              "Recorded per episode in metering.db (exa_usd, every paid search)",
-             ledger="exa"),
-        _row(DATA, "Exa", "Search API (replaced, §258)",
-             "Kept selectable to compare against Parallel, and a rung below "
-             "Perplexity while its key is set",
-             "Pay as you go, ~$0.015/search",
-             "In use" if _setting("research_backend") == "exa" else "Fallback only",
-             0, "/month", "Remove EXA_API_KEY once the comparison is done"),
+             ledger="search"),
     ]
 
     gnews_plan = str(_setting("gnews_plan", "free") or "free")
@@ -380,12 +374,12 @@ def daily_ledger(now: Optional[float] = None) -> dict:
 
     def day(d):
         return out.setdefault(d, {"episodes": 0, "hits": 0, "claude": 0.0,
-                                  "exa": 0.0, "gpu": 0.0, "images": 0.0})
+                                  "search": 0.0, "gpu": 0.0, "images": 0.0})
 
     # `live_usd` is left out on purpose: it prices Finnhub calls at its metered
     # per-call rate, but FAM is on the free plan (and would be on a flat
     # commercial one, a row of its own on Costs), so it is not money spent.
-    for at, surface, hit, claude, exa, gpu in _read(
+    for at, surface, hit, claude, search, gpu in _read(
             "METERING_DB", "metering.db",
             "SELECT at, surface, cache_hit, claude_usd, exa_usd, gpu_usd"
             " FROM usage WHERE at >= ?", (since,)):
@@ -397,7 +391,7 @@ def daily_ledger(now: Optional[float] = None) -> dict:
         else:
             d["episodes"] += 1
         d["claude"] += float(claude or 0)
-        d["exa"] += float(exa or 0)
+        d["search"] += float(search or 0)
         d["gpu"] += float(gpu or 0)
     for at, images, cost in _read(
             "THUMBNAILS_DB", "thumbnails.db",
@@ -408,7 +402,7 @@ def daily_ledger(now: Optional[float] = None) -> dict:
 
 
 def daily_rows(now: Optional[float] = None) -> list[list]:
-    """The Daily Spend tab as rows: [date, episodes, Claude, Exa, GPU, pictures].
+    """The Daily Spend tab as rows: [date, episodes, Claude, web search, GPU, pictures].
 
     Every UTC day from the first record (or `LEDGER_MIN_DAYS` ago) to today,
     days with no spend included as zeros, so a sheet that replaces its rows
@@ -426,7 +420,7 @@ def daily_rows(now: Optional[float] = None) -> list[list]:
         d = start + _dt.timedelta(days=i)
         rec = recorded.get(d.isoformat(), {})
         rows.append([d.isoformat(), int(rec.get("episodes", 0))] + [
-            round(rec.get(k, 0.0), 6) for k in ("claude", "exa", "gpu", "images")])
+            round(rec.get(k, 0.0), 6) for k in ("claude", "search", "gpu", "images")])
     return rows
 
 
@@ -524,7 +518,7 @@ def build(now: Optional[float] = None) -> bytes:
     ledger = daily_rows(now)
     _, pod = _gpu()
     header(led, 1, ["Date (UTC)", "Episodes written", LEDGER_USAGE["claude"],
-                    LEDGER_USAGE["exa"], LEDGER_USAGE["gpu"], LEDGER_USAGE["images"]])
+                    LEDGER_USAGE["search"], LEDGER_USAGE["gpu"], LEDGER_USAGE["images"]])
     L0, LN = 2, 1 + len(ledger)
     for i, row in enumerate(ledger):
         led.cell(row=L0 + i, column=1,
@@ -538,7 +532,7 @@ def build(now: Optional[float] = None) -> bytes:
         f"UTC day, written {time.strftime('%Y-%m-%d %H:%M UTC', time.gmtime(now))}.",
         "FAM")
     led.freeze_panes = "A2"
-    LEDGER_COL = {"claude": "C", "exa": "D", "gpu": "E", "images": "F"}
+    LEDGER_COL = {"claude": "C", "search": "D", "gpu": "E", "images": "F"}
     # Whole columns: the Google Sheet's Apps Script adds a row every day, and a
     # range fixed at today's last row would leave the newest days out. The
     # header is text, so it never matches the date criterion.
@@ -853,7 +847,7 @@ def build(now: Optional[float] = None) -> bytes:
     prow("episodes", "New episodes written", lambda m, L: (
         f"=({L}{R['searches']}-{L}{R['sports']})*{a('New episodes per search, general')}"
         f"+{L}{R['sports']}*{a('New episodes per search, sports')}"), COUNT)
-    prow("episode_cost", "Episodes (Claude, Exa, voice)", lambda m, L: (
+    prow("episode_cost", "Episodes (Claude, search, voice)", lambda m, L: (
         f"={L}{R['episodes']}*{a('Cost of one new episode')}"))
     # Requests per sport per day: two per sports search, plus ~100 for the
     # score cards; that picks Pro (7,500/day), Ultra (75k) or Mega.

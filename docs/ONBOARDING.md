@@ -86,7 +86,7 @@ Learn these words before reading code. A `§` number is a section of
 | Term | Meaning |
 |---|---|
 | **EI / brief** | Episode intelligence (`episode_intelligence.py`). One Claude call turns the typed question into a `Brief`: the retrieval query, the recency window, the story shape and the cautions. It may say a request is `outcome_dependent`. It never asserts a fact. If it fails, the raw query is used and `Brief.degraded` records that. |
-| **Research ladder** | `research.ladder()`: Exa, then Exa without the recency window, then GDELT. No rung raises an error, and every fallback is recorded. The model never searches the web itself; that was deleted in §135. |
+| **Research ladder** | `research.ladder()`: Parallel, then one retry on Perplexity without the recency window, then Perplexity as a rung, then GDELT. No rung raises an error, and every fallback is recorded. The model never searches the web itself; that was deleted in §135. |
 | **Packet** | The evidence handed to the writer. Each source carries a date and a credibility grade, **never a hostname**. Recency filters the sources; credibility sorts them. |
 | **Live facts** | `live_facts.py`. Scores, prices and results come from a provider (API-Sports, Finnhub, Polymarket), use a closed status vocabulary, and are enforced fresh in code. The model never supplies them. |
 | **Writer** | `script_generator.py`. A streaming Claude call with no tools. It emits sentences plus stripped control lines: `<<TITLE:>>`, `<<NEXT:>>`, `<<CATEGORY:>>` and `<<SAY: Name = respelling>>`. |
@@ -139,7 +139,7 @@ flowchart LR
     CL["Claude<br/>(EI, writer, composer, admin Q&A)"]
   end
   subgraph Evidence
-    EXA[Exa]
+    WEBS["Parallel / Perplexity"]
     GD["GDELT<br/>(export files, local copy)"]
     GN[GNews]
     AS[API-Sports]
@@ -157,7 +157,7 @@ flowchart LR
   end
   WEB & IOS & PAGES -- "HTTPS JSON + raw PCM stream" --> APP
   APP --> PIPE --> CL
-  PIPE --> EXA & GD & AS & FH & PM & WX & RSS
+  PIPE --> WEBS & GD & AS & FH & PM & WX & RSS
   PIPE -- "~33-word chunks" --> TTS
   TTS -- PCM --> PIPE
   APP <--> DB
@@ -199,10 +199,10 @@ Points to hold on to:
 4. **The brief.** EI makes one Claude call, or a brief already warmed by
    prefetch is used. If EI fails, the raw query is used and the failure is
    recorded.
-5. **The evidence.** The research ladder (Exa, then Exa wider, then GDELT)
+5. **The evidence.** The research ladder (Parallel, then Perplexity wider, then GDELT)
    and, for sports, markets and elections, the live-facts lookup run
    concurrently. A local question uses the local-news ladder instead (town
-   RSS, then county, then Exa on known outlets, then weather; never GDELT).
+   RSS, then county, then a web search on known outlets, then weather; never GDELT).
    If a question depends on current events and nothing comes back, it is
    refused and refunded. An evergreen question is never refused.
 6. **The writer.** It holds the brief and the packet before its first token.
@@ -326,7 +326,7 @@ the offsets in `PROBLEMS_INDEX.md`).
    of the ten steps in section 3.2 happens.
 
 **You understand it when you can answer:**
-- What happens when Exa returns nothing for a question about last night's
+- What happens when the search returns nothing for a question about last night's
   game? And for a question about how tides work?
 - Where would a new field that changes the episode go, and why only there?
 - Why is the hostname kept out of the packet?
@@ -519,7 +519,7 @@ They share nothing: no disk, key, admin token or voice worker.
 
 | Variable | What it does |
 |---|---|
-| `ANTHROPIC_API_KEY`, `EXA_API_KEY` | Writing and research. Without the first, every episode is the demo script |
+| `ANTHROPIC_API_KEY`, `PARALLEL_API_KEY`, `PERPLEXITY_API_KEY` | Writing and research. Without the first, every episode is the demo script |
 | `MODEL` | The writer model (`claude-sonnet-5` in `render.yaml`) |
 | `VOICE_BACKEND`, `REMOTE_VOICE_TRANSPORT`, `RUNPOD_ENDPOINT_ID`, `RUNPOD_API_KEY`, `RUNPOD_POD`, `VOICE_REGISTRY_TOKEN`, `VOICE_WORKER_PORT`, `VOICE_ALLOW_PLAIN_HTTP` | Where the voice is and how it is found (`REMOTE_VOICE.md`) |
 | `ENFORCE_QUOTAS`, `FREE_EPISODES_PER_DAY` (5), `FREE_EXPLORE_PER_DAY` (25) | Tier limits (§207) |

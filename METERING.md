@@ -1,6 +1,6 @@
 # What each listener costs
 
-Anthropic bills this organisation. Exa bills this key. The GPU bills by the
+Anthropic bills this organisation. The search vendors bill their keys. The GPU bills by the
 hour. **None of them can say which listener produced which request** — so if
 that question is not answered at the moment of spend it cannot be answered
 later, and every question about pricing, per-user limits and abuse is that
@@ -28,7 +28,7 @@ It prints four things in this order, and the order is the argument.
 ### 1. What was billed — real, marginal, per listener
 
 Claude tokens (input, output, cache reads and writes at the published
-multipliers) and Exa searches, from the providers' own usage figures rather
+multipliers) and web searches (Parallel, Perplexity), from the providers' own usage figures rather
 than estimated from the script. A word count could have guessed output tokens;
 it could never have seen the prompt, the examples, an evidence packet, or a
 cache read — and it would have been wrong in the direction that flatters the
@@ -76,7 +76,7 @@ The report says which, on the line where it appears.
 
 | | means | example |
 |---|---|---|
-| **billed** | the provider's own usage figures | Claude's `usage`, Exa's reported `cost_dollars` |
+| **billed** | the provider's own usage figures | Claude's `usage`, each search vendor's published per-search rate |
 | **priced** | billed quantities × a published rate | tokens × `metering.PRICES` |
 | **assumed** | rests on configuration, not an invoice | the GPU allocation, the cache saving |
 
@@ -202,5 +202,5 @@ cost.
   two.
 * **It has never run against a real bill.** Every figure in this document comes
   from the published rate card and a synthetic ledger. The first month of real
-  usage should be reconciled against the Anthropic and Exa invoices, and this
+  usage should be reconciled against the Anthropic, Parallel and Perplexity invoices, and this
   file corrected where they disagree.

@@ -19402,3 +19402,57 @@ byte-identical, but their output schemas differ, and whether a schema is
 part of the cached prefix is not documented here. If `cache_read_input_tokens`
 is zero on the second half, each half writes its own cache - cents a day at
 FAM's volume, not a correctness problem.
+
+## 270. Exa deleted; the search is Parallel, then Perplexity
+
+**What was wrong.** §258 replaced Exa with Parallel and Perplexity but kept
+Exa selectable "so the two can be compared before it is deleted", and kept
+it as a fallback rung while `EXA_API_KEY` was set. The comparison never
+happened, and the leftovers kept describing the system wrongly:
+
+- The packet's sizes were still `EXA_NUM_RESULTS`, `EXA_PACKET_SOURCES`,
+  `EXA_HIGHLIGHTS_PER_SOURCE` and `EXA_DATED_PACKET`, so anyone reasoning
+  about how much evidence the writer gets reached for an Exa setting.
+- **`Dockerfile.gpu` baked `RESEARCH_BACKEND=exa`** into the image as a
+  "production default", so a deployment from that image searched on Exa,
+  not Parallel, whatever §258 said. Both Dockerfiles still installed
+  `requirements-exa.txt`.
+- `render.yaml` still asked for `EXA_API_KEY`; `setup_key.py --exa`,
+  `credentials`, `spend_guard`, `provider_usage`, the Costs sheet and the
+  health report (`exa_configured`, `exa_detail`) all still named it.
+
+**What changed, at the owner's direction.**
+
+- `research.py`: the Exa client, `diagnose`/`available`, `_search_exa`,
+  `COST_PER_SEARCH`, `DEFAULT_SEARCH_TYPE` and the `search_type` parameter
+  are deleted. `FALLBACK_RUNGS` is `("perplexity", "gdelt")`.
+  `/api/health` → `research` no longer carries `exa_configured` /
+  `exa_detail` (no client contract read them).
+- `config.py`: `RESEARCH_BACKENDS` is `parallel | perplexity | gdelt`.
+  `exa` joins `claude` in `RETIRED_RESEARCH_BACKENDS`: **replaced, loudly,
+  never refused**, so a dashboard still carrying it boots on `parallel` and
+  says so (`research.backend_replaced`). `RESEARCH_SECOND_LOOK=exa` becomes
+  `perplexity`. The packet's settings are renamed `SEARCH_*`; the old names
+  are **no longer read** and `_announce_research` names the replacement at
+  startup (`config.RENAMED_SETTINGS`). Defaults are unchanged (8 / 3 / 2 /
+  dated), so a deployment that never set them sees no difference.
+- `metering.Usage.exa_searches` / `exa_cost` are `web_searches` /
+  `web_search_cost` and `Cost.exa` is `Cost.web_search`. **The stored
+  columns keep their names** (`exa_searches`, `exa_cost`, `exa_usd`) and so
+  does the Daily Spend JSON's `exa_usd` column: renaming a column under a
+  running ledger and the sheet's Apps Script costs rows for nothing.
+- `local_news.research_local(..., search=)` (was `exa=`).
+- `Dockerfile` / `Dockerfile.gpu` no longer install anything for search
+  (Parallel and Perplexity are spoken to over `httpx`); `Dockerfile.gpu`
+  sets `RESEARCH_BACKEND=parallel`. `requirements-exa.txt`,
+  `setup_key.py --exa` and its test are deleted; `EXA_API_KEY` leaves
+  `render.yaml`, `credentials.CREDENTIAL_VARS` and `spend_guard`.
+- Docs that told an operator to set up Exa (README, CREDENTIALS, DEPLOY,
+  ONBOARDING, BACKEND, METERING, DATA, STAGING, LOCAL_NEWS_AND_WEATHER) now
+  say Parallel and Perplexity. History here and in `docs/FINANCIAL.md` is
+  left as written.
+
+*To do after deploying:* remove `EXA_API_KEY` (and any `EXA_*` setting) from
+the Render dashboard and RunPod template; nothing reads them. A GPU
+deployment built before this change was running on Exa - its first episodes
+on Parallel are the first measured ones there.

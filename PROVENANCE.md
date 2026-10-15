@@ -117,7 +117,7 @@ One outlet quoted three times is one line.
 
     GET /api/sources?q=...&minutes=...&context=...
 
-    {"items": [...], "retrievers": ["exa", "gdelt"], "count": 3, "known": true}
+    {"items": [...], "retrievers": ["parallel", "gdelt"], "count": 3, "known": true}
 
 `known` distinguishes **"we recorded no sources"** from **"there were none"**.
 An episode with no stored provenance may simply predate this, or have been

@@ -329,7 +329,7 @@ def _gkg_line(url, title, date="20260916143000", source="reuters.com"):
 
 
 def test_gdelt_articles_parse_into_the_shape_the_rest_of_fam_reads():
-    """Duck-typed to match an Exa result, so `rank_results`, `credibility`,
+    """Duck-typed to match a web search result, so `rank_results`, `credibility`,
     `published_at` and `provenance.from_results` all work unchanged. A second
     retriever needing its own branch in each would be four places to forget.
     Since §211 the rows come from GDELT's export files."""

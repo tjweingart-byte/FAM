@@ -100,7 +100,7 @@ class _Pipeline:
             {"label": "nfl.com", "title": "Week 5 preview", "at": "2026-09-29",
              "tier": "Primary source", "kind": "article",
              "url": "https://www.nfl.com/news/x", "private": False}],
-            "retrievers": ["exa"]})
+            "retrievers": ["parallel"]})
 
     async def captions_for(self, plan):
         return (["Washington is one and two.", "They play Sunday."], False, True)
