@@ -19682,4 +19682,12 @@ column types are translated by `db.py`) and opened through `data_path` and
 escaped; `writer_for` is the only reader of the writer's model.
 
 Tests: `tests/test_evidence_digest_270.py`, `tests/test_writer_latency_270.py`,
-`tests/test_pipeline_health_271.py`, `tests/test_haiku_writer_272.py`.
+`tests/test_pipeline_health_271.py`, `tests/test_haiku_writer_272.py`, and
+`tests/test_review_fixes_273.py` for the five fixes that had no test of their
+own (the live lookup's own time; the cut cancelled with a listener who
+leaves during the forecast wait; health naming the writer's fallback; the
+errors page saying its timings are capped, run through the page's own
+`drawSteps` in node; `--compare`'s cache line). Each was checked by undoing
+its fix and watching the test fail; the cancellation test reads its result
+before `asyncio.run` ends, which cancels every leftover task on the way out
+and so hid a leak the first version of the test missed.
