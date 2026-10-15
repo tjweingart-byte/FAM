@@ -1638,6 +1638,13 @@
   mode did announce itself, in an 8.5px chip, and still cost a whole session -
   and it was writing its canned script into the shared cache, so the failure
   outlived the run. Announcing is not enough if the thing keeps a record.)*
+  > **Current (PROBLEMS.md §271):** the errors page also times every step -
+  > the brief and its parts, the search, the live lookup, the evidence cut,
+  > the writer's warm-up, first word and last, and the whole wait to first
+  > audio - stored beside the errors (`pipeline_errors.step`), so every
+  > worker's episodes are counted and a redeploy keeps them. A writer that
+  > reaches `MAX_OUTPUT_TOKENS` is an error, and never speaks the
+  > half-sentence it stopped in.
   > **Current:** every stage now says what went wrong in one place
   > (PROBLEMS.md §269, `pipeline_errors.py`): the brief, live providers,
   > research, the writer and its checks, the editions and the episode itself

@@ -15,6 +15,7 @@ Two things matter here:
 from __future__ import annotations
 
 import asyncio
+import collections
 import copy
 import dataclasses
 import logging
@@ -1379,11 +1380,18 @@ class _ScriptReader:
         self.buffer = speech + marker + rest
         return out
 
-    def finish(self) -> list[str]:
-        """The tail, and what the writer said that is not spoken."""
+    def finish(self, cut_off: bool = False) -> list[str]:
+        """The tail, and what the writer said that is not spoken.
+
+        `cut_off` is a script stopped by its token ceiling (§270): its tail
+        is spoken only when it is a whole sentence, never half of one.
+        """
         out: list[str] = []
         self.buffer = _take_pronunciations(self.buffer, self.notes, self.shared)
         tail = clean_for_speech(self.buffer)
+        if cut_off and tail and not re.search(r"[.!?…][\"'”’)\]]*\s*$", tail):
+            log.info("writer cut off mid-sentence; not speaking %r", tail[-80:])
+            tail = ""
         if tail and self.scores.allow(tail) and self.figures.allow(tail) \
                 and self.guard.allow(tail):
             out.append(tail)
@@ -1467,6 +1475,76 @@ def writer_for(notes: "ScriptNotes | None" = None) -> tuple:
             model = settings.model
         return model, settings.edition_writer_effort or settings.effort
     return settings.model, settings.effort
+
+
+# -- how the writer has been doing, for /api/health and /admin (§270) ------
+#: Recent writers' times per path, kept for `writer_report`.
+WRITER_SECONDS_KEPT = 200
+_WRITER_BY_PATH: dict = {"search": collections.Counter(),
+                         "ahead": collections.Counter()}
+_WRITER_FIRST_WORD: dict = {
+    "search": collections.deque(maxlen=WRITER_SECONDS_KEPT),
+    "ahead": collections.deque(maxlen=WRITER_SECONDS_KEPT)}
+_WRITER_TOTAL: dict = {
+    "search": collections.deque(maxlen=WRITER_SECONDS_KEPT),
+    "ahead": collections.deque(maxlen=WRITER_SECONDS_KEPT)}
+
+
+def _writer_path(notes) -> str:
+    """`search` when a listener is waiting on this writer, else `ahead`."""
+    if notes is not None and (getattr(notes, "ahead", False)
+                              or getattr(notes, "prefetch", False)
+                              or getattr(notes, "edition", False)):
+        return "ahead"
+    return "search"
+
+
+def _writer_outcome(message, plan, notes, model, batched: bool = False) -> str:
+    """How a writer call ended: `ok`, `refused` or `out_of_room` - the last
+    recorded on /admin's errors, because the script was cut off (§270)."""
+    stop = getattr(message, "stop_reason", None)
+    if stop == "refusal":
+        return "refused"
+    if stop == "max_tokens":
+        pipeline_errors.record(
+            "writer", "ran out of room" + (" (batch)" if batched else ""),
+            f"{model} reached MAX_OUTPUT_TOKENS={settings.max_output_tokens} "
+            "(thinking and script share it): the script was cut off, a "
+            "half-sentence at the end was not spoken, and its title, summary, "
+            "category and follow-up lines were lost", plan.query)
+        return "out_of_room"
+    return "ok"
+
+
+def _writer_ended(path: str, outcome: str, first_word, total) -> None:
+    _WRITER_BY_PATH.setdefault(path, collections.Counter())[outcome] += 1
+    if first_word is not None:
+        _WRITER_FIRST_WORD.setdefault(
+            path, collections.deque(maxlen=WRITER_SECONDS_KEPT)).append(
+            round(first_word, 3))
+        pipeline_errors.step("writer first word", path, outcome, first_word)
+    if total is not None:
+        _WRITER_TOTAL.setdefault(
+            path, collections.deque(maxlen=WRITER_SECONDS_KEPT)).append(
+            round(total, 3))
+    pipeline_errors.step("writer", path, outcome, total)
+
+
+def writer_report() -> dict:
+    """For /api/health: the writer in force, and how it has done since boot."""
+    from episode_intelligence import _spread
+
+    return {
+        "model": settings.model, "effort": settings.effort,
+        "max_output_tokens": settings.max_output_tokens,
+        # `ok`, `out_of_room`, `refused`, `failed`, by who was waiting.
+        "since_boot_by_path": {p: dict(c) for p, c in _WRITER_BY_PATH.items()},
+        # Request to first word: the writer's thinking, the wait it adds.
+        "first_word_seconds_by_path": {
+            p: _spread(v) for p, v in _WRITER_FIRST_WORD.items()},
+        # Request to last word.
+        "total_seconds_by_path": {p: _spread(v) for p, v in _WRITER_TOTAL.items()},
+    }
 
 
 #: Models the boot check found this account cannot use
@@ -1939,8 +2017,16 @@ class ScriptGenerator:
         # runs beside the wait for the live lookup and the forecast that
         # follows, so the part of its second that wait already took is free.
         digest_task = None
+        path = _writer_path(notes)
         try:
+            searched_at = time.monotonic()
             research_plan = await self.research(plan, notes)
+            if plan.search and not plan.evidence and str(getattr(
+                    plan.brief, "live_domain", "") or "") != "weather":
+                pipeline_errors.step(
+                    "search", path,
+                    "sources" if research_plan.evidence else "no_sources",
+                    time.monotonic() - searched_at)
             if evidence_digest.wanted(research_plan):
                 _mark(notes, "digest_start")
                 digest_task = asyncio.ensure_future(evidence_digest.digest(
@@ -1949,6 +2035,10 @@ class ScriptGenerator:
                         getattr(notes, "ahead", False)
                         or getattr(notes, "prefetch", False)))))
             live_plan = await _live_by(live_task, plan, domain, live_began)
+            if live_plan.live is not None:
+                pipeline_errors.step("live lookup", path,
+                                     str(getattr(live_plan.live, "outcome", "") or ""),
+                                     time.monotonic() - live_began)
         except BaseException:
             # A listener who leaves, or a lookup that raised, ends both: a
             # shielded wait does not cancel what it shields.
@@ -2092,21 +2182,36 @@ class ScriptGenerator:
         # could name a different one.
         request = self._request_kwargs(plan, notes)
         model = request["model"]
+        path = _writer_path(notes)
+        started = time.monotonic()
+        first_word = None
         try:
             async with self.client.messages.stream(**request) as stream:
+                stopped_early = False
                 async for event in stream.text_stream:
+                    if first_word is None and event:
+                        first_word = time.monotonic() - started
                     for sentence in reader.feed(event):
                         yield sentence
                     # Safety valve: a model that ignores the budget must not
                     # be allowed to produce an hour of audio for a 1-minute
                     # request.
                     if reader.over_budget:
+                        stopped_early = True
                         break
 
-                for sentence in reader.finish():
-                    yield sentence
-
-                final = await stream.get_final_message()
+                if stopped_early:
+                    for sentence in reader.finish():
+                        yield sentence
+                    final = await stream.get_final_message()
+                else:
+                    # The stream has ended, so the final message is already
+                    # here - read before the tail, because a script cut off
+                    # by its ceiling must not speak half a sentence (§270).
+                    final = await stream.get_final_message()
+                    cut_off = getattr(final, "stop_reason", None) == "max_tokens"
+                    for sentence in reader.finish(cut_off=cut_off):
+                        yield sentence
         except Exception as exc:
             # Said on /admin's errors (§269), then raised exactly as before -
             # marked, so the episode or edition that catches it records a
@@ -2114,6 +2219,7 @@ class ScriptGenerator:
             pipeline_errors.record("writer", f"{model} failed",
                                    f"{type(exc).__name__}: {exc}", plan.query)
             pipeline_errors.mark_recorded(exc)
+            _writer_ended(path, "failed", first_word, time.monotonic() - started)
             raise
         # The provider bills this organisation, not this listener, so if the
         # tokens are not attributed here they cannot be attributed anywhere.
@@ -2123,6 +2229,8 @@ class ScriptGenerator:
             notes.usage.add_model_call(model, getattr(final, "usage", None))
         writer_warm.note_used(model, request["output_config"]["effort"])
         refused = _refusal_line(final)
+        outcome = _writer_outcome(final, plan, notes, model)
+        _writer_ended(path, outcome, first_word, time.monotonic() - started)
         if refused:
             pipeline_errors.record("writer", "refused", refused, plan.query)
             yield refused
@@ -2167,7 +2275,12 @@ class ScriptGenerator:
             out.extend(reader.feed(text[start:start + _BATCH_SLICE]))
             if reader.over_budget:
                 break
-        out.extend(reader.finish())
+        cut_off = (not reader.over_budget
+                   and getattr(message, "stop_reason", None) == "max_tokens")
+        out.extend(reader.finish(cut_off=cut_off))
+        _writer_ended("ahead", _writer_outcome(
+            message, plan, notes, getattr(message, "model", None)
+            or writer_for(notes)[0], batched=True), None, None)
         if notes is not None:
             # The model the batch answered with, as the API says it.
             notes.usage.add_model_call(

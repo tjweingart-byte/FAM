@@ -246,6 +246,9 @@ def _note(result: Digest, path: str, query: str) -> Digest:
     _BY_PATH.setdefault(path, collections.Counter())[result.outcome] += 1
     _SECONDS.setdefault(path, collections.deque(maxlen=SECONDS_KEPT)).append(
         round(result.seconds, 3))
+    import pipeline_errors as _errors
+
+    _errors.step("evidence cut", path, result.outcome, result.seconds)
     if result.outcome == "cut" and result.raw_chars:
         _KEPT_SHARE.append(round(result.kept_chars / result.raw_chars, 3))
     if result.outcome in ("timeout", "failed", "refused", "out_of_room",

@@ -19509,3 +19509,52 @@ first word is not yet in `/api/health` by path.
 Tests: `tests/test_writer_latency_270.py`, `tests/test_evidence_digest_270.py`
 (new); `tests/test_ei_split_268.py`, `tests/test_episode_intelligence.py`
 (the brief is three calls when split).
+
+## 271. The writer's ceiling caught, the writer timed in health, and every step timed on the errors page
+
+The owner (10.15): add the `max_tokens` check and the writer's timing to
+`/api/health`, and put all of these checks on the admin page's pipeline errors
+section, as a subsection of its own with average times, how often each fails
+"and any other things that make sense".
+
+**1. A writer that runs out of room.** The writer never read `stop_reason`
+for `max_tokens` (§270's open item). Thinking and the script share
+`MAX_OUTPUT_TOKENS`; a script that reaches it stops mid-sentence, and the
+`<<TITLE>>`, `<<SUMMARY>>`, `<<CATEGORY>>` and `<<NEXT>>` lines after it are
+lost. Now, streamed or batched, it is an **error** on the errors page ("ran
+out of room", naming the setting and what was lost), and the tail is spoken
+only when it is a whole sentence (`_ScriptReader.finish(cut_off=True)`). On
+a stream the final message is read before the tail when the stream ended by
+itself - it is already there - and after it, as before, when the budget
+valve stopped it.
+
+**2. The writer in `/api/health`** → `writer`: model, effort, the ceiling;
+how each call ended since boot (`ok`, `out_of_room`, `refused`, `failed`) by
+who was waiting (`search` - a listener, a search or a tap - or `ahead`,
+prefetch and the editions); and n / median / p90 / slowest of the time to
+its first word (its thinking) and to its last.
+
+**3. Every step timed, on the errors page.** Health is per process and
+forgets on a redeploy, and the admin page may be served by another worker,
+so the page reads a second table in the same store, `steps`
+(`pipeline_errors.step`): one row per measured step - when, which step, who
+was waiting, how it ended, seconds - buffered and written exactly as the
+errors are, never on the critical path, 14 days. Recorded: the whole brief
+and each of its parts (understand, search, the plan of the piece - a late
+one at the grace it was given), the writer's warm-up, the search across
+every rung (`sources` / `no_sources`), the live lookup (its outcome), the
+evidence cut, the writer's first word and last, and the whole wait from tap
+to first audio (each cache miss, when its first audio exists).
+
+The subsection, **Timing and health, by step**, sits under the errors on
+the same page: headline chips (tap to first audio median and p90, the
+brief's median and failure rate while a listener waits, the writer's
+thinking median, the writer running out of room in 7 days), then one row
+per step and path - last hour, 24h, 7 days, average over 24h and 7 days,
+median, p90, slowest, failed, failure rate (red above 1%), and every way
+it ended. *Failed* is a timeout, an error, a refusal, running out of room,
+an unreadable answer, a late part, a search with no sources or a provider
+that broke or answered stale; endings a step is built to have (a cut not
+made, no such game) are listed but not counted as failures.
+
+Tests: `tests/test_pipeline_health_271.py` (new).

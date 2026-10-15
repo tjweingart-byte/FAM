@@ -259,6 +259,11 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
       <h2>What went wrong, and where</h2>
       <p class="sub">Every stage of making an episode records what went wrong with it here (§269): the <b>brief</b> (episode intelligence timed out, ran out of room, failed, or one half did not answer), <b>live</b> providers (API-Sports, Finnhub, Polymarket, weather broke, timed out, or answered too late - never "no such game", which is an answer), <b>research</b> (a search backend failed, or every rung came back empty and the episode had no sources), the <b>writer</b> (failed, refused, or a check removed a sentence before it was spoken), the <b>editions</b> (a Trending or DailyFAM episode could not be written) and the <b>episode</b> itself (no voice, failed before any audio, no speech, broke mid-stream, or the voice fell behind). <b>Errors</b> mean somebody heard less than they should have, or nothing; <b>notices</b> mean a guard did its job or something degraded and the episode still played. The menu's badge is errors in the last hour. Last 7 days, newest first; no listener is named.</p>
       <div id="pipelineErrors"></div>
+      <div class="subsection" id="pipelineStepsBox">
+        <h3 style="margin-top:18px">Timing and health, by step</h3>
+        <p class="sub">How long each step of making an episode takes and how often it fails at its job (§270), whether or not anything went wrong - one row per step and per who was waiting: <b>listener waiting</b> (a search or a tap, in front of the first word), <b>ahead</b> (prefetch and the editions, nobody waiting) or <b>listener</b> (the whole wait from tap to first audio). <b>Failed</b> counts a timeout, an error, a refusal, running out of room, an unreadable answer, a part that came too late, a search with no sources, or a live provider that broke or answered stale; <b>how it ended</b> lists every ending, including the ones a step is built to have (a cut not made, no such game). Times are seconds; averages and percentiles are over the last 7 days unless marked 24h. Every server process writes here, and a redeploy keeps it.</p>
+        <div id="pipelineSteps"></div>
+      </div>
     </section>
     </div>
 
@@ -563,6 +568,51 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
       '<h3 style="margin-top:12px">Newest</h3><div class="tbl" style="max-height:420px"><table><thead><tr><th>When</th><th>Stage</th><th>What</th><th>Severity</th><th>Detail</th><th>Question</th></tr></thead><tbody>' + recent + '</tbody></table></div>';
   }
 
+  // ------------------------------------------------- pipeline timing (§270)
+  var STEP_PATHS = { search: "listener waiting", ahead: "ahead", listener: "listener" };
+  function drawSteps(r) {
+    var steps = (r && r.steps) || [];
+    if (!steps.length) {
+      $("pipelineSteps").innerHTML = '<p class="sub">No episode has been made in the last ' + ((r && r.days) || 7) + ' days, so there is nothing to time yet.</p>';
+      return;
+    }
+    function sec(v) { return v == null ? "-" : Number(v).toFixed(v < 10 ? 2 : 1) + "s"; }
+    function find(name, path) {
+      for (var i = 0; i < steps.length; i++) if (steps[i].step === name && steps[i].path === path) return steps[i];
+      return null;
+    }
+    function chip(label, value, hot) {
+      return '<span class="chip' + (hot ? ' on' : '') + '" style="cursor:default;pointer-events:none">' + esc(label) + ' <b>' + esc(value) + '</b></span>';
+    }
+    // The few numbers to read first: the whole wait, the two waits inside it
+    // that the brief and the writer add, and the failures that cost most.
+    var audio = find("first audio", "listener"), brief = find("brief", "search"),
+        writer = find("writer first word", "search"), wr = find("writer", "search"),
+        wa = find("writer", "ahead");
+    var room = ((wr && wr.outcomes.out_of_room) || 0) + ((wa && wa.outcomes.out_of_room) || 0);
+    var kp = [
+      chip("tap to first audio, median", audio ? sec(audio.median) : "-"),
+      chip("tap to first audio, p90", audio ? sec(audio.p90) : "-"),
+      chip("brief, median (listener waiting)", brief ? sec(brief.median) : "-"),
+      chip("brief failed (listener waiting)", brief ? (100 * brief.failure_rate).toFixed(1) + "%" : "-", brief && brief.failure_rate > 0.01),
+      chip("writer thinking, median (listener waiting)", writer ? sec(writer.median) : "-"),
+      chip("writer ran out of room, 7 days", String(room), room > 0)
+    ].join(" ");
+    var rows = steps.map(function (x) {
+      var ends = Object.keys(x.outcomes || {}).map(function (o) { return o + " " + x.outcomes[o]; }).join(", ");
+      var hot = x.failure_rate > 0.01;
+      return '<tr><td title="' + esc(x.step) + '">' + esc(x.label) + '</td><td>' + esc(STEP_PATHS[x.path] || x.path) +
+        '</td><td class="n">' + x.hour + '</td><td class="n">' + x.day + '</td><td class="n">' + x.week +
+        '</td><td class="n">' + sec(x.mean_day) + '</td><td class="n">' + sec(x.mean) + '</td><td class="n">' + sec(x.median) +
+        '</td><td class="n">' + sec(x.p90) + '</td><td class="n">' + sec(x.max) +
+        '</td><td class="n">' + x.failed + '</td><td class="n"' + (hot ? ' style="color:var(--bad, #c4502f);font-weight:700"' : '') + '>' +
+        (100 * x.failure_rate).toFixed(1) + '%</td><td title="' + esc(ends) + '">' + esc(ends) + '</td></tr>';
+    }).join("");
+    $("pipelineSteps").innerHTML = '<p>' + kp + '</p>' +
+      '<div class="tbl"><table><thead><tr><th>Step</th><th>Who waited</th><th>Last hour</th><th>24h</th><th>7 days</th><th>Average 24h</th><th>Average</th><th>Median</th><th>p90</th><th>Slowest</th><th>Failed</th><th>Failure rate</th><th>How it ended</th></tr></thead><tbody>' +
+      rows + '</tbody></table></div>';
+  }
+
   // ---------------------------------------------------------- live routing
   function drawRouting(r) {
     if (!r || !r.episodes) { $("routing").innerHTML = '<p class="sub">No episodes written in the last ' + ((r && r.days) || 7) + ' days.</p>'; return; }
@@ -733,6 +783,7 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
       drawProviders(s.providers);
       drawRouting(s.routing);
       drawErrors(s.pipeline_errors);
+      drawSteps(s.pipeline_errors);
       $("searches").innerHTML = table(s.top_searches, { short: true });
       if (!chipsDrawn) {
         $("chips").innerHTML = (s.suggestions || []).slice(0, 10).map(function (q) {

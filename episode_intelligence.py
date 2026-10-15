@@ -1516,13 +1516,15 @@ async def understand(query: str, minutes: int = DEFAULT_MINUTES, context: str = 
         # gets `EI_OUTLINE_GRACE_SECONDS` more on the search path (all of the
         # ceiling ahead, where nobody waits), then the brief goes without it.
         main = asyncio.gather(*(
-            _ask(client, part, query, minutes, context, now,
-                 tuple(covered or ()), timeout, notes) for part in parts))
+            _timed(part, path, _ask(client, part, query, minutes, context, now,
+                                    tuple(covered or ()), timeout, notes))
+            for part in parts))
         outline_task = None
         if len(parts) == 2 and settings.ei_outline:
-            outline_task = asyncio.ensure_future(
+            outline_task = asyncio.ensure_future(_timed(
+                "outline", path,
                 _ask(client, "outline", query, minutes, context, now,
-                     tuple(covered or ()), timeout, notes))
+                     tuple(covered or ()), timeout, notes)))
         try:
             answers = await main
         except BaseException:
@@ -1537,6 +1539,11 @@ async def understand(query: str, minutes: int = DEFAULT_MINUTES, context: str = 
         _PART_OUTCOMES.setdefault(part, collections.Counter())[kind] += 1
     if outline is not None:
         _PART_OUTCOMES.setdefault("outline", collections.Counter())[outline[0]] += 1
+        if outline[0] == "late":
+            # The part's own row is written when it ends; a late one never
+            # does, so its wait is recorded as the grace it was given.
+            pipeline_errors.step("brief: outline", path, "late",
+                                 time.monotonic() - started)
 
     head_kind, head, head_why = answers[0]
     words: dict = {}
@@ -1545,6 +1552,7 @@ async def understand(query: str, minutes: int = DEFAULT_MINUTES, context: str = 
         if search_kind == "ok":
             words = _search_fields(search, query)
 
+    pipeline_errors.step("brief", path, head_kind, _SECONDS[path][-1])
     if head_kind != "ok":
         _count(head_kind, path)
         # On /admin's pipeline errors (§269): a degraded brief is the first
@@ -1598,6 +1606,15 @@ async def understand(query: str, minutes: int = DEFAULT_MINUTES, context: str = 
              brief.why_now or "-", brief.why_now_confidence, brief.retrieval,
              brief.broader, path, _SECONDS[path][-1])
     return brief
+
+
+async def _timed(part: str, path: str, ask) -> tuple:
+    """One part's answer, with how long it took recorded for /admin (§270)."""
+    began = time.monotonic()
+    answer = await ask
+    pipeline_errors.step(f"brief: {'whole' if part == 'whole' else part}", path,
+                         answer[0], time.monotonic() - began)
+    return answer
 
 
 async def _outline_by(task, ahead: bool, started: float, timeout: float) -> tuple:

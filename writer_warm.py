@@ -58,8 +58,10 @@ def is_cold(model: str, effort: str, now: float | None = None) -> bool:
 
 
 async def _warm(client, model: str, effort: str, notes) -> None:
+    import pipeline_errors
     import script_generator
 
+    began = time.monotonic()
     try:
         response = await client.messages.create(
             model=model, max_tokens=0,
@@ -71,7 +73,10 @@ async def _warm(client, model: str, effort: str, notes) -> None:
         _COUNTS["failed"] += 1
         _LAST.pop((model, effort), None)
         log.info("writer warm-up for %s failed: %s", model, exc)
+        pipeline_errors.step("writer warm-up", "search", "failed",
+                             time.monotonic() - began)
         return
+    pipeline_errors.step("writer warm-up", "search", "ok", time.monotonic() - began)
     if notes is not None:
         notes.usage.add_model_call(model, getattr(response, "usage", None))
 

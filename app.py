@@ -71,6 +71,7 @@ import prefetch_sources
 from episode_intelligence import report as ei_report
 from evidence_digest import report as evidence_digest_report
 from writer_warm import report as writer_warm_report
+from script_generator import writer_report
 import live_captions
 import live_sources
 from gdelt import report as gdelt_report
@@ -1849,6 +1850,10 @@ async def health(request: Request) -> dict:
         # The writer's cache warmed at the tap (§270): sent, already warm,
         # failed, since boot.
         "writer_warm": writer_warm_report(),
+        # The writer itself (§270): model, effort and ceiling, how each call
+        # ended (ok, out_of_room, refused, failed) and how long it took to
+        # its first word and its last, by who was waiting.
+        "writer": writer_report(),
         # Which questions this server can answer from a live state rather than
         # from an article about one. Everything unconfigured is *named* here
         # rather than silently absent, because a scoreboard question answered
@@ -9262,6 +9267,10 @@ async def audio(
     # be read off the deploy's log while it is still playing.
     if stats.cache != "hit":
         log.info("%s", stats.marks.stage_report(plan.query))
+        # The whole wait, for /admin's pipeline timing (§270).
+        waited = stats.marks.stages().get("first audio")
+        if waited is not None:
+            pipeline_errors.step("first audio", "listener", "ok", waited)
     primed_bytes = max(0, sum(audio_codec_mod.pcm_len(c) for c in primed) - WAV_HEADER_BYTES)
     primed_seconds = primed_bytes / (sample_rate * 2)
     # §242: a kept Opus episode arrives already framed; anything else is
