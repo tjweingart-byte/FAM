@@ -187,6 +187,9 @@ def test_the_figure_check_runs_on_the_writer_s_stream():
 # the editions' own writer
 # --------------------------------------------------------------------------
 def _settings(monkeypatch, **changes):
+    # These pin §269's editions against a writer on `MODEL`; since §272 the
+    # writer has its own `WRITER_MODEL`, and "" means it follows `MODEL`.
+    changes.setdefault("writer_model", "")
     monkeypatch.setattr(sg, "settings", dataclasses.replace(sg.settings, **changes))
     # The boot check fills this process-wide; a test that booted the app
     # before this one must not decide which writer it sees.
@@ -257,9 +260,12 @@ def test_edition_writer_settings_are_copied():
 
 def test_write_py_reads_the_writers_to_compare():
     import write
+    # Each writer also says whether it reads the evidence cut (§270).
     assert write.writers("claude-sonnet-5, claude-haiku-5-5:medium") == [
-        ("claude-sonnet-5", config.settings.effort),
-        ("claude-haiku-5-5", "medium")]
+        ("claude-sonnet-5", config.settings.effort, False),
+        ("claude-haiku-5-5", "medium", False)]
+    assert write.writers("claude-haiku-5-5:low+digest") == [
+        ("claude-haiku-5-5", "low", True)]
     assert write.writers("") == []
 
 

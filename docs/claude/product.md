@@ -287,6 +287,13 @@ seconds is.
 > old behaviour: the raw query goes to Exa, with no structure, no why-now and
 > no temporal cautions.
 >
+> **Current (PROBLEMS.md §270, the owner's call):** the brief's third part
+> plans the piece before retrieval (`EI_OUTLINE=1`) - a shape stating no fact,
+> made beside the other two parts and never holding a searched brief more than
+> `EI_OUTLINE_GRACE_SECONDS` after them. Still nothing is *written* before
+> retrieval finishes: the plan is never spoken and the writer opens from the
+> evidence.
+>
 > **Amended again, on the same terms and at the same direction**
 > *(PROBLEMS.md §108).* Every guardrail that traded the opening's quality for
 > time to first audio is gone: nothing is written before the retrieval

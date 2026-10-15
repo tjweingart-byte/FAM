@@ -53,6 +53,10 @@ FLUSH_SECONDS = 10.0
 MAX_PENDING = 2000
 #: The newest rows the admin page lists.
 RECENT = 60
+#: Most measured steps a report reads (§273): about a week at ~700 new
+#: episodes a day, ten steps each. Past it the timings are over the newest
+#: this many, and the page says so (`steps_capped`).
+STEPS_READ = 50_000
 
 STAGES = ("brief", "live", "research", "writer", "edition", "episode")
 ERROR = "error"
@@ -86,29 +90,86 @@ class ErrorStore:
                               query    TEXT NOT NULL DEFAULT '',
                               severity TEXT NOT NULL DEFAULT 'error')""")
             db.execute("CREATE INDEX IF NOT EXISTS errors_at ON errors (at)")
+            # One row per measured step (§270): how long it took and how it
+            # ended, whether or not anything went wrong.
+            db.execute("""CREATE TABLE IF NOT EXISTS steps (
+                              at      REAL NOT NULL,
+                              step    TEXT NOT NULL DEFAULT '',
+                              path    TEXT NOT NULL DEFAULT '',
+                              outcome TEXT NOT NULL DEFAULT '',
+                              seconds REAL)""")
+            db.execute("CREATE INDEX IF NOT EXISTS steps_at ON steps (at)")
+            # One row per declined model call (§273): Haiku 5.5 has no
+            # server-side fallback, so each refusal is an episode that said
+            # the fixed line instead of the story, or a brief or cut lost.
+            db.execute("""CREATE TABLE IF NOT EXISTS refusals (
+                              at          REAL NOT NULL,
+                              call        TEXT NOT NULL DEFAULT '',
+                              model       TEXT NOT NULL DEFAULT '',
+                              path        TEXT NOT NULL DEFAULT '',
+                              category    TEXT NOT NULL DEFAULT '',
+                              explanation TEXT NOT NULL DEFAULT '',
+                              query       TEXT NOT NULL DEFAULT '',
+                              spoken      INTEGER NOT NULL DEFAULT 0)""")
+            db.execute("CREATE INDEX IF NOT EXISTS refusals_at ON refusals (at)")
 
     def _connect(self) -> sqlite3.Connection:
         db = store_db.connect(self.path, timeout=5, isolation_level=None)
         db.execute("PRAGMA journal_mode=WAL")
         return db
 
-    def add(self, rows: list, now: Optional[float] = None) -> None:
-        if not rows:
+    def add(self, rows: list, now: Optional[float] = None,
+            steps: Optional[list] = None,
+            refusals: Optional[list] = None) -> None:
+        steps = steps or []
+        refusals = refusals or []
+        if not rows and not steps and not refusals:
             return
         now = time.time() if now is None else now
         with self._lock:
             db = self._connect()
             try:
                 with db:
-                    db.executemany(
-                        "INSERT INTO errors (at, stage, kind, detail, query, "
-                        "severity) VALUES (?, ?, ?, ?, ?, ?)",
-                        [(r["at"], r["stage"], r["kind"], r["detail"],
-                          r["query"], r["severity"]) for r in rows])
-                    db.execute("DELETE FROM errors WHERE at < ?",
-                               (now - KEEP_DAYS * DAY,))
+                    if rows:
+                        db.executemany(
+                            "INSERT INTO errors (at, stage, kind, detail, query, "
+                            "severity) VALUES (?, ?, ?, ?, ?, ?)",
+                            [(r["at"], r["stage"], r["kind"], r["detail"],
+                              r["query"], r["severity"]) for r in rows])
+                        db.execute("DELETE FROM errors WHERE at < ?",
+                                   (now - KEEP_DAYS * DAY,))
+                    if steps:
+                        db.executemany(
+                            "INSERT INTO steps (at, step, path, outcome, seconds) "
+                            "VALUES (?, ?, ?, ?, ?)",
+                            [(r["at"], r["step"], r["path"], r["outcome"],
+                              r["seconds"]) for r in steps])
+                        db.execute("DELETE FROM steps WHERE at < ?",
+                                   (now - KEEP_DAYS * DAY,))
+                    if refusals:
+                        db.executemany(
+                            "INSERT INTO refusals (at, call, model, path, "
+                            "category, explanation, query, spoken) "
+                            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                            [(r["at"], r["call"], r["model"], r["path"],
+                              r["category"], r["explanation"], r["query"],
+                              r["spoken"]) for r in refusals])
+                        db.execute("DELETE FROM refusals WHERE at < ?",
+                                   (now - KEEP_DAYS * DAY,))
             finally:
                 db.close()
+
+    def steps_since(self, at: float, limit: int = 0) -> list:
+        """The newest steps since `at`, at most `limit` (0 is no limit) -
+        bounded so a busy week never makes the admin page read it whole
+        (review, §273)."""
+        limit = int(limit or STEPS_READ)
+        with closing(self._connect()) as db:
+            cursor = db.execute(
+                "SELECT at, step, path, outcome, seconds FROM steps "
+                "WHERE at >= ? ORDER BY at DESC LIMIT ?", (at, limit))
+            names = [c[0] for c in cursor.description]
+            return [dict(zip(names, values)) for values in cursor]
 
     def since(self, at: float) -> list:
         with closing(self._connect()) as db:
@@ -118,14 +179,28 @@ class ErrorStore:
             names = [c[0] for c in cursor.description]
             return [dict(zip(names, values)) for values in cursor]
 
+    def refusals_since(self, at: float) -> list:
+        with closing(self._connect()) as db:
+            cursor = db.execute(
+                "SELECT at, call, model, path, category, explanation, query, "
+                "spoken FROM refusals WHERE at >= ? ORDER BY at DESC", (at,))
+            names = [c[0] for c in cursor.description]
+            return [dict(zip(names, values)) for values in cursor]
+
     def clear(self) -> None:
         with self._lock, closing(self._connect()) as db:
             db.execute("DELETE FROM errors")
+            db.execute("DELETE FROM steps")
+            db.execute("DELETE FROM refusals")
 
 
 _STORE: Optional[ErrorStore] = None
 _STORE_LOCK = threading.Lock()
 _PENDING: list = []
+#: Measured steps not yet written (§270), held and flushed beside the errors.
+_PENDING_STEPS: list = []
+#: Declined calls not yet written (§273).
+_PENDING_REFUSALS: list = []
 _PENDING_LOCK = threading.Lock()
 _LAST_FLUSH = [0.0]
 _FLUSHING = [False]
@@ -148,6 +223,8 @@ def reset(error_store: Optional[ErrorStore] = None) -> None:
         _STORE = error_store
     with _PENDING_LOCK:
         _PENDING.clear()
+        _PENDING_STEPS.clear()
+        _PENDING_REFUSALS.clear()
         _LAST_FLUSH[0] = 0.0
 
 
@@ -156,7 +233,7 @@ def exists() -> bool:
     if _STORE is not None:
         return True
     with _PENDING_LOCK:
-        if _PENDING:
+        if _PENDING or _PENDING_STEPS or _PENDING_REFUSALS:
             return True
     return store_db.has_tables(data_path("PIPELINE_ERRORS_DB", "pipeline_errors.db"))
 
@@ -178,6 +255,160 @@ def record(stage: str, kind: str, detail: str = "", query: str = "",
                              name="pipeline-errors-flush").start()
     except Exception as exc:  # noqa: BLE001 - a record never costs an episode
         log.warning("could not record a pipeline error: %s", exc)
+
+
+#: The steps measured on every episode (§270), in the order a listener waits
+#: through them, with the words the admin page shows. A step recorded under
+#: a name not listed here is still reported, after these.
+STEPS = (
+    ("first audio", "Tap to first audio (the whole wait)"),
+    ("brief", "Brief (episode intelligence)"),
+    ("brief: understand", "Brief - understand part"),
+    ("brief: search", "Brief - search part"),
+    ("brief: outline", "Brief - plan of the piece"),
+    ("writer warm-up", "Writer cache warm-up"),
+    ("search", "Search (every rung)"),
+    ("live lookup", "Live lookup"),
+    ("evidence cut", "Evidence cut"),
+    ("writer first word", "Writer thinking (request to first word)"),
+    ("writer", "Writer (request to last word)"),
+)
+#: Outcomes that mean a step failed at its job - the page's failure rate.
+#: Anything else is an ending the step was built to have (`ok`, a cut not
+#: made, a provider with no such game).
+FAILED = frozenset({"timeout", "failed", "refused", "out_of_room", "unreadable",
+                    "late", "no_sources", "provider_failed", "stale"})
+
+
+def step(name: str, path: str, outcome: str,
+         seconds: Optional[float] = None) -> None:
+    """Note how long one step took and how it ended (§270). Never raises,
+    never waits. `path` is who was waiting: `search` (a listener, in front of
+    the first word), `ahead` (prefetch, the editions) or `listener` (any tap
+    that made an episode)."""
+    try:
+        entry = {"at": time.time(), "step": str(name or "")[:40],
+                 "path": str(path or "")[:12], "outcome": str(outcome or "")[:40],
+                 "seconds": None if seconds is None else round(float(seconds), 3)}
+        with _PENDING_LOCK:
+            _PENDING_STEPS.append(entry)
+            del _PENDING_STEPS[:-MAX_PENDING]
+            due = (not _FLUSHING[0]
+                   and time.monotonic() - _LAST_FLUSH[0] >= FLUSH_SECONDS)
+            if due:
+                _FLUSHING[0] = True
+        if due:
+            threading.Thread(target=_flush_in_background, daemon=True,
+                             name="pipeline-errors-flush").start()
+    except Exception as exc:  # noqa: BLE001 - a measurement never costs an episode
+        log.warning("could not record a pipeline step: %s", exc)
+
+
+def refusal(call: str, model: str, path: str, query: str, message=None,
+            spoken: int = 0) -> None:
+    """Note one declined model call, with what it was declined for (§273).
+
+    `call` names which call (`writer`, `writer (batch)`, `brief: understand`,
+    `evidence cut`...), `message` is the API's answer - its `stop_details`
+    carry the classifier's category and explanation - and `spoken` how many
+    sentences the listener had already heard when it stopped. Haiku 5.5 has
+    no server-side fallback, so this is the record of what a retry on another
+    model would have had to rescue. Never raises, never waits."""
+    try:
+        details = getattr(message, "stop_details", None)
+        entry = {
+            "at": time.time(), "call": str(call or "")[:40],
+            "model": str(model or getattr(message, "model", "") or "")[:60],
+            "path": str(path or "")[:12],
+            "category": str(getattr(details, "category", None) or "")[:40],
+            "explanation": " ".join(str(getattr(details, "explanation", None)
+                                        or "").split())[:300],
+            "query": " ".join(str(query or "").split())[:200],
+            "spoken": int(spoken or 0),
+        }
+        with _PENDING_LOCK:
+            _PENDING_REFUSALS.append(entry)
+            del _PENDING_REFUSALS[:-MAX_PENDING]
+            due = (not _FLUSHING[0]
+                   and time.monotonic() - _LAST_FLUSH[0] >= FLUSH_SECONDS)
+            if due:
+                _FLUSHING[0] = True
+        if due:
+            threading.Thread(target=_flush_in_background, daemon=True,
+                             name="pipeline-errors-flush").start()
+    except Exception as exc:  # noqa: BLE001 - a record never costs an episode
+        log.warning("could not record a refusal: %s", exc)
+
+
+def refusals_report(rows: list, steps: list, now: float) -> dict:
+    """How often calls were declined, for what, and on which questions."""
+    def counted(since: float) -> int:
+        return sum(1 for r in rows if r["at"] >= since)
+
+    # The share of writer calls declined: each writer call is a `writer`
+    # step whatever its ending, so the steps give the denominator.
+    writes = [r for r in steps if r["step"] == "writer"]
+    declined = sum(1 for r in writes if r["outcome"] == "refused")
+
+    def tally(key: str) -> list:
+        out: dict = {}
+        for r in rows:
+            name = r[key] or "(none given)"
+            item = out.setdefault(name, {"name": name, "day": 0, "week": 0,
+                                         "last_at": r["at"]})
+            item["week"] += 1
+            if r["at"] >= now - DAY:
+                item["day"] += 1
+        return sorted(out.values(), key=lambda x: (-x["week"], -x["last_at"]))
+
+    return {
+        "hour": counted(now - HOUR), "day": counted(now - DAY),
+        "week": len(rows),
+        "writer_calls": len(writes), "writer_refused": declined,
+        "writer_rate": round(declined / len(writes), 4) if writes else None,
+        "mid_episode": sum(1 for r in rows if r["spoken"]),
+        "by_call": tally("call"), "by_category": tally("category"),
+        "by_model": tally("model"),
+        "recent": rows[:RECENT],
+    }
+
+
+def _quantile(values: list, share: float):
+    if not values:
+        return None
+    return values[min(len(values) - 1, int(share * len(values)))]
+
+
+def steps_report(rows: list, now: float) -> list:
+    """Per step and path: how many, how long, how often it failed."""
+    groups: dict = {}
+    for r in rows:
+        groups.setdefault((r["step"], r["path"]), []).append(r)
+    order = {name: i for i, (name, _) in enumerate(STEPS)}
+    words = dict(STEPS)
+    out = []
+    for (name, path), items in groups.items():
+        week = sorted(r["seconds"] for r in items if r["seconds"] is not None)
+        day_items = [r for r in items if r["at"] >= now - DAY]
+        day = [r["seconds"] for r in day_items if r["seconds"] is not None]
+        outcomes: dict = {}
+        for r in items:
+            outcomes[r["outcome"]] = outcomes.get(r["outcome"], 0) + 1
+        failed = sum(n for o, n in outcomes.items() if o in FAILED)
+        out.append({
+            "step": name, "label": words.get(name, name), "path": path,
+            "hour": sum(1 for r in items if r["at"] >= now - HOUR),
+            "day": len(day_items), "week": len(items),
+            "mean_day": round(sum(day) / len(day), 3) if day else None,
+            "mean": round(sum(week) / len(week), 3) if week else None,
+            "median": _quantile(week, 0.5), "p90": _quantile(week, 0.9),
+            "max": week[-1] if week else None,
+            "failed": failed,
+            "failure_rate": round(failed / len(items), 4) if items else 0.0,
+            "outcomes": dict(sorted(outcomes.items(), key=lambda kv: -kv[1])),
+        })
+    out.sort(key=lambda x: (order.get(x["step"], len(order)), x["step"], x["path"]))
+    return out
 
 
 def mark_recorded(exc: BaseException) -> None:
@@ -216,15 +447,23 @@ def flush() -> None:
         with _PENDING_LOCK:
             taken = list(_PENDING)
             _PENDING.clear()
-        if not taken:
+            steps = list(_PENDING_STEPS)
+            _PENDING_STEPS.clear()
+            refusals = list(_PENDING_REFUSALS)
+            _PENDING_REFUSALS.clear()
+        if not taken and not steps and not refusals:
             return
         try:
-            target.add(taken)
+            target.add(taken, steps=steps, refusals=refusals)
         except Exception as exc:  # noqa: BLE001
             log.warning("could not write pipeline errors: %s", exc)
             with _PENDING_LOCK:
                 _PENDING[:0] = taken
                 del _PENDING[:-MAX_PENDING]
+                _PENDING_STEPS[:0] = steps
+                del _PENDING_STEPS[:-MAX_PENDING]
+                _PENDING_REFUSALS[:0] = refusals
+                del _PENDING_REFUSALS[:-MAX_PENDING]
 
 
 def report(now: Optional[float] = None, days: int = 7) -> dict:
@@ -235,10 +474,14 @@ def report(now: Optional[float] = None, days: int = 7) -> dict:
     the newest rows."""
     now = time.time() if now is None else now
     rows: list = []
+    steps: list = []
+    refused: list = []
     try:
         if exists():
             flush()
             rows = store().since(now - days * DAY)
+            steps = store().steps_since(now - days * DAY)
+            refused = store().refusals_since(now - days * DAY)
     except Exception as exc:  # noqa: BLE001 - a report is never load-bearing
         log.warning("could not read pipeline errors: %s", exc)
 
@@ -275,4 +518,11 @@ def report(now: Optional[float] = None, days: int = 7) -> dict:
                         key=lambda k: (k["severity"] != ERROR, -k["day"],
                                        -k["week"], -k["last_at"]))[:40],
         "recent": rows[:RECENT],
+        # How long each step takes and how often it fails (§270), from the
+        # same store, so every worker's episodes are in it and a redeploy
+        # keeps it.
+        "steps": steps_report(steps, now),
+        "steps_capped": len(steps) >= STEPS_READ,
+        # Every declined model call (§273): how often, for what, and where.
+        "refusals": refusals_report(refused, steps, now),
     }

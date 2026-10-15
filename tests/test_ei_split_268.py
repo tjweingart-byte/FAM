@@ -60,6 +60,15 @@ WORDED = {
 }
 
 
+OUTLINED = {
+    "beats": [{"does": "what the result of their latest game was",
+               "needs": ["final score"]}],
+    "opening_who": "the team", "opening_what": "the result of their latest game",
+    "opening_when": "the day it was played",
+    "ending": "the figure that settles the question",
+}
+
+
 class _Usage:
     input_tokens = 100
     output_tokens = 50
@@ -75,6 +84,8 @@ def _reply(payload, stop_reason="end_turn"):
 
 def _part_of(kwargs) -> str:
     props = kwargs["output_config"]["format"]["schema"]["properties"]
+    if "beats" in props:
+        return "outline"
     if "intent" in props and "search_query" in props:
         return "whole"
     return "understand" if "intent" in props else "search"
@@ -85,6 +96,7 @@ def model(monkeypatch):
     """A stubbed Claude that answers each half from its own script."""
     state = {"calls": [], "understand": _reply(UNDERSTOOD),
              "search": _reply(WORDED), "whole": _reply({**UNDERSTOOD, **WORDED}),
+             "outline": _reply(OUTLINED),
              "delay": {}}
 
     class _Messages:
@@ -164,14 +176,17 @@ def test_the_one_call_prompt_is_unchanged_and_each_half_reads_only_its_own():
 
 def test_a_split_brief_is_two_calls_at_once_and_one_brief(model):
     brief = asyncio.run(ei.understand("did the eagles win", 2))
-    assert sorted(part for part, _ in model["calls"]) == ["search", "understand"]
+    # The outline is the third part since §270, and is pinned in its own file.
+    assert sorted(part for part, _ in model["calls"]) == ["outline", "search",
+                                                          "understand"]
     assert not brief.degraded
     assert brief.intent == "recap" and brief.live_entity == "Philadelphia Eagles"
     assert brief.search_query == "Philadelphia Eagles game result"
     assert brief.title == "The Eagles' Latest Game"
     assert ei.report()["since_boot"] == {"ok": 1}, "one brief, counted once"
     assert ei.report()["parts_since_boot"] == {"understand": {"ok": 1},
-                                               "search": {"ok": 1}}
+                                               "search": {"ok": 1},
+                                               "outline": {"ok": 1}}
 
 
 def test_the_halves_run_side_by_side(model):

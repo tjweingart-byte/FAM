@@ -72,7 +72,11 @@ FAM_ENVIRONMENT = (
     # that quietly skips every EI behaviour and still reports green.
     "EPISODE_INTELLIGENCE", "EI_MODEL", "EI_EFFORT", "EI_MAX_TOKENS",
     "EI_TIMEOUT_SECONDS", "EI_DEFAULT_RECENCY_DAYS", "EI_AHEAD_TIMEOUT_SECONDS",
-    "EI_SPLIT", "EI_EXAMPLES",
+    "EI_SPLIT", "EI_EXAMPLES", "EI_OUTLINE", "EI_OUTLINE_GRACE_SECONDS",
+    # §270: the evidence cut in front of the writer.
+    "EVIDENCE_DIGEST", "EVIDENCE_DIGEST_MODEL", "EVIDENCE_DIGEST_TIMEOUT_SECONDS",
+    "EVIDENCE_DIGEST_AHEAD_TIMEOUT_SECONDS", "EVIDENCE_DIGEST_MAX_TOKENS",
+    "EVIDENCE_DIGEST_MIN_CHARS", "WRITER_WARM", "WRITER_MODEL",
     # Live facts. A developer with LIVE_SPORTS_PROVIDER=fake set must not run
     # a suite that quietly has a scoreboard in it - a test asserting FAM says
     # "no live feed" would pass or fail on their shell rather than the code.
