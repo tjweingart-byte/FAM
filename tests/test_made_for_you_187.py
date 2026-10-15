@@ -273,7 +273,7 @@ def test_made_for_you_reads_what_the_pool_is_holding():
 
 
 def test_the_sports_sweep_files_a_game_under_sport_and_majors_only():
-    """§276: BALLDONTLIE's sweep is the sports source. It covers major
+    """§280: BALLDONTLIE's sweep is the sports source. It covers major
     leagues only, so a game it offers is never a minor league abroad, and it
     is filed under sport, never under its teams' city."""
     from datetime import datetime, timezone

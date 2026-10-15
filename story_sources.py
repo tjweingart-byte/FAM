@@ -4,7 +4,7 @@
     Finnhub      what moved in the market today            (free key)
     Polymarket   what people are betting on                (keyless)
     BALLDONTLIE  what is being played today                (flat-rate key;
-                 `balldontlie_scores.make_signals`, §273, §276)
+                 `balldontlie_scores.make_signals`, §277, §280)
 
 Each one answers "what should FAM offer today" from a different direction, and
 the four together are what stop the browse page being four rows of the same
@@ -621,7 +621,7 @@ BUILDERS = {
     "trending": TrendingRegistrySignals,
     "finnhub": FinnhubSignals,
     "polymarket": PolymarketSignals,
-    # §273: the sports sweep on BALLDONTLIE, built lazily (it imports this).
+    # §277: the sports sweep on BALLDONTLIE, built lazily (it imports this).
     "balldontlie": lambda: __import__("balldontlie_scores").make_signals()(),
 }
 

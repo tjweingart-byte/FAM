@@ -767,7 +767,7 @@ class EpisodePlan:
     #: market only what people expect - and never evidence of an outcome.
     #: **Never in the cache key**: it is derived from the request.
     forecast: object = None
-    #: A player's or a team's report (§271): season figures and the league's
+    #: A player's or a team's report (§275): season figures and the league's
     #: injury report, from `live_facts.players`. Beside `live`, never in its
     #: place - a season average is not the state of tonight's game. **Never
     #: in the cache key**: it is derived from the request.
@@ -1008,7 +1008,7 @@ and do not claim anything about a document beyond what is in it.
                 "strongest thing you have, and a missing fact is never it.\n")
         reference = ""
         if research_mod.TIER_LABELS["reference"] in plan.evidence:
-            # §274: the encyclopedia entry, and what it may be used for.
+            # §278: the encyclopedia entry, and what it may be used for.
             reference = (
                 "\nA source marked as a reference encyclopedia is background: "
                 "use it for settled facts - who someone is, when they were "
@@ -1059,7 +1059,7 @@ for the script.
             log.warning("a live-facts block could not be rendered; continuing "
                         "without it", exc_info=True)
             live = ""
-    # A player's or a team's report (§271), after the scoreboard: its own
+    # A player's or a team's report (§275), after the scoreboard: its own
     # block, its own rules, and only a found one is rendered.
     if plan.players is not None:
         try:
@@ -1586,7 +1586,7 @@ class ScriptGenerator:
         import stories as stories_mod
 
         story = stories_mod.context_for(plan.query)
-        # **The reference look** (§274): the name the brief resolved, looked
+        # **The reference look** (§278): the name the brief resolved, looked
         # up on Wikipedia and Wikidata beside each rung's search and added
         # as one extra source when it is back in time. "" for none.
         reference = research_mod.reference_name_for(plan.brief)
@@ -1895,7 +1895,7 @@ class ScriptGenerator:
 
     async def players_lookup(self, plan: EpisodePlan,
                              notes: ScriptNotes | None = None) -> EpisodePlan:
-        """A player's or a team's report, on a sports question (§271).
+        """A player's or a team's report, on a sports question (§275).
         Started beside the scoreboard by `prepare`, and waited for the same
         way: never longer than its own clock past the evidence."""
         if plan.brief is None or plan.players is not None:
@@ -1973,7 +1973,7 @@ class ScriptGenerator:
         live_began = time.monotonic()
         domain = live_route.domain_of(plan.brief)
         live_task = asyncio.ensure_future(self.live_lookup(plan, notes))
-        # A player's or a team's report (§271), beside the scoreboard.
+        # A player's or a team's report (§275), beside the scoreboard.
         players_task = asyncio.ensure_future(self.players_lookup(plan, notes))
         try:
             research_plan = await self.research(plan, notes)

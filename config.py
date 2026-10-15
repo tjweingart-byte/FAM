@@ -409,7 +409,7 @@ class Settings:
     # (Parallel's and Perplexity's fast price covers up to 10),
     # the top 5 in the packet, 3 passages each - what every two-minute
     # episode gets, and so every myFAM, DailyFAM and Trending episode
-    # (§272). It was 3 sources x 2 passages (the hand-measured 2026-09-05
+    # (§276). It was 3 sources x 2 passages (the hand-measured 2026-09-05
     # benchmark), about 3 KB, and lists, tables, schedules and rankings were
     # the first thing it cut. Longer episodes get more
     # (`research.packet_size`). The cost is prompt tokens - roughly a
@@ -456,7 +456,7 @@ class Settings:
         default_factory=lambda: os.environ.get(
             "PARALLEL_MODE", "").strip().lower() or "fast")
     # The most excerpt text Parallel returns per page, cut into passages.
-    # 3,000 since §272 (was 1,500): three passages of about 500 characters
+    # 3,000 since §276 (was 1,500): three passages of about 500 characters
     # need a page to say more than three, or the packet's third is empty.
     parallel_chars_per_result: int = _env_int("PARALLEL_CHARS_PER_RESULT", 3000)
     # Perplexity's search type (`fast` at $1/1k, `web` at $5/1k) and how much
@@ -464,7 +464,7 @@ class Settings:
     perplexity_search_type: str = field(
         default_factory=lambda: os.environ.get(
             "PERPLEXITY_SEARCH_TYPE", "").strip().lower() or "fast")
-    # 1,024 since §272 (was 512), for the same reason as Parallel's 3,000.
+    # 1,024 since §276 (was 512), for the same reason as Parallel's 3,000.
     perplexity_tokens_per_page: int = _env_int("PERPLEXITY_TOKENS_PER_PAGE", 1024)
     # How long one passage is when a page's excerpt text is cut up - about
     # the size of the highlights every packet was first measured on.
@@ -953,7 +953,7 @@ class Settings:
         default_factory=lambda: os.environ.get("GDELT_CROSS_CHECK", "0")
         not in ("0", "false", "False", ""))
 
-    # --- The reference look: Wikipedia and Wikidata (§274) ---------------
+    # --- The reference look: Wikipedia and Wikidata (§278) ---------------
     # Beside the main search, when the brief names a person or organisation,
     # its Wikipedia summary and Wikidata's facts (born, age computed in code,
     # current positions) join the packet as ONE extra source after the web
@@ -1135,7 +1135,7 @@ class Settings:
     # information in the world". Keys are never written into source; these
     # come through the same chain as every other credential (process env >
     # FAM_SECRETS > .env > ~/.fam/env). See CREDENTIALS.md.
-    # --- Player facts (§271) -------------------------------------------
+    # --- Player facts (§275) -------------------------------------------
     # A player's season figures and the league's injury report, beside the
     # scoreboard - never instead of it. Off with 0; nothing is asked without
     # BALLDONTLIE_API_KEY either way. See `balldontlie.py`.

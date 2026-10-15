@@ -295,7 +295,7 @@ configured and returning them.
 domain off. `/api/health` lists which were derived under
 `live_sources.derived_from_key`.
 
-**Sports are BALLDONTLIE's** (PROBLEMS.md §273, §276 - the earlier sports
+**Sports are BALLDONTLIE's** (PROBLEMS.md §277, §280 - the earlier sports
 provider was removed at the owner's direction). One account and one flat plan
 (`BALLDONTLIE_TIER`: free, all-star or goat) cover every league it serves -
 the NFL, NBA, WNBA, NHL, MLB, college football, basketball and baseball, the
@@ -307,7 +307,7 @@ again that day, and every request is paced to the plan's per-minute limit
 scoreboard (`balldontlie_scores.ScoreBoard`) answers the game, its state and
 score, both teams' records and places from the league's own standings, their
 last and next games, a Formula 1 weekend and a UFC card; player figures and
-injury reports are `balldontlie.PlayerReports` (§271), beside it.
+injury reports are `balldontlie.PlayerReports` (§275), beside it.
 A lookup reads the sweep's card first (`balldontlie_scores.CARDS`): finding
 the game is free when the sweep listed it in the last ten minutes, and a
 score read off it is as old as the sweep.
@@ -455,7 +455,7 @@ and foreign listings that share a prefix, so "Apple" finds `AAPL` and not
 `AAPL.SW`. Never a guessed ticker: a hallucinated symbol returns somebody
 else's price, fresh and confident and wrong.
 
-## Player and team reports (§271)
+## Player and team reports (§275)
 
 Beside the scoreboard, never in its slot: `live_facts.players` asks
 `balldontlie.PlayerReports` on any sports question, and the writer gets a
@@ -465,4 +465,4 @@ and the league's injury report, for the 22 leagues BALLDONTLIE covers. Set
 ALL-STAR adds injuries and season figures; GOAT adds soccer injuries and golf
 and tennis figures). `python -c "import asyncio, balldontlie;
 print(asyncio.run(balldontlie.PlayerReports().verify()))"` makes the first real
-request. Full reasoning: PROBLEMS.md §271.
+request. Full reasoning: PROBLEMS.md §275.

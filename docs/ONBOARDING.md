@@ -620,7 +620,7 @@ top N, because nothing about a signup is verified.
   metering ledger, which is written at spend time from the providers' own
   usage figures (`METERING.md`).
 - **Per outside service, per day:** `/admin`, under **Outside services,
-  requests per day**. BALLDONTLIE has a row per league under its own (§276).
+  requests per day**. BALLDONTLIE has a row per league under its own (§280).
 - **Prefetch:** the budget block in `/api/health` (`PREFETCH_DAILY_DOLLARS`).
 - **The plan and its triggers:** [`FINANCIAL.md`](FINANCIAL.md) for unit
   costs and [`SCALING_TIMELINE.md`](SCALING_TIMELINE.md) for when to change
@@ -639,7 +639,7 @@ There is no checkout yet. Before one exists:
 3. **Open-Meteo API Standard.** Set `OPEN_METEO_API_KEY` and keep
    `OPEN_METEO_KEYLESS=0`. The keyless endpoint is non-commercial.
 4. **BALLDONTLIE ALL-STAR** (or GOAT for soccer injuries, golf and tennis
-   figures). Then set `BALLDONTLIE_TIER`. One plan covers every league (§276).
+   figures). Then set `BALLDONTLIE_TIER`. One plan covers every league (§280).
 5. ~~**A static-IP proxy for GDELT** (QuotaGuard Static)~~. Not needed since
    §211: GDELT is read from its export files, which have no per-address limit.
    `tools/gdelt_probe.py` checks a real sync.

@@ -222,7 +222,7 @@ def catalogue() -> list[dict]:
         "" if gnews_paid else "Essential EUR 49.99/mo before charging anyone",
         "GNEWS_PLAN; gnews.io/pricing (2026-09-25)"))
 
-    # §273, §276: every league's scores, standings and player reports on one
+    # §277, §280: every league's scores, standings and player reports on one
     # flat-rate plan, named by BALLDONTLIE_TIER. Its price is not in the
     # repository, so a paid plan asks for it rather than guessing one.
     bdl_tier = str(_setting("balldontlie_tier", "free") or "free").lower()
@@ -827,7 +827,7 @@ def build(now: Optional[float] = None) -> bytes:
         f"+{L}{R['sports']}*{a('New episodes per search, sports')}"), COUNT)
     prow("episode_cost", "Episodes (Claude, search, voice)", lambda m, L: (
         f"={L}{R['episodes']}*{a('Cost of one new episode')}"))
-    # One flat plan for every league (§276): what Costs says now, and from
+    # One flat plan for every league (§280): what Costs says now, and from
     # launch whatever plan the yellow rate cell says was bought.
     prow("sports_data", "Sports data (BALLDONTLIE)", lambda m, L: (
         f"=IF({live(L)},MAX({cs_vendor('BALLDONTLIE')},{t('bdl_launch')}),"

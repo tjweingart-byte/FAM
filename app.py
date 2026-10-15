@@ -1087,7 +1087,7 @@ def _database_report() -> list[dict]:
                            story_store.store().path))
     except Exception:  # pragma: no cover - a report is never load-bearing
         pass
-    # The reference look's answers and Enterprise's monthly count (§274).
+    # The reference look's answers and Enterprise's monthly count (§278).
     # Created by the first look, and reported once it exists.
     try:
         import wikimedia
@@ -1903,7 +1903,7 @@ async def health(request: Request) -> dict:
         # separately from `research` because they fail separately: the web
         # search can be healthy while this is off, and vice versa.
         "gdelt": gdelt_report(),
-        # The reference look (§274): on or off, which route serves it
+        # The reference look (§278): on or off, which route serves it
         # (Wikimedia Enterprise or the keyless summary), and the month's
         # Enterprise requests against the cap.
         "wikipedia": _wikipedia_report(),
@@ -3895,7 +3895,7 @@ async def entitlements_read(request: Request) -> dict:
 
 
 def _wikipedia_report() -> dict:
-    """`wikimedia.report`, never raising (§274)."""
+    """`wikimedia.report`, never raising (§278)."""
     try:
         import wikimedia
 

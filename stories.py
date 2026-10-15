@@ -292,7 +292,7 @@ class Signal:
     anchors: tuple = ()
     #: A game in a minor league (§187). Set by a sports source from the
     #: provider's own league row, never guessed from the words; BALLDONTLIE
-    #: covers only major leagues, so its sweep never sets it (§276). Made for you never offers one from another continent
+    #: covers only major leagues, so its sweep never sets it (§280). Made for you never offers one from another continent
     #: to a listener who does not follow it - see `topics._far_minor_league`.
     minor_league: bool = False
 
@@ -2168,7 +2168,7 @@ def context_for(query: str, now: Optional[float] = None) -> Optional[StoryContex
                                 observed_at=story.observed_at,
                                 hosts=tuple(hosts[:MAX_STORY_HOSTS]),
                                 measured=bool(story.measured))
-        # **A Trending story's outlets too** (§272). The bank is GNews'
+        # **A Trending story's outlets too** (§276). The bank is GNews'
         # edition, not the pool, so it was never matched here and a tap
         # searched the whole web only. Its outlets are searched beside the
         # main search the same way; its observation is GNews' headlines and

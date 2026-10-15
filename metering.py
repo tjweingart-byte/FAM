@@ -439,7 +439,7 @@ class MeterStore:
             existing = {row["name"] for row in
                         conn.execute("PRAGMA table_info(usage)")}
             # The search columns were named for a vendor FAM no longer uses
-            # (§275): renamed in place, so every stored row keeps its spend.
+            # (§279): renamed in place, so every stored row keeps its spend.
             for old, new in (("exa_searches", "web_searches"),
                              ("exa_cost", "web_search_cost"),
                              ("exa_usd", "web_search_usd")):

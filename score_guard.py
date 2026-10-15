@@ -249,7 +249,7 @@ class ScoreGuard:
         self.status = (facts.status if facts is not None else live_facts.UNKNOWN)
         sentences = list(getattr(facts, "facts", []) or []) if facts else []
         self.allowed = _pairs_in_facts(sentences)
-        # A player's or a team's report vouches for its own numbers (§271):
+        # A player's or a team's report vouches for its own numbers (§275):
         # "22 wins and 3 losses" is a fighter's record, not tonight's score.
         # Pairs only - it never sets the game's status, period or result.
         players = getattr(plan, "players", None)

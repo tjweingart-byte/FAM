@@ -1,4 +1,4 @@
-"""§271: a player's season and the league's injury report, beside the scoreboard.
+"""§275: a player's season and the league's injury report, beside the scoreboard.
 
 BALLDONTLIE answers here from a stub that speaks its published field names
 (the OpenAPI specs `balldontlie.py` was written from). Nothing reaches the

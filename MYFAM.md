@@ -246,7 +246,7 @@ many times the price.
     GDELT        what the world's press is writing about   (keyless)
     Finnhub      what moved in the market today            (free key)
     Polymarket   what people are betting on                (keyless)
-    BALLDONTLIE  what is being played today                (flat-rate key, §273, §276)
+    BALLDONTLIE  what is being played today                (flat-rate key, §277, §280)
 
 Plus the `trending` registry, which is where `TRENDING_SOURCE` installs a feed;
 it became one source among several rather than being deprecated, so anything

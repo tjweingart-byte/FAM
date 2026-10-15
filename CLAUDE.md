@@ -313,10 +313,10 @@ Research and truth
   status vocabulary, set by evidence; resolution from the provider's catalogue,
   never a model; seven lookup outcomes; stale data withheld in code; schedule
   records (§178); no score without a provider. [live-facts] Player
-  reports (§271) by the scoreboard; unlisted≠fit. [player-facts]
+  reports (§275) by the scoreboard; unlisted≠fit. [player-facts]
   Code routes named teams/listings (§265); it only asks. [live-route]
 - **A score or market figure is checked before it is spoken** (§259, §269). [score-guard]
-- **Sports are BALLDONTLIE's** (§273, §276): one plan (`BALLDONTLIE_TIER`),
+- **Sports are BALLDONTLIE's** (§277, §280): one plan (`BALLDONTLIE_TIER`),
   every league, an `/admin` row per league. [sports-balldontlie]
 - **Ask outside services when somebody is looking and there is something to
   see** (§191): sports sweep only `balldontlie_scores.SWEPT`, only while one

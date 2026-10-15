@@ -1,11 +1,11 @@
-"""The scoreboard, from BALLDONTLIE, for every league it covers (§273).
+"""The scoreboard, from BALLDONTLIE, for every league it covers (§277).
 
-This is FAM's only sports provider (§273, §276, at the owner's direction):
+This is FAM's only sports provider (§277, §280, at the owner's direction):
 the game a question is about, its state and score, both teams' records and
 places in the standings, their last and next games, a Formula 1 weekend, a UFC
 card - and the myFAM sweep that puts today's games on tiles with a live score
 (`Signals`). Player figures and injury reports are `balldontlie.PlayerReports`
-(§271); both share one account's client (`balldontlie.shared_client`).
+(§275); both share one account's client (`balldontlie.shared_client`).
 
 The rules are the scoreboard's (§88, §259):
 
@@ -467,7 +467,7 @@ def schedule_facts(league: League, team: dict, rows: list, skip_id=None,
 # The live source
 # --------------------------------------------------------------------------
 class ScoreBoard(LiveSource):
-    """The game a sports question is about, from BALLDONTLIE (§273)."""
+    """The game a sports question is about, from BALLDONTLIE (§277)."""
 
     name = NAME
     domain = "sports"
@@ -886,8 +886,8 @@ def make_signals():
     import story_sources
 
     class Signals(stories.StorySource):
-        """Today's games in the followed leagues, with the score (§273,
-        §276: the only sports sweep; §191's pacing:
+        """Today's games in the followed leagues, with the score (§277,
+        §280: the only sports sweep; §191's pacing:
         swept only when somebody drew myFAM recently, and only while a
         followed game is on or about to start)."""
 

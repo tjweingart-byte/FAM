@@ -220,7 +220,7 @@ import live_facts  # noqa: E402
 import live_sources as LS  # noqa: E402
 import research  # noqa: E402
 
-# §276: the scoreboard is BALLDONTLIE's (`balldontlie_scores`).
+# §280: the scoreboard is BALLDONTLIE's (`balldontlie_scores`).
 NFL = balldontlie.LEAGUES["nfl"]
 NOW = datetime.now(timezone.utc).replace(microsecond=0)
 TEAMS = [

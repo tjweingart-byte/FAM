@@ -132,7 +132,7 @@ Render deployment; since §208 it pins every store there (21 since §211), as th
 | **local_news.db** (`LOCAL_NEWS_DB`) | `local_news.py`, `places.py`, `weather.py` | `outlets`, `items`, `demand`, `excluded`, `places`, `weather` | No (no `user_id`) | Items pruned daily past 30 days (`LOCAL_NEWS_KEEP_DAYS`, never below the 14-day window; each outlet keeps its newest 200, §208); demand 30 days | n/a · kept |
 | **gdelt_export.db** (`GDELT_EXPORT_DB`, §211) | `gdelt.py` (`ExportStore`) | `files`, `articles`, `theme_counts`, `domains`, `meta` | No, shared | 24 hours of GDELT's 15-minute export files (`GDELT_EXPORT_KEEP_HOURS`), ≤ 1,500 articles per file | n/a · kept |
 | **story_pool.db** (`STORY_POOL_DB`, §267) | `story_store.py` (`StoryStore`), `stories.py` | `snapshots` | No, shared | One row each for the pool (≤ 96 stories) and its ledgers, rewritten every refresh | n/a · **Emptied** |
-| **wikimedia.db** (`WIKIMEDIA_DB`, §274) | `wikimedia.py` (`ReferenceStore`) | `answers`, `enterprise` | No, shared | Each name's reference answer for 24 hours (read as a miss after that, overwritten on the next look); one Enterprise request count per month | n/a · kept |
+| **wikimedia.db** (`WIKIMEDIA_DB`, §278) | `wikimedia.py` (`ReferenceStore`) | `answers`, `enterprise` | No, shared | Each name's reference answer for 24 hours (read as a miss after that, overwritten on the next look); one Enterprise request count per month | n/a · kept |
 
 ### 2.2 Each store: what it holds, who writes it, who reads it
 
@@ -245,7 +245,7 @@ was playing: transcript ≤ 30,000 chars, ≤ 30 sources, §175), `resolved_at`,
 production since §207 (`ENFORCE_QUOTAS=1` on `fam` in `render.yaml`).
 
 **metering.db**: `usage`, one row per episode: tokens (including
-`cache_read_tokens`/`cache_write_tokens`, §179), web searches (`web_searches`; renamed from the first vendor's name in §275), live calls,
+`cache_read_tokens`/`cache_write_tokens`, §179), web searches (`web_searches`; renamed from the first vendor's name in §279), live calls,
 `audio_seconds`, `cache_hit`, and cost split `claude_usd` / `web_search_usd` /
 `gpu_usd`. Since §207 the GPU line uses the measured Chatterbox speed
 (`SYNTHESIS_REALTIME_FACTOR` 4.6) at `GPU_USD_PER_HOUR` 0.69.
@@ -275,7 +275,7 @@ stored**; it is computed from `events` and `preferences` on each request.
 `spend` (GNews requests per day).
 
 **provider_usage.db** (`provider_usage.py`, §179): `calls` per UTC day per
-provider: `balldontlie` (and `balldontlie/<league>` per league, §271, §276), `parallel`, `perplexity`,
+provider: `balldontlie` (and `balldontlie/<league>` per league, §275, §280), `parallel`, `perplexity`,
 `gdelt`, `polymarket`, `gnews`, `finnhub`, `nws`, `open_meteo`, `local_feeds`.
 Counted in memory and flushed at most every 10 s (`FLUSH_SECONDS`). Feeds
 `/admin`. Since §211 `gdelt` counts the export-file downloads (~200 a day,
@@ -306,7 +306,7 @@ WebP **BLOB**), its scene, prompt, the checker's verdict, status; `spend`
   fetched on first ask and swept at 05:00 and 17:00 local time. US warnings
   are asked live, not stored.
 
-**wikimedia.db** (`wikimedia.ReferenceStore`, §274): the reference look's
+**wikimedia.db** (`wikimedia.ReferenceStore`, §278): the reference look's
 answers - one row per asked name (or name plus the question's words, when two
 entries shared the name), holding the raw Wikipedia summary and Wikidata facts
 or "" for no match, read for 24 hours - and `enterprise`, the calendar month's
@@ -397,7 +397,7 @@ source of truth.
 | Trending edition | `trending_bank._CURRENT` | The live edition, reloaded from `trending_bank.db` | Reload every 60 s |
 | Trending feed (legacy) | `trending._FEED` | Old GDELT themes | 15 min |
 | Live facts | `live_facts.FACT_CACHE` | Scores, quotes, odds | Short, by status (in progress shortest) |
-| Sports sweep and scoreboard | `balldontlie_scores.CARDS`, `TEAMS`, `STANDINGS`, `SCHEDULES`, `SWEPT_AT` | Today's cards, catalogues, tables, schedules (§273) | 10 min to a day, per process |
+| Sports sweep and scoreboard | `balldontlie_scores.CARDS`, `TEAMS`, `STANDINGS`, `SCHEDULES`, `SWEPT_AT` | Today's cards, catalogues, tables, schedules (§277) | 10 min to a day, per process |
 | GDELT download state | `gdelt.STATE` | Last success, last attempt, failures in a row, last error, last file (§211; the §207 breaker is deleted) | Process lifetime |
 | Provider counts (pending) | `provider_usage._PENDING` | Requests not yet flushed to `provider_usage.db` | ≤ 10 s |
 | Weather lookups | `weather._POINTS`, `weather._PLACES` | NWS grid points, resolved places | Process lifetime |

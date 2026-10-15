@@ -6,7 +6,7 @@ the first quarter - lifted from a live blog in the packet. These pin the four
 answers: the writer is told, the sentence is removed if it is written anyway,
 the feed's own status is sanity-checked, and a refused account is loud.
 
-§276: the scoreboard is BALLDONTLIE's (`balldontlie_scores`); the checks on
+§280: the scoreboard is BALLDONTLIE's (`balldontlie_scores`); the checks on
 the feed are pinned against its rows.
 """
 

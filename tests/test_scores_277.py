@@ -1,4 +1,4 @@
-"""§273: BALLDONTLIE is the scoreboard - games, standings, F1, UFC, the sweep.
+"""§277: BALLDONTLIE is the scoreboard - games, standings, F1, UFC, the sweep.
 
 Every request goes through `live_sources._json`, stubbed: rows here are
 shaped as BALLDONTLIE's published specs shape them. No network.
@@ -239,7 +239,7 @@ def test_standings_shapes_say_a_place():
 def test_the_balldontlie_key_is_the_sports_provider(monkeypatch):
     use(monkeypatch, live_sports_provider="")
     assert live_sources.configured()["sports"] == "balldontlie"
-    # §276: BALLDONTLIE is the only sports provider; no key, no scoreboard.
+    # §280: BALLDONTLIE is the only sports provider; no key, no scoreboard.
     use(monkeypatch, balldontlie_api_key="", live_sports_provider="")
     assert live_sources.configured()["sports"] == ""
     assert set(live_sources.BUILDERS["sports"]) == {"fake", "balldontlie"}

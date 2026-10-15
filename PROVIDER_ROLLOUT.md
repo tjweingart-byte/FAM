@@ -79,9 +79,9 @@ written topics have taste in them a generated row will not.
 
 ## 2. BALLDONTLIE — sports, every league on one key
 
-BALLDONTLIE is FAM's only sports provider (PROBLEMS.md §273, §276): the
+BALLDONTLIE is FAM's only sports provider (PROBLEMS.md §277, §280): the
 scoreboard, the myFAM sweep's live scores, standings, last and next games,
-Formula 1, UFC, and player and injury reports (§271).
+Formula 1, UFC, and player and injury reports (§275).
 
 **Step 1.** Sign up at balldontlie.io. The free plan reads rosters, teams and
 games at 5 requests a minute - enough to verify; standings, injuries and

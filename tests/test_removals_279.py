@@ -1,4 +1,4 @@
-"""§275: the old search vendor's names are gone from the metering ledger."""
+"""§279: the old search vendor's names are gone from the metering ledger."""
 from __future__ import annotations
 
 import os

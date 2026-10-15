@@ -89,7 +89,7 @@ PREDICTION_MARKET = "prediction-market"
 #: market's or a scoreboard's.
 WEATHER = "weather-forecast"
 
-#: A `LiveFacts.kind` for a player's or a team's report (§271): who plays
+#: A `LiveFacts.kind` for a player's or a team's report (§275): who plays
 #: where, season figures to date and the league's injury report. Not an
 #: event, so it has no status of its own - like weather it gets its own
 #: wording - and it sits beside the scoreboard, never in its slot.
@@ -357,7 +357,7 @@ class LiveFacts:
                 "It is the only source of weather you have.")
         elif self.kind == PLAYER_REPORT:
             # Not an event: no "finished" or "under way", so the status rule
-            # is replaced outright, as weather's is (§271).
+            # is replaced outright, as weather's is (§275).
             rule = (
                 "These are PLAYER and TEAM facts from the league's data "
                 "provider: who plays where, season figures to the date shown, "
@@ -687,7 +687,7 @@ def sources_for(domain: str) -> list:
     return [s for s in _SOURCES if s.domain == domain]
 
 
-#: Sources of player and team reports (§271). Kept apart from `_SOURCES`
+#: Sources of player and team reports (§275). Kept apart from `_SOURCES`
 #: because they answer beside the scoreboard rather than in its place:
 #: `lookup` must never return a season average as the state of tonight's
 #: game, and a player report must never wait for one.
@@ -1022,7 +1022,7 @@ def players_budget_seconds() -> float:
 
 
 async def players(brief, notes=None, patience: float = 0.0) -> Optional[LiveLookup]:
-    """A player's or a team's report, for a sports question (§271).
+    """A player's or a team's report, for a sports question (§275).
 
     Asked beside `lookup`, never instead of it, on any question whose domain
     is sports - the brief's or the one code routed it to. The entity is
@@ -1153,7 +1153,7 @@ def report() -> dict:
         ok, why = source.diagnose()
         players_entries.append({"name": source.name, "ready": ok, "detail": why})
     return {
-        # Player and team reports beside the scoreboard (§271).
+        # Player and team reports beside the scoreboard (§275).
         "players": {"enabled": bool(settings.player_facts),
                     "sources": players_entries,
                     "max_age_seconds": PLAYER_MAX_AGE_SECONDS},

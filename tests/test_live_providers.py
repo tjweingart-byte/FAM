@@ -33,7 +33,7 @@ def entity(domain="sports", provider="p", id="1", label="KC v DEN"):
     return live_facts.Entity(domain=domain, provider=provider, id=id, label=label)
 
 
-#: BALLDONTLIE's NFL game (§273, §276): the motivating case.
+#: BALLDONTLIE's NFL game (§277, §280): the motivating case.
 NFL_GAME = {
     "id": 9, "status_state": "in_progress", "period_detail": "3rd Quarter",
     "home_team": {"id": 1, "full_name": "Kansas City Chiefs"},
@@ -57,7 +57,7 @@ def _facts(row, league="nfl", teams=None):
 
 
 # --------------------------------------------------------------------------
-# sports: one provider, every league its own shape (§276)
+# sports: one provider, every league its own shape (§280)
 # --------------------------------------------------------------------------
 @pytest.mark.parametrize("subject, expected", [
     ("who won the NFL game", "nfl"),

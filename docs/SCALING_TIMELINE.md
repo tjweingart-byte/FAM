@@ -12,7 +12,7 @@ exact point at which to change it, what to change it to, and what that costs.
 Every number is an **estimate** from `FINANCIAL.md` §4 unless it says otherwise.
 Re-check list prices before buying.
 
-> **Current (PROBLEMS.md §270, §275):** Exa is no longer in the code; §3's stages apply to Parallel and Perplexity, the search FAM now pays for.
+> **Current (PROBLEMS.md §274, §279):** Exa is no longer in the code; §3's stages apply to Parallel and Perplexity, the search FAM now pays for.
 
 ## How to read it
 
@@ -127,9 +127,9 @@ RunPod holds no database.
 
 ## 6. BALLDONTLIE — live scores and score lines on cards
 
-**Today:** one BALLDONTLIE account for every league (PROBLEMS.md §273, §276):
+**Today:** one BALLDONTLIE account for every league (PROBLEMS.md §277, §280):
 the scoreboard, the myFAM sweep's score lines, standings, last and next
-games, Formula 1, UFC, and player and injury reports (§271). One flat plan,
+games, Formula 1, UFC, and player and injury reports (§275). One flat plan,
 limited **per minute**, not per day: free 5 requests/min (rosters, teams and
 games only), ALL-STAR 60/min (standings, injuries, season figures), GOAT
 600/min (soccer injuries, golf and tennis figures). Since §191 the myFAM
@@ -218,7 +218,7 @@ shared by everybody, so it does not grow with listeners.
 3. Render: Standard plan, 10 GB disk, `AUDIO_CACHE_MAX_MB` raised.
 4. Anthropic: next usage tier requested. (`ENFORCE_QUOTAS=1` is in `render.yaml`, §207.)
 5. Exa: card on file, auto top-up.
-6. Licences before charging money: GNews Essential, Finnhub commercial, BALLDONTLIE ALL-STAR or GOAT (`BALLDONTLIE_TIER`, §276).
+6. Licences before charging money: GNews Essential, Finnhub commercial, BALLDONTLIE ALL-STAR or GOAT (`BALLDONTLIE_TIER`, §280).
 7. Licences: `/api/health` → `licences.commercial_ready` is true (GNEWS_PLAN, FINNHUB_PLAN, OPEN_METEO_API_KEY set after buying, §207).
 
 Fixed monthly cost of the checklist (estimate): ~$150/mo before launch day,

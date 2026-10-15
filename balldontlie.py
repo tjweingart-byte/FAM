@@ -1,4 +1,4 @@
-"""Player and team reports from BALLDONTLIE, for every league it covers (§271).
+"""Player and team reports from BALLDONTLIE, for every league it covers (§275).
 
 What it answers, beside the scoreboard
 --------------------------------------
@@ -172,7 +172,7 @@ PER_MINUTE = {"free": 5, "all-star": 60, "goat": 600}
 ENDPOINT_TIERS = {
     "players": "free", "teams": "free",
     "injuries": "all-star", "season": "all-star",
-    # The scoreboard (§273): games, matches and events are Free; tables and
+    # The scoreboard (§277): games, matches and events are Free; tables and
     # Formula 1 sessions are not.
     "games": "free", "standings": "all-star", "sessions": "all-star",
     ("fifa", "games"): "goat",
@@ -513,7 +513,7 @@ def shared_client() -> Client:
 # The source
 # --------------------------------------------------------------------------
 class PlayerReports(LiveSource):
-    """A player's or a team's report, from BALLDONTLIE (§271)."""
+    """A player's or a team's report, from BALLDONTLIE (§275)."""
 
     name = NAME
     domain = "sports"

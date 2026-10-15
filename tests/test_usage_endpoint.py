@@ -170,6 +170,6 @@ def test_a_failed_episode_is_still_recorded(metered, monkeypatch):
     assert client.get("/api/audio?q=anything&minutes=1&fmt=pcm").status_code == 502
     rows = store.rows()
     assert len(rows) == 1, "money was spent and nothing recorded it"
-    # The column keeps its first vendor's name (§270); it holds every paid
+    # The column keeps its first vendor's name (§274); it holds every paid
     # web search.
     assert rows[0]["web_search_cost"] == pytest.approx(0.005)

@@ -6,7 +6,7 @@ At the owner's direction, after the admin page's first day of counts
 on any tile):
 
 * The sports sweep follows only the leagues the owner named; every other
-  league is looked up on demand by the episode that asks. Since §276 the
+  league is looked up on demand by the episode that asks. Since §280 the
   sweep is BALLDONTLIE's (`balldontlie_scores.SWEPT`, `Signals`).
 * A followed league's card is read once a day, then again only while a
   followed game is on or about to start - and only if somebody drew myFAM

@@ -134,7 +134,7 @@ TIER_PRIMARY = frozenset({
     # The leagues' own sites: primary for their own schedules and results.
     "nfl.com", "nba.com", "wnba.com", "mlb.com", "nhl.com", "ncaa.com",
     "premierleague.com", "uefa.com", "fifa.com",
-    # §272: medical journals and the agencies, central banks and statistics
+    # §276: medical journals and the agencies, central banks and statistics
     # offices a `.gov` suffix does not catch - each primary for its own
     # findings, figures and decisions.
     "nejm.org", "thelancet.com", "jamanetwork.com", "bmj.com", "cell.com",
@@ -153,7 +153,7 @@ TIER_ESTABLISHED = frozenset({
     "foxsports.com", "bleacherreport.com", "theringer.com",
     "sports-reference.com", "pro-football-reference.com",
     "basketball-reference.com", "baseball-reference.com", "espncricinfo.com",
-    # §272: science and health press, entertainment trade press and the
+    # §276: science and health press, entertainment trade press and the
     # box-office and chart trackers - reliable for their beat, not primary.
     "statnews.com", "medpagetoday.com", "scientificamerican.com",
     "newscientist.com", "variety.com", "hollywoodreporter.com",
@@ -252,7 +252,7 @@ TIER_LABELS = {
     "primary": "wire service, paper of record or primary source",
     "established": "established outlet",
     "unverified": "not on FAM's list of known outlets - weigh it accordingly",
-    # §274: the reference look's one entry. Never a tier a search result is
+    # §278: the reference look's one entry. Never a tier a search result is
     # graded into - only the encyclopedia source is labelled this way.
     "reference": "reference encyclopedia - background facts, never a current state",
 }
@@ -279,7 +279,7 @@ def credibility(result) -> str:
     # A government or academic domain is primary for the thing it is about -
     # a central bank's own statement outranks any report of that statement.
     if host.endswith((".gov", ".gov.uk", ".edu", ".ac.uk", ".int", ".mil",
-                      # §272: other countries' government domains.
+                      # §276: other countries' government domains.
                       ".gov.au", ".gc.ca", ".govt.nz", ".gov.ie", ".gouv.fr",
                       ".bund.de", ".gob.mx", ".gov.in")):
         return "primary"
@@ -457,7 +457,7 @@ class Packet:
     #: The ladder reads it so a rung that already ran as the second look is
     #: not asked the same thing again.
     tried: list = field(default_factory=list)
-    #: The reference look (§274): what became of it - "added", "late",
+    #: The reference look (§278): what became of it - "added", "late",
     #: "no match", "no web sources" - or "" when none was asked for; and
     #: which route served it ("enterprise" | "public") when one was added.
     reference: str = ""
@@ -1079,7 +1079,7 @@ def _merge_story_look(packet: "Packet", found: tuple, packet_sources: int,
 
 
 # --------------------------------------------------------------------------
-# The reference look (§274): Wikipedia and Wikidata, beside the main search
+# The reference look (§278): Wikipedia and Wikidata, beside the main search
 # --------------------------------------------------------------------------
 #: How many words a brief's subject may have and still be a name.
 REFERENCE_NAME_WORDS = 6
@@ -1274,7 +1274,7 @@ async def retrieve(query: str, backend: Optional[str] = None,
     if not query:
         raise ResearchUnavailable("nothing to research: the query is empty")
 
-    # **The reference look, beside the search** (§274): Wikipedia's summary
+    # **The reference look, beside the search** (§278): Wikipedia's summary
     # and Wikidata's facts for the name the brief resolved
     # (`reference_name_for`). Started first, merged once the main packet is in
     # if it has answered within `WIKIPEDIA_GRACE_SECONDS`, dropped otherwise -
@@ -1458,7 +1458,7 @@ async def retrieve(query: str, backend: Optional[str] = None,
             log.info("the story's outlets had not answered by the time the "
                      "main packet was ready for %r; not waited for", query)
 
-    # Last, after every web source (§274): one extra source, never in place
+    # Last, after every web source (§278): one extra source, never in place
     # of one.
     await _finish_reference_look(packet, reference_look, reference_name)
 

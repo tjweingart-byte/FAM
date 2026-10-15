@@ -94,7 +94,7 @@
   .report .text { white-space:pre-wrap; word-break:break-word; margin:0 0 5px; }
   .report .ctx { font:11px var(--mono); color:var(--muted); }
   .report.done .text { color:var(--muted); }
-  /* A provider's parts, under it: BALLDONTLIE's leagues (§276). */
+  /* A provider's parts, under it: BALLDONTLIE's leagues (§280). */
   tr.subrow td { font-size:12.5px; }
   tr.subrow .subname { padding-left:18px; position:relative; color:var(--muted); }
   tr.subrow .subname::before { content:"↳"; position:absolute; left:2px; color:var(--faint); }
@@ -502,7 +502,7 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
         '</td><td title="' + esc(r.limit + ' (' + r.next + ')') + '">' + esc(r.limit) +
         ' <span style="color:var(--muted)">(' + esc(r.next) + ')</span>' + said + '</td></tr>';
     }
-    // BALLDONTLIE's leagues (§276), each a row of its own under it.
+    // BALLDONTLIE's leagues (§280), each a row of its own under it.
     var body = rows.map(function (r) {
       return line(r, false) + (r.breakdown || []).map(function (b) { return line(b, true); }).join("");
     }).join("");

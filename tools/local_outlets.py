@@ -2,7 +2,7 @@
 
     python tools/local_outlets.py "Marin County" California
     python tools/local_outlets.py "Marin County" California --dry-run
-    python tools/local_outlets.py --top 50 --seed     # §272: the seed file
+    python tools/local_outlets.py --top 50 --seed     # §276: the seed file
 
 Asks Wikidata (free, keyless) for newspapers and online newspapers whose place
 of publication is in that county and which have an official website, and
@@ -14,7 +14,7 @@ Run it somewhere with network access (this project's build container blocks
 query.wikidata.org). Writes to the store `LOCAL_NEWS_DB` names, so point that
 at the deployment's disk, or run it on the server.
 
-`--top N` (§272) walks the N most populous US counties (`TOP_COUNTIES`)
+`--top N` (§276) walks the N most populous US counties (`TOP_COUNTIES`)
 instead of one, and `--seed` writes what it finds into `local_outlets.json`,
 the seed every fresh disk starts from, rather than into a store: merged by
 homepage, so it can be re-run and never drops an outlet already filed.

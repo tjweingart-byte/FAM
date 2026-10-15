@@ -1,4 +1,4 @@
-"""The reference look: Wikipedia and Wikidata, for who someone is (§274).
+"""The reference look: Wikipedia and Wikidata, for who someone is (§278).
 
 A web search answers what happened; it is a poor way to learn that a
 footballer was born in 1998 or that a company's chief executive is who it is.

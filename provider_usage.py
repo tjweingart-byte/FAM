@@ -53,7 +53,7 @@ LABELS = {
     "polymarket": "Polymarket",
     "gnews": "GNews",
     "finnhub": "Finnhub",
-    # §274: the reference look.
+    # §278: the reference look.
     "wikidata": "Wikidata",
     "wikipedia": "Wikipedia",
     "wikimedia_enterprise": "Wikimedia Enterprise",
@@ -66,7 +66,7 @@ LABELS = {
 
 
 #: A request counted against a part of a provider as well as the provider:
-#: BALLDONTLIE's league (§271), so `balldontlie` also keeps `balldontlie/nfl`
+#: BALLDONTLIE's league (§275), so `balldontlie` also keeps `balldontlie/nfl`
 #: and so on. Stored as its own provider-day row.
 SUB = "/"
 
@@ -80,7 +80,7 @@ def _plans() -> dict:
     from config import settings
 
     return {
-        # §271, §273: scores, standings and player and team reports, one
+        # §275, §277: scores, standings and player and team reports, one
         # account for every league.
         "balldontlie": (
             f"{settings.balldontlie_tier} plan: "
@@ -109,7 +109,7 @@ def _plans() -> dict:
         "finnhub": (
             "60/min = 86,400/day, personal use only",
             "commercial plan, quote-based (~$11.99/mo quoted)"),
-        # §274: the reference look. Keyless routes are free; Wikimedia asks
+        # §278: the reference look. Keyless routes are free; Wikimedia asks
         # identified clients to stay near 200 requests a minute.
         "wikidata": (
             "free, keyless; ~200 requests/min identified (User-Agent with contact)",
@@ -186,7 +186,7 @@ _HOSTS = (
     ("finnhub.io", "finnhub"),
     ("polymarket.com", "polymarket"),
     ("balldontlie.io", "balldontlie"),
-    # §274: the reference look (`wikimedia._send`).
+    # §278: the reference look (`wikimedia._send`).
     ("wikidata.org", "wikidata"),
     ("wikipedia.org", "wikipedia"),
     ("enterprise.wikimedia.com", "wikimedia_enterprise"),

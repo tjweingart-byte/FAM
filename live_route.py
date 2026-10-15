@@ -235,7 +235,7 @@ def catalogue_team(text: str) -> str:
     """"<team> (<league>)" for a team in a catalogue this server already
     read that `text` names in full, or ""."""
     try:
-        import balldontlie_scores  # §273
+        import balldontlie_scores  # §277
 
         for key, held in list(balldontlie_scores.TEAMS.items()):
             rows = [dict(r, name=r.get("full_name") or r.get("display_name")

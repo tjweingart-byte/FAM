@@ -34,7 +34,7 @@ def test_every_provider_the_owner_named_is_reported_in_order():
         # §258: the search and its second look.
         "BALLDONTLIE", "Parallel", "Perplexity", "GDELT", "Polymarket",
         "GNews", "Finnhub",
-        # §274: the reference look.
+        # §278: the reference look.
         "Wikidata", "Wikipedia", "Wikimedia Enterprise",
         # §194: weather and the local news collector.
         "National Weather Service", "Open-Meteo", "Local news feeds"]
@@ -68,7 +68,7 @@ def test_the_rationed_limits_are_read_from_the_settings_in_force(monkeypatch):
                                   gnews_daily_requests=950)
     monkeypatch.setattr(config, "settings", patched)
     rows = {r["provider"]: r for r in provider_usage.report(NOON)}
-    # BALLDONTLIE is one plan for every league (§276), named by its setting.
+    # BALLDONTLIE is one plan for every league (§280), named by its setting.
     assert rows["balldontlie"]["limit"].startswith("all-star plan: 60 requests/min")
     assert rows["gnews"]["limit"].startswith("950/day")
     assert "1,000/day" in rows["gnews"]["next"]
@@ -112,7 +112,7 @@ def test_a_refused_request_still_counts_against_the_allowance(monkeypatch):
     rows = {r["provider"]: r for r in provider_usage.report()}
     assert rows["balldontlie"]["today"] == 1
     assert rows["balldontlie"]["failed_today"] == 1
-    # Counted against its league too (§276): one row per league asked.
+    # Counted against its league too (§280): one row per league asked.
     leagues = {b["league"]: b for b in rows["balldontlie"]["breakdown"]}
     assert leagues["nfl"]["today"] == 1 and leagues["nfl"]["failed_today"] == 1
 

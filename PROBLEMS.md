@@ -19403,7 +19403,7 @@ part of the cached prefix is not documented here. If `cache_read_input_tokens`
 is zero on the second half, each half writes its own cache - cents a day at
 FAM's volume, not a correctness problem.
 
-## 270. Exa deleted; the search is Parallel, then Perplexity
+## 274. Exa deleted; the search is Parallel, then Perplexity
 
 **What was wrong.** §258 replaced Exa with Parallel and Perplexity but kept
 Exa selectable "so the two can be compared before it is deleted", and kept
@@ -19457,7 +19457,7 @@ the Render dashboard and RunPod template; nothing reads them. A GPU
 deployment built before this change was running on Exa - its first episodes
 on Parallel are the first measured ones there.
 
-## 271. A player's season and the injury report, from BALLDONTLIE
+## 275. A player's season and the injury report, from BALLDONTLIE
 
 **What was wrong.** A sports episode's live block knew a game - its score,
 period and a team's record - and nothing about the people in it. "How is
@@ -19508,7 +19508,7 @@ player stats and injuries now, for every sport.
 BALLDONTLIE's answers says which plan a key is on; if the plan is set wrong,
 the first refused endpoint says so on /admin's pipeline errors.
 
-## 272. The writer's evidence gaps: a bigger packet, more trusted sources, standings, Trending's outlets, local seeds
+## 276. The writer's evidence gaps: a bigger packet, more trusted sources, standings, Trending's outlets, local seeds
 
 The 15/10 review of what reaches the writer, category by category, found
 five gaps cheap enough to close at once (the owner's list):
@@ -19535,7 +19535,7 @@ five gaps cheap enough to close at once (the owner's list):
 - **Standings from API-Sports.** A team's place in its division or
   conference, from the league's own `/standings` (one request per league,
   cached three hours, run beside the schedules), joins its record. Injuries
-  and player figures come from §271 for every league rather than from
+  and player figures come from §275 for every league rather than from
   API-Sports' two, on a provider being replaced.
 - **Trending's outlets.** `stories.context_for` matched the live pool only,
   so a Trending tap searched the whole web alone. It now matches the
@@ -19550,11 +19550,11 @@ five gaps cheap enough to close at once (the owner's list):
   `query.wikidata.org` is reachable.
 
 
-## 273. BALLDONTLIE is the scoreboard: games, standings, F1, UFC and the sweep (2026-10-15)
+## 277. BALLDONTLIE is the scoreboard: games, standings, F1, UFC and the sweep (2026-10-15)
 
-The owner is moving sports to BALLDONTLIE (§271). §271 brought its player and
+The owner is moving sports to BALLDONTLIE (§275). §275 brought its player and
 injury reports; this brings the rest of what the old provider did, so nothing
-is lost when it goes (§276).
+is lost when it goes (§280).
 
 `balldontlie_scores.py`: `ScoreBoard` is a `LiveSource` that resolves the game a
 question is about from the teams it names in the league's own catalogue
@@ -19572,12 +19572,12 @@ followed game is on, only if myFAM was drawn recently), each tile carrying its
 
 Tiers: games are Free, standings All-Star, F1 sessions All-Star, FIFA games
 GOAT (`balldontlie.ENDPOINT_TIERS`); a refused endpoint is remembered for the
-day and never asked again. Tests: `tests/test_scores_273.py`. Written from
+day and never asked again. Tests: `tests/test_scores_277.py`. Written from
 specs; **never run against the live API from this repository** (the build
 container cannot reach it).
 
 
-## 274. The reference look: Wikipedia and Wikidata beside the search (2026-10-15)
+## 278. The reference look: Wikipedia and Wikidata beside the search (2026-10-15)
 
 **What.** A web search answers what happened; it is a poor way to learn that a
 quarterback was born in 1998 or who a company's chief executive is. Those are
@@ -19658,7 +19658,7 @@ report lists `wikimedia.db` once it exists. Staging forces `WIKIPEDIA=0` and
 scrubs both credentials (`spend_guard`); production asks for the credentials
 in `render.yaml` (`sync: false`). The suite runs with the look off
 (`isolated_wikimedia` in `tests/conftest.py` sets `ENABLED_OVERRIDE=False` and
-replaces `_transport` with one that refuses); `tests/test_reference_274.py`
+replaces `_transport` with one that refuses); `tests/test_reference_278.py`
 turns it on against stubs.
 
 **Unverified.** No request has reached Wikimedia from this container: the
@@ -19675,15 +19675,15 @@ uses the entry as background rather than echoing it is unheard, like all
 writing here.
 
 
-## 275. The last of Exa is gone from the code (2026-10-15)
+## 279. The last of Exa is gone from the code (2026-10-15)
 
 The owner (15/10): Exa is no longer part of the pipeline and must not appear
-in the code. §270 removed the backend; what was left were names. The metering
+in the code. §274 removed the backend; what was left were names. The metering
 ledger's columns `exa_searches`, `exa_cost` and `exa_usd` are now
 `web_searches`, `web_search_cost` and `web_search_usd`; `MeterStore` renames
 them in place on an existing database (`ALTER TABLE ... RENAME COLUMN`,
 guarded and once), so every stored row keeps its spend
-(`tests/test_removals_275.py`). The financials view and `/admin`'s daily spend
+(`tests/test_removals_279.py`). The financials view and `/admin`'s daily spend
 read the new name. `RESEARCH_BACKEND=exa` is refused at start-up like any
 unknown backend. The frozen web release `releases/web/2026.09.29/` is
 hash-checked and keeps its old comments; it is not code that runs a search.
@@ -19693,10 +19693,10 @@ column name - rename `exa_usd` to `web_search_usd` there. The rename migration
 can be deleted once every deployment has started once on this build.
 
 
-## 276. API-Sports is removed; BALLDONTLIE is the only sports provider
+## 280. API-Sports is removed; BALLDONTLIE is the only sports provider
 
 The owner (15/10) asked for API-Sports to come out of the code entirely.
-BALLDONTLIE already did everything it did (§271, §273): the scoreboard
+BALLDONTLIE already did everything it did (§275, §277): the scoreboard
 (`balldontlie_scores.ScoreBoard`: the game, its state and score, both teams'
 records and places from the league's own standings, last and next games,
 a Formula 1 weekend, a UFC card), the myFAM sweep with a live score on each
@@ -19779,7 +19779,7 @@ not know, by the existing unknown-name path (`[failures-visible]`). Remove
 
 **The kept web release.** `releases/web/2026.09.29/index.html` still says
 "API-Sports budget" in a comment. It is hashed (`manifest.json`,
-`test_a_kept_web_release_is_intact`), so it is left as shipped. §275's
+`test_a_kept_web_release_is_intact`), so it is left as shipped. §279's
 commit had edited one comment line in it (Exa), which failed that test; the
 file is restored to the bytes that shipped.
 
@@ -19793,10 +19793,10 @@ a spent minute, a 429 as an outage, a league not due not re-asked),
 `test_trending_135` (key switch, the sweep's card read before spending, a
 score as old as the sweep), `test_live_providers`, `test_packet_930`,
 `test_named_slots`, `test_live_route_265`, `test_live_routing`,
-`test_writer_gaps_272` (standings), `test_made_for_you_187`,
+`test_writer_gaps_276` (standings), `test_made_for_you_187`,
 `test_provider_usage_179` (a row per league), `test_financials`,
-`test_scores_273`, and wording in five more. `CLAUDE.md`'s
+`test_scores_277`, and wording in five more. `CLAUDE.md`'s
 `[api-sports-per-sport]` is now `[sports-balldontlie]`; `[sweep-on-demand]`
-names `balldontlie_scores.SWEPT`; §276 notes are at `always-researched`,
+names `balldontlie_scores.SWEPT`; §280 notes are at `always-researched`,
 `score-guard`, `sports-balldontlie`, `sweep-on-demand`, `live-facts`,
 `live-route`, `tile-title-angle` and `op-myfam`.

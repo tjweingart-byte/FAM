@@ -151,7 +151,7 @@ BUILDERS = {
 #: Elections is not here: Polymarket is keyless, so there is no credential
 #: whose presence says anything, and `render.yaml` names it explicitly.
 DERIVED_FROM_KEY = {
-    # BALLDONTLIE is FAM's only sports provider (§273, §276).
+    # BALLDONTLIE is FAM's only sports provider (§277, §280).
     "sports": (("balldontlie", "balldontlie_api_key"),),
     "markets": (("finnhub", "finnhub_key"),),
 }
@@ -234,7 +234,7 @@ def install() -> dict:
         live_facts.register(source)
         installed.append(source.name)
 
-    # Player and team reports (§271): beside the scoreboard, never in its
+    # Player and team reports (§275): beside the scoreboard, never in its
     # slot, so registered apart from it. The key is the switch, as it is for
     # the scoreboard and Finnhub.
     import balldontlie
@@ -310,7 +310,7 @@ class ProviderHTTPError(RuntimeError):
 
 def _usage_detail(provider: str, url: str) -> str:
     """The part of a provider a request is also counted against:
-    BALLDONTLIE's league (§271)."""
+    BALLDONTLIE's league (§275)."""
     if provider == "balldontlie":
         path = httpx.URL(url).path.strip("/").split("/")
         return path[0] if path and path[0] else ""

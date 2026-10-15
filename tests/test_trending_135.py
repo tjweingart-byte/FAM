@@ -4,7 +4,7 @@ Four instructions from the owner, one file:
 
 1. **The model never searches.** Everything an episode is written from comes
    from the web search backends (Parallel, Perplexity), GDELT, BALLDONTLIE
-   (§276), Finnhub and Polymarket - pinned in
+   (§280), Finnhub and Polymarket - pinned in
    `test_research.py` and `test_no_evidence.py`; here only the one rule that
    crosses modules: a live provider with a key is switched on by the key.
 2. **The sports sweep carries the score** - pinned in `test_story_sources.py`;
@@ -351,7 +351,7 @@ def test_no_key_no_provider(monkeypatch):
 
 
 def _swept_nfl(monkeypatch, row, swept_at):
-    """BALLDONTLIE (§273) with the NFL's catalogue read and `row` on the
+    """BALLDONTLIE (§277) with the NFL's catalogue read and `row` on the
     sweep's card from `swept_at`; every request recorded."""
     import balldontlie
     import balldontlie_scores as bs
@@ -479,7 +479,7 @@ def test_a_score_read_off_the_sweep_is_as_old_as_the_sweep(monkeypatch):
 
 def test_a_refused_key_is_never_an_empty_card(monkeypatch):
     """A refused key read as data is a day with no games. BALLDONTLIE's
-    refusal is an HTTP error, and it is raised as one (§276)."""
+    refusal is an HTTP error, and it is raised as one (§280)."""
     import balldontlie
 
     async def _json(url, headers, params, timeout):
@@ -504,4 +504,4 @@ def test_health_reports_the_live_providers():
     report = live_sources.report()
     assert {"configured", "registered", "derived_from_key", "known"} <= set(report)
     assert not any("sports" in key and key != "sports" for key in report), \
-        "no per-provider sports allowance is reported any more (§276)"
+        "no per-provider sports allowance is reported any more (§280)"

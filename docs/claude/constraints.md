@@ -197,8 +197,8 @@
   goes in `EXCEPTIONS`. Mild words (damn, hell, crap, ass) carry no E. Add to
   the lists with a test of an innocent sentence beside each addition.
 <!-- rule:always-researched -->
-> **Current (PROBLEMS.md §276, at the owner's direction):** API-Sports is removed from the code entirely; BALLDONTLIE (`balldontlie_scores`, `balldontlie`) is the only sports source. Wherever the text below lists API-Sports among an episode's sources, read BALLDONTLIE.
-> **Current (PROBLEMS.md §270, at the owner's direction):** Exa is deleted, not kept selectable: its backend, fallback rung, `exa_py` requirement, `setup_key.py --exa` and `EXA_API_KEY` are gone. `RESEARCH_BACKEND=exa` runs as `parallel` and says so, as `claude` does (§135); the packet sizes are `SEARCH_NUM_RESULTS`, `SEARCH_PACKET_SOURCES`, `SEARCH_HIGHLIGHTS_PER_SOURCE` and `SEARCH_DATED_PACKET` (the old `EXA_*` names are no longer read and say so at startup). Wherever the text below says Exa, read Parallel, then Perplexity.
+> **Current (PROBLEMS.md §280, at the owner's direction):** API-Sports is removed from the code entirely; BALLDONTLIE (`balldontlie_scores`, `balldontlie`) is the only sports source. Wherever the text below lists API-Sports among an episode's sources, read BALLDONTLIE.
+> **Current (PROBLEMS.md §274, at the owner's direction):** Exa is deleted, not kept selectable: its backend, fallback rung, `exa_py` requirement, `setup_key.py --exa` and `EXA_API_KEY` are gone. `RESEARCH_BACKEND=exa` runs as `parallel` and says so, as `claude` does (§135); the packet sizes are `SEARCH_NUM_RESULTS`, `SEARCH_PACKET_SOURCES`, `SEARCH_HIGHLIGHTS_PER_SOURCE` and `SEARCH_DATED_PACKET` (the old `EXA_*` names are no longer read and say so at startup). Wherever the text below says Exa, read Parallel, then Perplexity.
 > **Current (PROBLEMS.md §258, at the owner's direction):** Exa is replaced. The configured backend is **Parallel** (`RESEARCH_BACKEND=parallel`); the one retry on a thin packet goes to **Perplexity**, a second index, without the window (`RESEARCH_SECOND_LOOK`, falling back to the same backend when Perplexity has no key); the rungs below are **Perplexity, then GDELT**, and a rung that already ran as the second look is not asked again. Exa stays selectable for comparison. Wherever the text below says Exa, read the configured search backend.
 > **Current (PROBLEMS.md §256, at the owner's direction):** nothing is refused for want of evidence any more. The §109 `NoEvidence` refusal ("FAM could not reach a single source ... not going to guess") and the §194 local one are deleted with `_refuse_without_evidence`: the owner saw it as a popup on a Trending tile and wants the episode written. The ladder below is unchanged; an empty one now goes to the writer like any thin packet. `research.NoEvidence` stays as a class, so its handlers still word one if anything raises it.
 > **Current (PROBLEMS.md §211):** the GDELT rung is a read of GDELT's export copy on disk (rule:gdelt-exports), not "one HTTP call" - no request reaches GDELT from an episode.
@@ -461,7 +461,7 @@
   in its place; the swipe-up gesture still moves through an album and is the
   one the `next-hint` label actually advertises.
 <!-- rule:score-guard -->
-> **Current (PROBLEMS.md §276):** API-Sports is removed; the scoreboard is BALLDONTLIE's (`balldontlie_scores.ScoreBoard`), whose sentences keep the shapes ScoreGuard reads and whose stuck-feed check is `believable`. The account hold below (`AccountRefused`, `ACCOUNT_RETRY_SECONDS`, the red `/admin` line) went with API-Sports: a key BALLDONTLIE refuses raises `balldontlie.AccountRefused`, recorded as a failed provider (rule:failures-visible), and a plan refusal is not asked again that day.
+> **Current (PROBLEMS.md §280):** API-Sports is removed; the scoreboard is BALLDONTLIE's (`balldontlie_scores.ScoreBoard`), whose sentences keep the shapes ScoreGuard reads and whose stuck-feed check is `believable`. The account hold below (`AccountRefused`, `ACCOUNT_RETRY_SECONDS`, the red `/admin` line) went with API-Sports: a key BALLDONTLIE refuses raises `balldontlie.AccountRefused`, recorded as a failed provider (rule:failures-visible), and a plan refusal is not asked again that day.
 - **A score is checked before it is spoken, in code, against the scoreboard**
   *(PROBLEMS.md §259, `score_guard.py`)*. The owner (10.13), after an episode
   said a finished Bills-Rams game was in the first quarter: "I don't want it
@@ -491,7 +491,7 @@
   > rounds; history is left alone; removed sentences are kept on
   > `ScriptNotes.figure_drops` and counted on `/admin`.
 <!-- rule:sports-balldontlie -->
-> **Current (PROBLEMS.md §276, at the owner's direction):** API-Sports is removed from the code entirely, and this rule with it: BALLDONTLIE is FAM's only sports provider - one flat plan for every league (`BALLDONTLIE_TIER`: free, all-star or goat; an endpoint above the plan is never asked), paced to the plan's per-minute limit, its requests counted on `/admin` with a row per league (`provider_usage`, `balldontlie/<league>`). The per-sport budgets, tiers, `API_SPORTS_*` settings and account panel below are gone; the text is kept as history.
+> **Current (PROBLEMS.md §280, at the owner's direction):** API-Sports is removed from the code entirely, and this rule with it: BALLDONTLIE is FAM's only sports provider - one flat plan for every league (`BALLDONTLIE_TIER`: free, all-star or goat; an endpoint above the plan is never asked), paced to the plan's per-minute limit, its requests counted on `/admin` with a row per league (`provider_usage`, `balldontlie/<league>`). The per-sport budgets, tiers, `API_SPORTS_*` settings and account panel below are gone; the text is kept as history.
 - **API-Sports is a plan per sport.** *(PROBLEMS.md §180, at the owner's
   direction.)* API-Sports sells and limits each sport as its own subscription
   on one key, so FAM keeps a budget per sport (`live_sources.budget_for`), a
@@ -506,7 +506,7 @@
   game, never a wrong one.
 
 <!-- rule:sweep-on-demand -->
-> **Current (PROBLEMS.md §276, at the owner's direction):** API-Sports is removed. The sweep is BALLDONTLIE's (`balldontlie_scores.make_signals`): it follows only `balldontlie_scores.SWEPT` (NFL, college football, NBA, men's college basketball, WNBA, MLB, NHL, Champions League, Premier League, La Liga, Bundesliga, World Cup), reads a league's card when due (`Signals.due`, `watching`), only while one of its games is on or about to start and only if myFAM was drawn recently (`Signals.idle`); an endpoint BALLDONTLIE refused is not asked again that day (`balldontlie.Client.refused`). `SWEPT_LEAGUES`, `ApiSportsSignals` and the per-sport budgets below are gone.
+> **Current (PROBLEMS.md §280, at the owner's direction):** API-Sports is removed. The sweep is BALLDONTLIE's (`balldontlie_scores.make_signals`): it follows only `balldontlie_scores.SWEPT` (NFL, college football, NBA, men's college basketball, WNBA, MLB, NHL, Champions League, Premier League, La Liga, Bundesliga, World Cup), reads a league's card when due (`Signals.due`, `watching`), only while one of its games is on or about to start and only if myFAM was drawn recently (`Signals.idle`); an endpoint BALLDONTLIE refused is not asked again that day (`balldontlie.Client.refused`). `SWEPT_LEAGUES`, `ApiSportsSignals` and the per-sport budgets below are gone.
 - **The outside services are asked when somebody is looking and there is
   something to see, never on a timer all day.** *(PROBLEMS.md §191, at the
   owner's direction, reversing §135's "spend the whole API-Sports allowance
@@ -580,7 +580,7 @@
   story: it must name something the listener follows.
 
 <!-- rule:live-facts -->
-> **Current (PROBLEMS.md §276):** API-Sports is removed; BALLDONTLIE supplies every league's game, both teams' records and places from the league's own standings, and their last and next games from their own schedules (`balldontlie_scores`, §273). Read the §178 note below with BALLDONTLIE in API-Sports' place.
+> **Current (PROBLEMS.md §280):** API-Sports is removed; BALLDONTLIE supplies every league's game, both teams' records and places from the league's own standings, and their last and next games from their own schedules (`balldontlie_scores`, §277). Read the §178 note below with BALLDONTLIE in API-Sports' place.
 > **Current (PROBLEMS.md §267):** with Finnhub's own status *closed*, a closing price stays fresh until the next open (`market_closed`, `CLOSED_MARKET_MAX_AGE_SECONDS` = 96h) and is said as the last close; and the story sweep's watchlist quotes (`live_sources.QUOTES`) are reused on a tap when the session is unchanged and the quote passes the same check.
 > **Current (PROBLEMS.md §266):** a market price is fresh for an hour (`MAX_AGE_SECONDS["markets"]` = 3600s, was 300s), at the owner's direction; still withheld past it, still said with its time and delay.
 > **Current (PROBLEMS.md §178):** for the NFL, API-Sports also supplies each team's record (counted in code from regular-season finals on the team's own schedule), last result and next game, beside the game; a game not on today's card is resolved from the teams' schedules by the provider's own team catalogue. A game that has not started never has a score. The live block tells the writer that every number comes from it and never to describe the sources.
@@ -626,7 +626,7 @@
   supports live scores until a real provider is returning them.
 <!-- rule:player-facts -->
 - **Player and team reports sit beside the scoreboard, never in it** (PROBLEMS.md
-  §271, at the owner's direction; BALLDONTLIE is the provider, for every league
+  §275, at the owner's direction; BALLDONTLIE is the provider, for every league
   it covers). `live_facts.players` is asked beside `lookup` on any sports
   question and lands in `plan.players`, its own block with its own rule
   (`live_facts.PLAYER_REPORT`): who plays where, season figures to date (labelled
@@ -643,7 +643,7 @@
   vouched for (a fighter's 12-3), never as the game's status.
 
 <!-- rule:live-route -->
-> **Current (PROBLEMS.md §276):** API-Sports is removed. The roster's leagues are BALLDONTLIE's own keys (`nfl`, `nba`, `mlb`, `nhl`); `live_route.sport_of`/`LEAGUE_SPORT` and `live_sources.sport_for` are gone; a held catalogue is `balldontlie_scores.TEAMS`; a routed question spends BALLDONTLIE requests, paced to its plan's minute.
+> **Current (PROBLEMS.md §280):** API-Sports is removed. The roster's leagues are BALLDONTLIE's own keys (`nfl`, `nba`, `mlb`, `nhl`); `live_route.sport_of`/`LEAGUE_SPORT` and `live_sources.sport_for` are gone; a held catalogue is `balldontlie_scores.TEAMS`; a routed question spends BALLDONTLIE requests, paced to its plan's minute.
 - **A provider is asked when the question names what it covers, whatever the
   brief said** *(§264, §265, `live_route.py`)*. `Brief.live_domain` is a
   model's judgement of what the answer turns on, and "how are the Eagles
@@ -850,7 +850,7 @@
   mechanism, not yet about the writing.
 
 <!-- rule:tile-title-angle -->
-> **Current (PROBLEMS.md §276):** API-Sports is removed; a game's `live_line` is written by BALLDONTLIE's sweep (`balldontlie_scores.live_line`).
+> **Current (PROBLEMS.md §280):** API-Sports is removed; a game's `live_line` is written by BALLDONTLIE's sweep (`balldontlie_scores.live_line`).
 > **Current (PROBLEMS.md §267):** the pool and its ledgers are saved after every refresh and restored at boot (`story_store.py`, `STORY_POOL_DB`), so a redeploy no longer forgets a story's clock.
 - **A browse tile is a title and an angle; the script waits for the tap.**
   *(§102, `stories.py`, `MYFAM.md`.)* myFAM's inventory is now the evergreen

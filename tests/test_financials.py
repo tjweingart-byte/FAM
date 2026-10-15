@@ -59,7 +59,7 @@ def test_spend_lands_on_the_day_it_happened(stores):
     assert days["2026-10-06"]["hits"] == 1
     claude = metering.price_of(_usage()).claude
     assert days["2026-10-07"]["claude"] == pytest.approx(claude, abs=1e-6)
-    # Every paid web search lands in the ledger's search column (§270).
+    # Every paid web search lands in the ledger's search column (§274).
     assert days["2026-10-07"]["search"] == pytest.approx(0.015, abs=1e-6)
 
 
@@ -168,7 +168,7 @@ def test_the_plan_is_driven_by_listeners_with_sports_apart(stores):
     episode = plan.cell(row=labels["Cost of one new episode"], column=2).value
     assert "'Daily Spend'" in episode, "the forecast must learn from recorded spend"
     sports = plan.cell(row=labels["Sports data (BALLDONTLIE)"], column=4).value
-    # One flat plan for every league (§276): what Costs says, and from launch
+    # One flat plan for every league (§280): what Costs says, and from launch
     # the plan bought, in a labelled rate cell rather than a number in a formula.
     assert "BALLDONTLIE" in sports
     rate = labels["BALLDONTLIE plan from launch, per month"]
@@ -243,7 +243,7 @@ def test_a_photo_check_is_spend_but_not_an_episode(stores):
 
 
 def test_the_sports_plan_is_balldontlie_s_named_by_its_setting(stores, monkeypatch):
-    """§276: sports data is one BALLDONTLIE plan, named by BALLDONTLIE_TIER;
+    """§280: sports data is one BALLDONTLIE plan, named by BALLDONTLIE_TIER;
     its price is not in the repository, so a paid plan asks for it."""
     _set(monkeypatch, balldontlie_tier="free")
     row = [r for r in financials.catalogue() if r["vendor"] == "BALLDONTLIE"]

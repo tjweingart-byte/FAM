@@ -65,9 +65,9 @@ PAID_CREDENTIALS = (
     "OPEN_METEO_API_KEY",
     # Email (§244): providers bill per message past a free tier.
     "SMTP_PASSWORD",
-    # §271, §273: sports - scores, standings, player and team reports.
+    # §275, §277: sports - scores, standings, player and team reports.
     "BALLDONTLIE_API_KEY",
-    # §274: Wikimedia Enterprise's account (a monthly allowance).
+    # §278: Wikimedia Enterprise's account (a monthly allowance).
     "WIKIMEDIA_ENTERPRISE_USERNAME", "WIKIMEDIA_ENTERPRISE_PASSWORD",
     "FINNHUB_KEY",
     "AP_ELECTIONS_KEY", "DDHQ_KEY",
@@ -106,7 +106,7 @@ FORCED = {
     "GDELT": "0",
     "GDELT_CROSS_CHECK": "0",
     "STORIES_POLYMARKET": "0",
-    # §274: the reference look's keyless route reaches Wikipedia and
+    # §278: the reference look's keyless route reaches Wikipedia and
     # Wikidata - outbound all the same.
     "WIKIPEDIA": "0",
     "LIVE_SPORTS_PROVIDER": "",

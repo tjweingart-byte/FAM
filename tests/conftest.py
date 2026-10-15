@@ -147,12 +147,12 @@ FAM_ENVIRONMENT = (
     "GNEWS_PLAN", "FINNHUB_PLAN",
     "BOOT_STAGGER_SECONDS",
     "FINNHUB_KEY",
-    # §271: player and team reports.
+    # §275: player and team reports.
     "PLAYER_FACTS", "BALLDONTLIE_API_KEY", "BALLDONTLIE_TIER",
     "BALLDONTLIE_LEAGUES", "BALLDONTLIE_MAX_SEARCHES",
     "BALLDONTLIE_CACHE_SECONDS", "BALLDONTLIE_BASE",
     "AP_ELECTIONS_KEY", "DDHQ_KEY", "POLYMARKET_BASE",
-    # §274: the reference look. Keyless, so a shell with WIKIPEDIA=1 (the
+    # §278: the reference look. Keyless, so a shell with WIKIPEDIA=1 (the
     # default) is not enough to reach Wikimedia: `isolated_wikimedia` below
     # keeps it off for every test that does not turn it on.
     "WIKIPEDIA", "WIKIMEDIA_ENTERPRISE_USERNAME", "WIKIMEDIA_ENTERPRISE_PASSWORD",
@@ -586,7 +586,7 @@ def isolated_local_news(tmp_path, monkeypatch):
 @pytest.fixture(autouse=True)
 def isolated_live_caches(monkeypatch):
     """The swept quotes (§267) and the scoreboard's catalogues, standings,
-    schedules and cards (§273) are process-globals: one test's sweep or
+    schedules and cards (§277) are process-globals: one test's sweep or
     catalogue must not be the next one's."""
     import balldontlie_scores
     import live_sources
@@ -616,7 +616,7 @@ def isolated_gdelt_export(tmp_path, monkeypatch):
 
 @pytest.fixture(autouse=True)
 def isolated_wikimedia(tmp_path, monkeypatch):
-    """The reference look (§274): off for the suite, its store per test, and
+    """The reference look (§278): off for the suite, its store per test, and
     its one sending function refusing - so no test reaches Wikimedia, which
     is keyless and so not kept away by a missing credential. A test that
     wants it sets `wikimedia.ENABLED_OVERRIDE` and stubs `_transport`."""

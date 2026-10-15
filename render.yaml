@@ -283,12 +283,12 @@ services:
         sync: false
       - key: PERPLEXITY_API_KEY
         sync: false
-      # Sports (§273, §276): the scoreboard, the myFAM sweep's live scores,
-      # and player and team reports (§271). Set BALLDONTLIE_TIER to the plan
+      # Sports (§277, §280): the scoreboard, the myFAM sweep's live scores,
+      # and player and team reports (§275). Set BALLDONTLIE_TIER to the plan
       # bought: free reads rosters only.
       - key: BALLDONTLIE_API_KEY
         sync: false
-      # The reference look (§274): Wikipedia's summary and Wikidata's facts
+      # The reference look (§278): Wikipedia's summary and Wikidata's facts
       # for a named person or organisation. Without these it uses
       # Wikipedia's keyless summary; with them, Wikimedia Enterprise's
       # On-demand API (free account: 50,000 requests a month).

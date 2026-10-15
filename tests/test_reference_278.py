@@ -1,4 +1,4 @@
-"""The reference look: Wikipedia and Wikidata beside the search (§274).
+"""The reference look: Wikipedia and Wikidata beside the search (§278).
 
 Every request is stubbed at `wikimedia._transport` - the one function that
 sends - so nothing here reaches Wikimedia, and the counting, backoff and

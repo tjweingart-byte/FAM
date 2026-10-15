@@ -207,7 +207,7 @@ def from_live(lookup) -> Optional[Attribution]:
         # What people are betting, never a result (§211) - and the panel says so.
         tier = "prediction market - a forecast, not a result"
     elif getattr(facts, "kind", "") == live_facts.PLAYER_REPORT:
-        # Rosters, season figures and injury reports (§271).
+        # Rosters, season figures and injury reports (§275).
         tier = "league data - players and injuries"
     elif getattr(facts, "delayed_seconds", 0):
         minutes = max(1, int(round(facts.delayed_seconds / 60)))
@@ -215,14 +215,14 @@ def from_live(lookup) -> Optional[Attribution]:
     return Attribution(label=facts.source, kind=LIVE, tier=tier, at=at)
 
 
-#: What the sources panel says a reference entry is (§274). The licence is
+#: What the sources panel says a reference entry is (§278). The licence is
 #: named because Wikipedia's text is CC BY-SA: crediting it, with the link,
 #: is the attribution the licence asks for.
 REFERENCE_TIER = "reference encyclopedia (CC BY-SA) - background, never news"
 
 
 def from_reference(reference) -> list:
-    """Wikipedia, and Wikidata when its facts were used (§274).
+    """Wikipedia, and Wikidata when its facts were used (§278).
 
     The article's address goes out of band, here, so the panel can link it;
     the packet the writer reads never carries it.

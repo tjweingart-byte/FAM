@@ -258,7 +258,7 @@ def test_polymarket_ships_off(monkeypatch):
 
 
 # --------------------------------------------------------------------------
-# BALLDONTLIE: the score rides beside the tile, never inside it (§135, §276)
+# BALLDONTLIE: the score rides beside the tile, never inside it (§135, §280)
 # --------------------------------------------------------------------------
 def _team(i, name):
     return {"id": i, "full_name": name, "name": name}
@@ -380,7 +380,7 @@ def test_a_game_whose_state_cannot_be_read_is_not_offered(monkeypatch):
 
 
 def test_a_spent_minute_is_said_not_sent(monkeypatch):
-    """BALLDONTLIE's plan is a per-minute limit (§271): a request past it
+    """BALLDONTLIE's plan is a per-minute limit (§275): a request past it
     raises before anything is sent, rather than being refused by the
     provider in a reply that reads like a quiet day."""
     import balldontlie

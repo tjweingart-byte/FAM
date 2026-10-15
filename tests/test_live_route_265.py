@@ -110,7 +110,7 @@ def test_an_everyday_word_names_no_team(text):
 
 
 def test_a_team_places_the_scoreboard_s_league():
-    """§276: the roster's leagues are BALLDONTLIE's own keys, so a named team
+    """§280: the roster's leagues are BALLDONTLIE's own keys, so a named team
     places the question in its league without a request; a sport word in the
     question still names its league outright."""
     import balldontlie

@@ -1,4 +1,4 @@
-"""§272: the writer's evidence gaps closed in one pass.
+"""§276: the writer's evidence gaps closed in one pass.
 
 A bigger packet for every two-minute episode, more expert sources trusted,
 the league's standings beside a team's record, Trending stories' own outlets
@@ -78,7 +78,7 @@ def test_expert_sources_are_graded(url, tier):
 # Standings
 # --------------------------------------------------------------------------
 def test_a_team_s_place_is_the_table_s_own():
-    """§276: BALLDONTLIE reads the table now (`balldontlie_scores`)."""
+    """§280: BALLDONTLIE reads the table now (`balldontlie_scores`)."""
     import balldontlie
     import balldontlie_scores as bs
 

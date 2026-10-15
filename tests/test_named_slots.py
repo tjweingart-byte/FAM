@@ -72,7 +72,7 @@ def _row(gid, home, away, when):
 
 
 class _Card:
-    """BALLDONTLIE (§273, §276) answering with one Sunday's card."""
+    """BALLDONTLIE (§277, §280) answering with one Sunday's card."""
 
     def __init__(self, rows):
         self.rows = rows
