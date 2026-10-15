@@ -95,6 +95,19 @@ class ErrorStore:
                               outcome TEXT NOT NULL DEFAULT '',
                               seconds REAL)""")
             db.execute("CREATE INDEX IF NOT EXISTS steps_at ON steps (at)")
+            # One row per declined model call (§273): Haiku 5.5 has no
+            # server-side fallback, so each refusal is an episode that said
+            # the fixed line instead of the story, or a brief or cut lost.
+            db.execute("""CREATE TABLE IF NOT EXISTS refusals (
+                              at          REAL NOT NULL,
+                              call        TEXT NOT NULL DEFAULT '',
+                              model       TEXT NOT NULL DEFAULT '',
+                              path        TEXT NOT NULL DEFAULT '',
+                              category    TEXT NOT NULL DEFAULT '',
+                              explanation TEXT NOT NULL DEFAULT '',
+                              query       TEXT NOT NULL DEFAULT '',
+                              spoken      INTEGER NOT NULL DEFAULT 0)""")
+            db.execute("CREATE INDEX IF NOT EXISTS refusals_at ON refusals (at)")
 
     def _connect(self) -> sqlite3.Connection:
         db = store_db.connect(self.path, timeout=5, isolation_level=None)
@@ -102,9 +115,11 @@ class ErrorStore:
         return db
 
     def add(self, rows: list, now: Optional[float] = None,
-            steps: Optional[list] = None) -> None:
+            steps: Optional[list] = None,
+            refusals: Optional[list] = None) -> None:
         steps = steps or []
-        if not rows and not steps:
+        refusals = refusals or []
+        if not rows and not steps and not refusals:
             return
         now = time.time() if now is None else now
         with self._lock:
@@ -127,6 +142,16 @@ class ErrorStore:
                               r["seconds"]) for r in steps])
                         db.execute("DELETE FROM steps WHERE at < ?",
                                    (now - KEEP_DAYS * DAY,))
+                    if refusals:
+                        db.executemany(
+                            "INSERT INTO refusals (at, call, model, path, "
+                            "category, explanation, query, spoken) "
+                            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                            [(r["at"], r["call"], r["model"], r["path"],
+                              r["category"], r["explanation"], r["query"],
+                              r["spoken"]) for r in refusals])
+                        db.execute("DELETE FROM refusals WHERE at < ?",
+                                   (now - KEEP_DAYS * DAY,))
             finally:
                 db.close()
 
@@ -146,10 +171,19 @@ class ErrorStore:
             names = [c[0] for c in cursor.description]
             return [dict(zip(names, values)) for values in cursor]
 
+    def refusals_since(self, at: float) -> list:
+        with closing(self._connect()) as db:
+            cursor = db.execute(
+                "SELECT at, call, model, path, category, explanation, query, "
+                "spoken FROM refusals WHERE at >= ? ORDER BY at DESC", (at,))
+            names = [c[0] for c in cursor.description]
+            return [dict(zip(names, values)) for values in cursor]
+
     def clear(self) -> None:
         with self._lock, closing(self._connect()) as db:
             db.execute("DELETE FROM errors")
             db.execute("DELETE FROM steps")
+            db.execute("DELETE FROM refusals")
 
 
 _STORE: Optional[ErrorStore] = None
@@ -157,6 +191,8 @@ _STORE_LOCK = threading.Lock()
 _PENDING: list = []
 #: Measured steps not yet written (§270), held and flushed beside the errors.
 _PENDING_STEPS: list = []
+#: Declined calls not yet written (§273).
+_PENDING_REFUSALS: list = []
 _PENDING_LOCK = threading.Lock()
 _LAST_FLUSH = [0.0]
 _FLUSHING = [False]
@@ -180,6 +216,7 @@ def reset(error_store: Optional[ErrorStore] = None) -> None:
     with _PENDING_LOCK:
         _PENDING.clear()
         _PENDING_STEPS.clear()
+        _PENDING_REFUSALS.clear()
         _LAST_FLUSH[0] = 0.0
 
 
@@ -188,7 +225,7 @@ def exists() -> bool:
     if _STORE is not None:
         return True
     with _PENDING_LOCK:
-        if _PENDING or _PENDING_STEPS:
+        if _PENDING or _PENDING_STEPS or _PENDING_REFUSALS:
             return True
     return store_db.has_tables(data_path("PIPELINE_ERRORS_DB", "pipeline_errors.db"))
 
@@ -257,6 +294,75 @@ def step(name: str, path: str, outcome: str,
                              name="pipeline-errors-flush").start()
     except Exception as exc:  # noqa: BLE001 - a measurement never costs an episode
         log.warning("could not record a pipeline step: %s", exc)
+
+
+def refusal(call: str, model: str, path: str, query: str, message=None,
+            spoken: int = 0) -> None:
+    """Note one declined model call, with what it was declined for (§273).
+
+    `call` names which call (`writer`, `writer (batch)`, `brief: understand`,
+    `evidence cut`...), `message` is the API's answer - its `stop_details`
+    carry the classifier's category and explanation - and `spoken` how many
+    sentences the listener had already heard when it stopped. Haiku 5.5 has
+    no server-side fallback, so this is the record of what a retry on another
+    model would have had to rescue. Never raises, never waits."""
+    try:
+        details = getattr(message, "stop_details", None)
+        entry = {
+            "at": time.time(), "call": str(call or "")[:40],
+            "model": str(model or getattr(message, "model", "") or "")[:60],
+            "path": str(path or "")[:12],
+            "category": str(getattr(details, "category", None) or "")[:40],
+            "explanation": " ".join(str(getattr(details, "explanation", None)
+                                        or "").split())[:300],
+            "query": " ".join(str(query or "").split())[:200],
+            "spoken": int(spoken or 0),
+        }
+        with _PENDING_LOCK:
+            _PENDING_REFUSALS.append(entry)
+            del _PENDING_REFUSALS[:-MAX_PENDING]
+            due = (not _FLUSHING[0]
+                   and time.monotonic() - _LAST_FLUSH[0] >= FLUSH_SECONDS)
+            if due:
+                _FLUSHING[0] = True
+        if due:
+            threading.Thread(target=_flush_in_background, daemon=True,
+                             name="pipeline-errors-flush").start()
+    except Exception as exc:  # noqa: BLE001 - a record never costs an episode
+        log.warning("could not record a refusal: %s", exc)
+
+
+def refusals_report(rows: list, steps: list, now: float) -> dict:
+    """How often calls were declined, for what, and on which questions."""
+    def counted(since: float) -> int:
+        return sum(1 for r in rows if r["at"] >= since)
+
+    # The share of writer calls declined: each writer call is a `writer`
+    # step whatever its ending, so the steps give the denominator.
+    writes = [r for r in steps if r["step"] == "writer"]
+    declined = sum(1 for r in writes if r["outcome"] == "refused")
+
+    def tally(key: str) -> list:
+        out: dict = {}
+        for r in rows:
+            name = r[key] or "(none given)"
+            item = out.setdefault(name, {"name": name, "day": 0, "week": 0,
+                                         "last_at": r["at"]})
+            item["week"] += 1
+            if r["at"] >= now - DAY:
+                item["day"] += 1
+        return sorted(out.values(), key=lambda x: (-x["week"], -x["last_at"]))
+
+    return {
+        "hour": counted(now - HOUR), "day": counted(now - DAY),
+        "week": len(rows),
+        "writer_calls": len(writes), "writer_refused": declined,
+        "writer_rate": round(declined / len(writes), 4) if writes else None,
+        "mid_episode": sum(1 for r in rows if r["spoken"]),
+        "by_call": tally("call"), "by_category": tally("category"),
+        "by_model": tally("model"),
+        "recent": rows[:RECENT],
+    }
 
 
 def _quantile(values: list, share: float):
@@ -335,10 +441,12 @@ def flush() -> None:
             _PENDING.clear()
             steps = list(_PENDING_STEPS)
             _PENDING_STEPS.clear()
-        if not taken and not steps:
+            refusals = list(_PENDING_REFUSALS)
+            _PENDING_REFUSALS.clear()
+        if not taken and not steps and not refusals:
             return
         try:
-            target.add(taken, steps=steps)
+            target.add(taken, steps=steps, refusals=refusals)
         except Exception as exc:  # noqa: BLE001
             log.warning("could not write pipeline errors: %s", exc)
             with _PENDING_LOCK:
@@ -346,6 +454,8 @@ def flush() -> None:
                 del _PENDING[:-MAX_PENDING]
                 _PENDING_STEPS[:0] = steps
                 del _PENDING_STEPS[:-MAX_PENDING]
+                _PENDING_REFUSALS[:0] = refusals
+                del _PENDING_REFUSALS[:-MAX_PENDING]
 
 
 def report(now: Optional[float] = None, days: int = 7) -> dict:
@@ -357,11 +467,13 @@ def report(now: Optional[float] = None, days: int = 7) -> dict:
     now = time.time() if now is None else now
     rows: list = []
     steps: list = []
+    refused: list = []
     try:
         if exists():
             flush()
             rows = store().since(now - days * DAY)
             steps = store().steps_since(now - days * DAY)
+            refused = store().refusals_since(now - days * DAY)
     except Exception as exc:  # noqa: BLE001 - a report is never load-bearing
         log.warning("could not read pipeline errors: %s", exc)
 
@@ -402,4 +514,6 @@ def report(now: Optional[float] = None, days: int = 7) -> dict:
         # same store, so every worker's episodes are in it and a redeploy
         # keeps it.
         "steps": steps_report(steps, now),
+        # Every declined model call (§273): how often, for what, and where.
+        "refusals": refusals_report(refused, steps, now),
     }

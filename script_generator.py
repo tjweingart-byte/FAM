@@ -2189,6 +2189,7 @@ class ScriptGenerator:
         path = _writer_path(notes)
         started = time.monotonic()
         first_word = None
+        spoken = 0
         try:
             async with self.client.messages.stream(**request) as stream:
                 stopped_early = False
@@ -2196,6 +2197,7 @@ class ScriptGenerator:
                     if first_word is None and event:
                         first_word = time.monotonic() - started
                     for sentence in reader.feed(event):
+                        spoken += 1
                         yield sentence
                     # Safety valve: a model that ignores the budget must not
                     # be allowed to produce an hour of audio for a 1-minute
@@ -2237,6 +2239,11 @@ class ScriptGenerator:
         _writer_ended(path, outcome, first_word, time.monotonic() - started)
         if refused:
             pipeline_errors.record("writer", "refused", refused, plan.query)
+            # With its category and how far the episode got (§273): Haiku
+            # has no server-side fallback, so this is what a retry on
+            # another model would have to rescue.
+            pipeline_errors.refusal("writer", model, path, plan.query, final,
+                                    spoken=spoken)
             yield refused
 
     # -- the same writing, answered through the Batches API (§179) --------
@@ -2293,6 +2300,10 @@ class ScriptGenerator:
         refused = _refusal_line(message)
         if refused:
             pipeline_errors.record("writer", "refused (batch)", refused, plan.query)
+            pipeline_errors.refusal(
+                "writer (batch)", getattr(message, "model", None)
+                or writer_for(notes)[0], "ahead", plan.query, message,
+                spoken=max(0, len(out)))
             out.append(refused)
         return out
 

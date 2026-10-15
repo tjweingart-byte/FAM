@@ -1389,7 +1389,8 @@ def _count(kind: str, path: str) -> None:
 
 
 async def _ask(client, part: str, query: str, minutes: int, context: str,
-               now: str, covered: tuple, timeout: float, notes) -> tuple:
+               now: str, covered: tuple, timeout: float, notes,
+               path: str = "") -> tuple:
     """One brief call: `(kind, data, reason)`, `kind` "ok" or why it failed.
     Never raises."""
     if part == "outline":
@@ -1424,6 +1425,8 @@ async def _ask(client, part: str, query: str, minutes: int, context: str,
     # but a refusal stops before any of that, and a refusal parsed as a brief
     # would be a silent degradation rather than a visible one.
     if getattr(response, "stop_reason", "") == "refusal":
+        pipeline_errors.refusal(f"brief: {part}", settings.ei_model, path,
+                                query, response)
         return "refused", None, "EI declined the request"
     # **A brief cut off by its own ceiling** (§248). The thinking and the
     # JSON share `EI_MAX_TOKENS`, so a brief that thought for longer than the
@@ -1517,14 +1520,14 @@ async def understand(query: str, minutes: int = DEFAULT_MINUTES, context: str = 
         # ceiling ahead, where nobody waits), then the brief goes without it.
         main = asyncio.gather(*(
             _timed(part, path, _ask(client, part, query, minutes, context, now,
-                                    tuple(covered or ()), timeout, notes))
+                                    tuple(covered or ()), timeout, notes, path))
             for part in parts))
         outline_task = None
         if len(parts) == 2 and settings.ei_outline:
             outline_task = asyncio.ensure_future(_timed(
                 "outline", path,
                 _ask(client, "outline", query, minutes, context, now,
-                     tuple(covered or ()), timeout, notes)))
+                     tuple(covered or ()), timeout, notes, path)))
         try:
             answers = await main
         except BaseException:

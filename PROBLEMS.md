@@ -19607,3 +19607,37 @@ less if the tokenizer counts more tokens for the same text, which it may.
 Tests: `tests/test_haiku_writer_272.py` (new), `tests/test_writer_prep_269.py`
 (§269's edition tests pinned to a writer on `MODEL`),
 `tests/test_writer_latency_270.py`.
+
+## 273. Every declined call, on the errors page with its context
+
+The owner (10.15), after §272 put the writer on Haiku: no retry on Sonnet
+yet, but "a section in Admin that reports when the try fails (how often and
+what context)".
+
+**Why it matters now.** Haiku 5.5 runs safety classifiers that can decline a
+request - benign news included, under `general_harms` - and, unlike the
+Sonnet and Opus lines, has **no server-side fallback**. A declined writer
+speaks the fixed "I can't put together a briefing on that" line in place of
+the episode; a declined brief part searches the question as typed; a
+declined evidence cut keeps the whole packet. Before this a refusal was one
+generic "refused" row on the errors list.
+
+**What is recorded** (`pipeline_errors.refusal`, a third table, `refusals`,
+in the same store, written off the critical path like the others, 14 days):
+which call (`writer`, `writer (batch)`, `brief: understand` / `search` /
+`outline` / `whole`, `evidence cut`), the model, who was waiting (search or
+ahead), the classifier's own category and explanation from `stop_details`
+(some declines give neither), the question, and - for the writer - how many
+sentences the listener had already heard when it stopped (a mid-episode
+decline is the worst kind: a story that breaks off). The generic errors row
+stays, so the error counts and badge are unchanged.
+
+**The subsection**, "Refusals: calls the model declined", under the timing
+one on the errors page: declined in the last hour, 24h and 7 days; the
+writer's decline rate against every writer call (the `writer` steps of §271
+are the denominator); how many came mid-episode; tallies by call, category
+and model; and the newest 60 with every field. This is the record of what a
+retry on another model would have to rescue, and so the number that decides
+whether to build one.
+
+Tests: `tests/test_refusals_273.py` (new).

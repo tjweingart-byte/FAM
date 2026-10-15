@@ -321,6 +321,9 @@ async def digest(plan, notes=None, ahead: bool = False, client=None) -> Digest:
         notes.usage.add_model_call(model, getattr(response, "usage", None))
     stop = getattr(response, "stop_reason", "")
     if stop == "refusal":
+        import pipeline_errors
+
+        pipeline_errors.refusal("evidence cut", model, path, query, response)
         return done("refused", detail="the call was declined")
     if stop == "max_tokens":
         return done("out_of_room", detail="ran out of room at "
