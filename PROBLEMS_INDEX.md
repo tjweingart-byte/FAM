@@ -275,4 +275,8 @@ and `limit` = Lines.
 | 19261 | 145 | 269. The writer prepared for Haiku, and one page for everything that broke |
 | 19406 | 54 | 270. Exa deleted; the search is Parallel, then Perplexity |
 | 19460 | 51 | 271. A player's season and the injury report, from BALLDONTLIE |
-| 19511 | 41 | 272. The writer's evidence gaps: a bigger packet, more trusted sources, standings, Trending's outlets, local seeds |
+| 19511 | 42 | 272. The writer's evidence gaps: a bigger packet, more trusted sources, standings, Trending's outlets, local seeds |
+| 19553 | 27 | 273. BALLDONTLIE is the scoreboard: games, standings, F1, UFC and the sweep (2026-10-15) |
+| 19580 | 98 | 274. The reference look: Wikipedia and Wikidata beside the search (2026-10-15) |
+| 19678 | 18 | 275. The last of Exa is gone from the code (2026-10-15) |
+| 19696 | 108 | 276. API-Sports is removed; BALLDONTLIE is the only sports provider |

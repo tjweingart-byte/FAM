@@ -245,8 +245,8 @@ was playing: transcript ≤ 30,000 chars, ≤ 30 sources, §175), `resolved_at`,
 production since §207 (`ENFORCE_QUOTAS=1` on `fam` in `render.yaml`).
 
 **metering.db**: `usage`, one row per episode: tokens (including
-`cache_read_tokens`/`cache_write_tokens`, §179), web searches (stored as `exa_searches`, named for the first vendor), live calls,
-`audio_seconds`, `cache_hit`, and cost split `claude_usd` / `exa_usd` /
+`cache_read_tokens`/`cache_write_tokens`, §179), web searches (`web_searches`; renamed from the first vendor's name in §275), live calls,
+`audio_seconds`, `cache_hit`, and cost split `claude_usd` / `web_search_usd` /
 `gpu_usd`. Since §207 the GPU line uses the measured Chatterbox speed
 (`SYNTHESIS_REALTIME_FACTOR` 4.6) at `GPU_USD_PER_HOUR` 0.69.
 

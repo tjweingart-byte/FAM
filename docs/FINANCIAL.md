@@ -7,6 +7,8 @@
 | **Audience** | Founders, anyone pricing a plan or approving spend |
 | **Companion docs** | [`SCALING_TIMELINE.md`](SCALING_TIMELINE.md) (when to change each service, by stage), [`BACKEND.md`](BACKEND.md) (what calls what), [`DATA.md`](DATA.md) (what is stored), `METERING.md` (the per-listener ledger) |
 
+> **Current (PROBLEMS.md §270, §275, §276):** Exa and API-Sports are no longer in the code. Research is Parallel, then Perplexity, then GDELT; sports are BALLDONTLIE's (one plan, `BALLDONTLIE_TIER`); reference facts are Wikimedia Enterprise and Wikidata (§274). The metering column `exa_usd` is `web_search_usd`. Where the figures below name Exa or API-Sports, they are the history they were measured on.
+
 ## How to read the numbers
 
 Every figure here has one of four labels. A figure without a label is an error

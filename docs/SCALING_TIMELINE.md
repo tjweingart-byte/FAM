@@ -12,6 +12,8 @@ exact point at which to change it, what to change it to, and what that costs.
 Every number is an **estimate** from `FINANCIAL.md` §4 unless it says otherwise.
 Re-check list prices before buying.
 
+> **Current (PROBLEMS.md §270, §275):** Exa is no longer in the code; §3's stages apply to Parallel and Perplexity, the search FAM now pays for.
+
 ## How to read it
 
 A change is triggered by whichever comes first:
