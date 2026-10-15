@@ -19558,3 +19558,52 @@ that broke or answered stale; endings a step is built to have (a cut not
 made, no such game) are listed but not counted as failures.
 
 Tests: `tests/test_pipeline_health_271.py` (new).
+
+## 272. The writer on Haiku 5.5 at low effort
+
+The owner (10.15): switch the writer to Haiku at low effort - after §270
+(the plan of the piece, the warm cache, pronunciations where they are said,
+the evidence cut, off) and §271 (the writer's ceiling caught, every step
+timed on the errors page) prepared for it.
+
+**What changed.** A setting of the writer's own, `WRITER_MODEL`, default
+`claude-haiku-5-5` (`config.SMALL_MODEL`), at `EFFORT` (`low`, unchanged).
+`script_generator.writer_for` gives every episode it - search, taps,
+prefetch and, unless `EDITION_WRITER_MODEL` says otherwise, the editions -
+and falls back to `MODEL` when the boot check finds the account cannot use
+it (`UNAVAILABLE_MODELS`, now covering this writer as well as the editions').
+The request, the batch params, the bill, the warm-up and `/api/health`
+(`writer_model`, `writer_model_source`, `writer.model`) all follow it.
+`write.py --model` and `--compare` set it.
+
+**Why not `MODEL`.** `MODEL` is in every episode's cache key
+(`cache.cache_key`, `key_bucket`): moving it would make every kept episode a
+miss, empty Trending searches (which drop any entry whose key does not
+match, `app.py`) and thin the rails that hold cached episodes only until
+they were rewritten. It also stays the model of the composer, the placer,
+the thumbnails and the admin's questions, which nobody asked to move. Like
+the edition writer (§269), the writer's model is **not in the cache key**:
+a tap still finds the episode a Sonnet writer kept, and it is replaced when
+its window ends. [prefetch-same-key] says a field that changes an episode
+belongs in the key; this is the stated exception, as §269's was.
+
+**What to watch** (all on the errors page's "Timing and health, by step"
+and in `/api/health` → `writer`): the writer's time to first word while a
+listener waits (estimated ~7-10 s at `low`, unmeasured); `out_of_room`
+(thinking and script share `MAX_OUTPUT_TOKENS`, 16,000); refusals - Haiku
+5.5 runs safety classifiers with **no server-side fallback**, and a refused
+episode says the fixed "I can't put together a briefing on that" line (a
+client-side retry on `MODEL` is not built); and the score and figure checks'
+removals, which a smaller writer recalling a figure would raise. Not
+listened to: no key here, and nobody has heard a Haiku-written episode.
+`WRITER_MODEL=claude-sonnet-5` restores the Sonnet writer without a deploy
+of code.
+
+**Cost (estimate).** FINANCIAL.md puts the writer at ~$0.026-0.036 an
+episode on Sonnet 5 at `low` (~5,500 in, ~2,000 out at $2/$10). At Haiku
+5.5's $0.10/$0.50 the same tokens are ~$0.0015-0.002 - about a twentieth -
+less if the tokenizer counts more tokens for the same text, which it may.
+
+Tests: `tests/test_haiku_writer_272.py` (new), `tests/test_writer_prep_269.py`
+(§269's edition tests pinned to a writer on `MODEL`),
+`tests/test_writer_latency_270.py`.

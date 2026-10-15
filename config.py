@@ -336,6 +336,18 @@ class Settings:
     # force (`writer_effort_source`), because a dashboard value left at `high`
     # would silently undo this change on every push.
     effort: str = field(default_factory=lambda: os.environ.get("EFFORT", "low"))
+    # **The writer's own model: Haiku 5.5, at the owner's direction (§272)**,
+    # at `EFFORT` (`low`). Its own setting rather than `MODEL`, on purpose:
+    # `MODEL` is in every episode's cache key (`cache.cache_key`), so moving
+    # it would orphan every kept episode and empty Trending searches; and
+    # the composer, placer, thumbnails and the admin's questions stay on
+    # `MODEL`. Not in the cache key, as the edition writer is not (§269): a
+    # tap still finds the episode a previous writer wrote. One the account
+    # cannot use is caught at boot and the writer falls back to `MODEL`.
+    # `WRITER_MODEL=claude-sonnet-5` restores the Sonnet writer without a
+    # deploy of code.
+    writer_model: str = field(
+        default_factory=lambda: os.environ.get("WRITER_MODEL") or SMALL_MODEL)
     # **The writer for the two editions alone** (§269): Trending and DailyFAM
     # write before anybody taps, so a cheaper writer can be tried there and
     # listened to before it goes near a listener who is waiting. Empty means

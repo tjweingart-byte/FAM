@@ -1214,6 +1214,13 @@
   > worked example briefs in one cacheable block (`EI_EXAMPLES`); and
   > `/api/health` counts and times briefs by path (`since_boot_by_path`,
   > `seconds_by_path`, `parts_since_boot`). `since_boot` stays the total.
+  > **Current:** the brief is **three** calls at once since §270 (the third
+  > plans the piece, `EI_OUTLINE`). And **the writer is on Haiku 5.5 at
+  > `low`** (PROBLEMS.md §272, at the owner's direction): its own setting,
+  > `WRITER_MODEL`, never `MODEL` - `MODEL` is in every episode's cache key
+  > and stays the composer's, placer's and thumbnails'. Not in the key, so a
+  > tap still finds what an earlier writer kept; an account without Haiku
+  > writes on `MODEL` (boot check). The photo check stays on `SMALL_MODEL`.
 
 <!-- rule:writer-savings -->
 - **Savings on the writer never change what is written, and never cost an

@@ -76,7 +76,7 @@ FAM_ENVIRONMENT = (
     # §270: the evidence cut in front of the writer.
     "EVIDENCE_DIGEST", "EVIDENCE_DIGEST_MODEL", "EVIDENCE_DIGEST_TIMEOUT_SECONDS",
     "EVIDENCE_DIGEST_AHEAD_TIMEOUT_SECONDS", "EVIDENCE_DIGEST_MAX_TOKENS",
-    "EVIDENCE_DIGEST_MIN_CHARS", "WRITER_WARM",
+    "EVIDENCE_DIGEST_MIN_CHARS", "WRITER_WARM", "WRITER_MODEL",
     # Live facts. A developer with LIVE_SPORTS_PROVIDER=fake set must not run
     # a suite that quietly has a scoreboard in it - a test asserting FAM says
     # "no live feed" would pass or fail on their shell rather than the code.

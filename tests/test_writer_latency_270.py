@@ -236,7 +236,7 @@ def test_a_cold_writer_is_warmed_once_with_its_own_request(monkeypatch):
     assert (first, second) == (True, False), "two taps a second apart, one warm-up"
     sent = client.calls[0]
     assert sent["max_tokens"] == 0
-    assert sent["model"] == config.settings.model
+    assert sent["model"] == sg.writer_for(None)[0]
     assert sent["output_config"] == {"effort": config.settings.effort}
     assert sent["system"] == sg.writer_system()
     assert "format" not in sent["output_config"] and "stream" not in sent
@@ -254,9 +254,9 @@ def test_nobody_waiting_means_no_warm_up(monkeypatch):
 
 def test_a_warm_cache_is_left_alone_and_a_failure_is_forgotten(monkeypatch):
     monkeypatch.setattr(writer_warm, "_LAST", {})
-    writer_warm.note_used(config.settings.model, config.settings.effort)
-    assert not writer_warm.is_cold(config.settings.model, config.settings.effort)
-    assert writer_warm.is_cold(config.settings.model, config.settings.effort,
+    writer_warm.note_used(sg.writer_for(None)[0], config.settings.effort)
+    assert not writer_warm.is_cold(sg.writer_for(None)[0], config.settings.effort)
+    assert writer_warm.is_cold(sg.writer_for(None)[0], config.settings.effort,
                                now=10_000_000.0)
     monkeypatch.setattr(writer_warm, "_LAST", {})
     client = _Recorder(fail=True)
@@ -266,7 +266,7 @@ def test_a_warm_cache_is_left_alone_and_a_failure_is_forgotten(monkeypatch):
         await _settle()()
 
     asyncio.run(tap())
-    assert writer_warm.is_cold(config.settings.model, config.settings.effort), (
+    assert writer_warm.is_cold(sg.writer_for(None)[0], config.settings.effort), (
         "a warm-up that failed warmed nothing, so the next tap tries again")
 
 

@@ -1464,17 +1464,21 @@ def count_words(text: str) -> int:
 def writer_for(notes: "ScriptNotes | None" = None) -> tuple:
     """`(model, effort)` for this episode's writer (§269).
 
-    `MODEL` and `EFFORT` for everything, except an edition's episode
+    `WRITER_MODEL` (Haiku 5.5 since §272, `MODEL` when the account cannot
+    use it) and `EFFORT` for everything, except an edition's episode
     (`ScriptNotes.edition`, set by Trending and DailyFAM) when
     `EDITION_WRITER_MODEL` / `EDITION_WRITER_EFFORT` are set - so a cheaper
     writer is tried where nobody is waiting, and nowhere else.
     """
+    writer = settings.writer_model or settings.model
+    if writer in UNAVAILABLE_MODELS:
+        writer = settings.model
     if notes is not None and getattr(notes, "edition", False):
-        model = settings.edition_writer_model or settings.model
+        model = settings.edition_writer_model or writer
         if model in UNAVAILABLE_MODELS:
             model = settings.model
         return model, settings.edition_writer_effort or settings.effort
-    return settings.model, settings.effort
+    return writer, settings.effort
 
 
 # -- how the writer has been doing, for /api/health and /admin (§270) ------
@@ -1535,7 +1539,7 @@ def writer_report() -> dict:
     from episode_intelligence import _spread
 
     return {
-        "model": settings.model, "effort": settings.effort,
+        "model": writer_for(None)[0], "effort": settings.effort,
         "max_output_tokens": settings.max_output_tokens,
         # `ok`, `out_of_room`, `refused`, `failed`, by who was waiting.
         "since_boot_by_path": {p: dict(c) for p, c in _WRITER_BY_PATH.items()},

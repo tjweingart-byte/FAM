@@ -187,6 +187,9 @@ def test_the_figure_check_runs_on_the_writer_s_stream():
 # the editions' own writer
 # --------------------------------------------------------------------------
 def _settings(monkeypatch, **changes):
+    # These pin §269's editions against a writer on `MODEL`; since §272 the
+    # writer has its own `WRITER_MODEL`, and "" means it follows `MODEL`.
+    changes.setdefault("writer_model", "")
     monkeypatch.setattr(sg, "settings", dataclasses.replace(sg.settings, **changes))
     # The boot check fills this process-wide; a test that booted the app
     # before this one must not decide which writer it sees.

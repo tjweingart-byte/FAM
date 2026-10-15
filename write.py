@@ -62,7 +62,9 @@ async def main() -> int:
 
     overrides = {}
     if args.model:
-        overrides["model"] = args.model
+        # The writer's model (§272); `MODEL` is the cache key's and the
+        # other calls'.
+        overrides["writer_model"] = args.model
     if args.no_ei:
         overrides["episode_intelligence"] = False
     if args.no_search:
@@ -257,7 +259,7 @@ async def compare(generator, plan, spec: str) -> int:
             cut_plan = dataclasses.replace(plan, evidence_digest=result.text)
     for model, effort, digest in chosen:
         plan = cut_plan if digest else whole_plan
-        script_generator.settings = dataclasses.replace(base, model=model,
+        script_generator.settings = dataclasses.replace(base, writer_model=model,
                                                         effort=effort)
         notes = ScriptNotes()
         started = time.perf_counter()

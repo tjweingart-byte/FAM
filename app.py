@@ -214,9 +214,9 @@ async def _verify_small_models() -> None:
     refused: set = set()
     small = sorted({settings.ei_model, settings.stories_model,
                     settings.categories_model, settings.thumbnails_model,
-                    settings.image_check_model,
+                    settings.image_check_model, settings.writer_model,
                     settings.edition_writer_model or settings.model}
-                   - {settings.model})
+                   - {settings.model, ""})
     report: dict[str, str] = {}
     for model in small:
         try:
@@ -235,11 +235,11 @@ async def _verify_small_models() -> None:
             log.error("MODEL UNAVAILABLE - %s: %s. The calls on it fall back "
                       "on their own; set EI_MODEL / STORIES_MODEL / "
                       "CATEGORIES_MODEL / THUMBNAILS_MODEL / IMAGE_CHECK_MODEL / "
-                      "EDITION_WRITER_MODEL "
+                      "WRITER_MODEL / EDITION_WRITER_MODEL "
                       "to a model this key can use.", model, report[model])
     CREDENTIALS["models"] = report
-    # The editions' writer is the one call that would not fall back on its
-    # own: an unavailable one writes on MODEL instead (§269).
+    # The writers are the calls that would not fall back on their own: an
+    # unavailable one writes on MODEL instead (§269, §272).
     import script_generator as _writer
 
     # Only a model the account cannot have (not found, not permitted) -
@@ -1940,6 +1940,13 @@ async def health(request: Request) -> dict:
         # word, and where that came from - same reason as the line above: an
         # EFFORT left in a dashboard beats the code default on every push,
         # and it is expected to be the largest wait on search (PROBLEMS.md §129).
+        # The writer's model (§272): `WRITER_MODEL`, Haiku 5.5 by default,
+        # never `MODEL` unless the account cannot use it - and where it came
+        # from, because a dashboard value would silently keep another writer.
+        "writer_model": writer_for(ScriptNotes())[0],
+        "writer_model_source": ("WRITER_MODEL env var"
+                                if os.environ.get("WRITER_MODEL", "").strip()
+                                else "config.py default"),
         "writer_effort": settings.effort,
         "writer_effort_source": ("EFFORT env var"
                                  if os.environ.get("EFFORT", "").strip()
