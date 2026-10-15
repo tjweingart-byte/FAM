@@ -68,6 +68,8 @@ PAID_CREDENTIALS = (
     "API_SPORTS_KEY",
     # §271: player and team reports.
     "BALLDONTLIE_API_KEY",
+    # §274: Wikimedia Enterprise's account (a monthly allowance).
+    "WIKIMEDIA_ENTERPRISE_USERNAME", "WIKIMEDIA_ENTERPRISE_PASSWORD",
     "FINNHUB_KEY",
     "AP_ELECTIONS_KEY", "DDHQ_KEY",
     "GEMINI_API_KEY", "GOOGLE_API_KEY",
@@ -105,6 +107,9 @@ FORCED = {
     "GDELT": "0",
     "GDELT_CROSS_CHECK": "0",
     "STORIES_POLYMARKET": "0",
+    # §274: the reference look's keyless route reaches Wikipedia and
+    # Wikidata - outbound all the same.
+    "WIKIPEDIA": "0",
     "LIVE_SPORTS_PROVIDER": "",
     "LIVE_MARKETS_PROVIDER": "",
     "LIVE_ELECTIONS_PROVIDER": "",

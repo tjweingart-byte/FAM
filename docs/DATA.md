@@ -132,6 +132,7 @@ Render deployment; since §208 it pins every store there (21 since §211), as th
 | **local_news.db** (`LOCAL_NEWS_DB`) | `local_news.py`, `places.py`, `weather.py` | `outlets`, `items`, `demand`, `excluded`, `places`, `weather` | No (no `user_id`) | Items pruned daily past 30 days (`LOCAL_NEWS_KEEP_DAYS`, never below the 14-day window; each outlet keeps its newest 200, §208); demand 30 days | n/a · kept |
 | **gdelt_export.db** (`GDELT_EXPORT_DB`, §211) | `gdelt.py` (`ExportStore`) | `files`, `articles`, `theme_counts`, `domains`, `meta` | No, shared | 24 hours of GDELT's 15-minute export files (`GDELT_EXPORT_KEEP_HOURS`), ≤ 1,500 articles per file | n/a · kept |
 | **story_pool.db** (`STORY_POOL_DB`, §267) | `story_store.py` (`StoryStore`), `stories.py` | `snapshots` | No, shared | One row each for the pool (≤ 96 stories) and its ledgers, rewritten every refresh | n/a · **Emptied** |
+| **wikimedia.db** (`WIKIMEDIA_DB`, §274) | `wikimedia.py` (`ReferenceStore`) | `answers`, `enterprise` | No, shared | Each name's reference answer for 24 hours (read as a miss after that, overwritten on the next look); one Enterprise request count per month | n/a · kept |
 
 ### 2.2 Each store: what it holds, who writes it, who reads it
 
@@ -304,6 +305,13 @@ WebP **BLOB**), its scene, prompt, the checker's verdict, status; `spend`
 - `weather` (`weather.py`): one structured forecast snapshot per place,
   fetched on first ask and swept at 05:00 and 17:00 local time. US warnings
   are asked live, not stored.
+
+**wikimedia.db** (`wikimedia.ReferenceStore`, §274): the reference look's
+answers - one row per asked name (or name plus the question's words, when two
+entries shared the name), holding the raw Wikipedia summary and Wikidata facts
+or "" for no match, read for 24 hours - and `enterprise`, the calendar month's
+count of Wikimedia Enterprise requests, so `WIKIMEDIA_MONTHLY_REQUESTS` holds
+across restarts.
 
 **story_pool.db** (`story_store.StoryStore`, §267): the live story pool and
 its ledgers (`_FIRST_SEEN`, `_RETIRED`), as two JSON rows in `snapshots`,

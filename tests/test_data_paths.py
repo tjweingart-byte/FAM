@@ -46,6 +46,7 @@ import pipeline_errors as PE  # noqa: E402
 import local_news as LN  # noqa: E402
 import gdelt as GD  # noqa: E402
 import story_store as SS  # noqa: E402
+import wikimedia as WM  # noqa: E402
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 
@@ -78,6 +79,7 @@ STORES = [
     ("LOCAL_NEWS_DB", "local_news.db", LN.LocalNewsStore),
     ("GDELT_EXPORT_DB", "gdelt_export.db", GD.ExportStore),
     ("STORY_POOL_DB", "story_pool.db", SS.StoryStore),
+    ("WIKIMEDIA_DB", "wikimedia.db", WM.ReferenceStore),
 ]
 
 #: Every `data_path(...)` call in the app, read out of the source.
@@ -133,11 +135,13 @@ ALL_VARS = sorted(DECLARED)
 #: created by the first written episode - the provider counts' case.
 #: `STORY_POOL_DB` (§267) is created by the first story refresh, and
 #: reported once it exists. `PIPELINE_ERRORS_DB` (§269) is created by the
-#: first thing that goes wrong - the routing rows' case.
+#: first thing that goes wrong - the routing rows' case. `WIKIMEDIA_DB`
+#: (§274) is created by the first reference look, and reported once it
+#: exists - the same case again.
 LAZY_STORES = {"VOICE_REGISTRY_DB", "TRENDING_BANK_DB", "VOICE_BANK_DB",
                "THUMBNAILS_DB", "PROVIDER_USAGE_DB", "LOCAL_NEWS_DB",
                "GDELT_EXPORT_DB", "LIVE_ROUTING_DB", "STORY_POOL_DB",
-               "PIPELINE_ERRORS_DB"}
+               "PIPELINE_ERRORS_DB", "WIKIMEDIA_DB"}
 
 
 @pytest.fixture(autouse=True)

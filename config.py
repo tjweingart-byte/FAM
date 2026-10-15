@@ -970,6 +970,32 @@ class Settings:
         default_factory=lambda: os.environ.get("GDELT_CROSS_CHECK", "0")
         not in ("0", "false", "False", ""))
 
+    # --- The reference look: Wikipedia and Wikidata (§274) ---------------
+    # Beside the main search, when the brief names a person or organisation,
+    # its Wikipedia summary and Wikidata's facts (born, age computed in code,
+    # current positions) join the packet as ONE extra source after the web
+    # sources - background, never a current state. Never on an
+    # outcome-dependent, weather or local question. See `wikimedia.py`.
+    wikipedia: bool = field(
+        default_factory=lambda: os.environ.get("WIKIPEDIA", "1")
+        not in ("0", "false", "False", ""))
+    # Wikimedia Enterprise's On-demand API (a free account is 50,000
+    # requests a month). Empty: Wikipedia's keyless summary only.
+    wikimedia_enterprise_username: str = field(
+        default_factory=lambda: os.environ.get(
+            "WIKIMEDIA_ENTERPRISE_USERNAME", "").strip())
+    wikimedia_enterprise_password: str = field(
+        default_factory=lambda: os.environ.get(
+            "WIKIMEDIA_ENTERPRISE_PASSWORD", ""))
+    # Enterprise requests a calendar month (UTC) before the keyless summary
+    # takes over. Counted in `wikimedia.db`, so a restart does not reset it.
+    wikimedia_monthly_requests: int = _env_int("WIKIMEDIA_MONTHLY_REQUESTS", 45000)
+    # One request to Wikimedia.
+    wikipedia_timeout_seconds: float = _env_float("WIKIPEDIA_TIMEOUT_SECONDS", 2.0)
+    # How long past the main search the reference may still arrive. It never
+    # holds the first word longer than this; later than this it is dropped.
+    wikipedia_grace_seconds: float = _env_float("WIKIPEDIA_GRACE_SECONDS", 0.5)
+
     # How far apart the boot's background jobs start (§144): the story sweep
     # at once, the trending bank one stagger later, the DailyFAM edition two.
     # On 24/09 all three started in the same second, and EI timed out and

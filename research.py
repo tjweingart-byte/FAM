@@ -252,6 +252,9 @@ TIER_LABELS = {
     "primary": "wire service, paper of record or primary source",
     "established": "established outlet",
     "unverified": "not on FAM's list of known outlets - weigh it accordingly",
+    # §274: the reference look's one entry. Never a tier a search result is
+    # graded into - only the encyclopedia source is labelled this way.
+    "reference": "reference encyclopedia - background facts, never a current state",
 }
 
 
@@ -454,6 +457,11 @@ class Packet:
     #: The ladder reads it so a rung that already ran as the second look is
     #: not asked the same thing again.
     tried: list = field(default_factory=list)
+    #: The reference look (§274): what became of it - "added", "late",
+    #: "no match", "no web sources" - or "" when none was asked for; and
+    #: which route served it ("enterprise" | "public") when one was added.
+    reference: str = ""
+    reference_via: str = ""
 
     def __bool__(self) -> bool:
         return bool(self.context.strip())
@@ -472,6 +480,8 @@ class Packet:
             "retried": self.retried,
             "fell_back_from": self.fell_back_from,
             "tried": list(self.tried),
+            "reference": self.reference,
+            "reference_via": self.reference_via,
         }
 
 
@@ -1068,6 +1078,130 @@ def _merge_story_look(packet: "Packet", found: tuple, packet_sources: int,
     return len(fresh)
 
 
+# --------------------------------------------------------------------------
+# The reference look (§274): Wikipedia and Wikidata, beside the main search
+# --------------------------------------------------------------------------
+#: How many words a brief's subject may have and still be a name.
+REFERENCE_NAME_WORDS = 6
+
+
+def reference_name_for(brief) -> str:
+    """The name the reference look asks about, or "" for none.
+
+    The brief's `live_entity` (one name, never a list), else its `subject`
+    when that is short enough to be a name. Never without a brief (EI off),
+    and never on a question whose answer is an outcome - a reference never
+    settles one - nor on weather or a town's news, which have their own
+    ladders.
+    """
+    import wikimedia
+
+    if brief is None or not wikimedia.enabled():
+        return ""
+    if getattr(brief, "outcome_dependent", False):
+        return ""
+    if str(getattr(brief, "live_domain", "") or "") == "weather":
+        return ""
+    if str(getattr(brief, "place", "") or "").strip():
+        return ""
+    entity = " ".join(str(getattr(brief, "live_entity", "") or "").split())
+    if entity:
+        return "" if "," in entity else entity
+    subject = " ".join(str(getattr(brief, "subject", "") or "").split())
+    if (subject and "?" not in subject
+            and len(subject.split()) <= REFERENCE_NAME_WORDS):
+        return subject
+    return ""
+
+
+async def _reference_look(name: str, context: str):
+    """`wikimedia.lookup` off the loop. It never raises; this is belt and
+    braces for the rule `_story_look` keeps: an addition never costs the
+    episode its packet."""
+    try:
+        import wikimedia
+
+        return await asyncio.to_thread(wikimedia.lookup, name, context)
+    except Exception as exc:  # noqa: BLE001 - see docstring
+        log.warning("the reference look failed for %r: %s", name, exc)
+        return None
+
+
+def reference_source(reference, number: int, now: Optional[datetime] = None) -> str:
+    """The packet's entry for one reference: dated by its last revision,
+    labelled as background, and never a hostname."""
+    import listener_clock
+
+    now = now or listener_clock.now()
+    revised = getattr(reference, "revised", None)
+    stamp = revised.strftime("%Y-%m-%d") if revised else "unknown"
+    lines = [f"SOURCE {number}",
+             f"Title: {reference.title}",
+             f"Published: last revised {stamp} ({age_phrase(revised, now)})",
+             f"Source type: {TIER_LABELS['reference']}",
+             "Key evidence:"]
+    if reference.description:
+        lines.append(f"Short description: {reference.description}.")
+    if reference.summary:
+        lines.append(reference.summary)
+    lines.extend(reference.facts or [])
+    lines.append("")
+    return "\n".join(lines)
+
+
+def _add_reference(packet: "Packet", reference) -> None:
+    """Append the reference after every web source, and credit it."""
+    import provenance as provenance_mod
+
+    number = len(re.findall(r"^SOURCE \d+$", packet.context or "", re.M)) + 1
+    packet.context = ((packet.context or "").rstrip("\n") + "\n\n"
+                      + reference_source(reference, number))
+    host = host_of(reference) if getattr(reference, "url", "") else ""
+    if host and host not in packet.sources:
+        packet.sources.append(host)
+    credited = provenance_mod.from_reference(reference)
+    if credited:
+        if packet.provenance is None:
+            packet.provenance = provenance_mod.Provenance()
+        for item in credited:
+            packet.provenance.add(item)
+    packet.reference = "added"
+    packet.reference_via = str(getattr(reference, "via", "") or "")
+
+
+async def _finish_reference_look(packet: "Packet", look, name: str) -> None:
+    """Merge the reference look if it is in within `WIKIPEDIA_GRACE_SECONDS`
+    of the main packet; drop it otherwise. Only ever beside web sources: a
+    reference alone would make an empty packet look researched, and stop the
+    ladder before a rung that might find the news."""
+    if look is None:
+        return
+    if not look.done():
+        try:
+            await asyncio.wait_for(asyncio.shield(look),
+                                   timeout=max(0.0, float(settings.wikipedia_grace_seconds)))
+        except asyncio.TimeoutError:
+            pass
+        except Exception:  # noqa: BLE001 - `_reference_look` never raises
+            pass
+    if not look.done():
+        look.cancel()
+        packet.reference = "late"
+        log.info("the reference look for %r was not back within %.1fs of the "
+                 "main packet; not waited for", name, settings.wikipedia_grace_seconds)
+        return
+    reference = None if look.cancelled() else look.result()
+    if reference is None:
+        packet.reference = "no match"
+        return
+    if not packet:
+        packet.reference = "no web sources"
+        return
+    _add_reference(packet, reference)
+    log.info("the reference look added %r (%s) for %r", reference.title,
+             reference.via, name)
+
+
 def _note_gaps(packet: "Packet", must_establish: list) -> "Packet":
     """Name what the brief asked for and this packet does not appear to hold.
 
@@ -1140,10 +1274,24 @@ async def retrieve(query: str, backend: Optional[str] = None,
     if not query:
         raise ResearchUnavailable("nothing to research: the query is empty")
 
+    # **The reference look, beside the search** (§274): Wikipedia's summary
+    # and Wikidata's facts for the name the brief resolved
+    # (`reference_name_for`). Started first, merged once the main packet is in
+    # if it has answered within `WIKIPEDIA_GRACE_SECONDS`, dropped otherwise -
+    # so it never holds the first word longer than that.
+    reference_name = str(overrides.get("reference_name", "") or "").strip()
+    reference_look = None
+    if reference_name:
+        reference_look = asyncio.ensure_future(_reference_look(
+            reference_name, " ".join(filter(None, (
+                query, str(getattr(brief, "query", "") or ""),
+                str(getattr(brief, "subject", "") or ""))))))
+
     if chosen == "gdelt":
         packet = await retrieve_with_gdelt(
             query, brief=brief,
             recency_days=int(overrides.get("recency_days", search_window(brief))))
+        await _finish_reference_look(packet, reference_look, reference_name)
         # The same sufficiency check every other rung runs. Skipping it left
         # `thin_on` empty on this backend, so a packet of headlines with no
         # passages under them reached the writer as though it answered the
@@ -1192,6 +1340,8 @@ async def retrieve(query: str, backend: Optional[str] = None,
         # no packet to add to, and the ladder will search again.
         if story_look is not None and not searched:
             story_look.cancel()
+        if reference_look is not None and not searched:
+            reference_look.cancel()
 
     covered, missing = packet_covers(packet.context, must_establish)
     packet.missing = list(missing)
@@ -1307,6 +1457,10 @@ async def retrieve(query: str, backend: Optional[str] = None,
             packet.cost += SEARCH_COSTS.get(chosen, 0.0)
             log.info("the story's outlets had not answered by the time the "
                      "main packet was ready for %r; not waited for", query)
+
+    # Last, after every web source (§274): one extra source, never in place
+    # of one.
+    await _finish_reference_look(packet, reference_look, reference_name)
 
     if not packet:
         # Retrieval succeeded and found nothing usable. Not an exception - the

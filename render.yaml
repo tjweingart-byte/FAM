@@ -49,6 +49,7 @@ services:
       # Deliberately absent: ANTHROPIC_API_KEY, PARALLEL_API_KEY,
       # PERPLEXITY_API_KEY, GNEWS_KEY,
       # API_SPORTS_KEY, BALLDONTLIE_API_KEY, FINNHUB_KEY, GEMINI_API_KEY, RUNPOD_*, GDELT,
+      # WIKIMEDIA_ENTERPRISE_USERNAME, WIKIMEDIA_ENTERPRISE_PASSWORD, WIKIPEDIA,
       # STORIES_POLYMARKET, LIVE_*_PROVIDER, FAM_SECRETS. Adding one here does
       # nothing (spend_guard removes it and health lists it under
       # `credentials_removed`), so do not.
@@ -288,6 +289,14 @@ services:
       # Player and team reports (§271). Set BALLDONTLIE_TIER to the plan
       # bought: free reads rosters only.
       - key: BALLDONTLIE_API_KEY
+        sync: false
+      # The reference look (§274): Wikipedia's summary and Wikidata's facts
+      # for a named person or organisation. Without these it uses
+      # Wikipedia's keyless summary; with them, Wikimedia Enterprise's
+      # On-demand API (free account: 50,000 requests a month).
+      - key: WIKIMEDIA_ENTERPRISE_USERNAME
+        sync: false
+      - key: WIKIMEDIA_ENTERPRISE_PASSWORD
         sync: false
       - key: FINNHUB_KEY
         sync: false
