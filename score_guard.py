@@ -132,6 +132,31 @@ def _pairs_in_facts(sentences) -> set:
     return pairs
 
 
+_WON = re.compile(rf"\b({_NUM})\s+(?:wins?|victories)\b|\bwon\s+({_NUM})\b", re.I)
+_LOST = re.compile(rf"\b({_NUM})\s+(?:loss(?:es)?|defeats)\b|\blost\s+({_NUM})\b",
+                   re.I)
+
+
+def _report_pairs(sentences) -> set:
+    """What a player's or a team's report vouches for as a pair (§281): a
+    pair it states as one ("3-1"), and a record it states as wins and losses
+    ("22 wins, 3 losses", "won 40 matches and lost 10").
+
+    Never every pair of its numbers, as `_pairs_in_facts` takes a scoreboard's:
+    a season line is "the 2025-26 season ... 29.1 points ... over 26 games",
+    and pairing those vouched for "Nuggets lead Lakers 29 to 26"."""
+    pairs = set()
+    for sentence in sentences:
+        pairs |= {frozenset(pair) for pair in scores_in(sentence)}
+        won, lost = _WON.search(sentence), _LOST.search(sentence)
+        if won and lost:
+            a = _value(won.group(1) or won.group(2))
+            b = _value(lost.group(1) or lost.group(2))
+            if a is not None and b is not None:
+                pairs.add(frozenset((a, b)))
+    return pairs
+
+
 # --------------------------------------------------------------------------
 # Where a game stands, and who won
 # --------------------------------------------------------------------------
@@ -251,11 +276,13 @@ class ScoreGuard:
         self.allowed = _pairs_in_facts(sentences)
         # A player's or a team's report vouches for its own numbers (§275):
         # "22 wins and 3 losses" is a fighter's record, not tonight's score.
-        # Pairs only - it never sets the game's status, period or result.
+        # Pairs only - it never sets the game's status, period or result -
+        # and only the pairs it states as pairs (§281): a season's figures
+        # are single numbers, and pairing them made any two a "score".
         players = getattr(plan, "players", None)
         if (players is not None
                 and getattr(players, "outcome", "") == live_facts.FACTS):
-            self.allowed |= _pairs_in_facts(
+            self.allowed |= _report_pairs(
                 list(getattr(getattr(players, "facts", None), "facts", []) or []))
         self.periods = [p for s in sentences for p in _periods_in(s)]
         self.leader = self.trailer = ""

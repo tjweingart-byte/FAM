@@ -191,6 +191,11 @@ ENDPOINT_TIERS = {
 }
 
 
+#: Pages of an injury report read before stopping (§281): the NHL's has no
+#: filter, so a busy week runs past one page of a hundred.
+INJURY_PAGES = 5
+
+
 def tier_needed(league: str, kind: str) -> str:
     return ENDPOINT_TIERS.get((league, kind)) or ENDPOINT_TIERS.get(kind, "goat")
 
@@ -441,6 +446,12 @@ class Client:
     def __init__(self) -> None:
         #: (league, kind) -> UTC day it was refused
         self.refused: dict = {}
+        #: (league, kind) -> UTC day BALLDONTLIE said 401 to an endpoint the
+        #: configured plan covers (§281): the key, or a `BALLDONTLIE_TIER`
+        #: naming a plan the account does not have - never a quiet refusal.
+        self.account_refused: dict = {}
+        #: The last such refusal in words, and its UTC day, for /admin.
+        self.account_problem: tuple = ("", "")
         self._sent: deque = deque()
 
     @staticmethod
@@ -460,6 +471,23 @@ class Client:
                 "minute and this minute's are spent")
         self._sent.append(now)
 
+    def spare(self, now: Optional[float] = None) -> int:
+        """Requests this minute still has (§281): the sweep stops while a
+        listener's question would still fit, rather than spend the minute."""
+        now = time.monotonic() if now is None else now
+        recent = sum(1 for at in self._sent if now - at < 60.0)
+        return PER_MINUTE.get(settings.balldontlie_tier, 5) - recent
+
+    def problem(self) -> str:
+        """Today's account refusal in words, or "" (§281)."""
+        said, day = self.account_problem
+        return said if said and day == self._today() else ""
+
+    def _account(self, said: str) -> AccountRefused:
+        self.account_problem = (said, self._today())
+        log.error("live facts: %s", said)
+        return AccountRefused(said)
+
     async def get(self, league: League, kind: str, path: str, params: dict,
                   timeout: float = 4.0) -> dict:
         """One request. Raises `TierRefused`, `AccountRefused`,
@@ -471,6 +499,9 @@ class Client:
                 f"{league.label} {kind} needs BALLDONTLIE's "
                 f"{tier_needed(league.key, kind)} plan; this deploy has "
                 f"{settings.balldontlie_tier}")
+        if self.account_refused.get((league.key, kind)) == self._today():
+            raise AccountRefused(f"BALLDONTLIE refused the key for "
+                                 f"{league.label} {kind} today")
         if self.refused.get((league.key, kind)) == self._today():
             raise TierRefused(f"{league.label} {kind} was refused today")
         self.pace()
@@ -482,9 +513,20 @@ class Client:
         except live_sources.ProviderHTTPError as exc:
             if exc.status == 401 and kind in ("players", "teams"):
                 # A Free endpoint refused: the key itself is the problem.
-                raise AccountRefused(
+                raise self._account(
                     f"BALLDONTLIE refused the key ({exc.where})") from None
-            if exc.status in (401, 403):
+            if exc.status == 401:
+                # §281: `plan_reaches` already said the plan covers this, so
+                # a 401 is the key or a `BALLDONTLIE_TIER` above the plan the
+                # account has - an account problem, said as one on /admin,
+                # never a quiet plan refusal. Not asked again today either.
+                self.account_refused[(league.key, kind)] = self._today()
+                raise self._account(
+                    f"BALLDONTLIE refused the key for {league.label} {kind} "
+                    f"({exc.where}), which the {settings.balldontlie_tier} plan "
+                    "covers: the key is wrong or BALLDONTLIE_TIER names a plan "
+                    "the account does not have") from None
+            if exc.status == 403:
                 # A key that reads the catalogue and is refused this is a
                 # plan that does not reach it: not asked again today.
                 self.refused[(league.key, kind)] = self._today()
@@ -529,8 +571,6 @@ class PlayerReports(LiveSource):
         self._rows: dict = {}
         #: entity key -> (expires at, LiveFacts)
         self._reports: dict = {}
-        #: league -> (fetched at, teams)
-        self._teams: dict = {}
         #: (league, season) -> (fetched at, match ids)
         self._matches: dict = {}
 
@@ -546,8 +586,10 @@ class PlayerReports(LiveSource):
                  "players, teams, injuries and season figures (soccer injuries, "
                  "golf and tennis season figures need GOAT)" if tier == "all-star"
                  else "everything this module reads")
+        problem = self.client.problem()
         return True, (f"BALLDONTLIE_API_KEY present, plan {tier}: {reach} "
-                      "(not verified from this machine)")
+                      "(not verified from this machine)"
+                      + (f"; ACCOUNT REFUSED: {problem}" if problem else ""))
 
     async def verify(self) -> tuple[bool, str]:
         """One Free request, the NBA's teams: proves the key, spends one."""
@@ -576,17 +618,21 @@ class PlayerReports(LiveSource):
 
     # ---- catalogues ---------------------------------------------------------
     async def teams(self, league: League) -> list:
-        """A league's teams, from its own catalogue; a day is generous."""
-        held = self._teams.get(league.key)
-        if held and time.time() - held[0] < 86400.0:
-            return held[1]
-        params: dict = {"per_page": 100}
-        if league.stats == "soccer" and league.key != "fifa":
-            params["season"] = season_for(league)
-        data = await self._get(league, "teams", "teams", params)
-        rows = [r for r in (data or {}).get("data") or [] if isinstance(r, dict)]
-        self._teams[league.key] = (time.time(), rows)
-        return rows
+        """A league's teams, from its own catalogue - the scoreboard's copy
+        (`balldontlie_scores.TEAMS`, §281): one catalogue per league for the
+        account, never a second request for the same teams."""
+        import balldontlie_scores
+
+        return list((await balldontlie_scores.league_teams(self.client, league)).values())
+
+    @staticmethod
+    def _held_teams() -> list:
+        """`(league key, teams)` for every catalogue already read."""
+        import balldontlie_scores
+
+        return [(key, list(held[1].values()))
+                for key, held in list(balldontlie_scores.TEAMS.items())
+                if key in TEAM_LEAGUES and held]
 
     async def search(self, league: League, name: str) -> list:
         """Catalogue rows for a name. Searched by its last word: a full name
@@ -621,7 +667,7 @@ class PlayerReports(LiveSource):
             team = pick_team(teams, entity, context)
             if team is not None and not self._is_player_name(entity, team):
                 return self._remember(league, "team", team)
-        for key, (_, teams) in list(self._teams.items()):
+        for key, teams in self._held_teams():
             team = pick_team(teams, entity, context)
             if team is not None and key not in named + roster:
                 return self._remember(LEAGUES[key], "team", team)
@@ -708,8 +754,11 @@ class PlayerReports(LiveSource):
             self._player_injury(league, row, now),
             self._season_facts(league, row, now),
             return_exceptions=True)
+        # A plan's refusal is not an outage, and neither is an account
+        # refusal of one endpoint (§281): it is on /admin already
+        # (`Client.problem`), and the roster line the key did read stands.
         failures = [p for p in parts if isinstance(p, BaseException)
-                    and not isinstance(p, TierRefused)]
+                    and not isinstance(p, (TierRefused, AccountRefused))]
         facts = [identity_line(league, row)]
         for part in parts:
             if isinstance(part, list):
@@ -725,10 +774,23 @@ class PlayerReports(LiveSource):
         return facts
 
     # ---- injuries -------------------------------------------------------------
-    async def _injury_rows(self, league: League, params: dict) -> list:
-        params = dict(params, per_page=100)
-        data = await self._get(league, "injuries", "player_injuries", params)
-        return [r for r in (data or {}).get("data") or [] if isinstance(r, dict)]
+    async def _injury_rows(self, league: League, params: dict) -> tuple:
+        """`(rows, whole)`: the report, every page up to `INJURY_PAGES`
+        (§281). The NHL's takes no filter and runs past a hundred; `whole`
+        is False when the bound stopped the read, and absence is then never
+        said - a page not read is not a player not listed."""
+        rows: list = []
+        cursor = None
+        for _ in range(INJURY_PAGES):
+            asked = dict(params, per_page=100)
+            if cursor:
+                asked["cursor"] = cursor
+            data = await self._get(league, "injuries", "player_injuries", asked)
+            rows += [r for r in (data or {}).get("data") or [] if isinstance(r, dict)]
+            cursor = ((data or {}).get("meta") or {}).get("next_cursor")
+            if not cursor:
+                return rows, True
+        return rows, False
 
     async def _player_injury(self, league: League, row: dict,
                              now: datetime) -> list:
@@ -738,8 +800,10 @@ class PlayerReports(LiveSource):
         player_id = row.get("id")
         # The NHL's report takes no filter; every other league's takes the player.
         params = {} if league.key == "nhl" else {self._list(league, "player_ids"): [player_id]}
-        rows = await self._injury_rows(league, params)
+        rows, whole = await self._injury_rows(league, params)
         mine = [r for r in rows if (r.get("player") or {}).get("id") == player_id]
+        if not mine and not whole:
+            return []
         if not mine:
             return [f"{name} is not on the {league.label} injury report as "
                     f"BALLDONTLIE had it at {_clock(now)}."]
@@ -754,16 +818,19 @@ class PlayerReports(LiveSource):
         team_id = team.get("id")
         params = {} if league.key == "nhl" else {self._list(league, "team_ids"): [team_id]}
         try:
-            rows = await self._injury_rows(league, params)
+            rows, whole = await self._injury_rows(league, params)
         except TierRefused:
             return []
         mine = [r for r in rows if _team_of_injury(r) == team_id
                 or (league.key == "nhl" and _nhl_team_named(r, name))
                 or (league.key != "nhl" and _team_of_injury(r) is None)]
+        if not mine and not whole:
+            return []
         if not mine:
             return [f"The {league.label} injury report lists nobody for the "
                     f"{name} as BALLDONTLIE had it at {_clock(now)}."]
-        facts = [f"The {league.label} injury report lists {len(mine)} "
+        facts = [f"The {league.label} injury report lists "
+                 f"{'' if whole else 'at least '}{len(mine)} "
                  f"{'player' if len(mine) == 1 else 'players'} for the {name}."]
         for entry in mine[:8]:
             facts.append(injury_line(league, entry, full_name(entry.get("player") or {})))

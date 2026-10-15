@@ -39,7 +39,7 @@ import balldontlie
 import live_facts
 import live_route
 import named_slots
-from balldontlie import LEAGUES, League, TierRefused
+from balldontlie import LEAGUES, League, RateLimited, TierRefused
 from config import settings
 from live_facts import Entity, LiveFacts, LiveSource
 
@@ -311,6 +311,32 @@ SCHEDULE_SECONDS = 1800.0
 #: league -> {UTC date: (fetched at, rows)}: the sweep's cards (`Signals`),
 #: read by the lookup before it spends a request of its own.
 CARDS: dict = {}
+#: How old a swept card may be and still answer a lookup (§281): a row is
+#: stamped with the sweep's time, and the freshness check withholds a score
+#: older than `live_facts.MAX_AGE_SECONDS["sports"]`, so a card older than
+#: that less a margin for the episode's own seconds is asked again instead.
+CARD_REUSE_SECONDS = live_facts.MAX_AGE_SECONDS["sports"] - 20.0
+#: How long one lookup's window is reused (§281): `resolve` reads it and
+#: `fetch` reads it again a second later - one request, not two.
+WINDOW_REUSE_SECONDS = 15.0
+#: Pages of a schedule or a tournament read before stopping (§281): a
+#: baseball team's season and a World Cup run past one page of a hundred.
+PAGES = 3
+
+
+async def _pages(client, league: League, kind: str, path: str,
+                 params: dict) -> list:
+    """Every row, following `next_cursor` up to `PAGES` (§281)."""
+    rows: list = []
+    cursor = None
+    for _ in range(PAGES):
+        asked = dict(params, cursor=cursor) if cursor else dict(params)
+        data = await client.get(league, kind, path, asked)
+        rows += [r for r in (data or {}).get("data") or [] if isinstance(r, dict)]
+        cursor = ((data or {}).get("meta") or {}).get("next_cursor")
+        if not cursor:
+            break
+    return rows
 
 
 async def league_teams(client, league: League) -> dict:
@@ -349,16 +375,18 @@ async def league_standings(client, league: League) -> dict:
     return rows
 
 
-async def team_schedule(client, league: League, team_id) -> list:
+async def team_schedule(client, league: League, team_id,
+                        max_age: float = SCHEDULE_SECONDS) -> list:
+    """A team's season, every page (§281). `max_age` is how old a held copy
+    may be: a game's state read off it must be as fresh as a score is."""
     key = (league.key, team_id)
     held = SCHEDULES.get(key)
-    if held and time.time() - held[0] < SCHEDULE_SECONDS:
+    if held and time.time() - held[0] < min(max_age, SCHEDULE_SECONDS):
         return held[1]
     shape = SHAPES[league.key]
     params = {shape.teams: [team_id], "per_page": 100}
     params.update(_season_param(shape, balldontlie.season_for(league)))
-    data = await client.get(league, "games", shape.path, params)
-    rows = [r for r in (data or {}).get("data") or [] if isinstance(r, dict)]
+    rows = await _pages(client, league, "games", shape.path, params)
     rows.sort(key=lambda r: start_of(r) or datetime.max.replace(tzinfo=timezone.utc))
     SCHEDULES[key] = (time.time(), rows)
     return rows
@@ -481,14 +509,19 @@ class ScoreBoard(LiveSource):
         self.client = client or balldontlie.Client()
         #: entity key -> (league key, kind, payload)
         self._rows: dict = {}
+        #: (league, days, team ids) -> (read at, rows): one lookup's window,
+        #: read by `resolve` and again by `fetch` (§281).
+        self._windows: dict = {}
 
     def diagnose(self) -> tuple[bool, str]:
         if not settings.balldontlie_api_key:
             return False, "BALLDONTLIE_API_KEY is not set"
+        problem = getattr(self.client, "problem", lambda: "")()
         return True, (f"BALLDONTLIE_API_KEY present, plan "
                       f"{settings.balldontlie_tier}: games for "
                       f"{len(SHAPES)} leagues, Formula 1 and UFC (not verified "
-                      "from this machine)")
+                      "from this machine)"
+                      + (f"; ACCOUNT REFUSED: {problem}" if problem else ""))
 
     async def verify(self) -> tuple[bool, str]:
         try:
@@ -551,11 +584,19 @@ class ScoreBoard(LiveSource):
         today = datetime.now(timezone.utc).date()
         days = [(today + timedelta(days=d)).isoformat() for d in WINDOW_DAYS]
         held = CARDS.get(league.key, {})
+        # §281: only a card a score off it would still be fresh from - it
+        # was ten minutes, and from two to ten every game on it was withheld.
         cards = [(at, rows) for d in days for at, rows in [held.get(d, (0, []))]
-                 if time.time() - at < 600]
+                 if time.time() - at < CARD_REUSE_SECONDS]
         swept = [r for _, rows in cards for r in rows]
         if team_ids and swept and any(_has_team(r, team_ids) for r in swept):
             return swept, min(at for at, rows in cards if rows)
+        key = (league.key, tuple(days), tuple(sorted(team_ids or [])))
+        for asked in (key, key[:2] + ((),)):
+            # This lookup's own window, or an unfiltered one, read seconds ago.
+            at, rows = self._windows.get(asked, (0.0, []))
+            if time.time() - at < WINDOW_REUSE_SECONDS:
+                return rows, at
         params: dict = {"per_page": 100}
         if shape.dates:
             params[shape.dates] = days
@@ -563,13 +604,20 @@ class ScoreBoard(LiveSource):
             params.update(_season_param(shape, balldontlie.season_for(league)))
         if team_ids:
             params[shape.teams] = team_ids
-        data = await self.client.get(league, "games", shape.path, params)
-        rows = [r for r in (data or {}).get("data") or [] if isinstance(r, dict)]
-        if not shape.dates:
+        if shape.dates:
+            data = await self.client.get(league, "games", shape.path, params)
+            rows = [r for r in (data or {}).get("data") or [] if isinstance(r, dict)]
+        else:
+            # A tournament has no date filter: its season, every page (§281).
+            rows = await _pages(self.client, league, "games", shape.path, params)
             now = datetime.now(timezone.utc)
             rows = [r for r in rows if start_of(r) and abs(
                 (start_of(r) - now).total_seconds()) < 2 * 86400]
-        return rows, time.time()
+        at = time.time()
+        self._windows = {k: v for k, v in self._windows.items()
+                         if at - v[0] < WINDOW_REUSE_SECONDS}
+        self._windows[key] = (at, rows)
+        return rows, at
 
     async def _find_game(self, league: League, teams: list, slot,
                          catalogue: dict) -> Optional[dict]:
@@ -587,6 +635,10 @@ class ScoreBoard(LiveSource):
             now = datetime.now(timezone.utc)
             near = [r for r in schedule if start_of(r)
                     and abs((start_of(r) - now).total_seconds()) < 7 * 86400]
+            if slot is not None:
+                # §281: the week's schedule is held to the slot too - the
+                # afternoon game is not Sunday Night Football.
+                near = [r for r in near if named_slots.in_slot(slot, start_of(r))]
             rows = near
         return pick_game(rows)
 
@@ -642,10 +694,14 @@ class ScoreBoard(LiveSource):
             for team_id in payload["teams"]:
                 if team_id is None:
                     continue
-                schedule = await team_schedule(self.client, league, team_id)
+                # §281: as fresh as a score must be, and stamped with when
+                # it was actually read - a held schedule is up to half an
+                # hour old, and "now" would let a stale state pass as current.
+                schedule = await team_schedule(self.client, league, team_id,
+                                               max_age=CARD_REUSE_SECONDS)
                 row = next((r for r in schedule if r.get("id") == game_id), None)
                 if row is not None:
-                    read_at = time.time()
+                    read_at = (SCHEDULES.get((key, team_id)) or (time.time(),))[0]
                     break
         if row is None:
             return None
@@ -862,6 +918,17 @@ SWEPT = ("nfl", "ncaaf", "nba", "ncaab", "wnba", "mlb", "nhl", "ucl", "epl",
 #: When each league was last swept, and its last failure.
 SWEPT_AT: dict = {}
 FAILURES: dict = {}
+#: Requests the sweep leaves in the plan's minute for listeners (§281): it
+#: stops before a question would no longer fit, never after.
+SWEEP_RESERVE = 10
+
+
+def sweeps_on_plan(tier: Optional[str] = None) -> bool:
+    """Whether the plan can carry the myFAM sweep at all (§281). Free is five
+    requests a minute - one listener's question - so on Free games are looked
+    up on demand only, and the sweep never spends a listener's minute."""
+    tier = tier or settings.balldontlie_tier
+    return balldontlie.PER_MINUTE.get(tier, 5) > SWEEP_RESERVE
 
 
 def watching(rows: list, now: float) -> bool:
@@ -909,10 +976,22 @@ def make_signals():
             if live_sources.configured().get("sports") != "balldontlie":
                 return False, ("sports are on another provider "
                                f"({live_sources.configured().get('sports') or 'none'})")
+            if not sweeps_on_plan():
+                return False, (f"BALLDONTLIE's {settings.balldontlie_tier} plan "
+                               f"allows {balldontlie.PER_MINUTE.get(settings.balldontlie_tier, 5)}"
+                               " requests a minute, one listener's question: the "
+                               "myFAM sweep is off and games are looked up on "
+                               "demand only")
             failing = "; ".join(f"{k} FAILING ({w})" for k, w in FAILURES.items())
+            problem = getattr(self.client, "problem", lambda: "")()
+            beyond = [k for k in SWEPT if not balldontlie.plan_reaches(k, "games")]
             return True, ("BALLDONTLIE_API_KEY present, following "
-                          f"{', '.join(SWEPT)} while a game is on; not verified "
-                          "from this machine" + (f"; {failing}" if failing else ""))
+                          f"{', '.join(k for k in SWEPT if k not in beyond)} "
+                          "while a game is on; not verified from this machine"
+                          + (f"; not swept on the {settings.balldontlie_tier} "
+                             f"plan: {', '.join(beyond)}" if beyond else "")
+                          + (f"; {failing}" if failing else "")
+                          + (f"; ACCOUNT REFUSED: {problem}" if problem else ""))
 
         async def verify(self) -> tuple[bool, str]:
             return await ScoreBoard(self.client).verify()
@@ -931,6 +1010,9 @@ def make_signals():
             return days
 
         def idle(self, now: float) -> str:
+            if not sweeps_on_plan():
+                return (f"BALLDONTLIE's {settings.balldontlie_tier} plan cannot "
+                        "carry the sweep; sports are looked up on demand")
             if not stories.recent_demand(now):
                 return ("nobody has drawn myFAM in the last "
                         f"{settings.stories_demand_seconds / 60:.0f} min; "
@@ -940,8 +1022,13 @@ def make_signals():
             return ""
 
         async def collect(self, limit: int) -> list:
+            if not sweeps_on_plan():
+                return []
             clock = time.time()
-            due = {k: self.due(k, clock) for k in SWEPT}
+            # §281: a league the plan cannot reach (the World Cup below GOAT)
+            # is never asked, and is not a failure.
+            due = {k: self.due(k, clock) for k in SWEPT
+                   if balldontlie.plan_reaches(k, "games")}
             due = {k: d for k, d in due.items() if d}
 
             async def card(key, days):
@@ -950,10 +1037,13 @@ def make_signals():
                 params: dict = {"per_page": 100}
                 if shape.dates:
                     params[shape.dates] = days
+                    data = await self.client.get(league, "games", shape.path, params)
+                    rows = [r for r in (data or {}).get("data") or []
+                            if isinstance(r, dict)]
                 else:
                     params.update(_season_param(shape, balldontlie.season_for(league)))
-                data = await self.client.get(league, "games", shape.path, params)
-                rows = [r for r in (data or {}).get("data") or [] if isinstance(r, dict)]
+                    rows = await _pages(self.client, league, "games", shape.path,
+                                        params)
                 if not shape.dates:
                     # A tournament has no date filter: its days, from the rows.
                     rows = [r for r in rows if start_of(r) and abs(
@@ -967,14 +1057,36 @@ def make_signals():
                     catalogue = await league_teams(self.client, league)
                 return league, rows, catalogue
 
-            for key in due:
-                SWEPT_AT[key] = clock
             out, failures = [], []
-            for key, result in zip(due, await asyncio.gather(
-                    *(card(k, d) for k, d in due.items()), return_exceptions=True)):
-                if isinstance(result, BaseException):
-                    failures.append((key, result))
-                    FAILURES[key] = f"{type(result).__name__}: {result}"
+            # §281: one league at a time, never all at once - twelve requests
+            # in one burst spent a plan's minute and every listener's lookup
+            # in it. The sweep stops while a question still fits in the
+            # minute; a league not reached is due again next time.
+            spare = getattr(self.client, "spare", None)
+            stopped: Optional[RateLimited] = None
+            for key, days in due.items():
+                if spare is not None and spare() <= SWEEP_RESERVE:
+                    stopped = RateLimited(
+                        f"sweep stopped before {key}: the minute's last "
+                        f"{SWEEP_RESERVE} requests are kept for listeners")
+                    log.info("stories: BALLDONTLIE %s", stopped)
+                    break
+                SWEPT_AT[key] = clock
+                try:
+                    result = await card(key, days)
+                except RateLimited as exc:
+                    log.info("stories: BALLDONTLIE sweep stopped at %s: %s", key, exc)
+                    SWEPT_AT.pop(key, None)
+                    stopped = exc
+                    break
+                except TierRefused as exc:
+                    # The plan's answer, not a fault (§281).
+                    log.info("stories: BALLDONTLIE %s not swept: %s", key, exc)
+                    FAILURES.pop(key, None)
+                    continue
+                except Exception as exc:  # noqa: BLE001 - said below
+                    failures.append((key, exc))
+                    FAILURES[key] = f"{type(exc).__name__}: {exc}"
                     continue
                 FAILURES.pop(key, None)
                 league, rows, catalogue = result
@@ -987,6 +1099,10 @@ def make_signals():
                 log.warning("stories: BALLDONTLIE %s failed: %s", key, exc)
             if failures and not out:
                 raise failures[0][1]
+            if stopped is not None and not out:
+                # A sweep the minute stopped is an outage, never an empty
+                # card (§89): a day with no games is not what was read.
+                raise stopped
             out.sort(key=lambda s: (-s.strength, s.subject))
             return out[:limit]
 

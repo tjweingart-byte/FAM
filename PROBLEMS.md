@@ -20091,3 +20091,60 @@ score as old as the sweep), `test_live_providers`, `test_packet_930`,
 names `balldontlie_scores.SWEPT`; §280 notes are at `always-researched`,
 `score-guard`, `sports-balldontlie`, `sweep-on-demand`, `live-facts`,
 `live-route`, `tile-title-angle` and `op-myfam`.
+
+## 281. Review fixes before the merge into Main (2026-10-15)
+
+The branch (§274-§280) was reviewed in three parts before going to Main;
+everything below was reproduced first, and each has a test
+(`tests/test_review_fixes_281.py`, `tests/test_sports_review_281.py`).
+
+**Renumbered.** Main took §270-§273 while this branch was open, so the
+branch's own sections were renumbered §274-§280 (code, tests, docs and the
+test file names), and Main was merged in. Three `.env.example` citations
+written as "PROBLEMS.md 27x" had escaped the renumber and were corrected.
+
+**Research and the reference look.**
+- `RESEARCH_BACKEND=exa` refused at start-up (§279 had dropped it from the
+  backends without retiring it): a dashboard still naming it would have made
+  the merge a server that will not boot. It is retired like `claude` (§135):
+  runs as the default and says so; `RESEARCH_SECOND_LOOK=exa` runs as `same`.
+- An empty rung waited the whole reference grace (0.5 s) before deciding a
+  reference could not be added - once per empty rung, in front of the first
+  word. Decided first now.
+- The look ran on the default thread pool, the one the main search's threads
+  use, and an abandoned look cannot be stopped. It has its own pool
+  (`wikimedia.EXECUTOR`); a network failure holds the provider for
+  `FAILURE_BACKOFF_SECONDS`; a refused Enterprise login is not retried for an
+  hour; an Enterprise request is counted only once it is certain to be sent.
+- On the GDELT rung the reference was added before the gaps were judged, so
+  an encyclopedia line could "cover" a current fact the dated sources lacked.
+  Gaps first, as on the web path.
+- Known, not fixed: two Wikidata items with the same label (a person and an
+  album) are told apart only by the question's words; and the User-Agent
+  carries a contact only when `FETCH_CONTACT` is set - set it in production.
+
+**BALLDONTLIE.**
+- A swept card was reused for 600 s but sports facts expire at 120 s, so
+  every game on myFAM read as stale from two to ten minutes after a sweep.
+  Reused only while under `CARD_REUSE_SECONDS` (the sports limit less 20 s).
+- The Free plan (5 requests a minute, the default) could not cover a sweep
+  (twelve leagues at once) nor one question (six requests). The sweep does
+  not run on Free (`sweeps_on_plan`); on a paid plan it asks one league at a
+  time and stops with `SWEEP_RESERVE` requests left for listeners; a lookup's
+  window is reused by its fetch; player reports share the scoreboard's team
+  catalogue. **Production wants All-Star or above** for the myFAM sweep.
+- ScoreGuard took every pair of numbers in a player report as an allowed
+  score ("2025-26 ... 29 points" let "29 to 26" through). A report now
+  vouches only for pairs it states as pairs or as wins and losses.
+- A named slot with nothing in it fell back to a game outside the slot; none
+  in the slot is none.
+- The NHL injury report and team schedules read one page of 100; they follow
+  the cursor (bounded), and absence is never said when the bound stopped the
+  read.
+- The World Cup (GOAT only) failed every sweep below GOAT and failed a quiet
+  day's whole sweep; a league the plan cannot reach is not asked, and a plan
+  refusal is not a failure.
+- A schedule row was stamped as read now though held for half an hour; it
+  carries its real fetch time.
+- A 401 was taken for a plan refusal; it is an account refusal now
+  (`AccountRefused`), shown on /admin as such.
