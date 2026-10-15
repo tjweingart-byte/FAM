@@ -77,44 +77,41 @@ def test_expert_sources_are_graded(url, tier):
 # --------------------------------------------------------------------------
 # Standings
 # --------------------------------------------------------------------------
-def test_every_standings_shape_is_read():
-    nfl = [{"position": 2, "team": {"id": 9, "name": "Chiefs"},
-            "conference": "AFC", "division": "AFC West"}]
-    nested = [[{"position": 3, "team": {"id": 5}, "group": {"name": "Western Conference"}}]]
-    soccer = [{"league": {"standings": [[{"rank": 1, "team": {"id": 40},
-                                          "group": "Premier League"}]]}}]
-    assert live_sources.standings_rows(nfl) == [
-        {"team": 9, "position": 2, "group": "AFC West"}]
-    assert live_sources.standings_rows(nested)[0]["group"] == "Western Conference"
-    assert live_sources.standings_rows(soccer)[0]["position"] == 1
-    assert live_sources.standings_rows(None) == []
-
-
 def test_a_team_s_place_is_the_table_s_own():
-    rows = live_sources.standings_rows(
-        [{"position": 2, "team": {"id": 9}, "division": "AFC West"}])
-    assert live_sources.standing_facts({"id": 9, "name": "Kansas City Chiefs"}, rows) \
-        == ["The Kansas City Chiefs are 2nd in the AFC West, per the league's standings."]
-    assert live_sources.standing_facts({"id": 1, "name": "Denver Broncos"}, rows) == []
+    """§276: BALLDONTLIE reads the table now (`balldontlie_scores`)."""
+    import balldontlie
+    import balldontlie_scores as bs
+
+    nfl = balldontlie.LEAGUES["nfl"]
+    row = {"team": {"id": 9, "full_name": "Kansas City Chiefs"}, "wins": 6,
+           "losses": 1, "division_rank": 2, "division_name": "AFC West"}
+    assert bs.standing_facts(nfl, {"id": 9, "full_name": "Kansas City Chiefs"},
+                             row) == [
+        "The Kansas City Chiefs have won 6 and lost 1 this season, per the "
+        "league's standings.",
+        "The Kansas City Chiefs are 2nd in the AFC West."]
+    assert bs.standing_facts(nfl, {"id": 1, "full_name": "Denver Broncos"},
+                             None) == []
 
 
 def test_standings_are_one_cached_request_per_league(monkeypatch):
-    calls = []
-
-    async def fake(url, params, timeout):
-        calls.append((url, dict(params)))
-        return {"response": [{"position": 1, "team": {"id": 9}, "division": "AFC West"}]}
-
-    monkeypatch.setattr(live_sources, "api_sports_json", fake)
-    monkeypatch.setattr(live_sources, "STANDINGS", {})
-    sport = live_sources.SPORTS["american-football"]
     import asyncio
 
-    asyncio.run(live_sources.league_standings(sport, now=1000.0))
-    asyncio.run(live_sources.league_standings(sport, now=2000.0))
-    assert len(calls) == 1
-    assert calls[0][0].endswith("/standings")
-    assert calls[0][1]["league"] == sport.team_league
+    import balldontlie
+    import balldontlie_scores as bs
+
+    calls = []
+
+    class Client:
+        async def get(self, league, kind, path, params):
+            calls.append((league.key, kind, path, dict(params)))
+            return {"data": [{"team": {"id": 9}, "wins": 1, "losses": 0}]}
+
+    nfl = balldontlie.LEAGUES["nfl"]
+    first = asyncio.run(bs.league_standings(Client(), nfl))
+    second = asyncio.run(bs.league_standings(Client(), nfl))
+    assert len(calls) == 1 and first == second and 9 in first
+    assert calls[0][:3] == ("nfl", "standings", "standings")
 
 
 # --------------------------------------------------------------------------

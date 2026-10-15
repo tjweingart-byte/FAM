@@ -150,7 +150,7 @@ MISSED_QUIET = 3 * 86400
 MOST_PLAYED_WINDOW = 24 * 3600
 
 #: No constant names the live feeds "What you missed last week" refuses, on
-#: purpose. The owner named Polymarket, Finnhub and API-Sports; the rule is
+#: purpose. The owner named Polymarket, Finnhub and the sports feed; the rule is
 #: every `provenance.LIVE` attribution, because any feed added later is the
 #: same kind and a name list is what misses the next one. A price, a score or
 #: a market line from four days ago replayed as though it were news is the
@@ -1170,17 +1170,17 @@ def tags_for_text(text: str) -> tuple[str, ...]:
 def _names_a_sport(text: str) -> bool:
     """Whether the words name a sport or a team FAM already knows (§187).
 
-    The same two readings `live_sources.sport_for` routes a question on - a
-    sport's own words ("stanley cup", "grand prix") and a team from a league
-    catalogue this deployment has already read ("Maple Leafs game") - so a
-    question the live lookup would send to a sports provider is also filed
-    under sport by the ranker. Cached catalogues only: this never spends a
-    request, and with none read it is the sport words alone.
+    Two readings: a sport's own words ("stanley cup", "grand prix", every
+    league's name in `balldontlie.LEAGUES`) and a team from a league
+    catalogue this deployment has already read (`balldontlie_scores.TEAMS`,
+    "Maple Leafs game") - so a question the scoreboard would answer is also
+    filed under sport by the ranker. Cached catalogues only: this never
+    spends a request, and with none read it is the sport words alone.
     """
     if not text:
         return False
     try:
-        import live_sources
+        import balldontlie_scores
 
         words = _WORD.findall(text.lower())
         single, phrases = _sport_vocabulary()
@@ -1190,8 +1190,9 @@ def _names_a_sport(text: str) -> bool:
             padded = " " + " ".join(words) + " "
             if any(phrase in padded for phrase in phrases):
                 return True
-        for held in list(live_sources.TEAMS.values()):
-            if held and live_sources.teams_named(held[1], text):
+        for held in list(balldontlie_scores.TEAMS.values()):
+            if held and balldontlie_scores.teams_named(
+                    list(held[1].values()), text, "", nicknames=True):
                 return True
     except Exception:  # noqa: BLE001 - a vocabulary never takes the page away
         log.exception("could not read the sports vocabulary")
@@ -1247,22 +1248,38 @@ UNFILED = "?"
 _SPORT_VOCAB: Optional[tuple] = None
 
 
+#: Words that name a sport outright, beside every league's own names
+#: (`balldontlie.LEAGUES`). Vocabulary, not a provider: a sport FAM has no
+#: scoreboard for is still sport to the ranker.
+SPORT_WORDS = (
+    "american football", "touchdown", "quarterback", "super bowl",
+    "soccer", "europa league", "fa cup", "basketball", "euroleague",
+    "world series", "innings", "hockey", "khl", "stanley cup", "ahl",
+    "rugby", "six nations", "top 14", "super rugby", "nrl",
+    "premiership rugby", "all blacks", "springboks", "volleyball",
+    "superlega", "plusliga", "afl", "australian football", "aussie rules",
+    "australian rules", "grand prix", "bellator", "pfl",
+    "mixed martial arts", "fifa")
+
+
 def _sport_vocabulary() -> tuple:
-    """`live_sources.SPORTS`' words, split once: one-word names as a set and
-    longer ones as padded phrases, so `_names_a_sport` is a set lookup per
-    question rather than a scan of every sport per word."""
+    """The sport words, split once: one-word names as a set and longer ones
+    as padded phrases, so `_names_a_sport` is a set lookup per question
+    rather than a scan of every league per word."""
     global _SPORT_VOCAB
     if _SPORT_VOCAB is None:
-        import live_sources
+        import balldontlie
 
+        every = list(SPORT_WORDS)
+        for league in balldontlie.LEAGUES.values():
+            every.extend(league.words)
         single, phrases = set(), []
-        for sport in live_sources.SPORTS.values():
-            for word in sport.words:
-                parts = _WORD.findall(word.lower())
-                if len(parts) == 1:
-                    single.add(parts[0])
-                elif parts:
-                    phrases.append(" " + " ".join(parts) + " ")
+        for word in every:
+            parts = _WORD.findall(word.lower())
+            if len(parts) == 1:
+                single.add(parts[0])
+            elif parts:
+                phrases.append(" " + " ".join(parts) + " ")
         _SPORT_VOCAB = (frozenset(single), tuple(phrases))
     return _SPORT_VOCAB
 
@@ -1323,10 +1340,10 @@ def _event_fields(event: Event) -> set:
     today, each folded to the heading it sits under."""
     global _FIELD_MEMO, _FIELD_MEMO_KEY
     try:
-        import live_sources
+        import balldontlie_scores
 
-        teams = tuple(sorted((k, v[0]) for k, v in live_sources.TEAMS.items()
-                             if v))
+        teams = tuple(sorted((k, v[0]) for k, v in
+                             balldontlie_scores.TEAMS.items() if v))
     except Exception:  # noqa: BLE001
         teams = ()
     generation = (getattr(category_tree(), "_loaded_at", 0.0), teams)
@@ -4045,7 +4062,7 @@ def rank_missed(store: EventStore, user_id: str, exclude: set[str],
     * **cached** at the page's length (`episode_info`), so a tap replays and
       nothing is written;
     * **not written from a live feed** - an episode whose provenance names
-      Polymarket, Finnhub, API-Sports or any other live feed
+      Polymarket, Finnhub, BALLDONTLIE or any other live feed
       (`provenance.LIVE`) is a price or a score from days ago, and replaying it as though it
       were news is the stale-fact failure LIVE_FACTS.md exists to prevent;
     * **never heard by this listener**, on any surface (`heard`).
@@ -5061,7 +5078,7 @@ def world_inventory(live: list, live_held: list, heard: Optional["Heard"],
     so the two cannot disagree - is the current edition, and with no edition
     (no key, the first build still running, a failed build) it is **empty and
     says why** (`trending_bank.empty_reason`). It never falls back to the
-    pool: a Trending row quietly filled from GDELT, API-Sports, Finnhub and
+    pool: a Trending row quietly filled from GDELT, BALLDONTLIE, Finnhub and
     Polymarket would look exactly like one built from GNews, which is the
     silent fallback this project keeps paying for.
 

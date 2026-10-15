@@ -12254,7 +12254,7 @@
         : Math.round(mins / 60) + " h ago");
     }
     // "Live" only while the score is fresh (§156). Scores refresh on the
-    // API-Sports budget, and when it runs low one can sit for a while - it
+    // sports sweep's clock, and when it is behind one can sit for a while - it
     // keeps its age, and loses the badge that says it is happening now.
     var fresh = !at || (Date.now() / 1000 - at) < 20 * 60;
     var live = (topic.live_status === "in_progress" && fresh) ? " is-live" : "";

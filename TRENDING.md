@@ -275,7 +275,7 @@ one background job, and the sweep reads the local copy.)*
 | Holds | `TRENDING_BANK_SIZE` stories (10), composed into tiles by `stories.compose` exactly as the pool's are. |
 | Writes | one episode per story, at `TRENDING_BANK_MINUTES` (2, the myFAM default), into the shared script cache under `pipeline.key_for` - the key a tap computes - kept for as long as the edition can be on the row (`TRENDING_BANK_MAX_AGE_HOURS`, 36) plus an hour. |
 | Shown | by the Trending rail and its "View more", through `topics.world_inventory` - and nothing else: with no edition the row is empty and says why, never filled from the live pool. |
-| Kept apart | GNews is called only by `trending_bank`; the live pool (API-Sports on demand while a followed game is on and Finnhub every two hours since §191; GDELT and Polymarket every two hours since §156) never spends a GNews request, and a test scans the modules to keep it so. |
+| Kept apart | GNews is called only by `trending_bank`; the live pool (BALLDONTLIE's sports on demand while a followed game is on and Finnhub every two hours since §191; GDELT and Polymarket every two hours since §156) never spends a GNews request, and a test scans the modules to keep it so. |
 | Order | Heard stories still become follow-ups (`trending_for`); order is still popularity and the listener's country (`rank_world`). |
 | Stored | `TRENDING_BANK_DB` on the mounted disk, with the GNews request ledger (`GNEWS_DAILY_REQUESTS`). |
 
@@ -297,7 +297,7 @@ whose answer is a result (`outcome_dependent`) - that tile is offered and
 the tap writes it.
 
 **The two inventories do not cross.** Made for you and What you missed read
-the live pool (GDELT, API-Sports, Finnhub, Polymarket, every fifteen
+the live pool (GDELT, BALLDONTLIE, Finnhub, Polymarket, every fifteen
 minutes) and never the bank; Trending reads the bank and never the pool; and
 GNews is spent by the bank alone.
 

@@ -14,7 +14,7 @@ from, not of a job that has to remember to run. Four tabs:
 * **Marketing & Materials** - a budget per line: before launch, after launch
   and one-off at launch, spread over the twelve months.
 * **Projections** - twelve months of costs driven by listeners, with sports
-  apart (it misses the cache more and spends API-Sports requests), marketing
+  apart (it misses the cache more and needs a sports data plan), marketing
   from the tab above, launch licences, revenue to fill in, and every rate in a
   labelled cell.
 * **Daily Spend** - one row per UTC day of recorded spend (`metering.py`,
@@ -61,7 +61,7 @@ EUR_TO_USD = 1.08
 # price becomes a monthly cost on the sheet: "/month", "/year", "EUR/month",
 # or "usage" (read from the Daily Spend column named in `ledger`). Prices are
 # from docs/FINANCIAL.md and the code it cites; a row whose plan the deployment
-# can tell us (GNews, Finnhub, Open-Meteo, API-Sports, the voice transport,
+# can tell us (GNews, Finnhub, Open-Meteo, BALLDONTLIE, the voice transport,
 # tile pictures, Viral Loops) is decided by the settings in force, not copied.
 
 HOSTING = "Hosting & infrastructure"
@@ -136,15 +136,6 @@ def _claude_plan(model: str) -> str:
         return "Pay as you go (per token)"
     return (f"Pay as you go: ${rate[0]:g} in / ${rate[1]:g} out per M tokens; "
             "small calls on a cheaper model")
-
-
-def _sport_tiers() -> tuple[dict, dict]:
-    """(sport -> tier, tier -> {daily, usd, label}) from live_sources."""
-    try:
-        import live_sources
-        return live_sources.configured_tiers(), live_sources.TIERS
-    except Exception:  # noqa: BLE001
-        return {}, {"free": {"daily": 100, "usd": 0, "label": "Free"}}
 
 
 def catalogue() -> list[dict]:
@@ -231,25 +222,20 @@ def catalogue() -> list[dict]:
         "" if gnews_paid else "Essential EUR 49.99/mo before charging anyone",
         "GNEWS_PLAN; gnews.io/pricing (2026-09-25)"))
 
-    tiers, prices = _sport_tiers()
-    paid = {s: t for s, t in tiers.items() if t != "free"}
-    for sport, tier in sorted(paid.items()):
-        info = prices.get(tier, {})
-        rows.append(_row(
-            DATA, "API-Sports", f"{sport} ({info.get('label', tier)})",
-            "Live scores and story-card score lines",
-            f"{info.get('label', tier)}: {info.get('daily', 0):,} req/day",
-            "Paying", info.get("usd", 0), "/month", "",
-            "API_SPORTS_TIERS; live_sources.TIERS (2026-09-30)"))
-    free_sports = sorted(s for s, t in tiers.items() if t == "free")
-    if free_sports or not tiers:
-        rows.append(_row(
-            DATA, "API-Sports",
-            f"{len(free_sports) or 10} sports on the free plan",
-            "Live scores and story-card score lines",
-            "Free: 100 req/day per sport", "Free tier", 0, "/month",
-            "Pro $19/mo per sport (7,500 req/day)",
-            "API_SPORTS_TIER; live_sources.TIERS (2026-09-30)"))
+    # §273, §276: every league's scores, standings and player reports on one
+    # flat-rate plan, named by BALLDONTLIE_TIER. Its price is not in the
+    # repository, so a paid plan asks for it rather than guessing one.
+    bdl_tier = str(_setting("balldontlie_tier", "free") or "free").lower()
+    bdl_paid = bdl_tier not in ("", "free")
+    rows.append(_row(
+        DATA, "BALLDONTLIE", "Sports data (every league)",
+        "Live scores, standings, story-card score lines, player and injury reports",
+        f"{bdl_tier.upper()} plan, flat rate" if bdl_paid
+        else "Free (5 req/min: rosters and games only)",
+        "Paying, enter price" if bdl_paid else "Free tier",
+        0, "/month",
+        "" if bdl_paid else "ALL-STAR for standings, injuries and season figures",
+        "BALLDONTLIE_TIER; balldontlie.io/pricing"))
 
     finnhub_plan = str(_setting("finnhub_plan", "free") or "free")
     finnhub_paid = finnhub_plan not in ("", "free")
@@ -320,7 +306,7 @@ def catalogue() -> list[dict]:
 
 #: The licences a paid launch needs that are not yet bought. Projections counts
 #: them from the launch month.
-#: API-Sports and Render are not here: the plan sizes those from listeners.
+#: BALLDONTLIE and Render are not here: the plan sizes those itself.
 def launch_purchases(rows: list[dict]) -> list[dict]:
     out = []
     bought = {(r["vendor"], r["status"]) for r in rows}
@@ -743,7 +729,6 @@ def build(now: Optional[float] = None) -> bytes:
         ("New episodes per search, general", 0.70, PCT, "The rest replay a kept episode for almost nothing."),
         ("New episodes per search, sports", 0.90, PCT, "Higher: a game in progress is never replayed from the cache."),
         ("Cost of one new episode", None, MONEY, "Recorded average once there are episodes; $0.06 until then."),
-        ("Sports offered", 2, COUNT, "Each is its own API-Sports plan (e.g. NFL and soccer)."),
     ]
     A = {}
     for i, (label, value, fmt, note) in enumerate(assumptions):
@@ -769,7 +754,7 @@ def build(now: Optional[float] = None) -> bytes:
     lb = a("Launch month")
     # Any day typed into the launch month means that month.
     live = lambda L: f"{L}${PH}>=DATE(YEAR({lb}),MONTH({lb}),1)"  # noqa: E731
-    names = ["mau", "searches", "sports", "episodes", "episode_cost", "api_sports",
+    names = ["mau", "searches", "sports", "episodes", "episode_cost", "sports_data",
              "hosting", "bandwidth", "subs", "licences", "marketing", "total",
              "revenue", "net", "cumulative", "per_listener", "sports_share"]
     R = {n: PH + 1 + i for i, n in enumerate(names)}
@@ -780,15 +765,8 @@ def build(now: Optional[float] = None) -> bytes:
     rates = [
         ("fallback", "Cost of one new episode before there is traffic", 0.06, MONEY,
          "Estimate, docs/FINANCIAL.md 2.4"),
-        ("req_per_search", "API-Sports requests per sports search", 2, "0.0",
-         "Estimate: the lookup plus the occasional standings call"),
-        ("req_cards", "API-Sports score-card requests per sport per day", 100, COUNT,
-         "Estimate: today's free allowance, used by score cards"),
-        ("pro_limit", "API-Sports Pro: requests per day", 7500, COUNT, "api-sports.io, 2026-09-30"),
-        ("pro", "API-Sports Pro: per sport per month", 19, MONEY, "api-sports.io, 2026-09-30"),
-        ("ultra_limit", "API-Sports Ultra: requests per day", 75000, COUNT, "api-sports.io, 2026-09-30"),
-        ("ultra", "API-Sports Ultra: per sport per month", 29, MONEY, "api-sports.io, 2026-09-30"),
-        ("mega", "API-Sports Mega: per sport per month", 39, MONEY, "api-sports.io, 2026-09-30"),
+        ("bdl_launch", "BALLDONTLIE plan from launch, per month", 0, MONEY,
+         "Enter the plan's price (balldontlie.io/pricing): one flat rate, every league"),
         ("std_at", "Render Standard from this many listeners", 1000, COUNT,
          "docs/FINANCIAL.md 5.1"),
         ("std", "Render on Standard, per month", 32.5, MONEY,
@@ -849,22 +827,18 @@ def build(now: Optional[float] = None) -> bytes:
         f"+{L}{R['sports']}*{a('New episodes per search, sports')}"), COUNT)
     prow("episode_cost", "Episodes (Claude, search, voice)", lambda m, L: (
         f"={L}{R['episodes']}*{a('Cost of one new episode')}"))
-    # Requests per sport per day: two per sports search, plus ~100 for the
-    # score cards; that picks Pro (7,500/day), Ultra (75k) or Mega.
-    req = lambda L: (  # noqa: E731
-        f"({L}{R['sports']}*{t('req_per_search')}/30/MAX(1,{a('Sports offered')})"
-        f"+{t('req_cards')})")
-    prow("api_sports", "Sports data (API-Sports)", lambda m, L: (
-        f"=IF({live(L)},{a('Sports offered')}*IF({req(L)}<={t('pro_limit')},{t('pro')},"
-        f"IF({req(L)}<={t('ultra_limit')},{t('ultra')},{t('mega')})),"
-        f"{cs_vendor('API-Sports')})"))
+    # One flat plan for every league (§276): what Costs says now, and from
+    # launch whatever plan the yellow rate cell says was bought.
+    prow("sports_data", "Sports data (BALLDONTLIE)", lambda m, L: (
+        f"=IF({live(L)},MAX({cs_vendor('BALLDONTLIE')},{t('bdl_launch')}),"
+        f"{cs_vendor('BALLDONTLIE')})"))
     prow("hosting", "Hosting (Render)", lambda m, L: (
         f"=IF({L}{R['mau']}<{t('std_at')},{cs_vendor('Render')},IF({L}{R['mau']}<{t('pro_at')},{t('std')},{t('rpro')}))"))
     prow("bandwidth", "Bandwidth", lambda m, L: (
         f"={L}{R['mau']}*{a('Plays per listener per month')}*{t('bw')}"))
     prow("subs", "Other subscriptions and background writing", lambda m, L: (
         f"={FIXED}-{cs_vendor('Render')}-{cs_vendor('Render bandwidth')}"
-        f"-{cs_vendor('API-Sports')}"
+        f"-{cs_vendor('BALLDONTLIE')}"
         f"+MIN({t('bg_cap')},{t('bg_base')}+{t('bg_per')}*{L}{R['mau']})"))
     prow("licences", "Launch licences", lambda m, L: (
         f"=IF({live(L)},{'+'.join(lic_cells) or 0},0)"))
@@ -886,7 +860,7 @@ def build(now: Optional[float] = None) -> bytes:
     prow("sports_share", "Sports share of running costs", lambda m, L: (
         f"=IF({L}{R['total']}-{L}{R['marketing']}>0,"
         f"({L}{R['sports']}*{a('New episodes per search, sports')}*{a('Cost of one new episode')}"
-        f"+{L}{R['api_sports']})/({L}{R['total']}-{L}{R['marketing']}),0)"), PCT, muted=True)
+        f"+{L}{R['sports_data']})/({L}{R['total']}-{L}{R['marketing']}),0)"), PCT, muted=True)
     for c in range(1, 16):
         proj.cell(row=R["total"], column=c).border = rule
         proj.cell(row=R["total"], column=c).fill = fill(BRAND_SOFT)
@@ -907,8 +881,8 @@ def build(now: Optional[float] = None) -> bytes:
         "How it works: costs follow new episodes, the searches not answered "
         "by an episode already made. The cost of one is FAM's recorded average "
         "once there is traffic, so the forecast sharpens as listeners arrive. "
-        "Hosting steps up at 1,000 and 10,000 listeners; each sport's data plan "
-        "follows its requests (Pro $19, Ultra $29, Mega $39)."
+        "Hosting steps up at 1,000 and 10,000 listeners; sports data is one "
+        "flat BALLDONTLIE plan for every league."
     )).font = f(9, color=MUTED, italic=True)
     proj.freeze_panes = f"B{PH + 1}"
     widths(proj, [40, 12, 12] + [11] * 12)

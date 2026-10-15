@@ -3,13 +3,12 @@
 Four instructions from the owner, one file:
 
 1. **The model never searches.** Everything an episode is written from comes
-   from the web search backends (Parallel, Perplexity), GDELT, API-Sports,
-   Finnhub and Polymarket - pinned in
+   from the web search backends (Parallel, Perplexity), GDELT, BALLDONTLIE
+   (§276), Finnhub and Polymarket - pinned in
    `test_research.py` and `test_no_evidence.py`; here only the one rule that
    crosses modules: a live provider with a key is switched on by the key.
-2. **API-Sports sweeps on its whole allowance, with the score** - the budget
-   is in `test_story_sources.py`; here, that an episode's lookup reads the
-   sweep's card before it spends.
+2. **The sports sweep carries the score** - pinned in `test_story_sources.py`;
+   here, that an episode's lookup reads the sweep's card before it spends.
 3. **Trending is the stories the world's press is running** - clustered from
    headlines, ranked by how many outlets carry them, across every source.
 4. **...worldwide and regionally, organised by geography.**
@@ -329,69 +328,86 @@ def test_the_trending_row_never_takes_the_bank_even_by_geography(store):
 # --------------------------------------------------------------------------
 def test_a_live_provider_with_a_key_is_switched_on_by_the_key(monkeypatch):
     monkeypatch.setattr(live_sources, "settings", dataclasses.replace(
-        config.settings, api_sports_key="k", finnhub_key="f",
+        config.settings, balldontlie_api_key="k", finnhub_key="f",
         live_sports_provider="", live_markets_provider="",
         live_elections_provider="polymarket"))
     assert live_sources.configured() == {
-        "sports": "api-sports", "markets": "finnhub", "elections": "polymarket"}
+        "sports": "balldontlie", "markets": "finnhub", "elections": "polymarket"}
     assert live_sources.report()["derived_from_key"] == ["markets", "sports"]
 
 
 def test_none_still_switches_a_domain_off(monkeypatch):
     monkeypatch.setattr(live_sources, "settings", dataclasses.replace(
-        config.settings, api_sports_key="k", live_sports_provider="none"))
+        config.settings, balldontlie_api_key="k", live_sports_provider="none"))
     assert live_sources.configured()["sports"] == ""
 
 
 def test_no_key_no_provider(monkeypatch):
     monkeypatch.setattr(live_sources, "settings", dataclasses.replace(
-        config.settings, api_sports_key="", finnhub_key="",
+        config.settings, balldontlie_api_key="", finnhub_key="",
         live_sports_provider="", live_markets_provider=""))
     assert live_sources.configured()["sports"] == ""
     assert live_sources.configured()["markets"] == ""
 
 
-def test_an_episode_about_a_swept_game_spends_nothing_finding_it(monkeypatch):
-    """On a plan of a hundred requests a day, a request saved is fourteen
-    minutes of fresher scores on myFAM. The sweep already listed today's
-    games; the lookup reads that before asking, and a card fresh enough to
-    be current is used as the state too."""
-    row = {"game": {"id": 42, "status": {"short": "Q3", "long": "Third Quarter"}},
-           "teams": {"home": {"name": "Kansas City Chiefs"},
-                     "away": {"name": "Buffalo Bills"}},
-           "scores": {"home": {"total": 21}, "away": {"total": 14}}}
+def _swept_nfl(monkeypatch, row, swept_at):
+    """BALLDONTLIE (§273) with the NFL's catalogue read and `row` on the
+    sweep's card from `swept_at`; every request recorded."""
+    import balldontlie
+    import balldontlie_scores as bs
+
     spent: list = []
 
     async def _json(url, headers, params, timeout):
-        spent.append(params)
-        return {"response": [row]}
+        spent.append((url.split("balldontlie.io", 1)[1], dict(params)))
+        return {"data": []}
 
+    patched = dataclasses.replace(config.settings, balldontlie_api_key="k",
+                                  balldontlie_tier="goat")
+    for module in (live_sources, balldontlie, bs):
+        monkeypatch.setattr(module, "settings", patched)
     monkeypatch.setattr(live_sources, "_json", _json)
-    monkeypatch.setattr(live_sources, "API_SPORTS_BUDGET", live_sources.RequestBudget())
-    monkeypatch.setattr(live_sources, "CARD", {})
-    monkeypatch.setattr(live_sources, "settings", dataclasses.replace(
-        config.settings, api_sports_key="k", api_sports_sport="american-football"))
-    live_sources.remember_card("american-football", [row])
+    teams = {12: {"id": 12, "full_name": "Kansas City Chiefs", "name": "Chiefs"},
+             3: {"id": 3, "full_name": "Buffalo Bills", "name": "Bills"}}
+    monkeypatch.setitem(bs.TEAMS, "nfl", (time.time(), teams))
+    day = bs._day_of(row)  # noqa: SLF001
+    monkeypatch.setitem(bs.CARDS, "nfl", {day: (swept_at, [row])})
+    return spent, bs
 
-    source = live_sources.ApiSportsSource()
-    brief = types.SimpleNamespace(subject="Chiefs game", query="chiefs game")
+
+def _nfl_game(gid, hs, as_):
+    from datetime import datetime, timedelta, timezone
+
+    return {"id": gid, "status_state": "in_progress",
+            "date": (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat(),
+            "home_team": {"id": 12, "full_name": "Kansas City Chiefs"},
+            "visitor_team": {"id": 3, "full_name": "Buffalo Bills"},
+            "home_team_score": hs, "visitor_team_score": as_}
+
+
+def test_an_episode_about_a_swept_game_spends_nothing_finding_it(monkeypatch):
+    """A request saved is fresher scores on myFAM. The sweep already listed
+    today's games; the lookup reads that before asking, and a card fresh
+    enough to be current is used as the state too."""
+    spent, bs = _swept_nfl(monkeypatch, _nfl_game(42, 21, 14), time.time())
+    source = bs.ScoreBoard()
+    brief = types.SimpleNamespace(subject="Kansas City Chiefs game",
+                                  query="kansas city chiefs game nfl",
+                                  live_entity="", named_slot="", category="")
     entity = asyncio.run(source.resolve(brief))
-    facts = asyncio.run(source.fetch(entity))
-    assert entity.id == "american-football:42"
-    assert facts.status == live_facts.IN_PROGRESS
+    assert entity.id == "nfl:game:42"
     assert spent == [], "the lookup spent requests the sweep had already paid for"
-
-    # A card too old to be current costs one request, for the state only.
-    live_sources.CARD["american-football"] = (time.time() - 600, [row])
-    asyncio.run(source.fetch(asyncio.run(source.resolve(brief))))
-    assert spent == [{"id": "42"}]
+    facts = asyncio.run(source.fetch(entity))
+    assert facts.status == live_facts.IN_PROGRESS
+    assert not any("dates[]" in params for _, params in spent), \
+        "the game's state was asked again although the card was current"
 
 
 # --------------------------------------------------------------------------
 # the pool refreshes itself
 # --------------------------------------------------------------------------
 def test_the_pool_refreshes_with_nobody_looking(monkeypatch):
-    """A quiet hour used to leave Trending an hour old and the API-Sports
+    """A quiet hour used to leave Trending an hour old and the sports
     allowance unspent, because only a page load refreshed the pool."""
     import app
 
@@ -451,31 +467,30 @@ def test_a_game_is_not_matched_to_news_about_its_city():
 def test_a_score_read_off_the_sweep_is_as_old_as_the_sweep(monkeypatch):
     """Stamping it with this moment would let the freshness check that
     withholds a stale score pass one it should have questioned."""
-    row = {"game": {"id": 7, "status": {"short": "Q2"}},
-           "teams": {"home": {"name": "Chiefs"}, "away": {"name": "Bills"}},
-           "scores": {"home": {"total": 7}, "away": {"total": 3}}}
-    monkeypatch.setattr(live_sources, "CARD", {})
     swept = time.time() - 40
-    live_sources.remember_card("american-football", [row], now=swept)
-    entity = live_facts.Entity(domain="sports", provider="API-Sports",
-                               id="american-football:7", label="Chiefs v Bills")
-    facts = asyncio.run(live_sources.ApiSportsSource().fetch(entity))
+    _spent, bs = _swept_nfl(monkeypatch, _nfl_game(7, 7, 3), swept)
+    source = bs.ScoreBoard()
+    brief = types.SimpleNamespace(subject="Kansas City Chiefs", query="chiefs nfl",
+                                  live_entity="Kansas City Chiefs",
+                                  named_slot="", category="")
+    facts = asyncio.run(source.fetch(asyncio.run(source.resolve(brief))))
     assert abs(facts.as_of.timestamp() - swept) < 1
 
 
-def test_an_api_sports_refusal_is_never_an_empty_card(monkeypatch):
-    """A bad key is answered 200 with the reason in `errors` and an empty
-    `response`. Read as data, that is a day with no games."""
+def test_a_refused_key_is_never_an_empty_card(monkeypatch):
+    """A refused key read as data is a day with no games. BALLDONTLIE's
+    refusal is an HTTP error, and it is raised as one (§276)."""
+    import balldontlie
+
     async def _json(url, headers, params, timeout):
-        return {"errors": {"token": "Error/Missing application key."},
-                "response": []}
+        raise live_sources.ProviderHTTPError(401, "api.balldontlie.io/nfl/v1/teams")
 
     monkeypatch.setattr(live_sources, "_json", _json)
-    monkeypatch.setattr(live_sources, "API_SPORTS_BUDGET", live_sources.RequestBudget())
-    with pytest.raises(RuntimeError, match="application key"):
-        asyncio.run(live_sources.api_sports_json("https://x", {}, 1.0))
-    assert live_sources.API_SPORTS_BUDGET.remaining() > 0, \
-        "a bad key is not a spent allowance"
+    monkeypatch.setattr(balldontlie, "settings", dataclasses.replace(
+        config.settings, balldontlie_api_key="k"))
+    with pytest.raises(balldontlie.AccountRefused):
+        asyncio.run(balldontlie.Client().get(
+            balldontlie.LEAGUES["nfl"], "teams", "teams", {}))
 
 
 def test_nothing_but_the_search_backends_and_gdelt_is_a_rung():
@@ -485,6 +500,8 @@ def test_nothing_but_the_search_backends_and_gdelt_is_a_rung():
     assert research._rung_available("anything") is False
 
 
-def test_health_reports_the_api_sports_allowance():
-    report = live_sources.report()["api_sports_budget"]
-    assert set(report) == {"daily", "used_today", "remaining"}
+def test_health_reports_the_live_providers():
+    report = live_sources.report()
+    assert {"configured", "registered", "derived_from_key", "known"} <= set(report)
+    assert not any("sports" in key and key != "sports" for key in report), \
+        "no per-provider sports allowance is reported any more (§276)"

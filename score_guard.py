@@ -2,8 +2,8 @@
 
 The live block tells the writer that every score and every period comes from
 the scoreboard. A prompt is a request, and the night it was not met a listener
-heard "first quarter" about a game that had finished: API-Sports had refused
-the account, and the writer took the state from a live blog written during the
+heard "first quarter" about a game that had finished: the scoreboard's provider
+had refused the account, and the writer took the state from a live blog written during the
 game. **A wrong score is the one error a sports listener never forgives**, so
 the rule is enforced here, in code, on every sentence before the voice sees it.
 

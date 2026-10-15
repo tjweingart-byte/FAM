@@ -127,7 +127,7 @@ def test_soccer_names_its_sides_from_the_catalogue():
         "Liverpool and Arsenal are level at 2 goals each."]
 
 
-def test_the_tile_line_is_api_sports_format():
+def test_the_tile_line_is_the_tiles_one_format():
     league = balldontlie.LEAGUES["nfl"]
     assert bs.live_line(league, game("final")) == (
         live_facts.FINAL, "Final · Kansas City Chiefs 21–14 Buffalo Bills")
@@ -237,18 +237,21 @@ def test_standings_shapes_say_a_place():
 # The switch and the sweep
 # --------------------------------------------------------------------------
 def test_the_balldontlie_key_is_the_sports_provider(monkeypatch):
-    use(monkeypatch, api_sports_key="as-key", live_sports_provider="")
+    use(monkeypatch, live_sports_provider="")
     assert live_sources.configured()["sports"] == "balldontlie"
-    use(monkeypatch, balldontlie_api_key="", api_sports_key="as-key",
-        live_sports_provider="")
-    assert live_sources.configured()["sports"] == "api-sports"
+    # §276: BALLDONTLIE is the only sports provider; no key, no scoreboard.
+    use(monkeypatch, balldontlie_api_key="", live_sports_provider="")
+    assert live_sources.configured()["sports"] == ""
+    assert set(live_sources.BUILDERS["sports"]) == {"fake", "balldontlie"}
 
 
 def test_one_sports_sweep_the_configured_provider_s(monkeypatch):
-    use(monkeypatch, api_sports_key="as-key", live_sports_provider="")
-    ok, why = story_sources.ApiSportsSignals().diagnose()
-    assert not ok and "balldontlie" in why
+    use(monkeypatch, live_sports_provider="")
     assert bs.make_signals()().diagnose()[0]
+    assert "balldontlie" in story_sources.BUILDERS
+    use(monkeypatch, live_sports_provider="fake")
+    ok, why = bs.make_signals()().diagnose()
+    assert not ok and "another provider" in why
 
 
 def test_the_sweep_puts_today_s_games_on_tiles(wire, monkeypatch):

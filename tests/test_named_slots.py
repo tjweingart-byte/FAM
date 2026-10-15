@@ -15,7 +15,6 @@ from datetime import datetime, timezone
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import episode_intelligence as ei  # noqa: E402
-import live_sources  # noqa: E402
 import named_slots  # noqa: E402
 
 
@@ -66,36 +65,53 @@ def test_the_prompt_teaches_the_general_rule():
 
 
 def _row(gid, home, away, when):
-    return {"game": {"id": gid, "date": {"timestamp": int(when.timestamp())},
-                     "status": {"short": "FT"}},
-            "teams": {"home": {"name": home}, "away": {"name": away}}}
+    return {"id": gid, "status_state": "final", "date": when.isoformat(),
+            "home_team": {"id": gid * 10, "full_name": home},
+            "visitor_team": {"id": gid * 10 + 1, "full_name": away},
+            "home_team_score": 20, "visitor_team_score": 17}
 
 
-def test_the_scoreboard_picks_the_game_by_kickoff_not_by_the_word_football(monkeypatch):
-    # Sunday 28 Sep 2026: a 1pm ET game and an 8:20pm ET game.
+class _Card:
+    """BALLDONTLIE (§273, §276) answering with one Sunday's card."""
+
+    def __init__(self, rows):
+        self.rows = rows
+        self.asked = []
+
+    async def get(self, league, kind, path, params):
+        self.asked.append((league.key, kind))
+        if kind == "games":
+            return {"data": self.rows}
+        return {"data": []}
+
+
+def test_the_scoreboard_picks_the_game_by_kickoff_not_by_the_word_football():
+    import balldontlie_scores
+
+    # Sunday 27 Sep 2026: a 1pm ET game and an 8:20pm ET game.
     afternoon = datetime(2026, 9, 27, 17, 0, tzinfo=timezone.utc)
     night = datetime(2026, 9, 28, 0, 20, tzinfo=timezone.utc)
-    rows = [_row(1, "Pittsburgh Steelers", "Cincinnati Bengals", afternoon),
-            _row(2, "Green Bay Packers", "Atlanta Falcons", night)]
-    monkeypatch.setattr(live_sources, "card_rows", lambda *a, **k: rows)
-
-    async def no_call(*a, **k):
-        raise AssertionError("the sweep had the card")
-    monkeypatch.setattr(live_sources, "api_sports_json", no_call)
-
+    card = _Card([_row(1, "Pittsburgh Steelers", "Cincinnati Bengals", afternoon),
+                  _row(2, "Green Bay Packers", "Atlanta Falcons", night)])
     brief = ei.fallback_brief("sunday night football recap", "no key")
-    entity = asyncio.run(live_sources.ApiSportsSource().resolve(brief))
+    entity = asyncio.run(balldontlie_scores.ScoreBoard(client=card).resolve(brief))
     assert entity is not None
-    assert entity.label == "Green Bay Packers v Atlanta Falcons"
+    assert entity.label == "Atlanta Falcons at Green Bay Packers"
+    assert card.asked[0][0] == "nfl", "the slot names its league"
 
 
-def test_no_game_in_the_window_is_no_game_rather_than_a_guess(monkeypatch):
+def test_no_game_in_the_window_is_no_game_rather_than_a_guess():
+    import balldontlie_scores
+
     afternoon = datetime(2026, 9, 27, 17, 0, tzinfo=timezone.utc)
-    rows = [_row(1, "Pittsburgh Steelers", "Cincinnati Bengals", afternoon)]
-    monkeypatch.setattr(live_sources, "card_rows", lambda *a, **k: rows)
-
-    async def same_card(*a, **k):
-        return {"response": rows}
-    monkeypatch.setattr(live_sources, "api_sports_json", same_card)
+    card = _Card([_row(1, "Pittsburgh Steelers", "Cincinnati Bengals", afternoon)])
     brief = ei.fallback_brief("sunday night football recap", "no key")
-    assert asyncio.run(live_sources.ApiSportsSource().resolve(brief)) is None
+    assert asyncio.run(
+        balldontlie_scores.ScoreBoard(client=card).resolve(brief)) is None
+
+
+def test_every_slot_names_a_scoreboard_league():
+    import balldontlie
+
+    for slot in named_slots.SLOTS:
+        assert slot.league.lower() in balldontlie.LEAGUES, slot.key

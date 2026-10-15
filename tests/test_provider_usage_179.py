@@ -1,6 +1,6 @@
 """Requests per outside service per day, beside each one's limit (§179).
 
-The admin page shows how often API-Sports, Parallel, Perplexity, GDELT,
+The admin page shows how often BALLDONTLIE, Parallel, Perplexity, GDELT,
 Polymarket, GNews and Finnhub are called, today and on average, with the limit in force and - in
 parentheses - what the next paid plan would raise it to. Pinned: a request is
 counted where it goes out (so every provider behind `live_sources._json` is
@@ -32,7 +32,7 @@ def test_every_provider_the_owner_named_is_reported_in_order():
     rows = provider_usage.report(NOON)
     assert [r["label"] for r in rows] == [
         # §258: the search and its second look.
-        "API-Sports", "BALLDONTLIE", "Parallel", "Perplexity", "GDELT", "Polymarket",
+        "BALLDONTLIE", "Parallel", "Perplexity", "GDELT", "Polymarket",
         "GNews", "Finnhub",
         # §194: weather and the local news collector.
         "National Weather Service", "Open-Meteo", "Local news feeds"]
@@ -62,22 +62,18 @@ def test_counts_are_per_utc_day_and_failures_are_kept_beside_them(tmp_path):
 
 
 def test_the_rationed_limits_are_read_from_the_settings_in_force(monkeypatch):
-    patched = dataclasses.replace(config.settings, api_sports_daily_requests=7500,
+    patched = dataclasses.replace(config.settings, balldontlie_tier="all-star",
                                   gnews_daily_requests=950)
     monkeypatch.setattr(config, "settings", patched)
     rows = {r["provider"]: r for r in provider_usage.report(NOON)}
-    # API-Sports is per sport since §180: the ceiling setting caps each sport
-    # at its plan, and the free plan's 100 is below 7,500.
-    sports = {b["sport"]: b for b in rows["api_sports"]["breakdown"]}
-    assert sports["american-football"]["limit"].startswith("Free: 100/day")
-    assert "Pro $19/mo: 7,500/day" in sports["american-football"]["next"]
+    # BALLDONTLIE is one plan for every league (§276), named by its setting.
+    assert rows["balldontlie"]["limit"].startswith("all-star plan: 60 requests/min")
     assert rows["gnews"]["limit"].startswith("950/day")
     assert "1,000/day" in rows["gnews"]["next"]
 
 
 @pytest.mark.parametrize("host, provider", [
-    ("v1.american-football.api-sports.io", "api_sports"),
-    ("v3.football.api-sports.io", "api_sports"),
+    ("api.balldontlie.io", "balldontlie"),
     ("finnhub.io", "finnhub"),
     ("gamma-api.polymarket.com", "polymarket"),
     ("evil-finnhub.io", ""),
@@ -110,10 +106,13 @@ def test_a_refused_request_still_counts_against_the_allowance(monkeypatch):
     _serve(monkeypatch, 429)
     with pytest.raises(live_sources.ProviderHTTPError):
         asyncio.run(live_sources._json(
-            "https://v1.american-football.api-sports.io/games", {}, {}, 2.0))
+            "https://api.balldontlie.io/nfl/v1/games", {}, {}, 2.0))
     rows = {r["provider"]: r for r in provider_usage.report()}
-    assert rows["api_sports"]["today"] == 1
-    assert rows["api_sports"]["failed_today"] == 1
+    assert rows["balldontlie"]["today"] == 1
+    assert rows["balldontlie"]["failed_today"] == 1
+    # Counted against its league too (§276): one row per league asked.
+    leagues = {b["league"]: b for b in rows["balldontlie"]["breakdown"]}
+    assert leagues["nfl"]["today"] == 1 and leagues["nfl"]["failed_today"] == 1
 
 
 def test_counting_never_costs_a_request(monkeypatch):

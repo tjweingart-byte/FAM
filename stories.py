@@ -290,9 +290,9 @@ class Signal:
     #: it could stand for. Names, never a headline - a headline can carry a
     #: result, and the query is what research searches *from*.
     anchors: tuple = ()
-    #: A game in a league outside `live_sources.MAJOR_LEAGUES` (§187). Set by
-    #: the sports source from the provider's own league row, never guessed
-    #: from the words. Made for you never offers one from another continent
+    #: A game in a minor league (§187). Set by a sports source from the
+    #: provider's own league row, never guessed from the words; BALLDONTLIE
+    #: covers only major leagues, so its sweep never sets it (§276). Made for you never offers one from another continent
     #: to a listener who does not follow it - see `topics._far_minor_league`.
     minor_league: bool = False
 
@@ -665,7 +665,7 @@ class StorySource:
     cost_per_refresh = 0.0
     #: The shortest gap between two sweeps of *this* source. Zero means "every
     #: time the pool refreshes". It exists because the providers' free tiers
-    #: are not measured in the same units - API-Sports allows a hundred
+    #: are not measured in the same units - one plan allows a hundred
     #: requests a *day* - and a pool clock that suited the cheapest source
     #: would exhaust the dearest one before lunch.
     min_interval_seconds = 0.0
@@ -700,7 +700,7 @@ _FIRST_SEEN: dict = {}
 #: source name -> when it was last asked. See `StorySource.min_interval_seconds`.
 _LAST_SWEPT: dict = {}
 #: When a listener last drew myFAM (§191). The sources that sweep on demand
-#: (API-Sports) ask `recent_demand` before spending anything.
+#: (BALLDONTLIE's sports) ask `recent_demand` before spending anything.
 _DEMAND = [0.0]
 
 
@@ -829,7 +829,7 @@ async def collect(limit: int = MAX_PER_SOURCE,
             reports.append(SourceReport(source.name, source.domain,
                                         NOT_CONFIGURED, 0, why))
             continue
-        # A source may say it has nothing to do this tick (§191): API-Sports
+        # A source may say it has nothing to do this tick (§191): the sports sweep
         # with nobody looking, or with no followed game on. Said in the
         # report like any other skip, and its held stories stay.
         idle = getattr(source, "idle", None)
@@ -1546,7 +1546,7 @@ def _diversified(stories: list, now: float) -> list:
     """The pool's own variety rule, applied before any ranker sees it.
 
     Facet-capped rather than source-capped, because the thing a listener
-    notices is four tiles about sport and not four tiles from API-Sports.
+    notices is four tiles about sport and not four tiles from BALLDONTLIE.
     Ordered by push, so what gets dropped is the weakest of an over-served
     facet rather than an arbitrary one.
     """
@@ -1639,7 +1639,7 @@ def corroborate(signals: list) -> list:
     """Every source's view of one story, as one signal (§135).
 
     **Trending is ranked on everything FAM knows, not on each feed alone.**
-    A game on API-Sports' card, a contract on Polymarket and a move on
+    A game on BALLDONTLIE's card, a contract on Polymarket and a move on
     Finnhub each measure one thing; the press measures how much the world
     cares. So a structured signal whose subject the news sweep also found
     takes the news story's coverage, and its countries when it had none, and

@@ -54,7 +54,7 @@ def log(tmp_path, tree, monkeypatch):
 def story(subject, query, tags=("sports",), strength=0.8):
     return stories.Story(
         subject=subject, title=subject.title(), angle=f"why {subject}",
-        query=query, domain=stories.ATTENTION, source="api-sports",
+        query=query, domain=stories.ATTENTION, source="BALLDONTLIE",
         tags=tuple(tags), strength=strength, first_seen=time.time(),
         shelf_life=stories.DOMAIN_SHELF_LIFE[stories.ATTENTION])
 

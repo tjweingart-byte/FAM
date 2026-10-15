@@ -107,7 +107,7 @@ workspace plan's included bandwidth (Hobby: 5 GB/month).
 | **Stage 1 · before launch** | 512 MB with a ~313 MB peak leaves room for ~20-40 simultaneous streams | Upgrade to **Standard** ($25, 2 GB) | +$18/mo |
 | **Stage 1 · before launch** | A 1 GB disk holds ~250 minutes of kept audio, and a full disk stops every database | Grow the disk to **10 GB** and raise `AUDIO_CACHE_MAX_MB` to ~8000 | +$2.25/mo |
 | **Stage 2 · ~100 MAU** | Uncompressed PCM is 2.65 MB/min; 5 GB is ~1,900 listening-minutes a month | Pay $0.15/GB overage, or a workspace plan with more included (Pro: 25 GB) | ~$3-35/mo |
-| **Stage 3 · ~1-10k MAU** | Memory or CPU pressure on Standard | **Pro** ($80, 4 GB). Do **not** add `--workers`: API-Sports budgets, the story pool and prefetch ledgers are per process | +$55/mo |
+| **Stage 3 · ~1-10k MAU** | Memory or CPU pressure on Standard | **Pro** ($80, 4 GB). Do **not** add `--workers`: the sports sweep's cards and BALLDONTLIE's per-minute pacing, the story pool and prefetch ledgers are per process | +$55/mo |
 | **Stage 3 · before 10k MAU** | Bandwidth becomes the second-largest line (~$360/mo at 10k) | Ship Opus over the stream (`IOS_APP.md`): ~13x less bandwidth | -~90% of the bandwidth line |
 | **Stage 4 · past one Pro instance** | A service with a disk runs as one instance | The database move in section 5 | see section 5 |
 
@@ -123,45 +123,35 @@ RunPod holds no database.
 | **Stage 4 · ~10k MAU** | One instance is no longer enough, or the disk exceeds ~50 GB | Migrate: Render Postgres + **Cloudflare R2** for audio ($0.015/GB, $0 egress). Serving audio *from* R2 touches the no-audio-files rule and needs that discussion first | +$40-65/mo |
 | **Stage 4 · ~100k MAU** | Postgres CPU/RAM | A larger Postgres plan | ~$100-200+/mo |
 
-## 6. API-Sports — live scores and score lines on cards
+## 6. BALLDONTLIE — live scores and score lines on cards
 
-**Today:** ten sports (American football, soccer, basketball, baseball,
-hockey, rugby, volleyball, AFL, Formula 1, MMA), **each on its own free plan:
-100 requests/day per sport** (PROBLEMS.md §180). Each sport is its own
-API-Sports subscription on the same key, billed and limited separately, so
-each has its own day and its own row under API-Sports on `/admin`. Since
-§191 the myFAM sweep reads a followed sport's card once a day and then only
-while one of its followed leagues' games is on and somebody is looking (every
-15 minutes at most); volleyball, rugby and AFL are never swept, only looked up
-by the episodes that ask.
+**Today:** one BALLDONTLIE account for every league (PROBLEMS.md §273, §276):
+the scoreboard, the myFAM sweep's score lines, standings, last and next
+games, Formula 1, UFC, and player and injury reports (§271). One flat plan,
+limited **per minute**, not per day: free 5 requests/min (rosters, teams and
+games only), ALL-STAR 60/min (standings, injuries, season figures), GOAT
+600/min (soccer injuries, golf and tennis figures). Since §191 the myFAM
+sweep reads a followed league's card once a day and then only while one of
+its games is on and somebody is looking (every 15 minutes at most); every
+other league is only looked up by the episodes that ask. `/admin` counts every
+request, with a row per league under BALLDONTLIE.
 
 | When | Trigger | Action | Cost change |
 |---|---|---|---|
-| **Stage 1 · before launch** | The sports the product leads with (NFL, soccer) should not have 14-minute-old scores | **Pro, $19/mo per sport: 7,500/day** for those sports only | +$19/mo per sport |
-| **Any stage, earlier** | A sport's row on `/admin` shows *today* above ~80 on most days, or its lookups are refused late in the day | That sport to Pro | +$19/mo |
-| **Stage 3-4** | A sport above ~6,000/day | That sport to Ultra ($29, 75k/day) or Mega ($39, 150k/day) | +$10-20/mo |
+| **Stage 1 · before launch** | Standings and injuries are missing from sports episodes (free reads games only) | **ALL-STAR** | see balldontlie.io pricing |
+| **Any stage** | Lookups fail with "this minute's are spent" (`RateLimited`) in `/admin`'s pipeline errors | GOAT (600/min) | see balldontlie.io pricing |
 
-**Changing a sport's plan** - the whole procedure:
+**Changing the plan** - the whole procedure:
 
-1. **Buy it** on API-Sports' dashboard (dashboard.api-football.com), on the
-   product for that sport. The key does not change.
-2. **Tell FAM**: set `API_SPORTS_TIERS` on the service in Render, naming only
-   the sports that are not on `API_SPORTS_TIER` (the default, `free`):
-   `API_SPORTS_TIERS=american-football=pro,football=pro`. Tiers are `free`,
-   `pro`, `ultra`, `mega`. Never on staging, which spends nothing.
+1. **Buy it** on balldontlie.io. The key does not change.
+2. **Tell FAM**: set `BALLDONTLIE_TIER` (`free`, `all-star` or `goat`) on the
+   service in Render. Never on staging, which spends nothing. An endpoint
+   above the plan is never asked, so a plan set lower than bought only costs
+   facts, and one set higher is refused by the provider and not asked again
+   that day.
 3. **Redeploy** (Render restarts on a changed variable).
-4. **Check** `/admin`: the sport's row says the new plan and allowance, and
-   once it has made a request it shows what API-Sports itself reports left.
-   A plan API-Sports does not report is flagged on that row in red.
-   `python tools/verify_live.py --domain sports` asks every sport's `/status`
-   and prints each plan as API-Sports has it.
-5. **Downgrading** is the same in reverse: change the plan on the dashboard,
-   then remove the sport from `API_SPORTS_TIERS`.
-
-`API_SPORTS_SPORTS` limits which sports are used at all (empty is all ten);
-`API_SPORTS_DAILY_REQUESTS` caps each sport below its plan for several
-workers sharing one; `API_SPORTS_LOOKUP_RESERVE` keeps a share of each day
-from the sweep for episode lookups (0 by default, as §135 directs).
+4. **Check** `/admin`: BALLDONTLIE's row names the plan and its per-minute
+   limit. `python tools/verify_live.py --domain sports` makes a real lookup.
 
 ## 7. GNews — the Trending edition
 
@@ -226,7 +216,7 @@ shared by everybody, so it does not grow with listeners.
 3. Render: Standard plan, 10 GB disk, `AUDIO_CACHE_MAX_MB` raised.
 4. Anthropic: next usage tier requested. (`ENFORCE_QUOTAS=1` is in `render.yaml`, §207.)
 5. Exa: card on file, auto top-up.
-6. Licences before charging money: GNews Essential, Finnhub commercial, API-Sports Pro for the sports the product leads with (per sport, §180).
+6. Licences before charging money: GNews Essential, Finnhub commercial, BALLDONTLIE ALL-STAR or GOAT (`BALLDONTLIE_TIER`, §276).
 7. Licences: `/api/health` → `licences.commercial_ready` is true (GNEWS_PLAN, FINNHUB_PLAN, OPEN_METEO_API_KEY set after buying, §207).
 
 Fixed monthly cost of the checklist (estimate): ~$150/mo before launch day,

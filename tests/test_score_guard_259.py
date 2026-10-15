@@ -1,10 +1,13 @@
 """§259: a sports score is never spoken unless the scoreboard said it.
 
-The night this was written, API-Sports had suspended the account, the live
-lookup failed, and an episode about a finished Bills-Rams game said it was in
+The night this was written, the sports provider had suspended the account,
+the live lookup failed, and an episode about a finished Bills-Rams game said it was in
 the first quarter - lifted from a live blog in the packet. These pin the four
 answers: the writer is told, the sentence is removed if it is written anyway,
 the feed's own status is sanity-checked, and a refused account is loud.
+
+§276: the scoreboard is BALLDONTLIE's (`balldontlie_scores`); the checks on
+the feed are pinned against its rows.
 """
 
 from __future__ import annotations
@@ -20,33 +23,36 @@ import pytest
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
+import balldontlie  # noqa: E402
+import balldontlie_scores as bs  # noqa: E402
 import config  # noqa: E402
 import live_facts  # noqa: E402
 import live_sources as LS  # noqa: E402
-import provider_usage  # noqa: E402
 import score_guard  # noqa: E402
 import script_generator as sg  # noqa: E402
 
-NFL = LS.SPORTS["american-football"]
+NFL = balldontlie.LEAGUES["nfl"]
 
 
 def settings(monkeypatch, **values):
+    values.setdefault("balldontlie_api_key", "k")
+    values.setdefault("balldontlie_tier", "goat")
     patched = dataclasses.replace(config.settings, **values)
-    monkeypatch.setattr(LS, "settings", patched)
-    monkeypatch.setattr(config, "settings", patched)
+    for module in (LS, config, balldontlie, bs):
+        monkeypatch.setattr(module, "settings", patched)
     return patched
 
 
 def failed() -> live_facts.LiveLookup:
     return live_facts.LiveLookup(
         "sports", live_facts.PROVIDER_FAILED,
-        detail="API-Sports failed: AccountRefused: suspended")
+        detail="BALLDONTLIE scores failed: AccountRefused: suspended")
 
 
 def scoreboard(status: str, *sentences: str) -> live_facts.LiveLookup:
     return live_facts.LiveLookup(
         "sports", live_facts.FACTS, facts=live_facts.LiveFacts(
-            domain="sports", source="API-Sports",
+            domain="sports", source="BALLDONTLIE scores",
             as_of=datetime.now(timezone.utc), facts=list(sentences),
             status=status))
 
@@ -198,164 +204,128 @@ def test_a_scoreboard_owns_the_period_too():
 
 # --- the feed is sanity-checked ------------------------------------------------
 
-def nfl_row(short, kickoff, home=24, away=17):
-    return {"game": {"id": 9, "status": {"short": short, "long": "First Quarter"},
-                     "date": {"timestamp": int(kickoff.timestamp())}},
-            "teams": {"home": {"id": 1, "name": "Buffalo Bills"},
-                      "away": {"id": 2, "name": "Los Angeles Rams"}},
-            "scores": {"home": {"total": home}, "away": {"total": away}}}
+BILLS = {"id": 1, "full_name": "Buffalo Bills", "name": "Bills"}
+RAMS = {"id": 2, "full_name": "Los Angeles Rams", "name": "Rams"}
 
 
-def entity():
-    return live_facts.Entity(domain="sports", provider="API-Sports",
-                             id="american-football:9", label="Bills v Rams")
+def nfl_row(state, kickoff, home=24, away=17, gid=9, home_team=BILLS,
+            away_team=RAMS):
+    return {"id": gid, "status_state": state, "date": kickoff.isoformat(),
+            "home_team": home_team, "visitor_team": away_team,
+            "home_team_score": home, "visitor_team_score": away,
+            "period_detail": "1st Quarter"}
+
+
+def read(row):
+    """What the scoreboard says of a row: its believed status and sentences."""
+    status = bs.believable(bs.status_of(row), row, bs.SHAPES["nfl"])
+    return status, bs.game_facts(NFL, row, status)
 
 
 def test_a_game_still_live_nine_hours_after_kickoff_is_not_believed():
     kick = datetime.now(timezone.utc) - timedelta(hours=9)
-    facts = LS.ApiSportsSource().to_facts(nfl_row("Q1", kick), entity(), NFL)
-    assert facts.status == live_facts.UNKNOWN
-    assert not any("24" in f or "quarter" in f.lower() for f in facts.facts)
-    assert LS.ApiSportsSource.live_line(nfl_row("Q1", kick), NFL) == (
-        live_facts.UNKNOWN, "")
+    status, facts = read(nfl_row("in_progress", kick))
+    assert status == live_facts.UNKNOWN
+    assert not any("24" in f or "quarter" in f.lower() for f in facts)
+    assert bs.live_line(NFL, nfl_row("in_progress", kick)) == (live_facts.UNKNOWN, "")
 
 
 def test_a_game_live_an_hour_after_kickoff_is():
     kick = datetime.now(timezone.utc) - timedelta(hours=1)
-    facts = LS.ApiSportsSource().to_facts(nfl_row("Q1", kick), entity(), NFL)
-    assert facts.status == live_facts.IN_PROGRESS
-    assert "Buffalo Bills lead Los Angeles Rams 24 to 17." in facts.facts
+    status, facts = read(nfl_row("in_progress", kick))
+    assert status == live_facts.IN_PROGRESS
+    assert "Buffalo Bills lead Los Angeles Rams 24 to 17." in facts
 
 
 def test_not_started_four_hours_after_kickoff_is_not_believed():
     kick = datetime.now(timezone.utc) - timedelta(hours=5)
-    facts = LS.ApiSportsSource().to_facts(nfl_row("NS", kick), entity(), NFL)
-    assert facts.status == live_facts.UNKNOWN
+    assert read(nfl_row("scheduled", kick))[0] == live_facts.UNKNOWN
 
 
 def test_an_unknown_status_never_carries_a_score():
     kick = datetime.now(timezone.utc) - timedelta(hours=1)
-    facts = LS.ApiSportsSource().to_facts(nfl_row("WEIRD", kick), entity(), NFL)
-    assert facts.status == live_facts.UNKNOWN
-    assert not any("24" in f for f in facts.facts)
+    status, facts = read(nfl_row("WEIRD", kick))
+    assert status == live_facts.UNKNOWN
+    assert not any("24" in f for f in facts)
 
 
 # --- a game that just finished is found -----------------------------------------
 
-def test_a_finished_game_is_found_by_date_not_live_all(monkeypatch):
-    settings(monkeypatch, api_sports_key="k")
-    asked = []
+class Wire:
+    """BALLDONTLIE answering by path; every request recorded."""
+
+    def __init__(self, routes):
+        self.routes = routes
+        self.asked = []
+
+    async def __call__(self, url, headers, params, timeout):
+        path = url.split("balldontlie.io", 1)[1]
+        self.asked.append((path, dict(params)))
+        answer = self.routes.get(path)
+        if isinstance(answer, Exception):
+            raise answer
+        return answer if answer is not None else {"data": []}
+
+
+def brief(text):
+    return NS(subject=text, query=text, live_entity="", named_slot="",
+              category="", live_domain="sports", live_route="")
+
+
+def test_a_finished_game_is_found_by_date(monkeypatch):
+    settings(monkeypatch)
     kick = datetime.now(timezone.utc) - timedelta(hours=3)
-
-    async def fake(url, headers, params, timeout):
-        asked.append(dict(params))
-        if "date" in params:
-            return {"response": [nfl_row("FT", kick)]}
-        return {"response": []}
-    monkeypatch.setattr(LS, "_json", fake)
-
-    async def no_team_path(*a, **k):
-        return None
-    monkeypatch.setattr(LS.ApiSportsSource, "_resolve_by_team", no_team_path)
-    found = asyncio.run(LS.ApiSportsSource().resolve(
-        NS(subject="Buffalo Bills vs Los Angeles Rams", query="", named_slot="")))
-    assert found is not None and found.id == "american-football:9"
-    assert not any(p.get("live") == "all" for p in asked)
+    wire = Wire({"/nfl/v1/teams": {"data": [BILLS, RAMS]},
+                 "/nfl/v1/games": {"data": [nfl_row("final", kick)]}})
+    monkeypatch.setattr(LS, "_json", wire)
+    found = asyncio.run(bs.ScoreBoard().resolve(
+        brief("Buffalo Bills vs Los Angeles Rams nfl")))
+    assert found is not None and found.id == "nfl:game:9"
+    games = [p for path, p in wire.asked if path == "/nfl/v1/games"]
+    assert games and all("dates[]" in p for p in games)
 
 
 def test_the_game_naming_both_sides_wins_over_one_sharing_a_city(monkeypatch):
     """"Los Angeles" is the Rams and the Chargers. The first row containing
     "angeles" used to win - somebody else's game, with a real score."""
-    settings(monkeypatch, api_sports_key="k")
+    settings(monkeypatch)
     kick = datetime.now(timezone.utc) - timedelta(hours=3)
-    chargers = nfl_row("FT", kick)
-    chargers["game"]["id"] = 5
-    chargers["teams"] = {"home": {"id": 3, "name": "Los Angeles Chargers"},
-                         "away": {"id": 4, "name": "Denver Broncos"}}
-
-    async def fake(url, headers, params, timeout):
-        return {"response": [chargers, nfl_row("FT", kick)]}
-    monkeypatch.setattr(LS, "_json", fake)
-
-    async def no_team_path(*a, **k):
-        return None
-    monkeypatch.setattr(LS.ApiSportsSource, "_resolve_by_team", no_team_path)
-    found = asyncio.run(LS.ApiSportsSource().resolve(
-        NS(subject="Buffalo Bills vs Los Angeles Rams", query="", named_slot="")))
-    assert found.id == "american-football:9"
+    chargers = {"id": 3, "full_name": "Los Angeles Chargers", "name": "Chargers"}
+    broncos = {"id": 4, "full_name": "Denver Broncos", "name": "Broncos"}
+    other = nfl_row("final", kick, gid=5, home_team=chargers, away_team=broncos)
+    wire = Wire({"/nfl/v1/teams": {"data": [BILLS, RAMS, chargers, broncos]},
+                 "/nfl/v1/games": {"data": [other, nfl_row("final", kick)]}})
+    monkeypatch.setattr(LS, "_json", wire)
+    found = asyncio.run(bs.ScoreBoard().resolve(
+        brief("Buffalo Bills vs Los Angeles Rams nfl")))
+    assert found.id == "nfl:game:9"
 
 
 def test_the_sports_source_has_time_for_two_requests():
-    assert LS.ApiSportsSource.timeout_seconds >= 2 * config.settings.live_timeout_seconds
+    assert bs.ScoreBoard.timeout_seconds >= 2 * config.settings.live_timeout_seconds
 
 
 # --- a refused account is loud ---------------------------------------------------
 
-SUSPENDED = {"access": "Your account is suspended, check on "
-                       "https://dashboard.api-football.com."}
+def test_a_refused_key_is_a_failure_never_an_answer(monkeypatch):
+    """A key BALLDONTLIE refuses outright is `AccountRefused`, raised - so the
+    lookup is recorded as a failed provider (/admin's pipeline errors, §269),
+    never read as "no such game"."""
+    settings(monkeypatch)
+    refused = LS.ProviderHTTPError(401, "api.balldontlie.io/nfl/v1/teams")
+    monkeypatch.setattr(LS, "_json", Wire({"/nfl/v1/teams": refused}))
+    with pytest.raises(balldontlie.AccountRefused):
+        asyncio.run(bs.ScoreBoard().resolve(brief("Buffalo Bills nfl")))
 
 
-def test_a_suspended_account_is_held_reported_and_not_hammered(monkeypatch):
-    settings(monkeypatch, api_sports_key="k")
-    calls = []
-
-    async def fake(url, headers, params, timeout):
-        calls.append(url)
-        return {"errors": SUSPENDED, "response": []}
-    monkeypatch.setattr(LS, "_json", fake)
-    url = f"{NFL.host}/games"
-    with pytest.raises(LS.AccountRefused):
-        asyncio.run(LS.api_sports_json(url, {}, 1))
-    report = LS.account_report()
-    assert report["refused"] and "suspended" in report["message"]
-    assert LS.report()["api_sports_account"]["refused"]
-    # Every sport shares the key: the next ask, any sport, is not sent.
-    with pytest.raises(LS.AccountRefused):
-        asyncio.run(LS.api_sports_json(f"{LS.SPORTS['hockey'].host}/games", {}, 1))
-    assert len(calls) == 1
-
-
-def test_the_account_comes_back_by_itself(monkeypatch):
-    settings(monkeypatch, api_sports_key="k")
-
-    async def fake(url, headers, params, timeout):
-        return {"response": []}
-    monkeypatch.setattr(LS, "_json", fake)
-    LS.note_account_refusal(SUSPENDED, "american-football",
-                            now=0.0)  # long ago: past the retry wait
-    asyncio.run(LS.api_sports_json(f"{NFL.host}/games", {}, 1))
-    assert LS.account_report() == {}
-
-
-def test_a_plan_refusal_is_not_an_account_refusal(monkeypatch):
-    settings(monkeypatch, api_sports_key="k")
-
-    async def fake(url, headers, params, timeout):
-        return {"errors": {"plan": "Free plans do not have access to this "
-                                   "season, try from 2022 to 2024."},
-                "response": []}
-    monkeypatch.setattr(LS, "_json", fake)
-    with pytest.raises(RuntimeError) as caught:
-        asyncio.run(LS.api_sports_json(f"{NFL.host}/games", {}, 1))
-    assert not isinstance(caught.value, LS.AccountRefused)
-    assert LS.account_report() == {}
-
-
-def test_a_refused_account_is_not_remembered_as_a_refused_catalogue(monkeypatch):
-    settings(monkeypatch, api_sports_key="k")
-
-    async def fake(url, headers, params, timeout):
-        return {"errors": SUSPENDED, "response": []}
-    monkeypatch.setattr(LS, "_json", fake)
-    with pytest.raises(LS.AccountRefused):
-        asyncio.run(LS.league_teams(NFL))
-    assert NFL.key not in LS.TEAMS_REFUSED
-
-
-def test_admin_shows_the_refusal_in_red(monkeypatch):
-    LS.note_account_refusal(SUSPENDED, "american-football")
-    alert = provider_usage._api_sports_alert()
-    assert "refused this account" in alert and "dashboard.api-football.com" in alert
-    html = (pathlib.Path(__file__).resolve().parent.parent
-            / "admin_ui" / "tracker.html").read_text()
-    assert "r.alert" in html
+def test_a_plan_refusal_is_not_an_account_refusal_and_is_not_hammered(monkeypatch):
+    settings(monkeypatch)
+    refused = LS.ProviderHTTPError(403, "api.balldontlie.io/nfl/v1/standings")
+    wire = Wire({"/nfl/v1/standings": refused})
+    monkeypatch.setattr(LS, "_json", wire)
+    client = balldontlie.Client()
+    with pytest.raises(balldontlie.TierRefused):
+        asyncio.run(bs.league_standings(client, NFL))
+    with pytest.raises(balldontlie.TierRefused):
+        asyncio.run(bs.league_standings(client, NFL))
+    assert len(wire.asked) == 1, "a refused plan is not asked again that day"

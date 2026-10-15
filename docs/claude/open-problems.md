@@ -72,6 +72,7 @@
    which existed only to measure it. The interface now shows an honest wait
    that names what it is waiting for and counts the seconds.
 <!-- rule:op-myfam -->
+> **Current (PROBLEMS.md §276):** API-Sports is removed; the live pool's sports source is BALLDONTLIE's sweep (`balldontlie_scores.make_signals`). Wherever the text below names API-Sports, read BALLDONTLIE.
 4. **myFAM is finished, and the bank is no longer the whole of it**
    *(PROBLEMS.md §102, `stories.py`, `MYFAM.md`).* The page was four rankings
    of twenty-eight evergreen topics, and none of them could answer what a

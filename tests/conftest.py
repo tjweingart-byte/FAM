@@ -116,11 +116,10 @@ FAM_ENVIRONMENT = (
     "STORIES", "STORIES_SOURCES", "STORIES_TTL_SECONDS",
     "STORIES_BACKGROUND_SECONDS", "STORIES_NEWS_INTERVAL_SECONDS",
     "STORIES_MARKETS_INTERVAL_SECONDS", "STORIES_SPORTS_INTERVAL_SECONDS",
-    "STORIES_DEMAND_SECONDS", "API_SPORTS_DAILY_REQUESTS",
-    "API_SPORTS_TIER", "API_SPORTS_TIERS", "API_SPORTS_SPORTS", "API_SPORTS_LOOKUP_RESERVE",
+    "STORIES_DEMAND_SECONDS",
     "STORIES_TIMEOUT_SECONDS", "STORIES_COMPOSE", "STORIES_MODEL",
     "STORIES_EFFORT", "STORIES_MAX_TOKENS", "STORIES_COMPOSE_TIMEOUT_SECONDS",
-    "STORIES_MARKET_MOVE_PERCENT", "STORIES_SPORTS", "STORIES_POLYMARKET",
+    "STORIES_MARKET_MOVE_PERCENT", "STORIES_POLYMARKET",
     "FINNHUB_WATCHLIST",
     # The trending bank and GNews (§139). A developer with GNEWS_KEY set must
     # not run a suite that reaches gnews.io and spends their plan.
@@ -147,7 +146,7 @@ FAM_ENVIRONMENT = (
     "GDELT_EXPORT_WAIT_SECONDS", "GDELT_EXPORT_RETRY_SECONDS",
     "GNEWS_PLAN", "FINNHUB_PLAN",
     "BOOT_STAGGER_SECONDS",
-    "API_SPORTS_KEY", "API_SPORTS_SPORT", "FINNHUB_KEY",
+    "FINNHUB_KEY",
     # §271: player and team reports.
     "PLAYER_FACTS", "BALLDONTLIE_API_KEY", "BALLDONTLIE_TIER",
     "BALLDONTLIE_LEAGUES", "BALLDONTLIE_MAX_SEARCHES",
@@ -579,25 +578,17 @@ def isolated_local_news(tmp_path, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
-def isolated_api_sports(monkeypatch):
-    """API-Sports' per-sport budgets and caches (§180) are process-globals:
-    one test's spending, schedules or catalogues must not be the next one's."""
+def isolated_live_caches(monkeypatch):
+    """The swept quotes (§267) and the scoreboard's catalogues, standings,
+    schedules and cards (§273) are process-globals: one test's sweep or
+    catalogue must not be the next one's."""
+    import balldontlie_scores
     import live_sources
 
-    monkeypatch.setattr(live_sources, "BUDGETS", {})
-    monkeypatch.setattr(live_sources, "TEAMS", {})
-    monkeypatch.setattr(live_sources, "TEAMS_REFUSED", {})
-    monkeypatch.setattr(live_sources, "SCHEDULES", {})
-    # §259: a refused account and the swept card are process-globals too.
-    monkeypatch.setattr(live_sources, "ACCOUNT_REFUSAL", {})
-    monkeypatch.setattr(live_sources, "CARD", {})
     monkeypatch.setattr(live_sources, "QUOTES", {})
-    import story_sources
-
-    monkeypatch.setattr(story_sources, "SPORT_SWEPT_AT", {})
-    monkeypatch.setattr(story_sources, "SPORT_CARDS", {})
-    monkeypatch.setattr(story_sources, "SPORT_FAILURES", {})
-    monkeypatch.setattr(live_sources.ApiSportsSource, "_PODIUMS", {})
+    for name in ("TEAMS", "STANDINGS", "SCHEDULES", "CARDS", "SWEPT_AT",
+                 "FAILURES"):
+        monkeypatch.setattr(balldontlie_scores, name, {})
     yield
 
 

@@ -18,7 +18,7 @@ does not list.
 Each slot says what it names in words the writer can use, the words a report
 of it would contain, and **when it kicks off** - the last of which is what
 lets a scoreboard pick the right row out of a whole Sunday's card
-(`live_sources.ApiSportsSource.resolve`) rather than the first row that
+(`balldontlie_scores.ScoreBoard.resolve`) rather than the first row that
 happens to contain the word "football".
 """
 from __future__ import annotations
@@ -43,8 +43,6 @@ class NamedSlot:
     weekday: Optional[int] = None
     #: Earliest US Eastern kick-off hour (24h) a game in this slot has.
     earliest_hour_et: Optional[int] = None
-    #: The sport key in `live_sources.SPORTS`, when there is one.
-    sport: str = ""
 
     @property
     def when(self) -> str:
@@ -64,25 +62,25 @@ SLOTS = (
                     "kicking off around 8:20pm Eastern - not the afternoon "
                     "games played earlier the same Sunday"),
         pattern=r"\bsunday[\s-]+night[\s-]+football\b|\bsnf\b",
-        weekday=6, earliest_hour_et=19, sport="american-football"),
+        weekday=6, earliest_hour_et=19),
     NamedSlot(
         key="mnf", name="Monday Night Football", league="NFL",
         definition=("ESPN's prime-time NFL game (sometimes a doubleheader) on "
                     "Monday night, kicking off from around 7:15pm Eastern"),
         pattern=r"\bmonday[\s-]+night[\s-]+football\b|\bmnf\b",
-        weekday=0, earliest_hour_et=19, sport="american-football"),
+        weekday=0, earliest_hour_et=19),
     NamedSlot(
         key="tnf", name="Thursday Night Football", league="NFL",
         definition=("Amazon Prime Video's single prime-time NFL game on "
                     "Thursday night, kicking off around 8:15pm Eastern"),
         pattern=r"\bthursday[\s-]+night[\s-]+football\b|\btnf\b",
-        weekday=3, earliest_hour_et=19, sport="american-football"),
+        weekday=3, earliest_hour_et=19),
     NamedSlot(
         key="snb", name="Sunday Night Baseball", league="MLB",
         definition=("the one nationally televised prime-time MLB game on "
                     "Sunday night - not the afternoon games that day"),
         pattern=r"\bsunday[\s-]+night[\s-]+baseball\b",
-        weekday=6, earliest_hour_et=18, sport="baseball"),
+        weekday=6, earliest_hour_et=18),
 )
 
 

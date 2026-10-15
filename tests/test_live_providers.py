@@ -1,7 +1,7 @@
 """The real providers, against recorded payloads.
 
 **None of these has ever made a live request from this build.** The container's
-egress proxy blocks `api-sports.io`, `finnhub.io`,
+egress proxy blocks `api.balldontlie.io`, `finnhub.io`,
 `gamma-api.polymarket.com` and `api.gdeltproject.org`, so
 every shape here is written from the vendors' documentation and pinned against
 payloads recorded by hand.
@@ -33,132 +33,121 @@ def entity(domain="sports", provider="p", id="1", label="KC v DEN"):
     return live_facts.Entity(domain=domain, provider=provider, id=id, label=label)
 
 
-#: American football: `/games`, `scores.home.total`. The motivating case.
+#: BALLDONTLIE's NFL game (§273, §276): the motivating case.
 NFL_GAME = {
-    "game": {"id": 9, "status": {"short": "Q3", "long": "Third Quarter"}},
-    "teams": {"home": {"name": "Kansas City"}, "away": {"name": "Denver"}},
-    "scores": {"home": {"total": 21}, "away": {"total": 7}},
+    "id": 9, "status_state": "in_progress", "period_detail": "3rd Quarter",
+    "home_team": {"id": 1, "full_name": "Kansas City Chiefs"},
+    "visitor_team": {"id": 2, "full_name": "Denver Broncos"},
+    "home_team_score": 21, "visitor_team_score": 7,
 }
-#: Soccer: `/fixtures`, `goals`. A different host and a different shape.
-SOCCER_FIXTURE = {
-    "fixture": {"id": 3, "status": {"short": "2H", "elapsed": 67}},
-    "teams": {"home": {"name": "Arsenal"}, "away": {"name": "Chelsea"}},
-    "goals": {"home": 1, "away": 2},
+#: A soccer match: ids for sides, `home_score`, goals. A different shape.
+SOCCER_MATCH = {
+    "id": 3, "status_state": "in_progress", "home_team_id": 40,
+    "away_team_id": 50, "home_score": 1, "away_score": 2,
 }
+SOCCER_TEAMS = {40: {"id": 40, "name": "Arsenal"}, 50: {"id": 50, "name": "Chelsea"}}
+
+
+def _facts(row, league="nfl", teams=None):
+    import balldontlie
+    import balldontlie_scores as bs
+
+    status = bs.status_of(row)
+    return status, bs.game_facts(balldontlie.LEAGUES[league], row, status, teams)
 
 
 # --------------------------------------------------------------------------
-# sports: one API per sport, and they are not interchangeable
+# sports: one provider, every league its own shape (§276)
 # --------------------------------------------------------------------------
 @pytest.mark.parametrize("subject, expected", [
-    ("the Chiefs game", "american-football"),
-    ("who won the NFL game", "american-football"),
-    ("the NBA finals", "basketball"),
-    ("the Premier League match", "football"),
-    ("an MLB game tonight", "baseball"),
+    ("who won the NFL game", "nfl"),
+    ("the NBA finals", "nba"),
+    ("the Premier League match", "epl"),
+    ("an MLB game tonight", "mlb"),
+    ("college basketball tonight", "ncaab"),
 ])
-def test_a_question_reaches_the_right_sport(subject, expected):
-    """API-Sports is four separate APIs wearing one brand - different hosts,
-    response shapes and status codes. Writing one adapter against the soccer
-    host and calling it "sports" is how the Chiefs get looked up on a football
-    endpoint, which is exactly the bug this routing exists to prevent."""
-    assert ls.sport_for(subject).key == expected
+def test_a_question_reaches_the_right_league(subject, expected):
+    """Every league has its own endpoints and shape. A question that names
+    its league is looked up there first, and "college basketball" is not the
+    NBA its last word would also name."""
+    import balldontlie
+
+    assert balldontlie.leagues_named(subject)[0] == expected
 
 
-def test_an_unnamed_sport_falls_to_the_configured_default():
-    """"Chiefs game" names no sport. Team-name routing would need a
-    maintained roster of every team in every league, and a stale one sends an
-    NFL question to a soccer endpoint - worse than a default a deployment
-    chose on purpose."""
-    assert ls.sport_for("the Chiefs game").key == ls.settings.api_sports_sport
-    assert ls.sport_for("").key == ls.settings.api_sports_sport
+def test_an_unnamed_league_is_searched_in_the_configured_order():
+    """"Chiefs game" names no league: its team is searched for in the
+    leagues `BALLDONTLIE_LEAGUES` orders, never guessed into one."""
+    import balldontlie
+
+    assert balldontlie.leagues_named("the Chiefs game") == []
+    assert balldontlie.search_order()[:2] == list(balldontlie.DEFAULT_ORDER[:2])
 
 
-def test_each_sport_has_its_own_host_and_status_vocabulary():
-    hosts = {s.host for s in ls.SPORTS.values()}
-    assert len(hosts) == len(ls.SPORTS), "two sports share a host"
-    assert ls.SPORTS["football"].path == "fixtures"
-    assert ls.SPORTS["american-football"].path == "games"
-    assert ls.SPORTS["american-football"].unit == "points"
-    assert ls.SPORTS["football"].unit == "goals"
+def test_each_league_has_its_own_shape():
+    import balldontlie_scores as bs
+
+    assert bs.SHAPES["epl"].path == "matches"
+    assert bs.SHAPES["nfl"].path == "games"
+    assert bs.SHAPES["nfl"].unit == "points"
+    assert bs.SHAPES["epl"].unit == "goals"
+    assert bs.SHAPES["mlb"].unit == "runs"
 
 
-@pytest.mark.parametrize("sport_key, short, expected", [
-    ("american-football", "NS", live_facts.SCHEDULED),
-    ("american-football", "Q3", live_facts.IN_PROGRESS),
-    ("american-football", "FT", live_facts.FINAL),
-    ("american-football", "1H", live_facts.UNKNOWN),   # a soccer code
-    ("football", "1H", live_facts.IN_PROGRESS),
-    ("football", "AET", live_facts.FINAL),
-    ("football", "Q3", live_facts.UNKNOWN),            # a gridiron code
-    ("basketball", "Q4", live_facts.IN_PROGRESS),
-    ("baseball", "IN7", live_facts.IN_PROGRESS),
-    ("american-football", "WEIRD", live_facts.UNKNOWN),
-    ("american-football", "", live_facts.UNKNOWN),
+@pytest.mark.parametrize("state, expected", [
+    ("scheduled", live_facts.SCHEDULED),
+    ("in_progress", live_facts.IN_PROGRESS),
+    ("final", live_facts.FINAL),
+    ("postponed", live_facts.UNKNOWN),
+    ("WEIRD", live_facts.UNKNOWN),
+    ("", live_facts.UNKNOWN),
 ])
-def test_status_codes_map_per_sport_or_become_unknown(sport_key, short, expected):
-    """Each sport's vocabulary is its own, translated where it arrives. A code
-    borrowed from another sport must NOT map - that is the cross-wiring this
-    catches. And `unknown` is not "probably fine": it is the state in which no
-    result may be spoken."""
-    sport = ls.SPORTS[sport_key]
-    row = {"game": {"id": 1, "status": {"short": short}},
-           "teams": {"home": {"name": "A"}, "away": {"name": "B"}},
-           "scores": {"home": {"total": 3}, "away": {"total": 1}}}
-    facts = ls.ApiSportsSource().to_facts(row, entity(), sport)
-    assert facts is not None
-    assert facts.status == expected
+def test_states_map_or_become_unknown(state, expected):
+    """The provider's own normalised state, translated where it arrives.
+    `unknown` is not "probably fine": it is the state in which no result may
+    be spoken."""
+    status, said = _facts({**NFL_GAME, "status_state": state})
+    assert status == expected
+    if expected == live_facts.UNKNOWN:
+        assert not any("21" in line for line in said)
 
 
 def test_both_score_shapes_are_read():
-    """`goals` for soccer, `scores.home.total` for everything else. One
-    adapter reading only one of them silently returns no score for the other."""
-    nfl = ls.ApiSportsSource().to_facts(
-        NFL_GAME, entity(), ls.SPORTS["american-football"])
-    soccer = ls.ApiSportsSource().to_facts(
-        SOCCER_FIXTURE, entity(), ls.SPORTS["football"])
-    assert "21 to 7" in nfl.facts[0]
-    assert "2 to 1" in soccer.facts[0]
-    assert "points" not in soccer.facts[0], "soccer does not score points"
-
-
-def test_the_entity_id_carries_its_sport():
-    """A bare game id is meaningless without knowing which API issued it, and
-    `fetch` receives only the entity."""
-    assert ls.ApiSportsSource()._game_id(NFL_GAME) == "9"
-    assert ls.ApiSportsSource()._game_id(SOCCER_FIXTURE) == "3"
+    """`home_team_score` for the US leagues, `home_score` and team ids for
+    soccer. One adapter reading only one of them silently returns no score
+    for the other."""
+    _, nfl = _facts(NFL_GAME)
+    _, soccer = _facts(SOCCER_MATCH, "epl", SOCCER_TEAMS)
+    assert "21 to 7" in nfl[0]
+    assert soccer[0] == "Chelsea lead Arsenal 2 to 1."
 
 
 def test_a_game_in_progress_is_not_described_as_beaten():
-    facts = ls.ApiSportsSource().to_facts(
-        NFL_GAME, entity(), ls.SPORTS["american-football"])
-    assert facts.status == live_facts.IN_PROGRESS
-    assert "lead" in facts.facts[0]
-    assert "beat" not in facts.facts[0]
+    status, said = _facts(NFL_GAME)
+    assert status == live_facts.IN_PROGRESS
+    assert "lead" in said[0]
+    assert "beat" not in said[0]
 
 
 def test_a_finished_game_may_say_beat():
-    row = {**NFL_GAME, "game": {**NFL_GAME["game"], "status": {"short": "FT"}}}
-    facts = ls.ApiSportsSource().to_facts(
-        row, entity(), ls.SPORTS["american-football"])
-    assert facts.status == live_facts.FINAL
-    assert "beat" in facts.facts[0]
+    status, said = _facts({**NFL_GAME, "status_state": "final"})
+    assert status == live_facts.FINAL
+    assert "beat" in said[0]
 
 
 def test_facts_are_spoken_sentences_rather_than_scorelines():
     """These reach a voice. "KC 21-7 DEN 3Q 10:04" is not a sentence."""
-    facts = ls.ApiSportsSource().to_facts(
-        NFL_GAME, entity(), ls.SPORTS["american-football"])
-    for line in facts.facts:
+    _, said = _facts(NFL_GAME)
+    for line in said:
         assert line.endswith(".")
         assert "-" not in line
 
 
-def test_a_row_with_no_score_yields_nothing_rather_than_a_blank_fact():
-    row = {"game": {"id": 1, "status": {"short": "Q1"}},
-           "teams": {"home": {"name": "A"}, "away": {"name": "B"}}, "scores": {}}
-    assert ls.ApiSportsSource().to_facts(
-        row, entity(), ls.SPORTS["american-football"]) is None
+def test_a_row_with_no_score_yields_no_score_sentence():
+    row = {k: v for k, v in NFL_GAME.items()
+           if k not in ("home_team_score", "visitor_team_score")}
+    _, said = _facts(row)
+    assert not any(" to " in line for line in said)
 
 
 # --------------------------------------------------------------------------
@@ -258,7 +247,7 @@ def test_an_observed_state_keeps_the_authority_it_has_earned():
     from everything would leave a live final score arguing with a stale
     article on equal terms, which is the failure §89 built this to fix."""
     facts = live_facts.LiveFacts(
-        domain="sports", source="API-Sports",
+        domain="sports", source="BALLDONTLIE scores",
         as_of=datetime.now(timezone.utc), facts=["Kansas City won 31-17."],
         status=live_facts.FINAL, entity=entity())
     block = facts.as_prompt_block()
@@ -296,7 +285,7 @@ def test_quote_only_election_providers_say_what_they_would_need(name):
 # every provider is honest about not being configured
 # --------------------------------------------------------------------------
 @pytest.mark.parametrize("domain, name", [
-    ("sports", "api-sports"), ("markets", "finnhub"),
+    ("sports", "balldontlie"), ("markets", "finnhub"),
 ])
 def test_a_provider_with_no_credential_refuses_and_says_which_one(domain, name):
     source = ls.BUILDERS[domain][name]()

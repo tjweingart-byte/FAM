@@ -1,13 +1,13 @@
 """The scoreboard, from BALLDONTLIE, for every league it covers (§273).
 
-This replaces API-Sports as FAM's sports provider (at the owner's direction):
+This is FAM's only sports provider (§273, §276, at the owner's direction):
 the game a question is about, its state and score, both teams' records and
 places in the standings, their last and next games, a Formula 1 weekend, a UFC
 card - and the myFAM sweep that puts today's games on tiles with a live score
 (`Signals`). Player figures and injury reports are `balldontlie.PlayerReports`
 (§271); both share one account's client (`balldontlie.shared_client`).
 
-The rules are the scoreboard's, unchanged from API-Sports (§88, §259):
+The rules are the scoreboard's (§88, §259):
 
 * **The status is the provider's, mapped at the boundary.** Every BALLDONTLIE
   game carries `status_state`, a normalised lifecycle (`scheduled`,
@@ -223,7 +223,7 @@ def where_said(row: dict, shape: Shape) -> str:
 
 def game_facts(league: League, row: dict, status: str,
                teams: Optional[dict] = None) -> list:
-    """One game as the scoreboard's sentences (API-Sports' exact shapes)."""
+    """One game as the scoreboard's sentences (the shapes ScoreGuard reads)."""
     shape = SHAPES[league.key]
     home_t, away_t = sides(row, teams)
     home = team_said(home_t) or "the home side"
@@ -262,7 +262,7 @@ def game_facts(league: League, row: dict, status: str,
 
 
 def live_line(league: League, row: dict, teams: Optional[dict] = None) -> tuple:
-    """`(status, line)` for a tile, API-Sports' exact format: "Live ·
+    """`(status, line)` for a tile, in the tiles' one format: "Live ·
     Chiefs 21–14 Bills · the 3rd quarter", "Final · ...", "Starts 20:15 UTC".
     Unknown gives no line."""
     shape = SHAPES[league.key]
@@ -474,7 +474,7 @@ class ScoreBoard(LiveSource):
     cost_per_call = 0.0
     delayed_seconds = 0.0
     #: A game is found, then fetched with its standings and schedules beside
-    #: it: several requests, each paced, so its own clock (as API-Sports had).
+    #: it: several requests, each paced, so its own clock.
     timeout_seconds = 3.5
 
     def __init__(self, client=None) -> None:
@@ -541,14 +541,21 @@ class ScoreBoard(LiveSource):
 
     async def _window(self, league: League, team_ids: list) -> list:
         """The games in `WINDOW_DAYS`, the sweep's card first."""
+        return (await self._window_read(league, team_ids))[0]
+
+    async def _window_read(self, league: League, team_ids: list) -> tuple:
+        """`(rows, read at)`: a row off the sweep's card is as old as the
+        sweep (§135), so the freshness check that withholds a stale score
+        reads the sweep's time, never this moment."""
         shape = SHAPES[league.key]
         today = datetime.now(timezone.utc).date()
         days = [(today + timedelta(days=d)).isoformat() for d in WINDOW_DAYS]
         held = CARDS.get(league.key, {})
-        swept = [r for d in days for at, rows in [held.get(d, (0, []))]
-                 if time.time() - at < 600 for r in rows]
+        cards = [(at, rows) for d in days for at, rows in [held.get(d, (0, []))]
+                 if time.time() - at < 600]
+        swept = [r for _, rows in cards for r in rows]
         if team_ids and swept and any(_has_team(r, team_ids) for r in swept):
-            return swept
+            return swept, min(at for at, rows in cards if rows)
         params: dict = {"per_page": 100}
         if shape.dates:
             params[shape.dates] = days
@@ -562,7 +569,7 @@ class ScoreBoard(LiveSource):
             now = datetime.now(timezone.utc)
             rows = [r for r in rows if start_of(r) and abs(
                 (start_of(r) - now).total_seconds()) < 2 * 86400]
-        return rows
+        return rows, time.time()
 
     async def _find_game(self, league: League, teams: list, slot,
                          catalogue: dict) -> Optional[dict]:
@@ -627,7 +634,8 @@ class ScoreBoard(LiveSource):
             return await self._card_facts(league, payload["row"], entity)
         catalogue = (TEAMS.get(key) or (0, {}))[1]
         game_id = payload["row"].get("id")
-        rows = await self._window(league, [i for i in payload["teams"] if i is not None])
+        rows, read_at = await self._window_read(
+            league, [i for i in payload["teams"] if i is not None])
         row = next((r for r in rows if r.get("id") == game_id), None)
         if row is None:
             # Out of the window now: its own team's schedule has it.
@@ -637,6 +645,7 @@ class ScoreBoard(LiveSource):
                 schedule = await team_schedule(self.client, league, team_id)
                 row = next((r for r in schedule if r.get("id") == game_id), None)
                 if row is not None:
+                    read_at = time.time()
                     break
         if row is None:
             return None
@@ -646,8 +655,8 @@ class ScoreBoard(LiveSource):
         if not said:
             return None
         return LiveFacts(domain="sports", source=self.name,
-                         as_of=datetime.now(timezone.utc), facts=said,
-                         status=status, entity=entity)
+                         as_of=datetime.fromtimestamp(read_at, tz=timezone.utc),
+                         facts=said, status=status, entity=entity)
 
     async def _seasons(self, league: League, row: dict, catalogue: dict) -> list:
         """Both teams' records, places, and last and next games beside the
@@ -878,7 +887,7 @@ def make_signals():
 
     class Signals(stories.StorySource):
         """Today's games in the followed leagues, with the score (§273,
-        replacing `story_sources.ApiSportsSignals`; §191's pacing kept:
+        §276: the only sports sweep; §191's pacing:
         swept only when somebody drew myFAM recently, and only while a
         followed game is on or about to start)."""
 

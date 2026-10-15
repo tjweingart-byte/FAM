@@ -290,30 +290,27 @@ configured and returning them.
 # Configured providers
 
 **A key is the switch** (§135). With `LIVE_SPORTS_PROVIDER` unset and
-`API_SPORTS_KEY` present, sports is served by API-Sports; the same for
+`BALLDONTLIE_API_KEY` present, sports is served by BALLDONTLIE; the same for
 `FINNHUB_KEY` and markets (`live_sources.DERIVED_FROM_KEY`). `none` switches a
 domain off. `/api/health` lists which were derived under
 `live_sources.derived_from_key`.
 
-**Each API-Sports sport has its own daily allowance** (PROBLEMS.md §180),
-shared between the myFAM story sweep and these lookups
-(`live_sources.budget_for(sport)`). API-Sports sells and limits each sport
-separately, so each is on its own plan (`API_SPORTS_TIER`, `API_SPORTS_TIERS`
-- free, pro, ultra, mega; the steps to change one are in
-`docs/SCALING_TIMELINE.md` section 6), spends its own day, and is counted on
-its own row under API-Sports on `/admin`. Every answer's
-`x-ratelimit-requests-*` headers are read, so the count API-Sports itself
-keeps - across every worker - bounds ours, and a plan it does not report is
-flagged. Ten products are wired: American football, soccer, basketball,
-baseball, hockey, rugby, volleyball, AFL (games between two teams), Formula 1
-(races: a podium read from the race's rankings) and MMA (fights: a winner
-only where the provider marks one). NFL, NBA, NHL and MLB also carry team
-records, last and next games.
-A lookup reads the sweep's card first (`live_sources.CARD`): finding the game
-is free when the sweep listed it, and a card inside half the sports freshness
-limit is used as the state. When the allowance is spent the lookup says so
-(`BudgetSpent`, reported as a provider failure) rather than being refused by
-the provider in a reply that reads like an empty card.
+**Sports are BALLDONTLIE's** (PROBLEMS.md §273, §276 - the earlier sports
+provider was removed at the owner's direction). One account and one flat plan
+(`BALLDONTLIE_TIER`: free, all-star or goat) cover every league it serves -
+the NFL, NBA, WNBA, NHL, MLB, college football, basketball and baseball, the
+big European soccer leagues, the Champions League, MLS, the World Cup,
+Formula 1 and UFC (`balldontlie.LEAGUES`). An endpoint above the plan is never
+asked (`balldontlie.ENDPOINT_TIERS`), one the provider refuses is not asked
+again that day, and every request is paced to the plan's per-minute limit
+(`balldontlie.Client`) and counted on `/admin` with a row per league. The
+scoreboard (`balldontlie_scores.ScoreBoard`) answers the game, its state and
+score, both teams' records and places from the league's own standings, their
+last and next games, a Formula 1 weekend and a UFC card; player figures and
+injury reports are `balldontlie.PlayerReports` (§271), beside it.
+A lookup reads the sweep's card first (`balldontlie_scores.CARDS`): finding
+the game is free when the sweep listed it in the last ten minutes, and a
+score read off it is as old as the sweep.
 
 Added in PROBLEMS.md §91. **None has been verified against its live service
 from this build** — the container's egress proxy blocks every host below, so
@@ -323,7 +320,7 @@ recorded payloads in `tests/test_live_providers.py`. Run
 
 | domain | name | provider | credential | notes |
 |---|---|---|---|---|
-| sports | `api-sports` | API-Sports | `API_SPORTS_KEY` + `API_SPORTS_SPORT` | self-serve; **one API per sport** |
+| sports | `balldontlie` | BALLDONTLIE | `BALLDONTLIE_API_KEY` (+ `BALLDONTLIE_TIER`) | one flat plan, every league; paced per minute |
 | markets | `finnhub` | Finnhub | `FINNHUB_KEY` | ~20 min delayed; knows if the market is open |
 | elections | `polymarket` | Polymarket | none | **forecast, never a result**; since §211 also asked beside every outcome-dependent question |
 | elections | `ap` | AP Elections | — | declared, unimplemented: quote-only |
@@ -407,45 +404,35 @@ its own `fetch`. Anything unrecognised becomes `unknown` — never a guess — s
 provider that changes its codes degrades to silence rather than to a confident
 wrong tense.
 
-    API-Sports     NS/TBD -> scheduled   1H/2H/HT/ET/P/LIVE -> in_progress
-                   FT/AET/PEN -> final   anything else -> unknown
+    BALLDONTLIE    status_state: scheduled -> scheduled, in_progress ->
+                   in_progress, final -> final; anything else (postponed,
+                   cancelled, ...) -> unknown
     Finnhub        always unknown — a price is not an event
     Polymarket     always unknown — a forecast is not an event
 
 
-## API-Sports is four APIs, not one
+## Every league is its own shape
 
-Different **host**, **response shape** and **status vocabulary** per sport:
+One provider, but each league's games are shaped and asked differently
+(`balldontlie_scores.SHAPES`): soccer is `matches` with team ids and
+`home_score`, the US leagues are `games` with `home_team_score`, the World
+Cup has no date filter, and each has its own unit (points, runs, goals) and
+period word. A test pins both score shapes and that an unrecognised state
+does **not** map.
 
-| sport | host | path | score field | unit |
-|---|---|---|---|---|
-| `american-football` | `v1.american-football.…` | `games` | `scores.home.total` | points |
-| `football` (soccer) | `v3.football.…` | `fixtures` | `goals.home` | goals |
-| `basketball` | `v1.basketball.…` | `games` | `scores.home.total` | points |
-| `baseball` | `v1.baseball.…` | `games` | `scores.home.total` | runs |
+A question is placed in a league by the league's own words
+(`balldontlie.leagues_named`: "college basketball" is NCAAB, not the NBA its
+last word would also name), then by a team the roster places
+(`live_route.ROSTER`, §265), then by the leagues `BALLDONTLIE_LEAGUES`
+orders, searched for the team in the league's own catalogue. **The game is the
+provider's own row** in the window around today; a game a few days out is
+found on its team's schedule; no row is no game, never the nearest one. A
+stuck feed - "live" long past a game's length, "not started" hours after its
+start - reads as `unknown` (`believable`). A game that has not started never
+has a score.
 
-Writing one adapter against `v3.football` and calling it "sports" is how the
-Chiefs get looked up on a soccer endpoint. `live_sources.SPORTS` is that table
-and a test asserts no two sports share a host, that both score shapes are read,
-and that a status code borrowed from another sport does **not** map.
-
-`sport_for()` routes on explicit sport words, falling back to
-`API_SPORTS_SPORT`. **"Chiefs game" names no sport**, so it falls back — team
-name routing would need a maintained roster of every league, and a stale one is
-worse than a default someone chose. Resolving sport from team wants the
-provider's own cross-sport team search; that is the next step, not guessed at.
-
-**Team seasons (PROBLEMS.md §178).** For a sport with a `team_league` (the
-NFL today), a game not on today's card is resolved from the teams' own
-season schedules - named teams matched against the league's `/teams`
-catalogue (by full name, nickname, or a city only one team has), then
-`/games?team=&season=` - and every game's facts carry both teams' records
-(regular-season finals, counted in code), last results and next games.
-Schedules are cached ten minutes and re-read whenever one holds a game that
-may have moved. A game that has not started never has a score.
-
-The entity id carries its sport (`american-football:9`) because a bare game id
-is meaningless without knowing which API issued it, and `fetch` gets only the
+The entity id carries its league (`nfl:game:9`) because a bare game id is
+meaningless without knowing which league issued it, and `fetch` gets only the
 entity.
 
 ## Finnhub knows whether the market is open

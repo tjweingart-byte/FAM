@@ -48,7 +48,7 @@ flowchart TB
       I2[/opt/fam/embed — MiniLM model/]
     end
     subgraph Mem["Process memory — lost on restart"]
-      M1[Story pool, trending edition, brief store,<br/>live captions, live facts, engagement table,<br/>vector LRU, API-Sports budgets]
+      M1[Story pool, trending edition, brief store,<br/>live captions, live facts, engagement table,<br/>vector LRU, sports sweep cards]
     end
   end
   subgraph RunPod
@@ -274,7 +274,7 @@ stored**; it is computed from `events` and `preferences` on each request.
 `spend` (GNews requests per day).
 
 **provider_usage.db** (`provider_usage.py`, §179): `calls` per UTC day per
-provider: `api_sports` (and `api_sports/<sport>` per sport, §180), `parallel`, `perplexity`,
+provider: `balldontlie` (and `balldontlie/<league>` per league, §271, §276), `parallel`, `perplexity`,
 `gdelt`, `polymarket`, `gnews`, `finnhub`, `nws`, `open_meteo`, `local_feeds`.
 Counted in memory and flushed at most every 10 s (`FLUSH_SECONDS`). Feeds
 `/admin`. Since §211 `gdelt` counts the export-file downloads (~200 a day,
@@ -389,7 +389,7 @@ source of truth.
 | Trending edition | `trending_bank._CURRENT` | The live edition, reloaded from `trending_bank.db` | Reload every 60 s |
 | Trending feed (legacy) | `trending._FEED` | Old GDELT themes | 15 min |
 | Live facts | `live_facts.FACT_CACHE` | Scores, quotes, odds | Short, by status (in progress shortest) |
-| API-Sports budgets | `live_sources.API_SPORTS_BUDGET` and per sport | Requests used today, per sport (§180) | Per UTC day, per process |
+| Sports sweep and scoreboard | `balldontlie_scores.CARDS`, `TEAMS`, `STANDINGS`, `SCHEDULES`, `SWEPT_AT` | Today's cards, catalogues, tables, schedules (§273) | 10 min to a day, per process |
 | GDELT download state | `gdelt.STATE` | Last success, last attempt, failures in a row, last error, last file (§211; the §207 breaker is deleted) | Process lifetime |
 | Provider counts (pending) | `provider_usage._PENDING` | Requests not yet flushed to `provider_usage.db` | ≤ 10 s |
 | Weather lookups | `weather._POINTS`, `weather._PLACES` | NWS grid points, resolved places | Process lifetime |
@@ -462,7 +462,7 @@ is never accepted from the client (`listener-id-server`).
 | Prefetch | 6 per cycle, 50 episodes, 400 briefs, **$2** per day | `config.py:1065-1077` |
 | DailyFAM edition | 300 episodes, **$15** per day, 3 at a time | `config.py:890-891`, `daily_edition.py:91` |
 | GNews | 90 requests per day | `config.py:967` |
-| API-Sports | Per sport, from each sport's tier (`API_SPORTS_TIERS`); `API_SPORTS_DAILY_REQUESTS` overrides (0 = the plan) | `config.py:992`, `live_sources.py` |
+| BALLDONTLIE | Per minute, from the plan (`BALLDONTLIE_TIER`: free 5, all-star 60, goat 600) | `balldontlie.PER_MINUTE` |
 | GDELT export copy | 24 hours kept, 1,500 articles per file, 8 files backfilled, polled every 900 s; stale after 1 h (§211; the breaker is deleted) | `config.py:820-831`, `gdelt.STALE_AFTER_SECONDS` |
 | Pace per listener | 1 generation per 3 s, burst 3; 60 reads per window | `config.py:1456-1466` |
 | Tier quotas | free 5 episodes/day (`FREE_EPISODES_PER_DAY`). **On in production** (`ENFORCE_QUOTAS=1` in `render.yaml`, §207), off by default in code. Admins are `unlimited`. | `config.py:1487`, `entitlements.py:224` |

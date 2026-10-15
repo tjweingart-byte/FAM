@@ -209,120 +209,116 @@ def test_the_inbox_has_an_episode_button():
 # --- 3 and 5: sports numbers from the scoreboard, and the sources ----------
 
 import asyncio  # noqa: E402
+import dataclasses  # noqa: E402
 from datetime import datetime, timedelta, timezone  # noqa: E402
 from types import SimpleNamespace  # noqa: E402
 
+import balldontlie  # noqa: E402
+import balldontlie_scores as bs  # noqa: E402
+import config  # noqa: E402
 import live_facts  # noqa: E402
 import live_sources as LS  # noqa: E402
 import research  # noqa: E402
 
-NFL = LS.SPORTS["american-football"]
+# §276: the scoreboard is BALLDONTLIE's (`balldontlie_scores`).
+NFL = balldontlie.LEAGUES["nfl"]
 NOW = datetime.now(timezone.utc).replace(microsecond=0)
 TEAMS = [
-    {"id": 1, "name": "Washington Commanders", "city": "Washington"},
-    {"id": 2, "name": "Indianapolis Colts", "city": "Indianapolis"},
-    {"id": 3, "name": "Seattle Seahawks", "city": "Seattle"},
-    {"id": 4, "name": "New York Giants", "city": "New York"},
-    {"id": 5, "name": "New York Jets", "city": "New York"},
+    {"id": 1, "full_name": "Washington Commanders", "name": "Commanders"},
+    {"id": 2, "full_name": "Indianapolis Colts", "name": "Colts"},
+    {"id": 3, "full_name": "Seattle Seahawks", "name": "Seahawks"},
+    {"id": 4, "full_name": "New York Giants", "name": "Giants"},
+    {"id": 5, "full_name": "New York Jets", "name": "Jets"},
 ]
+BY_ID = {t["id"]: t for t in TEAMS}
 
 
-def _game(gid, home, away, when, short, hs=None, as_=None, stage="Regular Season",
-          venue=None):
-    names = {t["id"]: t["name"] for t in TEAMS}
-    return {"game": {"id": gid, "stage": stage, "status": {"short": short},
-                     "date": {"timestamp": int(when.timestamp())},
-                     "venue": venue or {}},
-            "teams": {"home": {"id": home, "name": names[home]},
-                      "away": {"id": away, "name": names[away]}},
-            "scores": {"home": {"total": hs}, "away": {"total": as_}}}
+def _game(gid, home, away, when, state, hs=None, as_=None):
+    return {"id": gid, "status_state": state, "date": when.isoformat(),
+            "home_team": BY_ID[home], "visitor_team": BY_ID[away],
+            "home_team_score": hs, "visitor_team_score": as_}
 
 
 WASHINGTON = [
-    _game(10, 1, 3, NOW - timedelta(days=40), "FT", 30, 3, stage="Pre Season"),
-    _game(11, 4, 1, NOW - timedelta(days=17), "FT", 21, 17),
-    _game(12, 1, 5, NOW - timedelta(days=10), "FT", 10, 24),
-    _game(13, 3, 1, NOW - timedelta(days=3), "FT", 20, 27),
-    _game(14, 2, 1, NOW + timedelta(days=4), "NS", 0, 0,
-          venue={"name": "Tottenham Hotspur Stadium", "city": "London"}),
+    _game(11, 4, 1, NOW - timedelta(days=17), "final", 21, 17),
+    _game(12, 1, 5, NOW - timedelta(days=10), "final", 10, 24),
+    _game(13, 3, 1, NOW - timedelta(days=9), "final", 20, 27),
+    _game(14, 2, 1, NOW + timedelta(days=4), "scheduled"),
 ]
 
 
-def test_a_record_is_counted_from_regular_season_finals():
-    said = LS.season_facts(NFL, TEAMS[0], WASHINGTON, now=NOW)
-    # The pre-season win is not in it: one win, two losses.
-    assert said[0] == ("The Washington Commanders have won 1 and lost 2 in the "
-                       "regular season so far.")
-    assert "beat the Seattle Seahawks 27 to 20" in said[1]
-    assert "has not been played yet" in said[2]
-    assert "Indianapolis Colts" in said[2] and "London" in said[2]
+def test_last_and_next_games_are_read_off_the_team_s_own_schedule():
+    said = bs.schedule_facts(NFL, TEAMS[0], WASHINGTON, now=NOW)
+    assert "beat the Seattle Seahawks 27 to 20" in said[0]
+    assert "has not been played yet" in said[1]
+    assert "Indianapolis Colts" in said[1]
 
 
 def test_a_game_not_started_has_no_score_and_says_when():
-    entity = live_facts.Entity(domain="sports", provider="API-Sports",
-                               id="american-football:14", label="x")
-    facts = LS.ApiSportsSource().to_facts(WASHINGTON[-1], entity, NFL)
-    text = " ".join(facts.facts)
-    assert facts.status == live_facts.SCHEDULED
+    said = bs.game_facts(NFL, WASHINGTON[-1], bs.status_of(WASHINGTON[-1]))
+    text = " ".join(said)
     assert "level" not in text and "have not started yet" in text
-    assert "Kick-off is" in text
+    assert "It starts" in text
 
 
 def _fake_api(monkeypatch):
     calls = []
 
-    async def fake(url, params, timeout):
-        calls.append((url.rsplit("/", 1)[-1], dict(params)))
-        if url.endswith("/teams"):
-            return {"response": TEAMS}
-        if params.get("live"):
-            return {"response": []}
-        if params.get("team") == "1":
-            return {"response": WASHINGTON}
-        if params.get("team") == "2":
-            return {"response": [WASHINGTON[-1]]}
-        if params.get("id") == "14":
-            return {"response": [WASHINGTON[-1]]}
-        return {"response": []}
-    monkeypatch.setattr(LS, "api_sports_json", fake)
-    monkeypatch.setattr(LS, "TEAMS", {})
-    monkeypatch.setattr(LS, "SCHEDULES", {})
-    monkeypatch.setattr(LS, "CARD", {})
+    async def fake(url, headers, params, timeout):
+        path = url.split("balldontlie.io", 1)[1]
+        calls.append((path, dict(params)))
+        if path.endswith("/teams"):
+            return {"data": TEAMS}
+        if path.endswith("/standings"):
+            return {"data": [{"team": BY_ID[1], "wins": 1, "losses": 2}]}
+        if path.endswith("/games") and "seasons[]" in params:
+            team = params.get("team_ids[]", [None])[0]
+            return {"data": [g for g in WASHINGTON if team in (
+                g["home_team"]["id"], g["visitor_team"]["id"])]}
+        return {"data": []}
+
+    patched = dataclasses.replace(config.settings, balldontlie_api_key="k",
+                                  balldontlie_tier="goat")
+    for module in (LS, balldontlie, bs):
+        monkeypatch.setattr(module, "settings", patched)
+    monkeypatch.setattr(LS, "_json", fake)
     return calls
 
 
-def test_a_game_later_this_week_is_found_on_the_teams_schedule(monkeypatch):
-    _fake_api(monkeypatch)
-    brief = SimpleNamespace(subject="Colts Commanders London game",
-                            query="colts commanders london", named_slot="")
+def test_a_game_later_this_week_is_found_on_the_team_s_schedule(monkeypatch):
     calls = _fake_api(monkeypatch)
-    entity = asyncio.run(LS.ApiSportsSource().resolve(brief))
-    assert entity is not None and entity.id == "american-football:14"
-    # The schedules answered, so no `live=all` request was spent first.
-    assert not any(p.get("live") for _, p in calls)
+    brief = SimpleNamespace(subject="Washington Commanders London game",
+                            query="washington commanders nfl london",
+                            live_entity="", named_slot="", category="")
+    entity = asyncio.run(bs.ScoreBoard().resolve(brief))
+    assert entity is not None and entity.id == "nfl:game:14"
+    assert any("seasons[]" in p for _, p in calls), "the schedule answered"
 
 
 def test_the_game_carries_both_teams_seasons(monkeypatch):
     _fake_api(monkeypatch)
-    entity = live_facts.Entity(domain="sports", provider="API-Sports",
-                               id="american-football:14", label="x")
-    facts = asyncio.run(LS.ApiSportsSource().fetch(entity))
+    board = bs.ScoreBoard()
+    brief = SimpleNamespace(subject="Washington Commanders London game",
+                            query="washington commanders nfl london",
+                            live_entity="", named_slot="", category="")
+    facts = asyncio.run(board.fetch(asyncio.run(board.resolve(brief))))
     text = " ".join(facts.facts)
     assert "Washington Commanders have won 1 and lost 2" in text
-    assert "Indianapolis Colts have not finished a regular-season game" in text
+    assert "beat the Seattle Seahawks 27 to 20" in text
     # Settled games may be stated even beside a game that has not started.
     assert "may be stated" in facts.as_prompt_block()
 
 
 def test_a_city_two_teams_share_names_neither():
-    assert LS.teams_named(TEAMS, "the new york game") == []
-    assert [t["id"] for t in LS.teams_named(TEAMS, "giants at commanders")] == [4, 1]
+    assert bs.teams_named(TEAMS, "the new york game", "") == []
+    found = bs.teams_named(TEAMS, "giants at commanders", "", nicknames=True)
+    assert {t["id"] for t in found} == {4, 1}
 
 
 def test_the_live_block_says_never_to_argue_the_sources():
-    entity = live_facts.Entity(domain="sports", provider="API-Sports",
-                               id="american-football:14", label="x")
-    block = live_facts.LiveFacts(domain="sports", source="API-Sports",
+    entity = live_facts.Entity(domain="sports", provider="BALLDONTLIE scores",
+                               id="nfl:game:14", label="x")
+    block = live_facts.LiveFacts(domain="sports", source="BALLDONTLIE scores",
                                  as_of=datetime.now(timezone.utc),
                                  facts=["x"], status=live_facts.FINAL,
                                  entity=entity).as_prompt_block()
@@ -369,32 +365,20 @@ def test_the_writer_never_argues_a_fact_out_loud():
     assert "say only the \\\nbetter-supported one - never the argument" in text
 
 
-def test_a_prime_time_kickoff_is_said_on_the_eastern_day():
-    # 00:20 UTC on a Monday is 8:20 pm on the Sunday in the East.
-    sunday_night = datetime(2026, 10, 12, 0, 20, tzinfo=timezone.utc)
-    said = LS._kickoff_said(sunday_night, NFL)
-    assert said.startswith("Sunday 11 October at 8:20 pm Eastern"), said
-
-
 def test_an_empty_schedule_says_nothing_about_a_record():
-    assert LS.season_facts(NFL, TEAMS[0], [], now=NOW) == []
+    assert bs.schedule_facts(NFL, TEAMS[0], [], now=NOW) == []
 
 
 def test_a_city_followed_by_another_teams_name_is_not_this_leagues_team():
-    teams = TEAMS + [{"id": 6, "name": "Houston Texans", "city": "Houston"}]
-    assert LS.teams_named(teams, "Houston Rockets tonight") == []
-    assert [t["id"] for t in LS.teams_named(teams, "the Houston game")] == [6]
-    # A conference all-star side is no team anybody means.
-    assert LS.teams_named(TEAMS + [{"id": 7, "name": "AFC", "city": ""}],
-                          "AFC playoff picture") == []
+    teams = TEAMS + [{"id": 6, "full_name": "Houston Texans", "name": "Texans"}]
+    assert bs.teams_named(teams, "Houston Rockets tonight", "", nicknames=True) == []
 
 
-def test_a_live_game_does_not_refetch_its_teams_schedules(monkeypatch):
+def test_a_team_s_schedule_is_read_once_while_it_is_fresh(monkeypatch):
     calls = _fake_api(monkeypatch)
-    live = dict(WASHINGTON[-1], game=dict(WASHINGTON[-1]["game"],
-                                           status={"short": "Q2"}))
-    asyncio.run(LS.team_schedule(NFL, 1))
+    client = balldontlie.Client()
+    asyncio.run(bs.team_schedule(client, NFL, 1))
     before = len(calls)
-    rows = asyncio.run(LS.team_schedule(NFL, 1, fresh=live))
+    rows = asyncio.run(bs.team_schedule(client, NFL, 1))
     assert len(calls) == before
-    assert rows[-1] is live
+    assert [r["id"] for r in rows] == [11, 12, 13, 14]

@@ -258,52 +258,71 @@ def test_polymarket_ships_off(monkeypatch):
 
 
 # --------------------------------------------------------------------------
-# API-Sports: the score rides beside the tile, never inside it (§135)
+# BALLDONTLIE: the score rides beside the tile, never inside it (§135, §276)
 # --------------------------------------------------------------------------
-NFL = {"name": "NFL", "country": {"name": "USA"}}
-CARD = {"response": [
-    {"teams": {"home": {"name": "Chiefs"}, "away": {"name": "Broncos"}},
-     "league": NFL, "status": {"short": "Q3"},
-     "scores": {"home": {"total": 21}, "away": {"total": 7}}},
-    {"teams": {"home": {"name": "Eagles"}, "away": {"name": "Giants"}},
-     "league": NFL, "game": {"status": {"short": "NS"}}},
-    {"teams": {"home": {"name": "Jets"}, "away": {"name": "Bills"}},
-     "league": NFL, "status": {"short": "FT"},
-     "scores": {"home": {"total": 3}, "away": {"total": 30}}},
-    {"teams": {"home": {"name": "Rams"}, "away": {"name": "Niners"}},
-     "league": NFL, "status": {"short": "WHO-KNOWS"}},
-    # A league the sweep does not follow (§191): looked up on demand only.
-    {"teams": {"home": {"name": "Stallions"}, "away": {"name": "Renegades"}},
-     "league": {"name": "UFL", "country": {"name": "USA"}},
-     "status": {"short": "Q2"},
-     "scores": {"home": {"total": 10}, "away": {"total": 3}}},
+def _team(i, name):
+    return {"id": i, "full_name": name, "name": name}
+
+
+def _game(gid, home, away, state, hs=None, as_=None, hours=-1.0):
+    from datetime import datetime, timedelta, timezone
+
+    row = {"id": gid, "home_team": home, "visitor_team": away,
+           "status_state": state,
+           "date": (datetime.now(timezone.utc) + timedelta(hours=hours)).isoformat()}
+    if hs is not None:
+        row.update(home_team_score=hs, visitor_team_score=as_)
+    return row
+
+
+CHIEFS, BRONCOS = _team(1, "Chiefs"), _team(2, "Broncos")
+EAGLES, GIANTS = _team(3, "Eagles"), _team(4, "Giants")
+JETS, BILLS = _team(5, "Jets"), _team(6, "Bills")
+RAMS, NINERS = _team(7, "Rams"), _team(8, "Niners")
+CARD = {"data": [
+    _game(1, CHIEFS, BRONCOS, "in_progress", 21, 7),
+    _game(2, EAGLES, GIANTS, "scheduled", hours=2.0),
+    _game(3, JETS, BILLS, "final", 3, 30, hours=-4.0),
+    _game(4, RAMS, NINERS, "who-knows"),
 ]}
 
 
-def api_sports(monkeypatch, card=None, **settings_kw):
-    """API-Sports answering `card`, with a fresh day's allowance."""
+def balldontlie_answering(monkeypatch, card=None, swept=("nfl",), **settings_kw):
+    """BALLDONTLIE answering every games request with `card`; every request
+    recorded. A fresh day: every followed league due."""
+    import balldontlie
+    import balldontlie_scores
     import live_sources
 
+    asked = []
+
     async def _json(url, headers, params, timeout):
-        return CARD if card is None else card
+        asked.append(url.split("balldontlie.io", 1)[1])
+        answer = CARD if card is None else card
+        if isinstance(answer, Exception):
+            raise answer
+        return answer
 
     monkeypatch.setattr(live_sources, "_json", _json)
-    monkeypatch.setattr(live_sources, "API_SPORTS_BUDGET",
-                        live_sources.RequestBudget())
-    monkeypatch.setattr(live_sources, "CARD", {})
-    # A fresh day: every sport due, each with its own allowance (§180).
-    monkeypatch.setattr(story_sources, "SPORT_SWEPT_AT", {})
-    monkeypatch.setattr(story_sources, "SPORT_CARDS", {})
-    monkeypatch.setattr(live_sources, "BUDGETS", {})
-    settings_kw.setdefault("stories_sports", "american-football")
-    patched = with_settings(monkeypatch, api_sports_key="k", **settings_kw)
-    monkeypatch.setattr(live_sources, "settings", patched)
-    return live_sources
+    monkeypatch.setattr(balldontlie_scores, "SWEPT", tuple(swept))
+    monkeypatch.setattr(stories, "recent_demand", lambda now: True)
+    settings_kw.setdefault("balldontlie_api_key", "k")
+    settings_kw.setdefault("balldontlie_tier", "goat")
+    patched = with_settings(monkeypatch, **settings_kw)
+    for module in (balldontlie, balldontlie_scores, live_sources):
+        monkeypatch.setattr(module, "settings", patched)
+    return asked
+
+
+def signals():
+    import balldontlie_scores
+
+    return balldontlie_scores.make_signals()(client=__import__("balldontlie").Client())
 
 
 def sports(monkeypatch, card=None):
-    api_sports(monkeypatch, card)
-    return run(story_sources.ApiSportsSignals().collect(8))
+    balldontlie_answering(monkeypatch, card)
+    return run(signals().collect(8))
 
 
 def test_the_score_is_on_the_card_and_kept_out_of_the_title(monkeypatch):
@@ -316,8 +335,7 @@ def test_the_score_is_on_the_card_and_kept_out_of_the_title(monkeypatch):
     assert rows["Chiefs vs Broncos"].live_line == "Live \u00b7 Chiefs 21\u20137 Broncos"
     assert rows["Chiefs vs Broncos"].live_status == live_facts.IN_PROGRESS
     assert rows["Jets vs Bills"].live_line == "Final \u00b7 Jets 3\u201330 Bills"
-    assert rows["Eagles vs Giants"].live_line in ("Today",) or \
-        rows["Eagles vs Giants"].live_line.startswith("Starts ")
+    assert rows["Eagles vs Giants"].live_line.startswith("Starts ")
     for row in rows.values():
         # The composer is told the score and told where it goes.
         assert "keep it out of the title" in row.observation
@@ -361,68 +379,50 @@ def test_a_game_whose_state_cannot_be_read_is_not_offered(monkeypatch):
     assert "Rams vs Niners" not in {r.subject for r in sports(monkeypatch)}
 
 
-def test_api_sports_spends_the_whole_allowance_evenly(monkeypatch):
-    """§135: "it should be using the full 100 requests a day to sweep
-    (roughly every 15 minutes)". Paced over what is left of the day, so the
-    allowance is used to the full and never gone by lunchtime."""
-    import live_sources
+def test_a_spent_minute_is_said_not_sent(monkeypatch):
+    """BALLDONTLIE's plan is a per-minute limit (§271): a request past it
+    raises before anything is sent, rather than being refused by the
+    provider in a reply that reads like a quiet day."""
+    import balldontlie
 
-    monkeypatch.setattr(live_sources, "settings", dataclasses.replace(
-        config.settings, api_sports_daily_requests=100))
-    budget = live_sources.RequestBudget()
-    midnight = 1790035200.0          # a UTC midnight
-    assert budget.sweep_interval(1, now=midnight) == pytest.approx(864.0)
-    # Two sports cost two requests a sweep, so half as often.
-    assert budget.sweep_interval(2, now=midnight) == pytest.approx(1728.0)
-    # A day where episode lookups spent a share of it sweeps less often.
-    budget.spend(70, now=midnight + 43200)
-    assert budget.sweep_interval(1, now=midnight + 43200) == pytest.approx(1440.0)
-    # Spent: the next sweep is tomorrow, and a request says so rather than
-    # being refused by the provider in a reply that reads like a quiet day.
-    budget.spend(30, now=midnight + 43200)
-    assert budget.remaining(now=midnight + 43200) == 0
-    assert budget.sweep_interval(1, now=midnight + 43200) == pytest.approx(43200.0)
-    # And the allowance comes back at UTC midnight, when API-Sports resets it.
-    assert budget.remaining(now=midnight + 86400 + 1) == 100
-
-
-def test_a_spent_allowance_is_said_not_sent(monkeypatch):
-    live_sources = api_sports(monkeypatch)
-    live_sources.API_SPORTS_BUDGET.exhaust()
-    with pytest.raises(live_sources.BudgetSpent, match="spent"):
-        run(live_sources.api_sports_json("https://x", {}, 1.0))
+    asked = balldontlie_answering(monkeypatch, balldontlie_tier="free")
+    client = balldontlie.Client()
+    for _ in range(balldontlie.PER_MINUTE["free"]):
+        client.pace()
+    with pytest.raises(balldontlie.RateLimited):
+        run(client.get(balldontlie.LEAGUES["nfl"], "games", "games", {}))
+    assert asked == []
 
 
 def test_the_provider_s_own_limit_reply_is_an_outage_not_an_empty_card(monkeypatch):
-    """API-Sports answers 200 with the refusal in `errors`. Read as a card,
-    that is a day with no games - §89's failure exactly."""
-    live_sources = api_sports(monkeypatch, card={
-        "errors": {"requests": "You have reached the request limit for the day"},
-        "response": []})
-    with pytest.raises(live_sources.BudgetSpent):
-        run(story_sources.ApiSportsSignals().collect(8))
-    # Its own sport's day is spent (§180: each sport is its own allowance).
-    assert live_sources.budget_for("american-football").remaining() == 0
+    """A 429 read as a card would be a day with no games - §89's failure
+    exactly. A sweep that lost every league raises."""
+    import balldontlie
+    import live_sources
+
+    balldontlie_answering(monkeypatch, card=live_sources.ProviderHTTPError(
+        429, "api.balldontlie.io/nfl/v1/games"))
+    with pytest.raises(balldontlie.RateLimited):
+        run(signals().collect(8))
 
 
-def test_every_sweep_request_is_counted(monkeypatch):
-    live_sources = api_sports(monkeypatch, stories_sports="american-football,basketball")
-    run(story_sources.ApiSportsSignals().collect(8))
-    # Each against its own sport's day (§180): the card, plus the league's
-    # team catalogue, read once a day so a team's name finds its sport.
-    assert live_sources.budget_for("american-football").used == 2
-    assert live_sources.budget_for("basketball").used == 2
-    run(story_sources.ApiSportsSignals().collect(8))
-    assert live_sources.budget_for("american-football").used == 2, \
-        "a sport that is not due yet was swept again"
+def test_every_sweep_request_is_counted_and_a_league_not_due_is_not_asked(monkeypatch):
+    import balldontlie_scores
+
+    asked = balldontlie_answering(monkeypatch, swept=("nfl", "nba"))
+    source = signals()
+    run(source.collect(8))
+    assert sorted(asked) == ["/nba/v1/games", "/nfl/v1/games"]
+    run(source.collect(8))
+    assert len(asked) == 2, "a league that is not due yet was swept again"
     # And the card is kept for the episode lookup to read before it spends.
-    assert set(live_sources.CARD) == {"american-football", "basketball"}
+    assert set(balldontlie_scores.CARDS) == {"nfl", "nba"}
 
 
-def test_api_sports_without_a_key_is_off_and_says_which_key(monkeypatch):
-    with_settings(monkeypatch, api_sports_key="")
-    ok, why = story_sources.ApiSportsSignals().diagnose()
-    assert not ok and "API_SPORTS_KEY" in why
+def test_balldontlie_without_a_key_is_off_and_says_which_key(monkeypatch):
+    balldontlie_answering(monkeypatch, balldontlie_api_key="")
+    ok, why = signals().diagnose()
+    assert not ok and "BALLDONTLIE_API_KEY" in why
 
 
 # --------------------------------------------------------------------------
@@ -619,9 +619,10 @@ def test_the_status_vocabulary_is_the_one_live_facts_already_closed():
     """A free string misses every comparison silently. The sports source maps
     at the provider boundary into the same four words everything else in FAM
     switches on."""
-    assert set(story_sources.ApiSportsSignals.STRENGTH) <= {
+    source = signals()
+    assert set(source.STRENGTH) <= {
         live_facts.SCHEDULED, live_facts.IN_PROGRESS, live_facts.FINAL}
-    assert live_facts.UNKNOWN not in story_sources.ApiSportsSignals.STRENGTH
+    assert live_facts.UNKNOWN not in source.STRENGTH
 
 
 def test_the_sports_card_is_ordered_deterministically(monkeypatch):
@@ -630,32 +631,28 @@ def test_the_sports_card_is_ordered_deterministically(monkeypatch):
     first - so the tiles changed between sweeps for no reason a listener could
     see. The same card must produce the same tiles twice."""
     first = sports(monkeypatch)
-    # The same fixtures, in the order a different response happened to use.
-    shuffled = {"response": list(reversed(CARD["response"]))}
+    import balldontlie_scores
 
-    async def _json(url, headers, params, timeout):
-        return shuffled
-
+    monkeypatch.setattr(balldontlie_scores, "SWEPT_AT", {})
+    shuffled = {"data": list(reversed(CARD["data"]))}
     second = sports(monkeypatch, card=shuffled)
     assert [s.subject for s in first] == [s.subject for s in second]
 
 
-def test_only_a_followed_league_becomes_a_tile(monkeypatch):
-    """A date request returns every fixture in the world. Since §191 only the
-    leagues the owner named (`SWEPT_LEAGUES`) become tiles; a regional game is
-    looked up on demand by the episode that asks about it, never swept.
-    Its league's country is its geography."""
-    card = {"response": [
-        {"teams": {"home": {"name": "Lowtown"}, "away": {"name": "Smallville"}},
-         "status": {"short": "Q2"}, "league": {"name": "Regional League"},
-         "country": {"name": "USA"}},
-        {"teams": {"home": {"name": "Chiefs"}, "away": {"name": "Broncos"}},
-         "status": {"short": "Q2"}, "league": {"name": "NFL"},
-         "country": {"name": "USA"}},
-    ]}
-    rows = sports(monkeypatch, card=card)
-    assert [r.subject for r in rows] == ["Chiefs vs Broncos"]
-    assert rows[0].countries == (("united states", 1.0),)
+def test_only_a_followed_league_is_swept(monkeypatch):
+    """Since §191 only the leagues the owner named (`balldontlie_scores.SWEPT`)
+    are swept; every other league is looked up on demand by the episode that
+    asks about it, never swept."""
+    import balldontlie_scores
+
+    assert "mls" not in balldontlie_scores.SWEPT
+    asked = balldontlie_answering(monkeypatch,
+                                  swept=balldontlie_scores.SWEPT)
+    run(signals().collect(8))
+    assert asked and not any(path.startswith("/mls/") for path in asked)
+    assert {p.split("/")[1] for p in asked} <= {
+        balldontlie_scores.LEAGUES[k].prefix.split("/")[1]
+        for k in balldontlie_scores.SWEPT}
 
 
 def test_a_swept_quote_needs_its_own_time_and_a_recent_sweep():

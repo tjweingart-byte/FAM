@@ -92,7 +92,7 @@ def test_usage_billed_rows_read_the_ledger_never_a_typed_price(stores):
 def test_every_service_the_code_calls_has_a_row(stores):
     vendors = {r["vendor"] for r in financials.catalogue()}
     for needed in ("Render", "RunPod", "Anthropic", "Parallel and Perplexity",
-                   "GNews", "API-Sports",
+                   "GNews", "BALLDONTLIE",
                    "Finnhub", "Open-Meteo", "Polymarket", "GDELT",
                    "National Weather Service", "Google AI Studio", "Viral Loops",
                    "Apple"):
@@ -156,21 +156,23 @@ def test_only_an_operator_can_download_it(stores, monkeypatch):
 
 
 def test_the_plan_is_driven_by_listeners_with_sports_apart(stores):
-    """Cost follows new episodes, and sports misses the cache more and spends
-    API-Sports requests - so it has its own rows, not a blended growth rate."""
+    """Cost follows new episodes, and sports misses the cache more and needs
+    its own data plan - so it has its own rows, not a blended growth rate."""
     plan = _book(financials.build(NOW))["Projections"]
     labels = {plan.cell(row=r, column=1).value: r for r in range(1, plan.max_row + 1)}
     for needed in ("Listeners", "  of which sports",
-                   "New episodes per search, sports", "Sports data (API-Sports)",
+                   "New episodes per search, sports", "Sports data (BALLDONTLIE)",
                    "Marketing & materials", "Sports share of running costs",
                    "Total costs"):
         assert needed in labels, needed
     episode = plan.cell(row=labels["Cost of one new episode"], column=2).value
     assert "'Daily Spend'" in episode, "the forecast must learn from recorded spend"
-    api = plan.cell(row=labels["Sports data (API-Sports)"], column=4).value
-    assert "7500" not in api, "plan limits live in labelled rate cells"
-    rate = labels["API-Sports Pro: requests per day"]
-    assert plan.cell(row=rate, column=2).value == 7500 and f"$B${rate}" in api
+    sports = plan.cell(row=labels["Sports data (BALLDONTLIE)"], column=4).value
+    # One flat plan for every league (§276): what Costs says, and from launch
+    # the plan bought, in a labelled rate cell rather than a number in a formula.
+    assert "BALLDONTLIE" in sports
+    rate = labels["BALLDONTLIE plan from launch, per month"]
+    assert f"$B${rate}" in sports
 
 
 def test_marketing_and_materials_feed_the_projection(stores):
@@ -238,3 +240,14 @@ def test_a_photo_check_is_spend_but_not_an_episode(stores):
     assert day["episodes"] == 1
     assert day["claude"] == pytest.approx(
         metering.price_of(_usage()).claude + metering.price_of(u).claude, abs=1e-6)
+
+
+def test_the_sports_plan_is_balldontlie_s_named_by_its_setting(stores, monkeypatch):
+    """§276: sports data is one BALLDONTLIE plan, named by BALLDONTLIE_TIER;
+    its price is not in the repository, so a paid plan asks for it."""
+    _set(monkeypatch, balldontlie_tier="free")
+    row = [r for r in financials.catalogue() if r["vendor"] == "BALLDONTLIE"]
+    assert len(row) == 1 and row[0]["status"] == "Free tier"
+    _set(monkeypatch, balldontlie_tier="all-star")
+    row = [r for r in financials.catalogue() if r["vendor"] == "BALLDONTLIE"][0]
+    assert row["plan"].startswith("ALL-STAR") and row["status"] == "Paying, enter price"

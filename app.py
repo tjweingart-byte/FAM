@@ -345,14 +345,14 @@ async def _refresh_stories_forever() -> None:
     The pool used to refresh only when somebody drew myFAM and found it
     stale, so the first listener after a quiet hour saw an hour-old Trending
     row while the sweep they had just triggered ran behind it, and the
-    API-Sports allowance the owner asked to be spent on fresh scores sat
+    sports allowance the owner asked to be spent on fresh scores sat
     unused overnight. This ticks once a minute and sweeps whenever the pool
     is `STORIES_BACKGROUND_SECONDS` old - every fifteen minutes by default,
     one sweep for every listener, exactly as a page load would have paid.
 
     Since §191 a tick spends only on what is due: the news and Finnhub every
-    two hours, and API-Sports only when somebody drew myFAM recently and a
-    followed game is on (`ApiSportsSignals.idle`). A tick with nothing due
+    two hours, and BALLDONTLIE's sports only when somebody drew myFAM
+    recently and a followed game is on (`balldontlie_scores` `Signals.idle`). A tick with nothing due
     asks nobody.
 
     Never raises: a sweep that fails is logged by `_warm_stories` and the

@@ -39,14 +39,14 @@ def lookup(domain, outcome, attempts=()):
 def test_each_cause_is_its_own_verdict():
     answered = LR.row_for("chiefs score", brief(live_domain="sports"),
                           lookup("sports", live_facts.FACTS,
-                                 [("API-Sports", "facts", "API-Sports")]))
+                                 [("BALLDONTLIE scores", "facts", "BALLDONTLIE scores")]))
     assert LR.verdict(answered["domain"], answered["outcome"],
                       answered["degraded"]) == LR.ANSWERED
-    assert answered["answered_by"] == "API-Sports"
+    assert answered["answered_by"] == "BALLDONTLIE scores"
 
     missed = LR.row_for("chiefs score", brief(live_domain="sports"),
                         lookup("sports", live_facts.NO_ENTITY,
-                               [("API-Sports", "no_entity", "nothing matching")]))
+                               [("BALLDONTLIE scores", "no_entity", "nothing matching")]))
     assert LR.verdict(missed["domain"], missed["outcome"],
                       missed["degraded"]) == LR.NO_ANSWER
 
@@ -82,9 +82,11 @@ def test_a_routed_brief_with_no_lookup_says_so():
 
 
 def test_suspect_reads_a_held_catalogue_and_spends_nothing(monkeypatch):
-    monkeypatch.setitem(live_sources.TEAMS, "american-football",
-                        (time.time(), [{"name": "Kansas City Chiefs",
-                                        "city": "Kansas City"}]))
+    import balldontlie_scores
+
+    monkeypatch.setitem(balldontlie_scores.TEAMS, "nfl",
+                        (time.time(), {12: {"id": 12, "name": "Chiefs",
+                                            "full_name": "Kansas City Chiefs"}}))
 
     def no_requests(*a, **k):
         raise AssertionError("a suspect check must never make a request")
@@ -111,7 +113,7 @@ def test_a_routed_row_is_never_suspect():
 def test_record_flush_report_round_trip():
     LR.record("chiefs score", brief(live_domain="sports"),
               lookup("sports", live_facts.TIMEOUT,
-                     [("API-Sports", "timeout", "API-Sports timed out")]))
+                     [("BALLDONTLIE scores", "timeout", "BALLDONTLIE scores timed out")]))
     LR.record("how do tides work", brief(), None)
     LR.record("nvidia shares", brief(), None)
     LR.flush()
@@ -121,7 +123,7 @@ def test_record_flush_report_round_trip():
     assert report["totals"][LR.NOT_ROUTED] == 2
     assert report["domains"] == {"sports": {"routed": 1, "answered": 0}}
     assert report["no_answer_reasons"][0]["why"] == \
-        "sports - timeout: API-Sports timed out"
+        "sports - timeout: BALLDONTLIE scores timed out"
     assert report["suspects"] == 1
     assert report["recent"][0]["query"] == "nvidia shares"
 
@@ -155,7 +157,7 @@ def test_prepare_records_one_row(monkeypatch):
 
     async def asked(b, notes=None, **_):
         return lookup("sports", live_facts.NO_ENTITY,
-                      [("API-Sports", "no_entity", "nothing matching")])
+                      [("BALLDONTLIE scores", "no_entity", "nothing matching")])
 
     monkeypatch.setattr(live_facts, "lookup", asked)
     monkeypatch.setattr(sg.ScriptGenerator, "research", research)
@@ -167,7 +169,7 @@ def test_prepare_records_one_row(monkeypatch):
     report = LR.report()
     assert report["episodes"] == 1
     assert report["recent"][0]["verdict"] == LR.NO_ANSWER
-    assert report["recent"][0]["attempts"][0][:2] == ["API-Sports", "no_entity"]
+    assert report["recent"][0]["attempts"][0][:2] == ["BALLDONTLIE scores", "no_entity"]
 
 
 def test_the_admin_snapshot_carries_routing():

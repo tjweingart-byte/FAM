@@ -10,7 +10,7 @@ judgement, decided in code and spending nothing:
 
 * **sports** - the question or the brief names a team in `ROSTER` (the four
   US major leagues), a named broadcast slot (`named_slots`), or a team in a
-  league catalogue this server already read (`live_sources.TEAMS`);
+  league catalogue this server already read (`balldontlie_scores.TEAMS`);
 * **markets** - the question says a market word *and* the brief's
   `live_entity` could be a listing (`live_sources.looks_like_a_listing`).
 
@@ -21,24 +21,21 @@ name. The route only decides that a provider is *asked*. What the provider
 answers is still resolved from its own catalogue, never from these names, and
 a route to a domain nothing on this deployment can serve is not taken.
 
-**The roster is names, never facts**, and only for the leagues API-Sports
-serves here. A full name always counts. A nickname on its own counts only
-where it means nothing but the team ("Steelers", "Maple Leafs") - "Heat",
-"Bills", "Giants", "Kings" and the like are everyday words, other teams, or
-both, and need their city; so do nicknames a college shares ("Bruins",
-"Cavaliers", "Broncos") or that mean something else ("Raptors", "Kraken",
-"Dodgers", "Trail Blazers"). A team in a league catalogue already read
-counts by its full name only, for the same reason (`full_names_in`). Relocations and renames are rare; the test
+**The roster is names, never facts**, and only for the four US major leagues
+(the scoreboard, `balldontlie_scores`, covers them and more). A full name
+always counts. A nickname on its own counts only where it means nothing but
+the team ("Steelers", "Maple Leafs") - "Heat", "Bills", "Giants", "Kings" and
+the like are everyday words, other teams, or both, and need their city; so do
+nicknames a college shares ("Bruins", "Cavaliers", "Broncos") or that mean
+something else ("Raptors", "Kraken", "Dodgers", "Trail Blazers"). A team in a
+league catalogue already read counts by its full name only, for the same
+reason (`full_names_in`). Relocations and renames are rare; the test
 `test_roster_has_every_team` keeps the counts.
 """
 from __future__ import annotations
 
 import re
 from typing import Optional
-
-#: league -> the API-Sports sport that serves it (`live_sources.SPORTS`).
-LEAGUE_SPORT = {"nfl": "american-football", "nba": "basketball",
-                "mlb": "baseball", "nhl": "hockey"}
 
 #: One team a line: its full name, then any nickname that names it alone.
 _ROSTER_TEXT = {
@@ -209,15 +206,6 @@ def teams_in(text: str) -> list:
     return found
 
 
-def sport_of(text: str) -> str:
-    """The API-Sports sport whose league `text` names a team of, when the
-    teams it names are all in one league; "" otherwise."""
-    leagues = {league for league, _ in teams_in(text)}
-    if len(leagues) == 1:
-        return LEAGUE_SPORT[leagues.pop()]
-    return ""
-
-
 #: A question about a price says so. Only ever half of a markets route: the
 #: other half is an entity that could be a listing.
 MARKET_WORDS = re.compile(
@@ -230,8 +218,8 @@ _CASHTAG = re.compile(r"(?<![A-Za-z0-9])\$[A-Za-z]{1,5}\b")
 def full_names_in(teams: list, text: str) -> list:
     """Teams from a provider catalogue that `text` names by full name.
 
-    Never by nickname or city alone: `live_sources.teams_named` matches the
-    last word of a name for `resolve`, where the question is already about
+    Never by nickname or city alone: a scoreboard's `teams_named` may match a
+    short name for `resolve`, where the question is already about
     sports, and that is how "pay my bills" named the Buffalo Bills (§265
     review). Routing decides whether a question is about sports at all."""
     padded = _words(text)
@@ -244,15 +232,9 @@ def full_names_in(teams: list, text: str) -> list:
 
 
 def catalogue_team(text: str) -> str:
-    """"<team> (<sport>)" for a team in a catalogue this server already
+    """"<team> (<league>)" for a team in a catalogue this server already
     read that `text` names in full, or ""."""
     try:
-        import live_sources
-
-        for key, held in list(live_sources.TEAMS.items()):
-            named = full_names_in(held[1] if held else [], text)
-            if named:
-                return f"{named[0].get('name', '')} ({key})"
         import balldontlie_scores  # §273
 
         for key, held in list(balldontlie_scores.TEAMS.items()):

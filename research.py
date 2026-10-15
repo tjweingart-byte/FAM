@@ -17,7 +17,7 @@ Both web backends hand back results with the same four attributes -
 ranking, screening, the packet and provenance read. A backend is a function
 that produces those, and nothing downstream knows which one ran.
 
-Beside them, `live_facts` asks API-Sports, Finnhub and Polymarket for a
+Beside them, `live_facts` asks BALLDONTLIE, Finnhub and Polymarket for a
 current state when the brief says the question turns on one. Those five are
 the whole of where an episode's information comes from.
 
@@ -1386,7 +1386,7 @@ async def retrieve_with_gdelt(query: str, brief=None, recency_days: int = 0
 #: The model's own web search used to be the last rung (§135, at the owner's
 #: direction) - a separate research call at 10-25 seconds - and it is deleted
 #: rather than switched off: everything an episode is written from comes from
-#: the search backends, GDELT and the live providers (API-Sports, Finnhub,
+#: the search backends, GDELT and the live providers (BALLDONTLIE, Finnhub,
 #: Polymarket), and nowhere else. A question that finds nothing on any index
 #: is still written (§256 deleted the §109 refusal).
 #:

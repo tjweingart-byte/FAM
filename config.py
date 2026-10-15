@@ -691,8 +691,8 @@ class Settings:
     stories_ttl_seconds: float = _env_float("STORIES_TTL_SECONDS", 900.0)
     # How often the pool refreshes itself with nobody looking (§135). It used
     # to refresh only when somebody drew myFAM and found it stale, so a quiet
-    # hour left Trending an hour old for the next listener and the API-Sports
-    # allowance unspent. A background loop on the same clock keeps both
+    # hour left Trending an hour old for the next listener and today's scores
+    # stale. A background loop on the same clock keeps both
     # current. 0 switches the loop off and leaves the page-load trigger.
     stories_background_seconds: float = _env_float(
         "STORIES_BACKGROUND_SECONDS", 900.0)
@@ -879,10 +879,6 @@ class Settings:
     # one anyway is how a browse page fills with tiles nobody wants.
     stories_market_move_percent: float = _env_float(
         "STORIES_MARKET_MOVE_PERCENT", 3.0)
-    # Which API-Sports products to sweep for today's card. Empty follows
-    # API_SPORTS_SPORT, which is the one a deployment says it mostly serves.
-    stories_sports: str = field(
-        default_factory=lambda: os.environ.get("STORIES_SPORTS", "").strip())
     # Polymarket is keyless, so without a switch of its own it would be the
     # one source that turned itself on - and on a fresh deployment it would
     # then be the *only* live source, which would make the browse page a
@@ -1113,41 +1109,6 @@ class Settings:
     # information in the world". Keys are never written into source; these
     # come through the same chain as every other credential (process env >
     # FAM_SECRETS > .env > ~/.fam/env). See CREDENTIALS.md.
-    api_sports_key: str = field(
-        default_factory=lambda: os.environ.get("API_SPORTS_KEY", "").strip())
-    # API-Sports is one API per sport - different host, different response
-    # shape, different status codes - so a deployment says which one it mostly
-    # serves. An explicit sport word in the question still overrides it. See
-    # `live_sources.sport_for` for why team-name routing is not attempted.
-    api_sports_sport: str = field(
-        default_factory=lambda: os.environ.get(
-            "API_SPORTS_SPORT", "american-football").strip())
-    # API-Sports' daily request allowance, shared by the story sweep and the
-    # live lookups episodes make (§135). The sweep is paced to spend what is
-    # left evenly over what is left of the UTC day, less a reserve for the
-    # lookups. Counted per process, and checked against the count API-Sports
-    # reports on every answer.
-    # **Per sport** since §180: API-Sports counts each product separately, so
-    # each sport has its own day. 0 means the sport's plan (below); a number
-    # is a ceiling of its own, for several workers sharing one plan.
-    api_sports_daily_requests: int = _env_int("API_SPORTS_DAILY_REQUESTS", 0)
-    # Each sport's plan (§180): `free` (100/day), `pro` (7,500), `ultra`
-    # (75,000) or `mega` (150,000). API_SPORTS_TIER is every sport's;
-    # API_SPORTS_TIERS names the ones that differ ("hockey=pro,football=ultra").
-    # Buying a plan is done on API-Sports' dashboard, per sport; this only
-    # tells FAM what was bought. The admin page warns when the two disagree.
-    api_sports_tier: str = field(
-        default_factory=lambda: os.environ.get("API_SPORTS_TIER", "free").strip())
-    api_sports_tiers: str = field(
-        default_factory=lambda: os.environ.get("API_SPORTS_TIERS", "").strip())
-    # Which API-Sports products this deployment uses. Empty is all ten.
-    api_sports_sports: str = field(
-        default_factory=lambda: os.environ.get("API_SPORTS_SPORTS", "").strip())
-    # A share of each sport's day the myFAM sweep leaves untouched for
-    # episodes' own lookups (§180). 0 keeps §135's direction - the sweep paces
-    # itself over the whole allowance, and a lookup borrows from later sweeps.
-    # Raise it if lookups are refused late in the day (/admin shows it).
-    api_sports_lookup_reserve: float = _env_float("API_SPORTS_LOOKUP_RESERVE", 0.0)
     # --- Player facts (§271) -------------------------------------------
     # A player's season figures and the league's injury report, beside the
     # scoreboard - never instead of it. Off with 0; nothing is asked without

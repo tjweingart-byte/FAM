@@ -79,7 +79,7 @@ off. It works in two layers:
 
 1. **Every paid credential is removed** and every paid switch is forced off,
    before settings are read. The removed credentials are Anthropic, Parallel, Perplexity, GNews,
-   API-Sports, Finnhub, Gemini and RunPod. The switches forced off are GDELT,
+   BALLDONTLIE, Finnhub, Gemini and RunPod. The switches forced off are GDELT,
    Polymarket, the live-facts providers, thumbnails, prefetch and the remote
    voice. `FAM_SECRETS` is never consulted. A key that reaches staging anyway
    is removed and named in `/api/health` under `credentials_removed`.

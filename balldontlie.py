@@ -2,7 +2,7 @@
 
 What it answers, beside the scoreboard
 --------------------------------------
-A sports episode's scoreboard (`live_sources.ApiSportsSource`) knows a game:
+A sports episode's scoreboard (`balldontlie_scores.ScoreBoard`) knows a game:
 its score, its period, a team's record. It knows nothing about the people in
 it, so "how is Jokic playing" and "is Mahomes playing Sunday" were answered
 from three short article excerpts. This module answers them from the league's
@@ -29,7 +29,7 @@ The rules it keeps, each from `live_facts`
   report", never "healthy" - and only when the report was actually read.
 * **What the plan cannot reach is not asked** (`ENDPOINT_TIERS`,
   `BALLDONTLIE_TIER`), and an endpoint that refuses anyway is not asked
-  again that day, the way a refused API-Sports catalogue is not (§191).
+  again that day (§191).
 * **Every request is counted** on /admin (`provider_usage`, per league) and
   paced to the plan's per-minute limit, so a burst of listeners cannot spend
   the minute for everyone.

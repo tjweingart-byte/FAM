@@ -316,14 +316,13 @@ Research and truth
   reports (§271) by the scoreboard; unlisted≠fit. [player-facts]
   Code routes named teams/listings (§265); it only asks. [live-route]
 - **A score or market figure is checked before it is spoken** (§259, §269). [score-guard]
-- **API-Sports is a plan per sport**: a budget, a tier (`API_SPORTS_TIERS`)
-  and an `/admin` row per sport; the provider's own count bounds ours; ten
-  products wired (§180). [api-sports-per-sport]
+- **Sports are BALLDONTLIE's** (§273, §276): one plan (`BALLDONTLIE_TIER`),
+  every league, an `/admin` row per league. [sports-balldontlie]
 - **Ask outside services when somebody is looking and there is something to
-  see** (§191): API-Sports sweeps only `SWEPT_LEAGUES`, only while one of
-  their games is on, only if myFAM was drawn recently; other leagues and
-  sports are looked up on demand; Finnhub every 2h, round the clock; a
-  refused catalogue is not re-asked that day. [sweep-on-demand]
+  see** (§191): sports sweep only `balldontlie_scores.SWEPT`, only while one
+  of their games is on, only if myFAM was drawn recently; other leagues are
+  looked up on demand; Finnhub every 2h, round the clock; a refused
+  endpoint is not re-asked that day. [sweep-on-demand]
 - **The listener's clock, never the server's** (§186): `listener_clock` from
   the device's `X-FAM-TZ` (Settings can pin one), never a location; prefetch
   and editions use the edition's zone; the zone is not in `key_for`. [listener-clock]

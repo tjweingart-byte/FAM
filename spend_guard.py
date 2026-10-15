@@ -65,8 +65,7 @@ PAID_CREDENTIALS = (
     "OPEN_METEO_API_KEY",
     # Email (§244): providers bill per message past a free tier.
     "SMTP_PASSWORD",
-    "API_SPORTS_KEY",
-    # §271: player and team reports.
+    # §271, §273: sports - scores, standings, player and team reports.
     "BALLDONTLIE_API_KEY",
     "FINNHUB_KEY",
     "AP_ELECTIONS_KEY", "DDHQ_KEY",

@@ -15,12 +15,12 @@ so it never touches the disk itself. The counts are written out by a
 background thread at most every `FLUSH_SECONDS`, and before every report, so
 a crash loses at most that many seconds of counts. It never raises, and a
 store that cannot be opened costs a log line. Days are UTC because that is
-when API-Sports and GNews reset their daily allowances.
+when GNews resets its daily allowance.
 
 The limits are copied here from each provider's published plans, looked up
 2026-09-30, and from the settings that ration them - re-check before buying
-anything. Where FAM rations a free allowance itself (`API_SPORTS_DAILY_REQUESTS`,
-`GNEWS_DAILY_REQUESTS`) the setting in force is read, never a copy of it.
+anything. Where FAM rations a free allowance itself (`GNEWS_DAILY_REQUESTS`)
+the setting in force is read, never a copy of it.
 """
 from __future__ import annotations
 
@@ -41,11 +41,10 @@ log = logging.getLogger("provider_usage")
 DAY = 86400
 
 #: The services the admin page reports, in the order it draws them.
-PROVIDERS = ("api_sports", "balldontlie", "parallel", "perplexity", "gdelt", "polymarket", "gnews", "finnhub",
+PROVIDERS = ("balldontlie", "parallel", "perplexity", "gdelt", "polymarket", "gnews", "finnhub",
              "nws", "open_meteo", "local_feeds")
 
 LABELS = {
-    "api_sports": "API-Sports",
     "balldontlie": "BALLDONTLIE",
     "parallel": "Parallel",
     "perplexity": "Perplexity",
@@ -62,8 +61,8 @@ LABELS = {
 
 
 #: A request counted against a part of a provider as well as the provider:
-#: API-Sports bills per sport (§180), so `api_sports` also keeps
-#: `api_sports/hockey` and so on. Stored as its own provider-day row.
+#: BALLDONTLIE's league (§271), so `balldontlie` also keeps `balldontlie/nfl`
+#: and so on. Stored as its own provider-day row.
 SUB = "/"
 
 
@@ -76,10 +75,8 @@ def _plans() -> dict:
     from config import settings
 
     return {
-        "api_sports": (
-            "billed and limited per sport - see each sport below",
-            "each sport's own next plan"),
-        # §271: player and team reports, one account for every league.
+        # §271, §273: scores, standings and player and team reports, one
+        # account for every league.
         "balldontlie": (
             f"{settings.balldontlie_tier} plan: "
             f"{ {'free': 5, 'all-star': 60, 'goat': 600}.get(settings.balldontlie_tier, 5)}"
@@ -169,7 +166,6 @@ def licences() -> dict:
 
 #: Hosts `live_sources._json` sends to, and whose request each one is.
 _HOSTS = (
-    ("api-sports.io", "api_sports"),
     ("finnhub.io", "finnhub"),
     ("polymarket.com", "polymarket"),
     ("balldontlie.io", "balldontlie"),
@@ -305,8 +301,8 @@ def record(provider: str, ok: bool = True, detail: str = "",
            why: str = "") -> None:
     """Count one request that went out to `provider`. Never raises, never waits.
 
-    `detail` is the part of the provider it was billed to (an API-Sports
-    sport), counted as well as the provider's own total. `why` says, for a
+    `detail` is the part of the provider it was asked of (a BALLDONTLIE
+    league), counted as well as the provider's own total. `why` says, for a
     failure, what went wrong ("HTTP 404", "ReadTimeout") - shown beside the
     count on the admin page. Adds to a count in memory; a background thread
     writes it out.
@@ -437,69 +433,32 @@ def report(now: Optional[float] = None, days: int = 7) -> list[dict]:
         why = failure_reasons(provider)
         if why:
             row["failure_reasons"] = why
-        if provider == "api_sports":
-            row["breakdown"] = _api_sports_breakdown(seen, today, yesterday, days)
-            alert = _api_sports_alert()
-            if alert:
-                row["alert"] = alert
+        if provider == "balldontlie":
+            breakdown = _league_breakdown(seen, today, yesterday, days)
+            if breakdown:
+                row["breakdown"] = breakdown
         rows.append(row)
     return rows
 
 
-def _api_sports_alert() -> str:
-    """One red sentence when API-Sports refused the account itself (§259):
-    every sport's scoreboard is off until it is fixed on their dashboard."""
-    try:
-        import live_sources
-
-        refused = live_sources.account_report()
-    except Exception as exc:  # noqa: BLE001 - a report is never load-bearing
-        log.warning("could not read API-Sports' account state: %s", exc)
-        return ""
-    if not refused:
-        return ""
-    return ("API-Sports refused this account (" + refused.get("message", "")
-            + ") since " + refused.get("since", "")[:16].replace("T", " ")
-            + " UTC. No sport has live scores until it is fixed at "
-            "dashboard.api-football.com; sports episodes are written without "
-            "a scoreboard and say no score.")
-
-
-def _api_sports_breakdown(seen: dict, today: str, yesterday: str,
-                          days: int) -> list[dict]:
-    """One row per API-Sports sport this deployment uses (§180): its calls,
-    its plan and what the next plan costs, and what API-Sports itself last
-    said about its limit - because each sport is its own bill."""
-    try:
-        import live_sources
-
-        budgets = live_sources.budgets_report()
-    except Exception as exc:  # noqa: BLE001 - a report is never load-bearing
-        log.warning("could not read API-Sports' budgets: %s", exc)
-        return []
+def _league_breakdown(seen: dict, today: str, yesterday: str,
+                      days: int) -> list[dict]:
+    """One row per BALLDONTLIE league asked in the window: one plan covers
+    them all, so the rows say where the requests went, not what each costs."""
     out = []
-    for sport, budget in budgets.items():
-        per_day = seen.get("api_sports" + SUB + sport, {})
+    prefix = "balldontlie" + SUB
+    for key in sorted(k for k in seen if k.startswith(prefix)):
+        per_day = seen[key]
         total = sum(requests for requests, _ in per_day.values())
-        tier = budget.get("tier", "free")
-        plan = live_sources.TIERS[tier]
-        upgrade = live_sources.next_tier(sport)
-        up = live_sources.TIERS.get(upgrade)
+        league = key[len(prefix):]
         out.append({
-            "sport": sport,
-            "label": budget.get("label", sport),
+            "league": league,
+            "label": league.upper(),
             "today": per_day.get(today, (0, 0))[0],
             "failed_today": per_day.get(today, (0, 0))[1],
             "yesterday": per_day.get(yesterday, (0, 0))[0],
             "average": round(total / max(1, days), 1),
-            "tier": tier,
-            "limit": (f"{plan['label']}: {budget.get('daily', plan['daily']):,}/day"
-                      + (f" (${plan['usd']}/mo)" if plan["usd"] else "")),
-            "next": (f"{up['label']} ${up['usd']}/mo: {up['daily']:,}/day"
-                     if up else "top plan"),
-            "remaining": budget.get("remaining"),
-            "provider_limit": budget.get("provider_limit"),
-            "provider_remaining": budget.get("provider_remaining"),
-            "mismatch": bool(budget.get("mismatch")),
+            "limit": "the account's plan",
+            "next": "shared by every league",
         })
     return out

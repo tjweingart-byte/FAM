@@ -119,7 +119,7 @@ is what allows a second instance - but read the next section first.
 
 * **More than one instance.** Postgres removes the disk's one-instance
   limit, but eight pieces of state still live in each process's memory: the
-  story pool and its clocks, API-Sports' daily budgets, prefetch's ledgers,
+  story pool and its clocks, the sports sweep's cards and clocks, prefetch's ledgers,
   the spend limiter, live captions and search progress, the typing
   indicator, the DailyFAM in-flight guard, and the background jobs, which
   would run once per process. Until they are shared (step A in the cost

@@ -531,7 +531,7 @@ def test_an_empty_trending_rail_with_an_empty_pool_still_names_the_gap(store):
 # --- what you missed last week --------------------------------------------
 #
 # The owner's rule: cached episodes only, none written from Polymarket,
-# Finnhub or API-Sports, nothing from the background browse path, and the
+# Finnhub or the sports feed, nothing from the background browse path, and the
 # most-listened stories this listener missed in the last week - more than
 # three days ago.
 
