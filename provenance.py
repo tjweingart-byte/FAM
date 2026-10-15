@@ -215,6 +215,42 @@ def from_live(lookup) -> Optional[Attribution]:
     return Attribution(label=facts.source, kind=LIVE, tier=tier, at=at)
 
 
+#: What the sources panel says a reference entry is (§274). The licence is
+#: named because Wikipedia's text is CC BY-SA: crediting it, with the link,
+#: is the attribution the licence asks for.
+REFERENCE_TIER = "reference encyclopedia (CC BY-SA) - background, never news"
+
+
+def from_reference(reference) -> list:
+    """Wikipedia, and Wikidata when its facts were used (§274).
+
+    The article's address goes out of band, here, so the panel can link it;
+    the packet the writer reads never carries it.
+    """
+    if reference is None:
+        return []
+    at = ""
+    revised = getattr(reference, "revised", None)
+    if revised is not None:
+        try:
+            at = revised.date().isoformat()
+        except AttributeError:
+            at = ""
+    url = str(getattr(reference, "url", "") or "")
+    out = [Attribution(
+        label="Wikipedia", kind=ARTICLE, tier=REFERENCE_TIER, at=at,
+        title=str(getattr(reference, "title", "") or "")[:200],
+        url=url[:500] if url[:8].lower().startswith(("http://", "https://")) else "")]
+    qid = str(getattr(reference, "qid", "") or "")
+    if getattr(reference, "facts", None) and qid:
+        out.append(Attribution(
+            label="Wikidata", kind=ARTICLE,
+            tier="reference database (CC0) - background, never news",
+            title=str(getattr(reference, "title", "") or "")[:200],
+            url=f"https://www.wikidata.org/wiki/{qid}"))
+    return out
+
+
 def from_attachments(attachments) -> list:
     """The listener's own documents. Private, and never cached."""
     out = []

@@ -152,6 +152,12 @@ FAM_ENVIRONMENT = (
     "BALLDONTLIE_LEAGUES", "BALLDONTLIE_MAX_SEARCHES",
     "BALLDONTLIE_CACHE_SECONDS", "BALLDONTLIE_BASE",
     "AP_ELECTIONS_KEY", "DDHQ_KEY", "POLYMARKET_BASE",
+    # §274: the reference look. Keyless, so a shell with WIKIPEDIA=1 (the
+    # default) is not enough to reach Wikimedia: `isolated_wikimedia` below
+    # keeps it off for every test that does not turn it on.
+    "WIKIPEDIA", "WIKIMEDIA_ENTERPRISE_USERNAME", "WIKIMEDIA_ENTERPRISE_PASSWORD",
+    "WIKIMEDIA_MONTHLY_REQUESTS", "WIKIPEDIA_TIMEOUT_SECONDS",
+    "WIKIPEDIA_GRACE_SECONDS",
     # Prefetch: whether episodes are written before anybody asks, how much is
     # paid in advance and what the day's ceiling is. A developer with
     # PREFETCH=1 set must not run a suite that spends money where CI does not.
@@ -217,7 +223,7 @@ DATA_ENVIRONMENT = (
     "MYFAM_DB", "PREFS_DB", "QUOTAS_DB", "SAVED_DB", "SHARES_DB", "SOCIAL_DB",
     "VOICE_REGISTRY_DB", "TRENDING_BANK_DB", "FEEDBACK_DB", "PROVIDER_USAGE_DB",
     "LOCAL_NEWS_DB", "GDELT_EXPORT_DB", "CONSENT_DB", "MODERATION_DB",
-    "LIVE_ROUTING_DB", "STORY_POOL_DB", "PIPELINE_ERRORS_DB",
+    "LIVE_ROUTING_DB", "STORY_POOL_DB", "PIPELINE_ERRORS_DB", "WIKIMEDIA_DB",
 )
 
 #: Tier limits. Read by `entitlements.py` rather than `config.py`, so the
@@ -606,6 +612,26 @@ def isolated_gdelt_export(tmp_path, monkeypatch):
     yield
     gdelt_mod.reset_store()
     gdelt_mod.STATE.__init__()
+
+
+@pytest.fixture(autouse=True)
+def isolated_wikimedia(tmp_path, monkeypatch):
+    """The reference look (§274): off for the suite, its store per test, and
+    its one sending function refusing - so no test reaches Wikimedia, which
+    is keyless and so not kept away by a missing credential. A test that
+    wants it sets `wikimedia.ENABLED_OVERRIDE` and stubs `_transport`."""
+    import wikimedia
+
+    monkeypatch.setenv("WIKIMEDIA_DB", str(tmp_path / "stores" / "wikimedia.db"))
+    monkeypatch.setattr(wikimedia, "ENABLED_OVERRIDE", False)
+
+    def refuse(*_args, **_kwargs):
+        raise ConnectionRefusedError("the suite never reaches Wikimedia")
+
+    monkeypatch.setattr(wikimedia, "_transport", refuse)
+    wikimedia.reset_store()
+    yield
+    wikimedia.reset_store()
 
 
 @pytest.fixture(autouse=True)

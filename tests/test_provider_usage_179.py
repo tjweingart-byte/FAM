@@ -34,6 +34,8 @@ def test_every_provider_the_owner_named_is_reported_in_order():
         # §258: the search and its second look.
         "BALLDONTLIE", "Parallel", "Perplexity", "GDELT", "Polymarket",
         "GNews", "Finnhub",
+        # §274: the reference look.
+        "Wikidata", "Wikipedia", "Wikimedia Enterprise",
         # §194: weather and the local news collector.
         "National Weather Service", "Open-Meteo", "Local news feeds"]
     for row in rows:

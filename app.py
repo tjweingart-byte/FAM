@@ -1087,6 +1087,16 @@ def _database_report() -> list[dict]:
                            story_store.store().path))
     except Exception:  # pragma: no cover - a report is never load-bearing
         pass
+    # The reference look's answers and Enterprise's monthly count (§274).
+    # Created by the first look, and reported once it exists.
+    try:
+        import wikimedia
+
+        if wikimedia.exists():
+            stores.append(("reference look", "WIKIMEDIA_DB",
+                           wikimedia.store().path))
+    except Exception:  # pragma: no cover - a report is never load-bearing
+        pass
     try:
         code_device = os.stat(PROJECT_ROOT).st_dev
     except OSError:
@@ -1893,6 +1903,10 @@ async def health(request: Request) -> dict:
         # separately from `research` because they fail separately: the web
         # search can be healthy while this is off, and vice versa.
         "gdelt": gdelt_report(),
+        # The reference look (§274): on or off, which route serves it
+        # (Wikimedia Enterprise or the keyless summary), and the month's
+        # Enterprise requests against the cap.
+        "wikipedia": _wikipedia_report(),
         # Whether every licensed provider in use may be used commercially
         # (§207): GNews' and Finnhub's free plans and Open-Meteo's keyless
         # endpoint may not. The question to ask before charging anybody.
@@ -3878,6 +3892,17 @@ async def entitlements_read(request: Request) -> dict:
         **entitlements.describe(tier_name),
         "usage": _quota_snapshot(user, tier_name),
     }
+
+
+def _wikipedia_report() -> dict:
+    """`wikimedia.report`, never raising (§274)."""
+    try:
+        import wikimedia
+
+        return wikimedia.report()
+    except Exception as exc:  # noqa: BLE001 - a report is never load-bearing
+        log.warning("could not report the reference look: %s", exc)
+        return {"enabled": False, "error": type(exc).__name__}
 
 
 def _licences_report() -> dict:

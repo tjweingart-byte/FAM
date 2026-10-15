@@ -1006,6 +1006,16 @@ and do not claim anything about a document beyond what is in it.
                 "later. Do not narrate what you did or did not find, and never "
                 "end the episode on one of these - the last line is the "
                 "strongest thing you have, and a missing fact is never it.\n")
+        reference = ""
+        if research_mod.TIER_LABELS["reference"] in plan.evidence:
+            # §274: the encyclopedia entry, and what it may be used for.
+            reference = (
+                "\nA source marked as a reference encyclopedia is background: "
+                "use it for settled facts - who someone is, when they were "
+                "born, what an organisation is - and take anything that "
+                "changes from the dated sources, which win wherever the two "
+                "differ. Never repeat its sentences word for word; say it in "
+                "your own words.\n")
         evidence = f"""
 Someone has already searched the web for this and pulled out the passages
 below. They are your source for anything current: read them and use what they
@@ -1028,7 +1038,7 @@ long settled may be.
 Never read a source's title, number, date or URL aloud. This is someone
 listening, not reading a citation list - the dates are for your reasoning, not
 for the script.
-{thin}
+{reference}{thin}
 <evidence>
 {plan.evidence}
 </evidence>
@@ -1576,6 +1586,10 @@ class ScriptGenerator:
         import stories as stories_mod
 
         story = stories_mod.context_for(plan.query)
+        # **The reference look** (§274): the name the brief resolved, looked
+        # up on Wikipedia and Wikidata beside each rung's search and added
+        # as one extra source when it is back in time. "" for none.
+        reference = research_mod.reference_name_for(plan.brief)
 
         # **The ladder**, in cost order, stopping at the first rung that
         # brings back evidence. Each rung is the same call with a different
@@ -1587,7 +1601,8 @@ class ScriptGenerator:
         # HTTP call. Since §135 there is nothing below GDELT: the model's own
         # search was the last rung and is deleted.
         packet = await self._retrieve(query, plan.brief, configured, plan.minutes,
-                                      story_hosts=story.hosts if story else ())
+                                      story_hosts=story.hosts if story else (),
+                                      reference_name=reference)
         _mark(notes, "first_rung_ready")
         spent = [packet]
 
@@ -1612,7 +1627,8 @@ class ScriptGenerator:
                 continue
             log.info("%s found nothing usable for %r; trying %s on %r before "
                      "writing", configured, query, rung, wider)
-            better = await self._retrieve(wider, plan.brief, rung, plan.minutes)
+            better = await self._retrieve(wider, plan.brief, rung, plan.minutes,
+                                          reference_name=reference)
             spent.append(better)
             if better:
                 better.fell_back_from = configured
@@ -1760,7 +1776,8 @@ class ScriptGenerator:
             thin_on=tuple(getattr(packet, "missing", ()) or ()))
 
     async def _retrieve(self, query: str, brief, backend: str,
-                        minutes: int = 0, story_hosts: tuple = ()):
+                        minutes: int = 0, story_hosts: tuple = (),
+                        reference_name: str = ""):
         """One rung of the retrieval ladder. Never raises.
 
         **Every failure is caught here, not just `ResearchUnavailable`.** A
@@ -1784,6 +1801,8 @@ class ScriptGenerator:
             size = research_mod.packet_size(minutes) if minutes else {}
             if story_hosts:
                 size = {**size, "story_hosts": tuple(story_hosts)}
+            if reference_name:
+                size = {**size, "reference_name": reference_name}
             return await research_mod.retrieve(query, backend=backend, brief=brief,
                                                **size)
         except research_mod.ResearchUnavailable as exc:

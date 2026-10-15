@@ -42,6 +42,7 @@ DAY = 86400
 
 #: The services the admin page reports, in the order it draws them.
 PROVIDERS = ("balldontlie", "parallel", "perplexity", "gdelt", "polymarket", "gnews", "finnhub",
+             "wikidata", "wikipedia", "wikimedia_enterprise",
              "nws", "open_meteo", "local_feeds")
 
 LABELS = {
@@ -52,6 +53,10 @@ LABELS = {
     "polymarket": "Polymarket",
     "gnews": "GNews",
     "finnhub": "Finnhub",
+    # §274: the reference look.
+    "wikidata": "Wikidata",
+    "wikipedia": "Wikipedia",
+    "wikimedia_enterprise": "Wikimedia Enterprise",
     # §194: weather and the local news collector. NWS and the feeds cost
     # nothing, and are counted all the same - an outage is a count too.
     "nws": "National Weather Service",
@@ -104,6 +109,18 @@ def _plans() -> dict:
         "finnhub": (
             "60/min = 86,400/day, personal use only",
             "commercial plan, quote-based (~$11.99/mo quoted)"),
+        # §274: the reference look. Keyless routes are free; Wikimedia asks
+        # identified clients to stay near 200 requests a minute.
+        "wikidata": (
+            "free, keyless; ~200 requests/min identified (User-Agent with contact)",
+            "no paid plan"),
+        "wikipedia": (
+            "free, keyless; ~200 requests/min identified (User-Agent with contact)",
+            "Wikimedia Enterprise (below) for a contracted route"),
+        "wikimedia_enterprise": (
+            f"free account: 50,000 requests/month; FAM stops at "
+            f"{int(settings.wikimedia_monthly_requests):,} (WIKIMEDIA_MONTHLY_REQUESTS)",
+            "a paid Enterprise plan, quote-based (enterprise.wikimedia.com)"),
         "nws": (
             "free, keyless; rate limit unpublished and generous",
             "no paid plan"),
@@ -169,6 +186,10 @@ _HOSTS = (
     ("finnhub.io", "finnhub"),
     ("polymarket.com", "polymarket"),
     ("balldontlie.io", "balldontlie"),
+    # §274: the reference look (`wikimedia._send`).
+    ("wikidata.org", "wikidata"),
+    ("wikipedia.org", "wikipedia"),
+    ("enterprise.wikimedia.com", "wikimedia_enterprise"),
 )
 
 
