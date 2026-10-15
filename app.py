@@ -69,6 +69,8 @@ from config import (BROWSE_MINUTES, DEFAULT_MINUTES, DEFAULT_PIPELINE, describe_
 import prefetch
 import prefetch_sources
 from episode_intelligence import report as ei_report
+from evidence_digest import report as evidence_digest_report
+from writer_warm import report as writer_warm_report
 import live_captions
 import live_sources
 from gdelt import report as gdelt_report
@@ -1841,6 +1843,12 @@ async def health(request: Request) -> dict:
         # the "quietly worse than intended" shape this project keeps paying
         # for. `enabled: false` means the raw query is going to Exa.
         "episode_intelligence": ei_report(),
+        # The evidence cut in front of the writer (§270): on or off, and how
+        # each cut ended since boot, by who was waiting.
+        "evidence_digest": evidence_digest_report(),
+        # The writer's cache warmed at the tap (§270): sent, already warm,
+        # failed, since boot.
+        "writer_warm": writer_warm_report(),
         # Which questions this server can answer from a live state rather than
         # from an article about one. Everything unconfigured is *named* here
         # rather than silently absent, because a scoreboard question answered

@@ -360,6 +360,14 @@ class Settings:
         not in ("0", "false", "False"))
     prompt_cache_ttl: str = field(
         default_factory=lambda: os.environ.get("PROMPT_CACHE_TTL", "5m"))
+    # **The writer's cache warmed at the tap** (§270, `writer_warm.py`): a
+    # searched episode whose writer has not run for five minutes sends a
+    # `max_tokens: 0` request beside its brief, so the writer's instructions
+    # are cached by the time it asks. Only while somebody is listening; its
+    # cost is about one cache read. `0` lets the writer read them cold.
+    writer_warm: bool = field(
+        default_factory=lambda: os.environ.get("WRITER_WARM", "1")
+        not in ("0", "false", "False", ""))
     # Padding a short script back to length reintroduces the filler the opener
     # was removed for. Off by default: a briefing that ends when it runs out of
     # substance is better than one stretched to fill the slider.
@@ -527,6 +535,40 @@ class Settings:
     ei_examples: bool = field(
         default_factory=lambda: os.environ.get("EI_EXAMPLES", "1")
         not in ("0", "false", "False", ""))
+    # **The plan of the piece as a third part of the split brief** (§270, at
+    # the owner's direction): beats, the opening's slots and what the ending
+    # lands on, from the question alone and stating no fact, so the writer
+    # checks a shape against the evidence instead of designing one in front
+    # of the first word. `0` sends the two parts §268 sent.
+    ei_outline: bool = field(
+        default_factory=lambda: os.environ.get("EI_OUTLINE", "1")
+        not in ("0", "false", "False", ""))
+    # How long a searched brief waits for the outline once the other two
+    # parts are in; past it the writer plans the piece itself, as before.
+    ei_outline_grace_seconds: float = _env_float("EI_OUTLINE_GRACE_SECONDS", 0.5)
+    # **The evidence cut to what the episode can use** (§270,
+    # `evidence_digest.py`): Haiku with thinking off picks which of the
+    # packet's sentences to keep - numbers only, never words of its own - and
+    # the writer reads those. Off until `write.py --compare ...+digest` says
+    # it shortens the writer's thinking. Every failure, and any cut that would
+    # lose what the brief asked to establish, leaves the packet as it was.
+    evidence_digest: bool = field(
+        default_factory=lambda: os.environ.get("EVIDENCE_DIGEST", "0")
+        not in ("0", "false", "False", ""))
+    evidence_digest_model: str = field(
+        default_factory=lambda: os.environ.get("EVIDENCE_DIGEST_MODEL") or SMALL_MODEL)
+    # A ceiling, as the brief's is: past it the writer reads the whole packet.
+    # It runs beside the wait for the live lookup and the forecast, so part
+    # of it is hidden; a listener never waits longer than this for it.
+    evidence_digest_timeout_seconds: float = _env_float(
+        "EVIDENCE_DIGEST_TIMEOUT_SECONDS", 2.5)
+    evidence_digest_ahead_timeout_seconds: float = _env_float(
+        "EVIDENCE_DIGEST_AHEAD_TIMEOUT_SECONDS", 15.0)
+    # Sentence numbers only, with thinking off: a few hundred tokens at most.
+    evidence_digest_max_tokens: int = _env_int("EVIDENCE_DIGEST_MAX_TOKENS", 1024)
+    # A packet shorter than this is read whole: the call costs about a
+    # second, and a short packet costs the writer less than that to read.
+    evidence_digest_min_chars: int = _env_int("EVIDENCE_DIGEST_MIN_CHARS", 2500)
     # The window applied to a question about a moment when the brief names no
     # other. Two weeks is wide enough to catch a story that broke over a
     # weekend and narrow enough to keep an old well-ranked explainer out of the

@@ -19402,3 +19402,110 @@ byte-identical, but their output schemas differ, and whether a schema is
 part of the cached prefix is not documented here. If `cache_read_input_tokens`
 is zero on the second half, each half writes its own cache - cents a day at
 FAM's volume, not a correctness problem.
+
+## 270. The writer's wait on Haiku: the plan of the piece, a warm cache, pronunciations where they are said, and the evidence cut
+
+The owner (10.15), planning to move the writer to Haiku 5.5 at `low`: Haiku at
+medium was estimated at ~11-16 s of thinking before the first word (from
+FINANCIAL.md's ~1,600 thinking tokens at `low`, §261's 1.7x for medium and
+§261's 165-235 tokens/s - unmeasured), and `low` at ~7-10 s. Asked for ways to
+shorten that wait, the owner chose: the plan of the piece as a third part of
+the split brief, the small certain wins, and the evidence cut with guard
+rails. A Sonnet race on slow writers was declined as too expensive.
+
+**Why the brief's split does not carry over to the script.** The brief's two
+halves wrote independent fields; a script is one voice, and the wait in front
+of it is the writer deciding the whole piece. Two writers at once is what §56
+did and §108 deleted. What can move is the *reasoning*, not the writing.
+
+**1. The plan of the piece, beside the brief** (`EI_OUTLINE=1`,
+`OUTLINE_SCHEMA`, `OUTLINE_GUIDE`). A third call, started with *understand*
+and *search*, reading the same cached instructions, writes from the question
+alone: the beats a length has room for (`max_beats`: minutes + 2, at most 7),
+each with what the evidence must hold for it; what the first two sentences
+must pin down, as slots (who, what, when - "the team", "the day it was
+played"); and what the ending lands on. The writer reads it after the brief
+(`build_outline_note`) as a shape to check against the evidence: keep a part
+only when the evidence supports it, drop or reorder freely, decide the
+opening last. **The owner's call on two rules**: [spec-amended-for-search]
+and [opening-last] guard planning before the evidence; both carry a Current
+note. Guard rails:
+- *It states no fact.* Any line with a digit is dropped in code
+  (`_outline_line`) - a score, a price, a date or a count in the plan is a
+  fact asserted before anything was looked up. Coarse on purpose.
+- *It never holds a searched brief.* Once the other two parts are in it gets
+  `EI_OUTLINE_GRACE_SECONDS` (0.5) more, then the brief goes without it and
+  the writer plans the piece itself, as before. Ahead (prefetch, editions) it
+  has the brief's whole ceiling. Counted as `parts_since_boot.outline`.
+- *The one-call brief is unchanged*: not in `BRIEF_SCHEMA`; `EI_SPLIT=0`
+  sends what it sent. `EI_OUTLINE=0` sends §268's two parts.
+- Shown only beside a brief that did not degrade, like the rest of the block.
+
+**2. The writer's cache, warmed at the tap** (`WRITER_WARM=1`,
+`writer_warm.py`). The ~3,500 cached tokens live five minutes, and at FAM's
+traffic most writer calls come later than that and read them in full before
+thinking. Rather than a timer, a searched episode whose writer has not run
+within the TTL (less 30 s) sends a `max_tokens: 0` request beside its brief -
+same model, effort and `system` block as the writer's request - and the brief
+and search take long enough for it to land. Nothing is sent while nobody is
+listening; the cache write it pays is the one the writer would have paid; it
+is metered on the episode it was for; two taps a second apart send one; a
+failed one is forgotten so the next tap tries again. Not on prefetch or the
+editions. It cannot warm the brief: `max_tokens: 0` is refused beside a
+structured output. Counted in `/api/health` → `writer_warm`.
+
+**3. Pronunciations where the voice needs them.** Every `<<SAY:>>` line was
+asked for before the script, so a name first said a minute in cost output in
+front of the first word. Each line now goes immediately before the first
+sentence that says the name; `_ScriptReader.feed` already took a line out
+wherever it landed, and learns it before that sentence is emitted. The
+brief's names are listed as on file even when a personal episode holds them
+rather than storing them, so they are never asked for twice.
+
+**4. The second look, checked: nothing to trim.** It runs only when the first
+search came back empty or missed more than half of `must_establish`
+(`research.retrieve`), so a covered packet waits on nothing. Starting it
+speculatively beside the first would cost a search on every episode.
+
+**5. The evidence cut** (`evidence_digest.py`, `EVIDENCE_DIGEST`, **off by
+default**). Estimated at -0.7 to +2.7 s net (a ~1-2 s call against
+~300-650 thinking tokens spared, if 20-40% of the writer's thinking is
+reading the packet - a guess): built so a run with a key can say.
+**Extractive, never a summary**: code numbers the passages' sentences, Haiku
+with thinking off (`thinking: disabled`, `effort: low`) answers with numbers
+only, and code assembles the packet from the sources' own sentences under the
+headers code wrote. So it cannot invent, re-figure, reword a tense or bring a
+hostname within reach of the voice. Guard rails against what it can do -
+leave things out:
+- a source it chose nothing from keeps its passages whole;
+- a timeout (`EVIDENCE_DIGEST_TIMEOUT_SECONDS` 2.5; 15 ahead), a failure, a
+  refusal, running out of room or an unreadable answer leaves the whole
+  packet, counted by path and noted on /admin's errors (`research` stage);
+- a cut that loses an item of `must_establish` the whole packet covered
+  (`packet_covers`) is not made, nor one that keeps over 85%;
+- on a scores or markets episode every sentence with a digit is kept;
+- the score and figure checks read `EpisodePlan.evidence`, the whole packet;
+  only the writer's prompt reads `evidence_digest`;
+- packets under `EVIDENCE_DIGEST_MIN_CHARS` (2,500) are left alone.
+It starts the moment the packet is in and runs beside the existing wait for
+the live lookup and the forecast. Not in the cache key, as `EI_SPLIT` is not.
+
+**Measure, with a key:**
+
+    python write.py "<q>" --minutes 3 --compare claude-haiku-5-5:low,claude-haiku-5-5:low+digest
+
+prints, per writer, time to first sentence and the tokens it read and wrote
+(output is thinking plus script, so between two scripts of a length the
+difference is the thinking). Run it with `EI_OUTLINE=0` and `=1` for the
+plan. In production: `episode timing`'s `writer thinking` row,
+`/api/health` → `episode_intelligence.parts_since_boot.outline`,
+`writer_warm`, `evidence_digest`.
+
+Not measured: there is no key here. Still open from the Haiku review: the
+writer does not check `stop_reason == "max_tokens"` (a cut-off script loses
+its title, category and follow-up lines silently), and the writer's time to
+first word is not yet in `/api/health` by path.
+
+Tests: `tests/test_writer_latency_270.py`, `tests/test_evidence_digest_270.py`
+(new); `tests/test_ei_split_268.py`, `tests/test_episode_intelligence.py`
+(the brief is three calls when split).

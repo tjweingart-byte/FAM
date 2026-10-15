@@ -376,6 +376,7 @@
   earns its place by explaining the present rather than preceding it.
 <!-- rule:opening-last -->
 > **Current (PROBLEMS.md §194):** `_ScriptReader.opening` speaks the local gap sentence before the writer's first word, outside `OpeningGuard`, which still drops every disclaimer the writer produces.
+> **Current (PROBLEMS.md §270, at the owner's direction):** a plan of the piece is made before the evidence - the brief's third part (`EI_OUTLINE=1`), from the question alone: beats, what the first two sentences must pin down as slots ("the team", "the day it was played"), and what the ending lands on. It states no fact (a line with a digit is dropped in code) and the writer is told it is a shape to check against the evidence, not evidence. **The opening is still decided last**, by the writer, from the evidence; the plan only names what it has to situate.
 - **The opening is written last in the order that matters: nothing is spoken
   until the writer holds the whole picture.** *(PROBLEMS.md §94, and §108,
   which fixed its cause rather than its symptom.)* A researched episode's
@@ -1241,6 +1242,16 @@
   > the model each episode was written on, and one the account cannot use
   > falls back to `MODEL`. `python write.py "<q>" --compare A,B:effort`
   > writes one prepared episode with each writer, for the listening test.
+  > **Current (PROBLEMS.md §270):** two more, neither changing a word. The
+  > writer's cache is warmed at the tap (`WRITER_WARM=1`, `writer_warm.py`):
+  > a searched episode whose writer has not run for five minutes sends a
+  > `max_tokens: 0` request beside its brief, only on the search path, never
+  > on a timer. And the evidence may be cut to the sentences the episode can
+  > use (`EVIDENCE_DIGEST`, off by default, `evidence_digest.py`): Haiku with
+  > thinking off answers with sentence numbers only, so the writer reads the
+  > sources' own words, fewer of them; every failure, and any cut that loses
+  > what the brief asked to establish, leaves the packet whole, and the score
+  > and figure checks always read the whole packet.
 <!-- rule:account-gates-kept -->
 - **An account gates what is kept, never what is heard.** *(PROBLEMS.md §70.)*
   > **Current:** while `WAITLIST=1` the whole app is closed to anybody whose

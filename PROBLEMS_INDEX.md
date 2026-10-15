@@ -273,3 +273,4 @@ and `limit` = Lines.
 | 19061 | 92 | 267. What the sweeps know reaches the writer, and survives a redeploy |
 | 19153 | 108 | 268. The brief on Haiku, given the room and the shape it needs |
 | 19261 | 145 | 269. The writer prepared for Haiku, and one page for everything that broke |
+| 19406 | 107 | 270. The writer's wait on Haiku: the plan of the piece, a warm cache, pronunciations where they are said, and the evidence cut |

@@ -26,6 +26,8 @@ from typing import AsyncIterator
 import content_filter
 import credentials
 import episode_intelligence
+import evidence_digest
+import writer_warm
 import pronunciation
 import live_facts
 import live_routing
@@ -754,6 +756,13 @@ class EpisodePlan:
     #: market only what people expect - and never evidence of an outcome.
     #: **Never in the cache key**: it is derived from the request.
     forecast: object = None
+    #: The packet as the writer reads it when the evidence cut ran (§270,
+    #: `evidence_digest`): the sources' own sentences, fewer of them. ""
+    #: means the writer reads `evidence` whole. Only the writer's prompt
+    #: reads this - the score and figure checks, the pronunciations and every
+    #: other reader keep `evidence`. **Never in the cache key**, as
+    #: `EI_SPLIT` is not: a setting that shapes how an episode is prepared.
+    evidence_digest: str = ""
 
     @property
     def images(self) -> list:
@@ -1012,7 +1021,7 @@ listening, not reading a citation list - the dates are for your reasoning, not
 for the script.
 {thin}
 <evidence>
-{plan.evidence}
+{plan.evidence_digest or plan.evidence}
 </evidence>
 """
 
@@ -1121,16 +1130,26 @@ them. Never retell an earlier edition, and never mention that there were any.
 """
 
     # How the voice should say the hard names (§165, `pronunciation.py`).
-    # Asked for *before* the script, because the first sentence is spoken
-    # before the rest exists and is the likeliest place a name first appears;
-    # names already on file are listed so they are not written again.
+    # Each line just before the first sentence that says the name (§270):
+    # the voice needs it no sooner, and a line for a name the script reaches
+    # a minute in used to be written in front of the first word - output the
+    # listener waited through. `_ScriptReader.feed` takes a line out wherever
+    # it lands. Names already on file - the brief's included, even when a
+    # personal episode holds them rather than storing them - are listed so
+    # they are not written again.
     on_file = pronunciation.known_in(
         " ".join([plan.query, getattr(plan.brief, "subject", "") or "",
                   plan.evidence or ""]))
-    pronounce = """Before the script, and only if it names a person, place, team or company
-whose spelling does not tell an English reader how to say it, write one line
-per hard word, exactly as it is spelled, respelled in plain English syllables
-with the stressed one in capitals:
+    for item in getattr(plan.brief, "pronounce", None) or []:
+        name = str(item.get("name", "") if isinstance(item, dict) else "").strip()
+        if name and name not in on_file:
+            on_file.append(name)
+    pronounce = """Only if the script names a person, place, team or company whose spelling
+does not tell an English reader how to say it, write one line per hard word,
+exactly as it is spelled, respelled in plain English syllables with the
+stressed one in capitals, on its own line immediately before the first
+sentence that says it - before the script for a name in the opening, just
+before the later sentence for one that first comes up later:
 
 <<SAY: Sagapolutele = sah-gah-poh-loo-TEH-leh>>
 
@@ -1875,6 +1894,10 @@ class ScriptGenerator:
         Its own method so a caller can see, time and skip the whole of the
         pre-writing phase, the same reason `research` was split out.
         """
+        # The writer's instructions cached while the brief and the search
+        # run, when its cache has gone cold (§270). Never awaited.
+        if plan.search and getattr(self, "client", None) is not None:
+            writer_warm.warm_if_cold(self.client, notes)
         _mark(notes, "brief_start")
         plan = await self.understand(plan, notes)
         _mark(notes, "brief_ready")
@@ -1912,14 +1935,27 @@ class ScriptGenerator:
         live_began = time.monotonic()
         domain = live_route.domain_of(plan.brief)
         live_task = asyncio.ensure_future(self.live_lookup(plan, notes))
+        # **The evidence cut** (§270) starts the moment the packet is in and
+        # runs beside the wait for the live lookup and the forecast that
+        # follows, so the part of its second that wait already took is free.
+        digest_task = None
         try:
             research_plan = await self.research(plan, notes)
+            if evidence_digest.wanted(research_plan):
+                _mark(notes, "digest_start")
+                digest_task = asyncio.ensure_future(evidence_digest.digest(
+                    research_plan, notes,
+                    ahead=bool(notes is not None and (
+                        getattr(notes, "ahead", False)
+                        or getattr(notes, "prefetch", False)))))
             live_plan = await _live_by(live_task, plan, domain, live_began)
         except BaseException:
             # A listener who leaves, or a lookup that raised, ends both: a
             # shielded wait does not cancel what it shields.
             forecast_task.cancel()
             live_task.cancel()
+            if digest_task is not None:
+                digest_task.cancel()
             raise
         # **A route only asks** (§265): a lookup code routed reaches the
         # writer only when it answered. A miss would hand the writer the
@@ -1939,11 +1975,21 @@ class ScriptGenerator:
         except asyncio.TimeoutError:
             forecast_task.cancel()
             log.info("forecast: not back when the evidence was; writing without it")
+        cut = ""
+        if digest_task is not None:
+            # Never raises, and holds the first word no longer than its own
+            # ceiling (`EVIDENCE_DIGEST_TIMEOUT_SECONDS`).
+            result = await digest_task
+            _mark(notes, "digest_ready")
+            cut = result.text
+            if notes is not None and isinstance(notes.research, dict):
+                notes.research["digest"] = result.as_dict()
         _mark(notes, "evidence_ready")
         if notes is not None:
             notes.sourced_at = time.time()
         plan = dataclasses.replace(
             plan, live=live_plan.live, evidence=research_plan.evidence,
+            evidence_digest=cut,
             thin_on=research_plan.thin_on, local=research_plan.local,
             forecast=forecast)
 
@@ -2075,6 +2121,7 @@ class ScriptGenerator:
         # cache reads and writes are invisible in the output.
         if notes is not None:
             notes.usage.add_model_call(model, getattr(final, "usage", None))
+        writer_warm.note_used(model, request["output_config"]["effort"])
         refused = _refusal_line(final)
         if refused:
             pipeline_errors.record("writer", "refused", refused, plan.query)

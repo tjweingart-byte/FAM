@@ -4,6 +4,7 @@
     python write.py "why is the sky blue" --minutes 1 --no-search
     python write.py "the fed decision" --minutes 5 --model claude-sonnet-5
     python write.py "nvda stock today" --compare claude-sonnet-5,claude-haiku-5-5
+    python write.py "nvda stock today" --compare claude-haiku-5-5:low,claude-haiku-5-5:low+digest
 
 The script is the product. Audio is just how it gets delivered, and listening to
 a five minute episode to judge one prompt change is a slow way to work. This
@@ -49,7 +50,8 @@ async def main() -> int:
                     help="skip episode intelligence and search the raw query")
     ap.add_argument("--compare", default="",
                     help="comma-separated writers, each MODEL or MODEL:EFFORT "
-                         "(e.g. claude-sonnet-5,claude-haiku-5-5:medium): "
+                         "(e.g. claude-sonnet-5,claude-haiku-5-5:medium); add "
+                         "+digest to write from the evidence cut (§270): "
                          "prepare once, then write the same brief and evidence "
                          "with each, one after another (§269)")
     args = ap.parse_args()
@@ -211,13 +213,16 @@ async def main() -> int:
 
 
 def writers(spec: str) -> list:
-    """`[(model, effort)]` from "MODEL[:EFFORT],..."; effort defaults to EFFORT."""
+    """`[(model, effort, digest)]` from "MODEL[:EFFORT][+digest],..."; effort
+    defaults to EFFORT. `+digest` writes from the evidence cut (§270)."""
     out = []
     for item in (part.strip() for part in spec.split(",")):
         if not item:
             continue
+        item, plus, flag = item.partition("+")
         model, _, effort = item.partition(":")
-        out.append((model.strip(), effort.strip() or settings.effort))
+        out.append((model.strip(), effort.strip() or settings.effort,
+                    bool(plus) and flag.strip() == "digest"))
     return out
 
 
@@ -236,7 +241,22 @@ async def compare(generator, plan, spec: str) -> int:
     import script_generator
 
     base = script_generator.settings
-    for model, effort in writers(spec):
+    chosen = writers(spec)
+    cut_plan = whole_plan = dataclasses.replace(plan, evidence_digest="")
+    if any(digest for _, _, digest in chosen):
+        # Cut once, as `prepare` would, so every `+digest` writer reads the
+        # same cut and every other writer the same whole packet (§270).
+        import evidence_digest
+
+        if not plan.evidence:
+            print("  evidence cut: no packet to cut\n")
+        else:
+            result = await evidence_digest.digest(plan)
+            print(f"  evidence cut: {result.outcome} - {result.detail} "
+                  f"({result.seconds:.1f}s)\n")
+            cut_plan = dataclasses.replace(plan, evidence_digest=result.text)
+    for model, effort, digest in chosen:
+        plan = cut_plan if digest else whole_plan
         script_generator.settings = dataclasses.replace(base, model=model,
                                                         effort=effort)
         notes = ScriptNotes()
@@ -256,12 +276,18 @@ async def compare(generator, plan, spec: str) -> int:
         text = " ".join(sentences)
         words = count_words(text)
         cost = metering.price_of(notes.usage).claude
-        print(f"=== {model} · effort {effort}")
+        label = f"{model} · effort {effort}" + (" · evidence cut" if digest else "")
+        print(f"=== {label}")
         print(text)
         print(f"  {words} words  ->  {words / base.target_wpm:.1f} min spoken"
               f"  ·  first sentence after {first_at or 0:.1f}s"
               f"  ·  finished in {time.perf_counter() - started:.1f}s"
               f"  ·  writer ${cost:.4f}")
+        # The writer's tokens: input is what it read, output is its thinking
+        # plus the script - so between two writers of the same script length,
+        # the difference in output is the difference in thinking.
+        print(f"  writer read {notes.usage.input_tokens + notes.usage.cache_read_tokens}"
+              f" tokens, wrote {notes.usage.output_tokens} (thinking + script)")
         if notes.title:
             print(f'  title: "{notes.title}"')
         if notes.thread:

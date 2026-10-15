@@ -314,6 +314,19 @@ class Brief:
     #: personal, and applied only to the text handed to the voice. Empty when there are none, and on a
     #: degraded brief.
     pronounce: list = field(default_factory=list)
+    #: **The plan of the piece, from the question alone** (§270, the third
+    #: part of a split brief). Each beat is `{"does", "needs"}`: what that
+    #: part of the episode has to find out, and what the evidence must hold
+    #: for it - never a fact, a figure or a result (`_outline_from` drops any
+    #: line that carries a digit). Empty when the part did not answer in time.
+    outline_beats: list = field(default_factory=list)
+    #: What the first two sentences must situate ([situate]), as slots:
+    #: `{"who", "what", "when"}`, each the *kind* of thing that goes there.
+    #: The writer fills them from the evidence and still decides the opening
+    #: last ([opening-last]).
+    outline_opening: dict = field(default_factory=dict)
+    #: What the last line has to land on - the kind of thing, never the thing.
+    outline_ending: str = ""
     #: True when the model call did not happen or could not be used, and this
     #: brief was assembled from the raw query. Reported, never hidden: an EI
     #: layer that silently degrades is the "quietly worse than intended"
@@ -1072,12 +1085,65 @@ def _schema_for(fields) -> dict:
 UNDERSTAND_SCHEMA = _schema_for(PARTS["understand"])
 SEARCH_SCHEMA = _schema_for(PARTS["search"])
 
+#: **The third part: the plan of the piece** (§270, at the owner's direction).
+#: Written from the question alone, beside the other two, so the writer is
+#: handed a shape to check against the evidence rather than designing the
+#: piece from nothing in front of the first word. Not in `BRIEF_SCHEMA`: the
+#: one-call brief (`EI_SPLIT=0`) is unchanged, byte for byte.
+OUTLINE_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "beats": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "does": {"type": "string"},
+                    "needs": {"type": "array", "items": {"type": "string"}},
+                },
+                "required": ["does", "needs"],
+                "additionalProperties": False,
+            },
+        },
+        "opening_who": {"type": "string"},
+        "opening_what": {"type": "string"},
+        "opening_when": {"type": "string"},
+        "ending": {"type": "string"},
+    },
+    "required": ["beats", "opening_who", "opening_what", "opening_when",
+                 "ending"],
+    "additionalProperties": False,
+}
+
+OUTLINE_GUIDE = """Plan the shape of the episode - nothing else. Someone \
+else will search and write it, from evidence you will not see.
+
+**State no facts.** Not a result, a score, a figure, a date, a winner, or \
+anything you would have to look up - you do not know them, and what you \
+recall may be months old. Every line says what a part of the episode has to \
+*find out*, never what it will say: "what the final score was", never "the \
+Eagles won".
+
+- **beats** - the parts of the episode in the order a listener should hear \
+them, as many as the length above has room for and no more. For each: \
+`does`, what that part answers or explains, in a short phrase; `needs`, the \
+one to three things the evidence must contain for that part to exist. A \
+part nobody could find evidence for is dropped by the writer, so do not pad.
+- **opening_who / opening_what / opening_when** - what the first two \
+sentences must pin down, as the *kind* of thing: "the team", "the result of \
+their latest game", "the day it was played". These are slots the writer \
+fills from the evidence.
+- **ending** - what the last line should land on: the most concrete thing \
+the episode will have, as a kind of thing ("the figure that settles the \
+question"). Never a question, a tease, or what happens next."""
+
 #: What each call is asked to return. Written out so every schema FAM sends
 #: is one `tests/test_structured_output_schemas.py` can find and check.
 FORMATS = {
     "whole": {"type": "json_schema", "schema": BRIEF_SCHEMA},
     "understand": {"type": "json_schema", "schema": UNDERSTAND_SCHEMA},
     "search": {"type": "json_schema", "schema": SEARCH_SCHEMA},
+    "outline": {"type": "json_schema", "schema": OUTLINE_SCHEMA},
 }
 
 
@@ -1326,7 +1392,12 @@ async def _ask(client, part: str, query: str, minutes: int, context: str,
                now: str, covered: tuple, timeout: float, notes) -> tuple:
     """One brief call: `(kind, data, reason)`, `kind` "ok" or why it failed.
     Never raises."""
-    fields = None if part == "whole" else PARTS[part]
+    if part == "outline":
+        content = (build_ei_prompt(query, minutes, context, now, covered, ())
+                   + OUTLINE_GUIDE)
+    else:
+        content = build_ei_prompt(query, minutes, context, now, covered,
+                                  None if part == "whole" else PARTS[part])
     try:
         response = await asyncio.wait_for(
             client.messages.create(
@@ -1337,11 +1408,7 @@ async def _ask(client, part: str, query: str, minutes: int, context: str,
                     "effort": settings.ei_effort,
                     "format": FORMATS[part],
                 },
-                messages=[{
-                    "role": "user",
-                    "content": build_ei_prompt(query, minutes, context, now,
-                                               covered, fields),
-                }],
+                messages=[{"role": "user", "content": content}],
             ),
             timeout=timeout,
         )
@@ -1437,19 +1504,39 @@ async def understand(query: str, minutes: int = DEFAULT_MINUTES, context: str = 
                     else settings.ei_timeout_seconds)
     parts = ("understand", "search") if settings.ei_split else ("whole",)
     started = time.monotonic()
+    outline = None
 
     try:
         client = build_async_client(credentials.active("ANTHROPIC_API_KEY"))
     except Exception as exc:  # noqa: BLE001
         answers = [("failed", None, f"EI call failed: {exc}")] * len(parts)
     else:
-        answers = await asyncio.gather(*(
+        # **The plan of the piece, beside the other two** (§270). Started
+        # with them and never allowed to hold the brief: once they are in it
+        # gets `EI_OUTLINE_GRACE_SECONDS` more on the search path (all of the
+        # ceiling ahead, where nobody waits), then the brief goes without it.
+        main = asyncio.gather(*(
             _ask(client, part, query, minutes, context, now,
                  tuple(covered or ()), timeout, notes) for part in parts))
+        outline_task = None
+        if len(parts) == 2 and settings.ei_outline:
+            outline_task = asyncio.ensure_future(
+                _ask(client, "outline", query, minutes, context, now,
+                     tuple(covered or ()), timeout, notes))
+        try:
+            answers = await main
+        except BaseException:
+            if outline_task is not None:
+                outline_task.cancel()
+            raise
+        if outline_task is not None:
+            outline = await _outline_by(outline_task, ahead, started, timeout)
     _SECONDS.setdefault(path, collections.deque(maxlen=SECONDS_KEPT)).append(
         round(time.monotonic() - started, 3))
     for part, (kind, _data, _why) in zip(parts, answers):
         _PART_OUTCOMES.setdefault(part, collections.Counter())[kind] += 1
+    if outline is not None:
+        _PART_OUTCOMES.setdefault("outline", collections.Counter())[outline[0]] += 1
 
     head_kind, head, head_why = answers[0]
     words: dict = {}
@@ -1495,6 +1582,13 @@ async def understand(query: str, minutes: int = DEFAULT_MINUTES, context: str = 
                            f"{search_why}")
         pipeline_errors.record("brief", f"search half {search_kind} ({path})",
                                search_why, query, pipeline_errors.NOTICE)
+    if outline is not None:
+        if outline[0] == "ok":
+            _outline_from(brief, outline[1], minutes)
+        else:
+            # The writer plans the piece itself, as it did before §270.
+            brief.notes.append(f"the outline did not answer ({outline[0]}): "
+                               f"{outline[2]}")
     brief = gate(brief, query)
     _count("ok", path)
     log.info("EI %r -> intent=%s structure=%s recency=%dd outcome=%s "
@@ -1504,6 +1598,95 @@ async def understand(query: str, minutes: int = DEFAULT_MINUTES, context: str = 
              brief.why_now or "-", brief.why_now_confidence, brief.retrieval,
              brief.broader, path, _SECONDS[path][-1])
     return brief
+
+
+async def _outline_by(task, ahead: bool, started: float, timeout: float) -> tuple:
+    """The outline's answer, or why it was not waited for. Never raises.
+
+    On the search path it may finish at most `EI_OUTLINE_GRACE_SECONDS`
+    after the other two parts, so it can never be the slowest part of the
+    brief by more than that; ahead it has the brief's whole ceiling.
+    """
+    if ahead:
+        wait = max(0.0, timeout - (time.monotonic() - started))
+    else:
+        wait = float(settings.ei_outline_grace_seconds)
+    try:
+        return await asyncio.wait_for(asyncio.shield(task), wait)
+    except asyncio.TimeoutError:
+        task.cancel()
+        return "late", None, f"not back {wait:g}s after the rest of the brief"
+    except Exception as exc:  # noqa: BLE001 - the brief stands without it
+        return "failed", None, f"{type(exc).__name__}: {exc}"
+
+
+#: Most beats an episode of each length is planned with: a short episode
+#: has room for the core and little else (`DEPTH_BANDS`).
+def max_beats(minutes: int) -> int:
+    return max(2, min(7, int(minutes) + 2))
+
+
+_OUTLINE_DIGIT = re.compile(r"\d")
+
+
+def _outline_line(value, limit: int) -> str:
+    """One line of the outline, or "" when it may not reach the writer.
+
+    **A line with a digit in it is dropped**: a score, a price, a date or a
+    count in the plan is a fact stated before anything was looked up, which
+    is the one thing the plan may never do. Coarse on purpose - "the 2026
+    season" is lost too, and the writer, reading the evidence, says it.
+    """
+    text = " ".join(str(value or "").split())
+    if not text or _OUTLINE_DIGIT.search(text):
+        return ""
+    return text[:limit]
+
+
+def _outline_from(brief: "Brief", data: dict, minutes: int) -> None:
+    """The outline's answer onto the brief, held to what a plan may say."""
+    beats = []
+    for raw in list((data or {}).get("beats") or []):
+        if not isinstance(raw, dict):
+            continue
+        does = _outline_line(raw.get("does"), 160)
+        if not does:
+            continue
+        needs = [n for n in (_outline_line(x, 100)
+                             for x in list(raw.get("needs") or [])[:3]) if n]
+        beats.append({"does": does, "needs": needs})
+        if len(beats) >= max_beats(minutes):
+            break
+    brief.outline_beats = beats
+    opening = {slot: _outline_line((data or {}).get(f"opening_{slot}"), 120)
+               for slot in ("who", "what", "when")}
+    brief.outline_opening = {k: v for k, v in opening.items() if v}
+    brief.outline_ending = _outline_line((data or {}).get("ending"), 160)
+
+
+def build_outline_note(brief: "Brief") -> str:
+    """The plan of the piece, as the writer reads it (§270), or ""."""
+    if not brief.outline_beats:
+        return ""
+    lines = ["\nA plan for the piece, made from the question before anything "
+             "was looked up. It states no facts: each line says what a part of "
+             "the episode has to find out, not what it will say."]
+    for beat in brief.outline_beats:
+        needs = f" (needs: {'; '.join(beat['needs'])})" if beat["needs"] else ""
+        lines.append(f"- {beat['does']}{needs}")
+    if brief.outline_opening:
+        slots = "; ".join(f"{k} - {v}" for k, v in brief.outline_opening.items())
+        lines.append(f"The first two sentences have to pin down: {slots}. Fill "
+                     "them from the evidence.")
+    if brief.outline_ending:
+        lines.append(f"It should land on: {brief.outline_ending}.")
+    lines.append(
+        "It is a starting shape, not a set of boxes and not evidence. Keep a "
+        "part only when the evidence supports it, drop or reorder freely, and "
+        "add what the evidence shows that the plan did not foresee. Decide the "
+        "opening last, once you know what the evidence says - the plan only "
+        "says what it has to situate.")
+    return "\n".join(lines) + "\n"
 
 
 # --------------------------------------------------------------------------
@@ -1599,7 +1782,8 @@ def build_brief_block(brief: Brief, minutes: int) -> str:
                      "own recollection every time: "
                      + "; ".join(brief.cautions) + ".")
 
-    return "\n".join(lines) + "\n" + build_structure_note(brief)
+    return ("\n".join(lines) + "\n" + build_structure_note(brief)
+            + build_outline_note(brief))
 
 
 def _spread(seconds) -> dict:
@@ -1640,6 +1824,10 @@ def report() -> dict:
         # Each half of a split brief, or the one call as `whole`.
         "parts_since_boot": {p: dict(c) for p, c in _PART_OUTCOMES.items()},
         "split": bool(settings.ei_split),
+        # The plan of the piece as a third part (§270), and how long it may
+        # hold a searched brief after the other two are in.
+        "outline": bool(settings.ei_split and settings.ei_outline),
+        "outline_grace_seconds": settings.ei_outline_grace_seconds,
         "examples": bool(settings.ei_examples),
         "ahead_timeout_seconds": settings.ei_ahead_timeout_seconds,
         "default_recency_days": settings.ei_default_recency_days,
