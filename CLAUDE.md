@@ -311,14 +311,14 @@ Research and truth
 - **Live facts** (`live_facts.py`): **never confidently invent a current fact
   without authoritative, fresh evidence; never infer one from absence.** Closed
   status vocabulary, set by evidence; resolution from the provider's catalogue,
-  never a model; seven lookup outcomes; stale data withheld in code; NFL
-  records, last/next games from the provider's schedule (§178); no score
-  without a provider. [live-facts] Code routes named teams/listings (§265);
-  it only asks. [live-route]
+  never a model; seven lookup outcomes; stale data withheld in code; schedule
+  records (§178); no score without a provider. [live-facts] Player
+  reports (§271) by the scoreboard; unlisted≠fit. [player-facts]
+  Code routes named teams/listings (§265); it only asks. [live-route]
 - **A score or market figure is checked before it is spoken** (§259, §269). [score-guard]
-- **API-Sports is a plan per sport**: a budget, a tier (`API_SPORTS_TIERS`,
-  all free until bought) and an `/admin` row per sport; the provider's own
-  count bounds ours; ten products wired (§180). [api-sports-per-sport]
+- **API-Sports is a plan per sport**: a budget, a tier (`API_SPORTS_TIERS`)
+  and an `/admin` row per sport; the provider's own count bounds ours; ten
+  products wired (§180). [api-sports-per-sport]
 - **Ask outside services when somebody is looking and there is something to
   see** (§191): API-Sports sweeps only `SWEPT_LEAGUES`, only while one of
   their games is on, only if myFAM was drawn recently; other leagues and

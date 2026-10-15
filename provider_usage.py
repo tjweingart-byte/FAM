@@ -41,11 +41,12 @@ log = logging.getLogger("provider_usage")
 DAY = 86400
 
 #: The services the admin page reports, in the order it draws them.
-PROVIDERS = ("api_sports", "parallel", "perplexity", "gdelt", "polymarket", "gnews", "finnhub",
+PROVIDERS = ("api_sports", "balldontlie", "parallel", "perplexity", "gdelt", "polymarket", "gnews", "finnhub",
              "nws", "open_meteo", "local_feeds")
 
 LABELS = {
     "api_sports": "API-Sports",
+    "balldontlie": "BALLDONTLIE",
     "parallel": "Parallel",
     "perplexity": "Perplexity",
     "gdelt": "GDELT",
@@ -78,6 +79,13 @@ def _plans() -> dict:
         "api_sports": (
             "billed and limited per sport - see each sport below",
             "each sport's own next plan"),
+        # §271: player and team reports, one account for every league.
+        "balldontlie": (
+            f"{settings.balldontlie_tier} plan: "
+            f"{ {'free': 5, 'all-star': 60, 'goat': 600}.get(settings.balldontlie_tier, 5)}"
+            " requests/min, every league",
+            "ALL-STAR for injuries and season figures; GOAT for soccer "
+            "injuries and golf and tennis figures (see balldontlie.io pricing)"),
         # §258: the default search and its second look.
         "parallel": (
             "pay-as-you-go, $1/1k (fast); 600 requests/min",
@@ -164,6 +172,7 @@ _HOSTS = (
     ("api-sports.io", "api_sports"),
     ("finnhub.io", "finnhub"),
     ("polymarket.com", "polymarket"),
+    ("balldontlie.io", "balldontlie"),
 )
 
 

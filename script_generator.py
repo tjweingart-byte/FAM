@@ -600,6 +600,22 @@ async def _live_by(task, plan, domain: str, began: float):
                        "still asking when the evidence was in")]))
 
 
+async def _players_by(task, began: float):
+    """The player report, once the evidence is in: waited for until its own
+    clock from when it began (`live_facts.players_budget_seconds`), then
+    dropped - a report that is late is an episode written without one."""
+    wait = max(0.0, began + live_facts.players_budget_seconds() - time.monotonic())
+    try:
+        plan = await asyncio.wait_for(asyncio.shield(task), wait) \
+            if not task.done() else task.result()
+    except asyncio.TimeoutError:
+        task.cancel()
+        log.info("player report: still asking when the evidence was in; "
+                 "writing without it")
+        return None
+    return plan.players
+
+
 def _mark(notes: "ScriptNotes | None", name: str) -> None:
     """Record one pre-writing stage on the episode's clock, if it has one."""
     marks = getattr(notes, "marks", None)
@@ -751,6 +767,11 @@ class EpisodePlan:
     #: market only what people expect - and never evidence of an outcome.
     #: **Never in the cache key**: it is derived from the request.
     forecast: object = None
+    #: A player's or a team's report (§271): season figures and the league's
+    #: injury report, from `live_facts.players`. Beside `live`, never in its
+    #: place - a season average is not the state of tonight's game. **Never
+    #: in the cache key**: it is derived from the request.
+    players: object = None
 
     @property
     def images(self) -> list:
@@ -1028,6 +1049,14 @@ for the script.
             log.warning("a live-facts block could not be rendered; continuing "
                         "without it", exc_info=True)
             live = ""
+    # A player's or a team's report (§271), after the scoreboard: its own
+    # block, its own rules, and only a found one is rendered.
+    if plan.players is not None:
+        try:
+            live += plan.players.as_prompt_block()
+        except Exception:  # noqa: BLE001
+            log.warning("a player report could not be rendered; continuing "
+                        "without it", exc_info=True)
     # A market forecast (§211), after the live state it never outranks. Its
     # own block says the articles win; only a found forecast is rendered.
     if plan.forecast is not None:
@@ -1055,7 +1084,7 @@ for the script.
     # winner is named on Friday - are not failures of reasoning but of nobody
     # having said that the tense has to be derived rather than chosen.
     temporal = ""
-    if plan.evidence or plan.live is not None:
+    if plan.evidence or plan.live is not None or plan.players is not None:
         temporal = """
 Time, and this is where these go wrong most often:
 
@@ -1845,6 +1874,22 @@ class ScriptGenerator:
         _mark(notes, "live_ready")
         return plan if result is None else dataclasses.replace(plan, live=result)
 
+    async def players_lookup(self, plan: EpisodePlan,
+                             notes: ScriptNotes | None = None) -> EpisodePlan:
+        """A player's or a team's report, on a sports question (§271).
+        Started beside the scoreboard by `prepare`, and waited for the same
+        way: never longer than its own clock past the evidence."""
+        if plan.brief is None or plan.players is not None:
+            return plan
+        try:
+            result = await live_facts.players(
+                plan.brief, notes, patience=float(settings.live_patient_seconds))
+        except Exception:  # noqa: BLE001 - a report is never worth an episode
+            log.warning("the player lookup failed; writing without one",
+                        exc_info=True)
+            return plan
+        return plan if result is None else dataclasses.replace(plan, players=result)
+
     async def forecast_lookup(self, plan: EpisodePlan,
                               notes: ScriptNotes | None = None) -> EpisodePlan:
         """What prediction markets expect, when the brief says the answer
@@ -1909,14 +1954,18 @@ class ScriptGenerator:
         live_began = time.monotonic()
         domain = live_route.domain_of(plan.brief)
         live_task = asyncio.ensure_future(self.live_lookup(plan, notes))
+        # A player's or a team's report (§271), beside the scoreboard.
+        players_task = asyncio.ensure_future(self.players_lookup(plan, notes))
         try:
             research_plan = await self.research(plan, notes)
             live_plan = await _live_by(live_task, plan, domain, live_began)
+            players = await _players_by(players_task, live_began)
         except BaseException:
             # A listener who leaves, or a lookup that raised, ends both: a
             # shielded wait does not cancel what it shields.
             forecast_task.cancel()
             live_task.cancel()
+            players_task.cancel()
             raise
         # **A route only asks** (§265): a lookup code routed reaches the
         # writer only when it answered. A miss would hand the writer the
@@ -1942,7 +1991,7 @@ class ScriptGenerator:
         plan = dataclasses.replace(
             plan, live=live_plan.live, evidence=research_plan.evidence,
             thin_on=research_plan.thin_on, local=research_plan.local,
-            forecast=forecast)
+            forecast=forecast, players=players)
 
         # The weather the local ladder fetched when the town had nothing
         # (§194) reaches the writer the way any live state does - one block,
@@ -1993,6 +2042,9 @@ class ScriptGenerator:
             live_source = provenance_mod.from_live(plan.live)
             if live_source is not None:
                 notes.provenance.add(live_source)
+            players_source = provenance_mod.from_live(plan.players)
+            if players_source is not None:
+                notes.provenance.add(players_source)
             forecast_source = provenance_mod.from_live(plan.forecast)
             if forecast_source is not None:
                 notes.provenance.add(forecast_source)

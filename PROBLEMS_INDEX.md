@@ -274,3 +274,5 @@ and `limit` = Lines.
 | 19153 | 108 | 268. The brief on Haiku, given the room and the shape it needs |
 | 19261 | 145 | 269. The writer prepared for Haiku, and one page for everything that broke |
 | 19406 | 54 | 270. Exa deleted; the search is Parallel, then Perplexity |
+| 19460 | 51 | 271. A player's season and the injury report, from BALLDONTLIE |
+| 19511 | 41 | 272. The writer's evidence gaps: a bigger packet, more trusted sources, standings, Trending's outlets, local seeds |

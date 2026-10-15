@@ -19456,3 +19456,95 @@ happened, and the leftovers kept describing the system wrongly:
 the Render dashboard and RunPod template; nothing reads them. A GPU
 deployment built before this change was running on Exa - its first episodes
 on Parallel are the first measured ones there.
+
+## 271. A player's season and the injury report, from BALLDONTLIE
+
+**What was wrong.** A sports episode's live block knew a game - its score,
+period and a team's record - and nothing about the people in it. "How is
+Jokic playing", "is Mahomes playing Sunday" and "who is out for the Chiefs"
+were answered from three short article excerpts, and API-Sports, the
+scoreboard, publishes player figures and injuries for only two of its ten
+sports. The owner is moving the sports provider to BALLDONTLIE and asked for
+player stats and injuries now, for every sport.
+
+**What changed.**
+
+- `balldontlie.py`: one source for **22 leagues** - NBA, WNBA, NFL, MLB, NHL,
+  men's and women's college basketball, college football and baseball, the
+  Premier League, La Liga, Serie A, Bundesliga, Ligue 1, Champions League,
+  MLS, the World Cup, ATP, WTA, PGA Tour, Formula 1 and UFC. Written from
+  BALLDONTLIE's own OpenAPI specs (balldontlie-api/mcp at source commit
+  3b8fdeee), field by field; **never run against the live API from here** -
+  `verify()` is the first real request.
+- **What it says**: who a player is (team, position, from the roster); season
+  figures to date, per sport (basketball averages, football totals by role,
+  batting or pitching, hockey's named figures, soccer summed over the
+  season's own matches, a tennis player's year, a golfer's world ranking and
+  season stats, a driver's championship place, a fighter's record); and the
+  injury report - a player's listing or a whole team's - in the twelve
+  leagues that publish one. A season that has not started falls back to the
+  last one and says which.
+- **Where it sits**: `live_facts.players`, a registry of its own beside
+  `lookup`, run beside the scoreboard in `prepare` and waited for on its own
+  clock; `plan.players` is its own prompt block (`PLAYER_REPORT`: settled
+  figures, a listing said as a listing, unlisted never "fit"), credited on the
+  sources panel. Fresh for six hours, not the scoreboard's two minutes.
+  ScoreGuard reads its numbers as vouched for, never as the game's state.
+- **Resolution** is the catalogue's own row: searched by surname, accepted
+  only when the whole name is the question's, ambiguity is no answer. A
+  league named in the question (or a rostered team) decides where; else
+  `BALLDONTLIE_LEAGUES` order, at most `BALLDONTLIE_MAX_SEARCHES` leagues.
+  A team the wording names fully resolves to its injury report.
+- **The plan**: `BALLDONTLIE_TIER` (free | all-star | goat, default free).
+  Free reads rosters only; injuries and season figures are taken to need
+  ALL-STAR unless a league's spec says GOAT (soccer injuries, golf and tennis
+  figures, the World Cup). Never asked above the plan; refused anyway, not
+  asked again that day; paced to 5 / 60 / 600 a minute; counted per league
+  under BALLDONTLIE on /admin. The key is the switch; staging removes it.
+- EI's guidance: a player's season, form or injury is `sports`, and a
+  player's name is a `live_entity`.
+
+*Not changed:* API-Sports stays the scoreboard until the switch. Nothing in
+BALLDONTLIE's answers says which plan a key is on; if the plan is set wrong,
+the first refused endpoint says so on /admin's pipeline errors.
+
+## 272. The writer's evidence gaps: a bigger packet, more trusted sources, standings, Trending's outlets, local seeds
+
+The 15/10 review of what reaches the writer, category by category, found
+five gaps cheap enough to close at once (the owner's list):
+
+- **A bigger packet.** Every two-minute episode - so every myFAM, DailyFAM
+  and Trending one - got 3 sources x 2 passages, about 3 KB. Now 5 x 3, from
+  10 results fetched (Parallel's and Perplexity's fast price covers ten), with
+  `PARALLEL_CHARS_PER_RESULT` 3,000 and `PERPLEXITY_TOKENS_PER_PAGE` 1,024 so
+  a page has three passages to give. Longer episodes still get more
+  (`packet_size`, up to 10 x 4), never less than a browse one. Cost: about a
+  thousand prompt tokens per researched episode, no extra search.
+  **Unmeasured** - no key in the build container. Compare before and after
+  with `python write.py "<query>" --minutes 2` and
+  `SEARCH_PACKET_SOURCES=3 SEARCH_HIGHLIGHTS_PER_SOURCE=2 PARALLEL_CHARS_PER_RESULT=1500 python write.py "<query>" --minutes 2`.
+- **Trusted sources.** `.gov`/`.edu` were already primary, so CDC, NIH, BLS
+  and the Census were never "unverified" (the review's first draft said they
+  were). Added: the medical journals (NEJM, Lancet, JAMA, BMJ, Cell, PNAS,
+  Cochrane), the NHS, EU institutions, the IMF, World Bank, OECD, UN and Bank
+  of England, other countries' government domains; and, as established, the
+  science and health press (STAT, MedPage, Scientific American, New
+  Scientist), the entertainment trade press and trackers (Variety, THR,
+  Deadline, Billboard, Rolling Stone, Pitchfork, IndieWire, Vulture, Box
+  Office Mojo, The Numbers) and the games press (IGN, Polygon, GameSpot).
+- **Standings from API-Sports.** A team's place in its division or
+  conference, from the league's own `/standings` (one request per league,
+  cached three hours, run beside the schedules), joins its record. Injuries
+  and player figures come from §271 for every league rather than from
+  API-Sports' two, on a provider being replaced.
+- **Trending's outlets.** `stories.context_for` matched the live pool only,
+  so a Trending tap searched the whole web alone. It now matches the
+  edition's stories too, and the edition keeps every corroborating article's
+  address: their outlets are searched beside the main search, as a myFAM
+  live story's are. The GNews headlines stay out of the packet
+  (`measured=False`): a tile's headline is never evidence.
+- **Local outlets.** `tools/local_outlets.py --top 50 --seed` walks the 50
+  most populous US counties on Wikidata and merges what it finds into
+  `local_outlets.json` by homepage. Wikidata is blocked from the build
+  container, so the file still holds one outlet until somebody runs it where
+  `query.wikidata.org` is reachable.

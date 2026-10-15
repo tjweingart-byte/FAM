@@ -66,6 +66,8 @@ PAID_CREDENTIALS = (
     # Email (§244): providers bill per message past a free tier.
     "SMTP_PASSWORD",
     "API_SPORTS_KEY",
+    # §271: player and team reports.
+    "BALLDONTLIE_API_KEY",
     "FINNHUB_KEY",
     "AP_ELECTIONS_KEY", "DDHQ_KEY",
     "GEMINI_API_KEY", "GOOGLE_API_KEY",

@@ -134,6 +134,12 @@ TIER_PRIMARY = frozenset({
     # The leagues' own sites: primary for their own schedules and results.
     "nfl.com", "nba.com", "wnba.com", "mlb.com", "nhl.com", "ncaa.com",
     "premierleague.com", "uefa.com", "fifa.com",
+    # §272: medical journals and the agencies, central banks and statistics
+    # offices a `.gov` suffix does not catch - each primary for its own
+    # findings, figures and decisions.
+    "nejm.org", "thelancet.com", "jamanetwork.com", "bmj.com", "cell.com",
+    "pnas.org", "cochranelibrary.com", "nhs.uk", "europa.eu", "imf.org",
+    "worldbank.org", "oecd.org", "un.org", "bankofengland.co.uk",
 })
 
 #: Established outlets and trade press: reliable, not primary.
@@ -147,6 +153,13 @@ TIER_ESTABLISHED = frozenset({
     "foxsports.com", "bleacherreport.com", "theringer.com",
     "sports-reference.com", "pro-football-reference.com",
     "basketball-reference.com", "baseball-reference.com", "espncricinfo.com",
+    # §272: science and health press, entertainment trade press and the
+    # box-office and chart trackers - reliable for their beat, not primary.
+    "statnews.com", "medpagetoday.com", "scientificamerican.com",
+    "newscientist.com", "variety.com", "hollywoodreporter.com",
+    "deadline.com", "billboard.com", "rollingstone.com", "pitchfork.com",
+    "indiewire.com", "vulture.com", "boxofficemojo.com", "the-numbers.com",
+    "ign.com", "polygon.com", "gamespot.com",
 })
 
 
@@ -262,7 +275,10 @@ def credibility(result) -> str:
         return "established"
     # A government or academic domain is primary for the thing it is about -
     # a central bank's own statement outranks any report of that statement.
-    if host.endswith((".gov", ".gov.uk", ".edu", ".ac.uk", ".int", ".mil")):
+    if host.endswith((".gov", ".gov.uk", ".edu", ".ac.uk", ".int", ".mil",
+                      # §272: other countries' government domains.
+                      ".gov.au", ".gc.ca", ".govt.nz", ".gov.ie", ".gouv.fr",
+                      ".bund.de", ".gob.mx", ".gov.in")):
         return "primary"
     # Subdomains of a listed host inherit it: `finance.yahoo.com` is `yahoo.com`.
     for known, tier in ((TIER_PRIMARY, "primary"), (TIER_ESTABLISHED, "established")):

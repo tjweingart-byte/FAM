@@ -418,16 +418,19 @@ class Settings:
     # The retired value `research_backend` was set to and replaced from, or
     # "" - see `__post_init__`. Reported, never read to decide anything.
     research_backend_replaced: str = ""
-    # How much evidence a researched episode is handed: 8 results fetched,
-    # the top 3 in the packet, 2 passages each (the defaults reproduce the
-    # hand-measured 2026-09-05 benchmark). Longer episodes get more
-    # (`research.packet_size`). Raising `search_packet_sources` buys more
-    # evidence and costs prompt tokens on every researched episode; nobody
-    # has measured where that stops paying. Named `EXA_*` until §270 - see
-    # `RENAMED_SETTINGS`.
-    search_num_results: int = _env_int("SEARCH_NUM_RESULTS", 8)
-    search_packet_sources: int = _env_int("SEARCH_PACKET_SOURCES", 3)
-    search_highlights_per_source: int = _env_int("SEARCH_HIGHLIGHTS_PER_SOURCE", 2)
+    # How much evidence a researched episode is handed: 10 results fetched
+    # (Parallel's and Perplexity's fast price covers up to 10),
+    # the top 5 in the packet, 3 passages each - what every two-minute
+    # episode gets, and so every myFAM, DailyFAM and Trending episode
+    # (§272). It was 3 sources x 2 passages (the hand-measured 2026-09-05
+    # benchmark), about 3 KB, and lists, tables, schedules and rankings were
+    # the first thing it cut. Longer episodes get more
+    # (`research.packet_size`). The cost is prompt tokens - roughly a
+    # thousand more per researched episode - never another search; set 3
+    # and 2 to go back. Named `EXA_*` until §270 - see `RENAMED_SETTINGS`.
+    search_num_results: int = _env_int("SEARCH_NUM_RESULTS", 10)
+    search_packet_sources: int = _env_int("SEARCH_PACKET_SOURCES", 5)
+    search_highlights_per_source: int = _env_int("SEARCH_HIGHLIGHTS_PER_SOURCE", 3)
     # Whether the evidence packet carries a publication date and a grade
     # beside each source.
     #
@@ -466,13 +469,16 @@ class Settings:
         default_factory=lambda: os.environ.get(
             "PARALLEL_MODE", "").strip().lower() or "fast")
     # The most excerpt text Parallel returns per page, cut into passages.
-    parallel_chars_per_result: int = _env_int("PARALLEL_CHARS_PER_RESULT", 1500)
+    # 3,000 since §272 (was 1,500): three passages of about 500 characters
+    # need a page to say more than three, or the packet's third is empty.
+    parallel_chars_per_result: int = _env_int("PARALLEL_CHARS_PER_RESULT", 3000)
     # Perplexity's search type (`fast` at $1/1k, `web` at $5/1k) and how much
     # of each page it returns.
     perplexity_search_type: str = field(
         default_factory=lambda: os.environ.get(
             "PERPLEXITY_SEARCH_TYPE", "").strip().lower() or "fast")
-    perplexity_tokens_per_page: int = _env_int("PERPLEXITY_TOKENS_PER_PAGE", 512)
+    # 1,024 since §272 (was 512), for the same reason as Parallel's 3,000.
+    perplexity_tokens_per_page: int = _env_int("PERPLEXITY_TOKENS_PER_PAGE", 1024)
     # How long one passage is when a page's excerpt text is cut up - about
     # the size of the highlights every packet was first measured on.
     search_passage_chars: int = _env_int("SEARCH_PASSAGE_CHARS", 500)
@@ -1155,6 +1161,36 @@ class Settings:
     # itself over the whole allowance, and a lookup borrows from later sweeps.
     # Raise it if lookups are refused late in the day (/admin shows it).
     api_sports_lookup_reserve: float = _env_float("API_SPORTS_LOOKUP_RESERVE", 0.0)
+    # --- Player facts (§271) -------------------------------------------
+    # A player's season figures and the league's injury report, beside the
+    # scoreboard - never instead of it. Off with 0; nothing is asked without
+    # BALLDONTLIE_API_KEY either way. See `balldontlie.py`.
+    player_facts: bool = field(
+        default_factory=lambda: os.environ.get("PLAYER_FACTS", "1")
+        not in ("0", "false", "False", ""))
+    balldontlie_api_key: str = field(
+        default_factory=lambda: os.environ.get("BALLDONTLIE_API_KEY", "").strip())
+    # The plan bought on BALLDONTLIE's dashboard: free | all-star | goat. One
+    # account covers every league. Nothing in an answer says which plan a key
+    # is on, so the deploy says it, and an endpoint the plan does not reach
+    # is not asked (`balldontlie.ENDPOINT_TIERS`). Free reaches players and
+    # teams only - no injuries and no season figures.
+    balldontlie_tier: str = field(
+        default_factory=lambda: os.environ.get(
+            "BALLDONTLIE_TIER", "free").strip().lower())
+    # Which leagues a player is searched in when the question names none,
+    # in order (`balldontlie.LEAGUES` keys). Empty is the built-in order.
+    balldontlie_leagues: str = field(
+        default_factory=lambda: os.environ.get("BALLDONTLIE_LEAGUES", "").strip())
+    # How many leagues one unplaced name may be searched in. Each is one
+    # request against the plan's per-minute limit.
+    balldontlie_max_searches: int = _env_int("BALLDONTLIE_MAX_SEARCHES", 4)
+    # How long one player's or team's report is reused, in seconds. Season
+    # figures move once a game and an injury report a few times a day.
+    balldontlie_cache_seconds: int = _env_int("BALLDONTLIE_CACHE_SECONDS", 900)
+    balldontlie_base: str = field(
+        default_factory=lambda: os.environ.get(
+            "BALLDONTLIE_BASE", "https://api.balldontlie.io").strip().rstrip("/"))
     finnhub_key: str = field(
         default_factory=lambda: os.environ.get("FINNHUB_KEY", "").strip())
     # Which plan each licensed provider is on, as bought on its dashboard
@@ -1842,6 +1878,11 @@ class Settings:
                 f"RESEARCH_SECOND_LOOK={self.research_second_look!r} is not a "
                 f"web search backend. Use one of: same, "
                 f"{', '.join(WEB_RESEARCH_BACKENDS)}.")
+        if self.balldontlie_tier not in ("free", "all-star", "goat"):
+            raise ValueError(
+                f"BALLDONTLIE_TIER={self.balldontlie_tier!r} is not one of "
+                "BALLDONTLIE's plans: free, all-star, goat. Refusing rather "
+                "than guessing a plan upward and spending refused requests.")
         if self.parallel_mode not in ("turbo", "fast", "basic", "advanced"):
             raise ValueError(
                 f"PARALLEL_MODE={self.parallel_mode!r} is not one of Parallel's "

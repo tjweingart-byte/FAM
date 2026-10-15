@@ -215,7 +215,7 @@ def test_retrieval_makes_the_call_the_benchmark_made(web):
     assert len(web) == 1
     call = web[0]
     assert call["query"] == "what did the fed do"
-    assert call["num_results"] == settings.search_num_results == 8
+    assert call["num_results"] == settings.search_num_results == 10
     # No brief: no window, no outlets, and nothing else to search for.
     assert call["recency_days"] == 0
     assert call["include_domains"] == ()
@@ -850,7 +850,7 @@ def test_an_old_exa_setting_is_no_longer_read_and_says_which_replaced_it(
          "import config; print(config.settings.search_num_results)"],
         cwd=root, env=env, capture_output=True, text=True, timeout=120)
     assert out.returncode == 0, out.stderr
-    assert out.stdout.strip().splitlines()[-1] == "8"
+    assert out.stdout.strip().splitlines()[-1] == "10"
 
     monkeypatch.setenv("EXA_NUM_RESULTS", "2")
     with caplog.at_level(logging.WARNING, logger="app"):

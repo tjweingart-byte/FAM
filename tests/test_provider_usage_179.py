@@ -33,7 +33,8 @@ def test_every_provider_the_owner_named_is_reported_in_order():
     assert [r["label"] for r in rows] == [
         # §258: the search and its second look (Exa, which they replaced,
         # is deleted - §270).
-        "API-Sports", "Parallel", "Perplexity", "GDELT", "Polymarket", "GNews", "Finnhub",
+        "API-Sports", "BALLDONTLIE", "Parallel", "Perplexity", "GDELT", "Polymarket",
+        "GNews", "Finnhub",
         # §194: weather and the local news collector.
         "National Weather Service", "Open-Meteo", "Local news feeds"]
     assert "exa" not in provider_usage.PROVIDERS

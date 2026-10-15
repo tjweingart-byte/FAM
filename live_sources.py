@@ -235,6 +235,18 @@ def install() -> dict:
         live_facts.register(source)
         installed.append(source.name)
 
+    # Player and team reports (§271): beside the scoreboard, never in its
+    # slot, so registered apart from it. The key is the switch, as it is for
+    # API-Sports and Finnhub.
+    import balldontlie
+
+    live_facts.unregister_players(balldontlie.NAME)
+    if settings.player_facts and settings.balldontlie_api_key:
+        source = balldontlie.PlayerReports()
+        source._fam_installed = True  # noqa: SLF001 - our own marker
+        live_facts.register_players(source)
+        installed.append(f"{source.name} (player reports)")
+
     for problem in problems:
         log.error("live facts: %s", problem)
     if installed:
@@ -303,6 +315,17 @@ class ProviderHTTPError(RuntimeError):
         super().__init__(f"HTTP {status} from {where}{detail}")
 
 
+def _usage_detail(provider: str, url: str) -> str:
+    """The part of a provider a request is also counted against: API-Sports'
+    sport (§180), BALLDONTLIE's league (§271)."""
+    if provider == "api_sports":
+        return sport_of_url(url)
+    if provider == "balldontlie":
+        path = httpx.URL(url).path.strip("/").split("/")
+        return path[0] if path and path[0] else ""
+    return ""
+
+
 async def _json(url: str, headers: dict, params: dict, timeout: float) -> dict:
     import provider_usage
 
@@ -313,14 +336,13 @@ async def _json(url: str, headers: dict, params: dict, timeout: float) -> dict:
         try:
             response = await client.get(url, headers=headers, params=params)
         except Exception as exc:
-            provider_usage.record(provider, ok=False,
-                                  detail=sport_of_url(url) if provider == "api_sports" else "",
+            provider_usage.record(provider, ok=False, detail=_usage_detail(provider, url),
                                   why=type(exc).__name__)
             raise
         # The reason names the path and status, never the query: Finnhub's
         # key is a query parameter (§144, §220).
         provider_usage.record(provider, ok=response.is_success,
-                              detail=sport_of_url(url) if provider == "api_sports" else "",
+                              detail=_usage_detail(provider, url),
                               why=f"HTTP {response.status_code} {response.url.path}")
         if provider == "api_sports":
             _note_quota(url, response.headers)
@@ -1358,6 +1380,82 @@ async def team_schedule(sport: Sport, team_id, now: Optional[float] = None,
     return _with_fresh(rows, fresh, skip)
 
 
+#: A league's standings, per sport: (fetched at, rows). One request serves
+#: every team in it; three hours is a few games' worth of movement (§272).
+STANDINGS: dict = {}
+STANDINGS_SECONDS = 3 * 3600.0
+
+
+async def league_standings(sport: Sport, now: Optional[float] = None) -> list:
+    """The `team_league`'s table from API-Sports' own `/standings`, flattened
+    to `{"team": id, "position": n, "group": name}` rows (§272). Every sport's
+    shape is read: a flat list (American football), a list of groups
+    (basketball, baseball, hockey) and soccer's `league.standings`."""
+    if not sport.team_league:
+        return []
+    now = time.time() if now is None else now
+    held = STANDINGS.get(sport.key)
+    if held and now - held[0] < STANDINGS_SECONDS:
+        return held[1]
+    data = await api_sports_json(
+        f"{sport.host}/standings",
+        {"league": sport.team_league, "season": season_of(sport)},
+        settings.live_timeout_seconds)
+    rows = standings_rows((data or {}).get("response"))
+    STANDINGS[sport.key] = (now, rows)
+    return rows
+
+
+def standings_rows(response) -> list:
+    out: list = []
+
+    def walk(node) -> None:
+        if isinstance(node, list):
+            for item in node:
+                walk(item)
+            return
+        if not isinstance(node, dict):
+            return
+        league = node.get("league")
+        if isinstance(league, dict) and isinstance(league.get("standings"), list):
+            walk(league["standings"])
+            return
+        team = node.get("team") or {}
+        position = node.get("position", node.get("rank"))
+        if not isinstance(team, dict) or team.get("id") is None or position is None:
+            return
+        group = node.get("division") or node.get("conference") or node.get("group")
+        if isinstance(group, dict):
+            group = group.get("name")
+        try:
+            out.append({"team": team.get("id"), "position": int(position),
+                        "group": str(group or "").strip()})
+        except (TypeError, ValueError):
+            return
+
+    walk(response)
+    return out
+
+
+def standing_facts(team: dict, rows: list) -> list:
+    """Where one team sits, as the provider's table has it: its division or
+    conference first, at most two groups, never a place computed here."""
+    name = str(team.get("name") or "").strip()
+    mine = [r for r in rows if str(r["team"]) == str(team.get("id")) and r["group"]]
+    said: list = []
+    for row in mine:
+        sentence = (f"The {name} are {_ordinal(row['position'])} in the "
+                    f"{row['group']}, per the league's standings.")
+        if sentence not in said:
+            said.append(sentence)
+    return said[:2]
+
+
+def _ordinal(n: int) -> str:
+    suffix = "th" if 10 <= n % 100 <= 20 else {1: "st", 2: "nd", 3: "rd"}.get(n % 10, "th")
+    return f"{n}{suffix}"
+
+
 def _with_fresh(rows: list, fresh: Optional[dict], game_id: str) -> list:
     if not fresh or not game_id:
         return rows
@@ -1896,16 +1994,28 @@ class ApiSportsSource(LiveSource):
         if budget <= 0:
             log.info("live facts: no time left for the teams' seasons")
             return facts
+        # The league's standings (§272), beside the schedules: one cached
+        # request serves every team, and it never holds the records up.
+        standings = asyncio.ensure_future(league_standings(sport))
         try:
             schedules = await asyncio.wait_for(asyncio.gather(
                 *(team_schedule(sport, t["id"], fresh=row) for t in sides)),
                 timeout=budget)
         except Exception as exc:  # noqa: BLE001 - the game's facts stand
+            standings.cancel()
             log.warning("live facts: could not read the teams' seasons: %s", exc)
             return facts
+        table: list = []
+        try:
+            table = await asyncio.wait_for(asyncio.shield(standings), timeout=0.25) \
+                if not standings.done() else standings.result()
+        except Exception as exc:  # noqa: BLE001 - the records stand without it
+            standings.cancel()
+            log.info("live facts: no standings for %s: %s", sport.key, exc)
         extra = []
         for team, schedule in zip(sides, schedules):
             extra.extend(season_facts(sport, team, schedule))
+            extra.extend(standing_facts(team, table))
         # Their meeting is in both schedules; say its sentence once.
         extra = list(dict.fromkeys(extra))
         if not extra:

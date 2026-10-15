@@ -2168,6 +2168,24 @@ def context_for(query: str, now: Optional[float] = None) -> Optional[StoryContex
                                 observed_at=story.observed_at,
                                 hosts=tuple(hosts[:MAX_STORY_HOSTS]),
                                 measured=bool(story.measured))
+        # **A Trending story's outlets too** (§272). The bank is GNews'
+        # edition, not the pool, so it was never matched here and a tap
+        # searched the whole web only. Its outlets are searched beside the
+        # main search the same way; its observation is GNews' headlines and
+        # is never evidence (`measured` stays False: `why_now` is never
+        # evidence, and a tile's headline is never read to the writer).
+        import trending_bank
+
+        for story in trending_bank.stories_now(now):
+            if not _same_question(story.query, query):
+                continue
+            hosts = []
+            for url in story.urls or ((story.url,) if story.url else ()):
+                host = provenance.clean_host(url)
+                if host and host not in hosts:
+                    hosts.append(host)
+            return StoryContext(subject=story.subject, domain=story.domain,
+                                hosts=tuple(hosts[:MAX_STORY_HOSTS]))
     except Exception:  # noqa: BLE001 - a tap researches as before
         log.exception("stories: could not read the story behind %r", query)
     return None

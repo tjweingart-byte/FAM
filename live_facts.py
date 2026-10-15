@@ -89,6 +89,17 @@ PREDICTION_MARKET = "prediction-market"
 #: market's or a scoreboard's.
 WEATHER = "weather-forecast"
 
+#: A `LiveFacts.kind` for a player's or a team's report (§271): who plays
+#: where, season figures to date and the league's injury report. Not an
+#: event, so it has no status of its own - like weather it gets its own
+#: wording - and it sits beside the scoreboard, never in its slot.
+PLAYER_REPORT = "player-report"
+
+#: How old a player report may be and still be read as current. Season
+#: figures move once a game and an injury report a few times a day, so the
+#: scoreboard's two minutes would withhold every one of them.
+PLAYER_MAX_AGE_SECONDS = 6 * 3600.0
+
 
 def normalise_status(value: object) -> str:
     """Map whatever a provider said onto the closed vocabulary.
@@ -230,6 +241,8 @@ class LiveFacts:
         will be judged generously.
         """
         limit = MAX_AGE_SECONDS.get(self.domain)
+        if self.kind == PLAYER_REPORT:
+            limit = PLAYER_MAX_AGE_SECONDS
         if self.market_closed and self.domain == "markets":
             limit = CLOSED_MARKET_MAX_AGE_SECONDS
         if limit is None:
@@ -313,7 +326,8 @@ class LiveFacts:
                 f"{self.age_phrase(now)}.")
 
         kind = (f"\nThese are {self.kind} figures."
-                if self.kind and self.kind != WEATHER else "")
+                if self.kind and self.kind not in (WEATHER, PLAYER_REPORT)
+                else "")
 
         # **Freshness is not authority, and a forecast is the one live fact
         # where they come apart.** Every other source here reports a state
@@ -341,6 +355,25 @@ class LiveFacts:
             standing = (
                 "This outranks anything you remember about the weather there. "
                 "It is the only source of weather you have.")
+        elif self.kind == PLAYER_REPORT:
+            # Not an event: no "finished" or "under way", so the status rule
+            # is replaced outright, as weather's is (§271).
+            rule = (
+                "These are PLAYER and TEAM facts from the league's data "
+                "provider: who plays where, season figures to the date shown, "
+                "and the league's current injury report. Season figures are "
+                "totals or averages for games already played - never the "
+                "state of a game under way. An injury status is the team's "
+                "own listing (out, questionable, day-to-day): say it as that "
+                "listing, and a return date as the team's estimate, never a "
+                "promise. Someone who is not on the injury report is not on "
+                "it - never say they are healthy, fit or certain to play. "
+                "Give every number exactly as written here; never round, "
+                "convert, extend or add one.")
+            standing = (
+                "This outranks anything you remember about these players' "
+                "numbers, teams and injuries, and any article that differs: "
+                "it is newer. Use it without mentioning the difference.")
         elif self.kind == PREDICTION_MARKET:
             standing = (
                 "This is a FORECAST and it is not evidence of an outcome. It "
@@ -654,6 +687,42 @@ def sources_for(domain: str) -> list:
     return [s for s in _SOURCES if s.domain == domain]
 
 
+#: Sources of player and team reports (§271). Kept apart from `_SOURCES`
+#: because they answer beside the scoreboard rather than in its place:
+#: `lookup` must never return a season average as the state of tonight's
+#: game, and a player report must never wait for one.
+_PLAYER_SOURCES: list = []
+
+
+def register_players(source: LiveSource) -> None:
+    """Add a player-report source. Registered first is tried first."""
+    if source.domain != "sports":
+        raise ValueError(
+            f"{source.name} declares domain {source.domain!r}; player reports "
+            "are sports facts")
+    _PLAYER_SOURCES.insert(0, source)
+    log.info("live facts: registered %s for player reports", source.name)
+
+
+def unregister_players(name: str) -> bool:
+    before = len(_PLAYER_SOURCES)
+    _PLAYER_SOURCES[:] = [s for s in _PLAYER_SOURCES if s.name != name]
+    return len(_PLAYER_SOURCES) != before
+
+
+def player_sources() -> list:
+    """Registered player-report sources that can serve."""
+    out = []
+    for source in _PLAYER_SOURCES:
+        try:
+            ok, _why = source.diagnose()
+        except Exception:  # noqa: BLE001 - a source that cannot say is not asked
+            ok = False
+        if ok:
+            out.append(source)
+    return out
+
+
 # --------------------------------------------------------------------------
 # Caching, by entity and never by question
 # --------------------------------------------------------------------------
@@ -944,6 +1013,62 @@ def budget_seconds(domain: str) -> float:
                   for s in sources_for(domain)])
 
 
+def players_budget_seconds() -> float:
+    """How long a player lookup may take with no patience: the whole-lookup
+    ceiling, or a player source's own clock."""
+    return max([float(settings.live_total_timeout_seconds)]
+               + [float(getattr(s, "timeout_seconds", 0.0) or 0.0)
+                  for s in _PLAYER_SOURCES])
+
+
+async def players(brief, notes=None, patience: float = 0.0) -> Optional[LiveLookup]:
+    """A player's or a team's report, for a sports question (§271).
+
+    Asked beside `lookup`, never instead of it, on any question whose domain
+    is sports - the brief's or the one code routed it to. The entity is
+    resolved in the provider's own catalogue, exactly as a game is: a player
+    nobody can find is no report, never a guess.
+
+    Returns `None` when no report applies or none was found. A missing report
+    is not a gap the writer has to be told about: the scoreboard's block
+    already says what is and is not known about the game, and an article's
+    dated figures are still evidence. A provider that broke is on /admin
+    (§269) all the same.
+    """
+    import live_route
+
+    if not settings.live_facts or not settings.player_facts:
+        return None
+    if live_route.domain_of(brief) != "sports":
+        return None
+    sources = player_sources()
+    if not sources:
+        return None
+    deadline = time.monotonic() + max(players_budget_seconds(),
+                                      float(patience or 0.0))
+    attempts: list = []
+    for source in sources:
+        result = await _ask(source, brief, notes, deadline, patience)
+        attempts.append((source.name, result.outcome, result.detail))
+        if result.outcome in (PROVIDER_FAILED, TIMEOUT, STALE):
+            import pipeline_errors
+
+            pipeline_errors.record(
+                "live", f"{source.name}: {result.outcome}", result.detail,
+                str(getattr(brief, "query", "") or ""),
+                pipeline_errors.ERROR if result.outcome == PROVIDER_FAILED
+                else pipeline_errors.NOTICE)
+        if result.outcome == FACTS and result.facts is not None \
+                and result.facts.kind == PLAYER_REPORT:
+            result.attempts = attempts
+            return result
+        log.info("live facts: no player report from %s - %s", source.name,
+                 result.detail)
+        if time.monotonic() >= deadline:
+            break
+    return None
+
+
 def wants_forecast(brief) -> bool:
     """Whether a brief's question is one a market forecast belongs beside (§211).
 
@@ -1023,7 +1148,15 @@ def report() -> dict:
         per_domain[domain] = entries
     ready = [d for d, entries in per_domain.items()
              if any(e["ready"] for e in entries)]
+    players_entries = []
+    for source in _PLAYER_SOURCES:
+        ok, why = source.diagnose()
+        players_entries.append({"name": source.name, "ready": ok, "detail": why})
     return {
+        # Player and team reports beside the scoreboard (§271).
+        "players": {"enabled": bool(settings.player_facts),
+                    "sources": players_entries,
+                    "max_age_seconds": PLAYER_MAX_AGE_SECONDS},
         "enabled": bool(settings.live_facts),
         "domains": list(LIVE_DOMAINS),
         "statuses": list(STATUSES),

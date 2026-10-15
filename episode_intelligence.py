@@ -948,7 +948,8 @@ FIELD_GUIDE = """- **intent** - what job is being asked for.
 - **cautions** - what the writer must not assume, especially about time. If
   something may not have happened yet, or may have happened days rather than
   hours ago, say so here. This is where a wrong tense gets caught.
-- **live_domain** - `sports` if this turns on a score, fixture or standing;
+- **live_domain** - `sports` if this turns on a score, fixture or standing,
+  or on a player's season, form or injury;
   `markets` if it turns on a price, index or rate; `elections` if it turns on
   a vote, a race, a referendum or the odds on one; empty otherwise. Pick the
   thing the answer *turns on*, not the subject area: "how does the electoral
@@ -956,9 +957,10 @@ FIELD_GUIDE = """- **intent** - what job is being asked for.
   is `elections`. `weather` if what they want is the weather or a forecast
   somewhere - and then **place** names where.
 - **live_entity** - whenever the request is about a team, a game between
-  teams, a company or fund or index, or a race, its bare name as a scoreboard
-  or a stock search lists it, whatever live_domain is: "Kansas City Chiefs",
-  "Kansas City Chiefs, Buffalo Bills", "NVIDIA", "S&P 500". Full official
+  teams, a player or athlete, a company or fund or index, or a race, its bare
+  name as a scoreboard, a roster or a stock search lists it, whatever
+  live_domain is: "Kansas City Chiefs", "Kansas City Chiefs, Buffalo Bills",
+  "Patrick Mahomes", "NVIDIA", "S&P 500". Full official
   names, no description, no year, no angle, no possessive. Empty when the
   request names none of these.
 - **outcome_dependent** - true if what they want is a result that only exists

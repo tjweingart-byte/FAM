@@ -619,6 +619,24 @@
   unavailable* from *not configured*, and `python tools/verify_live.py` makes a
   real request rather than confirming a credential exists. Do not say FAM
   supports live scores until a real provider is returning them.
+<!-- rule:player-facts -->
+- **Player and team reports sit beside the scoreboard, never in it** (PROBLEMS.md
+  §271, at the owner's direction; BALLDONTLIE is the provider, for every league
+  it covers). `live_facts.players` is asked beside `lookup` on any sports
+  question and lands in `plan.players`, its own block with its own rule
+  (`live_facts.PLAYER_REPORT`): who plays where, season figures to date (labelled
+  by season, so last season is never said as this one), and the league's
+  injury report. A season average is never the state of tonight's game, and a
+  player report never waits on one. The player is the one row of the league's
+  own player search whose whole name the question names - two such rows is no
+  answer, never a guess. **Someone not on the injury report is said as not on
+  the report**, only when the report was read, and the writer is told never to
+  call them healthy, fit or certain to play. An endpoint the plan
+  (`BALLDONTLIE_TIER`) does not reach is never asked; one refused anyway is not
+  asked again that day; requests are paced to the plan's per-minute limit and
+  counted per league on /admin. ScoreGuard takes the report's own numbers as
+  vouched for (a fighter's 12-3), never as the game's status.
+
 <!-- rule:live-route -->
 - **A provider is asked when the question names what it covers, whatever the
   brief said** *(§264, §265, `live_route.py`)*. `Brief.live_domain` is a

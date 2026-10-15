@@ -467,3 +467,15 @@ Its symbol resolution prefers ordinary common stock over the warrants, units
 and foreign listings that share a prefix, so "Apple" finds `AAPL` and not
 `AAPL.SW`. Never a guessed ticker: a hallucinated symbol returns somebody
 else's price, fresh and confident and wrong.
+
+## Player and team reports (§271)
+
+Beside the scoreboard, never in its slot: `live_facts.players` asks
+`balldontlie.PlayerReports` on any sports question, and the writer gets a
+block of its own (`PLAYER_REPORT`) - who plays where, season figures to date
+and the league's injury report, for the 22 leagues BALLDONTLIE covers. Set
+`BALLDONTLIE_API_KEY` and `BALLDONTLIE_TIER` (free reads rosters only;
+ALL-STAR adds injuries and season figures; GOAT adds soccer injuries and golf
+and tennis figures). `python -c "import asyncio, balldontlie;
+print(asyncio.run(balldontlie.PlayerReports().verify()))"` makes the first real
+request. Full reasoning: PROBLEMS.md §271.

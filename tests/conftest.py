@@ -148,6 +148,10 @@ FAM_ENVIRONMENT = (
     "GNEWS_PLAN", "FINNHUB_PLAN",
     "BOOT_STAGGER_SECONDS",
     "API_SPORTS_KEY", "API_SPORTS_SPORT", "FINNHUB_KEY",
+    # §271: player and team reports.
+    "PLAYER_FACTS", "BALLDONTLIE_API_KEY", "BALLDONTLIE_TIER",
+    "BALLDONTLIE_LEAGUES", "BALLDONTLIE_MAX_SEARCHES",
+    "BALLDONTLIE_CACHE_SECONDS", "BALLDONTLIE_BASE",
     "AP_ELECTIONS_KEY", "DDHQ_KEY", "POLYMARKET_BASE",
     # Prefetch: whether episodes are written before anybody asks, how much is
     # paid in advance and what the day's ceiling is. A developer with

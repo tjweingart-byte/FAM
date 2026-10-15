@@ -48,7 +48,7 @@ services:
         sync: false
       # Deliberately absent: ANTHROPIC_API_KEY, PARALLEL_API_KEY,
       # PERPLEXITY_API_KEY, GNEWS_KEY,
-      # API_SPORTS_KEY, FINNHUB_KEY, GEMINI_API_KEY, RUNPOD_*, GDELT,
+      # API_SPORTS_KEY, BALLDONTLIE_API_KEY, FINNHUB_KEY, GEMINI_API_KEY, RUNPOD_*, GDELT,
       # STORIES_POLYMARKET, LIVE_*_PROVIDER, FAM_SECRETS. Adding one here does
       # nothing (spend_guard removes it and health lists it under
       # `credentials_removed`), so do not.
@@ -284,6 +284,10 @@ services:
       - key: PERPLEXITY_API_KEY
         sync: false
       - key: API_SPORTS_KEY
+        sync: false
+      # Player and team reports (§271). Set BALLDONTLIE_TIER to the plan
+      # bought: free reads rosters only.
+      - key: BALLDONTLIE_API_KEY
         sync: false
       - key: FINNHUB_KEY
         sync: false

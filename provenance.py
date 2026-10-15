@@ -206,6 +206,9 @@ def from_live(lookup) -> Optional[Attribution]:
     if getattr(facts, "kind", "") == live_facts.PREDICTION_MARKET:
         # What people are betting, never a result (§211) - and the panel says so.
         tier = "prediction market - a forecast, not a result"
+    elif getattr(facts, "kind", "") == live_facts.PLAYER_REPORT:
+        # Rosters, season figures and injury reports (§271).
+        tier = "league data - players and injuries"
     elif getattr(facts, "delayed_seconds", 0):
         minutes = max(1, int(round(facts.delayed_seconds / 60)))
         tier = f"live feed, delayed about {minutes} minute(s)"
