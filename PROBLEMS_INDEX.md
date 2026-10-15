@@ -282,5 +282,5 @@ and `limit` = Lines.
 | 19800 | 42 | 276. The writer's evidence gaps: a bigger packet, more trusted sources, standings, Trending's outlets, local seeds |
 | 19842 | 27 | 277. BALLDONTLIE is the scoreboard: games, standings, F1, UFC and the sweep (2026-10-15) |
 | 19869 | 98 | 278. The reference look: Wikipedia and Wikidata beside the search (2026-10-15) |
-| 19967 | 18 | 279. The last of Exa is gone from the code (2026-10-15) |
-| 19985 | 108 | 280. API-Sports is removed; BALLDONTLIE is the only sports provider |
+| 19967 | 20 | 279. The last of Exa is gone from the code (2026-10-15) |
+| 19987 | 108 | 280. API-Sports is removed; BALLDONTLIE is the only sports provider |

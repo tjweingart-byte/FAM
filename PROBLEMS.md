@@ -19973,11 +19973,13 @@ ledger's columns `exa_searches`, `exa_cost` and `exa_usd` are now
 them in place on an existing database (`ALTER TABLE ... RENAME COLUMN`,
 guarded and once), so every stored row keeps its spend
 (`tests/test_removals_279.py`). The financials view and `/admin`'s daily spend
-read the new name. `RESEARCH_BACKEND=exa` is refused at start-up like any
-unknown backend. The frozen web release `releases/web/2026.09.29/` is
+read the new name. `RESEARCH_BACKEND=exa` runs as `parallel` and says so, as
+`claude` does (§281: refusing it would stop a server that still names it). The frozen web release `releases/web/2026.09.29/` is
 hash-checked and keeps its old comments; it is not code that runs a search.
 
-**Owner action:** the Google Sheet's Apps Script reads the metering export by
+**Owner action:** remove `RESEARCH_BACKEND=exa` and `RESEARCH_SECOND_LOOK=exa`
+wherever they are still set (they run as the default, and say so - §281).
+The Google Sheet's Apps Script reads the metering export by
 column name - rename `exa_usd` to `web_search_usd` there. The rename migration
 can be deleted once every deployment has started once on this build.
 

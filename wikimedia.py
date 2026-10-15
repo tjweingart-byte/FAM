@@ -51,6 +51,7 @@ import sqlite3
 import threading
 import time
 import unicodedata
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import closing
 from dataclasses import asdict, dataclass, field
 from datetime import date, datetime, timezone
@@ -136,6 +137,17 @@ class BackingOff(WikimediaError):
 # HTTP
 # --------------------------------------------------------------------------
 _SLOTS = threading.BoundedSemaphore(CONCURRENCY)
+#: The look's own threads (§281). An abandoned look cannot be stopped - its
+#: thread finishes its requests - so it must never hold a worker of the
+#: default pool, which the main search's own threads run in.
+EXECUTOR = ThreadPoolExecutor(max_workers=CONCURRENCY,
+                              thread_name_prefix="wikimedia")
+#: After a request that failed on the network (a timeout, a refused
+#: connection), nothing more is sent to that provider for this long (§281):
+#: a slow or unreachable Wikimedia otherwise costs every look its timeouts.
+FAILURE_BACKOFF_SECONDS = 60.0
+#: A login Enterprise refused is not tried again for this long (§281).
+LOGIN_REFUSED_SECONDS = 3600.0
 #: provider -> monotonic time before which nothing is sent to it.
 _BACKOFF: dict = {}
 _BACKOFF_LOCK = threading.Lock()
@@ -159,7 +171,8 @@ def _transport(method: str, url: str, *, params: Optional[dict] = None,
 
 
 def _send(method: str, url: str, *, params: Optional[dict] = None,
-          body: Any = None, headers: Optional[dict] = None) -> tuple:
+          body: Any = None, headers: Optional[dict] = None,
+          before=None) -> tuple:
     """A counted, identified, rate-respecting request: (status, json)."""
     import places
     import provider_usage
@@ -176,12 +189,19 @@ def _send(method: str, url: str, *, params: Optional[dict] = None,
             "Accept": "application/json"}
     sent.update(headers or {})
     with _SLOTS:
+        if before is not None:
+            # Counted only once it is certain to be sent (§281): a request
+            # refused by the backoff above never reaches the month's count.
+            before()
         try:
             status, reply_headers, parsed = _transport(
                 method, url, params=params, body=body, headers=sent,
                 timeout=float(getattr(settings, "wikipedia_timeout_seconds", 2.0)))
         except Exception as exc:
             provider_usage.record(provider, ok=False, why=type(exc).__name__)
+            with _BACKOFF_LOCK:
+                _BACKOFF[provider] = max(_BACKOFF.get(provider, 0.0),
+                                         time.monotonic() + FAILURE_BACKOFF_SECONDS)
             raise WikimediaError(f"{host}{path}: {type(exc).__name__}") from None
     ok = 200 <= int(status) < 300
     # The path, never the query or a body: a token never reaches a log.
@@ -579,9 +599,9 @@ def _enterprise_post(url: str, body: dict, token: str = "") -> tuple:
     """One counted Enterprise request. Refused when the month is spent."""
     if not enterprise_room():
         raise WikimediaError("the month's Enterprise requests are spent")
-    store().spend(_month())
     headers = {"Authorization": f"Bearer {token}"} if token else {}
-    return _send("POST", url, body=body, headers=headers)
+    return _send("POST", url, body=body, headers=headers,
+                 before=lambda: store().spend(_month()))
 
 
 def _token(force: bool = False) -> str:
@@ -590,6 +610,9 @@ def _token(force: bool = False) -> str:
     password = settings.wikimedia_enterprise_password or ""
     now = time.time()
     with _TOKEN_LOCK:
+        if _TOKENS.get("login_refused_until", 0) > now:
+            raise WikimediaError("Enterprise refused the login; not retried "
+                                 "until the hold passes")
         if not force and _TOKENS.get("access") and _TOKENS.get("access_until", 0) > now:
             return _TOKENS["access"]
         refresh = _TOKENS.get("refresh") if _TOKENS.get("refresh_until", 0) > now else ""
@@ -604,6 +627,12 @@ def _token(force: bool = False) -> str:
     status, parsed = _enterprise_post(
         ENTERPRISE_LOGIN, {"username": username, "password": password})
     if status != 200 or not isinstance(parsed, dict) or not parsed.get("access_token"):
+        if status in (400, 401, 403):
+            # Wrong or revoked credentials do not mend by asking again (§281).
+            with _TOKEN_LOCK:
+                _TOKENS["login_refused_until"] = now + LOGIN_REFUSED_SECONDS
+            log.warning("wikimedia: Enterprise refused the login (HTTP %s); "
+                        "the public summary is used for the next hour", status)
         raise WikimediaError(f"Enterprise login answered HTTP {status}")
     with _TOKEN_LOCK:
         _TOKENS["access"] = parsed["access_token"]

@@ -45,7 +45,7 @@ real sync into a scratch copy and reads it back: volume, and retrieval.
 
 That is all a deployment needs: the background job keeps the copy (~200
 requests a day, whatever the traffic), the story pool reads it, and it is the
-last rung of the research ladder when Exa comes back empty. No proxy and no
+last rung of the research ladder when the search comes back empty. No proxy and no
 paid plan are needed.
 
 **`GDELT_CROSS_CHECK`** (off by default) searches GDELT on every researched

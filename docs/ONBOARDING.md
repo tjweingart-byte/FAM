@@ -646,7 +646,7 @@ There is no checkout yet. Before one exists:
 
 The test is `/api/health` → `licences.commercial_ready: true`. The rest of
 the launch checklist (RunPod workers, Render plan and disk, Anthropic tier,
-Exa top-up) is in [`SCALING_TIMELINE.md`](SCALING_TIMELINE.md).
+Parallel and Perplexity top-ups) is in [`SCALING_TIMELINE.md`](SCALING_TIMELINE.md).
 
 ---
 

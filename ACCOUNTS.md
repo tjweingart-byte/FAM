@@ -239,7 +239,7 @@ fails when somebody does it - not to prevent it, but to make it a decision
 somebody made and wrote down.
 
 Each feature carries a note arguing for or against gating it. The strongest
-candidates, written while the reasoning is fresh: **live research** (Exa is
+candidates, written while the reasoning is fresh: **live research** (the web search is
 billed per call and is the one per-episode cost that is not the model) and
 **API access** (it is the feature that lets somebody else's software spend the
 GPU). The worst candidate is **Explore New** - gating discovery makes the free

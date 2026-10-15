@@ -1121,7 +1121,9 @@ async def _reference_look(name: str, context: str):
     try:
         import wikimedia
 
-        return await asyncio.to_thread(wikimedia.lookup, name, context)
+        # Its own pool, never the default one the main search runs in (§281).
+        return await asyncio.get_running_loop().run_in_executor(
+            wikimedia.EXECUTOR, wikimedia.lookup, name, context)
     except Exception as exc:  # noqa: BLE001 - see docstring
         log.warning("the reference look failed for %r: %s", name, exc)
         return None
@@ -1176,6 +1178,13 @@ async def _finish_reference_look(packet: "Packet", look, name: str) -> None:
     ladder before a rung that might find the news."""
     if look is None:
         return
+    if not packet:
+        # Decided before any wait (§281): a reference is never added to an
+        # empty packet, so waiting for one would only put the grace in front
+        # of the next rung - once per empty rung.
+        look.cancel()
+        packet.reference = "no web sources"
+        return
     if not look.done():
         try:
             await asyncio.wait_for(asyncio.shield(look),
@@ -1193,9 +1202,6 @@ async def _finish_reference_look(packet: "Packet", look, name: str) -> None:
     reference = None if look.cancelled() else look.result()
     if reference is None:
         packet.reference = "no match"
-        return
-    if not packet:
-        packet.reference = "no web sources"
         return
     _add_reference(packet, reference)
     log.info("the reference look added %r (%s) for %r", reference.title,
@@ -1291,14 +1297,17 @@ async def retrieve(query: str, backend: Optional[str] = None,
         packet = await retrieve_with_gdelt(
             query, brief=brief,
             recency_days=int(overrides.get("recency_days", search_window(brief))))
-        await _finish_reference_look(packet, reference_look, reference_name)
         # The same sufficiency check every other rung runs. Skipping it left
         # `thin_on` empty on this backend, so a packet of headlines with no
         # passages under them reached the writer as though it answered the
         # brief - which is the §88 shape `thin_on` exists to prevent, and
-        # GDELT is the rung most likely to produce it.
-        return _note_gaps(packet, list(overrides.get(
+        # GDELT is the rung most likely to produce it. Judged before the
+        # reference is added, as on the web path (§281): an encyclopedia
+        # entry must not cover a current fact the dated sources lack.
+        packet = _note_gaps(packet, list(overrides.get(
             "must_establish", getattr(brief, "must_establish", []) or [])))
+        await _finish_reference_look(packet, reference_look, reference_name)
+        return packet
 
     num_results = int(overrides.get("num_results", settings.search_num_results))
     packet_sources = int(overrides.get("packet_sources",

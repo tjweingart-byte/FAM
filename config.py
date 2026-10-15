@@ -203,7 +203,10 @@ def _env_float(name: str, default: float) -> float:
 RESEARCH_BACKENDS = ("parallel", "perplexity", "gdelt")
 
 #: Values `RESEARCH_BACKEND` used to accept, run as the default instead.
-RETIRED_RESEARCH_BACKENDS = ("claude",)
+#: "exa" since §279: the vendor is gone from the code, but a dashboard may
+#: still name it, and refusing it would make the merge a server that will
+#: not boot.
+RETIRED_RESEARCH_BACKENDS = ("claude", "exa")
 
 #: The ones among them that send a query to a paid search vendor (§258).
 WEB_RESEARCH_BACKENDS = ("parallel", "perplexity")
@@ -1897,6 +1900,10 @@ class Settings:
             object.__setattr__(self, "research_backend_replaced",
                                self.research_backend)
             object.__setattr__(self, "research_backend", DEFAULT_RESEARCH_BACKEND)
+        if self.research_second_look in RETIRED_RESEARCH_BACKENDS:
+            # The same reasoning for the second look (§279): a retired vendor
+            # means "the configured backend", which is what `same` says.
+            object.__setattr__(self, "research_second_look", "same")
         if self.research_second_look not in ("same",) + WEB_RESEARCH_BACKENDS:
             raise ValueError(
                 f"RESEARCH_SECOND_LOOK={self.research_second_look!r} is not a "
