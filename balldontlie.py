@@ -172,6 +172,10 @@ PER_MINUTE = {"free": 5, "all-star": 60, "goat": 600}
 ENDPOINT_TIERS = {
     "players": "free", "teams": "free",
     "injuries": "all-star", "season": "all-star",
+    # The scoreboard (§273): games, matches and events are Free; tables and
+    # Formula 1 sessions are not.
+    "games": "free", "standings": "all-star", "sessions": "all-star",
+    ("fifa", "games"): "goat",
     # Stated in BALLDONTLIE's own specs.
     ("epl", "injuries"): "goat", ("laliga", "injuries"): "goat",
     ("seriea", "injuries"): "goat", ("bundesliga", "injuries"): "goat",
@@ -426,6 +430,86 @@ def _clip(text: str, limit: int = 220) -> str:
 
 
 # --------------------------------------------------------------------------
+# The wire: one account, one minute, shared by every source here
+# --------------------------------------------------------------------------
+class Client:
+    """One BALLDONTLIE account's requests: paced to the plan's minute, plan
+    gated, and refusals remembered for the day. The scoreboard
+    (`balldontlie_scores`) and the player reports share one, because the
+    plan's per-minute limit is the account's, not each source's."""
+
+    def __init__(self) -> None:
+        #: (league, kind) -> UTC day it was refused
+        self.refused: dict = {}
+        self._sent: deque = deque()
+
+    @staticmethod
+    def _today(now: Optional[float] = None) -> str:
+        return time.strftime("%Y-%m-%d", time.gmtime(time.time() if now is None else now))
+
+    def pace(self, now: Optional[float] = None) -> None:
+        """Hold to the plan's per-minute limit. Raises rather than queueing:
+        a listener waiting behind a full minute is a listener told late."""
+        now = time.monotonic() if now is None else now
+        while self._sent and now - self._sent[0] >= 60.0:
+            self._sent.popleft()
+        if len(self._sent) >= PER_MINUTE.get(settings.balldontlie_tier, 5):
+            raise RateLimited(
+                f"BALLDONTLIE's {settings.balldontlie_tier} plan allows "
+                f"{PER_MINUTE.get(settings.balldontlie_tier, 5)} requests a "
+                "minute and this minute's are spent")
+        self._sent.append(now)
+
+    async def get(self, league: League, kind: str, path: str, params: dict,
+                  timeout: float = 4.0) -> dict:
+        """One request. Raises `TierRefused`, `AccountRefused`,
+        `RateLimited` or the HTTP error; never answers a refusal as data."""
+        import live_sources
+
+        if not plan_reaches(league.key, kind):
+            raise TierRefused(
+                f"{league.label} {kind} needs BALLDONTLIE's "
+                f"{tier_needed(league.key, kind)} plan; this deploy has "
+                f"{settings.balldontlie_tier}")
+        if self.refused.get((league.key, kind)) == self._today():
+            raise TierRefused(f"{league.label} {kind} was refused today")
+        self.pace()
+        url = f"{settings.balldontlie_base}{league.prefix}/{path}"
+        try:
+            return await live_sources._json(
+                url, {"Authorization": settings.balldontlie_api_key},
+                params, float(timeout))
+        except live_sources.ProviderHTTPError as exc:
+            if exc.status == 401 and kind in ("players", "teams"):
+                # A Free endpoint refused: the key itself is the problem.
+                raise AccountRefused(
+                    f"BALLDONTLIE refused the key ({exc.where})") from None
+            if exc.status in (401, 403):
+                # A key that reads the catalogue and is refused this is a
+                # plan that does not reach it: not asked again today.
+                self.refused[(league.key, kind)] = self._today()
+                log.warning("live facts: BALLDONTLIE refused %s %s on the %s "
+                            "plan; not asked again today", league.key, kind,
+                            settings.balldontlie_tier)
+                raise TierRefused(f"{league.label} {kind} refused: {exc}") from None
+            if exc.status == 429:
+                raise RateLimited(f"BALLDONTLIE said 429 for {exc.where}") from None
+            raise
+
+
+#: The account's one client, shared by every source `live_sources.install`
+#: builds. A source built alone (a test) makes its own.
+SHARED: Optional[Client] = None
+
+
+def shared_client() -> Client:
+    global SHARED
+    if SHARED is None:
+        SHARED = Client()
+    return SHARED
+
+
+# --------------------------------------------------------------------------
 # The source
 # --------------------------------------------------------------------------
 class PlayerReports(LiveSource):
@@ -439,7 +523,8 @@ class PlayerReports(LiveSource):
     #: for soccer's season, which sums the season's matches).
     timeout_seconds = 4.0
 
-    def __init__(self) -> None:
+    def __init__(self, client: Optional[Client] = None) -> None:
+        self.client = client or Client()
         #: entity key -> (league key, "player"|"team", catalogue row)
         self._rows: dict = {}
         #: entity key -> (expires at, LiveFacts)
@@ -448,9 +533,6 @@ class PlayerReports(LiveSource):
         self._teams: dict = {}
         #: (league, season) -> (fetched at, match ids)
         self._matches: dict = {}
-        #: (league, kind) -> UTC day it was refused
-        self.refused: dict = {}
-        self._sent: deque = deque()
 
     # ---- configuration ------------------------------------------------------
     def diagnose(self) -> tuple[bool, str]:
@@ -477,57 +559,17 @@ class PlayerReports(LiveSource):
         return (count > 0), f"BALLDONTLIE answered with {count} NBA teams"
 
     # ---- the wire -----------------------------------------------------------
-    def _today(self, now: Optional[float] = None) -> str:
-        return time.strftime("%Y-%m-%d", time.gmtime(time.time() if now is None else now))
+    @property
+    def refused(self) -> dict:
+        return self.client.refused
 
     def _pace(self, now: Optional[float] = None) -> None:
-        """Hold to the plan's per-minute limit. Raises rather than queueing:
-        a listener waiting behind a full minute is a listener told late."""
-        now = time.monotonic() if now is None else now
-        while self._sent and now - self._sent[0] >= 60.0:
-            self._sent.popleft()
-        if len(self._sent) >= PER_MINUTE.get(settings.balldontlie_tier, 5):
-            raise RateLimited(
-                f"BALLDONTLIE's {settings.balldontlie_tier} plan allows "
-                f"{PER_MINUTE.get(settings.balldontlie_tier, 5)} requests a "
-                "minute and this minute's are spent")
-        self._sent.append(now)
+        self.client.pace(now)
 
     async def _get(self, league: League, kind: str, path: str,
                    params: dict) -> dict:
-        """One request. Raises `TierRefused`, `AccountRefused`,
-        `RateLimited` or the HTTP error; never answers a refusal as data."""
-        import live_sources
-
-        if not plan_reaches(league.key, kind):
-            raise TierRefused(
-                f"{league.label} {kind} needs BALLDONTLIE's "
-                f"{tier_needed(league.key, kind)} plan; this deploy has "
-                f"{settings.balldontlie_tier}")
-        if self.refused.get((league.key, kind)) == self._today():
-            raise TierRefused(f"{league.label} {kind} was refused today")
-        self._pace()
-        url = f"{settings.balldontlie_base}{league.prefix}/{path}"
-        try:
-            return await live_sources._json(
-                url, {"Authorization": settings.balldontlie_api_key},
-                params, float(self.timeout_seconds))
-        except live_sources.ProviderHTTPError as exc:
-            if exc.status == 401 and kind in ("players", "teams"):
-                # A Free endpoint refused: the key itself is the problem.
-                raise AccountRefused(
-                    f"BALLDONTLIE refused the key ({exc.where})") from None
-            if exc.status in (401, 403):
-                # A key that reads the catalogue and is refused this is a
-                # plan that does not reach it: not asked again today.
-                self.refused[(league.key, kind)] = self._today()
-                log.warning("live facts: BALLDONTLIE refused %s %s on the %s "
-                            "plan; not asked again today", league.key, kind,
-                            settings.balldontlie_tier)
-                raise TierRefused(f"{league.label} {kind} refused: {exc}") from None
-            if exc.status == 429:
-                raise RateLimited(f"BALLDONTLIE said 429 for {exc.where}") from None
-            raise
+        return await self.client.get(league, kind, path, params,
+                                     float(self.timeout_seconds))
 
     def _list(self, league: League, name: str) -> str:
         return f"{name}{league.lists}"

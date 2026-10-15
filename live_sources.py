@@ -153,8 +153,12 @@ BUILDERS = {
 #: Elections is not here: Polymarket is keyless, so there is no credential
 #: whose presence says anything, and `render.yaml` names it explicitly.
 DERIVED_FROM_KEY = {
-    "sports": ("api-sports", "api_sports_key"),
-    "markets": ("finnhub", "finnhub_key"),
+    # BALLDONTLIE first (§273, at the owner's direction: it replaces
+    # API-Sports for all sports data); API-Sports only where its key is the
+    # one set.
+    "sports": (("balldontlie", "balldontlie_api_key"),
+               ("api-sports", "api_sports_key")),
+    "markets": (("finnhub", "finnhub_key"),),
 }
 
 
@@ -164,9 +168,9 @@ def _provider(domain: str, named: str) -> str:
         return ""
     if named:
         return named
-    derived = DERIVED_FROM_KEY.get(domain)
-    if derived and getattr(settings, derived[1], ""):
-        return derived[0]
+    for provider, key in DERIVED_FROM_KEY.get(domain, ()):
+        if getattr(settings, key, ""):
+            return provider
     return ""
 
 
@@ -242,7 +246,7 @@ def install() -> dict:
 
     live_facts.unregister_players(balldontlie.NAME)
     if settings.player_facts and settings.balldontlie_api_key:
-        source = balldontlie.PlayerReports()
+        source = balldontlie.PlayerReports(client=balldontlie.shared_client())
         source._fam_installed = True  # noqa: SLF001 - our own marker
         live_facts.register_players(source)
         installed.append(f"{source.name} (player reports)")
@@ -2788,6 +2792,16 @@ class _QuoteOnlyElections(LiveSource):
 
 
 BUILDERS["sports"]["api-sports"] = ApiSportsSource
+
+
+def _balldontlie_scores():
+    import balldontlie
+    import balldontlie_scores
+
+    return balldontlie_scores.ScoreBoard(client=balldontlie.shared_client())
+
+
+BUILDERS["sports"]["balldontlie"] = _balldontlie_scores
 BUILDERS["markets"]["finnhub"] = FinnhubSource
 BUILDERS["elections"]["polymarket"] = PolymarketSource
 BUILDERS["elections"]["ap"] = lambda: _QuoteOnlyElections(

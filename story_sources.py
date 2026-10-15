@@ -796,6 +796,11 @@ class ApiSportsSignals(stories.StorySource):
 
         if not settings.api_sports_key:
             return False, "API_SPORTS_KEY is not set, so sports stories are off"
+        if live_sources.configured().get("sports") != "api-sports":
+            # §273: one sports sweep, the configured provider's.
+            return False, ("sports are on "
+                           f"{live_sources.configured().get('sports') or 'no provider'}; "
+                           "API-Sports is not swept")
         for key in self.sports():
             if key not in live_sources.SPORTS:
                 return False, (f"STORIES_SPORTS lists {key!r}, which is not one of "
@@ -1019,6 +1024,8 @@ BUILDERS = {
     "finnhub": FinnhubSignals,
     "polymarket": PolymarketSignals,
     "api-sports": ApiSportsSignals,
+    # §273: the sports sweep on BALLDONTLIE, built lazily (it imports this).
+    "balldontlie": lambda: __import__("balldontlie_scores").make_signals()(),
 }
 
 #: What a deployment gets when `STORIES_SOURCES` is empty: all of them. Each

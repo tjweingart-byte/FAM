@@ -253,6 +253,14 @@ def catalogue_team(text: str) -> str:
             named = full_names_in(held[1] if held else [], text)
             if named:
                 return f"{named[0].get('name', '')} ({key})"
+        import balldontlie_scores  # §273
+
+        for key, held in list(balldontlie_scores.TEAMS.items()):
+            rows = [dict(r, name=r.get("full_name") or r.get("display_name")
+                         or r.get("name")) for r in (held[1] if held else {}).values()]
+            named = full_names_in(rows, text)
+            if named:
+                return f"{named[0].get('name', '')} ({key})"
     except Exception:  # noqa: BLE001 - a hint is never load-bearing
         pass
     return ""
