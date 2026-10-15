@@ -1476,7 +1476,8 @@ def writer_for(notes: "ScriptNotes | None" = None) -> tuple:
     if notes is not None and getattr(notes, "edition", False):
         model = settings.edition_writer_model or writer
         if model in UNAVAILABLE_MODELS:
-            model = settings.model
+            # The everyday writer, itself already `MODEL` if it is refused.
+            model = writer
         return model, settings.edition_writer_effort or settings.effort
     return writer, settings.effort
 
@@ -1503,12 +1504,18 @@ def _writer_path(notes) -> str:
     return "search"
 
 
-def _writer_outcome(message, plan, notes, model, batched: bool = False) -> str:
-    """How a writer call ended: `ok`, `refused` or `out_of_room` - the last
-    recorded on /admin's errors, because the script was cut off (§270)."""
+def _writer_outcome(message, plan, notes, model, batched: bool = False,
+                    over_budget: bool = False) -> str:
+    """How a writer call ended: `ok`, `refused`, `over_budget` or
+    `out_of_room` - the last recorded on /admin's errors, because the script
+    was cut off (§271). A script FAM stopped itself at the word budget is
+    `over_budget` whatever the model did after: nothing was lost that FAM
+    meant to speak (review, §273)."""
     stop = getattr(message, "stop_reason", None)
     if stop == "refusal":
         return "refused"
+    if over_budget:
+        return "over_budget"
     if stop == "max_tokens":
         pipeline_errors.record(
             "writer", "ran out of room" + (" (batch)" if batched else ""),
@@ -2017,6 +2024,10 @@ class ScriptGenerator:
         live_began = time.monotonic()
         domain = live_route.domain_of(plan.brief)
         live_task = asyncio.ensure_future(self.live_lookup(plan, notes))
+        # When the lookup itself finished, not when the search beside it did
+        # (review, §273): it is awaited only after the search.
+        live_done: list = []
+        live_task.add_done_callback(lambda _t: live_done.append(time.monotonic()))
         # **The evidence cut** (§270) starts the moment the packet is in and
         # runs beside the wait for the live lookup and the forecast that
         # follows, so the part of its second that wait already took is free.
@@ -2042,7 +2053,8 @@ class ScriptGenerator:
             if live_plan.live is not None:
                 pipeline_errors.step("live lookup", path,
                                      str(getattr(live_plan.live, "outcome", "") or ""),
-                                     time.monotonic() - live_began)
+                                     (live_done[0] if live_done
+                                      else time.monotonic()) - live_began)
         except BaseException:
             # A listener who leaves, or a lookup that raised, ends both: a
             # shielded wait does not cancel what it shields.
@@ -2235,7 +2247,8 @@ class ScriptGenerator:
             notes.usage.add_model_call(model, getattr(final, "usage", None))
         writer_warm.note_used(model, request["output_config"]["effort"])
         refused = _refusal_line(final)
-        outcome = _writer_outcome(final, plan, notes, model)
+        outcome = _writer_outcome(final, plan, notes, model,
+                                  over_budget=reader.over_budget)
         _writer_ended(path, outcome, first_word, time.monotonic() - started)
         if refused:
             pipeline_errors.record("writer", "refused", refused, plan.query)
@@ -2282,6 +2295,7 @@ class ScriptGenerator:
                        if getattr(block, "type", "") == "text")
         reader = _ScriptReader(plan, notes)
         out: list[str] = list(reader.opening())
+        opened = len(out)
         for start in range(0, len(text), _BATCH_SLICE):
             out.extend(reader.feed(text[start:start + _BATCH_SLICE]))
             if reader.over_budget:
@@ -2291,7 +2305,8 @@ class ScriptGenerator:
         out.extend(reader.finish(cut_off=cut_off))
         _writer_ended("ahead", _writer_outcome(
             message, plan, notes, getattr(message, "model", None)
-            or writer_for(notes)[0], batched=True), None, None)
+            or writer_for(notes)[0], batched=True,
+            over_budget=reader.over_budget), None, None)
         if notes is not None:
             # The model the batch answered with, as the API says it.
             notes.usage.add_model_call(
@@ -2303,7 +2318,7 @@ class ScriptGenerator:
             pipeline_errors.refusal(
                 "writer (batch)", getattr(message, "model", None)
                 or writer_for(notes)[0], "ahead", plan.query, message,
-                spoken=max(0, len(out)))
+                spoken=max(0, len(out) - opened))
             out.append(refused)
         return out
 

@@ -53,6 +53,10 @@ FLUSH_SECONDS = 10.0
 MAX_PENDING = 2000
 #: The newest rows the admin page lists.
 RECENT = 60
+#: Most measured steps a report reads (§273): about a week at ~700 new
+#: episodes a day, ten steps each. Past it the timings are over the newest
+#: this many, and the page says so (`steps_capped`).
+STEPS_READ = 50_000
 
 STAGES = ("brief", "live", "research", "writer", "edition", "episode")
 ERROR = "error"
@@ -155,11 +159,15 @@ class ErrorStore:
             finally:
                 db.close()
 
-    def steps_since(self, at: float) -> list:
+    def steps_since(self, at: float, limit: int = 0) -> list:
+        """The newest steps since `at`, at most `limit` (0 is no limit) -
+        bounded so a busy week never makes the admin page read it whole
+        (review, §273)."""
+        limit = int(limit or STEPS_READ)
         with closing(self._connect()) as db:
             cursor = db.execute(
                 "SELECT at, step, path, outcome, seconds FROM steps "
-                "WHERE at >= ? ORDER BY at DESC", (at,))
+                "WHERE at >= ? ORDER BY at DESC LIMIT ?", (at, limit))
             names = [c[0] for c in cursor.description]
             return [dict(zip(names, values)) for values in cursor]
 
@@ -514,6 +522,7 @@ def report(now: Optional[float] = None, days: int = 7) -> dict:
         # same store, so every worker's episodes are in it and a redeploy
         # keeps it.
         "steps": steps_report(steps, now),
+        "steps_capped": len(steps) >= STEPS_READ,
         # Every declined model call (§273): how often, for what, and where.
         "refusals": refusals_report(refused, steps, now),
     }

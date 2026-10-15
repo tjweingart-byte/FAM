@@ -1944,9 +1944,12 @@ async def health(request: Request) -> dict:
         # never `MODEL` unless the account cannot use it - and where it came
         # from, because a dashboard value would silently keep another writer.
         "writer_model": writer_for(ScriptNotes())[0],
-        "writer_model_source": ("WRITER_MODEL env var"
-                                if os.environ.get("WRITER_MODEL", "").strip()
-                                else "config.py default"),
+        "writer_model_source": (
+            ("WRITER_MODEL env var" if os.environ.get("WRITER_MODEL", "").strip()
+             else "config.py default")
+            + (" (unavailable to this account; fell back to MODEL)"
+               if (settings.writer_model or settings.model)
+               != writer_for(ScriptNotes())[0] else "")),
         "writer_effort": settings.effort,
         "writer_effort_source": ("EFFORT env var"
                                  if os.environ.get("EFFORT", "").strip()

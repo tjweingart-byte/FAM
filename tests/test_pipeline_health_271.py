@@ -179,3 +179,23 @@ def test_the_errors_page_has_its_own_timing_subsection():
     assert "drawSteps(s.pipeline_errors)" in html
     for header in ("Average", "Median", "p90", "Slowest", "Failure rate", "How it ended"):
         assert f"<th>{header}</th>" in html
+
+
+def test_a_script_fam_stopped_at_its_budget_is_not_out_of_room(monkeypatch):
+    """Review, §273: the budget valve stopping a writer is FAM's choice; a
+    `max_tokens` the model reached after it lost nothing FAM meant to say."""
+    _fresh(monkeypatch)
+    plan = sg.plan_episode("q", 1)
+    words = " ".join(["This is one more full sentence."] * 120)
+    _write(_writer(words, "max_tokens"), plan, sg.ScriptNotes())
+    assert sg.writer_report()["since_boot_by_path"]["search"] == {"over_budget": 1}
+    kinds = {(k["stage"], k["kind"]) for k in pipeline_errors.report()["kinds"]}
+    assert ("writer", "ran out of room") not in kinds
+
+
+def test_the_report_reads_a_bounded_number_of_steps(monkeypatch):
+    monkeypatch.setattr(pipeline_errors, "STEPS_READ", 3)
+    for _ in range(5):
+        pipeline_errors.step("brief", "search", "ok", 1.0)
+    report = pipeline_errors.report()
+    assert report["steps"][0]["week"] == 3 and report["steps_capped"] is True
