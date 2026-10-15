@@ -904,6 +904,17 @@ async def lookup(brief, notes=None, patience: float = 0.0) -> Optional[LiveLooku
 
         result = await _ask(source, brief, notes, deadline, patience)
         attempts.append((source.name, result.outcome, result.detail))
+        # A provider that broke, timed out or answered too late, on /admin's
+        # pipeline errors (§269). "No such game" and "nothing to say" are
+        # answers, and "not configured" is the deployment's choice.
+        if result.outcome in (PROVIDER_FAILED, TIMEOUT, STALE):
+            import pipeline_errors
+
+            pipeline_errors.record(
+                "live", f"{source.name}: {result.outcome}", result.detail,
+                str(getattr(brief, "query", "") or ""),
+                pipeline_errors.ERROR if result.outcome == PROVIDER_FAILED
+                else pipeline_errors.NOTICE)
         if result.outcome == FACTS:
             result.attempts = attempts
             return result

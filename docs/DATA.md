@@ -15,10 +15,11 @@ disagree, the code wins: fix this document.
 `DATABASE.md` is out of date in these places, and where it disagrees with this
 document, this document follows the code:
 
-- It says "fourteen" stores. There are **twenty-three** (§2). It is missing
+- It says "fourteen" stores. There are **twenty-four** (§2). It is missing
   `voice_bank.db`, `trending_bank.db`, `thumbnails.db`, `provider_usage.db`,
   `feedback.db`, `local_news.db`, `gdelt_export.db` (§211),
-  `live_routing.db` (§264) and `story_pool.db` (§267).
+  `live_routing.db` (§264), `story_pool.db` (§267) and
+  `pipeline_errors.db` (§269).
 - It says the `share` event is dropped. It is not; it is an event with a
   taste weight.
 - It says location is not stored. It is (`preferences.city/region/country`).
@@ -82,13 +83,13 @@ Render deployment; since §208 it pins every store there (21 since §211), as th
 
 ---
 
-## 2. The twenty-three SQLite databases
+## 2. The twenty-four SQLite databases
 
 - **Files:** each database is one SQLite file, opened through
   `paths.data_path(ENV_VAR, filename)`. Unset, the file lands in the project
   root. Some files are shared by more than one module (`mixes.db`,
   `local_news.db`, `accounts.db`).
-- **Location on Render:** the `Dockerfile` (lines 78-98) pins all twenty-three to
+- **Location on Render:** the `Dockerfile` (lines 78-98) pins all twenty-four to
   `/data`.
 - **Joins:** there are no cross-file foreign keys. `user_id` is joined in
   Python.
@@ -126,6 +127,7 @@ Render deployment; since §208 it pins every store there (21 since §211), as th
 | **trending_bank.db** (`TRENDING_BANK_DB`) | `trending_bank.py` | `editions`, `spend` | No, shared | 2 editions per day (+ startup slots) | n/a · **Wiped** |
 | **provider_usage.db** (`PROVIDER_USAGE_DB`) | `provider_usage.py` | `calls` | No, shared | Forever | n/a · **never wiped** (like metering) |
 | **live_routing.db** (`LIVE_ROUTING_DB`, §264) | `live_routing.py` | `episodes` | No `user_id`; holds the typed question | 14 days (`KEEP_DAYS`) | n/a · kept |
+| **pipeline_errors.db** (`PIPELINE_ERRORS_DB`, §269) | `pipeline_errors.py` | `errors` | No `user_id`; holds the typed question | 14 days (`KEEP_DAYS`) | n/a · kept |
 | **thumbnails.db** (`THUMBNAILS_DB`) | `thumbnails.py` | `thumbnails`, `spend`, `runs` | No, shared | ≤ 1 picture per tree node | n/a · kept |
 | **local_news.db** (`LOCAL_NEWS_DB`) | `local_news.py`, `places.py`, `weather.py` | `outlets`, `items`, `demand`, `excluded`, `places`, `weather` | No (no `user_id`) | Items pruned daily past 30 days (`LOCAL_NEWS_KEEP_DAYS`, never below the 14-day window; each outlet keeps its newest 200, §208); demand 30 days | n/a · kept |
 | **gdelt_export.db** (`GDELT_EXPORT_DB`, §211) | `gdelt.py` (`ExportStore`) | `files`, `articles`, `theme_counts`, `domains`, `meta` | No, shared | 24 hours of GDELT's 15-minute export files (`GDELT_EXPORT_KEEP_HOURS`), ≤ 1,500 articles per file | n/a · kept |

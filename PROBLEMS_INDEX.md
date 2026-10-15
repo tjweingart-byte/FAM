@@ -270,4 +270,6 @@ and `limit` = Lines.
 | 18920 | 32 | 264. Which live provider each episode was routed to, on /admin |
 | 18952 | 87 | 265. The provider is asked when the question names what it covers |
 | 19039 | 22 | 266. A market price is fresh for an hour |
-| 19061 | 93 | 267. What the sweeps know reaches the writer, and survives a redeploy |
+| 19061 | 92 | 267. What the sweeps know reaches the writer, and survives a redeploy |
+| 19153 | 108 | 268. The brief on Haiku, given the room and the shape it needs |
+| 19261 | 145 | 269. The writer prepared for Haiku, and one page for everything that broke |

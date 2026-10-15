@@ -480,7 +480,13 @@
   API-Sports account (`AccountRefused`) is held for `ACCOUNT_RETRY_SECONDS`,
   shown red on /admin and in `/api/health`, and never remembered as a
   refused catalogue. Narrowing any of this needs the owner.
-
+  > **Current:** a market figure is held to its material the same way
+  > (PROBLEMS.md §269, `figure_guard.py`): on a markets episode (the brief's
+  > domain, the lookup's, or §265's code route) a money amount, percentage
+  > or number of points said about now must be one the live block, the
+  > evidence, the forecast or an attachment states, rounded as a person
+  > rounds; history is left alone; removed sentences are kept on
+  > `ScriptNotes.figure_drops` and counted on `/admin`.
 <!-- rule:api-sports-per-sport -->
 - **API-Sports is a plan per sport.** *(PROBLEMS.md §180, at the owner's
   direction.)* API-Sports sells and limits each sport as its own subscription
@@ -1146,6 +1152,11 @@
   still wants the hit rate first. `python tools/prefetch_report.py` shows what
   a deployment would warm without spending anything; `--live` reads the hit
   rate off a server.
+  > **Current:** one stated exception, while it is a trial (PROBLEMS.md
+  > §269): the editions' own writer (`EDITION_WRITER_MODEL`) changes the
+  > words of an edition's episode and is deliberately *not* in the key, so a
+  > tap hears what the edition wrote. Metering records the model each
+  > episode was written on. Revisit if the editions' writer is kept.
 <!-- rule:candidate-reason -->
 - **A candidate says why it is a candidate.** *(§83, `prefetch_sources.py`.)*
   Every guess carries a reason in words - "#2 in trending, the same tile for
@@ -1190,6 +1201,18 @@
   > a deploy of code. Watch `episode_intelligence.since_boot` in
   > `/api/health`: `timeout` above ~1% of briefs means drop to
   > `EI_EFFORT=low`; `out_of_room` above ~1% means raise `EI_MAX_TOKENS`.
+  >
+  > **Current:** the brief stays on Haiku at medium and is given the room
+  > and shape it needs (PROBLEMS.md §268, at the owner's direction, after
+  > `since_boot` read 5 timeouts in 11): it is **two calls at once**
+  > (`PARTS`: one works out the request, one words the searches and names
+  > the episode; `EI_SPLIT=0` sends the one call); briefs nobody waits on -
+  > prefetch and the DailyFAM and Trending editions - get
+  > `EI_AHEAD_TIMEOUT_SECONDS` (30), and only a listener in front of the
+  > first word is held to `EI_TIMEOUT_SECONDS`; the instructions carry
+  > worked example briefs in one cacheable block (`EI_EXAMPLES`); and
+  > `/api/health` counts and times briefs by path (`since_boot_by_path`,
+  > `seconds_by_path`, `parts_since_boot`). `since_boot` stays the total.
 
 <!-- rule:writer-savings -->
 - **Savings on the writer never change what is written, and never cost an
@@ -1210,6 +1233,14 @@
   twice. The brief stays a live call (its 8 s timeout decides the research),
   and nothing a listener is waiting on is ever batched. `metering` records the
   discount beside the tokens (`Usage.batch_discount`).
+  > **Current:** the editions may also have a writer of their own
+  > (PROBLEMS.md §269): `EDITION_WRITER_MODEL` / `EDITION_WRITER_EFFORT`
+  > reach only an episode Trending or DailyFAM writes (`ScriptNotes.edition`,
+  > `script_generator.writer_for`), unset by default. Deliberately not in
+  > the cache key, so a tap hears what the edition wrote; metering records
+  > the model each episode was written on, and one the account cannot use
+  > falls back to `MODEL`. `python write.py "<q>" --compare A,B:effort`
+  > writes one prepared episode with each writer, for the listening test.
 <!-- rule:account-gates-kept -->
 - **An account gates what is kept, never what is heard.** *(PROBLEMS.md §70.)*
   > **Current:** while `WAITLIST=1` the whole app is closed to anybody whose
@@ -1596,6 +1627,12 @@
   mode did announce itself, in an 8.5px chip, and still cost a whole session -
   and it was writing its canned script into the shared cache, so the failure
   outlived the run. Announcing is not enough if the thing keeps a record.)*
+  > **Current:** every stage now says what went wrong in one place
+  > (PROBLEMS.md §269, `pipeline_errors.py`): the brief, live providers,
+  > research, the writer and its checks, the editions and the episode itself
+  > record a row - error or notice - and `/admin`'s **Pipeline errors** page
+  > counts them by hour, day and week and by kind, with a menu badge for
+  > errors in the last hour. Recording never waits and never raises.
 <!-- rule:server-says-build -->
 - **A running server says which code it is running.** *(PROBLEMS.md §77.)*
   `/api/health` reports `build` (the commit, from `RENDER_GIT_COMMIT`,

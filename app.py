@@ -51,6 +51,7 @@ from demo_script import DemoGenerator
 import credentials
 import client_versions
 import entitlements
+import pipeline_errors
 import spend_guard
 import messages as messages_mod
 import typing_indicator as typing_mod
@@ -81,7 +82,7 @@ from research import NoEvidence, ResearchUnavailable, report as research_report
 import local_news as local_news_mod
 import weather as weather_mod
 from pipeline import GenerationStats, NotCached, PodcastPipeline
-from script_generator import ScriptGenerator, ScriptNotes, plan_episode
+from script_generator import ScriptGenerator, ScriptNotes, plan_episode, writer_for
 import attachments as attachments_mod
 import autocorrect as autocorrect_mod
 import categories as categories_mod
@@ -207,9 +208,11 @@ async def _verify_small_models() -> None:
     """
     if CREDENTIALS.get("state") != "ok":
         return
+    refused: set = set()
     small = sorted({settings.ei_model, settings.stories_model,
                     settings.categories_model, settings.thumbnails_model,
-                    settings.image_check_model}
+                    settings.image_check_model,
+                    settings.edition_writer_model or settings.model}
                    - {settings.model})
     report: dict[str, str] = {}
     for model in small:
@@ -223,11 +226,24 @@ async def _verify_small_models() -> None:
             report[model] = (f"The model {model!r} is not available to this account."
                              if isinstance(exc, anthropic.NotFoundError)
                              else friendly_error(exc))
+            if isinstance(exc, (anthropic.NotFoundError,
+                                anthropic.PermissionDeniedError)):
+                refused.add(model)
             log.error("MODEL UNAVAILABLE - %s: %s. The calls on it fall back "
                       "on their own; set EI_MODEL / STORIES_MODEL / "
-                      "CATEGORIES_MODEL / THUMBNAILS_MODEL / IMAGE_CHECK_MODEL "
+                      "CATEGORIES_MODEL / THUMBNAILS_MODEL / IMAGE_CHECK_MODEL / "
+                      "EDITION_WRITER_MODEL "
                       "to a model this key can use.", model, report[model])
     CREDENTIALS["models"] = report
+    # The editions' writer is the one call that would not fall back on its
+    # own: an unavailable one writes on MODEL instead (§269).
+    import script_generator as _writer
+
+    # Only a model the account cannot have (not found, not permitted) -
+    # never a 429, an overload or a timeout at boot, which would otherwise
+    # move every edition onto MODEL until the next deploy (review, §269).
+    _writer.UNAVAILABLE_MODELS.clear()
+    _writer.UNAVAILABLE_MODELS.update(refused)
 
 
 def _say_where_a_key_could_come_from() -> None:
@@ -1915,6 +1931,17 @@ async def health(request: Request) -> dict:
         "writer_effort_source": ("EFFORT env var"
                                  if os.environ.get("EFFORT", "").strip()
                                  else "config.py default"),
+        # The editions' own writer, when one is set (§269): Trending and
+        # DailyFAM only. Empty means they write on `model` / `writer_effort`.
+        "edition_writer": {
+            # What an edition's episode is actually written on now - an
+            # unavailable model has already fallen back (review, §269).
+            "model": writer_for(ScriptNotes(edition=True))[0],
+            "effort": settings.edition_writer_effort or settings.effort,
+            "configured": settings.edition_writer_model or "",
+            "own": bool(settings.edition_writer_model
+                        or settings.edition_writer_effort),
+        },
         # The two writer savings (§179), with where each came from: either
         # left at 0 in a dashboard would quietly undo it on every push.
         "writer_savings": {
@@ -9076,6 +9103,7 @@ async def audio(
         # The server cannot speak at all. Nothing was generated and nothing was
         # billed, so the allowance goes back - this is the machine being
         # broken, not the listener spending.
+        pipeline_errors.record("episode", "no voice", str(exc), plan.query)
         _refund(reserved, user)
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     # Stamped on anything this writes to the shared cache, so Explore can be
@@ -9188,6 +9216,9 @@ async def audio(
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except Exception as exc:
         log.exception("generation failed before any audio was produced")
+        pipeline_errors.record("episode", "failed before any audio",
+                               friendly_error(exc), plan.query,
+                               pipeline_errors.severity_for(exc))
         # A failure is not a refund. Research may already have been billed, and
         # a retry loop against a broken key would otherwise be the cheapest
         # thing in the ledger while being the most expensive thing on the
@@ -9204,6 +9235,8 @@ async def audio(
     # episode. A script that came back empty must not be served as one.
     if stats.sentences == 0 or sum(audio_codec_mod.pcm_len(c) for c in primed) <= WAV_HEADER_BYTES:
         log.error("generation produced no audio for %r", plan.query)
+        pipeline_errors.record("episode", "no speech", "the episode came back "
+                               "with no audio in it", plan.query)
         # The listener heard nothing, so they are not charged for an episode.
         # This was the one failure path with no refund on it at all, which on a
         # server whose voice had gone away cost a free listener their whole day
@@ -9266,6 +9299,8 @@ async def audio(
             # Past the first byte the status code is already sent, so this can
             # only be logged. The player detects the short stream and says so.
             log.exception("audio stream failed mid-flight")
+            pipeline_errors.record("episode", "stream broke mid-flight",
+                                   "the listener heard part of it", plan.query)
         finally:
             # The two times that only exist once the episode is over, in the
             # same plain form as the per-step list written at first audio.

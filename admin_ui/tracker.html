@@ -167,6 +167,7 @@
     <div class="eyebrow">FAM · admin</div>
     <div class="group">Tracker</div>
     <a href="#overview" data-nav="overview">Overview</a>
+    <a href="#errors" data-nav="errors">Pipeline errors <span class="badge" id="navErrors"></span></a>
     <a href="#ask" data-nav="ask">Ask the database</a>
     <a href="#accounts" data-nav="accounts">Newest accounts</a>
     <div class="group">Inbox</div>
@@ -251,6 +252,14 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
       <div id="inboxList"></div>
     </section>
 
+    </div>
+
+    <div class="page" data-page="errors" data-title="Pipeline errors" hidden>
+    <section class="card section" id="errorsCard">
+      <h2>What went wrong, and where</h2>
+      <p class="sub">Every stage of making an episode records what went wrong with it here (§269): the <b>brief</b> (episode intelligence timed out, ran out of room, failed, or one half did not answer), <b>live</b> providers (API-Sports, Finnhub, Polymarket, weather broke, timed out, or answered too late - never "no such game", which is an answer), <b>research</b> (a search backend failed, or every rung came back empty and the episode had no sources), the <b>writer</b> (failed, refused, or a check removed a sentence before it was spoken), the <b>editions</b> (a Trending or DailyFAM episode could not be written) and the <b>episode</b> itself (no voice, failed before any audio, no speech, broke mid-stream, or the voice fell behind). <b>Errors</b> mean somebody heard less than they should have, or nothing; <b>notices</b> mean a guard did its job or something degraded and the episode still played. The menu's badge is errors in the last hour. Last 7 days, newest first; no listener is named.</p>
+      <div id="pipelineErrors"></div>
+    </section>
     </div>
 
     <div class="page" data-page="services" data-title="Outside service requests" hidden>
@@ -517,6 +526,43 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
       '<th>7-day average</th><th>Limit (next plan)</th></tr></thead><tbody>' + body + '</tbody></table></div>';
   }
 
+  // ------------------------------------------------------- pipeline errors
+  function drawErrors(r) {
+    var hour = (r && r.errors && r.errors.hour) || 0;
+    $("navErrors").textContent = hour || "";
+    $("navErrors").hidden = !hour;
+    $("navErrors").classList.toggle("hot", hour > 0);
+    waiting.errors = hour;
+    drawWaiting();
+    if (!r || !((r.errors || {}).week || (r.notices || {}).week)) {
+      $("pipelineErrors").innerHTML = '<p class="sub">Nothing has gone wrong in the last ' + ((r && r.days) || 7) + ' days.</p>';
+      return;
+    }
+    function chip(label, n, hot) {
+      return '<span class="chip' + (hot && n ? ' on' : '') + '" style="cursor:default;pointer-events:none">' + esc(label) + ' <b>' + Number(n || 0).toLocaleString() + '</b></span>';
+    }
+    var e = r.errors || {}, n = r.notices || {};
+    var kp = chip("errors, last hour", e.hour, true) + ' ' + chip("errors, 24h", e.day, true) + ' ' +
+      chip("errors, 7 days", e.week) + ' ' + chip("notices, 24h", n.day) + ' ' + chip("notices, 7 days", n.week);
+    var stages = Object.keys(r.by_stage || {}).map(function (s) {
+      var x = r.by_stage[s];
+      return '<tr><td>' + esc(s) + '</td><td class="n">' + x.day + '</td><td class="n">' + x.week + '</td></tr>';
+    }).join("");
+    var kinds = (r.kinds || []).map(function (k) {
+      return '<tr><td>' + esc(k.stage) + '</td><td title="' + esc(k.kind) + '">' + esc(k.kind) + '</td><td>' + esc(k.severity) +
+        '</td><td class="n">' + k.day + '</td><td class="n">' + k.week + '</td><td>' + esc(new Date(k.last_at * 1000).toLocaleString()) +
+        '</td><td title="' + esc(k.last_detail) + '">' + esc(k.last_detail) + '</td><td title="' + esc(k.last_query) + '">' + esc(k.last_query) + '</td></tr>';
+    }).join("");
+    var recent = (r.recent || []).map(function (x) {
+      return '<tr><td>' + esc(new Date(x.at * 1000).toLocaleString()) + '</td><td>' + esc(x.stage) + '</td><td title="' + esc(x.kind) + '">' + esc(x.kind) +
+        '</td><td>' + esc(x.severity) + '</td><td title="' + esc(x.detail) + '">' + esc(x.detail) + '</td><td title="' + esc(x.query) + '">' + esc(x.query) + '</td></tr>';
+    }).join("");
+    $("pipelineErrors").innerHTML = '<p>' + kp + '</p>' +
+      '<div class="tbl"><table><thead><tr><th>Stage</th><th>24h</th><th>7 days</th></tr></thead><tbody>' + stages + '</tbody></table></div>' +
+      (kinds ? '<h3 style="margin-top:12px">By kind, errors first</h3><div class="tbl"><table><thead><tr><th>Stage</th><th>What</th><th>Severity</th><th>24h</th><th>7 days</th><th>Last seen</th><th>Last said</th><th>On the question</th></tr></thead><tbody>' + kinds + '</tbody></table></div>' : '') +
+      '<h3 style="margin-top:12px">Newest</h3><div class="tbl" style="max-height:420px"><table><thead><tr><th>When</th><th>Stage</th><th>What</th><th>Severity</th><th>Detail</th><th>Question</th></tr></thead><tbody>' + recent + '</tbody></table></div>';
+  }
+
   // ---------------------------------------------------------- live routing
   function drawRouting(r) {
     if (!r || !r.episodes) { $("routing").innerHTML = '<p class="sub">No episodes written in the last ' + ((r && r.days) || 7) + ' days.</p>'; return; }
@@ -655,14 +701,14 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
   });
   window.addEventListener("hashchange", showPage);
   // What is waiting on an admin, on the menu: open reports and feedback.
-  var waiting = { reports: 0, feedback: 0, overdue: false };
+  var waiting = { reports: 0, feedback: 0, overdue: false, errors: 0 };
   function drawWaiting() {
     $("navReports").textContent = waiting.reports || "";
     $("navReports").hidden = !waiting.reports;
     $("navReports").classList.toggle("hot", waiting.overdue);
     $("navFeedback").textContent = waiting.feedback || "";
     $("navFeedback").hidden = !waiting.feedback;
-    $("menuPip").hidden = !(waiting.reports || waiting.feedback);
+    $("menuPip").hidden = !(waiting.reports || waiting.feedback || waiting.errors);
   }
   function signedIn(yes) {
     $("main").hidden = !yes; $("gate").hidden = yes;
@@ -686,6 +732,7 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
       drawRecent(s.recent_accounts);
       drawProviders(s.providers);
       drawRouting(s.routing);
+      drawErrors(s.pipeline_errors);
       $("searches").innerHTML = table(s.top_searches, { short: true });
       if (!chipsDrawn) {
         $("chips").innerHTML = (s.suggestions || []).slice(0, 10).map(function (q) {

@@ -336,6 +336,17 @@ class Settings:
     # force (`writer_effort_source`), because a dashboard value left at `high`
     # would silently undo this change on every push.
     effort: str = field(default_factory=lambda: os.environ.get("EFFORT", "low"))
+    # **The writer for the two editions alone** (§269): Trending and DailyFAM
+    # write before anybody taps, so a cheaper writer can be tried there and
+    # listened to before it goes near a listener who is waiting. Empty means
+    # `MODEL` / `EFFORT`, which is what every edition was written with before.
+    # Not in the cache key, on purpose: a tap must find the episode the
+    # edition wrote, and the trial is that it does. Metering records the
+    # model each episode was actually written on.
+    edition_writer_model: str = field(
+        default_factory=lambda: os.environ.get("EDITION_WRITER_MODEL", ""))
+    edition_writer_effort: str = field(
+        default_factory=lambda: os.environ.get("EDITION_WRITER_EFFORT", ""))
     # Prompt caching on the writer's instructions (§179). The system prompt -
     # the house rules and the style example, ~2,500 tokens - is identical on
     # every writer call, so it is marked cacheable: a call inside the TTL of
@@ -496,6 +507,26 @@ class Settings:
     # instead. A ceiling rather than a target: EI must degrade to the old
     # behaviour rather than become a new way for an episode to hang.
     ei_timeout_seconds: float = _env_float("EI_TIMEOUT_SECONDS", 8.0)
+    # **The same ceiling for a brief nobody is waiting on** (§268): myFAM's
+    # prefetch, the DailyFAM edition and the Trending edition build their
+    # briefs before any tap, and on Haiku at medium about half of them ran
+    # past the search path's 8 s and degraded to the raw query for no
+    # listener's benefit. Only the search path pays `EI_TIMEOUT_SECONDS`.
+    ei_ahead_timeout_seconds: float = _env_float("EI_AHEAD_TIMEOUT_SECONDS", 30.0)
+    # **The brief as two calls at once** (§268): one works out the request
+    # (intent, subject, window, cautions, domain, place), the other words
+    # the searches and names the episode. Each writes about half, so each
+    # finishes in about half the time, and they run side by side. `0` sends
+    # the one call every brief made before.
+    ei_split: bool = field(
+        default_factory=lambda: os.environ.get("EI_SPLIT", "1")
+        not in ("0", "false", "False", ""))
+    # **Worked example briefs in the brief's instructions** (§268), sent as
+    # one cacheable block with them. A smaller model follows an example
+    # better than a rule; `0` sends the instructions alone, for comparing.
+    ei_examples: bool = field(
+        default_factory=lambda: os.environ.get("EI_EXAMPLES", "1")
+        not in ("0", "false", "False", ""))
     # The window applied to a question about a moment when the brief names no
     # other. Two weeks is wide enough to catch a story that broke over a
     # weekend and narrow enough to keep an old well-ranked explainer out of the

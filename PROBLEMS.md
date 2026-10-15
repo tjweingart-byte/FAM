@@ -19150,3 +19150,255 @@ since the sweep, `FinnhubSource.fetch` asks the session and then the quote one
 after the other - only at the open and the close, and inside the patient
 episode budget §265 gave the lookup.
 
+## 268. The brief on Haiku, given the room and the shape it needs
+
+The owner (10.14), after three kinds of weak episode since §261 moved the
+brief to Haiku 5.5 at medium - no sources on a topic that is not niche,
+confusion over a score and a share price, and dated material on questions
+that did not ask for it - and with `/api/health` showing
+`episode_intelligence.since_boot` at **`{"timeout": 5, "ok": 6}`**: build the
+room the brief needs, keep it on Haiku at medium, and then prepare the writer
+for Haiku.
+
+**What the reading said.** 5 of 11 briefs since boot ran past the 8 s ceiling
+- §261's alarm was 1%. A timed-out brief is `fallback_brief`: the raw
+question searched with no window, no `must_establish`, no broader phrasing,
+no live domain (so no `ScoreGuard`, and no provider unless §265's code route
+catches it), and `build_brief_block` hands the writer nothing. That alone
+produces all three symptoms. Why it times out: Haiku at medium was estimated
+at ~1,500 tokens of thinking and JSON (§261), which at the ~165-235 tokens/s
+§261 quotes is 6.4-9.1 s before reading ~3,200 input tokens; §260 and §265
+added three more fields. Haiku is faster per token, but medium writes more
+tokens than Sonnet 5 at low did (400-1,200, `docs/FINANCIAL.md` §2.1), so
+the brief is slower, not faster. Whether the six briefs that finished were
+worse than Sonnet's is not known; nothing here assumes they were.
+
+**What changed.**
+
+1. **Briefs nobody waits on get their own ceiling.** Prefetch, the DailyFAM
+   edition and the Trending edition used the search path's 8 s, so they
+   degraded at the same rate at 05:00 with every listener asleep.
+   `EI_AHEAD_TIMEOUT_SECONDS` (30) applies when `ScriptNotes.ahead` (set by
+   `daily_edition` and `trending_bank`) or `ScriptNotes.prefetch` is true;
+   only a listener in front of the first word pays `EI_TIMEOUT_SECONDS`.
+   A flag on the notes rather than an argument, because every fake
+   generator in the tests takes `understand(plan, notes)`.
+2. **The brief is two calls at once** (`PARTS`, `EI_SPLIT=1`). *understand*
+   writes the request's meaning - intent, subject, why now, what must be
+   established, window, shape, cautions, live domain and entity, whether the
+   answer is a result, place; *search* writes the words - the precise,
+   broader and other searches, the objective, title, category and
+   pronunciations. Each asks for its own fields (`build_ei_prompt(fields=)`,
+   cut from one `FIELD_GUIDE` whose default text is byte-identical to the
+   one-call prompt) under its own schema cut from `BRIEF_SCHEMA` (the same
+   definitions, never copies). Each writes about half, they run together,
+   so the brief takes about as long as the slower half. When *understand*
+   fails the brief is degraded as before but keeps the *search* half's
+   wording, held to the question by the gate; when only *search* fails the
+   brief stands and the gate searches the question. One brief is counted
+   once. **A change from what the owner was shown:** the cut proposed in
+   conversation was "routing and searches" against "title, category and
+   pronunciations", which would have left ~80% of the output in one call;
+   the cut made is by what each call reasons about, which halves it.
+3. **Counted and timed by who was waiting.** `/api/health` →
+   `episode_intelligence` now also carries `since_boot_by_path`
+   (`search` / `ahead`), `seconds_by_path` (n, median, p90, slowest over the
+   last 200 briefs each, failures included - the wait a listener actually
+   had), `parts_since_boot` (each half, or `whole`), `split`, `examples` and
+   `ahead_timeout_seconds`. `since_boot` keeps its shape as the total.
+4. **What §265 left of "a code-built floor".** §265 already routes a
+   provider in code, degraded briefs included, and deliberately leaves
+   `live_domain` alone; nothing here changes that. Two gaps remained:
+   - *A team is not a town.* A brief that named a team's city as `place`
+     sent the question down the local ladder, which keeps only what names
+     the town (§194) - a national story with no sources. The gate drops
+     `place` when the question, the subject or `live_entity` names a team in
+     `live_route.ROSTER` (the resolved names too, because the roster takes
+     "Eagles" alone as a college's as well).
+   - *A floor under the search's window.* `research.search_window`: when
+     the brief has no window (degraded, or a "latest" question called
+     evergreen) and the request says "today", "tonight", "yesterday", "last
+     night", "this morning" or "right now", the search uses 3 days; "this
+     week", "latest", "lately", "currently" or "so far", 7. Not for a
+     `teaching` brief (a kind of thing, §149). **The search's only:**
+     `Brief.recency_days`, and so `cache.ttl_for`, are untouched - how long
+     an episode stays current still never comes from the question's words
+     ([ttl-from-evidence]). A floor too narrow for its subject ("the history
+     of the Today show") costs one more search, because the second look
+     drops the window; the test pins that case as a known false positive.
+5. **Worked examples, cached** (`EXAMPLE_BRIEFS`, `EI_EXAMPLES=1`): four
+   whole briefs - a score, a share price today, "latest on" a player, an
+   evergreen explainer - after `EI_SYSTEM` in one block marked cacheable
+   (`ei_system()`, `PROMPT_CACHE`), shared by both halves. They show what
+   rules said: the window following the request's words, the bare provider
+   name, a caution about the day of the game, searches a report would be
+   headlined with. A test holds every example to the schema's enums and the
+   gate (no drift, a clean title, a zero window only on an explainer).
+
+**What it costs (estimates; no key here).** Money: about the same per
+brief. Each half reads the ~2,300-token cached instructions (~$0.00002 a
+read, ~$0.0003 to write the cache once per five minutes) and ~1,050 tokens
+of its own; the one call read ~3,000 uncached. Output may rise ~10-30%,
+because each half resolves the subject for itself: ~$0.001-0.0012 a brief
+against ~$0.001. Latency: on the search path each half should finish in
+roughly half the old time; ahead, up to 30 s that nobody hears. The search
+floor can cost one extra search (Parallel or Perplexity, under a cent) when
+it is too narrow.
+
+**Not done, by the owner's choice.** `EI_EFFORT=low` on the search path
+(the owner preferred to keep medium and measure); a second, low-effort call
+started when the first is slow.
+
+**How to read it after deploying.** `/api/health` →
+`seconds_by_path.search.p90` under 8 and `since_boot_by_path.search.timeout`
+near zero mean medium fits; the `episode timing` log line's `brief
+(episode intelligence)` row gives each search's brief time. `EI_SPLIT=0`
+and `EI_EXAMPLES=0` each undo one change without a deploy of code.
+
+Tests: `tests/test_ei_split_268.py` (new), `tests/test_episode_intelligence.py`
+(a brief is two billed calls when split).
+
+## 269. The writer prepared for Haiku, and one page for everything that broke
+
+The owner (10.14), after §268: "start with 1-3" of the writer preparations
+proposed then - a code check on figures, a writer of the editions' own, and a
+side-by-side comparison in `write.py` - and "a section in the admin page that
+tracks errors happening with any part of the pipeline (i.e. API-Sports
+refused, EI timed out, etc) to help us react faster to bugs".
+
+**1. A market figure is checked before it is spoken** (`figure_guard.py`).
+§259 held a sports episode's scores to the scoreboard; the owner's second
+symptom after §261 was "confusion on ... stock prices", and a smaller writer
+is likelier to recall a price than a larger one. On a markets episode (the
+brief's `live_domain`, the lookup's domain, or §265's code route), each
+sentence passes `FigureGuard` beside `ScoreGuard` in `_ScriptReader`: a money
+amount, a percentage (basis points read as hundredths of one) or a number of
+points said about now must be a number the material states - the live block
+(as the writer reads it, `as_prompt_block`), the evidence packet with §267's
+measurements, the forecast and any attachment. Spoken numbers are parsed as
+the house style writes them ("one hundred eighty-two dollars and forty
+cents", "four point five trillion"); printed ones with their scales ("$4.5
+trillion", "4.5bn"). Rounded as a person rounds: equal at the precision
+spoken, or within 1% (3% after "about", "nearly", "more than"...). A
+sentence about history ("in 2021", "last year" - `score_guard`'s own tests)
+is left alone. Removed sentences go to `ScriptNotes.figure_drops`, `write.py`
+and the errors page; when everything was removed, one fixed line is said.
+**Known cost:** a figure the writer worked out from two it was given (a
+percentage between two prices) is removed too - a pattern cannot tell
+arithmetic from recall. The errors page counts it; if it happens, the cure
+is the arithmetic in the live block, not a looser check.
+
+**2. The editions' own writer** (`EDITION_WRITER_MODEL`,
+`EDITION_WRITER_EFFORT`, unset by default). `script_generator.writer_for`
+gives an episode Trending or DailyFAM writes (`ScriptNotes.edition`, set by
+both) that model and effort, and every other episode `MODEL` / `EFFORT` - a
+prefetched script included. The request, the batch's params and the metering
+of each call follow it, so an edition written on Haiku is billed as Haiku.
+**Not in the cache key, on purpose:** a tap must find the episode the edition
+wrote, and the trial is that listeners hear it; [prefetch-same-key] says a
+field that changes an episode belongs in the key, and this is the stated
+exception, while it is a trial. The boot check asks for the model; one the
+account cannot use is put in `UNAVAILABLE_MODELS` and the editions write on
+`MODEL` rather than failing every episode. `/api/health` →
+`edition_writer` says which model and effort the editions use.
+
+**3. `python write.py "<q>" --compare A,B:effort`.** Prepared once - the
+brief, the evidence and the live facts are shared - then written by each
+writer in turn with `stream_prepared`, so the only difference between the
+scripts printed is the writer: words, spoken length, time to first sentence,
+the writer's own cost, title, follow-up and anything a check removed. This
+is the listening test's input; nothing here judges the writing.
+
+**4. Pipeline errors on `/admin`** (`pipeline_errors.py`, new store
+`pipeline_errors.db`, `PIPELINE_ERRORS_DB`, 14 days, no listener id). One
+row per thing that went wrong, by stage and severity:
+
+| stage | recorded when | severity |
+|---|---|---|
+| brief | the brief degraded (timeout, out of room, failed, refused, unreadable), by path | error |
+| brief | the search half of a split brief did not answer | notice |
+| live | a provider broke (`provider_failed` - an API-Sports refusal is one) | error |
+| live | a provider timed out or answered too late (`timeout`, `stale`) | notice |
+| research | a rung raised | error |
+| research | a backend cannot serve (no key) | notice |
+| research | every rung came back empty - the episode had no sources | error |
+| writer | the writer call failed, or refused (streamed or batched) | error |
+| writer | the opening, score or figure check removed sentences | notice |
+| edition | a Trending or DailyFAM episode could not be written | error |
+| episode | no voice, failed before any audio, no speech, broke mid-stream | error |
+| episode | the voice fell behind and the listener heard silence | notice |
+
+"No such game" and "nothing to say" are a provider's answers and are not
+recorded; "not configured" is a deployment's choice and is on the services
+page. Recording is `live_routing`'s pattern: a list in memory, a background
+flush, never waits, never raises. The admin tracker's snapshot carries
+`pipeline_errors.report()`: errors and notices in the last hour, day and
+week, per stage, per kind (errors first, with when it last happened, what it
+last said and on which question) and the newest 60 rows. The page is
+**Pipeline errors**, first under Tracker, with a badge and the menu's dot for
+errors in the last hour.
+
+**CLAUDE.md**, at its 40,000-byte budget: [score-guard] and
+[failures-visible] name §269; the edition writer is a Current note on
+[writer-savings] only; two process lines were shortened to make room
+(the 700 KB reminder and [ci-python]), their meaning unchanged.
+
+Not measured: there is no key here. Whether the figure check removes
+anything a person would have wanted is for the errors page to show.
+
+Tests: `tests/test_writer_prep_269.py` (new), `tests/test_data_paths.py`
+(the new store), `tests/conftest.py` (its isolation and the new settings).
+
+**Reviewed before merging (§268 and §269).** The owner (10.15) asked for every
+change on the branch to be checked before it goes to `Main`. Two independent
+reviews of the diff, one per section, plus a pass of my own. Nothing was
+blocking; every should-fix is fixed:
+
+- *§268, a team is not a town:* `live_route.teams_in` matches everyday
+  phrases ("Miami heat wave", "Minnesota wild fires", "Utah jazz
+  festival"), so dropping `place` on any match erased the town from a
+  weather or local question. Now only when `live_entity` names a rostered
+  team, or a sports brief's question or subject does; never on weather.
+- *§268, the search floor:* it overrode an answered explainer's evergreen
+  reading ("what is currently the tallest building" got a week). It now
+  applies to a degraded brief only; `gate` already windows every recap,
+  update, preview and causal brief.
+- *§268, the Eagles example* named a game date from memory ("played on or
+  about Sunday 11 October") - the brief never asserts a fact. Now "the most
+  recent game as of Monday 12 October". The NVDA and Ohtani examples said
+  `outcome_dependent: false` beside a live domain, which `gate` always turns
+  true; they say true, and a test holds every example to the gate's value.
+- *§268, a named slot noted twice* on a degraded brief that kept the search
+  half's words: noted once.
+- *§269, scaled figures:* "three point five trillion" against 3.457 trillion
+  was removed - precision was counted before the scale. `figures_in` now
+  gives the precision as `round` takes it (-11 for "point five trillion").
+- *§269, "at one point":* singular "point" read as a unit; only "points" is.
+- *§269, the packet's scaffolding vouched for figures:* "SOURCE 3", a
+  publication date, a year or "as of 10:32" vouched for "up three percent".
+  They are stripped from the material first (`_SCAFFOLDING`); a four-digit
+  price is not taken for a year.
+- *§269, a boot hiccup moved the editions:* any boot-check failure - a 429,
+  an overload - put the edition writer in `UNAVAILABLE_MODELS` until the
+  next deploy. Only not-found and permission-denied do now, and
+  `/api/health` → `edition_writer.model` says what editions are actually
+  written on (`configured` beside it).
+- *§269, billing:* metering asked `writer_for` again after the call; it now
+  bills the model in the request it sent (a batch: the model the answer
+  names).
+- *§269, one failure counted twice:* a writer failure recorded `writer` and
+  then `episode` or `edition` as a second error. The writer marks the
+  exception (`pipeline_errors.mark_recorded`); whoever catches it records a
+  notice (`severity_for`).
+- *§269 nits:* "voice fell behind" rows file the episode's question
+  (`GenerationStats.query`), not its title; [prefetch-same-key] carries a
+  Current note for the edition writer's exception; the error chips no longer
+  highlight on hover as if they were buttons; §268's test file is named
+  right.
+
+*Not changed, and to measure after deploying:* whether the two halves of a
+split brief share one prompt-cache entry. Their system blocks are
+byte-identical, but their output schemas differ, and whether a schema is
+part of the cached prefix is not documented here. If `cache_read_input_tokens`
+is zero on the second half, each half writes its own cache - cents a day at
+FAM's volume, not a correctness problem.
