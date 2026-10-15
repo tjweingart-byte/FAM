@@ -47,7 +47,8 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 @pytest.mark.parametrize("said, expected", [
     ("Nvidia is at one hundred eighty-two dollars and forty cents.", [(182.4, 2, "money")]),
     ("Shares rose two point one percent.", [(2.1, 1, "percent")]),
-    ("It is worth four point five trillion dollars.", [(4.5e12, 1, "money")]),
+    # Said to the hundred billion: `round` takes -11 (review, §269).
+    ("It is worth four point five trillion dollars.", [(4.5e12, -11, "money")]),
     ("The index closed at five thousand eight hundred and twelve points.",
      [(5812.0, 0, "points")]),
     ("It hit $190 this morning.", [(190.0, 0, "money")]),
@@ -407,3 +408,106 @@ def test_the_admin_page_draws_it():
     assert 'data-page="errors"' in html and 'data-nav="errors"' in html
     assert 'id="pipelineErrors"' in html and 'id="navErrors"' in html
     assert "drawErrors(s.pipeline_errors)" in html
+
+
+def test_labels_dates_and_clock_times_vouch_for_nothing():
+    """`SOURCE 3`, a publication date and "as of 10:32" are the packet's own
+    scaffolding: left in, they vouched for "up three percent" (review, §269)."""
+    material = ("SOURCE 3\nTitle: Nvidia\nPublished: 2026-10-14 (yesterday)\n"
+                "Key evidence:\nShares rose 2.1% to $182.43 on October 14, "
+                "2026, as of 10:32.")
+    guard = _guard(material)
+    assert guard.why_not("Shares are up three percent today.")
+    assert guard.why_not("They are up fourteen percent today.")
+    assert guard.why_not("They rose two point one percent today.") == ""
+    kept = figure_guard.material_values("It traded at $1999; the index hit 2015 points.")
+    assert 1999.0 in kept and 2015.0 in kept, "a price is not a year"
+
+
+# --------------------------------------------------------------------------
+# what the pre-merge review found (§269)
+# --------------------------------------------------------------------------
+def test_a_scaled_figure_rounds_at_the_precision_it_was_said():
+    guard = _guard("Apple's market value is 3,456,789,000,000 dollars.")
+    assert guard.why_not("Apple is worth three point five trillion dollars.") == ""
+    assert guard.why_not("Apple is worth four trillion dollars.")
+
+
+def test_at_one_point_is_a_phrase_not_a_figure():
+    assert figure_guard.figures_in("At one point, Nvidia was up nine percent.") == [
+        (9.0, 0, "percent")]
+    assert figure_guard.figures_in("The index closed at five thousand points.") == [
+        (5000.0, -3, "points")]
+
+
+def test_the_bill_names_the_model_the_request_was_sent_on(monkeypatch):
+    """Read once from the request: a `writer_for` asked again after the call
+    could name another model than the one that wrote."""
+    _settings(monkeypatch, model="claude-sonnet-5",
+              edition_writer_model="claude-haiku-5-5")
+    sent: list = []
+    gen = _writer("A short and complete story.", sent)
+    notes = ScriptNotes()
+    notes.edition = True
+
+    async def collect():
+        out = []
+        async for sentence in gen.stream_prepared(
+                plan_episode("why the sky is blue", 2, search=False), notes):
+            # The fallback set changes while the writer is writing.
+            sg.UNAVAILABLE_MODELS.add("claude-haiku-5-5")
+            out.append(sentence)
+        return out
+
+    asyncio.run(collect())
+    assert sent[0]["model"] == "claude-haiku-5-5"
+    assert notes.usage.model == "claude-haiku-5-5"
+
+
+def test_one_failure_is_one_error(monkeypatch):
+    """The writer records its failure; whatever catches it further up records
+    a notice, so the badge counts the incident once."""
+    plan = plan_episode("why the sky is blue", 2, search=False)
+    with pytest.raises(RuntimeError) as caught:
+        _write(_writer("x", [], explode=True), plan, ScriptNotes())
+    assert pipeline_errors.severity_for(caught.value) == pipeline_errors.NOTICE
+    assert pipeline_errors.severity_for(RuntimeError("fresh")) == pipeline_errors.ERROR
+    import daily_edition
+    daily_edition._failure("why the sky is blue", caught.value)
+    rows = _rows()
+    assert sum(r["severity"] == "error" for r in rows) == 1
+    assert any(r["stage"] == "edition" and r["severity"] == "notice" for r in rows)
+
+
+def test_only_a_refused_model_is_marked_unavailable(monkeypatch):
+    """A 429 or an overload at boot must not move every edition onto MODEL
+    until the next deploy."""
+    import anthropic
+    import httpx2 as httpx
+
+    import app
+
+    def error(kind):
+        request = httpx.Request("GET", "https://api.anthropic.com/v1/models/x")
+        response = httpx.Response(429 if kind is anthropic.RateLimitError else 404,
+                                  request=request)
+        return kind("nope", response=response, body=None)
+
+    answers = {"claude-haiku-5-5": error(anthropic.NotFoundError),
+               "claude-opus-5": error(anthropic.RateLimitError)}
+
+    class _Models:
+        async def retrieve(self, model):
+            if model in answers:
+                raise answers[model]
+            return {"id": model}
+
+    monkeypatch.setattr(app, "build_async_client",
+                        lambda *a, **k: types.SimpleNamespace(models=_Models()))
+    monkeypatch.setitem(app.CREDENTIALS, "state", "ok")
+    monkeypatch.setattr(app, "settings", dataclasses.replace(
+        app.settings, model="claude-sonnet-5", ei_model="claude-opus-5",
+        edition_writer_model="claude-haiku-5-5"))
+    monkeypatch.setattr(sg, "UNAVAILABLE_MODELS", set())
+    asyncio.run(app._verify_small_models())
+    assert sg.UNAVAILABLE_MODELS == {"claude-haiku-5-5"}

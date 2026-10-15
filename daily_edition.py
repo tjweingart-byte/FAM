@@ -543,7 +543,8 @@ def _failure(query: str, exc: BaseException, pending=None) -> dict:
     import pipeline_errors
 
     pipeline_errors.record("edition", "DailyFAM episode failed",
-                           f"{type(exc).__name__}: {exc}", query)
+                           f"{type(exc).__name__}: {exc}", query,
+                           pipeline_errors.severity_for(exc))
     result = {"status": "failed", "key": "",
               "detail": f"{type(exc).__name__}: {exc}"[:200]}
     if pending is not None:

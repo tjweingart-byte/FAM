@@ -294,6 +294,8 @@ def test_every_example_is_a_brief_the_schema_and_gate_accept(example):
     assert ei.clean_title(brief["title"], query) == brief["title"]
     if brief["recency_days"] == 0:
         assert brief["intent"] in ("explainer", "teaching", "discovery")
+    assert built.outcome_dependent == brief["outcome_dependent"], (
+        "an example the gate would overwrite teaches the wrong value")
 
 
 # --------------------------------------------------------------------------
@@ -303,9 +305,28 @@ def test_a_team_is_never_routed_as_its_citys_news():
     brief = ei.Brief(query="did the eagles win",
                      subject="the Philadelphia Eagles' latest game",
                      search_query="Philadelphia Eagles game result",
+                     live_entity="Philadelphia Eagles",
                      place="Philadelphia, Pennsylvania, US")
     assert ei.gate(brief, "did the eagles win").place == ""
     assert any("a team, not a town" in n for n in brief.notes)
+    sports = ei.Brief(query="philadelphia eagles score",
+                      subject="the Philadelphia Eagles' latest game",
+                      search_query="Philadelphia Eagles score",
+                      live_domain="sports", place="Philadelphia, Pennsylvania, US")
+    assert ei.gate(sports, "philadelphia eagles score").place == ""
+
+
+@pytest.mark.parametrize("query, domain, place", [
+    ("miami heat wave this weekend", "weather", "Miami, Florida, US"),
+    ("minnesota wild fires near duluth", "", "Duluth, Minnesota, US"),
+    ("utah jazz festival in salt lake city", "", "Salt Lake City, Utah, US"),
+])
+def test_a_team_s_name_in_an_everyday_phrase_keeps_its_town(query, domain, place):
+    """The roster's names are everyday phrases too (review, §268): only the
+    provider name, or a sports brief, may say the question is a team's."""
+    brief = ei.Brief(query=query, subject=query, search_query=query,
+                     live_domain=domain, place=place)
+    assert ei.gate(brief, query).place == place
 
 
 def test_a_towns_own_question_keeps_its_place():
@@ -336,9 +357,13 @@ def test_the_brief_s_own_window_wins():
     assert research.search_window(brief) == 14
 
 
-def test_an_example_of_a_kind_of_thing_gets_no_floor():
-    brief = ei.Brief(query="today's stoic quote", intent="teaching")
-    assert research.search_window(brief) == 0
+def test_an_answered_brief_keeps_its_own_window():
+    """Only a degraded brief has no window by accident (review, §268): an
+    explainer that said "currently" was EI's evergreen reading, and a
+    teaching brief's "today's" asks for one good example."""
+    for query, intent in (("what is currently the tallest building", "explainer"),
+                          ("today's stoic quote", "teaching")):
+        assert research.search_window(ei.Brief(query=query, intent=intent)) == 0
     assert research.search_window(None) == 0
 
 

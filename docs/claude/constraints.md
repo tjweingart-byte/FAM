@@ -1152,6 +1152,11 @@
   still wants the hit rate first. `python tools/prefetch_report.py` shows what
   a deployment would warm without spending anything; `--live` reads the hit
   rate off a server.
+  > **Current:** one stated exception, while it is a trial (PROBLEMS.md
+  > §269): the editions' own writer (`EDITION_WRITER_MODEL`) changes the
+  > words of an edition's episode and is deliberately *not* in the key, so a
+  > tap hears what the edition wrote. Metering records the model each
+  > episode was written on. Revisit if the editions' writer is kept.
 <!-- rule:candidate-reason -->
 - **A candidate says why it is a candidate.** *(§83, `prefetch_sources.py`.)*
   Every guess carries a reason in words - "#2 in trending, the same tile for

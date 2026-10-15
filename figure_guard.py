@@ -71,11 +71,17 @@ def _is_word_number(token: str) -> bool:
 def _read_number(tokens: list, i: int) -> tuple:
     """`(value, decimals, next index)` for the number starting at `i`, or
     `(None, 0, i)`. Reads "one hundred eighty-two", "three point two",
-    "4.5 billion", "a hundred", "$182.40"."""
+    "4.5 billion", "a hundred", "$182.40".
+
+    `decimals` is the precision the figure was *said* at, as `round` takes
+    it: "four point five trillion" is said to the hundred billion, so -11,
+    and 3.46 trillion rounds to it (review, §269)."""
     total = 0.0
     current = 0.0
     seen = False
     decimals = 0
+    #: The power of ten of a scale word that ended the figure ("trillion").
+    scaled = 0
     j = i
     while j < len(tokens):
         tok = tokens[j]
@@ -102,6 +108,7 @@ def _read_number(tokens: list, i: int) -> tuple:
         elif low in _SCALES and seen:
             total += (current or 1) * _SCALES[low]
             current = 0.0
+            scaled = len(str(int(_SCALES[low]))) - 1
         elif low == "and" and seen and j + 1 < len(tokens) and \
                 _is_word_number(tokens[j + 1].lower()) and \
                 tokens[j - 1].lower() in ("hundred", *_SCALES):
@@ -123,6 +130,8 @@ def _read_number(tokens: list, i: int) -> tuple:
         j += 1
     if not seen:
         return None, 0, i
+    if scaled and not current:
+        decimals -= scaled
     return total + current, decimals, j
 
 
@@ -138,7 +147,9 @@ def _unit_after(tokens: list, j: int) -> str:
         return "percent"
     if two == "basis points":
         return "bps"
-    if nxt in ("points", "point"):
+    # Plural only: "at one point" and "one point of difference" are phrases,
+    # and a market moving by one point is said "a point" (review, §269).
+    if nxt == "points":
         return "points"
     return ""
 
@@ -183,11 +194,37 @@ _PRINTED_SCALE = {"trillion": 1e12, "tn": 1e12, "t": 1e12, "billion": 1e9,
                   "thousand": 1e3, "k": 1e3}
 
 
+#: The packet's and the live block's own scaffolding, whose numbers are
+#: labels, dates and clock times rather than anything a source reported.
+#: Left in, "SOURCE 3", "Published: 2026-10-14" and "as of 10:32" vouched
+#: for any small figure - "up three percent" included - so they go first.
+_MONTH = (r"(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|"
+          r"july?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|"
+          r"nov(?:ember)?|dec(?:ember)?)")
+_SCAFFOLDING = (
+    re.compile(r"^\s*SOURCE \d+\s*$", re.M),
+    re.compile(r"^\s*Published:.*$", re.M),
+    re.compile(r"\b\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2})?)?\b"),
+    re.compile(r"\b\d{1,2}:\d{2}(?::\d{2})?\s*(?:[ap]\.?m\.?)?", re.I),
+    re.compile(rf"\b\d{{1,2}}(?:st|nd|rd|th)?\s+{_MONTH}\b\.?(?:,?\s+\d{{4}})?", re.I),
+    re.compile(rf"\b{_MONTH}\.?\s+\d{{1,2}}(?:st|nd|rd|th)?\b(?:,?\s+\d{{4}})?", re.I),
+    re.compile(r"(?<![$\d.,])\b(?:19|20)\d\d\b(?![.,]\d|\s*(?:dollars|points|%))", re.I),
+)
+
+
+def _without_scaffolding(text: str) -> str:
+    for pattern in _SCAFFOLDING:
+        text = pattern.sub(" ", text)
+    return text
+
+
 def material_values(text: str) -> list:
-    """Every number the material states, digits and words, scales applied.
-    Generous on purpose: anything printed may vouch for what is said."""
+    """Every number the material states, digits and words, scales applied -
+    less its labels, dates, years and clock times (`_SCAFFOLDING`).
+    Generous otherwise: anything a source printed may vouch for what is said."""
     values: set = set()
-    for m in _PRINTED.finditer(text or ""):
+    text = _without_scaffolding(text or "")
+    for m in _PRINTED.finditer(text):
         try:
             number = float(m.group(1).replace(",", ""))
         except ValueError:
@@ -196,7 +233,7 @@ def material_values(text: str) -> list:
         scale = (m.group(2) or "").lower()
         if scale:
             values.add(number * _PRINTED_SCALE[scale])
-    for value, _d, _u in figures_in(text or ""):
+    for value, _d, _u in figures_in(text):
         values.add(value)
     return sorted(values)
 

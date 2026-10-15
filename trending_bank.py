@@ -897,7 +897,8 @@ def _failure(story, exc: BaseException, notes=None) -> dict:
     import pipeline_errors
 
     pipeline_errors.record("edition", "Trending episode failed",
-                           f"{type(exc).__name__}: {exc}", story.query)
+                           f"{type(exc).__name__}: {exc}", story.query,
+                           pipeline_errors.severity_for(exc))
     result = {"status": "failed", "key": "",
               "detail": f"{type(exc).__name__}: {exc}"[:200]}
     if notes is not None:

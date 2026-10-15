@@ -82,7 +82,7 @@ from research import NoEvidence, ResearchUnavailable, report as research_report
 import local_news as local_news_mod
 import weather as weather_mod
 from pipeline import GenerationStats, NotCached, PodcastPipeline
-from script_generator import ScriptGenerator, ScriptNotes, plan_episode
+from script_generator import ScriptGenerator, ScriptNotes, plan_episode, writer_for
 import attachments as attachments_mod
 import autocorrect as autocorrect_mod
 import categories as categories_mod
@@ -208,6 +208,7 @@ async def _verify_small_models() -> None:
     """
     if CREDENTIALS.get("state") != "ok":
         return
+    refused: set = set()
     small = sorted({settings.ei_model, settings.stories_model,
                     settings.categories_model, settings.thumbnails_model,
                     settings.image_check_model,
@@ -225,6 +226,9 @@ async def _verify_small_models() -> None:
             report[model] = (f"The model {model!r} is not available to this account."
                              if isinstance(exc, anthropic.NotFoundError)
                              else friendly_error(exc))
+            if isinstance(exc, (anthropic.NotFoundError,
+                                anthropic.PermissionDeniedError)):
+                refused.add(model)
             log.error("MODEL UNAVAILABLE - %s: %s. The calls on it fall back "
                       "on their own; set EI_MODEL / STORIES_MODEL / "
                       "CATEGORIES_MODEL / THUMBNAILS_MODEL / IMAGE_CHECK_MODEL / "
@@ -235,8 +239,11 @@ async def _verify_small_models() -> None:
     # own: an unavailable one writes on MODEL instead (§269).
     import script_generator as _writer
 
+    # Only a model the account cannot have (not found, not permitted) -
+    # never a 429, an overload or a timeout at boot, which would otherwise
+    # move every edition onto MODEL until the next deploy (review, §269).
     _writer.UNAVAILABLE_MODELS.clear()
-    _writer.UNAVAILABLE_MODELS.update(m for m, said in report.items() if said != "ok")
+    _writer.UNAVAILABLE_MODELS.update(refused)
 
 
 def _say_where_a_key_could_come_from() -> None:
@@ -1927,8 +1934,11 @@ async def health(request: Request) -> dict:
         # The editions' own writer, when one is set (§269): Trending and
         # DailyFAM only. Empty means they write on `model` / `writer_effort`.
         "edition_writer": {
-            "model": settings.edition_writer_model or settings.model,
+            # What an edition's episode is actually written on now - an
+            # unavailable model has already fallen back (review, §269).
+            "model": writer_for(ScriptNotes(edition=True))[0],
             "effort": settings.edition_writer_effort or settings.effort,
+            "configured": settings.edition_writer_model or "",
             "own": bool(settings.edition_writer_model
                         or settings.edition_writer_effort),
         },
@@ -9207,7 +9217,8 @@ async def audio(
     except Exception as exc:
         log.exception("generation failed before any audio was produced")
         pipeline_errors.record("episode", "failed before any audio",
-                               friendly_error(exc), plan.query)
+                               friendly_error(exc), plan.query,
+                               pipeline_errors.severity_for(exc))
         # A failure is not a refund. Research may already have been billed, and
         # a retry loop against a broken key would otherwise be the cheapest
         # thing in the ledger while being the most expensive thing on the

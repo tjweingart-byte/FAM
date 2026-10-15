@@ -19255,7 +19255,7 @@ near zero mean medium fits; the `episode timing` log line's `brief
 (episode intelligence)` row gives each search's brief time. `EI_SPLIT=0`
 and `EI_EXAMPLES=0` each undo one change without a deploy of code.
 
-Tests: `tests/test_ei_split_266.py` (new), `tests/test_episode_intelligence.py`
+Tests: `tests/test_ei_split_268.py` (new), `tests/test_episode_intelligence.py`
 (a brief is two billed calls when split).
 
 ## 269. The writer prepared for Haiku, and one page for everything that broke
@@ -19348,3 +19348,57 @@ anything a person would have wanted is for the errors page to show.
 
 Tests: `tests/test_writer_prep_269.py` (new), `tests/test_data_paths.py`
 (the new store), `tests/conftest.py` (its isolation and the new settings).
+
+**Reviewed before merging (§268 and §269).** The owner (10.15) asked for every
+change on the branch to be checked before it goes to `Main`. Two independent
+reviews of the diff, one per section, plus a pass of my own. Nothing was
+blocking; every should-fix is fixed:
+
+- *§268, a team is not a town:* `live_route.teams_in` matches everyday
+  phrases ("Miami heat wave", "Minnesota wild fires", "Utah jazz
+  festival"), so dropping `place` on any match erased the town from a
+  weather or local question. Now only when `live_entity` names a rostered
+  team, or a sports brief's question or subject does; never on weather.
+- *§268, the search floor:* it overrode an answered explainer's evergreen
+  reading ("what is currently the tallest building" got a week). It now
+  applies to a degraded brief only; `gate` already windows every recap,
+  update, preview and causal brief.
+- *§268, the Eagles example* named a game date from memory ("played on or
+  about Sunday 11 October") - the brief never asserts a fact. Now "the most
+  recent game as of Monday 12 October". The NVDA and Ohtani examples said
+  `outcome_dependent: false` beside a live domain, which `gate` always turns
+  true; they say true, and a test holds every example to the gate's value.
+- *§268, a named slot noted twice* on a degraded brief that kept the search
+  half's words: noted once.
+- *§269, scaled figures:* "three point five trillion" against 3.457 trillion
+  was removed - precision was counted before the scale. `figures_in` now
+  gives the precision as `round` takes it (-11 for "point five trillion").
+- *§269, "at one point":* singular "point" read as a unit; only "points" is.
+- *§269, the packet's scaffolding vouched for figures:* "SOURCE 3", a
+  publication date, a year or "as of 10:32" vouched for "up three percent".
+  They are stripped from the material first (`_SCAFFOLDING`); a four-digit
+  price is not taken for a year.
+- *§269, a boot hiccup moved the editions:* any boot-check failure - a 429,
+  an overload - put the edition writer in `UNAVAILABLE_MODELS` until the
+  next deploy. Only not-found and permission-denied do now, and
+  `/api/health` → `edition_writer.model` says what editions are actually
+  written on (`configured` beside it).
+- *§269, billing:* metering asked `writer_for` again after the call; it now
+  bills the model in the request it sent (a batch: the model the answer
+  names).
+- *§269, one failure counted twice:* a writer failure recorded `writer` and
+  then `episode` or `edition` as a second error. The writer marks the
+  exception (`pipeline_errors.mark_recorded`); whoever catches it records a
+  notice (`severity_for`).
+- *§269 nits:* "voice fell behind" rows file the episode's question
+  (`GenerationStats.query`), not its title; [prefetch-same-key] carries a
+  Current note for the edition writer's exception; the error chips no longer
+  highlight on hover as if they were buttons; §268's test file is named
+  right.
+
+*Not changed, and to measure after deploying:* whether the two halves of a
+split brief share one prompt-cache entry. Their system blocks are
+byte-identical, but their output schemas differ, and whether a schema is
+part of the cached prefix is not documented here. If `cache_read_input_tokens`
+is zero on the second half, each half writes its own cache - cents a day at
+FAM's volume, not a correctness problem.

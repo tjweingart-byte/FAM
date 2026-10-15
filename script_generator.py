@@ -2041,9 +2041,13 @@ class ScriptGenerator:
             yield sentence
 
         _mark(notes, "writer_request")
+        # The model is read once, from the request itself, and billed as
+        # sent (review, §269): asking `writer_for` again after the call
+        # could name a different one.
+        request = self._request_kwargs(plan, notes)
+        model = request["model"]
         try:
-            async with self.client.messages.stream(
-                    **self._request_kwargs(plan, notes)) as stream:
+            async with self.client.messages.stream(**request) as stream:
                 async for event in stream.text_stream:
                     for sentence in reader.feed(event):
                         yield sentence
@@ -2058,17 +2062,19 @@ class ScriptGenerator:
 
                 final = await stream.get_final_message()
         except Exception as exc:
-            # Said on /admin's errors (§269), then raised exactly as before.
-            pipeline_errors.record("writer", f"{writer_for(notes)[0]} failed",
+            # Said on /admin's errors (§269), then raised exactly as before -
+            # marked, so the episode or edition that catches it records a
+            # notice rather than counting the same failure as a second error.
+            pipeline_errors.record("writer", f"{model} failed",
                                    f"{type(exc).__name__}: {exc}", plan.query)
+            pipeline_errors.mark_recorded(exc)
             raise
         # The provider bills this organisation, not this listener, so if the
         # tokens are not attributed here they cannot be attributed anywhere.
         # Read from the final message rather than estimated from the text:
         # cache reads and writes are invisible in the output.
         if notes is not None:
-            notes.usage.add_model_call(writer_for(notes)[0],
-                                       getattr(final, "usage", None))
+            notes.usage.add_model_call(model, getattr(final, "usage", None))
         refused = _refusal_line(final)
         if refused:
             pipeline_errors.record("writer", "refused", refused, plan.query)
@@ -2116,9 +2122,10 @@ class ScriptGenerator:
                 break
         out.extend(reader.finish())
         if notes is not None:
-            notes.usage.add_model_call(writer_for(notes)[0],
-                                       getattr(message, "usage", None),
-                                       batched=True)
+            # The model the batch answered with, as the API says it.
+            notes.usage.add_model_call(
+                getattr(message, "model", None) or writer_for(notes)[0],
+                getattr(message, "usage", None), batched=True)
         refused = _refusal_line(message)
         if refused:
             pipeline_errors.record("writer", "refused (batch)", refused, plan.query)
@@ -2148,8 +2155,9 @@ class ScriptGenerator:
             "finish with a clean closing sentence. Spoken prose only - no "
             "headings, markdown or stage directions. Do not repeat the text above."
         )
+        model = writer_for(notes)[0]
         async with self.client.messages.stream(
-            model=writer_for(notes)[0],
+            model=model,
             max_tokens=min(settings.max_output_tokens, 2000),
             system=SYSTEM_PROMPT,
             output_config={"effort": "low"},
@@ -2174,8 +2182,7 @@ class ScriptGenerator:
             # difference between "a 10-minute episode costs X" and a guess.
             if notes is not None:
                 final = await stream.get_final_message()
-                notes.usage.add_model_call(writer_for(notes)[0],
-                                           getattr(final, "usage", None))
+                notes.usage.add_model_call(model, getattr(final, "usage", None))
 
 async def _demo() -> None:  # pragma: no cover - manual check
     plan = plan_episode("what is a heat pump", 2)

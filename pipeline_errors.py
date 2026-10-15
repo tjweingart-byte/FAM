@@ -180,6 +180,21 @@ def record(stage: str, kind: str, detail: str = "", query: str = "",
         log.warning("could not record a pipeline error: %s", exc)
 
 
+def mark_recorded(exc: BaseException) -> None:
+    """Note on an exception that its stage already recorded it, so whatever
+    catches it further up records a notice instead of a second error
+    (review, §269: one writer failure counted twice on the badge)."""
+    try:
+        exc._fam_recorded = True  # type: ignore[attr-defined]
+    except Exception:  # noqa: BLE001 - some exceptions take no attributes
+        pass
+
+
+def severity_for(exc: BaseException) -> str:
+    """`NOTICE` for an exception a stage already recorded, else `ERROR`."""
+    return NOTICE if getattr(exc, "_fam_recorded", False) else ERROR
+
+
 def _flush_in_background() -> None:
     try:
         flush()

@@ -468,7 +468,10 @@ def apply_named_slot(brief: Brief, query: str) -> Brief:
     if not any(slot.name in m for m in brief.must_establish):
         brief.must_establish.insert(0, wanted)
         brief.must_establish = brief.must_establish[:6]
-    brief.notes.append(f"named slot: {slot.name}")
+    # Once: a degraded brief that kept the search half's words passes here
+    # twice, in `fallback_brief` and in `gate` (review, §268).
+    if f"named slot: {slot.name}" not in brief.notes:
+        brief.notes.append(f"named slot: {slot.name}")
     return brief
 
 
@@ -711,16 +714,20 @@ def gate(brief: Brief, query: str) -> Brief:
     # **A team is not a town** (§268). "Did the Eagles win" named as
     # Philadelphia sends the question down the local ladder, which keeps only
     # what names the town (§194) - and a national story about a team reached
-    # the writer with no sources at all. When the question, or the subject
-    # and provider name it was resolved to, names a team in the league roster
-    # (`live_route.ROSTER`), it is about the team, never its city's news.
-    # Read from the resolved names too because the roster takes a nickname
-    # alone only where it means nothing else: "eagles" is a college's as well.
-    if brief.place:
+    # the writer with no sources at all. When the provider name the brief
+    # resolved (`live_entity`) is a team in the league roster
+    # (`live_route.ROSTER`), or a sports brief's question or subject names
+    # one, the question is about the team, never its city's news. **Never on
+    # any other brief** (review, §268): the roster's names are everyday
+    # phrases too - "Miami heat wave", "Minnesota wild fires", "Utah jazz
+    # festival" - and a weather or local question must keep its town.
+    teams: list = []
+    if brief.place and brief.live_domain != "weather":
         import live_route
 
-        teams = live_route.teams_in(
-            " ".join([query, brief.subject, brief.live_entity]))
+        teams = live_route.teams_in(brief.live_entity)
+        if not teams and brief.live_domain == "sports":
+            teams = live_route.teams_in(" ".join([query, brief.subject]))
         if teams:
             problems.append(
                 f"place {brief.place!r} dropped: the question names "
@@ -1142,16 +1149,16 @@ def _pronounce_pairs(raw) -> list:
 EXAMPLE_BRIEFS = (
     ("did the eagles win", "Monday 12 October 2026 at 08:10 EDT", 2, {
         "intent": "recap",
-        "subject": "the Philadelphia Eagles' most recent NFL game, played on "
-                   "or about Sunday 11 October 2026",
+        "subject": "the Philadelphia Eagles' most recent NFL game as of "
+                   "Monday 12 October 2026",
         "why_now": "an NFL Sunday has just been played and the Eagles were "
                    "likely on it",
         "why_now_confidence": "medium",
         "search_query": "Philadelphia Eagles game result",
         "search_fallback": "Philadelphia Eagles",
         "search_angles": ["Eagles box score", "Jalen Hurts Eagles game"],
-        "search_objective": "The Philadelphia Eagles' NFL game played on or "
-                            "about Sunday 11 October 2026: the final score, "
+        "search_objective": "The Philadelphia Eagles' most recent NFL game "
+                            "before Monday 12 October 2026: the final score, "
                             "the plays that decided it and what it does to "
                             "their record. Best answered by a wire report, the "
                             "NFL's own site or the team's; not previews, "
@@ -1194,7 +1201,7 @@ EXAMPLE_BRIEFS = (
                      "any figure recalled rather than reported is months old"],
         "live_domain": "markets",
         "live_entity": "NVIDIA",
-        "outcome_dependent": False,
+        "outcome_dependent": True,
         "place": "",
         "title": "Why Nvidia Shares Are Moving Today",
         "category": "semiconductor stocks",
@@ -1224,7 +1231,7 @@ EXAMPLE_BRIEFS = (
                      "evidence, not from memory"],
         "live_domain": "sports",
         "live_entity": "Los Angeles Dodgers",
-        "outcome_dependent": False,
+        "outcome_dependent": True,
         "place": "",
         "title": "Shohei Ohtani's October So Far",
         "category": "Major League Baseball",

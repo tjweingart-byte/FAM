@@ -744,9 +744,8 @@ def _search_exa(query: str, num_results: int, recency_days: int = 0,
 #: **A floor on the search's window from the words of the request** (§268).
 #: "What happened today" searched with no window is how a well-ranked article
 #: from last year answers a question about this morning: credibility sorts
-#: inside the window, so with no window the best-sourced old report wins. A
-#: brief that degraded has no window at all, and a brief that called a "latest"
-#: question evergreen has none either. This puts a floor under the *search*
+#: inside the window, so with no window the best-sourced old report wins, and
+#: a brief that degraded has no window at all. This puts a floor under its *search*
 #: only: `Brief.recency_days` is untouched, so how long the episode stays
 #: current is still decided by what it was built on and never by these words
 #: ([ttl-from-evidence]). A floor too narrow for the subject costs one more
@@ -762,20 +761,20 @@ SEARCH_FLOOR_WEEK_DAYS = 7
 
 
 def search_window(brief) -> int:
-    """The window the search uses: the brief's, or - when it has none - the
-    floor its request's words call for. Never read by the cache.
+    """The window the search uses: the brief's, or - on a degraded brief,
+    which has none - the floor its request's words call for. Never read by
+    the cache.
 
-    Not for a `teaching` brief: "today's stoic quote" asks for one good
-    example of a kind of thing, and a window would only make the search
-    for its substance come back thin (§149)."""
+    **Only on a degraded brief** (review, §268). A brief that answered chose
+    its window, and `gate` already gives every recap, update, preview and
+    causal brief one; a floor on an explainer that said "currently" ("what
+    is currently the tallest building") would override EI's evergreen
+    reading with a week of passing mentions."""
     if brief is None:
         return 0
     days = int(getattr(brief, "recency_days", 0) or 0)
-    if days > 0:
+    if days > 0 or not getattr(brief, "degraded", False):
         return days
-    if getattr(brief, "intent", "") == "teaching" and \
-            not getattr(brief, "degraded", False):
-        return 0
     words = str(getattr(brief, "query", "") or "")
     if _DAY_WORDS.search(words):
         return SEARCH_FLOOR_DAY_DAYS
