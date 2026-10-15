@@ -25,6 +25,7 @@ from typing import AsyncIterator, Callable, Optional
 import time
 
 from audio_utils import PaceController, pcm_duration, silence, streaming_wav_header
+import pipeline_errors
 import prefetch
 from cache import (ScriptCache, build_cache, cache_key, canonical_key, episode_id,
                    is_shareable, parse_episode_id,
@@ -693,6 +694,11 @@ class PodcastPipeline:
                 "The listener hears silence here. Synthesis so far: %.1fs.",
                 elapsed_wall, pace.elapsed + audio_seconds, elapsed_wall, stats.synth_seconds,
             )
+            # The listener heard silence: on /admin's errors (§269).
+            pipeline_errors.record(
+                "episode", "voice fell behind",
+                f"silence after {elapsed_wall:.1f}s: {pace.elapsed + audio_seconds:.1f}s "
+                f"of audio made", stats.title, pipeline_errors.NOTICE)
         # Where each sentence starts in the audio, measured before this chunk
         # is counted, so the caption panel follows the voice rather than
         # estimating it (§127).
@@ -796,6 +802,11 @@ class PodcastPipeline:
                 "The listener hears silence here. Synthesis so far: %.1fs.",
                 elapsed_wall, pace.elapsed + audio_seconds, elapsed_wall, stats.synth_seconds,
             )
+            # The listener heard silence: on /admin's errors (§269).
+            pipeline_errors.record(
+                "episode", "voice fell behind",
+                f"silence after {elapsed_wall:.1f}s: {pace.elapsed + audio_seconds:.1f}s "
+                f"of audio made", stats.title, pipeline_errors.NOTICE)
         stats.marks.add_chunk(sentence, 1, tts_done - synth_seconds, tts_done,
                               pcm_duration(len(pcm), self.engine.sample_rate))
         start = pace.elapsed

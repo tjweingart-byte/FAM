@@ -42,6 +42,7 @@ import trending_bank as TB  # noqa: E402
 import thumbnails as TH  # noqa: E402
 import provider_usage as PU  # noqa: E402
 import live_routing as LR  # noqa: E402
+import pipeline_errors as PE  # noqa: E402
 import local_news as LN  # noqa: E402
 import gdelt as GD  # noqa: E402
 import story_store as SS  # noqa: E402
@@ -73,6 +74,7 @@ STORES = [
     ("THUMBNAILS_DB", "thumbnails.db", TH.ThumbnailStore),
     ("PROVIDER_USAGE_DB", "provider_usage.db", PU.UsageStore),
     ("LIVE_ROUTING_DB", "live_routing.db", LR.RoutingStore),
+    ("PIPELINE_ERRORS_DB", "pipeline_errors.db", PE.ErrorStore),
     ("LOCAL_NEWS_DB", "local_news.db", LN.LocalNewsStore),
     ("GDELT_EXPORT_DB", "gdelt_export.db", GD.ExportStore),
     ("STORY_POOL_DB", "story_pool.db", SS.StoryStore),
@@ -130,10 +132,12 @@ ALL_VARS = sorted(DECLARED)
 #: download, and reported once it exists. `LIVE_ROUTING_DB` (§264) is
 #: created by the first written episode - the provider counts' case.
 #: `STORY_POOL_DB` (§267) is created by the first story refresh, and
-#: reported once it exists.
+#: reported once it exists. `PIPELINE_ERRORS_DB` (§269) is created by the
+#: first thing that goes wrong - the routing rows' case.
 LAZY_STORES = {"VOICE_REGISTRY_DB", "TRENDING_BANK_DB", "VOICE_BANK_DB",
                "THUMBNAILS_DB", "PROVIDER_USAGE_DB", "LOCAL_NEWS_DB",
-               "GDELT_EXPORT_DB", "LIVE_ROUTING_DB", "STORY_POOL_DB"}
+               "GDELT_EXPORT_DB", "LIVE_ROUTING_DB", "STORY_POOL_DB",
+               "PIPELINE_ERRORS_DB"}
 
 
 @pytest.fixture(autouse=True)

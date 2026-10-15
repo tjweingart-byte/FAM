@@ -56,6 +56,7 @@ import credentials
 import live_facts
 import metering
 import named_slots
+import pipeline_errors
 import pronunciation
 from anthropic_client import build_async_client
 from config import DEFAULT_MINUTES, settings
@@ -1452,6 +1453,9 @@ async def understand(query: str, minutes: int = DEFAULT_MINUTES, context: str = 
 
     if head_kind != "ok":
         _count(head_kind, path)
+        # On /admin's pipeline errors (§269): a degraded brief is the first
+        # thing to know about, and §268's timeouts sat in /api/health.
+        pipeline_errors.record("brief", f"{head_kind} ({path})", head_why, query)
         brief = fallback_brief(query, head_why)
         if words:
             for name, value in words.items():
@@ -1482,6 +1486,8 @@ async def understand(query: str, minutes: int = DEFAULT_MINUTES, context: str = 
     if len(parts) == 2 and search_kind != "ok":
         brief.notes.append(f"the search half did not answer ({search_kind}): "
                            f"{search_why}")
+        pipeline_errors.record("brief", f"search half {search_kind} ({path})",
+                               search_why, query, pipeline_errors.NOTICE)
     brief = gate(brief, query)
     _count("ok", path)
     log.info("EI %r -> intent=%s structure=%s recency=%dd outcome=%s "

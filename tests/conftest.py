@@ -58,7 +58,8 @@ FAM_ENVIRONMENT = (
     "CHATTERBOX_DEVICE", "CHATTERBOX_REFERENCE", "CHATTERBOX_SEEDED",
     "CHATTERBOX_SEED_SALT",
     "VOICE_REFERENCE_FINGERPRINT", "DURATION_TOLERANCE",
-    "EFFORT", "ENABLE_WEB_SEARCH", "ESPEAK_BIN",
+    "EFFORT", "ENABLE_WEB_SEARCH", "ESPEAK_BIN", "EDITION_WRITER_MODEL",
+    "EDITION_WRITER_EFFORT",
     "ESPEAK_VOICE", "EXA_DATED_PACKET", "EXA_HIGHLIGHTS_PER_SOURCE",
     "EXA_NUM_RESULTS", "EXA_PACKET_SOURCES", "RESEARCH_BACKEND",
     "RESEARCH_RETRY",
@@ -213,7 +214,7 @@ DATA_ENVIRONMENT = (
     "MYFAM_DB", "PREFS_DB", "QUOTAS_DB", "SAVED_DB", "SHARES_DB", "SOCIAL_DB",
     "VOICE_REGISTRY_DB", "TRENDING_BANK_DB", "FEEDBACK_DB", "PROVIDER_USAGE_DB",
     "LOCAL_NEWS_DB", "GDELT_EXPORT_DB", "CONSENT_DB", "MODERATION_DB",
-    "LIVE_ROUTING_DB", "STORY_POOL_DB",
+    "LIVE_ROUTING_DB", "STORY_POOL_DB", "PIPELINE_ERRORS_DB",
 )
 
 #: Tier limits. Read by `entitlements.py` rather than `config.py`, so the
@@ -538,6 +539,19 @@ def isolated_live_routing(tmp_path, monkeypatch):
     live_routing.reset()
     yield
     live_routing.reset()
+
+
+@pytest.fixture(autouse=True)
+def isolated_pipeline_errors(tmp_path, monkeypatch):
+    """The pipeline error rows (§269), per test: every failure a test
+    provokes records one, which must not land in the project root."""
+    import pipeline_errors
+
+    monkeypatch.setenv("PIPELINE_ERRORS_DB",
+                       str(tmp_path / "stores" / "pipeline_errors.db"))
+    pipeline_errors.reset()
+    yield
+    pipeline_errors.reset()
 
 
 @pytest.fixture(autouse=True)

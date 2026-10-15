@@ -3,6 +3,7 @@
     python write.py "recap of the tour championship" --minutes 3
     python write.py "why is the sky blue" --minutes 1 --no-search
     python write.py "the fed decision" --minutes 5 --model claude-sonnet-5
+    python write.py "nvda stock today" --compare claude-sonnet-5,claude-haiku-5-5
 
 The script is the product. Audio is just how it gets delivered, and listening to
 a five minute episode to judge one prompt change is a slow way to work. This
@@ -46,6 +47,11 @@ async def main() -> int:
     ap.add_argument("--prompt", action="store_true", help="print the prompt that was sent")
     ap.add_argument("--no-ei", action="store_true",
                     help="skip episode intelligence and search the raw query")
+    ap.add_argument("--compare", default="",
+                    help="comma-separated writers, each MODEL or MODEL:EFFORT "
+                         "(e.g. claude-sonnet-5,claude-haiku-5-5:medium): "
+                         "prepare once, then write the same brief and evidence "
+                         "with each, one after another (§269)")
     args = ap.parse_args()
 
     import dataclasses
@@ -155,6 +161,9 @@ async def main() -> int:
         print(script_generator.build_prompt(plan))
         print("\n" + "=" * 72 + "\n")
 
+    if args.compare:
+        return await compare(generator, plan, args.compare)
+
     started = time.perf_counter()
     first_at = None
     sentences = []
@@ -192,9 +201,75 @@ async def main() -> int:
     # §259: a score, period or result the scoreboard did not vouch for.
     for dropped in getattr(notes, "score_drops", ()):
         print(f'  NOTE: score guard removed before it was spoken: "{dropped}"')
+    # §269: a market figure the material did not state.
+    for dropped in getattr(notes, "figure_drops", ()):
+        print(f'  NOTE: figure guard removed before it was spoken: "{dropped}"')
     if words < plan.word_budget * 0.8:
         print("  NOTE: came in short. That is allowed now - it should mean it ran "
               "out of things worth saying, not that it gave up.")
+    return 0
+
+
+def writers(spec: str) -> list:
+    """`[(model, effort)]` from "MODEL[:EFFORT],..."; effort defaults to EFFORT."""
+    out = []
+    for item in (part.strip() for part in spec.split(",")):
+        if not item:
+            continue
+        model, _, effort = item.partition(":")
+        out.append((model.strip(), effort.strip() or settings.effort))
+    return out
+
+
+async def compare(generator, plan, spec: str) -> int:
+    """The same prepared episode written by each writer in turn (§269).
+
+    Prepared once, above - the brief, the evidence and the live facts are
+    shared, so the only difference between the scripts printed is the
+    writer. That is the question a writer swap asks, and the one a listening
+    test needs answered before anybody hears a cheaper writer. Sequential, so
+    a slow first writer never makes the second look slow.
+    """
+    import dataclasses
+
+    import metering
+    import script_generator
+
+    base = script_generator.settings
+    for model, effort in writers(spec):
+        script_generator.settings = dataclasses.replace(base, model=model,
+                                                        effort=effort)
+        notes = ScriptNotes()
+        started = time.perf_counter()
+        first_at = None
+        sentences = []
+        try:
+            async for sentence in generator.stream_prepared(plan, notes):
+                if first_at is None:
+                    first_at = time.perf_counter() - started
+                sentences.append(sentence)
+        except Exception as exc:  # noqa: BLE001 - one writer failing is a finding
+            print(f"=== {model} · effort {effort}: FAILED - {exc}\n")
+            continue
+        finally:
+            script_generator.settings = base
+        text = " ".join(sentences)
+        words = count_words(text)
+        cost = metering.price_of(notes.usage).claude
+        print(f"=== {model} · effort {effort}")
+        print(text)
+        print(f"  {words} words  ->  {words / base.target_wpm:.1f} min spoken"
+              f"  ·  first sentence after {first_at or 0:.1f}s"
+              f"  ·  finished in {time.perf_counter() - started:.1f}s"
+              f"  ·  writer ${cost:.4f}")
+        if notes.title:
+            print(f'  title: "{notes.title}"')
+        if notes.thread:
+            print(f'  predicted follow-up (never spoken): "{notes.thread}"')
+        for name in ("meta_openings", "score_drops", "figure_drops"):
+            for dropped in getattr(notes, name, ()):
+                print(f'  NOTE ({name}): "{dropped}"')
+        print()
     return 0
 
 

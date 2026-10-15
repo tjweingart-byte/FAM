@@ -467,6 +467,8 @@ async def _start(query: str, generator, cache, length: int,
         # Written at 05:00 for a listener who is asleep: the brief may take
         # its time (§268).
         notes.ahead = True
+        # And its writer is the editions' own, when one is set (§269).
+        notes.edition = True
         # What the earlier editions were, so today's is a different one.
         plan = await with_earlier_editions(plan, cache)
         # Episode intelligence first, exactly as a tap would run it: the
@@ -538,6 +540,10 @@ def _failure(query: str, exc: BaseException, pending=None) -> dict:
         # answer a tap would get too. The tap will try again with its own.
         return {"status": "no_evidence", "key": "", "detail": str(exc)[:200]}
     log.warning("daily edition: could not write %r: %s", query, exc)
+    import pipeline_errors
+
+    pipeline_errors.record("edition", "DailyFAM episode failed",
+                           f"{type(exc).__name__}: {exc}", query)
     result = {"status": "failed", "key": "",
               "detail": f"{type(exc).__name__}: {exc}"[:200]}
     if pending is not None:

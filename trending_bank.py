@@ -838,6 +838,8 @@ async def _start(story, generator, cache, minutes: int, rewrite: bool = False):
     notes = ScriptNotes()
     # Written ahead of every tap: the brief may take its time (§268).
     notes.ahead = True
+    # And its writer is the editions' own, when one is set (§269).
+    notes.edition = True
     plan = await generator.understand(plan, notes)
     if getattr(plan.brief, "outcome_dependent", False):
         return {"status": "volatile", "key": key,
@@ -892,6 +894,10 @@ def _failure(story, exc: BaseException, notes=None) -> dict:
     if isinstance(exc, research.NoEvidence):
         return {"status": "no_evidence", "key": "", "detail": str(exc)[:200]}
     log.warning("trending bank: could not write %r: %s", story.query, exc)
+    import pipeline_errors
+
+    pipeline_errors.record("edition", "Trending episode failed",
+                           f"{type(exc).__name__}: {exc}", story.query)
     result = {"status": "failed", "key": "",
               "detail": f"{type(exc).__name__}: {exc}"[:200]}
     if notes is not None:

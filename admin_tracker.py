@@ -524,12 +524,15 @@ def snapshot(now: Optional[float] = None) -> dict:
     import provider_usage
     # Which live provider each written episode was routed to (§264).
     import live_routing
+    # Everything that went wrong in the pipeline (§269).
+    import pipeline_errors
 
     return {"at": now, "metrics": metrics, "errors": errors,
             "signups": series, "recent_accounts": recent,
             "top_searches": top_searches, "stores": stores,
             "providers": provider_usage.report(now),
-            "routing": live_routing.report(now)}
+            "routing": live_routing.report(now),
+            "pipeline_errors": pipeline_errors.report(now)}
 
 
 # ----------------------------------------------------------------- recipes

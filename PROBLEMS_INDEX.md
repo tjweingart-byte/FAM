@@ -272,3 +272,4 @@ and `limit` = Lines.
 | 19039 | 22 | 266. A market price is fresh for an hour |
 | 19061 | 92 | 267. What the sweeps know reaches the writer, and survives a redeploy |
 | 19153 | 108 | 268. The brief on Haiku, given the room and the shape it needs |
+| 19261 | 91 | 269. The writer prepared for Haiku, and one page for everything that broke |

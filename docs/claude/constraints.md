@@ -480,7 +480,13 @@
   API-Sports account (`AccountRefused`) is held for `ACCOUNT_RETRY_SECONDS`,
   shown red on /admin and in `/api/health`, and never remembered as a
   refused catalogue. Narrowing any of this needs the owner.
-
+  > **Current:** a market figure is held to its material the same way
+  > (PROBLEMS.md §269, `figure_guard.py`): on a markets episode (the brief's
+  > domain, the lookup's, or §265's code route) a money amount, percentage
+  > or number of points said about now must be one the live block, the
+  > evidence, the forecast or an attachment states, rounded as a person
+  > rounds; history is left alone; removed sentences are kept on
+  > `ScriptNotes.figure_drops` and counted on `/admin`.
 <!-- rule:api-sports-per-sport -->
 - **API-Sports is a plan per sport.** *(PROBLEMS.md §180, at the owner's
   direction.)* API-Sports sells and limits each sport as its own subscription
@@ -1222,6 +1228,14 @@
   twice. The brief stays a live call (its 8 s timeout decides the research),
   and nothing a listener is waiting on is ever batched. `metering` records the
   discount beside the tokens (`Usage.batch_discount`).
+  > **Current:** the editions may also have a writer of their own
+  > (PROBLEMS.md §269): `EDITION_WRITER_MODEL` / `EDITION_WRITER_EFFORT`
+  > reach only an episode Trending or DailyFAM writes (`ScriptNotes.edition`,
+  > `script_generator.writer_for`), unset by default. Deliberately not in
+  > the cache key, so a tap hears what the edition wrote; metering records
+  > the model each episode was written on, and one the account cannot use
+  > falls back to `MODEL`. `python write.py "<q>" --compare A,B:effort`
+  > writes one prepared episode with each writer, for the listening test.
 <!-- rule:account-gates-kept -->
 - **An account gates what is kept, never what is heard.** *(PROBLEMS.md §70.)*
   > **Current:** while `WAITLIST=1` the whole app is closed to anybody whose
@@ -1608,6 +1622,12 @@
   mode did announce itself, in an 8.5px chip, and still cost a whole session -
   and it was writing its canned script into the shared cache, so the failure
   outlived the run. Announcing is not enough if the thing keeps a record.)*
+  > **Current:** every stage now says what went wrong in one place
+  > (PROBLEMS.md §269, `pipeline_errors.py`): the brief, live providers,
+  > research, the writer and its checks, the editions and the episode itself
+  > record a row - error or notice - and `/admin`'s **Pipeline errors** page
+  > counts them by hour, day and week and by kind, with a menu badge for
+  > errors in the last hour. Recording never waits and never raises.
 <!-- rule:server-says-build -->
 - **A running server says which code it is running.** *(PROBLEMS.md §77.)*
   `/api/health` reports `build` (the commit, from `RENDER_GIT_COMMIT`,

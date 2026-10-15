@@ -19257,3 +19257,94 @@ and `EI_EXAMPLES=0` each undo one change without a deploy of code.
 
 Tests: `tests/test_ei_split_266.py` (new), `tests/test_episode_intelligence.py`
 (a brief is two billed calls when split).
+
+## 269. The writer prepared for Haiku, and one page for everything that broke
+
+The owner (10.14), after §268: "start with 1-3" of the writer preparations
+proposed then - a code check on figures, a writer of the editions' own, and a
+side-by-side comparison in `write.py` - and "a section in the admin page that
+tracks errors happening with any part of the pipeline (i.e. API-Sports
+refused, EI timed out, etc) to help us react faster to bugs".
+
+**1. A market figure is checked before it is spoken** (`figure_guard.py`).
+§259 held a sports episode's scores to the scoreboard; the owner's second
+symptom after §261 was "confusion on ... stock prices", and a smaller writer
+is likelier to recall a price than a larger one. On a markets episode (the
+brief's `live_domain`, the lookup's domain, or §265's code route), each
+sentence passes `FigureGuard` beside `ScoreGuard` in `_ScriptReader`: a money
+amount, a percentage (basis points read as hundredths of one) or a number of
+points said about now must be a number the material states - the live block
+(as the writer reads it, `as_prompt_block`), the evidence packet with §267's
+measurements, the forecast and any attachment. Spoken numbers are parsed as
+the house style writes them ("one hundred eighty-two dollars and forty
+cents", "four point five trillion"); printed ones with their scales ("$4.5
+trillion", "4.5bn"). Rounded as a person rounds: equal at the precision
+spoken, or within 1% (3% after "about", "nearly", "more than"...). A
+sentence about history ("in 2021", "last year" - `score_guard`'s own tests)
+is left alone. Removed sentences go to `ScriptNotes.figure_drops`, `write.py`
+and the errors page; when everything was removed, one fixed line is said.
+**Known cost:** a figure the writer worked out from two it was given (a
+percentage between two prices) is removed too - a pattern cannot tell
+arithmetic from recall. The errors page counts it; if it happens, the cure
+is the arithmetic in the live block, not a looser check.
+
+**2. The editions' own writer** (`EDITION_WRITER_MODEL`,
+`EDITION_WRITER_EFFORT`, unset by default). `script_generator.writer_for`
+gives an episode Trending or DailyFAM writes (`ScriptNotes.edition`, set by
+both) that model and effort, and every other episode `MODEL` / `EFFORT` - a
+prefetched script included. The request, the batch's params and the metering
+of each call follow it, so an edition written on Haiku is billed as Haiku.
+**Not in the cache key, on purpose:** a tap must find the episode the edition
+wrote, and the trial is that listeners hear it; [prefetch-same-key] says a
+field that changes an episode belongs in the key, and this is the stated
+exception, while it is a trial. The boot check asks for the model; one the
+account cannot use is put in `UNAVAILABLE_MODELS` and the editions write on
+`MODEL` rather than failing every episode. `/api/health` →
+`edition_writer` says which model and effort the editions use.
+
+**3. `python write.py "<q>" --compare A,B:effort`.** Prepared once - the
+brief, the evidence and the live facts are shared - then written by each
+writer in turn with `stream_prepared`, so the only difference between the
+scripts printed is the writer: words, spoken length, time to first sentence,
+the writer's own cost, title, follow-up and anything a check removed. This
+is the listening test's input; nothing here judges the writing.
+
+**4. Pipeline errors on `/admin`** (`pipeline_errors.py`, new store
+`pipeline_errors.db`, `PIPELINE_ERRORS_DB`, 14 days, no listener id). One
+row per thing that went wrong, by stage and severity:
+
+| stage | recorded when | severity |
+|---|---|---|
+| brief | the brief degraded (timeout, out of room, failed, refused, unreadable), by path | error |
+| brief | the search half of a split brief did not answer | notice |
+| live | a provider broke (`provider_failed` - an API-Sports refusal is one) | error |
+| live | a provider timed out or answered too late (`timeout`, `stale`) | notice |
+| research | a rung raised | error |
+| research | a backend cannot serve (no key) | notice |
+| research | every rung came back empty - the episode had no sources | error |
+| writer | the writer call failed, or refused (streamed or batched) | error |
+| writer | the opening, score or figure check removed sentences | notice |
+| edition | a Trending or DailyFAM episode could not be written | error |
+| episode | no voice, failed before any audio, no speech, broke mid-stream | error |
+| episode | the voice fell behind and the listener heard silence | notice |
+
+"No such game" and "nothing to say" are a provider's answers and are not
+recorded; "not configured" is a deployment's choice and is on the services
+page. Recording is `live_routing`'s pattern: a list in memory, a background
+flush, never waits, never raises. The admin tracker's snapshot carries
+`pipeline_errors.report()`: errors and notices in the last hour, day and
+week, per stage, per kind (errors first, with when it last happened, what it
+last said and on which question) and the newest 60 rows. The page is
+**Pipeline errors**, first under Tracker, with a badge and the menu's dot for
+errors in the last hour.
+
+**CLAUDE.md**, at its 40,000-byte budget: [score-guard] and
+[failures-visible] name §269; the edition writer is a Current note on
+[writer-savings] only; two process lines were shortened to make room
+(the 700 KB reminder and [ci-python]), their meaning unchanged.
+
+Not measured: there is no key here. Whether the figure check removes
+anything a person would have wanted is for the errors page to show.
+
+Tests: `tests/test_writer_prep_269.py` (new), `tests/test_data_paths.py`
+(the new store), `tests/conftest.py` (its isolation and the new settings).

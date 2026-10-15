@@ -22,7 +22,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   topic files and `PROBLEMS.md`, never here.
 - **Finding history:** `PROBLEMS_INDEX.md` lists every PROBLEMS.md section with
   its line number (`python tools/problems_index.py` regenerates it; a test fails
-  when it is stale). Read the section by offset rather than searching 700 KB.
+  when it is stale). Read the section by offset; never search 700 KB.
 - Other files that cite "CLAUDE.md" (a rule, an open problem by number) mean
   this core plus `docs/claude/`; the numbered open problems are in
   `open-problems.md`.
@@ -315,7 +315,7 @@ Research and truth
   records, last/next games from the provider's schedule (§178); no score
   without a provider. [live-facts] Code routes named teams/listings (§265);
   it only asks. [live-route]
-- **A score is checked before it is spoken** (§259, `score_guard.py`). [score-guard]
+- **A score or market figure is checked before it is spoken** (§259, §269). [score-guard]
 - **API-Sports is a plan per sport**: a budget, a tier (`API_SPORTS_TIERS`,
   all free until bought) and an `/admin` row per sport; the provider's own
   count bounds ours; ten products wired (§180). [api-sports-per-sport]
@@ -459,7 +459,8 @@ Operations and honesty
   `demo_data._forget_what_the_log_taught` (drop cached handles like
   `topics.category_tree`, not just rows); it re-applies the seed; accounts,
   credentials and metering are never wiped. [wipe-derived]
-- **Failures must be visible**; announcing is not enough if the thing keeps a record. [failures-visible]
+- **Failures must be visible** (/admin, §269); announcing is not enough if the
+  thing keeps a record. [failures-visible]
 - `/api/health` reports `build` and `search_mode_source`; anything settable in
   two places belongs there. [server-says-build]
 - **Verify, do not inspect** - readiness checks perform the real action. [verify-not-inspect]
@@ -536,7 +537,7 @@ Every change ends the same way, without being asked [ship-loop]:
 - The share landing page has its own smoke run (`tools/smoke_landing.py`); CI
   runs all three; a check added to `dev.sh` must be added to
   `.github/workflows/ci.yml` by hand. [landing-smoke]
-- CI runs Python 3.12, this container 3.11 - reproduce in 3.12 before blaming the environment. [ci-python]
+- CI runs Python 3.12, this container 3.11 - reproduce in 3.12 first. [ci-python]
 - **Check CI on `Main` before starting work** (`mcp__github__actions_list` on `ci.yml`). [ci-green-first]
 - Fonts differ here and in CI; suspect them on layout disagreements. [fonts-env]
 - No API key here: writing quality and latency are unverified. [no-api-key]

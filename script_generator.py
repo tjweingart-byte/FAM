@@ -30,6 +30,8 @@ import pronunciation
 import live_facts
 import live_routing
 import live_route
+import figure_guard
+import pipeline_errors
 import score_guard
 import metering
 import prefetch
@@ -541,6 +543,9 @@ class ScriptNotes:
     #: (§259): a score, period or result the scoreboard did not vouch for.
     #: Each is a prompt rule failing; `write.py` prints them.
     score_drops: tuple = ()
+    #: Sentences `figure_guard.FigureGuard` removed: a market figure the
+    #: material did not state (§269).
+    figure_drops: tuple = ()
     #: What kind of thing the episode is, off `<<CATEGORY:>>` (§189), as the
     #: writer worded it. Resolved against the category tree only where it is
     #: read, so a tree that grows later can still place an older episode.
@@ -566,6 +571,10 @@ class ScriptNotes:
     #: `EI_AHEAD_TIMEOUT_SECONDS` rather than the search path's 8 s. A
     #: prefetch warm counts as ahead whether or not this is set.
     ahead: bool = False
+    #: True for an episode one of the two editions writes (Trending,
+    #: DailyFAM): its writer is `EDITION_WRITER_MODEL` when that is set
+    #: (`writer_for`, §269).
+    edition: bool = False
 
 
 async def _live_by(task, plan, domain: str, began: float):
@@ -1296,6 +1305,9 @@ class _ScriptReader:
         # A sports episode's scores, periods and results, held to the
         # scoreboard before they are spoken (§259).
         self.scores = score_guard.ScoreGuard(plan)
+        # A markets episode's prices and percentages, held to the material
+        # it was given (§269).
+        self.figures = figure_guard.FigureGuard(plan)
         self.shared = _names_are_shared(plan)
 
     @property
@@ -1341,7 +1353,8 @@ class _ScriptReader:
                 break
             sentence = clean_for_speech(speech[: match.end()])
             speech = speech[match.end() :]
-            if sentence and self.scores.allow(sentence) and self.guard.allow(sentence):
+            if sentence and self.scores.allow(sentence) \
+                    and self.figures.allow(sentence) and self.guard.allow(sentence):
                 self.emitted_words += count_words(sentence)
                 out.append(sentence)
         self.buffer = speech + marker + rest
@@ -1352,7 +1365,8 @@ class _ScriptReader:
         out: list[str] = []
         self.buffer = _take_pronunciations(self.buffer, self.notes, self.shared)
         tail = clean_for_speech(self.buffer)
-        if tail and self.scores.allow(tail) and self.guard.allow(tail):
+        if tail and self.scores.allow(tail) and self.figures.allow(tail) \
+                and self.guard.allow(tail):
             out.append(tail)
         # Nothing but disclaimer is still better than nothing at all.
         rescued = self.guard.rescue()
@@ -1360,7 +1374,7 @@ class _ScriptReader:
             out.append(rescued)
         # Nothing but unvouched scores is not (§259): one fixed line instead.
         if not out and not self.emitted_words:
-            line = self.scores.rescue()
+            line = self.scores.rescue() or self.figures.rescue()
             if line:
                 out.append(line)
         if self.notes is not None:
@@ -1370,6 +1384,17 @@ class _ScriptReader:
             self.notes.category = extract_category(self.buffer)
             self.notes.meta_openings = tuple(self.guard.dropped)
             self.notes.score_drops = tuple(self.scores.dropped)
+            self.notes.figure_drops = tuple(self.figures.dropped)
+        # A check that had to catch the writer is a prompt rule failing: one
+        # notice per check per episode on /admin's errors (§269).
+        for check, dropped in (("opening check", self.guard.dropped),
+                               ("score check", self.scores.dropped),
+                               ("figure check", self.figures.dropped)):
+            if dropped:
+                pipeline_errors.record(
+                    "writer", f"{check} removed {len(dropped)} sentence"
+                    f"{'s' if len(dropped) != 1 else ''}", dropped[0],
+                    self.plan.query, pipeline_errors.NOTICE)
         return out
 
 
@@ -1409,6 +1434,28 @@ def count_words(text: str) -> int:
     return len(text.split())
 
 
+def writer_for(notes: "ScriptNotes | None" = None) -> tuple:
+    """`(model, effort)` for this episode's writer (§269).
+
+    `MODEL` and `EFFORT` for everything, except an edition's episode
+    (`ScriptNotes.edition`, set by Trending and DailyFAM) when
+    `EDITION_WRITER_MODEL` / `EDITION_WRITER_EFFORT` are set - so a cheaper
+    writer is tried where nobody is waiting, and nowhere else.
+    """
+    if notes is not None and getattr(notes, "edition", False):
+        model = settings.edition_writer_model or settings.model
+        if model in UNAVAILABLE_MODELS:
+            model = settings.model
+        return model, settings.edition_writer_effort or settings.effort
+    return settings.model, settings.effort
+
+
+#: Models the boot check found this account cannot use
+#: (`app._verify_small_models`). An edition writer set to one of them writes
+#: on `MODEL` instead of failing every episode of the edition.
+UNAVAILABLE_MODELS: set = set()
+
+
 class ScriptGenerator:
     """Streams a length-controlled script out of Claude."""
 
@@ -1423,7 +1470,8 @@ class ScriptGenerator:
         # `ant auth login` profile.
         self.client = build_async_client(key)
 
-    def _request_kwargs(self, plan: EpisodePlan) -> dict:
+    def _request_kwargs(self, plan: EpisodePlan,
+                        notes: "ScriptNotes | None" = None) -> dict:
         # Photos travel as image blocks, not as text, and go *before* the
         # prompt: the instructions refer to them, so they have to be in view by
         # the time they are mentioned.
@@ -1436,11 +1484,12 @@ class ScriptGenerator:
             for image in plan.images
         ]
         content.append({"type": "text", "text": build_prompt(plan)})
+        model, effort = writer_for(notes)
         kwargs: dict = {
-            "model": settings.model,
+            "model": model,
             "max_tokens": settings.max_output_tokens,
             "system": writer_system(),
-            "output_config": {"effort": settings.effort},
+            "output_config": {"effort": effort},
             "messages": [{"role": "user", "content": content}],
         }
         # **No tools, ever, on the call that speaks.** The searching is done
@@ -1580,6 +1629,15 @@ class ScriptGenerator:
                 if rung.usage is not None:
                     notes.usage.add_model_call(settings.model, rung.usage)
         if not packet:
+            # The episode is written from what the writer has, with no
+            # sources on the player (§256) - the first symptom the owner
+            # reported after §261, so it is on /admin's errors (§269).
+            tried = ", ".join(dict.fromkeys(
+                b for r in spent if r is not None
+                for b in (list(getattr(r, "tried", None) or []) or [r.backend])))
+            pipeline_errors.record("research", "no sources",
+                                   f"every rung came back empty ({tried}) for "
+                                   f"{query!r}", plan.query)
             return plan
         if notes is not None and packet.provenance is not None:
             notes.provenance = packet.provenance
@@ -1704,10 +1762,14 @@ class ScriptGenerator:
                                                **size)
         except research_mod.ResearchUnavailable as exc:
             log.warning("%s cannot retrieve (%s)", backend or "the backend", exc)
-        except Exception:  # noqa: BLE001 - see the docstring
+            pipeline_errors.record("research", f"{backend or 'backend'} unavailable",
+                                   str(exc), query, pipeline_errors.NOTICE)
+        except Exception as exc:  # noqa: BLE001 - see the docstring
             log.warning("%s failed while retrieving %r; continuing down the "
                         "ladder rather than failing the episode",
                         backend or "the backend", query, exc_info=True)
+            pipeline_errors.record("research", f"{backend or 'backend'} failed",
+                                   f"{type(exc).__name__}: {exc}", query)
         failed = research_mod.Packet(backend=backend or settings.research_backend)
         failed.fell_back_from = backend or settings.research_backend
         return failed
@@ -1979,28 +2041,38 @@ class ScriptGenerator:
             yield sentence
 
         _mark(notes, "writer_request")
-        async with self.client.messages.stream(**self._request_kwargs(plan)) as stream:
-            async for event in stream.text_stream:
-                for sentence in reader.feed(event):
+        try:
+            async with self.client.messages.stream(
+                    **self._request_kwargs(plan, notes)) as stream:
+                async for event in stream.text_stream:
+                    for sentence in reader.feed(event):
+                        yield sentence
+                    # Safety valve: a model that ignores the budget must not
+                    # be allowed to produce an hour of audio for a 1-minute
+                    # request.
+                    if reader.over_budget:
+                        break
+
+                for sentence in reader.finish():
                     yield sentence
-                # Safety valve: a model that ignores the budget must not be
-                # allowed to produce an hour of audio for a 1-minute request.
-                if reader.over_budget:
-                    break
 
-            for sentence in reader.finish():
-                yield sentence
-
-            final = await stream.get_final_message()
-            # The provider bills this organisation, not this listener, so if
-            # the tokens are not attributed here they cannot be attributed
-            # anywhere. Read from the final message rather than estimated from
-            # the text: cache reads and writes are invisible in the output.
-            if notes is not None:
-                notes.usage.add_model_call(settings.model, getattr(final, "usage", None))
-            refused = _refusal_line(final)
-            if refused:
-                yield refused
+                final = await stream.get_final_message()
+        except Exception as exc:
+            # Said on /admin's errors (§269), then raised exactly as before.
+            pipeline_errors.record("writer", f"{writer_for(notes)[0]} failed",
+                                   f"{type(exc).__name__}: {exc}", plan.query)
+            raise
+        # The provider bills this organisation, not this listener, so if the
+        # tokens are not attributed here they cannot be attributed anywhere.
+        # Read from the final message rather than estimated from the text:
+        # cache reads and writes are invisible in the output.
+        if notes is not None:
+            notes.usage.add_model_call(writer_for(notes)[0],
+                                       getattr(final, "usage", None))
+        refused = _refusal_line(final)
+        if refused:
+            pipeline_errors.record("writer", "refused", refused, plan.query)
+            yield refused
 
     # -- the same writing, answered through the Batches API (§179) --------
     #
@@ -2023,7 +2095,7 @@ class ScriptGenerator:
         """
         plan = await self.prepare(plan, notes)
         _mark(notes, "writer_request")
-        return plan, self._request_kwargs(plan)
+        return plan, self._request_kwargs(plan, notes)
 
     def sentences_from_message(self, plan: EpisodePlan,
                                notes: ScriptNotes | None, message) -> list[str]:
@@ -2044,11 +2116,12 @@ class ScriptGenerator:
                 break
         out.extend(reader.finish())
         if notes is not None:
-            notes.usage.add_model_call(settings.model,
+            notes.usage.add_model_call(writer_for(notes)[0],
                                        getattr(message, "usage", None),
                                        batched=True)
         refused = _refusal_line(message)
         if refused:
+            pipeline_errors.record("writer", "refused (batch)", refused, plan.query)
             out.append(refused)
         return out
 
@@ -2076,7 +2149,7 @@ class ScriptGenerator:
             "headings, markdown or stage directions. Do not repeat the text above."
         )
         async with self.client.messages.stream(
-            model=settings.model,
+            model=writer_for(notes)[0],
             max_tokens=min(settings.max_output_tokens, 2000),
             system=SYSTEM_PROMPT,
             output_config={"effort": "low"},
@@ -2101,7 +2174,8 @@ class ScriptGenerator:
             # difference between "a 10-minute episode costs X" and a guess.
             if notes is not None:
                 final = await stream.get_final_message()
-                notes.usage.add_model_call(settings.model, getattr(final, "usage", None))
+                notes.usage.add_model_call(writer_for(notes)[0],
+                                           getattr(final, "usage", None))
 
 async def _demo() -> None:  # pragma: no cover - manual check
     plan = plan_episode("what is a heat pump", 2)
