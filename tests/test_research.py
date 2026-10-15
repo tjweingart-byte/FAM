@@ -15,7 +15,7 @@ request (`research._search_parallel`) is stubbed, so the real retrieve path -
 ranking, screening, packing, the retry and the ladder - still runs; a test
 that stubbed `retrieve` itself would prove only that the stub works. The
 request Parallel and Perplexity actually receive is pinned at `research._post`
-in `test_search_backends_258.py`. Exa is deleted (§270).
+in `test_search_backends_258.py`.
 """
 from __future__ import annotations
 
@@ -295,53 +295,8 @@ def test_the_claude_backend_is_gone_and_says_so():
         asyncio.run(research.retrieve("q", backend="claude"))
 
 
-def test_exa_is_deleted_and_a_deployment_still_setting_it_runs_on_parallel(
-        monkeypatch, caplog):
-    """§270: Parallel and Perplexity replaced Exa and its code is deleted -
-    no backend, no rung, no key, no price. A deployment whose dashboard still
-    says `RESEARCH_BACKEND=exa` runs on the default and is told so, by name,
-    exactly as a left-over `claude` is: replaced rather than refused, so the
-    deploy that removed it still boots."""
-    import logging
-
-    import app
-
-    assert "exa" not in RESEARCH_BACKENDS
-    assert "exa" not in config.WEB_RESEARCH_BACKENDS
-    assert "exa" in config.RETIRED_RESEARCH_BACKENDS
-    assert "exa" not in research.FALLBACK_RUNGS
-    assert "exa" not in research.KEYS and "exa" not in research.SEARCH_COSTS
-    for name in ("_search_exa", "_client", "diagnose", "available",
-                 "DEFAULT_SEARCH_TYPE", "COST_PER_SEARCH"):
-        assert not hasattr(research, name), f"research.{name} is still here"
-
-    left_over = dataclasses.replace(settings, research_backend="exa")
-    assert left_over.research_backend == config.DEFAULT_RESEARCH_BACKEND
-    assert left_over.research_backend_replaced == "exa"
-    monkeypatch.setattr(research, "settings", left_over)
-    report = research.report()
-    assert report["backend"] == "parallel"
-    assert report["backend_replaced"] == "exa"
-    assert "exa" not in report["backends"]
-    assert "exa" not in report["web_backends"]
-    assert "exa" not in research.ladder()
-    with caplog.at_level(logging.WARNING, logger="app"):
-        app._announce_research()
-    assert any("RESEARCH_BACKEND=exa is no longer a backend" in r.getMessage()
-               for r in caplog.records)
-    # Asked for by name, it is not a backend at retrieval either.
-    with pytest.raises(research.ResearchUnavailable, match="is not a backend"):
-        asyncio.run(research.retrieve("q", backend="exa"))
-
-
-def test_an_exa_second_look_becomes_perplexity():
-    """The retry's backend gets the same courtesy (§270)."""
-    left_over = dataclasses.replace(settings, research_second_look="exa")
-    assert left_over.research_second_look == "perplexity"
-
-
-@pytest.mark.parametrize("value", ["exa", "parallell", "web", "google", "none",
-                                   "exa-py", "claude"])
+@pytest.mark.parametrize("value", ["parallell", "web", "google", "none",
+                                   "bing", "claude"])
 def test_an_unrecognised_backend_is_refused_at_retrieval(value, monkeypatch):
     """The second gate. `Settings.__post_init__` is bypassable; this is not.
 
@@ -604,8 +559,7 @@ def test_what_retrieval_cost_is_recorded_for_a_person_to_read(web, monkeypatch):
 def test_a_fresh_deployment_researches_with_parallel():
     """The production default since §258, at the owner's direction, with a
     real cost attached: it needs a credential. Perplexity is the second look
-    and the next rung, and the keyless alternative is GDELT; Exa is deleted
-    (§270) and the model's own search is not an alternative any more
+    and the next rung, and the keyless alternative is GDELT.
     (§135)."""
     assert config.DEFAULT_RESEARCH_BACKEND == "parallel"
     assert settings.research_backend == "parallel"
@@ -649,8 +603,7 @@ def test_every_image_installs_what_the_default_backend_needs():
     place and not in the one that shipped).
 
     Parallel and Perplexity need nothing but `httpx`, which every image gets
-    from requirements.txt; and no image may still install Exa's file, which
-    is deleted (§270) - a COPY of a missing file fails the build.
+    from requirements.txt.
     """
     from pathlib import Path
 
@@ -661,11 +614,9 @@ def test_every_image_installs_what_the_default_backend_needs():
     for name in ("Dockerfile", "Dockerfile.gpu"):
         text = (root / name).read_text()
         assert "requirements.txt" in text
-        assert "requirements-exa.txt" not in text, (
-            f"{name} still installs Exa's requirements, which are deleted")
 
 
-@pytest.mark.parametrize("value", ["exaa", "parallell", "web", "", "google"])
+@pytest.mark.parametrize("value", ["bing", "parallell", "web", "", "google"])
 def test_an_unrecognised_backend_is_refused_at_import(value):
     with pytest.raises(ValueError, match="is not a research backend"):
         dataclasses.replace(settings, research_backend=value)
@@ -792,72 +743,6 @@ def test_a_listener_is_told_why_research_failed_not_to_read_a_log():
     assert "PARALLEL_API_KEY is not set" in message
     assert "RESEARCH_BACKEND" in message
     assert "server log" not in message
-
-
-def test_nothing_installs_or_imports_exa():
-    """Deleted, not switched off (§270): no requirement pulls it in, its
-    requirements file is gone, and no source file imports `exa_py`. Parsed
-    rather than grepped, so a comment recording the history does not count.
-    """
-    import ast
-    import warnings
-    from pathlib import Path
-
-    root = Path(__file__).resolve().parent.parent
-    for line in (root / "requirements.txt").read_text().splitlines():
-        assert "exa" not in line.split("#", 1)[0].lower()
-    assert not (root / "requirements-exa.txt").exists()
-    importers = []
-    for path in root.rglob("*.py"):
-        if any(part in {".git", "node_modules", ".venv", "venv"}
-               for part in path.parts) or "tests" in path.relative_to(root).parts:
-            continue
-        try:
-            with warnings.catch_warnings():
-                # Somebody else's invalid escape is not this test's subject.
-                warnings.simplefilter("ignore", SyntaxWarning)
-                tree = ast.parse(path.read_text(encoding="utf-8"))
-        except (SyntaxError, UnicodeDecodeError):
-            continue
-        for node in ast.walk(tree):
-            names = ([a.name for a in node.names] if isinstance(node, ast.Import)
-                     else [node.module or ""] if isinstance(node, ast.ImportFrom)
-                     else [])
-            if any(n.split(".")[0] == "exa_py" for n in names):
-                importers.append(str(path.relative_to(root)))
-    assert not importers, f"still importing exa_py: {importers}"
-
-
-def test_an_old_exa_setting_is_no_longer_read_and_says_which_replaced_it(
-        monkeypatch, caplog):
-    """The packet's sizes were renamed `SEARCH_*` with Exa's deletion
-    (§270). The old name is not honoured - a fresh interpreter with only
-    `EXA_NUM_RESULTS` set fetches the default - and the startup log names the
-    variable to set instead, so a dashboard value is never ignored in silence.
-    """
-    import logging
-    import subprocess
-
-    import app
-
-    assert config.RENAMED_SETTINGS["EXA_NUM_RESULTS"] == "SEARCH_NUM_RESULTS"
-    env = {k: v for k, v in os.environ.items()
-           if k not in ("SEARCH_NUM_RESULTS", "SEARCH_PACKET_SOURCES")}
-    env["EXA_NUM_RESULTS"] = "2"
-    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    out = subprocess.run(
-        [sys.executable, "-c",
-         "import config; print(config.settings.search_num_results)"],
-        cwd=root, env=env, capture_output=True, text=True, timeout=120)
-    assert out.returncode == 0, out.stderr
-    assert out.stdout.strip().splitlines()[-1] == "10"
-
-    monkeypatch.setenv("EXA_NUM_RESULTS", "2")
-    with caplog.at_level(logging.WARNING, logger="app"):
-        app._announce_research()
-    assert any("EXA_NUM_RESULTS is no longer read" in r.getMessage()
-               and "SEARCH_NUM_RESULTS" in r.getMessage()
-               for r in caplog.records)
 
 
 # --------------------------------------------------------------------------

@@ -77,8 +77,8 @@ CATEGORIES = (HOSTING, VOICE, AI, DATA, GROWTH, DEV, CONFIRM)
 # Ledger columns that hold recorded, usage-billed spend.
 LEDGER_USAGE = {
     "claude": "Claude API ($)",
-    # Every paid web search (Parallel and Perplexity), stored in
-    # metering.db's `exa_usd` column - named for the first vendor (§270).
+    # Every paid web search (Parallel and Perplexity), metering.db's
+    # `web_search_usd`.
     "search": "Web search ($)",
     "gpu": "GPU voice ($)",
     "images": "Tile pictures ($)",
@@ -215,7 +215,7 @@ def catalogue() -> list[dict]:
              "second look and backup", "Pay as you go, ~$0.001/search each",
              "Usage-billed", None, "usage",
              "Parallel: $5 free credit a month; Enterprise for zero retention",
-             "Recorded per episode in metering.db (exa_usd, every paid search)",
+             "Recorded per episode in metering.db (web_search_usd, every paid search)",
              ledger="search"),
     ]
 
@@ -381,7 +381,7 @@ def daily_ledger(now: Optional[float] = None) -> dict:
     # commercial one, a row of its own on Costs), so it is not money spent.
     for at, surface, hit, claude, search, gpu in _read(
             "METERING_DB", "metering.db",
-            "SELECT at, surface, cache_hit, claude_usd, exa_usd, gpu_usd"
+            "SELECT at, surface, cache_hit, claude_usd, web_search_usd, gpu_usd"
             " FROM usage WHERE at >= ?", (since,)):
         d = day(_utc_day(at))
         if surface in NOT_EPISODES:

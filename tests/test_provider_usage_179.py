@@ -31,13 +31,11 @@ DAY = 86400
 def test_every_provider_the_owner_named_is_reported_in_order():
     rows = provider_usage.report(NOON)
     assert [r["label"] for r in rows] == [
-        # §258: the search and its second look (Exa, which they replaced,
-        # is deleted - §270).
+        # §258: the search and its second look.
         "API-Sports", "BALLDONTLIE", "Parallel", "Perplexity", "GDELT", "Polymarket",
         "GNews", "Finnhub",
         # §194: weather and the local news collector.
         "National Weather Service", "Open-Meteo", "Local news feeds"]
-    assert "exa" not in provider_usage.PROVIDERS
     for row in rows:
         assert row["limit"] and row["next"]
 

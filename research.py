@@ -1390,8 +1390,6 @@ async def retrieve_with_gdelt(query: str, brief=None, recency_days: int = 0
 #: Polymarket), and nowhere else. A question that finds nothing on any index
 #: is still written (§256 deleted the §109 refusal).
 #:
-#: Exa sat between them while it was kept for comparison; it is deleted
-#: (§270).
 FALLBACK_RUNGS = ("perplexity", "gdelt")
 
 

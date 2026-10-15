@@ -296,19 +296,10 @@ def _announce_research() -> None:
     report = research_report()
     if report.get("backend_replaced"):
         log.warning(
-            "RESEARCH_BACKEND=%s is no longer a backend (PROBLEMS.md §135, "
-            "§270). Running as %s. Remove the variable, or set it to "
+            "RESEARCH_BACKEND=%s is no longer a backend (PROBLEMS.md §135). "
+            "Running as %s. Remove the variable, or set it to "
             "parallel, perplexity or gdelt.",
             report["backend_replaced"], report["backend"])
-    from config import RENAMED_SETTINGS
-
-    for old, new in RENAMED_SETTINGS.items():
-        # Renamed with Exa's deletion (§270). Said rather than honoured, so
-        # a dashboard still carrying the old name finds out which one to set.
-        if os.environ.get(old, "").strip():
-            log.warning("%s is no longer read (PROBLEMS.md §270): set %s "
-                        "instead. Running with %s=%s.", old, new, new,
-                        os.environ.get(new, "") or "its default")
     if not report["unavailable"]:
         log.info("research: %s (%s)", report["backend"], report["backend_detail"])
         return
@@ -9654,7 +9645,7 @@ def admin_financials_daily(request: Request) -> JSONResponse:
     now = time.time()
     return JSONResponse(
         {"as_of": time.strftime("%Y-%m-%d", time.gmtime(now)),
-         "columns": ["date", "episodes", "claude_usd", "exa_usd", "gpu_usd",
+         "columns": ["date", "episodes", "claude_usd", "web_search_usd", "gpu_usd",
                      "pictures_usd"],
          "rows": financials.daily_rows(now)},
         headers={"Cache-Control": "no-store"})

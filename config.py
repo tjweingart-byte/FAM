@@ -189,12 +189,11 @@ def _env_float(name: str, default: float) -> float:
 #: ladder's floor: weaker than the web backends - an article index with no
 #: passages - and available to a deployment with no retrieval credential.
 #:
-#: **Retired values are replaced, loudly, never refused.** `claude` (§135:
-#: the model never searches the web for FAM) and `exa` (§270: Parallel and
-#: Perplexity replaced it, and its code is deleted) were working values once,
-#: so a deployment may still set them; it runs on the default backend and is
-#: told so at startup and on /api/health, because a refusal would stop the
-#: server booting on the deploy that removed them.
+#: **A retired value is replaced, loudly, never refused.** `claude` (§135:
+#: the model never searches the web for FAM) was a working value once, so a
+#: deployment may still set it; it runs on the default backend and is told
+#: so at startup and on /api/health, because a refusal would stop the server
+#: booting on the deploy that removed it.
 #:
 #: Any other value outside this tuple is refused - at import by
 #: `Settings.__post_init__`, and again at retrieval time by `research.retrieve`
@@ -204,19 +203,7 @@ def _env_float(name: str, default: float) -> float:
 RESEARCH_BACKENDS = ("parallel", "perplexity", "gdelt")
 
 #: Values `RESEARCH_BACKEND` used to accept, run as the default instead.
-RETIRED_RESEARCH_BACKENDS = ("claude", "exa")
-
-#: Settings renamed when Exa was deleted (§270): the packet's sizes were
-#: never about one vendor. The old names are no longer read; a deployment
-#: that still sets one is told at startup which name replaced it
-#: (`app._announce_research`), rather than having its value ignored in
-#: silence.
-RENAMED_SETTINGS = {
-    "EXA_NUM_RESULTS": "SEARCH_NUM_RESULTS",
-    "EXA_PACKET_SOURCES": "SEARCH_PACKET_SOURCES",
-    "EXA_HIGHLIGHTS_PER_SOURCE": "SEARCH_HIGHLIGHTS_PER_SOURCE",
-    "EXA_DATED_PACKET": "SEARCH_DATED_PACKET",
-}
+RETIRED_RESEARCH_BACKENDS = ("claude",)
 
 #: The ones among them that send a query to a paid search vendor (§258).
 WEB_RESEARCH_BACKENDS = ("parallel", "perplexity")
@@ -427,7 +414,7 @@ class Settings:
     # the first thing it cut. Longer episodes get more
     # (`research.packet_size`). The cost is prompt tokens - roughly a
     # thousand more per researched episode - never another search; set 3
-    # and 2 to go back. Named `EXA_*` until §270 - see `RENAMED_SETTINGS`.
+    # and 2 to go back.
     search_num_results: int = _env_int("SEARCH_NUM_RESULTS", 10)
     search_packet_sources: int = _env_int("SEARCH_PACKET_SOURCES", 5)
     search_highlights_per_source: int = _env_int("SEARCH_HIGHLIGHTS_PER_SOURCE", 3)
@@ -1860,19 +1847,15 @@ class Settings:
                     f"VOICE_DISCOVERY={self.voice_discovery!r} is not a "
                     f"setting. Use one of: {', '.join(VOICE_DISCOVERY)}.")
         if self.research_backend in RETIRED_RESEARCH_BACKENDS:
-            # **Replaced, loudly, rather than refused** (§135 `claude`, §270
-            # `exa`). Each was a working value until the change that removed
-            # it, so a deployment may still carry it in its dashboard - and
-            # refusing it here would turn merging that change into a server
-            # that will not boot. It runs as the default backend instead; the
-            # startup log and `/api/health` (`research.backend_replaced`)
-            # both say so.
+            # **Replaced, loudly, rather than refused** (§135). It was a
+            # working value until the change that removed it, so a deployment
+            # may still carry it in its dashboard - and refusing it here would
+            # turn merging that change into a server that will not boot. It
+            # runs as the default backend instead; the startup log and
+            # `/api/health` (`research.backend_replaced`) both say so.
             object.__setattr__(self, "research_backend_replaced",
                                self.research_backend)
             object.__setattr__(self, "research_backend", DEFAULT_RESEARCH_BACKEND)
-        if self.research_second_look == "exa":
-            # The same courtesy for the retry's backend (§270): the default.
-            object.__setattr__(self, "research_second_look", "perplexity")
         if self.research_second_look not in ("same",) + WEB_RESEARCH_BACKENDS:
             raise ValueError(
                 f"RESEARCH_SECOND_LOOK={self.research_second_look!r} is not a "

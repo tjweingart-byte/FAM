@@ -277,8 +277,7 @@ services:
       # its provider.
       # Search (§258): Parallel first, Perplexity as the second look and the
       # backup, GDELT below both; with RESEARCH_BACKEND unset the default is
-      # parallel. Exa is deleted (§270): an EXA_API_KEY left in the dashboard
-      # is read by nothing.
+      # parallel.
       - key: PARALLEL_API_KEY
         sync: false
       - key: PERPLEXITY_API_KEY

@@ -478,7 +478,7 @@ def test_an_api_sports_refusal_is_never_an_empty_card(monkeypatch):
         "a bad key is not a spent allowance"
 
 
-def test_nothing_but_exa_and_gdelt_is_a_rung():
+def test_nothing_but_the_search_backends_and_gdelt_is_a_rung():
     import research
 
     assert research._rung_available("claude") is False

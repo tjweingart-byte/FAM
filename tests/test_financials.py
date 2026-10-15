@@ -91,7 +91,6 @@ def test_usage_billed_rows_read_the_ledger_never_a_typed_price(stores):
 
 def test_every_service_the_code_calls_has_a_row(stores):
     vendors = {r["vendor"] for r in financials.catalogue()}
-    assert "Exa" not in vendors, "Exa is deleted (§270); its row went with it"
     for needed in ("Render", "RunPod", "Anthropic", "Parallel and Perplexity",
                    "GNews", "API-Sports",
                    "Finnhub", "Open-Meteo", "Polymarket", "GDELT",
