@@ -406,7 +406,7 @@ def load_fixtures() -> dict:
         # of each.
         "/api/sources": {
             "known": True,
-            "retrievers": ["exa", "gdelt"],
+            "retrievers": ["parallel", "gdelt"],
             "items": [
                 {"label": "reuters.com", "kind": "article", "tier": "wire service",
                  "at": "2026-09-16", "title": "Shipping rates climb as tankers reroute",

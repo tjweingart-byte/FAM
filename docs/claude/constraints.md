@@ -376,6 +376,7 @@
   earns its place by explaining the present rather than preceding it.
 <!-- rule:opening-last -->
 > **Current (PROBLEMS.md §194):** `_ScriptReader.opening` speaks the local gap sentence before the writer's first word, outside `OpeningGuard`, which still drops every disclaimer the writer produces.
+> **Current (PROBLEMS.md §270, at the owner's direction):** a plan of the piece is made before the evidence - the brief's third part (`EI_OUTLINE=1`), from the question alone: beats, what the first two sentences must pin down as slots ("the team", "the day it was played"), and what the ending lands on. It states no fact (a line with a digit is dropped in code) and the writer is told it is a shape to check against the evidence, not evidence. **The opening is still decided last**, by the writer, from the evidence; the plan only names what it has to situate.
 - **The opening is written last in the order that matters: nothing is spoken
   until the writer holds the whole picture.** *(PROBLEMS.md §94, and §108,
   which fixed its cause rather than its symptom.)* A researched episode's
@@ -1213,6 +1214,13 @@
   > worked example briefs in one cacheable block (`EI_EXAMPLES`); and
   > `/api/health` counts and times briefs by path (`since_boot_by_path`,
   > `seconds_by_path`, `parts_since_boot`). `since_boot` stays the total.
+  > **Current:** the brief is **three** calls at once since §270 (the third
+  > plans the piece, `EI_OUTLINE`). And **the writer is on Haiku 5.5 at
+  > `low`** (PROBLEMS.md §272, at the owner's direction): its own setting,
+  > `WRITER_MODEL`, never `MODEL` - `MODEL` is in every episode's cache key
+  > and stays the composer's, placer's and thumbnails'. Not in the key, so a
+  > tap still finds what an earlier writer kept; an account without Haiku
+  > writes on `MODEL` (boot check). The photo check stays on `SMALL_MODEL`.
 
 <!-- rule:writer-savings -->
 - **Savings on the writer never change what is written, and never cost an
@@ -1241,6 +1249,16 @@
   > the model each episode was written on, and one the account cannot use
   > falls back to `MODEL`. `python write.py "<q>" --compare A,B:effort`
   > writes one prepared episode with each writer, for the listening test.
+  > **Current (PROBLEMS.md §270):** two more, neither changing a word. The
+  > writer's cache is warmed at the tap (`WRITER_WARM=1`, `writer_warm.py`):
+  > a searched episode whose writer has not run for five minutes sends a
+  > `max_tokens: 0` request beside its brief, only on the search path, never
+  > on a timer. And the evidence may be cut to the sentences the episode can
+  > use (`EVIDENCE_DIGEST`, off by default, `evidence_digest.py`): Haiku with
+  > thinking off answers with sentence numbers only, so the writer reads the
+  > sources' own words, fewer of them; every failure, and any cut that loses
+  > what the brief asked to establish, leaves the packet whole, and the score
+  > and figure checks always read the whole packet.
 <!-- rule:account-gates-kept -->
 - **An account gates what is kept, never what is heard.** *(PROBLEMS.md §70.)*
   > **Current:** while `WAITLIST=1` the whole app is closed to anybody whose
@@ -1627,6 +1645,13 @@
   mode did announce itself, in an 8.5px chip, and still cost a whole session -
   and it was writing its canned script into the shared cache, so the failure
   outlived the run. Announcing is not enough if the thing keeps a record.)*
+  > **Current (PROBLEMS.md §271):** the errors page also times every step -
+  > the brief and its parts, the search, the live lookup, the evidence cut,
+  > the writer's warm-up, first word and last, and the whole wait to first
+  > audio - stored beside the errors (`pipeline_errors.step`), so every
+  > worker's episodes are counted and a redeploy keeps them. A writer that
+  > reaches `MAX_OUTPUT_TOKENS` is an error, and never speaks the
+  > half-sentence it stopped in.
   > **Current:** every stage now says what went wrong in one place
   > (PROBLEMS.md §269, `pipeline_errors.py`): the brief, live providers,
   > research, the writer and its checks, the editions and the episode itself

@@ -69,6 +69,9 @@ from config import (BROWSE_MINUTES, DEFAULT_MINUTES, DEFAULT_PIPELINE, describe_
 import prefetch
 import prefetch_sources
 from episode_intelligence import report as ei_report
+from evidence_digest import report as evidence_digest_report
+from writer_warm import report as writer_warm_report
+from script_generator import writer_report
 import live_captions
 import live_sources
 from gdelt import report as gdelt_report
@@ -211,9 +214,9 @@ async def _verify_small_models() -> None:
     refused: set = set()
     small = sorted({settings.ei_model, settings.stories_model,
                     settings.categories_model, settings.thumbnails_model,
-                    settings.image_check_model,
+                    settings.image_check_model, settings.writer_model,
                     settings.edition_writer_model or settings.model}
-                   - {settings.model})
+                   - {settings.model, ""})
     report: dict[str, str] = {}
     for model in small:
         try:
@@ -232,11 +235,11 @@ async def _verify_small_models() -> None:
             log.error("MODEL UNAVAILABLE - %s: %s. The calls on it fall back "
                       "on their own; set EI_MODEL / STORIES_MODEL / "
                       "CATEGORIES_MODEL / THUMBNAILS_MODEL / IMAGE_CHECK_MODEL / "
-                      "EDITION_WRITER_MODEL "
+                      "WRITER_MODEL / EDITION_WRITER_MODEL "
                       "to a model this key can use.", model, report[model])
     CREDENTIALS["models"] = report
-    # The editions' writer is the one call that would not fall back on its
-    # own: an unavailable one writes on MODEL instead (§269).
+    # The writers are the calls that would not fall back on their own: an
+    # unavailable one writes on MODEL instead (§269, §272).
     import script_generator as _writer
 
     # Only a model the account cannot have (not found, not permitted) -
@@ -1841,6 +1844,16 @@ async def health(request: Request) -> dict:
         # the "quietly worse than intended" shape this project keeps paying
         # for. `enabled: false` means the raw query is going to Exa.
         "episode_intelligence": ei_report(),
+        # The evidence cut in front of the writer (§270): on or off, and how
+        # each cut ended since boot, by who was waiting.
+        "evidence_digest": evidence_digest_report(),
+        # The writer's cache warmed at the tap (§270): sent, already warm,
+        # failed, since boot.
+        "writer_warm": writer_warm_report(),
+        # The writer itself (§270): model, effort and ceiling, how each call
+        # ended (ok, out_of_room, refused, failed) and how long it took to
+        # its first word and its last, by who was waiting.
+        "writer": writer_report(),
         # Which questions this server can answer from a live state rather than
         # from an article about one. Everything unconfigured is *named* here
         # rather than silently absent, because a scoreboard question answered
@@ -1927,6 +1940,16 @@ async def health(request: Request) -> dict:
         # word, and where that came from - same reason as the line above: an
         # EFFORT left in a dashboard beats the code default on every push,
         # and it is expected to be the largest wait on search (PROBLEMS.md §129).
+        # The writer's model (§272): `WRITER_MODEL`, Haiku 5.5 by default,
+        # never `MODEL` unless the account cannot use it - and where it came
+        # from, because a dashboard value would silently keep another writer.
+        "writer_model": writer_for(ScriptNotes())[0],
+        "writer_model_source": (
+            ("WRITER_MODEL env var" if os.environ.get("WRITER_MODEL", "").strip()
+             else "config.py default")
+            + (" (unavailable to this account; fell back to MODEL)"
+               if (settings.writer_model or settings.model)
+               != writer_for(ScriptNotes())[0] else "")),
         "writer_effort": settings.effort,
         "writer_effort_source": ("EFFORT env var"
                                  if os.environ.get("EFFORT", "").strip()
@@ -9254,6 +9277,10 @@ async def audio(
     # be read off the deploy's log while it is still playing.
     if stats.cache != "hit":
         log.info("%s", stats.marks.stage_report(plan.query))
+        # The whole wait, for /admin's pipeline timing (§270).
+        waited = stats.marks.stages().get("first audio")
+        if waited is not None:
+            pipeline_errors.step("first audio", "listener", "ok", waited)
     primed_bytes = max(0, sum(audio_codec_mod.pcm_len(c) for c in primed) - WAV_HEADER_BYTES)
     primed_seconds = primed_bytes / (sample_rate * 2)
     # §242: a kept Opus episode arrives already framed; anything else is

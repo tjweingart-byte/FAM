@@ -19402,3 +19402,292 @@ byte-identical, but their output schemas differ, and whether a schema is
 part of the cached prefix is not documented here. If `cache_read_input_tokens`
 is zero on the second half, each half writes its own cache - cents a day at
 FAM's volume, not a correctness problem.
+
+## 270. The writer's wait on Haiku: the plan of the piece, a warm cache, pronunciations where they are said, and the evidence cut
+
+The owner (10.15), planning to move the writer to Haiku 5.5 at `low`: Haiku at
+medium was estimated at ~11-16 s of thinking before the first word (from
+FINANCIAL.md's ~1,600 thinking tokens at `low`, §261's 1.7x for medium and
+§261's 165-235 tokens/s - unmeasured), and `low` at ~7-10 s. Asked for ways to
+shorten that wait, the owner chose: the plan of the piece as a third part of
+the split brief, the small certain wins, and the evidence cut with guard
+rails. A Sonnet race on slow writers was declined as too expensive.
+
+**Why the brief's split does not carry over to the script.** The brief's two
+halves wrote independent fields; a script is one voice, and the wait in front
+of it is the writer deciding the whole piece. Two writers at once is what §56
+did and §108 deleted. What can move is the *reasoning*, not the writing.
+
+**1. The plan of the piece, beside the brief** (`EI_OUTLINE=1`,
+`OUTLINE_SCHEMA`, `OUTLINE_GUIDE`). A third call, started with *understand*
+and *search*, reading the same cached instructions, writes from the question
+alone: the beats a length has room for (`max_beats`: minutes + 2, at most 7),
+each with what the evidence must hold for it; what the first two sentences
+must pin down, as slots (who, what, when - "the team", "the day it was
+played"); and what the ending lands on. The writer reads it after the brief
+(`build_outline_note`) as a shape to check against the evidence: keep a part
+only when the evidence supports it, drop or reorder freely, decide the
+opening last. **The owner's call on two rules**: [spec-amended-for-search]
+and [opening-last] guard planning before the evidence; both carry a Current
+note. Guard rails:
+- *It states no fact.* Any line with a digit is dropped in code
+  (`_outline_line`) - a score, a price, a date or a count in the plan is a
+  fact asserted before anything was looked up. Coarse on purpose.
+- *It never holds a searched brief.* Once the other two parts are in it gets
+  `EI_OUTLINE_GRACE_SECONDS` (0.5) more, then the brief goes without it and
+  the writer plans the piece itself, as before. Ahead (prefetch, editions) it
+  has the brief's whole ceiling. Counted as `parts_since_boot.outline`.
+- *The one-call brief is unchanged*: not in `BRIEF_SCHEMA`; `EI_SPLIT=0`
+  sends what it sent. `EI_OUTLINE=0` sends §268's two parts.
+- Shown only beside a brief that did not degrade, like the rest of the block.
+
+**2. The writer's cache, warmed at the tap** (`WRITER_WARM=1`,
+`writer_warm.py`). The ~3,500 cached tokens live five minutes, and at FAM's
+traffic most writer calls come later than that and read them in full before
+thinking. Rather than a timer, a searched episode whose writer has not run
+within the TTL (less 30 s) sends a `max_tokens: 0` request beside its brief -
+same model, effort and `system` block as the writer's request - and the brief
+and search take long enough for it to land. Nothing is sent while nobody is
+listening; the cache write it pays is the one the writer would have paid; it
+is metered on the episode it was for; two taps a second apart send one; a
+failed one is forgotten so the next tap tries again. Not on prefetch or the
+editions. It cannot warm the brief: `max_tokens: 0` is refused beside a
+structured output. Counted in `/api/health` → `writer_warm`.
+
+**3. Pronunciations where the voice needs them.** Every `<<SAY:>>` line was
+asked for before the script, so a name first said a minute in cost output in
+front of the first word. Each line now goes immediately before the first
+sentence that says the name; `_ScriptReader.feed` already took a line out
+wherever it landed, and learns it before that sentence is emitted. The
+brief's names are listed as on file even when a personal episode holds them
+rather than storing them, so they are never asked for twice.
+
+**4. The second look, checked: nothing to trim.** It runs only when the first
+search came back empty or missed more than half of `must_establish`
+(`research.retrieve`), so a covered packet waits on nothing. Starting it
+speculatively beside the first would cost a search on every episode.
+
+**5. The evidence cut** (`evidence_digest.py`, `EVIDENCE_DIGEST`, **off by
+default**). Estimated at -0.7 to +2.7 s net (a ~1-2 s call against
+~300-650 thinking tokens spared, if 20-40% of the writer's thinking is
+reading the packet - a guess): built so a run with a key can say.
+**Extractive, never a summary**: code numbers the passages' sentences, Haiku
+with thinking off (`thinking: disabled`, `effort: low`) answers with numbers
+only, and code assembles the packet from the sources' own sentences under the
+headers code wrote. So it cannot invent, re-figure, reword a tense or bring a
+hostname within reach of the voice. Guard rails against what it can do -
+leave things out:
+- a source it chose nothing from keeps its passages whole;
+- a timeout (`EVIDENCE_DIGEST_TIMEOUT_SECONDS` 2.5; 15 ahead), a failure, a
+  refusal, running out of room or an unreadable answer leaves the whole
+  packet, counted by path and noted on /admin's errors (`research` stage);
+- a cut that loses an item of `must_establish` the whole packet covered
+  (`packet_covers`) is not made, nor one that keeps over 85%;
+- on a scores or markets episode every sentence with a digit is kept;
+- the score and figure checks read `EpisodePlan.evidence`, the whole packet;
+  only the writer's prompt reads `evidence_digest`;
+- packets under `EVIDENCE_DIGEST_MIN_CHARS` (2,500) are left alone.
+It starts the moment the packet is in and runs beside the existing wait for
+the live lookup and the forecast. Not in the cache key, as `EI_SPLIT` is not.
+
+**Measure, with a key:**
+
+    python write.py "<q>" --minutes 3 --compare claude-haiku-5-5:low,claude-haiku-5-5:low+digest
+
+prints, per writer, time to first sentence and the tokens it read and wrote
+(output is thinking plus script, so between two scripts of a length the
+difference is the thinking). Run it with `EI_OUTLINE=0` and `=1` for the
+plan. In production: `episode timing`'s `writer thinking` row,
+`/api/health` → `episode_intelligence.parts_since_boot.outline`,
+`writer_warm`, `evidence_digest`.
+
+Not measured: there is no key here. Still open from the Haiku review: the
+writer does not check `stop_reason == "max_tokens"` (a cut-off script loses
+its title, category and follow-up lines silently), and the writer's time to
+first word is not yet in `/api/health` by path.
+
+Tests: `tests/test_writer_latency_270.py`, `tests/test_evidence_digest_270.py`
+(new); `tests/test_ei_split_268.py`, `tests/test_episode_intelligence.py`
+(the brief is three calls when split).
+
+## 271. The writer's ceiling caught, the writer timed in health, and every step timed on the errors page
+
+The owner (10.15): add the `max_tokens` check and the writer's timing to
+`/api/health`, and put all of these checks on the admin page's pipeline errors
+section, as a subsection of its own with average times, how often each fails
+"and any other things that make sense".
+
+**1. A writer that runs out of room.** The writer never read `stop_reason`
+for `max_tokens` (§270's open item). Thinking and the script share
+`MAX_OUTPUT_TOKENS`; a script that reaches it stops mid-sentence, and the
+`<<TITLE>>`, `<<SUMMARY>>`, `<<CATEGORY>>` and `<<NEXT>>` lines after it are
+lost. Now, streamed or batched, it is an **error** on the errors page ("ran
+out of room", naming the setting and what was lost), and the tail is spoken
+only when it is a whole sentence (`_ScriptReader.finish(cut_off=True)`). On
+a stream the final message is read before the tail when the stream ended by
+itself - it is already there - and after it, as before, when the budget
+valve stopped it.
+
+**2. The writer in `/api/health`** → `writer`: model, effort, the ceiling;
+how each call ended since boot (`ok`, `out_of_room`, `refused`, `failed`) by
+who was waiting (`search` - a listener, a search or a tap - or `ahead`,
+prefetch and the editions); and n / median / p90 / slowest of the time to
+its first word (its thinking) and to its last.
+
+**3. Every step timed, on the errors page.** Health is per process and
+forgets on a redeploy, and the admin page may be served by another worker,
+so the page reads a second table in the same store, `steps`
+(`pipeline_errors.step`): one row per measured step - when, which step, who
+was waiting, how it ended, seconds - buffered and written exactly as the
+errors are, never on the critical path, 14 days. Recorded: the whole brief
+and each of its parts (understand, search, the plan of the piece - a late
+one at the grace it was given), the writer's warm-up, the search across
+every rung (`sources` / `no_sources`), the live lookup (its outcome), the
+evidence cut, the writer's first word and last, and the whole wait from tap
+to first audio (each cache miss, when its first audio exists).
+
+The subsection, **Timing and health, by step**, sits under the errors on
+the same page: headline chips (tap to first audio median and p90, the
+brief's median and failure rate while a listener waits, the writer's
+thinking median, the writer running out of room in 7 days), then one row
+per step and path - last hour, 24h, 7 days, average over 24h and 7 days,
+median, p90, slowest, failed, failure rate (red above 1%), and every way
+it ended. *Failed* is a timeout, an error, a refusal, running out of room,
+an unreadable answer, a late part, a search with no sources or a provider
+that broke or answered stale; endings a step is built to have (a cut not
+made, no such game) are listed but not counted as failures.
+
+Tests: `tests/test_pipeline_health_271.py` (new).
+
+## 272. The writer on Haiku 5.5 at low effort
+
+The owner (10.15): switch the writer to Haiku at low effort - after §270
+(the plan of the piece, the warm cache, pronunciations where they are said,
+the evidence cut, off) and §271 (the writer's ceiling caught, every step
+timed on the errors page) prepared for it.
+
+**What changed.** A setting of the writer's own, `WRITER_MODEL`, default
+`claude-haiku-5-5` (`config.SMALL_MODEL`), at `EFFORT` (`low`, unchanged).
+`script_generator.writer_for` gives every episode it - search, taps,
+prefetch and, unless `EDITION_WRITER_MODEL` says otherwise, the editions -
+and falls back to `MODEL` when the boot check finds the account cannot use
+it (`UNAVAILABLE_MODELS`, now covering this writer as well as the editions').
+The request, the batch params, the bill, the warm-up and `/api/health`
+(`writer_model`, `writer_model_source`, `writer.model`) all follow it.
+`write.py --model` and `--compare` set it.
+
+**Why not `MODEL`.** `MODEL` is in every episode's cache key
+(`cache.cache_key`, `key_bucket`): moving it would make every kept episode a
+miss, empty Trending searches (which drop any entry whose key does not
+match, `app.py`) and thin the rails that hold cached episodes only until
+they were rewritten. It also stays the model of the composer, the placer,
+the thumbnails and the admin's questions, which nobody asked to move. Like
+the edition writer (§269), the writer's model is **not in the cache key**:
+a tap still finds the episode a Sonnet writer kept, and it is replaced when
+its window ends. [prefetch-same-key] says a field that changes an episode
+belongs in the key; this is the stated exception, as §269's was.
+
+**What to watch** (all on the errors page's "Timing and health, by step"
+and in `/api/health` → `writer`): the writer's time to first word while a
+listener waits (estimated ~7-10 s at `low`, unmeasured); `out_of_room`
+(thinking and script share `MAX_OUTPUT_TOKENS`, 16,000); refusals - Haiku
+5.5 runs safety classifiers with **no server-side fallback**, and a refused
+episode says the fixed "I can't put together a briefing on that" line (a
+client-side retry on `MODEL` is not built); and the score and figure checks'
+removals, which a smaller writer recalling a figure would raise. Not
+listened to: no key here, and nobody has heard a Haiku-written episode.
+`WRITER_MODEL=claude-sonnet-5` restores the Sonnet writer without a deploy
+of code.
+
+**Cost (estimate).** FINANCIAL.md puts the writer at ~$0.026-0.036 an
+episode on Sonnet 5 at `low` (~5,500 in, ~2,000 out at $2/$10). At Haiku
+5.5's $0.10/$0.50 the same tokens are ~$0.0015-0.002 - about a twentieth -
+less if the tokenizer counts more tokens for the same text, which it may.
+
+Tests: `tests/test_haiku_writer_272.py` (new), `tests/test_writer_prep_269.py`
+(§269's edition tests pinned to a writer on `MODEL`),
+`tests/test_writer_latency_270.py`.
+
+## 273. Every declined call, on the errors page with its context
+
+The owner (10.15), after §272 put the writer on Haiku: no retry on Sonnet
+yet, but "a section in Admin that reports when the try fails (how often and
+what context)".
+
+**Why it matters now.** Haiku 5.5 runs safety classifiers that can decline a
+request - benign news included, under `general_harms` - and, unlike the
+Sonnet and Opus lines, has **no server-side fallback**. A declined writer
+speaks the fixed "I can't put together a briefing on that" line in place of
+the episode; a declined brief part searches the question as typed; a
+declined evidence cut keeps the whole packet. Before this a refusal was one
+generic "refused" row on the errors list.
+
+**What is recorded** (`pipeline_errors.refusal`, a third table, `refusals`,
+in the same store, written off the critical path like the others, 14 days):
+which call (`writer`, `writer (batch)`, `brief: understand` / `search` /
+`outline` / `whole`, `evidence cut`), the model, who was waiting (search or
+ahead), the classifier's own category and explanation from `stop_details`
+(some declines give neither), the question, and - for the writer - how many
+sentences the listener had already heard when it stopped (a mid-episode
+decline is the worst kind: a story that breaks off). The generic errors row
+stays, so the error counts and badge are unchanged.
+
+**The subsection**, "Refusals: calls the model declined", under the timing
+one on the errors page: declined in the last hour, 24h and 7 days; the
+writer's decline rate against every writer call (the `writer` steps of §271
+are the denominator); how many came mid-episode; tallies by call, category
+and model; and the newest 60 with every field. This is the record of what a
+retry on another model would have to rescue, and so the number that decides
+whether to build one.
+
+Tests: `tests/test_refusals_273.py` (new).
+
+**Reviewed before merging (§270-§273).** The owner (10.15) asked for every
+change on the branch to be checked and the branch made ready for `Main`
+(not merged, no PR). `Main` had nothing the branch lacked. Two independent
+reviews of the diff, one for §270 and one for §271-§273; nothing high
+severity, every finding fixed:
+
+- *The evidence cut ran twice when a plan was prepared twice* - `write.py`
+  prepares, prints and then streams, which prepares again - adding up to
+  2.5 s to the "first sentence after" figure §270 asks to be measured, and a
+  second row on /admin. It now runs only for a packet that call retrieved,
+  and a plan keeps the cut it already has.
+- *A budget-valve stop read as "ran out of room".* After FAM stops a writer
+  at its word budget the rest of the stream is drained, and a `max_tokens`
+  then was recorded as an error that nothing had been lost to. It is
+  `over_budget` now, not an error.
+- *The live lookup's time was the search's*: it was taken when the lookup
+  was awaited, after the search. It is now the lookup's own finish.
+- *An unavailable edition writer fell back to `MODEL`* (Sonnet) while every
+  tap was on Haiku; it falls back to the everyday writer.
+- *A listener who left during the outline's grace* left the outline running
+  to its own ceiling (a shield); it is cancelled. A degraded brief no longer
+  waits for an outline it would discard. The evidence cut (and the forecast,
+  already so) is cancelled if the listener leaves during the forecast wait.
+- *A batched refusal on a gap-line episode* counted the gap line as heard;
+  only the writer's sentences count.
+- `writer_model_source` says when the configured writer was refused and the
+  writer fell back to `MODEL`; the admin report reads at most the newest
+  50,000 steps (`STEPS_READ`) and says when it did; `write.py --compare`
+  prints cache reads and writes, because the first writer of a model pays
+  the cold read.
+
+*Checked and fine*: the warm-up matches the writer's request where the cache
+is keyed; the prompt is byte-identical with the cut off; `EI_SPLIT=0` is
+unchanged; no outcome or refusal counted twice; the new tables are portable
+to Postgres (`call`, `path`, `step` are not reserved there; `?` and the
+column types are translated by `db.py`) and opened through `data_path` and
+`db.connect`; every model- or listener-supplied value on the admin page is
+escaped; `writer_for` is the only reader of the writer's model.
+
+Tests: `tests/test_evidence_digest_270.py`, `tests/test_writer_latency_270.py`,
+`tests/test_pipeline_health_271.py`, `tests/test_haiku_writer_272.py`, and
+`tests/test_review_fixes_273.py` for the five fixes that had no test of their
+own (the live lookup's own time; the cut cancelled with a listener who
+leaves during the forecast wait; health naming the writer's fallback; the
+errors page saying its timings are capped, run through the page's own
+`drawSteps` in node; `--compare`'s cache line). Each was checked by undoing
+its fix and watching the test fail; the cancellation test reads its result
+before `asyncio.run` ends, which cancels every leftover task on the way out
+and so hid a leak the first version of the test missed.
