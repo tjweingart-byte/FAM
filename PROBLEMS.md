@@ -20314,3 +20314,22 @@ halves were.
 
 Not done here: nothing was heard (`no-api-key`), and no mail was sent from
 this container.
+
+## 283. The waitlist's video: a YouTube Short above the features (2026-10-16)
+
+§250 took "Stay in the loop" and "Better together" off the waitlist page to
+become a video. The video is 1:46 and its export was 900 MB, too big to keep
+in git or serve from the app's own disk, so the owner put it on YouTube as a
+Short (`KCpGaWdWNSs`) and it is embedded above "Learn more. Go deeper."
+
+- **Drawn as a picture until it is tapped.** The page shows YouTube's
+  thumbnail and a gold play button; only a tap swaps in the player, from
+  `youtube-nocookie.com`, with `autoplay=1&playsinline=1&rel=0`. A plain
+  embed would load about a megabyte of YouTube's scripts, and set its
+  cookies, for every visitor whether or not they watch.
+- **Upright, 9:16.** A Short's `hqdefault.jpg` is the upright frame between
+  black bars; `object-fit: cover` on a 9:16 box crops to exactly that frame.
+- **The player replaces the button** rather than sitting inside it (an iframe
+  inside a `<button>` is invalid), and takes the focus.
+- To change the video, change `data-yt` and the thumbnail's id together in
+  `static/waitlist.html`; nothing else names it.
