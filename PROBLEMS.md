@@ -20148,3 +20148,191 @@ written as "PROBLEMS.md 27x" had escaped the renumber and were corrected.
   carries its real fetch time.
 - A 401 was taken for a plan refusal; it is an account refusal now
   (`AccountRefused`), shown on /admin as such.
+
+## 282. The 10.15 implementations: waitlist friend search, the waitlist's reset, private search, the APIs on a report, the features back, the founders, a story's reply row, and a picture that follows the team (2026-10-16)
+
+The owner's "10.15.26 Implementation" packet.
+
+**Waitlist status page.**
+
+1. *Search friends on the waitlist.* A bar under Your FAM:
+   `GET /api/waitlist/people?q=` finds accounts (waitlisted or already in)
+   by name or handle from two characters, as `/api/people` does, or by an
+   email address or phone number typed **whole** - exact only, so nothing
+   typed lists anybody it does not already name; a number without its
+   country code is tried as +1 (the list's default) and as the digits with
+   a +. The answer is name, handle, face, initials, whether they are on the
+   list and whether they are added/friends - never what matched. **Add** is
+   `POST /api/waitlist/add`, a follow; both ways is Your FAM, as anywhere.
+   Blocked either way or suspended: not found, not added. This is the one
+   door by which a waitlisted account is found outside its graph
+   (`waitlist-gate` said "hidden from discovery except friends"), at the
+   owner's direction and only from the status page; the app's search, handle
+   lookup and follow are unchanged. Under the results, always, the card the
+   packet drew: "Can't find your friend on the waitlist? Invite them and
+   move up the waitlist!" with **Invite** (the share sheet, else the link
+   copied).
+2. *"1 more person until your next unlock" is gone* - row, styles and
+   script. Nothing is locked; the whole list is there. `/api/waitlist/me`
+   keeps `unlock` for any installed client (`old-clients`).
+
+**Forgot password, and who can change yours.** The app's log-in has had
+§244's reset since it was built; it is drawn only when the server can send
+mail, and production has no `SMTP_HOST` / `MAIL_FROM` yet (§263), which is
+why the owner never saw it. The waitlist's sign-in now has the same
+**Forgot password?**, the same two steps (the address, then the emailed
+code and a new password) against the same endpoints, under the same rule:
+drawn only when `/api/auth/reset` says mail is available. The packet's
+question - what stops a random person changing your password - has §244's
+answer: the 6-digit code goes only to the address already on the account,
+so a reset needs the inbox, not the address; it lives 15 minutes, is spent
+after 5 wrong tries, at most 5 an hour and one a minute; the start answer
+is identical whether or not the address has an account; a reset signs out
+every other device and emails the owner "Your FAM password was changed".
+Still open from §244: a phone-only account has no reset, and nothing
+verifies an address at sign-up.
+
+**Private search** (`private-search`). A third bubble, **Private**, beside
+Length and Voice. On, the search page is charcoal (`#screen-home.private-search`
+re-declares dark's palette on a near-black ground, so it holds in light mode
+too) and a line says what it means; the search it is sent with carries it
+and it turns itself off. On the server `/api/audio?private=1` (searchFAM
+only - anything else ignores it) records no play, stamps what it writes
+`cache.PRIVATE_ORIGIN` and writes no author. `recent` - the read behind
+exploreFAM, every crowd rail, the A to Z, categories and trending searches
+- never lists a private row, and `authored_by` (the friends rail's
+"created" half) cannot name its author because there is none. The client
+sends no `search` event, no complete/skip, no position and no history row
+while it plays (`currentPlayPrivate`, `historySurface`). Chosen over
+treating it as an attachment (no key, never cached), which would have lost
+its own replay, captions and title and re-written a popular question from
+scratch. Someone else asking the same question later gets the kept episode
+- nothing in it says who asked first - and if they ask it in the open and
+it is written again, it becomes a search like any other.
+
+**Instant feedback names the APIs used.** "Display the API keys that were
+used" is read as *which* services' keys - never their values, which are
+credentials (`credentials-fetched`) and are never read into a report, a
+page or a log. `app._episode_services` builds the list from records that
+already exist: provenance's `retrievers` (Parallel, Perplexity, GDELT),
+each live source and Wikipedia/Wikidata, the live-routing row the brief
+left (§264: every provider asked and its outcome), and the brief's and
+writer's models and the voice **as configured when the report is filed**,
+labelled so. Kept in the snapshot as `services`; `/admin`'s inbox draws
+"APIs used" between the sources and the transcript. A test files a report
+with `ANTHROPIC_API_KEY` set and finds no part of it in the report.
+
+**Waitlist landing.**
+
+1. *The features carousel is back*, under where the video will go (after
+   the cure, before the founders): §250's "How to get the most out of FAM"
+   carousel, kicker "Search. Scroll. Mix.", titled **Learn more. Go
+   deeper.**, its three slides and two phones a slide as they were. Its
+   pictures were retaken (`tools/landing_shots.py`: `dailyfam-rails` and
+   `myfam-mixes` back in the list, the player cut again from its still,
+   which is back in `tools/landing/stills/`); the mixes shot leaves off the
+   categories section, which the fixtures cannot fill. "Stay in the loop"
+   and "Better together" stay off for the video.
+2. *The founders' photo* is the packet's: the three of them by the Golden
+   Gate, cropped 4:3 from the bottom, no EXIF. Signed **Brady Weingart, Ian
+   Solomon & TJ Weingart**, left to right as they stand; the initials
+   fallback has three.
+3. *Our story* is the packet's text, word for word, under "We believe
+   information can bring people closer."
+
+**A friend's vibe has Instagram's row** (`story-reply`): Send message...,
+a heart, a paper plane, under Play episode, never on your own story. A
+reply is one message to the poster carrying the episode (`kind: "episode"`
+with `text` - the message store always allowed both), so it lands in
+Messages with the vibe it answers; the chat labels it "replied to your
+vibe" and draws the words under the card, and the inbox preview says so. A
+like is the same message with a heart (drawn as the heart itself, "liked
+your vibe"), sent once per story on the device, and the episode's own like
+(`/api/rate`) as taste. The plane opens VIBE! on that episode with the
+story's picture (`openVibeComposer` takes `ep.thumb`). Focusing the box
+holds the story; leaving it without sending lets it run on. The preview
+smoke check replies, checks the message carried the episode, and likes.
+
+**The picture that did not match.** The packet's screenshot: "Seahawks
+Thursday Odds and Defensive Absences" played, and was vibed, over poker
+chips. §247 made the picture follow the episode's category, and §209's
+rule is that a category outranks the words; the category here was a
+betting node, whose picture is a card table. A category is the right
+answer for ranking and tags, and the wrong one for a picture when the
+words name a specific subject on another branch. `thumbnails._named_subject`:
+when the deepest node the words name is at `SUBJECT_DEPTH` (2, a league) or
+deeper and is neither the category, above it nor below it, that node is
+the picture's subject - in `pick` (the tile's own) and first in
+`pick_for_player`'s borrowing, so tile, player and the vibe made from the
+player agree. A category on the subject's branch (the NFL for a Seahawks
+question) keeps its picture, and words naming only a facet or a sport never
+outrank it, so §209's boxing press conference is unchanged. A vibe posted
+before this keeps the picture it was posted with.
+
+**Main's CI.** `0086ddc` failed `test_the_halves_run_side_by_side`
+(0.858 s against a 0.55 s ceiling, two 0.3 s halves) on both jobs; it passes
+here every time. The property is that the two halves wait at once, and the
+clock was a proxy a busy runner stretches past even one half. The stub now
+records which parts were in flight together, and the test asserts both
+halves were.
+
+**A review before merging found seven things, all fixed.**
+
+1. *A private search was never private.* `historySurface` returned "" for a
+   private topic, and `playSurface` reads it, so the request went out as
+   `surface=other&private=1`; the server honours `private` only for a
+   search, so the play was recorded and the episode written under the
+   searcher's name and listed - the opposite of the feature. (It also lost
+   the chosen voice and skipped the consent check, both search-only.) The
+   history is now left out at the history call (`historyWhere`), the topic
+   keeps `surface: "search"`, and the smoke check sends a private search
+   and reads `surface=search` and `private=1` off the real request. The
+   pytest had asked the server with `surface=search` directly and the JS
+   test only read strings - which is how it passed.
+2. *The private flag outlived its episode*, dropping exploreFAM's
+   Interested? picks and a later save until the next `speakText`. It is now
+   the private episode's question, and only that episode's complete/skip
+   and position are held back.
+3. *A trending search tapped with Private on went out public* under a page
+   still saying it was private; it now carries `private` and turns it off.
+4. *An exact email or number named its owner to anyone with an account*,
+   ~60 lookups per 10 s - a phone range could be walked. Exact lookups are
+   capped at `WAITLIST_EXACT_PER_DAY` (20) different terms a day per
+   account (name searches are not: they need a handle), and an account with
+   neither name nor handle is not offered by an address alone.
+5. *The "status page only" exemption was the client's word.* Both
+   endpoints now answer only a waitlisted account or an admin
+   (`_require_waitlist_searcher`, 403 otherwise), and the page hides the
+   bar for somebody let in.
+6. *A reply or a like on a vibe counted as a share* (weight 2) on top of
+   the like. `SendMessageRequest.reply` skips the share event; an installed
+   client never sends it and is unchanged.
+7. *"APIs used" read the newest live lookup for the question*, which a
+   replay shares with whichever episode wrote it; the detail now says
+   "latest for this question", and the scan is the eight days an episode
+   can be kept, not fourteen.
+
+Not done here: nothing was heard (`no-api-key`), and no mail was sent from
+this container.
+
+## 283. An eye on every password field (2026-10-16)
+
+**Asked:** when somebody sets up an account or signs back in, an eye on the
+right of the password field shows what they typed, and hides it again - on
+any sign-in page.
+
+**Done.** The app's sign-up / log-in password (which had a "Show" word) and
+its Forgot password's new password, and on `/waitlist` the join form's two
+passwords, the sign-in password and the reset's new password (added by
+§282, picked up in the merge). An open eye means hidden; a struck eye means
+showing; `aria-pressed` and the label say the same. Every form opens hidden
+again (`openAuth`, `openReset`, the waitlist's toggle and Forgot link).
+`tests/test_password_eye.py` fails on a password field without an eye. The
+admin pages' sign-ins (`admin_ui/`) are left as they were.
+
+**Also, before merging: Main's Postgres job was red** (runs for #154 and
+#155) on one test, `test_removals_279.py`'s ledger rename: it writes and
+reads `metering.db` as a SQLite file, but under `DATABASE_URL` the
+`MeterStore` is in Postgres, so the file was never touched. It now carries
+`@pytest.mark.sqlite_file` like every other test of the SQLite file itself;
+the rename is the same code on both backends.

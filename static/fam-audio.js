@@ -457,6 +457,9 @@ window.FamAudio = (function () {
               // A question the listener typed themselves (a Go Deeper): held
               // to their AI answer like a search (consent.py).
               (listener && listener.own ? "&own=1" : "") +
+              // A private search (§282): the server records no play and
+              // keeps what it writes off every feed.
+              (listener && listener.private ? "&private=1" : "") +
               // Which surface the tap came from (§147): only a search picks
               // its voice and length, and only a search goes on Explore.
               (listener && listener.surface ? "&surface=" + encodeURIComponent(listener.surface) : "") +

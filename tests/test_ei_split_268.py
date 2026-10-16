@@ -97,13 +97,21 @@ def model(monkeypatch):
     state = {"calls": [], "understand": _reply(UNDERSTOOD),
              "search": _reply(WORDED), "whole": _reply({**UNDERSTOOD, **WORDED}),
              "outline": _reply(OUTLINED),
-             "delay": {}}
+             "delay": {}, "in_flight": set(), "together": set()}
 
     class _Messages:
         async def create(self, **kwargs):
             part = _part_of(kwargs)
             state["calls"].append((part, kwargs))
-            await asyncio.sleep(state["delay"].get(part, 0))
+            # Which parts were ever waiting at the same moment: overlap, read
+            # directly rather than off a wall clock a busy runner stretches.
+            state["in_flight"].add(part)
+            if len(state["in_flight"]) > 1:
+                state["together"].update(state["in_flight"])
+            try:
+                await asyncio.sleep(state["delay"].get(part, 0))
+            finally:
+                state["in_flight"].discard(part)
             answer = state[part]
             if isinstance(answer, Exception):
                 raise answer
@@ -190,10 +198,16 @@ def test_a_split_brief_is_two_calls_at_once_and_one_brief(model):
 
 
 def test_the_halves_run_side_by_side(model):
-    """The brief takes as long as its slower half, not the two added up."""
+    """The brief takes as long as its slower half, not the two added up.
+
+    Pinned by overlap, not by seconds: Main's CI (2026-10-16) measured a
+    brief of two 0.3 s halves at 0.858 s on a runner busy enough to stretch
+    even one half past the 0.55 s ceiling. Both halves waiting at once is
+    the property; the clock was only ever a proxy for it."""
     model["delay"] = {"understand": 0.3, "search": 0.3}
     asyncio.run(ei.understand("did the eagles win", 2))
-    assert ei.report()["seconds_by_path"]["search"]["max"] < 0.55
+    assert {"understand", "search"} <= model["together"], \
+        "the two halves of the brief were asked one after the other"
 
 
 def test_split_off_sends_the_one_call(model, monkeypatch):

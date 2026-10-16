@@ -29,7 +29,8 @@
                     (/api/me, /api/preferences and /api/account).
   * /waitlist/me  - the status page: "Learn more about FAM" (the landing's
                     explainer, shown again), their exact place in line, the
-                    link that moves them up, Your FAM and the next unlock.
+                    link that moves them up, and Your FAM with its friend
+                    search (the unlock row went in the 10.15 packet).
                     The settings gear at the top right opens the profile.
 
   Nothing here decides anything: place, cutoff, friends and status all come
@@ -247,6 +248,40 @@
   .ab-fan .fan-c{ z-index:2; width:min(270px, 50vw); }
   .ab-fan .fan-l{ transform:translateX(-62%) translateY(-6%) rotate(-7deg); opacity:0.85; }
   .ab-fan .fan-r{ transform:translateX(62%) translateY(-6%) rotate(7deg); opacity:0.85; }
+  /* The features carousel (10.15 packet, §282). */
+  .ab-how{ margin-top:110px; }
+  .ab-sec-head{ text-align:center; margin-bottom:24px; }
+  .ab-sec-head .ab-sub{ margin-left:auto; margin-right:auto; }
+  .feat{ display:grid; grid-template-columns:1fr; gap:34px; align-items:center; padding:30px 0 10px; }
+  .feat-num{ color:var(--gold); font-size:15px; margin-bottom:12px; }
+  .feat-h{ font-family:'Bricolage Grotesque', sans-serif; font-weight:400; font-size:clamp(26px, 4.4vw, 36px); line-height:1.12;
+    margin:0 0 14px; color:#F6F0E4; text-wrap:balance; }
+  .feat-copy p{ margin:0; font-size:17px; line-height:1.55; color:#D9D2E4; }
+  .ticks{ list-style:none; margin:20px 0 0; padding:0; }
+  .ticks li{ position:relative; padding:7px 0 7px 26px; font-size:15.5px; line-height:1.45; color:var(--muted); }
+  .ticks li::before{ content:""; position:absolute; left:2px; top:15px; width:9px; height:9px; border-radius:50%;
+    background:var(--gold); box-shadow:0 0 0 4px rgba(240,195,94,0.15); }
+  .ticks b{ color:var(--text); font-weight:500; }
+  .feat-art{ position:relative; display:flex; justify-content:center; }
+  .feat-art::before{ content:""; position:absolute; inset:8% 6%; border-radius:50%;
+    background:radial-gradient(closest-side, rgba(226,105,79,0.28), rgba(226,105,79,0)); filter:blur(10px); }
+
+  .shots{ position:relative; display:flex; justify-content:center; padding:10px 0 68px; }
+  .shots.two .shot-front{ position:relative; z-index:1; transform:translateX(-24%); }
+  .shots.two .shot-back{ position:absolute; top:10px; left:50%; z-index:0; width:min(220px, 52vw);
+    transform:translateX(30%) translateY(28px) rotate(6deg); opacity:0.8; }
+  .shot-tag{ position:absolute; z-index:2; left:50%; bottom:8px; transform:translateX(-50%); white-space:nowrap;
+    background:var(--gold); color:var(--gold-ink); border-radius:999px; padding:9px 16px; font-size:14px;
+    box-shadow:0 10px 24px rgba(0,0,0,0.35); }
+  /* Centred under the front phone, which is moved 24% of its own width. */
+  .shots.two .shot-tag{ left:calc(50% - min(60px, 14.4vw)); }
+  /* Three: the front phone centred, one popping out on each side (the left
+     one shows its top-left corner, where a story's face is). */
+  .shots.three .shot-front{ transform:none; }
+  .shots.three .shot-back{ width:min(220px, 44vw); }
+  .shots.three .shot-left{ left:auto; right:50%; transform:translateX(-52%) translateY(28px) rotate(-6deg); }
+  .shots.three .shot-right{ left:50%; transform:translateX(52%) translateY(28px) rotate(6deg); }
+  .shots.three .shot-tag{ left:50%; }
   .ab-founders{ margin-top:110px; display:grid; grid-template-columns:1fr; gap:34px; align-items:center; }
   .fd-photo{ position:relative; margin:0; border-radius:24px; overflow:hidden; aspect-ratio:4/3;
     background:linear-gradient(150deg, #3A3150, #26222F); border:1px solid var(--line); }
@@ -257,6 +292,7 @@
   .fd-mono span{ width:112px; height:112px; border-radius:50%; display:flex; align-items:center; justify-content:center;
     font-family:'Bricolage Grotesque', sans-serif; font-size:40px; background:#F2D2B6; color:#3A2A22; border:4px solid #2E2A3A; }
   .fd-mono span + span{ margin-left:-22px; background:var(--sage); color:#1E1B27; }
+  .fd-mono span:nth-child(3){ background:var(--gold); color:#1E1B27; }
   .fd-copy p{ font-size:17px; line-height:1.6; color:#D9D2E4; margin:18px 0 0; }
   .fd-sign{ margin-top:24px; padding-top:18px; border-top:1px solid var(--line); display:flex; flex-direction:column; gap:4px; }
   .fd-names{ font-family:'Bricolage Grotesque', sans-serif; font-size:22px; font-style:italic; }
@@ -287,8 +323,13 @@
     .ab-fan .fan-c{ width:44vw; }
     .ab-fan .fan-l{ transform:translateX(-58%) translateY(-6%) rotate(-7deg); }
     .ab-fan .fan-r{ transform:translateX(58%) translateY(-6%) rotate(7deg); }
+    .shots.two .shot-front{ width:44vw; transform:translateX(-28%); }
+    .shots.two .shot-back{ width:37vw; transform:translateX(14%) translateY(24px) rotate(5deg); }
+    .shots.two .shot-tag{ left:50%; }
+    .shot-tag{ font-size:13px; padding:8px 14px; }
   }
   @media (min-width:820px){
+    .feat{ grid-template-columns:1.05fr 1fr; gap:64px; padding:40px 0 10px; }
     .systems{ grid-template-columns:1fr 1fr; }
     .ab-founders{ grid-template-columns:1fr 1.1fr; gap:64px; }
   }
@@ -382,13 +423,28 @@
   .slot{ width:70px; height:70px; border-radius:50%; border:1.5px dashed #5A5470; background:none;
     cursor:pointer; display:flex; align-items:center; justify-content:center; color:var(--muted); }
   .slot svg{ width:24px; height:24px; }
-  .unlock{ display:flex; align-items:center; gap:16px; border-top:1px solid var(--line); border-bottom:1px solid var(--line);
-    padding:16px 0; margin-top:22px; }
-  .lock{ width:62px; height:62px; flex:none; border-radius:50%; background:#34304A;
-    display:flex; align-items:center; justify-content:center; color:var(--gold); }
-  .lock svg{ width:26px; height:26px; }
-  .unlock .t1{ font-size:21px; }
-  .unlock .t2{ font-size:16px; color:var(--muted); margin-top:4px; }
+  /* The friend search (10.15 packet). The unlock row under Your FAM went:
+     there is nothing to unlock, the whole list is there. */
+  .fsearch{ display:flex; align-items:center; gap:10px; height:46px; border:1px solid #5A5470; border-radius:12px;
+    padding:0 14px; margin-bottom:12px; background:rgba(20,18,28,0.28); }
+  .fsearch svg{ width:18px; height:18px; flex:none; color:var(--muted); }
+  .fsearch input{ flex:1; min-width:0; border:0; background:none; outline:none; font-size:15px; }
+  .fsearch input::placeholder{ color:var(--faint); }
+  .fresults{ display:flex; flex-direction:column; gap:8px; margin-bottom:16px; }
+  .fres{ display:flex; align-items:center; gap:12px; background:var(--card); border:1px solid var(--line);
+    border-radius:14px; padding:10px 12px; }
+  .fres .av{ width:42px; height:42px; font-size:16px; flex:none; }
+  .fres .who{ flex:1; min-width:0; }
+  .fres .who b{ display:block; font-weight:500; font-size:15px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .fres .who span{ font-size:12.5px; color:var(--muted); }
+  .fres .add{ flex:none; border:0; border-radius:10px; padding:8px 14px; font-size:14px; font-weight:600;
+    background:var(--gold); color:var(--gold-ink); cursor:pointer; display:flex; align-items:center; gap:6px; }
+  .fres .add[disabled]{ background:transparent; color:var(--muted); border:1px solid #5A5470; cursor:default; }
+  .fres .add svg{ width:16px; height:16px; }
+  .fres.invite{ border-style:dashed; border-color:#5A5470; }
+  .fres.invite .ic{ width:42px; height:42px; flex:none; display:flex; align-items:center; justify-content:center; color:var(--gold); }
+  .fres.invite .ic svg{ width:26px; height:26px; }
+  .fres.invite .who span{ font-size:13px; color:#D9D2E4; line-height:1.35; }
 
   .profile h3{ font-family:'Bricolage Grotesque', sans-serif; font-weight:400; text-transform:uppercase; font-size:24px; margin:0 0 6px; }
   .profile .lede{ font-size:15px; color:var(--muted); margin:0 0 18px; line-height:1.4; }
@@ -495,6 +551,22 @@
       <div class="pw-row"><input class="field" id="loginPassword" type="password" autocomplete="current-password" placeholder="Password" aria-label="Password"><button class="pw-eye" type="button" data-pw="loginPassword" aria-label="Show password" aria-pressed="false"><svg class="pw-eye-on" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg><svg class="pw-eye-off" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l18 18"/><path d="M10.6 5.1A10.7 10.7 0 0 1 12 5c6.4 0 10 7 10 7a17.6 17.6 0 0 1-3.2 4.2M6.6 6.6C3.9 8.3 2 12 2 12s3.6 7 10 7a9.9 9.9 0 0 0 5.4-1.6"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg></button></div>
       <button class="cta label" type="submit" id="loginBtn">Sign in</button>
       <div class="form-note" id="loginNote" role="status" aria-live="polite"></div>
+      <!-- §244's reset, here too (10.15 packet): drawn only when the server
+           can email a code (`/api/auth/reset`), as the app's log-in does. -->
+      <button class="quiet-link label hidden" type="button" id="forgotLink">Forgot password?</button>
+    </form>
+
+    <!-- Reset: the address, then the emailed code and a new password. The
+         code goes only to the address already on the account. -->
+    <form id="resetForm" class="hidden" novalidate>
+      <input class="field" id="resetEmail" type="email" autocomplete="email" placeholder="The email on your account" aria-label="Email">
+      <div id="resetStep2" class="hidden">
+        <input class="field" id="resetCode" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="6-digit code" aria-label="6-digit code" style="margin-top:12px">
+        <div class="pw-row" style="margin-top:12px"><input class="field" id="resetPassword" type="password" autocomplete="new-password" minlength="8" placeholder="New password" aria-label="New password"><button class="pw-eye" type="button" data-pw="resetPassword" aria-label="Show password" aria-pressed="false"><svg class="pw-eye-on" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg><svg class="pw-eye-off" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l18 18"/><path d="M10.6 5.1A10.7 10.7 0 0 1 12 5c6.4 0 10 7 10 7a17.6 17.6 0 0 1-3.2 4.2M6.6 6.6C3.9 8.3 2 12 2 12s3.6 7 10 7a9.9 9.9 0 0 0 5.4-1.6"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg></button></div>
+      </div>
+      <button class="cta label" type="submit" id="resetBtn">Email me a code</button>
+      <div class="form-note" id="resetNote" role="status" aria-live="polite">We’ll email a 6-digit code to the address on your account.</div>
+      <button class="quiet-link label" type="button" id="resetBack">Remembered it? Sign in</button>
     </form>
 
     <button class="quiet-link label" id="toggleLogin" type="button">Already on the list? Sign in</button>
@@ -617,27 +689,109 @@
       <div class="cure-fam"><svg viewBox="0 0 48.7 16.9" aria-label="FAM" role="img"><use href="#wm"/></svg><span class="label">is social information</span></div>
     </section>
 
-    <!-- "Stay in the loop", "How to get the most out of FAM" and "Better
-         together" were taken out in the 10.10 packet (PROBLEMS.md §250):
-         they are becoming a video. -->
+    <!-- "Stay in the loop" and "Better together" were taken out in the
+         10.10 packet (PROBLEMS.md §250): they are becoming a video, which
+         goes here. The features carousel came back under it in the 10.15
+         packet (§282), as "Learn more. Go deeper." -->
+    <section class="ab-wrap ab-how">
+      <header class="ab-sec-head reveal">
+        <div class="ab-kicker label">Search. Scroll. Mix.</div>
+        <h2 class="ab-h">Learn more. Go deeper.</h2>
+        <p class="ab-sub">You choose how you listen. Three ways in, one thing in common:
+          every episode is yours.</p>
+      </header>
+
+      <!-- One feature at a time, turned like the problem above. -->
+      <div class="car feat-carousel reveal" data-carousel role="region" aria-roledescription="carousel" aria-label="Three ways to listen">
+        <div class="car-slides">
+          <!-- 01 Search -->
+          <article class="feat car-slide" role="group" aria-roledescription="slide" aria-label="1 of 3: Search">
+            <div class="feat-copy">
+              <div class="feat-num label">01 · Search</div>
+              <h3 class="feat-h">Ask for exactly the episode you want.</h3>
+              <p>Type or say your question, pick how long you want to listen, and FAM
+                creates a custom episode just for you.</p>
+              <ul class="ticks">
+                <li>Prompt it like you’d ask a friend who knows everything</li>
+                <li>Choose your length, from a quick minute to a deep dive</li>
+                <li>Go deeper with a follow-up when it ends</li>
+              </ul>
+            </div>
+            <div class="feat-art">
+              <div class="shots two"><figure class="shot shot-back"><img src="/landing/player.jpg" alt="The player: your episode's picture, title, and Go Deeper" width="780" height="1627" loading="lazy"></figure><figure class="shot shot-front"><img src="/landing/search.jpg" alt="FAM search: ask anything, with trending searches underneath" width="780" height="1688" loading="lazy"></figure><span class="shot-tag">Your episode, made for you</span></div>
+            </div>
+          </article>
+          <!-- 02 DailyFAM -->
+          <article class="feat car-slide" role="group" aria-roledescription="slide" aria-label="2 of 3: DailyFAM">
+            <div class="feat-copy">
+              <div class="feat-num label">02 · DailyFAM</div>
+              <h3 class="feat-h">A page that refreshes all day long.</h3>
+              <p>DailyFAM is always full of relevant, up-to-date episodes, so there’s
+                something worth hearing every time you open it.</p>
+              <ul class="ticks">
+                <li><b>Made for you</b> from what you love to hear about</li>
+                <li><b>Trending</b> stories from around the world</li>
+                <li><b>What you missed</b> while you were busy</li>
+                <li>What’s hot on <b>FAM</b> and with <b>your friends</b></li>
+              </ul>
+            </div>
+            <div class="feat-art">
+              <div class="shots two"><figure class="shot shot-back"><img src="/landing/dailyfam-rails.jpg" alt="DailyFAM's Trending and What you missed last week rails" width="780" height="1688" loading="lazy"></figure><figure class="shot shot-front"><img src="/landing/dailyfam.jpg" alt="DailyFAM: your friends, pick up where you left off, and Made for you" width="780" height="1688" loading="lazy"></figure><span class="shot-tag">The latest, all in one place</span></div>
+            </div>
+          </article>
+          <!-- 03 myFAM -->
+          <article class="feat car-slide" role="group" aria-roledescription="slide" aria-label="3 of 3: myFAM">
+            <div class="feat-copy">
+              <div class="feat-num label">03 · myFAM</div>
+              <h3 class="feat-h">Your topics, mixed and played in one tap.</h3>
+              <p>myFAM is the easiest way to stay up to date. Build custom playlists,
+                called mixes, from the topics you follow, and get the latest on them every day.</p>
+              <ul class="ticks">
+                <li>Want a daily recap of your team or the markets? Add them to a mix</li>
+                <li>One tap plays through all the latest, back to back</li>
+                <li>Share your mixes, or copy one somebody else made</li>
+              </ul>
+            </div>
+            <div class="feat-art">
+              <div class="shots two"><figure class="shot shot-back"><img src="/landing/myfam-mixes.jpg" alt="myFAM: your mixes" width="780" height="1688" loading="lazy"></figure><figure class="shot shot-front"><img src="/landing/myfam-mix.jpg" alt="A myFAM mix with today’s edition ready to play" width="780" height="1688" loading="lazy"></figure><span class="shot-tag">Your mix, your way, made daily</span></div>
+            </div>
+          </article>
+        </div>
+        <button type="button" class="car-arrow car-prev" aria-label="Previous"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg></button>
+        <button type="button" class="car-arrow car-next" aria-label="Next"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
+        <div class="car-dots"><button type="button" data-i="0" aria-label="Show Search" aria-current="true"></button><button type="button" data-i="1" aria-label="Show DailyFAM"></button><button type="button" data-i="2" aria-label="Show myFAM"></button></div>
+      </div>
+    </section>
 
     <section class="ab-wrap ab-founders reveal">
       <figure class="fd-photo" id="founderPhoto">
-        <!-- static/founders.jpg: the founders at work on FAM. If the file is
+        <!-- static/founders.jpg: the three founders by the Golden Gate (10.15
+             packet), left to right as they are named below. If the file is
              ever missing, the frame shows their initials instead. -->
-        <img src="/founders.jpg" alt="Ian Solomon and TJ Weingart brainstorming FAM"
+        <img src="/founders.jpg" alt="Brady Weingart, Ian Solomon and TJ Weingart, the founders of FAM"
              onerror="this.parentNode.classList.add('empty')">
-        <div class="fd-mono" aria-hidden="true"><span>IS</span><span>TJ</span></div>
+        <div class="fd-mono" aria-hidden="true"><span>BW</span><span>IS</span><span>TJ</span></div>
       </figure>
       <div class="fd-copy">
         <div class="ab-kicker label">Our story</div>
-        <h2 class="ab-h">FAM isn’t really about consuming more information.</h2>
-        <p>It’s about making the information already surrounding us easier to understand,
-          easier to remember, and easier to bring back into the real world.</p>
-        <p>We started FAM with one mission: everybody should have the access and the
-          ability to know whatever they want, in the easiest way possible.</p>
+        <h2 class="ab-h">We believe information can bring people closer.</h2>
+        <p>The idea for FAM grew out of summers we spent living and working together in the
+          forest, where we experienced firsthand how meaningful human connection can be. Coming
+          back to everyday life, we noticed how fragmented everything felt. Our attention, our
+          information, and sometimes even our relationships.</p>
+        <p>We began to realize that information is one of the ways we understand each other.
+          What someone is curious about, what they’re learning, and what fascinates them tells us
+          something about who they are. And when we share those things, we create more
+          opportunities to connect.</p>
+        <p>We started FAM with a simple idea: what if the information you cared about could come
+          to you? What began as a way to make information more accessible through personalized
+          audio grew into something bigger.</p>
+        <p>Today, we’re building FAM around the belief that our information worlds don’t have to
+          exist separately. By bringing together what we know, what we’re learning, and what
+          we’re curious about, we can create more shared understanding and bring people closer
+          together.</p>
         <div class="fd-sign">
-          <span class="fd-names">Ian Solomon &amp; TJ Weingart</span>
+          <span class="fd-names">Brady Weingart, Ian Solomon &amp; TJ Weingart</span>
           <span class="label">Founders</span>
         </div>
       </div>
@@ -735,15 +889,15 @@
       Share
     </button>
   </div>
-  <div class="fam-row" id="famRow"></div>
-
-  <div class="unlock" id="unlockRow">
-    <div class="lock"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 10V8a5 5 0 0 1 10 0v2h1a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1h1zm2 0h6V8a3 3 0 0 0-6 0v2zm3 4a1.5 1.5 0 0 0-.75 2.8V18h1.5v-1.2A1.5 1.5 0 0 0 12 14z"/></svg></div>
-    <div>
-      <div class="t1 label" id="unlockT1">—</div>
-      <div class="t2 label" id="unlockT2" style="font-weight:500">Until your next unlock</div>
-    </div>
+  <!-- Find a friend already on the list (10.15 packet): by name or handle,
+       or an email or phone number typed whole. Nobody found is the invite. -->
+  <div class="fsearch">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+    <input id="friendSearch" type="search" autocomplete="off" autocapitalize="off" spellcheck="false"
+           placeholder="Search friends on the waitlist..." aria-label="Search friends on the waitlist by name, email or phone number">
   </div>
+  <div class="fresults hidden" id="friendResults" aria-live="polite"></div>
+  <div class="fam-row" id="famRow"></div>
 
   <section class="card profile hidden" id="profile" style="margin-top:26px">
     <h3><span id="profileHeading">Your profile</span> <span class="done-pill hidden" id="profileDone">Complete</span></h3>
@@ -1022,16 +1176,26 @@
         });
     });
     // The eye beside each password field shows or hides what was typed.
-    Array.prototype.forEach.call(document.querySelectorAll(".pw-eye[data-pw]"), function(eye){
-      eye.addEventListener("click", function(){
-        var input = $(eye.getAttribute("data-pw"));
-        var show = input.type === "password";
-        input.type = show ? "text" : "password";
-        eye.setAttribute("aria-pressed", show ? "true" : "false");
-        eye.setAttribute("aria-label", show ? "Hide password" : "Show password");
+    // `show` forces a state; left out, it toggles.
+    function setPasswordShown(eye, show){
+      var input = $(eye.getAttribute("data-pw"));
+      if(show === undefined) show = input.type === "password";
+      input.type = show ? "text" : "password";
+      eye.setAttribute("aria-pressed", show ? "true" : "false");
+      eye.setAttribute("aria-label", show ? "Hide password" : "Show password");
+    }
+    // Every form opens with its passwords hidden again.
+    function hidePasswords(){
+      Array.prototype.forEach.call(document.querySelectorAll(".pw-eye[data-pw]"), function(eye){
+        setPasswordShown(eye, false);
       });
+    }
+    Array.prototype.forEach.call(document.querySelectorAll(".pw-eye[data-pw]"), function(eye){
+      eye.addEventListener("click", function(){ setPasswordShown(eye); });
     });
     $("toggleLogin").addEventListener("click", function(){
+      if(!$("resetForm").classList.contains("hidden")) closeReset();
+      hidePasswords();
       var toLogin = $("loginForm").classList.contains("hidden");
       $("loginForm").classList.toggle("hidden", !toLogin);
       $("joinForm").classList.toggle("hidden", toLogin);
@@ -1054,6 +1218,57 @@
         .then(function(d){ location.replace(d.admin || d.status !== "active" ? "/waitlist/me" : "/"); })
         .catch(function(e){ $("loginBtn").disabled = false; note.className = "form-note err"; note.textContent = e.message; });
     });
+
+    // Forgot password (§244, here since the 10.15 packet). The link is drawn
+    // only when the server can send mail: a control with nothing behind it
+    // is worse than none. The server answers the first step the same way
+    // whether or not the address has an account.
+    api("/api/auth/reset").then(function(d){
+      $("forgotLink").classList.toggle("hidden", !(d && d.available));
+    }).catch(function(){});
+    function closeReset(){
+      $("resetForm").classList.add("hidden");
+      $("loginForm").classList.remove("hidden");
+      $("resetStep2").classList.add("hidden");
+      $("resetBtn").textContent = "Email me a code";
+      $("resetCode").value = ""; $("resetPassword").value = "";
+    }
+    $("forgotLink").addEventListener("click", function(){
+      hidePasswords();
+      $("loginForm").classList.add("hidden");
+      $("resetForm").classList.remove("hidden");
+      $("resetEmail").value = $("loginEmail").value.trim();
+      var note = $("resetNote"); note.className = "form-note";
+      note.textContent = "We’ll email a 6-digit code to the address on your account.";
+      $("resetEmail").focus();
+    });
+    $("resetBack").addEventListener("click", closeReset);
+    $("resetForm").addEventListener("submit", function(ev){
+      ev.preventDefault();
+      var note = $("resetNote"), btn = $("resetBtn");
+      var email = $("resetEmail").value.trim();
+      function fail(m){ btn.disabled = false; note.className = "form-note err"; note.textContent = m; }
+      if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return fail("Enter the email address on your account.");
+      if($("resetStep2").classList.contains("hidden")){
+        btn.disabled = true;
+        api("/api/auth/reset/start", { email: email }).then(function(d){
+          btn.disabled = false;
+          $("resetStep2").classList.remove("hidden");
+          btn.textContent = "Set new password";
+          note.className = "form-note"; note.textContent = d.message || "If that address has a FAM account, a code is on its way.";
+          $("resetCode").focus();
+        }).catch(function(e){ fail(e.message); });
+        return;
+      }
+      var code = $("resetCode").value.replace(/\D/g, "");
+      var pw = $("resetPassword").value;
+      if(code.length !== 6) return fail("Enter the 6-digit code from the email.");
+      if(pw.length < 8) return fail("Use at least 8 characters for your password.");
+      btn.disabled = true;
+      api("/api/auth/reset/finish", { email: email, code: code, "new": pw })
+        .then(function(d){ location.replace(d.admin || d.status !== "active" ? "/waitlist/me" : "/"); })
+        .catch(function(e){ fail(e.message); });
+    });
   }
 
   /* ---------------- status ---------------- */
@@ -1067,6 +1282,11 @@
     if(d.admin && d.preview){
       d = Object.assign({}, d, d.preview, { status: "waitlisted" });
     }
+    // The friend search is for the people on the list (§282); somebody let
+    // in finds friends with the search in FAM.
+    var searching = d.admin || d.status !== "active";
+    document.querySelector(".fsearch").classList.toggle("hidden", !searching);
+    if(!searching) $("friendResults").classList.add("hidden");
     if(d.status === "active"){
       $("placeCard").classList.add("hidden");
       $("grantedCard").classList.remove("hidden");
@@ -1121,15 +1341,59 @@
         + '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button></div>';
     }
     $("famRow").innerHTML = html;
-    var u = d.unlock;
-    if(u.remaining == null){
-      $("unlockT1").textContent = u.milestones.length ? "Every unlock reached" : "Unlocks coming soon";
-      $("unlockT2").textContent = u.milestones.length ? "You brought " + fmt(d.invites) + " with you" : "Invite friends to move up";
-    } else {
-      $("unlockT1").textContent = u.remaining + (u.remaining === 1 ? " more person" : " more people");
-      $("unlockT2").textContent = "Until your next unlock";
-    }
   }
+
+  // The friend search (10.15 packet). Typing waits a moment and asks the
+  // server, which finds a name or handle from two characters, and an email
+  // or phone number only typed whole. Nobody found: invite them instead.
+  var searchTimer = 0, searchSeq = 0;
+  var INVITE_IC = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 19c.8-3.3 3.4-5 6.5-5s5.7 1.7 6.5 5"/><circle cx="17" cy="9" r="2.6"/><path d="M16.5 14.2c2.6.2 4.4 1.8 5 4.8"/></svg>';
+  var SEND_IC = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>';
+  function inviteCard(){
+    return '<div class="fres invite"><div class="ic">' + INVITE_IC + '</div>'
+      + '<div class="who"><span>Can’t find your friend on the waitlist? Invite them and move up the waitlist!</span></div>'
+      + '<button class="add" type="button" onclick="invite()">' + SEND_IC + 'Invite</button></div>';
+  }
+  function addLabel(p){
+    return p.friend ? "Friends" : (p.added ? "Added" : "Add");
+  }
+  function drawResults(people, term){
+    var box = $("friendResults");
+    if(!term){ box.classList.add("hidden"); box.innerHTML = ""; return; }
+    box.classList.remove("hidden");
+    box.innerHTML = people.map(function(p, i){
+      var face = p.avatar ? '<img alt="" src="' + esc(p.avatar) + '">' : esc(p.initials);
+      var done = p.added || p.friend;
+      return '<div class="fres"><div class="av">' + face + '</div>'
+        + '<div class="who"><b>' + esc(p.name || "@" + p.handle) + '</b>'
+        + '<span>' + (p.waitlisted ? "On the waitlist" : "In FAM") + '</span></div>'
+        + '<button class="add" type="button" data-i="' + i + '"' + (done ? " disabled" : "") + '>'
+        + esc(addLabel(p)) + '</button></div>';
+    }).join("") + inviteCard();
+    Array.prototype.forEach.call(box.querySelectorAll(".add[data-i]"), function(b){
+      b.addEventListener("click", function(){
+        var p = people[+b.getAttribute("data-i")];
+        b.disabled = true;
+        api("/api/waitlist/add", { user_id: p.user_id }).then(function(r){
+          p.added = true; p.friend = !!r.friend;
+          b.textContent = addLabel(p);
+          toast(p.friend ? "You and " + (p.name || "@" + p.handle) + " are FAM" : "Added. They’re FAM when they add you back.");
+          if(p.friend) api("/api/waitlist/me").then(function(d){ STATE = d; drawFam(d); }).catch(function(){});
+        }).catch(function(e){ b.disabled = false; toast(e.message); });
+      });
+    });
+  }
+  function searchFriends(){
+    var term = $("friendSearch").value.replace(/\s+/g, " ").trim();
+    var seq = ++searchSeq;
+    if(term.length < 2){ drawResults([], ""); return; }
+    api("/api/waitlist/people?q=" + encodeURIComponent(term)).then(function(r){
+      if(seq === searchSeq) drawResults(r.people || [], term);
+    }).catch(function(){ if(seq === searchSeq) drawResults([], term); });
+  }
+  $("friendSearch").addEventListener("input", function(){
+    clearTimeout(searchTimer); searchTimer = setTimeout(searchFriends, 250);
+  });
 
   // The country codes the phone field offers; the server stores E.164 and
   // never guesses a country, so the code is chosen rather than typed.

@@ -132,6 +132,29 @@ response (`mine` says it); account deletion takes them, their replies and
 likes. Its way in is the exploreFAM pill - wordmark and arrow - on
 search's top right and level with Made for you.
 
+<!-- rule:private-search -->
+**Private search is incognito for one search** *(PROBLEMS.md §282, the
+owner's 10.15 packet)*. A **Private** bubble beside Length and Voice turns it
+on; the search page goes charcoal in either theme; the search it is sent with
+carries `private=1` and it turns itself off. The server records no play
+(`/api/audio` skips `EVENTS`), and what it writes is stamped
+`cache.PRIVATE_ORIGIN` with no author, so `recent` lists it nowhere -
+no exploreFAM, no rail, no A to Z, no trending search, and no friends rail can
+name whose it was. The client sends no event, position or history row while it
+plays. The episode is still kept, so its own replay, captions and title work;
+the same question asked in the open is an ordinary episode. Search only:
+`private` on any other surface is ignored.
+
+<!-- rule:story-reply -->
+**A friend's vibe has Instagram's reply row** *(PROBLEMS.md §282, the owner's
+10.15 packet)*: **Send message...**, a heart and a paper plane under Play
+episode, never on your own story. A reply is one message to them carrying the
+episode (`kind: "episode"` with `text`), so it lands in Messages with the vibe
+it answers ("replied to your vibe"); a like is the same message with a heart,
+sent once per story on the device, plus the episode's own like (`/api/rate`) as
+taste; the plane opens VIBE! on that episode, with its picture, for your own
+story. Typing holds the story.
+
 <!-- rule:vibe-caption -->
 **A vibe can carry a caption (§203).** Tapping VIBE! opens a sheet with an
 optional line (`social.MAX_CAPTION`, cut not refused, slurs removed); the
@@ -650,6 +673,7 @@ the rest of this list it needs taste rather than a key.
   question goes through `autocorrect.correct_text`.
 
 <!-- rule:search-bar -->
+> **Current (PROBLEMS.md §282, the owner 10.15):** a third bubble, **Private**, is searchFAM's incognito for one search (`private-search`); while it is on the search page is charcoal in either theme.
 > **Current (PROBLEMS.md §219):** the Length menu offers **1, 2, 3, 4 and 5 minutes** (`SEARCH_LENGTHS`); the server still accepts up to ten, so no installed client is refused.
 - **The search page is Google's shape** *(PROBLEMS.md §190, the owner's 10.1
   packet with a Google screenshot)*: one rounded bar holding the question,
@@ -662,6 +686,7 @@ the rest of this list it needs taste rather than a key.
   `visibilitychange`); a length is chosen for one search, not kept.
 
 <!-- rule:player-layout -->
+> **Current (PROBLEMS.md §282, the owner 10.15):** a picture follows the category **unless the words name a specific subject on another branch** - a league, team or person at `thumbnails.SUBJECT_DEPTH` or deeper (`_named_subject`): a Seahawks odds episode filed under sports betting wore the betting node's poker chips. Then the subject's picture (or its branch's, borrowed) is drawn, on the tile, the player and the vibe alike; the category is still the episode's for everything else (`one-category`). Words naming only a facet or a sport never outrank it (§209's boxing case).
 > **Current (PROBLEMS.md §255, the owner 10.12):** the down arrow top left is the **Home logo** - DailyFAM's tab glyph, the house - doing exactly what the arrow did: it minimises and never stops.
 > **Current (PROBLEMS.md §247, the owner 10.10):** a searched or Go Deeper episode's picture **follows its category, not the typed words**: EI's brief names a `category` before the first word, put on the live track beside its title (`live_captions.publish_category`), and the writer's replaces it; `/api/episode/card` draws from the written category, else the track's (`app._playing_category`), and says `placed`. The player asks again as each title lands and lets a placed picture replace a word match - never the picture of the tile that opened it.
 > **Current (PROBLEMS.md §214, the owner 07/10):** rail tiles borrow too: `topics.Topic._thumb` draws through `thumbnails.pick_for_tile` - its own node's picture, else one borrowed in the player's order, marked `thumb_borrowed` - so every episode on the interface has a picture while any is approved. The unpainted node is still painted first. Where the text below says a rail shows the drawing, read "borrows".

@@ -2072,13 +2072,13 @@ def main() -> int:
             page.wait_for_timeout(300)
             chip = page.query_selector("#screen-home #voiceBubble")
             assert chip, "the search page has no voice control"
-            # §190: two bubbles under the bar, Length then Voice, and the
-            # choice is not printed on them.
+            # §190: bubbles under the bar, Length then Voice, and the
+            # choice is not printed on them; Private is the third (§282).
             order = page.evaluate(
                 """() => Array.from(document.querySelectorAll(
                     '#screen-home .fam-controls .search-bubble'))
                     .map(e => e.textContent.trim())""")
-            assert order == ["Length", "Voice"], f"the bubbles read {order}"
+            assert order == ["Length", "Voice", "Private"], f"the bubbles read {order}"
             page.evaluate("openVoiceMenu()")
             page.wait_for_timeout(250)
             labels = page.evaluate(
@@ -3649,6 +3649,26 @@ def main() -> int:
                 "request(s); a replay costs nothing and must not be blocked")
             page.evaluate("stopSpeech(); clearGenOverlay()")
             page.wait_for_timeout(150)
+            # A private search (§282) goes out as a search marked private:
+            # the server keeps it private only for surface=search, so a
+            # private search sent as any other surface was an ordinary one.
+            page.evaluate("setTab('home'); setPrivateSearch(true)")
+            assert page.eval_on_selector(
+                "#screen-home", "e => e.classList.contains('private-search')"), \
+                "Private did not turn the search page charcoal"
+            page.fill("#searchInput", "what the evidence says about sleep")
+            page.evaluate("Promise.resolve(acCorrectQuestion("
+                          "'what the evidence says about sleep'))")
+            page.evaluate("runSearch()")
+            page.wait_for_timeout(600)
+            last = page.evaluate("() => window.__audioCalls[window.__audioCalls.length - 1] || ''")
+            assert "private=1" in last and "surface=search" in last, \
+                f"a private search was not sent as one: {last}"
+            assert not page.eval_on_selector(
+                "#screen-home", "e => e.classList.contains('private-search')"), \
+                "Private stayed on after its one search"
+            page.evaluate("stopSpeech(); clearGenOverlay()")
+            page.wait_for_timeout(150)
 
         def a_search_is_corrected_when_it_is_sent():
             """10.1 #4: the last word of a search was never corrected, because
@@ -3901,6 +3921,25 @@ def main() -> int:
             page.wait_for_timeout(200)
             second = page.text_content("#storyTitle").strip()
             assert first and second and first != second, "tapping right did not advance"
+            # Reply, like and share to your story (§282): a reply is a
+            # message to them carrying the episode, and typing holds it.
+            assert page.is_visible("#storyReplyInput"), "no reply box on a friend's vibe"
+            page.evaluate("""() => { window.__sent = [];
+                var real = window.fetch;
+                window.fetch = function(u, o){
+                  if(String(u).indexOf('/api/messages') === 0 && o && o.body) window.__sent.push(JSON.parse(o.body));
+                  return real.apply(this, arguments); }; }""")
+            page.click("#storyReplyInput")
+            assert page.eval_on_selector("#storyOverlay", "e => e.classList.contains('paused')"), \
+                "typing a reply did not hold the story"
+            page.fill("#storyReplyInput", "Great one")
+            page.press("#storyReplyInput", "Enter")
+            page.wait_for_timeout(300)
+            sent = page.evaluate("window.__sent")
+            assert sent and sent[0]["text"] == "Great one" and sent[0]["query"], \
+                f"the reply was not sent with its episode: {sent}"
+            page.click("#storyLike")
+            assert page.get_attribute("#storyLike", "aria-pressed") == "true", "the heart did not fill"
             page.click("#storyOverlay .story-x")
             page.wait_for_timeout(200)
             assert page.eval_on_selector("#storyOverlay", "e => e.hidden"), \

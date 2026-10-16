@@ -962,6 +962,7 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
   }
   function episodeHTML(e) {
     var sources = e.sources || [];
+    var services = e.services || [];
     var lines = e.transcript || [];
     var pic = episodeThumb(e);
     return (pic ? '<img class="thumb-lg" src="' + esc(pic) + '" alt="The picture this episode played over">' : '') +
@@ -975,6 +976,12 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
         return '<li>' + (link ? '<a href="' + esc(link) + '" target="_blank" rel="noopener noreferrer">' + name + '</a>' : name) +
           (meta ? ' <span class="ctx">' + meta + '</span>' : '') + '</li>';
       }).join("") + '</ol>' : '<p class="sub">No sources were recorded for this episode.</p>') +
+      // Which outside services it used (10.15 packet): names, never keys.
+      '<h4>APIs used · ' + services.length + '</h4>' +
+      (services.length ? '<ul>' + services.map(function (x) {
+        return '<li><b>' + esc(x.service || "") + '</b> · ' + esc(x.role || "") +
+          (x.detail ? ' <span class="ctx">' + esc(x.detail) + '</span>' : '') + '</li>';
+      }).join("") + '</ul>' : '<p class="sub">No services were recorded for this episode.</p>') +
       '<h4>Transcript</h4>' +
       (lines.length ? '<p class="transcript">' + esc(lines.join(" ")) + (e.transcript_cut ? ' […]' : '') + '</p>'
                     : '<p class="sub">No transcript was found - it may not have been written yet.</p>');

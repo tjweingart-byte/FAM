@@ -232,6 +232,25 @@
     cursor:pointer; }
   .search-bubble svg{ color:var(--text-muted); }
   .search-bubble:active{ transform:scale(0.98); }
+  /* Private search (10.15 packet, §282): searchFAM's incognito. While it is
+     on, the search page is charcoal in either theme - dark's palette on a
+     near-black ground - and goes back once the search is sent. */
+  #screen-home.private-search{
+    --page-bg:#0F0E12; --bg:#161519; --surface:#232129; --surface-2:#2C2A33;
+    --copper:#E0B563; --gold:#E0B563;
+    --text:#F1EEF4; --text-muted:#A7A2B3; --text-faint:#7F7A8B;
+    --border:rgba(241,238,244,0.12); --border-strong:rgba(241,238,244,0.22);
+    --muted:rgba(241,238,244,0.56); --ink-muted:#A7A2B3;
+    --fg-rgb:241,238,244; --bg-rgb:22,21,25;
+    color-scheme:dark; background:var(--bg); color:var(--text);
+    transition:background .25s;
+  }
+  .search-bubble.private-bubble[aria-pressed="true"]{ background:#F1EEF4; color:#161519; border-color:#F1EEF4; }
+  .search-bubble.private-bubble[aria-pressed="true"] svg{ color:#161519; }
+  .private-note{ margin:12px 4px 0; font-size:12.5px; line-height:1.45; color:var(--text-muted);
+    display:flex; gap:8px; align-items:flex-start; }
+  .private-note[hidden]{ display:none; }
+  .private-note svg{ flex:none; margin-top:1px; }
   /* Attachments. The chip carries the file's name because "1 attachment" is
      not enough to notice you attached the wrong thing. */
   .attach-btn{ width:40px; height:40px; border-radius:50%; background:none;
@@ -1225,6 +1244,8 @@
   .msg-row.out{ justify-content:flex-end; }
   .msg-bubble{ max-width:75%; padding:9px 13px; border-radius:14px; font-size:12.5px; line-height:1.4;
     white-space:pre-wrap; overflow-wrap:anywhere; }
+  /* A like on a vibe (§282) is the heart itself, not a bubble around it. */
+  .msg-row.msg-row .msg-bubble.msg-like{ background:none; padding:0 4px; font-size:30px; line-height:1.1; }
   .msg-row.in .msg-bubble{ background:var(--surface); color:var(--text); border-bottom-left-radius:4px; }
   .msg-row.out .msg-bubble{ background:var(--copper); color:var(--ink); font-weight:600; border-bottom-right-radius:4px; }
   /* Typed and drawn, not yet acknowledged by the server. Faded rather than
@@ -2854,6 +2875,18 @@
   .vc-count{ text-align:right; font-family:'Geist Mono', monospace; font-size:9px;
     color:var(--text-faint); margin:4px 2px 0; }
   .story-meta{ font-size:12px; color:rgba(244,239,228,0.6); }
+  /* Reply, like, share to your story (10.15 packet, §282). */
+  .story-reply{ display:flex; align-items:center; gap:6px; margin-top:4px; }
+  .story-reply[hidden]{ display:none; }
+  .story-reply input{ flex:1; min-width:0; height:44px; border-radius:999px; padding:0 18px;
+    border:1px solid rgba(244,239,228,0.55); background:rgba(0,0,0,0.18); color:#F4EFE4;
+    font:14px 'Geist', sans-serif; outline:none; }
+  .story-reply input::placeholder{ color:rgba(244,239,228,0.75); }
+  .story-act{ width:42px; height:44px; flex:none; border:none; background:none; color:#F4EFE4;
+    display:flex; align-items:center; justify-content:center; cursor:pointer; padding:0; }
+  .story-act:active{ transform:scale(0.9); }
+  .story-act[aria-pressed="true"]{ color:#FF4D5E; }
+  .story-act[aria-pressed="true"] svg{ fill:currentColor; }
   .story-play{ margin-top:8px; display:flex; align-items:center; justify-content:center; gap:8px;
     height:46px; border:none; border-radius:999px; background:var(--copper); color:var(--ink);
     font:600 14px inherit; font-family:inherit; cursor:pointer; }
@@ -3752,7 +3785,12 @@
                  under Listening in Settings: every other surface draws a
                  voice from the bank per episode. -->
             <button type="button" class="search-bubble" id="voiceBubble" onclick="openVoiceMenu()" aria-label="Voice for your searches"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 10v4M8 7v10M12 4v16M16 8v8M20 11v2"/></svg>Voice</button>
+            <!-- Private search (10.15 packet, §282): Google's incognito, for
+                 one search. On exploreFAM nowhere, on no friend's DailyFAM,
+                 in nobody's history; the page goes charcoal while it is on. -->
+            <button type="button" class="search-bubble private-bubble" id="privateBubble" aria-pressed="false" onclick="setPrivateSearch(!privateSearch)" aria-label="Private search"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11h18"/><path d="M5.5 11l1.7-5.6A1.5 1.5 0 0 1 8.6 4.3h6.8a1.5 1.5 0 0 1 1.4 1.1L18.5 11"/><circle cx="7.5" cy="16.5" r="2.8"/><circle cx="16.5" cy="16.5" r="2.8"/><path d="M10.3 16.3c1.1-.6 2.3-.6 3.4 0"/></svg>Private</button>
           </div>
+          <p class="private-note" id="privateNote" hidden><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg><span>Private search is on. This search won&rsquo;t appear on exploreFAM, on your friends&rsquo; DailyFAM, in your listening history, or teach your feed.</span></p>
           <!-- Trending searches (10.1 #3, §190): the most searched questions
                of the last two hours, in order, each one an episode already
                written and still current (`/api/searches/trending`). -->
@@ -4679,6 +4717,17 @@
           <button class="story-play" onclick="playStory()">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8.2 4.9v14.2L18.6 12z"/></svg>
             Play episode</button>
+          <!-- Reply, like and share to your story (10.15 packet, §282),
+               Instagram's row: a reply goes to their messages with the
+               episode, a like tells them too, and the arrow opens VIBE!
+               with this episode for your own story. Not on your own. -->
+          <form class="story-reply" id="storyReply" onsubmit="event.preventDefault(); sendStoryReply();">
+            <input id="storyReplyInput" type="text" maxlength="500" autocomplete="off" enterkeyhint="send"
+                   placeholder="Send message..." aria-label="Reply to this vibe"
+                   onfocus="pauseStory()" onblur="storyReplyBlur()">
+            <button type="button" class="story-act" id="storyLike" aria-pressed="false" onclick="likeStory()" aria-label="Like"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20.5s-7.5-4.6-9.2-9.3C1.6 7.8 3.9 4.5 7.3 4.5c2 0 3.6 1.1 4.7 2.8 1.1-1.7 2.7-2.8 4.7-2.8 3.4 0 5.7 3.3 4.5 6.7-1.7 4.7-9.2 9.3-9.2 9.3z"/></svg></button>
+            <button type="button" class="story-act" id="storyReshare" onclick="shareStoryToMine()" aria-label="Share to your story"><svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 3 10.2 14.3"/><path d="M21.5 3 14.6 21l-4.4-6.7L3.5 10z"/></svg></button>
+          </form>
         </div>
       </div>
       <!-- VIBE! opens a story editor (10.6 packet #2), Instagram's shape: the
@@ -5401,6 +5450,18 @@
   // title to show (always the corrected spelling). Words already asked about
   // are answered from memory, so the usual send waits for nothing.
   var searchSending = false;
+  // Private search (10.15 packet, §282). On for the next search only: the
+  // search it is sent with carries it, then it turns itself off.
+  var privateSearch = false;
+  function setPrivateSearch(on){
+    privateSearch = !!on;
+    var screen = document.getElementById("screen-home");
+    if(screen) screen.classList.toggle("private-search", privateSearch);
+    var bubble = document.getElementById("privateBubble");
+    if(bubble) bubble.setAttribute("aria-pressed", privateSearch ? "true" : "false");
+    var note = document.getElementById("privateNote");
+    if(note) note.hidden = !privateSearch;
+  }
   function runSearch(){
     if(searchSending) return;
     var typed = document.getElementById("searchInput").value.trim();
@@ -5465,11 +5526,14 @@
         surface: "search",
         caption: "Generating your live transcript as this plays—",
         attach: attach,
-        titleOverridden: !!attach
+        titleOverridden: !!attach,
+        // Private search (§282): this one search, off every feed.
+        private: privateSearch
       };
       // What someone searches is the clearest statement of interest they make,
-      // and it is the input myFAM was asked to rank on.
-      recordFamEvent("search", "", val);
+      // and it is the input myFAM was asked to rank on - unless it is private.
+      if(!privateSearch) recordFamEvent("search", "", val);
+      setPrivateSearch(false);
       pendingFromSearch = true;
       generate("_custom");
       document.getElementById("searchInput").value = "";
@@ -5568,9 +5632,12 @@
       source: "Trending search",
       surface: "search",
       caption: "Generating your live transcript as this plays—",
-      titleOverridden: !!t.title
+      titleOverridden: !!t.title,
+      // Tapped with Private on, it is that one private search (§282).
+      private: privateSearch
     };
-    recordFamEvent("search", "", t.query);
+    if(!privateSearch) recordFamEvent("search", "", t.query);
+    setPrivateSearch(false);
     pendingFromSearch = true;
     if(input){ input.value = ""; input.blur(); }
     paintSearchBar();
@@ -7175,7 +7242,8 @@
 
   var vcs = { ep: null, model: null, sel: "", tool: "", people: null, sending: false };
   function openVibeComposer(ep){
-    var thumb = "";
+    // A friend's story shared to yours (§282) brings its own picture.
+    var thumb = ep.thumb || "";
     if(nowBarState && nowBarState.query === ep.query) thumb = PLAYER_CARD.thumb || "";
     if(!thumb && typeof reelCurrent !== "undefined" && reelCurrent
        && reelCurrent.query === ep.query) thumb = reelCurrent.thumb || "";
@@ -8069,6 +8137,10 @@
     var minutes = episodeMinutes(opts.minutes, surface);
     currentPlaySurface = opts.cachedOnly ? "explore" : surface;
     currentPlayMinutes = minutes;
+    // A private search (§282): nothing about it is told to the server
+    // while it plays - no event, no position, no history row. Its question,
+    // so only that episode's own reports are held back.
+    currentPlayPrivate = opts.private ? title : "";
     var totalSeconds = minutes * 60;
     rememberEpisode(title, minutes, context || "", !!opts.cachedOnly);
     var episodeTopicId = bankTopicId || "";
@@ -8235,7 +8307,7 @@
         context, surface === "search" ? selectedVoice : null, {
         topicId: episodeTopicId, cachedOnly: !!opts.cachedOnly,
         attach: opts.attach || "", surface: surface, episode: opts.episode || "",
-        own: !!opts.own
+        own: !!opts.own, private: !!opts.private
       });
     }
 
@@ -8259,6 +8331,9 @@
     };
   }
   var famAbandonReporter = null;
+  //: The question of the episode on the player when it is a private search
+  //: (§282), else "".
+  var currentPlayPrivate = "";
   function stopSpeech(){
     clearInterval(offlineKeepWatch);
     if(famAbandonReporter){ try { famAbandonReporter(); } catch(e){} famAbandonReporter = null; }
@@ -8317,7 +8392,7 @@
     var playOpts = { cachedOnly: !!t.cachedOnly,
                      minutes: episodeMinutes(t.exploreMinutes || 0, where),
                      attach: t.attach || "", surface: where,
-                     own: !!t.own,
+                     own: !!t.own, private: !!t.private,
                      episode: t.episode || "", queueable: true };
     loadPlayerCard(key, t, playOpts.minutes);
     // A DailyFAM playlist entry ends by playing the next one (§134), and
@@ -8338,7 +8413,10 @@
     // decline. Album continuity is not lost - the popup's countdown tile is
     // the next episode in the album whenever there is one.
     // Listening history (§142): what to record once the first word plays.
-    var historyWhere = historySurface(t);
+    // A private search is nobody's history, its searcher's included (§282);
+    // it still plays as a search (`playSurface`), which is what makes the
+    // server keep it private.
+    var historyWhere = t.private ? "" : historySurface(t);
     historyPending = historyWhere ? {
       query: query, context: context, surface: historyWhere,
       minutes: playOpts.minutes || selectedLengthMinutes } : null;
@@ -12664,7 +12742,7 @@
   }
 
   function noteResume(query, minutes, seconds, title, now){
-    if(!query || !minutes) return;
+    if(!query || !minutes || (currentPlayPrivate && query === currentPlayPrivate)) return;
     // A guest's position is not kept anywhere, so there is nothing to send.
     if(!AUTH.authenticated) return;
     var stamp = query + "|" + minutes;
@@ -13106,6 +13184,9 @@
   // server files the event under that episode's own category (§209) rather
   // than whatever the question would be at the browse length.
   function recordFamEvent(kind, topicId, text, thread, heard){
+    // A private episode's finish or skip is not reported (§282).
+    if(currentPlayPrivate && text === currentPlayPrivate
+       && (kind === "complete" || kind === "skip")) return;
     try {
       var body = {
         kind: kind,
@@ -14196,6 +14277,7 @@
       cap.hidden = !v.caption;
       cap.textContent = v.caption || "";
     }
+    drawStoryReply(person, v);
     // A story laid out in the editor (10.6 #2) is drawn from its layout;
     // one vibed before the editor keeps the title-and-caption page.
     var composed = storyHasLayout(v);
@@ -14318,6 +14400,9 @@
     });
     el.addEventListener("pointerup", function(e){
       clearTimeout(storyHoldTimer);
+      // The reply row holds the story itself while its box has the focus
+      // (§282); a tap there is not the end of a hold or a swipe.
+      if(e.target.closest && e.target.closest(".story-reply")){ storySwipe = null; return; }
       if(storyHeld){
         resumeStory();
         storySwipedAt = Date.now();
@@ -14384,6 +14469,82 @@
                     caption: "", prompt: v.query,
                     exploreMinutes: v.minutes || BROWSE_MINUTES, titleOverridden: true };
     generate(key);
+  }
+
+  // Reply, like and share to your story (10.15 packet, §282). A reply is a
+  // message to them carrying the episode, so it lands in Messages with the
+  // vibe it answers; a like is the same message with a heart, and the
+  // episode's own like (`/api/rate`) as a taste signal. Liked once per
+  // story on this device: liking again does not send a second heart.
+  var STORY_LIKE = "\u2764\ufe0f";
+  var storyLikes = {};
+  function storyMark(person, v){ return (person.user_id || person.handle || "") + "|" + v.at + "|" + v.query; }
+  function drawStoryReply(person, v){
+    var row = document.getElementById("storyReply");
+    if(!row) return;
+    row.hidden = !!person.mine || !AUTH.authenticated || !person.user_id;
+    var input = document.getElementById("storyReplyInput");
+    input.value = "";
+    input.placeholder = "Send message...";
+    var like = document.getElementById("storyLike");
+    like.setAttribute("aria-pressed", storyLikes[storyMark(person, v)] ? "true" : "false");
+  }
+  function storyReplyBlur(){
+    // Leaving the box without sending lets the story run on, unless its
+    // menu is what took the focus.
+    setTimeout(function(){
+      var open = !document.getElementById("storyOverlay").hidden;
+      if(open && !document.getElementById("sheetOverlay").classList.contains("active")) resumeStory();
+    }, 60);
+  }
+  function postStoryMessage(person, v, text){
+    return fetch("/api/messages", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ to: person.user_id, text: text, query: v.query,
+                             minutes: v.minutes || BROWSE_MINUTES, title: v.title || "",
+                             reply: true })
+    }).then(function(r){
+      return r.json().then(function(d){
+        if(!r.ok) throw new Error(d.detail || d.error || "Could not send that");
+        return d;
+      });
+    });
+  }
+  function sendStoryReply(){
+    var cur = currentStory(), person = cur.person, v = cur.v;
+    var input = document.getElementById("storyReplyInput");
+    var text = (input.value || "").trim();
+    if(!v || !person || !text) return;
+    input.value = "";
+    input.blur();
+    postStoryMessage(person, v, text)
+      .then(function(){ toast("Sent to " + firstName(person)); })
+      .catch(function(err){ toast(err.message); });
+  }
+  function likeStory(){
+    var cur = currentStory(), person = cur.person, v = cur.v;
+    if(!v || !person) return;
+    var mark = storyMark(person, v);
+    var on = !storyLikes[mark];
+    var btn = document.getElementById("storyLike");
+    btn.setAttribute("aria-pressed", on ? "true" : "false");
+    fetch("/api/rate", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ query: v.query, minutes: v.minutes || BROWSE_MINUTES, value: on ? 1 : 0 })
+    }).catch(function(){});
+    if(storyLikes[mark] === undefined && on){
+      postStoryMessage(person, v, STORY_LIKE).catch(function(){});
+    }
+    storyLikes[mark] = on;
+  }
+  function shareStoryToMine(){
+    var v = currentStory().v;
+    if(!v) return;
+    var ep = { query: v.query, title: v.title || v.query, minutes: v.minutes || BROWSE_MINUTES,
+               thumb: (v.style && v.style.thumb) || "" };
+    closeStory();
+    if(!AUTH.authenticated){ gateActions(); return; }
+    openVibeComposer(ep);
   }
 
   function storyProfile(){
@@ -15969,7 +16130,9 @@
       var who = t.group ? (last.mine ? "You" : (last.from_name || "")) : "";
       var lead = who && last.kind !== "system" ? escapeHtml(who) + ": " : "";
       var preview = last.kind === "episode"
-        ? yfIcon("share", 13) + '<span>' + lead + 'Shared an episode'
+        ? yfIcon("share", 13) + '<span>' + lead
+          + (last.text === "\u2764\ufe0f" ? "Liked a vibe"
+             : last.text ? "Replied to a vibe: " + escapeHtml(last.text) : "Shared an episode")
           + (last.topic ? " · " + escapeHtml(last.topic) : "") + '</span>'
         : last.kind === "system" && t.group
           ? '<span>' + escapeHtml((who || "Someone") + " " + (last.text || "")) + '</span>'
@@ -16692,8 +16855,13 @@
         // A share: costs nothing to send and nothing to hold, because the row
         // points at a question whose script already exists. The generation
         // happens when *they* press Listen, against their own allowance.
-        var label = m.mine ? "You shared an episode"
-                           : firstName(who.group ? m.from : who) + " shared an episode";
+        // A reply to a vibe, or a like on one (§282), carries words; a
+        // plain share carries none.
+        var liked = m.text === "\u2764\ufe0f";
+        var sender = firstName(who.group ? m.from : who);
+        var label = liked ? (m.mine ? "You liked their vibe" : sender + " liked your vibe")
+          : m.text ? (m.mine ? "You replied to their vibe" : sender + " replied to your vibe")
+          : (m.mine ? "You shared an episode" : sender + " shared an episode");
         var meta = (m.topic ? escapeHtml(m.topic) + " · " : "") + (m.minutes || 2) + " min";
         var saved = savedHas(m.query, m.minutes);
         var card = day + fromLabel + '<div class="msg-row ' + dirCls + (m.pending ? " pending" : "") + '">'
@@ -16708,6 +16876,10 @@
           + '<button class="yf-round' + (saved ? " saved" : "") + '" onclick="saveSharedEpisode(' + i
           + ')" aria-label="Save for later">' + yfIcon("bookmark", 14) + '</button>'
           + '</div></div></div></div>';
+        if(m.text){
+          card += '<div class="msg-row ' + dirCls + '"><div class="msg-bubble' + (liked ? ' msg-like' : '') + '">'
+            + escapeHtml(m.text) + '</div></div>';
+        }
         // The receipt is a fact from this listener's own log - they finished
         // it - and so it is drawn only for an episode shared *to* them.
         if(m.finished){

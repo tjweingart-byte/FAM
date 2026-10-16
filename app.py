@@ -2612,6 +2612,10 @@ class SendMessageRequest(BaseModel):
     query: str = Field("", max_length=messages_mod.MAX_QUERY)
     minutes: int = Field(0, ge=0, le=60)
     title: str = Field("", max_length=messages_mod.MAX_TITLE)
+    #: A reply to, or a like on, a friend's vibe (§282): the episode rides
+    #: along so the message names the vibe it answers, but nothing was
+    #: shared - so it is not a "share" taste signal.
+    reply: bool = False
 
 
 class SaveRequest(BaseModel):
@@ -3369,7 +3373,7 @@ async def messages_send(req: SendMessageRequest, request: Request) -> dict:
     # A share is a signal about taste as much as an act of sending, and the
     # feed already learns from plays. Recorded for the sender only: what the
     # recipient thinks of it is not known until they press play.
-    if kind == "episode":
+    if kind == "episode" and not req.reply:
         EVENTS.record(topics_mod.Event(
             user, "share", "", req.query, topics_mod.tags_for_text(req.query)))
     return {"ok": True, "message": message.as_dict(user)}
@@ -4221,7 +4225,75 @@ async def _feedback_episode(ep: Optional[FeedbackEpisode]) -> Optional[dict]:
         except Exception:  # noqa: BLE001 - a picture is never worth a report
             log.exception("could not pick a picture for a feedback report")
     return feedback_mod.episode_snapshot(ep.q, minutes, title, sources, sentences,
-                                         thumb=thumb)
+                                         thumb=thumb,
+                                         services=_episode_services(ep.q, sources))
+
+
+#: How far back a report looks for the lookup that wrote its episode: the
+#: week an episode is kept, and a day over.
+CACHE_LIFE_FOR_SERVICES = 8 * 86400
+
+
+def _episode_services(query: str, sources: dict) -> list[dict]:
+    """Which outside services an episode drew on, for a feedback report
+    (10.15 packet, §282): "display the API keys that were used".
+
+    **Names, never keys.** A key's value is a credential (`credentials.py`)
+    and is never read into a report, a page or a log; what the inbox shows
+    is which service's key was spent. Read from three records, each of which
+    already exists: the episode's provenance (the search backends that
+    contributed - `retrievers` - and every live and reference source), the
+    live-routing row its brief left (`live_routing`, §264: every provider
+    asked and what each answered), and the models and voice this server is
+    configured with now (said so: the report is filed after the episode).
+    Never raises; a record that cannot be read is left out.
+    """
+    out: list[dict] = []
+    seen: set[tuple] = set()
+
+    def add(service: str, role: str, detail: str = "") -> None:
+        mark = (service.lower(), role)
+        if service and mark not in seen:
+            seen.add(mark)
+            out.append({"service": service[:80], "role": role[:80],
+                        "detail": detail[:200]})
+
+    try:
+        import provider_usage
+        labels = provider_usage.LABELS
+    except Exception:  # noqa: BLE001
+        labels = {}
+    for name in (sources or {}).get("retrievers") or []:
+        add(labels.get(str(name), str(name).title()), "Search")
+    for item in (sources or {}).get("items") or []:
+        kind, label = str(item.get("kind") or ""), str(item.get("label") or "")
+        if kind == provenance_mod.LIVE:
+            add(label, "Live data", str(item.get("tier") or ""))
+        elif label in ("Wikipedia", "Wikidata"):
+            add(label, "Reference")
+    try:
+        import live_routing
+        live_routing.flush()
+        wanted = normalize_query(query or "")
+        # As far back as an episode is kept, not all fourteen days.
+        since = time.time() - CACHE_LIFE_FOR_SERVICES
+        row = next((r for r in live_routing.store().since(since)
+                    if normalize_query(r.get("query") or "") == wanted), None)
+        for attempt in (row or {}).get("attempts") or []:
+            provider = str(attempt[0]) if attempt else ""
+            outcome = str(attempt[1]) if len(attempt) > 1 else ""
+            # The newest lookup for this question, which a replay (no
+            # lookup of its own) shares with the episode that wrote it.
+            add(labels.get(provider, provider), "Live lookup",
+                (outcome.replace("_", " ") + " · latest for this question").strip(" ·"))
+    except Exception:  # noqa: BLE001 - a report never waits on this
+        log.warning("could not read the live routing for a feedback report")
+    add("Anthropic", "Brief", f"{settings.ei_model} (configured now)")
+    add("Anthropic", "Writer", f"{settings.writer_model} (configured now)")
+    engine = _voice_engine()
+    add(engine.title() if engine else "Placeholder tone", "Voice",
+        "configured now")
+    return out
 
 
 @app.post("/api/feedback")
@@ -9075,6 +9147,10 @@ async def audio(
                                           "in the bucket (§252)"),
     link_failed: bool = Query(False, description="This stream is the fallback "
                                                  "for a link that would not play"),
+    private: bool = Query(False, description="A private search (searchFAM's "
+                                             "incognito, §282): the play is not "
+                                             "recorded and what it writes is on "
+                                             "no feed and names no author"),
 ):
     """Stream the episode.
 
@@ -9156,6 +9232,13 @@ async def audio(
     # Stamped on anything this writes to the shared cache, so Explore can be
     # searched episodes and nothing else (§147).
     pipeline.origin = where
+    # A private search (§282) writes as an episode nobody searched and
+    # nobody wrote: `recent` never lists it, so it reaches no Explore feed,
+    # rail or trending search, and no friends rail can name its author.
+    private = bool(private and where == "search")
+    if private:
+        pipeline.origin = cache_mod.PRIVATE_ORIGIN
+        pipeline.author = ""
 
     # **A guest's tap on the sample pages costs nothing** (at the owner's
     # direction). myFAM and the DailyFAM example playlist are the evergreen
@@ -9190,7 +9273,8 @@ async def audio(
             _AUDIO_LINKS["issued"] += 1
             return await _linked_audio(request, user, plan, pipeline, linked,
                                        topic_id=topic_id, context=context,
-                                       cached_only=cached_only, attach=attach)
+                                       cached_only=cached_only, attach=attach,
+                                       private=private)
 
     # Ask for a GPU now, before Claude has written a word.
     #
@@ -9419,7 +9503,7 @@ async def audio(
     write_pending = stats.cache != "hit"
     # A link's fallback (§252) was already recorded when the link was made:
     # one tap is one play, however many requests it took to sound.
-    if user and _remembers(request) and not link_failed:
+    if user and _remembers(request) and not link_failed and not private:
         SOCIAL.seen(user)
         play_row = EVENTS.record(
             topics_mod.Event(
@@ -9507,7 +9591,7 @@ _AUDIO_LINKS = {"issued": 0, "fallbacks": 0}
 
 async def _linked_audio(request: Request, user: str, plan, pipeline, linked: dict,
                         *, topic_id: str, context: str, cached_only: bool,
-                        attach: str) -> JSONResponse:
+                        attach: str, private: bool = False) -> JSONResponse:
     """A replay answered with a link to its kept audio (§252).
 
     Everything a streamed replay does except send the bytes: the play is
@@ -9518,7 +9602,7 @@ async def _linked_audio(request: Request, user: str, plan, pipeline, linked: dic
     """
     sample_rate = int(linked["sample_rate"])
     seconds = linked["frames"] / sample_rate if sample_rate else 0.0
-    if user and _remembers(request):
+    if user and _remembers(request) and not private:
         SOCIAL.seen(user)
         EVENTS.record(topics_mod.Event(
             user, "play", topic_id, plan.query,
@@ -10477,6 +10561,152 @@ async def waitlist_me(request: Request) -> dict:
             "location": PREFS.get(user).location.as_dict(),
         },
     }
+
+
+def _waitlist_exact(term: str) -> str:
+    """The account whose email or phone number is exactly `term`, or "".
+
+    Exact only, never a prefix: an address or a number a person already
+    knows finds its owner, and nothing typed lists anybody else's. A number
+    typed without a country code is tried as a US number (+1) - the list's
+    own default - and as the digits with a + in front.
+    """
+    term = " ".join(str(term or "").split()).strip()
+    if not term:
+        return ""
+    if "@" in term:
+        try:
+            email = accounts_mod.clean_email(term)
+        except accounts_mod.AuthError:
+            return ""
+        return ACCOUNTS.user_id_for(email) if email else ""
+    digits = re.sub(r"[\s().\-]", "", term)
+    if not re.fullmatch(r"\+?\d{7,15}", digits):
+        return ""
+    tries = [digits] if digits.startswith("+") else ["+1" + digits, "+" + digits]
+    for attempt in tries:
+        try:
+            phone = accounts_mod.clean_phone(attempt)
+        except accounts_mod.AuthError:
+            continue
+        found = ACCOUNTS.user_id_for(phone)
+        if found:
+            return found
+    return ""
+
+
+def _require_waitlist_searcher(request: Request) -> str:
+    """The status page's friend search is for the people on the list
+    (§282): a waitlisted account, or an admin previewing the page. An
+    account already in the app has the app's own search, which keeps the
+    waitlist out of discovery (`_reachable`); this door must not open that
+    from outside the page by a direct call."""
+    user = _require_account(request)
+    listener = getattr(request.state, "listener", None)
+    admin = bool(listener is not None and listener.user_id == user
+                 and _allowed_admin(listener))
+    if not admin and WAITLIST.status_of(user) != waitlist_mod.WAITLISTED:
+        raise HTTPException(status_code=403,
+                            detail="Find friends with the search in FAM.")
+    return user
+
+
+#: Exact email or phone lookups one account may make a day (§282). Enough to
+#: find the friends somebody means to; too few to walk a range of numbers
+#: and learn who has an account. Name searches are not counted - they need a
+#: handle, which is somebody choosing to be found, as `/api/people`.
+WAITLIST_EXACT_PER_DAY = 20
+_WAITLIST_EXACT: dict[str, list] = {}
+
+
+def _exact_lookup_allowed(user: str, term: str) -> bool:
+    """Whether `term` may be looked up as a whole email or number, counting
+    it against the day's allowance when it is one."""
+    looks_exact = "@" in term or bool(re.fullmatch(r"[\d\s()+.\-]{7,}", term or ""))
+    if not looks_exact:
+        return True
+    day = int(time.time() // 86400)
+    seen = _WAITLIST_EXACT.get(user)
+    if not seen or seen[0] != day:
+        if len(_WAITLIST_EXACT) > 50_000:
+            _WAITLIST_EXACT.clear()
+        seen = _WAITLIST_EXACT[user] = [day, set()]
+    if term.lower() in seen[1]:
+        return True
+    if len(seen[1]) >= WAITLIST_EXACT_PER_DAY:
+        return False
+    seen[1].add(term.lower())
+    return True
+
+
+@app.get("/api/waitlist/people")
+async def waitlist_people(request: Request,
+                          q: str = Query("", max_length=80)) -> dict:
+    """Find a friend who is already on the list (the 10.15 packet).
+
+    The status page's search bar: by name or handle (two characters or
+    more, as `/api/people`), or by an email address or phone number typed
+    whole. Only accounts - waitlisted or already in - are found; somebody
+    blocked either way never is. Nothing comes back but what the page draws:
+    the name, handle, face and whether they are friends already; an email
+    or a number that matched is never echoed. An empty answer is what the
+    page's "invite them" card is for.
+    """
+    _read_limit(request)
+    user = _require_waitlist_searcher(request)
+    term = " ".join(str(q or "").split()).strip()
+    found: list[dict] = []
+    exact = _waitlist_exact(term) if _exact_lookup_allowed(user, term) else ""
+    # Somebody with no name and no handle has nothing to be recognised by,
+    # and is not offered by an address alone.
+    person = SOCIAL.person(exact) if exact and exact != user else {}
+    if person.get("name") or person.get("handle"):
+        found.append({"user_id": exact, "name": person.get("name") or "",
+                      "handle": person.get("handle") or "",
+                      "avatar": person.get("avatar") or ""})
+    elif "@" not in term and not re.fullmatch(r"[\d\s()+.\-]+", term):
+        found = SOCIAL.find_people(term, exclude_user=user, limit=40)
+    found = [p for p in _without_apart(user, found)
+             if not MODERATION.is_suspended(p["user_id"])
+             and ACCOUNTS.account(p["user_id"])][:12]
+    waiting = WAITLIST.waitlisted_among(p["user_id"] for p in found)
+    following = {p["user_id"] for p in SOCIAL.following(user)}
+    followers = {p["user_id"] for p in SOCIAL.followers(user)}
+    return {"people": [{
+        "user_id": p["user_id"], "name": p.get("name") or "",
+        "handle": p.get("handle") or "", "avatar": p.get("avatar") or "",
+        "initials": _initials(p.get("name") or "", p.get("handle") or ""),
+        "waitlisted": p["user_id"] in waiting,
+        "added": p["user_id"] in following,
+        "friend": p["user_id"] in following and p["user_id"] in followers,
+    } for p in found]}
+
+
+class WaitlistAddRequest(BaseModel):
+    user_id: str = Field(..., max_length=64)
+
+
+@app.post("/api/waitlist/add")
+async def waitlist_add(req: WaitlistAddRequest, request: Request) -> dict:
+    """Add somebody the search found: a follow, as the app's own Add is.
+
+    They become Your FAM - a friend - when they add you back, as anywhere
+    else in FAM; somebody blocked either way, or suspended, is not there.
+    """
+    _rate_limit(request)
+    user = _require_waitlist_searcher(request)
+    _require_can_post(user)
+    target = req.user_id
+    if (not target or target == user or not ACCOUNTS.account(target)
+            or MODERATION.is_apart(user, target)
+            or MODERATION.is_suspended(target)):
+        raise HTTPException(status_code=404, detail="We couldn't find that person.")
+    try:
+        changed = SOCIAL.follow(user, target)
+    except social_mod.SocialError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"ok": True, "changed": changed,
+            "friend": SOCIAL.is_following(target, user)}
 
 
 # --- admin -----------------------------------------------------------------

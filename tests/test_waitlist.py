@@ -773,7 +773,7 @@ def test_the_landing_page_says_what_fam_is_under_the_sign_up():
     # Under the form, in the landing's markup; the status page's "Learn more
     # about FAM" moves this same section into its own view (§215).
     assert landing.index('id="joinForm"') < landing.index('id="about"')
-    assert "Ian Solomon &amp; TJ Weingart" in landing
+    assert "Brady Weingart, Ian Solomon &amp; TJ Weingart" in landing
     # The founders' photo is optional: a missing file draws their initials.
     assert 'src="/founders.jpg"' in landing and "classList.add('empty')" in landing
     # The photo ships, small enough to load fast and with nothing in it but
@@ -793,16 +793,21 @@ def test_the_what_is_fam_pictures_are_real_screens_that_ship():
     page = (ROOT / "static" / "waitlist.html").read_text(encoding="utf-8")
     about = page.split('id="about"', 1)[1].split("</footer>", 1)[0]
     pictures = re.findall(r'src="/landing/([\w-]+\.jpg)"', about)
-    assert pictures == ["dailyfam.jpg", "search.jpg", "myfam-mix.jpg"]
+    assert pictures == ["dailyfam.jpg", "search.jpg", "myfam-mix.jpg",
+                        # The features carousel (§282): two phones a slide.
+                        "player.jpg", "search.jpg", "dailyfam-rails.jpg",
+                        "dailyfam.jpg", "myfam-mixes.jpg", "myfam-mix.jpg"]
     for name in pictures:
         assert (ROOT / "static" / "landing" / name).stat().st_size > 10_000, name
     # Nothing ships that the page no longer shows.
-    assert sorted(p.name for p in (ROOT / "static" / "landing").glob("*.jpg")) == sorted(pictures)
+    assert sorted(p.name for p in (ROOT / "static" / "landing").glob("*.jpg")) == sorted(set(pictures))
     # Retaken by one script, which writes exactly the files the page names,
     # some in light and some in dark (§250).
     tool = (ROOT / "tools" / "landing_shots.py").read_text(encoding="utf-8")
     shots = dict((n, t) for n, t in re.findall(r'\("([\w-]+)", .*?, "(light|dark)"\)', tool, re.S))
-    assert set(shots) == {n[:-4] for n in pictures}
+    # The player is cut from the owner's still, not photographed.
+    assert set(shots) | {"player"} == {n[:-4] for n in pictures}
+    assert (ROOT / "tools" / "landing" / "stills" / "player.jpg").stat().st_size > 10_000
     assert set(shots.values()) == {"light", "dark"}
     assert 'setTheme(t)", theme)' in tool
     # Only painted tiles, made-up friends, a cover on the Morning mix.
@@ -842,7 +847,8 @@ def test_the_landing_page_tells_why_fam_exists():
              "The audio problem you don’t realize you have.",
              "The interests of the people around you are invisible.",
              "Information isolation.", "Social information connects what they know.",
-             "Ian Solomon &amp; TJ Weingart", "actually being part of the conversation"]
+             "Learn more. Go deeper.",
+             "Brady Weingart, Ian Solomon &amp; TJ Weingart", "actually being part of the conversation"]
     at = [landing.index(text) for text in order]
     assert at == sorted(at), "the story is told out of order"
     # The intro is the doctrine's last sentence.
@@ -872,24 +878,36 @@ def test_the_landing_page_tells_why_fam_exists():
         assert gone not in page, gone
 
 
-def test_three_sections_are_off_the_page_for_a_video():
-    """§250 (the 10.10 packet): "Stay in the loop", "How to get the most out
-    of FAM" and "Better together" are becoming a video, so the page no
-    longer carries them - nor the styles that only they used. (The comment
-    saying so is allowed to name them.)"""
+def test_two_sections_are_off_the_page_for_a_video():
+    """§250 (the 10.10 packet): "Stay in the loop" and "Better together" are
+    becoming a video, so the page no longer carries them - nor the styles
+    that only they used. (The comment saying so is allowed to name them.)
+    The features carousel came back under the video in §282, retitled."""
     page = (ROOT / "static" / "waitlist.html").read_text(encoding="utf-8")
     page = re.sub(r"<!--.*?-->", "", page, flags=re.S)
     for gone in ("Stay in the loop", "Don’t be left out of the conversation",
-                 "How to get the most out of FAM", "Search. Scroll. Mix.",
-                 "Better together", 'class="ab-wrap ab-morning', 'class="ab-wrap ab-how',
-                 'class="ab-wrap ab-friends', ".convo{", ".feat{", ".fr-card{", ".shots{"):
+                 "How to get the most out of FAM",
+                 "Better together", 'class="ab-wrap ab-morning',
+                 'class="ab-wrap ab-friends', ".convo{", ".fr-card{"):
         assert gone not in page, gone
+
+
+def test_the_features_carousel_is_back_as_learn_more_go_deeper():
+    """§282 (the 10.15 packet): Search, DailyFAM and myFAM, one slide each,
+    under where the video will go, titled "Learn more. Go deeper." """
+    page = (ROOT / "static" / "waitlist.html").read_text(encoding="utf-8")
+    how = page.split('<section class="ab-wrap ab-how">', 1)[1].split("</section>", 1)[0]
+    assert '<h2 class="ab-h">Learn more. Go deeper.</h2>' in how
+    assert re.findall(r'aria-label="\d of 3: (\w+)"', how) == ["Search", "DailyFAM", "myFAM"]
+    # After the cure, before the founders: where the video goes.
+    assert page.index("Social <span>information.</span>") < page.index('class="ab-wrap ab-how"') \
+        < page.index('class="ab-wrap ab-founders')
 
 
 def test_the_carousels_turn_only_by_hand():
     page = (ROOT / "static" / "waitlist.html").read_text(encoding="utf-8")
     boxes = page.split(" data-carousel role=")[1:]
-    assert len(boxes) == 1  # the problem (how to use FAM went in §250)
+    assert len(boxes) == 2  # the problem, and the features (back in §282)
     for box in boxes:
         box = box.split("</section>", 1)[0]
         # Without script every slide shows: nothing is hidden in the markup.
