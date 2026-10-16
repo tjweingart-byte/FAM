@@ -140,6 +140,48 @@ TIER_PRIMARY = frozenset({
     "nejm.org", "thelancet.com", "jamanetwork.com", "bmj.com", "cell.com",
     "pnas.org", "cochranelibrary.com", "nhs.uk", "europa.eu", "imf.org",
     "worldbank.org", "oecd.org", "un.org", "bankofengland.co.uk",
+    # §287: the owner's "expand the trusted sources" (10.16).
+    # Wires, public broadcasters and papers of record outside the US and UK.
+    "afp.com", "pbs.org", "cbc.ca", "abc.net.au", "rnz.co.nz", "rte.ie",
+    "dw.com", "france24.com", "irishtimes.com", "theglobeandmail.com",
+    "lemonde.fr", "elpais.com", "faz.net", "nikkei.com",
+    # Exchanges, central banks and international bodies a suffix misses.
+    "nasdaq.com", "nyse.com", "cmegroup.com", "londonstockexchange.com",
+    "bis.org", "bankofcanada.ca", "boj.or.jp", "wto.org", "iea.org",
+    "opec.org", "unicef.org", "unhcr.org", "ipcc.ch", "home.cern",
+    # Journals and their publishers' platforms: primary for their papers.
+    "annals.org", "ahajournals.org", "plos.org", "elifesciences.org",
+    "royalsocietypublishing.org", "sciencedirect.com", "springer.com",
+    "wiley.com", "acs.org", "aps.org", "academic.oup.com",
+    "cambridge.org",
+    # Medical and scientific bodies: primary for their own guidance.
+    "nice.org.uk", "heart.org", "cancer.org", "diabetes.org", "aap.org",
+    "acog.org", "psychiatry.org", "apa.org",
+    # The rest of the major leagues and governing bodies, primary for their
+    # own schedules, results and rules.
+    "mlssoccer.com", "nwslsoccer.com", "nascar.com", "pgatour.com",
+    "lpga.com", "atptour.com", "wtatennis.com", "formula1.com", "ufc.com",
+    "olympics.com", "laliga.com", "bundesliga.com", "legaseriea.it",
+    "ligue1.com", "icc-cricket.com", "worldrugby.org", "cfl.ca",
+    "usopen.org", "wimbledon.com", "masters.com", "theopen.com",
+    "fiba.basketball", "concacaf.com", "ecb.co.uk",
+})
+
+#: The regional papers among the established (§287). Graded established for
+#: credibility, but never "national" to local news: a metro paper is exactly
+#: the outlet a question about its town should learn (`local_news._learn`).
+REGIONAL_OUTLETS = frozenset({
+    "latimes.com", "chicagotribune.com", "bostonglobe.com",
+    "sfchronicle.com", "seattletimes.com", "inquirer.com", "dallasnews.com",
+    "houstonchronicle.com", "ajc.com", "miamiherald.com", "tampabay.com",
+    "denverpost.com", "startribune.com", "azcentral.com", "oregonlive.com",
+    "sandiegouniontribune.com", "mercurynews.com", "baltimoresun.com",
+    "freep.com", "detroitnews.com", "jsonline.com", "stltoday.com",
+    "kansascity.com", "cleveland.com", "post-gazette.com", "nola.com",
+    "nj.com", "newsday.com", "texastribune.org", "calmatters.org",
+    "suntimes.com", "star-telegram.com", "sacbee.com",
+    "charlotteobserver.com", "newsobserver.com", "tennessean.com",
+    "courier-journal.com", "indystar.com", "dispatch.com", "buffalonews.com",
 })
 
 #: Established outlets and trade press: reliable, not primary.
@@ -160,7 +202,56 @@ TIER_ESTABLISHED = frozenset({
     "deadline.com", "billboard.com", "rollingstone.com", "pitchfork.com",
     "indiewire.com", "vulture.com", "boxofficemojo.com", "the-numbers.com",
     "ign.com", "polygon.com", "gamespot.com",
-})
+    # §287: the owner's "expand the trusted sources" (10.16).
+    # US national news and magazines.
+    "foxnews.com", "msnbc.com", "newsweek.com", "time.com",
+    "theatlantic.com", "newyorker.com", "vox.com", "propublica.org",
+    "thehill.com", "semafor.com", "rollcall.com", "punchbowl.news",
+    # International news.
+    "aljazeera.com", "scmp.com", "thehindu.com", "hindustantimes.com",
+    "indianexpress.com", "indiatimes.com", "straitstimes.com",
+    "japantimes.co.jp", "koreaherald.com", "smh.com.au", "theage.com.au",
+    "nzherald.co.nz", "globalnews.ca", "ctvnews.ca", "thestar.com",
+    "nationalpost.com", "euronews.com", "politico.eu", "spiegel.de",
+    "sueddeutsche.de", "corriere.it", "haaretz.com", "timesofisrael.com",
+    "jpost.com", "arabnews.com", "thenationalnews.com", "africanews.com",
+    "news24.com", "kyivindependent.com", "themoscowtimes.com",
+    # Business, markets and personal finance.
+    "morningstar.com", "kiplinger.com", "bankrate.com", "nerdwallet.com",
+    "spglobal.com", "investing.com", "qz.com", "fastcompany.com", "inc.com",
+    "hbr.org", "coindesk.com", "theblock.co",
+    # Technology.
+    "zdnet.com", "cnet.com", "tomshardware.com", "9to5mac.com",
+    "macrumors.com", "theinformation.com", "venturebeat.com",
+    "technologyreview.com", "ieee.org",
+    # Science and health: the science press, the big clinics' patient
+    # pages, health-policy research, and the preprint servers (reliable
+    # for what a paper says, not yet peer-reviewed - so not primary).
+    "livescience.com", "space.com", "quantamagazine.org",
+    "smithsonianmag.com", "nationalgeographic.com", "sciencenews.org",
+    "phys.org", "eurekalert.org", "mayoclinic.org", "clevelandclinic.org",
+    "hopkinsmedicine.org", "kff.org", "arxiv.org", "biorxiv.org",
+    "medrxiv.org",
+    # Sports: reference sites, contract and transfer trackers, recruiting,
+    # and the major outlets outside the US.
+    "mlbtraderumors.com", "spotrac.com", "fbref.com", "transfermarkt.com",
+    "hockey-reference.com", "fangraphs.com", "baseballamerica.com",
+    "pff.com", "247sports.com", "on3.com", "rivals.com", "sportsnet.ca",
+    "tsn.ca", "goal.com", "marca.com", "as.com", "lequipe.fr", "kicker.de",
+    "gazzetta.it", "autosport.com", "motorsport.com", "golfdigest.com",
+    "tennis.com", "mmafighting.com", "boxingscene.com", "cricbuzz.com",
+    # Entertainment, books, art and food.
+    "ew.com", "people.com", "thewrap.com", "screendaily.com", "nme.com",
+    "consequence.net", "stereogum.com", "avclub.com", "rogerebert.com",
+    "metacritic.com", "rottentomatoes.com", "publishersweekly.com",
+    "artnews.com", "theartnewspaper.com", "eater.com",
+    # Games.
+    "kotaku.com", "pcgamer.com", "eurogamer.net", "gamesindustry.biz",
+    # Politics and elections reference, fact-checkers, weather and travel.
+    "ballotpedia.org", "opensecrets.org", "govtrack.us", "cookpolitical.com",
+    "snopes.com", "politifact.com", "factcheck.org", "fullfact.org",
+    "weather.com", "accuweather.com", "flightaware.com",
+}) | REGIONAL_OUTLETS
 
 
 # --------------------------------------------------------------------------
@@ -281,7 +372,15 @@ def credibility(result) -> str:
     if host.endswith((".gov", ".gov.uk", ".edu", ".ac.uk", ".int", ".mil",
                       # §276: other countries' government domains.
                       ".gov.au", ".gc.ca", ".govt.nz", ".gov.ie", ".gouv.fr",
-                      ".bund.de", ".gob.mx", ".gov.in")):
+                      ".bund.de", ".gob.mx", ".gov.in",
+                      # §287: more democracies' governments, and their
+                      # universities. Not every state's: a government
+                      # with no free press is not a primary source on
+                      # anything but its own announcements.
+                      ".go.jp", ".go.kr", ".gov.br", ".gob.es", ".gov.it",
+                      ".gov.sg", ".gov.za", ".gov.il", ".admin.ch",
+                      ".gob.ar", ".gob.cl", ".gov.ph", ".go.ke", ".gov.ng",
+                      ".edu.au", ".ac.nz", ".ac.jp", ".ac.za", ".ac.in")):
         return "primary"
     # Subdomains of a listed host inherit it: `finance.yahoo.com` is `yahoo.com`.
     for known, tier in ((TIER_PRIMARY, "primary"), (TIER_ESTABLISHED, "established")):

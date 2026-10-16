@@ -1,0 +1,11 @@
+why do we get a fever when we're sick
+
+A fever is not the infection heating you up. It is your brain deliberately turning up your body's thermostat, because a hotter body is a worse place for a virus or a bacterium and a better one for the cells fighting it.
+
+It starts when your immune system spots an invader. The cells that respond first release chemical signals, and some of them travel in the blood to the hypothalamus, the small region at the base of the brain that holds your temperature near thirty-seven degrees Celsius, about ninety-eight point six Fahrenheit. Those signals trigger a compound called prostaglandin E2, and it resets the target - to thirty-eight or thirty-nine degrees Celsius, sometimes higher.
+
+Your body then treats its normal temperature as too cold. That's why a fever starts with chills. You shiver to make heat, the blood vessels in your skin clamp down to keep it in, and you want blankets even though you're already warm. When the fever breaks, the target drops back and the body has too much heat to lose - so you sweat and throw the covers off.
+
+The extra few degrees do real work. Many viruses and bacteria multiply more slowly above normal body temperature, and several parts of the immune response speed up: white blood cells move faster and some get better at finding and destroying what they're hunting.
+
+Which is why fever medicines like ibuprofen and acetaminophen work the way they do. They don't fight the infection; they block the prostaglandin that moved the thermostat, so you feel better while the immune system carries on. A fever that climbs very high, or lasts for days, is the point to see a doctor - the thermostat is useful only within limits.

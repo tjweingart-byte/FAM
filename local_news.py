@@ -1250,9 +1250,10 @@ def _learn(packet, place, target: Optional[LocalNewsStore]) -> None:
     for item in list(getattr(provenance, "items", []) or []):
         host = host_of(str(getattr(item, "url", "") or "")) or str(
             getattr(item, "label", "") or "")
-        if not host or host in research.TIER_PRIMARY or \
-                host in research.TIER_ESTABLISHED:
-            continue  # a national outlet is not a local one
+        if not host or host in research.TIER_PRIMARY or (
+                host in research.TIER_ESTABLISHED
+                and host not in research.REGIONAL_OUTLETS):
+            continue  # a national outlet is not a local one (§287)
         target.add_outlet(host, f"https://{host}/", town=place.name,
                           county=place.county, region=place.region,
                           country=place.country, scope=MENTION,

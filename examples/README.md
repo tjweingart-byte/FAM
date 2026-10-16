@@ -73,7 +73,13 @@ and the second-last defender at the moment a teammate plays it forward...
   machine metadata the app strips; examples are about how the writing sounds.
 - **Don't over-polish.** Write what you'd genuinely want in your ears on a walk.
 
-Two or three good ones shift the output a lot. Past about five, returns drop off.
+Two or three good ones shift the output a lot. Past about five, returns drop
+off for *voice* - but since the writer moved to Haiku (PROBLEMS.md §286-287)
+the folder also teaches *length* and *range*: one example at each length (1,
+2, 4 and 5 minutes) and a two-minute one per facet (sport, money, health,
+tech, culture, world, science). All of them are in the writer's cached
+instructions, so each one costs a few hundred cached tokens a call; prefer
+replacing a weak one to adding another.
 
 Anything in here is loaded automatically at startup — no code change needed. An
 empty folder simply means no examples, and the prompt is unchanged.

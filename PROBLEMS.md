@@ -20482,3 +20482,65 @@ Tests: `tests/test_implementations_285.py` (new);
 `tests/test_writer_gaps_276.py`, `tests/test_pipeline.py`,
 `tests/test_writer_prep_269.py`,
 `tests/test_pronunciation_voice_edit_view_more_165.py` (pins moved).
+
+## 287. More examples for the Haiku writer, and a wider list of trusted sources (2026-10-16)
+
+The owner, after §286: "add the 1-minute and 5-minute example episodes, as
+well as more example two minute episodes with variety for different
+topics/categories" and "expand the trusted sources".
+
+**The examples** (`examples/`, eleven now, every one on settled facts so none
+teaches a confident current figure): `1-blue-sky` (168 words),
+`5-financial-crisis` (761, the long arc), and two-minute ones per facet -
+`2-marathon-distance` (sport), `2-fed-raises-rates` (money, mechanism only, no
+rate), `2-fever` (health), `2-passkeys` (tech), `2-hamilton` (culture),
+`2-suez-canal` (world) beside `2-apollo-13` (science) and
+`2-flight-cancellations`. Shapes vary on purpose: an origin story, a
+mechanism, a narrative with a turn, a "why it matters". Each is shown with its
+minutes and words (§286), and `tests/test_implementations_286.py` holds every
+one within 0.9-1.35x of its budget. **Cost:** they sit in the writer's
+cached system block, about 4,000 words in all, so ~3,500 more cached tokens per
+writer call - on Haiku's cache-read price a small fraction of a cent, and no
+change to which call is cached ([writer-savings]). Not measured: whether
+eleven dilute the voice; the README now says to replace a weak one rather
+than add another.
+
+**The trusted sources** (`research.py`). Primary: 45 named → 117, adding
+AFP, PBS, CBC, ABC Australia, RNZ, RTÉ, DW, France 24, the Irish Times, the
+Globe and Mail, Le Monde, El País, FAZ, Nikkei; the exchanges (Nasdaq, NYSE,
+CME, LSE), BIS, the Bank of Canada and Bank of Japan, the WTO, IEA, OPEC,
+UNICEF, UNHCR, IPCC, CERN; the journals' platforms (Annals, AHA journals,
+PLOS, eLife, Royal Society, ScienceDirect, Springer, Wiley, ACS, APS, Oxford
+and Cambridge's); the medical bodies for their own guidance (NICE, AHA, the
+American Cancer Society, ADA, AAP, ACOG, the psychiatric and psychological
+associations); and the rest of the leagues and governing bodies (MLS, NWSL,
+NASCAR, PGA and LPGA Tours, ATP, WTA, F1, UFC, the Olympics, LaLiga,
+Bundesliga, Serie A, Ligue 1, ICC, World Rugby, CFL, the four golf and two
+tennis majors' own sites, FIBA, CONCACAF, the ECB). Government suffixes: 14 →
+33, adding Japan, Korea, Brazil, Spain, Italy, Singapore, South Africa,
+Israel, Switzerland, Argentina, Chile, the Philippines, Kenya, Nigeria and
+five countries' universities - not every state's: a government without a
+free press is a primary source only for its own announcements, and a
+`.gov.cn` page graded primary would outrank the reporting on it.
+Established: 51 → 225 - US national news and magazines (Fox News and MSNBC
+both, Newsweek, Time, the Atlantic, the New Yorker, Vox, ProPublica, the
+Hill, Semafor...), international (Al Jazeera, SCMP, the Hindu, the Straits
+Times, Japan Times, SMH, Spiegel, Haaretz, Times of Israel, Kyiv
+Independent...), business and personal finance, tech, science and health
+(Mayo Clinic, Cleveland Clinic, Johns Hopkins, KFF; arXiv, bioRxiv and
+medRxiv as established, since a preprint is not yet reviewed), sports
+references and trackers (FanGraphs, Transfermarkt, Spotrac, PFF, the
+recruiting sites) and the big foreign sports papers, entertainment, games,
+fact-checkers, election references, weather and FlightAware - and 40 US
+regional papers (`REGIONAL_OUTLETS`). Those are established for credibility
+but still learnable as a town's own outlet: `local_news._learn` skipped every
+established host as "national", which would have stopped the LA Times being
+learned for Los Angeles.
+
+What did not change: three grades, recency filters and credibility sorts,
+no weighting by topic, the writer reads the grade never the host. A wider
+list means fewer sources sort last as unverified, and on a live sports
+question fewer known outlets' reports are screened out by the
+two-known-outlets rule.
+
+Tests: `tests/test_implementations_287.py` (new).

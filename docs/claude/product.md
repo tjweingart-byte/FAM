@@ -640,7 +640,7 @@ good one, and those have fixes in different files. Read the EI block first.
 twenty-prompt milestone.
 
 <!-- rule:examples-lever -->
-> **Current (PROBLEMS.md §286):** three examples (2, 2 and 4 minutes), and each is shown with its minutes beside its words, so the writer sees what a length holds.
+> **Current (PROBLEMS.md §286, §287):** eleven examples - one each at 1, 4 and 5 minutes and eight at 2 minutes, one per facet - each shown with its minutes beside its words, so the writer sees what a length holds and a range of subjects.
 **`examples/` is the strongest lever on the writing, and it now holds one.**
 Briefings dropped in there are shown to the model as the house voice. Rules
 describe a style loosely; examples are matched closely, so two or three good
