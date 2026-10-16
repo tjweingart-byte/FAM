@@ -248,6 +248,20 @@
   .ab-fan .fan-c{ z-index:2; width:min(270px, 50vw); }
   .ab-fan .fan-l{ transform:translateX(-62%) translateY(-6%) rotate(-7deg); opacity:0.85; }
   .ab-fan .fan-r{ transform:translateX(62%) translateY(-6%) rotate(7deg); opacity:0.85; }
+  /* The video (§284): a Short, so upright. The thumbnail YouTube keeps for
+     a Short is the upright frame between black bars; cover crops to it. */
+  .ab-video{ margin-top:110px; display:flex; justify-content:center; }
+  .yt{ position:relative; width:min(340px, 78vw); aspect-ratio:9/16; border:1px solid var(--line);
+    border-radius:28px; overflow:hidden; background:linear-gradient(150deg, #3A3150, #26222F);
+    box-shadow:0 30px 60px rgba(0,0,0,0.5); }
+  .yt-btn{ position:absolute; inset:0; padding:0; border:0; background:none; cursor:pointer; border-radius:inherit; }
+  .yt img, .yt iframe{ position:absolute; inset:0; display:block; width:100%; height:100%; border:0; object-fit:cover; }
+  .yt-play{ position:absolute; left:50%; top:50%; width:76px; height:76px; margin:-38px 0 0 -38px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center; background:var(--gold); color:var(--gold-ink);
+    box-shadow:0 12px 30px rgba(0,0,0,0.45); transition:transform .2s; }
+  .yt-play svg{ width:34px; height:34px; fill:currentColor; margin-left:4px; }
+  .yt-btn:hover .yt-play{ transform:scale(1.06); }
+  .yt-btn:focus-visible{ outline:none; box-shadow:inset 0 0 0 3px var(--gold); }
   /* The features carousel (10.15 packet, §282). */
   .ab-how{ margin-top:110px; }
   .ab-sec-head{ text-align:center; margin-bottom:24px; }
@@ -690,9 +704,19 @@
     </section>
 
     <!-- "Stay in the loop" and "Better together" were taken out in the
-         10.10 packet (PROBLEMS.md §250): they are becoming a video, which
-         goes here. The features carousel came back under it in the 10.15
-         packet (§282), as "Learn more. Go deeper." -->
+         10.10 packet (PROBLEMS.md §250) to become a video; it is here
+         (§284), a YouTube Short drawn as its own picture until it is
+         tapped, so nothing of YouTube's loads for anyone who does not
+         watch. The features carousel sits under it (§282). -->
+    <section class="ab-wrap ab-video reveal">
+      <div class="yt" data-yt="KCpGaWdWNSs">
+        <button type="button" class="yt-btn" aria-label="Play the FAM video">
+          <img src="https://i.ytimg.com/vi/KCpGaWdWNSs/hqdefault.jpg" alt="The FAM video" loading="lazy" decoding="async" onerror="this.remove()">
+          <span class="yt-play" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M8 5.5v13l11-6.5z"/></svg></span>
+        </button>
+      </div>
+    </section>
+
     <section class="ab-wrap ab-how">
       <header class="ab-sec-head reveal">
         <div class="ab-kicker label">Search. Scroll. Mix.</div>
@@ -1126,6 +1150,26 @@
       }, 500);
     }
     Array.prototype.forEach.call(document.querySelectorAll("[data-carousel]"), turnCarousel);
+    // The video (§284): YouTube's player is asked for only on a tap.
+    Array.prototype.forEach.call(document.querySelectorAll("[data-yt]"), function(box){
+      var button = box.querySelector(".yt-btn");
+      button.addEventListener("click", function(){
+        var frame = document.createElement("iframe");
+        frame.src = "https://www.youtube-nocookie.com/embed/" + encodeURIComponent(box.dataset.yt)
+          + "?autoplay=1&playsinline=1&rel=0";
+        frame.title = "The FAM video";
+        frame.allow = "autoplay; encrypted-media; picture-in-picture; fullscreen";
+        frame.allowFullscreen = true;
+        box.replaceChild(frame, button);
+        frame.focus();
+      });
+      // A hidden player keeps playing, so leaving the explainer puts the
+      // picture back.
+      box.stopVideo = function(){
+        var frame = box.querySelector("iframe");
+        if(frame) box.replaceChild(button, frame);
+      };
+    });
     if(member){
       $("aboutJoin").firstChild.textContent = "Back to your spot ";
       $("aboutJoin").addEventListener("click", function(ev){ ev.preventDefault(); window.closeAbout(); });
@@ -1632,6 +1676,9 @@
     try { if(!history.state || !history.state.about) history.pushState({ about: true }, "", "#about"); } catch(e){}
   };
   window.closeAbout = function(fromHistory){
+    Array.prototype.forEach.call(document.querySelectorAll("[data-yt]"), function(box){
+      if(box.stopVideo) box.stopVideo();
+    });
     $("aboutView").classList.add("hidden");
     $("status").classList.remove("hidden");
     window.scrollTo(0, 0);
