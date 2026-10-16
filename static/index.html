@@ -1525,11 +1525,22 @@
      transport (10.2 packet). The captions hang under each circle. */
   .p-side{ position:absolute; right:16px; bottom:10px; display:flex; flex-direction:column;
     align-items:center; gap:24px; padding-bottom:12px; }
-  .p-side .pt-icon{ width:40px; height:40px; background:rgba(20,18,28,0.55);
+  /* They sit on the picture, so they carry their own contrast whatever it
+     is (10.16 packet, §285): a light glyph in a dark circle with a light
+     rim, and a caption on a dark backing. The glyph used to be the theme's
+     text colour - dark in light mode - in a dark circle, and the caption
+     the faint grey, so on a dark picture all three disappeared. */
+  .p-side .pt-icon{ width:40px; height:40px; background:rgba(20,18,28,0.62);
+    color:#F4EFE4; border-color:rgba(244,239,228,0.45);
+    box-shadow:0 1px 6px rgba(0,0,0,0.35);
     -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px); }
-  .p-side .pt-icon .pt-cap{ top:42px; }
-  .p-side .pt-icon.echoed{ background:var(--copper); }
-  .p-side .pt-icon.saved-on{ background:var(--sage); }
+  .p-side .pt-icon .pt-cap{ top:43px; color:#F4EFE4; font-weight:700;
+    padding:1px 5px; border-radius:6px; background:rgba(20,18,28,0.62);
+    text-shadow:0 1px 2px rgba(0,0,0,0.6); }
+  .p-side .pt-icon.echoed{ background:var(--copper); color:var(--ink); border-color:var(--copper); }
+  .p-side .pt-icon.saved-on{ background:var(--sage); color:var(--ink); border-color:var(--sage); }
+  .p-side .pt-icon.echoed .pt-cap{ color:var(--copper); }
+  .p-side .pt-icon.saved-on .pt-cap{ color:var(--sage); }
   .p-down, .p-more{ width:44px; height:44px; border:0; background:none; color:var(--text);
     display:flex; align-items:center; justify-content:center; cursor:pointer; padding:0;
     border-radius:50%; }
@@ -2696,8 +2707,12 @@
   .story{ position:absolute; inset:0; z-index:80; background:linear-gradient(180deg,#2A2233 0%,#16121C 100%);
     display:flex; flex-direction:column; padding:44px 16px 28px; color:#F4EFE4;
     border-radius:inherit; overflow:hidden; touch-action:pan-y; user-select:none; }
-  .story-main{ margin:auto 0; position:relative; z-index:0; display:flex; flex-direction:column;
+  .story-main{ margin:auto 0; position:relative; z-index:2; display:flex; flex-direction:column;
     gap:10px; text-align:center; padding:0 8px; pointer-events:none; }
+  /* The episode itself - its title here, its card on a composed story - is
+     a way into the full player (10.16 packet, §285); everywhere else a tap
+     still moves the story on. */
+  .story-main .story-title{ pointer-events:auto; cursor:pointer; }
   .story[hidden]{ display:none; }
   .story-bars{ display:flex; gap:4px; }
   .story-bar{ flex:1; height:2.5px; border-radius:2px; background:rgba(244,239,228,0.25); overflow:hidden; }
@@ -2729,6 +2744,7 @@
   .story-canvas-wrap{ position:absolute; inset:96px 12px 96px; z-index:2; pointer-events:none; }
   .story-canvas-wrap[hidden]{ display:none; }
   .story-canvas-wrap .sc-tag{ pointer-events:auto; }
+  .story-canvas-wrap .sc-post{ pointer-events:auto; cursor:pointer; }
   .story.composed .story-main{ display:none; }
   .story.composed .story-card{ margin-top:auto; }
   .story.held .story-head, .story.held .story-card, .story.held .story-bars{ opacity:0; transition:opacity .2s; }
@@ -3044,6 +3060,23 @@
   .yf-vrow-meta{ font-family:'Geist Mono', monospace; font-size:8.5px;
     color:var(--text-muted); margin-top:2px; letter-spacing:0.04em; text-transform:uppercase; }
   .yf-person .pf-empty, .yf-topic .pf-empty{ margin-top:8px; }
+  /* "Ian's Shelf" on its own line, a size up from the labels (§285), and
+     View more at the foot of each list. */
+  .yf-shelf{ font-family:'Bricolage Grotesque', sans-serif; font-size:20px; font-weight:500;
+    line-height:1.15; color:var(--text); margin-top:22px; }
+  .yf-row.yf-row-tight{ margin-top:6px; }
+  .yf-link.yf-more{ display:block; margin:4px auto 0; padding:8px 12px; }
+  /* A friend's friends (§285). */
+  .yf-frow{ display:flex; align-items:center; gap:10px; padding:8px 0;
+    border-bottom:1px solid var(--border); cursor:pointer; }
+  .yf-frow-av .av{ width:34px; height:34px; border-radius:50%; display:flex; align-items:center;
+    justify-content:center; font-size:12px; font-weight:700; overflow:hidden; color:var(--ink); }
+  .yf-frow-body{ flex:1; min-width:0; }
+  .yf-frow-name{ font-size:13px; font-weight:500; line-height:1.3; overflow:hidden;
+    text-overflow:ellipsis; white-space:nowrap; }
+  .yf-frow-state{ font-family:'Geist Mono', monospace; font-size:9.5px; color:var(--text-muted);
+    letter-spacing:0.04em; text-transform:uppercase; flex:none; }
+  .yf-btn.yf-frow-follow{ flex:none; height:28px; font-size:11px; padding:0 12px; }
 
   /* An interest, as a page of episodes. */
   .yf-topic{ padding:0 0 24px; }
@@ -3785,12 +3818,12 @@
                  under Listening in Settings: every other surface draws a
                  voice from the bank per episode. -->
             <button type="button" class="search-bubble" id="voiceBubble" onclick="openVoiceMenu()" aria-label="Voice for your searches"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 10v4M8 7v10M12 4v16M16 8v8M20 11v2"/></svg>Voice</button>
-            <!-- Private search (10.15 packet, §282): Google's incognito, for
-                 one search. On exploreFAM nowhere, on no friend's DailyFAM,
+            <!-- Private search (10.15 packet, §282): Google's incognito, left
+                 on until turned off (§285), Go Deeper included. On exploreFAM nowhere, on no friend's DailyFAM,
                  in nobody's history; the page goes charcoal while it is on. -->
             <button type="button" class="search-bubble private-bubble" id="privateBubble" aria-pressed="false" onclick="setPrivateSearch(!privateSearch)" aria-label="Private search"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11h18"/><path d="M5.5 11l1.7-5.6A1.5 1.5 0 0 1 8.6 4.3h6.8a1.5 1.5 0 0 1 1.4 1.1L18.5 11"/><circle cx="7.5" cy="16.5" r="2.8"/><circle cx="16.5" cy="16.5" r="2.8"/><path d="M10.3 16.3c1.1-.6 2.3-.6 3.4 0"/></svg>Private</button>
           </div>
-          <p class="private-note" id="privateNote" hidden><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg><span>Private search is on. This search won&rsquo;t appear on exploreFAM, on your friends&rsquo; DailyFAM, in your listening history, or teach your feed.</span></p>
+          <p class="private-note" id="privateNote" hidden><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg><span>Private search is on until you turn it off. Your searches and Go Deeper episodes won&rsquo;t appear on exploreFAM, on your friends&rsquo; DailyFAM, in your listening history, or teach your feed.</span></p>
           <!-- Trending searches (10.1 #3, §190): the most searched questions
                of the last two hours, in order, each one an episode already
                written and still current (`/api/searches/trending`). -->
@@ -4708,7 +4741,7 @@
         <div class="story-tap right" onclick="storyTap(1)" aria-hidden="true"></div>
         <div class="story-main">
           <div class="story-kicker">VIBE</div>
-          <div class="story-title" id="storyTitle"></div>
+          <div class="story-title" id="storyTitle" role="button" onclick="playStory()"></div>
           <div class="story-meta" id="storyMeta"></div>
           <!-- What they said about it, when they said something (10.5 #9). -->
           <div class="story-caption" id="storyCaption" hidden></div>
@@ -5450,10 +5483,28 @@
   // title to show (always the corrected spelling). Words already asked about
   // are answered from memory, so the usual send waits for nothing.
   var searchSending = false;
-  // Private search (10.15 packet, §282). On for the next search only: the
-  // search it is sent with carries it, then it turns itself off.
+  // Private search (10.15 packet, §282), left on until it is turned off
+  // (10.16 packet, §285): every search and Go Deeper sent while it is on
+  // carries it. One switch in two places - this bubble and Settings - kept
+  // with the account's preferences (`private_search`), on the device for a
+  // guest; the server honours the stored one whatever a client sends.
   var privateSearch = false;
   function setPrivateSearch(on){
+    paintPrivateSearch(on);
+    if(AUTH.authenticated){
+      savePreferences({ private_search: privateSearch }).then(function(saved){
+        if(saved && PREF_CHOICES) PREF_CHOICES.private_search = !!saved.private_search;
+        if(!saved) toast("Could not save that");
+        refreshSettingsIfOpen();
+      });
+    } else {
+      saveLocalPrefs({ private_search: privateSearch });
+      refreshSettingsIfOpen();
+    }
+    toast(privateSearch ? "Private search is on" : "Private search is off");
+  }
+  // Drawing only: what the page shows for the switch, with nothing saved.
+  function paintPrivateSearch(on){
     privateSearch = !!on;
     var screen = document.getElementById("screen-home");
     if(screen) screen.classList.toggle("private-search", privateSearch);
@@ -5533,7 +5584,6 @@
       // What someone searches is the clearest statement of interest they make,
       // and it is the input myFAM was asked to rank on - unless it is private.
       if(!privateSearch) recordFamEvent("search", "", val);
-      setPrivateSearch(false);
       pendingFromSearch = true;
       generate("_custom");
       document.getElementById("searchInput").value = "";
@@ -5633,11 +5683,10 @@
       surface: "search",
       caption: "Generating your live transcript as this plays—",
       titleOverridden: !!t.title,
-      // Tapped with Private on, it is that one private search (§282).
+      // Tapped with Private on, it is a private search (§282).
       private: privateSearch
     };
     if(!privateSearch) recordFamEvent("search", "", t.query);
-    setPrivateSearch(false);
     pendingFromSearch = true;
     if(input){ input.value = ""; input.blur(); }
     paintSearchBar();
@@ -7204,7 +7253,7 @@
     // Whole class names, built here, so each is one the CSS defines.
     var frameCls = "frame-" + escapeHtml(st.frame), fontCls = "f-" + escapeHtml(st.font);
     var html = '<div class="sc-post ' + frameCls + '"'
-      + (edit ? ' data-drag="pic"' : '')
+      + (edit ? ' data-drag="pic"' : ' role="button" onclick="playStory()"')
       + ' style="left:' + (50 + st.tx * 100) + '%;top:' + (42 + st.ty * 100) + '%;--z:' + st.zoom + ';">'
       + '<div class="sc-pic"' + pic + '></div>'
       + '<div class="sc-post-text"><div class="sc-post-title">' + escapeHtml(v.title || v.query || "") + '</div>'
@@ -9511,6 +9560,9 @@
   }
   function confirmGoDeeper(){
     var val = document.getElementById("goDeeperInput").value.trim();
+    // Nothing typed: Continue plays the suggestion on offer - "Pick up the
+    // thread" - rather than doing nothing (10.16 packet, §285).
+    if(!val) val = (goDeeperSuggestionText() || "").trim();
     if(!val){ document.getElementById("goDeeperInput").focus(); return; }
     // A Go Deeper question is the listener's words too (consent.py).
     if(!(AI_CONSENT && AI_CONSENT.given)){ withAiConsent(confirmGoDeeper); return; }
@@ -9534,7 +9586,10 @@
   // what What's next plays from its lead tile and its search box, so the
   // episode on offer there is the one Go Deeper would have made (9.30 #2).
   function startFollowUp(val, baseKey, minutes, typed){
-    recordFamEvent("search", "", val);
+    // With private search on, a Go Deeper is private too (§285): no event,
+    // no history, written under nobody's name and listed nowhere.
+    var hush = privateSearch;
+    if(!hush) recordFamEvent("search", "", val);
     var baseTitle = baseKey && TOPICS[baseKey] ? TOPICS[baseKey].title : "this";
     var newKey = "deeper_" + Date.now();
     TOPICS[newKey] = {
@@ -9555,7 +9610,8 @@
       // otherwise be a browse tap and ignore the choice (§147).
       exploreMinutes: Math.max(1, Math.min(5, Math.round(minutes) || 2)),
       surface: (stack[0] === "home") ? "search" : "other",
-      titleOverridden: false
+      titleOverridden: false,
+      private: hush
     };
     generate(newKey);
   }
@@ -14459,10 +14515,17 @@
     if(mine && myStoryPerson) mine.classList.toggle("seen", !storiesUnseen(myStoryPerson));
   }
 
+  // The episode opens in the full player (10.16 packet, §285): the button,
+  // the title, or the episode's card on a composed story. One already on
+  // the player is not started again - the player is opened on it.
   function playStory(){
     var cur = currentStory(), person = cur.person, v = cur.v;
     if(!v) return;
     closeStory();
+    if(nowBarState && nowBarState.query === v.query){
+      navigate("player");
+      return;
+    }
     var key = "story_" + Date.now();
     TOPICS[key] = { title: v.title || v.query, surface: "other",
                     source: person.mine ? "your vibe" : "vibed by " + firstName(person),
@@ -14818,6 +14881,10 @@
       // behind-it failure with a longer fuse, because it reads as working.
       // §190: off unless they turn it on - what somebody searched is theirs.
       var searchesPublic = !!(PREF_CHOICES && PREF_CHOICES.searches_public);
+      // §285: the same switch as the Private bubble on searchFAM.
+      html += settingsRow("Private search", privateSearch ? "On" : "Off",
+          "setPrivateSearch(" + (privateSearch ? "false" : "true") + ")")
+        + '<div class="set-note">While it\u2019s on, every search and Go Deeper you start stays off exploreFAM, your friends\u2019 DailyFAM and your listening history, and doesn\u2019t teach your feed.</div>';
       html += settingsRow("Show my name on episodes I searched",
           searchesPublic ? "On" : "Off",
           "setSearchesPublic(" + (searchesPublic ? "false" : "true") + ")")
@@ -15395,12 +15462,12 @@
   //: What `/api/person` last answered for the profile on screen.
   var personPublished = null;
   var personInterests = [];
-  var personShowAll = { mixes: false, vibes: false };
+  var personShowAll = { mixes: false, vibes: false, friends: false };
 
   function loadPersonProfile(person){
     var handle = person.handle || "";
     personPublished = null;
-    personShowAll = { mixes: false, vibes: false };
+    personShowAll = { mixes: false, vibes: false, friends: false };
     var query = handle ? "handle=" + encodeURIComponent(handle)
                        : "user_id=" + encodeURIComponent(person.user_id || "");
     fetch("/api/person?" + query)
@@ -15438,6 +15505,10 @@
                  : followsYou ? "follows you" : "";
     var pub = published || {};
     var vibes = pub.vibe_count || 0;
+    // Their friends (§285): the count for anybody, the list only for a
+    // friend of theirs - `null` from the server otherwise.
+    var friendCount = pub.friend_count || 0;
+    var theirFriends = Array.isArray(pub.friends) ? pub.friends : null;
     var theirVibes = pub.vibes || [];
     var face = { name: pub.name || person.name, handle: person.handle,
                  avatar: pub.avatar || person.avatar || "" };
@@ -15461,8 +15532,14 @@
       + escapeHtml(face.name || ("@" + (person.handle || ""))) + '</div>'
       + (pub.location ? '<div class="yf-place">' + escapeHtml(pub.location) + '</div>' : '')
       + '<div class="yf-meta">@' + escapeHtml(person.handle || "")
-      + (standing ? ' · ' + escapeHtml(standing) : '')
-      + ' · ' + vibes + ' ' + plural(vibes, "vibe") + '</div>'
+      + (standing ? ' · ' + escapeHtml(standing) : '') + '</div>'
+      // How many friends they have, for anybody who opens them (10.16
+      // packet, §285); tapping it goes to the list when you may see it.
+      + (published ? '<div class="yf-meta">'
+          + (theirFriends ? '<b onclick="scrollToPersonFriends()">' : '<span>')
+          + friendCount + ' ' + plural(friendCount, "friend")
+          + (theirFriends ? '</b>' : '</span>')
+          + ' · ' + vibes + ' ' + plural(vibes, "vibe") + '</div>' : '')
       + '</div></div>';
 
     if(person.user_id){
@@ -15475,6 +15552,12 @@
             : 'followPerson(\'' + person.user_id + '\')')
         + '">' + (following ? "Following" : "Follow") + '</button>'
         + '</div>';
+    } else if(person.handle && AUTH.authenticated){
+      // Opened from a friend's friends (§285): not in your graph yet, so
+      // there is no id here - Follow goes by the handle.
+      html += '<div class="yf-acts">'
+        + '<button class="yf-btn gold" onclick="followHandle(\'' + escapeHtml(person.handle) + '\')">'
+        + 'Follow</button></div>';
     }
 
     // Their interests, as chips that open the Topic screen, and how many of
@@ -15484,13 +15567,12 @@
 
     // Their public DailyFAM mixes - a new mix is public unless its owner
     // switched it off.
+    // "Ian's Shelf" on a line of its own, bigger, and "Public mixes" under
+    // it; View more at the foot of each list, not beside its label (10.16
+    // packet, §285).
     var mixes = pub.mixes || [];
-    var name = firstName(face).toUpperCase();
-    html += '<div class="yf-row"><span class="yf-label">' + escapeHtml(name)
-      + '’s shelf · public mixes</span>'
-      + (mixes.length > 2 ? '<button class="yf-link" onclick="togglePersonMore(\'mixes\')">'
-          + (personShowAll.mixes ? "Show less" : "View more") + '</button>' : '')
-      + '</div>';
+    html += '<div class="yf-shelf">' + escapeHtml(firstName(face)) + '’s Shelf</div>'
+      + '<div class="yf-row yf-row-tight"><span class="yf-label">Public mixes</span></div>';
     if(mixes.length){
       html += (personShowAll.mixes ? mixes : mixes.slice(0, 2)).map(function(m, i){
         var n = (m.items || m.topics || []).length;
@@ -15504,16 +15586,14 @@
           + '<button class="yf-round gold" onclick="event.stopPropagation(); playPersonMix(' + i + ')" aria-label="Play '
           + escapeHtml(m.name) + '">' + yfPlaySVG(12) + '</button></div>';
       }).join("");
+      html += personMoreHTML("mixes", mixes.length > 2);
     } else {
       html += '<div class="pf-empty">No public mixes yet.</div>';
     }
 
     // And their vibes, which are by definition public: a vibe *is* the act of
     // showing somebody an episode.
-    html += '<div class="yf-row"><span class="yf-label">Vibes \u00b7 ' + vibes + '</span>'
-      + (theirVibes.length > 3 ? '<button class="yf-link" onclick="togglePersonMore(\'vibes\')">'
-          + (personShowAll.vibes ? "Show less" : "View more") + '</button>' : '')
-      + '</div>';
+    html += '<div class="yf-row"><span class="yf-label">Vibes \u00b7 ' + vibes + '</span></div>';
     if(theirVibes.length){
       html += (personShowAll.vibes ? theirVibes : theirVibes.slice(0, 3)).map(function(v, i){
         var topic = topicOfEpisode(v);
@@ -15523,11 +15603,36 @@
           + '<div class="yf-vrow-meta">' + (topic ? escapeHtml(topic) + ' · ' : '')
           + (v.minutes || 2) + ' min</div></div></div>';
       }).join("");
+      html += personMoreHTML("vibes", theirVibes.length > 3);
     } else {
       html += '<div class="pf-empty">Nothing vibed yet.</div>';
     }
     personVibes = theirVibes;
     personMixes = mixes;
+
+    // Who they are friends with, once you are one of them (§285): browse
+    // and follow. Each row opens that person's profile by handle.
+    personFriends = theirFriends || [];
+    if(theirFriends){
+      html += '<div class="yf-row" id="personFriends"><span class="yf-label">Friends \u00b7 '
+        + friendCount + '</span></div>';
+      if(theirFriends.length){
+        html += (personShowAll.friends ? theirFriends : theirFriends.slice(0, 4)).map(function(f, i){
+          return '<div class="yf-frow" onclick="openPersonFriend(' + i + ')">'
+            + '<span class="yf-frow-av">' + yfFace(f) + '</span>'
+            + '<div class="yf-frow-body"><div class="yf-frow-name' + (f.explicit ? ' is-explicit' : '') + '">'
+            + escapeHtml(f.name || ("@" + f.handle)) + '</div>'
+            + '<div class="yf-vrow-meta">@' + escapeHtml(f.handle) + '</div></div>'
+            + (f.following
+                ? '<span class="yf-frow-state">Following</span>'
+                : '<button class="yf-btn gold yf-frow-follow" onclick="event.stopPropagation(); followPersonFriend(' + i + ')">Follow</button>')
+            + '</div>';
+        }).join("");
+        html += personMoreHTML("friends", theirFriends.length > 4);
+      } else {
+        html += '<div class="pf-empty">No friends to show yet.</div>';
+      }
+    }
 
     html += '<div class="pf-note">Only what they chose to share. What someone listens to stays private.</div>';
     document.getElementById("personBody").innerHTML = html;
@@ -15541,6 +15646,53 @@
 
   var personVibes = [];
   var personMixes = [];
+  var personFriends = [];
+
+  // View more / Show less, at the foot of a list on somebody's profile.
+  function personMoreHTML(which, more){
+    if(!more) return '';
+    return '<button class="yf-link yf-more" onclick="togglePersonMore(\'' + which + '\')">'
+      + (personShowAll[which] ? "Show less" : "View more") + '</button>';
+  }
+  function scrollToPersonFriends(){
+    var el = document.getElementById("personFriends");
+    if(el && el.scrollIntoView) el.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+  function openPersonFriend(i){
+    var f = personFriends[i];
+    if(f) openPersonProfile(f.handle, { handle: f.handle, name: f.name || "", avatar: f.avatar || "" });
+  }
+  function followPersonFriend(i){
+    var f = personFriends[i];
+    if(!f) return;
+    followHandle(f.handle, function(){
+      f.following = true;
+      if(viewingProfile) renderFriendProfile(viewingProfile, personPublished);
+    });
+  }
+  // Follow by handle - somebody you found through a friend, who is not in
+  // your graph and so has no id here. Then the graph is read again, so the
+  // profile on screen gets the id that Message and Unfollow need.
+  function followHandle(handle, then){
+    fetch("/api/friends/follow", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ handle: handle })
+    }).then(function(r){
+      return r.json().then(function(d){
+        if(!r.ok) throw new Error(d.error || d.detail || "Could not follow that person");
+        return d;
+      });
+    }).then(function(){
+      toast("Following");
+      if(then) then();
+      return loadFriends();
+    }).then(function(d){
+      if(!d || !viewingProfile || viewingProfile.handle !== handle) return;
+      if(!document.getElementById("screen-person").classList.contains("active")) return;
+      var found = (d.following || []).filter(function(p){ return p.handle === handle; })[0];
+      if(found){ viewingProfile = found; renderFriendProfile(viewingProfile, personPublished); }
+    }).catch(function(err){ toast(err.message); });
+  }
 
   function togglePersonMore(which){
     personShowAll[which] = !personShowAll[which];
@@ -19466,6 +19618,9 @@
         PREF_CHOICES = d;
         // The editor draws the pills off `interests` and strikes through
         // whatever is in `hidden_interests`, so both have to be here.
+        // Private search as it was left (§285): the account's, else this
+        // device's.
+        paintPrivateSearch(d.saved ? !!d.private_search : !!localPrefs().private_search);
         if(d.saved){
           introSelection = (d.interests || []).slice();
         } else {
