@@ -418,6 +418,13 @@ def test_a_late_reference_is_dropped_within_the_grace(fake, parallel):
     assert seconds < 1.0, "held no longer than the grace past the main search"
     assert packet.reference == "late"
     assert "reference encyclopedia" not in packet.context
+    # The look it left behind runs on in its own pool, and its last requests
+    # read `wikimedia._transport` when they are sent: let it finish against
+    # this fake, or they land in a later test's (CI on Postgres, §284).
+    deadline = time.monotonic() + 10
+    while not fake.asked(wikimedia.SUMMARY_URL) and time.monotonic() < deadline:
+        time.sleep(0.05)
+    assert fake.asked(wikimedia.SUMMARY_URL), "the abandoned look never finished"
 
 
 def test_no_reference_beside_an_empty_packet(fake, parallel):

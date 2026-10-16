@@ -20315,7 +20315,29 @@ halves were.
 Not done here: nothing was heard (`no-api-key`), and no mail was sent from
 this container.
 
-## 283. The waitlist's video: a YouTube Short above the features (2026-10-16)
+## 283. An eye on every password field (2026-10-16)
+
+**Asked:** when somebody sets up an account or signs back in, an eye on the
+right of the password field shows what they typed, and hides it again - on
+any sign-in page.
+
+**Done.** The app's sign-up / log-in password (which had a "Show" word) and
+its Forgot password's new password, and on `/waitlist` the join form's two
+passwords, the sign-in password and the reset's new password (added by
+§282, picked up in the merge). An open eye means hidden; a struck eye means
+showing; `aria-pressed` and the label say the same. Every form opens hidden
+again (`openAuth`, `openReset`, the waitlist's toggle and Forgot link).
+`tests/test_password_eye.py` fails on a password field without an eye. The
+admin pages' sign-ins (`admin_ui/`) are left as they were.
+
+**Also, before merging: Main's Postgres job was red** (runs for #154 and
+#155) on one test, `test_removals_279.py`'s ledger rename: it writes and
+reads `metering.db` as a SQLite file, but under `DATABASE_URL` the
+`MeterStore` is in Postgres, so the file was never touched. It now carries
+`@pytest.mark.sqlite_file` like every other test of the SQLite file itself;
+the rename is the same code on both backends.
+
+## 284. The waitlist's video: a YouTube Short above the features (2026-10-16)
 
 §250 took "Stay in the loop" and "Better together" off the waitlist page to
 become a video. The video is 1:46 and its export was 900 MB, too big to keep
@@ -20333,3 +20355,17 @@ Short (`KCpGaWdWNSs`) and it is embedded above "Learn more. Go deeper."
   inside a `<button>` is invalid), and takes the focus.
 - To change the video, change `data-yt` and the thumbnail's id together in
   `static/waitlist.html`; nothing else names it.
+- **Leaving the explainer stops it.** On the status page the explainer is
+  its own view; "Back to your spot" (or the browser's back) hides it, and a
+  hidden iframe keeps playing, so `closeAbout` swaps the picture back in.
+
+**Main's Postgres job, red on the same day.** `test_the_generator_passes_the_name_and_the_writer_is_told_what_it_is`
+found three Wikimedia requests where it expected none. They were not its own:
+`test_a_late_reference_is_dropped_within_the_grace` makes the look take 1.5 s
+and abandons it, the look runs on in `wikimedia.EXECUTOR` (its own pool,
+§281, which `asyncio.run` does not wait for), and its next three requests read
+`wikimedia._transport` as they are sent - by then a later test's fake, or the
+real network once the fixture is gone. On CI's slower Postgres run they fell
+just after the generator test cleared its calls. Reproduced by sleeping 0.6 s
+before that clear; the late test now waits for its abandoned look to finish
+against its own fake.

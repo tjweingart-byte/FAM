@@ -969,3 +969,21 @@ def test_the_waitlist_profile_saves_topics_off_the_long_list(world):
     chosen = member.get("/api/preferences").json()["topics_chosen"]
     assert [t["id"] for t in chosen] == [first, "Formula E"]
     assert chosen[1]["typed"] is True
+
+
+def test_the_video_sits_above_the_features_and_loads_youtube_only_on_a_tap():
+    # §284: the Short that replaced "Stay in the loop" and "Better together".
+    page = (ROOT / "static" / "waitlist.html").read_text(encoding="utf-8")
+    about = page.split('id="about"', 1)[1].split("</footer>", 1)[0]
+    assert about.index('class="ab-wrap ab-video') < about.index('class="ab-wrap ab-how"')
+    video = re.search(r'<div class="yt" data-yt="([\w-]+)">(.*?)</div>', about, re.S)
+    vid, inner = video.group(1), video.group(2)
+    # A picture of the video, never the player, until somebody taps.
+    assert "<iframe" not in page
+    assert f"https://i.ytimg.com/vi/{vid}/hqdefault.jpg" in inner
+    assert 'class="yt-btn"' in inner and 'aria-label="Play the FAM video"' in inner
+    assert '"https://www.youtube-nocookie.com/embed/"' in page
+    assert "?autoplay=1&playsinline=1&rel=0" in page
+    # A hidden player keeps playing: leaving the explainer puts it back.
+    close = page.split("window.closeAbout = function", 1)[1].split("};", 1)[0]
+    assert "box.stopVideo()" in close

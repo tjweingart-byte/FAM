@@ -5,11 +5,14 @@ import os
 import sqlite3
 import sys
 
+import pytest
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import metering  # noqa: E402
 
 
+@pytest.mark.sqlite_file
 def test_a_ledger_with_the_old_column_names_is_renamed_and_keeps_its_rows(tmp_path):
     path = tmp_path / "metering.db"
     old = {"searches": "exa_searches", "cost": "exa_cost", "usd": "exa_usd"}
