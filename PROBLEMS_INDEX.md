@@ -287,4 +287,4 @@ and `limit` = Lines.
 | 20095 | 57 | 281. Review fixes before the merge into Main (2026-10-15) |
 | 20152 | 166 | 282. The 10.15 implementations: waitlist friend search, the waitlist's reset, private search, the APIs on a report, the features back, the founders, a story's reply row, and a picture that follows the team (2026-10-16) |
 | 20318 | 22 | 283. An eye on every password field (2026-10-16) |
-| 20340 | 33 | 284. The waitlist's video: a YouTube Short above the features (2026-10-16) |
+| 20340 | 34 | 284. The waitlist's video: a YouTube Short above the features (2026-10-16) |

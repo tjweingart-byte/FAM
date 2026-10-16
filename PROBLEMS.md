@@ -20342,7 +20342,8 @@ the rename is the same code on both backends.
 §250 took "Stay in the loop" and "Better together" off the waitlist page to
 become a video. The video is 1:46 and its export was 900 MB, too big to keep
 in git or serve from the app's own disk, so the owner put it on YouTube as a
-Short (`KCpGaWdWNSs`) and it is embedded above "Learn more. Go deeper."
+Short (`KCpGaWdWNSs`, replaced the same day by `qhS5jRtMkHs`: YouTube blocked
+the first everywhere over its music) and it is embedded above "Learn more. Go deeper."
 
 - **Drawn as a picture until it is tapped.** The page shows YouTube's
   thumbnail and a gold play button; only a tap swaps in the player, from
