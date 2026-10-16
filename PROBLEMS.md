@@ -20669,6 +20669,11 @@ confirmed finding is fixed:
 - *View more:* "Refresh starts again from the top" is never said on Made
   for you's cycle; a rail that empties is not opened on its old tiles; an
   empty rail that wraps is not `caught_up`.
+- *Main's CI red since #159, ported here:* the smoke check "Explore goes
+  deeper, with a suggestion and a length" waited for any `deeper_` topic and
+  read the newest; §285's Continue makes one earlier in the run, so on CI's
+  slower runner it read that one (2 minutes) before the new one (4) landed.
+  It now waits for one more than there were.
 Not changed, and to measure: a five-minute packet is now up to ~36 KB in
 front of a searched episode's first word.
 
