@@ -252,3 +252,39 @@ def test_an_abbreviation_does_not_end_a_sentence():
     assert held == ""
     # What decides it has not arrived: wait for the next word.
     assert _sentences("He went to the U.S. ") == ([], "He went to the U.S. ")
+
+
+# --- 3a. a Trending episode's sources reach the player ----------------------
+
+def test_an_empty_live_track_does_not_hide_the_kept_sources():
+    import provenance as provenance_mod
+    from pipeline import PodcastPipeline
+    from script_generator import plan_episode
+    from tts import DebugEngine
+    from cache import MemoryScriptCache
+    from test_pipeline import FakeGenerator
+
+    cache = MemoryScriptCache()
+    pipe = PodcastPipeline(FakeGenerator(["One."]), DebugEngine(), cache=cache)
+    plan = plan_episode("is brazil's election moving sugar prices", 2)
+    key = asyncio.run(pipe._cache_key(plan))
+    raw = ('{"items": [{"label": "Reuters", "title": "Sugar rallies", '
+           '"url": "https://www.reuters.com/x"}], "retrievers": []}')
+    cache.put(key, ["One."], 3600, plan.query, "", 2, sources=raw)
+    live_captions.open_track(key)
+    live_captions.publish_sources(key, '{"items": []}')
+    found = provenance_mod.Provenance.from_json(asyncio.run(pipe.sources_for(plan)))
+    assert found.items, "the replay's empty track hid the kept sources"
+
+
+def test_sources_and_transcript_read_the_key_the_audio_was_written_under():
+    src = (ROOT / "app.py").read_text(encoding="utf-8")
+    for route in ('@app.get("/api/sources")', '@app.get("/api/transcript")'):
+        head = src.split(route, 1)[1].split('"""', 1)[0]
+        assert "search: bool | None = Query(None)" in head, route
+
+
+def test_the_player_asks_for_sources_until_it_has_some():
+    assert "askSourcesUntilShown(episodeStamp, 0);" in INDEX
+    body = INDEX.split("function askSourcesUntilShown(stamp, tries){", 1)[1][:400]
+    assert "stamp !== episodeStamp || sourcesNow.length" in body

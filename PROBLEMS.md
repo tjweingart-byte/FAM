@@ -20370,3 +20370,96 @@ real network once the fixture is gone. On CI's slower Postgres run they fell
 just after the generator test cleared its calls. Reproduced by sleeping 0.6 s
 before that clear; the late test now waits for its abandoned look to finish
 against its own fake.
+
+## 285. The 10.16 instant feedback: the first step, a sent episode, Trending's sources, the writing on Haiku, and the pause in the first line (2026-10-16)
+
+The owner's "10.16.26 implementations 2" packet: five reports from the
+instant-feedback inbox.
+
+**1. The first bubble took five to seven seconds, and the chevrons stuttered.**
+The first step, "Contextualizing your search", was checked off by
+`brief_ready`: the end of the whole brief, which is three Haiku calls at once
+(§268's two halves and §270's plan of the piece) and waits for the slowest
+plus the outline's grace. With the seconds gone (§232) nothing moved on the
+screen meanwhile. It is now `brief_understood`, marked by
+`episode_intelligence._timed` the moment the *understanding* half answers -
+the request's meaning, which is what the step names - and by `prepare` for a
+warmed, degraded or switched-off brief. Still a server mark, never a timer;
+the brief's other two calls finish under "Retrieving", which waits on them.
+The chevrons were three `<path>`s animated inside one SVG with a
+`drop-shadow` on each: an SVG child's animation runs on the main thread, so
+they stalled whenever the page was busy (and it is, while an episode starts),
+and the shadow was redrawn every frame. Each is now its own HTML layer moved
+by transform and opacity only, with the shadow painted once on a still SVG.
+
+**2. An episode sent in Messages was written again.** A message carried only
+the question and the length, so Listen asked the question again; once the
+sender's episode was no longer current (a live story's two hours) that was a
+new episode, written from scratch under the old title and picture until it
+finished. A message now carries `episode` (`cache.episode_id`, a new column
+widened in place): the sender's `X-FAM-Episode` when it names a kept episode
+**of that question** (an id for another question is never carried - it would
+play what the card does not name, past moderation's lookup by question),
+else the episode kept under the question now, else "" and the old behaviour.
+It is pinned as a heard episode is (two weeks), and `_held_episode_keys`
+counts messages as shares, so the audio sweep keeps its audio past the week
+(§237). Listen replays it with `?episode=` - never writes - and only a 409
+(no longer kept) asks the question instead, once. `currentEpisode()` carries
+the playing episode's id so a share from the player names it; vibe replies
+and older clients are named by the server.
+
+**3a. Trending episodes showed no sources.** Not reproduced here: a written
+Trending story tapped from the rails drew its strip in Chromium, and the
+report's lookup is the player's. Three gaps that each produce the symptom
+were fixed: `/api/sources` and `/api/transcript` defaulted to `search=True`
+where `/api/audio` reads `SEARCH_MODE` (they agree only while it is
+`always`); a replay's live track is opened empty, and `sources_for` returned
+that empty track ahead of the cache's; and the player asked only at 6 s,
+20 s and the end, so a story written on the tap (a `volatile` one is never
+written ahead) whose sources land with its finished script could miss every
+ask. It now asks again every 8 s until it has some (75 at most), and when the
+writer's final title lands. To confirm the cause in production: that story's
+row in the Trending report on /admin (`written`, `cached` or `volatile`) and
+whether the play was a cache hit in the log.
+
+**3b and 4. A list of facts, read off the sources, and "this is not a part of
+the information I received".** `examples/` is the lever (`examples-lever`):
+a second example, the first news-shaped one, `2-suez-canal-ship.txt` - a
+grounding told as because/therefore/but, one attribution where who said it
+matters, situated in the first sentence, ending on the most concrete fact.
+The system prompt stays under its bound by folding, not adding: "Facts in
+time order, or source by source, are a list", and "Never say what you do not
+have up front" became "**Never mention your material**, anywhere". The
+evidence block says it at length where the passages are: the listener has
+never seen them; tell them as the story, never one source after another,
+never a word about them. And a check behind the rule, as `OpeningGuard` is
+behind the opening: `MaterialGuard` drops a sentence about the writer's own
+material anywhere in the piece (`is_material_sentence`: "the information I
+received", "not part of what I was given", "my sources don't say",
+"provided to me", "based on what I have"...), narrow enough that "Reuters
+reported", "sources close to the team" and "the evidence suggests" pass;
+each drop is logged and on /admin's errors as "material check". Nothing is
+said in its place. Nobody has heard the result (`no-api-key`); listen with
+`python write.py "<query>" --minutes 2` on a Trending story.
+
+**5. A pause after the first line, or halfway through it.** No sentence is
+split on the server. The ZBTB44 episode's first line pauses at the code: the
+voice was handed "ZBTB44" raw (`spoken_text` spelled only one letter before
+digits), and a `<<SAY: ZBTB44 = ...>>` line was thrown away because
+`pronunciation._NAME` refused digits. Codes of two to five capitals and up to
+three digits are now spelled ("Z B T B forty-four", "C D four"), and SAY
+names may hold digits; captions and cache keep the real spelling. And a full
+stop after an abbreviation ended a sentence - "Dr. ", "Oct. 14", "the U.S.
+economy" - so half a sentence went to the voice alone and the other half had
+to be voiced before it could play: `find_sentence_end` skips titles and
+initials always, a month or "U.S." when a number or a lower-case word
+follows, and waits for the next word when that is what decides it. If a
+pause remains between the first and second chunk, the episode's
+`marks=` log line (chunk 1's synthesis start against chunk 0's audio end)
+will say whether the voice fell behind; the fix then is a second synthesis
+in flight, not a filler.
+
+**Not done:** item 4's picture (a laboratory under "Where the 2016 Clown
+Sightings Began") could not be looked at here - this container has no
+picture library - and is most likely a category gap (§235) for the episode's
+subject.

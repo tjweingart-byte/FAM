@@ -37,6 +37,7 @@ import content_filter
 import audio_codec
 import audio_store
 import live_captions
+import provenance as provenance_mod
 from pronunciation import respell
 from spoken_text import speakable
 from script_buffer import ASSEMBLER_TICK, ScriptBuffer
@@ -1047,7 +1048,9 @@ class PodcastPipeline:
         # episode has finished. A panel that can only appear after the last
         # word has answered "where is this coming from?" too late to matter.
         live = live_captions.read_sources(key)
-        if live:
+        # A live track with nothing on it yet must not hide what the cache
+        # holds (§285): a replay's track is opened empty.
+        if live and provenance_mod.Provenance.from_json(live).items:
             return live
         if not self.cache:
             return ""

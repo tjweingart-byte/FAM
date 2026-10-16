@@ -6684,6 +6684,9 @@
         // Provisional first - the brief names the episode before its first
         // word (§127) - and replaced by the writer's own when that lands.
         if(data.title && (data.title_final || !episodeTitleFinal)){
+          // The writer's title lands with the finished script, and the
+          // sources with it (§285).
+          if(data.title_final && !episodeTitleFinal) fetchEpisodeSources();
           applyEpisodeTitle(data.title);
           episodeTitleFinal = !!data.title_final;
         }
@@ -8251,6 +8254,10 @@
         // one's.
         setTimeout(fetchEpisodeSources, 6000);
         setTimeout(fetchEpisodeSources, 20000);
+        // And on, until there is something to show (§285): a Trending story
+        // written on the tap has its sources only once its script is, which
+        // on a long episode is after the twentieth second.
+        askSourcesUntilShown(episodeStamp, 0);
         // A stream arrived, so there is a connection whatever was said before.
         if(!fromDevice && famOffline) setOffline(false);
         keepWhenWhole();
@@ -12957,6 +12964,18 @@
     if (marks) marks.innerHTML = "";
     var list = document.getElementById("srcList");
     if (list) list.innerHTML = "";
+  }
+
+  //: How often, and how many times, the player asks again for sources it
+  //: has not been shown yet - ten minutes at most, one cheap read each.
+  var SOURCES_RETRY_MS = 8000;
+  var SOURCES_RETRY_MAX = 75;
+  function askSourcesUntilShown(stamp, tries){
+    setTimeout(function(){
+      if(stamp !== episodeStamp || sourcesNow.length || tries >= SOURCES_RETRY_MAX) return;
+      fetchEpisodeSources();
+      askSourcesUntilShown(stamp, tries + 1);
+    }, SOURCES_RETRY_MS);
   }
 
   function fetchEpisodeSources(){

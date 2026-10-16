@@ -8979,7 +8979,9 @@ async def episode_sources(
     q: str = Query(..., description="What the listener asked"),
     minutes: int = Query(DEFAULT_MINUTES, ge=1, le=10),
     context: str = Query("", description="Topic the listener just heard"),
-    search: bool = Query(True),
+    # As /api/audio's (§285): `SEARCH_MODE` decides when the client says
+    # nothing, so this reads the key the episode was written under.
+    search: bool | None = Query(None),
 ):
     """Who this episode's facts came from.
 
@@ -9016,7 +9018,9 @@ async def episode_transcript(
     q: str = Query(..., description="What the listener asked"),
     minutes: int = Query(DEFAULT_MINUTES, ge=1, le=10),
     context: str = Query("", description="Topic the listener just heard"),
-    search: bool = Query(True),
+    # As /api/audio's (§285): `SEARCH_MODE` decides when the client says
+    # nothing, so this reads the key the episode was written under.
+    search: bool | None = Query(None),
 ):
     """The sentences this episode is made of, for live captions.
 
