@@ -20370,9 +20370,10 @@ just after the generator test cleared its calls. Reproduced by sleeping 0.6 s
 before that clear; the late test now waits for its abandoned look to finish
 against its own fake.
 
-## 285. The 10.16 implementations: short Haiku episodes, more from each source, the writing on Haiku, the trusted sources, and Made for you's View more (2026-10-16)
+## 286. The 10.16 implementations: short Haiku episodes, more from each source, the writing on Haiku, the trusted sources, and Made for you's View more (2026-10-16)
 
-The owner's 10.16 packet, five backend items.
+The owner's 10.16 packet, five backend items. (§285 is the same packet's
+interface half, written on another branch at the same time.)
 
 **1. Episodes shorter than two minutes since the writer moved to Haiku (§272).**
 Read from the code, not measured (no key here). The writer is given one length

@@ -32,7 +32,7 @@ from config import BROWSE_MINUTES  # noqa: E402
 # --------------------------------------------------------------------------
 def test_a_two_minute_episode_gets_six_sources_of_three_passages(monkeypatch):
     # Five sources here in §276; six, with 4,000 characters a page and
-    # passages of up to 1,000, since §285.
+    # passages of up to 1,000, since §286.
     defaults = config.Settings()
     assert defaults.search_num_results == 10
     assert defaults.search_packet_sources == 6

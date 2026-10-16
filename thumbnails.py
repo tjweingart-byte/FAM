@@ -786,7 +786,7 @@ def pick_for_tile(text: str, tags: Iterable[str] = (),
     else its first tag's - whenever it has one: the word on the card names
     the episode, and the last borrowing step (a stable choice among all
     painted facets) can hand a sports tile a money picture. **A tile with no
-    facet of its own prints none** (§285): a picture chosen by a hash says
+    facet of its own prints none** (§286): a picture chosen by a hash says
     nothing about the episode, and its facet on the card labelled a school
     shooting and a Senate probe BUSINESS. `key`, when given, is what that
     hash reads (`pick_for_player`).

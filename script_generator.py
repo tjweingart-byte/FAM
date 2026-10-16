@@ -50,7 +50,7 @@ log = logging.getLogger(__name__)
 
 #: Each example's length in minutes, from its file name (`2-...txt`), so the
 #: writer sees what that many minutes sounds like beside the words it took
-#: (§285): a small writer matches a demonstrated length far more closely
+#: (§286): a small writer matches a demonstrated length far more closely
 #: than a stated one.
 EXAMPLE_MINUTES: dict[str, int] = {}
 
@@ -1480,7 +1480,7 @@ class _ScriptReader:
         return out
 
     def _note_if_short(self, tail_words: int, cut_off: bool) -> None:
-        """A script well under its length, on /admin's errors (§285).
+        """A script well under its length, on /admin's errors (§286).
 
         Report only: the length stays a ceiling and nothing is padded or
         topped up ([duration-ceiling]). Since the writer moved to Haiku,
@@ -1501,7 +1501,7 @@ class _ScriptReader:
 
 
 #: Under this share of its word budget, a finished script is noted on
-#: /admin's errors as well under its length (§285). Report only.
+#: /admin's errors as well under its length (§286). Report only.
 SHORT_SCRIPT_SHARE = 0.7
 
 

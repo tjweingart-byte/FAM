@@ -486,7 +486,7 @@ class Topic:
         database open, never a model call."""
         import thumbnails
 
-        # The title and the angle as well as the question (§285): a live
+        # The title and the angle as well as the question (§286): a live
         # story's query is often a few bare words, and a tile with no tags
         # and no category fell through to one hashed picture - the same one
         # on every untagged story in a View more - and borrowed that
@@ -547,7 +547,7 @@ TAG_WORDS: dict[str, tuple[str, ...]] = {
               # about nothing - and so from unlocking anything in sport.
               "israel", "gaza", "iran", "ukraine", "russia", "lebanon",
               "syria", "palestinian", "ceasefire", "nato", "embassy",
-              # §285: the day's hard news - crime, courts and politics. A
+              # §286: the day's hard news - crime, courts and politics. A
               # live story about a shooting or a Senate probe carried no tag,
               # so its tile borrowed a hashed picture and that picture's
               # facet ("BUSINESS") as its label.
@@ -4808,7 +4808,7 @@ def page_section(body: dict, seen: Iterable[str] = (),
 
     `size` 0 returns the whole list, as the screen did before this existed.
 
-    `wrap=False` (Made for you's cycle, §285) never starts again: once
+    `wrap=False` (Made for you's cycle, §286) never starts again: once
     everything has been shown the page is empty and says `caught_up`, and the
     screen says "You're all caught up" instead of dealing the first eight
     again.

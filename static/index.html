@@ -12573,12 +12573,12 @@
   var SECTION_PAGE = 8;
   var sectionState = { key: "", seen: [], busy: false, req: 0, head: [] };
   // Each rail's tiles as the page drew them, so Made for you's View more
-  // opens on exactly the episodes the rail showed (§285): the rail and the
+  // opens on exactly the episodes the rail showed (§286): the rail and the
   // screen are ranked with different exclusions, and some of the rail's own
   // tiles were missing behind its View more.
   var railTiles = {};
   // Made for you's View more cycles through episodes already written and
-  // ends "all caught up" rather than starting again (§285, the owner 10.16):
+  // ends "all caught up" rather than starting again (§286, the owner 10.16):
   // nothing on it past the rail's own tiles can cause an episode to be written.
   var SECTION_CYCLES = { from_history: true };
 
@@ -12674,7 +12674,7 @@
     // Offered only when a refresh can show something this page does not:
     // a rail with eight or fewer eligible tiles has nothing else to deal.
     // A cycling rail always offers it until it is caught up - pressing it
-    // then is how the listener learns they are (§285).
+    // then is how the listener learns they are (§286).
     refresh.hidden = d.cycles ? !!d.caught_up
       : !(d.page_size && d.total > topics.length);
     if(d.cycles && d.caught_up){

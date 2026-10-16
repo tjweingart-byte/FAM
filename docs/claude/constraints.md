@@ -105,7 +105,7 @@
   (`OfflineShelf`, bounded, emptied on log-out), so it plays offline, and
   `static/sw.js` keeps the app shell. Still no audio file and no MP3.
 <!-- rule:duration-ceiling -->
-> **Current (PROBLEMS.md §285):** still a ceiling, and nothing is padded or topped up. On a Haiku writer episodes ran a minute short, so the prompt now says resolving early is rare and to look again at the evidence before stopping well under the budget; the two-minute `DEPTH_BANDS` line no longer counts facts; a dropped beat's time goes to the others; and a finished script under 70% of its budget is a notice on /admin's errors (`SHORT_SCRIPT_SHARE`), report only.
+> **Current (PROBLEMS.md §286):** still a ceiling, and nothing is padded or topped up. On a Haiku writer episodes ran a minute short, so the prompt now says resolving early is rare and to look again at the evidence before stopping well under the budget; the two-minute `DEPTH_BANDS` line no longer counts facts; a dropped beat's time goes to the others; and a finished script under 70% of its budget is a notice on /admin's errors (`SHORT_SCRIPT_SHARE`), report only.
 - **Duration is a ceiling, not a quota.** *(Revised.)* The selected length still
   caps the episode and over-runs are trimmed, but a script that runs out of
   substance now ends early instead of being padded. Enforcing the number in both

@@ -574,7 +574,7 @@ def passages(text, limit: int = 0) -> list:
                     current = f"{current} {sentence}".strip()
             if current:
                 pieces.append(_clip(current, limit))
-    # Short paragraphs are packed together up to `limit` (§285). A news
+    # Short paragraphs are packed together up to `limit` (§286). A news
     # page's excerpt is mostly one- and two-sentence paragraphs, and when each
     # was its own passage the packet's three per source were often three
     # lines - a few hundred characters of a page that had sent three thousand.

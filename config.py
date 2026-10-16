@@ -430,7 +430,7 @@ class Settings:
     research_backend_replaced: str = ""
     # How much evidence a researched episode is handed: 10 results fetched
     # (Parallel's and Perplexity's fast price covers up to 10),
-    # the top 6 in the packet (5 in §276, 6 since §285), 3 passages each - what every two-minute
+    # the top 6 in the packet (5 in §276, 6 since §286), 3 passages each - what every two-minute
     # episode gets, and so every myFAM, DailyFAM and Trending episode
     # (§276). It was 3 sources x 2 passages (the hand-measured 2026-09-05
     # benchmark), about 3 KB, and lists, tables, schedules and rankings were
@@ -479,7 +479,7 @@ class Settings:
         default_factory=lambda: os.environ.get(
             "PARALLEL_MODE", "").strip().lower() or "fast")
     # The most excerpt text Parallel returns per page, cut into passages.
-    # 3,000 since §276 (was 1,500); 4,000 since §285, so the four passages of
+    # 3,000 since §276 (was 1,500); 4,000 since §286, so the four passages of
     # up to 1,000 characters a four-minute episode reads each have a page to
     # come from. Parallel's price is per request, not per character.
     parallel_chars_per_result: int = _env_int("PARALLEL_CHARS_PER_RESULT", 4000)
@@ -492,7 +492,7 @@ class Settings:
     perplexity_tokens_per_page: int = _env_int("PERPLEXITY_TOKENS_PER_PAGE", 1024)
     # The most one passage holds when a page's excerpt text is cut up. 500
     # (the size of the highlights every packet was first measured on) until
-    # §285 doubled it: §276 doubled what a page sends, but the packet still
+    # §286 doubled it: §276 doubled what a page sends, but the packet still
     # read it in pieces of at most 500 characters, so a source gave the
     # writer 1,500 of the 3,000 fetched - fewer when its paragraphs were
     # short, which `research.passages` now packs together.

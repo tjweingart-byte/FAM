@@ -6635,7 +6635,7 @@ async def myfam_section(request: Request,
                         cycle: str = Query("", max_length=16)):
     """One myFAM rail, at full length, for the screen behind its "View more".
 
-    **Made for you's cycle** (`cycle=cached`, §285, the owner 10.16): the
+    **Made for you's cycle** (`cycle=cached`, §286, the owner 10.16): the
     screen opens on the rail's own tiles (the client holds them and sends
     their ids in `seen`), and everything this endpoint deals after them -
     the rest of the first page and every Refresh - is an episode already
@@ -6732,7 +6732,7 @@ async def myfam_section(request: Request,
 
 def _cycles_cached(key: str, cycle: str) -> bool:
     """Whether this View more deals written episodes only and ends "all
-    caught up" (§285): Made for you, when the client asks for it."""
+    caught up" (§286): Made for you, when the client asks for it."""
     return key == "from_history" and (cycle or "").strip().lower() == "cached"
 
 
