@@ -63,8 +63,8 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
 - **Search is Google's shape** (§190): mic and attach inside the bar's right;
   Length (1-5 min, §219) and Voice bubbles never print the choice; back to 2 min on
   every return to the app; **Private** is a third bubble (§282). [search-bar]
-- **Private search** (§282): incognito for one search, page charcoal; no play,
-  event or history; cached `private`, no author, listed nowhere. [private-search]
+- **Private search** (§282/§285): charcoal; on till off (bubble=Settings)
+  search, Go Deeper; no play, history, author. [private-search]
 - Searches (Go Deeper too) corrected at send, titles never misspell, EI
   fixes typos (§247) [autocorrect-at-send]
 - The from-knowledge cover half on search is deleted (§108); search's wait is
@@ -239,7 +239,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   Go Deeper prompts, from the **last 24 hours** only; fewer than four is honest. [pick-up-rail]
 - Follows are asymmetric; a friend is the mutual case, derived never stored. [op-follow-graph]
 - A friend's profile is its own screen (`screen-person`); `/api/person` returns
-  only what they published, a given place included (§219) (a handle resolves for anyone, a bare id only within
+  only what they published: place (§219), friend count, friends to friends (§285) (a handle resolves for anyone, a bare id only within
   the asker's follows; the response carries no id); new followers announced once (`social.announced`),
   badge cleared by the Friends tab; **85% through counts as finished**. [op-friend-profile]
 - Social updates itself: message cursor is a **row id, never a timestamp**,

@@ -57,9 +57,9 @@ def test_a_followed_subject_is_a_catalogue_entry_not_an_episode():
 
 def test_a_narrowed_subject_names_its_specific():
     item = M.followed_item("f:soccer~San%20Diego%20FC")
-    assert item.title == "Soccer · San Diego FC"
+    assert item.title == "San Diego FC"
     assert item.focus == ("San Diego FC",) and item.base == "f:soccer"
-    assert "San Diego FC" in item.subtitle
+    assert item.subtitle.startswith("Soccer")
 
 
 def test_an_unknown_subject_is_refused_rather_than_dropped():
@@ -71,7 +71,7 @@ def test_a_team_and_its_whole_league_are_two_briefings(store):
     """The product ask: "NFL - Eagles" *and* "NFL" in one mix, each its own
     row and play button."""
     mix = store.create("u", "Game day", ["f:nfl~Eagles", "f:nfl~Chiefs", "f:nfl"])
-    assert [i.title for i in mix.items] == ["NFL · Eagles", "NFL · Chiefs", "NFL"]
+    assert [i.title for i in mix.items] == ["Eagles", "Chiefs", "NFL"]
     assert {i.base for i in mix.items} == {"f:nfl"}
 
 

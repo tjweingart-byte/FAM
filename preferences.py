@@ -431,6 +431,10 @@ class Preferences:
     #: browse today's episodes by, never a taste signal - following one
     #: writes no event and moves no ranking (`clean_categories`).
     categories: tuple[str, ...] = ()
+    #: Private search left on (10.16 packet, §285): every search and Go
+    #: Deeper this listener starts is private (§282) until they turn it off,
+    #: from Settings or the bubble on searchFAM - one switch, two places.
+    private_search: bool = False
 
     @property
     def public_interests(self) -> tuple[str, ...]:
@@ -452,6 +456,7 @@ class Preferences:
             "intro_done": self.intro_done,
             "searches_public": self.searches_public,
             "categories": list(self.categories),
+            "private_search": self.private_search,
         }
 
 
@@ -532,6 +537,12 @@ class PreferenceStore:
                              " categories TEXT NOT NULL DEFAULT ''")
             except sqlite3.OperationalError:
                 pass  # already there
+            # §285: off for every older row - one search at a time, as §282.
+            try:
+                conn.execute("ALTER TABLE preferences ADD COLUMN"
+                             " private_search INTEGER NOT NULL DEFAULT 0")
+            except sqlite3.OperationalError:
+                pass  # already there
 
     def _conn(self) -> sqlite3.Connection:
         conn = getattr(self._local, "conn", None)
@@ -549,8 +560,8 @@ class PreferenceStore:
             row = self._conn().execute(
                 "SELECT interests, language, weekly_recap, recap_week,"
                 " intro_done, hidden_interests, topics, profile_interests,"
-                " city, region, country, searches_public, categories"
-                " FROM preferences WHERE user_id = ?",
+                " city, region, country, searches_public, categories,"
+                " private_search FROM preferences WHERE user_id = ?",
                 (user_id,),
             ).fetchone()
         except Exception:
@@ -573,6 +584,7 @@ class PreferenceStore:
             location=Location(row[8] or "", row[9] or "", row[10] or ""),
             searches_public=bool(row[11]),
             categories=tuple(t for t in (row[12] or "").split("\n") if t),
+            private_search=bool(row[13]),
         )
 
     def save(
@@ -591,6 +603,7 @@ class PreferenceStore:
         recap_week: Optional[str] = None,
         searches_public: Optional[bool] = None,
         categories: Optional[Iterable[str]] = None,
+        private_search: Optional[bool] = None,
         at: float = 0.0,
     ) -> Preferences:
         """Write only the fields given. Raises PreferenceError on a bad value.
@@ -635,14 +648,16 @@ class PreferenceStore:
                              else current.searches_public),
             categories=(clean_categories(categories) if categories is not None
                         else current.categories),
+            private_search=(bool(private_search) if private_search is not None
+                            else current.private_search),
         )
         self._conn().execute(
             """INSERT INTO preferences
                    (user_id, interests, language, weekly_recap, recap_week,
                     intro_done, updated, hidden_interests, topics,
                     profile_interests, city, region, country, searches_public,
-                    categories)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    categories, private_search)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                ON CONFLICT(user_id) DO UPDATE SET
                    interests        = excluded.interests,
                    hidden_interests = excluded.hidden_interests,
@@ -657,6 +672,7 @@ class PreferenceStore:
                    country      = excluded.country,
                    searches_public = excluded.searches_public,
                    categories   = excluded.categories,
+                   private_search = excluded.private_search,
                    updated      = excluded.updated""",
             (user_id, ",".join(merged.interests), merged.language,
              int(merged.weekly_recap), merged.recap_week, int(merged.intro_done),
@@ -665,7 +681,7 @@ class PreferenceStore:
              "\n".join(merged.profile_interests),
              merged.location.city, merged.location.region,
              merged.location.country, int(merged.searches_public),
-             "\n".join(merged.categories)),
+             "\n".join(merged.categories), int(merged.private_search)),
         )
         return merged
 
