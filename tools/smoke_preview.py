@@ -2072,13 +2072,13 @@ def main() -> int:
             page.wait_for_timeout(300)
             chip = page.query_selector("#screen-home #voiceBubble")
             assert chip, "the search page has no voice control"
-            # §190: two bubbles under the bar, Length then Voice, and the
-            # choice is not printed on them.
+            # §190: bubbles under the bar, Length then Voice, and the
+            # choice is not printed on them; Private is the third (§282).
             order = page.evaluate(
                 """() => Array.from(document.querySelectorAll(
                     '#screen-home .fam-controls .search-bubble'))
                     .map(e => e.textContent.trim())""")
-            assert order == ["Length", "Voice"], f"the bubbles read {order}"
+            assert order == ["Length", "Voice", "Private"], f"the bubbles read {order}"
             page.evaluate("openVoiceMenu()")
             page.wait_for_timeout(250)
             labels = page.evaluate(

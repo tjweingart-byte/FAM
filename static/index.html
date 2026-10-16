@@ -14377,6 +14377,9 @@
     });
     el.addEventListener("pointerup", function(e){
       clearTimeout(storyHoldTimer);
+      // The reply row holds the story itself while its box has the focus
+      // (§282); a tap there is not the end of a hold or a swipe.
+      if(e.target.closest && e.target.closest(".story-reply")){ storySwipe = null; return; }
       if(storyHeld){
         resumeStory();
         storySwipedAt = Date.now();
