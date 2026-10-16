@@ -81,7 +81,18 @@
     -webkit-backdrop-filter:blur(4px); backdrop-filter:blur(4px); }
   .field::placeholder{ color:rgba(244,239,228,0.72); }
   .field:focus{ border-color:var(--gold); }
-  .field + .field{ margin-top:12px; }
+  .field + .field, .field + .pw-row, .pw-row + .field, .pw-row + .pw-row{ margin-top:12px; }
+  /* The eye on every password field: tap to see what was typed, tap again to hide it. */
+  .pw-row{ position:relative; }
+  .pw-row .field{ padding-right:56px; }
+  .pw-eye{ position:absolute; right:8px; top:50%; transform:translateY(-50%); width:44px; height:44px;
+    padding:0; border:0; background:none; cursor:pointer; color:rgba(244,239,228,0.85);
+    display:flex; align-items:center; justify-content:center; }
+  .pw-eye svg{ width:22px; height:22px; fill:none; stroke:currentColor; stroke-width:1.8;
+    stroke-linecap:round; stroke-linejoin:round; }
+  .pw-eye .pw-eye-off{ display:none; }
+  .pw-eye[aria-pressed="true"] .pw-eye-on{ display:none; }
+  .pw-eye[aria-pressed="true"] .pw-eye-off{ display:block; }
   .cta{ width:100%; height:58px; margin-top:16px; border:0; border-radius:14px; cursor:pointer;
     background:var(--gold); color:var(--gold-ink); font-size:21px;
     display:flex; align-items:center; justify-content:center; gap:14px; }
@@ -521,10 +532,10 @@
     <form id="joinForm" novalidate>
       <input class="field" id="email" type="email" inputmode="email" autocomplete="email"
              placeholder="Enter your email" aria-label="Email" required>
-      <input class="field" id="password" type="password" autocomplete="new-password"
-             placeholder="Choose a password" aria-label="Password" minlength="8">
-      <input class="field" id="password2" type="password" autocomplete="new-password"
-             placeholder="Type the password again" aria-label="Confirm password" minlength="8">
+      <div class="pw-row"><input class="field" id="password" type="password" autocomplete="new-password"
+             placeholder="Choose a password" aria-label="Password" minlength="8"><button class="pw-eye" type="button" data-pw="password" aria-label="Show password" aria-pressed="false"><svg class="pw-eye-on" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg><svg class="pw-eye-off" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l18 18"/><path d="M10.6 5.1A10.7 10.7 0 0 1 12 5c6.4 0 10 7 10 7a17.6 17.6 0 0 1-3.2 4.2M6.6 6.6C3.9 8.3 2 12 2 12s3.6 7 10 7a9.9 9.9 0 0 0 5.4-1.6"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg></button></div>
+      <div class="pw-row"><input class="field" id="password2" type="password" autocomplete="new-password"
+             placeholder="Type the password again" aria-label="Confirm password" minlength="8"><button class="pw-eye" type="button" data-pw="password2" aria-label="Show password" aria-pressed="false"><svg class="pw-eye-on" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg><svg class="pw-eye-off" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l18 18"/><path d="M10.6 5.1A10.7 10.7 0 0 1 12 5c6.4 0 10 7 10 7a17.6 17.6 0 0 1-3.2 4.2M6.6 6.6C3.9 8.3 2 12 2 12s3.6 7 10 7a9.9 9.9 0 0 0 5.4-1.6"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg></button></div>
       <button class="cta label" id="joinBtn" type="submit">
         <span id="joinLabel">Join the waitlist</span>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
@@ -537,7 +548,7 @@
 
     <form id="loginForm" class="hidden" novalidate>
       <input class="field" id="loginEmail" type="email" autocomplete="email" placeholder="Email" aria-label="Email">
-      <input class="field" id="loginPassword" type="password" autocomplete="current-password" placeholder="Password" aria-label="Password">
+      <div class="pw-row"><input class="field" id="loginPassword" type="password" autocomplete="current-password" placeholder="Password" aria-label="Password"><button class="pw-eye" type="button" data-pw="loginPassword" aria-label="Show password" aria-pressed="false"><svg class="pw-eye-on" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg><svg class="pw-eye-off" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l18 18"/><path d="M10.6 5.1A10.7 10.7 0 0 1 12 5c6.4 0 10 7 10 7a17.6 17.6 0 0 1-3.2 4.2M6.6 6.6C3.9 8.3 2 12 2 12s3.6 7 10 7a9.9 9.9 0 0 0 5.4-1.6"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg></button></div>
       <button class="cta label" type="submit" id="loginBtn">Sign in</button>
       <div class="form-note" id="loginNote" role="status" aria-live="polite"></div>
       <!-- §244's reset, here too (10.15 packet): drawn only when the server
@@ -551,7 +562,7 @@
       <input class="field" id="resetEmail" type="email" autocomplete="email" placeholder="The email on your account" aria-label="Email">
       <div id="resetStep2" class="hidden">
         <input class="field" id="resetCode" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="6-digit code" aria-label="6-digit code" style="margin-top:12px">
-        <input class="field" id="resetPassword" type="password" autocomplete="new-password" minlength="8" placeholder="New password" aria-label="New password" style="margin-top:12px">
+        <div class="pw-row" style="margin-top:12px"><input class="field" id="resetPassword" type="password" autocomplete="new-password" minlength="8" placeholder="New password" aria-label="New password"><button class="pw-eye" type="button" data-pw="resetPassword" aria-label="Show password" aria-pressed="false"><svg class="pw-eye-on" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg><svg class="pw-eye-off" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l18 18"/><path d="M10.6 5.1A10.7 10.7 0 0 1 12 5c6.4 0 10 7 10 7a17.6 17.6 0 0 1-3.2 4.2M6.6 6.6C3.9 8.3 2 12 2 12s3.6 7 10 7a9.9 9.9 0 0 0 5.4-1.6"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg></button></div>
       </div>
       <button class="cta label" type="submit" id="resetBtn">Email me a code</button>
       <div class="form-note" id="resetNote" role="status" aria-live="polite">We’ll email a 6-digit code to the address on your account.</div>
@@ -1164,8 +1175,27 @@
           note.className = "form-note err"; note.textContent = e.message;
         });
     });
+    // The eye beside each password field shows or hides what was typed.
+    // `show` forces a state; left out, it toggles.
+    function setPasswordShown(eye, show){
+      var input = $(eye.getAttribute("data-pw"));
+      if(show === undefined) show = input.type === "password";
+      input.type = show ? "text" : "password";
+      eye.setAttribute("aria-pressed", show ? "true" : "false");
+      eye.setAttribute("aria-label", show ? "Hide password" : "Show password");
+    }
+    // Every form opens with its passwords hidden again.
+    function hidePasswords(){
+      Array.prototype.forEach.call(document.querySelectorAll(".pw-eye[data-pw]"), function(eye){
+        setPasswordShown(eye, false);
+      });
+    }
+    Array.prototype.forEach.call(document.querySelectorAll(".pw-eye[data-pw]"), function(eye){
+      eye.addEventListener("click", function(){ setPasswordShown(eye); });
+    });
     $("toggleLogin").addEventListener("click", function(){
       if(!$("resetForm").classList.contains("hidden")) closeReset();
+      hidePasswords();
       var toLogin = $("loginForm").classList.contains("hidden");
       $("loginForm").classList.toggle("hidden", !toLogin);
       $("joinForm").classList.toggle("hidden", toLogin);
@@ -1204,6 +1234,7 @@
       $("resetCode").value = ""; $("resetPassword").value = "";
     }
     $("forgotLink").addEventListener("click", function(){
+      hidePasswords();
       $("loginForm").classList.add("hidden");
       $("resetForm").classList.remove("hidden");
       $("resetEmail").value = $("loginEmail").value.trim();

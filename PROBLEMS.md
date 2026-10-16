@@ -20314,3 +20314,25 @@ halves were.
 
 Not done here: nothing was heard (`no-api-key`), and no mail was sent from
 this container.
+
+## 283. An eye on every password field (2026-10-16)
+
+**Asked:** when somebody sets up an account or signs back in, an eye on the
+right of the password field shows what they typed, and hides it again - on
+any sign-in page.
+
+**Done.** The app's sign-up / log-in password (which had a "Show" word) and
+its Forgot password's new password, and on `/waitlist` the join form's two
+passwords, the sign-in password and the reset's new password (added by
+§282, picked up in the merge). An open eye means hidden; a struck eye means
+showing; `aria-pressed` and the label say the same. Every form opens hidden
+again (`openAuth`, `openReset`, the waitlist's toggle and Forgot link).
+`tests/test_password_eye.py` fails on a password field without an eye. The
+admin pages' sign-ins (`admin_ui/`) are left as they were.
+
+**Also, before merging: Main's Postgres job was red** (runs for #154 and
+#155) on one test, `test_removals_279.py`'s ledger rename: it writes and
+reads `metering.db` as a SQLite file, but under `DATABASE_URL` the
+`MeterStore` is in Postgres, so the file was never touched. It now carries
+`@pytest.mark.sqlite_file` like every other test of the SQLite file itself;
+the rename is the same code on both backends.
