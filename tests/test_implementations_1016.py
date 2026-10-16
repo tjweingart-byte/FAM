@@ -99,8 +99,11 @@ def test_the_profile_draws_the_shelf_and_the_friends():
 # --- 2. a vibe opens in the full player ----------------------------------------
 
 def test_the_episode_on_a_story_opens_the_player():
-    assert 'id="storyTitle" role="button" onclick="playStory()"' in INDEX
-    assert "' role=\"button\" onclick=\"playStory()\"'" in INDEX
+    assert 'id="storyTitle" role="button" onclick="playStoryTap()"' in INDEX
+    assert "' role=\"button\" onclick=\"playStoryTap()\"'" in INDEX
+    # Letting go of a hold or a swipe on the card is not a tap on it.
+    tap = INDEX.split("function playStoryTap(){", 1)[1].split("\n  }\n", 1)[0]
+    assert "storySwipedAt < 400" in tap
     assert ".story-canvas-wrap .sc-post{ pointer-events:auto;" in INDEX
     body = INDEX.split("function playStory(){", 1)[1].split("\n  }\n", 1)[0]
     assert 'navigate("player")' in body

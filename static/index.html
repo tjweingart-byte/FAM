@@ -4741,7 +4741,7 @@
         <div class="story-tap right" onclick="storyTap(1)" aria-hidden="true"></div>
         <div class="story-main">
           <div class="story-kicker">VIBE</div>
-          <div class="story-title" id="storyTitle" role="button" onclick="playStory()"></div>
+          <div class="story-title" id="storyTitle" role="button" onclick="playStoryTap()"></div>
           <div class="story-meta" id="storyMeta"></div>
           <!-- What they said about it, when they said something (10.5 #9). -->
           <div class="story-caption" id="storyCaption" hidden></div>
@@ -7253,7 +7253,7 @@
     // Whole class names, built here, so each is one the CSS defines.
     var frameCls = "frame-" + escapeHtml(st.frame), fontCls = "f-" + escapeHtml(st.font);
     var html = '<div class="sc-post ' + frameCls + '"'
-      + (edit ? ' data-drag="pic"' : ' role="button" onclick="playStory()"')
+      + (edit ? ' data-drag="pic"' : ' role="button" onclick="playStoryTap()"')
       + ' style="left:' + (50 + st.tx * 100) + '%;top:' + (42 + st.ty * 100) + '%;--z:' + st.zoom + ';">'
       + '<div class="sc-pic"' + pic + '></div>'
       + '<div class="sc-post-text"><div class="sc-post-title">' + escapeHtml(v.title || v.query || "") + '</div>'
@@ -14518,6 +14518,13 @@
   // The episode opens in the full player (10.16 packet, §285): the button,
   // the title, or the episode's card on a composed story. One already on
   // the player is not started again - the player is opened on it.
+  // The card and the title are part of the story too: letting go of a
+  // hold, or a swipe that ends on them, ends with a click there that must
+  // not open the player - the same guard as `storyTap`.
+  function playStoryTap(){
+    if(Date.now() - storySwipedAt < 400) return;
+    playStory();
+  }
   function playStory(){
     var cur = currentStory(), person = cur.person, v = cur.v;
     if(!v) return;
