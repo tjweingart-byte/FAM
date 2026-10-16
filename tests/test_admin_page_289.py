@@ -387,7 +387,9 @@ def test_an_admins_respelling_is_only_shown_beside_wikipedias(lexicon, monkeypat
 
 
 def test_close_enough_agrees():
-    assert wiki_pronounce.agrees("ab-DOOL-kah-reem", "ab-dool-kuh-REEM")
+    assert wiki_pronounce.agrees("ab-dool-kah-REEM", "ab-dool-kuh-REEM")
+    # The same letters stressed elsewhere are a different pronunciation.
+    assert not wiki_pronounce.agrees("KAR-los", "kar-LOS")
     assert not wiki_pronounce.agrees("JO-kich", "SMITH")
 
 
@@ -417,3 +419,124 @@ def test_a_model_learning_a_name_queues_a_check(lexicon, monkeypatch):
     monkeypatch.setattr(wiki_pronounce, "queue", lambda names, force=False: queued.extend(names))
     pronunciation.learn([("Sagapolutele", "sah-gah-poh-loo-TEH-leh")], "writer")
     assert queued == ["Sagapolutele"]
+
+
+# --- review fixes ----------------------------------------------------------
+
+def test_an_exchange_name_alone_names_no_ticker():
+    for text in ("Nasdaq AI rally", "NYSE CEO resigns", "NASDAQ US tech",
+                 "NYSE IPO of Reddit", "what is the nasdaq doing"):
+        assert live_sources.ticker_named(text) == "", text
+    assert live_sources.ticker_named("NYSEARCA: SPY") == "SPY"
+    assert live_sources.ticker_named("NYSE American: IMO") == "IMO"
+
+
+def test_a_ticker_finnhub_does_not_have_falls_through_to_the_search(monkeypatch):
+    asked = []
+
+    async def fake(url, headers, params, timeout):
+        asked.append(params["q"])
+        if params["q"] == "ORCL":
+            return {"result": []}
+        return {"result": [{"symbol": "ORCL", "type": "Common Stock",
+                            "description": "ORACLE CORP"}]}
+
+    monkeypatch.setattr(live_sources, "_json", fake)
+
+    class Brief:
+        live_entity = "ticker ORCL"
+        subject = query = "oracle"
+
+    entity = asyncio.run(live_sources.FinnhubSource().resolve(Brief()))
+    assert asked[0] == "ORCL" and len(asked) == 2
+    assert entity is not None and entity.id == "ORCL"
+
+
+def test_only_the_first_of_two_readings_is_taken():
+    two = wiki_pronounce.from_wikitext("{{IPAc-en|ˈ|k|ɑːr|l|oʊ|s|,|ˈ|k|ɑːr|l|ɒ|s}}")
+    assert two["say"] == "KAR-lohs"
+    either = wiki_pronounce.from_wikitext("{{IPAc-en|ˈ|n|ɪ|tʃ|or|ˈ|n|iː|ʃ}}")
+    assert either["say"] == "NICH"
+    labelled = wiki_pronounce.from_wikitext("{{IPAc-en|US|ˈ|n|ɪ|tʃ|,|UK|ˈ|n|iː|ʃ}}")
+    assert labelled["say"] == "NICH"
+
+
+def test_a_failed_lookup_is_not_kept(lexicon, monkeypatch):
+    monkeypatch.setattr(wiki_pronounce, "lookup", lambda name: {
+        "name": name, "status": wiki_pronounce.FAILED, "say": "", "ipa": "",
+        "how": "", "title": "", "url": ""})
+    assert wiki_pronounce.check("Mbappe")["status"] == wiki_pronounce.FAILED
+    assert lexicon.pronunciation_checks() == []
+    assert wiki_pronounce._due(["Mbappe"]) == ["Mbappe"]
+
+
+def test_an_outage_writes_nothing_off_and_backs_off(gdelt_on):
+    import httpx
+    from tests.test_gdelt_exports_211 import upstream_with_fed
+
+    up = upstream_with_fed()
+    real = up.handler
+
+    def handler(request):
+        if request.url.path.endswith(".gkg.csv.zip"):
+            return httpx.Response(503)
+        return real(request)
+
+    async def go():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as c:
+            for _ in range(4):
+                await gdelt.sync(client=c)
+
+    asyncio.run(go())
+    for name in up.files:
+        assert not gdelt.store().has_file(name), "nothing written off in an outage"
+    assert gdelt.STATE.outages_in_a_row == 4
+
+
+def test_one_broken_file_does_not_back_off(gdelt_on):
+    import httpx
+    from tests.test_gdelt_exports_211 import upstream_with_fed
+
+    up = upstream_with_fed()
+    broken = gdelt.name_for(up.newest - timedelta(minutes=15))
+    real = up.handler
+
+    def handler(request):
+        if request.url.path.endswith(broken):
+            return httpx.Response(500)
+        return real(request)
+
+    async def go():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as c:
+            await gdelt.sync(client=c)
+            await gdelt.sync(client=c)
+
+    asyncio.run(go())
+    assert gdelt.STATE.outages_in_a_row == 0
+
+
+class _Newer:
+    """The current lookups find a newer episode written under the same key."""
+
+    async def episode_meta(self, plan, current_only=False):
+        return {"title": "A newer episode"}
+
+    async def sources_for(self, plan):
+        return ""
+
+    async def captions_for(self, plan):
+        return ["Not what was heard."], False, True
+
+
+def test_the_heard_id_wins_over_a_newer_episode(client, monkeypatch):
+    key = "b" * 64
+    monkeypatch.setattr(appmod, "_make_pipeline", lambda *a, **k: _Newer())
+    monkeypatch.setattr(appmod, "SCRIPT_CACHE", _Kept(key))
+    rid = client.post("/api/feedback", json={
+        "text": "Wrong", "screen": "player",
+        "episode": {"q": "eagles giants", "minutes": 2, "id": key + ".1760000000"}
+    }).json()["id"]
+    ep = [r for r in client.get("/api/admin/feedback", headers=ADMIN)
+          .json()["reports"] if r["id"] == rid][0]["episode"]
+    assert ep["transcript"] == ["The Eagles won.", "It was close."]
+    assert ep["title"] == "Eagles edge the Giants"

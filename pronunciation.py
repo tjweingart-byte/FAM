@@ -285,6 +285,7 @@ class Lexicon:
         were new or changed. Never replaces an admin's respelling."""
         if source not in SOURCES:
             raise ValueError(source)
+        pairs = list(pairs)     # read twice below (review)
         kept = 0
         for pair in _cleaned(pairs):
             try:

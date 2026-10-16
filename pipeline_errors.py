@@ -228,7 +228,7 @@ def reset(error_store: Optional[ErrorStore] = None) -> None:
         _PENDING_STEPS.clear()
         _PENDING_REFUSALS.clear()
         _LAST_FLUSH[0] = 0.0
-    getattr(_category_of, "cache_clear", lambda: None)()
+    _category_cached.cache_clear()
 
 
 def exists() -> bool:
@@ -713,26 +713,32 @@ def explain(stage: str, kind: str, detail: str = "") -> dict:
     return out
 
 
-@functools.lru_cache(maxsize=4096)
 def _category_of(query: str) -> str:
     """The category an error's question is about, read from its words
     against the category tree (`stories.resolve_category`, no model, no
-    embedding), with the facet first: "Sport · nfl". Never raises."""
+    embedding), with the facet first: "Sport · nfl". Cached by the hour, so
+    the tree's growth reaches the page and a passing failure is never kept
+    (review). Never raises."""
     try:
-        import stories
-        import topics
-
-        node = stories.resolve_category(query) if query else ""
-        facet = stories.facet_for(node) if node else ""
-        if not facet and query:
-            facets = topics.facets_only(topics.tags_for_text(query))
-            facet = facets[0] if facets else ""
-        label = topics.TAG_LABELS.get(facet, facet)
-        if node and node != facet:
-            return f"{label} · {node}" if label else node
-        return label or "Uncategorised"
+        return _category_cached(query, int(time.time() // 3600))
     except Exception:  # noqa: BLE001 - a report is never load-bearing
         return "Uncategorised"
+
+
+@functools.lru_cache(maxsize=4096)
+def _category_cached(query: str, _hour: int) -> str:
+    import stories
+    import topics
+
+    node = stories.resolve_category(query) if query else ""
+    facet = stories.facet_for(node) if node else ""
+    if not facet and query:
+        facets = topics.facets_only(topics.tags_for_text(query))
+        facet = facets[0] if facets else ""
+    label = topics.TAG_LABELS.get(facet, facet)
+    if node and node != facet:
+        return f"{label} · {node}" if label else node
+    return label or "Uncategorised"
 
 
 def report(now: Optional[float] = None, days: int = 7) -> dict:

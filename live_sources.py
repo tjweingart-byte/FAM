@@ -379,8 +379,9 @@ def looks_like_a_listing(subject: str) -> bool:
 
 #: "(NYSE: ORCL)", "NASDAQ: AAPL", "ticker ORCL" - a listing named by its
 #: exchange and ticker (10.16 #5).
-_TICKER = re.compile(r"\b(?:NYSE(?:\s+American)?|NASDAQ|Nasdaq|AMEX|NYSEARCA|"
-                     r"NYSE\s+Arca|ticker)\s*:?\s*\$?([A-Z]{1,5}(?:\.[A-Z])?)\b")
+_TICKER = re.compile(r"(?:\(|\b)(?:NYSEARCA|NYSE\s+Arca|NYSE\s+American|NYSE|NASDAQ|Nasdaq|AMEX)"
+                     r"\s*:\s*\$?([A-Z]{1,5}(?:\.[A-Z])?)\b"
+                     r"|\bticker\s*:?\s*\$?([A-Z]{1,5}(?:\.[A-Z])?)\b")
 
 #: Finnhub's free plan quotes US stocks and funds. An index, a future, a
 #: currency or a foreign listing answers 403 (10.16 #5), so a search row
@@ -391,7 +392,7 @@ _UNQUOTABLE_TYPES = ("index", "crypto", "forex", "future", "commodity", "bond")
 def ticker_named(subject: str) -> str:
     """The ticker a subject names with its exchange, or ""."""
     found = _TICKER.search(subject or "")
-    return found.group(1).upper() if found else ""
+    return (found.group(1) or found.group(2) or "").upper() if found else ""
 
 
 def quotable(row: dict) -> bool:
@@ -520,7 +521,9 @@ class FinnhubSource(LiveSource):
         # still looked up, never trusted - only an exact match is used.
         named = ticker_named(subject)
         if named:
-            return await self._resolve_ticker(named)
+            found = await self._resolve_ticker(named)
+            if found is not None:
+                return found
         if not looks_like_a_listing(subject):
             # "Startup and venture capital industry news" is a topic, not a
             # company. Finnhub refuses it with a 422 - and if it did not, the

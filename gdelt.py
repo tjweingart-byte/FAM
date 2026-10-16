@@ -541,6 +541,8 @@ class _State:
         self.last_ok = 0.0
         self.last_attempt = 0.0
         self.failures_in_a_row = 0
+        #: Syncs in a row that read nothing and failed: what backs off.
+        self.outages_in_a_row = 0
         self.last_error = ""
         self.last_file = ""
         self.waiting: list = []
@@ -726,6 +728,7 @@ async def sync(now: Optional[float] = None,
     fetched = 0
     waiting: list = []
     errors: list = []
+    healthy = False
     try:
         target = store()
         own = client is None
@@ -755,6 +758,7 @@ async def sync(now: Optional[float] = None,
                 wanted.append((name_for(earlier), ""))
             known = await asyncio.to_thread(target.domains)
             tries = max(1, int(settings.gdelt_export_file_tries))
+            broken: list = []
             for name, digest in reversed(wanted):
                 if await asyncio.to_thread(target.has_file, name):
                     _FAILED.pop(name, None)
@@ -763,17 +767,7 @@ async def sync(now: Optional[float] = None,
                     kept = await _fetch_file(client, target, name, digest, known, now)
                 except Exception as exc:  # noqa: BLE001 - the rest still come
                     errors.append(f"{name}: {_describe(exc)}")
-                    _FAILED[name] = _FAILED.get(name, 0) + 1
-                    if _FAILED[name] >= tries:
-                        # Given up on, not asked at every poll for two hours
-                        # (10.16 #4); its slot is simply missing from the copy.
-                        log.warning("gdelt: %s failed %d times; written off",
-                                    name, _FAILED[name])
-                        stamp = stamp_of(name)
-                        await asyncio.to_thread(
-                            target.mark_missing, name,
-                            stamp.timestamp() if stamp else now)
-                        _FAILED.pop(name, None)
+                    broken.append(name)
                     continue
                 if kept == WAITING:
                     waiting.append(name)
@@ -781,6 +775,26 @@ async def sync(now: Optional[float] = None,
                     _FAILED.pop(name, None)
                     fetched += 1
                     STATE.last_file = name
+            # A file is counted towards being written off (10.16 #4) only in
+            # a sync where GDELT is plainly up - the file `lastupdate.txt`
+            # names now is held or merely not served yet - so it is that file
+            # that is broken, not the road to GDELT (review: an outage on the
+            # file path wrote off the whole window); and the named file
+            # itself is never written off.
+            healthy = newest_name in waiting or await asyncio.to_thread(
+                target.has_file, newest_name)
+            for name in broken if healthy else []:
+                if name == newest_name:
+                    continue
+                _FAILED[name] = _FAILED.get(name, 0) + 1
+                if _FAILED[name] >= tries:
+                    log.warning("gdelt: %s failed %d times; written off",
+                                name, _FAILED[name])
+                    stamp = stamp_of(name)
+                    await asyncio.to_thread(
+                        target.mark_missing, name,
+                        stamp.timestamp() if stamp else now)
+                    _FAILED.pop(name, None)
             for name in [n for n in _FAILED if n not in dict(wanted)]:
                 _FAILED.pop(name, None)
         finally:
@@ -794,6 +808,9 @@ async def sync(now: Optional[float] = None,
     finally:
         _SYNCING[0] = False
     STATE.waiting = waiting
+    # The backoff counts outages only (review): a sync that read some files
+    # and failed one is a broken file, and GDELT is still worth asking.
+    STATE.outages_in_a_row = STATE.outages_in_a_row + 1 if errors and not healthy else 0
     if errors:
         STATE.failures_in_a_row += 1
         STATE.last_error = errors[-1][:200]
@@ -860,7 +877,7 @@ async def run_forever() -> None:
         result = await sync()
         await asyncio.sleep(next_poll_in(
             waiting=bool(result.get("look_again_soon")),
-            failures=STATE.failures_in_a_row))
+            failures=STATE.outages_in_a_row))
 
 
 # --------------------------------------------------------------------------

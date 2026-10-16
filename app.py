@@ -4330,7 +4330,15 @@ async def _feedback_episode(ep: Optional[FeedbackEpisode]) -> Optional[dict]:
         return None
     minutes = ep.minutes or DEFAULT_MINUTES
     title, sources, sentences = "", {}, []
+    # The heard episode by its id first and alone (10.16 #3, review): the
+    # current lookups below may find a newer episode written since under the
+    # same key, and its words are not what the listener heard.
+    heard = _heard_episode_key(ep.id)
+    if heard:
+        title, sources, sentences = _kept_episode(ep.q, minutes, ep.id, ep.context)
     try:
+        if heard:
+            raise _Skip()
         plan = _validated_plan(ep.q, minutes, ep.context)
         pipeline = _make_pipeline()
         meta = await pipeline.episode_meta(plan)
@@ -4338,7 +4346,7 @@ async def _feedback_episode(ep: Optional[FeedbackEpisode]) -> Optional[dict]:
         sources = provenance_mod.Provenance.from_json(
             await pipeline.sources_for(plan)).as_dict()
         sentences, _live, _done = await pipeline.captions_for(plan)
-    except HTTPException:
+    except (HTTPException, _Skip):
         pass
     except Exception:  # noqa: BLE001 - the report matters more than its attachment
         log.exception("could not read the episode for a feedback report")
@@ -4349,7 +4357,7 @@ async def _feedback_episode(ep: Optional[FeedbackEpisode]) -> Optional[dict]:
     # transcript. The heard episode's id names it exactly, and a kept
     # episode is read whether or not it is still current - this is what the
     # listener heard, not what a new listener would be served.
-    if not sentences or not title or not (sources or {}).get("items"):
+    if not heard and (not sentences or not title or not (sources or {}).get("items")):
         kept_title, kept_sources, kept_sentences = _kept_episode(
             ep.q, minutes, ep.id, ep.context)
         sentences = sentences or kept_sentences
@@ -4368,6 +4376,20 @@ async def _feedback_episode(ep: Optional[FeedbackEpisode]) -> Optional[dict]:
     return feedback_mod.episode_snapshot(ep.q, minutes, title, sources, sentences,
                                          thumb=thumb,
                                          services=_episode_services(ep.q, sources))
+
+
+class _Skip(Exception):
+    """The current-episode lookups are not needed: the heard id answered."""
+
+
+def _heard_episode_key(episode: str) -> str:
+    """The key holding the episode `episode` names, or "". Never raises."""
+    if not episode or SCRIPT_CACHE is None or parse_episode_id(episode) is None:
+        return ""
+    try:
+        return SCRIPT_CACHE.resolve_episode(episode) or ""
+    except Exception:  # noqa: BLE001 - a lookup, never a failure
+        return ""
 
 
 def _kept_episode(query: str, minutes: int, episode: str = "",

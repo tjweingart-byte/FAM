@@ -20893,3 +20893,26 @@ checked in the last 30 days are skipped); the add form has "Look up on
 Wikipedia". Answers are kept in the voice bank (`pronunciation_checks`).
 Only while `WIKIPEDIA=1`; **unverified against the real service** - the build
 container cannot reach Wikipedia, so the template shapes are pinned in tests.
+
+**Review fixes before the merge into Main.** A second read of the diff found
+seven things wrong with it. (1) The ticker pattern took any capitalised word
+after an exchange's name ("Nasdaq AI rally" quoted C3.ai); it now needs the
+colon ("NASDAQ: AAPL", "(NYSE: ORCL)") or the word "ticker", and a ticker
+Finnhub does not have falls through to the ordinary search. (2) `{{IPAc-en}}`
+with two readings ("ˈkɑːrloʊs, ˈkɑːrlɒs") was joined into one doubled name;
+only the first reading is taken. (3) A failed Wikipedia lookup - one 429's
+back-off above all - was kept and skipped the name for a month; failures are
+not kept, and an article that cannot be read falls through to Wikidata's IPA.
+(4) One broken GDELT file counted as a failed sync and put GDELT on the
+outage back-off; the back-off now counts outages only (`outages_in_a_row`:
+the file `lastupdate.txt` names neither held nor waited for), and
+`failures_in_a_row` still reports every failed sync. (5) An outage on the
+file path counted every file towards its write-off, so three bad syncs would
+have written off the whole window; a file is counted only while GDELT is
+plainly up, and the named file never. (6) A report with the heard episode's
+id still preferred the *current* episode under its key, which may be a newer
+one written since; the id now answers alone. (7) A name queued as the
+Wikipedia worker finished could be stranded until the next queue; the worker
+now ends in the same locked step that finds the queue empty. Also: a wrong
+stress no longer "agrees" with Wikipedia, the category cache keeps only
+successes and refreshes hourly, and `learn` reads its pairs once.

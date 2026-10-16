@@ -244,6 +244,28 @@ _IPAC_LABELS = frozenset({"lang", "local", "pron", "US", "UK", "AU", "CA", "NZ",
                           "IE", "SA", "also", "or", "audio", "En-us", "en-us"})
 
 
+#: What separates two readings in `{{IPAc-en}}`: only the first is taken,
+#: or "KAR-lohs, KAR-los" would be said as one doubled name.
+_ALTERNATIVE = frozenset({",", ",_", ", ", ";", "or", "also", "/"})
+
+
+def _first_reading(params: list) -> list:
+    """`{{IPAc-en}}`'s sounds up to the first alternative, labels skipped -
+    a label before any sound ("US", "UK") starts the reading, one after
+    them ends it."""
+    out: list = []
+    for raw in params:
+        part = raw.strip()
+        if not part or "=" in part:
+            continue
+        if part in _ALTERNATIVE or part in _IPAC_LABELS:
+            if out:
+                break
+            continue
+        out.append(part)
+    return out
+
+
 def from_wikitext(wikitext: str) -> Optional[dict]:
     """How an article's lead says its subject: `{"say", "ipa", "how"}` from
     the first `{{respell}}`, else `{{IPAc-en}}`, else `{{IPA}}`/`{{IPA-xx}}`;
@@ -257,8 +279,7 @@ def from_wikitext(wikitext: str) -> Optional[dict]:
             if say:
                 found["respell"] = {"say": say, "ipa": "", "how": "Wikipedia's respelling"}
         elif name in ("ipac-en", "ipac en") and "ipac" not in found:
-            ipa = "".join(p.strip() for p in params
-                          if p.strip() and "=" not in p and p.strip() not in _IPAC_LABELS)
+            ipa = "".join(_first_reading(params))
             say = ipa_to_respelling(ipa)
             if say:
                 found["ipac"] = {"say": say, "ipa": ipa, "how": "Wikipedia's English IPA"}
@@ -318,7 +339,14 @@ def lookup(name: str) -> dict:
         if title:
             out["title"] = title
             out["url"] = wikimedia.ARTICLE_URL + quote(title.replace(" ", "_"))
-            said = from_wikitext(_lead(title))
+            try:
+                said = from_wikitext(_lead(title))
+            except wikimedia.BackingOff:
+                raise
+            except wikimedia.WikimediaError as exc:
+                # An article that cannot be read is not the end of it:
+                # Wikidata's own IPA is asked next.
+                log.info("wiki_pronounce: %s's lead could not be read (%s)", title, exc)
         if said is None:
             for claim in (entity.get("claims") or {}).get(P_IPA) or []:
                 value = (((claim.get("mainsnak") or {}).get("datavalue") or {})
@@ -347,7 +375,20 @@ def agrees(ours: str, theirs: str) -> bool:
     a, b = _letters(ours), _letters(theirs)
     if not a or not b:
         return False
+    # A stress in a different place is a different pronunciation, however
+    # alike the letters (review: "KAR-los" against "kar-LOS").
+    sa, sb = _stressed(ours), _stressed(theirs)
+    if sa is not None and sb is not None and sa != sb:
+        return False
     return a == b or difflib.SequenceMatcher(None, a, b).ratio() >= 0.8
+
+
+def _stressed(say: str):
+    """Which syllable is in capitals, counting across words, or None."""
+    sylls = [s for s in re.split(r"[-\s]+", say or "") if s]
+    marked = [i for i, s in enumerate(sylls) if len(s) > 1 and s.isupper()
+              or (len(s) == 1 and s.isupper() and len(sylls) > 1)]
+    return marked[0] if marked else None
 
 
 def check(name: str, apply: bool = True) -> dict:
@@ -367,6 +408,10 @@ def check(name: str, apply: bool = True) -> dict:
             if pronunciation.lexicon().learn([(name, result["say"])], "wikipedia"):
                 result["applied"] = True
                 result["status"] = AGREES
+    if result["status"] == FAILED:
+        # Not kept (review): a failure - a 429's back-off above all - says
+        # nothing about the name, and a kept one would skip it for a month.
+        return result
     try:
         bank.keep_pronunciation_check(result)
     except Exception:  # noqa: BLE001
@@ -444,12 +489,26 @@ def check_all(force: bool = False) -> int:
     return queue(names, force=force)
 
 
+def _finish() -> None:
+    """Called holding `_LOCK`: the run is over."""
+    _RUNNING[0] = False
+    STATE.update(running=False, finished=time.time(),
+                 last_done=STATE["done"], last_applied=STATE["applied"],
+                 done=0, total=0, applied=0)
+
+
 def _drain() -> None:
+    finished = False
     try:
         while True:
             with _LOCK:
                 if not _QUEUE:
-                    break
+                    # Over in the same locked step that found the queue
+                    # empty (review): a `queue` between the two would see a
+                    # worker still running and leave its names stranded.
+                    _finish()
+                    finished = True
+                    return
                 name = _QUEUE.pop(0)
             result = check(name)
             with _LOCK:
@@ -457,8 +516,7 @@ def _drain() -> None:
                 if result.get("applied"):
                     STATE["applied"] += 1
     finally:
-        with _LOCK:
-            _RUNNING[0] = False
-            STATE.update(running=False, finished=time.time(),
-                         last_done=STATE["done"], last_applied=STATE["applied"],
-                         done=0, total=0, applied=0)
+        if not finished:
+            with _LOCK:
+                _QUEUE.clear()
+                _finish()
