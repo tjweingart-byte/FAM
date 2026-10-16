@@ -20369,3 +20369,115 @@ real network once the fixture is gone. On CI's slower Postgres run they fell
 just after the generator test cleared its calls. Reproduced by sleeping 0.6 s
 before that clear; the late test now waits for its abandoned look to finish
 against its own fake.
+
+## 285. The 10.16 implementations: short Haiku episodes, more from each source, the writing on Haiku, the trusted sources, and Made for you's View more (2026-10-16)
+
+The owner's 10.16 packet, five backend items.
+
+**1. Episodes shorter than two minutes since the writer moved to Haiku (§272).**
+Read from the code, not measured (no key here). The writer is given one length
+figure ("roughly 300 words") against about eight cues to stop early: the
+system prompt opened "You write FAM: *short* spoken pieces"; the two-minute
+`DEPTH_BANDS` line asked for "two or three facts ... and one reason it
+matters. Nothing else fits, so choose hard"; the scope note said "one
+question, opened and answered"; the plan of the piece and the shape note both
+say to drop a part with no evidence, without saying where its time goes; and
+"the time is the listener's, not a quota ... stop there". Sonnet read past
+them to the word figure; Haiku at `low` follows the content list, and three
+facts and a reason is 120-180 words - the minute-and-a-bit heard. Nothing
+measured length, so it was noticed by ear. Also possible and unmeasured: the
+voice speaking faster than `TARGET_WPM` 150 (Chatterbox ignores `wpm`).
+Changed, keeping [duration-ceiling] (no padding, no top-ups):
+- the system prompt says "spoken pieces"; the two-minute band is "the
+  answer, the mechanism or turn that explains it, the concrete particulars
+  that make it stick, and why it matters. Choose one thread and give it the
+  whole time rather than skimming several" - content, never a count
+  ([depth-not-words]); the scope note "one question, answered fully";
+- the "not a quota" paragraph keeps every word and adds: resolving early is
+  rare; heading for well under the budget, look again at the evidence for
+  the mechanism or the detail skipped before stopping;
+- `OUTLINE_GUIDE` and `build_outline_note`: a dropped part's time goes to the
+  parts the evidence supports;
+- **a short script is counted**: a finished script under 70% of its word
+  budget (`SHORT_SCRIPT_SHARE`) is a *notice* on /admin's errors, "script
+  well under its length", with its words against the budget. Report only.
+Measure with a key: `python write.py "<q>" --minutes 2`, and the errors page.
+
+**2. More from each source.** The packet was 5 sources (§276), not the 6 the
+owner remembered; now **6** (`SEARCH_PACKET_SOURCES`). The character limit
+§276 doubled was what a page *sends* (`PARALLEL_CHARS_PER_RESULT` 1,500 →
+3,000, Perplexity 512 → 1,024 tokens); what reached the writer was still cut
+in pieces of at most 500 characters (`SEARCH_PASSAGE_CHARS`), three a source -
+and every short paragraph took a slot of its own, so a news page's three were
+often a headline, a dateline and one sentence. Now passages hold up to
+**1,000** characters and short paragraphs are **packed together**
+(`research.passages`), so a source gives the writer up to 3,000 characters -
+what was fetched. Parallel's limit is 4,000 so a four-minute episode's fourth
+passage has a page to come from (its price is per request). A two-minute
+packet is up to ~18 KB (~4,500 tokens) where it was at most ~7.5 KB; on
+Haiku's $0.10 per million input tokens that is about a twentieth of a cent.
+Unmeasured: whether the bigger packet lengthens the writer's thinking.
+
+**3. The writing on Haiku.** [examples-lever]: two new examples -
+`2-apollo-13.txt` (a narrative recap, 358 words) and `4-noise-cancelling.txt`
+(an explainer with a turn, 578 words) - on settled facts, beside the flight
+cancellations one; each is now shown with its **minutes** as well as its words
+(`EXAMPLE_MINUTES`, from the file name), so a small writer sees what two and
+four minutes hold. A test keeps every example within 0.9-1.35x of its budget.
+Further levers, not built: a one-minute and a five-minute example; examples
+per episode type (a sports recap, a markets update) chosen by the brief's
+structure rather than all shown every time; `EFFORT=medium` for the writer;
+`write.py --compare claude-haiku-5-5:low,claude-sonnet-5:low` to hear the gap.
+
+**4. The trusted sources, as they stand** (`research.py`, `credibility()`).
+Three grades, by hand-kept list, never by a model: **primary** ("wire service,
+paper of record or primary source") - 45 named domains (wires and papers of
+record, ESPN/The Athletic/Sky, the leagues' own sites, Nature/Science/NASA/WHO,
+and since §276 NEJM, Lancet, JAMA, BMJ, Cell, PNAS, Cochrane, the NHS, EU, IMF,
+World Bank, OECD, UN, Bank of England) plus 14 address endings (.gov, .gov.uk,
+.edu, .ac.uk, .int, .mil and eight countries' government domains);
+**established** ("established outlet") - 51 named (general news, business,
+tech, sports, and since §276 the science and health press, entertainment
+trade press and trackers, games press); **unverified** - everything else,
+which is not excluded. A subdomain takes its parent's grade. Recency
+*filters* (the brief's window goes to the search); credibility *sorts*
+(primary, established, unverified; newest first within a grade) and so
+decides which 6 of the 10 results reach the writer. The writer reads the
+grade in words, never a hostname. On a live sports question unverified
+outlets are dropped once two known ones answered; simulated-league pages are
+dropped. No weighting by topic. Not covered: other countries' government
+endings (.go.jp, .gov.br), and many regional papers (Le Monde, Al Jazeera,
+The Hindu) are unverified.
+
+**5. Made for you's View more.**
+- *(c) Not every rail tile appeared.* The rail and the screen are ranked
+  with different exclusions (the rail's picks skip what Trending and the
+  missed rail took and are topped up from the bank; the screen's are not),
+  so some of the rail's own tiles were pushed off page one or absent. The
+  client now keeps each rail's tiles (`railTiles`) and Made for you's View
+  more opens on them, then the rest of the page.
+- *(b) Refresh only cycles written episodes, then "all caught up".* With
+  `cycle=cached` (sent by this client; an installed client that sends none
+  gets what it always got) the endpoint deals only tiles already written, on
+  the listener's ranking, and `page_section(wrap=False)` returns an empty
+  page with `caught_up` instead of starting again. The screen says "You're
+  all caught up" with "Start again from the top". Nothing past the rail's own
+  tiles can cause an episode to be written. Every other rail is unchanged
+  (§165's deal-eight-and-wrap).
+- *(a) One picture and BUSINESS on every new tile.* An unwritten live story
+  with no tags and no category matched nothing, fell to the last borrowing
+  step (one approved facet picture chosen by a hash of the words) and printed
+  that picture's facet as its label. Now a tile reads its title and angle as
+  well as its query (the hash still keyed on the query, so the picture does
+  not move when the title lands), an untagged tile gets its facets from those
+  words, `TAG_WORDS` → `world` gains the day's hard news (shooting, police,
+  senator, Congress, probe, investigation, president, attack ...), and a
+  picture chosen by the hash lends no label (`hashed`): an empty label rather
+  than a wrong one. Not changed: how many facet pictures production has
+  approved - if one, every borrowed picture is still that one;
+  `tools/thumbnails.py` shows it.
+
+Tests: `tests/test_implementations_285.py` (new);
+`tests/test_writer_gaps_276.py`, `tests/test_pipeline.py`,
+`tests/test_writer_prep_269.py`,
+`tests/test_pronunciation_voice_edit_view_more_165.py` (pins moved).

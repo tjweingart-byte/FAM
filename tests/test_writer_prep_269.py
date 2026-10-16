@@ -376,7 +376,9 @@ def test_a_check_that_removed_sentences_is_a_notice():
                                brief=ei.Brief(query="nvda stock",
                                               live_domain="markets"))
     _write(gen, plan, ScriptNotes())
-    rows = [r for r in _rows() if r["stage"] == "writer"]
+    # A two-word script is also noted as well under its length (§285).
+    rows = [r for r in _rows() if r["stage"] == "writer"
+            and r["kind"] != "script well under its length"]
     assert rows and rows[0]["kind"] == "figure check removed 1 sentence"
     assert rows[0]["severity"] == "notice"
 

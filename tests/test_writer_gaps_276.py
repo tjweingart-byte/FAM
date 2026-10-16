@@ -30,12 +30,15 @@ from config import BROWSE_MINUTES  # noqa: E402
 # --------------------------------------------------------------------------
 # The packet
 # --------------------------------------------------------------------------
-def test_a_two_minute_episode_gets_five_sources_of_three_passages(monkeypatch):
+def test_a_two_minute_episode_gets_six_sources_of_three_passages(monkeypatch):
+    # Five sources here in §276; six, with 4,000 characters a page and
+    # passages of up to 1,000, since §285.
     defaults = config.Settings()
     assert defaults.search_num_results == 10
-    assert defaults.search_packet_sources == 5
+    assert defaults.search_packet_sources == 6
     assert defaults.search_highlights_per_source == 3
-    assert defaults.parallel_chars_per_result == 3000
+    assert defaults.search_passage_chars == 1000
+    assert defaults.parallel_chars_per_result == 4000
     assert defaults.perplexity_tokens_per_page == 1024
     monkeypatch.setattr(research, "settings", defaults)
     # Browse is the base; it overrides nothing.

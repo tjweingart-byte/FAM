@@ -6631,8 +6631,18 @@ async def myfam_section(request: Request,
                         minutes: int = Query(DEFAULT_MINUTES, ge=1, le=10),
                         interests: str = Query("", max_length=200),
                         page_size: int = Query(0, ge=0, le=40),
-                        seen: str = Query("", max_length=6000)):
+                        seen: str = Query("", max_length=6000),
+                        cycle: str = Query("", max_length=16)):
     """One myFAM rail, at full length, for the screen behind its "View more".
+
+    **Made for you's cycle** (`cycle=cached`, §285, the owner 10.16): the
+    screen opens on the rail's own tiles (the client holds them and sends
+    their ids in `seen`), and everything this endpoint deals after them -
+    the rest of the first page and every Refresh - is an episode already
+    written, on the listener's topics, so nothing on this screen past the
+    rail can cause one to be written. When those run out the page is empty
+    and `caught_up`, never the first eight again. An installed client that
+    sends no `cycle` gets what it always got.
 
     With `page_size` (the app sends `topics.VIEW_MORE_PAGE`, eight) it is one
     page of that length: the first tiles of the ranking not in `seen`, which
@@ -6662,10 +6672,14 @@ async def myfam_section(request: Request,
             raise HTTPException(status_code=404,
                                 detail="No such section.") from exc
         _mark_guest_tiles(body["topics"], minutes)
+        cycling = _cycles_cached(key, cycle)
+        if cycling:
+            body["topics"] = [t for t in body["topics"] if t["cached"]]
         body["ready"] = sum(1 for t in body["topics"] if t["cached"])
         body["minutes"] = minutes
         body["algo"] = EVENTS.algo_stamp()
-        return topics_mod.page_section(body, _seen_ids(seen), page_size)
+        return topics_mod.page_section(body, _seen_ids(seen), page_size,
+                                       wrap=not cycling)
     written = _written_probe(minutes)
     try:
         place = _place_for(request)
@@ -6700,16 +6714,26 @@ async def myfam_section(request: Request,
     for group in body.get("groups", ()):
         _name_written_tiles(group["topics"], minutes)
     body["topics"].sort(key=lambda t: not t["cached"])
+    cycling = _cycles_cached(key, cycle)
+    if cycling:
+        body["topics"] = [t for t in body["topics"] if t["cached"]]
     body["ready"] = sum(1 for t in body["topics"] if t["cached"])
     body["minutes"] = minutes
     # One page of it, when the screen asks for one - and only that page is an
     # impression below: a tile nobody was shown was not passed over.
-    topics_mod.page_section(body, _seen_ids(seen), page_size)
+    topics_mod.page_section(body, _seen_ids(seen), page_size,
+                            wrap=not cycling)
     if user and _remembers(request):
         EVENTS.record_impressions(
             user, [(f"section:{key}", t["id"]) for t in body["topics"]])
     body["algo"] = EVENTS.algo_stamp()
     return body
+
+
+def _cycles_cached(key: str, cycle: str) -> bool:
+    """Whether this View more deals written episodes only and ends "all
+    caught up" (§285): Made for you, when the client asks for it."""
+    return key == "from_history" and (cycle or "").strip().lower() == "cached"
 
 
 def _written_probe(minutes: int):

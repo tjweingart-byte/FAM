@@ -486,8 +486,19 @@ class Topic:
         database open, never a model call."""
         import thumbnails
 
-        found = thumbnails.pick_for_tile(self.query, self.tags,
-                                         category=self.category)
+        # The title and the angle as well as the question (§285): a live
+        # story's query is often a few bare words, and a tile with no tags
+        # and no category fell through to one hashed picture - the same one
+        # on every untagged story in a View more - and borrowed that
+        # picture's facet as its label. `key` keeps the hash on the question,
+        # so the picture does not change when the writer's title lands.
+        words = " ".join(w for w in (self.title, self.angle, self.query) if w)
+        tags = tuple(self.tags)
+        if not tags and not self.category:
+            tags = tuple(t for t in tags_for_text(words) if t in FACETS)
+        found = thumbnails.pick_for_tile(words, tags,
+                                         category=self.category,
+                                         key=self.query)
         if not found:
             # No picture yet, but a composed category still says which facet
             # the card is - rather than the alphabetically first tag.
@@ -535,7 +546,16 @@ TAG_WORDS: dict[str, tuple[str, ...]] = {
               # world question, which is what keeps it from being a question
               # about nothing - and so from unlocking anything in sport.
               "israel", "gaza", "iran", "ukraine", "russia", "lebanon",
-              "syria", "palestinian", "ceasefire", "nato", "embassy"),
+              "syria", "palestinian", "ceasefire", "nato", "embassy",
+              # §285: the day's hard news - crime, courts and politics. A
+              # live story about a shooting or a Senate probe carried no tag,
+              # so its tile borrowed a hashed picture and that picture's
+              # facet ("BUSINESS") as its label.
+              "shooting", "gunman", "police", "senator", "senate",
+              "congress", "congressman", "congresswoman", "lawmaker",
+              "lawmakers", "probe", "investigation", "indicted", "indictment",
+              "president", "presidential", "parliament", "minister",
+              "fbi", "attack", "attacks", "killed"),
 }
 
 #: The same eight facets, with a word a listener would recognise on a button.
@@ -4770,7 +4790,7 @@ VIEW_MORE_PAGE = 8
 
 
 def page_section(body: dict, seen: Iterable[str] = (),
-                 size: int = VIEW_MORE_PAGE) -> dict:
+                 size: int = VIEW_MORE_PAGE, wrap: bool = True) -> dict:
     """One page of a full section: the first `size` tiles not in `seen`.
 
     The 28/09 packet: "View more" should show the eight episodes available
@@ -4787,17 +4807,24 @@ def page_section(body: dict, seen: Iterable[str] = (),
     broken. `more` says whether the next refresh has anything new to deal.
 
     `size` 0 returns the whole list, as the screen did before this existed.
+
+    `wrap=False` (Made for you's cycle, §285) never starts again: once
+    everything has been shown the page is empty and says `caught_up`, and the
+    screen says "You're all caught up" instead of dealing the first eight
+    again.
     """
     topics = list(body.get("topics") or [])
     body["total"] = len(topics)
+    body["caught_up"] = False
     if size <= 0:
         body.update(page_size=0, more=False, wrapped=False)
         return body
     seen = {s for s in seen if s}
     fresh = [t for t in topics if t.get("id") not in seen]
-    wrapped = bool(topics) and not fresh
+    wrapped = bool(topics) and not fresh and wrap
     if wrapped:
         fresh = topics
+    body["caught_up"] = not fresh
     page = fresh[:size]
     body["topics"] = page
     body["page_size"] = size

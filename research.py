@@ -545,12 +545,13 @@ def passages(text, limit: int = 0) -> list:
 
     Perplexity returns one snippet per page and Parallel a few markdown
     excerpts; the packet reads `highlights_per_source` passages from each
-    source, so both are cut into paragraphs and then into runs of sentences
-    of about `limit` characters (`SEARCH_PASSAGE_CHARS`).
+    source, so both are cut into paragraphs, long ones into runs of
+    sentences, and short ones packed together, each passage up to `limit`
+    characters (`SEARCH_PASSAGE_CHARS`).
     """
     limit = int(limit or settings.search_passage_chars)
     chunks = text if isinstance(text, (list, tuple)) else [text]
-    out: list = []
+    pieces: list = []
     for chunk in chunks:
         for paragraph in re.split(r"\n\s*\n", str(chunk or "")):
             # Markdown's headings, bullets, quotes and table bars are not
@@ -562,18 +563,32 @@ def passages(text, limit: int = 0) -> list:
             if not paragraph:
                 continue
             if len(paragraph) <= limit:
-                out.append(paragraph)
+                pieces.append(paragraph)
                 continue
             current = ""
             for sentence in re.split(r"(?<=[.!?])\s+", paragraph):
                 if current and len(current) + 1 + len(sentence) > limit:
-                    out.append(_clip(current, limit))
+                    pieces.append(_clip(current, limit))
                     current = sentence
                 else:
                     current = f"{current} {sentence}".strip()
             if current:
-                out.append(_clip(current, limit))
-    return [p for p in out if len(p) > 20]
+                pieces.append(_clip(current, limit))
+    # Short paragraphs are packed together up to `limit` (§285). A news
+    # page's excerpt is mostly one- and two-sentence paragraphs, and when each
+    # was its own passage the packet's three per source were often three
+    # lines - a few hundred characters of a page that had sent three thousand.
+    out: list = []
+    current = ""
+    for piece in (p for p in pieces if len(p) > 20):
+        if current and len(current) + 1 + len(piece) > limit:
+            out.append(current)
+            current = piece
+        else:
+            current = f"{current} {piece}".strip()
+    if current:
+        out.append(current)
+    return out
 
 
 def _post(url: str, headers: dict, body: dict) -> dict:

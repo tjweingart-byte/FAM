@@ -430,7 +430,7 @@ class Settings:
     research_backend_replaced: str = ""
     # How much evidence a researched episode is handed: 10 results fetched
     # (Parallel's and Perplexity's fast price covers up to 10),
-    # the top 5 in the packet, 3 passages each - what every two-minute
+    # the top 6 in the packet (5 in §276, 6 since §285), 3 passages each - what every two-minute
     # episode gets, and so every myFAM, DailyFAM and Trending episode
     # (§276). It was 3 sources x 2 passages (the hand-measured 2026-09-05
     # benchmark), about 3 KB, and lists, tables, schedules and rankings were
@@ -439,7 +439,7 @@ class Settings:
     # thousand more per researched episode - never another search; set 3
     # and 2 to go back.
     search_num_results: int = _env_int("SEARCH_NUM_RESULTS", 10)
-    search_packet_sources: int = _env_int("SEARCH_PACKET_SOURCES", 5)
+    search_packet_sources: int = _env_int("SEARCH_PACKET_SOURCES", 6)
     search_highlights_per_source: int = _env_int("SEARCH_HIGHLIGHTS_PER_SOURCE", 3)
     # Whether the evidence packet carries a publication date and a grade
     # beside each source.
@@ -479,9 +479,10 @@ class Settings:
         default_factory=lambda: os.environ.get(
             "PARALLEL_MODE", "").strip().lower() or "fast")
     # The most excerpt text Parallel returns per page, cut into passages.
-    # 3,000 since §276 (was 1,500): three passages of about 500 characters
-    # need a page to say more than three, or the packet's third is empty.
-    parallel_chars_per_result: int = _env_int("PARALLEL_CHARS_PER_RESULT", 3000)
+    # 3,000 since §276 (was 1,500); 4,000 since §285, so the four passages of
+    # up to 1,000 characters a four-minute episode reads each have a page to
+    # come from. Parallel's price is per request, not per character.
+    parallel_chars_per_result: int = _env_int("PARALLEL_CHARS_PER_RESULT", 4000)
     # Perplexity's search type (`fast` at $1/1k, `web` at $5/1k) and how much
     # of each page it returns.
     perplexity_search_type: str = field(
@@ -489,9 +490,13 @@ class Settings:
             "PERPLEXITY_SEARCH_TYPE", "").strip().lower() or "fast")
     # 1,024 since §276 (was 512), for the same reason as Parallel's 3,000.
     perplexity_tokens_per_page: int = _env_int("PERPLEXITY_TOKENS_PER_PAGE", 1024)
-    # How long one passage is when a page's excerpt text is cut up - about
-    # the size of the highlights every packet was first measured on.
-    search_passage_chars: int = _env_int("SEARCH_PASSAGE_CHARS", 500)
+    # The most one passage holds when a page's excerpt text is cut up. 500
+    # (the size of the highlights every packet was first measured on) until
+    # §285 doubled it: §276 doubled what a page sends, but the packet still
+    # read it in pieces of at most 500 characters, so a source gave the
+    # writer 1,500 of the 3,000 fetched - fewer when its paragraphs were
+    # short, which `research.passages` now packs together.
+    search_passage_chars: int = _env_int("SEARCH_PASSAGE_CHARS", 1000)
 
     # --- Episode intelligence --------------------------------------------
     # The layer between the typed question and the search - see

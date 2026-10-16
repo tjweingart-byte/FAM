@@ -767,7 +767,7 @@ def pick(text: str, tags: Iterable[str] = (),
 
 
 def pick_for_tile(text: str, tags: Iterable[str] = (),
-                  category: str = "") -> Optional[dict]:
+                  category: str = "", key: str = "") -> Optional[dict]:
     """The picture on a tile, which is never blank while the deployment holds
     any approved picture (the owner, 07/10: "all episodes on the interface
     should have a thumbnail").
@@ -785,9 +785,13 @@ def pick_for_tile(text: str, tags: Iterable[str] = (),
     A borrowed picture's `facet` is the tile's own - its category's facet,
     else its first tag's - whenever it has one: the word on the card names
     the episode, and the last borrowing step (a stable choice among all
-    painted facets) can hand a sports tile a money picture.
+    painted facets) can hand a sports tile a money picture. **A tile with no
+    facet of its own prints none** (§285): a picture chosen by a hash says
+    nothing about the episode, and its facet on the card labelled a school
+    shooting and a Senate probe BUSINESS. `key`, when given, is what that
+    hash reads (`pick_for_player`).
     """
-    found = pick_for_player(text, category=category, tags=tags)
+    found = pick_for_player(text, key=key, category=category, tags=tags)
     if not found or not found.get("fallback"):
         return found
     try:
@@ -799,6 +803,8 @@ def pick_for_tile(text: str, tags: Iterable[str] = (),
                         if f), "")
         if own:
             found = dict(found, facet=own)
+        elif found.get("hashed"):
+            found = dict(found, facet="")
     except Exception:  # noqa: BLE001 - the picture's own facet will do
         log.exception("thumbnails: could not name a borrowed picture's facet")
     return found
@@ -888,14 +894,17 @@ def pick_for_player(text: str, key: str = "",
                 break
         if not chosen:
             chosen = next((f for f in declared if f in approved), "")
+        hashed = False
         if not chosen:
+            hashed = True
             pool = sorted(n for n in approved if n in facets) or sorted(approved)
             stable = (key or words).strip().lower()
             digest = hashlib.sha1(stable.encode("utf-8")).digest()
             chosen = pool[int.from_bytes(digest[:4], "big") % len(pool)]
         facet = approved[chosen][1] or _facet_of_node(tree, chosen, facets)
         found = {"node": chosen, "facet": facet,
-                 "url": url_for(chosen, approved[chosen][0]), "fallback": True}
+                 "url": url_for(chosen, approved[chosen][0]), "fallback": True,
+                 "hashed": hashed}
         if len(_MEMO) < MAX_MEMO and not waiting:
             _MEMO[memo_key] = found
         return dict(found)

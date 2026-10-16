@@ -380,6 +380,7 @@
   listening outvotes" (§121 and before).
 
 <!-- rule:op-taste-scoring -->
+> **Current (PROBLEMS.md §285, the owner 10.16):** Made for you's View more opens on the rail's own tiles (the client holds them), and everything it deals after them - the rest of the first page and every Refresh - is an episode already written (`cycle=cached`); when none is left it says "You're all caught up" with a way back to the top, never the first eight again. Every other rail still deals eight and wraps (§165).
 5b. **The taste model is crude, and less crude than it was.**
    *(§114 sharpened the scoring itself, which nothing before it had touched.
    Three changes, all in `topics.py`. `_affinity` was **blind to subtags** -
