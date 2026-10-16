@@ -171,7 +171,7 @@ def test_the_search_page_has_private_search():
     assert "kind === \"complete\" || kind === \"skip\"" in INDEX
     # A trending search tapped with Private on is private too.
     trend = INDEX.split("function runTrendSearch(", 1)[1].split("\n  }\n", 1)[0]
-    assert "private: privateSearch" in trend and "setPrivateSearch(false)" in trend
+    assert "private: privateSearch" in trend
     assert '"&private=1"' in FAM_AUDIO
 
 

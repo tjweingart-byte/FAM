@@ -157,7 +157,7 @@ class Message:
     minutes: int
     title: str
     at: float
-    #: Which episode was shared (§285): `cache.episode_id`, so the
+    #: Which episode was shared (§288): `cache.episode_id`, so the
     #: recipient hears *that* episode replayed, never the question written
     #: again. '' on a text, and on a share from before it was recorded.
     episode: str = ""
@@ -256,7 +256,7 @@ class MessageStore:
                 conn.execute("ALTER TABLE groups ADD COLUMN avatar TEXT NOT NULL DEFAULT ''")
             except sqlite3.OperationalError:
                 pass
-            # Which episode a share is (§285). Widened in place, like the
+            # Which episode a share is (§288). Widened in place, like the
             # avatar: an old row reads '' and replays by its question.
             try:
                 conn.execute("ALTER TABLE messages ADD COLUMN episode TEXT NOT NULL DEFAULT ''")
@@ -701,7 +701,7 @@ class MessageStore:
 
     def episodes(self) -> list:
         """`(query, minutes, episode)` of every episode sent in a message,
-        for the audio sweep (§237, §285): an episode somebody sent to
+        for the audio sweep (§237, §288): an episode somebody sent to
         somebody is held as a shared link is, so its audio is kept past its
         week rather than written again when they press Listen."""
         rows = self._conn().execute(

@@ -3664,11 +3664,22 @@ def main() -> int:
             last = page.evaluate("() => window.__audioCalls[window.__audioCalls.length - 1] || ''")
             assert "private=1" in last and "surface=search" in last, \
                 f"a private search was not sent as one: {last}"
-            assert not page.eval_on_selector(
+            # §285: it stays on until turned off, and a Go Deeper sent while
+            # it is on is private too.
+            assert page.eval_on_selector(
                 "#screen-home", "e => e.classList.contains('private-search')"), \
-                "Private stayed on after its one search"
+                "Private turned itself off after one search"
             page.evaluate("stopSpeech(); clearGenOverlay()")
             page.wait_for_timeout(150)
+            page.evaluate("startFollowUp('why naps help memory', '_custom', 2)")
+            page.wait_for_timeout(600)
+            last = page.evaluate("() => window.__audioCalls[window.__audioCalls.length - 1] || ''")
+            assert "private=1" in last, f"a Go Deeper with Private on went out public: {last}"
+            page.evaluate("stopSpeech(); clearGenOverlay(); setPrivateSearch(false)")
+            page.wait_for_timeout(150)
+            assert not page.eval_on_selector(
+                "#screen-home", "e => e.classList.contains('private-search')"), \
+                "Private did not turn off"
 
         def a_search_is_corrected_when_it_is_sent():
             """10.1 #4: the last word of a search was never corrected, because
@@ -3837,11 +3848,16 @@ def main() -> int:
             assert lengths == [f"{m} min" for m in range(1, 6)], lengths
             page.click('#goDeeperLengths .deeper-len[data-min="4"]')
             page.fill("#goDeeperInput", "what happens next")
+            # An earlier check may already have made a follow-up (§285's
+            # Continue does), so wait for *this* one: one more than before.
+            before = page.evaluate(
+                "Object.keys(TOPICS).filter(k => k.indexOf('deeper_') === 0).length")
             page.evaluate("confirmGoDeeper()")
             # A typed follow-up is corrected at send (§247), which can answer
             # after the call returns: wait for the follow-up, not a fixed beat.
             page.wait_for_function(
-                "Object.keys(TOPICS).some(k => k.indexOf('deeper_') === 0)", timeout=10000)
+                "n => Object.keys(TOPICS).filter(k => k.indexOf('deeper_') === 0).length > n",
+                arg=before, timeout=10000)
             got = page.evaluate("""() => {
               var k = Object.keys(TOPICS).filter(k => k.indexOf('deeper_') === 0).pop();
               return k ? { minutes: TOPICS[k].exploreMinutes,

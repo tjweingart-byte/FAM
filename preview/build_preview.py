@@ -1046,6 +1046,12 @@ __PREVIEW_PICTURE__
     ],
     following: ["u_beth", "u_mike", "u_rachel"],
     followers: ["u_beth", "u_rachel", "u_nadia"],
+    // Friends of a friend nobody here follows (§285): found through a
+    // friend's profile, opened by handle, followed by handle.
+    others: [
+      { user_id: "u_theo", name: "Theo Park", handle: "theo" },
+      { user_id: "u_lena", name: "Lena Ruiz", handle: "lena" }
+    ],
     vibes: [
       { id: 1, query: "why the strait of hormuz moves the oil price",
         title: "The Two-Mile Lane That Moves the Oil", minutes: 3,
@@ -1075,7 +1081,21 @@ __PREVIEW_PICTURE__
       ]
     },
     byId: function (id) {
-      return this.all.filter(function (p) { return p.user_id === id; })[0];
+      return this.all.concat(this.others).filter(function (p) { return p.user_id === id; })[0];
+    },
+    // Their friends, as `/api/person` gives them to a friend of theirs.
+    friendsOf: function (who) {
+      var self = this;
+      var mutual = this.following.indexOf(who.user_id) !== -1
+                && this.followers.indexOf(who.user_id) !== -1;
+      var theirs = this.all.concat(this.others).filter(function (p) {
+        return p.user_id !== who.user_id && p.user_id !== "u_nadia"; });
+      return { friend_count: theirs.length,
+               friends: mutual ? theirs.map(function (p) {
+                 return { name: p.name, handle: p.handle, avatar: p.avatar || "",
+                          explicit: false,
+                          following: self.following.indexOf(p.user_id) !== -1 };
+               }) : null };
     },
     graph: function () {
       var self = this;
@@ -1165,9 +1185,11 @@ __PREVIEW_PICTURE__
     //: play count here would be a fixture of something the server has no
     //: endpoint for.
     published: function (handle) {
-      var who = this.all.filter(function (p) { return p.handle === handle; })[0];
+      var who = this.all.concat(this.others).filter(function (p) { return p.handle === handle; })[0];
       if (!who) return null;
+      var circle = this.friendsOf(who);
       return {
+        friend_count: circle.friend_count, friends: circle.friends,
         name: who.name, handle: who.handle, avatar: "", joined: 0,
         mixes: PUBLIC_MIXES.filter(function (m) { return m.owner.handle === who.handle; }),
         vibes: [
@@ -1497,7 +1519,9 @@ __PREVIEW_PICTURE__
       }) });
     }
     if (path === "/api/friends/follow" && method === "POST") {
-      var who = JSON.parse((init && init.body) || "{}").user_id;
+      var asked = JSON.parse((init && init.body) || "{}");
+      var who = asked.user_id || (PEOPLE.all.concat(PEOPLE.others).filter(function (p) {
+        return asked.handle && p.handle === asked.handle; })[0] || {}).user_id;
       if (who && PEOPLE.following.indexOf(who) === -1) PEOPLE.following.push(who);
       return json({ ok: true, counts: PEOPLE.graph().counts });
     }

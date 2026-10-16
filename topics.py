@@ -486,8 +486,21 @@ class Topic:
         database open, never a model call."""
         import thumbnails
 
-        found = thumbnails.pick_for_tile(self.query, self.tags,
-                                         category=self.category)
+        from cache import normalize_query
+
+        # The question and the title, read exactly as the player reads them
+        # (`app._player_picture`), so a card and the player it opens wear
+        # one picture (§286). A live story's query is often a few bare
+        # words, and an untagged tile with no category fell through to one
+        # hashed picture - the same one on every such story in a View more -
+        # and borrowed that picture's facet ("BUSINESS") as its label. With
+        # no tags of its own, `pick_for_player` reads the facets off these
+        # words (`picture_facets`) the way it does for the player.
+        words = f"{self.query} {self.title}".strip()
+        tags = tuple(self.tags) if (self.tags or self.category) else None
+        found = thumbnails.pick_for_tile(words, tags,
+                                         category=self.category,
+                                         key=normalize_query(self.query))
         if not found:
             # No picture yet, but a composed category still says which facet
             # the card is - rather than the alphabetically first tag.
@@ -1043,6 +1056,34 @@ SUBTAG_WORDS: dict[str, tuple[str, ...]] = {
 # every lookup is one dict and a tag is a tag. TAG_PARENT is what says which
 # of them a listener could have chosen in the intro.
 TAG_WORDS = {**TAG_WORDS, **SUBTAG_WORDS}
+
+
+#: Words that say which facet's *picture* a story wears, and nothing more
+#: (§286). The day's hard news - crime, courts, politics - carried no tag, so
+#: its tile borrowed a hashed picture and that picture's facet ("BUSINESS")
+#: as its label. Kept out of `TAG_WORDS` on purpose: those feed taste, event
+#: tags and §187's field vouching, and "Curry's shooting slump", "Arsenal's
+#: attack" or "the club president" would have filed a sports fan's searches
+#: under World.
+PICTURE_WORDS: dict[str, tuple[str, ...]] = {
+    "world": ("shooting", "gunman", "police", "senator", "senate",
+              "congress", "congressman", "congresswoman", "lawmaker",
+              "lawmakers", "probe", "investigation", "indicted", "indictment",
+              "president", "presidential", "parliament", "minister",
+              "fbi", "attack", "attacks", "killed"),
+}
+
+
+def picture_facets(text: str) -> tuple[str, ...]:
+    """The facets whose picture `text` may wear: its tags' facets, then
+    `PICTURE_WORDS` - but only when its tags name no facet at all, so a
+    sports question that says "attack" keeps the sport picture."""
+    found = tuple(t for t in tags_for_text(text) if t in FACETS)
+    if found:
+        return found
+    words = set(_WORD.findall((text or "").lower()))
+    return tuple(sorted(f for f, keys in PICTURE_WORDS.items()
+                        if words & set(keys)))
 
 #: What one declared interest is worth in `taste`, **added after the
 #: behaviour has been normalised, and never decayed or outvoted** (§202, at
@@ -4770,7 +4811,7 @@ VIEW_MORE_PAGE = 8
 
 
 def page_section(body: dict, seen: Iterable[str] = (),
-                 size: int = VIEW_MORE_PAGE) -> dict:
+                 size: int = VIEW_MORE_PAGE, wrap: bool = True) -> dict:
     """One page of a full section: the first `size` tiles not in `seen`.
 
     The 28/09 packet: "View more" should show the eight episodes available
@@ -4787,17 +4828,25 @@ def page_section(body: dict, seen: Iterable[str] = (),
     broken. `more` says whether the next refresh has anything new to deal.
 
     `size` 0 returns the whole list, as the screen did before this existed.
+
+    `wrap=False` (Made for you's cycle, §286) never starts again: once
+    everything has been shown the page is empty and says `caught_up`, and the
+    screen says "You're all caught up" instead of dealing the first eight
+    again.
     """
     topics = list(body.get("topics") or [])
     body["total"] = len(topics)
+    body["caught_up"] = False
     if size <= 0:
         body.update(page_size=0, more=False, wrapped=False)
         return body
     seen = {s for s in seen if s}
     fresh = [t for t in topics if t.get("id") not in seen]
-    wrapped = bool(topics) and not fresh
+    wrapped = bool(topics) and not fresh and wrap
     if wrapped:
         fresh = topics
+    # Only a cycle is ever caught up; an empty rail that wraps is just empty.
+    body["caught_up"] = not wrap and not fresh
     page = fresh[:size]
     body["topics"] = page
     body["page_size"] = size

@@ -75,7 +75,7 @@ HOLD_SECONDS = 30 * 60
 MAX_PER_EPISODE = 12
 
 _NAME = re.compile(r"^[A-Za-zÀ-ÖØ-öø-ÿĀ-ſ][A-Za-zÀ-ÖØ-öø-ÿĀ-ſ'’.\- ]{1,59}$")
-#: A code, one word of capitals and digits (§285): "ZBTB44" is a hard name
+#: A code, one word of capitals and digits (§288): "ZBTB44" is a hard name
 #: too, and a `<<SAY:>>` line for it used to be thrown away. A name with a
 #: number beside it ("Area 51") is still `spoken_text`'s.
 _CODE = re.compile(r"^[A-Z][A-Z]*\d[A-Z0-9]{0,10}$")

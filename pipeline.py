@@ -1049,7 +1049,7 @@ class PodcastPipeline:
         # word has answered "where is this coming from?" too late to matter.
         live = live_captions.read_sources(key)
         # A live track with nothing on it yet must not hide what the cache
-        # holds (§285): a replay's track is opened empty.
+        # holds (§288): a replay's track is opened empty.
         if live and provenance_mod.Provenance.from_json(live).items:
             return live
         if not self.cache:

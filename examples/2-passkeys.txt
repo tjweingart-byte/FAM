@@ -1,0 +1,11 @@
+how do passkeys work
+
+A passkey replaces your password with a pair of keys, and the clever part is that the website never gets the one that matters.
+
+When you create a passkey, your phone or laptop makes two matching keys. One is public: it goes to the website, which stores it against your account. The other is private, and it never goes to the website - it stays with you, in your device's secure hardware or your encrypted password manager, locked behind your fingerprint, your face or your screen PIN.
+
+The two are linked by a piece of mathematics with one useful property. Something signed with the private key can be checked with the public key, but the public key can't be used to work out the private one. So when you log in, the website sends your device a random challenge, a one-off string of characters. Your device asks for your face or fingerprint, signs the challenge with the private key, and sends the signature back. The site checks it against the public key it has on file, and if it matches, you're in.
+
+Look at what that removes. There is no secret travelling over the internet to be intercepted. A hacker who breaks into the website's database finds only public keys, which are no use for logging in anywhere. And there is nothing for you to type, so there is nothing for a fake site to trick out of you - your device ties each passkey to the real website's address, and simply won't sign a challenge from a lookalike.
+
+That last part is the one that matters most. Most stolen accounts aren't cracked. Somebody is talked into typing their password into the wrong page - and with a passkey, there is nothing to type.

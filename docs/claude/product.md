@@ -133,6 +133,7 @@ likes. Its way in is the exploreFAM pill - wordmark and arrow - on
 search's top right and level with Made for you.
 
 <!-- rule:private-search -->
+> **Current (PROBLEMS.md §285, the 10.16 packet):** Private search stays on until it is turned off - one switch, the bubble on searchFAM and a row in Settings, kept as the account's `private_search` preference (on the device for a guest) - and it covers **every search and Go Deeper** the listener starts. A Go Deeper (`surface=other` with a `context`, no `topic_id`; `app._may_be_private`) may be private as a search may; a bank tile never is. The server honours the stored preference whether or not the client sends `private=1`. "Turns itself off" and "search only" below are superseded.
 **Private search is incognito for one search** *(PROBLEMS.md §282, the
 owner's 10.15 packet)*. A **Private** bubble beside Length and Voice turns it
 on; the search page goes charcoal in either theme; the search it is sent with
@@ -640,6 +641,7 @@ good one, and those have fixes in different files. Read the EI block first.
 twenty-prompt milestone.
 
 <!-- rule:examples-lever -->
+> **Current (PROBLEMS.md §286, §287):** twelve examples - one each at 1, 4 and 5 minutes and nine at 2 minutes across the facets, three of them from the owner's own listening - each shown with its minutes beside its words, so the writer sees what a length holds and a range of subjects.
 **`examples/` is the strongest lever on the writing, and it now holds one.**
 Briefings dropped in there are shown to the model as the house voice. Rules
 describe a style loosely; examples are matched closely, so two or three good

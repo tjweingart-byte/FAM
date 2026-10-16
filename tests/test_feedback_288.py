@@ -1,4 +1,4 @@
-"""The 10.16 instant feedback (PROBLEMS.md §285)."""
+"""The 10.16 instant feedback (PROBLEMS.md §288)."""
 from __future__ import annotations
 
 import asyncio
@@ -210,8 +210,9 @@ def test_the_writer_is_told_to_tell_it_and_never_mention_its_material():
 
 
 def test_there_is_a_news_example_beside_the_explainer():
+    """Ours was dropped in the merge for §287's own Suez example."""
     queries = [q for q, _ in sg.STYLE_EXAMPLES]
-    assert "what happened with the ship stuck in the suez canal" in queries
+    assert "why does the suez canal matter so much" in queries
     assert len(queries) >= 2
 
 

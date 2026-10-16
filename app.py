@@ -2616,7 +2616,7 @@ class SendMessageRequest(BaseModel):
     #: along so the message names the vibe it answers, but nothing was
     #: shared - so it is not a "share" taste signal.
     reply: bool = False
-    #: Which episode the sender heard (`X-FAM-Episode`, §285), so the
+    #: Which episode the sender heard (`X-FAM-Episode`, §288), so the
     #: recipient replays that one. '' from an older client: the server then
     #: names the episode kept under the question, if there is one.
     episode: str = Field("", max_length=messages_mod.MAX_EPISODE)
@@ -2917,7 +2917,38 @@ async def person_profile(request: Request,
         # to show, as typed - city, state, country, whichever they gave.
         "location": prefs.location.label,
         "follows": SOCIAL.follow_counts(target),
+        **_person_friends(me, target),
     }
+
+
+def _person_friends(me: str, target: str) -> dict:
+    """Their friends, as their profile shows them (10.16 packet, §285).
+
+    The count is for anybody who may open the profile - how many friends
+    somebody has is the size of their circle, like `follows`, never who is
+    in it. **The list is only for a friend of theirs**: once the two of you
+    follow each other you may browse their friends and follow any of them.
+    Each row is what a search for that person would already show - name,
+    handle, face - and nobody who could not be found that way is on it:
+    no one without a handle, no one blocked either way or suspended, and
+    no one still on the waitlist (discovery, `waitlist-gate`). No ids,
+    like the rest of this response: a row opens by handle, and Follow
+    sends the handle.
+    """
+    theirs = _without_apart(me, SOCIAL.friends(target)) if me else SOCIAL.friends(target)
+    out: dict = {"friend_count": len(theirs), "friends": None}
+    if not me or not (SOCIAL.is_following(me, target) and SOCIAL.is_following(target, me)):
+        return out
+    shown = [p for p in theirs if p["user_id"] != me and p.get("handle")]
+    waiting = (WAITLIST.waitlisted_among(p["user_id"] for p in shown)
+               if settings.waitlist else set())
+    mine = {p["user_id"] for p in SOCIAL.following(me)}
+    out["friends"] = [
+        {"name": p["name"], "handle": p["handle"], "avatar": p["avatar"],
+         "explicit": p.get("explicit", False),
+         "following": p["user_id"] in mine}
+        for p in shown if p["user_id"] not in waiting]
+    return out
 
 
 @app.get("/api/people")
@@ -3332,7 +3363,7 @@ async def messages_typing(req: TypingRequest, request: Request) -> dict:
 
 
 def _shared_episode(query: str, minutes: int, episode: str = "") -> str:
-    """Which kept episode a message shares (§285), as `cache.episode_id`.
+    """Which kept episode a message shares (§288), as `cache.episode_id`.
 
     A share used to carry only the question and the length, so the
     recipient's Listen asked the question again - and once the sender's
@@ -5333,6 +5364,13 @@ def _surface(cached_only: bool, topic_id: str, context: str) -> str:
     return "search"
 
 
+def _may_be_private(where: str, context: str, topic_id: str) -> bool:
+    """Whether this play may be private (§282, §285): a search, or a Go
+    Deeper - a follow-up on what was heard (`context`), never a bank tile."""
+    return where == "search" or (where == "other" and bool(context)
+                                 and not topic_id)
+
+
 #: Where a tap may say it came from (§147). The interface sends it, because
 #: `_surface` cannot tell a DailyFAM play or a shared link from a search by
 #: the parameters alone - and Explore is searched episodes only.
@@ -6048,6 +6086,8 @@ class PreferenceRequest(BaseModel):
     intro_done: Optional[bool] = None
     #: §190: whether the player may name them as an episode's searcher.
     searches_public: Optional[bool] = None
+    #: §285: private search left on, for every search and Go Deeper.
+    private_search: Optional[bool] = None
 
 
 def _interests_for(request: Request, given: str = "") -> tuple[str, ...]:
@@ -6370,7 +6410,8 @@ async def write_preferences(req: PreferenceRequest, request: Request):
                            city=req.city, region=req.region,
                            country=req.country,
                            weekly_recap=req.weekly_recap, intro_done=req.intro_done,
-                           searches_public=req.searches_public)
+                           searches_public=req.searches_public,
+                           private_search=req.private_search)
     except prefs_mod.PreferenceError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     # Saved topics are also *picks*, and the log is what the ranker reads.
@@ -6677,8 +6718,18 @@ async def myfam_section(request: Request,
                         minutes: int = Query(DEFAULT_MINUTES, ge=1, le=10),
                         interests: str = Query("", max_length=200),
                         page_size: int = Query(0, ge=0, le=40),
-                        seen: str = Query("", max_length=6000)):
+                        seen: str = Query("", max_length=6000),
+                        cycle: str = Query("", max_length=16)):
     """One myFAM rail, at full length, for the screen behind its "View more".
+
+    **Made for you's cycle** (`cycle=cached`, §286, the owner 10.16): the
+    screen opens on the rail's own tiles (the client holds them and sends
+    their ids in `seen`), and everything this endpoint deals after them -
+    the rest of the first page and every Refresh - is an episode already
+    written, on the listener's topics, so nothing on this screen past the
+    rail can cause one to be written. When those run out the page is empty
+    and `caught_up`, never the first eight again. An installed client that
+    sends no `cycle` gets what it always got.
 
     With `page_size` (the app sends `topics.VIEW_MORE_PAGE`, eight) it is one
     page of that length: the first tiles of the ranking not in `seen`, which
@@ -6708,10 +6759,14 @@ async def myfam_section(request: Request,
             raise HTTPException(status_code=404,
                                 detail="No such section.") from exc
         _mark_guest_tiles(body["topics"], minutes)
+        cycling = _cycles_cached(key, cycle)
+        if cycling:
+            body["topics"] = [t for t in body["topics"] if t["cached"]]
         body["ready"] = sum(1 for t in body["topics"] if t["cached"])
         body["minutes"] = minutes
         body["algo"] = EVENTS.algo_stamp()
-        return topics_mod.page_section(body, _seen_ids(seen), page_size)
+        return topics_mod.page_section(body, _seen_ids(seen), page_size,
+                                       wrap=not cycling)
     written = _written_probe(minutes)
     try:
         place = _place_for(request)
@@ -6746,16 +6801,26 @@ async def myfam_section(request: Request,
     for group in body.get("groups", ()):
         _name_written_tiles(group["topics"], minutes)
     body["topics"].sort(key=lambda t: not t["cached"])
+    cycling = _cycles_cached(key, cycle)
+    if cycling:
+        body["topics"] = [t for t in body["topics"] if t["cached"]]
     body["ready"] = sum(1 for t in body["topics"] if t["cached"])
     body["minutes"] = minutes
     # One page of it, when the screen asks for one - and only that page is an
     # impression below: a tile nobody was shown was not passed over.
-    topics_mod.page_section(body, _seen_ids(seen), page_size)
+    topics_mod.page_section(body, _seen_ids(seen), page_size,
+                            wrap=not cycling)
     if user and _remembers(request):
         EVENTS.record_impressions(
             user, [(f"section:{key}", t["id"]) for t in body["topics"]])
     body["algo"] = EVENTS.algo_stamp()
     return body
+
+
+def _cycles_cached(key: str, cycle: str) -> bool:
+    """Whether this View more deals written episodes only and ends "all
+    caught up" (§286): Made for you, when the client asks for it."""
+    return key == "from_history" and (cycle or "").strip().lower() == "cached"
 
 
 def _written_probe(minutes: int):
@@ -8979,7 +9044,7 @@ async def episode_sources(
     q: str = Query(..., description="What the listener asked"),
     minutes: int = Query(DEFAULT_MINUTES, ge=1, le=10),
     context: str = Query("", description="Topic the listener just heard"),
-    # As /api/audio's (§285): `SEARCH_MODE` decides when the client says
+    # As /api/audio's (§288): `SEARCH_MODE` decides when the client says
     # nothing, so this reads the key the episode was written under.
     search: bool | None = Query(None),
 ):
@@ -9018,7 +9083,7 @@ async def episode_transcript(
     q: str = Query(..., description="What the listener asked"),
     minutes: int = Query(DEFAULT_MINUTES, ge=1, le=10),
     context: str = Query("", description="Topic the listener just heard"),
-    # As /api/audio's (§285): `SEARCH_MODE` decides when the client says
+    # As /api/audio's (§288): `SEARCH_MODE` decides when the client says
     # nothing, so this reads the key the episode was written under.
     search: bool | None = Query(None),
 ):
@@ -9285,7 +9350,14 @@ async def audio(
     # A private search (§282) writes as an episode nobody searched and
     # nobody wrote: `recent` never lists it, so it reaches no Explore feed,
     # rail or trending search, and no friends rail can name its author.
-    private = bool(private and where == "search")
+    #
+    # Searches and Go Deepers only (§285): the episodes a listener's own
+    # question writes. Anything else is a shared tile, kept for everyone.
+    # Private search left on in Settings is honoured here too, so an
+    # installed client that never sends the flag cannot make it public.
+    private = _may_be_private(where, context, topic_id) and (
+        private or bool(user and _has_account(request)
+                        and PREFS.get(user).private_search))
     if private:
         pipeline.origin = cache_mod.PRIVATE_ORIGIN
         pipeline.author = ""
@@ -10354,7 +10426,7 @@ def _held_episode_keys() -> set:
             log.exception("audio sweep: could not read what is held from %s",
                           getattr(read, "__qualname__", read))
             raise
-    # An episode sent in a message is shared too (§285): its question, and
+    # An episode sent in a message is shared too (§288): its question, and
     # the exact episode the message names.
     try:
         for query, minutes, episode in MESSAGES.episodes():

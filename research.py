@@ -140,6 +140,50 @@ TIER_PRIMARY = frozenset({
     "nejm.org", "thelancet.com", "jamanetwork.com", "bmj.com", "cell.com",
     "pnas.org", "cochranelibrary.com", "nhs.uk", "europa.eu", "imf.org",
     "worldbank.org", "oecd.org", "un.org", "bankofengland.co.uk",
+    # §287: the owner's "expand the trusted sources" (10.16).
+    # Wires, public broadcasters and papers of record outside the US and UK.
+    "afp.com", "pbs.org", "cbc.ca", "abc.net.au", "rnz.co.nz", "rte.ie",
+    "dw.com", "france24.com", "irishtimes.com", "theglobeandmail.com",
+    "lemonde.fr", "elpais.com", "faz.net", "nikkei.com",
+    # Exchanges, central banks and international bodies a suffix misses.
+    "nasdaq.com", "nyse.com", "cmegroup.com", "londonstockexchange.com",
+    "bis.org", "bankofcanada.ca", "boj.or.jp", "wto.org", "iea.org",
+    "opec.org", "unicef.org", "unhcr.org", "ipcc.ch", "home.cern",
+    # Journals and their publishers' platforms: primary for their papers.
+    "annals.org", "ahajournals.org", "plos.org", "elifesciences.org",
+    "royalsocietypublishing.org", "springer.com",
+    "onlinelibrary.wiley.com", "acs.org", "aps.org", "academic.oup.com",
+    # Medical and scientific bodies: primary for their own guidance.
+    "nice.org.uk", "heart.org", "cancer.org", "diabetes.org", "aap.org",
+    "acog.org", "psychiatry.org", "apa.org",
+    # The rest of the major leagues and governing bodies, primary for their
+    # own schedules, results and rules.
+    "mlssoccer.com", "nwslsoccer.com", "nascar.com", "pgatour.com",
+    "lpga.com", "atptour.com", "wtatennis.com", "formula1.com", "ufc.com",
+    "olympics.com", "laliga.com", "bundesliga.com", "legaseriea.it",
+    "ligue1.com", "icc-cricket.com", "worldrugby.org", "cfl.ca",
+    "usopen.org", "wimbledon.com", "masters.com", "theopen.com",
+    "fiba.basketball", "concacaf.com", "ecb.co.uk",
+})
+
+#: The regional papers among the established (§287). Graded established for
+#: credibility, but never "national" to local news: a metro paper is exactly
+#: the outlet a question about its town should learn (`local_news._learn`).
+REGIONAL_OUTLETS = frozenset({
+    "latimes.com", "chicagotribune.com", "bostonglobe.com",
+    "sfchronicle.com", "seattletimes.com", "inquirer.com", "dallasnews.com",
+    "houstonchronicle.com", "ajc.com", "miamiherald.com", "tampabay.com",
+    "denverpost.com", "startribune.com", "azcentral.com", "oregonlive.com",
+    "sandiegouniontribune.com", "mercurynews.com", "baltimoresun.com",
+    "freep.com", "detroitnews.com", "jsonline.com", "stltoday.com",
+    "kansascity.com", "cleveland.com", "post-gazette.com", "nola.com",
+    "nj.com", "newsday.com", "texastribune.org", "calmatters.org",
+    "suntimes.com", "star-telegram.com", "sacbee.com",
+    "charlotteobserver.com", "newsobserver.com", "tennessean.com",
+    "courier-journal.com", "indystar.com", "dispatch.com", "buffalonews.com",
+    # Metro papers outside the US, learnable for Sydney, Melbourne, Toronto
+    # and Auckland as they were before they were listed (review).
+    "smh.com.au", "theage.com.au", "thestar.com", "nzherald.co.nz",
 })
 
 #: Established outlets and trade press: reliable, not primary.
@@ -160,7 +204,59 @@ TIER_ESTABLISHED = frozenset({
     "deadline.com", "billboard.com", "rollingstone.com", "pitchfork.com",
     "indiewire.com", "vulture.com", "boxofficemojo.com", "the-numbers.com",
     "ign.com", "polygon.com", "gamespot.com",
-})
+    # §287: the owner's "expand the trusted sources" (10.16).
+    # US national news and magazines.
+    "foxnews.com", "msnbc.com", "newsweek.com", "time.com",
+    "theatlantic.com", "newyorker.com", "vox.com", "propublica.org",
+    "thehill.com", "semafor.com", "rollcall.com", "punchbowl.news",
+    # International news.
+    "aljazeera.com", "scmp.com", "thehindu.com", "hindustantimes.com",
+    "indianexpress.com", "indiatimes.com", "straitstimes.com",
+    "japantimes.co.jp", "koreaherald.com",
+    "globalnews.ca", "ctvnews.ca",
+    "nationalpost.com", "euronews.com", "politico.eu", "spiegel.de",
+    "sueddeutsche.de", "corriere.it", "haaretz.com", "timesofisrael.com",
+    "jpost.com", "arabnews.com", "thenationalnews.com", "africanews.com",
+    "news24.com", "kyivindependent.com", "themoscowtimes.com",
+    # Business, markets and personal finance.
+    "morningstar.com", "kiplinger.com", "bankrate.com", "nerdwallet.com",
+    "spglobal.com", "investing.com", "qz.com", "fastcompany.com", "inc.com",
+    "hbr.org", "coindesk.com", "theblock.co",
+    # Technology.
+    "zdnet.com", "cnet.com", "tomshardware.com", "9to5mac.com",
+    "macrumors.com", "theinformation.com", "venturebeat.com",
+    "technologyreview.com", "ieee.org",
+    # Science and health: the science press, the big clinics' patient
+    # pages, health-policy research, and the preprint servers (reliable
+    # for what a paper says, not yet peer-reviewed - so not primary).
+    # ScienceDirect is established, not primary: beside the journals it
+    # hosts machine-written topic summaries (`/topics/`).
+    "sciencedirect.com",
+    "livescience.com", "space.com", "quantamagazine.org",
+    "smithsonianmag.com", "nationalgeographic.com", "sciencenews.org",
+    "phys.org", "eurekalert.org", "mayoclinic.org", "clevelandclinic.org",
+    "hopkinsmedicine.org", "kff.org", "arxiv.org", "biorxiv.org",
+    "medrxiv.org",
+    # Sports: reference sites, contract and transfer trackers, recruiting,
+    # and the major outlets outside the US.
+    "mlbtraderumors.com", "spotrac.com", "fbref.com", "transfermarkt.com",
+    "hockey-reference.com", "fangraphs.com", "baseballamerica.com",
+    "pff.com", "sportsnet.ca",
+    "tsn.ca", "goal.com", "marca.com", "as.com", "lequipe.fr", "kicker.de",
+    "gazzetta.it", "autosport.com", "motorsport.com", "golfdigest.com",
+    "tennis.com", "mmafighting.com", "boxingscene.com", "cricbuzz.com",
+    # Entertainment, books, art and food.
+    "ew.com", "people.com", "thewrap.com", "screendaily.com", "nme.com",
+    "consequence.net", "stereogum.com", "avclub.com", "rogerebert.com",
+    "metacritic.com", "rottentomatoes.com", "publishersweekly.com",
+    "artnews.com", "theartnewspaper.com", "eater.com",
+    # Games.
+    "kotaku.com", "pcgamer.com", "eurogamer.net", "gamesindustry.biz",
+    # Politics and elections reference, fact-checkers, weather and travel.
+    "ballotpedia.org", "opensecrets.org", "govtrack.us", "cookpolitical.com",
+    "snopes.com", "politifact.com", "factcheck.org", "fullfact.org",
+    "weather.com", "accuweather.com", "flightaware.com",
+}) | REGIONAL_OUTLETS
 
 
 # --------------------------------------------------------------------------
@@ -267,10 +363,16 @@ def host_of(result) -> str:
     return host[4:] if host.startswith("www.") else host
 
 
+#: Where a listed outlet hosts its readers rather than its reporters (§287
+#: review): a forum post on `forums.macrumors.com` is not MacRumors.
+_READER_HOSTS = ("forums.", "forum.", "community.", "boards.",
+                 "discussions.", "answers.")
+
+
 def credibility(result) -> str:
     """Which tier a result's host belongs to. Never raises, never guesses high."""
     host = host_of(result)
-    if not host:
+    if not host or host.startswith(_READER_HOSTS):
         return "unverified"
     if host in TIER_PRIMARY:
         return "primary"
@@ -281,7 +383,15 @@ def credibility(result) -> str:
     if host.endswith((".gov", ".gov.uk", ".edu", ".ac.uk", ".int", ".mil",
                       # §276: other countries' government domains.
                       ".gov.au", ".gc.ca", ".govt.nz", ".gov.ie", ".gouv.fr",
-                      ".bund.de", ".gob.mx", ".gov.in")):
+                      ".bund.de", ".gob.mx", ".gov.in",
+                      # §287: more democracies' governments, and their
+                      # universities. Not every state's: a government
+                      # with no free press is not a primary source on
+                      # anything but its own announcements.
+                      ".go.jp", ".go.kr", ".gov.br", ".gob.es", ".gov.it",
+                      ".gov.sg", ".gov.za", ".gov.il", ".admin.ch",
+                      ".gob.ar", ".gob.cl", ".gov.ph", ".go.ke", ".gov.ng",
+                      ".edu.au", ".ac.nz", ".ac.jp", ".ac.za", ".ac.in")):
         return "primary"
     # Subdomains of a listed host inherit it: `finance.yahoo.com` is `yahoo.com`.
     for known, tier in ((TIER_PRIMARY, "primary"), (TIER_ESTABLISHED, "established")):
@@ -545,12 +655,13 @@ def passages(text, limit: int = 0) -> list:
 
     Perplexity returns one snippet per page and Parallel a few markdown
     excerpts; the packet reads `highlights_per_source` passages from each
-    source, so both are cut into paragraphs and then into runs of sentences
-    of about `limit` characters (`SEARCH_PASSAGE_CHARS`).
+    source, so both are cut into paragraphs, long ones into runs of
+    sentences, and short ones packed together, each passage up to `limit`
+    characters (`SEARCH_PASSAGE_CHARS`).
     """
     limit = int(limit or settings.search_passage_chars)
     chunks = text if isinstance(text, (list, tuple)) else [text]
-    out: list = []
+    pieces: list = []
     for chunk in chunks:
         for paragraph in re.split(r"\n\s*\n", str(chunk or "")):
             # Markdown's headings, bullets, quotes and table bars are not
@@ -562,18 +673,37 @@ def passages(text, limit: int = 0) -> list:
             if not paragraph:
                 continue
             if len(paragraph) <= limit:
-                out.append(paragraph)
+                pieces.append(paragraph)
                 continue
             current = ""
             for sentence in re.split(r"(?<=[.!?])\s+", paragraph):
                 if current and len(current) + 1 + len(sentence) > limit:
-                    out.append(_clip(current, limit))
+                    pieces.append(_clip(current, limit))
                     current = sentence
                 else:
                     current = f"{current} {sentence}".strip()
             if current:
-                out.append(_clip(current, limit))
-    return [p for p in out if len(p) > 20]
+                pieces.append(_clip(current, limit))
+    # Short paragraphs are packed together up to `limit` (§286). A news
+    # page's excerpt is mostly one- and two-sentence paragraphs, and when each
+    # was its own passage the packet's three per source were often three
+    # lines - a few hundred characters of a page that had sent three thousand.
+    out: list = []
+    current = ""
+    for piece in (p for p in pieces if len(p) > 20):
+        if current and len(current) + 2 + len(piece) > limit:
+            out.append(current)
+            current = piece
+        elif current:
+            # A heading or a separate excerpt joined to the next one ends
+            # as a sentence, so the writer does not read one run-on.
+            stop = "" if re.search(r"[.!?…:;\"'”’)\]]$", current) else "."
+            current = f"{current}{stop} {piece}"
+        else:
+            current = piece
+    if current:
+        out.append(current)
+    return out
 
 
 def _post(url: str, headers: dict, body: dict) -> dict:

@@ -382,7 +382,7 @@ def read_sources(key: str) -> str:
 #: the entire writing time there. These are the two moments inside the wait
 #: that actually happen, in the order they happen.
 #:
-#: "contextualized" is the brief's understanding half answering (§285), not
+#: "contextualized" is the brief's understanding half answering (§288), not
 #: the whole brief: the search half and the plan of the piece run beside it
 #: and the slowest of the three held the first check for five to seven
 #: seconds on Haiku, long enough for the screen to look frozen.

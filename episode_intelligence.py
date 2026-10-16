@@ -172,9 +172,9 @@ INTENT_STRUCTURE = {
 #: band describes what the time *may* hold, never what must be produced.
 DEPTH_BANDS = (
     (2, "orientation", (
-        "the core of it, two or three facts that are genuinely essential, and "
-        "one reason it matters. Nothing else fits, so choose hard rather than "
-        "compressing everything"
+        "the answer, the mechanism or turn that explains it, the concrete "
+        "particulars that make it stick, and why it matters. Choose one thread "
+        "and give it the whole time rather than skimming several"
     )),
     (4, "understanding", (
         "the essential facts, the causal explanation that makes them hang "
@@ -1130,7 +1130,8 @@ Eagles won".
 them, as many as the length above has room for and no more. For each: \
 `does`, what that part answers or explains, in a short phrase; `needs`, the \
 one to three things the evidence must contain for that part to exist. A \
-part nobody could find evidence for is dropped by the writer, so do not pad.
+part nobody could find evidence for is dropped by the writer and its time \
+given to the parts that remain, so do not pad.
 - **opening_who / opening_what / opening_when** - what the first two \
 sentences must pin down, as the *kind* of thing: "the team", "the result of \
 their latest game", "the day it was played". These are slots the writer \
@@ -1618,7 +1619,7 @@ async def understand(query: str, minutes: int = DEFAULT_MINUTES, context: str = 
     return brief
 
 
-#: The episode mark the loading screen's first step waits for (§285): the
+#: The episode mark the loading screen's first step waits for (§288): the
 #: request's meaning is written - the understanding half, or the one call.
 UNDERSTOOD_MARK = "brief_understood"
 
@@ -1627,7 +1628,7 @@ async def _timed(part: str, path: str, ask, notes=None) -> tuple:
     """One part's answer, with how long it took recorded for /admin (§270).
 
     The understanding half answering marks `UNDERSTOOD_MARK` on the episode's
-    clock the moment it lands (§285): that is the request contextualized,
+    clock the moment it lands (§288): that is the request contextualized,
     and the loading screen's first step had been held to the slowest of all
     three calls."""
     began = time.monotonic()
@@ -1728,7 +1729,8 @@ def build_outline_note(brief: "Brief") -> str:
         lines.append(f"It should land on: {brief.outline_ending}.")
     lines.append(
         "It is a starting shape, not a set of boxes and not evidence. Keep a "
-        "part only when the evidence supports it, drop or reorder freely, and "
+        "part only when the evidence supports it, drop or reorder freely, give "
+        "a dropped part's time to the parts the evidence does support, and "
         "add what the evidence shows that the plan did not foresee. Decide the "
         "opening last, once you know what the evidence says - the plan only "
         "says what it has to situate.")

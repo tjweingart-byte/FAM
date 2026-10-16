@@ -743,6 +743,8 @@ def test_examples_are_read_from_disk(tmp_path, monkeypatch):
     (tmp_path / "examples" / "1-a-topic.txt").write_text(
         "what is a heat pump\n\nIt moves heat rather than making it.\n"
     )
+    # Loading clears the shared minutes table (§286); give the real one back.
+    monkeypatch.setattr(sg, "EXAMPLE_MINUTES", dict(sg.EXAMPLE_MINUTES))
     monkeypatch.setattr(sg, "__file__", str(tmp_path / "script_generator.py"))
     loaded = sg.load_style_examples()
     assert loaded == [("what is a heat pump", "It moves heat rather than making it.")]
@@ -755,6 +757,8 @@ def test_a_malformed_example_is_skipped_not_fatal(tmp_path, monkeypatch):
     (tmp_path / "examples").mkdir()
     (tmp_path / "examples" / "1-broken.txt").write_text("no blank line so no script")
     (tmp_path / "examples" / "2-fine.txt").write_text("a query\n\nA script.\n")
+    # Loading clears the shared minutes table (§286); give the real one back.
+    monkeypatch.setattr(sg, "EXAMPLE_MINUTES", dict(sg.EXAMPLE_MINUTES))
     monkeypatch.setattr(sg, "__file__", str(tmp_path / "script_generator.py"))
     assert sg.load_style_examples() == [("a query", "A script.")]
 
@@ -799,7 +803,7 @@ def test_length_describes_story_scope_not_a_section_template():
     """A fixed beat template forced invented content; scope guides instead."""
     short = build_prompt(plan_episode("a topic", 1))
     long = build_prompt(plan_episode("a topic", 10))
-    assert "opened and answered" in short
+    assert "answered fully" in short
     assert "full arc" in long
     for beat in ("one-line hook", "the essential background", "what to watch next"):
         assert beat not in long
