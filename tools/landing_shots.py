@@ -61,8 +61,24 @@ FAKE_INITIALS = {"BS": "MB", "RS": "JR", "MS": "SP", "NO": "AK"}
 SHOTS = [
     ("search", "setTab('home')", "dark"),
     ("dailyfam", "openMyFamTab()", "light"),
+    # The features carousel, back under the video (10.15 packet, §282): each
+    # slide is two phones, so DailyFAM and myFAM each have a second screen.
+    ("dailyfam-rails", "openMyFamTab(); setTimeout(function(){"
+                       " var sc = document.querySelector('#screen-myfam .scroll');"
+                       " if(sc) sc.scrollTop = 520; }, 600)", "light"),
+    # The fixtures hold no categories, so the section under the mixes is
+    # left off the picture rather than shown failing to load.
+    ("myfam-mixes", "openPlayFAM(); setTimeout(function(){"
+                    " var c = document.getElementById('catSection');"
+                    " if(c) c.style.display = 'none'; }, 600)", "light"),
     ("myfam-mix", "openPlayFAM(); setTimeout(function(){"
                   " document.querySelectorAll('.mix-card')[0].click(); }, 600)", "light"),
+]
+
+#: name -> cut from a screenshot of the app, not photographed: the preview
+#: cannot show the player on an episode with a painted picture.
+STILLS = [
+    ("player", "the player on a real episode, from the owner's phone"),
 ]
 
 #: Whatever the last screen left open, and anything that is the preview
@@ -188,6 +204,11 @@ async def capture() -> int:
                 OUT / f"{name}.jpg", quality=80, optimize=True, progressive=True)
             print(f"  {name:15} captured")
         await browser.close()
+    for name, _why in STILLS:
+        still = Image.open(ROOT / "tools" / "landing" / "stills" / f"{name}.jpg").convert("RGB")
+        still = still.resize((780, round(780 * still.height / still.width)))
+        still.save(OUT / f"{name}.jpg", quality=82, optimize=True, progressive=True)
+        print(f"  {name:15} from its still")
     if errors:
         print("errors:", errors)
     return 1 if errors else 0

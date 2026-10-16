@@ -695,6 +695,13 @@ _SOURCED = "(CASE WHEN sourced_at > 0 THEN sourced_at ELSE created END)"
 #: exists so the listener who heard it can hear it again from their history.
 ARCHIVE_ORIGIN = "archive"
 
+#: The `origin` of a private search (10.15 packet, §282): searchFAM's
+#: incognito. Kept like any episode - the searcher's replay, captions and
+#: title work as ever - but `recent` never lists it, so it is on no Explore
+#: feed, no rail, no A to Z and no trending search, and it is written with
+#: no author, so no friends rail can name whose it was.
+PRIVATE_ORIGIN = "private"
+
 _EPISODE_ID = re.compile(r"^([0-9a-f]{64})(?:\.(\d{1,12}))?$")
 
 
@@ -1000,6 +1007,7 @@ class MemoryScriptCache:
             for k, v in self._data.items()
             if v[0] >= time.time() and v[3] and v[4] > 0
             and self._origins.get(k, "") != ARCHIVE_ORIGIN
+            and (self._origins.get(k, "") != PRIVATE_ORIGIN or origin == PRIVATE_ORIGIN)
             and not (exclude_author and self._authors.get(k) == exclude_author)
             and not (origin and self._origins.get(k, "") != origin)
             and not (wanted and k not in wanted)
@@ -2265,6 +2273,8 @@ class SqliteScriptCache:
                 " sentences FROM scripts"
                 " WHERE expires >= ? AND query != '' AND minutes > 0"
                 f"   AND origin != '{ARCHIVE_ORIGIN}'"
+                + ("" if origin == PRIVATE_ORIGIN
+                   else f"   AND origin != '{PRIVATE_ORIGIN}'") +
                 "   AND (? = '' OR author != ?)"
                 "   AND (? = '' OR origin = ?)" + only +
                 " ORDER BY scripts.created DESC LIMIT ?",

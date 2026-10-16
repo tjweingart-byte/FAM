@@ -730,6 +730,10 @@ def pick(text: str, tags: Iterable[str] = (),
             if category and (category in facets
                              or tree.get(category) is not None):
                 own = category
+                # A league, team or person the words name, on another
+                # branch, is the picture's subject (§282).
+                own = _named_subject(tree, tree.match(text or "") if text else (),
+                                     category, facets) or own
             if not own:
                 candidates = list(tree.match(text or "") if text else ())
                 candidates.sort(key=lambda n: (-_depth(tree, n, facets), n))
@@ -865,7 +869,10 @@ def pick_for_player(text: str, key: str = "",
         candidates = sorted(tree.match(words) if words else (),
                             key=lambda n: (-_depth(tree, n, facets), n))
         if category and (category in facets or tree.get(category) is not None):
-            candidates.insert(0, category)
+            # The named subject first when it outranks the category (§282),
+            # so a borrowed picture walks up the subject's branch.
+            if not _named_subject(tree, candidates, category, facets):
+                candidates.insert(0, category)
         elif not candidates and words:
             near = _near(words)
             if near is None:
@@ -935,6 +942,44 @@ def _note_asked(node_id: str) -> None:
 def asked_for() -> frozenset:
     """Nodes tiles wanted a picture for and found none - painted first."""
     return frozenset(_ASKED)
+
+
+#: How deep a node the words name must be to outrank the category for the
+#: picture (10.15 packet, §282): a league or deeper - "nfl" is 2, a team
+#: under it 3. A facet or a sport (0-1) never does, so §209's case - a
+#: boxing press conference whose words name only the facet - still wears
+#: the category's picture.
+SUBJECT_DEPTH = 2
+
+
+def _named_subject(tree, words_nodes, category: str, facets) -> str:
+    """The node the words name that outranks `category` for the picture,
+    or "" (10.15 packet, §282).
+
+    A Seahawks episode whose category was placed on "sports betting" wore
+    the betting node's poker chips, on its tile, its player and the story
+    it was vibed as. The category is still the episode's (§209: ranking,
+    tags and events read it); only the picture changes, and only when the
+    words name a specific subject - a league, a team, a person, at
+    `SUBJECT_DEPTH` or deeper - that is on a different branch from the
+    category. A category above or below that subject (the NFL for a
+    Seahawks question, or the reverse) keeps the category's picture.
+    """
+    if not category:
+        return ""
+    ranked = sorted(words_nodes, key=lambda n: (-_depth(tree, n, facets), n))
+    if not ranked or _depth(tree, ranked[0], facets) < SUBJECT_DEPTH:
+        return ""
+    subject = ranked[0]
+    if subject == category:
+        return ""
+    try:
+        if (category in tree.ancestors(subject)
+                or subject in tree.ancestors(category)):
+            return ""
+    except Exception:  # noqa: BLE001 - the category's picture, as before
+        return ""
+    return subject
 
 
 def _depth(tree, node_id: str, facets: frozenset) -> int:

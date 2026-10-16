@@ -62,7 +62,9 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   searched in the last 2h whose episodes are still current; cache only (§190, §192). [trending-searches]
 - **Search is Google's shape** (§190): mic and attach inside the bar's right;
   Length (1-5 min, §219) and Voice bubbles never print the choice; back to 2 min on
-  every return to the app. [search-bar]
+  every return to the app; **Private** is a third bubble (§282). [search-bar]
+- **Private search** (§282): incognito for one search, page charcoal; no play,
+  event or history; cached `private`, no author, listed nowhere. [private-search]
 - Searches (Go Deeper too) corrected at send, titles never misspell, EI
   fixes typos (§247) [autocorrect-at-send]
 - The from-knowledge cover half on search is deleted (§108); search's wait is
@@ -87,7 +89,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
 
 - **The player is Spotify's layout** (§190): Home logo (§255), picture (4:3, §192;
   centred between GO DEEPER and the title, never missing - `pick_for_player`
-  borrows, as do tiles, §214, by category §247 - and on the mini player, sides cropped, §193), sources by it, GO
+  borrows, as do tiles, §214, by category §247, a named team first §282 - and on the mini player, sides cropped, §193), sources by it, GO
   DEEPER pill at the top, share/vibe/save on the right (§192), captions sheet
   slid up, a ⋯ menu; no "exclude from taste" (§171); the searcher shown only
   if `searches_public`. [player-layout]
@@ -104,6 +106,8 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   exploreFAM pill opens it from search and beside Made for you. [explore-reel]
 - **VIBE! is a story editor** (§213): a clamped layout, never an image;
   Your story only (§250); holding pauses; your story rings your face. [vibe-caption]
+- **A friend's vibe** has a reply / heart / share-to-your-story row (§282); a
+  reply or like is a message carrying the episode. [story-reply]
 - **Group chats** (§213): one row per message to a `g:` thread; graph only. [group-chats]
 
 - **Names swapped for the listener** (§185): the rails screen *shows*
@@ -198,16 +202,12 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   play; only Made for you is topped up to its floor; the most-played row holds plays only
   and `tools/seed_demo.py` fills it for a demo. [op-empty-deployment]
 - **Scoring** (§114, §155): subtag-aware `_affinity`, `RELEVANCE_FLOOR`; a live
-  story reaches Made for you **only when it names something followed** (§155
-  excludes, reversing the 0.3 damp; `SUBJECT_DEPTH`, `SEMANTIC_NEAR_COSINE`) -
-  the floor tops up from evergreen tiles, **never the live pool**. No length control on myFAM - non-search
-  episodes are `BROWSE_MINUTES` (2), except a Go Deeper follow-up's own 1-5 (§170). View more shows eight at a time; Refresh
-  deals the next eight of the same ranking, then starts again (§165). No language picker (field kept). No wheel
-  (§142) - interests page is the searchable list, A to Z (§170); `preferences.topics` stores
-  choices; no interest cap. Impressions only ever damp (`FATIGUE_WEIGHT`), never
-  become taste; Trending exempt. `UNSHELVED` rankings must be skipped when
-  iterating `FILL_ORDER`. One bank for everyone - personalise the order, not
-  the inventory. [op-taste-scoring]
+  story reaches Made for you **only when it names something followed** - the
+  floor tops up from evergreen tiles, **never the live pool**. Non-search
+  episodes are `BROWSE_MINUTES` (2) but a Go Deeper's 1-5 (§170); View more /
+  Refresh deal eight (§165); no wheel, no language picker, no interest cap;
+  impressions only damp (`FATIGUE_WEIGHT`); skip `UNSHELVED` in `FILL_ORDER`.
+  One bank - personalise the order, not the inventory. [op-taste-scoring]
 - **DailyFAM mixes**: hold subjects/topic ids, never audio; the picker is ranked
   (`rank_bank`, a sort not a filter, does not exclude played); new mixes are
   **public by default**, copies start private; `tools/check_js.py` fails on
@@ -418,7 +418,7 @@ Accounts, tiers, sharing
   `active` accounts, enforced server-side; new accounts start `waitlisted`;
   one account, granting flips `status`; place counted in FAM; Viral Loops via
   the outbox, never loses a signup; waitlisted hidden from discovery except
-  friends; a shared episode plays for anyone (only what was shared); the landing
+  friends and the status page's search (§282); a shared episode plays for anyone (only what was shared); the landing
   page plays the three sign-up samples as replays (§190), own picture only (§214); a `/waitlist` join is
   always waitlisted (never an admin account, which previews it, §216) and the app's Sign Up goes there (§192);
   a guest at the address gets the app's sign-in/sign-up, not `/waitlist` (§231). [waitlist-gate]
@@ -459,7 +459,7 @@ Operations and honesty
   `topics.category_tree`, not just rows); it re-applies the seed; accounts,
   credentials and metering are never wiped. [wipe-derived]
 - **Failures must be visible** (/admin, §269); announcing is not enough if the
-  thing keeps a record. [failures-visible]
+  thing keeps a record; a feedback report names its APIs, never keys (§282). [failures-visible]
 - `/api/health` reports `build` and `search_mode_source`; anything settable in
   two places belongs there. [server-says-build]
 - **Verify, do not inspect** - readiness checks perform the real action. [verify-not-inspect]
