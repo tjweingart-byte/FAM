@@ -28,9 +28,10 @@ def test_the_two_minute_examples_cover_the_facets():
     names = os.listdir(os.path.join(ROOT, "examples"))
     two = [n for n in names if n.startswith("2-") and n.endswith(".txt")]
     assert len(two) >= 7
-    # Sport, money, health, tech, culture, world and science, one each.
-    for slug in ("marathon", "fed", "fever", "passkeys", "hamilton",
-                 "suez", "apollo"):
+    # Sport (a recap and an explainer), money, health, tech, culture, world
+    # and science.
+    for slug in ("singapore-sprint", "marathon", "fed", "autoimmune",
+                 "passkeys", "house-music", "suez", "apollo"):
         assert any(slug in n for n in two), slug
 
 

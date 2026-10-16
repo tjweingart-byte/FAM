@@ -20489,13 +20489,24 @@ The owner, after §286: "add the 1-minute and 5-minute example episodes, as
 well as more example two minute episodes with variety for different
 topics/categories" and "expand the trusted sources".
 
-**The examples** (`examples/`, eleven now, every one on settled facts so none
+**The examples** (`examples/`, twelve now, every one on settled facts so none
 teaches a confident current figure): `1-blue-sky` (168 words),
 `5-financial-crisis` (761, the long arc), and two-minute ones per facet -
 `2-marathon-distance` (sport), `2-fed-raises-rates` (money, mechanism only, no
-rate), `2-fever` (health), `2-passkeys` (tech), `2-hamilton` (culture),
-`2-suez-canal` (world) beside `2-apollo-13` (science) and
-`2-flight-cancellations`. Shapes vary on purpose: an origin story, a
+rate), `2-passkeys` (tech), `2-suez-canal` (world) beside `2-apollo-13`
+(science) and `2-flight-cancellations`. **Three from the owner's own
+listening** (10.16, sent as "a couple of good scripts you could base the
+examples off of", Haiku episodes from production): `2-house-music`
+(culture), `2-autoimmune` (health) and `2-singapore-sprint` (a sport recap),
+edited here: a figure no source carried ("ten billion of its own cells every
+day") and a party anecdote nobody could check were taken out, an ambiguous
+"he" named, and the race given its date. They replaced the first drafts for
+culture and health (`2-hamilton`, `2-fever`). What they show that the drafts
+did not: a denser line - a name, a place or a year in nearly every sentence -
+and the mechanism said out loud ("Here's the mechanism, not just the myth").
+The sprint is the one example built on a dated result; it was established by
+its sources (BBC, Formula 1, the FIA) and teaches the recap's shape - the
+result in the first sentence, then how it happened, then what it changed. Shapes vary on purpose: an origin story, a
 mechanism, a narrative with a turn, a "why it matters". Each is shown with its
 minutes and words (§286), and `tests/test_implementations_286.py` holds every
 one within 0.9-1.35x of its budget. **Cost:** they sit in the writer's
