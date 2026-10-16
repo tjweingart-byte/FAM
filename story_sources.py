@@ -419,6 +419,8 @@ class FinnhubSignals(stories.StorySource):
     def diagnose(self) -> tuple[bool, str]:
         if not settings.finnhub_key:
             return False, "FINNHUB_KEY is not set, so market stories are off"
+        if self.active():
+            return False, self.active()
         return True, "FINNHUB_KEY present (not verified from this machine)"
 
     async def verify(self) -> tuple[bool, str]:
@@ -432,10 +434,25 @@ class FinnhubSignals(stories.StorySource):
             return list(WATCHLIST)
         return [s.strip().upper() for s in raw.split(",") if s.strip()][:24]
 
-    async def collect(self, limit: int) -> list:
-        timeout = float(settings.live_timeout_seconds)
-        symbols = self.watchlist()
+    def active(self) -> str:
+        """"" when this is the markets provider, else why it is not (§289):
+        one sweep, from the provider the episodes read."""
+        import live_sources
 
+        provider = live_sources.configured().get("markets") or ""
+        if provider in MARKET_SWEEPS and provider != self.provider:
+            return f"markets are on another provider ({provider})"
+        if self.provider != "finnhub" and provider != self.provider:
+            return f"markets are not on {self.name} ({provider or 'none'})"
+        return ""
+
+    #: The `live_sources.configured()["markets"]` name this sweep belongs to.
+    provider = "finnhub"
+    #: How the observation describes the price's timing.
+    timing = "on a roughly twenty-minute delay"
+
+    async def quotes(self, symbols: list, timeout: float) -> tuple:
+        """`([(symbol, Finnhub-shaped quote or None)], session open?)`."""
         async def quote(symbol: str):
             try:
                 return symbol, await _json(
@@ -444,8 +461,6 @@ class FinnhubSignals(stories.StorySource):
             except Exception as exc:  # noqa: BLE001 - one symbol is not the sweep
                 log.debug("stories/finnhub: %s failed: %s", symbol, exc)
                 return symbol, None
-
-        import live_sources
 
         # The session beside the quotes, so a tap can reuse them (§267):
         # one more request per sweep, and the quotes are kept for every
@@ -463,6 +478,15 @@ class FinnhubSignals(stories.StorySource):
 
         rows, is_open = await asyncio.gather(
             asyncio.gather(*(quote(s) for s in symbols)), session())
+        return list(rows), is_open
+
+    async def collect(self, limit: int) -> list:
+        if self.active():
+            return []
+        timeout = float(settings.live_timeout_seconds)
+        import live_sources
+
+        rows, is_open = await self.quotes(self.watchlist(), timeout)
         for symbol, data in rows:
             if data:
                 live_sources.remember_quote(symbol, data, is_open)
@@ -490,7 +514,7 @@ class FinnhubSignals(stories.StorySource):
                 subject=label,
                 observation=(f"{label} is {way} about {abs(change):.1f} percent "
                              f"today, at around {price:.2f}. That is a price "
-                             f"move on a roughly twenty-minute delay, and "
+                             f"move {self.timing}, and "
                              f"nothing here says why."),
                 domain=self.domain,
                 source=self.name,
@@ -502,6 +526,39 @@ class FinnhubSignals(stories.StorySource):
                 as_of=now,
             ))
         return out
+
+
+class TiingoSignals(FinnhubSignals):
+    """The same watchlist and the same threshold, from Tiingo's free plan
+    while developing (§289, temporary): the whole list in one request, and
+    only while Tiingo is the markets provider."""
+
+    name = "Tiingo"
+    provider = "tiingo"
+    timing = "from IEX's last sale"
+
+    def diagnose(self) -> tuple[bool, str]:
+        if not settings.tiingo_api_key:
+            return False, "TIINGO_API_KEY is not set, so Tiingo market stories are off"
+        if self.active():
+            return False, self.active()
+        return True, ("TIINGO_API_KEY present: the watchlist in one request "
+                      "per sweep (not verified from this machine)")
+
+    async def verify(self) -> tuple[bool, str]:
+        import tiingo
+
+        return await tiingo.TiingoSource().verify()
+
+    async def quotes(self, symbols: list, timeout: float) -> tuple:
+        import tiingo
+
+        return await tiingo.sweep_quotes(symbols, timeout)
+
+
+#: Markets providers with a sweep of their own: only the one episodes read
+#: is swept (§289).
+MARKET_SWEEPS = ("finnhub", "tiingo")
 
 
 # --------------------------------------------------------------------------
@@ -620,6 +677,9 @@ BUILDERS = {
     "gdelt": GdeltSignals,
     "trending": TrendingRegistrySignals,
     "finnhub": FinnhubSignals,
+    # §289: Tiingo's free plan while developing; swept only when it is the
+    # markets provider, as Finnhub is only when it is.
+    "tiingo": TiingoSignals,
     "polymarket": PolymarketSignals,
     # §277: the sports sweep on BALLDONTLIE, built lazily (it imports this).
     "balldontlie": lambda: __import__("balldontlie_scores").make_signals()(),

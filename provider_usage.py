@@ -41,7 +41,8 @@ log = logging.getLogger("provider_usage")
 DAY = 86400
 
 #: The services the admin page reports, in the order it draws them.
-PROVIDERS = ("balldontlie", "parallel", "perplexity", "gdelt", "polymarket", "gnews", "finnhub",
+PROVIDERS = ("balldontlie", "api_sports", "parallel", "perplexity", "gdelt", "polymarket",
+             "gnews", "finnhub", "tiingo",
              "wikidata", "wikipedia", "wikimedia_enterprise",
              "nws", "open_meteo", "local_feeds")
 
@@ -53,6 +54,9 @@ LABELS = {
     "polymarket": "Polymarket",
     "gnews": "GNews",
     "finnhub": "Finnhub",
+    # §289: the free plans used while developing.
+    "api_sports": "API-Sports",
+    "tiingo": "Tiingo",
     # §278: the reference look.
     "wikidata": "Wikidata",
     "wikipedia": "Wikipedia",
@@ -109,6 +113,17 @@ def _plans() -> dict:
         "finnhub": (
             "60/min = 86,400/day, personal use only",
             "commercial plan, quote-based (~$11.99/mo quoted)"),
+        # §289: free plans while developing, replaced before going commercial.
+        "api_sports": (
+            f"free plans: 100/day per sport; FAM stops at "
+            f"{int(settings.api_sports_daily_requests)} and keeps "
+            f"{int(settings.api_sports_lookup_reserve)} for listeners; seasons limited",
+            "temporary: BALLDONTLIE's paid plans replace it (§289)"),
+        "tiingo": (
+            f"free: 50/hour, 1,000/day, 500 tickers/month, personal use only; "
+            f"FAM stops at {int(settings.tiingo_hourly_requests)}/hour, "
+            f"{int(settings.tiingo_daily_requests)}/day",
+            "temporary: replaced by a commercial market feed (§289)"),
         # §278: the reference look. Keyless routes are free; Wikimedia asks
         # identified clients to stay near 200 requests a minute.
         "wikidata": (
@@ -164,6 +179,13 @@ def licences() -> dict:
             "commercial": finnhub_paid,
             "buy": "a commercial plan, quote-based (finnhub.io); then FINNHUB_PLAN=commercial",
         },
+        # §289: personal use only on the free plan, like Finnhub's.
+        "tiingo": {
+            "in_use": bool((settings.tiingo_api_key or "").strip()),
+            "plan": settings.tiingo_plan or "free",
+            "commercial": settings.tiingo_plan not in ("", "free"),
+            "buy": "temporary while developing (§289): replace it before charging",
+        },
         "open_meteo": {
             "in_use": meteo_key or bool(settings.open_meteo_keyless),
             "plan": "paid key" if meteo_key else (
@@ -186,11 +208,20 @@ _HOSTS = (
     ("finnhub.io", "finnhub"),
     ("polymarket.com", "polymarket"),
     ("balldontlie.io", "balldontlie"),
+    # §289: the free plans used while developing.
+    ("api-sports.io", "api_sports"),
+    ("tiingo.com", "tiingo"),
     # §278: the reference look (`wikimedia._send`).
     ("wikidata.org", "wikidata"),
     ("wikipedia.org", "wikipedia"),
     ("enterprise.wikimedia.com", "wikimedia_enterprise"),
 )
+
+
+def settings_daily() -> int:
+    from config import settings
+
+    return int(settings.api_sports_daily_requests)
 
 
 def provider_for_host(host: str) -> str:
@@ -454,8 +485,8 @@ def report(now: Optional[float] = None, days: int = 7) -> list[dict]:
         why = failure_reasons(provider)
         if why:
             row["failure_reasons"] = why
-        if provider == "balldontlie":
-            breakdown = _league_breakdown(seen, today, yesterday, days)
+        if provider in ("balldontlie", "api_sports"):
+            breakdown = _league_breakdown(seen, today, yesterday, days, provider)
             if breakdown:
                 row["breakdown"] = breakdown
         rows.append(row)
@@ -463,11 +494,12 @@ def report(now: Optional[float] = None, days: int = 7) -> list[dict]:
 
 
 def _league_breakdown(seen: dict, today: str, yesterday: str,
-                      days: int) -> list[dict]:
+                      days: int, provider: str = "balldontlie") -> list[dict]:
     """One row per BALLDONTLIE league asked in the window: one plan covers
-    them all, so the rows say where the requests went, not what each costs."""
+    them all, so the rows say where the requests went, not what each costs.
+    API-Sports' rows are its sports (§289), each its own day's allowance."""
     out = []
-    prefix = "balldontlie" + SUB
+    prefix = provider + SUB
     for key in sorted(k for k in seen if k.startswith(prefix)):
         per_day = seen[key]
         total = sum(requests for requests, _ in per_day.values())
@@ -479,7 +511,9 @@ def _league_breakdown(seen: dict, today: str, yesterday: str,
             "failed_today": per_day.get(today, (0, 0))[1],
             "yesterday": per_day.get(yesterday, (0, 0))[0],
             "average": round(total / max(1, days), 1),
-            "limit": "the account's plan",
-            "next": "shared by every league",
+            "limit": "the account's plan" if provider == "balldontlie" else
+                     f"{settings_daily()} a day (free plan)",
+            "next": "shared by every league" if provider == "balldontlie" else
+                    "its own allowance",
         })
     return out

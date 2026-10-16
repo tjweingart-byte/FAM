@@ -20806,3 +20806,94 @@ Bush" is commoner in a script.
 
 Tests: `tests/test_feedback_288.py` (new); `tests/test_loading_demo.py`
 (the chevrons' markup); `tests/test_pipeline.py` (the leak).
+
+## 289. API-Sports and Tiingo's free plans while developing (2026-10-16)
+
+The owner (10.16): BALLDONTLIE charges by sport, and its free plan - five
+requests a minute, games, teams and players, no standings - is not enough to
+use the app while it is being built; neither is a paid market feed worth
+buying yet. "We are not going to use either Tiingo or API-Sports once we go
+commercial, but we want to use their free tiers now." So both come in as
+**temporary** providers, each in one file, each removable by deleting that
+file and its call sites. §280's removal stands as the direction: this does
+not bring back the 1,900 lines it deleted (a revert conflicted in about 30
+files and would have restored a second scoreboard).
+
+**API-Sports (`api_sports.py`) sits under BALLDONTLIE's scoreboard.**
+`balldontlie_scores.ScoreBoard` and its sweep ask a client for
+`get(league, kind, path, params)` and read BALLDONTLIE-shaped rows.
+`api_sports.Client` answers that call for `teams`, `games` and `standings`
+from API-Sports and translates each row - the short status code to
+`status_state` (anything unlisted is "", so `unknown`), `home_team` /
+`visitor_team`, the scores, the start, the period and clock - so the closed
+vocabulary, the stuck-feed check (`believable`), ScoreGuard's sentences and
+the tiles are the scoreboard's own. A `Router` sends each league to one
+provider, never both. Which leagues: with `API_SPORTS_KEY` set, every league
+in `api_sports.LEAGUES` (NFL, college football, NBA, WNBA, men's college
+basketball, MLB, NHL, the five European leagues, the Champions League, MLS,
+the World Cup) while BALLDONTLIE is absent or on Free; `API_SPORTS_LEAGUES`
+names them instead. Formula 1, UFC, player figures and injuries stay
+BALLDONTLIE's (the key alone now builds the scoreboard: `DERIVED_FROM_KEY`).
+
+What it keeps:
+
+* **Ids never cross.** Every id it hands out is `aps:`-prefixed. A team id
+  from one provider asked of the other returns somebody else's team. The
+  player reports skip `aps:` catalogues (`_held_teams`), and BALLDONTLIE's
+  own catalogue of a league API-Sports serves is held apart
+  (`balldontlie_scores.SHADOW_TEAMS`), so neither reaches the other.
+* **A refusal is never a quiet day.** API-Sports answers 200 with the reason
+  in `errors`: a spent day is `RateLimited`, a refused key
+  `balldontlie.AccountRefused`, and **the free plan's season limit** (which
+  this plan has; the window is not published) `TierRefused`, remembered for
+  the day and said in the scoreboard's diagnosis and `/api/health`'s
+  `live_sources.free_plans`. If the free plan does not reach the current
+  season, that is what the deploy says - never "no games".
+* **Its day is counted per sport** (`API_SPORTS_DAILY_REQUESTS`, 100; paced
+  to `API_SPORTS_PER_MINUTE`, 10). A window with a team is one request for
+  that team's season (a request per day would be three); answers are reused
+  for `REUSE_SECONDS` so one lookup's window and schedule are one request.
+* **The sweep keeps the end of the day for listeners**:
+  `Client.sweep_may` stops it while `API_SPORTS_LOOKUP_RESERVE` (40) of the
+  sport's requests are left. `balldontlie_scores.sweepable` lets an
+  API-Sports league be swept even when BALLDONTLIE's Free plan cannot carry
+  the sweep (§281).
+* **Provenance names who answered**: a game's `LiveFacts.source` is
+  "API-Sports" (`ScoreBoard._source`), and /admin has an API-Sports row with
+  a row per sport (`api_sports/<sport>`).
+
+**Tiingo (`tiingo.py`) is Finnhub's markets source with Tiingo's requests.**
+`TiingoSource` subclasses `live_sources.FinnhubSource`, so the sentences,
+the freshness check and §267's closed-market rule are Finnhub's; IEX's top of
+book is translated into Finnhub's quote shape (`c`, `pc`, `dp`, `t`). The
+ticker comes from Tiingo's own search (`pick_listing`: the ticker typed, then
+the first active US stock, then a fund) - never a guess. Tiingo has no
+market-status endpoint, so the session is computed: closed outside 9:30-16:00
+Eastern on a weekday; inside it, open only with an IEX sale under fifteen
+minutes old, else unknown - a holiday or an early close is never "is trading
+at". The key goes in a header, never the URL (§144). FAM rations below the
+plan (`TIINGO_HOURLY_REQUESTS` 45 of 50, `TIINGO_DAILY_REQUESTS` 950 of 1,000).
+`TIINGO_API_KEY` puts markets on Tiingo ahead of Finnhub;
+`LIVE_MARKETS_PROVIDER=finnhub` keeps Finnhub with both keys. The sweep
+(`story_sources.TiingoSignals`) is the same watchlist and threshold in **one
+request** (Finnhub's is thirteen), and only the markets provider the episodes
+read is swept (`FinnhubSignals.active`). Free is personal use only;
+`provider_usage.licences` flags it red beside Finnhub's.
+
+**Volume.** Finnhub's sweep is 13 requests every two hours (156 a day) plus
+up to 3 per markets episode. On Tiingo the sweep is 12 a day and an episode
+1-2 (search, quote; a watchlist symbol the sweep quoted costs none in the
+same session), so the limit that binds is 45 an hour - about 20-40 markets
+episodes an hour - and 500 different tickers a month.
+
+**Not verified.** Neither host is reachable from this container; both are
+written from the providers' documented shapes and §280's removed adapter, and
+exercised against recorded shapes in `tests/test_free_plans_289.py`.
+`python tools/verify_live.py` on a machine with the keys is what says they
+answer, and the first thing to look at is whether API-Sports' free plan
+serves the 2026 season.
+
+Staging scrubs both keys (`spend_guard`). Settings in `config.py`,
+`.env.example`, `render.yaml` (production, `sync: false`) and
+`tests/conftest.py`. `CLAUDE.md`'s `[sports-balldontlie]` line names the
+free plans; §289 notes at `sports-balldontlie` and `sweep-on-demand`.

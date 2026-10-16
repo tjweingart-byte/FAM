@@ -339,8 +339,19 @@ async def _pages(client, league: League, kind: str, path: str,
     return rows
 
 
+#: §289: BALLDONTLIE's own catalogue of a league API-Sports answers for, kept
+#: apart so its ids never reach the scoreboard and API-Sports' never reach
+#: the player reports. Read by nobody else.
+SHADOW_TEAMS: dict = {}
+
+
 async def league_teams(client, league: League) -> dict:
-    held = TEAMS.get(league.key)
+    import api_sports
+
+    store = TEAMS
+    if api_sports.serves(league.key) and not api_sports.answers_for(client):
+        store = SHADOW_TEAMS
+    held = store.get(league.key)
     if held and time.time() - held[0] < TEAMS_SECONDS:
         return held[1]
     params: dict = {"per_page": 100}
@@ -349,7 +360,7 @@ async def league_teams(client, league: League) -> dict:
     data = await client.get(league, "teams", "teams", params)
     rows = {r.get("id"): r for r in (data or {}).get("data") or []
             if isinstance(r, dict) and r.get("id") is not None}
-    TEAMS[league.key] = (time.time(), rows)
+    store[league.key] = (time.time(), rows)
     return rows
 
 
@@ -514,14 +525,26 @@ class ScoreBoard(LiveSource):
         self._windows: dict = {}
 
     def diagnose(self) -> tuple[bool, str]:
-        if not settings.balldontlie_api_key:
+        import api_sports
+
+        if not settings.balldontlie_api_key and not api_sports.served():
             return False, "BALLDONTLIE_API_KEY is not set"
         problem = getattr(self.client, "problem", lambda: "")()
-        return True, (f"BALLDONTLIE_API_KEY present, plan "
-                      f"{settings.balldontlie_tier}: games for "
-                      f"{len(SHAPES)} leagues, Formula 1 and UFC (not verified "
-                      "from this machine)"
+        said = (f"BALLDONTLIE_API_KEY present, plan "
+                f"{settings.balldontlie_tier}: games for "
+                f"{len(SHAPES)} leagues, Formula 1 and UFC (not verified "
+                "from this machine)") if settings.balldontlie_api_key else \
+            "BALLDONTLIE_API_KEY is not set: no Formula 1 or UFC"
+        # §289: API-Sports' free plans answer some leagues while developing.
+        extra = api_sports.describe()
+        return True, (said + (f"; {extra}" if extra else "")
                       + (f"; ACCOUNT REFUSED: {problem}" if problem else ""))
+
+    def _source(self, league_key: str) -> str:
+        """Who answered for this league (§289): provenance names the
+        provider read, never the scoreboard's name alone."""
+        named = getattr(self.client, "source_for", lambda k: "")(league_key)
+        return named or self.name
 
     async def verify(self) -> tuple[bool, str]:
         try:
@@ -529,7 +552,8 @@ class ScoreBoard(LiveSource):
         except Exception as exc:  # noqa: BLE001
             return False, f"{type(exc).__name__}: {exc}"
         count = len((data or {}).get("data") or [])
-        return count > 0, f"BALLDONTLIE answered with {count} NBA teams"
+        who = self._source("nba").replace(" scores", "")
+        return count > 0, f"{who} answered with {count} NBA teams"
 
     # ---- finding the game ---------------------------------------------------
     async def resolve(self, brief) -> Optional[Entity]:
@@ -710,7 +734,7 @@ class ScoreBoard(LiveSource):
         said += await self._seasons(league, row, catalogue)
         if not said:
             return None
-        return LiveFacts(domain="sports", source=self.name,
+        return LiveFacts(domain="sports", source=self._source(key),
                          as_of=datetime.fromtimestamp(read_at, tz=timezone.utc),
                          facts=said, status=status, entity=entity)
 
@@ -931,6 +955,18 @@ def sweeps_on_plan(tier: Optional[str] = None) -> bool:
     return balldontlie.PER_MINUTE.get(tier, 5) > SWEEP_RESERVE
 
 
+def _api_sports(key: str) -> bool:
+    import api_sports
+
+    return api_sports.serves(key)
+
+
+def sweepable(key: str) -> bool:
+    """Whether the sweep may follow this league at all: API-Sports' leagues
+    are paced by their own day (§289), BALLDONTLIE's by its plan's minute."""
+    return _api_sports(key) or sweeps_on_plan()
+
+
 def watching(rows: list, now: float) -> bool:
     """A held card with a game under way, about to start, or started in the
     last few hours and not yet final (§191)."""
@@ -966,17 +1002,21 @@ def make_signals():
                     live_facts.FINAL: 0.55}
 
         def __init__(self, client=None) -> None:
-            self.client = client or balldontlie.shared_client()
+            import api_sports
+
+            # §289: a `Router` while API-Sports answers any league.
+            self.client = client or api_sports.scoreboard_client()
 
         def diagnose(self) -> tuple[bool, str]:
+            import api_sports
             import live_sources
 
-            if not settings.balldontlie_api_key:
+            if not settings.balldontlie_api_key and not api_sports.served():
                 return False, "BALLDONTLIE_API_KEY is not set, so sports stories are off"
             if live_sources.configured().get("sports") != "balldontlie":
                 return False, ("sports are on another provider "
                                f"({live_sources.configured().get('sports') or 'none'})")
-            if not sweeps_on_plan():
+            if not any(sweepable(k) for k in SWEPT):
                 return False, (f"BALLDONTLIE's {settings.balldontlie_tier} plan "
                                f"allows {balldontlie.PER_MINUTE.get(settings.balldontlie_tier, 5)}"
                                " requests a minute, one listener's question: the "
@@ -1010,7 +1050,7 @@ def make_signals():
             return days
 
         def idle(self, now: float) -> str:
-            if not sweeps_on_plan():
+            if not any(sweepable(k) for k in SWEPT):
                 return (f"BALLDONTLIE's {settings.balldontlie_tier} plan cannot "
                         "carry the sweep; sports are looked up on demand")
             if not stories.recent_demand(now):
@@ -1022,13 +1062,13 @@ def make_signals():
             return ""
 
         async def collect(self, limit: int) -> list:
-            if not sweeps_on_plan():
+            if not any(sweepable(k) for k in SWEPT):
                 return []
             clock = time.time()
             # §281: a league the plan cannot reach (the World Cup below GOAT)
             # is never asked, and is not a failure.
-            due = {k: self.due(k, clock) for k in SWEPT
-                   if balldontlie.plan_reaches(k, "games")}
+            due = {k: self.due(k, clock) for k in SWEPT if sweepable(k)
+                   and (_api_sports(k) or balldontlie.plan_reaches(k, "games"))}
             due = {k: d for k, d in due.items() if d}
 
             async def card(key, days):
@@ -1063,9 +1103,12 @@ def make_signals():
             # in it. The sweep stops while a question still fits in the
             # minute; a league not reached is due again next time.
             spare = getattr(self.client, "spare", None)
+            # §289: per league, where a `Router` decides whose allowance it is.
+            may = getattr(self.client, "sweep_may", None)
             stopped: Optional[RateLimited] = None
             for key, days in due.items():
-                if spare is not None and spare() <= SWEEP_RESERVE:
+                if (not may(key)) if may is not None else (
+                        spare is not None and spare() <= SWEEP_RESERVE):
                     stopped = RateLimited(
                         f"sweep stopped before {key}: the minute's last "
                         f"{SWEEP_RESERVE} requests are kept for listeners")
