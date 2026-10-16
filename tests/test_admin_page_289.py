@@ -1,4 +1,4 @@
-"""The 10.16 implementations: six changes to the admin page (PROBLEMS.md §285).
+"""The 10.16 implementations: six changes to the admin page (PROBLEMS.md §289).
 
 1. Pipeline errors: every kind opens on what it means, the categories of
    episode it hit, its times of day and its newest cases; the page is tabbed

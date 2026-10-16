@@ -37,7 +37,7 @@ asked again for `RECHECK_DAYS`.
 **Unverified against the real services** for the same reason as
 `wikimedia.py`: the build container cannot reach en.wikipedia.org. The
 template shapes are read from Wikipedia's documentation and pinned in
-`tests/test_wiki_pronounce_1016.py`.
+`tests/test_admin_page_289.py`.
 """
 from __future__ import annotations
 

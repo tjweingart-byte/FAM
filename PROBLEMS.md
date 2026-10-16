@@ -20371,7 +20371,7 @@ just after the generator test cleared its calls. Reproduced by sleeping 0.6 s
 before that clear; the late test now waits for its abandoned look to finish
 against its own fake.
 
-## 285. The 10.16 admin page: errors that open, reports explained, transcripts that arrive, GDELT's pressure, Finnhub's refusals and Wikipedia's pronunciations (2026-10-16)
+## 289. The 10.16 admin page: errors that open, reports explained, transcripts that arrive, GDELT's pressure, Finnhub's refusals and Wikipedia's pronunciations (2026-10-16)
 
 Six notes from the owner about `/admin`, one PDF (`10.16.26_implementations_3`).
 

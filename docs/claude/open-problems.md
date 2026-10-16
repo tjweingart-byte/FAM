@@ -50,7 +50,7 @@
    admin fixes any name on /admin and is never overridden, and only the text
    handed to the voice changes - captions, cache and titles keep the real
    spelling. Unheard.
-   > **Current (PROBLEMS.md §285, at the owner's direction: "Wikipedia is
+   > **Current (PROBLEMS.md §289, at the owner's direction: "Wikipedia is
    > very good with pronunciation and should help to correct pronunciations
    > that are already in the admin page and produce new ones"):** every name
    > a model adds is looked up on Wikipedia in the background

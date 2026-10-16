@@ -561,7 +561,7 @@
   > written off for an hour; a timeout, drop or passing 5xx is asked once more;
   > one file's failure stops nothing else; every failure is counted with its
   > reason on the admin page.
-  > **Current (PROBLEMS.md §285):** 5,700 requests a day where 200 was the
+  > **Current (PROBLEMS.md §289):** 5,700 requests a day where 200 was the
   > design: a file that kept failing was asked twice at every poll for two
   > hours. A file is now written off after `GDELT_EXPORT_FILE_TRIES` failed
   > syncs, a timed-out GKG file is not asked twice in one sync, a named file
