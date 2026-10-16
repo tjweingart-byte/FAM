@@ -48,6 +48,13 @@ import research as research_mod
 log = logging.getLogger(__name__)
 
 
+#: Each example's length in minutes, from its file name (`2-...txt`), so the
+#: writer sees what that many minutes sounds like beside the words it took
+#: (§286): a small writer matches a demonstrated length far more closely
+#: than a stated one.
+EXAMPLE_MINUTES: dict[str, int] = {}
+
+
 def load_style_examples() -> list[tuple[str, str]]:
     """Briefings from examples/ that show the model the house voice.
 
@@ -62,6 +69,7 @@ def load_style_examples() -> list[tuple[str, str]]:
 
     directory = pathlib.Path(__file__).resolve().parent / "examples"
     found: list[tuple[str, str]] = []
+    EXAMPLE_MINUTES.clear()
     if not directory.is_dir():
         return found
 
@@ -73,6 +81,9 @@ def load_style_examples() -> list[tuple[str, str]]:
         query, script = head.strip(), body.strip()
         if query and script:
             found.append((query, script))
+            minutes = path.name.split("-", 1)[0]
+            if minutes.isdigit():
+                EXAMPLE_MINUTES[query] = int(minutes)
         else:
             log.warning("skipping style example %s: expected a query, a blank line, then the script",
                         path.name)
@@ -91,12 +102,16 @@ def style_example_block() -> str:
     parts = [
         "\nThis is the house voice. Match its rhythm, its directness and the way "
         "it opens and closes. Do not borrow its facts or its topics - only how it "
-        "sounds. They show the spoken script only; you must still end with the "
+        "sounds - and how much one answer holds at its length: each says how "
+        "many minutes it was asked for and how many words it took. They show "
+        "the spoken script only; you must still end with the "
         "<<NEXT: ...>> line:\n"
     ]
     for query, script in STYLE_EXAMPLES:
         words = len(script.split())
-        parts.append(f'<example query="{query}" words="{words}">\n{script}\n</example>\n')
+        minutes = EXAMPLE_MINUTES.get(query)
+        length = f' minutes="{minutes}"' if minutes else ""
+        parts.append(f'<example query="{query}"{length} words="{words}">\n{script}\n</example>\n')
     return "\n".join(parts)
 
 # The last few openers spoken by this server. Fed back into the prompt so a
@@ -113,6 +128,36 @@ def remember_opener(text: str) -> None:
     del _RECENT_OPENERS[:-_RECENT_LIMIT]
 
 _SENTENCE_END = re.compile(r"(?<=[.!?])[\"')\]]*\s+")
+#: A full stop that ends an abbreviation, not a sentence (§288): "Dr. Patel",
+#: "Oct. 14", "the U.S. economy". Cut there, half a sentence went to the voice
+#: alone and its other half had to be voiced before it could play - a pause
+#: in the middle of a line.
+_TITLE_BEFORE = re.compile(
+    r"(?:^|[\s(\"'])(?:Mr|Mrs|Ms|Dr|St|Jr|Sr|vs|Gov|Sen|Rep|Gen|Lt|Col|Sgt|"
+    r"Prof|Capt|Mt|[A-Z])\.$")
+#: Ends a sentence or not by what follows it: a month before a day, initials
+#: such as "U.S." before a lower-case word or a number.
+_MONTH_BEFORE = re.compile(
+    r"(?:^|\s)(?:Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec|No)\.$")
+_INITIALS_BEFORE = re.compile(r"(?:^|[\s(])(?:[A-Z]\.){2,4}$")
+
+
+def find_sentence_end(text: str):
+    """The first `_SENTENCE_END` in `text` that really ends a sentence, or
+    None - also None when what follows has not arrived yet and is what
+    decides it, so a stream waits for the next word rather than guessing."""
+    for match in _SENTENCE_END.finditer(text):
+        head = text[: match.start()].rstrip("\"')]")
+        after = text[match.end(): match.end() + 1]
+        if _TITLE_BEFORE.search(head):
+            continue
+        if _MONTH_BEFORE.search(head) or _INITIALS_BEFORE.search(head):
+            if not after:
+                return None
+            if after.isdigit() or after.islower():
+                continue
+        return match
+    return None
 # The one line the model may write that is not speech: its prediction of what
 # this listener would most likely ask next, read off what the episode covered.
 # Stripped before synthesis and handed to the interface, which offers it as a
@@ -237,6 +282,71 @@ def is_meta_sentence(sentence: str) -> bool:
     return bool(_META_OPENER.search(_QUOTED.sub(" ", sentence)))
 
 
+#: A sentence about the writer's *material* - its notes, its sources, what it
+#: was or was not given (§288). Unlike `_META_PHRASES` these never describe
+#: the world in any reading, so they are dropped wherever they fall, not only
+#: at the head of an episode. The 10.16 feedback: an episode on Haiku "kept
+#: saying things like 'this is not a part of the information I received'".
+#: Narrow on purpose: "the evidence suggests" and "sources close to the
+#: team" are reporting, and stay.
+_MATERIAL_PHRASES = (
+    # "the information I received", "the material I was given", "the
+    # reports I have"
+    r"\b(?:information|material|materials|sources?|reporting|reports?|"
+    r"articles?|notes|research|evidence|passages?|documents?)\s+(?:that\s+)?"
+    r"i(?:'?ve|\s+have)?\s+(?:been\s+)?(?:received|receive|was\s+given|"
+    r"were\s+given|got|have|had|gathered|was\s+shown|was\s+provided|"
+    r"was\s+handed|am\s+working\s+(?:from|with))\b",
+    # "not a part of what I received", "isn't part of the information"
+    # - about the writer's own: "what I...", "the information I...", "the
+    # material provided" (to nobody named), "my notes"; never "the evidence
+    # presented to the jury" or "the information released by police".
+    r"\b(?:not|isn'?t|wasn'?t|aren'?t|weren'?t)\s+(?:a\s+|any\s+)?part\s+of\s+"
+    r"(?:what\s+i\b|my\s+(?:information|material|materials|notes|sources?|"
+    r"evidence)\b|(?:the\s+)?(?:information|material|materials|notes|passages?)"
+    r"\s+(?:i\b|(?:provided|given)\b(?!\s+(?:to|by)\b)))",
+    r"\b(?:provided|given|handed|supplied|available)\s+to\s+me\b",
+    r"\bwhat\s+i\s+(?:received|was\s+given|was\s+handed|was\s+provided|"
+    r"have\s+in\s+front\s+of\s+me|have\s+here)\b",
+    r"\bmy\s+sources?\s+(?:here\s+)?(?:don'?t|do\s+not|didn'?t|"
+    r"did\s+not|doesn'?t|does\s+not)\s+(?:say|mention|cover|include|"
+    r"specify|give|state|show|tell|address|go\s+into)\b",
+    r"\b(?:in|from)\s+(?:my\s+notes|the\s+packet|the\s+source\s+material\s+i|"
+    r"the\s+materials?\s+i)\b",
+    r"\bbased\s+on\s+(?:what\s+i\s+(?:have|know|was\s+given)|(?:the|my)\s+"
+    r"(?:information|sources|material|notes)\s+i)\b",
+    r"\bas\s+of\s+my\s+(?:knowledge|training|last\s+update)\b",
+    r"\bmy\s+(?:information|knowledge\s+cutoff|training\s+data)\b",
+    r"\bi\s+(?:wasn'?t|was\s+not)\s+(?:given|handed|shown|provided)\b",
+)
+_MATERIAL = re.compile("|".join(_MATERIAL_PHRASES), re.I)
+
+
+def is_material_sentence(sentence: str) -> bool:
+    """True when this sentence talks about the writer's material (§288).
+    Quoted speech is somebody else's and is removed first."""
+    return bool(_MATERIAL.search(_QUOTED.sub(" ", sentence)))
+
+
+class MaterialGuard:
+    """Drop a sentence about the writer's own material, wherever it falls
+    (§288). `OpeningGuard` looks only at the first sentences; this looks at
+    every one, with phrases that never describe the world. A drop is logged
+    and, like the opening check's, reported on /admin's errors. Nothing is
+    said in its place (no-filler)."""
+
+    def __init__(self) -> None:
+        self.dropped: list[str] = []
+
+    def allow(self, sentence: str) -> bool:
+        if not is_material_sentence(sentence):
+            return True
+        self.dropped.append(sentence.strip())
+        log.warning("dropped a sentence about the writer's material: %r",
+                    sentence.strip()[:120])
+        return False
+
+
 class OpeningGuard:
     """Hold back a disclaimer before it becomes the first thing spoken.
 
@@ -290,7 +400,7 @@ class OpeningGuard:
         return text
 
 
-SYSTEM_PROMPT = """You write FAM: short spoken pieces that answer what someone asked, told as a \
+SYSTEM_PROMPT = """You write FAM: spoken pieces that answer what someone asked, told as a \
 story - a story made *of* the facts, not wrapped around them. Done right the \
 listener never notices the shape; they just find they do not want to stop.
 
@@ -336,8 +446,8 @@ I can tell you about...", "Let's talk about...", "This is a fascinating \
 topic...", "There's a lot to unpack here...".
 
 How it is built:
-- **Because, therefore, but - not and then.** Facts in time order are a list. \
-Causation is a story. Each beat should feel like it had to follow the one \
+- **Because, therefore, but - not and then.** Facts in time order, or source \
+by source, are a list. Causation is a story. Each beat should feel like it had to follow the one \
 before.
 - **Tension then release.** Something is unresolved, surprising or at stake; \
 everything moves toward resolving it; when it resolves, you are done.
@@ -391,8 +501,8 @@ stands.
 better-supported one - never the argument.
 - Never fill a gap with something that merely sounds plausible. That is the \
 worst thing you can do here.
-- **Never say what you do not have** up front - "I don't have", "I can't \
-confirm" lose a listener in ten seconds. **Where a thing stands in the world is \
+- **Never say what you do not have**, or mention your material at all - "I \
+don't have", "the information I received" lose a listener in seconds. **Where a thing stands in the world is \
 the episode** - "the game is in the seventh" - and **where it stands in your \
 notes never is**: write the part you can and leave the rest out. Finding \
 little never means a thing does not exist.
@@ -833,7 +943,8 @@ def plan_episode(
     # on scope, so the model picks something it can actually resolve rather
     # than starting something too big and padding or truncating it.
     if minutes <= 2:
-        sections = ["one question, opened and answered"]
+        sections = ["one question, answered fully - the answer, what explains "
+                    "it and the particulars that make it stick"]
     elif minutes <= 4:
         sections = ["one question, with the turn that makes it interesting"]
     elif minutes <= 7:
@@ -1031,6 +1142,12 @@ Someone has already searched the web for this and pulled out the passages
 below. They are your source for anything current: read them and use what they
 actually say. Do not claim anything they do not support, and do not pretend to
 have looked anything else up.
+
+The listener has never seen these passages and does not know they exist. They
+are what you know, told as the story, in your own words and in the order the
+story needs - never one source after another, never their sentences repeated,
+and never a word about them: not "the information I received", "the sources
+say", "that is not in what I was given".
 
 Each one carries when it was published and who published it. **Use both.** The
 publication date is how you know whether something happened last night or last
@@ -1280,7 +1397,10 @@ after them.
 The time is the listener's, not a quota. If the story resolves early, stop
 there; a short piece that lands beats a long one padded out. If you catch
 yourself saying a topic is complex, or restating something, the story is over -
-end it.
+end it. But resolving early is rare: a question worth asking usually fills most
+of its time with substance - the answer, what explains it, the particulars and
+what it changes. If you are heading for well under {budget} words, look again
+at the evidence for the mechanism or the detail you skipped before you stop.
 
 One last thing, and it is the thing this episode is most likely to get wrong.
 **Decide the whole piece before you write the first word of it.** What the
@@ -1357,7 +1477,10 @@ class _ScriptReader:
         self.notes = notes
         self.buffer = ""
         self.emitted_words = 0
+        self.finished_words = 0
         self.guard = OpeningGuard()
+        # Anywhere in the piece, never only at its head (§288).
+        self.material = MaterialGuard()
         # A sports episode's scores, periods and results, held to the
         # scoreboard before they are spoken (§259).
         self.scores = score_guard.ScoreGuard(plan)
@@ -1404,13 +1527,14 @@ class _ScriptReader:
         # of letting the sentence splitter reach it.
         speech, marker, rest = self.buffer.partition("<<")
         while True:
-            match = _SENTENCE_END.search(speech)
+            match = find_sentence_end(speech)
             if not match:
                 break
             sentence = clean_for_speech(speech[: match.end()])
             speech = speech[match.end() :]
             if sentence and self.scores.allow(sentence) \
-                    and self.figures.allow(sentence) and self.guard.allow(sentence):
+                    and self.figures.allow(sentence) \
+                    and self.material.allow(sentence) and self.guard.allow(sentence):
                 self.emitted_words += count_words(sentence)
                 out.append(sentence)
         self.buffer = speech + marker + rest
@@ -1429,12 +1553,18 @@ class _ScriptReader:
             log.info("writer cut off mid-sentence; not speaking %r", tail[-80:])
             tail = ""
         if tail and self.scores.allow(tail) and self.figures.allow(tail) \
-                and self.guard.allow(tail):
+                and self.material.allow(tail) and self.guard.allow(tail):
             out.append(tail)
         # Nothing but disclaimer is still better than nothing at all.
         rescued = self.guard.rescue()
         if rescued:
             out.append(rescued)
+        # And nothing but talk of the material (§288), for the same reason.
+        if not out and not self.emitted_words and self.material.dropped \
+                and not self.scores.dropped and not self.figures.dropped:
+            log.error("the whole script was about its material; speaking it "
+                      "rather than nothing")
+            out.append(" ".join(self.material.dropped))
         # Nothing but unvouched scores is not (§259): one fixed line instead.
         if not out and not self.emitted_words:
             line = self.scores.rescue() or self.figures.rescue()
@@ -1445,12 +1575,14 @@ class _ScriptReader:
             self.notes.title = extract_title(self.buffer)
             self.notes.summary = extract_summary(self.buffer)
             self.notes.category = extract_category(self.buffer)
-            self.notes.meta_openings = tuple(self.guard.dropped)
+            self.notes.meta_openings = (tuple(self.guard.dropped)
+                                        + tuple(self.material.dropped))
             self.notes.score_drops = tuple(self.scores.dropped)
             self.notes.figure_drops = tuple(self.figures.dropped)
         # A check that had to catch the writer is a prompt rule failing: one
         # notice per check per episode on /admin's errors (§269).
         for check, dropped in (("opening check", self.guard.dropped),
+                               ("material check", self.material.dropped),
                                ("score check", self.scores.dropped),
                                ("figure check", self.figures.dropped)):
             if dropped:
@@ -1458,7 +1590,42 @@ class _ScriptReader:
                     "writer", f"{check} removed {len(dropped)} sentence"
                     f"{'s' if len(dropped) != 1 else ''}", dropped[0],
                     self.plan.query, pipeline_errors.NOTICE)
+        self.finished_words = self.emitted_words + sum(
+            count_words(line) for line in out)
         return out
+
+    def note_if_short(self, outcome: str) -> None:
+        """Called once the call's outcome is known: only a script that ended
+        on its own (`ok`) is judged - a refusal, a script cut off by its
+        ceiling or stopped at its budget is counted elsewhere (review)."""
+        if outcome == "ok":
+            self._note_if_short(
+                self.finished_words - self.emitted_words, cut_off=False)
+
+    def _note_if_short(self, tail_words: int, cut_off: bool) -> None:
+        """A script well under its length, on /admin's errors (§286).
+
+        Report only: the length stays a ceiling and nothing is padded or
+        topped up ([duration-ceiling]). Since the writer moved to Haiku,
+        episodes ran a minute short and it was noticed by ear; this is where
+        it is counted, so a change to the prompt or the examples can be seen
+        to work or not."""
+        words = self.emitted_words + int(tail_words or 0)
+        budget = int(getattr(self.plan, "word_budget", 0) or 0)
+        if cut_off or not words or not budget:
+            return
+        if words >= budget * SHORT_SCRIPT_SHARE:
+            return
+        pipeline_errors.record(
+            "writer", "script well under its length",
+            f"{words} of about {budget} words ({round(100 * words / budget)}%)"
+            f" for {self.plan.minutes} minutes", self.plan.query,
+            pipeline_errors.NOTICE)
+
+
+#: Under this share of its word budget, a finished script is noted on
+#: /admin's errors as well under its length (§286). Report only.
+SHORT_SCRIPT_SHARE = 0.7
 
 
 def _refusal_line(message) -> str:
@@ -2050,6 +2217,9 @@ class ScriptGenerator:
             writer_warm.warm_if_cold(self.client, notes)
         _mark(notes, "brief_start")
         plan = await self.understand(plan, notes)
+        # Already marked when the understanding half answered (§288); a
+        # warmed, degraded or switched-off brief is understood here.
+        _mark(notes, "brief_understood")
         _mark(notes, "brief_ready")
         # A brief that named no live domain still asks a provider when the
         # question names something one covers (§265) - decided in code,
@@ -2329,6 +2499,7 @@ class ScriptGenerator:
         refused = _refusal_line(final)
         outcome = _writer_outcome(final, plan, notes, model,
                                   over_budget=reader.over_budget)
+        reader.note_if_short(outcome)
         _writer_ended(path, outcome, first_word, time.monotonic() - started)
         if refused:
             pipeline_errors.record("writer", "refused", refused, plan.query)
@@ -2383,10 +2554,12 @@ class ScriptGenerator:
         cut_off = (not reader.over_budget
                    and getattr(message, "stop_reason", None) == "max_tokens")
         out.extend(reader.finish(cut_off=cut_off))
-        _writer_ended("ahead", _writer_outcome(
+        outcome = _writer_outcome(
             message, plan, notes, getattr(message, "model", None)
             or writer_for(notes)[0], batched=True,
-            over_budget=reader.over_budget), None, None)
+            over_budget=reader.over_budget)
+        reader.note_if_short(outcome)
+        _writer_ended("ahead", outcome, None, None)
         if notes is not None:
             # The model the batch answered with, as the API says it.
             notes.usage.add_model_call(
@@ -2437,7 +2610,7 @@ class ScriptGenerator:
             async for event in stream.text_stream:
                 buffer += event
                 while True:
-                    match = _SENTENCE_END.search(buffer)
+                    match = find_sentence_end(buffer)
                     if not match:
                         break
                     sentence = clean_for_speech(buffer[: match.end()])

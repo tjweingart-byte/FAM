@@ -390,6 +390,7 @@
   listening outvotes" (§121 and before).
 
 <!-- rule:op-taste-scoring -->
+> **Current (PROBLEMS.md §286, the owner 10.16):** Made for you's View more opens on the rail's own tiles (the client holds them), and everything it deals after them - the rest of the first page and every Refresh - is an episode already written (`cycle=cached`); when none is left it says "You're all caught up" with a way back to the top, never the first eight again. Every other rail still deals eight and wraps (§165).
 5b. **The taste model is crude, and less crude than it was.**
    *(§114 sharpened the scoring itself, which nothing before it had touched.
    Three changes, all in `topics.py`. `_affinity` was **blind to subtags** -
@@ -593,6 +594,7 @@
    two taps that fix it**, because the alternative was what it did before,
    which was to show strangers under a heading that said "people you follow".
 <!-- rule:op-friend-profile -->
+> **Current (PROBLEMS.md §285, the 10.16 packet):** `/api/person` also carries `friend_count` (how many friends they have - the size of the circle, like `follows`) for anyone who may open them, and `friends` - name, handle, face, whether you follow them; never an id - **only to a friend of theirs** (`null` otherwise), without you, anyone handle-less, blocked either way, suspended or waitlisted. A row opens that profile by handle, and Follow goes by handle. The page reads "Ian's Shelf" on its own line, "Public mixes" under it, and View more at the foot of each list.
 > **Current (PROBLEMS.md §219):** the place a listener gave (city, state, country as typed, whichever parts) is printed under their name on their own page (`/api/profile` `location`) and on the page a friend opens (`/api/person` `location`): putting it on the profile is publishing it, at the owner's direction.
 7b. **A friend's profile is its own screen, and it shows what they published.**
    *(§104, `SHARING.md`.)* The navigation bug the packet reported had four

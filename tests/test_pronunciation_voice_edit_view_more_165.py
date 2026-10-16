@@ -404,5 +404,6 @@ def test_view_more_asks_for_eight_and_has_a_refresh():
     html = _index()
     assert 'id="sectionRefresh"' in html and "refreshSection()" in html
     assert "var SECTION_PAGE = 8;" in html
-    assert '"&page_size=" + SECTION_PAGE' in html
+    # Less the rail's own tiles on Made for you's first page (§286).
+    assert "SECTION_PAGE - head.length" in html and '"&page_size=" + size' in html
     assert T.VIEW_MORE_PAGE == 8

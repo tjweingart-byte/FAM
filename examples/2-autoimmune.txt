@@ -1,0 +1,9 @@
+autoimmune
+
+Your body kills off most of the immune cells it makes, in your bone marrow and your thymus, on purpose. It's a quality check: any immune cell that reacts to your own tissue is destroyed before it's ever released into circulation. An autoimmune disease is what happens when that check misses one.
+
+A cell slips through with a shape that happens to match something in your own body - your joints, your skin, your thyroid. It gets out, finds a target that looks foreign to it, and calls in an attack: the same machinery that's supposed to go after a virus, aimed at you instead. Rheumatoid arthritis is that process landing on the lining of the joints. Type one diabetes is it landing on the cells in the pancreas that make insulin. Alopecia areata is it landing on hair follicles. Same mistake, different address - more than eighty diseases are this one failure showing up in different tissue.
+
+Why the checkpoint fails in one person and not another isn't fully mapped, but the pattern that keeps showing up is a collision: genes that make the screening slightly leaky, plus something in the environment - often an infection - that stirs the immune system up at the wrong moment and gives a borderline cell its opening. That's why these conditions cluster in families without ever being simply inherited.
+
+Treatment follows directly from the mechanism, because you can't go back and fix a check that failed years ago - so instead you turn the volume down on the attack itself. Steroids blunt inflammation broadly. Newer biologic drugs are narrower: each blocks one specific signal the misfiring cells use to recruit backup. Which is why a drug that transforms rheumatoid arthritis can do nothing for lupus - they're disarming different messengers in different misdirected attacks.

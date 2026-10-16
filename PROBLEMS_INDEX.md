@@ -288,4 +288,8 @@ and `limit` = Lines.
 | 20152 | 166 | 282. The 10.15 implementations: waitlist friend search, the waitlist's reset, private search, the APIs on a report, the features back, the founders, a story's reply row, and a picture that follows the team (2026-10-16) |
 | 20318 | 22 | 283. An eye on every password field (2026-10-16) |
 | 20340 | 34 | 284. The waitlist's video: a YouTube Short above the features (2026-10-16) |
-| 20374 | 87 | 289. The 10.16 admin page: errors that open, reports explained, transcripts that arrive, GDELT's pressure, Finnhub's refusals and Wikipedia's pronunciations (2026-10-16) |
+| 20374 | 76 | 285. The 10.16 implementations: a friend's friends, a vibe into the player, buttons on a dark picture, Continue on the suggestion, private search left on, and a mix row titled by its specific (2026-10-16) |
+| 20450 | 117 | 286. The 10.16 implementations: short Haiku episodes, more from each source, the writing on Haiku, the trusted sources, and Made for you's View more (2026-10-16) |
+| 20567 | 115 | 287. More examples for the Haiku writer, and a wider list of trusted sources (2026-10-16) |
+| 20682 | 128 | 288. The 10.16 instant feedback: the first step, a sent episode, Trending's sources, the writing on Haiku, and the pause in the first line (2026-10-16) |
+| 20810 | 87 | 289. The 10.16 admin page: errors that open, reports explained, transcripts that arrive, GDELT's pressure, Finnhub's refusals and Wikipedia's pronunciations (2026-10-16) |
