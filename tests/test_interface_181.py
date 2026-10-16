@@ -71,7 +71,10 @@ def test_welcome_samples_are_the_top_three_with_kept_audio(client, monkeypatch):
 def _own_picture(borrowed=(), none=()):
     """A picker: its own picture for every question, except those borrowed
     from a branch or with no picture at all."""
-    def pick(text, tags=(), category=""):
+    def pick(text, tags=(), category="", key=""):
+        # A tile reads its title and angle too, and names its question as
+        # `key` (§285).
+        text = key or text
         if text in none:
             return None
         return {"node": text, "facet": "world", "url": "/api/thumb/" + text,
