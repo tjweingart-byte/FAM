@@ -3901,6 +3901,25 @@ def main() -> int:
             page.wait_for_timeout(200)
             second = page.text_content("#storyTitle").strip()
             assert first and second and first != second, "tapping right did not advance"
+            # Reply, like and share to your story (§282): a reply is a
+            # message to them carrying the episode, and typing holds it.
+            assert page.is_visible("#storyReplyInput"), "no reply box on a friend's vibe"
+            page.evaluate("""() => { window.__sent = [];
+                var real = window.fetch;
+                window.fetch = function(u, o){
+                  if(String(u).indexOf('/api/messages') === 0 && o && o.body) window.__sent.push(JSON.parse(o.body));
+                  return real.apply(this, arguments); }; }""")
+            page.click("#storyReplyInput")
+            assert page.eval_on_selector("#storyOverlay", "e => e.classList.contains('paused')"), \
+                "typing a reply did not hold the story"
+            page.fill("#storyReplyInput", "Great one")
+            page.press("#storyReplyInput", "Enter")
+            page.wait_for_timeout(300)
+            sent = page.evaluate("window.__sent")
+            assert sent and sent[0]["text"] == "Great one" and sent[0]["query"], \
+                f"the reply was not sent with its episode: {sent}"
+            page.click("#storyLike")
+            assert page.get_attribute("#storyLike", "aria-pressed") == "true", "the heart did not fill"
             page.click("#storyOverlay .story-x")
             page.wait_for_timeout(200)
             assert page.eval_on_selector("#storyOverlay", "e => e.hidden"), \

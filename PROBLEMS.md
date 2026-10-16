@@ -20148,3 +20148,133 @@ written as "PROBLEMS.md 27x" had escaped the renumber and were corrected.
   carries its real fetch time.
 - A 401 was taken for a plan refusal; it is an account refusal now
   (`AccountRefused`), shown on /admin as such.
+
+## 282. The 10.15 implementations: waitlist friend search, the waitlist's reset, private search, the APIs on a report, the features back, the founders, a story's reply row, and a picture that follows the team (2026-10-16)
+
+The owner's "10.15.26 Implementation" packet.
+
+**Waitlist status page.**
+
+1. *Search friends on the waitlist.* A bar under Your FAM:
+   `GET /api/waitlist/people?q=` finds accounts (waitlisted or already in)
+   by name or handle from two characters, as `/api/people` does, or by an
+   email address or phone number typed **whole** - exact only, so nothing
+   typed lists anybody it does not already name; a number without its
+   country code is tried as +1 (the list's default) and as the digits with
+   a +. The answer is name, handle, face, initials, whether they are on the
+   list and whether they are added/friends - never what matched. **Add** is
+   `POST /api/waitlist/add`, a follow; both ways is Your FAM, as anywhere.
+   Blocked either way or suspended: not found, not added. This is the one
+   door by which a waitlisted account is found outside its graph
+   (`waitlist-gate` said "hidden from discovery except friends"), at the
+   owner's direction and only from the status page; the app's search, handle
+   lookup and follow are unchanged. Under the results, always, the card the
+   packet drew: "Can't find your friend on the waitlist? Invite them and
+   move up the waitlist!" with **Invite** (the share sheet, else the link
+   copied).
+2. *"1 more person until your next unlock" is gone* - row, styles and
+   script. Nothing is locked; the whole list is there. `/api/waitlist/me`
+   keeps `unlock` for any installed client (`old-clients`).
+
+**Forgot password, and who can change yours.** The app's log-in has had
+§244's reset since it was built; it is drawn only when the server can send
+mail, and production has no `SMTP_HOST` / `MAIL_FROM` yet (§263), which is
+why the owner never saw it. The waitlist's sign-in now has the same
+**Forgot password?**, the same two steps (the address, then the emailed
+code and a new password) against the same endpoints, under the same rule:
+drawn only when `/api/auth/reset` says mail is available. The packet's
+question - what stops a random person changing your password - has §244's
+answer: the 6-digit code goes only to the address already on the account,
+so a reset needs the inbox, not the address; it lives 15 minutes, is spent
+after 5 wrong tries, at most 5 an hour and one a minute; the start answer
+is identical whether or not the address has an account; a reset signs out
+every other device and emails the owner "Your FAM password was changed".
+Still open from §244: a phone-only account has no reset, and nothing
+verifies an address at sign-up.
+
+**Private search** (`private-search`). A third bubble, **Private**, beside
+Length and Voice. On, the search page is charcoal (`#screen-home.private-search`
+re-declares dark's palette on a near-black ground, so it holds in light mode
+too) and a line says what it means; the search it is sent with carries it
+and it turns itself off. On the server `/api/audio?private=1` (searchFAM
+only - anything else ignores it) records no play, stamps what it writes
+`cache.PRIVATE_ORIGIN` and writes no author. `recent` - the read behind
+exploreFAM, every crowd rail, the A to Z, categories and trending searches
+- never lists a private row, and `authored_by` (the friends rail's
+"created" half) cannot name its author because there is none. The client
+sends no `search` event, no complete/skip, no position and no history row
+while it plays (`currentPlayPrivate`, `historySurface`). Chosen over
+treating it as an attachment (no key, never cached), which would have lost
+its own replay, captions and title and re-written a popular question from
+scratch. Someone else asking the same question later gets the kept episode
+- nothing in it says who asked first - and if they ask it in the open and
+it is written again, it becomes a search like any other.
+
+**Instant feedback names the APIs used.** "Display the API keys that were
+used" is read as *which* services' keys - never their values, which are
+credentials (`credentials-fetched`) and are never read into a report, a
+page or a log. `app._episode_services` builds the list from records that
+already exist: provenance's `retrievers` (Parallel, Perplexity, GDELT),
+each live source and Wikipedia/Wikidata, the live-routing row the brief
+left (§264: every provider asked and its outcome), and the brief's and
+writer's models and the voice **as configured when the report is filed**,
+labelled so. Kept in the snapshot as `services`; `/admin`'s inbox draws
+"APIs used" between the sources and the transcript. A test files a report
+with `ANTHROPIC_API_KEY` set and finds no part of it in the report.
+
+**Waitlist landing.**
+
+1. *The features carousel is back*, under where the video will go (after
+   the cure, before the founders): §250's "How to get the most out of FAM"
+   carousel, kicker "Search. Scroll. Mix.", titled **Learn more. Go
+   deeper.**, its three slides and two phones a slide as they were. Its
+   pictures were retaken (`tools/landing_shots.py`: `dailyfam-rails` and
+   `myfam-mixes` back in the list, the player cut again from its still,
+   which is back in `tools/landing/stills/`); the mixes shot leaves off the
+   categories section, which the fixtures cannot fill. "Stay in the loop"
+   and "Better together" stay off for the video.
+2. *The founders' photo* is the packet's: the three of them by the Golden
+   Gate, cropped 4:3 from the bottom, no EXIF. Signed **Brady Weingart, Ian
+   Solomon & TJ Weingart**, left to right as they stand; the initials
+   fallback has three.
+3. *Our story* is the packet's text, word for word, under "We believe
+   information can bring people closer."
+
+**A friend's vibe has Instagram's row** (`story-reply`): Send message...,
+a heart, a paper plane, under Play episode, never on your own story. A
+reply is one message to the poster carrying the episode (`kind: "episode"`
+with `text` - the message store always allowed both), so it lands in
+Messages with the vibe it answers; the chat labels it "replied to your
+vibe" and draws the words under the card, and the inbox preview says so. A
+like is the same message with a heart (drawn as the heart itself, "liked
+your vibe"), sent once per story on the device, and the episode's own like
+(`/api/rate`) as taste. The plane opens VIBE! on that episode with the
+story's picture (`openVibeComposer` takes `ep.thumb`). Focusing the box
+holds the story; leaving it without sending lets it run on. The preview
+smoke check replies, checks the message carried the episode, and likes.
+
+**The picture that did not match.** The packet's screenshot: "Seahawks
+Thursday Odds and Defensive Absences" played, and was vibed, over poker
+chips. §247 made the picture follow the episode's category, and §209's
+rule is that a category outranks the words; the category here was a
+betting node, whose picture is a card table. A category is the right
+answer for ranking and tags, and the wrong one for a picture when the
+words name a specific subject on another branch. `thumbnails._named_subject`:
+when the deepest node the words name is at `SUBJECT_DEPTH` (2, a league) or
+deeper and is neither the category, above it nor below it, that node is
+the picture's subject - in `pick` (the tile's own) and first in
+`pick_for_player`'s borrowing, so tile, player and the vibe made from the
+player agree. A category on the subject's branch (the NFL for a Seahawks
+question) keeps its picture, and words naming only a facet or a sport never
+outrank it, so §209's boxing press conference is unchanged. A vibe posted
+before this keeps the picture it was posted with.
+
+**Main's CI.** `0086ddc` failed `test_the_halves_run_side_by_side`
+(0.858 s against a 0.55 s ceiling, two 0.3 s halves) on both jobs; it passes
+here every time. The property is that the two halves wait at once, and the
+clock was a proxy a busy runner stretches past even one half. The stub now
+records which parts were in flight together, and the test asserts both
+halves were.
+
+Not done here: nothing was heard (`no-api-key`), and no mail was sent from
+this container.

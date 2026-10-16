@@ -78,14 +78,17 @@ def thumb_path(url: str) -> str:
 def episode_snapshot(query: str, minutes: int, title: str = "",
                      sources: Optional[dict] = None,
                      sentences: Optional[list] = None,
-                     thumb: str = "") -> dict:
+                     thumb: str = "",
+                     services: Optional[list] = None) -> dict:
     """The episode half of a report, in the shape the inbox draws.
 
     `sources` is `Provenance.as_dict()`; only what the sources panel shows is
     kept (publisher, headline, date, grade, link). `sentences` is the
     transcript, trimmed to `MAX_EPISODE_TRANSCRIPT` characters and said so.
     `thumb` is the picture the player showed (10.10 #3), kept only when it
-    is FAM's own thumbnail route (`thumb_path`).
+    is FAM's own thumbnail route (`thumb_path`). `services` (10.15 packet)
+    names the outside services the episode drew on - names only, never a
+    key (`app._episode_services`).
     """
     items = []
     for item in ((sources or {}).get("items") or [])[:MAX_EPISODE_SOURCES]:
@@ -104,6 +107,9 @@ def episode_snapshot(query: str, minutes: int, title: str = "",
     return {"query": (query or "")[:500], "minutes": int(minutes or 0),
             "title": (title or "")[:MAX_FIELD], "thumb": thumb_path(thumb),
             "sources": items,
+            "services": [{k: str(row.get(k) or "")[:MAX_FIELD]
+                          for k in ("service", "role", "detail")}
+                         for row in (services or [])[:24] if isinstance(row, dict)],
             "transcript": kept, "transcript_cut": cut}
 
 
