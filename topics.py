@@ -486,19 +486,21 @@ class Topic:
         database open, never a model call."""
         import thumbnails
 
-        # The title and the angle as well as the question (§286): a live
-        # story's query is often a few bare words, and a tile with no tags
-        # and no category fell through to one hashed picture - the same one
-        # on every untagged story in a View more - and borrowed that
-        # picture's facet as its label. `key` keeps the hash on the question,
-        # so the picture does not change when the writer's title lands.
-        words = " ".join(w for w in (self.title, self.angle, self.query) if w)
-        tags = tuple(self.tags)
-        if not tags and not self.category:
-            tags = tuple(t for t in tags_for_text(words) if t in FACETS)
+        from cache import normalize_query
+
+        # The question and the title, read exactly as the player reads them
+        # (`app._player_picture`), so a card and the player it opens wear
+        # one picture (§286). A live story's query is often a few bare
+        # words, and an untagged tile with no category fell through to one
+        # hashed picture - the same one on every such story in a View more -
+        # and borrowed that picture's facet ("BUSINESS") as its label. With
+        # no tags of its own, `pick_for_player` reads the facets off these
+        # words (`picture_facets`) the way it does for the player.
+        words = f"{self.query} {self.title}".strip()
+        tags = tuple(self.tags) if (self.tags or self.category) else None
         found = thumbnails.pick_for_tile(words, tags,
                                          category=self.category,
-                                         key=self.query)
+                                         key=normalize_query(self.query))
         if not found:
             # No picture yet, but a composed category still says which facet
             # the card is - rather than the alphabetically first tag.
@@ -546,16 +548,7 @@ TAG_WORDS: dict[str, tuple[str, ...]] = {
               # world question, which is what keeps it from being a question
               # about nothing - and so from unlocking anything in sport.
               "israel", "gaza", "iran", "ukraine", "russia", "lebanon",
-              "syria", "palestinian", "ceasefire", "nato", "embassy",
-              # §286: the day's hard news - crime, courts and politics. A
-              # live story about a shooting or a Senate probe carried no tag,
-              # so its tile borrowed a hashed picture and that picture's
-              # facet ("BUSINESS") as its label.
-              "shooting", "gunman", "police", "senator", "senate",
-              "congress", "congressman", "congresswoman", "lawmaker",
-              "lawmakers", "probe", "investigation", "indicted", "indictment",
-              "president", "presidential", "parliament", "minister",
-              "fbi", "attack", "attacks", "killed"),
+              "syria", "palestinian", "ceasefire", "nato", "embassy"),
 }
 
 #: The same eight facets, with a word a listener would recognise on a button.
@@ -1063,6 +1056,34 @@ SUBTAG_WORDS: dict[str, tuple[str, ...]] = {
 # every lookup is one dict and a tag is a tag. TAG_PARENT is what says which
 # of them a listener could have chosen in the intro.
 TAG_WORDS = {**TAG_WORDS, **SUBTAG_WORDS}
+
+
+#: Words that say which facet's *picture* a story wears, and nothing more
+#: (§286). The day's hard news - crime, courts, politics - carried no tag, so
+#: its tile borrowed a hashed picture and that picture's facet ("BUSINESS")
+#: as its label. Kept out of `TAG_WORDS` on purpose: those feed taste, event
+#: tags and §187's field vouching, and "Curry's shooting slump", "Arsenal's
+#: attack" or "the club president" would have filed a sports fan's searches
+#: under World.
+PICTURE_WORDS: dict[str, tuple[str, ...]] = {
+    "world": ("shooting", "gunman", "police", "senator", "senate",
+              "congress", "congressman", "congresswoman", "lawmaker",
+              "lawmakers", "probe", "investigation", "indicted", "indictment",
+              "president", "presidential", "parliament", "minister",
+              "fbi", "attack", "attacks", "killed"),
+}
+
+
+def picture_facets(text: str) -> tuple[str, ...]:
+    """The facets whose picture `text` may wear: its tags' facets, then
+    `PICTURE_WORDS` - but only when its tags name no facet at all, so a
+    sports question that says "attack" keeps the sport picture."""
+    found = tuple(t for t in tags_for_text(text) if t in FACETS)
+    if found:
+        return found
+    words = set(_WORD.findall((text or "").lower()))
+    return tuple(sorted(f for f, keys in PICTURE_WORDS.items()
+                        if words & set(keys)))
 
 #: What one declared interest is worth in `taste`, **added after the
 #: behaviour has been normalised, and never decayed or outvoted** (§202, at
@@ -4824,7 +4845,8 @@ def page_section(body: dict, seen: Iterable[str] = (),
     wrapped = bool(topics) and not fresh and wrap
     if wrapped:
         fresh = topics
-    body["caught_up"] = not fresh
+    # Only a cycle is ever caught up; an empty rail that wraps is just empty.
+    body["caught_up"] = not wrap and not fresh
     page = fresh[:size]
     body["topics"] = page
     body["page_size"] = size

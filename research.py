@@ -151,9 +151,8 @@ TIER_PRIMARY = frozenset({
     "opec.org", "unicef.org", "unhcr.org", "ipcc.ch", "home.cern",
     # Journals and their publishers' platforms: primary for their papers.
     "annals.org", "ahajournals.org", "plos.org", "elifesciences.org",
-    "royalsocietypublishing.org", "sciencedirect.com", "springer.com",
-    "wiley.com", "acs.org", "aps.org", "academic.oup.com",
-    "cambridge.org",
+    "royalsocietypublishing.org", "springer.com",
+    "onlinelibrary.wiley.com", "acs.org", "aps.org", "academic.oup.com",
     # Medical and scientific bodies: primary for their own guidance.
     "nice.org.uk", "heart.org", "cancer.org", "diabetes.org", "aap.org",
     "acog.org", "psychiatry.org", "apa.org",
@@ -182,6 +181,9 @@ REGIONAL_OUTLETS = frozenset({
     "suntimes.com", "star-telegram.com", "sacbee.com",
     "charlotteobserver.com", "newsobserver.com", "tennessean.com",
     "courier-journal.com", "indystar.com", "dispatch.com", "buffalonews.com",
+    # Metro papers outside the US, learnable for Sydney, Melbourne, Toronto
+    # and Auckland as they were before they were listed (review).
+    "smh.com.au", "theage.com.au", "thestar.com", "nzherald.co.nz",
 })
 
 #: Established outlets and trade press: reliable, not primary.
@@ -210,8 +212,8 @@ TIER_ESTABLISHED = frozenset({
     # International news.
     "aljazeera.com", "scmp.com", "thehindu.com", "hindustantimes.com",
     "indianexpress.com", "indiatimes.com", "straitstimes.com",
-    "japantimes.co.jp", "koreaherald.com", "smh.com.au", "theage.com.au",
-    "nzherald.co.nz", "globalnews.ca", "ctvnews.ca", "thestar.com",
+    "japantimes.co.jp", "koreaherald.com",
+    "globalnews.ca", "ctvnews.ca",
     "nationalpost.com", "euronews.com", "politico.eu", "spiegel.de",
     "sueddeutsche.de", "corriere.it", "haaretz.com", "timesofisrael.com",
     "jpost.com", "arabnews.com", "thenationalnews.com", "africanews.com",
@@ -227,6 +229,9 @@ TIER_ESTABLISHED = frozenset({
     # Science and health: the science press, the big clinics' patient
     # pages, health-policy research, and the preprint servers (reliable
     # for what a paper says, not yet peer-reviewed - so not primary).
+    # ScienceDirect is established, not primary: beside the journals it
+    # hosts machine-written topic summaries (`/topics/`).
+    "sciencedirect.com",
     "livescience.com", "space.com", "quantamagazine.org",
     "smithsonianmag.com", "nationalgeographic.com", "sciencenews.org",
     "phys.org", "eurekalert.org", "mayoclinic.org", "clevelandclinic.org",
@@ -236,7 +241,7 @@ TIER_ESTABLISHED = frozenset({
     # and the major outlets outside the US.
     "mlbtraderumors.com", "spotrac.com", "fbref.com", "transfermarkt.com",
     "hockey-reference.com", "fangraphs.com", "baseballamerica.com",
-    "pff.com", "247sports.com", "on3.com", "rivals.com", "sportsnet.ca",
+    "pff.com", "sportsnet.ca",
     "tsn.ca", "goal.com", "marca.com", "as.com", "lequipe.fr", "kicker.de",
     "gazzetta.it", "autosport.com", "motorsport.com", "golfdigest.com",
     "tennis.com", "mmafighting.com", "boxingscene.com", "cricbuzz.com",
@@ -358,10 +363,16 @@ def host_of(result) -> str:
     return host[4:] if host.startswith("www.") else host
 
 
+#: Where a listed outlet hosts its readers rather than its reporters (§287
+#: review): a forum post on `forums.macrumors.com` is not MacRumors.
+_READER_HOSTS = ("forums.", "forum.", "community.", "boards.",
+                 "discussions.", "answers.")
+
+
 def credibility(result) -> str:
     """Which tier a result's host belongs to. Never raises, never guesses high."""
     host = host_of(result)
-    if not host:
+    if not host or host.startswith(_READER_HOSTS):
         return "unverified"
     if host in TIER_PRIMARY:
         return "primary"
@@ -680,11 +691,16 @@ def passages(text, limit: int = 0) -> list:
     out: list = []
     current = ""
     for piece in (p for p in pieces if len(p) > 20):
-        if current and len(current) + 1 + len(piece) > limit:
+        if current and len(current) + 2 + len(piece) > limit:
             out.append(current)
             current = piece
+        elif current:
+            # A heading or a separate excerpt joined to the next one ends
+            # as a sentence, so the writer does not read one run-on.
+            stop = "" if re.search(r"[.!?…:;\"'”’)\]]$", current) else "."
+            current = f"{current}{stop} {piece}"
         else:
-            current = f"{current} {piece}".strip()
+            current = piece
     if current:
         out.append(current)
     return out

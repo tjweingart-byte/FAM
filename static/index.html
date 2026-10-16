@@ -12529,6 +12529,9 @@
           + yfIcon("plus", 12) + 'Find new friends</button></div>'
         : '';
 
+      // Before the empty rail returns, so a rail that empties is not opened
+      // on the tiles it used to have (§286).
+      railTiles[sec.key] = sec.topics.slice();
       if(!sec.topics.length){
         // Honest rather than padded. A new listener has no history and no
         // co-listeners, and inventing picks to fill the space is the kind of
@@ -12538,7 +12541,6 @@
         return '<div class="feed-section">' + heading + empty + findFriends + '</div>';
       }
 
-      railTiles[sec.key] = sec.topics.slice();
       var rail = '<div class="feed-rail" data-section="' + escapeHtml(sec.key) + '">'
         + sec.topics.map(function(t){
         myFamTopics[t.id] = t;
@@ -12758,7 +12760,8 @@
     if(d.page_size && d.wrapped){
       reason.textContent = "That was all " + d.total + " for this rail, so these are the first again. "
         + reason.textContent;
-    } else if(d.page_size && !d.more && sectionState.seen.length > topics.length){
+    } else if(d.page_size && !d.more && !d.cycles
+              && sectionState.seen.length > topics.length){
       reason.textContent = "The last of this rail. Refresh starts again from the top. "
         + reason.textContent;
     }

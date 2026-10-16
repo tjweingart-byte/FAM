@@ -69,6 +69,7 @@ def load_style_examples() -> list[tuple[str, str]]:
 
     directory = pathlib.Path(__file__).resolve().parent / "examples"
     found: list[tuple[str, str]] = []
+    EXAMPLE_MINUTES.clear()
     if not directory.is_dir():
         return found
 
@@ -1375,6 +1376,7 @@ class _ScriptReader:
         self.notes = notes
         self.buffer = ""
         self.emitted_words = 0
+        self.finished_words = 0
         self.guard = OpeningGuard()
         # A sports episode's scores, periods and results, held to the
         # scoreboard before they are spoken (§259).
@@ -1476,8 +1478,17 @@ class _ScriptReader:
                     "writer", f"{check} removed {len(dropped)} sentence"
                     f"{'s' if len(dropped) != 1 else ''}", dropped[0],
                     self.plan.query, pipeline_errors.NOTICE)
-        self._note_if_short(sum(count_words(line) for line in out), cut_off)
+        self.finished_words = self.emitted_words + sum(
+            count_words(line) for line in out)
         return out
+
+    def note_if_short(self, outcome: str) -> None:
+        """Called once the call's outcome is known: only a script that ended
+        on its own (`ok`) is judged - a refusal, a script cut off by its
+        ceiling or stopped at its budget is counted elsewhere (review)."""
+        if outcome == "ok":
+            self._note_if_short(
+                self.finished_words - self.emitted_words, cut_off=False)
 
     def _note_if_short(self, tail_words: int, cut_off: bool) -> None:
         """A script well under its length, on /admin's errors (§286).
@@ -2373,6 +2384,7 @@ class ScriptGenerator:
         refused = _refusal_line(final)
         outcome = _writer_outcome(final, plan, notes, model,
                                   over_budget=reader.over_budget)
+        reader.note_if_short(outcome)
         _writer_ended(path, outcome, first_word, time.monotonic() - started)
         if refused:
             pipeline_errors.record("writer", "refused", refused, plan.query)
@@ -2427,10 +2439,12 @@ class ScriptGenerator:
         cut_off = (not reader.over_budget
                    and getattr(message, "stop_reason", None) == "max_tokens")
         out.extend(reader.finish(cut_off=cut_off))
-        _writer_ended("ahead", _writer_outcome(
+        outcome = _writer_outcome(
             message, plan, notes, getattr(message, "model", None)
             or writer_for(notes)[0], batched=True,
-            over_budget=reader.over_budget), None, None)
+            over_budget=reader.over_budget)
+        reader.note_if_short(outcome)
+        _writer_ended("ahead", outcome, None, None)
         if notes is not None:
             # The model the batch answered with, as the API says it.
             notes.usage.add_model_call(

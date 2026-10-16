@@ -20545,17 +20545,21 @@ The Hindu) are unverified.
 - *(a) One picture and BUSINESS on every new tile.* An unwritten live story
   with no tags and no category matched nothing, fell to the last borrowing
   step (one approved facet picture chosen by a hash of the words) and printed
-  that picture's facet as its label. Now a tile reads its title and angle as
-  well as its query (the hash still keyed on the query, so the picture does
-  not move when the title lands), an untagged tile gets its facets from those
-  words, `TAG_WORDS` → `world` gains the day's hard news (shooting, police,
-  senator, Congress, probe, investigation, president, attack ...), and a
+  that picture's facet as its label. Now a tile reads its question and its
+  title exactly as the player does (`app._player_picture`: the same words,
+  the same hash key, `normalize_query` of the question), so a card and the
+  player it opens wear one picture; an untagged tile's facets are read off
+  those words (`topics.picture_facets`, memoised); the day's hard news
+  (shooting, police, senator, Congress, probe, investigation, president,
+  attack ...) names the World picture through `PICTURE_WORDS` - a list for
+  pictures only, kept out of `TAG_WORDS` so "Curry's shooting slump" or "the
+  club president" never files a sports fan's taste under World - and a
   picture chosen by the hash lends no label (`hashed`): an empty label rather
   than a wrong one. Not changed: how many facet pictures production has
   approved - if one, every borrowed picture is still that one;
   `tools/thumbnails.py` shows it.
 
-Tests: `tests/test_implementations_285.py` (new);
+Tests: `tests/test_implementations_286.py` (new);
 `tests/test_writer_gaps_276.py`, `tests/test_pipeline.py`,
 `tests/test_writer_prep_269.py`,
 `tests/test_pronunciation_voice_edit_view_more_165.py` (pins moved).
@@ -20593,13 +20597,13 @@ change to which call is cached ([writer-savings]). Not measured: whether
 eleven dilute the voice; the README now says to replace a weak one rather
 than add another.
 
-**The trusted sources** (`research.py`). Primary: 45 named → 117, adding
+**The trusted sources** (`research.py`). Primary: 45 named → 115, adding
 AFP, PBS, CBC, ABC Australia, RNZ, RTÉ, DW, France 24, the Irish Times, the
 Globe and Mail, Le Monde, El País, FAZ, Nikkei; the exchanges (Nasdaq, NYSE,
 CME, LSE), BIS, the Bank of Canada and Bank of Japan, the WTO, IEA, OPEC,
 UNICEF, UNHCR, IPCC, CERN; the journals' platforms (Annals, AHA journals,
-PLOS, eLife, Royal Society, ScienceDirect, Springer, Wiley, ACS, APS, Oxford
-and Cambridge's); the medical bodies for their own guidance (NICE, AHA, the
+PLOS, eLife, Royal Society, Springer, Wiley's online library, ACS, APS and
+Oxford's); the medical bodies for their own guidance (NICE, AHA, the
 American Cancer Society, ADA, AAP, ACOG, the psychiatric and psychological
 associations); and the rest of the leagues and governing bodies (MLS, NWSL,
 NASCAR, PGA and LPGA Tours, ATP, WTA, F1, UFC, the Olympics, LaLiga,
@@ -20610,17 +20614,17 @@ Israel, Switzerland, Argentina, Chile, the Philippines, Kenya, Nigeria and
 five countries' universities - not every state's: a government without a
 free press is a primary source only for its own announcements, and a
 `.gov.cn` page graded primary would outrank the reporting on it.
-Established: 51 → 225 - US national news and magazines (Fox News and MSNBC
+Established: 51 → 223 - US national news and magazines (Fox News and MSNBC
 both, Newsweek, Time, the Atlantic, the New Yorker, Vox, ProPublica, the
 Hill, Semafor...), international (Al Jazeera, SCMP, the Hindu, the Straits
 Times, Japan Times, SMH, Spiegel, Haaretz, Times of Israel, Kyiv
 Independent...), business and personal finance, tech, science and health
 (Mayo Clinic, Cleveland Clinic, Johns Hopkins, KFF; arXiv, bioRxiv and
 medRxiv as established, since a preprint is not yet reviewed), sports
-references and trackers (FanGraphs, Transfermarkt, Spotrac, PFF, the
-recruiting sites) and the big foreign sports papers, entertainment, games,
-fact-checkers, election references, weather and FlightAware - and 40 US
-regional papers (`REGIONAL_OUTLETS`). Those are established for credibility
+references and trackers (FanGraphs, Transfermarkt, Spotrac, PFF) and the big foreign sports papers, entertainment, games,
+fact-checkers, election references, weather and FlightAware - and 44
+regional papers (`REGIONAL_OUTLETS`: 40 American, and Sydney, Melbourne,
+Toronto and Auckland's). Those are established for credibility
 but still learnable as a town's own outlet: `local_news._learn` skipped every
 established host as "national", which would have stopped the LA Times being
 learned for Los Angeles.
@@ -20630,5 +20634,42 @@ no weighting by topic, the writer reads the grade never the host. A wider
 list means fewer sources sort last as unverified, and on a live sports
 question fewer known outlets' reports are screened out by the
 two-known-outlets rule.
+
+**Reviewed before merging (§286 and §287).** The owner (10.16): "double
+check all changes that have been made in this branch" and get it ready for
+Main. Two independent reviews of the diff and a pass of my own; every
+confirmed finding is fixed:
+- *A card and its player could wear different pictures:* the tile read its
+  angle and hashed the raw question, the player its question and title and
+  `normalize_query`. The tile now asks exactly as the player does.
+- *The news words fed taste:* added to `TAG_WORDS`, "shooting", "attack" and
+  "president" filed "Curry's shooting slump" and "the club president" under
+  World - in event tags, mixes, §187's field vouching. They moved to
+  `PICTURE_WORDS`, read only for a picture and only when the words name no
+  facet (`topics.picture_facets`, memoised beside the picture memo).
+- *Readers' pages graded as the outlet:* `forums.macrumors.com`,
+  `community.cnet.com` inherited their parent's grade. Forum, community,
+  boards, discussions and answers hosts are unverified (`_READER_HOSTS`);
+  247Sports, On3 and Rivals, whose boards share their host, are not listed;
+  `dictionary.cambridge.org` and Wiley's book shop were primary through
+  `cambridge.org` and `wiley.com` - now only Wiley's online library is;
+  ScienceDirect is established (its `/topics/` pages are machine-written).
+- *Four foreign metro papers stopped being learnable* for their own towns;
+  they are in `REGIONAL_OUTLETS`.
+- *Examples:* the sprint's last line was a championship standing in the
+  writer's instructions on every call, and its gap figures contradicted its
+  margin - both gone; the financial crisis ended on a summary - it ends on
+  the recession now; "Here's the mechanism, not just the myth" and "Here is
+  the machinery" were signposts a writer would copy into every episode -
+  cut; synced passkeys do leave the device - "never goes to the website".
+- *A refused script was also noted as short:* the length check now runs
+  after the call's outcome is known, on `ok` only.
+- *Packed passages ran a heading into the next sentence:* a full stop joins
+  them. `EXAMPLE_MINUTES` is cleared when the examples load.
+- *View more:* "Refresh starts again from the top" is never said on Made
+  for you's cycle; a rail that empties is not opened on its old tiles; an
+  empty rail that wraps is not `caught_up`.
+Not changed, and to measure: a five-minute packet is now up to ~36 KB in
+front of a searched episode's first word.
 
 Tests: `tests/test_implementations_287.py` (new).

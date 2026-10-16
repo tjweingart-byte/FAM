@@ -141,6 +141,8 @@ def test_a_cycle_never_starts_again_it_is_caught_up():
     # The default is unchanged for every other rail.
     again = T.page_section(_body(5), {f"t{i}" for i in range(5)})
     assert again["wrapped"] is True and again["caught_up"] is False
+    # An empty rail that wraps is empty, never "caught up".
+    assert T.page_section({"topics": []})["caught_up"] is False
 
 
 def test_the_cycle_is_made_for_you_only():
@@ -173,6 +175,11 @@ def test_the_screen_opens_on_the_rails_own_tiles_and_ends_caught_up():
     assert '"&cycle=cached"' in html
     assert "You\\u2019re all caught up" in html
     assert "function restartSection()" in html
+    # "Refresh starts again from the top" is never said on a cycle.
+    assert "!d.cycles" in html
+    # The rail's tiles are kept even when it is empty.
+    feed = html[html.index("function renderMyFamFeed"):]
+    assert feed.index("railTiles[sec.key]") < feed.index("if(!sec.topics.length)")
 
 
 # --------------------------------------------------------------------------
@@ -181,8 +188,19 @@ def test_the_screen_opens_on_the_rails_own_tiles_and_ends_caught_up():
 @pytest.mark.parametrize("title", [
     "Shooting Reported at Oregon School", "Senator Steps Back Amid Probe",
     "Federal Probe Targets Ilhan Omar", "Attack Hits Yemen's Presidential Palace"])
-def test_the_days_hard_news_has_a_facet(title):
-    assert "world" in T.tags_for_text(title)
+def test_the_days_hard_news_wears_the_world_picture(title):
+    assert T.picture_facets(title) == ("world",)
+
+
+@pytest.mark.parametrize("text", [
+    "Curry's shooting slump", "Arsenal's attack", "the club president"])
+def test_picture_words_never_reach_taste(text):
+    """Only the picture: a sports fan's search is not filed under World."""
+    assert "world" not in T.tags_for_text(text)
+
+
+def test_a_sports_question_keeps_its_own_picture():
+    assert T.picture_facets("nba shooting slump") == ("sports",)
 
 
 def test_a_hashed_picture_lends_no_label(monkeypatch):
@@ -190,23 +208,30 @@ def test_a_hashed_picture_lends_no_label(monkeypatch):
                 "fallback": True, "hashed": True}
     monkeypatch.setattr(thumbnails, "pick_for_player",
                         lambda *a, **k: dict(borrowed))
-    assert thumbnails.pick_for_tile("tiger park reopens", ())["facet"] == ""
+    assert thumbnails.pick_for_tile("tiger park reopens", None)["facet"] == ""
     # A tile with a facet of its own still prints it.
     assert thumbnails.pick_for_tile("x", ("world",))["facet"] == "world"
 
 
-def test_a_tile_reads_its_title_and_angle_for_its_picture(monkeypatch):
+def test_a_tile_asks_for_its_picture_as_the_player_does(monkeypatch):
+    """The same words and the same hash key as `app._player_picture`, so a
+    card and the player it opens wear one picture."""
+    from cache import normalize_query
+
     asked = {}
 
     def pick(text, tags=(), category="", key=""):
-        asked.update(text=text, tags=tuple(tags), key=key)
+        asked.update(text=text, tags=tags, key=key)
         return None
 
     monkeypatch.setattr(thumbnails, "pick_for_tile", pick)
     tile = T.Topic(id="s1", title="Senator Steps Back Amid Probe",
-                   subtitle="", query="lawmaker leave", tags=(), icon="",
+                   subtitle="", query="the lawmaker leave", tags=(), icon="",
                    angle="a lawmaker's leave of absence")
     tile._thumb()
-    assert "Senator Steps Back" in asked["text"] and "leave of absence" in asked["text"]
-    assert asked["key"] == "lawmaker leave"
-    assert "world" in asked["tags"]
+    assert asked["text"] == "the lawmaker leave Senator Steps Back Amid Probe"
+    assert asked["key"] == normalize_query("the lawmaker leave")
+    # Untagged: the picker reads the facets off the words, as the player's.
+    assert asked["tags"] is None
+    source = open(os.path.join(ROOT, "app.py"), encoding="utf-8").read()
+    assert 'f"{asked} {title}".strip(), key=normalize_query(asked)' in source

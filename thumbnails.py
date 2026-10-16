@@ -847,8 +847,14 @@ def pick_for_player(text: str, key: str = "",
         words = (text or "").strip()
         facets = topics.FACETS
         if tags is None:
-            declared = tuple(t for t in topics.tags_for_text(words)
-                             if t in facets)
+            # Memoised: every untagged rail tile asks on every page drawn,
+            # and reading tags off words walks the league catalogues (§286).
+            facets_key = ("facets", words)
+            declared = _MEMO.get(facets_key)
+            if declared is None:
+                declared = topics.picture_facets(words)
+                if len(_MEMO) < MAX_MEMO:
+                    _MEMO[facets_key] = declared
             found = pick(words, declared, category=category)
         else:
             tags = tuple(tags)
