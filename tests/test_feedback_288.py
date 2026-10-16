@@ -73,6 +73,17 @@ def test_the_chevrons_are_layers_not_svg_paths():
 
 # --- 2. an episode sent in a message is the episode that was sent ----------
 
+def test_the_store_opens_twice_on_either_backend(tmp_path):
+    """The widening runs on every open; the second finds the column there."""
+    path = str(tmp_path / "again.db")
+    messages_mod.MessageStore(path)
+    store = messages_mod.MessageStore(path)
+    ep = "d" * 64 + ".1700000001"
+    store.send("x", "y", kind="episode", query="q", minutes=2, episode=ep)
+    assert store.thread("y", "x")[-1].episode == ep
+
+
+@pytest.mark.sqlite_file
 def test_a_message_keeps_its_episode_and_an_old_table_is_widened(tmp_path):
     path = str(tmp_path / "messages.db")
     conn = sqlite3.connect(path)
