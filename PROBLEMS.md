@@ -20370,3 +20370,90 @@ real network once the fixture is gone. On CI's slower Postgres run they fell
 just after the generator test cleared its calls. Reproduced by sleeping 0.6 s
 before that clear; the late test now waits for its abandoned look to finish
 against its own fake.
+
+## 285. The 10.16 admin page: errors that open, reports explained, transcripts that arrive, GDELT's pressure, Finnhub's refusals and Wikipedia's pronunciations (2026-10-16)
+
+Six notes from the owner about `/admin`, one PDF (`10.16.26_implementations_3`).
+
+**1. Pipeline errors, made navigable.** "I want to be able to click into each
+error type and see what kinds of errors are related to the categories of
+episodes, the times of day, and an actual explanation for each error."
+`pipeline_errors.report` now gives every kind what opening it shows: an
+explanation in words (`EXPLAIN`: what happened, what the listener noticed,
+the likely causes, what to do) plus a hint read off the detail line (`HINTS`:
+rate limited, refused 403, key refused, timed out, connection dropped,
+overloaded); the categories of the questions it happened on (read from each
+question's words against the category tree, `stories.resolve_category`, with
+the facet first - no model, no embedding, cached per question); up to 1,000
+of its times, drawn by hour of day and by day **in the reader's clock**; and
+its eight newest cases. Kinds that differed only by a count ("score check
+removed 1 sentence", "... 3 sentences") were one row per number and are now
+one kind (`family`). The page is tabbed - What went wrong / Newest / Timing
+by step / Refusals - filtered by stage, and every kind is a row that opens.
+On a screen 1,180 px or wider the menu stays open as a sidebar.
+
+**2. Reported content, said plainly.** The owner did not know what it was
+for. It now says: what listeners flagged in other people's comments, vibes,
+profiles, group chats and episodes, which Apple's guideline 1.2 requires an
+answer to within 24 hours; where each kind is reported from in the app (a
+single message has no button - its chat reports the person or group); and
+each card shows its kind, its reason, the content quoted, and "due in Nh" or
+"overdue by Nh".
+
+**3. Feedback transcripts were empty or missing.** Two causes. The inbox
+looked the episode up by rebuilding its cache key from the question and read
+only what was *current* (`get(key)`), so a report filed after an episode went
+stale - two hours for news - or on one whose key the question alone does not
+rebuild came in with nothing. And Explore's reel plays through `FamAudio`
+directly, never `episodeStamp`, so a report typed there carried nothing (or
+the last player episode). The page now sends the id the audio arrived with
+(`X-FAM-Episode`, §173) and, on Explore, the reel's own card;
+`_kept_episode` reads the heard episode by that id, its live track or its
+kept script whether or not it is current.
+
+**4. GDELT: 5,700 requests a day, 40% failing, where ~200 was the design.**
+Nothing a listener does reaches GDELT (§211); every request is the sync job's.
+What multiplied it: a file that failed (a timeout, a 5xx, a bad checksum)
+was not written off, so every poll asked it again - twice, with the retry -
+for as long as it sat in the eight-file backfill window, two hours; a timed-out
+40 MB file was retried straight away on the same slow path; and a file named
+before it was served was looked for every two minutes for a quarter hour,
+each look counted as a failure. Now: a file is written off after
+`GDELT_EXPORT_FILE_TRIES` (3) failed syncs; a timed-out GKG file is not asked
+twice in one sync; a named file gets `GDELT_EXPORT_MAX_WAITS` (2) quick looks;
+syncs failing one after another back off, doubling to two hours; and the
+services page counts requests by what they fetched (`lastupdate.txt`, GKG
+file, not served yet, never published, domain list), so the next "why" is on
+the page. *Whether to keep GDELT at all is the owner's call:* it is the third
+search rung (after Parallel and Perplexity) and the story pool's attention
+signal; `GDELT=0` turns both off.
+
+**5. BALLDONTLIE and Finnhub failing.** BALLDONTLIE's failures are its free
+plan: 5 requests a minute for the whole account, spent by the scoreboard
+sweep and every sports lookup; `Client.pace` refuses rather than queue (a
+listener told late). The way round is the plan (`BALLDONTLIE_TIER`, 60/min
+on ALL-STAR) - not code. Finnhub's 403s were symbols the free plan does not
+quote (indices, futures, foreign listings) chosen as a search's first row:
+those are never chosen now (`quotable`), a symbol refused once is not asked
+again that day (`note_refused`), and a subject naming its own listing ("Oracle
+Corporation (NYSE: ORCL)", refused as a topic for its brackets) is looked up
+by that ticker, exact match only. The many `no_entity` rows are mostly
+answers, not failures: "the biggest storylines in sport", "Nasdaq Composite"
+(an index, which the free plan cannot quote) and two teams with no game
+between them in the window have no live object to fetch.
+
+**6. How names are said, checked against Wikipedia** (`wiki_pronounce.py`).
+An English article usually opens with its subject's pronunciation: a
+`{{respell}}` (already a respelling), else `{{IPAc-en}}`/`{{IPA}}`, turned
+into the lexicon's style by Wikipedia's own respelling key (syllables by
+vowel, the stressed one in capitals: "ˌæbduːlkəˈriːm" -> "ab-dool-kuh-REEM"),
+else Wikidata's P898. Resolved the reference look's way (§278): exactly one
+Wikidata item whose label is the name, or no answer. Wikipedia ranks under an
+admin and over both models: a writer's or brief's guess it disagrees with
+(by more than a vowel's spelling, `agrees`) is replaced; an admin's is shown
+beside it with a Use button. Every name a model adds is queued for a check in
+the background; "Check all with Wikipedia" asks about the whole list (names
+checked in the last 30 days are skipped); the add form has "Look up on
+Wikipedia". Answers are kept in the voice bank (`pronunciation_checks`).
+Only while `WIKIPEDIA=1`; **unverified against the real service** - the build
+container cannot reach Wikipedia, so the template shapes are pinned in tests.

@@ -34,7 +34,9 @@ detail and the question it happened on.
 """
 from __future__ import annotations
 
+import functools
 import logging
+import re
 import sqlite3
 import threading
 import time
@@ -226,6 +228,7 @@ def reset(error_store: Optional[ErrorStore] = None) -> None:
         _PENDING_STEPS.clear()
         _PENDING_REFUSALS.clear()
         _LAST_FLUSH[0] = 0.0
+    getattr(_category_of, "cache_clear", lambda: None)()
 
 
 def exists() -> bool:
@@ -466,12 +469,281 @@ def flush() -> None:
                 del _PENDING_REFUSALS[:-MAX_PENDING]
 
 
+# --------------------------------------------------------------------------
+# One kind, opened (10.16 #1): what it means, which episodes, what time
+# --------------------------------------------------------------------------
+#: The newest rows an opened kind lists, and the most times it sends for the
+#: page to draw by hour of day (in the reader's own clock, so drawn there).
+KIND_EXAMPLES = 8
+KIND_TIMES = 1000
+
+_COUNTED = re.compile(r"\b\d+ sentences?\b")
+
+
+def family(kind: str) -> str:
+    """The kind with its count taken out, so "score check removed 1
+    sentence" and "... 3 sentences" are one row, not one row per number."""
+    return _COUNTED.sub("sentences", str(kind or ""))
+
+
+def _ex(title: str, what: str, heard: str, causes: str, act: str) -> dict:
+    return {"title": title, "what": what, "heard": heard, "causes": causes,
+            "act": act}
+
+
+#: What each kind means, in words, by stage and the kind's pattern. The
+#: first match wins; the stage's own entry (pattern "") is the fallback, so a
+#: kind added later still says which part of making an episode it is.
+EXPLAIN = (
+    ("brief", r"^search half",
+     _ex("Half the brief did not answer",
+         "The brief is asked in parts at once. The part that plans the searches "
+         "did not answer (timed out, failed or was declined).",
+         "Nothing missing: the episode was searched with what the other part "
+         "planned, or the question as typed.",
+         "The brief model was slow or busy; 'timeout' is the commonest.",
+         "Act only if it is most episodes: look at Brief - search part in the timing table.")),
+    ("brief", r"^timeout",
+     _ex("The brief took too long",
+         "Episode intelligence (the brief that decides what to search for) did "
+         "not answer before its deadline, so the episode went ahead without it.",
+         "A plainer episode: it was searched with the question as typed, with no "
+         "plan of the piece and no pronunciations.",
+         "The brief model was slow (a busy hour at Anthropic), or the question "
+         "needed a long answer. '(search)' means a listener was waiting; "
+         "'(ahead)' means prefetch or an edition.",
+         "If it is more than a few a day, raise EI_TIMEOUT_SECONDS or check "
+         "Anthropic's status page.")),
+    ("brief", r"^out_of_room",
+     _ex("The brief ran out of room",
+         "The brief's answer was cut off at its token limit before it finished.",
+         "A plainer episode: searched with the question as typed.",
+         "A question with many parts, or the limit set too low.",
+         "Raise the brief's max tokens if this repeats.")),
+    ("brief", r"^refused",
+     _ex("The brief was declined",
+         "A safety classifier declined the brief call (see Refusals below).",
+         "A plainer episode: searched with the question as typed.",
+         "Usually a news question about violence, crime or a sensitive person.",
+         "Read the question; nothing to fix unless it is an ordinary question.")),
+    ("brief", r"^unreadable",
+     _ex("The brief came back unreadable",
+         "The brief answered, but not in the shape the code reads.",
+         "A plainer episode: searched with the question as typed.",
+         "The model broke the answer's format.",
+         "One or two are noise; a run of them means the brief's prompt changed.")),
+    ("brief", r"",
+     _ex("The brief failed",
+         "Episode intelligence (the brief that decides what to search for) "
+         "raised an error.",
+         "A plainer episode: searched with the question as typed.",
+         "An API error, a network drop or a bad key.",
+         "Read the detail; repeated failures mean the Anthropic key or network.")),
+    ("live", r":\s*provider_failed",
+     _ex("A live data provider broke",
+         "A provider asked for a live fact (a score, a price, the weather) "
+         "answered with an error.",
+         "The episode was written from the web search alone - no live score or "
+         "price in it.",
+         "Most often the plan's limit: BALLDONTLIE's free plan allows 5 "
+         "requests a minute, and Finnhub's free plan refuses indices, futures "
+         "and foreign listings with HTTP 403.",
+         "See Outside service requests for the plan and what the next one raises.")),
+    ("live", r":\s*timeout",
+     _ex("A live data provider was too slow",
+         "A live provider did not answer before the episode had to start.",
+         "The episode was written from the web search alone.",
+         "The provider was slow, or several lookups queued behind one minute's limit.",
+         "Act if it is one provider most of the time.")),
+    ("live", r":\s*stale",
+     _ex("A live answer was too old to use",
+         "The provider answered, but with data older than the episode may say "
+         "is current, so it was withheld.",
+         "Nothing wrong was said; the figure was left out.",
+         "A delayed feed, or a sweep that has not run recently.",
+         "Usually nothing to do; a run of them means the sweep stopped.")),
+    ("research", r"^no sources",
+     _ex("No sources found",
+         "Every search rung (Parallel, then Perplexity, then GDELT) came back "
+         "empty for this question.",
+         "The episode was written without evidence, from what is settled, "
+         "with nothing current in it.",
+         "A very new or very local question, a misspelled name, or the search "
+         "services failing at once.",
+         "Search the question yourself; if it has obvious results, a search "
+         "service is down.")),
+    ("research", r"unavailable$",
+     _ex("A search service was not available",
+         "A search rung could not be asked (no key, or switched off).",
+         "Nothing, if a later rung answered.",
+         "A missing key or a service switched off on this server.",
+         "Check the key in the environment.")),
+    ("research", r"failed$",
+     _ex("A search service failed",
+         "A search rung raised an error; the next rung was asked instead.",
+         "Nothing, if a later rung answered.",
+         "An outage, a timeout or a spent plan at that service.",
+         "Read the detail; repeated failures mean the service's key or plan.")),
+    ("research", r"^evidence cut",
+     _ex("The evidence cut did not work",
+         "The step that trims the evidence packet before the writer failed, "
+         "so the writer read the whole packet.",
+         "Nothing: a slightly slower, longer-read episode.",
+         "The trimming model timed out or was declined.",
+         "Nothing to do unless it is most episodes.")),
+    ("writer", r"^opening check",
+     _ex("The opening check removed a sentence",
+         "The writer opened by orienting ('In this episode...') or another "
+         "opening the rules forbid; the guard dropped it before it was spoken.",
+         "Nothing wrong; the episode started one sentence later.",
+         "The writer breaking an opening rule.",
+         "A good example in examples/ teaches it better than another rule.")),
+    ("writer", r"^score check",
+     _ex("The score check removed a sentence",
+         "The writer said a score that is not on the scoreboard; the guard "
+         "removed it before it was spoken.",
+         "Nothing wrong was said; that sentence was missing.",
+         "No live score reached the writer (often BALLDONTLIE's rate limit) "
+         "and it reached for one from memory, or the game was not on the "
+         "scoreboard yet.",
+         "Look at live errors at the same time; fixing those fixes this.")),
+    ("writer", r"^figure check",
+     _ex("The figure check removed a sentence",
+         "The writer said a market figure that no source gave; the guard "
+         "removed it before it was spoken.",
+         "Nothing wrong was said; that sentence was missing.",
+         "No live price reached the writer (often a Finnhub refusal), so it "
+         "estimated one.",
+         "Look at live errors at the same time.")),
+    ("writer", r"^ran out of room",
+     _ex("The writer ran out of room",
+         "The script was cut off at the writer's token limit, which thinking "
+         "and script share.",
+         "The episode ended early, and its title, category and follow-up were lost.",
+         "A long episode with a lot of thinking, or MAX_OUTPUT_TOKENS set too low.",
+         "Raise MAX_OUTPUT_TOKENS if this repeats.")),
+    ("writer", r"^refused",
+     _ex("The writer was declined",
+         "A safety classifier declined the script (see Refusals below).",
+         "The listener heard 'I can't put together a briefing on that' instead "
+         "of the episode.",
+         "A sensitive news subject.",
+         "Read the question; an ordinary question declined is worth reporting.")),
+    ("writer", r"",
+     _ex("The writer failed",
+         "The call that writes the script raised an error.",
+         "The listener heard nothing, or the episode stopped.",
+         "An API error, overload, a network drop or a bad key.",
+         "Read the detail; a run of them means Anthropic is down or the key is wrong.")),
+    ("edition", r"",
+     _ex("An edition episode was not written",
+         "One episode of the Trending or DailyFAM edition (written ahead, "
+         "nobody waiting) could not be written.",
+         "That tile is missing or is written live on its first tap.",
+         "A failed brief, search or writer while the edition ran.",
+         "Look at the other stages at the same time of day (05:00 / 17:00 ET).")),
+    ("episode", r"^no voice",
+     _ex("No voice",
+         "The server could not reach any voice, so nothing was made.",
+         "The listener heard nothing.",
+         "The GPU voice worker is down or unreachable.",
+         "Check the voice worker (RunPod) and /api/health.")),
+    ("episode", r"^failed before any audio",
+     _ex("Failed before any audio",
+         "The episode failed before its first word was spoken.",
+         "The listener heard nothing and saw an error.",
+         "Whatever the detail says - usually a writer or voice failure.",
+         "Read the detail.")),
+    ("episode", r"^no speech",
+     _ex("No speech",
+         "The episode finished with no audio in it.",
+         "The listener heard nothing.",
+         "An empty script or a voice that returned silence.",
+         "Rare; worth a look every time.")),
+    ("episode", r"^stream broke",
+     _ex("The stream broke",
+         "The audio stopped part-way through.",
+         "The listener heard part of the episode.",
+         "The voice worker or the network dropped mid-episode.",
+         "Check the voice worker if it repeats.")),
+    ("episode", r"^voice fell behind",
+     _ex("The voice fell behind",
+         "The voice made audio slower than it was played, so the listener "
+         "heard silence part-way through.",
+         "A gap of silence in the middle of the episode.",
+         "The GPU was slow or shared, or the network to it was.",
+         "A run of these means the voice worker needs a faster GPU.")),
+)
+_EXPLAIN = [(stage, re.compile(pattern, re.I), words)
+            for stage, pattern, words in EXPLAIN]
+
+#: What the detail line itself says, in words, beside the explanation.
+HINTS = (
+    (r"RateLimited|\b429\b|minute's are spent",
+     "Rate limited: the service's per-minute allowance was spent."),
+    (r"\b403\b|don't have access|not have access",
+     "Refused (403): the plan does not include this - for Finnhub, an index, "
+     "future or foreign listing."),
+    (r"\b401\b|refused the key",
+     "The key was refused (401): wrong key, or a plan the account does not have."),
+    (r"Timeout|timed out",
+     "It ran out of time."),
+    (r"ConnectError|ConnectTimeout|RemoteProtocolError|ReadError",
+     "The connection failed or dropped."),
+    (r"\b5\d\d\b|Overloaded|overloaded",
+     "The service itself had an error or was overloaded."),
+)
+_HINTS = [(re.compile(pattern), words) for pattern, words in HINTS]
+
+
+def explain(stage: str, kind: str, detail: str = "") -> dict:
+    """What one kind of error means, in words: what happened, what the
+    listener noticed, the likely causes and what to do. Never raises."""
+    words = None
+    for at, pattern, said in _EXPLAIN:
+        if at == stage and pattern.search(kind or ""):
+            words = said
+            break
+    out = dict(words or _ex(kind or "Unknown", "Recorded at the " + (stage or "?")
+                            + " stage; no explanation is written for it yet.",
+                            "", "", "Read the detail and the question."))
+    hint = next((said for pattern, said in _HINTS if pattern.search(detail or "")), "")
+    if hint:
+        out["hint"] = hint
+    return out
+
+
+@functools.lru_cache(maxsize=4096)
+def _category_of(query: str) -> str:
+    """The category an error's question is about, read from its words
+    against the category tree (`stories.resolve_category`, no model, no
+    embedding), with the facet first: "Sport · nfl". Never raises."""
+    try:
+        import stories
+        import topics
+
+        node = stories.resolve_category(query) if query else ""
+        facet = stories.facet_for(node) if node else ""
+        if not facet and query:
+            facets = topics.facets_only(topics.tags_for_text(query))
+            facet = facets[0] if facets else ""
+        label = topics.TAG_LABELS.get(facet, facet)
+        if node and node != facet:
+            return f"{label} · {node}" if label else node
+        return label or "Uncategorised"
+    except Exception:  # noqa: BLE001 - a report is never load-bearing
+        return "Uncategorised"
+
+
 def report(now: Optional[float] = None, days: int = 7) -> dict:
     """What the admin page draws. Never raises, never creates the store.
 
     Counts for the last hour, day and week; per stage and kind, how many in
     the last day and week, when it last happened and what it last said; and
-    the newest rows."""
+    the newest rows. Each kind also carries what opening it on the page
+    shows (10.16 #1): its explanation, the categories of the questions it
+    happened on, its times (drawn by hour in the reader's clock) and its
+    newest rows. Kinds that differ only by a count are one kind."""
     now = time.time() if now is None else now
     rows: list = []
     steps: list = []
@@ -489,17 +761,37 @@ def report(now: Optional[float] = None, days: int = 7) -> dict:
         return sum(1 for r in rows if r["at"] >= since and r["severity"] == severity)
 
     kinds: dict = {}
+    categories: dict = {}
     for r in rows:  # newest first, so the first seen is the latest
-        key = (r["stage"], r["kind"])
+        key = (r["stage"], family(r["kind"]))
         k = kinds.get(key)
         if k is None:
-            k = kinds[key] = {"stage": r["stage"], "kind": r["kind"],
+            k = kinds[key] = {"stage": r["stage"], "kind": key[1],
                               "severity": r["severity"], "day": 0, "week": 0,
                               "last_at": r["at"], "last_detail": r["detail"],
-                              "last_query": r["query"]}
+                              "last_query": r["query"],
+                              "explain": explain(r["stage"], key[1], r["detail"]),
+                              "categories": {}, "times": [], "examples": []}
         k["week"] += 1
         if r["at"] >= now - DAY:
             k["day"] += 1
+        if r["severity"] == ERROR:
+            k["severity"] = ERROR
+        query = r["query"] or ""
+        if query not in categories:
+            categories[query] = _category_of(query) if query else "No question recorded"
+        name = categories[query]
+        k["categories"][name] = k["categories"].get(name, 0) + 1
+        if len(k["times"]) < KIND_TIMES:
+            k["times"].append(round(r["at"]))
+        if len(k["examples"]) < KIND_EXAMPLES:
+            k["examples"].append({"at": r["at"], "kind": r["kind"],
+                                  "severity": r["severity"],
+                                  "detail": r["detail"], "query": r["query"],
+                                  "category": name})
+    for k in kinds.values():
+        k["categories"] = [{"name": n, "count": c} for n, c in
+                           sorted(k["categories"].items(), key=lambda kv: (-kv[1], kv[0]))]
     by_stage = {s: {"day": 0, "week": 0} for s in STAGES}
     for k in kinds.values():
         s = by_stage.setdefault(k["stage"], {"day": 0, "week": 0})

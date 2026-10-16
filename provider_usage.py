@@ -454,32 +454,43 @@ def report(now: Optional[float] = None, days: int = 7) -> list[dict]:
         why = failure_reasons(provider)
         if why:
             row["failure_reasons"] = why
-        if provider == "balldontlie":
-            breakdown = _league_breakdown(seen, today, yesterday, days)
+        if provider in BROKEN_DOWN:
+            breakdown = _league_breakdown(seen, today, yesterday, days, provider)
             if breakdown:
                 row["breakdown"] = breakdown
         rows.append(row)
     return rows
 
 
+#: Providers whose requests are also counted by part (`record(detail=...)`),
+#: each part a row under the provider: BALLDONTLIE by league (§275), GDELT
+#: by which file it fetched (10.16 #4), so "why so many" is on the page.
+BROKEN_DOWN = {
+    "balldontlie": ("the account's plan", "shared by every league"),
+    "gdelt": ("part of the ~200/day", "what the requests were for"),
+}
+
+
 def _league_breakdown(seen: dict, today: str, yesterday: str,
-                      days: int) -> list[dict]:
-    """One row per BALLDONTLIE league asked in the window: one plan covers
-    them all, so the rows say where the requests went, not what each costs."""
+                      days: int, provider: str = "balldontlie") -> list[dict]:
+    """One row per part of `provider` asked in the window - a BALLDONTLIE
+    league, a kind of GDELT file: the rows say where the requests went, not
+    what each costs."""
     out = []
-    prefix = "balldontlie" + SUB
+    limit, upgrade = BROKEN_DOWN.get(provider, BROKEN_DOWN["balldontlie"])
+    prefix = provider + SUB
     for key in sorted(k for k in seen if k.startswith(prefix)):
         per_day = seen[key]
         total = sum(requests for requests, _ in per_day.values())
         league = key[len(prefix):]
         out.append({
             "league": league,
-            "label": league.upper(),
+            "label": league.upper() if provider == "balldontlie" else league,
             "today": per_day.get(today, (0, 0))[0],
             "failed_today": per_day.get(today, (0, 0))[1],
             "yesterday": per_day.get(yesterday, (0, 0))[0],
             "average": round(total / max(1, days), 1),
-            "limit": "the account's plan",
-            "next": "shared by every league",
+            "limit": limit,
+            "next": upgrade,
         })
     return out

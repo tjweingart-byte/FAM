@@ -575,6 +575,25 @@ _NAMED: dict = {}
 #: `_fetch_file`'s answer for a named file not served yet.
 WAITING = -2
 
+#: name -> syncs in which fetching it failed (10.16 #4). A file that failed
+#: was asked again - twice, with the retry - at every poll for as long as it
+#: stayed inside the backfill window: eight files, two hours, the whole
+#: request count of a day multiplied by every broken file. Past
+#: `GDELT_EXPORT_FILE_TRIES` it is written off like a file never published.
+_FAILED: dict = {}
+
+#: name -> how many quick looks a named-but-not-served file has had
+#: (10.16 #4). Past `GDELT_EXPORT_MAX_WAITS` it waits for the ordinary poll.
+_WAITS: dict = {}
+
+
+def _worth_retrying(what: str, exc: BaseException) -> bool:
+    """Whether a transport failure is asked once more inside the same sync.
+    A GKG file that timed out took the whole timeout to do it, and a second
+    try straight after is the same download on the same slow path - two
+    minutes and two counted requests for nothing (10.16 #4)."""
+    return not (what == "GKG file" and isinstance(exc, httpx.TimeoutException))
+
 
 def _describe(exc: BaseException) -> str:
     """A failure in words - a timeout's own message is empty (§144)."""
@@ -604,23 +623,24 @@ async def _download(client: httpx.AsyncClient, url: str) -> httpx.Response:
         try:
             response = await client.get(url)
         except httpx.TransportError as exc:
-            provider_usage.record("gdelt", ok=False,
+            provider_usage.record("gdelt", ok=False, detail=what,
                                   why=f"{what}: {type(exc).__name__}")
-            if last:
+            if last or not _worth_retrying(what, exc):
                 raise
         except Exception as exc:
-            provider_usage.record("gdelt", ok=False,
+            provider_usage.record("gdelt", ok=False, detail=what,
                                   why=f"{what}: {type(exc).__name__}")
             raise
         else:
             if response.is_success:
-                provider_usage.record("gdelt")
+                provider_usage.record("gdelt", detail=what)
                 return response
             status = response.status_code
             if status == 404 and what == "GKG file":
                 # `_fetch_file` knows whether this file was named; it counts it.
                 return response
-            provider_usage.record("gdelt", ok=False, why=f"{what}: HTTP {status}")
+            provider_usage.record("gdelt", ok=False, detail=what,
+                                  why=f"{what}: HTTP {status}")
             if last or status not in RETRY_STATUSES:
                 return response
         await asyncio.sleep(max(0.0, float(settings.gdelt_export_retry_seconds)))
@@ -666,12 +686,12 @@ async def _fetch_file(client: httpx.AsyncClient, target: ExportStore,
             # Named by `lastupdate.txt` and not served yet (§220): the name
             # runs ahead of the file. Waited for, never written off - the
             # old code wrote it off on its second 404 and lost its news.
-            provider_usage.record("gdelt", ok=False,
+            provider_usage.record("gdelt", ok=False, detail="GKG file, not served yet",
                                   why="GKG file: HTTP 404, named but not served yet")
             return WAITING
         # A file GDELT never named - it skips a slot now and then - or one
         # named over an hour ago that never appeared: noted, never asked again.
-        provider_usage.record("gdelt", ok=False,
+        provider_usage.record("gdelt", ok=False, detail="GKG file, never published",
                               why="GKG file: HTTP 404, never published")
         await asyncio.to_thread(target.mark_missing, name, stamp)
         return -1
@@ -734,19 +754,35 @@ async def sync(now: Optional[float] = None,
                     break
                 wanted.append((name_for(earlier), ""))
             known = await asyncio.to_thread(target.domains)
+            tries = max(1, int(settings.gdelt_export_file_tries))
             for name, digest in reversed(wanted):
                 if await asyncio.to_thread(target.has_file, name):
+                    _FAILED.pop(name, None)
                     continue
                 try:
                     kept = await _fetch_file(client, target, name, digest, known, now)
                 except Exception as exc:  # noqa: BLE001 - the rest still come
                     errors.append(f"{name}: {_describe(exc)}")
+                    _FAILED[name] = _FAILED.get(name, 0) + 1
+                    if _FAILED[name] >= tries:
+                        # Given up on, not asked at every poll for two hours
+                        # (10.16 #4); its slot is simply missing from the copy.
+                        log.warning("gdelt: %s failed %d times; written off",
+                                    name, _FAILED[name])
+                        stamp = stamp_of(name)
+                        await asyncio.to_thread(
+                            target.mark_missing, name,
+                            stamp.timestamp() if stamp else now)
+                        _FAILED.pop(name, None)
                     continue
                 if kept == WAITING:
                     waiting.append(name)
                 elif kept >= 0:
+                    _FAILED.pop(name, None)
                     fetched += 1
                     STATE.last_file = name
+            for name in [n for n in _FAILED if n not in dict(wanted)]:
+                _FAILED.pop(name, None)
         finally:
             if own:
                 await client.aclose()
@@ -780,12 +816,18 @@ async def sync(now: Optional[float] = None,
         # whole period ago and still not served is an outage, and is asked
         # on the ordinary clock rather than every few minutes for an hour.
         every = max(60.0, float(settings.gdelt_export_poll_seconds))
-        out["look_again_soon"] = any(now - _NAMED.get(n, now) < every
-                                     for n in waiting)
+        soon = [n for n in waiting if now - _NAMED.get(n, now) < every
+                and _WAITS.get(n, 0) < int(settings.gdelt_export_max_waits)]
+        for n in soon:
+            _WAITS[n] = _WAITS.get(n, 0) + 1
+        out["look_again_soon"] = bool(soon)
+    for name in [n for n in _WAITS if n not in _NAMED]:
+        _WAITS.pop(name, None)
     return out
 
 
-def next_poll_in(now: Optional[float] = None, waiting: bool = False) -> float:
+def next_poll_in(now: Optional[float] = None, waiting: bool = False,
+                 failures: int = 0) -> float:
     """Seconds until the next poll (§220).
 
     On GDELT's clock: `GDELT_EXPORT_POLL_OFFSET_SECONDS` past each period
@@ -804,6 +846,11 @@ def next_poll_in(now: Optional[float] = None, waiting: bool = False) -> float:
         due += every
     if waiting:
         due = min(due, max(30.0, float(settings.gdelt_export_wait_seconds)))
+    elif failures > 1:
+        # Syncs failing one after another (10.16 #4): GDELT, or the road to
+        # it, is down, and asking every quarter hour only adds to the count.
+        # Doubled per failure after the first, up to two hours.
+        due += every * min(7, 2 ** (failures - 1) - 1)
     return due
 
 
@@ -812,7 +859,8 @@ async def run_forever() -> None:
     while True:
         result = await sync()
         await asyncio.sleep(next_poll_in(
-            waiting=bool(result.get("look_again_soon"))))
+            waiting=bool(result.get("look_again_soon")),
+            failures=STATE.failures_in_a_row))
 
 
 # --------------------------------------------------------------------------

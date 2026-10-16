@@ -27,6 +27,10 @@ model call:
   would be too late for the only mention that matters.
 * **An admin** can fix any name on /admin, and an admin's respelling is never
   replaced by a model's.
+* **Wikipedia** (10.16 #6, `wiki_pronounce.py`): every name a model adds is
+  looked up in the background, and an article's own respelling or IPA
+  replaces a model's guess it disagrees with. Below an admin, above both
+  models.
 
 Every respelling is kept in one shared lexicon (a table in the voice bank's
 database - it is a fact about how the voice speaks, and it needs no store of
@@ -59,7 +63,7 @@ SAY_MARKER = re.compile(r"<<\s*SAY\s*:\s*([^<>=]{1,80}?)\s*=\s*([^<>]{1,160}?)\s
 
 #: Where an entry came from. The order is precedence: an admin's respelling
 #: is never replaced by a model's.
-SOURCES = ("admin", "writer", "brief")
+SOURCES = ("admin", "wikipedia", "writer", "brief")
 
 #: How often a process re-reads the table, so a fix made on /admin (served
 #: by one worker) reaches every other worker without a restart.
@@ -287,6 +291,15 @@ class Lexicon:
         if kept:
             log.info("pronunciation: %d name(s) learned from the %s", kept, source)
             self.reload(force=True)
+            if source in ("writer", "brief"):
+                # Checked against Wikipedia in the background (10.16 #6),
+                # never on the episode's path: a model's guess Wikipedia
+                # disagrees with is replaced before most listeners hear it.
+                try:
+                    import wiki_pronounce
+                    wiki_pronounce.queue([p[0] for p in _cleaned(pairs)])
+                except Exception:  # noqa: BLE001
+                    log.warning("pronunciation: could not queue a Wikipedia check")
         return kept
 
     def set(self, name: str, say: str) -> tuple[str, str]:

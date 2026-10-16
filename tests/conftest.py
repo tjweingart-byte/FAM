@@ -613,9 +613,14 @@ def isolated_gdelt_export(tmp_path, monkeypatch):
                        str(tmp_path / "stores" / "gdelt_export.db"))
     gdelt_mod.reset_store()
     gdelt_mod.STATE.__init__()
+    # A file's failed syncs and quick looks (10.16 #4) are per test too.
+    gdelt_mod._FAILED.clear()
+    gdelt_mod._WAITS.clear()
     yield
     gdelt_mod.reset_store()
     gdelt_mod.STATE.__init__()
+    gdelt_mod._FAILED.clear()
+    gdelt_mod._WAITS.clear()
 
 
 @pytest.fixture(autouse=True)

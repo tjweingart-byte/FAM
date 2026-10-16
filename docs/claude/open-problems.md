@@ -50,6 +50,16 @@
    admin fixes any name on /admin and is never overridden, and only the text
    handed to the voice changes - captions, cache and titles keep the real
    spelling. Unheard.
+   > **Current (PROBLEMS.md §285, at the owner's direction: "Wikipedia is
+   > very good with pronunciation and should help to correct pronunciations
+   > that are already in the admin page and produce new ones"):** every name
+   > a model adds is looked up on Wikipedia in the background
+   > (`wiki_pronounce.py`, never on an episode's path) - the article's own
+   > `{{respell}}`, else its IPA turned into a respelling, else Wikidata's
+   > P898 - resolved by an exact Wikidata match only. Wikipedia ranks under
+   > an admin and over the writer and the brief (`pronunciation.SOURCES`):
+   > a model's guess it disagrees with is replaced; an admin's is only shown
+   > beside it on /admin, which also checks the whole list on request.
 <!-- rule:op-voice-bank -->
 2. ~~**Voice selection**~~ — *done, and a bank now* (§147). `voice_bank.py`
    keeps several cloned voices, each a recording plus its rights record, in

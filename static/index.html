@@ -5202,7 +5202,9 @@
     // the episode playing, so the inbox can show its title, sources and
     // transcript (9.30 #6); only the words that key it are sent - the server
     // reads the rest from its own cache.
-    var PLAYER_SCREENS = { player: 1, playall: 1 };
+    // Explore's reel plays episodes too (10.16 #3): a report typed there
+    // carries the reel's episode, which had no transcript in the inbox.
+    var PLAYER_SCREENS = { player: 1, playall: 1, explore: 1 };
     function context(){
       var active = document.querySelector(".screen.active");
       var screen = active ? active.id.replace(/^screen-/, "") : "";
@@ -5212,7 +5214,16 @@
         page: location.pathname + location.search,
         viewport: window.innerWidth + "x" + window.innerHeight
       };
-      if(PLAYER_SCREENS[screen] && episodeStamp){
+      // The reel plays through FamAudio directly, never `episodeStamp`, so
+      // its card is read from the reel itself (10.16 #3).
+      if(screen === "explore"){
+        var reel = (typeof reelCurrent !== "undefined" && typeof audioOwner !== "undefined" && audioOwner === "reel") ? reelCurrent : null;
+        if(reel && reel.query){
+          out.episode = { q: String(reel.query).slice(0, 500), minutes: Number(reel.minutes) || 0,
+                          context: "", thumb: reel.thumb || "",
+                          id: (window.FamAudio && FamAudio.episode && FamAudio.episode()) || "" };
+        }
+      } else if(PLAYER_SCREENS[screen] && episodeStamp){
         var parts = episodeStamp.split("|");
         // The query is everything before the last two fields, so a "|"
         // typed into a question does not cut it short.
@@ -5220,6 +5231,9 @@
         out.episode = { q: q.slice(0, 500),
                         minutes: Number(parts[parts.length - 2]) || 0,
                         context: (parts.length > 2 ? parts[parts.length - 1] : "").slice(0, 300),
+                        // The id its audio arrived with (§173): the server
+                        // finds exactly what played, current or not (10.16 #3).
+                        id: (window.FamAudio && FamAudio.episode && FamAudio.episode()) || "",
                         // The picture the player is showing (10.10 #3).
                         thumb: (typeof PLAYER_CARD !== "undefined" && PLAYER_CARD.thumb) || "" };
       }

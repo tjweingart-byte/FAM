@@ -4117,7 +4117,53 @@ async def admin_pronunciations(request: Request) -> dict:
     """How the voice says hard names (§165): every respelling on file, and
     who said it - the brief, the writer, or an admin. Admin only."""
     _require_admin(request)
-    return {"pronunciations": voice_bank.bank().pronunciations()}
+    import wiki_pronounce
+
+    bank = voice_bank.bank()
+    rows = bank.pronunciations()
+    # What Wikipedia said about each name (10.16 #6), beside it.
+    try:
+        checks = {c["name"]: c for c in bank.pronunciation_checks()}
+    except Exception:  # noqa: BLE001 - advice, never the list itself
+        checks = {}
+    for row in rows:
+        if row["name"] in checks:
+            row["wikipedia"] = checks[row["name"]]
+    return {"pronunciations": rows,
+            "wikipedia": {"enabled": wiki_pronounce.enabled(),
+                          **dict(wiki_pronounce.STATE)}}
+
+
+@app.post("/api/admin/pronunciations/wikipedia")
+async def admin_check_pronunciations(request: Request,
+                                     force: bool = Query(False)) -> dict:
+    """Check every name on file against Wikipedia, in the background
+    (10.16 #6). A model's guess Wikipedia disagrees with is replaced; an
+    admin's is only shown beside Wikipedia's. Names checked in the last
+    month are skipped unless `force`."""
+    _require_admin(request)
+    import wiki_pronounce
+
+    if not wiki_pronounce.enabled():
+        raise HTTPException(status_code=409, detail=(
+            "The Wikipedia look is off on this server (WIKIPEDIA=0), so "
+            "nothing can be checked."))
+    return {"queued": wiki_pronounce.check_all(force=force),
+            "state": dict(wiki_pronounce.STATE)}
+
+
+@app.get("/api/admin/pronunciations/wikipedia")
+async def admin_lookup_pronunciation(request: Request,
+                                     name: str = Query(..., max_length=60)) -> dict:
+    """How Wikipedia says one name, for the admin's form (10.16 #6). Asks
+    now and keeps the answer; changes nothing in the lexicon."""
+    _require_admin(request)
+    import wiki_pronounce
+
+    if not wiki_pronounce.enabled():
+        raise HTTPException(status_code=409, detail=(
+            "The Wikipedia look is off on this server (WIKIPEDIA=0)."))
+    return await asyncio.to_thread(wiki_pronounce.check, name.strip(), False)
 
 
 @app.post("/api/admin/pronunciations")
@@ -4165,8 +4211,12 @@ class FeedbackEpisode(BaseModel):
     context: str = ""
     title: str = ""
     thumb: str = ""
+    #: The id the episode's audio arrived with (`X-FAM-Episode`, §173): it
+    #: names exactly what played, whatever its length, voice or research
+    #: setting, and finds it after it stops being current (10.16 #3).
+    id: str = ""
 
-    @field_validator("q", "context", "title", "thumb", mode="before")
+    @field_validator("q", "context", "title", "thumb", "id", mode="before")
     @classmethod
     def _cut(cls, value):
         return str(value or "")[:500]
@@ -4215,6 +4265,20 @@ async def _feedback_episode(ep: Optional[FeedbackEpisode]) -> Optional[dict]:
         pass
     except Exception:  # noqa: BLE001 - the report matters more than its attachment
         log.exception("could not read the episode for a feedback report")
+    # The episode that played, kept (10.16 #3): the lookups above ask for the
+    # *current* episode under a key rebuilt from the question, so a report
+    # filed once an episode had gone stale (two hours for news), or on one
+    # whose key the question alone does not rebuild, came in with no
+    # transcript. The heard episode's id names it exactly, and a kept
+    # episode is read whether or not it is still current - this is what the
+    # listener heard, not what a new listener would be served.
+    if not sentences or not title or not (sources or {}).get("items"):
+        kept_title, kept_sources, kept_sentences = _kept_episode(
+            ep.q, minutes, ep.id, ep.context)
+        sentences = sentences or kept_sentences
+        title = title or kept_title
+        if not (sources or {}).get("items") and (kept_sources or {}).get("items"):
+            sources = kept_sources
     # The picture the episode was playing over (10.10 #3): the page's, when
     # it is one of ours, else the one the player would have drawn.
     thumb = feedback_mod.thumb_path(ep.thumb)
@@ -4227,6 +4291,30 @@ async def _feedback_episode(ep: Optional[FeedbackEpisode]) -> Optional[dict]:
     return feedback_mod.episode_snapshot(ep.q, minutes, title, sources, sentences,
                                          thumb=thumb,
                                          services=_episode_services(ep.q, sources))
+
+
+def _kept_episode(query: str, minutes: int, episode: str = "",
+                  context: str = "") -> tuple:
+    """`(title, sources, sentences)` of the episode a listener heard, read from
+    what is kept rather than what is current (10.16 #3). The heard id first
+    (`_heard_key`), else the question's own key; its live track if it is
+    still being spoken, else the kept script. Never generates, never raises."""
+    if SCRIPT_CACHE is None:
+        return "", {}, []
+    try:
+        key = _heard_key(query, minutes, episode, context)
+        if not key:
+            return "", {}, []
+        live = live_captions.read(key)
+        sentences = list(live[0]) if live is not None else \
+            list(SCRIPT_CACHE.get(key, current=False) or [])
+        title = SCRIPT_CACHE.title(key) or ""
+        raw = SCRIPT_CACHE.sources(key) or ""
+        sources = provenance_mod.Provenance.from_json(raw).as_dict() if raw else {}
+        return title, sources, sentences
+    except Exception:  # noqa: BLE001 - the report matters more than its attachment
+        log.exception("could not read the kept episode for a feedback report")
+        return "", {}, []
 
 
 #: How far back a report looks for the lookup that wrote its episode: the

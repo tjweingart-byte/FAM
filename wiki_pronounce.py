@@ -1,0 +1,464 @@
+"""How Wikipedia says a name, checked against the lexicon (10.16 #6).
+
+The owner (10.16): "cross check the list of how names are said with the new
+wikipedia plugins ... the list is pretty inclusive, but still has gaps and
+some of the pronunciations are incorrect on the admin page. Wikipedia is very
+good with pronunciation and should help to correct pronunciations that are
+already in the admin page and produce new ones."
+
+The lexicon (`pronunciation.py`, §165) is filled by two guesses - the brief's,
+made before anything was read, and the writer's - and an admin's fixes. An
+English Wikipedia article about a person or place usually opens with how the
+name is said, written by people who checked: a `{{respell}}` template (already
+a respelling, "ab-DOOL-kə-REEM"), or `{{IPAc-en}}` / `{{IPA}}` in the
+International Phonetic Alphabet, which this module turns into the same
+respelling the voice is handed. Wikidata's "IPA transcription" (P898) is read
+when the article has neither.
+
+**Resolved the reference look's way (§278), never guessed**: Wikidata's
+search must return exactly one item whose English label (or the alias it
+matched) is the name, ignoring case and accents; two or more is no answer,
+because a pronunciation of the wrong "John Smith" is worse than none.
+
+**What it changes.** Wikipedia ranks below an admin and above the writer and
+the brief (`pronunciation.SOURCES`): a model's guess that Wikipedia disagrees
+with is replaced, and an admin's fix never is - Wikipedia's reading is shown
+beside it on /admin, to take or leave. New names are checked as they are
+learned, in the background (`queue`), and the whole list on the admin's
+asking (`check_all`). **Never on an episode's path**: nothing here runs while
+somebody waits, and a name is spoken from whatever the lexicon held.
+
+Every request goes through `wikimedia._send` - counted, identified, paced to
+three at once and backing off on a 429 - and only while the reference look is
+on (`WIKIPEDIA=1`; staging and the tests keep it off). A name's answer, "not
+on Wikipedia" included, is kept (`voice_bank.pronunciation_checks`) and not
+asked again for `RECHECK_DAYS`.
+
+**Unverified against the real services** for the same reason as
+`wikimedia.py`: the build container cannot reach en.wikipedia.org. The
+template shapes are read from Wikipedia's documentation and pinned in
+`tests/test_wiki_pronounce_1016.py`.
+"""
+from __future__ import annotations
+
+import difflib
+import logging
+import re
+import threading
+import time
+from typing import Iterable, Optional
+
+log = logging.getLogger("wiki_pronounce")
+
+WIKIPEDIA_API = "https://en.wikipedia.org/w/api.php"
+#: Wikidata's "IPA transcription".
+P_IPA = "P898"
+#: How long a name's answer stands before it is asked again.
+RECHECK_DAYS = 30
+#: Most names one `check_all` asks about, so a long list is spread over runs.
+MAX_PER_RUN = 400
+
+#: What a check found. `agrees`/`differs` compare with the lexicon's entry.
+FOUND, AGREES, DIFFERS, NONE, AMBIGUOUS, FAILED = (
+    "found", "agrees", "differs", "not on Wikipedia", "ambiguous", "failed")
+
+
+# --------------------------------------------------------------------------
+# IPA -> respelling (Wikipedia's own pronunciation respelling key)
+# --------------------------------------------------------------------------
+#: Longest first, so "aɪər" is read before "aɪ". Vowels carry True.
+_PHONES = (
+    # r-coloured vowels
+    ("aɪər", "eye-ur", True), ("aʊər", "ow-ur", True), ("ɪər", "eer", True),
+    ("ɛər", "air", True), ("ʊər", "oor", True), ("ɜːr", "ur", True),
+    ("ɑːr", "ar", True), ("ɔːr", "or", True), ("ɔər", "or", True),
+    ("ɜr", "ur", True), ("ər", "ər", True), ("ɝ", "ur", True), ("ɚ", "ər", True),
+    # diphthongs
+    ("eɪ", "ay", True), ("aɪ", "eye", True), ("ɔɪ", "oy", True),
+    ("oʊ", "oh", True), ("əʊ", "oh", True), ("aʊ", "ow", True),
+    ("ju:", "yoo", True), ("juː", "yoo", True),
+    # long vowels
+    ("iː", "ee", True), ("uː", "oo", True), ("ɑː", "ah", True),
+    ("ɔː", "aw", True), ("ɜː", "ur", True), ("eː", "ay", True),
+    ("oː", "oh", True), ("aː", "ah", True), ("ɛː", "eh", True),
+    ("yː", "ew", True), ("øː", "ur", True),
+    # short vowels
+    ("æ", "a", True), ("ɑ", "ah", True), ("ɒ", "o", True), ("ɔ", "aw", True),
+    ("ɛ", "e", True), ("e", "eh", True), ("ɪ", "i", True), ("i", "ee", True),
+    ("ʊ", "uu", True), ("u", "oo", True), ("ʌ", "u", True), ("ə", "ə", True),
+    ("ɐ", "uh", True), ("a", "ah", True), ("o", "oh", True), ("y", "ew", True),
+    ("ø", "ur", True), ("œ", "ur", True), ("ɨ", "i", True), ("ɯ", "oo", True),
+    ("ɘ", "ə", True), ("ɵ", "ur", True), ("ɤ", "uh", True),
+    # consonants
+    ("tʃ", "ch", False), ("t͡ʃ", "ch", False), ("dʒ", "j", False),
+    ("d͡ʒ", "j", False), ("ts", "ts", False), ("t͡s", "ts", False),
+    ("hw", "wh", False), ("ʃ", "sh", False), ("ʒ", "zh", False),
+    ("θ", "th", False), ("ð", "dh", False), ("ŋ", "ng", False),
+    ("ɲ", "ny", False), ("ʎ", "ly", False), ("x", "kh", False),
+    ("χ", "kh", False), ("ç", "h", False), ("ɡ", "g", False), ("g", "g", False),
+    ("j", "y", False), ("ɹ", "r", False), ("ɾ", "r", False), ("r", "r", False),
+    ("ʁ", "r", False), ("ʔ", "", False), ("ɫ", "l", False), ("ɬ", "hl", False),
+    ("b", "b", False), ("d", "d", False), ("f", "f", False), ("h", "h", False),
+    ("k", "k", False), ("l", "l", False), ("m", "m", False), ("n", "n", False),
+    ("p", "p", False), ("s", "s", False), ("t", "t", False), ("v", "v", False),
+    ("w", "w", False), ("z", "z", False), ("β", "v", False), ("ɣ", "g", False),
+    ("c", "k", False), ("q", "k", False), ("ɦ", "h", False),
+)
+_STRESS, _SECONDARY = "ˈ", "ˌ"
+#: Marks with nothing to say to a voice: length on its own, nasal and other
+#: diacritics, tie bars, brackets, slashes.
+_IGNORED = set("ːˑ̩̯̃͡ʰʲʷ̥̬̪()[]/‿|'’")
+
+
+def _phones(ipa: str) -> list:
+    """`[(respelt, is_vowel, stress)]` and word breaks as `None`."""
+    text = (ipa or "").replace("'", _STRESS).replace("ɚ", "ər")
+    out: list = []
+    stress = 0
+    i = 0
+    while i < len(text):
+        ch = text[i]
+        if ch in (" ", "-", "_"):
+            out.append(None)
+            i += 1
+            continue
+        if ch == _STRESS:
+            stress = 2
+            out.append(("|", False, 0))
+            i += 1
+            continue
+        if ch == _SECONDARY:
+            stress = max(stress, 1)
+            out.append(("|", False, 0))
+            i += 1
+            continue
+        if ch == ".":
+            out.append(("|", False, 0))
+            i += 1
+            continue
+        for sound, said, vowel in _PHONES:
+            if text.startswith(sound, i):
+                out.append((said, vowel, stress if vowel else 0))
+                if vowel:
+                    stress = 0
+                i += len(sound)
+                break
+        else:
+            i += 1      # a mark this table does not voice (_IGNORED and others)
+    return out
+
+
+def _syllables(word: list) -> list:
+    """`[(text, stressed)]` for one word: one vowel each, a single consonant
+    before a vowel going with it, marked breaks kept."""
+    sylls: list = []
+    current: list = []
+    pending: list = []         # consonants since the last vowel
+    stressed = 0
+    seen_vowel = False
+    for said, vowel, stress in word:
+        if said == "|":
+            if seen_vowel:
+                sylls.append(("".join(current + pending), stressed))
+                current, pending, stressed, seen_vowel = [], [], 0, False
+            continue
+        if vowel:
+            if seen_vowel:
+                # Between two vowels: the last consonant opens the next one.
+                carry = pending[-1:] if pending else []
+                sylls.append(("".join(current + pending[:-1] if pending else current),
+                              stressed))
+                current, stressed = list(carry), 0
+            else:
+                current += pending
+            pending = []
+            current.append(said)
+            stressed = max(stressed, stress)
+            seen_vowel = True
+        else:
+            pending.append(said)
+    tail = "".join(current + pending)
+    if tail:
+        if seen_vowel or not sylls:
+            sylls.append((tail, stressed))
+        else:
+            text, s = sylls[-1]
+            sylls[-1] = (text + tail, s)
+    return [(t, s) for t, s in sylls if t]
+
+
+def ipa_to_respelling(ipa: str) -> str:
+    """IPA as the lexicon's respelling: hyphens between syllables, the
+    stressed syllable in capitals - "æbˈduːlkəriːm" -> "ab-DOOL-kə-reem".
+    "" when nothing in it can be voiced."""
+    words: list = [[]]
+    for phone in _phones(ipa):
+        if phone is None:
+            if words[-1]:
+                words.append([])
+        else:
+            words[-1].append(phone)
+    out = []
+    for word in words:
+        sylls = _syllables(word)
+        if not sylls:
+            continue
+        out.append("-".join(t.upper() if s == 2 else t for t, s in sylls))
+    said = " ".join(out).replace("ə", "uh").replace("Ə", "UH")
+    return _plain(said)
+
+
+def _plain(said: str) -> str:
+    """Letters, hyphens and spaces only - what `pronunciation.clean` takes."""
+    said = re.sub(r"[^A-Za-z'\- ]", "", said)
+    said = re.sub(r"-{2,}", "-", said)
+    return " ".join(w.strip("-") for w in said.split() if w.strip("-"))
+
+
+def respell_template(params: list) -> str:
+    """`{{respell|ab|DOOL|kə|REEM}}` -> "ab-DOOL-kuh-REEM". A "_" or a
+    parameter with a space is a word break."""
+    words: list = [[]]
+    for raw in params:
+        part = raw.strip()
+        if not part or "=" in part:
+            continue
+        if part == "_":
+            words.append([])
+            continue
+        pieces = part.split()
+        for n, piece in enumerate(pieces):
+            if n:
+                words.append([])
+            words[-1].append(piece)
+    said = " ".join("-".join(w) for w in words if w)
+    return _plain(said.replace("ə", "uh").replace("Ə", "UH").replace("ɪ", "i"))
+
+
+# --------------------------------------------------------------------------
+# Wikitext
+# --------------------------------------------------------------------------
+_TEMPLATE = re.compile(r"\{\{\s*([A-Za-z][A-Za-z0-9 _-]*?)\s*\|([^{}]*)\}\}")
+#: IPAc-en's labels and notes: words, not sounds.
+_IPAC_LABELS = frozenset({"lang", "local", "pron", "US", "UK", "AU", "CA", "NZ",
+                          "IE", "SA", "also", "or", "audio", "En-us", "en-us"})
+
+
+def from_wikitext(wikitext: str) -> Optional[dict]:
+    """How an article's lead says its subject: `{"say", "ipa", "how"}` from
+    the first `{{respell}}`, else `{{IPAc-en}}`, else `{{IPA}}`/`{{IPA-xx}}`;
+    None when it says nothing."""
+    found = {}
+    for match in _TEMPLATE.finditer(wikitext or ""):
+        name = match.group(1).strip().lower().replace("_", " ")
+        params = match.group(2).split("|")
+        if name == "respell" and "respell" not in found:
+            say = respell_template(params)
+            if say:
+                found["respell"] = {"say": say, "ipa": "", "how": "Wikipedia's respelling"}
+        elif name in ("ipac-en", "ipac en") and "ipac" not in found:
+            ipa = "".join(p.strip() for p in params
+                          if p.strip() and "=" not in p and p.strip() not in _IPAC_LABELS)
+            say = ipa_to_respelling(ipa)
+            if say:
+                found["ipac"] = {"say": say, "ipa": ipa, "how": "Wikipedia's English IPA"}
+        elif (name == "ipa" or name.startswith("ipa-") or name.startswith("ipa ")) \
+                and "ipa" not in found:
+            plain = [p.strip() for p in params if p.strip() and "=" not in p]
+            # {{IPA|de|ˈʃmɪt}} names its language first; {{IPA-de|ˈʃmɪt}} not.
+            if name == "ipa" and len(plain) > 1 and re.fullmatch(r"[a-z-]{2,8}", plain[0]):
+                lang, plain = plain[0], plain[1:]
+            else:
+                lang = name[4:] if len(name) > 4 else ""
+            ipa = plain[0] if plain else ""
+            say = ipa_to_respelling(ipa)
+            if say:
+                found["ipa"] = {"say": say, "ipa": ipa,
+                                "how": "Wikipedia's IPA" + (f" ({lang})" if lang else "")}
+    for key in ("respell", "ipac", "ipa"):
+        if key in found:
+            return found[key]
+    return None
+
+
+# --------------------------------------------------------------------------
+# Asking Wikipedia
+# --------------------------------------------------------------------------
+def _lead(title: str) -> str:
+    import wikimedia
+
+    status, parsed = wikimedia._send("GET", WIKIPEDIA_API, params={
+        "action": "parse", "page": title, "prop": "wikitext", "section": "0",
+        "redirects": "1", "format": "json", "formatversion": "2"})
+    if status != 200 or not isinstance(parsed, dict):
+        raise wikimedia.WikimediaError(f"wikipedia answered HTTP {status}")
+    return str(((parsed.get("parse") or {}).get("wikitext")) or "")
+
+
+def lookup(name: str) -> dict:
+    """What Wikipedia says about how `name` is said. Never raises:
+    `{"name", "status", "say", "ipa", "how", "title", "url"}`."""
+    import wikimedia
+    from urllib.parse import quote
+
+    out = {"name": name, "status": NONE, "say": "", "ipa": "", "how": "",
+           "title": "", "url": ""}
+    try:
+        found = wikimedia._wikidata({"action": "wbsearchentities", "search": name,
+                                     "language": "en", "type": "item", "limit": "5"})
+        qid, ambiguous = wikimedia.pick(found.get("search") or [], name)
+        if not qid:
+            out["status"] = AMBIGUOUS if ambiguous else NONE
+            return out
+        data = wikimedia._wikidata({"action": "wbgetentities", "ids": qid,
+                                    "props": "claims|sitelinks", "sitefilter": "enwiki"})
+        entity = (data.get("entities") or {}).get(qid) or {}
+        title = ((entity.get("sitelinks") or {}).get("enwiki") or {}).get("title", "")
+        said = None
+        if title:
+            out["title"] = title
+            out["url"] = wikimedia.ARTICLE_URL + quote(title.replace(" ", "_"))
+            said = from_wikitext(_lead(title))
+        if said is None:
+            for claim in (entity.get("claims") or {}).get(P_IPA) or []:
+                value = (((claim.get("mainsnak") or {}).get("datavalue") or {})
+                         .get("value"))
+                say = ipa_to_respelling(str(value or ""))
+                if say:
+                    said = {"say": say, "ipa": str(value), "how": "Wikidata's IPA"}
+                    break
+        if said:
+            out.update(said)
+            out["status"] = FOUND
+        return out
+    except Exception as exc:  # noqa: BLE001 - a check is only ever advice
+        log.info("wiki_pronounce: %r could not be checked (%s)", name, exc)
+        out["status"] = FAILED
+        return out
+
+
+def _letters(say: str) -> str:
+    return re.sub(r"[^a-z]", "", (say or "").lower().replace("uh", "ə"))
+
+
+def agrees(ours: str, theirs: str) -> bool:
+    """Whether two respellings are the same pronunciation, near enough -
+    spelling a vowel "ah" or "a" is not a disagreement worth a change."""
+    a, b = _letters(ours), _letters(theirs)
+    if not a or not b:
+        return False
+    return a == b or difflib.SequenceMatcher(None, a, b).ratio() >= 0.8
+
+
+def check(name: str, apply: bool = True) -> dict:
+    """Look one name up, compare it with the lexicon, keep the answer, and -
+    when the lexicon's entry is a model's guess Wikipedia disagrees with -
+    replace it with Wikipedia's (`apply`). An admin's entry is never touched."""
+    import pronunciation
+    import voice_bank
+
+    result = lookup(name)
+    bank = voice_bank.bank()
+    entry = next((r for r in bank.pronunciations() if r["name"] == name), None)
+    if result["status"] == FOUND and entry:
+        result["status"] = AGREES if agrees(entry["say"], result["say"]) else DIFFERS
+        if result["status"] == DIFFERS and apply \
+                and entry["source"] in ("writer", "brief"):
+            if pronunciation.lexicon().learn([(name, result["say"])], "wikipedia"):
+                result["applied"] = True
+                result["status"] = AGREES
+    try:
+        bank.keep_pronunciation_check(result)
+    except Exception:  # noqa: BLE001
+        log.warning("wiki_pronounce: the answer for %r could not be kept", name)
+    return result
+
+
+# --------------------------------------------------------------------------
+# In the background
+# --------------------------------------------------------------------------
+_QUEUE: list = []
+_LOCK = threading.Lock()
+_RUNNING = [False]
+#: What the admin page says about the run in progress or the last one.
+STATE = {"running": False, "done": 0, "total": 0, "applied": 0,
+         "started": 0.0, "finished": 0.0, "last_done": 0, "last_applied": 0}
+
+
+def enabled() -> bool:
+    try:
+        import wikimedia
+        return wikimedia.enabled()
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def _due(names: Iterable[str], force: bool = False) -> list:
+    import voice_bank
+
+    try:
+        checked = {r["name"]: r["at"] for r in voice_bank.bank().pronunciation_checks()}
+    except Exception:  # noqa: BLE001
+        checked = {}
+    cutoff = time.time() - RECHECK_DAYS * 86400
+    out = []
+    for name in dict.fromkeys(n for n in names if n):
+        if force or checked.get(name, 0) < cutoff:
+            out.append(name)
+    return out
+
+
+def queue(names: Iterable[str], force: bool = False) -> int:
+    """Check these names in the background; returns how many were queued.
+    Names checked in the last `RECHECK_DAYS` are skipped unless `force`.
+    Never raises, never waits."""
+    if not enabled():
+        return 0
+    try:
+        wanted = _due(names, force)
+        with _LOCK:
+            fresh = [n for n in wanted if n not in _QUEUE][:MAX_PER_RUN]
+            _QUEUE.extend(fresh)
+            STATE["total"] += len(fresh)
+            start = bool(_QUEUE) and not _RUNNING[0]
+            if start:
+                _RUNNING[0] = True
+                STATE.update(running=True, started=time.time())
+        if start:
+            threading.Thread(target=_drain, daemon=True,
+                             name="wiki-pronounce").start()
+        return len(fresh)
+    except Exception as exc:  # noqa: BLE001
+        log.warning("wiki_pronounce: could not queue checks: %s", exc)
+        return 0
+
+
+def check_all(force: bool = False) -> int:
+    """Queue every name in the lexicon (the admin's button)."""
+    import voice_bank
+
+    try:
+        names = [r["name"] for r in voice_bank.bank().pronunciations()]
+    except Exception:  # noqa: BLE001
+        return 0
+    return queue(names, force=force)
+
+
+def _drain() -> None:
+    try:
+        while True:
+            with _LOCK:
+                if not _QUEUE:
+                    break
+                name = _QUEUE.pop(0)
+            result = check(name)
+            with _LOCK:
+                STATE["done"] += 1
+                if result.get("applied"):
+                    STATE["applied"] += 1
+    finally:
+        with _LOCK:
+            _RUNNING[0] = False
+            STATE.update(running=False, finished=time.time(),
+                         last_done=STATE["done"], last_applied=STATE["applied"],
+                         done=0, total=0, applied=0)
