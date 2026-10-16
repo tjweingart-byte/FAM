@@ -356,6 +356,19 @@ def publish_sources(key: str, raw: str) -> None:
         track.touched = time.time()
 
 
+def is_writing(key: str) -> bool:
+    """Whether an episode is being written under `key` in this worker now:
+    a track that is neither a replay nor done (§288). While it is, the
+    cache under the same key may still hold the episode it replaces, so
+    nothing about this one is read from there."""
+    if not key:
+        return False
+    with _LOCK:
+        _expire()
+        track = _TRACKS.get(key)
+        return track is not None and not track.cached and not track.done
+
+
 def read_sources(key: str) -> str:
     """Provenance JSON for an episode in flight, or "" if there is none yet.
 

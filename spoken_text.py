@@ -233,7 +233,10 @@ _INTEGER = re.compile(r"(?<![\d.A-Za-z])(" + _NUM + r")(?!\d)(?=([A-Za-z])?)")
 #: Capital letters stuck to a number: "Q3", "F1", "G7", "B12" - and a
 #: code (§288) such as a gene or protein, "ZBTB44", "CD4", "IL22", which the
 #: voice was handed raw and hesitated over, halfway through a first line.
-_LETTER_NUMBER = re.compile(r"\b(?:([A-Z])(\d{1,2})|([A-Z]{2,5})(\d{1,3}))\b")
+#: Only letters with no vowel among them are spelled: "COP29" and "COVID19"
+#: are said as words, as "NATO" is.
+_LETTER_NUMBER = re.compile(
+    r"\b(?:([A-Z])(\d{1,2})|([B-DF-HJ-NP-TV-Z]{2,5})(\d{1,3}))\b")
 #: A full date written with slashes, American order: "9/27/2026".
 _DATE = re.compile(r"(?<![\d/])(\d{1,2})/(\d{1,2})/(\d{4}|\d{2})(?![\d/])")
 _MONTHS = ["January", "February", "March", "April", "May", "June", "July",

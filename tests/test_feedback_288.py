@@ -192,6 +192,14 @@ def test_talk_of_the_material_is_caught(sentence):
     "Part of the deal is not public.",
     'The coach said "that is not part of what I was given" and laughed.',
     "Investors were given the information on Monday.",
+    # The review's (§288): wire and court phrasing, never the writer's own.
+    "The source did not say when the deal would close.",
+    "The sources do not show a link, investigators said.",
+    "The video was not part of the evidence presented to the jury.",
+    "Officials put the damage at two billion dollars, based on the "
+    "information available so far.",
+    "The figures appear in the materials provided to investors.",
+    "That was not part of the information released by police.",
 ])
 def test_reporting_is_not_talk_of_the_material(sentence):
     assert not sg.is_material_sentence(sentence)
@@ -239,6 +247,9 @@ def test_a_code_is_spelled_for_the_voice_and_kept_in_the_captions():
     assert speakable("CD4 cells") == "C D four cells"
     # One letter and a number reads as it always did.
     assert speakable("Q3 and the G7") == "Q three and the G seven"
+    # Letters said as a word stay a word (review, §288).
+    assert speakable("COP29 opened in Baku") == "COP29 opened in Baku"
+    assert speakable("COVID19") == "COVID19"
 
 
 def test_a_say_line_may_name_a_code():
@@ -286,6 +297,7 @@ def test_an_empty_live_track_does_not_hide_the_kept_sources():
            '"url": "https://www.reuters.com/x"}], "retrievers": []}')
     cache.put(key, ["One."], 3600, plan.query, "", 2, sources=raw)
     live_captions.open_track(key)
+    live_captions.mark_cached(key)           # a replay, as the pipeline marks it
     live_captions.publish_sources(key, '{"items": []}')
     found = provenance_mod.Provenance.from_json(asyncio.run(pipe.sources_for(plan)))
     assert found.items, "the replay's empty track hid the kept sources"
@@ -302,3 +314,31 @@ def test_the_player_asks_for_sources_until_it_has_some():
     assert "askSourcesUntilShown(episodeStamp, 0);" in INDEX
     body = INDEX.split("function askSourcesUntilShown(stamp, tries){", 1)[1][:400]
     assert "stamp !== episodeStamp || sourcesNow.length" in body
+
+
+def test_a_rewrite_never_shows_the_sources_of_the_episode_it_replaces():
+    """Review, §288: while a key is written again the cache holds the old
+    episode, and its sources are not this one's."""
+    from pipeline import PodcastPipeline
+    from script_generator import plan_episode
+    from tts import DebugEngine
+    from cache import MemoryScriptCache
+    from test_pipeline import FakeGenerator
+
+    cache = MemoryScriptCache()
+    pipe = PodcastPipeline(FakeGenerator(["One."]), DebugEngine(), cache=cache)
+    plan = plan_episode("what did the senate pass tonight", 2)
+    key = asyncio.run(pipe._cache_key(plan))
+    old = ('{"items": [{"label": "AP", "title": "Last week", '
+           '"url": "https://apnews.com/x"}], "retrievers": []}')
+    cache.put(key, ["Old."], 3600, plan.query, "", 2, sources=old)
+    live_captions.open_track(key)            # being written again
+    assert asyncio.run(pipe.sources_for(plan)) == ""
+    live_captions.close(key)                 # finished: the cache is this one
+    assert "Last week" in asyncio.run(pipe.sources_for(plan))
+
+
+def test_one_sources_chain_at_a_time_and_none_while_paused():
+    body = INDEX.split("function askSourcesUntilShown(stamp, tries){", 1)[1][:700]
+    assert "clearTimeout(sourcesRetryTimer)" in body
+    assert "if(!isPlaying)" in body

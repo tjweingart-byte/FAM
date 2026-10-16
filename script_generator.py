@@ -298,19 +298,23 @@ _MATERIAL_PHRASES = (
     r"were\s+given|got|have|had|gathered|was\s+shown|was\s+provided|"
     r"was\s+handed|am\s+working\s+(?:from|with))\b",
     # "not a part of what I received", "isn't part of the information"
+    # - about the writer's own: "what I...", "the information I...", "the
+    # material provided" (to nobody named), "my notes"; never "the evidence
+    # presented to the jury" or "the information released by police".
     r"\b(?:not|isn'?t|wasn'?t|aren'?t|weren'?t)\s+(?:a\s+|any\s+)?part\s+of\s+"
-    r"(?:the\s+|my\s+)?(?:information|material|materials|sources?|notes|"
-    r"reporting|evidence|passages?|what\s+i)\b",
+    r"(?:what\s+i\b|my\s+(?:information|material|materials|notes|sources?|"
+    r"evidence)\b|(?:the\s+)?(?:information|material|materials|notes|passages?)"
+    r"\s+(?:i\b|(?:provided|given)\b(?!\s+(?:to|by)\b)))",
     r"\b(?:provided|given|handed|supplied|available)\s+to\s+me\b",
     r"\bwhat\s+i\s+(?:received|was\s+given|was\s+handed|was\s+provided|"
     r"have\s+in\s+front\s+of\s+me|have\s+here)\b",
-    r"\b(?:my|the)\s+sources?\s+(?:here\s+)?(?:don'?t|do\s+not|didn'?t|"
+    r"\bmy\s+sources?\s+(?:here\s+)?(?:don'?t|do\s+not|didn'?t|"
     r"did\s+not|doesn'?t|does\s+not)\s+(?:say|mention|cover|include|"
     r"specify|give|state|show|tell|address|go\s+into)\b",
-    r"\b(?:in|from)\s+(?:my\s+notes|the\s+packet|the\s+source\s+material|"
-    r"the\s+materials?\s+(?:i|provided))\b",
+    r"\b(?:in|from)\s+(?:my\s+notes|the\s+packet|the\s+source\s+material\s+i|"
+    r"the\s+materials?\s+i)\b",
     r"\bbased\s+on\s+(?:what\s+i\s+(?:have|know|was\s+given)|(?:the|my)\s+"
-    r"(?:information|sources|material|notes)\s+(?:i|provided|available))\b",
+    r"(?:information|sources|material|notes)\s+i)\b",
     r"\bas\s+of\s+my\s+(?:knowledge|training|last\s+update)\b",
     r"\bmy\s+(?:information|knowledge\s+cutoff|training\s+data)\b",
     r"\bi\s+(?:wasn'?t|was\s+not)\s+(?:given|handed|shown|provided)\b",

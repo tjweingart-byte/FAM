@@ -20773,5 +20773,36 @@ Sightings Began") could not be looked at here - this container has no
 picture library - and is most likely a category gap (§235) for the episode's
 subject.
 
+**Reviewed before Main** (the owner: "double check all changes", ready to
+merge). Merged Main, which had meanwhile taken §285-§287 from a parallel
+branch on the same packet: this section renumbered from §285, and the Suez
+example written here dropped for §287's. An independent review of the diff
+and a pass of my own; every confirmed finding is fixed:
+- *The material check ate reporting.* "The source did not say when the deal
+  would close", "not part of the evidence presented to the jury", "based on
+  the information available so far", "the materials provided to investors"
+  were all dropped. Every phrase now needs the writer's own "I", "me" or
+  "my", or material given to nobody named; those sentences are tests.
+- *Word acronyms were spelled.* "COP29" became "C O P twenty-nine". Only a
+  code with no vowel among its letters is spelled (ZBTB, CD, MH, PS);
+  COP29, COVID19 and CO2 read as before.
+- *A rewrite could show the replaced episode's sources.* Falling back to the
+  cache from an empty live track also read the old episode while a key was
+  being written again, and the player's retry stopped on it. The cache is
+  read only when no episode is being written under the key
+  (`live_captions.is_writing`): a replay's track, a finished one, or none.
+- *The retry ran in parallel chains and while paused.* One timer now; a
+  pause asks nothing.
+- *Main's own test leaked state:* `test_pipeline`'s example-loading tests
+  cleared §286's `EXAMPLE_MINUTES`, so `test_every_example_says_its_minutes`
+  failed whenever it ran after them (it passes in CI only by file order).
+  They now restore it.
+- *Postgres:* the message store's widening runs on every open and is
+  tested twice-opened on either backend; the test that writes an old SQLite
+  file is `sqlite_file`, as §283 marks such tests.
+Checked and left: a single capital before a full stop ("vitamin C.") never
+ends a sentence - held to the next one, never lost - because "George W.
+Bush" is commoner in a script.
+
 Tests: `tests/test_feedback_288.py` (new); `tests/test_loading_demo.py`
-(the chevrons' markup).
+(the chevrons' markup); `tests/test_pipeline.py` (the leak).

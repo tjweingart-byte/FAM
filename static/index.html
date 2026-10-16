@@ -13083,9 +13083,16 @@
   //: has not been shown yet - ten minutes at most, one cheap read each.
   var SOURCES_RETRY_MS = 8000;
   var SOURCES_RETRY_MAX = 75;
+  //: One chain at a time: a replay of the same episode starts it again
+  //: rather than running a second beside it (review, §288).
+  var sourcesRetryTimer = null;
   function askSourcesUntilShown(stamp, tries){
-    setTimeout(function(){
+    if(sourcesRetryTimer){ clearTimeout(sourcesRetryTimer); sourcesRetryTimer = null; }
+    sourcesRetryTimer = setTimeout(function(){
+      sourcesRetryTimer = null;
       if(stamp !== episodeStamp || sourcesNow.length || tries >= SOURCES_RETRY_MAX) return;
+      // Not while nobody is listening: paused, it asks nothing and waits.
+      if(!isPlaying){ askSourcesUntilShown(stamp, tries); return; }
       fetchEpisodeSources();
       askSourcesUntilShown(stamp, tries + 1);
     }, SOURCES_RETRY_MS);
