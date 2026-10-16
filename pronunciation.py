@@ -75,6 +75,10 @@ HOLD_SECONDS = 30 * 60
 MAX_PER_EPISODE = 12
 
 _NAME = re.compile(r"^[A-Za-zÀ-ÖØ-öø-ÿĀ-ſ][A-Za-zÀ-ÖØ-öø-ÿĀ-ſ'’.\- ]{1,59}$")
+#: A code, one word of capitals and digits (§288): "ZBTB44" is a hard name
+#: too, and a `<<SAY:>>` line for it used to be thrown away. A name with a
+#: number beside it ("Area 51") is still `spoken_text`'s.
+_CODE = re.compile(r"^[A-Z][A-Z]*\d[A-Z0-9]{0,10}$")
 _SAY = re.compile(r"^[A-Za-z][A-Za-z'\- ]{1,119}$")
 
 #: Words a model might list and that the voice already says right. Refusing
@@ -90,7 +94,7 @@ def clean(name: str, say: str) -> Optional[tuple[str, str]]:
     """(name, respelling) when both look like what they claim to be, else None."""
     name = re.sub(r"\s+", " ", (name or "").strip().strip("\"'“”"))
     say = re.sub(r"\s+", " ", (say or "").strip().strip("\"'“”.,;"))
-    if not name or not say or not _NAME.match(name) or not _SAY.match(say):
+    if not name or not say or not (_NAME.match(name) or _CODE.match(name)) or not _SAY.match(say):
         return None
     if not any(c.isupper() for c in name):
         return None

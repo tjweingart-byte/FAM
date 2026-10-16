@@ -20678,3 +20678,131 @@ Not changed, and to measure: a five-minute packet is now up to ~36 KB in
 front of a searched episode's first word.
 
 Tests: `tests/test_implementations_287.py` (new).
+
+## 288. The 10.16 instant feedback: the first step, a sent episode, Trending's sources, the writing on Haiku, and the pause in the first line (2026-10-16)
+
+The owner's "10.16.26 implementations 2" packet: five reports from the
+instant-feedback inbox.
+
+**1. The first bubble took five to seven seconds, and the chevrons stuttered.**
+The first step, "Contextualizing your search", was checked off by
+`brief_ready`: the end of the whole brief, which is three Haiku calls at once
+(§268's two halves and §270's plan of the piece) and waits for the slowest
+plus the outline's grace. With the seconds gone (§232) nothing moved on the
+screen meanwhile. It is now `brief_understood`, marked by
+`episode_intelligence._timed` the moment the *understanding* half answers -
+the request's meaning, which is what the step names - and by `prepare` for a
+warmed, degraded or switched-off brief. Still a server mark, never a timer;
+the brief's other two calls finish under "Retrieving", which waits on them.
+The chevrons were three `<path>`s animated inside one SVG with a
+`drop-shadow` on each: an SVG child's animation runs on the main thread, so
+they stalled whenever the page was busy (and it is, while an episode starts),
+and the shadow was redrawn every frame. Each is now its own HTML layer moved
+by transform and opacity only, with the shadow painted once on a still SVG.
+
+**2. An episode sent in Messages was written again.** A message carried only
+the question and the length, so Listen asked the question again; once the
+sender's episode was no longer current (a live story's two hours) that was a
+new episode, written from scratch under the old title and picture until it
+finished. A message now carries `episode` (`cache.episode_id`, a new column
+widened in place): the sender's `X-FAM-Episode` when it names a kept episode
+**of that question** (an id for another question is never carried - it would
+play what the card does not name, past moderation's lookup by question),
+else the episode kept under the question now, else "" and the old behaviour.
+It is pinned as a heard episode is (two weeks), and `_held_episode_keys`
+counts messages as shares, so the audio sweep keeps its audio past the week
+(§237). Listen replays it with `?episode=` - never writes - and only a 409
+(no longer kept) asks the question instead, once. `currentEpisode()` carries
+the playing episode's id so a share from the player names it; vibe replies
+and older clients are named by the server.
+
+**3a. Trending episodes showed no sources.** Not reproduced here: a written
+Trending story tapped from the rails drew its strip in Chromium, and the
+report's lookup is the player's. Three gaps that each produce the symptom
+were fixed: `/api/sources` and `/api/transcript` defaulted to `search=True`
+where `/api/audio` reads `SEARCH_MODE` (they agree only while it is
+`always`); a replay's live track is opened empty, and `sources_for` returned
+that empty track ahead of the cache's; and the player asked only at 6 s,
+20 s and the end, so a story written on the tap (a `volatile` one is never
+written ahead) whose sources land with its finished script could miss every
+ask. It now asks again every 8 s until it has some (75 at most), and when the
+writer's final title lands. To confirm the cause in production: that story's
+row in the Trending report on /admin (`written`, `cached` or `volatile`) and
+whether the play was a cache hit in the log.
+
+**3b and 4. A list of facts, read off the sources, and "this is not a part of
+the information I received".** `examples/` is the lever (`examples-lever`), and
+§286-§287 (written beside this on another branch) added eleven, a news-shaped
+`2-suez-canal` among them; a Suez example written here first was dropped in
+the merge as a duplicate. The system prompt stays under its bound by folding, not adding: "Facts in
+time order, or source by source, are a list", and "Never say what you do not
+have up front" became "Never say what you do not have, or mention your
+material at all". The
+evidence block says it at length where the passages are: the listener has
+never seen them; tell them as the story, never one source after another,
+never a word about them. And a check behind the rule, as `OpeningGuard` is
+behind the opening: `MaterialGuard` drops a sentence about the writer's own
+material anywhere in the piece (`is_material_sentence`: "the information I
+received", "not part of what I was given", "my sources don't say",
+"provided to me", "based on what I have"...), narrow enough that "Reuters
+reported", "sources close to the team" and "the evidence suggests" pass;
+each drop is logged and on /admin's errors as "material check". Nothing is
+said in its place. Nobody has heard the result (`no-api-key`); listen with
+`python write.py "<query>" --minutes 2` on a Trending story.
+
+**5. A pause after the first line, or halfway through it.** No sentence is
+split on the server. The ZBTB44 episode's first line pauses at the code: the
+voice was handed "ZBTB44" raw (`spoken_text` spelled only one letter before
+digits), and a `<<SAY: ZBTB44 = ...>>` line was thrown away because
+`pronunciation._NAME` refused digits. Codes of two to five capitals and up to
+three digits are now spelled ("Z B T B forty-four", "C D four"), and a SAY
+line may name a code (one word of capitals and digits; "Area 51" is still
+`spoken_text`'s); captions and cache keep the real spelling. And a full
+stop after an abbreviation ended a sentence - "Dr. ", "Oct. 14", "the U.S.
+economy" - so half a sentence went to the voice alone and the other half had
+to be voiced before it could play: `find_sentence_end` skips titles and
+initials always, a month or "U.S." when a number or a lower-case word
+follows, and waits for the next word when that is what decides it. If a
+pause remains between the first and second chunk, the episode's
+`marks=` log line (chunk 1's synthesis start against chunk 0's audio end)
+will say whether the voice fell behind; the fix then is a second synthesis
+in flight, not a filler.
+
+**Not done:** item 4's picture (a laboratory under "Where the 2016 Clown
+Sightings Began") could not be looked at here - this container has no
+picture library - and is most likely a category gap (§235) for the episode's
+subject.
+
+**Reviewed before Main** (the owner: "double check all changes", ready to
+merge). Merged Main, which had meanwhile taken §285-§287 from a parallel
+branch on the same packet: this section renumbered from §285, and the Suez
+example written here dropped for §287's. An independent review of the diff
+and a pass of my own; every confirmed finding is fixed:
+- *The material check ate reporting.* "The source did not say when the deal
+  would close", "not part of the evidence presented to the jury", "based on
+  the information available so far", "the materials provided to investors"
+  were all dropped. Every phrase now needs the writer's own "I", "me" or
+  "my", or material given to nobody named; those sentences are tests.
+- *Word acronyms were spelled.* "COP29" became "C O P twenty-nine". Only a
+  code with no vowel among its letters is spelled (ZBTB, CD, MH, PS);
+  COP29, COVID19 and CO2 read as before.
+- *A rewrite could show the replaced episode's sources.* Falling back to the
+  cache from an empty live track also read the old episode while a key was
+  being written again, and the player's retry stopped on it. The cache is
+  read only when no episode is being written under the key
+  (`live_captions.is_writing`): a replay's track, a finished one, or none.
+- *The retry ran in parallel chains and while paused.* One timer now; a
+  pause asks nothing.
+- *Main's own test leaked state:* `test_pipeline`'s example-loading tests
+  cleared §286's `EXAMPLE_MINUTES`, so `test_every_example_says_its_minutes`
+  failed whenever it ran after them (it passes in CI only by file order).
+  They now restore it.
+- *Postgres:* the message store's widening runs on every open and is
+  tested twice-opened on either backend; the test that writes an old SQLite
+  file is `sqlite_file`, as §283 marks such tests.
+Checked and left: a single capital before a full stop ("vitamin C.") never
+ends a sentence - held to the next one, never lost - because "George W.
+Bush" is commoner in a script.
+
+Tests: `tests/test_feedback_288.py` (new); `tests/test_loading_demo.py`
+(the chevrons' markup); `tests/test_pipeline.py` (the leak).

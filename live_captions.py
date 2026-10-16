@@ -356,6 +356,19 @@ def publish_sources(key: str, raw: str) -> None:
         track.touched = time.time()
 
 
+def is_writing(key: str) -> bool:
+    """Whether an episode is being written under `key` in this worker now:
+    a track that is neither a replay nor done (§288). While it is, the
+    cache under the same key may still hold the episode it replaces, so
+    nothing about this one is read from there."""
+    if not key:
+        return False
+    with _LOCK:
+        _expire()
+        track = _TRACKS.get(key)
+        return track is not None and not track.cached and not track.done
+
+
 def read_sources(key: str) -> str:
     """Provenance JSON for an episode in flight, or "" if there is none yet.
 
@@ -381,8 +394,13 @@ def read_sources(key: str) -> str:
 #: script is never in front of the first word, and waiting for it would put
 #: the entire writing time there. These are the two moments inside the wait
 #: that actually happen, in the order they happen.
+#:
+#: "contextualized" is the brief's understanding half answering (§288), not
+#: the whole brief: the search half and the plan of the piece run beside it
+#: and the slowest of the three held the first check for five to seven
+#: seconds on Haiku, long enough for the screen to look frozen.
 PROGRESS_STEPS = (
-    ("contextualized", "brief_ready"),
+    ("contextualized", "brief_understood"),
     ("retrieved", "evidence_ready"),
     ("verified", "claude_first_token"),
     ("written", "first_sentence"),

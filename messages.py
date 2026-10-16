@@ -74,6 +74,8 @@ log = logging.getLogger(__name__)
 MAX_TEXT = 1000
 MAX_TITLE = 200
 MAX_QUERY = 500
+#: An episode id is a 64-character key, a dot and a timestamp (`cache.episode_id`).
+MAX_EPISODE = 80
 #: A group's name, and how many people may be in one (10.6 packet #4).
 MAX_GROUP_NAME = 60
 MAX_GROUP_MEMBERS = 32
@@ -155,6 +157,10 @@ class Message:
     minutes: int
     title: str
     at: float
+    #: Which episode was shared (§288): `cache.episode_id`, so the
+    #: recipient hears *that* episode replayed, never the question written
+    #: again. '' on a text, and on a share from before it was recorded.
+    episode: str = ""
 
     def as_dict(self, me: str = "") -> dict:
         return {
@@ -170,6 +176,7 @@ class Message:
             "minutes": self.minutes,
             "title": self.title,
             "at": self.at,
+            "episode": self.episode,
         }
 
 
@@ -249,6 +256,12 @@ class MessageStore:
                 conn.execute("ALTER TABLE groups ADD COLUMN avatar TEXT NOT NULL DEFAULT ''")
             except sqlite3.OperationalError:
                 pass
+            # Which episode a share is (§288). Widened in place, like the
+            # avatar: an old row reads '' and replays by its question.
+            try:
+                conn.execute("ALTER TABLE messages ADD COLUMN episode TEXT NOT NULL DEFAULT ''")
+            except sqlite3.OperationalError:
+                pass
 
     def _conn(self) -> sqlite3.Connection:
         conn = getattr(self._local, "conn", None)
@@ -262,7 +275,7 @@ class MessageStore:
 
     def send(self, sender: str, recipient: str, *, kind: str = "text",
              text: str = "", query: str = "", minutes: int = 0,
-             title: str = "", at: float = 0.0) -> Message:
+             title: str = "", at: float = 0.0, episode: str = "") -> Message:
         """Put one message in a thread.
 
         An episode share carries the *query and the length* and nothing else.
@@ -281,15 +294,17 @@ class MessageStore:
             raise MessageError("That episode has no question attached to it.")
         if kind == "text" and not text:
             raise MessageError("Nothing to send.")
+        episode = str(episode or "").strip()[:MAX_EPISODE] if kind == "episode" else ""
         now = at or time.time()
         cur = self._conn().execute(
             "INSERT INTO messages (thread, sender, recipient, kind, text,"
-            " query, minutes, title, at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            " query, minutes, title, at, episode)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (thread, sender, recipient, kind, text, query,
-             max(0, int(minutes or 0)), title, now),
+             max(0, int(minutes or 0)), title, now, episode),
         )
         return Message(cur.lastrowid, thread, sender, recipient, kind, text,
-                       query, max(0, int(minutes or 0)), title, now)
+                       query, max(0, int(minutes or 0)), title, now, episode)
 
     # --- reading ----------------------------------------------------------
 
@@ -310,7 +325,7 @@ class MessageStore:
         """
         tid = self._resolve(user_id, other_id)
         sql = ("SELECT id, thread, sender, recipient, kind, text, query,"
-               " minutes, title, at FROM messages WHERE thread = ?")
+               " minutes, title, at, episode FROM messages WHERE thread = ?")
         args: list = [tid]
         floor = max(int(after_id or 0), self._floor(user_id, tid))
         if floor:
@@ -348,7 +363,7 @@ class MessageStore:
         try:
             rows = self._conn().execute(
                 "SELECT m.id, m.thread, m.sender, m.recipient, m.kind, m.text,"
-                " m.query, m.minutes, m.title, m.at FROM messages m"
+                " m.query, m.minutes, m.title, m.at, m.episode FROM messages m"
                 " LEFT JOIN clears c ON c.thread = m.thread AND c.user_id = ?"
                 " LEFT JOIN group_members g ON g.gid = m.recipient AND g.user_id = ?"
                 " WHERE (m.recipient = ?"
@@ -396,7 +411,7 @@ class MessageStore:
         try:
             rows = self._conn().execute(
                 "SELECT m.thread, m.id, m.sender, m.recipient, m.kind, m.text,"
-                "       m.query, m.minutes, m.title, m.at"
+                "       m.query, m.minutes, m.title, m.at, m.episode"
                 "  FROM messages m"
                 # The newest row by *id*, not by timestamp: two rows can
                 # share an `at`, and joining on it could pick one from before
@@ -423,7 +438,8 @@ class MessageStore:
         out = []
         seen = set()
         for r in rows:
-            last = Message(r[1], r[0], r[2], r[3], r[4], r[5], r[6], r[7], r[8], r[9])
+            last = Message(r[1], r[0], r[2], r[3], r[4], r[5], r[6], r[7], r[8], r[9],
+                           r[10] or "")
             if last.thread in seen:
                 continue  # defensive: the join is on a unique id, so one row a thread
             seen.add(last.thread)
@@ -679,9 +695,19 @@ class MessageStore:
     def message(self, message_id: int) -> Optional[Message]:
         """One message by id, for a report about it (`moderation.py`)."""
         row = self._conn().execute(
-            "SELECT id, thread, sender, recipient, kind, text, query, minutes, title, at"
-            " FROM messages WHERE id = ?", (int(message_id),)).fetchone()
+            "SELECT id, thread, sender, recipient, kind, text, query, minutes, title,"
+            " at, episode FROM messages WHERE id = ?", (int(message_id),)).fetchone()
         return Message(*row) if row else None
+
+    def episodes(self) -> list:
+        """`(query, minutes, episode)` of every episode sent in a message,
+        for the audio sweep (§237, §288): an episode somebody sent to
+        somebody is held as a shared link is, so its audio is kept past its
+        week rather than written again when they press Listen."""
+        rows = self._conn().execute(
+            "SELECT DISTINCT query, minutes, episode FROM messages"
+            " WHERE kind = 'episode' AND query != ''").fetchall()
+        return [(q, int(m or 0), e or "") for q, m, e in rows]
 
     def remove(self, message_id: int) -> bool:
         """A reviewer removing a reported message for everybody."""
