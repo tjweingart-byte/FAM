@@ -20342,7 +20342,8 @@ the rename is the same code on both backends.
 §250 took "Stay in the loop" and "Better together" off the waitlist page to
 become a video. The video is 1:46 and its export was 900 MB, too big to keep
 in git or serve from the app's own disk, so the owner put it on YouTube as a
-Short (`KCpGaWdWNSs`) and it is embedded above "Learn more. Go deeper."
+Short (`KCpGaWdWNSs`, replaced the same day by `qhS5jRtMkHs`: YouTube blocked
+the first everywhere over its music) and it is embedded above "Learn more. Go deeper."
 
 - **Drawn as a picture until it is tapped.** The page shows YouTube's
   thumbnail and a gold play button; only a tap swaps in the player, from
@@ -20435,5 +20436,13 @@ The owner's "10.16.26 implementations" packet, six UI changes.
    new briefing every day" under it (`mixes.followed_item`). The id, the
    query and the edition are unchanged, so every existing mix shows the
    new title with nothing migrated.
+
+**A review before merging found one thing, fixed.** The card on a composed
+story and the title on an older one were made buttons to `playStory`, but a
+story's hold (pause while pressed) and its swipe (next friend) both end with
+a click on whatever the finger was over - so letting go of a hold on the
+card, or a swipe that ended on it, opened the player. They now go through
+`playStoryTap`, which ignores a click within 400 ms of a hold or swipe, the
+guard `storyTap` already had.
 
 Not done here: nothing was heard (`no-api-key`).
