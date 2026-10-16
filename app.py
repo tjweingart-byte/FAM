@@ -2612,6 +2612,10 @@ class SendMessageRequest(BaseModel):
     query: str = Field("", max_length=messages_mod.MAX_QUERY)
     minutes: int = Field(0, ge=0, le=60)
     title: str = Field("", max_length=messages_mod.MAX_TITLE)
+    #: A reply to, or a like on, a friend's vibe (§282): the episode rides
+    #: along so the message names the vibe it answers, but nothing was
+    #: shared - so it is not a "share" taste signal.
+    reply: bool = False
 
 
 class SaveRequest(BaseModel):
@@ -3369,7 +3373,7 @@ async def messages_send(req: SendMessageRequest, request: Request) -> dict:
     # A share is a signal about taste as much as an act of sending, and the
     # feed already learns from plays. Recorded for the sender only: what the
     # recipient thinks of it is not known until they press play.
-    if kind == "episode":
+    if kind == "episode" and not req.reply:
         EVENTS.record(topics_mod.Event(
             user, "share", "", req.query, topics_mod.tags_for_text(req.query)))
     return {"ok": True, "message": message.as_dict(user)}
@@ -4225,6 +4229,11 @@ async def _feedback_episode(ep: Optional[FeedbackEpisode]) -> Optional[dict]:
                                          services=_episode_services(ep.q, sources))
 
 
+#: How far back a report looks for the lookup that wrote its episode: the
+#: week an episode is kept, and a day over.
+CACHE_LIFE_FOR_SERVICES = 8 * 86400
+
+
 def _episode_services(query: str, sources: dict) -> list[dict]:
     """Which outside services an episode drew on, for a feedback report
     (10.15 packet, §282): "display the API keys that were used".
@@ -4266,14 +4275,17 @@ def _episode_services(query: str, sources: dict) -> list[dict]:
         import live_routing
         live_routing.flush()
         wanted = normalize_query(query or "")
-        since = time.time() - live_routing.KEEP_DAYS * 86400
+        # As far back as an episode is kept, not all fourteen days.
+        since = time.time() - CACHE_LIFE_FOR_SERVICES
         row = next((r for r in live_routing.store().since(since)
                     if normalize_query(r.get("query") or "") == wanted), None)
         for attempt in (row or {}).get("attempts") or []:
             provider = str(attempt[0]) if attempt else ""
             outcome = str(attempt[1]) if len(attempt) > 1 else ""
+            # The newest lookup for this question, which a replay (no
+            # lookup of its own) shares with the episode that wrote it.
             add(labels.get(provider, provider), "Live lookup",
-                outcome.replace("_", " "))
+                (outcome.replace("_", " ") + " · latest for this question").strip(" ·"))
     except Exception:  # noqa: BLE001 - a report never waits on this
         log.warning("could not read the live routing for a feedback report")
     add("Anthropic", "Brief", f"{settings.ei_model} (configured now)")
@@ -10583,6 +10595,50 @@ def _waitlist_exact(term: str) -> str:
     return ""
 
 
+def _require_waitlist_searcher(request: Request) -> str:
+    """The status page's friend search is for the people on the list
+    (§282): a waitlisted account, or an admin previewing the page. An
+    account already in the app has the app's own search, which keeps the
+    waitlist out of discovery (`_reachable`); this door must not open that
+    from outside the page by a direct call."""
+    user = _require_account(request)
+    listener = getattr(request.state, "listener", None)
+    admin = bool(listener is not None and listener.user_id == user
+                 and _allowed_admin(listener))
+    if not admin and WAITLIST.status_of(user) != waitlist_mod.WAITLISTED:
+        raise HTTPException(status_code=403,
+                            detail="Find friends with the search in FAM.")
+    return user
+
+
+#: Exact email or phone lookups one account may make a day (§282). Enough to
+#: find the friends somebody means to; too few to walk a range of numbers
+#: and learn who has an account. Name searches are not counted - they need a
+#: handle, which is somebody choosing to be found, as `/api/people`.
+WAITLIST_EXACT_PER_DAY = 20
+_WAITLIST_EXACT: dict[str, list] = {}
+
+
+def _exact_lookup_allowed(user: str, term: str) -> bool:
+    """Whether `term` may be looked up as a whole email or number, counting
+    it against the day's allowance when it is one."""
+    looks_exact = "@" in term or bool(re.fullmatch(r"[\d\s()+.\-]{7,}", term or ""))
+    if not looks_exact:
+        return True
+    day = int(time.time() // 86400)
+    seen = _WAITLIST_EXACT.get(user)
+    if not seen or seen[0] != day:
+        if len(_WAITLIST_EXACT) > 50_000:
+            _WAITLIST_EXACT.clear()
+        seen = _WAITLIST_EXACT[user] = [day, set()]
+    if term.lower() in seen[1]:
+        return True
+    if len(seen[1]) >= WAITLIST_EXACT_PER_DAY:
+        return False
+    seen[1].add(term.lower())
+    return True
+
+
 @app.get("/api/waitlist/people")
 async def waitlist_people(request: Request,
                           q: str = Query("", max_length=80)) -> dict:
@@ -10597,12 +10653,14 @@ async def waitlist_people(request: Request,
     page's "invite them" card is for.
     """
     _read_limit(request)
-    user = _require_account(request)
+    user = _require_waitlist_searcher(request)
     term = " ".join(str(q or "").split()).strip()
     found: list[dict] = []
-    exact = _waitlist_exact(term)
-    if exact and exact != user:
-        person = SOCIAL.person(exact)
+    exact = _waitlist_exact(term) if _exact_lookup_allowed(user, term) else ""
+    # Somebody with no name and no handle has nothing to be recognised by,
+    # and is not offered by an address alone.
+    person = SOCIAL.person(exact) if exact and exact != user else {}
+    if person.get("name") or person.get("handle"):
         found.append({"user_id": exact, "name": person.get("name") or "",
                       "handle": person.get("handle") or "",
                       "avatar": person.get("avatar") or ""})
@@ -10636,7 +10694,7 @@ async def waitlist_add(req: WaitlistAddRequest, request: Request) -> dict:
     else in FAM; somebody blocked either way, or suspended, is not there.
     """
     _rate_limit(request)
-    user = _require_account(request)
+    user = _require_waitlist_searcher(request)
     _require_can_post(user)
     target = req.user_id
     if (not target or target == user or not ACCOUNTS.account(target)

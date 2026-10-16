@@ -285,4 +285,4 @@ and `limit` = Lines.
 | 19967 | 20 | 279. The last of Exa is gone from the code (2026-10-15) |
 | 19987 | 108 | 280. API-Sports is removed; BALLDONTLIE is the only sports provider |
 | 20095 | 57 | 281. Review fixes before the merge into Main (2026-10-15) |
-| 20152 | 130 | 282. The 10.15 implementations: waitlist friend search, the waitlist's reset, private search, the APIs on a report, the features back, the founders, a story's reply row, and a picture that follows the team (2026-10-16) |
+| 20152 | 166 | 282. The 10.15 implementations: waitlist friend search, the waitlist's reset, private search, the APIs on a report, the features back, the founders, a story's reply row, and a picture that follows the team (2026-10-16) |

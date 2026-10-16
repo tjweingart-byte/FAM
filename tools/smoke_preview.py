@@ -3649,6 +3649,26 @@ def main() -> int:
                 "request(s); a replay costs nothing and must not be blocked")
             page.evaluate("stopSpeech(); clearGenOverlay()")
             page.wait_for_timeout(150)
+            # A private search (§282) goes out as a search marked private:
+            # the server keeps it private only for surface=search, so a
+            # private search sent as any other surface was an ordinary one.
+            page.evaluate("setTab('home'); setPrivateSearch(true)")
+            assert page.eval_on_selector(
+                "#screen-home", "e => e.classList.contains('private-search')"), \
+                "Private did not turn the search page charcoal"
+            page.fill("#searchInput", "what the evidence says about sleep")
+            page.evaluate("Promise.resolve(acCorrectQuestion("
+                          "'what the evidence says about sleep'))")
+            page.evaluate("runSearch()")
+            page.wait_for_timeout(600)
+            last = page.evaluate("() => window.__audioCalls[window.__audioCalls.length - 1] || ''")
+            assert "private=1" in last and "surface=search" in last, \
+                f"a private search was not sent as one: {last}"
+            assert not page.eval_on_selector(
+                "#screen-home", "e => e.classList.contains('private-search')"), \
+                "Private stayed on after its one search"
+            page.evaluate("stopSpeech(); clearGenOverlay()")
+            page.wait_for_timeout(150)
 
         def a_search_is_corrected_when_it_is_sent():
             """10.1 #4: the last word of a search was never corrected, because

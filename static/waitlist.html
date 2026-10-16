@@ -1251,6 +1251,11 @@
     if(d.admin && d.preview){
       d = Object.assign({}, d, d.preview, { status: "waitlisted" });
     }
+    // The friend search is for the people on the list (§282); somebody let
+    // in finds friends with the search in FAM.
+    var searching = d.admin || d.status !== "active";
+    document.querySelector(".fsearch").classList.toggle("hidden", !searching);
+    if(!searching) $("friendResults").classList.add("hidden");
     if(d.status === "active"){
       $("placeCard").classList.add("hidden");
       $("grantedCard").classList.remove("hidden");

@@ -20276,5 +20276,41 @@ clock was a proxy a busy runner stretches past even one half. The stub now
 records which parts were in flight together, and the test asserts both
 halves were.
 
+**A review before merging found seven things, all fixed.**
+
+1. *A private search was never private.* `historySurface` returned "" for a
+   private topic, and `playSurface` reads it, so the request went out as
+   `surface=other&private=1`; the server honours `private` only for a
+   search, so the play was recorded and the episode written under the
+   searcher's name and listed - the opposite of the feature. (It also lost
+   the chosen voice and skipped the consent check, both search-only.) The
+   history is now left out at the history call (`historyWhere`), the topic
+   keeps `surface: "search"`, and the smoke check sends a private search
+   and reads `surface=search` and `private=1` off the real request. The
+   pytest had asked the server with `surface=search` directly and the JS
+   test only read strings - which is how it passed.
+2. *The private flag outlived its episode*, dropping exploreFAM's
+   Interested? picks and a later save until the next `speakText`. It is now
+   the private episode's question, and only that episode's complete/skip
+   and position are held back.
+3. *A trending search tapped with Private on went out public* under a page
+   still saying it was private; it now carries `private` and turns it off.
+4. *An exact email or number named its owner to anyone with an account*,
+   ~60 lookups per 10 s - a phone range could be walked. Exact lookups are
+   capped at `WAITLIST_EXACT_PER_DAY` (20) different terms a day per
+   account (name searches are not: they need a handle), and an account with
+   neither name nor handle is not offered by an address alone.
+5. *The "status page only" exemption was the client's word.* Both
+   endpoints now answer only a waitlisted account or an admin
+   (`_require_waitlist_searcher`, 403 otherwise), and the page hides the
+   bar for somebody let in.
+6. *A reply or a like on a vibe counted as a share* (weight 2) on top of
+   the like. `SendMessageRequest.reply` skips the share event; an installed
+   client never sends it and is unchanged.
+7. *"APIs used" read the newest live lookup for the question*, which a
+   replay shares with whichever episode wrote it; the detail now says
+   "latest for this question", and the scan is the eight days an episode
+   can be kept, not fourteen.
+
 Not done here: nothing was heard (`no-api-key`), and no mail was sent from
 this container.

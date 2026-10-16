@@ -164,8 +164,14 @@ def test_the_search_page_has_private_search():
     assert 'id="privateBubble"' in INDEX and "setPrivateSearch(" in INDEX
     assert "#screen-home.private-search{" in INDEX
     assert "private: privateSearch" in INDEX
-    assert "if(currentPlayPrivate) return;" in INDEX
-    assert "if(t.private) return \"\";" in INDEX
+    # It plays as a search - the surface the server keeps private - and is
+    # left out of history at the history call, never by changing its surface.
+    assert "var historyWhere = t.private ? \"\" : historySurface(t);" in INDEX
+    assert "t.private" not in INDEX.split("function historySurface(", 1)[1].split("\n  }\n", 1)[0]
+    assert "kind === \"complete\" || kind === \"skip\"" in INDEX
+    # A trending search tapped with Private on is private too.
+    trend = INDEX.split("function runTrendSearch(", 1)[1].split("\n  }\n", 1)[0]
+    assert "private: privateSearch" in trend and "setPrivateSearch(false)" in trend
     assert '"&private=1"' in FAM_AUDIO
 
 
@@ -318,3 +324,51 @@ def test_a_reply_is_one_message_with_its_episode(world):
     assert r.status_code == 200, r.text
     m = r.json()["message"]
     assert m["kind"] == "episode" and m["text"] == "Great one"
+
+
+# --- review fixes -----------------------------------------------------------
+
+def test_the_waitlist_search_is_for_the_people_on_the_list(world):
+    """Somebody already in the app has FAM's own search, which keeps the
+    waitlist out of discovery; a direct call does not get round it."""
+    member, _ = _join("in@fam.test")
+    world.WAITLIST.grant([_uid(member)])
+    assert member.get("/api/waitlist/people?q=brady").status_code == 403
+    assert member.post("/api/waitlist/add", json={"user_id": "x"}).status_code == 403
+
+
+def test_exact_lookups_are_capped_a_day(world, monkeypatch):
+    monkeypatch.setattr(world, "WAITLIST_EXACT_PER_DAY", 2)
+    monkeypatch.setattr(world, "_WAITLIST_EXACT", {})
+    brady, _ = _join("brady@fam.test")
+    brady.post("/api/me", json={"name": "Brady", "handle": "brady"})
+    me, _ = _join("me@fam.test")
+    me.get("/api/waitlist/people?q=one@fam.test")
+    me.get("/api/waitlist/people?q=two@fam.test")
+    # The third address is not looked up; a name still is.
+    assert me.get("/api/waitlist/people?q=brady@fam.test").json()["people"] == []
+    assert [p["handle"] for p in me.get("/api/waitlist/people?q=brady").json()["people"]] == ["brady"]
+
+
+def test_an_address_alone_finds_nobody_without_a_name(world):
+    _join("blank@fam.test")
+    me, _ = _join("me@fam.test")
+    assert me.get("/api/waitlist/people?q=blank@fam.test").json()["people"] == []
+
+
+def test_a_reply_to_a_vibe_is_not_a_share(world):
+    a, _ = _join("a@fam.test")
+    b, _ = _join("b@fam.test")
+    world.WAITLIST.grant([_uid(a), _uid(b)])
+
+    def shares():
+        return world.EVENTS._conn().execute(
+            "SELECT COUNT(*) FROM events WHERE kind = 'share' AND user_id = ?",
+            (_uid(a),)).fetchone()[0]
+    before = shares()
+    a.post("/api/messages", json={"to": _uid(b), "text": "Nice", "query": "why tides turn",
+                                  "minutes": 2, "reply": True})
+    assert shares() == before
+    a.post("/api/messages", json={"to": _uid(b), "query": "why tides turn", "minutes": 2})
+    assert shares() == before + 1
+    assert "reply: true" in INDEX.split("function postStoryMessage(", 1)[1].split("\n  }\n", 1)[0]
