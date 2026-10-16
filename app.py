@@ -2913,7 +2913,38 @@ async def person_profile(request: Request,
         # to show, as typed - city, state, country, whichever they gave.
         "location": prefs.location.label,
         "follows": SOCIAL.follow_counts(target),
+        **_person_friends(me, target),
     }
+
+
+def _person_friends(me: str, target: str) -> dict:
+    """Their friends, as their profile shows them (10.16 packet, §285).
+
+    The count is for anybody who may open the profile - how many friends
+    somebody has is the size of their circle, like `follows`, never who is
+    in it. **The list is only for a friend of theirs**: once the two of you
+    follow each other you may browse their friends and follow any of them.
+    Each row is what a search for that person would already show - name,
+    handle, face - and nobody who could not be found that way is on it:
+    no one without a handle, no one blocked either way or suspended, and
+    no one still on the waitlist (discovery, `waitlist-gate`). No ids,
+    like the rest of this response: a row opens by handle, and Follow
+    sends the handle.
+    """
+    theirs = _without_apart(me, SOCIAL.friends(target)) if me else SOCIAL.friends(target)
+    out: dict = {"friend_count": len(theirs), "friends": None}
+    if not me or not (SOCIAL.is_following(me, target) and SOCIAL.is_following(target, me)):
+        return out
+    shown = [p for p in theirs if p["user_id"] != me and p.get("handle")]
+    waiting = (WAITLIST.waitlisted_among(p["user_id"] for p in shown)
+               if settings.waitlist else set())
+    mine = {p["user_id"] for p in SOCIAL.following(me)}
+    out["friends"] = [
+        {"name": p["name"], "handle": p["handle"], "avatar": p["avatar"],
+         "explicit": p.get("explicit", False),
+         "following": p["user_id"] in mine}
+        for p in shown if p["user_id"] not in waiting]
+    return out
 
 
 @app.get("/api/people")
@@ -5287,6 +5318,13 @@ def _surface(cached_only: bool, topic_id: str, context: str) -> str:
     return "search"
 
 
+def _may_be_private(where: str, context: str, topic_id: str) -> bool:
+    """Whether this play may be private (§282, §285): a search, or a Go
+    Deeper - a follow-up on what was heard (`context`), never a bank tile."""
+    return where == "search" or (where == "other" and bool(context)
+                                 and not topic_id)
+
+
 #: Where a tap may say it came from (§147). The interface sends it, because
 #: `_surface` cannot tell a DailyFAM play or a shared link from a search by
 #: the parameters alone - and Explore is searched episodes only.
@@ -6002,6 +6040,8 @@ class PreferenceRequest(BaseModel):
     intro_done: Optional[bool] = None
     #: §190: whether the player may name them as an episode's searcher.
     searches_public: Optional[bool] = None
+    #: §285: private search left on, for every search and Go Deeper.
+    private_search: Optional[bool] = None
 
 
 def _interests_for(request: Request, given: str = "") -> tuple[str, ...]:
@@ -6324,7 +6364,8 @@ async def write_preferences(req: PreferenceRequest, request: Request):
                            city=req.city, region=req.region,
                            country=req.country,
                            weekly_recap=req.weekly_recap, intro_done=req.intro_done,
-                           searches_public=req.searches_public)
+                           searches_public=req.searches_public,
+                           private_search=req.private_search)
     except prefs_mod.PreferenceError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     # Saved topics are also *picks*, and the log is what the ranker reads.
@@ -9259,7 +9300,14 @@ async def audio(
     # A private search (§282) writes as an episode nobody searched and
     # nobody wrote: `recent` never lists it, so it reaches no Explore feed,
     # rail or trending search, and no friends rail can name its author.
-    private = bool(private and where == "search")
+    #
+    # Searches and Go Deepers only (§285): the episodes a listener's own
+    # question writes. Anything else is a shared tile, kept for everyone.
+    # Private search left on in Settings is honoured here too, so an
+    # installed client that never sends the flag cannot make it public.
+    private = _may_be_private(where, context, topic_id) and (
+        private or bool(user and _has_account(request)
+                        and PREFS.get(user).private_search))
     if private:
         pipeline.origin = cache_mod.PRIVATE_ORIGIN
         pipeline.author = ""

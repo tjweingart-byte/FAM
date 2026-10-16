@@ -316,9 +316,12 @@ def followed_item(entry: str) -> MixItem:
     shown = ", ".join(focus)
     return MixItem(
         ident,
-        f"{subject.label} \u00b7 {shown}" if focus else subject.label,
+        # The row is titled by its specific alone - "OpenAI", not "Startups
+        # \u00b7 OpenAI" (10.16 packet, §285) - and the subject it hangs
+        # under moves to the line beneath.
+        shown if focus else subject.label,
         subject.label, False,
-        (f"Focused on {shown} \u00b7 new briefing every day" if focus
+        (f"{subject.label} \u00b7 new briefing every day" if focus
          else "New briefing every day"),
         subject.icon, True, base, tuple(focus), subject.label,
     )

@@ -287,6 +287,7 @@ and `limit` = Lines.
 | 20095 | 57 | 281. Review fixes before the merge into Main (2026-10-15) |
 | 20152 | 166 | 282. The 10.15 implementations: waitlist friend search, the waitlist's reset, private search, the APIs on a report, the features back, the founders, a story's reply row, and a picture that follows the team (2026-10-16) |
 | 20318 | 22 | 283. An eye on every password field (2026-10-16) |
-| 20340 | 33 | 284. The waitlist's video: a YouTube Short above the features (2026-10-16) |
-| 20373 | 113 | 286. The 10.16 implementations: short Haiku episodes, more from each source, the writing on Haiku, the trusted sources, and Made for you's View more (2026-10-16) |
-| 20486 | 73 | 287. More examples for the Haiku writer, and a wider list of trusted sources (2026-10-16) |
+| 20340 | 34 | 284. The waitlist's video: a YouTube Short above the features (2026-10-16) |
+| 20374 | 76 | 285. The 10.16 implementations: a friend's friends, a vibe into the player, buttons on a dark picture, Continue on the suggestion, private search left on, and a mix row titled by its specific (2026-10-16) |
+| 20450 | 113 | 286. The 10.16 implementations: short Haiku episodes, more from each source, the writing on Haiku, the trusted sources, and Made for you's View more (2026-10-16) |
+| 20563 | 73 | 287. More examples for the Haiku writer, and a wider list of trusted sources (2026-10-16) |
