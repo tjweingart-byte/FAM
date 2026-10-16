@@ -20429,7 +20429,8 @@ grounding told as because/therefore/but, one attribution where who said it
 matters, situated in the first sentence, ending on the most concrete fact.
 The system prompt stays under its bound by folding, not adding: "Facts in
 time order, or source by source, are a list", and "Never say what you do not
-have up front" became "**Never mention your material**, anywhere". The
+have up front" became "Never say what you do not have, or mention your
+material at all". The
 evidence block says it at length where the passages are: the listener has
 never seen them; tell them as the story, never one source after another,
 never a word about them. And a check behind the rule, as `OpeningGuard` is
@@ -20447,8 +20448,9 @@ split on the server. The ZBTB44 episode's first line pauses at the code: the
 voice was handed "ZBTB44" raw (`spoken_text` spelled only one letter before
 digits), and a `<<SAY: ZBTB44 = ...>>` line was thrown away because
 `pronunciation._NAME` refused digits. Codes of two to five capitals and up to
-three digits are now spelled ("Z B T B forty-four", "C D four"), and SAY
-names may hold digits; captions and cache keep the real spelling. And a full
+three digits are now spelled ("Z B T B forty-four", "C D four"), and a SAY
+line may name a code (one word of capitals and digits; "Area 51" is still
+`spoken_text`'s); captions and cache keep the real spelling. And a full
 stop after an abbreviation ended a sentence - "Dr. ", "Oct. 14", "the U.S.
 economy" - so half a sentence went to the voice alone and the other half had
 to be voiced before it could play: `find_sentence_end` skips titles and

@@ -197,9 +197,9 @@ def test_the_material_check_drops_it_anywhere_and_says_so():
 
 def test_the_writer_is_told_to_tell_it_and_never_mention_its_material():
     prompt = sg.SYSTEM_PROMPT
-    assert "Never mention your material**, anywhere" in prompt
+    assert "or mention your material at all" in prompt
     assert "information I received" in prompt.replace("\n", " ")
-    assert "source \nby source, are a list" in prompt or "source by source, are a list" in prompt
+    assert "source by source, are a list" in prompt.replace(" \\\n", " ").replace("\n", " ")
     # And the evidence block says it where the passages are.
     import dataclasses
     plan = dataclasses.replace(sg.plan_episode("sugar prices", 2),
@@ -230,7 +230,9 @@ def test_a_code_is_spelled_for_the_voice_and_kept_in_the_captions():
 
 
 def test_a_say_line_may_name_a_code():
-    assert pronunciation._NAME.match("ZBTB44")
+    assert pronunciation._CODE.match("ZBTB44")
+    assert pronunciation.clean("ZBTB44", "zee-bee-tee-bee forty-four") is not None
+    assert pronunciation.clean("Area 51", "AIR-ee-uh") is None
 
 
 def _sentences(text):

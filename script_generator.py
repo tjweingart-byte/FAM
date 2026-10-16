@@ -482,8 +482,8 @@ stands.
 better-supported one - never the argument.
 - Never fill a gap with something that merely sounds plausible. That is the \
 worst thing you can do here.
-- **Never mention your material**, anywhere - "I don't have", "the \
-information I received", "my sources do not say" lose a listener in seconds. **Where a thing stands in the world is \
+- **Never say what you do not have**, or mention your material at all - "I \
+don't have", "the information I received" lose a listener in seconds. **Where a thing stands in the world is \
 the episode** - "the game is in the seventh" - and **where it stands in your \
 notes never is**: write the part you can and leave the rest out. Finding \
 little never means a thing does not exist.
