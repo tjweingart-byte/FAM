@@ -35,7 +35,7 @@ def test_the_markup_is_the_shipped_markup(page):
     for fragment in ('<div class="fam-loading" id="famLoading"',
                      'class="fam-loading-word">FAMiliarizing',
                      'id="famLoadingStatus"',
-                     '<path class="chev c3"'):
+                     '<span class="chev c3">'):
         assert fragment in index, f"{fragment!r} is no longer in the app"
         assert fragment in page, f"{fragment!r} did not reach the demo page"
 

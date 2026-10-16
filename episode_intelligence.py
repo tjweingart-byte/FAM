@@ -1522,7 +1522,8 @@ async def understand(query: str, minutes: int = DEFAULT_MINUTES, context: str = 
         # ceiling ahead, where nobody waits), then the brief goes without it.
         main = asyncio.gather(*(
             _timed(part, path, _ask(client, part, query, minutes, context, now,
-                                    tuple(covered or ()), timeout, notes, path))
+                                    tuple(covered or ()), timeout, notes, path),
+                   notes)
             for part in parts))
         outline_task = None
         if len(parts) == 2 and settings.ei_outline:
@@ -1617,12 +1618,26 @@ async def understand(query: str, minutes: int = DEFAULT_MINUTES, context: str = 
     return brief
 
 
-async def _timed(part: str, path: str, ask) -> tuple:
-    """One part's answer, with how long it took recorded for /admin (§270)."""
+#: The episode mark the loading screen's first step waits for (§285): the
+#: request's meaning is written - the understanding half, or the one call.
+UNDERSTOOD_MARK = "brief_understood"
+
+
+async def _timed(part: str, path: str, ask, notes=None) -> tuple:
+    """One part's answer, with how long it took recorded for /admin (§270).
+
+    The understanding half answering marks `UNDERSTOOD_MARK` on the episode's
+    clock the moment it lands (§285): that is the request contextualized,
+    and the loading screen's first step had been held to the slowest of all
+    three calls."""
     began = time.monotonic()
     answer = await ask
     pipeline_errors.step(f"brief: {'whole' if part == 'whole' else part}", path,
                          answer[0], time.monotonic() - began)
+    if part in ("understand", "whole") and answer[0] == "ok":
+        marks = getattr(notes, "marks", None)
+        if marks is not None:
+            marks.mark(UNDERSTOOD_MARK)
     return answer
 
 

@@ -381,8 +381,13 @@ def read_sources(key: str) -> str:
 #: script is never in front of the first word, and waiting for it would put
 #: the entire writing time there. These are the two moments inside the wait
 #: that actually happen, in the order they happen.
+#:
+#: "contextualized" is the brief's understanding half answering (§285), not
+#: the whole brief: the search half and the plan of the piece run beside it
+#: and the slowest of the three held the first check for five to seven
+#: seconds on Haiku, long enough for the screen to look frozen.
 PROGRESS_STEPS = (
-    ("contextualized", "brief_ready"),
+    ("contextualized", "brief_understood"),
     ("retrieved", "evidence_ready"),
     ("verified", "claude_first_token"),
     ("written", "first_sentence"),

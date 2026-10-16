@@ -230,8 +230,10 @@ _PAIR = re.compile(r"\b(\d{1,3})" + _DASH + r"(\d{1,3})\b(?![-–—\d])")
 _YEAR = re.compile(r"\b(1[1-9]\d\d|20\d\d)\b(?!\s*(?:,\d|\.\d))")
 _DECIMAL = re.compile(r"(?<![\d.])(\d+\.\d+)(?![\d.])(?=([A-Za-z])?)")
 _INTEGER = re.compile(r"(?<![\d.A-Za-z])(" + _NUM + r")(?!\d)(?=([A-Za-z])?)")
-#: One capital letter stuck to a number: "Q3", "F1", "G7", "B12".
-_LETTER_NUMBER = re.compile(r"\b([A-Z])(\d{1,2})\b")
+#: Capital letters stuck to a number: "Q3", "F1", "G7", "B12" - and a
+#: code (§285) such as a gene or protein, "ZBTB44", "CD4", "IL22", which the
+#: voice was handed raw and hesitated over, halfway through a first line.
+_LETTER_NUMBER = re.compile(r"\b(?:([A-Z])(\d{1,2})|([A-Z]{2,5})(\d{1,3}))\b")
 #: A full date written with slashes, American order: "9/27/2026".
 _DATE = re.compile(r"(?<![\d/])(\d{1,2})/(\d{1,2})/(\d{4}|\d{2})(?![\d/])")
 _MONTHS = ["January", "February", "March", "April", "May", "June", "July",
@@ -359,7 +361,10 @@ def _number_ers(m: re.Match) -> str:
 
 
 def _letter_number(m: re.Match) -> str:
-    return m.group(1) + " " + cardinal(int(m.group(2)))
+    if m.group(1):
+        return m.group(1) + " " + cardinal(int(m.group(2)))
+    # Letter by letter, as "ZBTB 44" already read: "Z B T B forty-four".
+    return " ".join(m.group(3)) + " " + cardinal(int(m.group(4)))
 
 
 def _date(m: re.Match) -> str:

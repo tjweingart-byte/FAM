@@ -2616,6 +2616,10 @@ class SendMessageRequest(BaseModel):
     #: along so the message names the vibe it answers, but nothing was
     #: shared - so it is not a "share" taste signal.
     reply: bool = False
+    #: Which episode the sender heard (`X-FAM-Episode`, §285), so the
+    #: recipient replays that one. '' from an older client: the server then
+    #: names the episode kept under the question, if there is one.
+    episode: str = Field("", max_length=messages_mod.MAX_EPISODE)
 
 
 class SaveRequest(BaseModel):
@@ -3327,6 +3331,45 @@ async def messages_typing(req: TypingRequest, request: Request) -> dict:
     return {"ok": True}
 
 
+def _shared_episode(query: str, minutes: int, episode: str = "") -> str:
+    """Which kept episode a message shares (§285), as `cache.episode_id`.
+
+    A share used to carry only the question and the length, so the
+    recipient's Listen asked the question again - and once the sender's
+    episode had stopped being current (a live story's two hours), that was
+    a new episode written from scratch, under a title and a picture that
+    were the old one's until it finished. Now the message names the episode
+    and the recipient replays it, as the listening history does (§173).
+
+    The sender's own id when it names a kept episode **of this question**
+    (either research setting, as `_held_episode_keys` builds it): an id is
+    never accepted for another question, which would play something the
+    card does not name and that moderation never looked up. Otherwise the
+    episode kept under the question now. '' when nothing is kept - the
+    message then plays by its question, as it always did.
+    """
+    if SCRIPT_CACHE is None or not query or not is_shareable(query):
+        return ""
+    try:
+        length = max(1, min(10, int(minutes or DEFAULT_MINUTES)))
+        keys = [cache_key(query, length, None, "", searched)
+                for searched in (True, False)]
+        found = ""
+        parsed = parse_episode_id(episode) if episode else None
+        if parsed is not None and parsed[1] and parsed[0] in keys \
+                and SCRIPT_CACHE.resolve_episode(episode):
+            found = episode.strip()
+        for key in keys:
+            if not found and SCRIPT_CACHE.resolve_episode(key):
+                found = cache_mod.episode_id(key, SCRIPT_CACHE.sourced_at(key))
+        # Its script kept as a heard one is, so the message replays it for
+        # at least as long; the audio sweep keeps its audio (§237).
+        return _pin_heard(found) if found else ""
+    except Exception:  # noqa: BLE001 - a share is never refused for this
+        log.exception("could not name the episode a message shares")
+    return ""
+
+
 @app.post("/api/messages")
 async def messages_send(req: SendMessageRequest, request: Request) -> dict:
     """Send a message, or share an episode into a conversation.
@@ -3367,7 +3410,10 @@ async def messages_send(req: SendMessageRequest, request: Request) -> dict:
     try:
         message = MESSAGES.send(user, req.to, kind=kind, text=req.text,
                                 query=req.query, minutes=req.minutes,
-                                title=req.title)
+                                title=req.title,
+                                episode=(_shared_episode(req.query, req.minutes,
+                                                         req.episode)
+                                         if kind == "episode" else ""))
     except messages_mod.MessageError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     # A share is a signal about taste as much as an act of sending, and the
@@ -10296,6 +10342,7 @@ def _held_episode_keys() -> set:
     Past ten million or so, record the key on the row at save time instead.
     """
     pairs = set()
+    keys = set()
     for read in (SAVED.episodes, SHARES.episodes, SOCIAL.vibed_episodes):
         try:
             pairs.update((q, int(m or 0)) for q, m in read())
@@ -10303,7 +10350,17 @@ def _held_episode_keys() -> set:
             log.exception("audio sweep: could not read what is held from %s",
                           getattr(read, "__qualname__", read))
             raise
-    keys = set()
+    # An episode sent in a message is shared too (§285): its question, and
+    # the exact episode the message names.
+    try:
+        for query, minutes, episode in MESSAGES.episodes():
+            pairs.add((query, int(minutes or 0)))
+            parsed = parse_episode_id(episode) if episode else None
+            if parsed is not None:
+                keys.add(parsed[0])
+    except Exception:
+        log.exception("audio sweep: could not read what is held from messages")
+        raise
     for query, minutes in pairs:
         if not query:
             continue

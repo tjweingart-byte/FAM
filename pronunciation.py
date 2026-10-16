@@ -74,7 +74,9 @@ HOLD_SECONDS = 30 * 60
 #: telling us about hard names, it is listing every name.
 MAX_PER_EPISODE = 12
 
-_NAME = re.compile(r"^[A-Za-zÀ-ÖØ-öø-ÿĀ-ſ][A-Za-zÀ-ÖØ-öø-ÿĀ-ſ'’.\- ]{1,59}$")
+#: Digits after the first character (§285): "ZBTB44" is a hard name too, and
+#: a `<<SAY:>>` line for it used to be thrown away.
+_NAME = re.compile(r"^[A-Za-zÀ-ÖØ-öø-ÿĀ-ſ][A-Za-z0-9À-ÖØ-öø-ÿĀ-ſ'’.\- ]{1,59}$")
 _SAY = re.compile(r"^[A-Za-z][A-Za-z'\- ]{1,119}$")
 
 #: Words a model might list and that the voice already says right. Refusing

@@ -77,13 +77,21 @@
   .fam-loading-wm .wm-glyph, .fam-loading-wm .wm-a{ width:26px; height:26px; display:block; }
   .fam-loading-wm svg{ width:100%; height:100%; display:block; }
 
-  .fam-loading-mark{ width:96px; height:88px; color:var(--copper); margin-top:4px; }
-  .fam-loading-mark svg{ width:100%; height:100%; overflow:visible; }
+  /* Each chevron is its own HTML layer, animated by transform and opacity
+     only (§285). They were three <path>s animated inside one SVG, with a
+     drop-shadow filter on each: an SVG child's animation runs on the main
+     thread, so the chevrons stalled whenever the page was busy - which,
+     while an episode starts, is often - and the shadow was redrawn every
+     frame. Layers are moved by the compositor, and the shadow is painted
+     once, on a still SVG. */
+  .fam-loading-mark{ position:relative; width:96px; height:88px; color:var(--copper); margin-top:4px; }
   .fam-loading-mark .chev{
-    opacity:0; transform-origin:50% 50%;
-    filter:drop-shadow(0 0 9px rgba(224,181,99,0.55));
+    position:absolute; inset:0; display:block;
+    opacity:0; will-change:transform, opacity;
     animation:famRise 2.4s cubic-bezier(.4,0,.2,1) infinite;
   }
+  .fam-loading-mark svg{ width:100%; height:100%; display:block; overflow:visible;
+    filter:drop-shadow(0 0 9px rgba(224,181,99,0.55)); }
   .fam-loading-mark .c1{ animation-delay:0s; }
   .fam-loading-mark .c2{ animation-delay:.22s; }
   .fam-loading-mark .c3{ animation-delay:.44s; }
@@ -180,11 +188,9 @@
         </div>
 
         <div class="fam-loading-mark" aria-hidden="true">
-          <svg viewBox="0 0 48 44" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round">
-            <path class="chev c1" d="M6 38l18-16 18 16"/>
-            <path class="chev c2" d="M6 26l18-16 18 16"/>
-            <path class="chev c3" d="M6 14l18-16 18 16"/>
-          </svg>
+          <span class="chev c1"><svg viewBox="0 0 48 44" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 38l18-16 18 16"/></svg></span>
+          <span class="chev c2"><svg viewBox="0 0 48 44" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 26l18-16 18 16"/></svg></span>
+          <span class="chev c3"><svg viewBox="0 0 48 44" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 14l18-16 18 16"/></svg></span>
         </div>
 
         <div class="fam-loading-word">FAMiliarizing…</div>
