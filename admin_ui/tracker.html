@@ -94,6 +94,25 @@
   .report .text { white-space:pre-wrap; word-break:break-word; margin:0 0 5px; }
   .report .ctx { font:11px var(--mono); color:var(--muted); }
   .report.done .text { color:var(--muted); }
+  /* Reported content (10.16 #2). */
+  .modsum { display:flex; flex-wrap:wrap; gap:6px; margin:0 0 10px; }
+  .chip.stat { cursor:default; }
+  .chip.hot { border-color:var(--rose); color:var(--rose); }
+  .where { display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:8px; margin:10px 0 6px; }
+  .where div { background:var(--surface); border:1px solid var(--line); border-radius:8px; padding:8px 10px; }
+  .where b { display:block; font-size:13px; color:var(--amber); }
+  .where span { font-size:12.5px; color:var(--muted); }
+  .modrep { background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:12px; margin-top:8px; }
+  .modrep:first-child { border-top:1px solid var(--line); }
+  .modrep .tags { display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin-bottom:6px; }
+  .kindtag { font:600 10.5px var(--mono); text-transform:uppercase; letter-spacing:.08em; color:var(--ground); background:var(--amber); border-radius:4px; padding:1px 6px; }
+  .reason { font-size:12px; color:var(--ink); border:1px solid var(--line); border-radius:999px; padding:0 8px; }
+  .due { font:11px var(--mono); color:var(--muted); margin-left:auto; }
+  .due.late { color:var(--rose); font-weight:700; }
+  blockquote.text { margin:0 0 6px; padding:6px 10px; border-left:3px solid var(--line); background:var(--panel); border-radius:0 6px 6px 0; }
+  .empty { border:1px dashed var(--line); border-radius:10px; padding:18px; text-align:center; }
+  .empty b { display:block; }
+  .empty span { color:var(--muted); font-size:12.5px; }
   /* A provider's parts, under it: BALLDONTLIE's leagues (§280). */
   tr.subrow td { font-size:12.5px; }
   tr.subrow .subname { padding-left:18px; position:relative; color:var(--muted); }
@@ -126,6 +145,77 @@
   .badge { font:11px var(--mono); background:var(--surface); border:1px solid var(--line); color:var(--muted); border-radius:999px; padding:1px 8px; }
   .badge.hot { background:var(--rose-bg); border-color:var(--rose); color:var(--rose); }
   @media (prefers-reduced-motion: reduce) { nav.drawer { transition:none; } }
+  /* Wide screens (10.16 #1): the menu stays open as a sidebar, so every
+     page is one click away and the current one is always marked. */
+  @media (min-width:1180px) {
+    nav.drawer { transform:none; visibility:visible; transition:none; box-shadow:none; }
+    body.signed-in .wrap { margin-left:300px; max-width:1240px; }
+    body.signed-in .menubtn { display:none; }
+    .scrim { display:none; }
+  }
+  body:not(.signed-in) nav.drawer { visibility:hidden; }
+  /* Pipeline errors (10.16 #1): tabs, then one row per kind that opens. */
+  .tabs { margin:0 0 14px; padding-bottom:12px; border-bottom:1px solid var(--line); }
+  .tabs .chip { font-size:13px; padding:6px 14px; }
+  .tabs .chip.on { background:var(--raised); }
+  .subsection h2 { margin-top:2px; }
+  details.about { margin:-4px 0 10px; }
+  details.about p { margin-top:6px; }
+  .faint { color:var(--faint); font-weight:400; }
+  .kinds { display:flex; flex-direction:column; gap:6px; margin-top:8px; }
+  .kind { border:1px solid var(--line); border-radius:10px; background:var(--surface); overflow:hidden; }
+  .kind.open { border-color:var(--amber-dk); }
+  .khead { width:100%; display:grid; grid-template-columns:12px minmax(0,1fr) 56px 56px 120px 14px; gap:10px; align-items:center; padding:9px 12px; background:none; border:0; text-align:left; }
+  .khead:hover { background:var(--raised); }
+  .kdot { width:9px; height:9px; border-radius:50%; background:var(--amber); }
+  .kdot.err { background:var(--rose); }
+  .kname { min-width:0; }
+  .kname b { display:block; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .kname small, .kn small { display:block; font:11px var(--mono); color:var(--faint); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .kn { text-align:right; font-variant-numeric:tabular-nums; }
+  .kn b { font-size:15px; }
+  .klast { font:11.5px var(--mono); color:var(--muted); text-align:right; }
+  .kchev { color:var(--faint); transition:transform .12s; }
+  .kind.open .kchev { transform:rotate(90deg); color:var(--amber); }
+  @media (max-width:640px) { .khead { grid-template-columns:12px minmax(0,1fr) 44px 44px 14px; } .klast { display:none; } .kname b { white-space:normal; } }
+  .kpanel { border-top:1px solid var(--line); padding:12px 14px 14px; background:var(--panel); }
+  .kpanel h4 { margin:0 0 6px; font:600 11px var(--mono); text-transform:uppercase; letter-spacing:.06em; color:var(--muted); }
+  .explain { background:var(--surface); border:1px solid var(--line); border-left:3px solid var(--amber); border-radius:8px; padding:8px 12px; margin-bottom:12px; }
+  .explain p { margin:4px 0; }
+  .explain .hint { color:var(--amber); font-weight:600; }
+  .kgrid { display:grid; grid-template-columns:1fr; gap:16px; margin-bottom:12px; }
+  @media (min-width:800px) { .kgrid { grid-template-columns:minmax(0,1fr) minmax(0,1fr); } }
+  .hrow { display:grid; grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) 34px; gap:8px; align-items:center; font-size:12.5px; padding:2px 0; }
+  .hrow span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--ink); }
+  .hrow i { display:block; height:8px; border-radius:4px; background:var(--amber-dk); }
+  .hrow b { text-align:right; font:12px var(--mono); }
+  .bars { display:flex; align-items:flex-end; gap:2px; height:86px; padding-bottom:16px; }
+  .bar { flex:1; height:100%; display:flex; flex-direction:column; justify-content:flex-end; position:relative; min-width:0; }
+  .bar i { display:block; background:var(--amber); border-radius:2px 2px 0 0; min-height:1px; }
+  .bar span { position:absolute; bottom:-16px; left:0; font:10px var(--mono); color:var(--faint); white-space:nowrap; }
+  .sev { font:11px var(--mono); padding:1px 7px; border-radius:999px; border:1px solid var(--line); }
+  .sev.err { color:var(--rose); border-color:var(--rose); }
+  .sev.note { color:var(--amber); border-color:var(--amber-dk); }
+  .sub.small { font-size:11.5px; margin:6px 0 0; }
+  /* How names are said (10.16 #6). */
+  .wikibar { display:flex; gap:12px; align-items:center; justify-content:space-between; flex-wrap:wrap; background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:10px 12px; margin:4px 0 10px; }
+  .wikibar div { flex:1; min-width:240px; }
+  .wikibar b { display:block; }
+  .wikibar span { font-size:12.5px; color:var(--muted); }
+  .wikibar .go { padding:8px 14px; }
+  .formrow { display:flex; gap:8px; justify-content:flex-end; }
+  .formrow .go { padding:8px 16px; }
+  .sayrow { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:4px 12px; }
+  .sayname { min-width:0; }
+  .sayacts { grid-column:2; grid-row:1; white-space:nowrap; }
+  .wiki { grid-column:1 / -1; font-size:12px; color:var(--muted); }
+  .wiki a { color:inherit; }
+  .wiki.agrees { color:var(--green); }
+  .wiki.differs { color:var(--amber); }
+  .ghost.tiny { padding:3px 8px; font-size:11.5px; }
+  .srctag { white-space:nowrap; font:11px var(--mono); color:var(--faint); border:1px solid var(--line); border-radius:999px; padding:0 7px; }
+  .srctag.admin { color:var(--ink); border-color:var(--amber-dk); }
+  .srctag.wikipedia { color:var(--green); border-color:var(--green); }
   [hidden] { display:none !important; }
 </style>
 </head>
@@ -230,7 +320,20 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
     <div class="page" data-page="reports" data-title="Reported content" hidden>
     <section class="card section" id="modCard">
       <h2>Reported content <small id="modCount"></small></h2>
-      <p class="sub">Comments, messages, vibes, people and episodes listeners reported, oldest first. Every report must be answered within 24 hours. <b>Remove</b> takes the content down for everyone; <b>Suspend</b> removes it and stops the account posting anything; <b>Dismiss</b> leaves it up (it stays hidden from whoever reported it).</p>
+      <p class="sub">What listeners flagged as harmful in FAM - other people's comments, vibes, profiles, group chats and episodes - for you to take down or leave up. Apple requires it of any app where people post (App Store guideline 1.2): a way to report, a way to block, and an answer to every report <b>within 24 hours</b>. Oldest open first, so the top of the list is the next one due. Who reported is never shown.</p>
+      <div class="modsum" id="modSummary"></div>
+      <details class="about" id="modWhere">
+        <summary>Where listeners report from</summary>
+        <div class="where">
+          <div><b>Episode</b><span>The player's ⋯ menu → Report, and the ⋯ on an Explore reel.</span></div>
+          <div><b>Comment</b><span>Explore → Comments → Report under someone else's comment.</span></div>
+          <div><b>Vibe</b><span>A friend's story → ⋯ → Report.</span></div>
+          <div><b>Person</b><span>A profile's ⋯ → Report, or a chat's ⋯ → Report them.</span></div>
+          <div><b>Group</b><span>A group chat's ⋯ → Report this chat.</span></div>
+          <div><b>Message</b><span>No button yet: a single message is reported through its chat (person or group).</span></div>
+        </div>
+        <p class="sub small">Every report hides the thing from whoever reported it straight away; your answer decides it for everybody. <b>Remove</b> takes the content down for everyone; <b>Suspend</b> removes it and stops the account posting anything; <b>Dismiss</b> leaves it up.</p>
+      </details>
       <div class="chips" id="modTabs">
         <button class="chip on" type="button" data-mod="open">Open</button>
         <button class="chip" type="button" data-mod="resolved">Answered</button>
@@ -256,16 +359,32 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
 
     <div class="page" data-page="errors" data-title="Pipeline errors" hidden>
     <section class="card section" id="errorsCard">
+      <div class="chips tabs" id="errTabs" role="tablist" aria-label="Pipeline errors">
+        <button class="chip on" type="button" role="tab" data-errtab="kinds">What went wrong</button>
+        <button class="chip" type="button" role="tab" data-errtab="newest">Newest</button>
+        <button class="chip" type="button" role="tab" data-errtab="steps">Timing by step</button>
+        <button class="chip" type="button" role="tab" data-errtab="refusals">Refusals</button>
+      </div>
+      <div class="subsection" data-errbox="kinds">
       <h2>What went wrong, and where</h2>
-      <p class="sub">Every stage of making an episode records what went wrong with it here (§269): the <b>brief</b> (episode intelligence timed out, ran out of room, failed, or one half did not answer), <b>live</b> providers (BALLDONTLIE, Finnhub, Polymarket, weather broke, timed out, or answered too late - never "no such game", which is an answer), <b>research</b> (a search backend failed, or every rung came back empty and the episode had no sources), the <b>writer</b> (failed, refused, or a check removed a sentence before it was spoken), the <b>editions</b> (a Trending or DailyFAM episode could not be written) and the <b>episode</b> itself (no voice, failed before any audio, no speech, broke mid-stream, or the voice fell behind). <b>Errors</b> mean somebody heard less than they should have, or nothing; <b>notices</b> mean a guard did its job or something degraded and the episode still played. The menu's badge is errors in the last hour. Last 7 days, newest first; no listener is named.</p>
+      <p class="sub">Every stage of making an episode records what went wrong here (§269). <b>Errors</b> mean somebody heard less than they should have, or nothing; <b>notices</b> mean a guard did its job or something degraded and the episode still played. <b>Open any row</b> for what it means, which categories of episode it hit, what time of day it happens and the newest cases. Last 7 days; no listener is named; the menu's badge is errors in the last hour.</p>
+      <details class="about"><summary>The stages</summary>
+        <p class="sub">The <b>brief</b> (episode intelligence timed out, ran out of room, failed, or one half did not answer), <b>live</b> providers (BALLDONTLIE, Finnhub, Polymarket, weather broke, timed out, or answered too late - never "no such game", which is an answer), <b>research</b> (a search backend failed, or every rung came back empty and the episode had no sources), the <b>writer</b> (failed, refused, or a check removed a sentence before it was spoken), the <b>editions</b> (a Trending or DailyFAM episode could not be written) and the <b>episode</b> itself (no voice, failed before any audio, no speech, broke mid-stream, or the voice fell behind).</p>
+      </details>
       <div id="pipelineErrors"></div>
-      <div class="subsection" id="pipelineStepsBox">
-        <h3 style="margin-top:18px">Timing and health, by step</h3>
+      </div>
+      <div class="subsection" data-errbox="newest" hidden>
+        <h2>Newest</h2>
+        <p class="sub">Every error and notice, newest first, in your own clock.</p>
+        <div id="pipelineNewest"></div>
+      </div>
+      <div class="subsection" id="pipelineStepsBox" data-errbox="steps" hidden>
+        <h2>Timing and health, by step</h2>
         <p class="sub">How long each step of making an episode takes and how often it fails at its job (§270), whether or not anything went wrong - one row per step and per who was waiting: <b>listener waiting</b> (a search or a tap, in front of the first word), <b>ahead</b> (prefetch and the editions, nobody waiting) or <b>listener</b> (the whole wait from tap to first audio). <b>Failed</b> counts a timeout, an error, a refusal, running out of room, an unreadable answer, a part that came too late, a search with no sources, or a live provider that broke or answered stale; <b>how it ended</b> lists every ending, including the ones a step is built to have (a cut not made, no such game). Times are seconds; averages and percentiles are over the last 7 days unless marked 24h. Every server process writes here, and a redeploy keeps it.</p>
         <div id="pipelineSteps"></div>
       </div>
-      <div class="subsection" id="refusalsBox">
-        <h3 style="margin-top:18px">Refusals: calls the model declined</h3>
+      <div class="subsection" id="refusalsBox" data-errbox="refusals" hidden>
+        <h2>Refusals: calls the model declined</h2>
         <p class="sub">Every model call a safety classifier declined (§273) - the writer, each part of the brief, and the evidence cut. Haiku 5.5 has <b>no fallback</b>: a declined writer speaks the fixed line "I can't put together a briefing on that" in place of the episode, a declined brief part searches the question as typed, and a declined cut keeps the whole packet. No retry on another model is built yet; this is the record of what one would have to rescue. <b>Category</b> and <b>reason</b> are the classifier's own (some declines give none); <b>spoken first</b> is how many sentences the listener had already heard when the writer stopped. Last 7 days, newest first.</p>
         <div id="refusals"></div>
       </div>
@@ -321,12 +440,25 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
     <section class="card section" id="sayCard">
       <h2>How names are said</h2>
       <p class="sub">The voice reads spelling and nothing else, so a name like Sagapolutele is respelled before it is spoken. Episode intelligence and the writer add names as they meet them; yours are never replaced by theirs. Only the voice hears these - captions and titles keep the real spelling.</p>
+      <div class="wikibar">
+        <div><b>Checked against Wikipedia</b><span id="wikiState">Every name a model adds is looked up on Wikipedia in the background; where Wikipedia says it differently, Wikipedia's version replaces the model's. Yours are never replaced - Wikipedia's reading is shown beside them.</span></div>
+        <button class="go" id="wikiAll" type="button">Check all with Wikipedia</button>
+      </div>
       <form class="login" id="sayForm" style="margin-top:6px">
         <input id="sayName" placeholder="Name as spelled, e.g. Sagapolutele" maxlength="60" required>
         <input id="saySay" placeholder="As said, e.g. sah-gah-poh-loo-TEH-leh" maxlength="120" required>
-        <button class="go" id="sayBtn" type="submit">Save</button>
+        <div class="formrow">
+          <button class="ghost" id="sayWiki" type="button">Look up on Wikipedia</button>
+          <button class="go" id="sayBtn" type="submit">Save</button>
+        </div>
+        <p class="sub" id="sayWikiOut" hidden></p>
         <p class="sub err" id="sayErr" hidden></p>
       </form>
+      <div class="chips" id="sayFilter">
+        <button class="chip on" type="button" data-sayf="all">All</button>
+        <button class="chip" type="button" data-sayf="differs">Wikipedia differs</button>
+        <button class="chip" type="button" data-sayf="unchecked">Not checked yet</button>
+      </div>
       <div id="sayList"></div>
     </section>
     </div>
@@ -543,23 +675,116 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
     var e = r.errors || {}, n = r.notices || {};
     var kp = chip("errors, last hour", e.hour, true) + ' ' + chip("errors, 24h", e.day, true) + ' ' +
       chip("errors, 7 days", e.week) + ' ' + chip("notices, 24h", n.day) + ' ' + chip("notices, 7 days", n.week);
-    var stages = Object.keys(r.by_stage || {}).map(function (s) {
-      var x = r.by_stage[s];
-      return '<tr><td>' + esc(s) + '</td><td class="n">' + x.day + '</td><td class="n">' + x.week + '</td></tr>';
-    }).join("");
-    var kinds = (r.kinds || []).map(function (k) {
-      return '<tr><td>' + esc(k.stage) + '</td><td title="' + esc(k.kind) + '">' + esc(k.kind) + '</td><td>' + esc(k.severity) +
-        '</td><td class="n">' + k.day + '</td><td class="n">' + k.week + '</td><td>' + esc(new Date(k.last_at * 1000).toLocaleString()) +
-        '</td><td title="' + esc(k.last_detail) + '">' + esc(k.last_detail) + '</td><td title="' + esc(k.last_query) + '">' + esc(k.last_query) + '</td></tr>';
-    }).join("");
+    errKinds = r.kinds || [];
+    var stages = Object.keys(r.by_stage || {}).filter(function (s) { return r.by_stage[s].week; });
+    if (errStage !== "all" && stages.indexOf(errStage) < 0) errStage = "all";
+    var filters = '<div class="chips" id="errStages"><button class="chip' + (errStage === "all" ? " on" : "") +
+      '" type="button" data-stage="all">All stages <b>' + errKinds.reduce(function (a, k) { return a + k.week; }, 0) + '</b></button>' +
+      stages.map(function (s) {
+        var x = r.by_stage[s];
+        return '<button class="chip' + (errStage === s ? " on" : "") + '" type="button" data-stage="' + esc(s) + '">' +
+          esc(s) + ' <b>' + x.week + '</b>' + (x.day ? ' <span class="faint">(' + x.day + ' today)</span>' : '') + '</button>';
+      }).join("") + '</div>';
+    $("pipelineErrors").innerHTML = '<p>' + kp + '</p>' + filters + '<div class="kinds" id="errKindList"></div>';
+    drawKinds();
     var recent = (r.recent || []).map(function (x) {
       return '<tr><td>' + esc(new Date(x.at * 1000).toLocaleString()) + '</td><td>' + esc(x.stage) + '</td><td title="' + esc(x.kind) + '">' + esc(x.kind) +
-        '</td><td>' + esc(x.severity) + '</td><td title="' + esc(x.detail) + '">' + esc(x.detail) + '</td><td title="' + esc(x.query) + '">' + esc(x.query) + '</td></tr>';
+        '</td><td>' + sevTag(x.severity) + '</td><td title="' + esc(x.detail) + '">' + esc(x.detail) + '</td><td title="' + esc(x.query) + '">' + esc(x.query) + '</td></tr>';
     }).join("");
-    $("pipelineErrors").innerHTML = '<p>' + kp + '</p>' +
-      '<div class="tbl"><table><thead><tr><th>Stage</th><th>24h</th><th>7 days</th></tr></thead><tbody>' + stages + '</tbody></table></div>' +
-      (kinds ? '<h3 style="margin-top:12px">By kind, errors first</h3><div class="tbl"><table><thead><tr><th>Stage</th><th>What</th><th>Severity</th><th>24h</th><th>7 days</th><th>Last seen</th><th>Last said</th><th>On the question</th></tr></thead><tbody>' + kinds + '</tbody></table></div>' : '') +
-      '<h3 style="margin-top:12px">Newest</h3><div class="tbl" style="max-height:420px"><table><thead><tr><th>When</th><th>Stage</th><th>What</th><th>Severity</th><th>Detail</th><th>Question</th></tr></thead><tbody>' + recent + '</tbody></table></div>';
+    $("pipelineNewest").innerHTML = '<div class="tbl" style="max-height:620px"><table><thead><tr><th>When</th><th>Stage</th><th>What</th><th>Severity</th><th>Detail</th><th>Question</th></tr></thead><tbody>' + recent + '</tbody></table></div>';
+  }
+
+  // One kind, opened (10.16 #1): what it means, which categories of episode
+  // it hit, when in the day it happens (the reader's own clock), the newest.
+  var errKinds = [], errStage = "all", errOpen = {};
+  function sevTag(sev) {
+    return '<span class="sev ' + (sev === "error" ? "err" : "note") + '">' + esc(sev) + '</span>';
+  }
+  function bars(values, labels, titles) {
+    var max = Math.max.apply(null, values.concat([1]));
+    titles = titles || labels;
+    return '<div class="bars">' + values.map(function (v, i) {
+      return '<div class="bar" title="' + esc(titles[i]) + ': ' + v + '"><i style="height:' + Math.round(100 * v / max) + '%"></i><span>' + esc(labels[i]) + '</span></div>';
+    }).join("") + '</div>';
+  }
+  function kindPanel(k) {
+    var x = k.explain || {};
+    var hours = [], hourLabels = [];
+    for (var h = 0; h < 24; h++) { hours.push(0); hourLabels.push(h % 6 === 0 ? String(h).padStart(2, "0") : ""); }
+    var dayKeys = [], days = {}, today = new Date(); today.setHours(0, 0, 0, 0);
+    for (var d = 6; d >= 0; d--) {
+      var at = new Date(today.getTime() - d * 86400000);
+      var key = at.toDateString(); dayKeys.push(key); days[key] = 0;
+    }
+    (k.times || []).forEach(function (t) {
+      var w = new Date(t * 1000);
+      hours[w.getHours()] += 1;
+      if (days[w.toDateString()] != null) days[w.toDateString()] += 1;
+    });
+    var dayVals = dayKeys.map(function (key) { return days[key]; });
+    var dayLabels = dayKeys.map(function (key) { return new Date(key).toLocaleDateString(undefined, { weekday: "short" }); });
+    var fullHours = hours.map(function (_, i) { return String(i).padStart(2, "0") + ":00"; });
+    var cats = k.categories || [], catMax = cats.length ? cats[0].count : 1;
+    var catRows = cats.slice(0, 10).map(function (c) {
+      return '<div class="hrow"><span title="' + esc(c.name) + '">' + esc(c.name) + '</span><i style="width:' + Math.max(3, Math.round(100 * c.count / catMax)) + '%"></i><b>' + c.count + '</b></div>';
+    }).join("");
+    var ex = (k.examples || []).map(function (y) {
+      return '<tr><td>' + esc(when(y.at)) + '</td><td title="' + esc(y.kind) + '">' + esc(y.kind) + '</td><td>' + esc(y.category) +
+        '</td><td title="' + esc(y.query) + '">' + esc(y.query) + '</td><td title="' + esc(y.detail) + '">' + esc(y.detail) + '</td></tr>';
+    }).join("");
+    function para(label, text) { return text ? '<p><b>' + esc(label) + '</b> ' + esc(text) + '</p>' : ''; }
+    return '<div class="kpanel">' +
+      '<div class="explain">' + para("What happened:", x.what) + para("What the listener noticed:", x.heard) +
+        para("Likely causes:", x.causes) + para("What to do:", x.act) +
+        (x.hint ? '<p class="hint">' + esc(x.hint) + '</p>' : '') + '</div>' +
+      '<div class="kgrid">' +
+        '<div><h4>Categories of episode</h4>' + (catRows || '<p class="sub">No question recorded.</p>') +
+          '<p class="sub small">Read from each question\'s words against the category tree.</p></div>' +
+        '<div><h4>Time of day <span class="faint">(your clock)</span></h4>' + bars(hours, hourLabels, fullHours) +
+          '<h4 style="margin-top:12px">Last 7 days</h4>' + bars(dayVals, dayLabels) + '</div>' +
+      '</div>' +
+      '<h4>Newest cases</h4><div class="tbl" style="max-height:300px"><table><thead><tr><th>When</th><th>Exactly</th><th>Category</th><th>Question</th><th>Detail</th></tr></thead><tbody>' + ex + '</tbody></table></div>' +
+      '</div>';
+  }
+  function drawKinds() {
+    var list = errKinds.filter(function (k) { return errStage === "all" || k.stage === errStage; });
+    $("errKindList").innerHTML = list.length ? list.map(function (k) {
+      var id = k.stage + "|" + k.kind, open = !!errOpen[id];
+      var title = (k.explain && k.explain.title) || k.kind;
+      // Which provider, when there are several of the same kind.
+      if (k.stage === "live" && k.kind.indexOf(":") > 0) title += " · " + k.kind.split(":")[0];
+      return '<div class="kind' + (open ? " open" : "") + '">' +
+        '<button type="button" class="khead" data-kind="' + esc(id) + '" aria-expanded="' + open + '">' +
+          '<span class="kdot ' + (k.severity === "error" ? "err" : "note") + '" aria-hidden="true"></span>' +
+          '<span class="kname"><b>' + esc(title) + '</b><small>' + esc(k.stage) + ' · ' + esc(k.kind) + '</small></span>' +
+          '<span class="kn"><b>' + k.day + '</b><small>24h</small></span>' +
+          '<span class="kn"><b>' + k.week + '</b><small>7 days</small></span>' +
+          '<span class="klast">' + esc(when(k.last_at)) + '</span>' +
+          '<span class="kchev" aria-hidden="true">▸</span>' +
+        '</button>' + (open ? kindPanel(k) : '') + '</div>';
+    }).join("") : '<p class="sub">Nothing at this stage in the last 7 days.</p>';
+  }
+  document.addEventListener("click", function (ev) {
+    var head = ev.target.closest && ev.target.closest("#errKindList [data-kind]");
+    if (head) { var id = head.getAttribute("data-kind"); errOpen[id] = !errOpen[id]; drawKinds(); return; }
+    var st = ev.target.closest && ev.target.closest("#errStages [data-stage]");
+    if (st) {
+      errStage = st.getAttribute("data-stage");
+      Array.prototype.forEach.call($("errStages").children, function (c) { c.classList.toggle("on", c === st); });
+      drawKinds();
+      return;
+    }
+    var tab = ev.target.closest && ev.target.closest("#errTabs [data-errtab]");
+    if (tab) showErrTab(tab.getAttribute("data-errtab"));
+  });
+  function showErrTab(name) {
+    Array.prototype.forEach.call(document.querySelectorAll("#errTabs [data-errtab]"), function (c) {
+      var on = c.getAttribute("data-errtab") === name;
+      c.classList.toggle("on", on); c.setAttribute("aria-selected", on);
+    });
+    Array.prototype.forEach.call(document.querySelectorAll("[data-errbox]"), function (b) {
+      b.hidden = b.getAttribute("data-errbox") !== name;
+    });
   }
 
   // ------------------------------------------------- pipeline timing (§270)
@@ -792,6 +1017,7 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
   function signedIn(yes) {
     $("main").hidden = !yes; $("gate").hidden = yes;
     $("signOut").hidden = !yes; $("menuBtn").hidden = !yes;
+    document.body.classList.toggle("signed-in", !!yes);
     if (!yes) { menu(false); $("pageTitle").textContent = "Live tracker"; document.title = "FAM Admin Tracker"; }
   }
 
@@ -878,24 +1104,35 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
         (m.oldest_open_hours != null ? " · oldest " + m.oldest_open_hours + "h" : "") +
         (m.overdue ? " · OVERDUE" : "");
       var rows = v.reports || [];
+      var kinds = {};
+      rows.forEach(function (r) { kinds[r.kind] = (kinds[r.kind] || 0) + 1; });
+      $("modSummary").innerHTML = modState !== "open" ? "" :
+        '<span class="chip stat' + (m.open ? " on" : "") + '">open <b>' + (m.open || 0) + '</b></span>' +
+        (m.oldest_open_hours != null ? '<span class="chip stat' + (m.overdue ? " hot" : "") + '">oldest <b>' + m.oldest_open_hours + 'h</b> of ' + (m.review_hours || 24) + 'h</span>' : '') +
+        Object.keys(kinds).sort().map(function (k) { return '<span class="chip stat">' + esc(k) + ' <b>' + kinds[k] + '</b></span>'; }).join("");
+      var limit = (m.review_hours || 24) * 3600, nowS = Date.now() / 1000;
       $("modList").innerHTML = rows.length ? rows.map(function (r) {
         var done = !!r.resolved_at;
-        var who = r.posted_by ? ("by @" + r.posted_by.handle + (r.posted_by.suspended ? " (suspended)" : "")) : "";
-        var ctx = [r.kind, r.reason_label, who, when(r.created),
-                   done ? r.action + " " + when(r.resolved_at) : ""].filter(Boolean).join(" · ");
+        var who = r.posted_by ? ((r.posted_by.name ? r.posted_by.name + " " : "") + "@" + r.posted_by.handle + (r.posted_by.suspended ? " (suspended)" : "")) : "";
+        var left = r.created + limit - nowS, due = "";
+        if (!done) due = left > 0 ? '<span class="due">due in ' + Math.max(1, Math.round(left / 3600)) + 'h</span>'
+                                  : '<span class="due late">overdue by ' + Math.max(1, Math.round(-left / 3600)) + 'h</span>';
         var content = r.kind === "person" || r.kind === "group";
-        var acts = done ? "" :
-          (content ? "" : '<button class="go" type="button" style="padding:6px 12px" data-mod-act="removed" data-mod-id="' + esc(r.id) + '">Remove</button>') +
-          (r.posted_by ? '<button class="ghost" type="button" style="padding:6px 12px" data-mod-act="suspended" data-mod-id="' + esc(r.id) + '">Suspend</button>' : '') +
-          '<button class="ghost" type="button" style="padding:6px 12px" data-mod-act="dismissed" data-mod-id="' + esc(r.id) + '">Dismiss</button>';
+        var acts = done ? '<span class="sev note">' + esc(r.action) + ' ' + esc(when(r.resolved_at)) + '</span>' :
+          (content ? "" : '<button class="go" type="button" style="padding:6px 12px" title="Take it down for everyone" data-mod-act="removed" data-mod-id="' + esc(r.id) + '">Remove</button>') +
+          (r.posted_by ? '<button class="ghost" type="button" style="padding:6px 12px" title="Remove it and stop the account posting" data-mod-act="suspended" data-mod-id="' + esc(r.id) + '">Suspend</button>' : '') +
+          '<button class="ghost" type="button" style="padding:6px 12px" title="Leave it up (still hidden from the reporter)" data-mod-act="dismissed" data-mod-id="' + esc(r.id) + '">Dismiss</button>';
         var pic = episodeThumb(r.episode);
-        return '<div class="report' + (done ? " done" : "") + '">' +
+        return '<div class="report modrep' + (done ? " done" : "") + '">' +
           (pic ? '<img class="thumb" src="' + esc(pic) + '" alt="" loading="lazy">' : '') +
           '<div class="body">' +
-          '<p class="text">' + esc(snapshotText(r)) + '</p><div class="ctx">' + esc(ctx) + '</div>' +
-          (r.note ? '<div class="ctx">note: ' + esc(r.note) + '</div>' : '') +
+          '<div class="tags"><span class="kindtag">' + esc(r.kind) + '</span><span class="reason">' + esc(r.reason_label) + '</span>' + due + '</div>' +
+          '<blockquote class="text">' + esc(snapshotText(r)) + '</blockquote>' +
+          '<div class="ctx">' + esc([who && "posted by " + who, "reported " + when(r.created)].filter(Boolean).join(" · ")) + '</div>' +
+          (r.note ? '<div class="ctx">reporter\'s note: ' + esc(r.note) + '</div>' : '') +
           '</div><div class="acts">' + acts + '</div></div>';
-      }).join("") : '<p class="sub">' + (modState === "open" ? "Nothing open." : "Nothing answered yet.") + '</p>';
+      }).join("") : '<div class="empty"><b>' + (modState === "open" ? "Nothing to answer." : "Nothing answered yet.") + '</b><span>' +
+        (modState === "open" ? "Every report has been answered. New ones appear here, oldest first." : "Answered reports are kept here with what was done.") + '</span></div>';
     }).catch(function (e) {
       $("modList").innerHTML = '<p class="sub err">Could not load reports: ' + esc(e.message) + '</p>';
     });
@@ -1048,21 +1285,94 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
   });
   // How names are said (§165): the voice's lexicon. Editing one here is an
   // admin's respelling, which no model's replaces.
+  // How names are said, with Wikipedia's reading beside each (10.16 #6).
+  var sayRows = [], sayFilter = "all", wikiPoll = null;
+  var WIKI_WORDS = { agrees: "Wikipedia agrees", differs: "Wikipedia says", "not on Wikipedia": "not on Wikipedia",
+                     ambiguous: "more than one on Wikipedia", failed: "Wikipedia did not answer", found: "Wikipedia says" };
+  function sourceWord(src) {
+    return src === "admin" ? "yours" : src === "wikipedia" ? "from Wikipedia" : "from the " + src;
+  }
+  function drawSay() {
+    var rows = sayRows.filter(function (x) {
+      var w = x.wikipedia;
+      if (sayFilter === "differs") return w && w.status === "differs";
+      if (sayFilter === "unchecked") return !w;
+      return true;
+    });
+    $("sayList").innerHTML = rows.length ? rows.map(function (x) {
+      var w = x.wikipedia, wiki = "";
+      if (w) {
+        var link = /^https:\/\/en\.wikipedia\.org\//.test(w.url || "") ? w.url : "";
+        var words = WIKI_WORDS[w.status] || w.status;
+        wiki = '<span class="wiki ' + esc(w.status.replace(/\s+/g, "-")) + '">' +
+          (link ? '<a href="' + esc(link) + '" target="_blank" rel="noopener noreferrer">' + esc(words) + '</a>' : esc(words)) +
+          (w.status === "differs" && w.say ? ' <code>' + esc(w.say) + '</code> <button class="ghost tiny" type="button" data-say-use="' + esc(x.name) + '" data-say="' + esc(w.say) + '">Use</button>' : '') +
+          (w.ipa ? ' <span class="faint" title="' + esc(w.how) + '">/' + esc(w.ipa) + '/</span>' : '') + '</span>';
+      }
+      return '<div class="vrow sayrow"><div class="sayname"><b>' + esc(x.name) + '</b> = <code>' + esc(x.say) + '</code> ' +
+        '<span class="srctag ' + esc(x.source) + '">' + esc(sourceWord(x.source)) + '</span></div>' + wiki +
+        '<div class="sayacts"><button class="ghost tiny" type="button" data-say-edit="' + esc(x.name) + '" data-say="' + esc(x.say) + '">Edit</button>' +
+        ' <button class="ghost tiny" type="button" data-say-rm="' + esc(x.name) + '">Remove</button></div></div>';
+    }).join("") : '<p class="sub">' + (sayRows.length ? "No names match this filter." : "No names on file yet.") + '</p>';
+  }
+  function drawWiki(st) {
+    st = st || {};
+    $("wikiAll").disabled = !st.enabled || !!st.running;
+    var counts = { differs: 0, unchecked: 0 };
+    sayRows.forEach(function (x) { if (!x.wikipedia) counts.unchecked++; else if (x.wikipedia.status === "differs") counts.differs++; });
+    var f = $("sayFilter").children;
+    f[1].innerHTML = 'Wikipedia differs <b>' + counts.differs + '</b>';
+    f[2].innerHTML = 'Not checked yet <b>' + counts.unchecked + '</b>';
+    if (!st.enabled) { $("wikiState").textContent = "The Wikipedia look is off on this server (WIKIPEDIA=0), so names are not checked."; return; }
+    if (st.running) $("wikiState").textContent = "Checking with Wikipedia: " + st.done + " of " + st.total + " names" + (st.applied ? ", " + st.applied + " corrected so far" : "") + "…";
+    else if (st.finished) $("wikiState").textContent = "Last check " + when(st.finished) + ": " + st.last_done + " names, " + st.last_applied + " corrected. Model guesses Wikipedia disagrees with are replaced; yours are only shown beside it.";
+    if (wikiPoll) { clearTimeout(wikiPoll); wikiPoll = null; }
+    if (st.running) wikiPoll = setTimeout(loadSay, 4000);
+  }
   function loadSay() {
     return api("/api/admin/pronunciations").then(function (v) {
-      var rows = v.pronunciations || [];
-      $("sayList").innerHTML = rows.length ? rows.map(function (x) {
-        return '<div class="vrow"><b>' + esc(x.name) + '</b> = <code>' + esc(x.say) + '</code> ' +
-          '<span class="sub">' + esc(x.source === "admin" ? "yours" : "from the " + x.source) + '</span>' +
-          ' <button class="ghost" type="button" data-say-edit="' + esc(x.name) + '" data-say="' + esc(x.say) + '">Edit</button>' +
-          ' <button class="ghost" type="button" data-say-rm="' + esc(x.name) + '">Remove</button></div>';
-      }).join("") : '<p class="sub">No names on file yet.</p>';
+      sayRows = v.pronunciations || [];
+      drawSay(); drawWiki(v.wikipedia);
     }).catch(function () {});
   }
+  $("sayFilter").addEventListener("click", function (ev) {
+    var b = ev.target.closest("[data-sayf]"); if (!b) return;
+    sayFilter = b.getAttribute("data-sayf");
+    Array.prototype.forEach.call($("sayFilter").children, function (c) { c.classList.toggle("on", c === b); });
+    drawSay();
+  });
+  $("wikiAll").addEventListener("click", function () {
+    $("wikiAll").disabled = true;
+    api("/api/admin/pronunciations/wikipedia", {}).then(function (r) {
+      $("wikiState").textContent = r.queued ? "Checking " + r.queued + " names with Wikipedia…" : "Every name was checked in the last month; nothing to ask.";
+      setTimeout(loadSay, 1500);
+    }).catch(function (e) { $("wikiState").textContent = e.message; $("wikiAll").disabled = false; });
+  });
+  $("sayWiki").addEventListener("click", function () {
+    var name = $("sayName").value.trim();
+    if (!name) { $("sayName").focus(); return; }
+    $("sayWiki").disabled = true; $("sayWikiOut").hidden = false; $("sayWikiOut").textContent = "Asking Wikipedia…";
+    api("/api/admin/pronunciations/wikipedia?name=" + encodeURIComponent(name)).then(function (w) {
+      if (w.say) {
+        $("saySay").value = w.say;
+        $("sayWikiOut").textContent = w.how + (w.ipa ? " /" + w.ipa + "/" : "") + (w.title ? " - " + w.title : "") + ". Check it, then Save.";
+      } else {
+        $("sayWikiOut").textContent = (WIKI_WORDS[w.status] || w.status) + (w.title ? " (" + w.title + " has no pronunciation in its first lines)" : "") + ".";
+      }
+    }).catch(function (e) { $("sayWikiOut").textContent = e.message; })
+      .then(function () { $("sayWiki").disabled = false; });
+  });
   $("sayList").addEventListener("click", function (ev) {
     var t = ev.target;
     var edit = t && t.getAttribute("data-say-edit");
     if (edit) { $("sayName").value = edit; $("saySay").value = t.getAttribute("data-say") || ""; $("saySay").focus(); return; }
+    var use = t && t.getAttribute("data-say-use");
+    if (use) {
+      t.disabled = true;
+      api("/api/admin/pronunciations", { name: use, say: t.getAttribute("data-say") || "" })
+        .then(loadSay).catch(function (e) { t.disabled = false; alert(e.message); });
+      return;
+    }
     var name = t && t.getAttribute("data-say-rm");
     if (!name || !confirm("Let the voice read " + name + " as spelled again?")) return;
     api("/api/admin/pronunciations/" + encodeURIComponent(name), null, "DELETE").then(loadSay);

@@ -169,10 +169,10 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   Chatterbox speaks, or a placeholder **tone** and everything says so. No hosted
   per-character voices. Nobody has heard an episode in it; that listening test
   is the next move (`RUNPOD_PRODUCTION.md`, `verify_voice.py`). Hard names are
-  respelled for the voice (§165, `pronunciation.py`): EI's brief and the
-  writer's `<<SAY: Name = respelling>>` lines feed one lexicon; an admin fix on
-  /admin is never overridden; only the text handed to the voice changes -
-  captions, cache and titles keep the real spelling. Chunks are seeded from
+  respelled for the voice (§165): EI's brief, the writer's `<<SAY: Name =
+  respelling>>` lines and Wikipedia (§289, over both) feed a lexicon; an
+  admin fix is never overridden; only the voice's text changes -
+  captions, cache and titles keep the spelling. Chunks are seeded from
   voice + words; workers are refused on `VOICE_REFERENCE_FINGERPRINT`;
   `verify_voice.py --fingerprint` measures drift (§176). [op-voice]
 - **Voice bank** (§147): only searchFAM picks a voice; other surfaces draw one
@@ -334,9 +334,9 @@ Research and truth
   swept at 05:00/17:00 in each asked place's own time; US warnings asked live;
   worded as a forecast, never an outcome; never prefetched. [weather]
 - **GDELT is read from its 15-minute export files, never its search API**
-  (§211): one job downloads them; every reader uses the copy on disk;
+  (§211): one job downloads them; readers use the copy;
   nothing a listener does reaches GDELT; polls on GDELT's clock, a named
-  file is waited for (§220). [gdelt-exports]
+  file waited for (§220), a failing one written off (§289). [gdelt-exports]
 - **A forecast beside every outcome-dependent question** (§211):
   `live_facts.forecast` asks Polymarket by subject; `plan.forecast`, never
   `plan.live`, never evidence. [forecast-beside]

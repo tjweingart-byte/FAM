@@ -271,6 +271,20 @@ class VoiceBank:
                        source  TEXT NOT NULL,
                        updated REAL NOT NULL
                    )""")
+            # What Wikipedia said about each name, and when (10.16 #6,
+            # `wiki_pronounce.py`): kept so a name is not asked again for a
+            # month, and shown beside the lexicon's own entry on /admin.
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS pronunciation_checks (
+                       name   TEXT PRIMARY KEY,
+                       at     REAL NOT NULL,
+                       status TEXT NOT NULL,
+                       say    TEXT NOT NULL DEFAULT '',
+                       ipa    TEXT NOT NULL DEFAULT '',
+                       how    TEXT NOT NULL DEFAULT '',
+                       title  TEXT NOT NULL DEFAULT '',
+                       url    TEXT NOT NULL DEFAULT ''
+                   )""")
 
     def _conn(self) -> sqlite3.Connection:
         conn = getattr(self._local, "conn", None)
@@ -383,13 +397,31 @@ class VoiceBank:
         # A lower-precedence source never replaces a higher one: an admin's
         # respelling stands until an admin changes it, and a brief's guess
         # (made before anything was read) never replaces a writer's.
-        rank = {"admin": 0, "writer": 1, "brief": 2}
-        if row and rank.get(source, 3) > rank.get(row[1], 3):
+        # Wikipedia (10.16 #6) sits under an admin and over both models.
+        rank = {"admin": 0, "wikipedia": 1, "writer": 2, "brief": 3}
+        if row and rank.get(source, 4) > rank.get(row[1], 4):
             return False
         conn.execute(
             "INSERT OR REPLACE INTO pronunciations (name, say, source, updated)"
             " VALUES (?, ?, ?, ?)", (name[:60], say[:120], source, time.time()))
         return True
+
+    def keep_pronunciation_check(self, result: dict) -> None:
+        """What Wikipedia said about one name (`wiki_pronounce.check`)."""
+        self._conn().execute(
+            "INSERT OR REPLACE INTO pronunciation_checks (name, at, status, say,"
+            " ipa, how, title, url) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (str(result.get("name") or "")[:60], time.time(),
+             str(result.get("status") or "")[:40], str(result.get("say") or "")[:160],
+             str(result.get("ipa") or "")[:160], str(result.get("how") or "")[:60],
+             str(result.get("title") or "")[:200], str(result.get("url") or "")[:400]))
+
+    def pronunciation_checks(self) -> list[dict]:
+        rows = self._conn().execute(
+            "SELECT name, at, status, say, ipa, how, title, url"
+            " FROM pronunciation_checks").fetchall()
+        cols = ("name", "at", "status", "say", "ipa", "how", "title", "url")
+        return [dict(zip(cols, r)) for r in rows]
 
     def forget_pronunciation(self, name: str) -> bool:
         cur = self._conn().execute("DELETE FROM pronunciations WHERE name = ?",

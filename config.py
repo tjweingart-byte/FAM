@@ -1009,6 +1009,12 @@ class Settings:
     # Files fetched behind the newest when the copy is behind - after a boot
     # or an outage - so a first sweep has more than fifteen minutes to read.
     gdelt_export_backfill_files: int = _env_int("GDELT_EXPORT_BACKFILL_FILES", 8)
+    # Syncs a file may fail in before it is written off rather than asked at
+    # every poll while it is in the backfill window (10.16 #4).
+    gdelt_export_file_tries: int = _env_int("GDELT_EXPORT_FILE_TRIES", 3)
+    # Quick looks (every GDELT_EXPORT_WAIT_SECONDS) a named file not yet
+    # served gets before it waits for the ordinary poll (10.16 #4).
+    gdelt_export_max_waits: int = _env_int("GDELT_EXPORT_MAX_WAITS", 2)
     # Whether a researched episode searches the copy as well as the web. It costs
     # GDELT nothing now; it costs the episode a local read.
     gdelt_cross_check: bool = field(

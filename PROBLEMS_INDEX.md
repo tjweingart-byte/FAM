@@ -292,3 +292,4 @@ and `limit` = Lines.
 | 20450 | 117 | 286. The 10.16 implementations: short Haiku episodes, more from each source, the writing on Haiku, the trusted sources, and Made for you's View more (2026-10-16) |
 | 20567 | 115 | 287. More examples for the Haiku writer, and a wider list of trusted sources (2026-10-16) |
 | 20682 | 128 | 288. The 10.16 instant feedback: the first step, a sent episode, Trending's sources, the writing on Haiku, and the pause in the first line (2026-10-16) |
+| 20810 | 110 | 289. The 10.16 admin page: errors that open, reports explained, transcripts that arrive, GDELT's pressure, Finnhub's refusals and Wikipedia's pronunciations (2026-10-16) |
