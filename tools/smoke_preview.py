@@ -3848,11 +3848,16 @@ def main() -> int:
             assert lengths == [f"{m} min" for m in range(1, 6)], lengths
             page.click('#goDeeperLengths .deeper-len[data-min="4"]')
             page.fill("#goDeeperInput", "what happens next")
+            # An earlier check may already have made a follow-up (§285's
+            # Continue does), so wait for *this* one: one more than before.
+            before = page.evaluate(
+                "Object.keys(TOPICS).filter(k => k.indexOf('deeper_') === 0).length")
             page.evaluate("confirmGoDeeper()")
             # A typed follow-up is corrected at send (§247), which can answer
             # after the call returns: wait for the follow-up, not a fixed beat.
             page.wait_for_function(
-                "Object.keys(TOPICS).some(k => k.indexOf('deeper_') === 0)", timeout=10000)
+                "n => Object.keys(TOPICS).filter(k => k.indexOf('deeper_') === 0).length > n",
+                arg=before, timeout=10000)
             got = page.evaluate("""() => {
               var k = Object.keys(TOPICS).filter(k => k.indexOf('deeper_') === 0).pop();
               return k ? { minutes: TOPICS[k].exploreMinutes,

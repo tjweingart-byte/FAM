@@ -289,3 +289,5 @@ and `limit` = Lines.
 | 20318 | 22 | 283. An eye on every password field (2026-10-16) |
 | 20340 | 34 | 284. The waitlist's video: a YouTube Short above the features (2026-10-16) |
 | 20374 | 76 | 285. The 10.16 implementations: a friend's friends, a vibe into the player, buttons on a dark picture, Continue on the suggestion, private search left on, and a mix row titled by its specific (2026-10-16) |
+| 20450 | 117 | 286. The 10.16 implementations: short Haiku episodes, more from each source, the writing on Haiku, the trusted sources, and Made for you's View more (2026-10-16) |
+| 20567 | 115 | 287. More examples for the Haiku writer, and a wider list of trusted sources (2026-10-16) |

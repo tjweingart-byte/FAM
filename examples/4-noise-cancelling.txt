@@ -1,0 +1,17 @@
+how do noise cancelling headphones work
+
+Noise cancelling headphones don't block the hum of a plane engine. They play it back to you - a copy of it, turned upside down, timed so precisely that the two arrive at your ear together and cancel each other out.
+
+Sound is a pressure wave. The air in your ear canal is pushed slightly in, then pulled slightly out, hundreds of times a second, and your eardrum follows it. If something else pushes out at exactly the moment the engine pushes in, and pulls in at exactly the moment it pulls out, the two movements add up to nothing. The air stays still. Your eardrum has nothing to follow. That is the whole trick, and physicists worked it out long before anyone could build it - the first patent for cancelling sound this way was filed in the nineteen-thirties.
+
+What took fifty years was the timing. Each earcup has a tiny microphone on the outside listening to the world. A chip reads that signal, flips it, and sends it to the speaker, and all of it has to happen before the real sound has crossed the few centimetres from the microphone to your ear. Sound covers about a third of a metre in a thousandth of a second, so the electronics are working against a gap measured in millionths. Most headphones now add a second microphone inside the cup, right by your ear, which hears whatever got through and corrects for it - the outside one guesses, the inside one checks.
+
+And that is why they are so good on a plane and so mediocre in an office.
+
+An engine's drone is low and steady. A low note has a long wave - at a hundred cycles a second, each wave is more than three metres from peak to peak - so if the copy arrives a fraction late, it still lines up with almost all of it. And because the drone barely changes, the chip can more or less predict what comes next.
+
+A voice is the opposite. The parts of speech that make words understandable sit much higher, where a wave can be ten centimetres long, so the same tiny delay throws the copy out of step - and at the wrong moment it doesn't cancel the sound, it adds to it. Speech also never repeats itself, so there is nothing to predict. Headphones that tried to cancel a conversation as hard as they cancel an engine would make some of it louder.
+
+So the high sounds are left to something much older: the padding. A cushion that seals around your ear, or a tip that seals inside it, soaks up high frequencies very well and low ones hardly at all - exactly the reverse of the electronics. Every pair of noise cancelling headphones is two systems stacked on top of each other, a chip for the rumble and foam for the chatter.
+
+That split is also why the silence can feel strange. With the low end taken away, the brain notices the absence; some people describe a pressure, as though they were in a lift going up, although nothing about the air pressure in their ear has changed. And it is why turning the feature off on a train doesn't make the voices around you louder. It brings back the rumble that was underneath them all along - the engine you stopped hearing because a chip by your ear was playing it upside down.

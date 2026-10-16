@@ -490,6 +490,12 @@
   .seed-thumb .seed-act svg{ position:static; inset:auto; width:13px; height:13px; }
   .seed-act.saved-on{ background:var(--sage, #7FA37A); color:var(--ink); }
   .seed-card.has-acts .sec-ready{ right:auto; left:8px; }
+  .sec-caught-up{ grid-column:1 / -1; text-align:center; padding:48px 16px; }
+  .sec-caught-up h3{ margin:0 0 6px; font-family:'Bricolage Grotesque', sans-serif;
+    font-weight:600; font-size:22px; color:var(--text); }
+  .sec-caught-up p{ margin:0 0 18px; font-size:13px; color:var(--text-muted); }
+  .sec-caught-up-again{ background:none; border:1px solid var(--border-strong); border-radius:999px;
+    padding:9px 16px; font:inherit; font-size:13px; color:var(--text); cursor:pointer; }
   .sec-ready{ position:absolute; right:8px; top:8px; padding:3px 7px;
     border-radius:999px; background:var(--copper); color:var(--ink);
     font-family:'Geist Mono', monospace; font-size:7px; font-weight:700;
@@ -12523,6 +12529,9 @@
           + yfIcon("plus", 12) + 'Find new friends</button></div>'
         : '';
 
+      // Before the empty rail returns, so a rail that empties is not opened
+      // on the tiles it used to have (§286).
+      railTiles[sec.key] = sec.topics.slice();
       if(!sec.topics.length){
         // Honest rather than padded. A new listener has no history and no
         // co-listeners, and inventing picks to fill the space is the kind of
@@ -12620,7 +12629,16 @@
   // first eight of the same ranking not in it, and starts again from the top
   // once there are none.
   var SECTION_PAGE = 8;
-  var sectionState = { key: "", seen: [], busy: false, req: 0 };
+  var sectionState = { key: "", seen: [], busy: false, req: 0, head: [] };
+  // Each rail's tiles as the page drew them, so Made for you's View more
+  // opens on exactly the episodes the rail showed (§286): the rail and the
+  // screen are ranked with different exclusions, and some of the rail's own
+  // tiles were missing behind its View more.
+  var railTiles = {};
+  // Made for you's View more cycles through episodes already written and
+  // ends "all caught up" rather than starting again (§286, the owner 10.16):
+  // nothing on it past the rail's own tiles can cause an episode to be written.
+  var SECTION_CYCLES = { from_history: true };
 
   function openSection(key){
     var grid = document.getElementById("sectionGrid");
@@ -12638,7 +12656,9 @@
     reason.textContent = "Loading\u2026";
     grid.innerHTML = "";
     document.getElementById("sectionRefresh").hidden = true;
-    sectionState = { key: key, seen: [], busy: false, req: sectionState.req + 1 };
+    var head = SECTION_CYCLES[key] ? (railTiles[key] || []).slice() : [];
+    sectionState = { key: key, seen: [], busy: false, req: sectionState.req + 1,
+                     head: head };
     navigate("section");
     loadSectionPage();
   }
@@ -12648,19 +12668,35 @@
     var btn = document.getElementById("sectionRefresh");
     var key = sectionState.key;
     var req = ++sectionState.req;
+    var cycles = !!SECTION_CYCLES[key];
+    // The first page of a cycling rail is the rail's own tiles, then the
+    // written episodes after them up to a page.
+    var head = (cycles && !sectionState.seen.length) ? sectionState.head : [];
+    var size = Math.max(1, SECTION_PAGE - head.length);
+    var seen = sectionState.seen.concat(head.map(function(t){ return t.id; }));
     sectionState.busy = true;
     btn.classList.add("spinning");
     fetch(withInterests("/api/myfam/section?key=" + encodeURIComponent(key)
                         + "&minutes=" + myfamLengthMinutes
-                        + "&page_size=" + SECTION_PAGE
-                        + "&seen=" + encodeURIComponent(sectionState.seen.join(","))))
+                        + "&page_size=" + size
+                        + (cycles ? "&cycle=cached" : "")
+                        + "&seen=" + encodeURIComponent(seen.join(","))))
       .then(function(r){ if(!r.ok) throw new Error("section unavailable"); return r.json(); })
       .then(function(d){
         // A late answer for a section the listener has already left, or
         // for an earlier opening of this one.
         if(sectionState.key !== key || sectionState.req !== req) return;
         if(d.wrapped) sectionState.seen = [];
-        (d.topics || []).forEach(function(t){ sectionState.seen.push(t.id); });
+        if(head.length){
+          d.topics = head.concat(d.topics || []);
+          d.ready = d.topics.filter(function(t){ return t.cached; }).length;
+          d.caught_up = false;
+        }
+        sectionState.seen = sectionState.seen.concat(head.map(function(t){ return t.id; }));
+        (d.topics || []).forEach(function(t){
+          if(sectionState.seen.indexOf(t.id) < 0) sectionState.seen.push(t.id);
+        });
+        d.cycles = cycles;
         renderSection(d);
         document.getElementById("sectionScroll").scrollTop = 0;
       })
@@ -12681,6 +12717,13 @@
     loadSectionPage();
   }
 
+  // "All caught up", and the way back to the top of the rail.
+  function restartSection(){
+    if(sectionState.busy || !sectionState.key) return;
+    sectionState.seen = [];
+    loadSectionPage();
+  }
+
   function renderSection(d){
     var grid = document.getElementById("sectionGrid");
     var reason = document.getElementById("sectionReason");
@@ -12688,7 +12731,20 @@
     var refresh = document.getElementById("sectionRefresh");
     // Offered only when a refresh can show something this page does not:
     // a rail with eight or fewer eligible tiles has nothing else to deal.
-    refresh.hidden = !(d.page_size && d.total > topics.length);
+    // A cycling rail always offers it until it is caught up - pressing it
+    // then is how the listener learns they are (§286).
+    refresh.hidden = d.cycles ? !!d.caught_up
+      : !(d.page_size && d.total > topics.length);
+    if(d.cycles && d.caught_up){
+      reason.textContent = "";
+      grid.innerHTML = '<div class="sec-caught-up" id="sectionCaughtUp">'
+        + '<h3>You\u2019re all caught up</h3>'
+        + '<p>That\u2019s every episode ready on your topics right now. New ones '
+        + 'arrive as the day\u2019s stories are written.</p>'
+        + '<button class="sec-caught-up-again" onclick="restartSection()">'
+        + 'Start again from the top</button></div>';
+      return;
+    }
     if(!topics.length){
       reason.textContent = d.empty_reason || "Nothing in this section yet.";
       grid.innerHTML = "";
@@ -12704,7 +12760,8 @@
     if(d.page_size && d.wrapped){
       reason.textContent = "That was all " + d.total + " for this rail, so these are the first again. "
         + reason.textContent;
-    } else if(d.page_size && !d.more && sectionState.seen.length > topics.length){
+    } else if(d.page_size && !d.more && !d.cycles
+              && sectionState.seen.length > topics.length){
       reason.textContent = "The last of this rail. Refresh starts again from the top. "
         + reason.textContent;
     }

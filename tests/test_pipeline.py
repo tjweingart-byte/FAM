@@ -799,7 +799,7 @@ def test_length_describes_story_scope_not_a_section_template():
     """A fixed beat template forced invented content; scope guides instead."""
     short = build_prompt(plan_episode("a topic", 1))
     long = build_prompt(plan_episode("a topic", 10))
-    assert "opened and answered" in short
+    assert "answered fully" in short
     assert "full arc" in long
     for beat in ("one-line hook", "the essential background", "what to watch next"):
         assert beat not in long

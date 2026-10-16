@@ -20446,3 +20446,235 @@ card, or a swipe that ended on it, opened the player. They now go through
 guard `storyTap` already had.
 
 Not done here: nothing was heard (`no-api-key`).
+
+## 286. The 10.16 implementations: short Haiku episodes, more from each source, the writing on Haiku, the trusted sources, and Made for you's View more (2026-10-16)
+
+The owner's 10.16 packet, five backend items. (§285 is the same packet's
+interface half, written on another branch at the same time.)
+
+**1. Episodes shorter than two minutes since the writer moved to Haiku (§272).**
+Read from the code, not measured (no key here). The writer is given one length
+figure ("roughly 300 words") against about eight cues to stop early: the
+system prompt opened "You write FAM: *short* spoken pieces"; the two-minute
+`DEPTH_BANDS` line asked for "two or three facts ... and one reason it
+matters. Nothing else fits, so choose hard"; the scope note said "one
+question, opened and answered"; the plan of the piece and the shape note both
+say to drop a part with no evidence, without saying where its time goes; and
+"the time is the listener's, not a quota ... stop there". Sonnet read past
+them to the word figure; Haiku at `low` follows the content list, and three
+facts and a reason is 120-180 words - the minute-and-a-bit heard. Nothing
+measured length, so it was noticed by ear. Also possible and unmeasured: the
+voice speaking faster than `TARGET_WPM` 150 (Chatterbox ignores `wpm`).
+Changed, keeping [duration-ceiling] (no padding, no top-ups):
+- the system prompt says "spoken pieces"; the two-minute band is "the
+  answer, the mechanism or turn that explains it, the concrete particulars
+  that make it stick, and why it matters. Choose one thread and give it the
+  whole time rather than skimming several" - content, never a count
+  ([depth-not-words]); the scope note "one question, answered fully";
+- the "not a quota" paragraph keeps every word and adds: resolving early is
+  rare; heading for well under the budget, look again at the evidence for
+  the mechanism or the detail skipped before stopping;
+- `OUTLINE_GUIDE` and `build_outline_note`: a dropped part's time goes to the
+  parts the evidence supports;
+- **a short script is counted**: a finished script under 70% of its word
+  budget (`SHORT_SCRIPT_SHARE`) is a *notice* on /admin's errors, "script
+  well under its length", with its words against the budget. Report only.
+Measure with a key: `python write.py "<q>" --minutes 2`, and the errors page.
+
+**2. More from each source.** The packet was 5 sources (§276), not the 6 the
+owner remembered; now **6** (`SEARCH_PACKET_SOURCES`). The character limit
+§276 doubled was what a page *sends* (`PARALLEL_CHARS_PER_RESULT` 1,500 →
+3,000, Perplexity 512 → 1,024 tokens); what reached the writer was still cut
+in pieces of at most 500 characters (`SEARCH_PASSAGE_CHARS`), three a source -
+and every short paragraph took a slot of its own, so a news page's three were
+often a headline, a dateline and one sentence. Now passages hold up to
+**1,000** characters and short paragraphs are **packed together**
+(`research.passages`), so a source gives the writer up to 3,000 characters -
+what was fetched. Parallel's limit is 4,000 so a four-minute episode's fourth
+passage has a page to come from (its price is per request). A two-minute
+packet is up to ~18 KB (~4,500 tokens) where it was at most ~7.5 KB; on
+Haiku's $0.10 per million input tokens that is about a twentieth of a cent.
+Unmeasured: whether the bigger packet lengthens the writer's thinking.
+
+**3. The writing on Haiku.** [examples-lever]: two new examples -
+`2-apollo-13.txt` (a narrative recap, 358 words) and `4-noise-cancelling.txt`
+(an explainer with a turn, 578 words) - on settled facts, beside the flight
+cancellations one; each is now shown with its **minutes** as well as its words
+(`EXAMPLE_MINUTES`, from the file name), so a small writer sees what two and
+four minutes hold. A test keeps every example within 0.9-1.35x of its budget.
+Further levers, not built: a one-minute and a five-minute example; examples
+per episode type (a sports recap, a markets update) chosen by the brief's
+structure rather than all shown every time; `EFFORT=medium` for the writer;
+`write.py --compare claude-haiku-5-5:low,claude-sonnet-5:low` to hear the gap.
+
+**4. The trusted sources, as they stand** (`research.py`, `credibility()`).
+Three grades, by hand-kept list, never by a model: **primary** ("wire service,
+paper of record or primary source") - 45 named domains (wires and papers of
+record, ESPN/The Athletic/Sky, the leagues' own sites, Nature/Science/NASA/WHO,
+and since §276 NEJM, Lancet, JAMA, BMJ, Cell, PNAS, Cochrane, the NHS, EU, IMF,
+World Bank, OECD, UN, Bank of England) plus 14 address endings (.gov, .gov.uk,
+.edu, .ac.uk, .int, .mil and eight countries' government domains);
+**established** ("established outlet") - 51 named (general news, business,
+tech, sports, and since §276 the science and health press, entertainment
+trade press and trackers, games press); **unverified** - everything else,
+which is not excluded. A subdomain takes its parent's grade. Recency
+*filters* (the brief's window goes to the search); credibility *sorts*
+(primary, established, unverified; newest first within a grade) and so
+decides which 6 of the 10 results reach the writer. The writer reads the
+grade in words, never a hostname. On a live sports question unverified
+outlets are dropped once two known ones answered; simulated-league pages are
+dropped. No weighting by topic. Not covered: other countries' government
+endings (.go.jp, .gov.br), and many regional papers (Le Monde, Al Jazeera,
+The Hindu) are unverified.
+
+**5. Made for you's View more.**
+- *(c) Not every rail tile appeared.* The rail and the screen are ranked
+  with different exclusions (the rail's picks skip what Trending and the
+  missed rail took and are topped up from the bank; the screen's are not),
+  so some of the rail's own tiles were pushed off page one or absent. The
+  client now keeps each rail's tiles (`railTiles`) and Made for you's View
+  more opens on them, then the rest of the page.
+- *(b) Refresh only cycles written episodes, then "all caught up".* With
+  `cycle=cached` (sent by this client; an installed client that sends none
+  gets what it always got) the endpoint deals only tiles already written, on
+  the listener's ranking, and `page_section(wrap=False)` returns an empty
+  page with `caught_up` instead of starting again. The screen says "You're
+  all caught up" with "Start again from the top". Nothing past the rail's own
+  tiles can cause an episode to be written. Every other rail is unchanged
+  (§165's deal-eight-and-wrap).
+- *(a) One picture and BUSINESS on every new tile.* An unwritten live story
+  with no tags and no category matched nothing, fell to the last borrowing
+  step (one approved facet picture chosen by a hash of the words) and printed
+  that picture's facet as its label. Now a tile reads its question and its
+  title exactly as the player does (`app._player_picture`: the same words,
+  the same hash key, `normalize_query` of the question), so a card and the
+  player it opens wear one picture; an untagged tile's facets are read off
+  those words (`topics.picture_facets`, memoised); the day's hard news
+  (shooting, police, senator, Congress, probe, investigation, president,
+  attack ...) names the World picture through `PICTURE_WORDS` - a list for
+  pictures only, kept out of `TAG_WORDS` so "Curry's shooting slump" or "the
+  club president" never files a sports fan's taste under World - and a
+  picture chosen by the hash lends no label (`hashed`): an empty label rather
+  than a wrong one. Not changed: how many facet pictures production has
+  approved - if one, every borrowed picture is still that one;
+  `tools/thumbnails.py` shows it.
+
+Tests: `tests/test_implementations_286.py` (new);
+`tests/test_writer_gaps_276.py`, `tests/test_pipeline.py`,
+`tests/test_writer_prep_269.py`,
+`tests/test_pronunciation_voice_edit_view_more_165.py` (pins moved).
+
+## 287. More examples for the Haiku writer, and a wider list of trusted sources (2026-10-16)
+
+The owner, after §286: "add the 1-minute and 5-minute example episodes, as
+well as more example two minute episodes with variety for different
+topics/categories" and "expand the trusted sources".
+
+**The examples** (`examples/`, twelve now, every one on settled facts so none
+teaches a confident current figure): `1-blue-sky` (168 words),
+`5-financial-crisis` (761, the long arc), and two-minute ones per facet -
+`2-marathon-distance` (sport), `2-fed-raises-rates` (money, mechanism only, no
+rate), `2-passkeys` (tech), `2-suez-canal` (world) beside `2-apollo-13`
+(science) and `2-flight-cancellations`. **Three from the owner's own
+listening** (10.16, sent as "a couple of good scripts you could base the
+examples off of", Haiku episodes from production): `2-house-music`
+(culture), `2-autoimmune` (health) and `2-singapore-sprint` (a sport recap),
+edited here: a figure no source carried ("ten billion of its own cells every
+day") and a party anecdote nobody could check were taken out, an ambiguous
+"he" named, and the race given its date. They replaced the first drafts for
+culture and health (`2-hamilton`, `2-fever`). What they show that the drafts
+did not: a denser line - a name, a place or a year in nearly every sentence -
+and the mechanism said out loud ("Here's the mechanism, not just the myth").
+The sprint is the one example built on a dated result; it was established by
+its sources (BBC, Formula 1, the FIA) and teaches the recap's shape - the
+result in the first sentence, then how it happened, then what it changed. Shapes vary on purpose: an origin story, a
+mechanism, a narrative with a turn, a "why it matters". Each is shown with its
+minutes and words (§286), and `tests/test_implementations_286.py` holds every
+one within 0.9-1.35x of its budget. **Cost:** they sit in the writer's
+cached system block, about 4,000 words in all, so ~3,500 more cached tokens per
+writer call - on Haiku's cache-read price a small fraction of a cent, and no
+change to which call is cached ([writer-savings]). Not measured: whether
+eleven dilute the voice; the README now says to replace a weak one rather
+than add another.
+
+**The trusted sources** (`research.py`). Primary: 45 named → 115, adding
+AFP, PBS, CBC, ABC Australia, RNZ, RTÉ, DW, France 24, the Irish Times, the
+Globe and Mail, Le Monde, El País, FAZ, Nikkei; the exchanges (Nasdaq, NYSE,
+CME, LSE), BIS, the Bank of Canada and Bank of Japan, the WTO, IEA, OPEC,
+UNICEF, UNHCR, IPCC, CERN; the journals' platforms (Annals, AHA journals,
+PLOS, eLife, Royal Society, Springer, Wiley's online library, ACS, APS and
+Oxford's); the medical bodies for their own guidance (NICE, AHA, the
+American Cancer Society, ADA, AAP, ACOG, the psychiatric and psychological
+associations); and the rest of the leagues and governing bodies (MLS, NWSL,
+NASCAR, PGA and LPGA Tours, ATP, WTA, F1, UFC, the Olympics, LaLiga,
+Bundesliga, Serie A, Ligue 1, ICC, World Rugby, CFL, the four golf and two
+tennis majors' own sites, FIBA, CONCACAF, the ECB). Government suffixes: 14 →
+33, adding Japan, Korea, Brazil, Spain, Italy, Singapore, South Africa,
+Israel, Switzerland, Argentina, Chile, the Philippines, Kenya, Nigeria and
+five countries' universities - not every state's: a government without a
+free press is a primary source only for its own announcements, and a
+`.gov.cn` page graded primary would outrank the reporting on it.
+Established: 51 → 223 - US national news and magazines (Fox News and MSNBC
+both, Newsweek, Time, the Atlantic, the New Yorker, Vox, ProPublica, the
+Hill, Semafor...), international (Al Jazeera, SCMP, the Hindu, the Straits
+Times, Japan Times, SMH, Spiegel, Haaretz, Times of Israel, Kyiv
+Independent...), business and personal finance, tech, science and health
+(Mayo Clinic, Cleveland Clinic, Johns Hopkins, KFF; arXiv, bioRxiv and
+medRxiv as established, since a preprint is not yet reviewed), sports
+references and trackers (FanGraphs, Transfermarkt, Spotrac, PFF) and the big foreign sports papers, entertainment, games,
+fact-checkers, election references, weather and FlightAware - and 44
+regional papers (`REGIONAL_OUTLETS`: 40 American, and Sydney, Melbourne,
+Toronto and Auckland's). Those are established for credibility
+but still learnable as a town's own outlet: `local_news._learn` skipped every
+established host as "national", which would have stopped the LA Times being
+learned for Los Angeles.
+
+What did not change: three grades, recency filters and credibility sorts,
+no weighting by topic, the writer reads the grade never the host. A wider
+list means fewer sources sort last as unverified, and on a live sports
+question fewer known outlets' reports are screened out by the
+two-known-outlets rule.
+
+**Reviewed before merging (§286 and §287).** The owner (10.16): "double
+check all changes that have been made in this branch" and get it ready for
+Main. Two independent reviews of the diff and a pass of my own; every
+confirmed finding is fixed:
+- *A card and its player could wear different pictures:* the tile read its
+  angle and hashed the raw question, the player its question and title and
+  `normalize_query`. The tile now asks exactly as the player does.
+- *The news words fed taste:* added to `TAG_WORDS`, "shooting", "attack" and
+  "president" filed "Curry's shooting slump" and "the club president" under
+  World - in event tags, mixes, §187's field vouching. They moved to
+  `PICTURE_WORDS`, read only for a picture and only when the words name no
+  facet (`topics.picture_facets`, memoised beside the picture memo).
+- *Readers' pages graded as the outlet:* `forums.macrumors.com`,
+  `community.cnet.com` inherited their parent's grade. Forum, community,
+  boards, discussions and answers hosts are unverified (`_READER_HOSTS`);
+  247Sports, On3 and Rivals, whose boards share their host, are not listed;
+  `dictionary.cambridge.org` and Wiley's book shop were primary through
+  `cambridge.org` and `wiley.com` - now only Wiley's online library is;
+  ScienceDirect is established (its `/topics/` pages are machine-written).
+- *Four foreign metro papers stopped being learnable* for their own towns;
+  they are in `REGIONAL_OUTLETS`.
+- *Examples:* the sprint's last line was a championship standing in the
+  writer's instructions on every call, and its gap figures contradicted its
+  margin - both gone; the financial crisis ended on a summary - it ends on
+  the recession now; "Here's the mechanism, not just the myth" and "Here is
+  the machinery" were signposts a writer would copy into every episode -
+  cut; synced passkeys do leave the device - "never goes to the website".
+- *A refused script was also noted as short:* the length check now runs
+  after the call's outcome is known, on `ok` only.
+- *Packed passages ran a heading into the next sentence:* a full stop joins
+  them. `EXAMPLE_MINUTES` is cleared when the examples load.
+- *View more:* "Refresh starts again from the top" is never said on Made
+  for you's cycle; a rail that empties is not opened on its old tiles; an
+  empty rail that wraps is not `caught_up`.
+- *Main's CI red since #159, ported here:* the smoke check "Explore goes
+  deeper, with a suggestion and a length" waited for any `deeper_` topic and
+  read the newest; §285's Continue makes one earlier in the run, so on CI's
+  slower runner it read that one (2 minutes) before the new one (4) landed.
+  It now waits for one more than there were.
+Not changed, and to measure: a five-minute packet is now up to ~36 KB in
+front of a searched episode's first word.
+
+Tests: `tests/test_implementations_287.py` (new).
