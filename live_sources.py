@@ -152,10 +152,10 @@ BUILDERS = {
 #: whose presence says anything, and `render.yaml` names it explicitly.
 DERIVED_FROM_KEY = {
     # BALLDONTLIE's scoreboard (§277, §280); API-Sports' key alone builds the
-    # same scoreboard, its leagues answered by `api_sports` (§289, temporary).
+    # same scoreboard, its leagues answered by `api_sports` (§290, temporary).
     "sports": (("balldontlie", "balldontlie_api_key"),
                ("balldontlie", "api_sports_key")),
-    # §289: Tiingo's key, while developing, puts markets on Tiingo ahead of
+    # §290: Tiingo's key, while developing, puts markets on Tiingo ahead of
     # Finnhub; `LIVE_MARKETS_PROVIDER=finnhub` keeps Finnhub with both set.
     "markets": (("tiingo", "tiingo_api_key"), ("finnhub", "finnhub_key")),
 }
@@ -280,7 +280,7 @@ def report() -> dict:
                 d for d, name in configured().items()
                 if name and not (named[d] or "").strip()),
             "known": {d: sorted(v) for d, v in BUILDERS.items()},
-            # §289: the free plans used while developing, and their counts.
+            # §290: the free plans used while developing, and their counts.
             "free_plans": _free_plans()}
 
 
@@ -333,7 +333,7 @@ def _usage_detail(provider: str, url: str) -> str:
         path = httpx.URL(url).path.strip("/").split("/")
         return path[0] if path and path[0] else ""
     if provider == "api_sports":
-        # §289: the product, each with its own day's allowance.
+        # §290: the product, each with its own day's allowance.
         import api_sports
 
         return api_sports.sport_of_host(httpx.URL(url).host)
@@ -398,6 +398,51 @@ def looks_like_a_listing(subject: str) -> bool:
         return False
     return not any(w.lower() in _TOPIC_WORDS for w in words)
 
+
+
+#: "(NYSE: ORCL)", "NASDAQ: AAPL", "ticker ORCL" - a listing named by its
+#: exchange and ticker (10.16 #5).
+_TICKER = re.compile(r"(?:\(|\b)(?:NYSEARCA|NYSE\s+Arca|NYSE\s+American|NYSE|NASDAQ|Nasdaq|AMEX)"
+                     r"\s*:\s*\$?([A-Z]{1,5}(?:\.[A-Z])?)\b"
+                     r"|\bticker\s*:?\s*\$?([A-Z]{1,5}(?:\.[A-Z])?)\b")
+
+#: Finnhub's free plan quotes US stocks and funds. An index, a future, a
+#: currency or a foreign listing answers 403 (10.16 #5), so a search row
+#: that is one of those is never chosen.
+_UNQUOTABLE_TYPES = ("index", "crypto", "forex", "future", "commodity", "bond")
+
+
+def ticker_named(subject: str) -> str:
+    """The ticker a subject names with its exchange, or ""."""
+    found = _TICKER.search(subject or "")
+    return (found.group(1) or found.group(2) or "").upper() if found else ""
+
+
+def quotable(row: dict) -> bool:
+    """Whether a Finnhub search row is a listing the plan can quote."""
+    symbol = str(row.get("symbol") or "")
+    kind = str(row.get("type") or "").lower()
+    if not symbol or any(ch in symbol for ch in "^:=/"):
+        return False
+    if refused_today(symbol):
+        return False
+    return not any(word in kind for word in _UNQUOTABLE_TYPES)
+
+
+#: symbol -> the UTC day Finnhub refused to quote it (10.16 #5).
+_REFUSED: dict = {}
+
+
+def _utc_day() -> str:
+    return time.strftime("%Y-%m-%d", time.gmtime())
+
+
+def note_refused(symbol: str) -> None:
+    _REFUSED[str(symbol or "").upper()] = _utc_day()
+
+
+def refused_today(symbol: str) -> bool:
+    return _REFUSED.get(str(symbol or "").upper()) == _utc_day()
 
 
 #: symbol -> {"data": Finnhub's quote, "is_open": the session then, "at": when
@@ -494,6 +539,14 @@ class FinnhubSource(LiveSource):
         subject = live_route.entity_of(brief)
         if not subject:
             return None
+        # "Oracle Corporation (NYSE: ORCL)" names its own listing (10.16 #5):
+        # it used to be refused as a topic for its brackets. The ticker is
+        # still looked up, never trusted - only an exact match is used.
+        named = ticker_named(subject)
+        if named:
+            found = await self._resolve_ticker(named)
+            if found is not None:
+                return found
         if not looks_like_a_listing(subject):
             # "Startup and venture capital industry news" is a topic, not a
             # company. Finnhub refuses it with a 422 - and if it did not, the
@@ -513,7 +566,8 @@ class FinnhubSource(LiveSource):
                 log.info("finnhub: no listing for %r (%s)", subject, exc)
                 return None
             raise
-        rows = (data or {}).get("result", []) or []
+        rows = [row for row in (data or {}).get("result", []) or []
+                if quotable(row)]
         best = None
         for row in rows:
             symbol = str(row.get("symbol") or "").strip()
@@ -532,6 +586,24 @@ class FinnhubSource(LiveSource):
             return None
         return Entity(domain="markets", provider=self.name, id=symbol,
                       label=str(best.get("description") or symbol).title())
+
+    async def _resolve_ticker(self, ticker: str) -> Optional[Entity]:
+        """The listing a subject named by ticker, if Finnhub has exactly it."""
+        if refused_today(ticker):
+            return None
+        try:
+            data = await _json(f"{self.BASE}/search", {},
+                               {"q": ticker, "token": settings.finnhub_key},
+                               settings.live_timeout_seconds)
+        except ProviderHTTPError as exc:
+            if 400 <= exc.status < 500 and exc.status not in (401, 403, 429):
+                return None
+            raise
+        for row in (data or {}).get("result", []) or []:
+            if str(row.get("symbol") or "").strip().upper() == ticker and quotable(row):
+                return Entity(domain="markets", provider=self.name, id=ticker,
+                              label=str(row.get("description") or ticker).title())
+        return None
 
     async def market_open(self) -> Optional[bool]:
         """Is the US market trading right now? `None` when it cannot be told.
@@ -575,11 +647,18 @@ class FinnhubSource(LiveSource):
                                 {"symbol": entity.id, "token": settings.finnhub_key},
                                 settings.live_timeout_seconds)
             return self.to_facts(quote, entity, is_open)
-        quote, is_open = await asyncio.gather(
-            _json(f"{self.BASE}/quote", {},
-                  {"symbol": entity.id, "token": settings.finnhub_key},
-                  settings.live_timeout_seconds),
-            self.market_open())
+        try:
+            quote, is_open = await asyncio.gather(
+                _json(f"{self.BASE}/quote", {},
+                      {"symbol": entity.id, "token": settings.finnhub_key},
+                      settings.live_timeout_seconds),
+                self.market_open())
+        except ProviderHTTPError as exc:
+            if exc.status == 403:
+                # The plan does not reach this listing (10.16 #5): not asked
+                # again today, so one refusal is one error, not one a question.
+                note_refused(entity.id)
+            raise
         return self.to_facts(quote, entity, is_open)
 
     def to_facts(self, data: dict, entity: Entity,
@@ -908,7 +987,7 @@ def _balldontlie_scores():
     import api_sports
     import balldontlie_scores
 
-    # §289: a `Router` while API-Sports answers any league, else BALLDONTLIE's
+    # §290: a `Router` while API-Sports answers any league, else BALLDONTLIE's
     # one shared client.
     return balldontlie_scores.ScoreBoard(client=api_sports.scoreboard_client())
 

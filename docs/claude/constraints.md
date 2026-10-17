@@ -494,7 +494,7 @@
   > rounds; history is left alone; removed sentences are kept on
   > `ScriptNotes.figure_drops` and counted on `/admin`.
 <!-- rule:sports-balldontlie -->
-> **Current (PROBLEMS.md §289, at the owner's direction, temporary until FAM goes commercial):** BALLDONTLIE is priced per sport, not one flat plan, and its free plan (five a minute, no standings) cannot carry development. With `API_SPORTS_KEY` set, the team leagues in `api_sports.LEAGUES` are answered by API-Sports' free plans (100 requests a day per sport) while BALLDONTLIE is absent or on Free (`API_SPORTS_LEAGUES` names them instead), through `api_sports.Client` under BALLDONTLIE's own scoreboard: rows translated into BALLDONTLIE's shape, so ScoreGuard, the stuck-feed check and the tiles are unchanged; a `Router` sends each league to one provider, never both; `aps:` ids never reach the player reports; the free plan's season limit is a `TierRefused` said on /admin, never a quiet day. Formula 1, UFC and player reports stay BALLDONTLIE's. Removing it is deleting `api_sports.py` and its call sites.
+> **Current (PROBLEMS.md §290, at the owner's direction, temporary until FAM goes commercial):** BALLDONTLIE is priced per sport, not one flat plan, and its free plan (five a minute, no standings) cannot carry development. With `API_SPORTS_KEY` set, the team leagues in `api_sports.LEAGUES` are answered by API-Sports' free plans (100 requests a day per sport) while BALLDONTLIE is absent or on Free (`API_SPORTS_LEAGUES` names them instead), through `api_sports.Client` under BALLDONTLIE's own scoreboard: rows translated into BALLDONTLIE's shape, so ScoreGuard, the stuck-feed check and the tiles are unchanged; a `Router` sends each league to one provider, never both; `aps:` ids never reach the player reports; the free plan's season limit is a `TierRefused` said on /admin, never a quiet day. Formula 1, UFC and player reports stay BALLDONTLIE's. Removing it is deleting `api_sports.py` and its call sites.
 > **Current (PROBLEMS.md §280, at the owner's direction):** API-Sports is removed from the code entirely, and this rule with it: BALLDONTLIE is FAM's only sports provider - one flat plan for every league (`BALLDONTLIE_TIER`: free, all-star or goat; an endpoint above the plan is never asked), paced to the plan's per-minute limit, its requests counted on `/admin` with a row per league (`provider_usage`, `balldontlie/<league>`). The per-sport budgets, tiers, `API_SPORTS_*` settings and account panel below are gone; the text is kept as history.
 - **API-Sports is a plan per sport.** *(PROBLEMS.md §180, at the owner's
   direction.)* API-Sports sells and limits each sport as its own subscription
@@ -510,7 +510,7 @@
   game, never a wrong one.
 
 <!-- rule:sweep-on-demand -->
-> **Current (PROBLEMS.md §289, temporary):** a league API-Sports answers is swept on API-Sports' own day: the sweep stops while `API_SPORTS_LOOKUP_RESERVE` of the sport's requests are left, so listeners' questions keep the end of the day (`api_sports.Client.sweep_may`). With `TIINGO_API_KEY` set, markets are Tiingo's and its sweep (`story_sources.TiingoSignals`) is one request for the whole watchlist; only the markets provider the episodes read is swept.
+> **Current (PROBLEMS.md §290, temporary):** a league API-Sports answers is swept on API-Sports' own day: the sweep stops while `API_SPORTS_LOOKUP_RESERVE` of the sport's requests are left, so listeners' questions keep the end of the day (`api_sports.Client.sweep_may`). With `TIINGO_API_KEY` set, markets are Tiingo's and its sweep (`story_sources.TiingoSignals`) is one request for the whole watchlist; only the markets provider the episodes read is swept.
 > **Current (PROBLEMS.md §280, at the owner's direction):** API-Sports is removed. The sweep is BALLDONTLIE's (`balldontlie_scores.make_signals`): it follows only `balldontlie_scores.SWEPT` (NFL, college football, NBA, men's college basketball, WNBA, MLB, NHL, Champions League, Premier League, La Liga, Bundesliga, World Cup), reads a league's card when due (`Signals.due`, `watching`), only while one of its games is on or about to start and only if myFAM was drawn recently (`Signals.idle`); an endpoint BALLDONTLIE refused is not asked again that day (`balldontlie.Client.refused`). `SWEPT_LEAGUES`, `ApiSportsSignals` and the per-sport budgets below are gone.
 - **The outside services are asked when somebody is looking and there is
   something to see, never on a timer all day.** *(PROBLEMS.md §191, at the
@@ -564,6 +564,12 @@
   > written off for an hour; a timeout, drop or passing 5xx is asked once more;
   > one file's failure stops nothing else; every failure is counted with its
   > reason on the admin page.
+  > **Current (PROBLEMS.md §289):** 5,700 requests a day where 200 was the
+  > design: a file that kept failing was asked twice at every poll for two
+  > hours. A file is now written off after `GDELT_EXPORT_FILE_TRIES` failed
+  > syncs, a timed-out GKG file is not asked twice in one sync, a named file
+  > gets `GDELT_EXPORT_MAX_WAITS` quick looks, failing syncs back off up to
+  > two hours, and the services page counts requests by the file they fetched.
 
 <!-- rule:forecast-beside -->
 - **A forecast beside every outcome-dependent question** *(PROBLEMS.md §211,

@@ -632,7 +632,7 @@ class PlayerReports(LiveSource):
 
         import api_sports
 
-        # §289: a catalogue API-Sports answered carries its ids, not ours.
+        # §290: a catalogue API-Sports answered carries its ids, not ours.
         return [(key, [t for t in held[1].values() if not api_sports.is_ours(t)])
                 for key, held in list(balldontlie_scores.TEAMS.items())
                 if key in TEAM_LEAGUES and held]

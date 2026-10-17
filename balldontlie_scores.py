@@ -339,7 +339,7 @@ async def _pages(client, league: League, kind: str, path: str,
     return rows
 
 
-#: §289: BALLDONTLIE's own catalogue of a league API-Sports answers for, kept
+#: §290: BALLDONTLIE's own catalogue of a league API-Sports answers for, kept
 #: apart so its ids never reach the scoreboard and API-Sports' never reach
 #: the player reports. Read by nobody else.
 SHADOW_TEAMS: dict = {}
@@ -535,13 +535,13 @@ class ScoreBoard(LiveSource):
                 f"{len(SHAPES)} leagues, Formula 1 and UFC (not verified "
                 "from this machine)") if settings.balldontlie_api_key else \
             "BALLDONTLIE_API_KEY is not set: no Formula 1 or UFC"
-        # §289: API-Sports' free plans answer some leagues while developing.
+        # §290: API-Sports' free plans answer some leagues while developing.
         extra = api_sports.describe()
         return True, (said + (f"; {extra}" if extra else "")
                       + (f"; ACCOUNT REFUSED: {problem}" if problem else ""))
 
     def _source(self, league_key: str) -> str:
-        """Who answered for this league (§289): provenance names the
+        """Who answered for this league (§290): provenance names the
         provider read, never the scoreboard's name alone."""
         named = getattr(self.client, "source_for", lambda k: "")(league_key)
         return named or self.name
@@ -963,7 +963,7 @@ def _api_sports(key: str) -> bool:
 
 def sweepable(key: str) -> bool:
     """Whether the sweep may follow this league at all: API-Sports' leagues
-    are paced by their own day (§289), BALLDONTLIE's by its plan's minute."""
+    are paced by their own day (§290), BALLDONTLIE's by its plan's minute."""
     return _api_sports(key) or sweeps_on_plan()
 
 
@@ -1004,7 +1004,7 @@ def make_signals():
         def __init__(self, client=None) -> None:
             import api_sports
 
-            # §289: a `Router` while API-Sports answers any league.
+            # §290: a `Router` while API-Sports answers any league.
             self.client = client or api_sports.scoreboard_client()
 
         def diagnose(self) -> tuple[bool, str]:
@@ -1103,7 +1103,7 @@ def make_signals():
             # in it. The sweep stops while a question still fits in the
             # minute; a league not reached is due again next time.
             spare = getattr(self.client, "spare", None)
-            # §289: per league, where a `Router` decides whose allowance it is.
+            # §290: per league, where a `Router` decides whose allowance it is.
             may = getattr(self.client, "sweep_may", None)
             stopped: Optional[RateLimited] = None
             for key, days in due.items():

@@ -70,7 +70,7 @@ PAID_CREDENTIALS = (
     # §278: Wikimedia Enterprise's account (a monthly allowance).
     "WIKIMEDIA_ENTERPRISE_USERNAME", "WIKIMEDIA_ENTERPRISE_PASSWORD",
     "FINNHUB_KEY",
-    # §289: the free plans used while developing - free, but outbound, and a
+    # §290: the free plans used while developing - free, but outbound, and a
     # day's allowance a staging sweep must not spend.
     "API_SPORTS_KEY", "TIINGO_API_KEY",
     "AP_ELECTIONS_KEY", "DDHQ_KEY",

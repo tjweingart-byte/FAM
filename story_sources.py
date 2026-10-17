@@ -435,7 +435,7 @@ class FinnhubSignals(stories.StorySource):
         return [s.strip().upper() for s in raw.split(",") if s.strip()][:24]
 
     def active(self) -> str:
-        """"" when this is the markets provider, else why it is not (§289):
+        """"" when this is the markets provider, else why it is not (§290):
         one sweep, from the provider the episodes read."""
         import live_sources
 
@@ -530,7 +530,7 @@ class FinnhubSignals(stories.StorySource):
 
 class TiingoSignals(FinnhubSignals):
     """The same watchlist and the same threshold, from Tiingo's free plan
-    while developing (§289, temporary): the whole list in one request, and
+    while developing (§290, temporary): the whole list in one request, and
     only while Tiingo is the markets provider."""
 
     name = "Tiingo"
@@ -557,7 +557,7 @@ class TiingoSignals(FinnhubSignals):
 
 
 #: Markets providers with a sweep of their own: only the one episodes read
-#: is swept (§289).
+#: is swept (§290).
 MARKET_SWEEPS = ("finnhub", "tiingo")
 
 
@@ -677,7 +677,7 @@ BUILDERS = {
     "gdelt": GdeltSignals,
     "trending": TrendingRegistrySignals,
     "finnhub": FinnhubSignals,
-    # §289: Tiingo's free plan while developing; swept only when it is the
+    # §290: Tiingo's free plan while developing; swept only when it is the
     # markets provider, as Finnhub is only when it is.
     "tiingo": TiingoSignals,
     "polymarket": PolymarketSignals,

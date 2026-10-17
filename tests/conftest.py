@@ -146,7 +146,8 @@ FAM_ENVIRONMENT = (
     "GDELT", "GDELT_MAX_RECORDS", "GDELT_CROSS_CHECK", "GDELT_EXPORT_BASE",
     "GDELT_EXPORT_POLL_SECONDS", "GDELT_EXPORT_TIMEOUT_SECONDS",
     "GDELT_EXPORT_KEEP_HOURS", "GDELT_EXPORT_ROWS_PER_FILE",
-    "GDELT_EXPORT_BACKFILL_FILES", "GDELT_EXPORT_POLL_OFFSET_SECONDS",
+    "GDELT_EXPORT_BACKFILL_FILES", "GDELT_EXPORT_FILE_TRIES", "GDELT_EXPORT_MAX_WAITS",
+    "GDELT_EXPORT_POLL_OFFSET_SECONDS",
     "GDELT_EXPORT_WAIT_SECONDS", "GDELT_EXPORT_RETRY_SECONDS",
     "GNEWS_PLAN", "FINNHUB_PLAN",
     "BOOT_STAGGER_SECONDS",
@@ -155,7 +156,7 @@ FAM_ENVIRONMENT = (
     "PLAYER_FACTS", "BALLDONTLIE_API_KEY", "BALLDONTLIE_TIER",
     "BALLDONTLIE_LEAGUES", "BALLDONTLIE_MAX_SEARCHES",
     "BALLDONTLIE_CACHE_SECONDS", "BALLDONTLIE_BASE",
-    # §289: the free plans used while developing.
+    # §290: the free plans used while developing.
     "API_SPORTS_KEY", "API_SPORTS_LEAGUES", "API_SPORTS_DAILY_REQUESTS",
     "API_SPORTS_PER_MINUTE", "API_SPORTS_LOOKUP_RESERVE",
     "TIINGO_API_KEY", "TIINGO_HOURLY_REQUESTS", "TIINGO_DAILY_REQUESTS",
@@ -618,9 +619,14 @@ def isolated_gdelt_export(tmp_path, monkeypatch):
                        str(tmp_path / "stores" / "gdelt_export.db"))
     gdelt_mod.reset_store()
     gdelt_mod.STATE.__init__()
+    # A file's failed syncs and quick looks (10.16 #4) are per test too.
+    gdelt_mod._FAILED.clear()
+    gdelt_mod._WAITS.clear()
     yield
     gdelt_mod.reset_store()
     gdelt_mod.STATE.__init__()
+    gdelt_mod._FAILED.clear()
+    gdelt_mod._WAITS.clear()
 
 
 @pytest.fixture(autouse=True)

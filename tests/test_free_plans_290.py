@@ -1,4 +1,4 @@
-"""§289: API-Sports and Tiingo's free plans while developing (temporary).
+"""§290: API-Sports and Tiingo's free plans while developing (temporary).
 
 Every request goes through `live_sources._json`, stubbed with rows shaped as
 each provider's documentation shapes them. No network.
@@ -379,6 +379,19 @@ def test_tiingo_resolves_by_its_own_search(monkeypatch, wire):
     assert entity.id == "AAPL"
     _, params, headers = wire.sent[0]
     assert headers == {"Authorization": "Token t"} and "token" not in params
+
+
+def test_tiingo_reads_a_named_ticker(monkeypatch, wire):
+    use(monkeypatch, tiingo_api_key="t")
+    wire.routes[SEARCH] = lambda params: [
+        {"ticker": "ORCLX", "name": "Oracle fund", "assetType": "Mutual Fund", "countryCode": "US"},
+        {"ticker": "ORCL", "name": "Oracle Corp", "assetType": "Stock",
+         "isActive": True, "countryCode": "US"}] if params["query"] == "ORCL" else []
+    brief = SimpleNamespace(live_entity="Oracle Corporation (NYSE: ORCL)",
+                            query="oracle stock")
+    entity = run(tiingo.TiingoSource().resolve(brief))
+    assert entity.id == "ORCL"
+    assert wire.sent[0][1] == {"query": "ORCL"}
 
 
 def test_tiingo_fetch_says_the_price(monkeypatch, wire):

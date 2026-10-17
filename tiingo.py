@@ -1,4 +1,4 @@
-"""Tiingo's free plan for market prices - while developing (§289).
+"""Tiingo's free plan for market prices - while developing (§290).
 
 **Temporary, at the owner's direction (10.16)**, like `api_sports`: a free
 plan to use the app on while FAM is built, deleted when FAM goes commercial.
@@ -199,7 +199,7 @@ class TiingoSource(live_sources.FinnhubSource):
         if not settings.tiingo_api_key:
             return False, "TIINGO_API_KEY is not set"
         used = RATION.report()
-        return True, (f"TIINGO_API_KEY present (free plan, temporary, §289): "
+        return True, (f"TIINGO_API_KEY present (free plan, temporary, §290): "
                       f"{used['hour']}/{used['hourly_limit']} this hour, "
                       f"{used['today']}/{used['daily_limit']} today; not "
                       "verified from this machine")
@@ -215,21 +215,37 @@ class TiingoSource(live_sources.FinnhubSource):
 
     async def resolve(self, brief) -> Optional[Entity]:
         subject = live_route.entity_of(brief)
-        if not subject or not live_sources.looks_like_a_listing(subject):
+        if not subject:
             return None
+        # "Oracle Corporation (NYSE: ORCL)" names its own listing (§289's
+        # 10.16 #5, as Finnhub reads it): looked up, never trusted - only a
+        # row with exactly that ticker is used. Tiingo spells BRK.B "BRK-B".
+        named = live_sources.ticker_named(subject).replace(".", "-")
+        if named:
+            rows = await self._search(named)
+            exact = [r for r in rows if str(r.get("ticker") or "").upper() == named]
+            best = pick_listing(exact, named)
+            if best is not None:
+                return self._entity(best)
+        if not live_sources.looks_like_a_listing(subject):
+            return None
+        best = pick_listing(await self._search(subject), subject)
+        return self._entity(best) if best is not None else None
+
+    async def _search(self, query: str) -> list:
         try:
-            rows = await get("/tiingo/utilities/search", {"query": subject})
+            rows = await get("/tiingo/utilities/search", {"query": query})
         except live_sources.ProviderHTTPError as exc:
             if 400 <= exc.status < 500 and exc.status not in (401, 403, 429):
-                log.info("tiingo: no listing for %r (%s)", subject, exc)
-                return None
+                log.info("tiingo: no listing for %r (%s)", query, exc)
+                return []
             raise
-        best = pick_listing(rows if isinstance(rows, list) else [], subject)
-        if best is None:
-            return None
-        symbol = str(best["ticker"]).upper()
+        return rows if isinstance(rows, list) else []
+
+    def _entity(self, row: dict) -> Entity:
+        symbol = str(row["ticker"]).upper()
         return Entity(domain="markets", provider=self.name, id=symbol,
-                      label=str(best.get("name") or symbol).title())
+                      label=str(row.get("name") or symbol).title())
 
     async def market_open(self) -> Optional[bool]:
         return session()

@@ -1,4 +1,4 @@
-"""API-Sports' free plans under BALLDONTLIE's scoreboard - while developing (§289).
+"""API-Sports' free plans under BALLDONTLIE's scoreboard - while developing (§290).
 
 **Temporary, at the owner's direction (10.16).** BALLDONTLIE is priced per
 sport, and its free plan is five requests a minute with no standings, which
@@ -606,7 +606,7 @@ def describe() -> str:
     if not leagues:
         return ""
     problem = shared_client().problem()
-    return (f"API-Sports (free plans, temporary, §289) answers "
+    return (f"API-Sports (free plans, temporary, §290) answers "
             f"{', '.join(leagues)}: {settings.api_sports_daily_requests} requests a "
             f"day per sport, {settings.api_sports_lookup_reserve} kept for listeners"
             + (f"; REFUSED: {problem}" if problem else ""))

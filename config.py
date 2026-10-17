@@ -1009,6 +1009,12 @@ class Settings:
     # Files fetched behind the newest when the copy is behind - after a boot
     # or an outage - so a first sweep has more than fifteen minutes to read.
     gdelt_export_backfill_files: int = _env_int("GDELT_EXPORT_BACKFILL_FILES", 8)
+    # Syncs a file may fail in before it is written off rather than asked at
+    # every poll while it is in the backfill window (10.16 #4).
+    gdelt_export_file_tries: int = _env_int("GDELT_EXPORT_FILE_TRIES", 3)
+    # Quick looks (every GDELT_EXPORT_WAIT_SECONDS) a named file not yet
+    # served gets before it waits for the ordinary poll (10.16 #4).
+    gdelt_export_max_waits: int = _env_int("GDELT_EXPORT_MAX_WAITS", 2)
     # Whether a researched episode searches the copy as well as the web. It costs
     # GDELT nothing now; it costs the episode a local read.
     gdelt_cross_check: bool = field(
@@ -1227,7 +1233,7 @@ class Settings:
     balldontlie_base: str = field(
         default_factory=lambda: os.environ.get(
             "BALLDONTLIE_BASE", "https://api.balldontlie.io").strip().rstrip("/"))
-    # --- API-Sports' free plans while developing (§289, temporary) --------
+    # --- API-Sports' free plans while developing (§290, temporary) --------
     # One key for every sport. With it set, every league `api_sports.LEAGUES`
     # maps goes to API-Sports while BALLDONTLIE is absent or on its free
     # plan; API_SPORTS_LEAGUES names them instead (BALLDONTLIE keys: nfl,
@@ -1243,7 +1249,7 @@ class Settings:
     api_sports_lookup_reserve: int = _env_int("API_SPORTS_LOOKUP_RESERVE", 40)
     finnhub_key: str = field(
         default_factory=lambda: os.environ.get("FINNHUB_KEY", "").strip())
-    # --- Tiingo's free plan while developing (§289, temporary) -----------
+    # --- Tiingo's free plan while developing (§290, temporary) -----------
     # Markets: a quote from IEX and a ticker search. With the key set it is
     # the markets provider (ahead of Finnhub) unless LIVE_MARKETS_PROVIDER
     # names one. Free is 50 requests an hour, 1,000 a day and 500 tickers a

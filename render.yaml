@@ -298,7 +298,7 @@ services:
         sync: false
       - key: FINNHUB_KEY
         sync: false
-      # Free plans while developing (§289, temporary - removed before FAM
+      # Free plans while developing (§290, temporary - removed before FAM
       # goes commercial). API_SPORTS_KEY answers the team leagues while
       # BALLDONTLIE is absent or on its free plan; TIINGO_API_KEY puts
       # markets on Tiingo ahead of Finnhub. Never on staging, which scrubs both.
