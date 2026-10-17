@@ -1233,8 +1233,33 @@ class Settings:
     balldontlie_base: str = field(
         default_factory=lambda: os.environ.get(
             "BALLDONTLIE_BASE", "https://api.balldontlie.io").strip().rstrip("/"))
+    # --- API-Sports' free plans while developing (§290, temporary) --------
+    # One key for every sport. With it set, every league `api_sports.LEAGUES`
+    # maps goes to API-Sports while BALLDONTLIE is absent or on its free
+    # plan; API_SPORTS_LEAGUES names them instead (BALLDONTLIE keys: nfl,
+    # nba, mlb, nhl, epl ...). Deleted when FAM goes commercial.
+    api_sports_key: str = field(
+        default_factory=lambda: os.environ.get("API_SPORTS_KEY", "").strip())
+    api_sports_leagues: str = field(
+        default_factory=lambda: os.environ.get("API_SPORTS_LEAGUES", "").strip())
+    # The free plan: 100 requests a day per sport, reset at 00:00 UTC, and
+    # about 10 a minute. The myFAM sweep stops while the reserve is left.
+    api_sports_daily_requests: int = _env_int("API_SPORTS_DAILY_REQUESTS", 100)
+    api_sports_per_minute: int = _env_int("API_SPORTS_PER_MINUTE", 10)
+    api_sports_lookup_reserve: int = _env_int("API_SPORTS_LOOKUP_RESERVE", 40)
     finnhub_key: str = field(
         default_factory=lambda: os.environ.get("FINNHUB_KEY", "").strip())
+    # --- Tiingo's free plan while developing (§290, temporary) -----------
+    # Markets: a quote from IEX and a ticker search. With the key set it is
+    # the markets provider (ahead of Finnhub) unless LIVE_MARKETS_PROVIDER
+    # names one. Free is 50 requests an hour, 1,000 a day and 500 tickers a
+    # month, personal use only; the two ceilings below are FAM's own stops.
+    tiingo_api_key: str = field(
+        default_factory=lambda: os.environ.get("TIINGO_API_KEY", "").strip())
+    tiingo_hourly_requests: int = _env_int("TIINGO_HOURLY_REQUESTS", 45)
+    tiingo_daily_requests: int = _env_int("TIINGO_DAILY_REQUESTS", 950)
+    tiingo_plan: str = field(
+        default_factory=lambda: os.environ.get("TIINGO_PLAN", "free").strip().lower())
     # Which plan each licensed provider is on, as bought on its dashboard
     # (§207). Nothing in the provider's answer says so, and the free plans of
     # both are licensed for development / personal use only - so the deploy

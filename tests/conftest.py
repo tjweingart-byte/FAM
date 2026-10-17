@@ -156,6 +156,11 @@ FAM_ENVIRONMENT = (
     "PLAYER_FACTS", "BALLDONTLIE_API_KEY", "BALLDONTLIE_TIER",
     "BALLDONTLIE_LEAGUES", "BALLDONTLIE_MAX_SEARCHES",
     "BALLDONTLIE_CACHE_SECONDS", "BALLDONTLIE_BASE",
+    # §290: the free plans used while developing.
+    "API_SPORTS_KEY", "API_SPORTS_LEAGUES", "API_SPORTS_DAILY_REQUESTS",
+    "API_SPORTS_PER_MINUTE", "API_SPORTS_LOOKUP_RESERVE",
+    "TIINGO_API_KEY", "TIINGO_HOURLY_REQUESTS", "TIINGO_DAILY_REQUESTS",
+    "TIINGO_PLAN",
     "AP_ELECTIONS_KEY", "DDHQ_KEY", "POLYMARKET_BASE",
     # §278: the reference look. Keyless, so a shell with WIKIPEDIA=1 (the
     # default) is not enough to reach Wikimedia: `isolated_wikimedia` below

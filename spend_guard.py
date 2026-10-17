@@ -70,6 +70,9 @@ PAID_CREDENTIALS = (
     # §278: Wikimedia Enterprise's account (a monthly allowance).
     "WIKIMEDIA_ENTERPRISE_USERNAME", "WIKIMEDIA_ENTERPRISE_PASSWORD",
     "FINNHUB_KEY",
+    # §290: the free plans used while developing - free, but outbound, and a
+    # day's allowance a staging sweep must not spend.
+    "API_SPORTS_KEY", "TIINGO_API_KEY",
     "AP_ELECTIONS_KEY", "DDHQ_KEY",
     "GEMINI_API_KEY", "GOOGLE_API_KEY",
     "RUNPOD_API_KEY", "RUNPOD_ENDPOINT_ID", "RUNPOD_POD", "RUNPOD_POD_ID",

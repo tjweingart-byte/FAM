@@ -32,8 +32,9 @@ def test_every_provider_the_owner_named_is_reported_in_order():
     rows = provider_usage.report(NOON)
     assert [r["label"] for r in rows] == [
         # §258: the search and its second look.
-        "BALLDONTLIE", "Parallel", "Perplexity", "GDELT", "Polymarket",
-        "GNews", "Finnhub",
+        # §290: API-Sports and Tiingo, the free plans while developing.
+        "BALLDONTLIE", "API-Sports", "Parallel", "Perplexity", "GDELT",
+        "Polymarket", "GNews", "Finnhub", "Tiingo",
         # §278: the reference look.
         "Wikidata", "Wikipedia", "Wikimedia Enterprise",
         # §194: weather and the local news collector.

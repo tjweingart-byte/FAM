@@ -151,9 +151,13 @@ BUILDERS = {
 #: Elections is not here: Polymarket is keyless, so there is no credential
 #: whose presence says anything, and `render.yaml` names it explicitly.
 DERIVED_FROM_KEY = {
-    # BALLDONTLIE is FAM's only sports provider (§277, §280).
-    "sports": (("balldontlie", "balldontlie_api_key"),),
-    "markets": (("finnhub", "finnhub_key"),),
+    # BALLDONTLIE's scoreboard (§277, §280); API-Sports' key alone builds the
+    # same scoreboard, its leagues answered by `api_sports` (§290, temporary).
+    "sports": (("balldontlie", "balldontlie_api_key"),
+               ("balldontlie", "api_sports_key")),
+    # §290: Tiingo's key, while developing, puts markets on Tiingo ahead of
+    # Finnhub; `LIVE_MARKETS_PROVIDER=finnhub` keeps Finnhub with both set.
+    "markets": (("tiingo", "tiingo_api_key"), ("finnhub", "finnhub_key")),
 }
 
 
@@ -275,7 +279,21 @@ def report() -> dict:
             "derived_from_key": sorted(
                 d for d, name in configured().items()
                 if name and not (named[d] or "").strip()),
-            "known": {d: sorted(v) for d, v in BUILDERS.items()}}
+            "known": {d: sorted(v) for d, v in BUILDERS.items()},
+            # §290: the free plans used while developing, and their counts.
+            "free_plans": _free_plans()}
+
+
+def _free_plans() -> dict:
+    import api_sports
+    import tiingo
+
+    out = {}
+    if settings.api_sports_key:
+        out["api_sports"] = api_sports.shared_client().report()
+    if settings.tiingo_api_key:
+        out["tiingo"] = tiingo.RATION.report()
+    return out
 
 
 # --------------------------------------------------------------------------
@@ -314,6 +332,11 @@ def _usage_detail(provider: str, url: str) -> str:
     if provider == "balldontlie":
         path = httpx.URL(url).path.strip("/").split("/")
         return path[0] if path and path[0] else ""
+    if provider == "api_sports":
+        # §290: the product, each with its own day's allowance.
+        import api_sports
+
+        return api_sports.sport_of_host(httpx.URL(url).host)
     return ""
 
 
@@ -961,14 +984,23 @@ class _QuoteOnlyElections(LiveSource):
 
 
 def _balldontlie_scores():
-    import balldontlie
+    import api_sports
     import balldontlie_scores
 
-    return balldontlie_scores.ScoreBoard(client=balldontlie.shared_client())
+    # §290: a `Router` while API-Sports answers any league, else BALLDONTLIE's
+    # one shared client.
+    return balldontlie_scores.ScoreBoard(client=api_sports.scoreboard_client())
+
+
+def _tiingo():
+    import tiingo
+
+    return tiingo.TiingoSource()
 
 
 BUILDERS["sports"]["balldontlie"] = _balldontlie_scores
 BUILDERS["markets"]["finnhub"] = FinnhubSource
+BUILDERS["markets"]["tiingo"] = _tiingo
 BUILDERS["elections"]["polymarket"] = PolymarketSource
 BUILDERS["elections"]["ap"] = lambda: _QuoteOnlyElections(
     "AP Elections", "a contract with the Associated Press and their API guide")
