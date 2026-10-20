@@ -16306,8 +16306,10 @@
     document.getElementById("identityCountry").value = place.country || "";
     drawIdentityPicture(p);
     if(!editing){
-      // A number given at sign-up is already there.
-      setPhoneFields("identityPhoneCC", "identityPhone", "");
+      // A number given at sign-up is already there: from the form just
+      // filled in, else from the account.
+      setPhoneFields("identityPhoneCC", "identityPhone",
+                     phoneValue("authPhoneCC", "authPhone"));
       if(AUTH.authenticated){
         fetch("/api/account").then(function(r){ return r.ok ? r.json() : {}; })
           .then(function(a){
