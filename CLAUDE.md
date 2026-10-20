@@ -1,8 +1,7 @@
 # FAM — working context
 
-Read this before making changes. It records where the product is going, which
-constraints are load-bearing, and which decisions are already settled, so work
-does not drift or re-litigate them.
+Read this before making changes: where the product is going, which constraints
+are load-bearing, and which settled decisions not to re-litigate.
 
 ## How this file works
 
@@ -57,7 +56,8 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   audio beside the script (§132); prefetch warms text, never audio. [decouple-script-audio]
 - Matching happens at write time too: `CACHE_VECTOR` embeds once at store,
   **on by default** since §107 (`=0` restores the old cache). [match-at-write-time]
-- **Latency is answered by starting earlier, never by filling the gap.** [latency-start-earlier]
+- **Latency is answered by starting earlier, never by filling the gap**; nor
+  does motion fill one (§291). [latency-start-earlier] [motion]
 - **Trending searches**: under the search bubbles, the five questions most
   searched in the last 2h whose episodes are still current; cache only (§190, §192). [trending-searches]
 - **Search is Google's shape** (§190): mic and attach inside the bar's right;
