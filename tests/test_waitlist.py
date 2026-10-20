@@ -729,7 +729,10 @@ def test_joining_goes_straight_to_the_profile_with_a_skip():
     # The setup bar holds the skip, at the top right, and only in setup.
     bar = page.split('<div class="top setup-only">', 1)[1].split("</div>\n  <div", 1)[0]
     assert bar.index('class="wordmark"') < bar.index('id="skipSetup"')
-    assert ">Skip for now<" in bar and 'onclick="finishSetup()"' in bar
+    # Skipping waits for the required fields, then leaves setup (10.8 packet).
+    assert ">Skip for now<" in bar and 'onclick="skipSetup()"' in bar
+    skip = page.split("window.skipSetup = function", 1)[1].split("\n  };", 1)[0]
+    assert "window.finishSetup()" in skip
     # Every field the app's sign-up asks for is on it.
     profile = page.split('id="profile"', 1)[1].split("</section>", 1)[0]
     for field in ("pName", "pHandle", "photoFile", "pBirth", "pCity", "pRegion", "pCountry", "pPhone", "chips"):

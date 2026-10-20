@@ -151,7 +151,13 @@ def main() -> int:
                 "document.activeElement"
                 " && document.activeElement.id === 'identityName'",
                 timeout=5000)
+            # The number given at sign-up is carried into the required
+            # phone field (10.8 packet), so Skip and Next are not held up.
+            assert page.input_value("#identityPhone") == "(415) 555-0142", \
+                "the sign-up's phone number was not carried into the profile"
             page.fill("#identityName", "Smoke Tester")
+            assert page.get_attribute("#identitySkip", "aria-disabled") == "false", \
+                "Skip for now stayed greyed with a name and a number in"
             page.fill("#identityHandle", "@Smoke.Tester")
             # Stored lower-case and stripped, so it is shown that way while
             # it is being typed rather than corrected on save.

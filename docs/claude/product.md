@@ -768,3 +768,8 @@ the rest of this list it needs taste rather than a key.
   that ends with something queued plays it at once; the next button skips to
   it; a myFAM playlist plays through first.
 
+  > **Current:** queueing - and saving, vibing, adding to a mix, sending -
+  > is confirmed by Spotify's bar (§291, the 10.8 packet): full width above
+  > the mini player or the tabs, the words left, **Open** / **View** /
+  > **Undo** right (`snack()`); errors stay toasts.
+

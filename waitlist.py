@@ -232,6 +232,26 @@ class Waitlist:
             found.update(r[0] for r in rows)
         return found
 
+    def named_like(self, term: str, limit: int = 20) -> list[dict]:
+        """Waitlisted accounts whose own name contains `term` (10.8 packet).
+
+        The name saved with "Skip for now", before any handle: the status
+        page's search finds somebody by it, so a friend who skipped the rest
+        of the profile is still there by the name they gave. Waitlisted only -
+        an account already in the app is found by its handle, as anywhere in
+        FAM - and two characters at least, as `SocialStore.find_people`.
+        """
+        term = " ".join(str(term or "").split()).strip().lstrip("@").lower()
+        if len(term) < 2:
+            return []
+        like = "%" + term.replace("!", "!!").replace("%", "!%").replace("_", "!_") + "%"
+        rows = self._conn().execute(
+            "SELECT user_id, display_name FROM accounts WHERE status = ?"
+            " AND display_name != '' AND LOWER(display_name) LIKE ? ESCAPE '!'"
+            " ORDER BY display_name LIMIT ?",
+            (WAITLISTED, like, int(limit))).fetchall()
+        return [{"user_id": r[0], "name": r[1] or ""} for r in rows]
+
     def invites_of(self, user_id: str) -> list[str]:
         """Everyone who joined with this person's code, oldest first."""
         rows = self._conn().execute(
