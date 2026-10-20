@@ -1091,6 +1091,13 @@ class MemoryScriptCache:
         voice and rate that will actually be served."""
         return self._live(key) and any(k == key for k, _v in self._audio)
 
+    def audio_voices(self, key: str) -> list[str]:
+        """The voices this episode's audio is kept in, last played first."""
+        if not self._live(key):
+            return []
+        rows = [(r["played"], v) for (k, v), r in self._audio.items() if k == key]
+        return [v for _p, v in sorted(rows, reverse=True)]
+
     def audio_link(self, key: str, voice: str, sample_rate: int) -> Optional[dict]:
         """No bucket here, so nothing to link to (§252): always streamed."""
         return None
@@ -1747,6 +1754,19 @@ class SqliteScriptCache:
         except Exception:
             log.exception("audio cache check failed")
             return False
+
+    def audio_voices(self, key: str) -> list[str]:
+        """The voices this episode's audio is kept in, last played first
+        (§292): what a search by a listener who never picked a voice plays,
+        so it replays kept audio instead of voicing the episode again."""
+        try:
+            return [r[0] for r in self._conn().execute(
+                "SELECT a.voice FROM episode_audio a JOIN scripts s ON s.key = a.key"
+                " WHERE a.key = ? AND s.expires >= ? ORDER BY a.played DESC",
+                (key, time.time())).fetchall()]
+        except Exception:
+            log.exception("audio voices lookup failed")
+            return []
 
     def _forget_audio(self, where: str, params: tuple) -> int:
         """Drop the audio rows matching `where`, and queue their objects for

@@ -10,6 +10,13 @@
 ## Constraints that are settled — do not undo without discussing
 
 <!-- rule:no-audio-files -->
+> **Current (PROBLEMS.md §292):** a player that cannot decode an Opus stream
+> but can decode a whole Ogg Opus file (`decodeAudioData`, Safari mostly -
+> probed once with 0.1 s of silence) asks `fmt=pcm&link=1` and is handed the
+> same signed link; it streams PCM when there is no file, and its fallback
+> is PCM. A replay still streamed as PCM is counted in `/api/health` →
+> `audio.links.pcm_replays`.
+>
 > **Current (PROBLEMS.md §291, at the owner's direction):** nothing of an
 > episode's audio is written to the server once the bucket holds it. With
 > `AUDIO_STORE=r2`, `episode_audio` keeps the object's name, sentences,

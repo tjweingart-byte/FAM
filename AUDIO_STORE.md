@@ -75,6 +75,12 @@ charges $0.15 a GB. Sign-up, plan limits, the play and the ledger are all
 applied before the link is made. `AUDIO_LINKS=0` turns it off. Older
 installed clients never ask for a link and keep streaming.
 
+A browser that cannot decode an Opus stream but can decode the whole file
+(Safari, mostly; §292) asks with `fmt=pcm&link=1` and is given the same
+link. `/api/health` → `audio.links.pcm_replays` counts the replays still
+streamed as PCM through the server: on an iPhone, replay a kept episode -
+`issued` should rise and `pcm_replays` should not.
+
 ## Turning it off
 
 `AUDIO_STORE=` (empty) stops new uploads, and new audio is kept in

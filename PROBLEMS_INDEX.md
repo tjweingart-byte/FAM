@@ -295,3 +295,4 @@ and `limit` = Lines.
 | 20810 | 110 | 289. The 10.16 admin page: errors that open, reports explained, transcripts that arrive, GDELT's pressure, Finnhub's refusals and Wikipedia's pronunciations (2026-10-16) |
 | 20920 | 91 | 290. API-Sports and Tiingo's free plans while developing (2026-10-16) |
 | 21011 | 41 | 291. Kept audio lives in the bucket and nowhere else (2026-10-20) |
+| 21052 | 51 | 292. Replays off the server for Safari, and the kept voice for searches (2026-10-20) |

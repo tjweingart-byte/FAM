@@ -102,7 +102,8 @@ def _client(tmp_path, monkeypatch, cache=None):
                         cache or SqliteScriptCache(str(tmp_path / "s.db")))
     monkeypatch.setattr(appmod, "_rate_limit", lambda request: None)
     monkeypatch.setattr(appmod, "DEMO_MODE", False)
-    monkeypatch.setattr(appmod, "_AUDIO_LINKS", {"issued": 0, "fallbacks": 0})
+    monkeypatch.setattr(appmod, "_AUDIO_LINKS",
+                        {"issued": 0, "fallbacks": 0, "pcm_replays": 0})
     engine, gen = CountingVoice(), CountingGenerator()
     monkeypatch.setattr(
         appmod, "_make_pipeline",
@@ -148,15 +149,16 @@ def test_a_replay_is_answered_with_a_link_and_nothing_is_voiced(tmp_path, monkey
 
 
 @needs_opus
-def test_only_a_replay_that_asks_for_opus_gets_a_link(tmp_path, monkeypatch, bucket):
+def test_only_a_replay_that_asks_gets_a_link(tmp_path, monkeypatch, bucket):
     client, engine, appmod = _client(tmp_path, monkeypatch)
     _get(client)  # voiced and kept
     plain = _get(client)
     assert "x-fam-audio-link" not in plain.headers, "a client that did not ask"
     assert plain.headers["x-fam-audio-format"] == "opus"
-    pcm = _get(client, fmt="pcm", link=1)
+    pcm = _get(client, fmt="pcm")
     assert "x-fam-audio-link" not in pcm.headers
     assert pcm.headers["content-type"].startswith("audio/L16")
+    assert appmod._AUDIO_LINKS["pcm_replays"] == 1, "a PCM replay went uncounted"
     _set(monkeypatch, appmod, audio_links=False)
     off = _get(client, link=1)
     assert "x-fam-audio-link" not in off.headers, "AUDIO_LINKS=0 must stream"
@@ -205,10 +207,12 @@ def _player() -> str:
     return open(os.path.join(ROOT, "static", "fam-audio.js")).read()
 
 
-def test_the_player_asks_for_a_link_only_with_opus_and_falls_back():
+def test_the_player_asks_for_a_link_only_where_the_file_decodes_and_falls_back():
     js = _player()
-    assert '"&fmt=opus&link=1"' in js, "a link only where Opus decodes"
-    assert '"&fmt=pcm"' in js
+    # Opus streams where WebCodecs decodes it, PCM elsewhere; a link where
+    # either decoder reads the file (§252, §292).
+    assert '"&fmt=" + fmt + (can.opus || can.whole ? "&link=1" : "")' in js
+    assert 'can.opus ? "opus" : "pcm"' in js
     assert "&link_failed=1" in js, "a fallback the server can count"
     assert '"X-FAM-Audio-Link"' in js
 

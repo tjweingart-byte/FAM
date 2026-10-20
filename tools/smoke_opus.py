@@ -17,6 +17,11 @@ Every store goes to a temporary directory, found by reading every
 `data_path("VAR", ...)` in the source rather than listed here: a list kept by
 hand is how a new store ends up written into the working tree.
 
+And a browser with **no Opus decoder of its own** (§292) - Chromium with
+`AudioDecoder` removed, standing in for Safari: it must still ask for a link,
+read the Ogg Opus file whole from the bucket (here a route that answers for
+R2), and hold exactly the file's samples without streaming anything else.
+
     python tools/smoke_opus.py
 """
 from __future__ import annotations
@@ -69,6 +74,75 @@ def free_port() -> int:
         return s.getsockname()[1]
 
 
+BUCKET_FILE = "https://bucket.fam.test/recent/whole.opus"
+
+
+def kept_file(seconds: float = 2.0, rate: int = 24000) -> tuple[bytes, int]:
+    """An Ogg Opus file packed exactly as kept audio is, and its length."""
+    import math
+
+    sys.path.insert(0, str(ROOT))
+    import audio_codec
+
+    frames = int(seconds * rate)
+    pcm = b"".join(int(6000 * math.sin(2 * math.pi * 220 * i / rate)).to_bytes(
+        2, "little", signed=True) for i in range(frames))
+    codec, blob = audio_codec.encode(pcm, rate)
+    assert codec == audio_codec.OPUS, codec
+    return blob, frames
+
+
+def whole_file(browser, base: str, check) -> None:
+    """§292: a replay on a browser that decodes Opus only as a whole file."""
+    import json
+
+    blob, frames = kept_file()
+    page = browser.new_page()
+    page.add_init_script("try { delete window.AudioDecoder; } catch (e) {}"
+                         " window.AudioDecoder = undefined;")
+    asked, read = [], []
+
+    def link(route):
+        asked.append(route.request.url)
+        if "link=1" not in route.request.url:
+            return route.continue_()
+        route.fulfill(status=200, content_type="application/json", headers={
+            "X-FAM-Audio-Link": "1", "X-Sample-Rate": "24000", "X-FAM-Cache": "hit",
+            "X-FAM-Episode": "whole-file-smoke", "Access-Control-Expose-Headers":
+            "X-FAM-Audio-Link, X-Sample-Rate, X-FAM-Cache, X-FAM-Episode"},
+            body=json.dumps({"link": BUCKET_FILE, "format": "ogg-opus",
+                             "frames": frames, "sentences": ["One."], "starts": [0.0]}))
+
+    def bucket(route):
+        read.append(route.request.url)
+        route.fulfill(status=200, body=blob, content_type="audio/ogg",
+                      headers={"Access-Control-Allow-Origin": "*"})
+
+    page.route("**/api/audio?*", link)
+    page.route(BUCKET_FILE, bucket)
+    page.goto(base + "/")
+    page.wait_for_function("window.FamAudio !== undefined")
+    played = page.evaluate("""(q) => new Promise((resolve) => {
+        FamAudio.play(q, 1, {
+            onError: (e) => resolve({error: String(e && e.message || e)}),
+        });
+        const poll = setInterval(() => {
+            if (FamAudio.isComplete()) { clearInterval(poll);
+                resolve({samples: Math.round(FamAudio.duration() * 24000)}); }
+        }, 100);
+        setTimeout(() => resolve({error: 'timed out'}), 30000);
+    })""", QUESTION)
+    page.close()
+    check("without WebCodecs the player asks for PCM with a link",
+          any("fmt=pcm&link=1" in u for u in asked), str(asked))
+    check("it reads the file from the bucket", read == [BUCKET_FILE], str(read))
+    check("it plays the whole file without an error", "error" not in played, str(played))
+    check("it holds exactly the file's samples", played.get("samples") == frames,
+          f"{played} vs {frames}")
+    check("nothing was streamed instead",
+          not any("link_failed" in u for u in asked), str(asked))
+
+
 def main() -> int:
     from playwright.sync_api import sync_playwright
 
@@ -104,6 +178,7 @@ def main() -> int:
 
             with sync_playwright() as pw:
                 browser = launch_browser(pw)
+                whole_file(browser, base, check)
                 page = browser.new_page()
                 asked = []
                 page.on("request", lambda r: asked.append(r.url)
@@ -117,7 +192,7 @@ def main() -> int:
                 if not supported:
                     print("  SKIPPED: this browser cannot decode Opus; the player "
                           "uses PCM here, which the preview smoke tests cover.")
-                    return 0
+                    return 1 if failures else 0
                 page.evaluate("fetch('/api/consent', {method:'POST', headers:"
                               "{'content-type':'application/json'},"
                               "body: JSON.stringify({allow: true})})")

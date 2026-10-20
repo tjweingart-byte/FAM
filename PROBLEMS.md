@@ -21048,3 +21048,54 @@ Rule note at `no-audio-files`; `CLAUDE.md`'s line says "never its bytes".
 Tests in `tests/test_audio_store.py`: no hot copy on write, after a replay,
 or after a backfill; a flaky upload retried; a failing one keeps nothing and
 is recorded; the sweep clears old copies; no bucket keeps the row.
+
+## 292. Replays off the server for Safari, and the kept voice for searches (2026-10-20)
+
+The owner (10.20), after §291: implement the two remaining ways a replay
+of a cached episode went back through Render, "and we will test number
+three to make sure it works".
+
+**A player without WebCodecs' Opus.** §252's links went only to a browser
+whose `AudioDecoder` decodes Opus; every other browser - Safari, mostly -
+streamed every replay as PCM through the server, about 6 MB a two-minute
+episode of Render bandwidth. Many of those browsers can decode a *whole*
+Ogg Opus file with `decodeAudioData`. `fam-audio.js` now asks that once
+(`canDecodeOggFile`, on 0.1 s of silence packed exactly as kept audio is),
+and such a player sends `fmt=pcm&link=1`. The server hands it the same
+link it hands an Opus player; with no file it streams PCM as before. The
+player downloads the file, decodes it in an `OfflineAudioContext` at the
+stream's rate (so it is not resampled to the speakers' rate), cuts it to
+the episode's true length and hands the buffer over as `playStored` would.
+Anything failing before that buffer streams the episode as PCM with
+`link_failed=1` - the fallback used to name `fmt=opus`, which such a player
+could not have decoded. A replay still streamed as PCM is counted:
+`/api/health` → `audio.links.pcm_replays`, beside `issued` and `fallbacks`.
+That counter is how the owner's test reads: on an iPhone, replay a kept
+episode; `issued` should rise and `pcm_replays` should not.
+
+The browser half is driven in `tools/smoke_opus.py`: Chromium with
+`AudioDecoder` removed, `/api/audio` answered with a link and the link with
+a real kept file - the player asks `fmt=pcm&link=1`, reads the file once,
+plays exactly its samples and streams nothing. **Not verified on Safari
+itself** - no Safari here; whether a given iOS version's `decodeAudioData`
+reads Ogg Opus is exactly what the probe decides at run time, and a no
+leaves that browser on PCM as before.
+
+**The kept voice for a listener who never chose.** A search is spoken in
+the listener's voice (§147); the app always names the voice it shows,
+which for somebody who never chose is the default. So a search another
+listener had voiced in Nova was voiced again in the default - a GPU job, a
+first-play stream through Render, a second object. Now `_episode_voice`
+treats a default that nobody chose (no row in `voice_bank.choices`;
+choosing the default writes one) as no choice, and plays the voice the
+episode's audio is kept in (`cache.audio_voices`, last played first, on
+this engine, still in the bank). Nothing is overridden: a chosen voice, an
+explicitly chosen default, and a non-default voice the request names are
+honoured exactly as before; an unreadable choice counts as a choice. The
+player's voice switch now waits for `/api/voices/choice` before playing
+again, or a switch to the default could reach the server before it knew
+and play the old voice.
+
+Tests: `tests/test_whole_file_kept_voice_292.py`; §252's pins for PCM
+(`fmt=pcm&link=1` streamed) and the player's URL updated. Rule notes at
+`no-audio-files` and `op-voice-bank`.

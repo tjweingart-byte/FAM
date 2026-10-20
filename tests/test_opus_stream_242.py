@@ -232,4 +232,7 @@ def test_the_player_asks_for_opus_only_when_it_can_decode_it():
     assert "AudioDecoder" in js and "isConfigSupported" in js
     assert '"X-FAM-Audio-Format"' in js
     assert "X-FAM-Opus-Preskip" in js
-    assert "fmt=opus" in js and "fmt=pcm" in js
+    # Opus where the decoder exists, PCM everywhere else (§292 builds the
+    # parameter from one variable).
+    assert 'var fmt = can.opus ? "opus" : "pcm";' in js
+    assert '"&fmt=" + fmt' in js
