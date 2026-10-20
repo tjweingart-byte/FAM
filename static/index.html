@@ -8052,7 +8052,9 @@
     if(gone) snack("Removed from Queue", { label: "Undo", run: function(){
       QUEUE.splice(Math.min(i, QUEUE.length), 0, gone);
       drawMixSkip(!!mixPlay);
-      if(document.querySelector("#sheetCard .q-group")) openQueue();
+      // Redrawn only while the queue is still the open sheet.
+      if(document.getElementById("sheetOverlay").classList.contains("active")
+         && document.querySelector("#sheetCard .q-group")) openQueue();
     } });
   }
   function playFromQueue(i){
@@ -18134,7 +18136,21 @@
             + "&minutes=" + ep.minutes, { method: "DELETE" })
         .then(function(){
           setSaved(false);
-          snack("Removed from Saved for Later", { label: "Undo", run: saveForLater });
+          // Undo puts back the episode taken off, not whatever is playing
+          // by the time it is pressed.
+          snack("Removed from Saved for Later", { label: "Undo", run: function(){
+            fetch("/api/saved", {
+              method: "POST", headers: {"Content-Type": "application/json"},
+              body: JSON.stringify({ query: ep.query, minutes: ep.minutes,
+                                     title: ep.title, source: "player" })
+            }).then(function(r){
+              if(!r.ok) throw new Error();
+              var now = currentEpisode();
+              if(now && now.query === ep.query && now.minutes === ep.minutes) setSaved(true);
+              if(document.getElementById("screen-saved").classList.contains("active"))
+                loadSaved();
+            }).catch(function(){ toast("Could not save that"); });
+          } });
           if(document.getElementById("screen-saved").classList.contains("active"))
             loadSaved();
         })

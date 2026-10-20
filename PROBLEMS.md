@@ -21094,3 +21094,11 @@ small toast if one is up. Errors and everything else stay toasts.
 Tests: `tests/test_implementations_108.py`; `test_waitlist.py`'s setup test
 names `skipSetup()` now.
 
+Review before the merge into Main: Undo on "Removed from Saved for Later"
+called `saveForLater()`, which acts on whatever is playing when Undo is
+pressed - a different episode by then would have been saved, or unsaved.
+It now posts back the episode it took off. The queue's Undo reopened the
+queue sheet even after it had been closed (the sheet keeps its contents when
+hidden); it redraws only while the sheet is open. The previews' stand-in
+servers answer `/api/account`, which the first run now writes.
+

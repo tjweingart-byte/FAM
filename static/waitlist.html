@@ -1517,8 +1517,9 @@
     drawRequired();
   }
 
-  // Date of birth as MM/DD/YYYY (10.8 packet, month first at the owner's word): the slashes go in as it is
-  // typed, and the server is sent YYYY-MM-DD, which is what it stores.
+  // Date of birth as MM/DD/YYYY (10.8 packet, month first at the owner's
+  // word): the slashes go in as it is typed, and the server is sent
+  // YYYY-MM-DD, which is what it stores.
   function isoToMdy(iso){
     var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || "");
     return m ? m[2] + "/" + m[3] + "/" + m[1] : "";

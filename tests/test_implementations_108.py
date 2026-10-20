@@ -163,3 +163,13 @@ def test_actions_are_confirmed_by_the_bar_with_somewhere_to_go():
         assert gone not in INDEX, gone
     # Both themes give it its own colours, the reverse of the page's.
     assert INDEX.count("--snack-bg:") == 2
+
+
+def test_undo_puts_back_what_was_taken_off_not_what_is_playing_now():
+    unsave = INDEX.split("  function saveForLater(){", 1)[1].split("\n  }\n", 1)[0]
+    undo = unsave.split('snack("Removed from Saved for Later", { label: "Undo"', 1)[1]
+    assert "run: saveForLater" not in unsave
+    assert "JSON.stringify({ query: ep.query, minutes: ep.minutes," in undo
+    # The queue's Undo redraws the queue only while it is still open.
+    queue = INDEX.split("  function removeFromQueue(i){", 1)[1].split("\n  }\n", 1)[0]
+    assert 'getElementById("sheetOverlay").classList.contains("active")' in queue
