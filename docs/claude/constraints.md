@@ -1587,6 +1587,23 @@
   `sans-serif`, never Georgia. `releases/web/<version>/` is an archive of
   what shipped and keeps the type it shipped with.
 
+<!-- rule:motion -->
+- **Motion never holds anything.** *(§292, the owner's picks from the motion
+  options page, 10.20.)* Screens push in from the right and back out to it;
+  tabs nudge toward the new tab's side; the player grows out of the tapped
+  picture and shrinks into the mini player's; every button squeezes and
+  springs back (one rule, `Motion` in `index.html`, replacing forty-four
+  per-element `:active` scales); save, vibe and like burst (a ring and six sparks) and say "SAVED",
+  "VIBED", "LIKED" - only when the listener turns one on; sheets and modals
+  fade and lift; new rails arrive tile by tile; a queued episode flies to the
+  queue, whose button counts it; Explore's reel snaps, then settles.
+  What every one of them keeps to: the new screen is active and tappable
+  from its first frame, audio starts on the tap, every movement is 450 ms or
+  less (the "SAVED" label stays about a second, moving only as it comes and
+  goes), and none of it stands in for a wait - `[latency-start-earlier]`
+  still decides, and search's five loading steps are untouched. With the
+  system's reduced motion on, a screen change is a 120 ms crossfade, a sheet
+  fades in over 120 ms and closes at once, and nothing else moves.
 <!-- rule:speed-pitch -->
 - **A speed change must not change the voice.** *(§95, `fam-audio.js`.)*
   `playbackRate` on a buffer source resamples, so 1.5x came back a fifth

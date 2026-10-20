@@ -21102,3 +21102,87 @@ queue sheet even after it had been closed (the sheet keeps its contents when
 hidden); it redraws only while the sheet is open. The previews' stand-in
 servers answer `/api/account`, which the first run now writes.
 
+## 292. Motion: the owner's ten picks (2026-10-20)
+
+The owner (10.20): "The app looks great, but it doesn't flow very well."
+Every screen change was `showScreen()` hiding one screen and showing the next
+in the same frame; the only things that moved were the tab icon's pop, the
+toast, voice search's sheet and the post-episode grid. A page of options -
+three per place, drawn as small working phones - went to the owner, who
+picked one in each:
+
+| Where | Pick |
+|---|---|
+| Opening and leaving a screen | Push slide: in from the right, the old one drifts left and dims; back reverses (320 / 260 ms) |
+| Switching tabs | Slide by position: the content nudges 18 px toward the new tab's side (110 out, 200 in) |
+| Opening the player | The tapped picture grows into the player's (380 ms) |
+| Minimising the player | The player's picture shrinks into the mini player's thumbnail (340 ms) |
+| Pressing any button | Squeeze: about 4 px smaller while held, sprung back on release |
+| Save, like, VIBE! | Burst with a label: a copper ring and six sparks as the icon pops, and "SAVED" / "LIKED" / "VIBED" beside it - two of the options combined, at the owner's request |
+| Menus and sheets | Fade and lift 14 px in; drop 8 px out (200 / 150 ms) |
+| Rails arriving | Tiles fade up 8 px, 40 ms apart, the first three of each rail |
+| Adding to the queue | The picture arcs into the queue button, which bumps and counts |
+| Explore's reel | A firm snap, then the title rises and the buttons step in |
+
+**How.** One module, `Motion`, beside `showScreen`. `showScreen(id, how)`
+takes a kind - `navigate` passes `push` (or `player-open`), `goBack` `pop`
+(or `player-close` off the player), `setTab` `tab`, `minimizePlayer`
+`player-close`; every other caller passes none and still snaps (sign-up,
+the intro, location: first-run screens shown by name). The screen going is
+kept on as `.leaving` - absolute, below the status bar, inert - under the new
+one on a push, over it on a back, and dropped when the animation ends; a
+second change finishes the first at once. A screen's tab bar and the mini
+player are counter-moved so they stay put while the rest slides. On a tab
+change only the content moves and the tab bar is the new screen's from its
+first frame, so it never dims.
+
+The player grows out of the picture inside whatever was last pressed: it is
+read on `pointerdown` (with where it was, because the mini player is hidden
+on the player's own screen before the player is drawn) and used for up to
+eight seconds, since a tile whose episode is still being written opens the
+player when its first words arrive. No picture - a typed search - and it is
+a push. Minimising needs the player's picture and a visible mini player,
+else it is a back.
+
+The squeeze is one `pointerdown` listener on anything pressable, scaled by
+size (`1 - 8 / longest side`, never below 0.9) so a card barely moves and a
+small button visibly does, using `composite: "add"` so an element's own
+transform survives; where `add` is unsupported, an element with a transform
+is left alone. It replaces forty-four per-element `:active { transform:
+scale() }` rules, which disagreed with one another and snapped. A press that
+becomes a scroll or a drag lets go after 8 px.
+
+Burst-and-say runs only from the action that turned the thing on -
+`saveForLater`'s success, the vibe composer's post, `rateReel(1)` - never
+from `setSaved` / `setEchoed`, which also paint state the server reports.
+Turning one off stays quiet. Sheets need no caller at all: a
+`MutationObserver` holds `.closing` on an overlay for 150 ms after `active`
+goes. Rails stagger only tiles that were not already on the page
+(`feedTopicsShown`, by topic id), so the cache's draw followed by the
+server's, or a game's score moving, does not replay it. The queue's count lives on the player's queue button, drawn by
+`drawMixSkip`, which every change to `QUEUE` already calls.
+
+**What none of it may do.** The new screen is `active` and tappable from its
+first frame; audio starts on the tap; every movement is 450 ms or less (the
+burst's label stays about a second, moving only as it comes and goes);
+nothing is shown in front of a wait. Search's five loading steps are
+untouched. Reduced motion: a screen change is a 120 ms crossfade, a sheet
+fades in over 120 ms and closes at once, and nothing else moves. CLAUDE.md `[motion]`, folded into the latency line
+to stay inside the core's budget; the full text is at `rule:motion` in
+`constraints.md`.
+
+**Not verified.** The smoke run exercises every transition in Chromium, and
+the preview shows them; how they feel on an iPhone's Safari - in particular
+`commitStyles` and `composite: "add"`, both Safari 16+ - has not been seen.
+
+**Review before the merge.** Five faults found reading the diff, each fixed:
+a leaving home, Explore or player screen stayed in the flex column (their
+id rules set `position: relative`, which beat `.screen.leaving`), so the
+arriving screen was drawn at half height - the leaving rule's position and
+stacking are now `!important`. `composite: "add"` added opacity too (1 + 0 is
+1), so the tab change, the rails and the reel's settle slid without fading -
+`runAdd` adds only the transform and runs the opacity beside it. The swipe
+from search to Explore animated a second time through `setTab` - the swipe
+calls `Motion.still()` first. Rails replayed on any change to the feed's
+markup - now only new tile ids arrive. The reel's overshooting snap ran
+under reduced motion - it now uses the old curve there.
