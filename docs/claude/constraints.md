@@ -1588,7 +1588,7 @@
   what shipped and keeps the type it shipped with.
 
 <!-- rule:motion -->
-- **Motion never holds anything.** *(§291, the owner's picks from the motion
+- **Motion never holds anything.** *(§292, the owner's picks from the motion
   options page, 10.20.)* Screens push in from the right and back out to it;
   tabs nudge toward the new tab's side; the player grows out of the tapped
   picture and shrinks into the mini player's; every button squeezes and

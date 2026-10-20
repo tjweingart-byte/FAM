@@ -380,7 +380,9 @@
   .status.setup-mode > :not(.setup-only):not(#profile){ display:none !important; }
   .status.setup-mode #profile{ margin-top:0 !important; background:transparent; padding:0; }
   .skip-btn{ background:none; border:1px solid #5A5470; border-radius:999px; padding:9px 16px;
-    cursor:pointer; font-size:14px; color:var(--text); }
+    cursor:pointer; font-size:14px; color:var(--text); transition:opacity .15s, color .15s; }
+  /* Greyed, not disabled: pressing it early still has to say why. */
+  .skip-btn[aria-disabled="true"]{ color:var(--faint); border-color:var(--line); opacity:0.7; }
   /* The explainer, opened from the status page: the landing's own section. */
   .about-bar{ position:sticky; top:0; z-index:6; display:flex; align-items:center; gap:10px;
     padding:max(14px, env(safe-area-inset-top)) 16px 14px; background:rgba(30,27,39,0.92);
@@ -505,7 +507,27 @@
   .link-row .ghost{ height:44px; flex:none; }
   .phone-row{ display:flex; gap:8px; }
   .phone-row .phone-cc{ flex:none; width:100px; padding:0 10px; }
-  .pinput[type=date]{ color-scheme:dark; }
+  .pfield span .req{ display:inline; font-style:normal; color:var(--gold); }
+  .pinput.missing{ border-color:var(--coral); }
+  .photo-row .av svg{ width:26px; height:26px; color:var(--muted); }
+  .combo{ position:relative; }
+  .combo .pinput{ padding-right:42px; }
+  .combo-caret{ position:absolute; right:14px; top:15px; width:20px; height:20px; color:var(--muted); pointer-events:none; }
+  .combo-list{ position:absolute; left:0; right:0; top:54px; z-index:8; max-height:260px; overflow-y:auto;
+    border:1px solid var(--line); border-radius:12px; background:var(--card-2); box-shadow:0 12px 30px rgba(0,0,0,0.45); }
+  .combo-list button{ display:block; width:100%; text-align:left; padding:12px 16px; background:none; border:0;
+    border-bottom:1px solid var(--line); cursor:pointer; font-size:15px; color:var(--text); }
+  .combo-list button:last-child{ border-bottom:0; }
+  .combo-list button.on, .combo-list button:hover{ background:rgba(240,195,94,0.12); }
+  .combo-list .combo-empty{ padding:12px 16px; font-size:14px; color:var(--muted); }
+  .req-pop{ position:fixed; inset:0; z-index:20; display:flex; align-items:center; justify-content:center;
+    padding:24px 16px; background:rgba(10,8,16,0.6); }
+  .req-box{ position:relative; width:100%; max-width:360px; background:var(--card-2); border:1px solid var(--line);
+    border-radius:16px; padding:30px 44px 26px 22px; box-shadow:0 18px 40px rgba(0,0,0,0.5); }
+  .req-box p{ margin:0; font-size:16px; line-height:1.45; color:var(--text); }
+  .req-x{ position:absolute; top:10px; right:10px; width:34px; height:34px; border-radius:50%; border:0;
+    background:none; color:var(--muted); cursor:pointer; display:flex; align-items:center; justify-content:center; }
+  .req-x svg{ width:18px; height:18px; }
   .granted{ text-align:center; }
   .granted .big{ font-size:44px; margin-bottom:10px; }
   @media (prefers-reduced-motion: reduce){ .toast{ transition:none; } }
@@ -845,7 +867,9 @@
   <!-- Straight after joining (?setup=1): the profile and a way past it. -->
   <div class="top setup-only">
     <div class="wordmark" aria-label="FAM"><svg viewBox="0 0 48.7 16.9" style="height:1em;width:2.88em;overflow:visible"><use href="#wm"/></svg></div>
-    <button class="skip-btn" type="button" id="skipSetup" onclick="finishSetup()">Skip for now</button>
+    <!-- Greyed until the two required fields are in (10.8 packet); pressed
+         early, it says so instead of skipping. -->
+    <button class="skip-btn" type="button" id="skipSetup" aria-disabled="true" onclick="skipSetup()">Skip for now</button>
   </div>
   <div class="top">
     <div class="wordmark" aria-label="FAM"><svg viewBox="0 0 48.7 16.9" style="height:1em;width:2.88em;overflow:visible"><use href="#wm"/></svg></div>
@@ -927,25 +951,42 @@
     <h3><span id="profileHeading">Your profile</span> <span class="done-pill hidden" id="profileDone">Complete</span></h3>
     <p class="lede">Claim your @handle and tell us about you, so FAM is yours from the first episode. You can change any of it later in settings.</p>
     <div class="photo-row">
-      <div class="av" id="photoPreview">?</div>
+      <div class="av" id="photoPreview"></div>
       <div>
         <button class="ghost" type="button" onclick="document.getElementById('photoFile').click()">Choose a photo</button>
         <button class="ghost hidden" type="button" id="photoRemove" style="margin-top:8px" onclick="removePhoto()">Remove</button>
         <input type="file" id="photoFile" accept="image/*" class="hidden">
       </div>
     </div>
-    <label class="pfield"><span>Display name</span>
+    <label class="pfield"><span>Display name <em class="req">(Required)</em></span>
       <input class="pinput" id="pName" maxlength="40" autocomplete="name"></label>
     <label class="pfield"><span>Handle</span>
       <div class="handle-wrap"><span class="at">@</span>
         <input class="pinput" id="pHandle" maxlength="24" autocapitalize="off" autocorrect="off" spellcheck="false"></div></label>
+    <!-- Typed as MM/DD/YYYY (10.8 packet), not the browser's date picker;
+         sent to the server as YYYY-MM-DD. -->
     <label class="pfield"><span>Date of birth</span>
-      <input class="pinput" id="pBirth" type="date" autocomplete="bday"></label>
+      <input class="pinput" id="pBirth" type="text" inputmode="numeric" maxlength="10"
+             autocomplete="bday" placeholder="MM/DD/YYYY" aria-label="Date of birth, MM/DD/YYYY"></label>
+    <!-- Country and state are lists that can be typed into (10.8 packet):
+         the state's list is the chosen country's own (`places.json`). A
+         country with no list, or a state not on it, is kept as typed. The
+         city stays typed. -->
     <div class="pfield"><span>Location <em class="opt">(Optional)</em></span>
-      <input class="pinput" id="pCountry" maxlength="60" autocomplete="country-name" placeholder="Country" aria-label="Country">
-      <input class="pinput" id="pRegion" maxlength="60" autocomplete="address-level1" placeholder="State" aria-label="State" style="margin-top:8px">
+      <div class="combo" id="countryCombo">
+        <input class="pinput" id="pCountry" maxlength="60" autocomplete="off" placeholder="Country"
+               aria-label="Country" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="countryList">
+        <svg class="combo-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+        <div class="combo-list hidden" id="countryList" role="listbox"></div>
+      </div>
+      <div class="combo" id="regionCombo" style="margin-top:8px">
+        <input class="pinput" id="pRegion" maxlength="60" autocomplete="off" placeholder="State"
+               aria-label="State" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="regionList">
+        <svg class="combo-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+        <div class="combo-list hidden" id="regionList" role="listbox"></div>
+      </div>
       <input class="pinput" id="pCity" maxlength="60" autocomplete="address-level2" placeholder="City" aria-label="City" style="margin-top:8px"></div>
-    <div class="pfield"><span>Phone number</span>
+    <div class="pfield"><span>Phone number <em class="req">(Required)</em></span>
       <div class="phone-row">
         <select class="pinput phone-cc" id="pPhoneCC" aria-label="Country code"></select>
         <input class="pinput" id="pPhone" type="tel" inputmode="tel" autocomplete="tel-national" placeholder="Phone number" aria-label="Phone number">
@@ -975,6 +1016,15 @@
 </main>
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<!-- "Skip for now" pressed before the required fields are in (10.8
+     packet): one line and an X, which goes back to the profile. -->
+<div class="req-pop hidden" id="reqPop" role="alertdialog" aria-modal="true" aria-labelledby="reqPopText">
+  <div class="req-box">
+    <button class="req-x" type="button" id="reqPopX" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    <p id="reqPopText">Please fill out required fields before continuing</p>
+  </div>
+</div>
 
 <script src="/fam-audio.js"></script>
 <script>
@@ -1453,9 +1503,9 @@
   }
   function drawDetails(d){
     var x = d.details || {}, loc = x.location || {};
-    $("pBirth").value = x.birth_date || "";
-    $("pBirth").max = new Date().toISOString().slice(0, 10);
-    $("pCountry").value = loc.country || "";
+    $("pBirth").value = isoToMdy(x.birth_date || "");
+    $("pCountry").value = countryName(loc.country || "");
+    lastCountry = countryCode($("pCountry").value);
     $("pRegion").value = loc.region || "";
     $("pCity").value = loc.city || "";
     var cc = $("pPhoneCC");
@@ -1464,7 +1514,155 @@
     }
     var parts = x.phone ? splitPhone(x.phone) : ["+1", ""];
     cc.value = parts[0]; $("pPhone").value = parts[1];
+    drawRequired();
   }
+
+  // Date of birth as MM/DD/YYYY (10.8 packet, month first at the owner's
+  // word): the slashes go in as it is typed, and the server is sent
+  // YYYY-MM-DD, which is what it stores.
+  function isoToMdy(iso){
+    var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || "");
+    return m ? m[2] + "/" + m[3] + "/" + m[1] : "";
+  }
+  function mdyToIso(text){
+    var m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(String(text || "").trim());
+    if(!m) return null;
+    var mo = +m[1], d = +m[2], y = +m[3], when = new Date(Date.UTC(y, mo - 1, d));
+    if(when.getUTCFullYear() !== y || when.getUTCMonth() !== mo - 1 || when.getUTCDate() !== d) return null;
+    return y + "-" + (mo < 10 ? "0" : "") + mo + "-" + (d < 10 ? "0" : "") + d;
+  }
+  $("pBirth").addEventListener("input", function(ev){
+    var digits = this.value.replace(/\D/g, "").slice(0, 8);
+    // Deleting a slash deletes it, rather than having it put straight back.
+    if(ev.inputType && ev.inputType.indexOf("delete") === 0){ this.value = this.value.replace(/[^\d\/]/g, ""); return; }
+    this.value = digits.length > 4 ? digits.slice(0, 2) + "/" + digits.slice(2, 4) + "/" + digits.slice(4)
+      : digits.length > 2 ? digits.slice(0, 2) + "/" + digits.slice(2) : digits;
+  });
+
+  // Country and state (10.8 packet): each a list that opens on a tap and
+  // narrows as it is typed into. The state's list is the chosen country's
+  // own; a country without one leaves the state typed. Anything typed that
+  // is not on a list is kept as typed - a place is whatever somebody says.
+  var PLACES = { countries: [], regions: {} };
+  var COUNTRY_ALIASES = { "usa": "US", "us": "US", "u.s.": "US", "u.s.a.": "US", "america": "US",
+                          "united states of america": "US", "uk": "GB", "u.k.": "GB",
+                          "great britain": "GB", "britain": "GB" };
+  function countryCode(name){
+    var low = String(name || "").trim().toLowerCase();
+    if(!low) return "";
+    if(COUNTRY_ALIASES[low]) return COUNTRY_ALIASES[low];
+    var hit = PLACES.countries.filter(function(c){ return c[0].toLowerCase() === low || c[1].toLowerCase() === low; })[0];
+    return hit ? hit[1] : "";
+  }
+  function countryName(stored){
+    var code = countryCode(stored);
+    var hit = code && PLACES.countries.filter(function(c){ return c[1] === code; })[0];
+    return hit ? hit[0] : String(stored || "");
+  }
+  function regionsFor(){ return PLACES.regions[countryCode($("pCountry").value)] || []; }
+  function combo(input, list, options, onPick){
+    var shown = [], active = -1;
+    function close(){ list.classList.add("hidden"); input.setAttribute("aria-expanded", "false"); active = -1; }
+    function draw(){
+      var all = options(), term = input.value.trim().toLowerCase();
+      if(!all.length){ close(); return; }
+      // Opened on a field already holding a choice: the whole list, from it.
+      var exact = all.some(function(o){ return o.toLowerCase() === term; });
+      shown = !term || exact ? all : all.filter(function(o){ return o.toLowerCase().indexOf(term) !== -1; })
+        .sort(function(a, b){ return (b.toLowerCase().indexOf(term) === 0) - (a.toLowerCase().indexOf(term) === 0); });
+      list.innerHTML = shown.length ? shown.map(function(o, i){
+        return '<button type="button" role="option" data-i="' + i + '"' + (o.toLowerCase() === term ? ' class="on"' : '')
+          + '>' + esc(o) + '</button>';
+      }).join("") : '<div class="combo-empty">Nothing on the list matches. It will be kept as typed.</div>';
+      list.classList.remove("hidden"); input.setAttribute("aria-expanded", "true");
+      var on = list.querySelector(".on"); if(on) list.scrollTop = on.offsetTop - 60;
+    }
+    function pick(i){ input.value = shown[i]; close(); if(onPick) onPick(); }
+    // Pressed rather than clicked, so the field's blur does not close the
+    // list before the choice lands.
+    list.addEventListener("pointerdown", function(ev){
+      var b = ev.target.closest("button[data-i]"); if(!b) return;
+      ev.preventDefault(); pick(+b.getAttribute("data-i"));
+    });
+    input.addEventListener("focus", draw);
+    input.addEventListener("click", draw);
+    input.addEventListener("input", function(){ draw(); if(onPick) onPick(true); });
+    input.addEventListener("blur", function(){
+      // Typed whole, in any case: the list's own spelling.
+      var low = input.value.trim().toLowerCase();
+      var same = options().filter(function(o){ return o.toLowerCase() === low; })[0];
+      if(same) input.value = same;
+      if(onPick) onPick();
+      setTimeout(close, 0);
+    });
+    input.addEventListener("keydown", function(ev){
+      if(list.classList.contains("hidden")) return;
+      var rows = list.querySelectorAll("button[data-i]");
+      if(ev.key === "ArrowDown" || ev.key === "ArrowUp"){
+        ev.preventDefault();
+        active = Math.max(0, Math.min(rows.length - 1, active + (ev.key === "ArrowDown" ? 1 : -1)));
+        Array.prototype.forEach.call(rows, function(r, i){ r.classList.toggle("on", i === active); });
+        if(rows[active]) rows[active].scrollIntoView({ block: "nearest" });
+      } else if(ev.key === "Enter" && active >= 0){ ev.preventDefault(); pick(active); }
+      else if(ev.key === "Escape"){ close(); }
+    });
+  }
+  var lastCountry = "";
+  // `lastCountry` is the country last settled on, by a pick or by leaving
+  // the field; typing only changes what the state's field is called.
+  function countryChanged(typing){
+    var code = countryCode($("pCountry").value);
+    $("pRegion").placeholder = code === "US" || !code ? "State"
+      : code === "CA" ? "Province" : "State or region";
+    if(typing) return;
+    // "usa" left in the field: the list's own name for it.
+    if(code) $("pCountry").value = countryName(code);
+    if(code === lastCountry) return;
+    // Another country's state is not this one's.
+    if(lastCountry && regionsFor().indexOf($("pRegion").value) === -1) $("pRegion").value = "";
+    lastCountry = code;
+  }
+  combo($("pCountry"), $("countryList"),
+        function(){ return PLACES.countries.map(function(c){ return c[0]; }); }, countryChanged);
+  combo($("pRegion"), $("regionList"), regionsFor);
+  fetch("/places.json", { credentials: "same-origin" }).then(function(r){ return r.json(); })
+    .then(function(d){
+      PLACES = d || PLACES;
+      $("pCountry").value = countryName($("pCountry").value);
+      lastCountry = countryCode($("pCountry").value);
+      countryChanged();
+    }).catch(function(){});
+
+  // "Skip for now" waits for a name and a phone number (10.8 packet).
+  function phoneDigits(){ return $("pPhone").value.replace(/[^\d]/g, ""); }
+  function missingRequired(){
+    var missing = [];
+    if(!$("pName").value.trim()) missing.push($("pName"));
+    if(phoneDigits().length < 7) missing.push($("pPhone"));
+    return missing;
+  }
+  function drawRequired(){
+    $("skipSetup").setAttribute("aria-disabled", String(missingRequired().length > 0));
+    [$("pName"), $("pPhone")].forEach(function(el){
+      if(missingRequired().indexOf(el) === -1) el.classList.remove("missing");
+    });
+  }
+  ["pName", "pPhone"].forEach(function(id){ $(id).addEventListener("input", drawRequired); });
+  function askForRequired(){
+    var missing = missingRequired();
+    missing.forEach(function(el){ el.classList.add("missing"); });
+    $("reqPop").classList.remove("hidden");
+    $("reqPopX").focus();
+    return missing;
+  }
+  $("reqPopX").addEventListener("click", function(){
+    $("reqPop").classList.add("hidden");
+    var first = missingRequired()[0];
+    if(first) first.focus();
+  });
+  document.addEventListener("keydown", function(ev){
+    if(ev.key === "Escape" && !$("reqPop").classList.contains("hidden")) $("reqPopX").click();
+  });
 
   function drawProfile(d, prefs){
     var topics = prefs.interests_all || [];
@@ -1573,9 +1771,12 @@
     if(ev.key === "Enter"){ ev.preventDefault(); addTypedTopic(); }
   });
 
+  // No photo yet: a camera, which says what the button beside it does
+  // (10.8 packet) - not initials, which were a dot before a name was typed.
+  var CAMERA_IC = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8h3.5L8 5.5h8L17.5 8H21v11H3z"/><circle cx="12" cy="13" r="3.4"/></svg>';
   function drawPhoto(){
     var el = $("photoPreview");
-    el.innerHTML = avatar ? '<img alt="" src="' + esc(avatar) + '">' : esc(initials($("pName").value));
+    el.innerHTML = avatar ? '<img alt="" src="' + esc(avatar) + '">' : CAMERA_IC;
     $("photoRemove").classList.toggle("hidden", !avatar);
   }
 
@@ -1598,17 +1799,51 @@
   });
   window.removePhoto = function(){ avatar = ""; avatarChanged = true; drawPhoto(); };
 
-  window.saveProfile = function(){
-    var note = $("profileNote"); note.className = "form-note"; note.textContent = "";
-    var body = { name: $("pName").value.trim(), handle: $("pHandle").value.trim().replace(/^@/, "") };
-    if(avatarChanged) body.avatar = avatar;
-    var interests = Object.keys(chosen).filter(function(k){ return chosen[k]; });
+  function typedPhone(){
     // A number typed in full ("+44 ...", "0044 ...") is taken as typed;
     // anything else is the chosen country code plus the digits.
     var typed = $("pPhone").value.trim(), digits = typed.replace(/[^\d]/g, "");
-    var phone = !digits ? "" : /^(\+|00)/.test(typed)
+    return !digits ? "" : /^(\+|00)/.test(typed)
       ? "+" + digits.replace(/^00/, "") : $("pPhoneCC").value + digits;
-    var account = { birth_date: $("pBirth").value || "", phone: phone };
+  }
+  function typedBirth(note){
+    var raw = $("pBirth").value.trim(), iso = raw ? mdyToIso(raw) : "";
+    if(iso === null){
+      note.className = "form-note err"; note.textContent = "Enter your date of birth as MM/DD/YYYY.";
+      $("pBirth").focus();
+    }
+    return iso;
+  }
+  // Skipping with the required fields in keeps them: the name (on the
+  // account until a handle goes with it - how the waitlist's search finds
+  // them meanwhile) and the number, and a date of birth or a place if one
+  // was typed.
+  window.skipSetup = function(){
+    if(missingRequired().length){ askForRequired(); return; }
+    var note = $("profileNote"); note.className = "form-note"; note.textContent = "";
+    var birth = typedBirth(note); if(birth === null) return;
+    var body = { display_name: $("pName").value.trim(), phone: typedPhone() };
+    if(birth) body.birth_date = birth;
+    $("skipSetup").disabled = true;
+    var place = { country: $("pCountry").value.trim(), region: $("pRegion").value.trim(),
+                  city: $("pCity").value.trim() };
+    api("/api/account", body)
+      .then(function(){
+        if(place.country || place.region || place.city) return api("/api/preferences", place);
+      })
+      .then(function(){ window.finishSetup(); return load(); })
+      .catch(function(e){ note.className = "form-note err"; note.textContent = e.message; })
+      .then(function(){ $("skipSetup").disabled = false; });
+  };
+
+  window.saveProfile = function(){
+    var note = $("profileNote"); note.className = "form-note"; note.textContent = "";
+    if(setupMode && missingRequired().length){ askForRequired(); return; }
+    var birth = typedBirth(note); if(birth === null) return;
+    var body = { name: $("pName").value.trim(), handle: $("pHandle").value.trim().replace(/^@/, "") };
+    if(avatarChanged) body.avatar = avatar;
+    var interests = Object.keys(chosen).filter(function(k){ return chosen[k]; });
+    var account = { birth_date: birth, phone: typedPhone() };
     $("saveProfile").disabled = true;
     // The account's fields first: a refused number or date stops the save
     // before anything else is written.

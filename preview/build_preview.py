@@ -1324,6 +1324,18 @@ __PREVIEW_PICTURE__
       me2.authenticated = true;
       return json(me2);
     }
+    // The account's own fields: the first run's required phone number and,
+    // with Skip, the name (10.8 packet).
+    if (path === "/api/account") {
+      var acct = FIXTURES["/api/auth/me"];
+      if (method === "POST") {
+        var up = JSON.parse((init && init.body) || "{}");
+        if (up.phone !== undefined && up.phone !== null) acct.phone = up.phone;
+        if (up.display_name !== undefined && up.display_name !== null) acct.display_name = up.display_name;
+      }
+      return json({ user_id: acct.user_id || "", email: acct.email || "",
+                    phone: acct.phone || "", display_name: acct.display_name || "" });
+    }
     if (path === "/api/auth/logout") {
       FIXTURES["/api/auth/me"].authenticated = false;
       return json({ ok: true });

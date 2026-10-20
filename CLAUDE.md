@@ -57,7 +57,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
 - Matching happens at write time too: `CACHE_VECTOR` embeds once at store,
   **on by default** since §107 (`=0` restores the old cache). [match-at-write-time]
 - **Latency is answered by starting earlier, never by filling the gap**; nor
-  does motion fill one (§291). [latency-start-earlier] [motion]
+  does motion fill one (§292). [latency-start-earlier] [motion]
 - **Trending searches**: under the search bubbles, the five questions most
   searched in the last 2h whose episodes are still current; cache only (§190, §192). [trending-searches]
 - **Search is Google's shape** (§190): mic and attach inside the bar's right;
