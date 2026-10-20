@@ -766,7 +766,10 @@ window.FamAudio = (function () {
     }).then(function (buf) {
       if (!buf || myToken !== token) return;
       var f32 = buf.getChannelData(0);
-      var frames = Number(body.frames) || 0;
+      // The true length is in the stream's samples; a browser that decoded
+      // at another rate holds proportionally more or fewer.
+      var rate = buf.sampleRate || sampleRate;
+      var frames = Math.round((Number(body.frames) || 0) * rate / sampleRate);
       var n = frames > 0 ? Math.min(f32.length, frames) : f32.length;
       if (!n) throw new Error("The kept audio was empty.");
       var out = new Int16Array(n);
@@ -775,7 +778,7 @@ window.FamAudio = (function () {
         out[i] = v >= 1 ? 32767 : v <= -1 ? -32768 : Math.round(v * 32767);
       }
       // Decoded at the context's rate, which a browser may have refused.
-      if (buf.sampleRate && buf.sampleRate !== sampleRate) sampleRate = buf.sampleRate;
+      if (rate !== sampleRate) sampleRate = rate;
       deliver(out);
       streamDone = true;
     });
