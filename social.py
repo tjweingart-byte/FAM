@@ -246,6 +246,11 @@ def clean_tags(tags) -> list[dict]:
     return out
 
 
+def like_literal(text: str) -> str:
+    """`text` as a literal inside a LIKE pattern written with ESCAPE '!'."""
+    return str(text).replace("!", "!!").replace("%", "!%").replace("_", "!_")
+
+
 class SocialStore:
     def __init__(self, path: str | None = None) -> None:
         self.path = data_path("SOCIAL_DB", "social.db", path)
@@ -1376,12 +1381,16 @@ class SocialStore:
         term = " ".join(str(term or "").split()).strip().lstrip("@").lower()
         if len(term) < 2:
             return []
-        like = term.replace("%", "").replace("_", "") + "%"
+        # Escaped rather than stripped (10.8 packet): stripping `_` made
+        # "tj_w" look for "tjw", so a handle with an underscore in it was
+        # never found once the underscore was typed.
+        like = like_literal(term) + "%"
         try:
             rows = self._conn().execute(
                 "SELECT user_id, name, handle, avatar FROM people"
-                " WHERE handle != '' AND (handle LIKE ? OR LOWER(name) LIKE ?)"
-                " ORDER BY (handle LIKE ?) DESC, handle LIMIT ?",
+                " WHERE handle != '' AND (handle LIKE ? ESCAPE '!'"
+                " OR LOWER(name) LIKE ? ESCAPE '!')"
+                " ORDER BY (handle LIKE ? ESCAPE '!') DESC, handle LIMIT ?",
                 (like, "%" + like, like, int(limit)),
             ).fetchall()
         except Exception:

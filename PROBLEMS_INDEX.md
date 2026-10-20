@@ -293,6 +293,8 @@ and `limit` = Lines.
 | 20567 | 115 | 287. More examples for the Haiku writer, and a wider list of trusted sources (2026-10-16) |
 | 20682 | 128 | 288. The 10.16 instant feedback: the first step, a sent episode, Trending's sources, the writing on Haiku, and the pause in the first line (2026-10-16) |
 | 20810 | 110 | 289. The 10.16 admin page: errors that open, reports explained, transcripts that arrive, GDELT's pressure, Finnhub's refusals and Wikipedia's pronunciations (2026-10-16) |
-| 20920 | 91 | 290. API-Sports and Tiingo's free plans while developing (2026-10-16) |
-| 21011 | 41 | 293. Kept audio lives in the bucket and nowhere else (2026-10-20) |
-| 21052 | 51 | 294. Replays off the server for Safari, and the kept voice for searches (2026-10-20) |
+| 20920 | 92 | 290. API-Sports and Tiingo's free plans while developing (2026-10-16) |
+| 21012 | 93 | 291. The 10.8 implementations: the waitlist's friend search checked, a profile that cannot be skipped empty, a date and a place picked, a camera, and Spotify's bar (2026-10-20) |
+| 21105 | 85 | 292. Motion: the owner's ten picks (2026-10-20) |
+| 21190 | 41 | 293. Kept audio lives in the bucket and nowhere else (2026-10-20) |
+| 21231 | 51 | 294. Replays off the server for Safari, and the kept voice for searches (2026-10-20) |

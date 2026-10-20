@@ -21008,6 +21008,185 @@ Staging scrubs both keys (`spend_guard`). Settings in `config.py`,
 `tests/conftest.py`. `CLAUDE.md`'s `[sports-balldontlie]` line names the
 free plans; §289 notes at `sports-balldontlie` and `sweep-on-demand`.
 
+
+## 291. The 10.8 implementations: the waitlist's friend search checked, a profile that cannot be skipped empty, a date and a place picked, a camera, and Spotify's bar (2026-10-20)
+
+The owner's 10.8 packet, in two parts: the waitlist, and how an action is
+confirmed.
+
+**The friend search, checked (asked: "double check this and report any
+issues").** Probed against `/api/waitlist/people` with a joined account per
+case. Name, handle prefix, a whole email in any case, and a US number in any
+punctuation all worked. Four things did not:
+
+1. **A handle with an underscore was never found once the underscore was
+   typed.** `SocialStore.find_people` *stripped* `_` and `%` to keep its LIKE
+   literal, so "tj_w" looked for "tjw%" and found nobody - the same mistake
+   §226 fixed in `user_by_handle`. It now escapes them (`like_literal`,
+   `ESCAPE '!'`; Postgres reads it the same, `db.py` turns LIKE into ILIKE).
+   This was the app's own people search too.
+2. **A handle typed with its @ ("@tj_weingart") found nobody**: anything with
+   an "@" was taken for an email address, which failed, and the name search
+   never ran - and it spent one of the day's 20 exact lookups. A leading @
+   is a handle now, in both places.
+3. **A number typed without its country code was only tried as +1.** A
+   friend in London types "07700 900123". `_waitlist_exact` now tries it
+   first in the searcher's own country (the code at the front of their own
+   number, from the page's list of codes, `_WAITLIST_DIAL_CODES`), trunk 0
+   dropped, then +1, then the digits with a +.
+4. **Somebody who skipped the profile could not be found at all**, by name,
+   email or number: the search reads names and handles from the people
+   table, which skipping never wrote. With item 2 below, skipping now saves
+   the name on the account, and the search reads waitlisted accounts' names
+   too (`Waitlist.named_like`), and uses it for an email or number match.
+   Only waitlisted accounts: somebody already in the app is found by their
+   handle, as anywhere in FAM. Once a handle goes with the name they are
+   found once, by it.
+
+Still true, by design: one letter finds nobody (two at least), part of an
+email or a number finds nobody, and nobody with no name at all is offered by
+an address alone.
+
+**"Skip for now" waits for a name and a phone number**, on the waitlist's
+profile and on the app's first-run "Who are you?" step (which gained a phone
+field for it; Edit profile does not ask - the number is the account's,
+changed in Settings). Greyed (`aria-disabled`, not `disabled`, so pressing it
+early can still say why); pressed early it shows "Please fill out required
+fields before continuing" with only an X, which goes back and focuses the
+first empty field, both outlined. The fields are marked Required. Save (Next)
+in setup asks for the same. Skipping with them in keeps them (the name to
+`display_name`, the number, and on the waitlist a typed date of birth and
+place) - a skip that threw away the two required fields would have made
+requiring them pointless.
+
+**Date of birth is typed MM/DD/YYYY** - first built DD/MM/YYYY as the packet
+wrote it, then month first at the owner's word the same day -
+slashes put in as the digits are typed, checked as a real date, sent as
+YYYY-MM-DD, which is what `clean_birth_date` stores. It replaces the
+browser's date picker, which on iOS drew an empty box wider than the page.
+
+**Country and state are lists that can be typed into** (a combobox: tap to
+open, type to narrow, arrows and Enter, a name typed whole in any case
+becomes the list's spelling, "USA"/"UK" too). The state's list is the chosen
+country's top-level subdivisions; changing country clears a state that is
+not in the new one. Anything typed that is not on a list is kept as typed -
+a place is whatever somebody says, and `preferences.Location` stores text.
+The data is `static/places.json` (249 countries, 200 with subdivisions, 54
+KB, fetched once by the page), written from ISO 3166 by
+`tools/build_places.py` with `pycountry`, which is not an app dependency.
+The city stays typed. The app's own location fields are unchanged.
+
+**The circle beside "Choose a photo" is a camera** until there is a photo:
+it showed initials, which were a single dot before a name was typed.
+
+**Spotify's bar** (`snack(msg, action)` in `static/index.html`): queueing,
+removing from the queue, saving and unsaving, vibing and taking a vibe
+back, adding to a mix (and creating one with it), taking out of a playlist,
+adding a mix to your myFAM, sending to a friend and copying a link are
+confirmed by a full-width bar just above the mini player - or the tabs -
+with the words on the left and somewhere to go on the right: **Open** (the
+queue, Saved for Later, the mix), **View** (your story, read again so the
+new vibe is in it), **Undo** (a queue removal, an unsave). It is the
+reverse of the page's colours (dark on the light theme, cream on the dark;
+`--snack-*`), stays 3.5 s with an action and 2.4 s without, and hides the
+small toast if one is up. Errors and everything else stay toasts.
+
+Tests: `tests/test_implementations_108.py`; `test_waitlist.py`'s setup test
+names `skipSetup()` now.
+
+Review before the merge into Main: Undo on "Removed from Saved for Later"
+called `saveForLater()`, which acts on whatever is playing when Undo is
+pressed - a different episode by then would have been saved, or unsaved.
+It now posts back the episode it took off. The queue's Undo reopened the
+queue sheet even after it had been closed (the sheet keeps its contents when
+hidden); it redraws only while the sheet is open. The previews' stand-in
+servers answer `/api/account`, which the first run now writes.
+
+## 292. Motion: the owner's ten picks (2026-10-20)
+
+The owner (10.20): "The app looks great, but it doesn't flow very well."
+Every screen change was `showScreen()` hiding one screen and showing the next
+in the same frame; the only things that moved were the tab icon's pop, the
+toast, voice search's sheet and the post-episode grid. A page of options -
+three per place, drawn as small working phones - went to the owner, who
+picked one in each:
+
+| Where | Pick |
+|---|---|
+| Opening and leaving a screen | Push slide: in from the right, the old one drifts left and dims; back reverses (320 / 260 ms) |
+| Switching tabs | Slide by position: the content nudges 18 px toward the new tab's side (110 out, 200 in) |
+| Opening the player | The tapped picture grows into the player's (380 ms) |
+| Minimising the player | The player's picture shrinks into the mini player's thumbnail (340 ms) |
+| Pressing any button | Squeeze: about 4 px smaller while held, sprung back on release |
+| Save, like, VIBE! | Burst with a label: a copper ring and six sparks as the icon pops, and "SAVED" / "LIKED" / "VIBED" beside it - two of the options combined, at the owner's request |
+| Menus and sheets | Fade and lift 14 px in; drop 8 px out (200 / 150 ms) |
+| Rails arriving | Tiles fade up 8 px, 40 ms apart, the first three of each rail |
+| Adding to the queue | The picture arcs into the queue button, which bumps and counts |
+| Explore's reel | A firm snap, then the title rises and the buttons step in |
+
+**How.** One module, `Motion`, beside `showScreen`. `showScreen(id, how)`
+takes a kind - `navigate` passes `push` (or `player-open`), `goBack` `pop`
+(or `player-close` off the player), `setTab` `tab`, `minimizePlayer`
+`player-close`; every other caller passes none and still snaps (sign-up,
+the intro, location: first-run screens shown by name). The screen going is
+kept on as `.leaving` - absolute, below the status bar, inert - under the new
+one on a push, over it on a back, and dropped when the animation ends; a
+second change finishes the first at once. A screen's tab bar and the mini
+player are counter-moved so they stay put while the rest slides. On a tab
+change only the content moves and the tab bar is the new screen's from its
+first frame, so it never dims.
+
+The player grows out of the picture inside whatever was last pressed: it is
+read on `pointerdown` (with where it was, because the mini player is hidden
+on the player's own screen before the player is drawn) and used for up to
+eight seconds, since a tile whose episode is still being written opens the
+player when its first words arrive. No picture - a typed search - and it is
+a push. Minimising needs the player's picture and a visible mini player,
+else it is a back.
+
+The squeeze is one `pointerdown` listener on anything pressable, scaled by
+size (`1 - 8 / longest side`, never below 0.9) so a card barely moves and a
+small button visibly does, using `composite: "add"` so an element's own
+transform survives; where `add` is unsupported, an element with a transform
+is left alone. It replaces forty-four per-element `:active { transform:
+scale() }` rules, which disagreed with one another and snapped. A press that
+becomes a scroll or a drag lets go after 8 px.
+
+Burst-and-say runs only from the action that turned the thing on -
+`saveForLater`'s success, the vibe composer's post, `rateReel(1)` - never
+from `setSaved` / `setEchoed`, which also paint state the server reports.
+Turning one off stays quiet. Sheets need no caller at all: a
+`MutationObserver` holds `.closing` on an overlay for 150 ms after `active`
+goes. Rails stagger only tiles that were not already on the page
+(`feedTopicsShown`, by topic id), so the cache's draw followed by the
+server's, or a game's score moving, does not replay it. The queue's count lives on the player's queue button, drawn by
+`drawMixSkip`, which every change to `QUEUE` already calls.
+
+**What none of it may do.** The new screen is `active` and tappable from its
+first frame; audio starts on the tap; every movement is 450 ms or less (the
+burst's label stays about a second, moving only as it comes and goes);
+nothing is shown in front of a wait. Search's five loading steps are
+untouched. Reduced motion: a screen change is a 120 ms crossfade, a sheet
+fades in over 120 ms and closes at once, and nothing else moves. CLAUDE.md `[motion]`, folded into the latency line
+to stay inside the core's budget; the full text is at `rule:motion` in
+`constraints.md`.
+
+**Not verified.** The smoke run exercises every transition in Chromium, and
+the preview shows them; how they feel on an iPhone's Safari - in particular
+`commitStyles` and `composite: "add"`, both Safari 16+ - has not been seen.
+
+**Review before the merge.** Five faults found reading the diff, each fixed:
+a leaving home, Explore or player screen stayed in the flex column (their
+id rules set `position: relative`, which beat `.screen.leaving`), so the
+arriving screen was drawn at half height - the leaving rule's position and
+stacking are now `!important`. `composite: "add"` added opacity too (1 + 0 is
+1), so the tab change, the rails and the reel's settle slid without fading -
+`runAdd` adds only the transform and runs the opacity beside it. The swipe
+from search to Explore animated a second time through `setTab` - the swipe
+calls `Motion.still()` first. Rails replayed on any change to the feed's
+markup - now only new tile ids arrive. The reel's overshooting snap ran
+under reduced motion - it now uses the old curve there.
+
 ## 293. Kept audio lives in the bucket and nowhere else (2026-10-20)
 
 The owner (10.20): "We want to have minimal things being saved [on the
