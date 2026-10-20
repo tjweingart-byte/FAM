@@ -294,3 +294,4 @@ and `limit` = Lines.
 | 20682 | 128 | 288. The 10.16 instant feedback: the first step, a sent episode, Trending's sources, the writing on Haiku, and the pause in the first line (2026-10-16) |
 | 20810 | 110 | 289. The 10.16 admin page: errors that open, reports explained, transcripts that arrive, GDELT's pressure, Finnhub's refusals and Wikipedia's pronunciations (2026-10-16) |
 | 20920 | 91 | 290. API-Sports and Tiingo's free plans while developing (2026-10-16) |
+| 21011 | 41 | 291. Kept audio lives in the bucket and nowhere else (2026-10-20) |

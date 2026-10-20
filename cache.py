@@ -591,6 +591,12 @@ AUDIO_CEILING_DISK_MB = 512
 AUDIO_CEILING_POSTGRES_MB = 128
 
 
+#: How long `put_audio` waits between tries at the bucket before it gives
+#: an episode up (§291): a brief R2 hiccup costs a second or two in the
+#: background, never a re-voicing. Three tries in all.
+UPLOAD_RETRY_SECONDS = (0.5, 2.0)
+
+
 def audio_ceiling_mb() -> int:
     """The ceiling in force, in MB. 0 means no ceiling."""
     mb = int(settings.audio_cache_max_mb)
@@ -1125,7 +1131,7 @@ class MemoryScriptCache:
         now = time.time() if now is None else now
         cutoff = now - recent_seconds()
         counts = {"kept": 0, "deleted": 0, "released": 0, "failed": 0,
-                  "uploaded": 0}
+                  "uploaded": 0, "cleared": 0}
         for pair, row in list(self._audio.items()):
             key = pair[0]
             is_held = key in held and self._origins.get(key) != ARCHIVE_ORIGIN
@@ -1331,9 +1337,9 @@ class SqliteScriptCache:
             # zlib); `frames` is the original length in samples; `object_key`
             # names the copy in the bucket ("" when there is none); `tier` is
             # "" for a first-week episode and "kept" for one somebody saved,
-            # shared or vibed. With a bucket, `pcm` is a hot copy and may be
-            # empty - the row then still describes the episode, and a play
-            # reads the bytes from `object_key`.
+            # shared or vibed. With a bucket, `pcm` is empty (§291; it was a
+            # hot copy until then) - the row still describes the episode,
+            # and a play reads the bytes from `object_key`.
             for column, ddl in (
                 ("codec", "ALTER TABLE episode_audio ADD COLUMN codec TEXT NOT NULL DEFAULT 'zlib'"),
                 ("frames", "ALTER TABLE episode_audio ADD COLUMN frames INTEGER NOT NULL DEFAULT 0"),
@@ -1800,9 +1806,9 @@ class SqliteScriptCache:
         already been written at the engine's rate, and PCM at another one would
         play at the wrong pitch rather than fail.
 
-        With a bucket (§237) this may make a network call - the hot copy is
-        read when there is one, else the object - so call it off the event
-        loop; `PodcastPipeline` does. An object the bucket no longer has drops
+        With a bucket (§237) this may make a network call - the object is
+        read, or a local copy left from before §291 - so call it off the
+        event loop; `PodcastPipeline` does. An object the bucket no longer has drops
         its row: the episode is voiced again and kept again, never failed.
         """
         try:
@@ -1833,10 +1839,10 @@ class SqliteScriptCache:
                     if missing:
                         self._forget_audio("key = ? AND voice = ?", (key, voice))
                     return None
-                # A hot copy for the next play, under the same ceiling.
-                conn.execute("UPDATE episode_audio SET pcm = ? WHERE key = ? AND voice = ?",
-                             (sqlite3.Binary(blob), key, voice))
-                self._evict_audio()
+                # Read from the bucket and kept nowhere else (§291): the
+                # next play reads the bucket again, which costs nothing to
+                # send. Nothing of an episode's audio is written to this
+                # server once the bucket holds it.
             conn.execute(
                 "UPDATE episode_audio SET played = ? WHERE key = ? AND voice = ?",
                 (time.time(), key, voice))
@@ -1876,8 +1882,15 @@ class SqliteScriptCache:
         the bucket happen here, so call it off the event loop -
         `PodcastPipeline` does, after the last byte is sent. The row is
         written only after the upload succeeded, so a row with an object name
-        always names an object; a failed upload keeps the audio here alone
-        and says so in the log.
+        always names an object.
+
+        **With a bucket, the bytes are kept there and nowhere else** (§291,
+        at the owner's direction): the row holds the name, the sentences and
+        the length, never the audio. An upload is tried three times
+        (`UPLOAD_RETRY_SECONDS`); one that still fails keeps nothing - the
+        episode is voiced again on its next play - and is recorded on /admin.
+        With no bucket (staging, a laptop) the row is the only place the
+        audio can live, and keeps it as before.
         """
         if not pcm:
             return False
@@ -1893,14 +1906,9 @@ class SqliteScriptCache:
             name = ""
             store = audio_store.get_store()
             if store is not None:
-                candidate = audio_store.object_name(
-                    audio_store.RECENT, secrets.token_hex(16))
-                try:
-                    store.put(candidate, blob)
-                    name = candidate
-                except audio_store.AudioStoreError as exc:
-                    log.warning("audio store: %s; keeping this episode in"
-                                " scripts.db only", exc)
+                name = self._upload(store, blob)
+                if not name:
+                    return False
             # A row this replaces may name an object of its own.
             self._forget_audio("key = ? AND voice = ?", (key, voice))
             cur = self._conn().execute(
@@ -1911,16 +1919,17 @@ class SqliteScriptCache:
                 " WHERE key = ? AND expires >= ?",
                 (key, voice, int(sample_rate), now, now, len(blob),
                  json.dumps(list(sentences)), json.dumps(list(starts)),
-                 sqlite3.Binary(blob), codec, frames, name, key, now),
+                 sqlite3.Binary(b"" if name else blob), codec, frames, name,
+                 key, now),
             )
             if not cur.rowcount:
                 if name:
                     self._conn().execute("INSERT OR IGNORE INTO audio_deletes"
                                          " (name, at) VALUES (?, ?)", (name, now))
                 return False
-            log.info("audio kept as %s (%.0f%% of raw)%s", codec,
+            log.info("audio kept as %s (%.0f%% of raw) %s", codec,
                      100 * audio_codec.ratio(codec, blob, frames),
-                     " and in the bucket" if name else "")
+                     "in the bucket" if name else "in scripts.db")
             self._evict_audio()
             # An episode larger than the whole ceiling is evicted by its own
             # write; saying it was kept would be a claim nothing can serve.
@@ -1928,6 +1937,29 @@ class SqliteScriptCache:
         except Exception:
             log.exception("audio cache write failed; continuing")
             return False
+
+    @staticmethod
+    def _upload(store, blob: bytes) -> str:
+        """Put one episode's audio in the bucket under a new `recent/` name,
+        trying again after each of `UPLOAD_RETRY_SECONDS`. The name, or ""
+        when every try failed - which is recorded where /admin reads it,
+        because an episode that was not kept will be voiced again (§291)."""
+        name = audio_store.object_name(audio_store.RECENT, secrets.token_hex(16))
+        waits = (0.0,) + tuple(UPLOAD_RETRY_SECONDS)
+        for attempt, wait in enumerate(waits, 1):
+            if wait:
+                time.sleep(wait)
+            try:
+                store.put(name, blob)
+                return name
+            except audio_store.AudioStoreError as exc:
+                last = exc
+                log.warning("audio store: %s (try %d of %d)", exc, attempt, len(waits))
+        import pipeline_errors
+
+        pipeline_errors.record("audio", "upload failed",
+                               f"{last}; not kept, voiced again on its next play")
+        return ""
 
     def _evict_audio(self) -> None:
         """Least recently played first, until the hot copies fit the ceiling.
@@ -1984,6 +2016,12 @@ class SqliteScriptCache:
             store = audio_store.get_store()
             if store is not None:
                 counts["uploaded"] = self._upload_strays(store)
+                # §291: a copy kept here of audio the bucket holds - every
+                # row's hot copy from before - goes. The bucket is the
+                # only place its bytes live.
+                counts["cleared"] = conn.execute(
+                    "UPDATE episode_audio SET pcm = x''"
+                    " WHERE object_key != '' AND length(pcm) > 0").rowcount or 0
             rows = conn.execute(
                 "SELECT a.key, a.voice, a.object_key, COALESCE(s.origin, ''), a.tier"
                 " FROM episode_audio a LEFT JOIN scripts s ON s.key = a.key"
@@ -2057,8 +2095,9 @@ class SqliteScriptCache:
             except audio_store.AudioStoreError as exc:
                 log.warning("audio store: %s; backfill resumes next sweep", exc)
                 break
+            # In the bucket now, so the copy here goes (§291).
             cur = conn.execute(
-                "UPDATE episode_audio SET object_key = ?"
+                "UPDATE episode_audio SET object_key = ?, pcm = x''"
                 " WHERE key = ? AND voice = ? AND object_key = ''", (name, key, voice))
             if not cur.rowcount:  # dropped or re-kept while uploading
                 conn.execute("INSERT OR IGNORE INTO audio_deletes (name, at)"

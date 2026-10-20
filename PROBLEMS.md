@@ -21007,3 +21007,44 @@ Staging scrubs both keys (`spend_guard`). Settings in `config.py`,
 `.env.example`, `render.yaml` (production, `sync: false`) and
 `tests/conftest.py`. `CLAUDE.md`'s `[sports-balldontlie]` line names the
 free plans; §289 notes at `sports-balldontlie` and `sweep-on-demand`.
+
+## 291. Kept audio lives in the bucket and nowhere else (2026-10-20)
+
+The owner (10.20): "We want to have minimal things being saved [on the
+Render disk], if anything at all", and cached episodes "should be saved
+entirely in Cloudflare". §237 put kept audio in R2 but kept a **hot copy**
+of every episode in `episode_audio.pcm` - up to 512 MB of the 1 GB disk (128
+MB of database storage on Postgres) - and a streamed replay of a cold
+episode downloaded the object and wrote it back as a new hot copy.
+
+**Now, with a bucket, the row never holds the bytes.** `put_audio` uploads
+and writes the row with an empty `pcm`; `get_audio` reads the object and
+writes nothing back. The hot copy only ever saved a streamed replay one R2
+round trip (~50-200 ms), and since §252 a replay on any browser that decodes
+Opus is a signed link and never reaches the server's copy at all.
+
+**What the hot copy also was: the fallback for a failed upload.** That is
+replaced by three tries (`cache.UPLOAD_RETRY_SECONDS`, 0.5 s then 2 s, off
+the event loop after the last byte is sent). An upload that still fails
+keeps nothing - the next play is voiced again on the GPU - and is recorded
+as `audio / upload failed` on /admin (`failures-visible`). Losing one
+episode's audio to an R2 outage is a re-voicing; keeping a copy would have
+been a write to the disk the owner wants empty.
+
+**Rows from before.** The hourly sweep still uploads up to 200 rows that
+have no object (`_upload_strays`), and now empties each one's `pcm` once
+uploaded; it also empties every row whose audio is already in the bucket
+(`counts["cleared"]`). So the first sweep after deploy frees the hot copies,
+and rows from before the bucket drain over hours. Space is reclaimed inside
+SQLite (a `VACUUM` would return it to the disk; not needed while the disk
+is being retired).
+
+**Unchanged.** With no bucket - staging, which spend_guard keeps off R2, and
+a laptop - the row is the only place audio can live and keeps it under
+`AUDIO_CACHE_MAX_MB` exactly as before. `MemoryScriptCache` has no bucket.
+Exports still carry bytes (`export_episode` reads the object).
+
+Rule note at `no-audio-files`; `CLAUDE.md`'s line says "never its bytes".
+Tests in `tests/test_audio_store.py`: no hot copy on write, after a replay,
+or after a backfill; a flaky upload retried; a failing one keeps nothing and
+is recorded; the sweep clears old copies; no bucket keeps the row.

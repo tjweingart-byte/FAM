@@ -6,8 +6,9 @@ Three promises, each tested by what it would cost if it broke:
   is exactly as long as what was voiced (or a caption moves), and production
   rates are Opus while a rate Opus cannot carry stays zlib.
 * **The database names the object; the bucket holds it**: a row is written
-  only after its upload, a play with no hot copy reads the bucket, and an
-  object the bucket lost costs one re-voicing, never a failed play.
+  only after its upload, holds no audio of its own once the bucket has it
+  (§291), a play reads the bucket and writes nothing here, and an object the
+  bucket lost costs one re-voicing, never a failed play.
 * **The week (owner's direction)**: every episode's audio is kept a week;
   then saved, shared or vibed audio moves to `kept/` in Infrequent Access
   and everything else is deleted - and every way a row is dropped deletes
@@ -175,24 +176,54 @@ def test_new_audio_goes_to_recent_and_the_row_names_it(db, bucket):
     keep(db, "a")
     name, tier, hot, codec = row(db, "a")
     assert name.startswith(audio_store.RECENT) and name in bucket.objects
-    assert tier == "" and hot > 0
+    assert tier == ""
+    assert hot == 0, "audio the bucket holds was kept on this server too (§291)"
     if audio_codec.available()[0]:
         assert codec == audio_codec.OPUS
 
 
-def test_a_failed_upload_keeps_the_audio_here_alone(db, bucket, monkeypatch):
+def test_a_failed_upload_is_tried_again(db, bucket, monkeypatch):
+    monkeypatch.setattr(cache_mod, "UPLOAD_RETRY_SECONDS", (0, 0))
+    real, tries = bucket.put, []
+
+    def flaky(name, data, storage_class=""):
+        tries.append(name)
+        if len(tries) < 3:
+            raise audio_store.AudioStoreError("down")
+        real(name, data, storage_class)
+
+    monkeypatch.setattr(bucket, "put", flaky)
+    keep(db, "a")
+    assert len(tries) == 3
+    assert row(db, "a")[0] in bucket.objects and row(db, "a")[2] == 0
+
+
+def test_an_upload_that_keeps_failing_keeps_nothing_here(db, bucket, monkeypatch):
+    """§291: never a copy on this server's disk. The episode is voiced again
+    on its next play, and /admin says why."""
+    import pipeline_errors
+
+    monkeypatch.setattr(cache_mod, "UPLOAD_RETRY_SECONDS", (0, 0))
+    recorded = []
+    monkeypatch.setattr(pipeline_errors, "record",
+                        lambda *a, **k: recorded.append(a))
+
     def refuse(*_a, **_k):
         raise audio_store.AudioStoreError("down")
 
-    real = bucket.put
     monkeypatch.setattr(bucket, "put", refuse)
+    db.put("a", ["One."], ttl=WEEK, query="a", minutes=2)
+    assert not db.put_audio("a", "v", 24000, speech(2), ["One."], [0.0])
+    assert row(db, "a") is None, "a failed upload left audio on this server"
+    assert not db.has_audio("a", "v", 24000)
+    assert recorded and recorded[0][:2] == ("audio", "upload failed")
+
+
+def test_without_a_bucket_the_row_is_where_audio_lives(db):
+    """Staging and a laptop have no bucket: there the row is the only copy."""
     keep(db, "a")
-    assert row(db, "a")[0] == "", "a row named an object that was never written"
+    assert row(db, "a")[0] == "" and row(db, "a")[2] > 0
     assert db.get_audio("a", "v", 24000) is not None
-    # The next sweep puts it in the bucket.
-    monkeypatch.setattr(bucket, "put", real)
-    assert db.sweep_audio(set())["uploaded"] == 1
-    assert row(db, "a")[0] in bucket.objects
 
 
 def test_audio_from_before_the_bucket_is_backfilled_then_kept(db):
@@ -205,18 +236,29 @@ def test_audio_from_before_the_bucket_is_backfilled_then_kept(db):
     finally:
         audio_store.set_store(None)
     assert counts["uploaded"] == 1 and counts["kept"] == 1
-    name = row(db, "old")[0]
+    name, _tier, hot, _codec = row(db, "old")
     assert name.startswith(audio_store.KEPT)
     assert store.objects[name][1] == audio_store.INFREQUENT
+    assert hot == 0, "backfilled audio stayed on this server too"
 
 
-def test_an_evicted_hot_copy_is_read_back_from_the_bucket(db, bucket, monkeypatch):
-    monkeypatch.setattr(cache_mod, "audio_ceiling_bytes", lambda: 1)
+def test_a_replay_reads_the_bucket_and_writes_nothing_here(db, bucket):
     keep(db, "a")
-    assert row(db, "a")[2] == 0, "the hot copy outlived the ceiling"
-    assert db.has_audio("a", "v", 24000), "eviction lost audio the bucket holds"
+    assert db.has_audio("a", "v", 24000)
     assert db.get_audio("a", "v", 24000) is not None
     assert ("get", row(db, "a")[0]) in bucket.calls
+    assert row(db, "a")[2] == 0, "a replay left a hot copy on this server"
+
+
+def test_the_sweep_clears_hot_copies_from_before(db, bucket):
+    """Rows written before §291 hold their audio here as well as in the
+    bucket: the next sweep empties them, and they still play."""
+    keep(db, "a")
+    blob = bucket.objects[row(db, "a")[0]][0]
+    db._conn().execute("UPDATE episode_audio SET pcm = ?", (blob,))
+    assert db.sweep_audio(set())["cleared"] == 1
+    assert row(db, "a")[2] == 0
+    assert db.get_audio("a", "v", 24000) is not None
 
 
 def test_an_object_the_bucket_lost_costs_a_revoicing_not_a_failure(db, bucket, monkeypatch):
@@ -261,7 +303,7 @@ def test_nothing_younger_than_a_week_is_touched(db, bucket):
     keep(db, "new")
     age(db, "new", WEEK - 3600)
     assert db.sweep_audio(set()) == {"kept": 0, "deleted": 0, "released": 0,
-                                     "failed": 0, "uploaded": 0}
+                                     "failed": 0, "uploaded": 0, "cleared": 0}
     assert row(db, "new")[1] == ""
 
 

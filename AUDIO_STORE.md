@@ -1,9 +1,12 @@
 # Kept audio in Cloudflare R2
 
 PROBLEMS.md §237. Kept audio is packed as Opus at 24 kbps and, with
-`AUDIO_STORE=r2`, lives in a Cloudflare R2 bucket. `scripts.db` keeps each
-object's name and a hot copy of recently played episodes. Until `AUDIO_STORE`
-is set, everything stays in `scripts.db` as before, still packed as Opus.
+`AUDIO_STORE=r2`, lives in a Cloudflare R2 bucket - **and only there**
+(§291): `scripts.db` keeps each object's name, sentences and length, never
+the bytes. An upload is tried three times; one that still fails keeps
+nothing, shows on /admin, and the episode is voiced again on its next play.
+Until `AUDIO_STORE` is set, everything stays in `scripts.db` as before,
+still packed as Opus.
 
 ## What is kept, and for how long
 
@@ -74,9 +77,9 @@ installed clients never ask for a link and keep streaming.
 
 ## Turning it off
 
-`AUDIO_STORE=` (empty) stops new uploads; rows that have a hot copy keep
-playing, and rows whose only copy is in the bucket are voiced again on their
-next play. `AUDIO_CODEC=zlib` restores §132's packing for new audio; Opus rows
+`AUDIO_STORE=` (empty) stops new uploads, and new audio is kept in
+`scripts.db` again; rows whose only copy is in the bucket (every row since
+§291) are voiced again on their next play. `AUDIO_CODEC=zlib` restores §132's packing for new audio; Opus rows
 already written keep playing.
 
 ## What it costs
