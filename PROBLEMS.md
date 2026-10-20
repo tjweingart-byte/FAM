@@ -21007,3 +21007,89 @@ Staging scrubs both keys (`spend_guard`). Settings in `config.py`,
 `.env.example`, `render.yaml` (production, `sync: false`) and
 `tests/conftest.py`. `CLAUDE.md`'s `[sports-balldontlie]` line names the
 free plans; §289 notes at `sports-balldontlie` and `sweep-on-demand`.
+
+
+## 291. The 10.8 implementations: the waitlist's friend search checked, a profile that cannot be skipped empty, a date and a place picked, a camera, and Spotify's bar (2026-10-20)
+
+The owner's 10.8 packet, in two parts: the waitlist, and how an action is
+confirmed.
+
+**The friend search, checked (asked: "double check this and report any
+issues").** Probed against `/api/waitlist/people` with a joined account per
+case. Name, handle prefix, a whole email in any case, and a US number in any
+punctuation all worked. Four things did not:
+
+1. **A handle with an underscore was never found once the underscore was
+   typed.** `SocialStore.find_people` *stripped* `_` and `%` to keep its LIKE
+   literal, so "tj_w" looked for "tjw%" and found nobody - the same mistake
+   §226 fixed in `user_by_handle`. It now escapes them (`like_literal`,
+   `ESCAPE '!'`; Postgres reads it the same, `db.py` turns LIKE into ILIKE).
+   This was the app's own people search too.
+2. **A handle typed with its @ ("@tj_weingart") found nobody**: anything with
+   an "@" was taken for an email address, which failed, and the name search
+   never ran - and it spent one of the day's 20 exact lookups. A leading @
+   is a handle now, in both places.
+3. **A number typed without its country code was only tried as +1.** A
+   friend in London types "07700 900123". `_waitlist_exact` now tries it
+   first in the searcher's own country (the code at the front of their own
+   number, from the page's list of codes, `_WAITLIST_DIAL_CODES`), trunk 0
+   dropped, then +1, then the digits with a +.
+4. **Somebody who skipped the profile could not be found at all**, by name,
+   email or number: the search reads names and handles from the people
+   table, which skipping never wrote. With item 2 below, skipping now saves
+   the name on the account, and the search reads waitlisted accounts' names
+   too (`Waitlist.named_like`), and uses it for an email or number match.
+   Only waitlisted accounts: somebody already in the app is found by their
+   handle, as anywhere in FAM. Once a handle goes with the name they are
+   found once, by it.
+
+Still true, by design: one letter finds nobody (two at least), part of an
+email or a number finds nobody, and nobody with no name at all is offered by
+an address alone.
+
+**"Skip for now" waits for a name and a phone number**, on the waitlist's
+profile and on the app's first-run "Who are you?" step (which gained a phone
+field for it; Edit profile does not ask - the number is the account's,
+changed in Settings). Greyed (`aria-disabled`, not `disabled`, so pressing it
+early can still say why); pressed early it shows "Please fill out required
+fields before continuing" with only an X, which goes back and focuses the
+first empty field, both outlined. The fields are marked Required. Save (Next)
+in setup asks for the same. Skipping with them in keeps them (the name to
+`display_name`, the number, and on the waitlist a typed date of birth and
+place) - a skip that threw away the two required fields would have made
+requiring them pointless.
+
+**Date of birth is typed DD/MM/YYYY** - day/month/year as the packet says -
+slashes put in as the digits are typed, checked as a real date, sent as
+YYYY-MM-DD, which is what `clean_birth_date` stores. It replaces the
+browser's date picker, which on iOS drew an empty box wider than the page.
+
+**Country and state are lists that can be typed into** (a combobox: tap to
+open, type to narrow, arrows and Enter, a name typed whole in any case
+becomes the list's spelling, "USA"/"UK" too). The state's list is the chosen
+country's top-level subdivisions; changing country clears a state that is
+not in the new one. Anything typed that is not on a list is kept as typed -
+a place is whatever somebody says, and `preferences.Location` stores text.
+The data is `static/places.json` (249 countries, 200 with subdivisions, 54
+KB, fetched once by the page), written from ISO 3166 by
+`tools/build_places.py` with `pycountry`, which is not an app dependency.
+The city stays typed. The app's own location fields are unchanged.
+
+**The circle beside "Choose a photo" is a camera** until there is a photo:
+it showed initials, which were a single dot before a name was typed.
+
+**Spotify's bar** (`snack(msg, action)` in `static/index.html`): queueing,
+removing from the queue, saving and unsaving, vibing and taking a vibe
+back, adding to a mix (and creating one with it), taking out of a playlist,
+adding a mix to your myFAM, sending to a friend and copying a link are
+confirmed by a full-width bar just above the mini player - or the tabs -
+with the words on the left and somewhere to go on the right: **Open** (the
+queue, Saved for Later, the mix), **View** (your story, read again so the
+new vibe is in it), **Undo** (a queue removal, an unsave). It is the
+reverse of the page's colours (dark on the light theme, cream on the dark;
+`--snack-*`), stays 3.5 s with an action and 2.4 s without, and hides the
+small toast if one is up. Errors and everything else stay toasts.
+
+Tests: `tests/test_implementations_108.py`; `test_waitlist.py`'s setup test
+names `skipSetup()` now.
+

@@ -170,6 +170,14 @@ section when a decision changes, including why.
     Deeper's yellow, **Learn more about FAM →**, opens the landing page's
     "What is FAM" section in its own view, with "Back to your spot" (and its
     last button) returning to the place in line. Signing in skips setup.
+    Since the 10.8 packet (PROBLEMS.md §291) **Skip for now** is greyed until
+    the name and the phone number are in; pressed early it says "Please fill
+    out required fields before continuing" with only an X. Skipping keeps
+    what was typed: the name on the account (`display_name`, found by the
+    friend search until a handle goes with it), the number, the date of birth
+    (typed DD/MM/YYYY) and the place. Country and state are lists that can be
+    typed into, the state's list the country's own (`static/places.json`,
+    written by `tools/build_places.py`); the city stays typed.
 21. **Still open (ask the owner):** what each unlock gives (the tiers are
     `WAITLIST_UNLOCKS`, default `1,3,5`); whether completing a profile moves
     anyone up; one label ("Your FAM" / "Your Friends") or two.

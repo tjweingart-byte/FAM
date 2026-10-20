@@ -10806,16 +10806,32 @@ async def waitlist_me(request: Request) -> dict:
     }
 
 
-def _waitlist_exact(term: str) -> str:
+#: The country codes the waitlist's phone field offers, longest first: how a
+#: searcher's own number says which country they dial from.
+_WAITLIST_DIAL_CODES = sorted(
+    ("1", "44", "61", "64", "353", "27", "91", "49", "33", "34", "39", "31",
+     "46", "47", "45", "41", "52", "55", "54", "81", "82", "86", "65", "971",
+     "972", "234", "254", "63", "62", "48"), key=len, reverse=True)
+
+
+def _dial_code(phone: str) -> str:
+    """The country code at the front of an E.164 number, or ""."""
+    digits = str(phone or "").lstrip("+")
+    return next((c for c in _WAITLIST_DIAL_CODES if digits.startswith(c)), "")
+
+
+def _waitlist_exact(term: str, searcher: str = "") -> str:
     """The account whose email or phone number is exactly `term`, or "".
 
     Exact only, never a prefix: an address or a number a person already
     knows finds its owner, and nothing typed lists anybody else's. A number
     typed without a country code is tried as a US number (+1) - the list's
-    own default - and as the digits with a + in front.
+    own default - and as the digits with a + in front, and first (10.8
+    packet) as a number in the searcher's own country, its leading trunk 0
+    dropped: a friend in London types "07700 900123", not "+44".
     """
     term = " ".join(str(term or "").split()).strip()
-    if not term:
+    if not term or term.startswith("@"):
         return ""
     if "@" in term:
         try:
@@ -10827,6 +10843,9 @@ def _waitlist_exact(term: str) -> str:
     if not re.fullmatch(r"\+?\d{7,15}", digits):
         return ""
     tries = [digits] if digits.startswith("+") else ["+1" + digits, "+" + digits]
+    home = _dial_code((ACCOUNTS.account(searcher) or {}).get("phone", "")) if searcher else ""
+    if home and not digits.startswith("+"):
+        tries.insert(0, "+" + home + digits.lstrip("0"))
     for attempt in tries:
         try:
             phone = accounts_mod.clean_phone(attempt)
@@ -10865,7 +10884,7 @@ _WAITLIST_EXACT: dict[str, list] = {}
 def _exact_lookup_allowed(user: str, term: str) -> bool:
     """Whether `term` may be looked up as a whole email or number, counting
     it against the day's allowance when it is one."""
-    looks_exact = "@" in term or bool(re.fullmatch(r"[\d\s()+.\-]{7,}", term or ""))
+    looks_exact = "@" in (term or "").lstrip("@") or bool(re.fullmatch(r"[\d\s()+.\-]{7,}", term or ""))
     if not looks_exact:
         return True
     day = int(time.time() // 86400)
@@ -10899,16 +10918,26 @@ async def waitlist_people(request: Request,
     user = _require_waitlist_searcher(request)
     term = " ".join(str(q or "").split()).strip()
     found: list[dict] = []
-    exact = _waitlist_exact(term) if _exact_lookup_allowed(user, term) else ""
+    exact = _waitlist_exact(term, user) if _exact_lookup_allowed(user, term) else ""
     # Somebody with no name and no handle has nothing to be recognised by,
-    # and is not offered by an address alone.
-    person = SOCIAL.person(exact) if exact and exact != user else {}
-    if person.get("name") or person.get("handle"):
-        found.append({"user_id": exact, "name": person.get("name") or "",
+    # and is not offered by an address alone. The name may be the account's
+    # own, saved with "Skip for now" before any handle (10.8 packet).
+    if exact == user:
+        exact = ""
+    person = SOCIAL.person(exact) if exact else {}
+    named = person.get("name") or ((ACCOUNTS.account(exact) or {}).get("display_name")
+                                   if exact else "")
+    if named or person.get("handle"):
+        found.append({"user_id": exact, "name": named or "",
                       "handle": person.get("handle") or "",
                       "avatar": person.get("avatar") or ""})
-    elif "@" not in term and not re.fullmatch(r"[\d\s()+.\-]+", term):
+    # "@brady" is a handle typed with its @, not an address.
+    elif "@" not in term.lstrip("@") and not re.fullmatch(r"[\d\s()+.\-]+", term):
         found = SOCIAL.find_people(term, exclude_user=user, limit=40)
+        # Then the waitlisted who skipped to a name with no handle yet.
+        seen = {p["user_id"] for p in found} | {user}
+        found += [dict(p, handle="", avatar="") for p in WAITLIST.named_like(term, limit=40)
+                  if p["user_id"] not in seen and not SOCIAL.person(p["user_id"]).get("handle")]
     found = [p for p in _without_apart(user, found)
              if not MODERATION.is_suspended(p["user_id"])
              and ACCOUNTS.account(p["user_id"])][:12]
