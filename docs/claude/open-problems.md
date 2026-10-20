@@ -61,7 +61,7 @@
    > a model's guess it disagrees with is replaced; an admin's is only shown
    > beside it on /admin, which also checks the whole list on request.
 <!-- rule:op-voice-bank -->
-> **Current (PROBLEMS.md §292, at the owner's direction):** a search by a
+> **Current (PROBLEMS.md §294, at the owner's direction):** a search by a
 > listener who has **never picked a voice** is spoken in the voice the
 > episode's audio is already kept in (`cache.audio_voices`, last played
 > first), so it replays instead of being voiced again on the GPU; the

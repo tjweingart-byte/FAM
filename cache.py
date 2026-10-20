@@ -592,7 +592,7 @@ AUDIO_CEILING_POSTGRES_MB = 128
 
 
 #: How long `put_audio` waits between tries at the bucket before it gives
-#: an episode up (§291): a brief R2 hiccup costs a second or two in the
+#: an episode up (§293): a brief R2 hiccup costs a second or two in the
 #: background, never a re-voicing. Three tries in all.
 UPLOAD_RETRY_SECONDS = (0.5, 2.0)
 
@@ -1344,7 +1344,7 @@ class SqliteScriptCache:
             # zlib); `frames` is the original length in samples; `object_key`
             # names the copy in the bucket ("" when there is none); `tier` is
             # "" for a first-week episode and "kept" for one somebody saved,
-            # shared or vibed. With a bucket, `pcm` is empty (§291; it was a
+            # shared or vibed. With a bucket, `pcm` is empty (§293; it was a
             # hot copy until then) - the row still describes the episode,
             # and a play reads the bytes from `object_key`.
             for column, ddl in (
@@ -1757,7 +1757,7 @@ class SqliteScriptCache:
 
     def audio_voices(self, key: str) -> list[str]:
         """The voices this episode's audio is kept in, last played first
-        (§292): what a search by a listener who never picked a voice plays,
+        (§294): what a search by a listener who never picked a voice plays,
         so it replays kept audio instead of voicing the episode again."""
         try:
             return [r[0] for r in self._conn().execute(
@@ -1827,7 +1827,7 @@ class SqliteScriptCache:
         play at the wrong pitch rather than fail.
 
         With a bucket (§237) this may make a network call - the object is
-        read, or a local copy left from before §291 - so call it off the
+        read, or a local copy left from before §293 - so call it off the
         event loop; `PodcastPipeline` does. An object the bucket no longer has drops
         its row: the episode is voiced again and kept again, never failed.
         """
@@ -1859,7 +1859,7 @@ class SqliteScriptCache:
                     if missing:
                         self._forget_audio("key = ? AND voice = ?", (key, voice))
                     return None
-                # Read from the bucket and kept nowhere else (§291): the
+                # Read from the bucket and kept nowhere else (§293): the
                 # next play reads the bucket again, which costs nothing to
                 # send. Nothing of an episode's audio is written to this
                 # server once the bucket holds it.
@@ -1904,7 +1904,7 @@ class SqliteScriptCache:
         written only after the upload succeeded, so a row with an object name
         always names an object.
 
-        **With a bucket, the bytes are kept there and nowhere else** (§291,
+        **With a bucket, the bytes are kept there and nowhere else** (§293,
         at the owner's direction): the row holds the name, the sentences and
         the length, never the audio. An upload is tried three times
         (`UPLOAD_RETRY_SECONDS`); one that still fails keeps nothing - the
@@ -1963,7 +1963,7 @@ class SqliteScriptCache:
         """Put one episode's audio in the bucket under a new `recent/` name,
         trying again after each of `UPLOAD_RETRY_SECONDS`. The name, or ""
         when every try failed - which is recorded where /admin reads it,
-        because an episode that was not kept will be voiced again (§291)."""
+        because an episode that was not kept will be voiced again (§293)."""
         name = audio_store.object_name(audio_store.RECENT, secrets.token_hex(16))
         waits = (0.0,) + tuple(UPLOAD_RETRY_SECONDS)
         for attempt, wait in enumerate(waits, 1):
@@ -2036,7 +2036,7 @@ class SqliteScriptCache:
             store = audio_store.get_store()
             if store is not None:
                 counts["uploaded"] = self._upload_strays(store)
-                # §291: a copy kept here of audio the bucket holds - every
+                # §293: a copy kept here of audio the bucket holds - every
                 # row's hot copy from before - goes. The bucket is the
                 # only place its bytes live.
                 counts["cleared"] = conn.execute(
@@ -2115,7 +2115,7 @@ class SqliteScriptCache:
             except audio_store.AudioStoreError as exc:
                 log.warning("audio store: %s; backfill resumes next sweep", exc)
                 break
-            # In the bucket now, so the copy here goes (§291).
+            # In the bucket now, so the copy here goes (§293).
             cur = conn.execute(
                 "UPDATE episode_audio SET object_key = ?, pcm = x''"
                 " WHERE key = ? AND voice = ? AND object_key = ''", (name, key, voice))

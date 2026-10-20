@@ -5535,7 +5535,7 @@ def _has_chosen_voice(user: str) -> bool:
 
 def _kept_voice(plan, engine: str) -> str:
     """The bank slug this episode's audio is already kept in on `engine`, or
-    "" (§292). Last played first; a voice that has left the bank is skipped."""
+    "" (§294). Last played first; a voice that has left the bank is skipped."""
     key = _episode_key(plan)
     lookup = getattr(SCRIPT_CACHE, "audio_voices", None)
     if not key or lookup is None:
@@ -5555,7 +5555,7 @@ def _episode_voice(user: str, where: str, plan, asked: str) -> Optional[str]:
 
     * **searchFAM** - the one surface with a voice picker: the voice the
       request names, else the listener's kept choice. A listener who has
-      **never picked one** (§292) hears the voice the episode's audio is
+      **never picked one** (§294) hears the voice the episode's audio is
       already kept in, so a search somebody else voiced is a replay rather
       than a second voicing on the GPU; the default when nothing is kept.
       Any choice - the default included - is always honoured.
@@ -9532,7 +9532,7 @@ async def audio(
     elif (link and fmt in ("opus", "pcm") and settings.audio_links
           and audio_codec_mod.can_stream(pipeline.engine.sample_rate)):
         # `can_stream` is AUDIO_STREAM_OPUS too: "always PCM" means no Opus
-        # file either. `fmt=pcm&link=1` (§292) is a player that cannot
+        # file either. `fmt=pcm&link=1` (§294) is a player that cannot
         # decode an Opus stream but can decode the whole file: it streams
         # PCM when there is no file, and is handed the link when there is.
         linked = await pipeline.stored_link(plan, settings.audio_link_seconds)
@@ -9559,7 +9559,7 @@ async def audio(
     if stored is None or not await stored(plan):
         _wake_remote_voice()
     elif fmt == "pcm" and not link_failed:
-        # A replay sent through this server as PCM (§292): every byte of
+        # A replay sent through this server as PCM (§294): every byte of
         # it is Render bandwidth. Counted beside the links, so health says
         # how many players still cannot take one.
         _AUDIO_LINKS["pcm_replays"] += 1
@@ -9858,7 +9858,7 @@ async def audio(
 #: fallback - the player asks again with `link_failed=1` when the file would
 #: not play (a bucket without CORS for this site, an object gone). Reported
 #: in `/api/health`, since nothing else on the server would ever see it.
-#: `pcm_replays` (§292) are replays still streamed as PCM through this server.
+#: `pcm_replays` (§294) are replays still streamed as PCM through this server.
 _AUDIO_LINKS = {"issued": 0, "fallbacks": 0, "pcm_replays": 0}
 
 

@@ -175,7 +175,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   captions, cache and titles keep the spelling. Chunks are seeded from
   voice + words; workers are refused on `VOICE_REFERENCE_FINGERPRINT`;
   `verify_voice.py --fingerprint` measures drift (§176). [op-voice]
-- **Voice bank** (§147, §292): only searchFAM picks a voice; other surfaces draw one
+- **Voice bank** (§147, §294): only searchFAM picks a voice; other surfaces draw one
   per episode and keep it. Voice is not in the script key; audio is keyed on it. [op-voice-bank]
 - The cold open is deleted, not disabled; the interface shows an honest wait. [op-cold-open-gone]
 - **myFAM**: a tile is a title and an angle, scripted on tap; rails are Made
@@ -266,7 +266,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
 Audio and the opening
 - **A first play streams as voiced** (PCM, or Opus if decoded, §242); **a
   replay may be a signed R2 link** (§252). Kept audio is Opus 24 kbps (§237) in R2,
-  `scripts.db` its name only (§291); readable only while its script
+  `scripts.db` its name only (§293); readable only while its script
   is, production voice, whole episodes; a week for all, then saved, shared or
   vibed moves to `kept/` (IA), the rest is deleted. `OfflineShelf` keeps
   finished episodes on the device, `sw.js` the shell (§161). [no-audio-files]

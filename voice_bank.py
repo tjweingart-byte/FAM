@@ -367,7 +367,7 @@ class VoiceBank:
 
     def has_choice(self, user_id: str) -> bool:
         """Whether this listener ever picked a search voice - the default
-        included, which is kept as "" (§292). Never picking is what lets a
+        included, which is kept as "" (§294). Never picking is what lets a
         search replay the voice an episode was already kept in."""
         if not user_id:
             return False

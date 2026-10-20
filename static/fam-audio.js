@@ -425,7 +425,7 @@ window.FamAudio = (function () {
   }
 
   /* A browser with no Opus decoder of its own may still read a whole Ogg
-     Opus file with decodeAudioData (§292) - Safari, mostly. Such a browser
+     Opus file with decodeAudioData (§294) - Safari, mostly. Such a browser
      streams first plays as PCM, as before, but a replay is a link to the
      file in the bucket, decoded whole, instead of PCM through the server.
      Asked once, of 0.1 s of silence encoded exactly as kept audio is. */
@@ -518,7 +518,7 @@ window.FamAudio = (function () {
     }).then(function (can) {
       // Opus where this browser can decode it, PCM everywhere else. A browser
       // that decodes Opus may be handed a replay as a link (§252), and so
-      // may one that decodes the file only whole (§292).
+      // may one that decodes the file only whole (§294).
       var fmt = can.opus ? "opus" : "pcm";
       linkedOpus = can.opus;
       streamUrl = url.replace("&fmt=FMT", "&fmt=" + fmt) + "&link_failed=1";
@@ -751,7 +751,7 @@ window.FamAudio = (function () {
     });
   }
 
-  /* The same file for a browser that decodes Ogg Opus only whole (§292):
+  /* The same file for a browser that decodes Ogg Opus only whole (§294):
      downloaded, decoded at the stream's rate, cut to the episode's true
      length and handed over as one buffer - what `playStored` plays. A
      failure before that buffer streams the episode instead, as a link that

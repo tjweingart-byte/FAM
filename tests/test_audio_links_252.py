@@ -210,7 +210,7 @@ def _player() -> str:
 def test_the_player_asks_for_a_link_only_where_the_file_decodes_and_falls_back():
     js = _player()
     # Opus streams where WebCodecs decodes it, PCM elsewhere; a link where
-    # either decoder reads the file (§252, §292).
+    # either decoder reads the file (§252, §294).
     assert '"&fmt=" + fmt + (can.opus || can.whole ? "&link=1" : "")' in js
     assert 'can.opus ? "opus" : "pcm"' in js
     assert "&link_failed=1" in js, "a fallback the server can count"

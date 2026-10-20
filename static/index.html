@@ -9497,7 +9497,7 @@
         // The voice changes the audio but not the script, so re-generating
         // reuses the cached script: no model call, no cost, near-instant.
         // A searched episode only - nothing else takes a chosen voice.
-        // After the choice is kept (§292): a listener who never chose hears
+        // After the choice is kept (§294): a listener who never chose hears
         // whatever voice is already kept, so a switch to the default sent
         // before the server knew would play the old voice again.
         var onPlayer = document.querySelector(".screen.active")

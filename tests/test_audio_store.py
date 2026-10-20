@@ -7,7 +7,7 @@ Three promises, each tested by what it would cost if it broke:
   rates are Opus while a rate Opus cannot carry stays zlib.
 * **The database names the object; the bucket holds it**: a row is written
   only after its upload, holds no audio of its own once the bucket has it
-  (§291), a play reads the bucket and writes nothing here, and an object the
+  (§293), a play reads the bucket and writes nothing here, and an object the
   bucket lost costs one re-voicing, never a failed play.
 * **The week (owner's direction)**: every episode's audio is kept a week;
   then saved, shared or vibed audio moves to `kept/` in Infrequent Access
@@ -177,7 +177,7 @@ def test_new_audio_goes_to_recent_and_the_row_names_it(db, bucket):
     name, tier, hot, codec = row(db, "a")
     assert name.startswith(audio_store.RECENT) and name in bucket.objects
     assert tier == ""
-    assert hot == 0, "audio the bucket holds was kept on this server too (§291)"
+    assert hot == 0, "audio the bucket holds was kept on this server too (§293)"
     if audio_codec.available()[0]:
         assert codec == audio_codec.OPUS
 
@@ -199,7 +199,7 @@ def test_a_failed_upload_is_tried_again(db, bucket, monkeypatch):
 
 
 def test_an_upload_that_keeps_failing_keeps_nothing_here(db, bucket, monkeypatch):
-    """§291: never a copy on this server's disk. The episode is voiced again
+    """§293: never a copy on this server's disk. The episode is voiced again
     on its next play, and /admin says why."""
     import pipeline_errors
 
@@ -251,7 +251,7 @@ def test_a_replay_reads_the_bucket_and_writes_nothing_here(db, bucket):
 
 
 def test_the_sweep_clears_hot_copies_from_before(db, bucket):
-    """Rows written before §291 hold their audio here as well as in the
+    """Rows written before §293 hold their audio here as well as in the
     bucket: the next sweep empties them, and they still play."""
     keep(db, "a")
     blob = bucket.objects[row(db, "a")[0]][0]

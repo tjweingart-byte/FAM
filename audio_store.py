@@ -9,7 +9,7 @@ month, and charges nothing for reading it back out.
 **The database keeps the name; the bucket keeps the bytes.** `episode_audio`
 still has one row per (script, voice) with everything a play needs except the
 audio - sentences, `starts`, codec, length - plus `object_key`. Its old `pcm`
-column was a hot copy until §291; now it is empty whenever the bucket holds
+column was a hot copy until §293; now it is empty whenever the bucket holds
 the audio, so nothing of an episode's sound is written to the server's disk
 or database, and a streamed replay reads the bucket each time.
 

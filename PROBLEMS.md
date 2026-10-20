@@ -21008,7 +21008,7 @@ Staging scrubs both keys (`spend_guard`). Settings in `config.py`,
 `tests/conftest.py`. `CLAUDE.md`'s `[sports-balldontlie]` line names the
 free plans; §289 notes at `sports-balldontlie` and `sweep-on-demand`.
 
-## 291. Kept audio lives in the bucket and nowhere else (2026-10-20)
+## 293. Kept audio lives in the bucket and nowhere else (2026-10-20)
 
 The owner (10.20): "We want to have minimal things being saved [on the
 Render disk], if anything at all", and cached episodes "should be saved
@@ -21049,9 +21049,9 @@ Tests in `tests/test_audio_store.py`: no hot copy on write, after a replay,
 or after a backfill; a flaky upload retried; a failing one keeps nothing and
 is recorded; the sweep clears old copies; no bucket keeps the row.
 
-## 292. Replays off the server for Safari, and the kept voice for searches (2026-10-20)
+## 294. Replays off the server for Safari, and the kept voice for searches (2026-10-20)
 
-The owner (10.20), after §291: implement the two remaining ways a replay
+The owner (10.20), after §293: implement the two remaining ways a replay
 of a cached episode went back through Render, "and we will test number
 three to make sure it works".
 
@@ -21096,6 +21096,6 @@ player's voice switch now waits for `/api/voices/choice` before playing
 again, or a switch to the default could reach the server before it knew
 and play the old voice.
 
-Tests: `tests/test_whole_file_kept_voice_292.py`; §252's pins for PCM
+Tests: `tests/test_whole_file_kept_voice_294.py`; §252's pins for PCM
 (`fmt=pcm&link=1` streamed) and the player's URL updated. Rule notes at
 `no-audio-files` and `op-voice-bank`.

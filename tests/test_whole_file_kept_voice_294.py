@@ -1,4 +1,4 @@
-"""Replays that stay off the server (PROBLEMS.md §292).
+"""Replays that stay off the server (PROBLEMS.md §294).
 
 Two ways a replay used to go back through Render, each tested by what it
 would cost if it came back:

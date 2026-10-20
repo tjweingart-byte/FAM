@@ -106,7 +106,7 @@ Render deployment; since §208 it pins every store there (21 since §211), as th
 
 | File (env var) | Owner module(s) | Main tables | Per-listener? | Retention | Erase / Wipe |
 |---|---|---|---|---|---|
-| **scripts.db** (`CACHE_PATH`) | `cache.py` | `scripts`, `episode_audio` | **No, shared** (`author` is provenance) | 7 days per row; with R2 the audio is in the bucket only (§291), else capped at 512 MB | `author` cleared on erase (§208) · **Wiped** |
+| **scripts.db** (`CACHE_PATH`) | `cache.py` | `scripts`, `episode_audio` | **No, shared** (`author` is provenance) | 7 days per row; with R2 the audio is in the bucket only (§293), else capped at 512 MB | `author` cleared on erase (§208) · **Wiped** |
 | **myfam.db** (`MYFAM_DB`) | `topics.py`, `learned_rank.py` | `events`, `learned_rank` | Yes | Forever (impressions 30 days) | Erased · **Wiped** (events and the model) |
 | **preferences.db** (`PREFS_DB`) | `preferences.py` | `preferences` | Yes | 1 row per listener | Erased · kept |
 | **accounts.db** (`ACCOUNTS_DB`) | `accounts.py`, `waitlist.py` | `accounts`, `sessions`, `identities`, `waitlist_settings`, `waitlist_outbox` | Yes | Sessions 90 days | Erased · **never wiped** |
@@ -368,7 +368,7 @@ database to measure.
 
 | Item | Size per unit | At 10k listeners |
 |---|---|---|
-| Kept audio | ~0.18 MB per minute (Opus 24 kbps, §237) | **None here with R2** - the bucket holds it (§291); without one, capped at 512 MB (`AUDIO_CACHE_MAX_MB`) |
+| Kept audio | ~0.18 MB per minute (Opus 24 kbps, §237) | **None here with R2** - the bucket holds it (§293); without one, capped at 512 MB (`AUDIO_CACHE_MAX_MB`) |
 | Tile pictures | ~30 KB per node | ≤ 4,000 nodes ≈ **≤ 120 MB** |
 | Script row, including the 1 KB vector | ~5-15 KB | 100k rows ≈ 1 GB |
 | Event row | ~200-400 bytes | 45 events/listener/month ≈ 150 MB/month |

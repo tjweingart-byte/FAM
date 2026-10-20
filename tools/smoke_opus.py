@@ -17,7 +17,7 @@ Every store goes to a temporary directory, found by reading every
 `data_path("VAR", ...)` in the source rather than listed here: a list kept by
 hand is how a new store ends up written into the working tree.
 
-And a browser with **no Opus decoder of its own** (§292) - Chromium with
+And a browser with **no Opus decoder of its own** (§294) - Chromium with
 `AudioDecoder` removed, standing in for Safari: it must still ask for a link,
 read the Ogg Opus file whole from the bucket (here a route that answers for
 R2), and hold exactly the file's samples without streaming anything else.
@@ -93,7 +93,7 @@ def kept_file(seconds: float = 2.0, rate: int = 24000) -> tuple[bytes, int]:
 
 
 def whole_file(browser, base: str, check) -> None:
-    """§292: a replay on a browser that decodes Opus only as a whole file."""
+    """§294: a replay on a browser that decodes Opus only as a whole file."""
     import json
 
     blob, frames = kept_file()
