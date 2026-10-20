@@ -1598,11 +1598,12 @@
   fade and lift; new rails arrive tile by tile; a queued episode flies to the
   queue, whose button counts it; Explore's reel snaps, then settles.
   What every one of them keeps to: the new screen is active and tappable
-  from its first frame, audio starts on the tap, nothing is longer than
-  450 ms, and none of it stands in for a wait - `[latency-start-earlier]`
+  from its first frame, audio starts on the tap, every movement is 450 ms or
+  less (the "SAVED" label stays about a second, moving only as it comes and
+  goes), and none of it stands in for a wait - `[latency-start-earlier]`
   still decides, and search's five loading steps are untouched. With the
-  system's reduced motion on, a screen change is a 120 ms crossfade and the
-  rest does not move.
+  system's reduced motion on, a screen change is a 120 ms crossfade, a sheet
+  fades in over 120 ms and closes at once, and nothing else moves.
 <!-- rule:speed-pitch -->
 - **A speed change must not change the voice.** *(§95, `fam-audio.js`.)*
   `playbackRate` on a buffer source resamples, so 1.5x came back a fifth

@@ -21157,19 +21157,32 @@ Burst-and-say runs only from the action that turned the thing on -
 from `setSaved` / `setEchoed`, which also paint state the server reports.
 Turning one off stays quiet. Sheets need no caller at all: a
 `MutationObserver` holds `.closing` on an overlay for 150 ms after `active`
-goes. Rails replay only when the feed's markup changed (`lastFeedHTML`), so
-the cached draw followed by the server's identical one does not stagger
-twice. The queue's count lives on the player's queue button, drawn by
+goes. Rails stagger only tiles that were not already on the page
+(`feedTopicsShown`, by topic id), so the cache's draw followed by the
+server's, or a game's score moving, does not replay it. The queue's count lives on the player's queue button, drawn by
 `drawMixSkip`, which every change to `QUEUE` already calls.
 
 **What none of it may do.** The new screen is `active` and tappable from its
-first frame; audio starts on the tap; nothing is longer than 450 ms; nothing
-is shown in front of a wait. Search's five loading steps are untouched.
-Reduced motion: a screen change is a 120 ms crossfade, sheets fade in 120 ms,
-and nothing else moves. CLAUDE.md `[motion]`, folded into the latency line
+first frame; audio starts on the tap; every movement is 450 ms or less (the
+burst's label stays about a second, moving only as it comes and goes);
+nothing is shown in front of a wait. Search's five loading steps are
+untouched. Reduced motion: a screen change is a 120 ms crossfade, a sheet
+fades in over 120 ms and closes at once, and nothing else moves. CLAUDE.md `[motion]`, folded into the latency line
 to stay inside the core's budget; the full text is at `rule:motion` in
 `constraints.md`.
 
 **Not verified.** The smoke run exercises every transition in Chromium, and
 the preview shows them; how they feel on an iPhone's Safari - in particular
 `commitStyles` and `composite: "add"`, both Safari 16+ - has not been seen.
+
+**Review before the merge.** Five faults found reading the diff, each fixed:
+a leaving home, Explore or player screen stayed in the flex column (their
+id rules set `position: relative`, which beat `.screen.leaving`), so the
+arriving screen was drawn at half height - the leaving rule's position and
+stacking are now `!important`. `composite: "add"` added opacity too (1 + 0 is
+1), so the tab change, the rails and the reel's settle slid without fading -
+`runAdd` adds only the transform and runs the opacity beside it. The swipe
+from search to Explore animated a second time through `setTab` - the swipe
+calls `Motion.still()` first. Rails replayed on any change to the feed's
+markup - now only new tile ids arrive. The reel's overshooting snap ran
+under reduced motion - it now uses the old curve there.

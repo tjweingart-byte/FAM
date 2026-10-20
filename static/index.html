@@ -1913,10 +1913,12 @@
      `Motion` module beside showScreen. While a screen changes, the one going
      is drawn under (push) or over (back) the one coming, absolutely, below
      the status bar - inert, and gone the moment its animation ends. Each
-     needs its own background, or the other shows through it. */
-  .screen.leaving{ display:flex; position:absolute; left:0; right:0; bottom:0; top:var(--sb-h);
-    pointer-events:none; z-index:0; background:var(--bg); }
-  .screen.leaving.on-top{ z-index:3; }
+     needs its own background, or the other shows through it. `!important`
+     because home, Explore and the player set their own position by id, and
+     a leaving screen left in the flex column halves the arriving one. */
+  .screen.leaving{ display:flex; position:absolute !important; left:0; right:0; bottom:0;
+    top:var(--sb-h) !important; pointer-events:none; z-index:0 !important; background:var(--bg); }
+  .screen.leaving.on-top{ z-index:3 !important; }
   .screen.active.arriving{ position:relative; z-index:2; background:var(--bg); }
   /* A picture flying between two places (player open and close, the queue). */
   .motion-ghost{ position:absolute; z-index:60; pointer-events:none;
@@ -1936,8 +1938,8 @@
     font-family:'Geist Mono', monospace; font-size:9px; font-weight:600; line-height:15px; text-align:center; }
   .q-badge[hidden]{ display:none; }
   /* Every sheet and modal fades and lifts 14px in, and drops 8px out. The
-     way out is a class the script holds for 150 ms after `active` goes, so
-     nothing that closes an overlay has to know about it. */
+     way out is a class the script holds for the 150 ms it takes after
+     `active` goes, so nothing that closes an overlay has to know about it. */
   .modal-overlay.active, .sheet-overlay.active{ animation:mo-in 200ms cubic-bezier(.2,.8,.2,1) backwards; }
   .modal-overlay.active > *, .sheet-overlay.active > *{ animation:mo-lift 200ms cubic-bezier(.2,.8,.2,1) backwards; }
   .modal-overlay.closing, .sheet-overlay.closing{ display:flex; pointer-events:none;
@@ -1947,11 +1949,11 @@
   @keyframes mo-lift{ from{ transform:translateY(14px); } }
   @keyframes mo-out{ to{ opacity:0; } }
   @keyframes mo-drop{ to{ transform:translateY(8px); } }
+  /* Reduced motion: a 120 ms fade in, nothing lifts, and closing is
+     immediate (the script holds no `closing` then). */
   @media (prefers-reduced-motion: reduce){
     .modal-overlay.active, .sheet-overlay.active{ animation-duration:120ms; }
-    .modal-overlay.active > *, .sheet-overlay.active > *,
-    .modal-overlay.closing > *, .sheet-overlay.closing > *{ animation:none; }
-    .modal-overlay.closing, .sheet-overlay.closing{ animation-duration:120ms; }
+    .modal-overlay.active > *, .sheet-overlay.active > *{ animation:none; }
   }
 
   /* The centre tab breaks the row: a larger disc lifted above the bar's top
@@ -5262,6 +5264,21 @@
                                   fill: o.fill || "both",
                                   composite: o.add && canAdd ? "add" : "replace" });
     }
+    // A transform added to an element's own, with any opacity in the same
+    // frames run beside it as a plain animation: added opacity would be
+    // 1 + 0 = 1, and nothing would fade.
+    function runAdd(el, frames, ms, o){
+      var moves = frames.map(function(f){ var g = {}; for(var k in f){ if(k !== "opacity") g[k] = f[k]; } return g; });
+      var out = [run(el, moves, ms, { easing: o.easing, delay: o.delay, fill: o.fill, add: true })];
+      if(frames.some(function(f){ return "opacity" in f; })){
+        out.push(run(el, frames.map(function(f){
+          var g = { opacity: "opacity" in f ? f.opacity : 1 };
+          if("offset" in f) g.offset = f.offset;
+          return g;
+        }), ms, { easing: o.easing, delay: o.delay, fill: o.fill }));
+      }
+      return out;
+    }
     function frameEl(){ return document.querySelector(".frame"); }
     function box(el){
       var f = frameEl().getBoundingClientRect(), r = el.getBoundingClientRect();
@@ -5306,17 +5323,22 @@
         ? e.target.closest('[onclick], button, [role="button"]') : null;
       tapped = { el: null, at: Date.now() };
       if(!card || card.closest(".modal-overlay, .sheet-overlay")) return;
-      var nodes = [card].concat(Array.prototype.slice.call(card.querySelectorAll("*"), 0, 40));
-      for(var i = 0; i < nodes.length; i++){
-        var pic = pictureOf(nodes[i]);
-        if(pic && seen(nodes[i])){
-          tapped = { el: nodes[i], at: tapped.at, picture: pic, box: box(nodes[i]),
-                     radius: getComputedStyle(nodes[i]).borderRadius,
-                     screen: nodes[i].closest(".screen") };
-          return;
-        }
+      var el = pictured(card);
+      if(el){
+        tapped = { el: el, at: tapped.at, picture: pictureOf(el), box: box(el),
+                   radius: getComputedStyle(el).borderRadius, screen: el.closest(".screen") };
       }
     }, true);
+    // The element itself, or the first of its first forty descendants, that
+    // shows a picture and is on screen.
+    function pictured(el){
+      if(!el) return null;
+      var nodes = [el].concat(Array.prototype.slice.call(el.querySelectorAll("*"), 0, 40));
+      for(var i = 0; i < nodes.length; i++){
+        if(pictureOf(nodes[i]) && seen(nodes[i])) return nodes[i];
+      }
+      return null;
+    }
     function tappedPicture(within){
       if(!tapped.el || Date.now() - tapped.at > 8000 || tapped.screen !== within) return null;
       var live = seen(tapped.el) && within.contains(tapped.el);
@@ -5355,8 +5377,13 @@
     }
     function neg(v){ return v.charAt(0) === "-" ? v.slice(1) : (parseFloat(v) === 0 ? v : "-" + v); }
 
+    // The swipe from search to Explore has already moved the screens by
+    // hand; the setTab it ends in must not animate them a second time.
+    var stillUntil = 0;
+    function still(){ stillUntil = Date.now() + 100; }
     function screen(from, to, how){
       settle();
+      if(Date.now() < stillUntil){ stillUntil = 0; return; }
       if(!how || !from || from === to || !canAnimate) return;
       var anims = [], ghosts = [], hidden = [], flights = [];
       from.classList.add("leaving");
@@ -5412,14 +5439,14 @@
           from.style.background = "transparent";
           fixedParts(from).forEach(function(part){ part.style.visibility = "hidden"; hidden.push(part); });
           contentOf(from, keep).forEach(function(el){
-            anims.push(run(el, [{ opacity: 1, transform: "translateX(0px)" },
-                                { opacity: 0, transform: "translateX(" + (-18 * dir) + "px)" }],
-                           110, { easing: EASE_IN, add: true }));
+            anims = anims.concat(runAdd(el, [{ opacity: 1, transform: "translateX(0px)" },
+                                             { opacity: 0, transform: "translateX(" + (-18 * dir) + "px)" }],
+                                        110, { easing: EASE_IN }));
           });
           contentOf(to, keep).forEach(function(el){
-            anims.push(run(el, [{ opacity: 0, transform: "translateX(" + (18 * dir) + "px)" },
-                                { opacity: 1, transform: "translateX(0px)" }],
-                           200, { delay: 90, add: true }));
+            anims = anims.concat(runAdd(el, [{ opacity: 0, transform: "translateX(" + (18 * dir) + "px)" },
+                                             { opacity: 1, transform: "translateX(0px)" }],
+                                        200, { delay: 90 }));
           });
         }
       }
@@ -5580,22 +5607,31 @@
     function arrive(els){
       if(!on()) return;
       els.forEach(function(el, i){
-        run(el, [{ opacity: 0, transform: "translateY(8px)" }, { opacity: 1, transform: "none" }], 260,
-            { delay: Math.min(i, 8) * 40, fill: "backwards", add: true });
+        runAdd(el, [{ opacity: 0, transform: "translateY(8px)" }, { opacity: 1, transform: "none" }], 260,
+               { delay: Math.min(i, 8) * 40, fill: "backwards" });
       });
     }
     // The first few of each rail, in reading order: left to right along a
     // rail, then the next rail down. Tiles past the screen's edge just appear.
-    function arriveRails(root){
-      if(!root || !on()) return;
-      var list = [];
+    // Only tiles that were not on the page before (`before`, by topic id), so
+    // a redraw - the server's answer after the cache's, a game's score moving
+    // - does not replay it; headings only on the page's first draw. Returns
+    // the ids now drawn, for the next call.
+    function arriveRails(root, before){
+      var now = {}, first = !before || !Object.keys(before).length, list = [];
+      if(!root) return now;
       root.querySelectorAll(".feed-section").forEach(function(sec){
         var title = sec.querySelector(".feed-title");
-        if(title) list.push(title);
-        Array.prototype.slice.call(sec.querySelectorAll(".feed-rail > *"), 0, 3)
-          .forEach(function(t){ list.push(t); });
+        if(title && first) list.push(title);
+        var tiles = sec.querySelectorAll(".feed-rail > [data-topic]");
+        Array.prototype.forEach.call(tiles, function(t, i){
+          var id = t.getAttribute("data-topic");
+          now[id] = true;
+          if(i < 3 && !(before && before[id])) list.push(t);
+        });
       });
-      arrive(list);
+      if(on()) arrive(list);
+      return now;
     }
 
     // ---- the queue: the episode flies to it ----
@@ -5617,7 +5653,7 @@
       var s = from && seen(from) ? box(from) : { x: f.width / 2 - 14, y: f.height / 2 - 11, w: 28, h: 22 };
       var e = box(target);
       var sx = s.x + s.w / 2 - 14, sy = s.y + s.h / 2 - 11, ex = e.x + e.w / 2 - 6, ey = e.y + e.h / 2 - 5;
-      var g = ghost(picture || pictureOf(from), { x: sx, y: sy, w: 28, h: 22 }, "5px");
+      var g = ghost(picture || pictureOf(pictured(from)), { x: sx, y: sy, w: 28, h: 22 }, "5px");
       run(g, [{ left: sx + "px", top: sy + "px", width: "28px", height: "22px", opacity: 1 },
               { left: ((sx + ex) / 2 + 10) + "px", top: (Math.min(sy, ey) - 24) + "px", width: "20px", height: "16px", opacity: 1, offset: 0.5 },
               { left: ex + "px", top: ey + "px", width: "12px", height: "10px", opacity: 0 }], 450, { easing: EASE_IO })
@@ -5632,15 +5668,15 @@
     function settleReel(delay){
       if(!on()) return;
       var body = document.getElementById("reelBody");
-      if(body) run(body, [{ opacity: 0, transform: "translateY(8px)" }, { opacity: 1, transform: "none" }], 220,
-                   { delay: delay, fill: "backwards", add: true });
+      if(body) runAdd(body, [{ opacity: 0, transform: "translateY(8px)" }, { opacity: 1, transform: "none" }], 220,
+                      { delay: delay, fill: "backwards" });
       document.querySelectorAll("#screen-explore .reel-actions > .reel-act").forEach(function(el, i){
-        run(el, [{ opacity: 0, transform: "translateX(10px)" }, { opacity: 1, transform: "none" }], 200,
-            { delay: delay + i * 30, fill: "backwards", add: true });
+        runAdd(el, [{ opacity: 0, transform: "translateX(10px)" }, { opacity: 1, transform: "none" }], 200,
+               { delay: delay + i * 30, fill: "backwards" });
       });
     }
 
-    return { on: on, screen: screen, celebrate: celebrate, watchOverlays: watchOverlays,
+    return { on: on, screen: screen, still: still, celebrate: celebrate, watchOverlays: watchOverlays,
              arrive: arrive, arriveRails: arriveRails, toQueue: toQueue, settleReel: settleReel,
              SNAP: "cubic-bezier(.3,1.25,.5,1)" };
   })();
@@ -13121,7 +13157,7 @@
     return '<div class="seed-card-title' + cls + '">' + escapeHtml(title) + '</div>';
   }
 
-  var lastFeedHTML = "";
+  var feedTopicsShown = {};
   function renderMyFamFeed(sections){
     var html = sections.map(function(sec){
       var title = SECTION_TITLE[sec.key];
@@ -13199,12 +13235,10 @@
         + html;
     }
     var feed = document.getElementById("myfamFeed");
-    var fresh = html !== lastFeedHTML;
-    lastFeedHTML = html;
     feed.innerHTML = html;
-    // New tiles arrive one after another (§292); the same page drawn again,
-    // from the cache and then the server, does not replay it.
-    if(fresh) Motion.arriveRails(feed);
+    // New tiles arrive one after another (§292); tiles already on the page
+    // do not arrive again.
+    feedTopicsShown = Motion.arriveRails(feed, feedTopicsShown);
     watchRailEnds();
     markOfflineCards();
     if(!isOffline()) loadTileSaves();
@@ -19673,7 +19707,7 @@
       void stage.offsetHeight;          // commit the jump before sliding in
       // A firm snap, then the new card settles: its title rises and its
       // buttons step in down the right (§292).
-      setReelShift(stage, 0, REEL_TURN_MS + 40, Motion.SNAP);
+      setReelShift(stage, 0, REEL_TURN_MS + 40, Motion.on() ? Motion.SNAP : undefined);
       Motion.settleReel(REEL_TURN_MS);
       reelBusy = false;
       playReel();
@@ -20337,7 +20371,7 @@
       var w = home.offsetWidth || 360;
       if(dx < -w / 3 || fast){
         place(-w, 200);
-        setTimeout(function(){ settle(); openExplore("home"); }, 200);
+        setTimeout(function(){ settle(); Motion.still(); openExplore("home"); }, 200);
       } else {
         place(0, 180);
         setTimeout(settle, 180);
