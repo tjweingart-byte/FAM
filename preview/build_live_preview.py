@@ -1323,6 +1323,24 @@ __WRITING_SIM__
         return json({ user_id: UID, email: EMAIL, authenticated: true });
       });
     }
+    // The account's own fields: the first run's required phone number and,
+    // with Skip, the name (10.8 packet).
+    if (path === "/api/account") {
+      var mineAcct = rows("accounts").filter(function (a) { return a.id === UID; })[0];
+      if (!mineAcct) return json({ error: "Sign in first." }, 401);
+      var shown = function (a) {
+        return { user_id: UID, email: a.email || "", phone: a.phone || "",
+                 display_name: a.display_name || "" };
+      };
+      if (method !== "POST") return json(shown(mineAcct));
+      var upd = {};
+      Object.keys(mineAcct).forEach(function (k) { if (k !== "id") upd[k] = mineAcct[k]; });
+      if (body.phone !== undefined && body.phone !== null) upd.phone = String(body.phone).trim();
+      if (body.display_name !== undefined && body.display_name !== null) {
+        upd.display_name = String(body.display_name).trim().slice(0, 60);
+      }
+      return put("accounts", UID, upd).then(function () { paint(); return json(shown(upd)); });
+    }
     if (path === "/api/auth/logout") {
       var gone = TOKEN;
       EMAIL = "";
