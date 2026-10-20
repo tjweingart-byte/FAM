@@ -963,11 +963,11 @@
     <label class="pfield"><span>Handle</span>
       <div class="handle-wrap"><span class="at">@</span>
         <input class="pinput" id="pHandle" maxlength="24" autocapitalize="off" autocorrect="off" spellcheck="false"></div></label>
-    <!-- Typed as DD/MM/YYYY (10.8 packet), not the browser's date picker;
+    <!-- Typed as MM/DD/YYYY (10.8 packet), not the browser's date picker;
          sent to the server as YYYY-MM-DD. -->
     <label class="pfield"><span>Date of birth</span>
       <input class="pinput" id="pBirth" type="text" inputmode="numeric" maxlength="10"
-             autocomplete="bday" placeholder="DD/MM/YYYY" aria-label="Date of birth, DD/MM/YYYY"></label>
+             autocomplete="bday" placeholder="MM/DD/YYYY" aria-label="Date of birth, MM/DD/YYYY"></label>
     <!-- Country and state are lists that can be typed into (10.8 packet):
          the state's list is the chosen country's own (`places.json`). A
          country with no list, or a state not on it, is kept as typed. The
@@ -1503,7 +1503,7 @@
   }
   function drawDetails(d){
     var x = d.details || {}, loc = x.location || {};
-    $("pBirth").value = isoToDmy(x.birth_date || "");
+    $("pBirth").value = isoToMdy(x.birth_date || "");
     $("pCountry").value = countryName(loc.country || "");
     lastCountry = countryCode($("pCountry").value);
     $("pRegion").value = loc.region || "";
@@ -1517,16 +1517,16 @@
     drawRequired();
   }
 
-  // Date of birth as DD/MM/YYYY (10.8 packet): the slashes go in as it is
+  // Date of birth as MM/DD/YYYY (10.8 packet, month first at the owner's word): the slashes go in as it is
   // typed, and the server is sent YYYY-MM-DD, which is what it stores.
-  function isoToDmy(iso){
+  function isoToMdy(iso){
     var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || "");
-    return m ? m[3] + "/" + m[2] + "/" + m[1] : "";
+    return m ? m[2] + "/" + m[3] + "/" + m[1] : "";
   }
-  function dmyToIso(text){
+  function mdyToIso(text){
     var m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(String(text || "").trim());
     if(!m) return null;
-    var d = +m[1], mo = +m[2], y = +m[3], when = new Date(Date.UTC(y, mo - 1, d));
+    var mo = +m[1], d = +m[2], y = +m[3], when = new Date(Date.UTC(y, mo - 1, d));
     if(when.getUTCFullYear() !== y || when.getUTCMonth() !== mo - 1 || when.getUTCDate() !== d) return null;
     return y + "-" + (mo < 10 ? "0" : "") + mo + "-" + (d < 10 ? "0" : "") + d;
   }
@@ -1806,9 +1806,9 @@
       ? "+" + digits.replace(/^00/, "") : $("pPhoneCC").value + digits;
   }
   function typedBirth(note){
-    var raw = $("pBirth").value.trim(), iso = raw ? dmyToIso(raw) : "";
+    var raw = $("pBirth").value.trim(), iso = raw ? mdyToIso(raw) : "";
     if(iso === null){
-      note.className = "form-note err"; note.textContent = "Enter your date of birth as DD/MM/YYYY.";
+      note.className = "form-note err"; note.textContent = "Enter your date of birth as MM/DD/YYYY.";
       $("pBirth").focus();
     }
     return iso;

@@ -21059,7 +21059,8 @@ in setup asks for the same. Skipping with them in keeps them (the name to
 place) - a skip that threw away the two required fields would have made
 requiring them pointless.
 
-**Date of birth is typed DD/MM/YYYY** - day/month/year as the packet says -
+**Date of birth is typed MM/DD/YYYY** - first built DD/MM/YYYY as the packet
+wrote it, then month first at the owner's word the same day -
 slashes put in as the digits are typed, checked as a real date, sent as
 YYYY-MM-DD, which is what `clean_birth_date` stores. It replaces the
 browser's date picker, which on iOS drew an empty box wider than the page.

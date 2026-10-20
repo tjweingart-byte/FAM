@@ -100,11 +100,12 @@ def test_skip_waits_for_a_name_and_a_phone_number():
     assert pop.count("<button") == 1 and 'aria-label="Close"' in pop
 
 
-def test_birth_date_is_typed_day_month_year():
+def test_birth_date_is_typed_month_day_year():
     field = WAITLIST_PAGE.split('id="pBirth"', 1)[1].split(">", 1)[0]
-    assert 'type="text"' in field and 'placeholder="DD/MM/YYYY"' in field
+    assert 'type="text"' in field and 'placeholder="MM/DD/YYYY"' in field
     assert 'type="date"' not in WAITLIST_PAGE
-    assert "function dmyToIso(" in WAITLIST_PAGE and "function isoToDmy(" in WAITLIST_PAGE
+    assert "function mdyToIso(" in WAITLIST_PAGE and "function isoToMdy(" in WAITLIST_PAGE
+    assert 'return m ? m[2] + "/" + m[3] + "/" + m[1]' in WAITLIST_PAGE
     save = WAITLIST_PAGE.split("window.saveProfile = function", 1)[1].split("\n  };", 1)[0]
     assert "birth_date: birth" in save
 

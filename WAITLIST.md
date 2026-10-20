@@ -175,7 +175,7 @@ section when a decision changes, including why.
     out required fields before continuing" with only an X. Skipping keeps
     what was typed: the name on the account (`display_name`, found by the
     friend search until a handle goes with it), the number, the date of birth
-    (typed DD/MM/YYYY) and the place. Country and state are lists that can be
+    (typed MM/DD/YYYY) and the place. Country and state are lists that can be
     typed into, the state's list the country's own (`static/places.json`,
     written by `tools/build_places.py`); the city stays typed.
 21. **Still open (ask the owner):** what each unlock gives (the tiers are
