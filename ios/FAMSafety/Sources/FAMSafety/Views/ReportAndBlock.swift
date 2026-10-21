@@ -195,7 +195,7 @@ public struct PrivacyAndSafetySection: View {
             if signedIn {
                 NavigationLink("Blocked people") { BlockedPeopleView(api: api) }
             }
-            Link("Terms and community rules", destination: base.appendingPathComponent("terms"))
+            Link("Terms and conditions", destination: base.appendingPathComponent("terms"))
             Link("Privacy policy", destination: base.appendingPathComponent("privacy"))
             Link("Help and support", destination: base.appendingPathComponent("support"))
         } header: {

@@ -579,7 +579,7 @@
       <div class="form-note" id="joinNote" role="status" aria-live="polite"></div>
       <!-- Agreed before an account exists (App Store 1.2). -->
       <!-- Clickwrap (§228): ticked by the person, sent as accept_terms, kept with its version. -->
-      <label class="terms-note terms-check"><input type="checkbox" id="acceptTerms"><span>I agree to FAM&rsquo;s <a href="/terms" target="_blank" rel="noopener">Terms and community rules</a> and <a href="/privacy" target="_blank" rel="noopener">Privacy policy</a>, and I&rsquo;m 13 or older.</span></label>
+      <label class="terms-note terms-check"><input type="checkbox" id="acceptTerms"><span>I agree to FAM&rsquo;s terms and I&rsquo;m 13 or older. Review the <a href="/terms" target="_blank" rel="noopener">terms and conditions</a> and the <a href="/privacy" target="_blank" rel="noopener">privacy policy</a>.</span></label>
     </form>
 
     <form id="loginForm" class="hidden" novalidate>
@@ -1253,7 +1253,7 @@
         note.className = "form-note err"; note.textContent = "The two passwords don’t match."; return;
       }
       if(!$("acceptTerms").checked){
-        note.className = "form-note err"; note.textContent = "Tick the box to agree to the Terms and the Privacy Policy."; return;
+        note.className = "form-note err"; note.textContent = "Tick the box to agree to the Terms and conditions."; return;
       }
       $("joinBtn").disabled = true;
       api("/api/waitlist/join", { email: email, password: pw, referral_code: referral, accept_terms: true })

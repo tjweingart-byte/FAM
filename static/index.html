@@ -3384,7 +3384,7 @@
                    Sign-up only - logging in is an account that already agreed. -->
               <label class="terms-check" id="authTermsField">
                 <input type="checkbox" id="authTerms" onchange="clearAuthError()">
-                <span>I agree to FAM&rsquo;s <a href="/terms" target="_blank" rel="noopener">Terms and community rules</a> and <a href="/privacy" target="_blank" rel="noopener">Privacy policy</a>, and I&rsquo;m 13 or older.</span>
+                <span>I agree to FAM&rsquo;s terms and I&rsquo;m 13 or older. Review the <a href="/terms" target="_blank" rel="noopener">terms and conditions</a> and the <a href="/privacy" target="_blank" rel="noopener">privacy policy</a>.</span>
               </label>
             </form>
             <!-- Forgot password (§244): drawn only when the server can send
@@ -4917,10 +4917,10 @@
       <div class="modal-overlay" id="termsOverlay">
         <div class="modal-card">
           <div class="modal-title" id="termsTitle">We&rsquo;ve updated our Terms</div>
-          <div class="limit-body">To keep using your FAM account, please read and agree to the <a href="/terms" target="_blank" rel="noopener">Terms and community rules</a> and the <a href="/privacy" target="_blank" rel="noopener">Privacy policy</a>.</div>
+          <div class="limit-body">To keep using your FAM account, please agree to FAM&rsquo;s terms.</div>
           <label class="terms-check">
             <input type="checkbox" id="termsAgree" onchange="document.getElementById('termsYes').disabled = !this.checked">
-            <span>I agree, and I&rsquo;m 13 or older.</span>
+            <span>I agree to FAM&rsquo;s terms and I&rsquo;m 13 or older. Review the <a href="/terms" target="_blank" rel="noopener">terms and conditions</a> and the <a href="/privacy" target="_blank" rel="noopener">privacy policy</a>.</span>
           </label>
           <div class="modal-btns">
             <button class="modal-btn primary" id="termsYes" disabled onclick="acceptTerms()">Continue</button>
@@ -15603,7 +15603,7 @@
           blockedCount === null ? "" : (blockedCount ? String(blockedCount) : "None"),
           "openBlocked()");
     }
-    html += settingsRow("Terms and community rules", "", "openTerms()")
+    html += settingsRow("Terms and conditions", "", "openTerms()")
       + settingsRow("Privacy policy", "", "openLegal('privacy')")
       + settingsRow("Help and support", "", "openLegal('support')");
     html += '<div class="set-group">Account settings</div>'
@@ -20942,7 +20942,7 @@
       showAuthError("Use at least 8 characters for your password."); return;
     }
     if(authMode === "signup" && !document.getElementById("authTerms").checked){
-      showAuthError("Tick the box to agree to the Terms and the Privacy Policy."); return;
+      showAuthError("Tick the box to agree to the Terms and conditions."); return;
     }
     clearAuthError();
     var path = authMode === "login" ? "/api/auth/login" : "/api/auth/signup";

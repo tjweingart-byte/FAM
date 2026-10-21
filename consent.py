@@ -44,7 +44,8 @@ SCOPES = (AI, TERMS)
 
 #: Bump when /terms or /privacy change in a way people must agree to again;
 #: everybody signed in is asked once more (the web's `checkTerms`).
-TERMS_VERSION = 1
+#: 2 (§295): the terms rewritten in full - AI, sharing, licences, arbitration.
+TERMS_VERSION = 2
 
 #: How many answers are held in memory before the map is dropped and read
 #: again from disk; the lookup is a primary-key read either way.

@@ -1573,6 +1573,11 @@
   without `accept_terms`, an older kept release is not and is asked on its
   first screen (`checkTerms`), and a bump of `consent.TERMS_VERSION` asks
   every account again. A no is not an answer: leaving is deleting the account.
+  *(§295)* The terms were rewritten against YouTube's, Instagram's, Spotify's
+  and OpenAI's (`TERMS_VERSION` 2): every section answers to something FAM
+  does, so a feature that changes what is shared, kept, charged or
+  generated changes the terms with it. Every box reads "Review the terms and
+  conditions", those words the link to `/terms`.
 <!-- rule:authorship-provenance -->
 - **Authorship is provenance, and never identity.** *(PROBLEMS.md §95.)* The
   shared cache records who first generated each script, so Explore can leave a
