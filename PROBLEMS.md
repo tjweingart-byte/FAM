@@ -21566,4 +21566,16 @@ and fades in while the rule draws out from its centre; reduced motion shows
 it at once. Only one shows at a time: a pill hides a bar and a bar a pill,
 as before. Timings and actions are unchanged (2.4 s, 3.5 s with an action).
 
+**Review before the merge.** Reading the branch's whole diff found two
+faults, each fixed: removing a row read its padding and margins through a
+live computed style after the row had left the page (the Saved shelf takes
+it out first), so the gap closed from empty values - they are now read
+before the redraw; and the plain line, being full width, took taps across
+its whole band for 3.5 s - now only its action does. Two collisions the
+full check caught, also fixed: CLAUDE.md went 7 bytes over its budget (the
+`[motion]` line keeps citing §292; §298 is in `constraints.md`), and
+Motion's story helpers were named `openStory`/`closeStory`, so a test that
+reads the app's `closeStory` found Motion's first - they are `growStory`
+and `shrinkStory`.
+
 Tests: `test_implementations_108.py` now says the bar is the plain line.

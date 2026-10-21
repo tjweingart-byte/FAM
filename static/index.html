@@ -2150,7 +2150,9 @@
     transition:transform .26s cubic-bezier(.2,.8,.2,1) .06s; }
   .toast.show, .snack.show{ opacity:1; transform:translateY(0); }
   .toast.show::before, .snack.show::before{ transform:scaleX(1); }
-  .snack.show{ pointer-events:auto; }
+  /* Only the action takes a tap; the line and its fade leave the page under
+     them pressable. */
+  .snack.show .snack-act{ pointer-events:auto; }
   .snack-line{ display:flex; align-items:baseline; justify-content:center; gap:10px; max-width:100%; }
   .snack-text{ min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .snack-act{ flex:none; border:0; background:none; cursor:pointer; padding:6px 2px;
@@ -6018,7 +6020,11 @@
     function removeRow(row, redraw, selector){
       var rows = Array.prototype.slice.call(document.querySelectorAll(selector)), k = rows.indexOf(row);
       if(!on() || !row || k < 0 || !onActive(row)){ redraw(); return; }
-      var h = row.offsetHeight, cs = getComputedStyle(row), g = inertCopy(row), home = row.parentNode;
+      // Read before the redraw: a computed style is live, and empty once the
+      // row has left the page.
+      var cs = getComputedStyle(row), h = row.offsetHeight, g = inertCopy(row), home = row.parentNode;
+      var gaps = { paddingTop: cs.paddingTop, paddingBottom: cs.paddingBottom,
+                   marginTop: cs.marginTop, marginBottom: cs.marginBottom };
       redraw();
       var now = Array.prototype.slice.call(document.querySelectorAll(selector)), ref = now[k] || null;
       var parent = ref ? ref.parentNode : now.length ? now[now.length - 1].parentNode
@@ -6028,8 +6034,8 @@
       parent.insertBefore(g, ref || (now.length ? now[now.length - 1].nextSibling : null));
       run(g, [{ transform: "translateX(0%)", opacity: 1 }, { transform: "translateX(-45%)", opacity: 0 }], 180,
           { easing: EASE_IN });
-      run(g, [{ height: h + "px", paddingTop: cs.paddingTop, paddingBottom: cs.paddingBottom,
-                marginTop: cs.marginTop, marginBottom: cs.marginBottom },
+      run(g, [{ height: h + "px", paddingTop: gaps.paddingTop, paddingBottom: gaps.paddingBottom,
+                marginTop: gaps.marginTop, marginBottom: gaps.marginBottom },
               { height: "0px", paddingTop: "0px", paddingBottom: "0px", marginTop: "0px", marginBottom: "0px" }],
           200, { delay: 180 }).finished.then(gone(g), gone(g));
     }
