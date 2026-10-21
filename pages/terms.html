@@ -4,19 +4,23 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#1E1B27">
-<title>FAM — Terms and community rules</title>
+<title>FAM — Terms and conditions</title>
 <link rel="icon" href="/icon.svg" type="image/svg+xml">
 <link rel="icon" href="/favicon.ico" sizes="any">
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..700&family=Geist:wght@400..700&family=Geist+Mono:wght@400..700&display=swap" rel="stylesheet">
-<!-- Served by `/terms` (app.py), which fills in the contact. The rules are
-     App Store guideline 1.2's: no tolerance for objectionable content or
-     abusive users, a way to report and block, and a published contact.
-     Have a lawyer read this before launch; the community rules are the part
-     the app enforces (moderation.py) and must stay true to it. The warranty,
-     liability and Apple sections (§228) are standard wording, not advice:
-     the lawyer should confirm the cap, add governing law and decide on
-     arbitration. A change people must agree to again bumps
-     `consent.TERMS_VERSION`. -->
+<!-- Served by `/terms` (app.py), which fills in the contact and the date.
+     Rewritten in §295 against YouTube's, Instagram's, Spotify's and
+     OpenAI's terms, each section answering to something FAM actually does.
+     The community rules are App Store guideline 1.2's (no tolerance for
+     objectionable content or abusive users, report, block, a published
+     contact) and are the part the app enforces (moderation.py): they must
+     stay true to it. Everything here is standard wording, not legal advice.
+     Before launch a lawyer should confirm: the legal entity's full name and
+     state (it reads "Familiarize"), Delaware as the governing law, NAM as
+     the arbitrator, the US$100 cap, and a DMCA agent registered with the
+     US Copyright Office (the copyright section names the email only). A
+     change people must agree to again bumps `consent.TERMS_VERSION` and
+     `app.TERMS_UPDATED`. -->
 <style>
   :root{ --bg:#1E1B27; --text:#F4EFE4; --muted:#ABA3C4; --copper:#E0B563;
     --border:rgba(244,239,228,0.12); }
@@ -27,21 +31,19 @@
   h1{ font-family:'Bricolage Grotesque', sans-serif; font-weight:500; font-size:32px;
     line-height:1.15; color:var(--copper); margin:0 0 6px; }
   h2{ font-family:'Bricolage Grotesque', sans-serif; font-weight:500; font-size:21px;
-    margin:34px 0 8px; }
+    margin:34px 0 8px; scroll-margin-top:16px; }
+  h3{ font-size:16px; margin:22px 0 4px; }
   .when{ font-family:'Geist Mono', monospace; font-size:11px; letter-spacing:0.08em;
     text-transform:uppercase; color:var(--muted); }
   p, li{ color:var(--text); }
   li{ margin:4px 0; }
   .note{ border:1px solid var(--border); border-radius:12px; padding:14px 16px;
     color:var(--muted); font-size:14px; }
+  .caps{ font-size:13.5px; letter-spacing:0.01em; }
   a{ color:var(--copper); }
-
-  table{ width:100%; border-collapse:collapse; margin:10px 0; font-size:14px; }
-  th, td{ text-align:left; vertical-align:top; padding:8px 10px 8px 0;
-    border-bottom:1px solid var(--border); }
-  th{ font-family:'Geist Mono', monospace; font-size:11px; letter-spacing:0.06em;
-    text-transform:uppercase; color:var(--muted); font-weight:500; }
-  h3{ font-size:16px; margin:22px 0 4px; }
+  .toc{ columns:2; column-gap:24px; padding-left:20px; font-size:14px; }
+  .toc li{ margin:2px 0; break-inside:avoid; }
+  @media (max-width:520px){ .toc{ columns:1; } }
   .nav{ margin-top:40px; font-size:14px; color:var(--muted); }
   @media print{
     :root{ --bg:#fff; --text:#141413; --muted:#555; --copper:#8a5a12; --border:#ddd; }
@@ -50,104 +52,687 @@
 </head>
 <body>
 <main>
-  <h1>Terms and community rules</h1>
-  <div class="when">FAM by Familiarize</div>
+  <h1>Terms and conditions</h1>
+  <div class="when">FAM by Familiarize · Effective {{TERMS_UPDATED}}</div>
 
-  <p>FAM turns what you ask and what you follow into short audio stories, and lets
-  you share them, comment on them and talk about them with other people. When
-  you create an account you tick a box to agree to these terms and the
-  <a href="/privacy">privacy policy</a>; using FAM without an account means
-  agreeing to them too. If we change them in a way that matters, the app asks
-  you to agree again before you go on.</p>
+  <p>Welcome to FAM. These terms and conditions (the "Terms") are an agreement
+  between you and Familiarize ("FAM", "we", "us" or "our"). They cover FAM's
+  apps, its website, its share links and everything you can do with them (the
+  "Service"). When you create an account you tick a box to agree to these Terms
+  and the <a href="/privacy">privacy policy</a>; listening without an account
+  means agreeing to them too. If you don't agree, please don't use FAM.</p>
 
-  <h2>Who can use FAM</h2>
-  <p>You must be at least 13 to use FAM. If you are under 18, or under the age
-  of majority where you live, you need a parent's or guardian's permission,
-  and they agree to these terms for you.</p>
+  <p class="note"><b>Please read section 22.</b> Except in small claims court,
+  disputes between you and FAM are settled by binding, individual arbitration,
+  and you give up the right to a jury trial and to take part in a class action.
+  You can opt out within 30 days of agreeing. If you live in the European
+  Economic Area, the United Kingdom or Switzerland, section 22 does not apply
+  to you.</p>
 
-  <h2>Zero tolerance</h2>
-  <p>There is no place on FAM for objectionable content or abusive people. You
-  agree not to post, send, caption or search for anything that:</p>
+  <h2>The short version</h2>
   <ul>
-    <li>harasses, bullies, threatens or intimidates anyone;</li>
-    <li>attacks people for who they are, including race, ethnicity, religion,
-      disability, sex, gender identity or sexual orientation;</li>
-    <li>is sexual, or involves a minor in any way that is sexual or harmful;</li>
-    <li>promotes violence, self-harm or terrorism;</li>
-    <li>is spam, a scam, or impersonates someone else;</li>
-    <li>shares someone's private information without their permission.</li>
+    <li>FAM's episodes are written by AI and read by a synthetic voice. They can
+      be wrong. Check anything that matters, and never use an episode for
+      medical, legal, financial, betting or safety decisions.</li>
+    <li>Episodes are shared: a question you ask can become an episode other
+      listeners play, without your name unless you choose to show it.</li>
+    <li>You keep what you post. You let FAM store it, show it and play it to
+      the people you share it with.</li>
+    <li>No harassment, hate, sexual content involving minors, violence, spam,
+      scams or impersonation. Report anything; block anyone.</li>
+    <li>Don't scrape, copy, resell or rebroadcast FAM, or try to get around its
+      limits, safety checks or blocks.</li>
+    <li>You can delete your account at any time in Settings.</li>
   </ul>
 
-  <h2>Reporting and blocking</h2>
+  <h2>Contents</h2>
+  <ol class="toc">
+    <li><a href="#service">The Service</a></li>
+    <li><a href="#eligibility">Who can use FAM</a></li>
+    <li><a href="#account">Your account</a></li>
+    <li><a href="#ai">Episodes and AI</a></li>
+    <li><a href="#live">Scores, prices, forecasts and weather</a></li>
+    <li><a href="#asking">What you ask and attach</a></li>
+    <li><a href="#posts">What you post</a></li>
+    <li><a href="#ours">What belongs to FAM</a></li>
+    <li><a href="#rules">Community rules</a></li>
+    <li><a href="#misuse">Using FAM fairly</a></li>
+    <li><a href="#reporting">Reporting, blocking and enforcement</a></li>
+    <li><a href="#social">Messages, sharing and other people</a></li>
+    <li><a href="#copyright">Copyright and other rights</a></li>
+    <li><a href="#third-party">Sources and other companies</a></li>
+    <li><a href="#plans">Plans, limits and payments</a></li>
+    <li><a href="#comms">Notifications and messages from us</a></li>
+    <li><a href="#software">The app and its software</a></li>
+    <li><a href="#ending">Ending this agreement</a></li>
+    <li><a href="#warranty">No warranty</a></li>
+    <li><a href="#liability">Limits on our liability</a></li>
+    <li><a href="#indemnity">Covering us for your actions</a></li>
+    <li><a href="#disputes">Disputes and arbitration</a></li>
+    <li><a href="#stores">Apple, Google and app stores</a></li>
+    <li><a href="#changes">Changes to these Terms</a></li>
+    <li><a href="#general">General terms</a></li>
+    <li><a href="#contact">Contact</a></li>
+  </ol>
+
+  <h2 id="service">1. The Service</h2>
+  <p>FAM turns what you ask about and what you follow into short audio stories
+  ("episodes"), and lets you share them, comment on them, save them, gather
+  them into mixes and talk about them with other people. Among other things,
+  the Service includes searchFAM (ask a question, by typing or by voice),
+  myFAM and DailyFAM (episodes and named mixes chosen for you), Explore
+  (episodes other listeners asked for), vibes, comments, messages, group
+  chats, profiles and share links.</p>
+  <p>FAM is always changing. We may add, change, limit or remove any part of
+  it, including features, plans, voices and the episodes on offer, and we may
+  try new things with some listeners before others. Features marked as
+  previews or tests may be less reliable and may be withdrawn. Episodes are
+  kept only for a limited time (the <a href="/privacy">privacy policy</a> says
+  how long), so an episode you played before may not be there later unless
+  you saved it. We are not obliged to keep any particular episode, source or
+  feature available. If a change takes away something important to you,
+  we'll try to tell you first unless we have to move quickly for safety,
+  security or legal reasons.</p>
+  <p>The Service may be interrupted for maintenance, updates or problems
+  outside our control, and some features depend on companies we don't
+  control (see section 14).</p>
+
+  <h2 id="eligibility">2. Who can use FAM</h2>
+  <ul>
+    <li>You must be at least 13, or older if your country requires it for you
+      to agree to these Terms yourself.</li>
+    <li>If you are under 18, or under the age of majority where you live, you
+      need a parent's or guardian's permission. They agree to these Terms for
+      you and are responsible for your use of FAM. Please read them
+      together.</li>
+    <li>You must not be barred from using the Service under the laws that
+      apply to you, including US sanctions and export laws (section 25).</li>
+    <li>You must not have had a FAM account removed by us, unless we have told
+      you that you may come back.</li>
+    <li>You must not be a registered or convicted sex offender.</li>
+    <li>If you use FAM for a company, school or other organisation, you
+      confirm you are allowed to agree to these Terms for it, and "you"
+      includes it.</li>
+  </ul>
+
+  <h2 id="account">3. Your account</h2>
+  <p>You can listen to some of FAM without an account. Keeping things,
+  posting, following and messaging need one.</p>
+  <ul>
+    <li><b>Be accurate.</b> Give true information when you sign up and keep it
+      up to date. You don't have to use your real name, but you may not pretend
+      to be someone else or something you aren't.</li>
+    <li><b>One person, one account.</b> Your account is for you alone. Don't
+      share it, sell it, rent it, lend it or transfer it, or let anyone else
+      sign in to it, and don't create an account for someone else without
+      their permission.</li>
+    <li><b>Keep it safe.</b> Keep your password secret and don't reuse it
+      elsewhere. You are responsible for everything that happens on your
+      account. If you think someone else has used it, change your password and
+      tell us straight away.</li>
+    <li><b>Handles.</b> Your @handle is not your property. We may change or
+      reclaim one that impersonates someone, infringes someone's rights,
+      misleads people or breaks these Terms.</li>
+    <li><b>Waitlist and invitations.</b> While FAM is invite-only, joining the
+      waitlist does not promise you access, a place in line or any date.
+      Places earned by inviting people only count for genuine invitations;
+      we may remove places gained with fake accounts or other tricks.</li>
+    <li><b>Inactive accounts.</b> We may close an account that has not been
+      used for more than a year and has no paid plan. We'll email you first if
+      we have an address.</li>
+  </ul>
+
+  <h2 id="ai">4. Episodes and AI</h2>
+  <p>Please understand how episodes are made before you rely on one:</p>
+  <ul>
+    <li><b>They are written by AI.</b> FAM's AI provider writes each episode
+      from sources FAM finds on the web and from live data services, and a
+      synthetic voice reads it aloud. The sources are shown on the player. No
+      person checks an episode before you hear it.</li>
+    <li><b>They can be wrong.</b> AI can misread a source, mix up people,
+      places, dates or numbers, rely on a source that is itself wrong or out of
+      date, leave out something important, or state something no source
+      supports. Episodes can also be incomplete, biased or offensive. Check
+      anything that matters against the original sources.</li>
+    <li><b>They are not professional advice.</b> Nothing in FAM is medical,
+      mental health, legal, financial, investment, tax, insurance or safety
+      advice, or a substitute for a qualified professional. If you think you
+      may have an emergency, call your local emergency number.</li>
+    <li><b>They are not about you.</b> Don't use an episode about a person to
+      make a decision that could have a legal or significant effect on them,
+      such as about their employment, housing, credit, insurance, education
+      or legal position.</li>
+    <li><b>They are not anyone's views.</b> An episode does not represent the
+      views of FAM, of the people who work on it, or of any person or
+      organisation it mentions. Naming a person, team, product or company does
+      not mean they endorse or are connected with FAM.</li>
+    <li><b>The voice is synthetic.</b> FAM's voices are generated. They do not
+      belong to, and are not meant to sound like, any real person, and the way
+      a voice says a name is FAM's attempt, not the person's own.</li>
+    <li><b>Episodes are shared.</b> Other listeners may hear the same or a very
+      similar episode when they ask something similar, and an episode one
+      listener asked for may be offered to others in Explore, Trending
+      searches and recommendations.</li>
+    <li><b>Don't pass them off.</b> If you share an episode or its words,
+      don't present it as written or spoken by a person.</li>
+  </ul>
+
+  <h2 id="live">5. Scores, prices, forecasts and weather</h2>
+  <p>Some episodes include live facts from data services: sports scores and
+  schedules, market prices, prediction-market forecasts and weather.</p>
+  <ul>
+    <li>These may be delayed, incomplete or wrong, and may change after you
+      hear them. Don't rely on them for betting, trading or investing.</li>
+    <li>A <b>forecast</b> is what a prediction market's traders expected at one
+      moment. It is not a prediction by FAM, not a statement of what will
+      happen, and not an encouragement to bet or trade.</li>
+    <li>A <b>market price</b> is information, not a recommendation to buy,
+      sell or hold anything.</li>
+    <li><b>Weather</b> is a forecast, not a promise. Never use FAM for weather
+      emergencies or warnings; follow your local authorities and official
+      warning services.</li>
+  </ul>
+
+  <h2 id="asking">6. What you ask and attach</h2>
+  <ul>
+    <li><b>Your questions.</b> What you type or say in a search or Go Deeper,
+      and anything you attach, is your "input". FAM asks before sending your
+      input to its AI provider and search providers, and you can change your
+      answer in Settings. The <a href="/privacy">privacy policy</a> names them
+      and says what they receive.</li>
+    <li><b>Your rights to it.</b> Only attach files, pictures and links you have
+      the right to use, and don't put other people's private information
+      (such as their address, phone number, health or finances) into a
+      question or an attachment without their permission.</li>
+    <li><b>What becomes shared.</b> You let FAM use your input to make an
+      episode, and to offer that episode, its title and the question it
+      answers to other listeners (for example in Explore and Trending
+      searches). Your name is shown only if you turn on "Show my name on
+      episodes I searched". Questions that look personal, anything with an
+      attachment and anything you ask in Private search are never offered to
+      other people.</li>
+    <li><b>Voice.</b> If you search by voice, your device's speech recognition
+      turns what you say into words before FAM sees them. If you turn on the
+      "hey FAM" wake word, FAM keeps the microphone open to listen for it; it
+      is off until you turn it on, and you can turn it off in Settings.</li>
+    <li><b>Corrections.</b> FAM may correct the spelling of what you ask before
+      sending it, and an episode's title may describe what it turned out to be
+      about rather than your exact words.</li>
+  </ul>
+
+  <h2 id="posts">7. What you post</h2>
+  <p>"Your content" means anything you post, send, caption, upload or create
+  on FAM that isn't an episode: your name, @handle, photo and profile;
+  comments, replies and messages; vibes and their captions; mixes, their
+  names and covers; and feedback and reports.</p>
+  <ul>
+    <li><b>It's yours.</b> You keep whatever rights you have in your
+      content.</li>
+    <li><b>It's your responsibility.</b> You confirm that you have every right
+      needed to post it, and that posting it, and our use of it under these
+      Terms, does not break the law or anyone's rights.</li>
+    <li><b>The permission you give FAM.</b> So that we can run FAM, you give us
+      a worldwide, non-exclusive, royalty-free, transferable licence, which we
+      may pass to the companies that help us run FAM, to host, store, copy,
+      reproduce, adapt (for example to crop, resize, transcode or translate),
+      display, perform, distribute and otherwise use your content, consistent
+      with your privacy settings, to operate, provide, improve, protect and
+      promote the Service.</li>
+    <li><b>The permission you give other people.</b> Each person you share
+      your content with may see, play and share it, but only through FAM's
+      own features (such as a share link or sharing to their story).</li>
+    <li><b>When it ends.</b> These licences end when your content is deleted
+      from FAM, except where others have already shared it through FAM and
+      not deleted it, for copies in backups kept for a limited time, and where
+      we must keep it for safety or legal reasons.</li>
+    <li><b>Your name and picture.</b> You let us show your name, @handle and
+      picture beside things you do on FAM that others may see, such as your
+      vibes, comments, follows, public mixes and, if you choose, episodes you
+      searched, without paying you.</li>
+    <li><b>Moral rights.</b> As far as the law allows, you agree not to
+      enforce any "moral rights" in your content against FAM, such as the
+      right to be named as its author, when we use it as these Terms
+      allow.</li>
+    <li><b>Feedback.</b> If you send us ideas, suggestions or bug reports, we
+      may use them freely, without paying you and without keeping them
+      confidential.</li>
+  </ul>
+  <p>We don't check everything before it appears, and we have no duty to, but
+  we may review, limit, hide or remove any content, including content that
+  is reported, at any time.</p>
+
+  <h2 id="ours">8. What belongs to FAM</h2>
+  <p>FAM and everything in it, other than your content and other people's,
+  belongs to Familiarize or the people who license it to us. That includes
+  the apps, website, software, designs, the FAM name and logo, and episodes:
+  their scripts, titles, summaries, audio, captions and pictures. Because
+  episodes are shared between listeners, you do not own an episode by having
+  asked for it.</p>
+  <p>As long as you follow these Terms, we give you a personal, revocable,
+  non-exclusive, non-transferable permission to use FAM and to listen to
+  episodes for your own non-commercial use, and to share them using FAM's own
+  features. Episodes are licensed to you, not sold. You may not use the FAM
+  name, logo or look in a way that suggests we endorse or are connected with
+  you without our written permission. We keep all rights we don't expressly
+  give you.</p>
+
+  <h2 id="rules">9. Community rules</h2>
+  <h3>Zero tolerance</h3>
+  <p>There is no place on FAM for objectionable content or abusive people. You
+  agree not to post, send, caption, attach or search for anything that:</p>
+  <ul>
+    <li>harasses, bullies, threatens, intimidates or stalks anyone, or
+      encourages others to;</li>
+    <li>attacks people for who they are, including race, ethnicity, national
+      origin, caste, religion, disability, age, serious illness, sex, gender
+      identity or sexual orientation;</li>
+    <li>is sexually explicit, or involves a minor in any way that is sexual,
+      exploitative or harmful (we report child sexual abuse material to the
+      authorities);</li>
+    <li>promotes, glorifies or threatens violence, terrorism, violent
+      extremism, self-harm, suicide or eating disorders;</li>
+    <li>sells, promotes or helps people get weapons, drugs or other illegal or
+      tightly regulated goods or services;</li>
+    <li>is spam, a scam, a pyramid scheme, phishing or malware;</li>
+    <li>impersonates a person, organisation or FAM itself, or misleads people
+      about who you are or who you are connected with;</li>
+    <li>shares someone's private or confidential information, or intimate
+      images, without their permission;</li>
+    <li>uses someone's name, image or voice to make it look as if they said or
+      did something they didn't;</li>
+    <li>is deliberately false and likely to cause harm, such as false claims
+      about how, when or where to vote, or false emergency or public health
+      information;</li>
+    <li>infringes anyone's copyright, trademark, privacy, publicity or other
+      rights; or</li>
+    <li>is otherwise illegal, or encourages anyone to break the law.</li>
+  </ul>
+  <p>Swearing is allowed; FAM marks episodes that contain it with an E. Slurs
+  are removed automatically.</p>
+
+  <h2 id="misuse">10. Using FAM fairly</h2>
+  <p>To keep FAM working for everyone, you agree not to, or to try to, or to
+  help anyone else to:</p>
+  <ul>
+    <li>use robots, scrapers, scripts or other automated means to access FAM,
+      create accounts, or collect episodes, audio, captions, profiles or any
+      other data, except with our written permission;</li>
+    <li>copy, download, record, re-host, sell, license, rent or distribute
+      episodes or other parts of FAM, except through FAM's own features;</li>
+    <li>play episodes in public or to an audience (for example broadcast them,
+      put them on a podcast, a radio station or a business's speakers) or use
+      FAM for any commercial purpose without our written permission;</li>
+    <li>use episodes, audio or anything else from FAM to train, test or improve
+      an AI model, or to build a product that competes with FAM;</li>
+    <li>reverse engineer, decompile or take apart FAM's apps, servers, models
+      or systems, or try to discover their source code, except where the law
+      allows it despite this restriction;</li>
+    <li>get around or interfere with FAM's limits, plans, waitlist, safety
+      checks, consent questions, content filters, Private search, blocks or
+      security, or use other accounts to escape a limit, a block or an
+      action we took against you;</li>
+    <li>try to make the AI produce something these Terms forbid, or to reveal
+      its instructions, by hiding instructions in a question, an attachment or
+      a linked page;</li>
+    <li>fake engagement, such as plays, likes, vibes, saves, follows,
+      comments, searches or invitations, including by paying or rewarding
+      people for it or using fake accounts;</li>
+    <li>misuse Report, appeals or support, for example with false or repeated
+      reports made to harass someone;</li>
+    <li>send unsolicited advertising, promotions or bulk messages;</li>
+    <li>overload, disrupt or damage FAM, probe or test its security without our
+      permission, or upload viruses or other harmful code;</li>
+    <li>access FAM through anything other than its apps, its website and any
+      interfaces we publish for that purpose; or</li>
+    <li>use FAM for emergencies, or for anything where an error could lead to
+      death, injury or serious damage.</li>
+  </ul>
+  <p>If you find a security problem, please tell us privately at
+  {{EMAIL_LINK}} rather than testing it further. We won't take action against
+  you for a report made in good faith.</p>
+
+  <h2 id="reporting">11. Reporting, blocking and enforcement</h2>
   <p>Every comment, message, vibe, profile and episode has a <b>Report</b>
   option in its menu. Reported content disappears for you straight away, and a
   person reviews every report within {{REVIEW_HOURS}} hours. When a report is
-  upheld we remove the content, and we suspend the account that posted it.</p>
+  upheld we remove the content, and we suspend the account that posted it.
+  The person you report is never told who reported them.</p>
   <p>You can <b>block</b> anyone from their profile or a conversation. Neither
   of you will see the other's comments, messages, vibes, profile or searches,
   and neither can message or follow the other. They aren't told. You can
   unblock people in Settings.</p>
+  <p>We also use automated checks: profile pictures and mix covers are checked
+  before other people see them, and slurs are removed from names and
+  messages. Automated checks make mistakes in both directions; Report covers
+  what they miss.</p>
+  <p>If you break these Terms, or we reasonably believe you have, we may
+  remove or hide your content, limit features, suspend your account, or close
+  it, depending on how serious and how repeated it is. We may also act where
+  the law requires it, or to protect people, FAM or the public. We'll tell you
+  what we did and why, unless doing so would break the law, compromise an
+  investigation or the safety of the Service, or put someone at risk. We may
+  share information with law enforcement when the law requires it or when
+  someone is in danger. If you think we got it wrong, email {{EMAIL_LINK}} and
+  a person will look again.</p>
 
-  <h2>Episodes and AI</h2>
-  <p>FAM's episodes are written by AI from the sources it finds, which are
-  shown on the player. They can be wrong. Don't rely on an episode for medical,
-  legal, financial or safety decisions. When you search, FAM asks before
-  sending what you type, say or attach to its AI provider, Anthropic, and a
-  search drawn from it to its search providers, Parallel and Perplexity; you can change your answer in Settings. The
-  <a href="/privacy">privacy policy</a> says what is kept and who receives it.</p>
+  <h2 id="social">12. Messages, sharing and other people</h2>
+  <ul>
+    <li><b>Who sees what.</b> Comments can be read by anyone. Messages and group
+      chats are for the people in them, though a person may review a message
+      that is reported. Mixes are public when you make them, and you can make
+      them private. Your profile, vibes and public mixes can be seen by other
+      listeners.</li>
+    <li><b>Sharing is copying.</b> Once you share something, other people may
+      see it, save it or share it again, and we can't take back what has left
+      FAM. Think before you share.</li>
+    <li><b>Share links.</b> A share link plays one episode for anyone who has
+      it, with or without an account. Story cards you share are image files;
+      what happens to them on another app is up to that app.</li>
+    <li><b>Your social accounts.</b> FAM never posts to your other social
+      accounts and never holds a token for them.</li>
+    <li><b>Other people are not us.</b> We don't control what other listeners
+      do or say, on FAM or off it, and we aren't responsible for it, though we
+      act on every report.</li>
+  </ul>
 
-  <h2>What you post</h2>
-  <p>You are responsible for what you post, send, caption, upload or search
-  for on FAM, including your name, handle and photo. You keep whatever rights
-  you have in it. You give FAM permission to store it, show it and play it to
-  the people you share it with, and to use it to run and improve FAM. Photos
-  are checked automatically before other people see them, and anything that
-  breaks these rules can be removed without notice.</p>
-  <p>Other people's posts are theirs, not ours. We don't check everything
-  before it appears and we aren't responsible for what other people post,
-  though we act on every report.</p>
+  <h2 id="copyright">13. Copyright and other rights</h2>
+  <p>We respect the rights of creators and publishers, and expect you to. If
+  you believe something on FAM infringes your copyright, email a notice to
+  {{EMAIL_LINK}} that includes:</p>
+  <ul>
+    <li>your physical or electronic signature;</li>
+    <li>the work you say is infringed;</li>
+    <li>where on FAM the material is, in enough detail for us to find it (a
+      share link is ideal);</li>
+    <li>your name, address, telephone number and email address;</li>
+    <li>a statement that you believe in good faith the use is not authorised
+      by the owner, its agent or the law; and</li>
+    <li>a statement, under penalty of perjury, that your notice is accurate and
+      that you are the owner or authorised to act for them.</li>
+  </ul>
+  <p>We remove or disable material when we receive a valid notice. If your
+  content was removed and you believe that was a mistake, you can send a
+  counter-notice to the same address with your signature, the material and
+  where it was, a statement under penalty of perjury that you believe in good
+  faith it was removed by mistake, and your name, address and telephone
+  number with your consent to the jurisdiction of the federal court for your
+  district (or, outside the US, any court where FAM may be found). We close
+  the accounts of repeat infringers. For other rights, such as trademarks,
+  privacy or publicity, use Report or email us.</p>
+  <p>Episodes are written from public sources, and FAM tells you which ones.
+  If you publish one of those sources and want to talk to us about how FAM
+  uses it, email us.</p>
 
-  <h2>No warranty</h2>
-  <p>FAM is provided <b>as is</b> and <b>as available</b>. To the fullest extent
-  the law allows, we make no promises that it will be accurate, complete,
-  uninterrupted or free of errors, and we disclaim all warranties, express or
-  implied, including merchantability, fitness for a particular purpose and
-  non-infringement.</p>
+  <h2 id="third-party">14. Sources and other companies</h2>
+  <p>FAM depends on other companies to work, including its AI provider, search
+  providers, live data services, voice and hosting providers, and sign-in,
+  email and notification services. The <a href="/privacy">privacy policy</a>
+  names them. The sources an episode links to, and any website, app or
+  service you reach from FAM (such as signing in with Google or Apple), are
+  run by other people under their own terms and policies. We don't control
+  them and aren't responsible for them, their content, their availability or
+  what they do with your information. A link is not an endorsement.</p>
+  <p>FAM shows no advertising today. If that changes, we'll update these Terms
+  first. An episode may mention products, companies or services because they
+  are part of the story; no one pays FAM to be in an episode.</p>
 
-  <h2>Limits on our liability</h2>
-  <p>To the fullest extent the law allows, Familiarize and the people who work
-  on FAM are not liable for any indirect, incidental, special, consequential
-  or punitive damages, or for lost profits, data or goodwill, arising from your
-  use of FAM, from anything an episode says, or from anything another person
-  posts. Our total liability for any claim about FAM is limited to the greater
-  of what you paid us in the twelve months before the claim, or US$50. Some
-  places don't allow these limits, and where they don't, they apply only as
-  far as the law allows. Nothing here limits rights you have that the law says
-  cannot be limited.</p>
-  <p>You agree to cover Familiarize for claims made by other people that arise
-  from what you post or from your breaking these terms.</p>
+  <h2 id="plans">15. Plans, limits and payments</h2>
+  <ul>
+    <li><b>Limits.</b> Each plan, including the free one, allows a certain
+      number of episodes in a period. An episode counts whether it is newly
+      written or already kept. We may change the limits of the free plan at
+      any time, and those of a paid plan as described below.</li>
+    <li><b>Paid plans.</b> If you buy a paid plan, you'll see the price,
+      billing period and what it includes before you pay. Unless it says
+      otherwise, a plan renews automatically and is charged at the start of
+      each period until you cancel. You authorise us, or the app store you buy
+      through, to charge your payment method. You are responsible for any
+      taxes.</li>
+    <li><b>Cancelling.</b> You can cancel at any time; the plan stays active
+      until the end of the period you paid for. If you bought through the App
+      Store or Google Play, cancel and ask for refunds there, under their
+      rules.</li>
+    <li><b>Refunds.</b> Payments are non-refundable except where the law
+      requires otherwise or these Terms say so. If we stop offering a paid
+      plan before the end of a period you prepaid, we'll refund the unused
+      part.</li>
+    <li><b>Price changes.</b> We'll tell you at least 30 days before a price
+      increase takes effect, and it applies from your next renewal, so you can
+      cancel first.</li>
+    <li><b>Trials and offers.</b> Free trials, codes and promotions have their
+      own conditions, shown when they're offered, and have no cash value.
+      Unless you cancel before a trial ends, it may become a paid plan.</li>
+    <li><b>Failed payments.</b> If a payment fails, we may move you to the free
+      plan or pause paid features until it succeeds.</li>
+  </ul>
 
-  <h2>Apple</h2>
-  <p>If you use FAM on an iPhone or iPad, these terms are between you and
+  <h2 id="comms">16. Notifications and messages from us</h2>
+  <p>You agree that we may send you notices, agreements, disclosures and
+  other messages about your account and these Terms electronically: in the
+  app, by email or by push notification. They satisfy any legal requirement
+  that they be in writing. Push notifications are off until you turn them on,
+  and you can turn them off at any time in your device's settings.</p>
+
+  <h2 id="software">17. The app and its software</h2>
+  <ul>
+    <li>We give you a personal, non-exclusive, non-transferable, revocable
+      licence to use FAM's apps and software to use the Service as these Terms
+      allow.</li>
+    <li>The app may update itself, and you agree to receive updates. An old
+      version may stop working; when it does, the app will ask you to
+      update.</li>
+    <li>FAM uses your device's processor, storage and network to work,
+      including to keep finished episodes so they play without a connection.
+      Your carrier's data charges may apply.</li>
+    <li>Some of FAM's software is open source and covered by its own licence,
+      which wins where it conflicts with these Terms.</li>
+  </ul>
+
+  <h2 id="ending">18. Ending this agreement</h2>
+  <p><b>You</b> can stop using FAM at any time, and delete your account in
+  Settings. Deleting it erases your account and what FAM keeps about you
+  straight away, as the <a href="/privacy">privacy policy</a> describes;
+  episodes you searched stay for other listeners without your name. Agreeing
+  to these Terms is part of having an account: if you no longer agree, delete
+  your account.</p>
+  <p><b>We</b> may suspend or close your account, or stop providing all or part
+  of the Service to you, if you break these Terms (seriously or repeatedly),
+  if the law requires it, if your use creates risk or legal exposure for FAM
+  or harm to anyone, or if we stop offering the Service. We'll tell you why,
+  with the exceptions in section 11. If we close the Service altogether,
+  we'll give you reasonable notice and refund any prepaid, unused paid
+  plan.</p>
+  <p>If your account is closed, you may still be able to listen without one,
+  and these Terms still apply to that. Sections 7 (for content already
+  shared), 8, 13, and 18 to 25 continue after this agreement ends, along with
+  anything else that by its nature should.</p>
+
+  <h2 id="warranty">19. No warranty</h2>
+  <p class="caps">FAM IS PROVIDED <b>"AS IS"</b> AND <b>"AS AVAILABLE"</b>. TO THE
+  FULLEST EXTENT THE LAW ALLOWS, FAMILIARIZE, ITS AFFILIATES, LICENSORS AND
+  SUPPLIERS MAKE NO WARRANTIES OR PROMISES OF ANY KIND, EXPRESS, IMPLIED OR
+  STATUTORY, AND DISCLAIM ALL WARRANTIES, INCLUDING OF MERCHANTABILITY,
+  SATISFACTORY QUALITY, FITNESS FOR A PARTICULAR PURPOSE, TITLE, QUIET
+  ENJOYMENT, ACCURACY AND NON-INFRINGEMENT, AND ANY ARISING FROM A COURSE OF
+  DEALING OR USAGE OF TRADE. WE DO NOT PROMISE THAT FAM OR ANY EPISODE WILL BE
+  ACCURATE, COMPLETE, CURRENT, UNINTERRUPTED, SECURE, FREE OF ERRORS OR
+  HARMFUL COMPONENTS, OR ABLE TO MEET YOUR NEEDS, OR THAT ANY CONTENT WILL BE
+  KEPT OR NOT LOST. YOU USE EPISODES AT YOUR OWN RISK AND WILL NOT RELY ON
+  THEM AS YOUR ONLY SOURCE OF FACTS OR AS A SUBSTITUTE FOR PROFESSIONAL
+  ADVICE. NOTHING WE TELL YOU CREATES A WARRANTY NOT STATED HERE.</p>
+
+  <h2 id="liability">20. Limits on our liability</h2>
+  <p class="caps">TO THE FULLEST EXTENT THE LAW ALLOWS, FAMILIARIZE AND ITS
+  AFFILIATES, OFFICERS, DIRECTORS, EMPLOYEES, AGENTS, LICENSORS AND SUPPLIERS
+  WILL NOT BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL,
+  EXEMPLARY OR PUNITIVE DAMAGES, OR FOR ANY LOSS OF PROFITS, REVENUE,
+  GOODWILL, DATA OR USE, ARISING FROM OR RELATING TO THESE TERMS OR FAM,
+  INCLUDING FROM: ERRORS OR INACCURACIES IN AN EPISODE OR ANY CONTENT; ANY
+  DECISION YOU MAKE BASED ON AN EPISODE; THE CONDUCT OR CONTENT OF OTHER
+  PEOPLE OR THIRD-PARTY SERVICES; UNAUTHORISED ACCESS TO YOUR ACCOUNT OR
+  DATA; ANY INTERRUPTION OR END OF THE SERVICE; OR THE REMOVAL OR LOSS OF ANY
+  CONTENT, WHATEVER THE LEGAL THEORY AND EVEN IF WE WERE TOLD THEY WERE
+  POSSIBLE. OUR TOTAL LIABILITY FOR ALL CLAIMS ABOUT FAM OR THESE TERMS IS
+  LIMITED TO THE GREATER OF WHAT YOU PAID US IN THE TWELVE MONTHS BEFORE THE
+  CLAIM AROSE, OR US$100.</p>
+  <p>These limits apply even if a remedy fails of its essential purpose. They
+  do not limit liability for fraud, for death or personal injury caused by
+  negligence, or anything else the law says cannot be limited. Some places
+  don't allow some of these limits or the disclaimers in section 19; where
+  they don't, they apply only as far as the law allows, and you may have
+  additional rights.</p>
+
+  <h2 id="indemnity">21. Covering us for your actions</h2>
+  <p>To the extent the law allows, you agree to defend, indemnify and hold
+  harmless Familiarize and its affiliates, officers, directors, employees and
+  agents from any claims, damages, losses, liabilities, costs and expenses
+  (including reasonable lawyers' fees) brought by someone else and arising
+  from your content, what you ask or attach, your use of FAM, your breaking
+  these Terms, or your violating the law or anyone's rights. We may take
+  over the defence of such a claim, in which case you will cooperate with us,
+  and you won't settle one without our written agreement. This does not apply
+  to consumers in places where the law does not allow it.</p>
+
+  <h2 id="disputes">22. Disputes and arbitration</h2>
+  <p>This section does not apply if you live in the European Economic Area,
+  the United Kingdom or Switzerland; there, you may bring a claim in the
+  courts where you live, and your local consumer laws apply.</p>
+  <h3>Talk to us first</h3>
+  <p>Most problems can be fixed quickly. Before either of us starts an
+  arbitration or a court case, we agree to try to resolve the dispute
+  informally for 60 days. You start by emailing {{EMAIL_LINK}} with your name,
+  the email or phone number on your account, a description of the dispute and
+  what you want. We'll start by emailing the address on your account. Either
+  of us may ask for a call to settle it. Time limits for bringing a claim are
+  paused during these 60 days.</p>
+  <h3>Binding individual arbitration</h3>
+  <p>If we can't resolve it, you and FAM agree that any dispute, claim or
+  controversy arising from or relating to these Terms or FAM, whenever it
+  arose (a "Dispute"), will be resolved by final and binding arbitration on
+  an individual basis, administered by National Arbitration and Mediation
+  ("NAM") under its Comprehensive Dispute Resolution Rules and Procedures and,
+  where they apply, its Supplemental Rules for Mass Arbitration Filings. The
+  Federal Arbitration Act governs this section. A single arbitrator will
+  decide the Dispute, by videoconference where possible, or otherwise in the
+  county where you live or another place we agree. The arbitrator may award
+  the same individual relief a court could. A court, not the arbitrator,
+  decides whether this section is valid, enforceable and applies to a
+  Dispute.</p>
+  <p>If you start an arbitration seeking less than US$10,000, FAM will pay the
+  filing, administration and arbitrator fees, unless the arbitrator finds
+  your claim frivolous. Otherwise fees follow NAM's rules. FAM will not seek
+  its lawyers' fees from you unless the arbitrator finds your claim
+  frivolous.</p>
+  <h3>Exceptions</h3>
+  <p>Either of us may instead bring an individual claim in small claims court
+  if it qualifies, and either of us may go to court to stop infringement or
+  misuse of intellectual property, or to stop unauthorised access to or
+  abuse of the Service (for example scraping). Nothing here stops you from
+  bringing an issue to a government agency.</p>
+  <h3>No class actions and no jury</h3>
+  <p class="caps">YOU AND FAM MAY BRING CLAIMS AGAINST EACH OTHER ONLY
+  INDIVIDUALLY, AND NOT AS A PLAINTIFF OR CLASS MEMBER IN ANY CLASS,
+  COLLECTIVE, CONSOLIDATED OR REPRESENTATIVE PROCEEDING. YOU AND FAM BOTH
+  WAIVE ANY RIGHT TO A JURY TRIAL.</p>
+  <p>The arbitrator may grant relief only to the individual asking for it. A
+  request for public injunctive relief will be decided by a court after the
+  rest of the Dispute is arbitrated. Either of us may still take part in a
+  class-wide settlement.</p>
+  <h3>Many claims at once</h3>
+  <p>If 25 or more people represented by the same or coordinated lawyers bring
+  similar claims within 90 days of each other, NAM will administer them in
+  batches of up to 50 claimants, each batch as one arbitration with one
+  arbitrator and one set of fees, unless we agree otherwise. Time limits are
+  paused for claims waiting for their batch.</p>
+  <h3>Opting out</h3>
+  <p>You may opt out of this arbitration agreement by emailing {{EMAIL_LINK}}
+  within 30 days of first agreeing to these Terms, from the address on your
+  account, with your name, your @handle and a clear statement that you want
+  to opt out of arbitration. If we change this section in a way that matters,
+  you can reject the change the same way within 30 days of being told; the
+  version you agreed to before will still apply.</p>
+  <h3>If part of this fails</h3>
+  <p>If a court finds part of this section unenforceable, the rest still
+  applies, except that if the class action waiver is found unenforceable for
+  a claim, that claim goes to court rather than to a class arbitration.</p>
+  <h3>Governing law, courts and time limits</h3>
+  <p>These Terms and any Dispute are governed by the laws of the State of
+  Delaware and applicable US federal law, without regard to conflict-of-law
+  rules. Any Dispute that is not arbitrated will be brought only in the state
+  or federal courts in Delaware, and you and FAM agree to their jurisdiction.
+  To the extent the law allows, a claim must be started within one year after
+  it arises, or it is permanently barred.</p>
+
+  <h2 id="stores">23. Apple, Google and app stores</h2>
+  <p>If you use FAM on an iPhone or iPad, these Terms are between you and
   Familiarize, not Apple. Apple is not responsible for FAM or its content, has
   no obligation to provide maintenance or support for it, and is not
   responsible for any claim about it, including product liability, legal or
-  regulatory claims, or claims that it infringes someone else's rights. If the
-  app fails to meet a warranty that applies, you may tell Apple and Apple will
-  refund what you paid for it, if anything; Apple has no other warranty
-  obligation. Apple and its subsidiaries are third-party beneficiaries of
-  these terms and may enforce them against you. You confirm you are not in a
-  country under a US government embargo and are not on a US government list of
-  prohibited or restricted parties.</p>
+  regulatory claims, consumer protection claims, or claims that it infringes
+  someone else's rights; we are responsible for investigating, defending and
+  settling any such claim. If the app fails to meet a warranty that applies,
+  you may tell Apple and Apple will refund what you paid for it, if anything;
+  Apple has no other warranty obligation. Apple and its subsidiaries are
+  third-party beneficiaries of these Terms and may enforce them against you.
+  You must also follow the App Store's own terms.</p>
+  <p>If you get FAM from Google Play or another app store, that store's terms
+  also apply, and these Terms are between you and FAM, not the store.</p>
 
-  <h2>Your account</h2>
-  <p>You can delete your account at any time in Settings. Deleting it removes
-  what FAM keeps about you; episodes you searched stay for other listeners
-  without your name. We may suspend or remove accounts that break these rules.</p>
+  <h2 id="changes">24. Changes to these Terms</h2>
+  <p>We may change these Terms to reflect changes in FAM, in how we work, or in
+  the law, or for safety and security. When a change matters, we'll tell you
+  in the app or by email and the app will ask you to agree again before you
+  go on. We'll give you at least 30 days' notice of a change that materially
+  reduces your rights, unless we need to act sooner for legal, safety or
+  security reasons. Other changes take effect when we post them. The date at
+  the top shows when these Terms last changed. If you don't agree to new
+  Terms, stop using FAM and delete your account.</p>
 
-  <h2>Contact</h2>
+  <h2 id="general">25. General terms</h2>
+  <ul>
+    <li><b>Privacy.</b> The <a href="/privacy">privacy policy</a> explains how
+      we collect and use information, and you agree to it when you agree to
+      these Terms.</li>
+    <li><b>Entire agreement.</b> These Terms, together with the privacy policy
+      and any terms shown to you for a particular feature or plan, are the
+      whole agreement between you and FAM about the Service, and replace any
+      earlier ones. Where feature terms conflict with these, the feature terms
+      win for that feature.</li>
+    <li><b>Sanctions and export.</b> You confirm you are not in a country or
+      region under US embargo, are not on a US government list of prohibited
+      or restricted parties, and will not use or export FAM in breach of
+      sanctions or export laws.</li>
+    <li><b>Transfer.</b> You may not transfer your rights or obligations under
+      these Terms. We may transfer ours, for example if FAM is sold or merged,
+      and these Terms will continue to apply.</li>
+    <li><b>Severability.</b> If any part of these Terms can't be enforced, the
+      rest stays in effect, and that part is enforced as far as the law
+      allows.</li>
+    <li><b>No waiver.</b> If we don't enforce part of these Terms straight
+      away, we haven't given up the right to enforce it later.</li>
+    <li><b>Things beyond our control.</b> We aren't responsible for failures
+      or delays caused by events outside our reasonable control, such as
+      outages of the companies FAM relies on, network failures, disasters or
+      government action.</li>
+    <li><b>Relationship.</b> Nothing in these Terms makes you and FAM partners,
+      employees or agents of each other. Apart from section 23, nobody else
+      has rights under these Terms.</li>
+    <li><b>Interpretation.</b> "Including" means "including but not limited
+      to", and headings and the short version are for convenience. If these
+      Terms are translated, the English version wins.</li>
+    <li><b>Your rights under the law.</b> You may have rights as a consumer
+      that no contract can take away. Nothing in these Terms is meant to limit
+      them.</li>
+    <li><b>California users.</b> Under California Civil Code section 1789.3, you
+      may contact the Complaint Assistance Unit of the Division of Consumer
+      Services of the California Department of Consumer Affairs in writing at
+      1625 North Market Blvd., Suite N 112, Sacramento, CA 95834, or by
+      telephone at (800) 952-5210.</li>
+  </ul>
+
+  <h2 id="contact">26. Contact</h2>
   {{CONTACT}}
-  <p class="nav"><a href="/terms">Terms and community rules</a> · <a href="/privacy">Privacy policy</a> · <a href="/support">Help and support</a></p>
+  <p class="nav"><a href="/terms">Terms and conditions</a> · <a href="/privacy">Privacy policy</a> · <a href="/support">Help and support</a></p>
 </main>
 </body>
 </html>
