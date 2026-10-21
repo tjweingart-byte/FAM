@@ -1,4 +1,4 @@
-"""The Birthday packet (PROBLEMS.md §295): Instagram's faces row on DailyFAM,
+"""The Birthday packet (PROBLEMS.md §297): Instagram's faces row on DailyFAM,
 a story with no episode, and "Forgot password?" on every log-in."""
 from __future__ import annotations
 

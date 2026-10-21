@@ -106,7 +106,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   exploreFAM pill opens it from search and beside Made for you. [explore-reel]
 - **VIBE! is a story editor** (§213): a clamped layout, never an image;
   Your story only (§250); holding pauses; your story rings your face; (+)
-  posts a note, no episode (§295). [vibe-caption]
+  posts a note, no episode (§297). [vibe-caption]
 - **A friend's vibe** has a reply / heart / share-to-your-story row (§282); a
   reply or like is a message carrying the episode. [story-reply]
 - **Group chats** (§213): one row per message to a `g:` thread; graph only. [group-chats]
@@ -217,7 +217,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
 - A mix's **listen time** is when its "ready" push is sent (own zone, only once
   the edition is written), never when it is written; kept even where push is
   off; never shown to others. No suggested mix names. [mix-listen-time]
-- Faces on DailyFAM only, Instagram's, yours first (§295); YourFAM a pill
+- Faces on DailyFAM only, Instagram's, yours first (§297); YourFAM a pill
   (§251); vibes first; a swipe goes to the next friend's, the picture to the
   profile; Friends has "Invite new users +"; no (+) in YourFAM's header. [friends-vibes-first]
 - **Made for you** (§187): subjects and familiar words vouch only in their own
@@ -260,7 +260,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
 - Identity: server-minted session; account = credentials on that id, never
   the device - a signed-in browser's sign-up gets a fresh id (§190); listening
   works with no account; email/phone/Google/Apple; **reset** emails a code
-  to the account's address (`mail.py`, §244; `/reset`, §295). [op-identity]
+  to the account's address (`mail.py`, §244; `/reset`, §297). [op-identity]
 
 ## Settled constraints — do not undo without discussing  (`constraints.md`)
 
@@ -417,9 +417,9 @@ Accounts, tiers, sharing
   `gateActions()` - one sign-up screen. [account-gates-kept]
 - **Waitlist** (§183, `WAITLIST.md`): `WAITLIST=1` closes the app to all but
   `active` accounts, enforced server-side; new accounts start `waitlisted`;
-  one account, granting flips `status`; place counted in FAM; Viral Loops via
+  one account, granting flips `status`; email only (§296); place counted in FAM; Viral Loops via
   the outbox, never loses a signup; waitlisted hidden from discovery except
-  friends and the status page's search (§282); a shared episode plays for anyone (only what was shared); the landing
+  friends and the status page's search (§282); a shared episode plays for anyone (only it); the landing
   page plays the three sign-up samples as replays (§190), own picture only (§214); a `/waitlist` join is
   always waitlisted (never an admin account, which previews it, §216) and the app's Sign Up goes there (§192);
   a guest at the address gets the app's sign-in/sign-up, not `/waitlist` (§231). [waitlist-gate]

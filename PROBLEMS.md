@@ -21279,7 +21279,134 @@ Tests: `tests/test_whole_file_kept_voice_294.py`; §252's pins for PCM
 (`fmt=pcm&link=1` streamed) and the player's URL updated. Rule notes at
 `no-audio-files` and `op-voice-bank`.
 
-## 295. The Birthday packet: Instagram's faces, a story with no episode, and Forgot password on every log-in (2026-10-21)
+## 295. The terms rewritten against YouTube, Instagram, Spotify and OpenAI (2026-10-21)
+
+The owner (10.21): enhance the terms people sign significantly, "cover all
+bases that we are thinking of now, and might not even be thinking of",
+built from YouTube's, Instagram's, Spotify's and ChatGPT's terms as they
+relate to what FAM does; and make the sign-up box a checkbox with a note to
+"review the terms and conditions", those words the link.
+
+**What each borrowed answers to in FAM.** `pages/terms.html` went from
+nine short sections (§228) to twenty-six, with a short version and a
+contents list:
+
+- *OpenAI's* accuracy and not-professional-advice clauses, no use of output
+  for decisions about a person, no passing output off as human, no
+  training competing models, and output not unique - which in FAM is
+  stronger than in ChatGPT, because the cache shares one episode between
+  listeners. So the terms say plainly that a question can become an
+  episode others play (Explore, Trending searches), without a name unless
+  `searches_public`, never for personal-looking, attached or Private
+  searches; and that an episode belongs to FAM, not to whoever asked
+  (OpenAI assigns output to the user; FAM cannot, since it is shared).
+- A section of FAM's own for live facts: scores, prices, Polymarket
+  forecasts (not a prediction by FAM, not betting advice) and weather
+  (never for emergencies).
+- *YouTube's and Instagram's* user-content licence (to FAM and, through
+  FAM's features only, to other users), its end on deletion, name and
+  picture beside activity, moral rights and feedback (Spotify), the
+  platform restrictions (scraping, re-hosting, public performance,
+  circumvention - here including limits, consent, Private search and
+  blocks - fake engagement including waitlist invitations, misusing
+  Report), prompt injection, handles reclaimable, account sale.
+- The community rules kept (App Store 1.2, `moderation.py`) and widened:
+  stalking, weapons and drugs, intimate images, deepfakes, harmful
+  falsehoods about voting and emergencies.
+- *Spotify's and OpenAI's* paid-plan terms written ahead of checkout
+  (`tiers-off`): renewals, cancelling, prorated refund on discontinuation,
+  30 days' notice of a price rise, cached episodes counting
+  (`tier-spend`).
+- DMCA notice and counter-notice, repeat infringers; electronic notices;
+  software licence and retired versions (`old-clients`); termination both
+  ways and survival; warranty and liability (cap raised from US$50 to
+  US$100, Instagram's and OpenAI's figure); indemnity.
+- Disputes after OpenAI and Spotify: 60 days informal, NAM individual
+  arbitration under the FAA, small claims and IP exceptions, class and jury
+  waivers, batches of 50 when 25+ coordinated claims arrive, a 30-day
+  opt-out by email, one-year limit, Delaware law and courts; none of it
+  for the EEA, UK or Switzerland. Apple's section kept, Google Play added;
+  sanctions, assignment, force majeure, California Civil Code 1789.3.
+
+**The party.** The owner (10.21, after): FAM operates under Apali LLC. The
+terms, privacy policy and support page now name Apali LLC as the party and
+operator (they said "Familiarize"); the privacy policy's date moved with it.
+
+**For a lawyer before launch** (in the page's comment): Apali LLC's state
+of formation, Delaware, NAM, the cap, and a DMCA
+agent registered with the US Copyright Office - the section names only
+the support email, which is not a registered agent.
+
+**The box.** All three boxes (sign-up, waitlist, the re-agree modal) read
+"I agree to FAM's terms and I'm 13 or older. Review the *terms and
+conditions* and the *privacy policy*." with the italic words the links.
+The page and its links are titled "Terms and conditions" everywhere
+(Settings row, nav, iOS `ReportAndBlock.swift`).
+
+`consent.TERMS_VERSION` is 2, so every account is asked again
+(`checkTerms`); `app.TERMS_UPDATED` is the date shown at the top. Tests:
+`test_the_terms_cover_what_fam_does_and_carry_their_date`, and the box's
+wording pinned in `test_the_web_form_draws_an_unticked_box_and_sends_it`.
+PDFs in `docs/legal/` regenerated.
+
+## 296. The waitlist asks for the email alone (2026-10-21)
+
+The owner: "remove the need to add a password to set up an account. It
+should be as easy as possible for people to join the waitlist, and they
+should only have to put their email in ... keep all of the other account
+features."
+
+**What changed.** `/waitlist`'s join form is the email, the Terms box and
+the button; the two password fields and their check are gone. The page
+posts `/api/waitlist/join` with no password, and the server makes the
+account with none (`AccountStore.sign_up(..., passwordless=True)`): the
+column holds `''`, exactly as a Google-or-Apple account's always has, so
+`log_in` can never match it, and `set_password` or §244's reset adds the
+first one. Everything else about the account is unchanged - the same row,
+waitlisted, in line, invite code, Viral Loops outbox, profile, friend
+search, delete, grant. `password` stays on `WaitlistJoinRequest`, optional:
+a page or client that still sends one gets the old join, password and all
+(`old-clients`).
+
+**The way back in.** The browser that joined is signed in and stays so.
+Another device, or a cleared browser, gets in by **Forgot password?** on the
+sign-in, which emails a code and sets the first password; the link now reads
+"Forgot password? Never set one?". Once let in, the app's **Change password**
+asks `/api/account` for `has_password` and, with none, sets a first one
+(`/api/auth/password/set`) instead of asking for a current password the
+account never had - the same fix serves Google and Apple accounts.
+
+**What the email alone must not do.** It is not a credential: typing an
+address that already has an account is still refused "already registered",
+never signed in, and the page then opens its sign-in with the address
+carried over. §233's admin preview needed the admin's password in the join
+form; with none sent, the preview is given only to a browser already signed
+in as that admin, and every other admin reaches it through the sign-in,
+which already sends an admin to `/waitlist/me`. The status page's **Sign
+out** warns first when the account has no password (`/api/waitlist/me`
+`details.has_password`).
+
+**Problems this leaves, for the owner to decide.**
+* **No mail, no way back.** "Forgot password?" is drawn only when SMTP is
+  configured (`SMTP_HOST`, `MAIL_FROM`). Without it, an email-only member
+  who signs out or loses the cookie cannot reach their place again. Set the
+  SMTP keys on `fam` before turning this on, or add an email sign-in code.
+* **Unverified addresses, as before.** Nothing proves the joiner owns the
+  address; a squatter can hold someone's email in line. That was true with a
+  password too; the reset's code goes to the real address, so the owner can
+  still take it back. Viral Loops' duplicate and disposable-email blocking
+  is the vendor-side guard.
+* **Cheaper sign-ups for scripts.** One field is less friction for bots as
+  well as people. The per-request rate limit, the Terms tick and the
+  per-code referral cap (`WAITLIST_REFERRALS_PER_HOUR`) still bound it.
+* **The cookie is the credential** until a password is set: anyone at that
+  browser is in, as with any signed-in session.
+
+Tests: `tests/test_waitlist.py` (email-only join, no login without a
+password, first password set, reset as the way back, refused re-join,
+admin preview, sign-out warning, the app's set-first-password).
+
+## 297. The Birthday packet: Instagram's faces, a story with no episode, and Forgot password on every log-in (2026-10-21)
 
 The owner's "Birthday Implementations" packet, three asks:
 
@@ -21343,4 +21470,4 @@ The owner's "Birthday Implementations" packet, three asks:
    `/api/health`'s `mail` then says `available: true`, and its counts show
    every send and the last error.
 
-Tests: `tests/test_birthday_packet_295.py`.
+Tests: `tests/test_birthday_packet_297.py`.

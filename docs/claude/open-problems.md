@@ -786,7 +786,7 @@
    cannot reach another listener or Explore. Only PDF needs a package (pypdf,
    optional); .docx is read with `zipfile`.
 <!-- rule:op-identity -->
-> **Current (PROBLEMS.md §295):** every log-in offers "Forgot password?" -
+> **Current (PROBLEMS.md §297):** every log-in offers "Forgot password?" -
 > the app's and the waitlist's as before, and the three admin pages now link
 > to `/reset`, the reset password page (email, then the emailed code and a
 > new password; `?next=` is a path on this server only). The email names
@@ -846,7 +846,7 @@
 > friends pill, one large **View Your FAM** pill to the Friends page,
 > carrying up to three faces - friends first, a picture before initials.
 >
-> **Current (PROBLEMS.md §295, the Birthday packet):** the DailyFAM row is
+> **Current (PROBLEMS.md §297, the Birthday packet):** the DailyFAM row is
 > Instagram's: big round pictures, a gradient ring in FAM's gold (bronze to
 > the wordmark's gold, never Instagram's colours) while a story is unwatched
 > and a thin grey one once it is, and your own face first ("Your story")

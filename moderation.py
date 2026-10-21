@@ -45,7 +45,7 @@ from paths import data_path
 #:   comment  - the comment id
 #:   message  - the message id
 #:   vibe     - the echo (vibe) id
-#:   note     - a story with no episode (§295), its id
+#:   note     - a story with no episode (§297), its id
 #:   person   - their handle
 #:   group    - the group chat id (`g:...`)
 #:   episode  - "<minutes>:<query>", an Explore or player episode

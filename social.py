@@ -229,7 +229,7 @@ def clean_style(style) -> dict:
     return out
 
 
-# --- a story with no episode (the Birthday packet, §295) --------------------
+# --- a story with no episode (the Birthday packet, §297) --------------------
 #
 # The (+) on your own face makes a story that is only you: a background, your
 # words, stickers. It is not a vibe - a vibe points at an episode, and every
@@ -467,7 +467,7 @@ class SocialStore:
             # again - not on the next open, not on another device. Separate
             # from `followers_seen`, which is the Friends badge's and is
             # cleared by opening Friends and nothing else.
-            # Stories with no episode (§295): words on a background.
+            # Stories with no episode (§297): words on a background.
             conn.execute(
                 """CREATE TABLE IF NOT EXISTS notes (
                        id        INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -676,7 +676,7 @@ class SocialStore:
             return False
         return bool(cur.rowcount)
 
-    # --- notes: a story with no episode (§295) -------------------------------
+    # --- notes: a story with no episode (§297) -------------------------------
 
     def add_note(self, user_id: str, text: str, style=None) -> dict:
         """Post words on a background to this listener's story."""
@@ -1070,7 +1070,7 @@ class SocialStore:
                  # (10.6 #2).
                  "style": layout, "tags": people,
                  "close": audience == "close"})
-        # Notes (§295) sit among the vibes in time order - only for a client
+        # Notes (§297) sit among the vibes in time order - only for a client
         # that asked, since an older one would draw a note as an episode.
         if notes:
             for uid, items in self.notes_among(ids, since).items():

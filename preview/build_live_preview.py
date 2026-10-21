@@ -719,7 +719,7 @@ __MIX_ITEMS__
       stories: myStoryItems()
     };
   }
-  // Your own story: your vibes and notes (§295) of the last 24 hours, oldest
+  // Your own story: your vibes and notes (§297) of the last 24 hours, oldest
   // first, not taken down - what `stories_among(..., notes=True)` returns.
   function myStoryItems() {
     var vibes = rows("echoes").filter(function (e) {
@@ -1386,14 +1386,14 @@ __WRITING_SIM__
     if (path === "/api/myfam") return json(myfamBody());
     if (path === "/api/profile") return json(profileBody());
     // The rails screen's face row (§195): nobody else is in this database.
-    // Your own face leads it (§295), with the (+) to your story.
+    // Your own face leads it (§297), with the (+) to your story.
     if (path === "/api/circle") {
       if (!EMAIL) return json({ circle: [] });
       var meRow = rows("people").filter(function (p) { return p.id === UID; })[0] || {};
       return json({ circle: [], me: { name: meRow.name || "", handle: meRow.handle || "",
                                       avatar: meRow.avatar || "", stories: myStoryItems() } });
     }
-    // A story with no episode (§295): words on a background, and stickers,
+    // A story with no episode (§297): words on a background, and stickers,
     // clamped as `social.clean_note_style` clamps them.
     if (path === "/api/story/note" && method === "POST") {
       if (!EMAIL) return json({ detail: "You need an account for this." }, 401);

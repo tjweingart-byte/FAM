@@ -1375,6 +1375,7 @@
   time: a second sign-up form left standing is one somebody wires a new gate
   to by accident.
 <!-- rule:waitlist-gate -->
+> **Current (PROBLEMS.md §296, the owner 10.21):** joining at `/waitlist` is the **email alone** - no password; the account is made with none (`sign_up(..., passwordless=True)`, as Google/Apple ones are), and another device gets in by "Forgot password?", which sets the first. A join that still sends a password is the old join. The email is never a credential: an address with an account is refused and the page opens its sign-in; §233's admin preview is given only to a browser already signed in as that admin.
 > **Current (PROBLEMS.md §282, the owner 10.15):** the status page searches the list for friends (`/api/waitlist/people`): by name or handle, or an email or phone number typed **whole** (a number without its code is tried as +1), returning only name, handle, face and whether they are friends - never what matched; **Add** is a follow (`/api/waitlist/add`), and both ways is Your FAM. This is the one door by which a waitlisted account is found by somebody outside its graph, at the owner's direction; the app's own discovery is unchanged. Only a waitlisted account or an admin may search or add (`_require_waitlist_searcher`); exact lookups are capped at `WAITLIST_EXACT_PER_DAY` terms a day. Nobody found is the **Invite** card. The unlock row ("1 more person until your next unlock") is gone - nothing is locked; `/api/waitlist/me` keeps `unlock` for installed clients. The sign-in has §244's **Forgot password?**, drawn only when mail is configured, as the app's is.
 > **Current (PROBLEMS.md §233):** an admin who already has an account can type it into `/waitlist`'s join form: the right password signs them in and opens the admin preview (`_admin_previewing_join`), never the line; anyone else's existing email is still refused.
 > **Current (PROBLEMS.md §231):** §219's redirect is reversed at the owner's direction, restoring §217: typing the address opens the app's front door for a guest, gate on or off; **Sign Up** goes to `/waitlist`; the app's **Sign In** lets an `active` account in and sends a `waitlisted` one to `/waitlist/me`. Only a waitlisted account and a `?referralCode=` link are redirected. The landing page keeps its "Already off the waitlist? Sign in here".
@@ -1573,6 +1574,11 @@
   without `accept_terms`, an older kept release is not and is asked on its
   first screen (`checkTerms`), and a bump of `consent.TERMS_VERSION` asks
   every account again. A no is not an answer: leaving is deleting the account.
+  *(§295)* The terms were rewritten against YouTube's, Instagram's, Spotify's
+  and OpenAI's (`TERMS_VERSION` 2): every section answers to something FAM
+  does, so a feature that changes what is shared, kept, charged or
+  generated changes the terms with it. Every box reads "Review the terms and
+  conditions", those words the link to `/terms`.
 <!-- rule:authorship-provenance -->
 - **Authorship is provenance, and never identity.** *(PROBLEMS.md §95.)* The
   shared cache records who first generated each script, so Explore can leave a

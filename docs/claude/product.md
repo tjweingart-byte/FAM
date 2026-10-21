@@ -186,7 +186,7 @@ replaced when the same episode is vibed again.
 > its words up to 86% of the canvas (`width:max-content`) and breaks only
 > between words.
 >
-> **Current (PROBLEMS.md §295, the Birthday packet):** a story need not be
+> **Current (PROBLEMS.md §297, the Birthday packet):** a story need not be
 > an episode. The (+) on your own face - first on DailyFAM's row, and on
 > your picture on YourFAM - opens the same editor as a **note**: the canvas
 > is a background picked from a fixed set of colours and gradients

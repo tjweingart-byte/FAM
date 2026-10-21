@@ -112,7 +112,7 @@ def test_vibe_opens_the_editor_not_a_caption_box():
     # Not music, not the colour circle, not the "more" arrow.
     for gone in ("Audio", "Music", "More"):
         assert "<span>" + gone + "</span>" not in composer, gone
-    # A colour is only ever a note's background (§295, the Birthday packet):
+    # A colour is only ever a note's background (§297, the Birthday packet):
     # the tool is drawn for a story with no episode, never on a vibe.
     assert 'class="vcs-tool note-only" data-tool="bg"' in composer
     assert ".vcs:not(.note) .vcs-tool.note-only" in INDEX

@@ -69,7 +69,7 @@ public enum ReportSubject: Equatable, Sendable {
     case comment(id: Int)
     case message(id: Int)
     case vibe(id: Int)
-    /// A story with no episode (§295).
+    /// A story with no episode (§297).
     case note(id: Int)
     case person(handle: String)
     case group(id: String)

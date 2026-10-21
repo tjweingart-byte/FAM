@@ -1413,14 +1413,14 @@ __PREVIEW_PICTURE__
       return json(mine);
     }
     // The same faces on their own, for the top of the rails screen (§195).
-    // Your own face leads it (§295), with the (+) to your story.
+    // Your own face leads it (§297), with the (+) to your story.
     if (path === "/api/circle") {
       var meP = FIXTURES["/api/profile"];
       return json({ circle: PEOPLE.circle(),
                     me: { name: meP.name || "", handle: meP.handle || "", avatar: meP.avatar || "",
                           stories: PEOPLE.myStories.slice() } });
     }
-    // A story with no episode (§295), onto your own story for this page.
+    // A story with no episode (§297), onto your own story for this page.
     if (path === "/api/story/note" && method === "POST") {
       var nb = JSON.parse((init && init.body) || "{}");
       var note = { id: "n" + Date.now(), kind: "note", text: String(nb.text || "").slice(0, 280),

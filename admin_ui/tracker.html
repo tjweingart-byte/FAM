@@ -249,7 +249,7 @@
       <input id="adminPassword" type="password" placeholder="Password" autocomplete="current-password" required>
       <button class="go" id="loginBtn" type="submit">Sign in</button>
       <p class="sub err" id="loginErr" hidden></p>
-      <!-- Forgot password (§295): the reset page every log-in links to, drawn only when the server can email a code (§244). -->
+      <!-- Forgot password (§297): the reset page every log-in links to, drawn only when the server can email a code (§244). -->
       <p id="forgotLink" hidden style="margin:10px 0 0;font-size:13px;"><a href="/reset?next=/admin" style="color:inherit;opacity:.75">Forgot password?</a></p>
     </form>
   </div>
@@ -330,7 +330,7 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
           <div><b>Episode</b><span>The player's ⋯ menu → Report, and the ⋯ on an Explore reel.</span></div>
           <div><b>Comment</b><span>Explore → Comments → Report under someone else's comment.</span></div>
           <div><b>Vibe</b><span>A friend's story → ⋯ → Report.</span></div>
-          <div><b>Note</b><span>A friend's story with no episode (§295) → ⋯ → Report.</span></div>
+          <div><b>Note</b><span>A friend's story with no episode (§297) → ⋯ → Report.</span></div>
           <div><b>Person</b><span>A profile's ⋯ → Report, or a chat's ⋯ → Report them.</span></div>
           <div><b>Group</b><span>A group chat's ⋯ → Report this chat.</span></div>
           <div><b>Message</b><span>No button yet: a single message is reported through its chat (person or group).</span></div>
@@ -1078,7 +1078,7 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
     paused = !paused; this.textContent = paused ? "Resume" : "Pause"; tick();
   });
   $("refresh").addEventListener("click", load);
-  // "Forgot password?" only where a code can be emailed (§244, §295).
+  // "Forgot password?" only where a code can be emailed (§244, §297).
   fetch("/api/auth/reset", { credentials: "same-origin" })
     .then(function (r) { return r.json(); })
     .then(function (d) { $("forgotLink").hidden = !(d && d.available); })

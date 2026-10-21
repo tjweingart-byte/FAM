@@ -52,7 +52,7 @@
     <input id="adminPassword" type="password" placeholder="Password" autocomplete="current-password" required>
     <button id="loginBtn" type="submit">Sign in</button>
     <p class="err" id="loginErr" hidden></p>
-      <!-- Forgot password (§295): the reset page every log-in links to, drawn only when the server can email a code (§244). -->
+      <!-- Forgot password (§297): the reset page every log-in links to, drawn only when the server can email a code (§244). -->
       <p id="forgotLink" hidden style="margin:10px 0 0;font-size:13px;"><a href="/reset?next=/admin/waitlist" style="color:inherit;opacity:.75">Forgot password?</a></p>
   </form>
 
@@ -183,7 +183,7 @@
     });
   }
 
-  // "Forgot password?" only where a code can be emailed (§244, §295).
+  // "Forgot password?" only where a code can be emailed (§244, §297).
   fetch("/api/auth/reset", { credentials: "same-origin" })
     .then(function (r) { return r.json(); })
     .then(function (d) { $("forgotLink").hidden = !(d && d.available); })

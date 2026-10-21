@@ -2451,7 +2451,7 @@ async def auth_reset_start(req: ResetStartRequest, request: Request) -> dict:
     minted = ACCOUNTS.start_reset(req.email)
     if minted:
         _user_id, address, code = minted
-        # Where to paste it, when this server knows its own address (§295):
+        # Where to paste it, when this server knows its own address (§297):
         # the reset page every log-in links to.
         base = _public_base(request)
         where = (f"Paste it into the FAM reset password page: {base}/reset\n\n"
@@ -4571,7 +4571,10 @@ LEGAL_PAGES = ("terms", "privacy", "support")
 _LEGAL_TEMPLATES = {name: (PROJECT_ROOT / "pages" / f"{name}.html").read_text(encoding="utf-8")
                     for name in LEGAL_PAGES}
 #: The privacy policy's date. Change it whenever pages/privacy.html changes.
-PRIVACY_UPDATED = "12 October 2026"
+PRIVACY_UPDATED = "21 October 2026"
+#: The terms' effective date. Change it with `consent.TERMS_VERSION` whenever
+#: pages/terms.html changes in a way people must agree to again.
+TERMS_UPDATED = "21 October 2026"
 
 
 def legal_page(name: str, support_email: str) -> str:
@@ -4588,6 +4591,7 @@ def legal_page(name: str, support_email: str) -> str:
     return (_LEGAL_TEMPLATES[name].replace("{{CONTACT}}", contact)
             .replace("{{EMAIL_LINK}}", link)
             .replace("{{UPDATED}}", PRIVACY_UPDATED)
+            .replace("{{TERMS_UPDATED}}", TERMS_UPDATED)
             .replace("{{REVIEW_HOURS}}", str(moderation_mod.REVIEW_HOURS)))
 
 
@@ -4615,7 +4619,7 @@ async def support() -> HTMLResponse:
 
 @app.get("/reset", include_in_schema=False)
 async def reset_page() -> HTMLResponse:
-    """The reset password page (§295): the email on the account, then the
+    """The reset password page (§297): the email on the account, then the
     emailed code and a new password. Every log-in links here - the admin
     pages' too - and it is open to everybody, waitlist or not, since the
     people who need it are the ones who cannot sign in."""
@@ -8132,7 +8136,7 @@ async def remove_from_story(echo_id: int, request: Request) -> dict:
 
 
 class NoteRequest(BaseModel):
-    """A story with no episode (§295): words on a background, and stickers."""
+    """A story with no episode (§297): words on a background, and stickers."""
     #: Cut to `social.MAX_NOTE` rather than refused, like a caption.
     text: str = Field("", max_length=2000)
     #: The background's name, the text's face, size and place, stickers -
@@ -8143,7 +8147,7 @@ class NoteRequest(BaseModel):
 @app.post("/api/story/note")
 async def post_note(req: NoteRequest, request: Request) -> dict:
     """Put your own words on your story, with no episode (the Birthday
-    packet, §295). An account's only: a story is drawn on the faces row,
+    packet, §297). An account's only: a story is drawn on the faces row,
     which only accounts have, and what is kept takes an account."""
     _read_limit(request)
     user = _require_account(request)
@@ -8354,7 +8358,7 @@ async def file_vibe(req: VibeFileRequest, request: Request) -> dict:
 async def profile(request: Request, notes: int = Query(0, ge=0, le=1)):
     """Counts and subjects from this listener's own event log. No model call.
 
-    `notes=1` is a client that draws a story with no episode (§295)."""
+    `notes=1` is a client that draws a story with no episode (§297)."""
     _read_limit(request)
     user = _listener(request)
     body = topics_mod.summary(EVENTS, user, interests=_interests_for(request))
@@ -8500,7 +8504,7 @@ async def circle(request: Request, notes: int = Query(0, ge=0, le=1)) -> dict:
     seen first thing and scrolled sideways. The same rows as `/api/profile`'s
     `circle` (`_circle_row`), asked separately so the rails never wait on it.
     A guest has no follow graph and gets an empty row - never strangers.
-    `notes=1` (a client that draws stories with no episode, §295) also gets
+    `notes=1` (a client that draws stories with no episode, §297) also gets
     `me`: your own face, which leads the row with the (+) to your story.
     """
     _read_limit(request)
@@ -8509,7 +8513,7 @@ async def circle(request: Request, notes: int = Query(0, ge=0, le=1)) -> dict:
     user = _listener(request)
     body = {"circle": _circle_row(user, notes=bool(notes))}
     if notes:
-        # Your own face leads the row, as on Instagram (§295): its picture,
+        # Your own face leads the row, as on Instagram (§297): its picture,
         # the (+) that adds to your story, and your story to play.
         person = SOCIAL.person(user)
         body["me"] = {"name": person.get("name") or "", "handle": person.get("handle") or "",
@@ -10776,7 +10780,9 @@ async def waitlist_status_page(request: Request):
 
 class WaitlistJoinRequest(BaseModel):
     email: str = Field(..., max_length=accounts_mod.MAX_EMAIL)
-    password: str = Field(..., max_length=accounts_mod.MAX_PASSWORD)
+    #: Not asked for since §296: joining is the email alone. A page or client
+    #: that still sends one makes the account with it, as before.
+    password: str = Field("", max_length=accounts_mod.MAX_PASSWORD)
     referral_code: str = Field("", max_length=64)
     want_token: bool = False
     #: The join form's checkbox (§228).
@@ -10793,6 +10799,11 @@ def _admin_previewing_join(req, request: Request):
     `/api/auth/login` would, and sent to the status page's admin preview
     (§216) - never put in line. Anybody else, or a wrong password, still
     gets the refusal, so the form says nothing new about who is an admin.
+
+    Since §296 the form sends no password, so an admin is shown the preview
+    only when this browser is already signed in as that admin; otherwise
+    the refusal stands and the page opens its sign-in, which sends an admin
+    to the preview as well.
     """
     try:
         email = accounts_mod.clean_email(req.email)
@@ -10800,6 +10811,13 @@ def _admin_previewing_join(req, request: Request):
         return None
     if email not in _admin_accounts():
         return None
+    if not req.password:
+        listener = getattr(request.state, "listener", None)
+        if (listener is None or not listener.is_authenticated
+                or listener.email != email or not _allowed_admin(listener)):
+            return None
+        listener = _admit_admin(listener)
+        return {**listener.as_dict(), "admin": True, "redirect": "/waitlist/me"}
     try:
         listener = ACCOUNTS.log_in(email, req.password)
     except accounts_mod.AuthError:
@@ -10818,7 +10836,13 @@ def _admin_previewing_join(req, request: Request):
 
 @app.post("/api/waitlist/join")
 async def waitlist_join(req: WaitlistJoinRequest, request: Request) -> dict:
-    """Join: the app's own email-and-password sign-up, then the waitlist half.
+    """Join: the app's own sign-up, then the waitlist half.
+
+    **The email alone** (the owner, PROBLEMS.md §296): no password is asked
+    for, so the account is made with none (`passwordless`), exactly as a
+    Google-or-Apple one is. This browser's session is the way in; another
+    device gets in by "Forgot password?" (§244), which sets the first one.
+    A request that still carries a password is the old join, unchanged.
 
     The same account the app will open with later - `ACCOUNTS.sign_up` on the
     session this browser already has - so granting access changes one column
@@ -10837,7 +10861,8 @@ async def waitlist_join(req: WaitlistJoinRequest, request: Request) -> dict:
     user, fresh = _signup_listener(request)
     try:
         listener = await asyncio.to_thread(ACCOUNTS.sign_up, user, req.email,
-                                           req.password, waitlisted=True)
+                                           req.password, waitlisted=True,
+                                           passwordless=not req.password)
     except accounts_mod.AuthError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     listener = _admit_admin(listener)
@@ -10913,6 +10938,9 @@ async def waitlist_me(request: Request) -> dict:
             "phone": account.get("phone") or "",
             "birth_date": account.get("birth_date") or "",
             "location": PREFS.get(user).location.as_dict(),
+            # False for an email-only join (§296): signing out is then
+            # warned about, since this session is the only way back in.
+            "has_password": _has_password(user),
         },
     }
 
