@@ -467,15 +467,15 @@ class SocialStore:
             # again - not on the next open, not on another device. Separate
             # from `followers_seen`, which is the Friends badge's and is
             # cleared by opening Friends and nothing else.
-            # Stories with no episode (§297): words on a background.
+            # Stories with no episode (§297): words on a background. No
+            # `unstoried`, unlike a vibe: taking a note down deletes it.
             conn.execute(
                 """CREATE TABLE IF NOT EXISTS notes (
                        id        INTEGER PRIMARY KEY AUTOINCREMENT,
                        user_id   TEXT NOT NULL,
                        text      TEXT NOT NULL DEFAULT '',
                        style     TEXT NOT NULL DEFAULT '',
-                       at        REAL NOT NULL,
-                       unstoried INTEGER NOT NULL DEFAULT 0
+                       at        REAL NOT NULL
                    )"""
             )
             conn.execute("CREATE INDEX IF NOT EXISTS notes_user ON notes(user_id, at)")
@@ -689,7 +689,7 @@ class SocialStore:
             raise SocialError("Write something, or add a sticker.")
         now = time.time()
         cur = self._conn().execute(
-            "INSERT INTO notes (user_id, text, style, at, unstoried) VALUES (?, ?, ?, ?, 0)",
+            "INSERT INTO notes (user_id, text, style, at) VALUES (?, ?, ?, ?)",
             (user_id, words, json.dumps(layout), now))
         return {"id": int(cur.lastrowid), "kind": "note", "text": words,
                 "style": layout, "at": now}
@@ -725,7 +725,7 @@ class SocialStore:
         try:
             rows = self._conn().execute(
                 "SELECT id, user_id, text, style, at FROM notes"
-                f" WHERE user_id IN ({marks}) AND at >= ? AND unstoried = 0"
+                f" WHERE user_id IN ({marks}) AND at >= ?"
                 " ORDER BY at ASC", (*ids, float(since))).fetchall()
         except Exception:
             log.exception("could not read notes")

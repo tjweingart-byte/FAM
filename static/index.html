@@ -8426,6 +8426,8 @@
         setTimeout(function(){ Motion.celebrate("[data-echo]", "VIBED"); }, 300);
       }
       snack("Vibed to your story", { label: "View", run: viewMyNewStory });
+      // Your face on DailyFAM's row carries the ring for it (§297).
+      loadMyFamCircle();
       refreshVibeCount(ep);
       if(typeof loadProfileQuietly === "function") loadProfileQuietly();
     }).catch(function(err){
@@ -15181,6 +15183,7 @@
     if(!yfMe) return "";
     var mine = myStoryOnRow();
     return '<div class="yf-friend" role="button" tabindex="0" onclick="tapMyFace()" '
+      + 'onkeydown="if(event.target===this&&(event.key===\'Enter\'||event.key===\' \')){ event.preventDefault(); tapMyFace(); }" '
       + 'aria-label="' + (mine ? "Your story" : "Add to your story") + '">'
       + '<span class="yf-ring' + (mine ? (storiesUnseen(mine) ? " fresh" : " seen") : "") + '" id="yfMyRing">'
       + yfFace(yfMe)
