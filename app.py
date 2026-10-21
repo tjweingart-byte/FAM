@@ -4566,7 +4566,7 @@ LEGAL_PAGES = ("terms", "privacy", "support")
 _LEGAL_TEMPLATES = {name: (PROJECT_ROOT / "pages" / f"{name}.html").read_text(encoding="utf-8")
                     for name in LEGAL_PAGES}
 #: The privacy policy's date. Change it whenever pages/privacy.html changes.
-PRIVACY_UPDATED = "12 October 2026"
+PRIVACY_UPDATED = "21 October 2026"
 #: The terms' effective date. Change it with `consent.TERMS_VERSION` whenever
 #: pages/terms.html changes in a way people must agree to again.
 TERMS_UPDATED = "21 October 2026"

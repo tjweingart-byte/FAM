@@ -21328,8 +21328,12 @@ contents list:
   for the EEA, UK or Switzerland. Apple's section kept, Google Play added;
   sanctions, assignment, force majeure, California Civil Code 1789.3.
 
-**For a lawyer before launch** (in the page's comment): the entity's full
-name and state (it says "Familiarize"), Delaware, NAM, the cap, and a DMCA
+**The party.** The owner (10.21, after): FAM operates under Apali LLC. The
+terms, privacy policy and support page now name Apali LLC as the party and
+operator (they said "Familiarize"); the privacy policy's date moved with it.
+
+**For a lawyer before launch** (in the page's comment): Apali LLC's state
+of formation, Delaware, NAM, the cap, and a DMCA
 agent registered with the US Copyright Office - the section names only
 the support email, which is not a registered agent.
 

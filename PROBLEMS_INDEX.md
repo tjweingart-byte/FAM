@@ -298,4 +298,4 @@ and `limit` = Lines.
 | 21105 | 85 | 292. Motion: the owner's ten picks (2026-10-20) |
 | 21190 | 41 | 293. Kept audio lives in the bucket and nowhere else (2026-10-20) |
 | 21231 | 51 | 294. Replays off the server for Safari, and the kept voice for searches (2026-10-20) |
-| 21282 | 66 | 295. The terms rewritten against YouTube, Instagram, Spotify and OpenAI (2026-10-21) |
+| 21282 | 70 | 295. The terms rewritten against YouTube, Instagram, Spotify and OpenAI (2026-10-21) |
