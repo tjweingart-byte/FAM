@@ -1937,6 +1937,25 @@
     border-radius:8px; background:var(--copper); color:var(--ink); pointer-events:none;
     font-family:'Geist Mono', monospace; font-size:9px; font-weight:600; line-height:15px; text-align:center; }
   .q-badge[hidden]{ display:none; }
+  /* Round two (§298). The play/pause icon on its way out, drawn over the
+     button while the new one pops in. */
+  .motion-icon{ position:absolute; z-index:61; pointer-events:none;
+    display:flex; align-items:center; justify-content:center; }
+  .motion-icon svg{ display:block; }
+  /* The mini player dropping behind the tabs, after it has gone. */
+  .motion-copy{ position:absolute !important; z-index:59; pointer-events:none; margin:0 !important; }
+  /* Behind a story turning like a cube: black, as on Instagram. */
+  .story.motion-story-back{ background:#000; pointer-events:none; }
+  /* The tick that draws itself into Following. */
+  .motion-tick{ display:inline-block; vertical-align:-1px; margin-right:4px; flex:none; }
+  .motion-tick path{ stroke-dasharray:1; }
+  /* Sign-up's three steps, filled to the one on screen. */
+  .motion-steps{ position:absolute; top:calc(var(--sb-h) + 6px); left:50%; transform:translateX(-50%);
+    z-index:50; display:flex; gap:5px; pointer-events:none; }
+  .motion-steps[hidden]{ display:none; }
+  .motion-steps i{ display:block; width:18px; height:3px; border-radius:2px;
+    background:var(--border-strong); transform-origin:0 50%; }
+  .motion-steps i.on{ background:var(--copper); }
   /* Every sheet and modal fades and lifts 14px in, and drops 8px out. The
      way out is a class the script holds for the 150 ms it takes after
      `active` goes, so nothing that closes an overlay has to know about it. */
@@ -5489,6 +5508,21 @@
                                              { opacity: 1, transform: "translateX(0px)" }],
                                         200, { delay: 90 }));
           });
+        } else if(how === "step"){
+          // Sign-up's steps (§298): the words slide a short way and fade;
+          // the bars at the top say which step this is.
+          from.classList.add("on-top");
+          from.style.background = "transparent";
+          contentOf(from, []).forEach(function(el){
+            anims = anims.concat(runAdd(el, [{ opacity: 1, transform: "translateX(0px)" },
+                                             { opacity: 0, transform: "translateX(-24px)" }],
+                                        160, { easing: EASE_IN }));
+          });
+          contentOf(to, []).forEach(function(el){
+            anims = anims.concat(runAdd(el, [{ opacity: 0, transform: "translateX(24px)" },
+                                             { opacity: 1, transform: "translateX(0px)" }],
+                                        260, { delay: 80 }));
+          });
         }
       }
       var finish = function(){
@@ -5717,8 +5751,314 @@
       });
     }
 
+    // ---- round two (§298): the owner's twelve picks of 10.21 ----
+    // The same terms as the first ten: what moves is already true when it
+    // starts moving - the icon is the new one, the bar is gone, the row is
+    // out of the list - and the movement is drawn on top of that.
+    function gone(el){ return function(){ el.remove(); }; }
+    // A copy of something that has already changed, drawn for as long as it
+    // takes to leave: no ids, nothing to press, nothing to read aloud.
+    function inertCopy(el){
+      var c = el.cloneNode(true);
+      [c].concat(Array.prototype.slice.call(c.querySelectorAll("[id], [onclick]"))).forEach(function(n){
+        n.removeAttribute("id"); n.removeAttribute("onclick");
+      });
+      c.setAttribute("aria-hidden", "true");
+      c.inert = true;
+      c.style.pointerEvents = "none";
+      return c;
+    }
+    // On screen and not mid-transition: in the active screen, or in a sheet
+    // or modal that is open over it.
+    function onActive(el){
+      return !!(el && seen(el)
+        && el.closest(".screen.active:not(.arriving), .sheet-overlay.active, .modal-overlay.active"));
+    }
+
+    // Play and pause: the old icon shrinks away, the new one pops in. The
+    // new one is in the button at once; the old one leaves as a copy.
+    function swapIcon(el, html, key){
+      if(!el) return;
+      var was = el._iconKey, old = el.firstElementChild;
+      el._iconKey = key;
+      var animate = was !== undefined && was !== key && on() && old && onActive(el);
+      var r = animate ? box(old) : null, color = animate ? getComputedStyle(old).color : "";
+      el.innerHTML = html;
+      if(!animate || !r.w) return;
+      var g = document.createElement("span");
+      g.className = "motion-icon";
+      g.style.left = r.x + "px"; g.style.top = r.y + "px";
+      g.style.width = r.w + "px"; g.style.height = r.h + "px";
+      g.style.color = color;
+      g.appendChild(old);
+      frameEl().appendChild(g);
+      run(g, [{ transform: "scale(1)", opacity: 1 }, { transform: "scale(.5)", opacity: 0 }], 90,
+          { easing: EASE_IN }).finished.then(gone(g), gone(g));
+      var nu = el.firstElementChild;
+      if(nu) run(nu, [{ transform: "scale(.5)", opacity: 0 }, { transform: "scale(1.1)", opacity: 1, offset: 0.7 },
+                      { transform: "scale(1)", opacity: 1 }], 180, { easing: "ease-out", delay: 90, fill: "backwards" });
+    }
+
+    // The mini player rises from behind the tab bar and drops back behind
+    // it: moved down by its own height, and clipped by the same amount, so
+    // nothing of it is ever drawn over the tabs.
+    function barFrames(h){
+      return [{ transform: "translateY(" + h + "px)", clipPath: "inset(0px 0px " + h + "px 0px)" },
+              { transform: "translateY(0px)", clipPath: "inset(0px 0px 0px 0px)" }];
+    }
+    function riseBar(bar){
+      if(!on() || !onActive(bar)) return;
+      run(bar, barFrames(bar.offsetHeight), 260, { fill: "none" });
+    }
+    function dropBar(bar){
+      if(!on() || !onActive(bar)) return;
+      var r = box(bar), g = inertCopy(bar);
+      g.classList.add("motion-copy");
+      g.style.left = r.x + "px"; g.style.top = r.y + "px";
+      g.style.width = r.w + "px"; g.style.height = r.h + "px";
+      frameEl().appendChild(g);
+      run(g, barFrames(r.h).reverse(), 200, { easing: EASE_IN }).finished.then(gone(g), gone(g));
+    }
+
+    // The writer's title wipes in left to right over the one the player
+    // opened on. The words are the new ones from the first frame.
+    function retitle(el, text){
+      if(!el || el.textContent === text) return;
+      var animate = on() && el.textContent && onActive(el);
+      el.textContent = text;
+      if(animate) run(el, [{ clipPath: "inset(0 100% 0 0)" }, { clipPath: "inset(0 0% 0 0)" }], 320,
+                      { easing: EASE_IO, fill: "none" });
+    }
+
+    // Pictures blur up as they land: soft and slightly large, then sharp.
+    // Only a picture that arrives after its tile was drawn - one already on
+    // the device appears at once, so nothing looks slower than it is.
+    var BLUR_UP = [{ opacity: 0, filter: "blur(8px)", transform: "scale(1.12)" },
+                   { opacity: 1, filter: "blur(0px)", transform: "scale(1)" }];
+    document.addEventListener("load", function(e){
+      var img = e.target;
+      if(!img || img.tagName !== "IMG" || !img.classList.contains("seed-img") || !on()) return;
+      var drawn = +img.getAttribute("data-drawn") || 0;
+      if(!drawn || Date.now() - drawn < 100 || !seen(img)) return;
+      run(img, BLUR_UP, 320, { fill: "none" });
+    }, true);
+    // A picture painted as a background (the player's, the reel's): held at
+    // the first frame until it has loaded - it could not be shown before
+    // that anyway - then blurred up. Given up after eight seconds.
+    function picture(el, url){
+      if(!el || !url || !on()) return;
+      var im = new Image();
+      im.src = url;
+      if(im.complete) return;
+      var a = run(el, [{ opacity: 0, filter: "blur(8px)", transform: "scale(1.06)" },
+                       { opacity: 1, filter: "blur(0px)", transform: "scale(1)" }], 320);
+      a.pause();
+      var giveUp = setTimeout(function(){ a.cancel(); }, 8000);
+      im.onload = function(){
+        clearTimeout(giveUp);
+        if((el.style.backgroundImage || "").indexOf(url) < 0){ a.cancel(); return; }
+        a.play();
+        a.finished.then(function(){ a.cancel(); }, function(){});
+      };
+      im.onerror = function(){ clearTimeout(giveUp); a.cancel(); };
+    }
+
+    // ---- stories ----
+    // Whatever was last pressed, for the story to grow out of.
+    var pressed = { el: null, at: 0 };
+    document.addEventListener("pointerdown", function(e){ pressed = { el: e.target, at: Date.now() }; }, true);
+    function pressedCircle(){
+      if(!pressed.el || !pressed.el.isConnected || Date.now() - pressed.at > 1500) return null;
+      var face = pressed.el.closest ? (pressed.el.closest('button, [onclick], [role="button"]') || pressed.el) : null;
+      if(!face || !seen(face) || face.closest(".story")) return null;
+      var r = box(face);
+      return { x: r.x + r.w / 2, y: r.y + r.h / 2, r: Math.max(8, Math.min(r.w, r.h) / 2) };
+    }
+    function circleIn(ov, o, grown){
+      var b = box(ov), at = (o.x - b.x) + "px " + (o.y - b.y) + "px";
+      return "circle(" + (grown ? Math.ceil(Math.hypot(b.w, b.h)) : o.r) + "px at " + at + ")";
+    }
+    // Opened out of the face that was tapped, and closed back into it.
+    function openStory(ov){
+      ov._from = pressedCircle();
+      if(!on() || !ov._from || !seen(ov)) return;
+      run(ov, [{ clipPath: circleIn(ov, ov._from, false) }, { clipPath: circleIn(ov, ov._from, true) }], 300,
+          { fill: "none" });
+    }
+    // Called before the story is hidden: a copy closes into the face while
+    // the real one is already gone.
+    function closeStory(ov){
+      var o = ov._from;
+      ov._from = null;
+      if(!on() || !o || ov.hidden || !seen(ov)) return;
+      var g = inertCopy(ov);
+      ov.parentNode.insertBefore(g, ov.nextSibling);
+      run(g, [{ clipPath: circleIn(ov, o, true), opacity: 1 }, { clipPath: circleIn(ov, o, false), opacity: 1, offset: 0.85 },
+              { clipPath: circleIn(ov, o, false), opacity: 0 }], 240, { easing: EASE_IO }).finished.then(gone(g), gone(g));
+    }
+    // To the next friend's: a cube turn (Instagram's). `draw` puts the next
+    // friend's story in the real overlay; the last one turns away as a copy.
+    function turnStory(ov, dir, draw){
+      if(!on() || !seen(ov)){ draw(); return; }
+      var back = document.createElement("div"), g = inertCopy(ov);
+      back.className = "story motion-story-back";
+      back.setAttribute("aria-hidden", "true");
+      ov.parentNode.insertBefore(back, ov);
+      ov.parentNode.insertBefore(g, ov.nextSibling);
+      draw();
+      var P = "perspective(900px) ";
+      g.style.transformOrigin = dir > 0 ? "100% 50%" : "0% 50%";
+      ov.style.transformOrigin = dir > 0 ? "0% 50%" : "100% 50%";
+      g.style.backfaceVisibility = ov.style.backfaceVisibility = "hidden";
+      run(g, [{ transform: P + "translateX(0%) rotateY(0deg)" },
+              { transform: P + "translateX(" + (-100 * dir) + "%) rotateY(" + (-90 * dir) + "deg)" }], 340,
+          { easing: EASE_IO }).finished.then(gone(g), gone(g));
+      run(ov, [{ transform: P + "translateX(" + (100 * dir) + "%) rotateY(" + (90 * dir) + "deg)" },
+               { transform: P + "translateX(0%) rotateY(0deg)" }], 340, { easing: EASE_IO, fill: "none" })
+        .finished.then(function(){ back.remove(); ov.style.transformOrigin = ov.style.backfaceVisibility = ""; },
+                       function(){ back.remove(); ov.style.transformOrigin = ov.style.backfaceVisibility = ""; });
+    }
+
+    // Messages pop out of their bubble's tail corner.
+    function popMessages(rows){
+      if(!on()) return;
+      Array.prototype.forEach.call(rows, function(row){
+        var el = row.firstElementChild;
+        row.classList.remove("msg-new");
+        if(!el) return;
+        el.style.transformOrigin = row.classList.contains("out") ? "100% 100%" : "0% 100%";
+        run(el, [{ opacity: 0, transform: "scale(.6)" }, { opacity: 1, transform: "scale(1.04)", offset: 0.65 },
+                 { opacity: 1, transform: "scale(1)" }], 260, { easing: "ease-out", fill: "backwards" });
+      });
+    }
+
+    // An unread count pops in, bumps when it goes up, shrinks away when
+    // cleared. Hidden at once on clearing; a copy does the shrinking.
+    function badge(b, text, show){
+      var was = !b.hidden, before = b.textContent, live = on() && b.closest(".screen.active:not(.arriving)");
+      if(!show){
+        if(was && live && seen(b)){
+          var g = inertCopy(b);
+          g.removeAttribute("data-msg-badge");
+          b.parentNode.insertBefore(g, b);
+          run(g, [{ opacity: 1, transform: "scale(1)" }, { opacity: 0, transform: "scale(0)" }], 160,
+              { easing: EASE_IN }).finished.then(gone(g), gone(g));
+        }
+        b.hidden = true;
+        b.textContent = text;
+        return;
+      }
+      b.hidden = false;
+      b.textContent = text;
+      if(!live || !seen(b)) return;
+      if(!was){
+        run(b, [{ opacity: 0, transform: "scale(0)" }, { opacity: 1, transform: "scale(1.25)", offset: 0.6 },
+                { opacity: 1, transform: "scale(1)" }], 300, { easing: "ease-out", fill: "none" });
+      } else if((parseInt(text, 10) || 0) > (parseInt(before, 10) || 0)){
+        run(b, [{ transform: "scale(1)" }, { transform: "scale(1.3)", offset: 0.4 }, { transform: "scale(1)" }], 220,
+            { easing: "ease-out", fill: "none" });
+      }
+    }
+
+    // Private search: the charcoal falls from the top like a blind and lifts
+    // when it goes. The page is repainted at once; a copy of how it looked
+    // is drawn over it and cut away - from the top turning on, from the
+    // bottom turning off. The copy keeps the page's ids for its look and
+    // comes after it, so a lookup by id still finds the real page.
+    function dimDown(screen, turningOn, paint){
+      if(!on() || !screen || !screen.classList.contains("active") || !seen(screen)){ paint(); return; }
+      settle();
+      var veil = screen.cloneNode(true);
+      veil.classList.remove("active", "arriving");
+      veil.classList.add("leaving", "on-top");
+      veil.setAttribute("aria-hidden", "true");
+      veil.inert = true;
+      var typed = screen.querySelectorAll("input, textarea"), copied = veil.querySelectorAll("input, textarea");
+      for(var i = 0; i < typed.length && i < copied.length; i++) copied[i].value = typed[i].value;
+      screen.parentNode.insertBefore(veil, screen.nextSibling);
+      // The page's own background fade would show through the blind.
+      screen.style.transition = "none";
+      paint();
+      var a = run(veil, turningOn
+        ? [{ clipPath: "inset(0% 0 0 0)" }, { clipPath: "inset(100% 0 0 0)" }]
+        : [{ clipPath: "inset(0 0 0% 0)" }, { clipPath: "inset(0 0 100% 0)" }],
+        turningOn ? 320 : 260, { easing: EASE_IO });
+      var done = function(){ veil.remove(); screen.style.transition = ""; };
+      finishing.push(done);
+      a.finished.then(function(){
+        var at = finishing.indexOf(done);
+        if(at >= 0) finishing.splice(at, 1);
+        done();
+      }, function(){});
+    }
+
+    // Follow and unfollow change the button on the tap - a tick draws in and
+    // the button takes its new width - and are put back if the server says no.
+    var TICK = '<svg class="motion-tick" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor"'
+      + ' stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+      + '<path d="M4 12.5l5 5L20 7" pathLength="1"/></svg>';
+    function follow(userId, following){
+      var sel = '[onclick*="ollowPerson(\'' + String(userId).replace(/'/g, "") + '\')"]';
+      document.querySelectorAll(sel).forEach(function(btn){
+        var w0 = btn.offsetWidth, act = btn.getAttribute("onclick");
+        btn.setAttribute("onclick", following ? act.replace("followPerson(", "unfollowPerson(")
+                                              : act.replace("unfollowPerson(", "followPerson("));
+        btn.innerHTML = following ? TICK + "Following" : "Follow";
+        btn.classList.toggle("is-following", following);
+        if(!on() || !onActive(btn)) return;
+        run(btn, [{ width: w0 + "px" }, { width: btn.offsetWidth + "px" }], 260, { fill: "none" });
+        var tick = btn.querySelector(".motion-tick path");
+        if(tick) run(tick, [{ strokeDashoffset: 1 }, { strokeDashoffset: 0 }], 220, { delay: 80, fill: "backwards" });
+      });
+    }
+
+    // A row taken out of a list slides off to the left, then the gap closes.
+    // `redraw` takes it out for real, at once; a copy put back where it was
+    // does the leaving, so the rows below glide up as it folds away.
+    // `selector` names the list's rows, before and after.
+    function removeRow(row, redraw, selector){
+      var rows = Array.prototype.slice.call(document.querySelectorAll(selector)), k = rows.indexOf(row);
+      if(!on() || !row || k < 0 || !onActive(row)){ redraw(); return; }
+      var h = row.offsetHeight, cs = getComputedStyle(row), g = inertCopy(row), home = row.parentNode;
+      redraw();
+      var now = Array.prototype.slice.call(document.querySelectorAll(selector)), ref = now[k] || null;
+      var parent = ref ? ref.parentNode : now.length ? now[now.length - 1].parentNode
+                 : home && home.isConnected ? home : null;
+      if(!parent) return;
+      g.style.overflow = "hidden";
+      parent.insertBefore(g, ref || (now.length ? now[now.length - 1].nextSibling : null));
+      run(g, [{ transform: "translateX(0%)", opacity: 1 }, { transform: "translateX(-45%)", opacity: 0 }], 180,
+          { easing: EASE_IN });
+      run(g, [{ height: h + "px", paddingTop: cs.paddingTop, paddingBottom: cs.paddingBottom,
+                marginTop: cs.marginTop, marginBottom: cs.marginBottom },
+              { height: "0px", paddingTop: "0px", paddingBottom: "0px", marginTop: "0px", marginBottom: "0px" }],
+          200, { delay: 180 }).finished.then(gone(g), gone(g));
+    }
+
+    // Sign-up's steps: three bars at the top, filled to the step on screen.
+    var stepBars = null;
+    function steps(n){
+      if(!stepBars){
+        if(!n) return;
+        stepBars = document.createElement("div");
+        stepBars.className = "motion-steps";
+        stepBars.setAttribute("aria-hidden", "true");
+        stepBars.innerHTML = "<i></i><i></i><i></i>";
+        frameEl().appendChild(stepBars);
+      }
+      stepBars.hidden = !n;
+      Array.prototype.forEach.call(stepBars.children, function(bar, i){
+        var was = bar.classList.contains("on"), is = i < n;
+        bar.classList.toggle("on", is);
+        if(is && !was && on()) run(bar, [{ transform: "scaleX(.3)" }, { transform: "scaleX(1)" }], 260, { fill: "none" });
+      });
+    }
+
     return { on: on, screen: screen, still: still, celebrate: celebrate, watchOverlays: watchOverlays,
              arrive: arrive, arriveRails: arriveRails, toQueue: toQueue, settleReel: settleReel,
+             swapIcon: swapIcon, riseBar: riseBar, dropBar: dropBar, retitle: retitle, picture: picture,
+             openStory: openStory, closeStory: closeStory, turnStory: turnStory, popMessages: popMessages,
+             badge: badge, dimDown: dimDown, follow: follow, removeRow: removeRow, steps: steps,
              SNAP: "cubic-bezier(.3,1.25,.5,1)" };
   })();
   Motion.watchOverlays();
@@ -5734,15 +6074,29 @@
       return;
     }
     var prev = document.querySelector(".screen.active");
+    // Sign-up's steps move as steps, and say which one this is (§298).
+    var step = firstRunStep(id);
+    if(!how && step && prev && firstRunStep(prev.id.replace("screen-", ""))) how = "step";
     document.querySelectorAll(".screen").forEach(function(s){ s.classList.remove("active"); });
     next.classList.add("active");
     placeNowBar(next);
     // How it moves (§292) - after the bar is placed, so a player closing
     // into the mini player knows where the mini player is.
     Motion.screen(prev, next, how);
+    Motion.steps(step);
     stopWelcomeSampleLeaving(id);
     if(id === "welcome") loadWelcomeSamples();
     if(id === "home") loadTrendSearches();
+  }
+
+  // Which of sign-up's three steps a screen is, or 0: the sign-up form, the
+  // name and picture, then the interests. The same screens opened later
+  // from Settings are editors, not steps.
+  function firstRunStep(id){
+    if(id === "auth") return authMode === "signup" ? 1 : 0;
+    if(id === "identity") return identityMode === "first-run" ? 2 : 0;
+    if(id === "intro") return introMode === "first-run" ? 3 : 0;
+    return 0;
   }
 
   // The mini player goes wherever the listener goes (§142). It was one strip
@@ -6130,7 +6484,9 @@
   // guest; the server honours the stored one whatever a client sends.
   var privateSearch = false;
   function setPrivateSearch(on){
-    paintPrivateSearch(on);
+    // The charcoal falls like a blind, and lifts when it goes (§298).
+    Motion.dimDown(document.getElementById("screen-home"), !!on,
+                   function(){ paintPrivateSearch(on); });
     if(AUTH.authenticated){
       savePreferences({ private_search: privateSearch }).then(function(saved){
         if(saved && PREF_CHOICES) PREF_CHOICES.private_search = !!saved.private_search;
@@ -7427,13 +7783,13 @@
       var shown = document.getElementById("p-title");
       if(shown && document.getElementById("screen-player")
                     .classList.contains("active")){
-        shown.textContent = title;
+        Motion.retitle(shown, title);
       }
     }
     if(nowBarState && nowBarState.query === episodeStamp.split("|")[0]){
       nowBarState.title = title;
       var barTitle = document.getElementById("nowTitle");
-      if(barTitle) barTitle.textContent = title;
+      if(barTitle) Motion.retitle(barTitle, title);
     }
   }
   // ---------------- live captions ----------------
@@ -7735,9 +8091,12 @@
     nowBarState = { title: title, query: query, minutes: minutes, source: source || "" };
     var bar = document.getElementById("nowBar");
     if(!bar) return;
+    var wasHidden = bar.hidden;
     placeNowBar(document.querySelector(".screen.active"));
     paintNowThumb();
     document.getElementById("nowTitle").textContent = title;
+    // It rises from behind the tabs when it appears on a page (§298).
+    if(wasHidden && !bar.hidden) Motion.riseBar(bar);
     paintExplicit();
     setNowBarPlaying(true);
     startNowBarTicker();
@@ -7760,9 +8119,10 @@
   function setNowBarPlaying(on){
     var btn = document.getElementById("nowPlay");
     if(!btn) return;
-    btn.innerHTML = on
+    Motion.swapIcon(btn, on
       ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="3.8" width="4.6" height="16.4" rx="1.7"/><rect x="13.4" y="3.8" width="4.6" height="16.4" rx="1.7"/></svg>'
-      : '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"><path d="M8.2 4.9v14.2L18.6 12z"/></svg>';
+      : '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"><path d="M8.2 4.9v14.2L18.6 12z"/></svg>',
+      !!on);
   }
 
   function startNowBarTicker(){
@@ -7790,6 +8150,7 @@
     stopNowBarTicker();
     nowBarState = null;
     var bar = document.getElementById("nowBar");
+    if(bar && !bar.hidden) Motion.dropBar(bar);
     if(bar) bar.hidden = true;
   }
 
@@ -8529,8 +8890,10 @@
   function drawPlayerPicture(url){
     var bg = document.getElementById("playerBg");
     if(bg){
+      var before = bg.style.backgroundImage;
       bg.style.backgroundImage = url ? 'url("' + String(url).replace(/"/g, "%22") + '")' : "";
       bg.classList.toggle("has-img", !!url);
+      if(url && bg.style.backgroundImage !== before) Motion.picture(bg, String(url));
     }
     if(nowBarState) paintNowThumb();
   }
@@ -8769,7 +9132,9 @@
   function removeFromQueue(i){
     var gone = QUEUE.splice(i, 1)[0];
     drawMixSkip(!!mixPlay);
-    openQueue();
+    // It slides out and the queue closes up behind it (§298).
+    var x = document.querySelector('#sheetCard [onclick="removeFromQueue(' + i + ')"]');
+    Motion.removeRow(x && x.closest(".q-row"), openQueue, "#sheetCard .q-row");
     if(gone) snack("Removed from Queue", { label: "Undo", run: function(){
       QUEUE.splice(Math.min(i, QUEUE.length), 0, gone);
       drawMixSkip(!!mixPlay);
@@ -9493,9 +9858,10 @@
     }
     isPlaying = playing;
     paIsPlaying = playing;
-    document.getElementById("playIcon2").innerHTML = playing
+    Motion.swapIcon(document.getElementById("playIcon2"), playing
       ? '<svg width="19" height="19" viewBox="0 0 24 24" fill="var(--ink)"><rect x="6" y="3.8" width="4.6" height="16.4" rx="1.7"/><rect x="13.4" y="3.8" width="4.6" height="16.4" rx="1.7"/></svg>'
-      : '<svg width="19" height="19" viewBox="0 0 24 24" fill="var(--ink)" stroke="var(--ink)" stroke-width="2.2" stroke-linejoin="round"><path d="M8.2 4.9v14.2L18.6 12z"/></svg>';
+      : '<svg width="19" height="19" viewBox="0 0 24 24" fill="var(--ink)" stroke="var(--ink)" stroke-width="2.2" stroke-linejoin="round"><path d="M8.2 4.9v14.2L18.6 12z"/></svg>',
+      playing);
     drawPlayAllTransport(playing);
     setReelPlaying(playing);
     setNowBarPlaying(playing);
@@ -13128,7 +13494,7 @@
   function seedThumbOpen(t){
     var img = (t && t.thumb)
       ? '<img class="seed-img" src="' + escapeHtml(t.thumb) + '" alt="" loading="lazy"'
-        + ' decoding="async" onerror="seedImgFailed(this)">'
+        + ' decoding="async" data-drawn="' + Date.now() + '" onerror="seedImgFailed(this)">'
       : '';
     return '<div class="seed-thumb' + (img ? ' has-img' : '') + '">'
       + seedThumbSVG(t && t.icon) + img;
@@ -14283,12 +14649,14 @@
     var art = document.getElementById("paPlayIcon");
     var mid = document.getElementById("paPlayIcon2");
     if(!art || !mid) return;
-    art.innerHTML = playing
+    Motion.swapIcon(art, playing
       ? '<svg width="18" height="18" viewBox="0 0 24 24" fill="var(--paper)"><rect x="4.6" y="3.4" width="5.6" height="17.2" rx="1.6"/><rect x="13.8" y="3.4" width="5.6" height="17.2" rx="1.6"/></svg>'
-      : '<svg width="19" height="19" viewBox="0 0 24 24" fill="var(--paper)" stroke="var(--paper)" stroke-width="2.2" stroke-linejoin="round"><path d="M8.2 4.9v14.2L18.6 12z"/></svg>';
-    mid.innerHTML = playing
+      : '<svg width="19" height="19" viewBox="0 0 24 24" fill="var(--paper)" stroke="var(--paper)" stroke-width="2.2" stroke-linejoin="round"><path d="M8.2 4.9v14.2L18.6 12z"/></svg>',
+      !!playing);
+    Motion.swapIcon(mid, playing
       ? '<svg width="19" height="19" viewBox="0 0 24 24" fill="var(--ink)"><rect x="6" y="3.8" width="4.6" height="16.4" rx="1.7"/><rect x="13.4" y="3.8" width="4.6" height="16.4" rx="1.7"/></svg>'
-      : '<svg width="19" height="19" viewBox="0 0 24 24" fill="var(--ink)" stroke="var(--ink)" stroke-width="2.2" stroke-linejoin="round"><path d="M8.2 4.9v14.2L18.6 12z"/></svg>';
+      : '<svg width="19" height="19" viewBox="0 0 24 24" fill="var(--ink)" stroke="var(--ink)" stroke-width="2.2" stroke-linejoin="round"><path d="M8.2 4.9v14.2L18.6 12z"/></svg>',
+      !!playing);
     var lbl = document.querySelector("#screen-playall .pa-side:nth-child(2) .lbl");
     if(lbl) lbl.textContent = playing ? "pause" : "play";
   }
@@ -15345,6 +15713,8 @@
     storyAt = { person: i, item: start };
     document.getElementById("storyOverlay").hidden = false;
     showStory();
+    // Out of the face that was tapped (§298).
+    Motion.openStory(document.getElementById("storyOverlay"));
   }
 
   function currentStory(){
@@ -15430,19 +15800,28 @@
     if(next < 0){
       // Back past the first: the previous friend with stories, else stay.
       for(var p = storyAt.person - 1; p >= 0; p--){
-        if(hasStories(storyList[p])){ storyAt = { person: p, item: storyList[p].stories.length - 1 }; showStory(); return; }
+        if(hasStories(storyList[p])){ turnToFriend(-1, { person: p, item: storyList[p].stories.length - 1 }); return; }
       }
       storyAt.item = 0; showStory(); return;
     }
     if(next >= person.stories.length){
       for(var q = storyAt.person + 1; q < storyList.length; q++){
-        if(hasStories(storyList[q])){ storyAt = { person: q, item: 0 }; showStory(); return; }
+        if(hasStories(storyList[q])){ turnToFriend(1, { person: q, item: 0 }); return; }
       }
       closeStory();
       return;
     }
     storyAt.item = next;
     showStory();
+  }
+
+  // Another friend's vibes turn in like a cube's next face (§298); one
+  // friend's own vibes change in place, as on Instagram.
+  function turnToFriend(dir, at){
+    Motion.turnStory(document.getElementById("storyOverlay"), dir, function(){
+      storyAt = at;
+      showStory();
+    });
   }
 
   // A swipe moves between friends, a tap between one friend's vibes - the
@@ -15456,8 +15835,7 @@
         for(var k = 0; k < person.stories.length; k++){
           if(person.stories[k].at > seenAt){ start = k; break; }
         }
-        storyAt = { person: p, item: start };
-        showStory();
+        turnToFriend(dir, { person: p, item: start });
         return;
       }
     }
@@ -15539,6 +15917,8 @@
     clearTimeout(storyTimer);
     clearTimeout(storyHoldTimer);
     storyHeld = false;
+    // Back into the face it came out of (§298).
+    Motion.closeStory(document.getElementById("storyOverlay"));
     document.getElementById("storyOverlay").hidden = true;
     document.getElementById("storyOverlay").classList.remove("paused", "held");
     // The rings reflect what was just watched.
@@ -16478,6 +16858,8 @@
   }
 
   function followPerson(userId){
+    // The button says Following on the tap, and goes back if refused (§298).
+    Motion.follow(userId, true);
     fetch("/api/friends/follow", {
       method: "POST", headers: {"Content-Type": "application/json"},
       body: JSON.stringify({ user_id: userId })
@@ -16490,18 +16872,20 @@
       document.getElementById("friendSearch").value = "";
       loadFriends();
       toast("Following");
-    }).catch(function(err){ toast(err.message); });
+    }).catch(function(err){ Motion.follow(userId, false); toast(err.message); });
   }
 
   function unfollowPerson(userId){
+    Motion.follow(userId, false);
     fetch("/api/friends/follow?user_id=" + encodeURIComponent(userId),
           { method: "DELETE" })
-      .then(function(){
+      .then(function(r){
+        if(!r.ok) throw new Error();
         document.getElementById("friendSearch").value = "";
         loadFriends();
         toast("Unfollowed");
       })
-      .catch(function(){ toast("Could not unfollow"); });
+      .catch(function(){ Motion.follow(userId, true); toast("Could not unfollow"); });
   }
 
   // Somebody else's profile: their shelf, and nothing else of theirs.
@@ -18125,6 +18509,7 @@
     if(input) input.addEventListener("input", function(){ sizeComposer(input); });
   })();
 
+  var threadShown = { thread: "", keys: {} };
   function renderThreadBody(){
     var body = document.getElementById("thread-body");
     if(!threadMessages.length){
@@ -18134,8 +18519,22 @@
     }
     var who = currentThread || {};
     var lastDay = "", lastFrom = "";
+    // Which messages are new since the last draw of this thread, so only
+    // they pop in (§298). Keyed on what they say, not their id, so a sent
+    // message is the same one before and after the server numbers it. The
+    // first draw of a thread pops nothing.
+    var threadId = String(who.user_id || who.id || who.handle || "");
+    var shownBefore = threadShown.thread === threadId ? threadShown.keys : null;
+    var keys = {}, counts = {}, fresh = threadMessages.map(function(m){
+      var k = (m.mine ? "o" : "i") + "|" + (m.kind || "") + "|" + (m.text || "") + "|" + (m.query || "");
+      counts[k] = (counts[k] || 0) + 1;
+      k += "#" + counts[k];
+      keys[k] = true;
+      return shownBefore && !shownBefore[k] ? " msg-new" : "";
+    });
+    threadShown = { thread: threadId, keys: keys };
     body.innerHTML = threadMessages.map(function(m, i){
-      var dirCls = m.mine ? "out" : "in";
+      var dirCls = (m.mine ? "out" : "in") + fresh[i];
       // A group (10.6 #4): its own lines centred, and a name over the first
       // of each run of bubbles from one person.
       if(who.group && m.kind === "system"){
@@ -18203,6 +18602,7 @@
         + escapeHtml(m.text || "") + '</div></div>';
     }).join("") + typingRowHTML();
     body.scrollTop = body.scrollHeight;
+    Motion.popMessages(body.querySelectorAll(".msg-row.msg-new"));
   }
 
   function savedHas(query, minutes){
@@ -18677,6 +19077,11 @@
   }
   function removeSaved(id){
     var item = savedItem(id);
+    // Off the shelf on the tap, sliding out (§298); the shelf is read again
+    // either way, so a refused delete puts it back.
+    var x = document.querySelector('#svBody [onclick="removeSaved(\'' + id + '\')"]');
+    var row = x && x.closest(".sv-row");
+    if(row) Motion.removeRow(row, function(){ row.remove(); }, "#svBody .sv-row");
     fetch("/api/saved/" + encodeURIComponent(id), { method: "DELETE" })
       .then(function(){
         // If the episode being unsaved is the one on the player, the green
@@ -18687,7 +19092,7 @@
         loadSaved();
         toast("Removed");
       })
-      .catch(function(){ toast("Could not remove that"); });
+      .catch(function(){ loadSaved(); toast("Could not remove that"); });
   }
   function playSaved(id){
     var item = savedItem(id);
@@ -20154,8 +20559,10 @@
   function paintReelBg(url){
     var bg = document.getElementById("reelBg");
     if(!bg) return;
+    var before = bg.style.backgroundImage;
     bg.style.backgroundImage = url ? 'url("' + String(url).replace(/"/g, "%22") + '")' : "";
     bg.classList.toggle("has-img", !!url);
+    if(url && bg.style.backgroundImage !== before) Motion.picture(bg, String(url));
   }
   function drawReelPicture(ep){
     paintReelBg(ep.thumb || "");
@@ -20572,9 +20979,10 @@
   function setReelPlaying(on){
     var el = document.getElementById("reelPlay");
     if(!el) return;
-    el.innerHTML = on
+    Motion.swapIcon(el, on
       ? '<svg width="21" height="21" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="3.8" width="4.6" height="16.4" rx="1.7"/><rect x="13.4" y="3.8" width="4.6" height="16.4" rx="1.7"/></svg>'
-      : '<svg width="21" height="21" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"><path d="M8.2 4.9v14.2L18.6 12z"/></svg>';
+      : '<svg width="21" height="21" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"><path d="M8.2 4.9v14.2L18.6 12z"/></svg>',
+      !!on);
   }
 
   var reelTimer = null;
@@ -22501,9 +22909,9 @@
   // The unread count on the Messages tab, on every copy of the tab bar
   // (§181). It was on YourFAM's tab while messages lived behind the profile.
   function paintMessageBadges(unread){
+    // Every copy of the tab bar; the one on screen pops, bumps or shrinks (§298).
     document.querySelectorAll("[data-msg-badge]").forEach(function(b){
-      b.hidden = !(unread > 0);
-      b.textContent = unread > 9 ? "9+" : String(unread || "");
+      Motion.badge(b, unread > 9 ? "9+" : String(unread || ""), unread > 0);
     });
   }
 

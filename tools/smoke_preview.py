@@ -2251,6 +2251,47 @@ def main() -> int:
             assert listed == 1, f"the queue sheet lists {listed}"
             page.evaluate("removeFromQueue(0); closeSheet(); QUEUE = []; drawMixSkip(false)")
 
+        def round_two_motion_holds_nothing():
+            """§298: every round-two movement is drawn over a change that has
+            already happened - the icon, the badge, the queue and the page are
+            already what they will be on the frame the movement starts - and
+            every copy drawn for it is gone once it ends."""
+            page.evaluate("openMessages()")
+            page.wait_for_timeout(400)
+            page.evaluate("setNowBarPlaying(true)")
+            assert page.evaluate("document.getElementById('nowPlay').innerHTML.indexOf('<rect') >= 0"), \
+                "the mini player's button did not say pause at once"
+            page.evaluate("setNowBarPlaying(false)")
+            page.evaluate("paintMessageBadges(2)")
+            shown = page.evaluate("Array.from(document.querySelectorAll('#screen-messages [data-msg-badge]'))"
+                                  ".map(b => !b.hidden && b.textContent)")
+            assert shown and all(t == "2" for t in shown), f"the badge did not show 2 at once: {shown}"
+            page.wait_for_timeout(350)
+            page.evaluate("paintMessageBadges(0)")
+            hidden = page.evaluate("Array.from(document.querySelectorAll('[data-msg-badge]')).every(b => b.hidden)")
+            assert hidden, "a cleared badge was still showing"
+            QUEUE_TWO = ("QUEUE = [{query: 'a', minutes: 2, title: 'First'},"
+                         " {query: 'b', minutes: 2, title: 'Second'}]; drawMixSkip(false); openQueue()")
+            page.evaluate(QUEUE_TWO)
+            page.wait_for_timeout(300)
+            page.evaluate("removeFromQueue(0)")
+            assert page.evaluate("QUEUE.length") == 1, "the queue still held the removed episode"
+            live = page.eval_on_selector_all("#sheetCard .q-row .q-rm", "e => e.length")
+            assert live == 1, f"the queue sheet lists {live} with buttons, not 1"
+            page.evaluate("setTab('home')")
+            page.wait_for_timeout(400)
+            page.evaluate("setPrivateSearch(true)")
+            assert page.evaluate("document.getElementById('screen-home').classList.contains('private-search')"), \
+                "private search was not on at once"
+            page.wait_for_timeout(700)
+            homes = page.eval_on_selector_all("[id='screen-home']", "e => e.length")
+            assert homes == 1, f"{homes} copies of the search page were left behind"
+            page.evaluate("setPrivateSearch(false)")
+            page.wait_for_timeout(700)
+            left = page.evaluate("document.querySelectorAll('.motion-icon, .motion-copy, [id=\"screen-home\"] ~ [id=\"screen-home\"]').length")
+            assert left == 0, f"{left} motion copies were left on the page"
+            page.evaluate("closeSheet(); QUEUE = []; drawMixSkip(false)")
+
         def asks_before_words_go_to_ai():
             """App Store 5.1.2(i) (consent.py): with no yes on record a search
             shows the server's notice and sends nothing; Allow sends it."""
@@ -4253,6 +4294,8 @@ def main() -> int:
         check("The search bar is one line with its buttons on the right",
               the_search_bar_is_one_line_with_its_buttons_on_the_right)
         check("The player's menu and the queue", the_player_menu_and_the_queue)
+        check("Round-two motion holds nothing and leaves nothing behind",
+              round_two_motion_holds_nothing)
         check("A search asks before its words go to the AI", asks_before_words_go_to_ai)
         check("Report and Block are in the menus", report_and_block_are_in_the_menus)
         check("Forgot password is two steps on the log-in screen",
