@@ -7972,7 +7972,8 @@
     var html = "";
     if(text || edit){
       var room = Math.max(10, Math.min(86, Math.round(200 * Math.min(st.cx, 1 - st.cx)) - 4));
-      html += '<div class="sc-cap f-' + escapeHtml(st.font) + (text ? "" : " sc-empty")
+      var fontCls = "f-" + escapeHtml(st.font);
+      html += '<div class="sc-cap ' + fontCls + (text ? "" : " sc-empty")
         + (edit && vcs.sel === "cap" ? " sc-sel" : "") + '"'
         + (edit ? ' data-drag="cap"' : '')
         + ' style="left:' + st.cx * 100 + '%;top:' + st.cy * 100 + '%;max-width:' + room
@@ -15155,7 +15156,7 @@
   function myFaceHTML(){
     if(!yfMe) return "";
     var mine = myStoryOnRow();
-    return '<div class="yf-friend me" role="button" tabindex="0" onclick="tapMyFace()" '
+    return '<div class="yf-friend" role="button" tabindex="0" onclick="tapMyFace()" '
       + 'aria-label="' + (mine ? "Your story" : "Add to your story") + '">'
       + '<span class="yf-ring' + (mine ? (storiesUnseen(mine) ? " fresh" : " seen") : "") + '" id="yfMyRing">'
       + yfFace(yfMe)
