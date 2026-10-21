@@ -365,6 +365,15 @@ class VoiceBank:
             "SELECT voice FROM choices WHERE user_id = ?", (user_id,)).fetchone()
         return row[0] if row else ""
 
+    def has_choice(self, user_id: str) -> bool:
+        """Whether this listener ever picked a search voice - the default
+        included, which is kept as "" (§294). Never picking is what lets a
+        search replay the voice an episode was already kept in."""
+        if not user_id:
+            return False
+        return self._conn().execute(
+            "SELECT 1 FROM choices WHERE user_id = ?", (user_id,)).fetchone() is not None
+
     def choose(self, user_id: str, voice: str) -> None:
         if not user_id:
             return

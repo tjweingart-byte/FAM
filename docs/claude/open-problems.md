@@ -61,6 +61,16 @@
    > a model's guess it disagrees with is replaced; an admin's is only shown
    > beside it on /admin, which also checks the whole list on request.
 <!-- rule:op-voice-bank -->
+> **Current (PROBLEMS.md §294, at the owner's direction):** a search by a
+> listener who has **never picked a voice** is spoken in the voice the
+> episode's audio is already kept in (`cache.audio_voices`, last played
+> first), so it replays instead of being voiced again on the GPU; the
+> default when nothing is kept. Any choice - the default included, kept as
+> a row in `voice_bank.choices` - and any voice the request names other than
+> the default is honoured exactly as before. An unreadable choice counts as
+> a choice. The player's voice switch waits for the choice to be kept
+> before it plays again.
+>
 2. ~~**Voice selection**~~ — *done, and a bank now* (§147). `voice_bank.py`
    keeps several cloned voices, each a recording plus its rights record, in
    the app's database; a worker without one is sent it once. **Only searchFAM

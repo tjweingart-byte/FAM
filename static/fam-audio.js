@@ -424,6 +424,41 @@ window.FamAudio = (function () {
     return opusSupport;
   }
 
+  /* A browser with no Opus decoder of its own may still read a whole Ogg
+     Opus file with decodeAudioData (§294) - Safari, mostly. Such a browser
+     streams first plays as PCM, as before, but a replay is a link to the
+     file in the bucket, decoded whole, instead of PCM through the server.
+     Asked once, of 0.1 s of silence encoded exactly as kept audio is. */
+  var OGG_OPUS_PROBE = "T2dnUwACAAAAAAAAAAA+u2WqAAAAAHZkTj8BE09wdXNIZWFkAQE4AcBdAAAAAABPZ2dTAAAAAAAAAAAAAD67ZaoBAAAA5kVVRwE0T3B1c1RhZ3MMAAAATGF2ZjYzLjEuMTAyAQAAABQAAABlbmNvZGVyPUxhdmY2My4xLjEwMk9nZ1MABPgTAAAAAAAAPrtlqgIAAAC5xTLTBhUWFhYWFmgL5ME27MWNjElIR1/gygE15uyegGgHyXIn4UTqVfHwwNF8ZRwImhhUbwBoB8l5yMlXwKISI/pTJS21WuG9g2DAaAfJecjJV8CiEiP6UyUttVrhvYNgwGgHyXnIyVfAohIj+lMlLbVa4b2DYMBoB8l5yMlXwKISI/pTJS21WuG9g2DA";
+  var wholeSupport = null;
+
+  function decodeWhole(bytes, rate) {
+    var Offline = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+    if (!Offline) return Promise.reject(new Error("No audio decoder here."));
+    // An offline context at the stream's rate, so the file is decoded at it
+    // rather than resampled to the speakers' rate.
+    var off = new Offline(1, 1, rate);
+    return new Promise(function (resolve, reject) {
+      // Both forms: older Safari's decodeAudioData takes callbacks only.
+      var p = off.decodeAudioData(bytes, resolve, reject);
+      if (p && p.then) p.then(resolve, reject);
+    });
+  }
+
+  function canDecodeOggFile() {
+    if (wholeSupport) return wholeSupport;
+    wholeSupport = Promise.resolve(false);
+    try {
+      var raw = atob(OGG_OPUS_PROBE);
+      var bytes = new Uint8Array(raw.length);
+      for (var i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
+      wholeSupport = decodeWhole(bytes.buffer, 24000)
+        .then(function (buf) { return !!(buf && buf.length > 0); })
+        .catch(function () { return false; });
+    } catch (e) { /* PCM through the server, exactly as before */ }
+    return wholeSupport;
+  }
+
   function play(query, minutes, h, context, voice, listener) {
     handlers = h || {};
     stop();
@@ -474,11 +509,20 @@ window.FamAudio = (function () {
     // even if another play has started since.
     var streamUrl = "";
     var ctl = controller;
+    var linkedOpus = true;
     ctx.resume().then(canDecodeOpus).then(function (opus) {
+      if (opus) return { opus: true, whole: false };
+      return canDecodeOggFile().then(function (whole) {
+        return { opus: false, whole: whole };
+      });
+    }).then(function (can) {
       // Opus where this browser can decode it, PCM everywhere else. A browser
-      // that decodes Opus may be handed a replay as a link (§252).
-      streamUrl = url.replace("&fmt=FMT", "&fmt=opus") + "&link_failed=1";
-      url = url.replace("&fmt=FMT", opus ? "&fmt=opus&link=1" : "&fmt=pcm");
+      // that decodes Opus may be handed a replay as a link (§252), and so
+      // may one that decodes the file only whole (§294).
+      var fmt = can.opus ? "opus" : "pcm";
+      linkedOpus = can.opus;
+      streamUrl = url.replace("&fmt=FMT", "&fmt=" + fmt) + "&link_failed=1";
+      url = url.replace("&fmt=FMT", "&fmt=" + fmt + (can.opus || can.whole ? "&link=1" : ""));
       // A request that never reached the server is marked, so the caller can
       // tell "no connection" from a bug further down (§161's offline play).
       return fetch(url, { signal: controller.signal }).catch(function (e) {
@@ -543,7 +587,7 @@ window.FamAudio = (function () {
         // site, an object gone), the episode is streamed instead and the
         // server is told, so the fallback is counted rather than invisible.
         return res.json().then(function (body) {
-          return playLinked(body, deliver, myToken, ctl);
+          return (linkedOpus ? playLinked : playWhole)(body, deliver, myToken, ctl);
         }).catch(function (err) {
           if ((err && err.name === "AbortError") || myToken !== token || !first) throw err;
           return fetch(streamUrl, { signal: ctl.signal }).catch(function (e) {
@@ -704,6 +748,39 @@ window.FamAudio = (function () {
       return oggOpus(file.body.getReader(), Number(body.frames) || 0);
     }).then(function (opened) {
       return pumpOpus(opened.reader, opened.preskip, deliver, myToken);
+    });
+  }
+
+  /* The same file for a browser that decodes Ogg Opus only whole (§294):
+     downloaded, decoded at the stream's rate, cut to the episode's true
+     length and handed over as one buffer - what `playStored` plays. A
+     failure before that buffer streams the episode instead, as a link that
+     will not play does. */
+  function playWhole(body, deliver, myToken, ctl) {
+    return fetch(body.link, { signal: ctl.signal }).then(function (file) {
+      if (!file.ok) throw new Error("The kept audio answered " + file.status + ".");
+      return file.arrayBuffer();
+    }).then(function (bytes) {
+      if (myToken !== token) return null;
+      return decodeWhole(bytes, sampleRate);
+    }).then(function (buf) {
+      if (!buf || myToken !== token) return;
+      var f32 = buf.getChannelData(0);
+      // The true length is in the stream's samples; a browser that decoded
+      // at another rate holds proportionally more or fewer.
+      var rate = buf.sampleRate || sampleRate;
+      var frames = Math.round((Number(body.frames) || 0) * rate / sampleRate);
+      var n = frames > 0 ? Math.min(f32.length, frames) : f32.length;
+      if (!n) throw new Error("The kept audio was empty.");
+      var out = new Int16Array(n);
+      for (var i = 0; i < n; i++) {
+        var v = f32[i];
+        out[i] = v >= 1 ? 32767 : v <= -1 ? -32768 : Math.round(v * 32767);
+      }
+      // Decoded at the context's rate, which a browser may have refused.
+      if (rate !== sampleRate) sampleRate = rate;
+      deliver(out);
+      streamDone = true;
     });
   }
 

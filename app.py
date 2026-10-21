@@ -5525,11 +5525,40 @@ def _chosen_voice(user: str) -> str:
     return chosen if chosen and voice_bank.known(chosen) else ""
 
 
+def _has_chosen_voice(user: str) -> bool:
+    try:
+        return voice_bank.bank().has_choice(user)
+    except Exception:  # noqa: BLE001 - unknown is "chose": never override
+        log.exception("could not read whether a listener chose a voice")
+        return True
+
+
+def _kept_voice(plan, engine: str) -> str:
+    """The bank slug this episode's audio is already kept in on `engine`, or
+    "" (§294). Last played first; a voice that has left the bank is skipped."""
+    key = _episode_key(plan)
+    lookup = getattr(SCRIPT_CACHE, "audio_voices", None)
+    if not key or lookup is None:
+        return ""
+    try:
+        kept = lookup(key)
+    except Exception:  # noqa: BLE001
+        return ""
+    for voice in kept:
+        if voice.split(":", 1)[0] == engine and voice_bank.known(voice):
+            return voice_bank.slug_of(voice)
+    return ""
+
+
 def _episode_voice(user: str, where: str, plan, asked: str) -> Optional[str]:
     """The voice this play is spoken in (§147). None is the default voice.
 
     * **searchFAM** - the one surface with a voice picker: the voice the
-      request names, else the listener's kept choice.
+      request names, else the listener's kept choice. A listener who has
+      **never picked one** (§294) hears the voice the episode's audio is
+      already kept in, so a search somebody else voiced is a replay rather
+      than a second voicing on the GPU; the default when nothing is kept.
+      Any choice - the default included - is always honoured.
     * **Everywhere else** - the voice kept beside the episode's script, and
       for an episode with none, one drawn at random from the bank and kept,
       so the next play is the same voice and replays its kept audio. Explore
@@ -5548,6 +5577,10 @@ def _episode_voice(user: str, where: str, plan, asked: str) -> Optional[str]:
             slug = voice_bank.slug_of(asked)
         else:
             slug = _chosen_voice(user)
+        # The app always names the voice it shows, which for somebody who
+        # never chose is the default: that is not a choice.
+        if voice_bank.is_default(slug) and not _has_chosen_voice(user):
+            slug = _kept_voice(plan, engine) or slug
     else:
         key = _episode_key(plan)
         store = SCRIPT_CACHE
@@ -9496,10 +9529,12 @@ async def audio(
     if link_failed:
         _AUDIO_LINKS["fallbacks"] += 1
         log.warning("a link to kept audio would not play; streaming instead")
-    elif (link and fmt == "opus" and settings.audio_links
+    elif (link and fmt in ("opus", "pcm") and settings.audio_links
           and audio_codec_mod.can_stream(pipeline.engine.sample_rate)):
         # `can_stream` is AUDIO_STREAM_OPUS too: "always PCM" means no Opus
-        # file either.
+        # file either. `fmt=pcm&link=1` (§294) is a player that cannot
+        # decode an Opus stream but can decode the whole file: it streams
+        # PCM when there is no file, and is handed the link when there is.
         linked = await pipeline.stored_link(plan, settings.audio_link_seconds)
         if linked is not None:
             _AUDIO_LINKS["issued"] += 1
@@ -9523,6 +9558,11 @@ async def audio(
     stored = getattr(pipeline, "has_stored_audio", None)
     if stored is None or not await stored(plan):
         _wake_remote_voice()
+    elif fmt == "pcm" and not link_failed:
+        # A replay sent through this server as PCM (§294): every byte of
+        # it is Render bandwidth. Counted beside the links, so health says
+        # how many players still cannot take one.
+        _AUDIO_LINKS["pcm_replays"] += 1
 
     stats = GenerationStats()
     started = time.monotonic()
@@ -9818,7 +9858,8 @@ async def audio(
 #: fallback - the player asks again with `link_failed=1` when the file would
 #: not play (a bucket without CORS for this site, an object gone). Reported
 #: in `/api/health`, since nothing else on the server would ever see it.
-_AUDIO_LINKS = {"issued": 0, "fallbacks": 0}
+#: `pcm_replays` (§294) are replays still streamed as PCM through this server.
+_AUDIO_LINKS = {"issued": 0, "fallbacks": 0, "pcm_replays": 0}
 
 
 async def _linked_audio(request: Request, user: str, plan, pipeline, linked: dict,

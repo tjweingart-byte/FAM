@@ -18,7 +18,7 @@ outage on each one).
 | A store | `/data/<name>.db` | schema `<name>_<8 hex of the directory>` |
 | Connections | one per store per thread | one pool per process, shared by every store (`DATABASE_MAX_CONNECTIONS`, 20) |
 | Writes | one writer per file | one writer per store, by an advisory lock held to commit |
-| Kept audio's hot copy | a column in `scripts.db`, 512 MB unless `AUDIO_CACHE_MAX_MB` says otherwise | the same column in the `scripts` schema, **128 MB** unless set (§252) - it is database storage there; the object is in R2 either way |
+| Kept audio | with a bucket, none - the row names the object in R2 (§293); with none, a column in `scripts.db` under 512 MB (`AUDIO_CACHE_MAX_MB`) | with a bucket, none (§293); the object is in R2 either way |
 | `/api/health` → `database` | `{"backend": "sqlite", "size_mb": ..., "largest": [...]}` (§252) | `{"backend": "postgres", "private": true, "size_mb": ..., "largest": [...], ...}`, measured by Postgres at most every five minutes |
 | `/api/health` → `storage` | measured per file (`st_dev`) | `persistence: "database"` for every store |
 

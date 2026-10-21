@@ -10,6 +10,25 @@
 ## Constraints that are settled — do not undo without discussing
 
 <!-- rule:no-audio-files -->
+> **Current (PROBLEMS.md §294):** a player that cannot decode an Opus stream
+> but can decode a whole Ogg Opus file (`decodeAudioData`, Safari mostly -
+> probed once with 0.1 s of silence) asks `fmt=pcm&link=1` and is handed the
+> same signed link; it streams PCM when there is no file, and its fallback
+> is PCM. A replay still streamed as PCM is counted in `/api/health` →
+> `audio.links.pcm_replays`.
+>
+> **Current (PROBLEMS.md §293, at the owner's direction):** nothing of an
+> episode's audio is written to the server once the bucket holds it. With
+> `AUDIO_STORE=r2`, `episode_audio` keeps the object's name, sentences,
+> starts and length - never the bytes; the hot copy is gone. A streamed
+> replay reads the object and writes nothing back. An upload is tried three
+> times (`cache.UPLOAD_RETRY_SECONDS`); one that still fails keeps nothing,
+> is recorded on /admin, and the episode is voiced again on its next play.
+> The hourly sweep uploads any row from before and empties every local copy
+> of audio the bucket holds. With no bucket (staging, a laptop) the row is
+> still the only place audio can live. Statements below about a hot copy
+> are superseded.
+>
 > **Current (PROBLEMS.md §252, at the owner's direction):** "no audio files
 > to the client" is reversed for replays. The owner's reasoning: the rule
 > was made before the backend was understood, and its guardrails cost more

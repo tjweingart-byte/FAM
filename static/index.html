@@ -10093,18 +10093,22 @@
         refreshSettingsIfOpen();
         // Kept on the server, so the next search - on this device or after a
         // reload - is in the same voice.
-        fetch("/api/voices/choice", {
+        var kept = fetch("/api/voices/choice", {
           method: "POST", headers: {"Content-Type": "application/json"},
           body: JSON.stringify({ voice: v.id })
         }).catch(function(){});
         // The voice changes the audio but not the script, so re-generating
         // reuses the cached script: no model call, no cost, near-instant.
         // A searched episode only - nothing else takes a chosen voice.
+        // After the choice is kept (§294): a listener who never chose hears
+        // whatever voice is already kept, so a switch to the default sent
+        // before the server knew would play the old voice again.
         var onPlayer = document.querySelector(".screen.active")
                     && document.querySelector(".screen.active").id === "screen-player";
         if(onPlayer && currentPlayingTopicKey && currentPlaySurface === "search"){
           toast("Switching to " + v.label);
-          generate(currentPlayingTopicKey);
+          var key = currentPlayingTopicKey;
+          kept.then(function(){ generate(key); });
         }
       }
     };
