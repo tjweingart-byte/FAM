@@ -110,8 +110,12 @@ def test_vibe_opens_the_editor_not_a_caption_box():
     assert "Close Friends</button>" not in composer and "postVibeStory('close')" not in INDEX
     assert "Add a caption" in composer
     # Not music, not the colour circle, not the "more" arrow.
-    for gone in ("Audio", "Music", "Background", "More"):
+    for gone in ("Audio", "Music", "More"):
         assert "<span>" + gone + "</span>" not in composer, gone
+    # A colour is only ever a note's background (§295, the Birthday packet):
+    # the tool is drawn for a story with no episode, never on a vibe.
+    assert 'class="vcs-tool note-only" data-tool="bg"' in composer
+    assert ".vcs:not(.note) .vcs-tool.note-only" in INDEX
 
 
 def test_a_layout_is_clamped_before_it_is_kept(store):

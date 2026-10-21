@@ -249,6 +249,8 @@
       <input id="adminPassword" type="password" placeholder="Password" autocomplete="current-password" required>
       <button class="go" id="loginBtn" type="submit">Sign in</button>
       <p class="sub err" id="loginErr" hidden></p>
+      <!-- Forgot password (§295): the reset page every log-in links to, drawn only when the server can email a code (§244). -->
+      <p id="forgotLink" hidden style="margin:10px 0 0;font-size:13px;"><a href="/reset?next=/admin" style="color:inherit;opacity:.75">Forgot password?</a></p>
     </form>
   </div>
 
@@ -1075,6 +1077,11 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
     paused = !paused; this.textContent = paused ? "Resume" : "Pause"; tick();
   });
   $("refresh").addEventListener("click", load);
+  // "Forgot password?" only where a code can be emailed (§244, §295).
+  fetch("/api/auth/reset", { credentials: "same-origin" })
+    .then(function (r) { return r.json(); })
+    .then(function (d) { $("forgotLink").hidden = !(d && d.available); })
+    .catch(function () {});
   $("loginForm").addEventListener("submit", function (ev) {
     ev.preventDefault();
     $("loginErr").hidden = true; $("loginBtn").disabled = true;

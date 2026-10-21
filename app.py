@@ -2451,9 +2451,14 @@ async def auth_reset_start(req: ResetStartRequest, request: Request) -> dict:
     minted = ACCOUNTS.start_reset(req.email)
     if minted:
         _user_id, address, code = minted
+        # Where to paste it, when this server knows its own address (§295):
+        # the reset page every log-in links to.
+        base = _public_base(request)
+        where = (f"Paste it into the FAM reset password page: {base}/reset\n\n"
+                 if base else "")
         mail_mod.send_later(
             address, f"{code} is your FAM code",
-            f"Your FAM password reset code is {code}.\n\n"
+            f"Your FAM password reset code is {code}.\n\n" + where +
             f"It works for {accounts_mod.RESET_CODE_SECONDS // 60} minutes. "
             "If you did not ask to reset your password, ignore this email - "
             "nothing changes unless the code is used.\n")
@@ -4608,6 +4613,17 @@ async def support() -> HTMLResponse:
     return HTMLResponse(legal_page("support", settings.support_email))
 
 
+@app.get("/reset", include_in_schema=False)
+async def reset_page() -> HTMLResponse:
+    """The reset password page (§295): the email on the account, then the
+    emailed code and a new password. Every log-in links here - the admin
+    pages' too - and it is open to everybody, waitlist or not, since the
+    people who need it are the ones who cannot sign in."""
+    page = PROJECT_ROOT / "static" / "reset.html"
+    return HTMLResponse(page.read_text(encoding="utf-8"),
+                        headers={"Cache-Control": "no-store"})
+
+
 @app.get("/api/report")
 async def report_options(request: Request) -> dict:
     """The reasons a report offers and what happens next, in the server's
@@ -4648,7 +4664,7 @@ def _report_subject(kind: str, req: ReportRequest, me: str) -> tuple[str, str, d
                 {"query": query, "minutes": req.minutes})
     target = req.target.strip()
     # Row ids: digits, and short enough to be an SQLite integer (§226).
-    if kind in ("comment", "message", "vibe") and not (target.isdigit() and len(target) <= 18):
+    if kind in ("comment", "message", "vibe", "note") and not (target.isdigit() and len(target) <= 18):
         raise missing
     if kind == "comment":
         row = SOCIAL.comment(int(target))
@@ -4672,6 +4688,11 @@ def _report_subject(kind: str, req: ReportRequest, me: str) -> tuple[str, str, d
             raise missing
         return (target, row["user_id"], {"caption": row["caption"], "title": row["title"],
                                          "query": row["query"], "minutes": row["minutes"]})
+    if kind == "note":
+        row = SOCIAL.note_row(int(target))
+        if not row:
+            raise missing
+        return (target, row["user_id"], {"text": row["text"]})
     if kind == "person":
         owner = _person_by_handle(target)
         if not owner:
@@ -4704,7 +4725,7 @@ async def report_content(req: ReportRequest, request: Request) -> dict:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {"ok": True, "id": report["id"], "message": REPORT_THANKS,
             # What the client should stop showing now: the thing itself.
-            "hidden": kind in ("comment", "message", "vibe", "episode")}
+            "hidden": kind in ("comment", "message", "vibe", "note", "episode")}
 
 
 class BlockRequest(BaseModel):
@@ -4791,6 +4812,8 @@ def _remove_reported(report: dict, owner: str) -> bool:
         row = SOCIAL.echo_row(int(target))
         if row:
             SOCIAL.unecho(row["user_id"], row["query"], row["minutes"])
+    elif kind == "note":
+        SOCIAL.remove_note(int(target))
     elif kind == "episode":
         MODERATION.hide_episode(target, report["id"])
     elif kind == "group":
@@ -8108,6 +8131,37 @@ async def remove_from_story(echo_id: int, request: Request) -> dict:
     return {"ok": SOCIAL.unstory(_listener(request), echo_id)}
 
 
+class NoteRequest(BaseModel):
+    """A story with no episode (§295): words on a background, and stickers."""
+    #: Cut to `social.MAX_NOTE` rather than refused, like a caption.
+    text: str = Field("", max_length=2000)
+    #: The background's name, the text's face, size and place, stickers -
+    #: clamped in `social.clean_note_style`.
+    style: Optional[dict] = None
+
+
+@app.post("/api/story/note")
+async def post_note(req: NoteRequest, request: Request) -> dict:
+    """Put your own words on your story, with no episode (the Birthday
+    packet, §295). An account's only: a story is drawn on the faces row,
+    which only accounts have, and what is kept takes an account."""
+    _read_limit(request)
+    user = _require_account(request)
+    _require_can_post(user)
+    try:
+        return SOCIAL.add_note(user, req.text, req.style)
+    except social_mod.SocialError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.delete("/api/story/note/{note_id}")
+async def delete_note(note_id: int, request: Request) -> dict:
+    """Take one of your own notes off your story. A note is only a story, so
+    taking it down deletes it."""
+    _read_limit(request)
+    return {"ok": SOCIAL.remove_note(note_id, _listener(request))}
+
+
 class CloseFriendRequest(BaseModel):
     user_id: str = Field(..., max_length=64)
     on: bool = True
@@ -8297,8 +8351,10 @@ async def file_vibe(req: VibeFileRequest, request: Request) -> dict:
 
 
 @app.get("/api/profile")
-async def profile(request: Request):
-    """Counts and subjects from this listener's own event log. No model call."""
+async def profile(request: Request, notes: int = Query(0, ge=0, le=1)):
+    """Counts and subjects from this listener's own event log. No model call.
+
+    `notes=1` is a client that draws a story with no episode (§295)."""
     _read_limit(request)
     user = _listener(request)
     body = topics_mod.summary(EVENTS, user, interests=_interests_for(request))
@@ -8352,12 +8408,13 @@ async def profile(request: Request):
     body["interests_max"] = topics_mod.PROFILE_INTEREST_SLOTS
     # Shown under their name (10.7 packet): the place as they wrote it.
     body["location"] = prefs.location.label
-    body["circle"] = _circle_row(user)
+    body["circle"] = _circle_row(user, notes=bool(notes))
     # Their own story (10.6 packet #1): their vibes of the last 24 hours, the
     # ones their friends' faces play, so their own picture can carry the
     # ring and play them too.
     body["stories"] = SOCIAL.stories_among(
-        [user], time.time() - CIRCLE_VIBE_WINDOW, viewer=user).get(user, [])
+        [user], time.time() - CIRCLE_VIBE_WINDOW, viewer=user,
+        notes=bool(notes)).get(user, [])
     return body
 
 
@@ -8376,7 +8433,7 @@ CIRCLE_MAX = 12
 CIRCLE_CANDIDATES = 200
 
 
-def _circle_row(user: str) -> list[dict]:
+def _circle_row(user: str, notes: bool = False) -> list[dict]:
     """The story-style avatar row on YourFAM: friends first, then follows.
 
     Every flag is read off something stored - the echoes table and the
@@ -8399,7 +8456,7 @@ def _circle_row(user: str) -> list[dict]:
         return []
     now = time.time()
     stories = SOCIAL.stories_among([p["user_id"] for p in people],
-                                   now - CIRCLE_VIBE_WINDOW, viewer=user)
+                                   now - CIRCLE_VIBE_WINDOW, viewer=user, notes=notes)
     # Friends with a vibe up come first, left to right, newest vibe first
     # (the 10.1 packet, third set), so who has vibed is seen at a glance and
     # the stories run on from one to the next in the order drawn. Everybody
@@ -8435,7 +8492,7 @@ def _circle_row(user: str) -> list[dict]:
 
 
 @app.get("/api/circle")
-async def circle(request: Request) -> dict:
+async def circle(request: Request, notes: int = Query(0, ge=0, le=1)) -> dict:
     """The YourFAM avatar row on its own, for the top of the rails screen.
 
     The 10.2 packet #1: the faces on YourFAM sit at the top of the screen
@@ -8443,11 +8500,24 @@ async def circle(request: Request) -> dict:
     seen first thing and scrolled sideways. The same rows as `/api/profile`'s
     `circle` (`_circle_row`), asked separately so the rails never wait on it.
     A guest has no follow graph and gets an empty row - never strangers.
+    `notes=1` (a client that draws stories with no episode, §295) also gets
+    `me`: your own face, which leads the row with the (+) to your story.
     """
     _read_limit(request)
     if not _has_account(request):
         return {"circle": []}
-    return {"circle": _circle_row(_listener(request))}
+    user = _listener(request)
+    body = {"circle": _circle_row(user, notes=bool(notes))}
+    if notes:
+        # Your own face leads the row, as on Instagram (§295): its picture,
+        # the (+) that adds to your story, and your story to play.
+        person = SOCIAL.person(user)
+        body["me"] = {"name": person.get("name") or "", "handle": person.get("handle") or "",
+                      "avatar": person.get("avatar") or "",
+                      "stories": SOCIAL.stories_among(
+                          [user], time.time() - CIRCLE_VIBE_WINDOW, viewer=user,
+                          notes=True).get(user, [])}
+    return body
 
 
 class ProgressRequest(BaseModel):

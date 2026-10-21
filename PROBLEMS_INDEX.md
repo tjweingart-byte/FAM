@@ -298,3 +298,4 @@ and `limit` = Lines.
 | 21105 | 85 | 292. Motion: the owner's ten picks (2026-10-20) |
 | 21190 | 41 | 293. Kept audio lives in the bucket and nowhere else (2026-10-20) |
 | 21231 | 51 | 294. Replays off the server for Safari, and the kept voice for searches (2026-10-20) |
+| 21282 | 65 | 295. The Birthday packet: Instagram's faces, a story with no episode, and Forgot password on every log-in (2026-10-21) |

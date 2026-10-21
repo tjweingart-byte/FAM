@@ -185,6 +185,22 @@ replaced when the same episode is vibed again.
 > installed client that offers it (`old-clients`). A caption is as wide as
 > its words up to 86% of the canvas (`width:max-content`) and breaks only
 > between words.
+>
+> **Current (PROBLEMS.md §295, the Birthday packet):** a story need not be
+> an episode. The (+) on your own face - first on DailyFAM's row, and on
+> your picture on YourFAM - opens the same editor as a **note**: the canvas
+> is a background picked from a fixed set of colours and gradients
+> (`social.NOTE_BACKGROUNDS`, named, never a colour from the client), the
+> text is your own words (up to `social.MAX_NOTE`, slurs removed), typed or
+> spoken into the box with Speak (the phone's speech recognition, offered
+> only where it exists), plus stickers. "No colour" stays true of a vibe;
+> colour is a note's whole canvas. A note is its own row (`notes`), never an
+> echo, since every reader of `echoes` means an episode; it is up 24 hours,
+> read beside the vibes only by a client that asks (`notes=1` on
+> `/api/circle` and `/api/profile`, so an installed client never draws one
+> as an episode), takes an account, is reported as `note`, and is erased
+> with the account. In the viewer it has no Play, no share-to-your-story and
+> no episode menu; a reply or heart is a text message quoting it.
 
 <!-- rule:group-chats -->
 **Group chats (§213).** Pick two or more people you follow under the

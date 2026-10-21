@@ -2750,7 +2750,27 @@
   /* The same row at the top of the rails screen (10.2 packet #1). */
   .myfam-circle{ margin:2px 0 16px; }
   .myfam-circle[hidden]{ display:none; }
-  .myfam-circle .yf-friends{ margin-top:4px; }
+  .myfam-circle .yf-friends{ margin-top:4px; gap:14px; }
+  /* Instagram's row (§295, the Birthday packet): big round pictures, a
+     gradient ring round anybody with a story you have not watched, a thin
+     grey one once you have, and your own face first with a (+) badge that
+     adds to your story. The ring is a gradient behind the picture, and the
+     picture's border in the page colour is the gap between them. */
+  .myfam-circle .yf-friend{ width:72px; gap:6px; }
+  .myfam-circle .yf-ring{ width:72px; height:72px; padding:3px; border:none; background:transparent; }
+  .myfam-circle .yf-ring.fresh{ background:linear-gradient(45deg,#FEDA75 0%,#FA7E1E 25%,#D62976 55%,#962FBF 80%,#4F5BD5 100%); }
+  .myfam-circle .yf-ring.seen{ background:var(--text-faint); padding:1.5px; }
+  .myfam-circle .yf-ring .av{ width:100%; height:100%; box-sizing:border-box; border:3px solid var(--bg);
+    font-size:20px; overflow:hidden; }
+  .myfam-circle .yf-ring.seen .av{ border-width:4.5px; }
+  .myfam-circle .yf-ring .av .av-img{ width:100%; height:100%; object-fit:cover; display:block; }
+  .myfam-circle .yf-friend-name{ font-size:11px; max-width:72px; }
+  .myfam-circle .yf-friend.invite .yf-ring{ border:1.5px dashed var(--text-faint); }
+  .yf-add{ position:absolute; right:0; bottom:0; width:24px; height:24px; border-radius:50%;
+    background:var(--text); color:var(--bg); border:3px solid var(--bg); box-sizing:content-box;
+    display:flex; align-items:center; justify-content:center; cursor:pointer; padding:0; }
+  .yf-photo-wrap{ position:relative; flex:none; }
+  .yf-photo-wrap .yf-add{ width:18px; height:18px; right:-4px; bottom:-4px; border-width:2.5px; }
   .yf-friend{ width:52px; flex:none; display:flex; flex-direction:column;
     align-items:center; gap:5px; background:none; border:none; padding:0;
     color:var(--text); font-family:inherit; cursor:pointer; }
@@ -2924,6 +2944,19 @@
   .vcs-go{ width:42px; height:42px; border-radius:50%; border:none; background:var(--copper); color:var(--ink);
     cursor:pointer; flex:none; display:flex; align-items:center; justify-content:center; }
   .vcs-foot button:disabled{ opacity:.5; }
+  /* A story with no episode (§295): the canvas is its background, chosen
+     from a fixed set (`social.NOTE_BACKGROUNDS`), and the editor offers
+     Background and Speak where an episode's offers Mention and Picture. */
+  .vcs:not(.note) .vcs-tool.note-only, .vcs.note .vcs-tool.episode-only{ display:none; }
+  .vcs-bg-dot{ width:18px; height:18px; border-radius:50%; border:2px solid #F4EFE4; display:block; }
+  .vcs-tool.listening i{ background:var(--coral); color:#fff; }
+  .vcs-bgs{ display:grid; grid-template-columns:repeat(5, 1fr); gap:12px; }
+  .vcs-bgs button{ aspect-ratio:1/1; border-radius:50%; border:2px solid rgba(244,239,228,.25); cursor:pointer; padding:0; }
+  .vcs-bgs button.on{ border-color:#F4EFE4; box-shadow:0 0 0 2px rgba(244,239,228,.35); }
+  .story-canvas.note{ touch-action:none; }
+  .sc-cap.sc-empty{ opacity:.55; }
+  .story.note .story-main{ display:none; }
+  .story.note .story-play, .story.note #storyReshare{ display:none; }
   /* Your own picture carries the ring while your story is up (10.6 #1). */
   .yf-photo-btn{ border:none; background:none; padding:0; cursor:pointer; border-radius:50%; flex:none; }
   .yf-photo-btn.ring{ padding:2px; border:2px solid var(--copper); }
@@ -4837,7 +4870,11 @@
            right, a caption line, then Your story and the arrow. The X goes
            back to the episode and posts nothing. No music, no colour, no
            "more" - the owner's list. No Close Friends (§250, the 10.10
-           packet): a story goes to everybody who follows. -->
+           packet): a story goes to everybody who follows.
+           The same editor makes a story with no episode (§295, the Birthday
+           packet): opened from the (+) on your own face, it swaps Mention and
+           Picture for Background (a colour or a gradient) and Speak (your
+           words, dictated into the text). -->
       <div class="vcs" id="vibeComposer" hidden role="dialog" aria-label="VIBE! to your story">
         <div class="vcs-stage" id="vcsStage">
           <div class="story-canvas" id="vcsCanvas"></div>
@@ -4845,8 +4882,10 @@
           <div class="vcs-tools">
             <button class="vcs-tool" data-tool="text" onclick="vcsTool('text')"><span>Text</span><i>Aa</i></button>
             <button class="vcs-tool" data-tool="stickers" onclick="vcsTool('stickers')"><span>Stickers</span><i><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M15.5 3H7a4 4 0 0 0-4 4v10a4 4 0 0 0 4 4h6.5L21 13.5V7a4 4 0 0 0-4-4z"/><path d="M13.5 21v-3.5a4 4 0 0 1 4-4H21"/><path d="M8.5 13.5s1.2 1.5 3.5 1.5"/><circle cx="9" cy="9" r=".6"/><circle cx="15" cy="9" r=".6"/></svg></i></button>
-            <button class="vcs-tool" data-tool="mention" onclick="vcsTool('mention')"><span>Mention</span><i>@</i></button>
-            <button class="vcs-tool" data-tool="picture" onclick="vcsTool('picture')"><span>Picture</span><i><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg></i></button>
+            <button class="vcs-tool note-only" data-tool="bg" onclick="vcsTool('bg')"><span>Background</span><i><span class="vcs-bg-dot" id="vcsBgDot"></span></i></button>
+            <button class="vcs-tool note-only" data-tool="voice" id="vcsVoiceTool" onclick="vcsDictate()"><span>Speak</span><i><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></i></button>
+            <button class="vcs-tool episode-only" data-tool="mention" onclick="vcsTool('mention')"><span>Mention</span><i>@</i></button>
+            <button class="vcs-tool episode-only" data-tool="picture" onclick="vcsTool('picture')"><span>Picture</span><i><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg></i></button>
           </div>
           <div class="vcs-size" id="vcsSize" hidden>
             <input type="range" id="vcsSizeInput" min="14" max="48" step="1" value="24" aria-label="Text size"
@@ -7861,8 +7900,30 @@
   // One story, drawn from its layout. `edit` marks what can be dragged and
   // which piece is selected, for the composer; the viewer draws it still,
   // with each tag a button to that person's profile.
+  // A story with no episode (§295): its background by name, mapped here to
+  // its colours - the set `social.NOTE_BACKGROUNDS` accepts, in that order.
+  var NOTE_BACKGROUNDS = [
+    ["ink", "#18151F"],
+    ["copper", "#C08A2E"],
+    ["sunset", "linear-gradient(160deg,#FEDA75 0%,#FA7E1E 35%,#D62976 75%,#962FBF 100%)"],
+    ["ocean", "linear-gradient(160deg,#5EE7DF 0%,#3A7BD5 55%,#283C86 100%)"],
+    ["forest", "linear-gradient(160deg,#A8E063 0%,#3E8E5E 55%,#134E3A 100%)"],
+    ["berry", "linear-gradient(160deg,#F78CA0 0%,#C43A79 50%,#5B1A5E 100%)"],
+    ["dusk", "linear-gradient(160deg,#3A2F44 0%,#6B4C7A 50%,#E0B563 100%)"],
+    ["cream", "#F4EFE4"],
+    ["night", "#000000"],
+    ["candy", "linear-gradient(160deg,#FBC2EB 0%,#A6C1EE 100%)"]
+  ];
+  function noteBackground(name){
+    for(var i = 0; i < NOTE_BACKGROUNDS.length; i++){
+      if(NOTE_BACKGROUNDS[i][0] === name) return NOTE_BACKGROUNDS[i][1];
+    }
+    return NOTE_BACKGROUNDS[0][1];
+  }
+  function isNote(v){ return !!(v && v.kind === "note"); }
   function storyCanvasHTML(v, edit){
     var st = storyStyleOf(v);
+    if(isNote(v)) return noteCanvasHTML(v, st, edit);
     var pic = st.thumb ? ' style="background-image:url(&quot;' + escapeHtml(st.thumb) + '&quot;)"' : '';
     // Whole class names, built here, so each is one the CSS defines.
     var frameCls = "frame-" + escapeHtml(st.frame), fontCls = "f-" + escapeHtml(st.font);
@@ -7903,6 +7964,40 @@
     return html;
   }
 
+  // Words on a background and stickers - no episode card. Dark text on the
+  // light backgrounds, so cream is readable.
+  function noteCanvasHTML(v, st, edit){
+    var text = v.text || "";
+    var light = st.bg === "cream" || st.bg === "candy";
+    var html = "";
+    if(text || edit){
+      var room = Math.max(10, Math.min(86, Math.round(200 * Math.min(st.cx, 1 - st.cx)) - 4));
+      html += '<div class="sc-cap f-' + escapeHtml(st.font) + (text ? "" : " sc-empty")
+        + (edit && vcs.sel === "cap" ? " sc-sel" : "") + '"'
+        + (edit ? ' data-drag="cap"' : '')
+        + ' style="left:' + st.cx * 100 + '%;top:' + st.cy * 100 + '%;max-width:' + room
+        + '%;font-size:calc(' + st.size + ' * 100cqw / 360);'
+        + (light ? 'color:#1A1620;text-shadow:none;' : '') + '">'
+        + escapeHtml(text || "Tap Text, or Speak") + '</div>';
+    }
+    st.stickers.forEach(function(k, i){
+      var word = /[A-Z]/.test(k.k);
+      var sel = edit && vcs.sel === "stk" + i;
+      html += '<div class="sc-stk' + (word ? " word" : "") + (sel ? " sc-sel" : "") + '"'
+        + (edit ? ' data-drag="stk' + i + '"' : '')
+        + ' style="left:' + k.x * 100 + '%;top:' + k.y * 100 + '%;transform:translate(-50%,-50%) scale('
+        + (k.s || 1) + ') rotate(' + (k.r || 0) + 'deg);">' + escapeHtml(k.k)
+        + (sel ? '<i class="sc-del" data-del="stk' + i + '">×</i>' : '') + '</div>';
+    });
+    return html;
+  }
+  // The canvas element's own background: a note's, else the stylesheet's.
+  function paintStoryCanvasBg(el, v){
+    if(!el) return;
+    el.classList.toggle("note", isNote(v));
+    el.style.background = isNote(v) ? noteBackground(storyStyleOf(v).bg) : "";
+  }
+
   var vcs = { ep: null, model: null, sel: "", tool: "", people: null, sending: false };
   function openVibeComposer(ep){
     // A friend's story shared to yours (§282) brings its own picture.
@@ -7915,6 +8010,7 @@
     vcs = { ep: ep, sel: "", tool: "", people: vcs.people, sending: false,
             model: { query: ep.query, title: ep.title || ep.query, minutes: ep.minutes,
                      caption: "", style: st, tags: [] } };
+    vcsMode(false);
     document.getElementById("vcsCaption").value = "";
     document.getElementById("vcsSizeInput").value = st.size;
     paintPersonAv(document.getElementById("vcsMe"), profileNow || {});
@@ -7937,17 +8033,110 @@
         }).catch(function(){});
     }
   }
+  // A story with no episode (§295, the Birthday packet): the (+) on your
+  // own face, on DailyFAM's row or your YourFAM picture. The same editor,
+  // its canvas a background you choose, the text your own words - typed, or
+  // spoken into the box with Speak - and stickers. An account's only.
+  var NOTE_MAX = 280;
+  function openNoteComposer(){
+    if(!AUTH.authenticated){ gateActions(); return; }
+    var st = storyStyleDefaults();
+    st.font = "strong"; st.size = 30; st.cy = 0.45; st.bg = "sunset";
+    vcs = { ep: null, note: true, sel: "", tool: "", people: vcs.people, sending: false,
+            model: { kind: "note", text: "", style: st, tags: [] } };
+    vcsMode(true);
+    document.getElementById("vcsCaption").value = "";
+    document.getElementById("vcsSizeInput").value = st.size;
+    paintPersonAv(document.getElementById("vcsMe"), profileNow || yfMe || {});
+    ["vcsPostAll", "vcsPostGo"].forEach(function(id){
+      document.getElementById(id).disabled = false;
+    });
+    vcsTool("");
+    document.getElementById("vibeComposer").hidden = false;
+    drawVibeComposer();
+  }
+  // Which editor this is: an episode's vibe, or a note.
+  function vcsMode(note){
+    document.getElementById("vibeComposer").classList.toggle("note", note);
+    var box = document.getElementById("vcsCaption");
+    box.maxLength = note ? NOTE_MAX : 150;
+    box.placeholder = note ? "Say what you think\u2026" : "Add a caption\u2026";
+    document.getElementById("vibeComposer").setAttribute("aria-label",
+      note ? "Add to your story" : "VIBE! to your story");
+    var mic = document.getElementById("vcsVoiceTool");
+    if(mic) mic.hidden = !speechRecognitionCtor();
+    if(!note) vcsStopDictation();
+  }
   function closeVibeComposer(){
     vcs.ep = null;
+    vcs.note = false;
+    vcsStopDictation();
     document.getElementById("vibeComposer").hidden = true;
   }
   function drawVibeComposer(){
     if(!vcs.model) return;
-    document.getElementById("vcsCanvas").innerHTML = storyCanvasHTML(vcs.model, true);
+    var canvas = document.getElementById("vcsCanvas");
+    canvas.innerHTML = storyCanvasHTML(vcs.model, true);
+    paintStoryCanvasBg(canvas, vcs.model);
+    var dot = document.getElementById("vcsBgDot");
+    if(dot && vcs.note) dot.style.background = noteBackground(vcs.model.style.bg);
   }
   function vcsCaptionInput(val){
-    vcs.model.caption = val;
+    if(vcs.note) vcs.model.text = val;
+    else vcs.model.caption = val;
     drawVibeComposer();
+  }
+  function vcsPaintBackgrounds(){
+    var on = vcs.model.style.bg;
+    document.getElementById("vcsPanel").innerHTML = vcsPanelHead("BACKGROUND")
+      + '<div class="vcs-bgs">' + NOTE_BACKGROUNDS.map(function(b){
+          return '<button class="' + (on === b[0] ? "on" : "") + '" style="background:' + b[1] + '"'
+            + ' aria-label="' + b[0] + '" onclick="vcsSetBg(\'' + b[0] + '\')"></button>';
+        }).join("") + '</div>'
+      + '<div class="vcs-hint">A colour or a gradient behind your words.</div>';
+  }
+  function vcsSetBg(name){
+    vcs.model.style.bg = name;
+    vcsPaintBackgrounds();
+    drawVibeComposer();
+  }
+  // Speak: the phone's own speech recognition, into the text box, the way
+  // searchFAM's mic hears a question. What is heard is added to what is
+  // there, and can be fixed by typing. Not offered where the browser cannot.
+  var vcsRec = null;
+  function vcsDictate(){
+    if(vcsRec){ vcsStopDictation(); return; }
+    var Ctor = speechRecognitionCtor();
+    if(!Ctor){ toast("This browser can\u2019t take dictation \u2014 type instead"); return; }
+    var box = document.getElementById("vcsCaption");
+    var before = box.value;
+    var rec;
+    try { rec = new Ctor(); } catch(e){ toast("Could not start the microphone"); return; }
+    rec.lang = navigator.language || "en-US";
+    rec.continuous = true;
+    rec.interimResults = true;
+    rec.onresult = function(e){
+      var heard = "";
+      for(var i = 0; i < e.results.length; i++) heard += e.results[i][0].transcript;
+      box.value = voiceJoin(before, heard).slice(0, NOTE_MAX);
+      vcsCaptionInput(box.value);
+    };
+    rec.onerror = function(e){
+      if(e && (e.error === "not-allowed" || e.error === "service-not-allowed"))
+        toast("The microphone is blocked for FAM");
+      vcsStopDictation();
+    };
+    rec.onend = function(){ if(vcsRec === rec) vcsStopDictation(); };
+    vcsRec = rec;
+    document.getElementById("vcsVoiceTool").classList.add("listening");
+    try { rec.start(); } catch(e){ vcsStopDictation(); }
+  }
+  function vcsStopDictation(){
+    var rec = vcsRec;
+    vcsRec = null;
+    var tool = document.getElementById("vcsVoiceTool");
+    if(tool) tool.classList.remove("listening");
+    if(rec){ try { rec.stop(); } catch(e){} }
   }
   function vcsSetSize(val){
     vcs.model.style.size = Math.max(14, Math.min(48, +val || 24));
@@ -7977,7 +8166,7 @@
     document.getElementById("vcsSize").hidden = tool !== "text";
     document.getElementById("vcsFonts").hidden = tool !== "text";
     var panel = document.getElementById("vcsPanel");
-    panel.hidden = !(tool === "stickers" || tool === "mention" || tool === "picture");
+    panel.hidden = !(tool === "stickers" || tool === "mention" || tool === "picture" || tool === "bg");
     if(tool === "text"){
       vcsPaintFonts();
       if(!keep){ try { document.getElementById("vcsCaption").focus(); } catch(e){} }
@@ -7985,6 +8174,7 @@
     if(tool === "stickers") vcsPaintStickers();
     if(tool === "mention") vcsPaintPeople();
     if(tool === "picture") vcsPaintPicture();
+    if(tool === "bg") vcsPaintBackgrounds();
   }
   function vcsPanelHead(label){
     return '<div class="vcs-panel-head"><span>' + label + '</span>'
@@ -8202,6 +8392,7 @@
   // no Close Friends audience any more (§250); the server still takes one
   // from an older client.
   function postVibeStory(){
+    if(vcs.note){ postNoteStory(); return; }
     var ep = vcs.ep;
     if(!ep || vcs.sending) return;
     var model = vcs.model;
@@ -8231,16 +8422,7 @@
         // Once the composer has gone back to the episode it was opened on.
         setTimeout(function(){ Motion.celebrate("[data-echo]", "VIBED"); }, 300);
       }
-      snack("Vibed to your story", { label: "View", run: function(){
-        // Read again first, so the story opened has the one just posted.
-        loadProfileQuietly().then(function(p){
-          if(p && p.stories && p.stories.length){
-            myStoryPerson = { user_id: "me", mine: true, name: p.name || "", handle: p.handle || "",
-                              avatar: p.avatar || "", stories: p.stories };
-          }
-          openMyStory();
-        });
-      } });
+      snack("Vibed to your story", { label: "View", run: viewMyNewStory });
       refreshVibeCount(ep);
       if(typeof loadProfileQuietly === "function") loadProfileQuietly();
     }).catch(function(err){
@@ -8249,6 +8431,56 @@
         document.getElementById(id).disabled = false;
       });
       toast(err.message || "Could not vibe that");
+    });
+  }
+
+  // Read again first, so the story opened has the one just posted.
+  function viewMyNewStory(){
+    loadProfileQuietly().then(function(p){
+      setMyStoryFrom(p);
+      openMyStory();
+    });
+  }
+  function setMyStoryFrom(p){
+    if(p && p.stories && p.stories.length){
+      myStoryPerson = { user_id: "me", mine: true, name: p.name || "", handle: p.handle || "",
+                        avatar: p.avatar || "", stories: p.stories };
+    } else if(p){
+      myStoryPerson = null;
+    }
+  }
+  function postNoteStory(){
+    if(vcs.sending) return;
+    var model = vcs.model;
+    var text = (model.text || "").trim();
+    if(!text && !model.style.stickers.length){ toast("Write something, or add a sticker"); return; }
+    vcs.sending = true;
+    ["vcsPostAll", "vcsPostGo"].forEach(function(id){
+      document.getElementById(id).disabled = true;
+    });
+    fetch("/api/story/note", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ text: text, style: model.style })
+    }).then(function(r){
+      return r.json().then(function(d){
+        if(!r.ok) throw new Error(d.error || d.detail || "Could not add that to your story");
+        return d;
+      });
+    }).then(function(){
+      closeVibeComposer();
+      snack("Added to your story", { label: "View", run: viewMyNewStory });
+      loadMyFamCircle();
+      loadProfileQuietly().then(function(p){
+        setMyStoryFrom(p);
+        var hub = document.getElementById("screen-profile");
+        if(p && hub && hub.classList.contains("active")) renderProfile(p);
+      });
+    }).catch(function(err){
+      vcs.sending = false;
+      ["vcsPostAll", "vcsPostGo"].forEach(function(id){
+        document.getElementById(id).disabled = false;
+      });
+      toast(err.message || "Could not add that to your story");
     });
   }
 
@@ -14364,7 +14596,7 @@
     // when it is about to be drawn.
     checkNewFollowers();
 
-    fetch("/api/profile")
+    fetch("/api/profile?notes=1")
       .then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
       .then(renderProfile)
       .catch(function(){
@@ -14779,12 +15011,19 @@
       ? { user_id: "me", mine: true, name: p.name || "", handle: p.handle || "",
           avatar: p.avatar || "", stories: p.stories }
       : null;
-    var html = '<div class="yf-id">'
+    // The (+) on your picture adds to your story (§295), as on DailyFAM's
+    // row: words on a background, no episode needed.
+    var addBadge = AUTH.authenticated
+      ? '<button class="yf-add" onclick="openNoteComposer()" aria-label="Add to your story">'
+        + yfIcon("plus", 11) + '</button>' : '';
+    var html = '<div class="yf-id"><div class="yf-photo-wrap">'
       + (myStoryPerson
           ? '<button class="yf-photo-btn ring' + (storiesUnseen(myStoryPerson) ? "" : " seen")
             + '" id="yfMyStory" onclick="openMyStory()" aria-label="Your story">'
             + '<div class="yf-photo">' + yfFace(p) + '</div></button>'
-          : '<div class="yf-photo">' + yfFace(p) + '</div>')
+          : '<div class="yf-photo"' + (AUTH.authenticated ? ' onclick="openNoteComposer()"' : '')
+            + '>' + yfFace(p) + '</div>')
+      + addBadge + '</div>'
       + '<div class="yf-id-text">'
       + '<div class="yf-name">' + escapeHtml(p.name || "Set up your profile") + '</div>'
       // Where they are, as they wrote it, right under the name (10.7).
@@ -14880,14 +15119,20 @@
   // gave it the "View Your FAM" pill instead. One renderer and one list
   // (`yfCircle`), because the story viewer indexes into that list - `data-i`
   // is the index, never the button's position on the page.
+  //
+  // Instagram's row (§295, the Birthday packet): each face is the person's
+  // own picture, a gradient ring while they have a story you have not
+  // watched, and your own face first - "Your story" - with the (+) that
+  // adds to it. The ring says what the VIBE badge used to, so the badge is
+  // gone from this row.
   function circleRowHTML(){
     return '<div class="yf-friends">'
+      + myFaceHTML()
       + yfCircle.map(function(person, i){
           return '<button class="yf-friend" data-i="' + i + '" onclick="openCircleProfile(' + i + ')" '
             + 'aria-label="View ' + escapeHtml(firstName(person)) + '\'s profile">'
             + '<span class="yf-ring' + yfRingClass(person) + '">'
             + yfFace(person)
-            + (hasStories(person) ? '<span class="yf-vibe">VIBE</span>' : '')
             + '</span><span class="yf-friend-name">' + escapeHtml(firstName(person))
             + '</span></button>';
         }).join("")
@@ -14897,14 +15142,41 @@
       + '</div>';
   }
 
-  // The rails screen's copy of the row. Drawn only for somebody with faces
-  // to show: a guest has no follow graph, and an account that follows nobody
-  // already gets "Find new friends" under the friends rail - a row that is
-  // only an Invite circle would be a second door to the same place.
+  //: Your own face on the row (`/api/circle`'s `me`), with your story.
+  var yfMe = null;
+  function myStoryOnRow(){
+    return yfMe && hasStories(yfMe)
+      ? { user_id: "me", mine: true, name: yfMe.name || "", handle: yfMe.handle || "",
+          avatar: yfMe.avatar || "", stories: yfMe.stories }
+      : null;
+  }
+  // Tapping your face plays your story when one is up, else starts one; the
+  // (+) always starts one.
+  function myFaceHTML(){
+    if(!yfMe) return "";
+    var mine = myStoryOnRow();
+    return '<div class="yf-friend me" role="button" tabindex="0" onclick="tapMyFace()" '
+      + 'aria-label="' + (mine ? "Your story" : "Add to your story") + '">'
+      + '<span class="yf-ring' + (mine ? (storiesUnseen(mine) ? " fresh" : " seen") : "") + '" id="yfMyRing">'
+      + yfFace(yfMe)
+      + '<button class="yf-add" onclick="event.stopPropagation(); openNoteComposer()" aria-label="Add to your story">'
+      + yfIcon("plus", 13) + '</button>'
+      + '</span><span class="yf-friend-name">Your story</span></div>';
+  }
+  function tapMyFace(){
+    var mine = myStoryOnRow();
+    if(!mine){ openNoteComposer(); return; }
+    myStoryPerson = mine;
+    openMyStory();
+  }
+
+  // The rails screen's copy of the row. Drawn for any account: your own face
+  // leads it with the (+) to your story (§295), so it is a control even
+  // before you follow anybody. A guest has no follow graph and no story.
   function paintMyFamCircle(){
     var el = document.getElementById("myfamCircle");
     if(!el) return;
-    if(!yfCircle.length){ el.innerHTML = ""; el.hidden = true; return; }
+    if(!yfCircle.length && !yfMe){ el.innerHTML = ""; el.hidden = true; return; }
     el.hidden = false;
     el.innerHTML = circleRowHTML();
   }
@@ -14912,10 +15184,10 @@
   // Asked beside the rails, never before them: the feed draws whether or
   // not this answers, and a failure leaves the row as it was.
   function loadMyFamCircle(){
-    if(!AUTH.authenticated){ yfCircle = []; paintMyFamCircle(); return; }
-    fetch("/api/circle")
+    if(!AUTH.authenticated){ yfCircle = []; yfMe = null; paintMyFamCircle(); return; }
+    fetch("/api/circle?notes=1")
       .then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
-      .then(function(d){ yfCircle = d.circle || []; paintMyFamCircle(); })
+      .then(function(d){ yfCircle = d.circle || []; yfMe = d.me || null; paintMyFamCircle(); })
       .catch(function(){});
   }
 
@@ -15061,9 +15333,9 @@
       : (person.name || ("@" + person.handle));
     document.getElementById("storyAgo").textContent = storyAgo(v.at)
       + (v.close ? " · Close Friends" : "");
-    document.getElementById("storyTitle").textContent = v.title || v.query;
-    document.getElementById("storyMeta").textContent =
-      (person.mine ? "You" : firstName(person)) + " vibed this · " + (v.minutes || BROWSE_MINUTES) + " min";
+    document.getElementById("storyTitle").textContent = v.title || v.query || "";
+    document.getElementById("storyMeta").textContent = isNote(v) ? ""
+      : (person.mine ? "You" : firstName(person)) + " vibed this · " + (v.minutes || BROWSE_MINUTES) + " min";
     var cap = document.getElementById("storyCaption");
     if(cap){
       cap.hidden = !v.caption;
@@ -15072,12 +15344,15 @@
     drawStoryReply(person, v);
     // A story laid out in the editor (10.6 #2) is drawn from its layout;
     // one vibed before the editor keeps the title-and-caption page.
-    var composed = storyHasLayout(v);
+    // A note (§295) is always drawn from its layout: it is only its canvas.
+    var composed = storyHasLayout(v) || isNote(v);
     var overlay = document.getElementById("storyOverlay");
     overlay.classList.toggle("composed", composed);
+    overlay.classList.toggle("note", isNote(v));
     var wrap = document.getElementById("storyCanvasWrap");
     wrap.hidden = !composed;
     wrap.innerHTML = composed ? '<div class="story-canvas">' + storyCanvasHTML(v, false) + '</div>' : "";
+    if(composed) paintStoryCanvasBg(wrap.firstChild, v);
     var bars = document.getElementById("storyBars");
     bars.style.setProperty("--story-ms", STORY_MS + "ms");
     bars.innerHTML = person.stories.map(function(_, k){
@@ -15249,6 +15524,11 @@
     });
     var mine = document.getElementById("yfMyStory");
     if(mine && myStoryPerson) mine.classList.toggle("seen", !storiesUnseen(myStoryPerson));
+    var myRing = document.getElementById("yfMyRing"), onRow = myStoryOnRow();
+    if(myRing && onRow){
+      myRing.classList.toggle("fresh", storiesUnseen(onRow));
+      myRing.classList.toggle("seen", !storiesUnseen(onRow));
+    }
   }
 
   // The episode opens in the full player (10.16 packet, §285): the button,
@@ -15284,7 +15564,7 @@
   // story on this device: liking again does not send a second heart.
   var STORY_LIKE = "\u2764\ufe0f";
   var storyLikes = {};
-  function storyMark(person, v){ return (person.user_id || person.handle || "") + "|" + v.at + "|" + v.query; }
+  function storyMark(person, v){ return (person.user_id || person.handle || "") + "|" + v.at + "|" + (v.query || v.kind); }
   function drawStoryReply(person, v){
     var row = document.getElementById("storyReply");
     if(!row) return;
@@ -15303,12 +15583,18 @@
       if(open && !document.getElementById("sheetOverlay").classList.contains("active")) resumeStory();
     }, 60);
   }
+  // A reply to a note (§295) has no episode to carry: it is a message, with
+  // the words it answers quoted so it reads as a reply in Messages.
   function postStoryMessage(person, v, text){
+    var body = isNote(v)
+      ? { to: person.user_id, reply: true,
+          text: (text === STORY_LIKE ? STORY_LIKE + " your story" : text)
+            + (v.text ? " \u2014 re: \u201c" + v.text.slice(0, 80) + (v.text.length > 80 ? "\u2026" : "") + "\u201d" : "") }
+      : { to: person.user_id, text: text, query: v.query,
+          minutes: v.minutes || BROWSE_MINUTES, title: v.title || "", reply: true };
     return fetch("/api/messages", {
       method: "POST", headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({ to: person.user_id, text: text, query: v.query,
-                             minutes: v.minutes || BROWSE_MINUTES, title: v.title || "",
-                             reply: true })
+      body: JSON.stringify(body)
     }).then(function(r){
       return r.json().then(function(d){
         if(!r.ok) throw new Error(d.detail || d.error || "Could not send that");
@@ -15334,7 +15620,7 @@
     var on = !storyLikes[mark];
     var btn = document.getElementById("storyLike");
     btn.setAttribute("aria-pressed", on ? "true" : "false");
-    fetch("/api/rate", {
+    if(!isNote(v)) fetch("/api/rate", {
       method: "POST", headers: {"Content-Type": "application/json"},
       body: JSON.stringify({ query: v.query, minutes: v.minutes || BROWSE_MINUTES, value: on ? 1 : 0 })
     }).catch(function(){});
@@ -15345,7 +15631,7 @@
   }
   function shareStoryToMine(){
     var v = currentStory().v;
-    if(!v) return;
+    if(!v || isNote(v)) return;
     var ep = { query: v.query, title: v.title || v.query, minutes: v.minutes || BROWSE_MINUTES,
                thumb: (v.style && v.style.thumb) || "" };
     closeStory();
@@ -15376,6 +15662,7 @@
     var cur = currentStory(), person = cur.person, v = cur.v;
     if(!v) return;
     pauseStory();
+    if(isNote(v)){ openNoteMenu(person, v); return; }
     var ep = { query: v.query, title: v.title || v.query, minutes: v.minutes || BROWSE_MINUTES };
     var thumb = (v.style && v.style.thumb) || "";
     var items = [
@@ -15408,6 +15695,28 @@
     sheet.classList.add("over-story");
     showActionSheet(items);
   }
+  // A note's menu (§295): there is no episode to save, share or queue, so
+  // it is yours to take down, or somebody else's to report or block.
+  function openNoteMenu(person, v){
+    var items = [{ head: menuHead(v.text ? v.text.slice(0, 60) : "A story",
+                                  person.mine ? "Your story" : firstName(person) + "\u2019s story", "") }];
+    if(person.mine && v.id){
+      items.push({ label: menuLabel("remove", "Remove from your story"), danger: true,
+                   action: function(){ removeFromMyStory(v); } });
+    }
+    if(!person.mine){
+      if(v.id){
+        items.push({ label: menuLabel("report", "Report"), danger: true, action: function(){
+            reportContent({ kind: "note", target: v.id }, function(){ closeStory(); }); } });
+      }
+      if(person.handle){
+        items.push({ label: menuLabel("block", "Block " + escapeHtml(firstName(person))), danger: true,
+                     action: function(){ blockPerson(person.handle, person.name, closeStory); } });
+      }
+    }
+    document.getElementById("sheetOverlay").classList.add("over-story");
+    showActionSheet(items);
+  }
   // The story carries on when the sheet goes, however it went.
   (function(){
     var sheet = document.getElementById("sheetOverlay");
@@ -15433,7 +15742,8 @@
       .catch(function(e){ toast(e.message); });
   }
   function removeFromMyStory(v){
-    fetch("/api/vibe/story/" + encodeURIComponent(v.id), { method: "DELETE" })
+    // A note is only a story, so taking it down deletes it (§295).
+    fetch((isNote(v) ? "/api/story/note/" : "/api/vibe/story/") + encodeURIComponent(v.id), { method: "DELETE" })
       .then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
       .then(function(d){
         if(!d.ok) throw new Error();
@@ -15445,7 +15755,8 @@
           if(at !== -1 && at < storyAt.item) storyAt.item -= 1;
           if(storyAt.item >= person.stories.length) storyAt.item = person.stories.length - 1;
         }
-        snack("Removed from your story — it’s still in your vibes");
+        snack(isNote(v) ? "Removed from your story" : "Removed from your story — it’s still in your vibes");
+        loadMyFamCircle();
         if(!hasStories(person)){ closeStory(); }
         else showStory();
         if(typeof loadProfileQuietly === "function") loadProfileQuietly();
@@ -21049,7 +21360,7 @@
   // whether there is already a name before it decides to ask for one, and
   // `loadProfile` paints a screen that is not on yet.
   function loadProfileQuietly(){
-    return fetch("/api/profile")
+    return fetch("/api/profile?notes=1")
       .then(function(r){ return r.ok ? r.json() : null; })
       .then(function(d){ if(d) profileNow = d; return d; })
       .catch(function(){ return null; });
