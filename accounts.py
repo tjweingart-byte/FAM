@@ -597,7 +597,8 @@ class AccountStore:
 
     def sign_up(self, user_id: str, email: str, password: str,
                 phone: str = "", at: float = 0.0,
-                waitlisted: bool = False) -> Listener:
+                waitlisted: bool = False,
+                passwordless: bool = False) -> Listener:
         """Attach credentials to the identity this listener already has.
 
         Deliberately *not* "create a user". The listener exists already - they
@@ -620,12 +621,17 @@ class AccountStore:
         `waitlisted` starts the account on the waitlist whatever
         `new_account_status` says: joining the waitlist is a waitlist join
         even on a server whose gate is off (10.2 packet).
+
+        `passwordless` makes the account with no password at all - the
+        waitlist's email-only join (PROBLEMS.md §295). The column holds '',
+        as a Google-or-Apple account's does, so `log_in` can never match it
+        and `set_password` or a reset (§244) adds the first one later.
         """
         if not user_id:
             raise AuthError("No listener to attach an account to.")
         email = clean_email(email)
         phone = clean_phone(phone) if phone else ""
-        password = check_password(password)
+        stored = "" if passwordless else hash_password(check_password(password))
         now = at or time.time()
 
         if self.account(user_id):
@@ -635,7 +641,7 @@ class AccountStore:
                 "INSERT INTO accounts (user_id, email, password, created,"
                 " last_login, phone, status, waitlist_joined_at)"
                 " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                (user_id, email, hash_password(password), now, now, phone,
+                (user_id, email, stored, now, now, phone,
                  *self._new_status(now, waitlisted)),
             )
         except sqlite3.IntegrityError as exc:

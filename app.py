@@ -10706,7 +10706,9 @@ async def waitlist_status_page(request: Request):
 
 class WaitlistJoinRequest(BaseModel):
     email: str = Field(..., max_length=accounts_mod.MAX_EMAIL)
-    password: str = Field(..., max_length=accounts_mod.MAX_PASSWORD)
+    #: Not asked for since §295: joining is the email alone. A page or client
+    #: that still sends one makes the account with it, as before.
+    password: str = Field("", max_length=accounts_mod.MAX_PASSWORD)
     referral_code: str = Field("", max_length=64)
     want_token: bool = False
     #: The join form's checkbox (§228).
@@ -10723,6 +10725,11 @@ def _admin_previewing_join(req, request: Request):
     `/api/auth/login` would, and sent to the status page's admin preview
     (§216) - never put in line. Anybody else, or a wrong password, still
     gets the refusal, so the form says nothing new about who is an admin.
+
+    Since §295 the form sends no password, so an admin is shown the preview
+    only when this browser is already signed in as that admin; otherwise
+    the refusal stands and the page opens its sign-in, which sends an admin
+    to the preview as well.
     """
     try:
         email = accounts_mod.clean_email(req.email)
@@ -10730,6 +10737,13 @@ def _admin_previewing_join(req, request: Request):
         return None
     if email not in _admin_accounts():
         return None
+    if not req.password:
+        listener = getattr(request.state, "listener", None)
+        if (listener is None or not listener.is_authenticated
+                or listener.email != email or not _allowed_admin(listener)):
+            return None
+        listener = _admit_admin(listener)
+        return {**listener.as_dict(), "admin": True, "redirect": "/waitlist/me"}
     try:
         listener = ACCOUNTS.log_in(email, req.password)
     except accounts_mod.AuthError:
@@ -10748,7 +10762,13 @@ def _admin_previewing_join(req, request: Request):
 
 @app.post("/api/waitlist/join")
 async def waitlist_join(req: WaitlistJoinRequest, request: Request) -> dict:
-    """Join: the app's own email-and-password sign-up, then the waitlist half.
+    """Join: the app's own sign-up, then the waitlist half.
+
+    **The email alone** (the owner, PROBLEMS.md §295): no password is asked
+    for, so the account is made with none (`passwordless`), exactly as a
+    Google-or-Apple one is. This browser's session is the way in; another
+    device gets in by "Forgot password?" (§244), which sets the first one.
+    A request that still carries a password is the old join, unchanged.
 
     The same account the app will open with later - `ACCOUNTS.sign_up` on the
     session this browser already has - so granting access changes one column
@@ -10767,7 +10787,8 @@ async def waitlist_join(req: WaitlistJoinRequest, request: Request) -> dict:
     user, fresh = _signup_listener(request)
     try:
         listener = await asyncio.to_thread(ACCOUNTS.sign_up, user, req.email,
-                                           req.password, waitlisted=True)
+                                           req.password, waitlisted=True,
+                                           passwordless=not req.password)
     except accounts_mod.AuthError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     listener = _admit_admin(listener)
@@ -10843,6 +10864,9 @@ async def waitlist_me(request: Request) -> dict:
             "phone": account.get("phone") or "",
             "birth_date": account.get("birth_date") or "",
             "location": PREFS.get(user).location.as_dict(),
+            # False for an email-only join (§295): signing out is then
+            # warned about, since this session is the only way back in.
+            "has_password": _has_password(user),
         },
     }
 

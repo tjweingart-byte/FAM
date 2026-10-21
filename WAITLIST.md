@@ -56,7 +56,13 @@ section when a decision changes, including why.
    "an account gates what is kept, never what is heard" for as long as
    `WAITLIST=1` - see `docs/claude/constraints.md`, rule `waitlist-gate`.
    Guests are closed out too: a guest door would make the waitlist optional.
-3. **Sign-up is email and password** (the owner: Apple and Google are not
+3. **Sign-up is the email alone** (the owner, 21/10, PROBLEMS.md §295; it
+   was email and password). No password is asked for: the account is made
+   with none, signed in on the browser that joined, and another device gets
+   in by "Forgot password?", which sets the first one - so SMTP must be
+   configured for that way back to exist. An address that already has an
+   account is refused and the sign-in opened; the email alone never signs
+   anybody in. *Before §295:* **Sign-up is email and password** (the owner: Apple and Google are not
    offered until the Apple Developer Program is in place). The landing page
    asks for the email, then a password - the app's own sign-up, so the account
    is the one the app opens with. The provider route still honours
