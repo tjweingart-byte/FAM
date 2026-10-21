@@ -21286,7 +21286,8 @@ The owner's "Birthday Implementations" packet, three asks:
 1. **DailyFAM's faces the way Instagram draws them.** The row was small
    circles of initials with a copper border only when something was new.
    It is now Instagram's: 72px round pictures (initials only where there is
-   no picture), a gradient ring (yellow, orange, pink, purple, blue) round
+   no picture), a gradient ring - in FAM's colorway, bronze to the
+   wordmark's gold, not Instagram's rainbow (the owner, right after) - round
    anybody with a story you have not watched, a thin grey ring once you
    have, and **your own face first**, labelled "Your story", with a (+)
    badge. Tapping your face plays your story when one is up and starts one

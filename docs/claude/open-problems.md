@@ -847,7 +847,8 @@
 > carrying up to three faces - friends first, a picture before initials.
 >
 > **Current (PROBLEMS.md §295, the Birthday packet):** the DailyFAM row is
-> Instagram's: big round pictures, a gradient ring while a story is unwatched
+> Instagram's: big round pictures, a gradient ring in FAM's gold (bronze to
+> the wordmark's gold, never Instagram's colours) while a story is unwatched
 > and a thin grey one once it is, and your own face first ("Your story")
 > with a (+) badge that adds a note to your story. The VIBE badge is gone
 > from the row - the ring says it. The row is drawn for any account, since

@@ -198,7 +198,9 @@ def test_the_dailyfam_row_leads_with_your_face_and_rings_stories():
     assert row.index("myFaceHTML()") < row.index("yfCircle.map")
     assert "yf-vibe" not in row
     assert '"/api/circle?notes=1"' in _fn("loadMyFamCircle")
-    assert "linear-gradient(45deg,#FEDA75" in INDEX
+    # FAM's gold, never Instagram's rainbow.
+    assert "yf-ring.fresh{ background:linear-gradient(45deg,#7A5A2E" in INDEX
+    assert "#FEDA75" not in INDEX.split(".myfam-circle .yf-ring.fresh", 1)[1].split("}", 1)[0]
     # Drawn for any account, so the (+) is there before you follow anybody.
     assert "!yfCircle.length && !yfMe" in _fn("paintMyFamCircle")
 
