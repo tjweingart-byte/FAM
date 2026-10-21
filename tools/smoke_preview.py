@@ -2276,8 +2276,13 @@ def main() -> int:
             page.wait_for_timeout(300)
             page.evaluate("removeFromQueue(0)")
             assert page.evaluate("QUEUE.length") == 1, "the queue still held the removed episode"
-            live = page.eval_on_selector_all("#sheetCard .q-row .q-rm", "e => e.length")
+            # The row on its way out is an inert copy (aria-hidden); the list
+            # itself already holds only what is left.
+            live = page.eval_on_selector_all("#sheetCard .q-row:not([aria-hidden]) .q-rm", "e => e.length")
             assert live == 1, f"the queue sheet lists {live} with buttons, not 1"
+            page.wait_for_timeout(600)
+            copies = page.eval_on_selector_all("#sheetCard .q-row[aria-hidden]", "e => e.length")
+            assert copies == 0, f"{copies} copies of the removed row were left in the queue"
             page.evaluate("setTab('home')")
             page.wait_for_timeout(400)
             page.evaluate("setPrivateSearch(true)")

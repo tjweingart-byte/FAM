@@ -161,8 +161,10 @@ def test_actions_are_confirmed_by_the_bar_with_somewhere_to_go():
     for gone in ('toast("Added to your queue")', "VIBE! — posted to your story",
                  'toast("Saved for later \\u2713")'):
         assert gone not in INDEX, gone
-    # Both themes give it its own colours, the reverse of the page's.
-    assert INDEX.count("--snack-bg:") == 2
+    # A plain line since §299 (the owner's pick, 10.21): no box of its own
+    # colours any more, and the pill it sat beside is the same line.
+    assert "--snack-bg:" not in INDEX
+    assert ".toast, .snack{" in INDEX and ".toast::before, .snack::before{" in INDEX
 
 
 def test_undo_puts_back_what_was_taken_off_not_what_is_playing_now():

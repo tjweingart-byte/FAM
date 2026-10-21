@@ -13,7 +13,6 @@
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..700&family=Geist:wght@400..700&family=Geist+Mono:wght@400..700&display=swap" rel="stylesheet">
 <style>
   :root{
-    --snack-bg:#F4EFE4; --snack-fg:#18151F; --snack-act:#7A560F;
     --ink:#18151F; --paper:#F4EFE4;
     --page-bg:#1E1B27; --bg:#2A2733; --surface:#38334A; --surface-2:#423C56;
     --copper:#E0B563; --coral:#E2694F; --sage:#8FAE9A; --gold:#E0B563;
@@ -36,7 +35,6 @@
   /* White behind, cream tiles (10.11 packet): the two were the other way
      round, cream page and white cards. */
   html[data-theme="light"]{
-    --snack-bg:#1E1B27; --snack-fg:#F4EFE4; --snack-act:#E0B563;
     --paper:#E6DECD;
     --page-bg:#E9E3D6; --bg:#FFFFFF; --surface:#F7F3EA; --surface-2:#EEE8DC;
     --copper:#A87520; --gold:#A87520; --coral:#C4502F; --sage:#5C8669;
@@ -2132,34 +2130,35 @@
     line-height:1.5; max-width:250px;
   }
 
-  /* -------- toast -------- */
-  .toast{
-    position:absolute; bottom:96px; left:50%; transform:translateX(-50%) translateY(20px);
-    background:var(--surface); color:var(--text); font-family:'Geist Mono', monospace; font-size:11.5px;
-    padding:11px 18px; border-radius:24px; opacity:0; pointer-events:none; transition:all .25s ease;
-    box-shadow:0 20px 40px -14px rgba(0,0,0,0.6); z-index:999;
-    width:max-content; max-width:calc(100% - 28px); text-align:center;
-    border:1px solid var(--border-strong);
-  }
-  .toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
-
-  /* -------- the action bar (10.8 packet) --------
-     Queue, save, vibe, share, add to a mix: confirmed by a full-width bar
-     just above the mini player (or the tabs), as Spotify does - the reverse
-     of the page's colours, so it reads as on top of everything. `bottom`
-     is set when it shows, from what is on screen. */
-  .snack{ position:absolute; left:10px; right:10px; bottom:96px; z-index:1000;
-    display:flex; align-items:center; gap:10px; min-height:50px; padding:4px 6px 4px 16px;
-    border-radius:10px; background:var(--snack-bg); color:var(--snack-fg);
-    box-shadow:0 14px 30px -10px rgba(0,0,0,0.55); font-family:'Geist', sans-serif;
-    font-size:14px; line-height:1.3; opacity:0; transform:translateY(10px);
-    pointer-events:none; transition:opacity .2s ease, transform .2s ease; }
-  .snack.show{ opacity:1; transform:translateY(0); pointer-events:auto; }
-  .snack-text{ flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .snack-act{ flex:none; border:0; background:none; cursor:pointer; padding:10px 10px;
-    font:700 14px 'Geist', sans-serif; color:var(--snack-act); }
+  /* -------- what an action did: a plain line (§299) --------
+     The owner's pick (10.21, "Plain line") for both messages that used to
+     pop up at the bottom - the rounded pill (`toast`) and the dark bar with
+     Undo or Open (`snack`): a line of text with a short copper rule above
+     it, no box, no shadow, no shape. It sits just above the mini player (or
+     the tabs) on the page's own colour, fading into the page above it so it
+     reads over whatever scrolls behind. `bottom` is set when it shows, from
+     what is on screen. */
+  .toast, .snack{ position:absolute; left:0; right:0; bottom:96px; z-index:1000;
+    display:flex; flex-direction:column; align-items:center; gap:7px;
+    padding:26px 20px 9px; text-align:center; color:var(--text);
+    background:linear-gradient(to bottom, rgba(var(--bg-rgb),0), rgba(var(--bg-rgb),0.98) 45%);
+    font-family:'Geist', sans-serif; font-size:13.5px; font-weight:500; line-height:1.35;
+    opacity:0; transform:translateY(6px); pointer-events:none;
+    transition:opacity .2s ease, transform .2s ease; }
+  .toast::before, .snack::before{ content:""; flex:none; width:22px; height:2px; border-radius:1px;
+    background:var(--copper); transform:scaleX(0); transform-origin:50% 50%;
+    transition:transform .26s cubic-bezier(.2,.8,.2,1) .06s; }
+  .toast.show, .snack.show{ opacity:1; transform:translateY(0); }
+  .toast.show::before, .snack.show::before{ transform:scaleX(1); }
+  .snack.show{ pointer-events:auto; }
+  .snack-line{ display:flex; align-items:baseline; justify-content:center; gap:10px; max-width:100%; }
+  .snack-text{ min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .snack-act{ flex:none; border:0; background:none; cursor:pointer; padding:6px 2px;
+    margin:-6px 0; font:700 13.5px 'Geist', sans-serif; color:var(--copper); }
   .snack-act[hidden]{ display:none; }
-  @media (prefers-reduced-motion: reduce){ .snack{ transition:none; } }
+  @media (prefers-reduced-motion: reduce){
+    .toast, .snack, .toast::before, .snack::before{ transition:none; }
+  }
 
   /* -------- the drop-down notification --------
      Above everything except the splash, because it is the one thing that may
@@ -5046,8 +5045,8 @@
     <!-- What an action did, Spotify's way (10.8 packet): a bar above the
          mini player, the words on the left and where to go on the right. -->
     <div class="snack" id="snack" role="status" aria-live="polite">
-      <span class="snack-text" id="snackText"></span>
-      <button class="snack-act" id="snackAct" type="button" hidden></button>
+      <div class="snack-line"><span class="snack-text" id="snackText"></span>
+      <button class="snack-act" id="snackAct" type="button" hidden></button></div>
     </div>
     <!-- "Skip for now" pressed before the required fields are in (10.8
          packet): one line and an X, back to the profile. -->
@@ -6158,6 +6157,10 @@
   function toast(msg){
     var t = document.getElementById("toast");
     t.textContent = msg;
+    // The same plain line as the action bar's, in the same place (§299),
+    // and one at a time.
+    placeAboveBars(t);
+    hideSnack();
     t.classList.add("show");
     clearTimeout(t._timer);
     t._timer = setTimeout(function(){ t.classList.remove("show"); }, 2200);
@@ -6179,21 +6182,26 @@
       hideSnack();
       action.run();
     } : null;
-    var frame = bar.offsetParent || document.body;
-    var floor = frame.getBoundingClientRect().bottom;
-    var screen = document.querySelector(".screen.active");
-    var anchors = screen ? screen.querySelectorAll(".nowbar:not([hidden]), .tabbar") : [];
-    var top = floor - 24;
-    Array.prototype.forEach.call(anchors, function(el){
-      var r = el.getBoundingClientRect();
-      if(r.height && r.top < top) top = r.top;
-    });
-    bar.style.bottom = Math.max(16, Math.round(floor - top + 8)) + "px";
+    placeAboveBars(bar);
     var t = document.getElementById("toast");
     if(t) t.classList.remove("show");
     bar.classList.add("show");
     clearTimeout(bar._timer);
     bar._timer = setTimeout(hideSnack, action ? 3500 : 2400);
+  }
+  // Just above whatever is lowest on screen that it must not cover: the
+  // mini player, else the tabs.
+  function placeAboveBars(el){
+    var frame = el.offsetParent || document.body;
+    var floor = frame.getBoundingClientRect().bottom;
+    var screen = document.querySelector(".screen.active");
+    var anchors = screen ? screen.querySelectorAll(".nowbar:not([hidden]), .tabbar") : [];
+    var top = floor - 24;
+    Array.prototype.forEach.call(anchors, function(a){
+      var r = a.getBoundingClientRect();
+      if(r.height && r.top < top) top = r.top;
+    });
+    el.style.bottom = Math.max(16, Math.round(floor - top + 2)) + "px";
   }
   function hideSnack(){
     var bar = document.getElementById("snack");

@@ -21544,3 +21544,26 @@ unchanged here.
 
 Tests: the smoke run's "Round-two motion holds nothing and leaves nothing
 behind".
+
+## 299. The pill at the bottom becomes a plain line (2026-10-21)
+
+The owner (10.21): the pill that pops up at the bottom - when something is
+taken out of the queue or a playlist, or anything else - "should no longer
+be a pill", with five options to choose from. A page of five working phones
+went (say it where it happened, a docked band, a top banner, inside the
+mini player, a plain line); the owner picked **Plain line**.
+
+Both bottom messages become it: the rounded pill (`toast`, "Following",
+"Could not save that") and the dark bar with an action (`snack`, "Removed
+from Queue · Undo", "Added to Queue · Open"). Each is now a centred line of
+text with a short copper rule above it - no box, no border, no shadow, no
+colours of its own (`--snack-bg/fg/act` are gone). It sits just above the
+mini player, else the tabs (`placeAboveBars`, which the pill now uses too:
+it was at a fixed 96 px and could sit on the mini player), on the page's own
+colour fading upward into the page so it reads over whatever scrolls
+behind. The action is the copper word beside the text. The line rises 6 px
+and fades in while the rule draws out from its centre; reduced motion shows
+it at once. Only one shows at a time: a pill hides a bar and a bar a pill,
+as before. Timings and actions are unchanged (2.4 s, 3.5 s with an action).
+
+Tests: `test_implementations_108.py` now says the bar is the plain line.

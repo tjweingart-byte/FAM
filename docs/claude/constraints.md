@@ -1640,6 +1640,9 @@
   change already made - the icon, the bar, the badge, the list and the page
   are what they will be on the frame the movement starts, and anything
   shown leaving is an inert copy - so the rule above holds unchanged.
+  *The bottom message (§299):* what an action did is a plain line - text
+  under a short copper rule just above the mini player or the tabs, no box,
+  no shadow - for both the old pill and the old Undo bar.
 <!-- rule:speed-pitch -->
 - **A speed change must not change the voice.** *(§95, `fam-audio.js`.)*
   `playbackRate` on a buffer source resamples, so 1.5x came back a fifth
