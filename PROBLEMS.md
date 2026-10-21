@@ -21348,3 +21348,60 @@ The page and its links are titled "Terms and conditions" everywhere
 `test_the_terms_cover_what_fam_does_and_carry_their_date`, and the box's
 wording pinned in `test_the_web_form_draws_an_unticked_box_and_sends_it`.
 PDFs in `docs/legal/` regenerated.
+
+## 296. The waitlist asks for the email alone (2026-10-21)
+
+The owner: "remove the need to add a password to set up an account. It
+should be as easy as possible for people to join the waitlist, and they
+should only have to put their email in ... keep all of the other account
+features."
+
+**What changed.** `/waitlist`'s join form is the email, the Terms box and
+the button; the two password fields and their check are gone. The page
+posts `/api/waitlist/join` with no password, and the server makes the
+account with none (`AccountStore.sign_up(..., passwordless=True)`): the
+column holds `''`, exactly as a Google-or-Apple account's always has, so
+`log_in` can never match it, and `set_password` or §244's reset adds the
+first one. Everything else about the account is unchanged - the same row,
+waitlisted, in line, invite code, Viral Loops outbox, profile, friend
+search, delete, grant. `password` stays on `WaitlistJoinRequest`, optional:
+a page or client that still sends one gets the old join, password and all
+(`old-clients`).
+
+**The way back in.** The browser that joined is signed in and stays so.
+Another device, or a cleared browser, gets in by **Forgot password?** on the
+sign-in, which emails a code and sets the first password; the link now reads
+"Forgot password? Never set one?". Once let in, the app's **Change password**
+asks `/api/account` for `has_password` and, with none, sets a first one
+(`/api/auth/password/set`) instead of asking for a current password the
+account never had - the same fix serves Google and Apple accounts.
+
+**What the email alone must not do.** It is not a credential: typing an
+address that already has an account is still refused "already registered",
+never signed in, and the page then opens its sign-in with the address
+carried over. §233's admin preview needed the admin's password in the join
+form; with none sent, the preview is given only to a browser already signed
+in as that admin, and every other admin reaches it through the sign-in,
+which already sends an admin to `/waitlist/me`. The status page's **Sign
+out** warns first when the account has no password (`/api/waitlist/me`
+`details.has_password`).
+
+**Problems this leaves, for the owner to decide.**
+* **No mail, no way back.** "Forgot password?" is drawn only when SMTP is
+  configured (`SMTP_HOST`, `MAIL_FROM`). Without it, an email-only member
+  who signs out or loses the cookie cannot reach their place again. Set the
+  SMTP keys on `fam` before turning this on, or add an email sign-in code.
+* **Unverified addresses, as before.** Nothing proves the joiner owns the
+  address; a squatter can hold someone's email in line. That was true with a
+  password too; the reset's code goes to the real address, so the owner can
+  still take it back. Viral Loops' duplicate and disposable-email blocking
+  is the vendor-side guard.
+* **Cheaper sign-ups for scripts.** One field is less friction for bots as
+  well as people. The per-request rate limit, the Terms tick and the
+  per-code referral cap (`WAITLIST_REFERRALS_PER_HOUR`) still bound it.
+* **The cookie is the credential** until a password is set: anyone at that
+  browser is in, as with any signed-in session.
+
+Tests: `tests/test_waitlist.py` (email-only join, no login without a
+password, first password set, reset as the way back, refused re-join,
+admin preview, sign-out warning, the app's set-first-password).

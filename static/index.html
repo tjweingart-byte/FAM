@@ -14310,6 +14310,28 @@
   }
 
   function changePassword(){
+    // An account made with no password - an email-only waitlist join
+    // (§296), or Google and Apple - has no current one to prove, so its
+    // first is set (`/api/auth/password/set`) rather than changed.
+    fetch("/api/account").then(function(r){ return r.ok ? r.json() : {}; })
+      .catch(function(){ return {}; })
+      .then(function(acct){
+        if(acct && acct.has_password === false) return setFirstPassword();
+        askCurrentPassword();
+      });
+  }
+
+  function setFirstPassword(){
+    showModal({
+      title: "Set a password", placeholder: "at least 8 characters",
+      confirmLabel: "Set", inputType: "password",
+      onConfirm: function(next){
+        postAuth("/api/auth/password/set", { "new": next }, "Password set");
+      }
+    });
+  }
+
+  function askCurrentPassword(){
     showModal({
       title: "Current password", placeholder: "", confirmLabel: "Next",
       inputType: "password",

@@ -227,10 +227,14 @@ def world(tmp_path, monkeypatch):
     return appmod
 
 
-def _join(email, code=""):
+def _join(email, code="", password=PASSWORD):
+    """A join. The page sends no password since §296; most tests here still
+    pass one, which is the old join every installed client keeps."""
     c = TestClient(appmod.app)
-    r = c.post("/api/waitlist/join", json={"email": email, "password": PASSWORD,
-                                           "referral_code": code})
+    body = {"email": email, "referral_code": code}
+    if password:
+        body["password"] = password
+    r = c.post("/api/waitlist/join", json=body)
     assert r.status_code == 200, r.text
     return c, r.json()
 
@@ -705,9 +709,15 @@ def test_the_profile_keeps_birth_date_phone_and_location(world):
     assert member.get("/api/waitlist/me").json()["details"]["birth_date"] == ""
 
 
-def test_the_waitlist_page_asks_for_the_password_twice_and_says_the_place():
+def test_the_waitlist_page_asks_only_for_the_email_and_says_the_place():
+    """§296: the join form is the email alone - no password, typed once or
+    twice - and the join sends none."""
     page = (ROOT / "static" / "waitlist.html").read_text(encoding="utf-8")
-    assert 'id="password2"' in page and "don’t match" in page
+    form = page.split('<form id="joinForm"', 1)[1].split("</form>", 1)[0]
+    assert 'id="email"' in form and 'type="password"' not in form
+    assert 'id="password"' not in page and 'id="password2"' not in page
+    join = page.split('api("/api/waitlist/join", ', 1)[1].split(")", 1)[0]
+    assert "password" not in join
     assert 'id="placeBig"' in page and '"#" + fmt(d.place)' in page
     assert 'id="shareLink"' in page
     for field in ("pBirth", "pCountry", "pRegion", "pCity", "pPhone"):
@@ -990,3 +1000,75 @@ def test_the_video_sits_above_the_features_and_loads_youtube_only_on_a_tap():
     # A hidden player keeps playing: leaving the explainer puts it back.
     close = page.split("window.closeAbout = function", 1)[1].split("};", 1)[0]
     assert "box.stopVideo()" in close
+
+
+def test_joining_with_the_email_alone_makes_an_account_with_no_password(world):
+    """§296: the email is the whole join. The account is real - waitlisted,
+    in line, signed in on this browser - and has no password, so nothing
+    logs into it until one is set."""
+    member, body = _join("only@fam.test", password="")
+    assert body["status"] == "waitlisted" and body["redirect"] == "/waitlist/me"
+    assert member.get("/api/auth/me").json()["email"] == "only@fam.test"
+    me = member.get("/api/waitlist/me").json()
+    assert me["place"] == 1 and me["details"]["has_password"] is False
+    assert member.get("/api/account").json()["has_password"] is False
+    door = TestClient(appmod.app)
+    for guess in ("", "anything-at-all"):
+        r = door.post("/api/auth/login", json={"email": "only@fam.test", "password": guess})
+        assert r.status_code in (400, 401, 422), r.text
+    # The first password is set, not changed, and then it signs in.
+    r = member.post("/api/auth/password/set", json={"new": PASSWORD})
+    assert r.status_code == 200, r.text
+    assert member.get("/api/waitlist/me").json()["details"]["has_password"] is True
+    r = door.post("/api/auth/login", json={"email": "only@fam.test", "password": PASSWORD})
+    assert r.status_code == 200 and r.json()["status"] == "waitlisted"
+
+
+def test_an_email_only_account_gets_back_in_with_a_reset_code(world):
+    """§296: another device reaches an email-only account through §244's
+    reset, which sets its first password."""
+    _join("away@fam.test", password="")
+    start = appmod.ACCOUNTS.start_reset("away@fam.test")
+    assert start is not None
+    _user, _address, code = start
+    listener = appmod.ACCOUNTS.finish_reset("away@fam.test", code, PASSWORD)
+    assert listener.status == "waitlisted"
+    assert appmod.ACCOUNTS.log_in("away@fam.test", PASSWORD).user_id == listener.user_id
+
+
+def test_an_email_already_on_fam_is_refused_without_a_password(world, monkeypatch):
+    """Joining again with an address that has an account never signs anybody
+    in to it - the email alone proves nothing - and the page opens its
+    sign-in. An admin already signed in on this browser still sees the
+    preview (§233)."""
+    member, first = _join("taken@fam.test", password="")
+    stranger = TestClient(appmod.app)
+    r = stranger.post("/api/waitlist/join", json={"email": "taken@fam.test",
+                                                  "accept_terms": True})
+    assert r.status_code == 400 and "already registered" in r.text
+    assert stranger.get("/api/auth/me").json().get("user_id") != first["user_id"]
+
+    monkeypatch.setenv("FAM_ADMIN_ACCOUNTS", "boss@fam.test")
+    admin, _ = _join("boss@fam.test", password="")
+    r = admin.post("/api/waitlist/join", json={"email": "Boss@fam.test", "accept_terms": True})
+    assert r.status_code == 200 and r.json()["admin"] is True
+    assert r.json()["redirect"] == "/waitlist/me"
+    r = stranger.post("/api/waitlist/join", json={"email": "boss@fam.test", "accept_terms": True})
+    assert r.status_code == 400 and "already registered" in r.text
+
+    page = (ROOT / "static" / "waitlist.html").read_text(encoding="utf-8")
+    join = page.split('api("/api/waitlist/join"', 1)[1].split("\n    });", 1)[0]
+    assert "already registered" in join and '$("toggleLogin").click()' in join
+
+
+def test_signing_out_without_a_password_is_said_first():
+    """§296: an email-only account's session is its only way in, so the
+    status page's Sign out asks first; the app sets a first password
+    rather than asking for a current one."""
+    page = (ROOT / "static" / "waitlist.html").read_text(encoding="utf-8")
+    out = page.split("window.signOut = function", 1)[1].split("\n  };", 1)[0]
+    assert "has_password === false" in out and "window.confirm(" in out
+    app_page = (ROOT / "static" / "index.html").read_text(encoding="utf-8")
+    change = app_page.split("function changePassword(){", 1)[1].split("\n  }\n", 1)[0]
+    assert "has_password === false" in change and "setFirstPassword()" in change
+    assert '"/api/auth/password/set"' in app_page

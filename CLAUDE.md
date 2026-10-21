@@ -416,9 +416,9 @@ Accounts, tiers, sharing
   `gateActions()` - one sign-up screen. [account-gates-kept]
 - **Waitlist** (§183, `WAITLIST.md`): `WAITLIST=1` closes the app to all but
   `active` accounts, enforced server-side; new accounts start `waitlisted`;
-  one account, granting flips `status`; place counted in FAM; Viral Loops via
+  one account, granting flips `status`; email only (§296); place counted in FAM; Viral Loops via
   the outbox, never loses a signup; waitlisted hidden from discovery except
-  friends and the status page's search (§282); a shared episode plays for anyone (only what was shared); the landing
+  friends and the status page's search (§282); a shared episode plays for anyone (only it); the landing
   page plays the three sign-up samples as replays (§190), own picture only (§214); a `/waitlist` join is
   always waitlisted (never an admin account, which previews it, §216) and the app's Sign Up goes there (§192);
   a guest at the address gets the app's sign-in/sign-up, not `/waitlist` (§231). [waitlist-gate]
