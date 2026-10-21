@@ -144,13 +144,13 @@ def test_reported_content_says_what_it_is_and_where_reports_come_from():
     card = TRACKER.split('id="modCard"', 1)[1].split("</section>", 1)[0]
     assert "App Store guideline 1.2" in card and "within 24 hours" in card
     where = card.split('id="modWhere"', 1)[1]
-    for kind in ("Episode", "Comment", "Vibe", "Person", "Group", "Message"):
+    for kind in ("Episode", "Comment", "Vibe", "Note", "Person", "Group", "Message"):
         assert f"<b>{kind}</b>" in where
     # Every kind the server takes has a row, and every place the app reports.
     import moderation
     assert {k.capitalize() for k in moderation.KINDS} <= {
-        "Episode", "Comment", "Vibe", "Person", "Group", "Message"}
-    for kind in ("episode", "vibe", "person", "group", "comment"):
+        "Episode", "Comment", "Vibe", "Note", "Person", "Group", "Message"}
+    for kind in ("episode", "vibe", "note", "person", "group", "comment"):
         assert f'reportContent({{ kind: "{kind}"' in INDEX
     assert 'class="due' in TRACKER and "overdue by" in TRACKER
 
