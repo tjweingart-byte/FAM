@@ -301,3 +301,4 @@ and `limit` = Lines.
 | 21282 | 70 | 295. The terms rewritten against YouTube, Instagram, Spotify and OpenAI (2026-10-21) |
 | 21352 | 57 | 296. The waitlist asks for the email alone (2026-10-21) |
 | 21409 | 66 | 297. The Birthday packet: Instagram's faces, a story with no episode, and Forgot password on every log-in (2026-10-21) |
+| 21475 | 14 | 298. An X out of the terms (2026-10-21) |
