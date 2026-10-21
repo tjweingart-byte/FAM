@@ -21279,7 +21279,77 @@ Tests: `tests/test_whole_file_kept_voice_294.py`; §252's pins for PCM
 (`fmt=pcm&link=1` streamed) and the player's URL updated. Rule notes at
 `no-audio-files` and `op-voice-bank`.
 
-## 295. The waitlist asks for the email alone (2026-10-21)
+## 295. The terms rewritten against YouTube, Instagram, Spotify and OpenAI (2026-10-21)
+
+The owner (10.21): enhance the terms people sign significantly, "cover all
+bases that we are thinking of now, and might not even be thinking of",
+built from YouTube's, Instagram's, Spotify's and ChatGPT's terms as they
+relate to what FAM does; and make the sign-up box a checkbox with a note to
+"review the terms and conditions", those words the link.
+
+**What each borrowed answers to in FAM.** `pages/terms.html` went from
+nine short sections (§228) to twenty-six, with a short version and a
+contents list:
+
+- *OpenAI's* accuracy and not-professional-advice clauses, no use of output
+  for decisions about a person, no passing output off as human, no
+  training competing models, and output not unique - which in FAM is
+  stronger than in ChatGPT, because the cache shares one episode between
+  listeners. So the terms say plainly that a question can become an
+  episode others play (Explore, Trending searches), without a name unless
+  `searches_public`, never for personal-looking, attached or Private
+  searches; and that an episode belongs to FAM, not to whoever asked
+  (OpenAI assigns output to the user; FAM cannot, since it is shared).
+- A section of FAM's own for live facts: scores, prices, Polymarket
+  forecasts (not a prediction by FAM, not betting advice) and weather
+  (never for emergencies).
+- *YouTube's and Instagram's* user-content licence (to FAM and, through
+  FAM's features only, to other users), its end on deletion, name and
+  picture beside activity, moral rights and feedback (Spotify), the
+  platform restrictions (scraping, re-hosting, public performance,
+  circumvention - here including limits, consent, Private search and
+  blocks - fake engagement including waitlist invitations, misusing
+  Report), prompt injection, handles reclaimable, account sale.
+- The community rules kept (App Store 1.2, `moderation.py`) and widened:
+  stalking, weapons and drugs, intimate images, deepfakes, harmful
+  falsehoods about voting and emergencies.
+- *Spotify's and OpenAI's* paid-plan terms written ahead of checkout
+  (`tiers-off`): renewals, cancelling, prorated refund on discontinuation,
+  30 days' notice of a price rise, cached episodes counting
+  (`tier-spend`).
+- DMCA notice and counter-notice, repeat infringers; electronic notices;
+  software licence and retired versions (`old-clients`); termination both
+  ways and survival; warranty and liability (cap raised from US$50 to
+  US$100, Instagram's and OpenAI's figure); indemnity.
+- Disputes after OpenAI and Spotify: 60 days informal, NAM individual
+  arbitration under the FAA, small claims and IP exceptions, class and jury
+  waivers, batches of 50 when 25+ coordinated claims arrive, a 30-day
+  opt-out by email, one-year limit, Delaware law and courts; none of it
+  for the EEA, UK or Switzerland. Apple's section kept, Google Play added;
+  sanctions, assignment, force majeure, California Civil Code 1789.3.
+
+**The party.** The owner (10.21, after): FAM operates under Apali LLC. The
+terms, privacy policy and support page now name Apali LLC as the party and
+operator (they said "Familiarize"); the privacy policy's date moved with it.
+
+**For a lawyer before launch** (in the page's comment): Apali LLC's state
+of formation, Delaware, NAM, the cap, and a DMCA
+agent registered with the US Copyright Office - the section names only
+the support email, which is not a registered agent.
+
+**The box.** All three boxes (sign-up, waitlist, the re-agree modal) read
+"I agree to FAM's terms and I'm 13 or older. Review the *terms and
+conditions* and the *privacy policy*." with the italic words the links.
+The page and its links are titled "Terms and conditions" everywhere
+(Settings row, nav, iOS `ReportAndBlock.swift`).
+
+`consent.TERMS_VERSION` is 2, so every account is asked again
+(`checkTerms`); `app.TERMS_UPDATED` is the date shown at the top. Tests:
+`test_the_terms_cover_what_fam_does_and_carry_their_date`, and the box's
+wording pinned in `test_the_web_form_draws_an_unticked_box_and_sends_it`.
+PDFs in `docs/legal/` regenerated.
+
+## 296. The waitlist asks for the email alone (2026-10-21)
 
 The owner: "remove the need to add a password to set up an account. It
 should be as easy as possible for people to join the waitlist, and they

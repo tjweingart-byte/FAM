@@ -228,7 +228,7 @@ def world(tmp_path, monkeypatch):
 
 
 def _join(email, code="", password=PASSWORD):
-    """A join. The page sends no password since §295; most tests here still
+    """A join. The page sends no password since §296; most tests here still
     pass one, which is the old join every installed client keeps."""
     c = TestClient(appmod.app)
     body = {"email": email, "referral_code": code}
@@ -710,7 +710,7 @@ def test_the_profile_keeps_birth_date_phone_and_location(world):
 
 
 def test_the_waitlist_page_asks_only_for_the_email_and_says_the_place():
-    """§295: the join form is the email alone - no password, typed once or
+    """§296: the join form is the email alone - no password, typed once or
     twice - and the join sends none."""
     page = (ROOT / "static" / "waitlist.html").read_text(encoding="utf-8")
     form = page.split('<form id="joinForm"', 1)[1].split("</form>", 1)[0]
@@ -1003,7 +1003,7 @@ def test_the_video_sits_above_the_features_and_loads_youtube_only_on_a_tap():
 
 
 def test_joining_with_the_email_alone_makes_an_account_with_no_password(world):
-    """§295: the email is the whole join. The account is real - waitlisted,
+    """§296: the email is the whole join. The account is real - waitlisted,
     in line, signed in on this browser - and has no password, so nothing
     logs into it until one is set."""
     member, body = _join("only@fam.test", password="")
@@ -1025,7 +1025,7 @@ def test_joining_with_the_email_alone_makes_an_account_with_no_password(world):
 
 
 def test_an_email_only_account_gets_back_in_with_a_reset_code(world):
-    """§295: another device reaches an email-only account through §244's
+    """§296: another device reaches an email-only account through §244's
     reset, which sets its first password."""
     _join("away@fam.test", password="")
     start = appmod.ACCOUNTS.start_reset("away@fam.test")
@@ -1062,7 +1062,7 @@ def test_an_email_already_on_fam_is_refused_without_a_password(world, monkeypatc
 
 
 def test_signing_out_without_a_password_is_said_first():
-    """§295: an email-only account's session is its only way in, so the
+    """§296: an email-only account's session is its only way in, so the
     status page's Sign out asks first; the app sets a first password
     rather than asking for a current one."""
     page = (ROOT / "static" / "waitlist.html").read_text(encoding="utf-8")

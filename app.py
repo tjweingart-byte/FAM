@@ -4566,7 +4566,10 @@ LEGAL_PAGES = ("terms", "privacy", "support")
 _LEGAL_TEMPLATES = {name: (PROJECT_ROOT / "pages" / f"{name}.html").read_text(encoding="utf-8")
                     for name in LEGAL_PAGES}
 #: The privacy policy's date. Change it whenever pages/privacy.html changes.
-PRIVACY_UPDATED = "12 October 2026"
+PRIVACY_UPDATED = "21 October 2026"
+#: The terms' effective date. Change it with `consent.TERMS_VERSION` whenever
+#: pages/terms.html changes in a way people must agree to again.
+TERMS_UPDATED = "21 October 2026"
 
 
 def legal_page(name: str, support_email: str) -> str:
@@ -4583,6 +4586,7 @@ def legal_page(name: str, support_email: str) -> str:
     return (_LEGAL_TEMPLATES[name].replace("{{CONTACT}}", contact)
             .replace("{{EMAIL_LINK}}", link)
             .replace("{{UPDATED}}", PRIVACY_UPDATED)
+            .replace("{{TERMS_UPDATED}}", TERMS_UPDATED)
             .replace("{{REVIEW_HOURS}}", str(moderation_mod.REVIEW_HOURS)))
 
 
@@ -10706,7 +10710,7 @@ async def waitlist_status_page(request: Request):
 
 class WaitlistJoinRequest(BaseModel):
     email: str = Field(..., max_length=accounts_mod.MAX_EMAIL)
-    #: Not asked for since §295: joining is the email alone. A page or client
+    #: Not asked for since §296: joining is the email alone. A page or client
     #: that still sends one makes the account with it, as before.
     password: str = Field("", max_length=accounts_mod.MAX_PASSWORD)
     referral_code: str = Field("", max_length=64)
@@ -10726,7 +10730,7 @@ def _admin_previewing_join(req, request: Request):
     (§216) - never put in line. Anybody else, or a wrong password, still
     gets the refusal, so the form says nothing new about who is an admin.
 
-    Since §295 the form sends no password, so an admin is shown the preview
+    Since §296 the form sends no password, so an admin is shown the preview
     only when this browser is already signed in as that admin; otherwise
     the refusal stands and the page opens its sign-in, which sends an admin
     to the preview as well.
@@ -10764,7 +10768,7 @@ def _admin_previewing_join(req, request: Request):
 async def waitlist_join(req: WaitlistJoinRequest, request: Request) -> dict:
     """Join: the app's own sign-up, then the waitlist half.
 
-    **The email alone** (the owner, PROBLEMS.md §295): no password is asked
+    **The email alone** (the owner, PROBLEMS.md §296): no password is asked
     for, so the account is made with none (`passwordless`), exactly as a
     Google-or-Apple one is. This browser's session is the way in; another
     device gets in by "Forgot password?" (§244), which sets the first one.
@@ -10864,7 +10868,7 @@ async def waitlist_me(request: Request) -> dict:
             "phone": account.get("phone") or "",
             "birth_date": account.get("birth_date") or "",
             "location": PREFS.get(user).location.as_dict(),
-            # False for an email-only join (§295): signing out is then
+            # False for an email-only join (§296): signing out is then
             # warned about, since this session is the only way back in.
             "has_password": _has_password(user),
         },

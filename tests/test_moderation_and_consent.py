@@ -278,9 +278,20 @@ def test_the_terms_name_the_contact_once_it_is_set():
     assert "{{" not in appmod.terms_page("")
 
 
+def test_the_terms_cover_what_fam_does_and_carry_their_date():
+    """§295: the rewrite answers to the product, not just to App Store 1.2."""
+    page = appmod.terms_page("help@example.com")
+    for heading in ("Episodes and AI", "Scores, prices, forecasts and weather",
+                    "What you ask and attach", "Using FAM fairly",
+                    "Copyright and other rights", "Plans, limits and payments",
+                    "Disputes and arbitration", "Apple, Google and app stores"):
+        assert heading in page, heading
+    assert appmod.TERMS_UPDATED in page and "{{" not in page
+
+
 def test_the_terms_are_served_without_an_account():
     r = TestClient(appmod.app).get("/terms")
-    assert r.status_code == 200 and "Reporting and blocking" in r.text
+    assert r.status_code == 200 and "Reporting, blocking and enforcement" in r.text
 
 
 def test_the_privacy_and_support_pages_are_served_with_the_contact():
@@ -579,7 +590,11 @@ def test_the_web_form_draws_an_unticked_box_and_sends_it():
     box = page.split('id="authTermsField"', 1)[1].split("</label>", 1)[0]
     assert 'type="checkbox"' in box and "checked" not in box.split(">", 2)[1]
     assert 'href="/terms"' in box and 'href="/privacy"' in box
+    # §295: the box says to review the terms, and those words are the link.
+    assert "Review the <a href=\"/terms\"" in box and ">terms and conditions</a>" in box
     submit = page.split("function submitAuthForm(){", 1)[1].split("\n  }\n", 1)[0]
     assert "body.accept_terms = true" in submit
     wl = (ROOT_DIR / "static" / "waitlist.html").read_text(encoding="utf-8")
     assert 'id="acceptTerms"' in wl and "accept_terms: true" in wl
+    wl_box = wl.split('id="acceptTerms"', 1)[1].split("</label>", 1)[0]
+    assert "Review the <a href=\"/terms\"" in wl_box and ">terms and conditions</a>" in wl_box

@@ -623,7 +623,7 @@ class AccountStore:
         even on a server whose gate is off (10.2 packet).
 
         `passwordless` makes the account with no password at all - the
-        waitlist's email-only join (PROBLEMS.md §295). The column holds '',
+        waitlist's email-only join (PROBLEMS.md §296). The column holds '',
         as a Google-or-Apple account's does, so `log_in` can never match it
         and `set_password` or a reset (§244) adds the first one later.
         """

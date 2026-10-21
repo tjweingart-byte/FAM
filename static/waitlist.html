@@ -17,7 +17,7 @@
 <!--
   The pre-launch waitlist (WAITLIST.md). One page, two views:
 
-  * /waitlist     - the landing page: the email alone (§295; it was a
+  * /waitlist     - the landing page: the email alone (§296; it was a
                     password typed twice, 10.2 packet). Signing up here is
                     the app's own sign-up with no password, so the account
                     made here is the one the app opens with later, and it
@@ -575,7 +575,7 @@
       <div class="form-note" id="joinNote" role="status" aria-live="polite"></div>
       <!-- Agreed before an account exists (App Store 1.2). -->
       <!-- Clickwrap (§228): ticked by the person, sent as accept_terms, kept with its version. -->
-      <label class="terms-note terms-check"><input type="checkbox" id="acceptTerms"><span>I agree to FAM&rsquo;s <a href="/terms" target="_blank" rel="noopener">Terms and community rules</a> and <a href="/privacy" target="_blank" rel="noopener">Privacy policy</a>, and I&rsquo;m 13 or older.</span></label>
+      <label class="terms-note terms-check"><input type="checkbox" id="acceptTerms"><span>I agree to FAM&rsquo;s terms and I&rsquo;m 13 or older. Review the <a href="/terms" target="_blank" rel="noopener">terms and conditions</a> and the <a href="/privacy" target="_blank" rel="noopener">privacy policy</a>.</span></label>
     </form>
 
     <form id="loginForm" class="hidden" novalidate>
@@ -1236,7 +1236,7 @@
     loadSamples();
     showAbout();
     if(referral) $("invited").classList.remove("hidden");
-    // The email alone (§295): the account the app opens with later, made
+    // The email alone (§296): the account the app opens with later, made
     // here with no password and put on the list. This browser's session is
     // the way back in; another device uses "Forgot password?" to set one.
     $("joinForm").addEventListener("submit", function(ev){
@@ -1247,7 +1247,7 @@
         note.className = "form-note err"; note.textContent = "That doesn’t look like an email address."; return;
       }
       if(!$("acceptTerms").checked){
-        note.className = "form-note err"; note.textContent = "Tick the box to agree to the Terms and the Privacy Policy."; return;
+        note.className = "form-note err"; note.textContent = "Tick the box to agree to the Terms and conditions."; return;
       }
       $("joinBtn").disabled = true;
       api("/api/waitlist/join", { email: email, referral_code: referral, accept_terms: true })
@@ -1944,7 +1944,7 @@
       .catch(function(e){ toast(e.message); });
   };
   window.signOut = function(){
-    // Joined with the email alone (§295): this browser is the only way in
+    // Joined with the email alone (§296): this browser is the only way in
     // until a password is set, so signing out is said before it is done.
     if(STATE && STATE.details && STATE.details.has_password === false &&
        !window.confirm("You joined with just your email, so you have no password yet. To sign back in you’ll set one with Forgot password? on the sign-in. Sign out?")) return;
