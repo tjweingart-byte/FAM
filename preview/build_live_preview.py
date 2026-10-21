@@ -100,7 +100,7 @@ __MIX_ITEMS__
   // ------------------------------------------------------------ db plumbing
   var db = null, MEM = {}, COLS =
     ["sessions", "accounts", "people", "events", "scripts", "mixes", "echoes",
-     "prefs", "feedback", "comments", "comment_likes"];
+     "prefs", "feedback", "comments", "comment_likes", "notes"];
   var cache = {}; COLS.forEach(function (c) { cache[c] = []; });
   var UID = "", EMAIL = "", TOKEN = "";
   //: Conversations, for the life of the page only - see the note on
@@ -716,15 +716,25 @@ __MIX_ITEMS__
       circle: [],
       // Your own story (10.6 #1): your vibes of the last 24 hours, oldest
       // first, not taken down - what `stories_among` returns for you.
-      stories: myEchoes.filter(function (e) {
-          return !e.unstoried && e.at >= now() - 86400; })
-        .sort(function (a, b) { return a.at - b.at; })
-        .map(function (e) {
-          return { id: e.id, query: e.query, title: e.title || "", minutes: e.minutes,
-                   thread: e.thread || "", at: e.at, caption: e.caption || "",
-                   style: e.style || {}, tags: [], close: e.audience === "close" };
-        })
+      stories: myStoryItems()
     };
+  }
+  // Your own story: your vibes and notes (§297) of the last 24 hours, oldest
+  // first, not taken down - what `stories_among(..., notes=True)` returns.
+  function myStoryItems() {
+    var vibes = rows("echoes").filter(function (e) {
+        return e.user_id === UID && !e.unstoried && e.at >= now() - 86400; })
+      .map(function (e) {
+        return { id: e.id, query: e.query, title: e.title || "", minutes: e.minutes,
+                 thread: e.thread || "", at: e.at, caption: e.caption || "",
+                 style: e.style || {}, tags: [], close: e.audience === "close" };
+      });
+    var notes = rows("notes").filter(function (n) {
+        return n.user_id === UID && n.at >= now() - 86400; })
+      .map(function (n) {
+        return { id: n.id, kind: "note", text: n.text || "", style: n.style || {}, at: n.at };
+      });
+    return vibes.concat(notes).sort(function (a, b) { return a.at - b.at; });
   }
 
   // The one facet an episode is about, as `app._topic_label` reads it.
@@ -1376,7 +1386,39 @@ __WRITING_SIM__
     if (path === "/api/myfam") return json(myfamBody());
     if (path === "/api/profile") return json(profileBody());
     // The rails screen's face row (§195): nobody else is in this database.
-    if (path === "/api/circle") return json({ circle: [] });
+    // Your own face leads it (§297), with the (+) to your story.
+    if (path === "/api/circle") {
+      if (!EMAIL) return json({ circle: [] });
+      var meRow = rows("people").filter(function (p) { return p.id === UID; })[0] || {};
+      return json({ circle: [], me: { name: meRow.name || "", handle: meRow.handle || "",
+                                      avatar: meRow.avatar || "", stories: myStoryItems() } });
+    }
+    // A story with no episode (§297): words on a background, and stickers,
+    // clamped as `social.clean_note_style` clamps them.
+    if (path === "/api/story/note" && method === "POST") {
+      if (!EMAIL) return json({ detail: "You need an account for this." }, 401);
+      var BGS = ["ink", "copper", "sunset", "ocean", "forest", "berry", "dusk", "cream", "night", "candy"];
+      var nst = body.style || {};
+      var ntext = String(body.text || "").replace(/\s+/g, " ").trim().slice(0, 280);
+      var nstk = (nst.stickers || []).slice(0, 12);
+      if (!ntext && !nstk.length) return json({ detail: "Write something, or add a sticker." }, 400);
+      var nid = rid();
+      var nrow = { user_id: UID, text: ntext, at: now(),
+                   style: { bg: BGS.indexOf(nst.bg) >= 0 ? nst.bg : "ink", font: nst.font || "strong",
+                            size: Math.max(14, Math.min(48, Number(nst.size) || 24)),
+                            cx: Number(nst.cx) || 0.5, cy: Number(nst.cy) || 0.5, stickers: nstk } };
+      return put("notes", nid, nrow).then(function () {
+        paint();
+        return json({ id: nid, kind: "note", text: ntext, style: nrow.style, at: nrow.at });
+      });
+    }
+    var unnote = /^\/api\/story\/note\/(.+)$/.exec(path);
+    if (unnote && method === "DELETE") {
+      var mineN = rows("notes").filter(function (n) {
+        return n.user_id === UID && String(n.id) === decodeURIComponent(unnote[1]); })[0];
+      if (!mineN) return json({ ok: false });
+      return del("notes", mineN.id).then(function () { paint(); return json({ ok: true }); });
+    }
     // Nothing for a guest, and resume positions from this page's own memory
     // for an account - the server keeps them per account (§127), and a
     // preview with no second device has nothing to gain from a table.

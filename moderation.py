@@ -45,10 +45,11 @@ from paths import data_path
 #:   comment  - the comment id
 #:   message  - the message id
 #:   vibe     - the echo (vibe) id
+#:   note     - a story with no episode (§297), its id
 #:   person   - their handle
 #:   group    - the group chat id (`g:...`)
 #:   episode  - "<minutes>:<query>", an Explore or player episode
-KINDS = ("comment", "message", "vibe", "person", "group", "episode")
+KINDS = ("comment", "message", "vibe", "note", "person", "group", "episode")
 
 #: The reasons a listener picks from, in the order the menu shows them.
 REASONS = (

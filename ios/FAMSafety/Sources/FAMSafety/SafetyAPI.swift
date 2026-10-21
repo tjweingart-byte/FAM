@@ -69,6 +69,8 @@ public enum ReportSubject: Equatable, Sendable {
     case comment(id: Int)
     case message(id: Int)
     case vibe(id: Int)
+    /// A story with no episode (§297).
+    case note(id: Int)
     case person(handle: String)
     case group(id: String)
     case episode(query: String, minutes: Int)
@@ -78,6 +80,7 @@ public enum ReportSubject: Equatable, Sendable {
         case .comment: return "comment"
         case .message: return "message"
         case .vibe: return "vibe"
+        case .note: return "note"
         case .person: return "person"
         case .group: return "group"
         case .episode: return "episode"
@@ -87,7 +90,7 @@ public enum ReportSubject: Equatable, Sendable {
     func body(reason: String) -> [String: Any] {
         var out: [String: Any] = ["kind": kind, "reason": reason]
         switch self {
-        case .comment(let id), .message(let id), .vibe(let id):
+        case .comment(let id), .message(let id), .vibe(let id), .note(let id):
             out["target"] = String(id)
         case .person(let handle):
             out["target"] = handle

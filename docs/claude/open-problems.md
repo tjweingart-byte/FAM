@@ -786,6 +786,12 @@
    cannot reach another listener or Explore. Only PDF needs a package (pypdf,
    optional); .docx is read with `zipfile`.
 <!-- rule:op-identity -->
+> **Current (PROBLEMS.md §297):** every log-in offers "Forgot password?" -
+> the app's and the waitlist's as before, and the three admin pages now link
+> to `/reset`, the reset password page (email, then the emailed code and a
+> new password; `?next=` is a path on this server only). The email names
+> that page when the server knows its address. Still drawn only when the
+> server can send mail.
 > **Current (PROBLEMS.md §244):** delivery exists for email, so a forgotten password is no longer a lost account on an email account. "Forgot password?" on the log-in screen sends a 6-digit code to the address already on the account (`mail.py`, plain SMTP so the provider is a setting) - which is the security: changing somebody's password needs their inbox, not their address. The code is kept as a hash, lives 15 minutes, takes 5 wrong tries, at most 5 codes an hour and one a minute; every answer is the same whether or not the address has an account (and mail is sent off the request thread so the timing is too); a reset ends every session and emails the owner that it happened. Without `SMTP_HOST` and `MAIL_FROM` the control is not drawn and `/api/auth/reset` says why; staging never sends. Still true: no address or number is verified, a phone-only account has no reset (no SMS), and a phone number is not a second factor.
 > **Current (PROBLEMS.md §190):** an account is its credentials, never the device. A sign-up from a browser whose session already has an account no longer refuses ("this listener already has an account"): it mints a fresh listener id, attaches the credentials there, and moves the browser onto it as a login would - only once the sign-up succeeded, so a refused address logs nobody out (`app._signup_listener`, `_signup_session`). The first account is untouched. A guest's session is still claimed, not replaced.
 11. ~~**Personalisation needs state the app does not have**~~ - *identity is
@@ -839,3 +845,11 @@
 > DailyFAM (10.2 #1). YourFAM has, under "Your FAM friends" and its Find new
 > friends pill, one large **View Your FAM** pill to the Friends page,
 > carrying up to three faces - friends first, a picture before initials.
+>
+> **Current (PROBLEMS.md §297, the Birthday packet):** the DailyFAM row is
+> Instagram's: big round pictures, a gradient ring in FAM's gold (bronze to
+> the wordmark's gold, never Instagram's colours) while a story is unwatched
+> and a thin grey one once it is, and your own face first ("Your story")
+> with a (+) badge that adds a note to your story. The VIBE badge is gone
+> from the row - the ring says it. The row is drawn for any account, since
+> your own face is a control before you follow anybody.

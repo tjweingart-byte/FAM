@@ -105,7 +105,8 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   read by anyone, written with an account, one level of replies; the
   exploreFAM pill opens it from search and beside Made for you. [explore-reel]
 - **VIBE! is a story editor** (§213): a clamped layout, never an image;
-  Your story only (§250); holding pauses; your story rings your face. [vibe-caption]
+  Your story only (§250); holding pauses; your story rings your face; (+)
+  posts a note, no episode (§297). [vibe-caption]
 - **A friend's vibe** has a reply / heart / share-to-your-story row (§282); a
   reply or like is a message carrying the episode. [story-reply]
 - **Group chats** (§213): one row per message to a `g:` thread; graph only. [group-chats]
@@ -210,15 +211,15 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   One bank - personalise the order, not the inventory. [op-taste-scoring]
 - **DailyFAM mixes**: hold subjects/topic ids, never audio; the picker is ranked
   (`rank_bank`, a sort not a filter, does not exclude played); new mixes are
-  **public by default**, copies start private; `tools/check_js.py` fails on
-  duplicate top-level names; `loadMixes` takes the bank before the 401 branch;
+  **public by default**, copies start private; `loadMixes` takes the bank
+  before the 401 branch;
   the new-mix (+) is hidden until `/api/mixes` answers. [op-dailyfam-mixes]
 - A mix's **listen time** is when its "ready" push is sent (own zone, only once
   the edition is written), never when it is written; kept even where push is
   off; never shown to others. No suggested mix names. [mix-listen-time]
-- Faces on DailyFAM only, YourFAM a pill (§251); vibes first; a swipe in the viewer goes
-  to the next friend's vibes, the picture opens the profile; the Friends page
-  has "Invite new users +"; no (+) in YourFAM's header. [friends-vibes-first]
+- Faces on DailyFAM only, Instagram's, yours first (§297); YourFAM a pill
+  (§251); vibes first; a swipe goes to the next friend's, the picture to the
+  profile; Friends has "Invite new users +"; no (+) in YourFAM's header. [friends-vibes-first]
 - **Made for you** (§187): subjects and familiar words vouch only in their own
   field; variety never gives way (≤2 per heading, capped top-up); no
   minor-league game from another continent unless followed; market moves on
@@ -259,7 +260,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
 - Identity: server-minted session; account = credentials on that id, never
   the device - a signed-in browser's sign-up gets a fresh id (§190); listening
   works with no account; email/phone/Google/Apple; **reset** emails a code
-  to the account's address (`mail.py`, §244). [op-identity]
+  to the account's address (`mail.py`, §244; `/reset`, §297). [op-identity]
 
 ## Settled constraints — do not undo without discussing  (`constraints.md`)
 

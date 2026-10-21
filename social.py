@@ -229,6 +229,41 @@ def clean_style(style) -> dict:
     return out
 
 
+# --- a story with no episode (the Birthday packet, §297) --------------------
+#
+# The (+) on your own face makes a story that is only you: a background, your
+# words, stickers. It is not a vibe - a vibe points at an episode, and every
+# reader of `echoes` (counts, Explore's labels, the audio sweep, folders)
+# means an episode by it - so it is its own row in `notes`, read beside the
+# vibes only where stories are read. Up for the same 24 hours as a vibe.
+
+#: What a note may say: longer than a caption, since the words are the story.
+MAX_NOTE = 280
+#: The backgrounds on offer, by name. A fixed set, like the stickers: the
+#: viewer maps each name to its colours, so a story never carries a colour
+#: somebody else's screen has to trust.
+NOTE_BACKGROUNDS = ("ink", "copper", "sunset", "ocean", "forest", "berry",
+                    "dusk", "cream", "night", "candy")
+
+
+def clean_note(text: str) -> str:
+    return _clean_words(text, MAX_NOTE)
+
+
+def clean_note_style(style) -> dict:
+    """A note's layout: its background and the text's face, size and place,
+    and stickers - every field clamped, as a vibe's layout is."""
+    style = style if isinstance(style, dict) else {}
+    out = clean_style({**style, "frame": "card", "thumb": ""} if style else
+                      {"font": "strong"})
+    for key in ("frame", "zoom", "tx", "ty", "thumb"):
+        out.pop(key, None)
+    out["bg"] = style.get("bg") if style.get("bg") in NOTE_BACKGROUNDS else NOTE_BACKGROUNDS[0]
+    if "cy" not in style:
+        out["cy"] = 0.5
+    return out
+
+
 def clean_tags(tags) -> list[dict]:
     """[{user_id, x, y}] - who is tagged and where the tag sits.
 
@@ -432,6 +467,18 @@ class SocialStore:
             # again - not on the next open, not on another device. Separate
             # from `followers_seen`, which is the Friends badge's and is
             # cleared by opening Friends and nothing else.
+            # Stories with no episode (§297): words on a background. No
+            # `unstoried`, unlike a vibe: taking a note down deletes it.
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS notes (
+                       id        INTEGER PRIMARY KEY AUTOINCREMENT,
+                       user_id   TEXT NOT NULL,
+                       text      TEXT NOT NULL DEFAULT '',
+                       style     TEXT NOT NULL DEFAULT '',
+                       at        REAL NOT NULL
+                   )"""
+            )
+            conn.execute("CREATE INDEX IF NOT EXISTS notes_user ON notes(user_id, at)")
             conn.execute(
                 """CREATE TABLE IF NOT EXISTS announced (
                        user_id  TEXT NOT NULL,
@@ -628,6 +675,72 @@ class SocialStore:
             log.exception("could not take a vibe off a story")
             return False
         return bool(cur.rowcount)
+
+    # --- notes: a story with no episode (§297) -------------------------------
+
+    def add_note(self, user_id: str, text: str, style=None) -> dict:
+        """Post words on a background to this listener's story."""
+        if not user_id:
+            raise SocialError("No listener id.")
+        import json
+        words = clean_note(text)
+        layout = clean_note_style(style)
+        if not words and not layout.get("stickers"):
+            raise SocialError("Write something, or add a sticker.")
+        now = time.time()
+        cur = self._conn().execute(
+            "INSERT INTO notes (user_id, text, style, at) VALUES (?, ?, ?, ?)",
+            (user_id, words, json.dumps(layout), now))
+        return {"id": int(cur.lastrowid), "kind": "note", "text": words,
+                "style": layout, "at": now}
+
+    def note_row(self, note_id: int) -> Optional[dict]:
+        """One note as the moderation inbox needs it: whose, saying what."""
+        row = self._conn().execute(
+            "SELECT id, user_id, text FROM notes WHERE id = ?", (int(note_id),)).fetchone()
+        if not row:
+            return None
+        return {"id": int(row[0]), "user_id": row[1], "text": row[2] or ""}
+
+    def remove_note(self, note_id: int, user_id: str = "") -> bool:
+        """Take a note down. Only the poster's own, unless `user_id` is ""
+        (a moderator removing it for everybody)."""
+        try:
+            if user_id:
+                cur = self._conn().execute(
+                    "DELETE FROM notes WHERE id = ? AND user_id = ?", (int(note_id), user_id))
+            else:
+                cur = self._conn().execute("DELETE FROM notes WHERE id = ?", (int(note_id),))
+        except Exception:
+            log.exception("could not take a note down")
+            return False
+        return bool(cur.rowcount)
+
+    def notes_among(self, user_ids, since: float) -> dict:
+        """user_id -> their notes since `since`, oldest first, as stories."""
+        ids = [str(u) for u in (user_ids or []) if u]
+        if not ids:
+            return {}
+        marks = ",".join("?" for _ in ids)
+        try:
+            rows = self._conn().execute(
+                "SELECT id, user_id, text, style, at FROM notes"
+                f" WHERE user_id IN ({marks}) AND at >= ?"
+                " ORDER BY at ASC", (*ids, float(since))).fetchall()
+        except Exception:
+            log.exception("could not read notes")
+            return {}
+        import json
+        out: dict = {}
+        for nid, user_id, text, style, at in rows:
+            try:
+                layout = json.loads(style) if style else {}
+            except ValueError:
+                layout = {}
+            out.setdefault(user_id, []).append(
+                {"id": int(nid), "kind": "note", "text": text or "",
+                 "style": layout, "at": float(at)})
+        return out
 
     # --- close friends (10.6 packet #2) -------------------------------------
 
@@ -902,7 +1015,8 @@ class SocialStore:
         return {user_id: float(at or 0.0) for user_id, at in rows}
 
     def stories_among(self, user_ids, since: float,
-                      per_person: int = 10, viewer: str = "") -> dict:
+                      per_person: int = 10, viewer: str = "",
+                      notes: bool = False) -> dict:
         """user_id -> their vibes since `since`, oldest first, as stories.
 
         YourFAM's avatar row plays a friend's vibes the way a story app plays
@@ -956,6 +1070,11 @@ class SocialStore:
                  # (10.6 #2).
                  "style": layout, "tags": people,
                  "close": audience == "close"})
+        # Notes (§297) sit among the vibes in time order - only for a client
+        # that asked, since an older one would draw a note as an episode.
+        if notes:
+            for uid, items in self.notes_among(ids, since).items():
+                out[uid] = sorted(out.get(uid, []) + items, key=lambda v: v["at"])
         # The newest `per_person`, still oldest first.
         return {uid: items[-per_person:] for uid, items in out.items()}
 
@@ -1477,7 +1596,7 @@ class SocialStore:
                              (json.dumps(kept) if kept else "", eid))
         except Exception:
             log.exception("could not untag %r", user_id)
-        for table in ('echoes', 'ratings', 'people'):
+        for table in ('echoes', 'notes', 'ratings', 'people'):
             try:
                 cur = self._conn().execute(
                     f"DELETE FROM {table} WHERE user_id = ?", (user_id,))

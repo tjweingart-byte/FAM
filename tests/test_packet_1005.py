@@ -315,4 +315,4 @@ def test_both_previews_answer_comments_the_card_and_a_caption(builder):
 def test_the_live_preview_keeps_comments_in_the_shared_db():
     # Everybody who opens the page reads one thread, as on the server.
     src = (ROOT / "preview" / "build_live_preview.py").read_text()
-    assert '"comments", "comment_likes"]' in src
+    assert '"comments", "comment_likes"' in src

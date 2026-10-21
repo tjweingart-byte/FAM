@@ -21405,3 +21405,69 @@ out** warns first when the account has no password (`/api/waitlist/me`
 Tests: `tests/test_waitlist.py` (email-only join, no login without a
 password, first password set, reset as the way back, refused re-join,
 admin preview, sign-out warning, the app's set-first-password).
+
+## 297. The Birthday packet: Instagram's faces, a story with no episode, and Forgot password on every log-in (2026-10-21)
+
+The owner's "Birthday Implementations" packet, three asks:
+
+1. **DailyFAM's faces the way Instagram draws them.** The row was small
+   circles of initials with a copper border only when something was new.
+   It is now Instagram's: 72px round pictures (initials only where there is
+   no picture), a gradient ring - in FAM's colorway, bronze to the
+   wordmark's gold, not Instagram's rainbow (the owner, right after) - round
+   anybody with a story you have not watched, a thin grey ring once you
+   have, and **your own face first**, labelled "Your story", with a (+)
+   badge. Tapping your face plays your story when one is up and starts one
+   when none is; the (+) always starts one. The VIBE badge left this row -
+   the ring says the same thing, and Instagram has no badge. The row is now
+   drawn for every account (it hid when you followed nobody), because your
+   own face is a control from the first day. `/api/circle?notes=1` returns
+   `me` (name, handle, picture, your story) beside the circle.
+
+2. **A "blank" story - no episode.** The (+) opens the VIBE! editor as a
+   **note**: Mention and Picture make way for **Background** (ten named
+   colours and gradients, `social.NOTE_BACKGROUNDS`; the client maps the
+   name to colours, so a story never carries a colour another phone has to
+   trust) and **Speak** (the phone's speech recognition dictating into the
+   text box, as searchFAM's mic hears a question; not offered where the
+   browser has none). Text keeps its five faces, size and drag; stickers are
+   the vibe set. The owner asked for it from YourFAM as well as DailyFAM:
+   your picture on YourFAM carries the same (+).
+
+   A note is **not an echo**. Every reader of `echoes` means an episode by
+   a row - the vibe count, Explore's labels, folders, the audio sweep's
+   `vibed_episodes` - so a note with a made-up query would have turned up in
+   all of them. It is its own table (`notes`: text, layout, time), up for
+   the same 24 hours as a vibe, merged into `stories_among` in time order -
+   but only when the client asks (`notes=1` on `/api/circle` and
+   `/api/profile`), because an installed client would draw a note as an
+   episode with a Play button that searches for nothing (`old-clients`). It
+   takes an account (`POST /api/story/note`), is clamped like every layout
+   (`clean_note_style`; text cut to `MAX_NOTE` 280 with slurs removed; an
+   empty note with no sticker is refused), is reportable (`kind: "note"`,
+   removable by a reviewer), and is erased with the account. Taking one off
+   your story deletes it (`DELETE /api/story/note/<id>`), since a note is
+   only a story. In the viewer a note has no Play, no share-to-your-story
+   and no episode menu (yours: Remove; somebody else's: Report, Block); a
+   reply or a heart is a text message quoting what it answers, and a heart
+   sends no `/api/rate`, there being no episode to rate.
+
+3. **"Forgot password?" on every log-in, with the code emailed.** §244
+   built it - a 6-digit code to the account's own address, kept hashed, 15
+   minutes, 5 tries - on the app's log-in and (10.15) the waitlist's. The
+   three admin log-ins (`/admin`, `/admin/waitlist`, `/admin/thumbnails`)
+   had none. There is now one **reset password page**, `/reset`, open to
+   anybody (the people who need it cannot sign in), and each admin log-in
+   links to it with `?next=` back to itself - a path on this server only.
+   The email names the page when the server knows its address
+   (`_public_base`). As before, the link is drawn only where mail can be
+   sent: **nothing appears until `SMTP_HOST` and `MAIL_FROM` are set** on
+   the service, which is the likeliest reason the owner has not seen it. The
+   connection is an SMTP provider (Resend is the one `.env.example` shows:
+   verify a sending domain, create an API key, then `SMTP_HOST=smtp.resend.com`,
+   `SMTP_PORT=587`, `SMTP_USERNAME=resend`, `SMTP_PASSWORD=<the key>`,
+   `MAIL_FROM=FAM <hello@that-domain>` in Render's environment for `fam`).
+   `/api/health`'s `mail` then says `available: true`, and its counts show
+   every send and the last error.
+
+Tests: `tests/test_birthday_packet_297.py`.

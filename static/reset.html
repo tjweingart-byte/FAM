@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1E1B27">
+<title>FAM — Reset your password</title>
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..700&family=Geist:wght@400..700&display=swap" rel="stylesheet">
+<!--
+  The FAM reset password page (§297, the Birthday packet: "add the forgot
+  password thing to all logins"). §244's reset, on a page of its own so
+  every log-in can link to it - the admin pages' too - rather than each
+  carrying its own copy. Two steps, both the server's (`/api/auth/reset/*`):
+  the email on the account, then the 6-digit code from the email and a new
+  password. The code goes only to the address already on the account; the
+  first answer is the same whether or not the address has one.
+
+  `?next=` is where to go afterwards: a path on this server only, never
+  another site. Without delivery (`/api/auth/reset` says why) the page says
+  so rather than offering a button that sends nothing.
+-->
+<style>
+  :root{ color-scheme:dark;
+    --page-bg:#1E1B27; --card:#26222F; --line:#3A3548;
+    --text:#F4EFE4; --muted:#A9A2B8; --gold:#F0C35E; --gold-ink:#1E1B27; --coral:#E2694F; }
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; background:var(--page-bg); color:var(--text);
+    font-family:'Geist', system-ui, sans-serif; -webkit-font-smoothing:antialiased; }
+  body{ min-height:100vh; min-height:100dvh; display:flex; align-items:center; justify-content:center;
+    padding:24px 16px; }
+  button,input{ font:inherit; color:inherit; }
+  .hidden{ display:none !important; }
+  main{ width:100%; max-width:400px; }
+  .mark{ font-family:'Bricolage Grotesque', sans-serif; font-weight:700; color:var(--gold);
+    font-size:30px; letter-spacing:.02em; margin:0 0 22px; }
+  h1{ font-family:'Bricolage Grotesque', sans-serif; font-weight:500; font-size:26px; margin:0 0 8px; }
+  p.sub{ color:var(--muted); margin:0 0 22px; line-height:1.45; font-size:15px; }
+  .field{ width:100%; height:52px; border-radius:12px; border:1px solid var(--line);
+    background:var(--card); padding:0 16px; font-size:16px; outline:none; margin-bottom:12px; }
+  .field:focus{ border-color:var(--gold); }
+  .cta{ width:100%; height:52px; border-radius:12px; border:none; background:var(--gold); color:var(--gold-ink);
+    font-weight:700; font-size:16px; cursor:pointer; margin-top:4px; }
+  .cta:disabled{ opacity:.55; cursor:default; }
+  .note{ margin-top:14px; font-size:14px; color:var(--muted); line-height:1.45; min-height:1.4em; }
+  .note.err{ color:var(--coral); }
+  .back{ display:inline-block; margin-top:18px; color:var(--gold); font-size:14px; text-decoration:none; }
+</style>
+</head>
+<body>
+<main>
+  <div class="mark">FAM</div>
+  <h1>Reset your password</h1>
+  <p class="sub" id="lead">Forgot your password, or never set one? Enter the email on your FAM account. We’ll email you a 6-digit code to paste here.</p>
+  <form id="resetForm" novalidate>
+    <input class="field" id="resetEmail" type="email" autocomplete="email" placeholder="The email on your account" aria-label="Email">
+    <div id="step2" class="hidden">
+      <input class="field" id="resetCode" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="6-digit code" aria-label="6-digit code">
+      <input class="field" id="resetPassword" type="password" autocomplete="new-password" minlength="8" placeholder="New password (8 or more characters)" aria-label="New password">
+    </div>
+    <button class="cta" type="submit" id="resetBtn">Email me a code</button>
+    <div class="note" id="resetNote" role="status" aria-live="polite"></div>
+  </form>
+  <a class="back" id="backLink" href="/">Remembered it? Sign in</a>
+</main>
+<script>
+(function(){
+  function $(id){ return document.getElementById(id); }
+  // Where to go afterwards: a path on this server, never `//elsewhere`.
+  var next = new URLSearchParams(location.search).get("next") || "/";
+  if(!/^\/(?![\/\\])/.test(next)) next = "/";
+  $("backLink").href = next;
+  var email = new URLSearchParams(location.search).get("email");
+  if(email) $("resetEmail").value = email;
+
+  function api(path, body){
+    var init = { method: body ? "POST" : "GET", credentials: "same-origin", headers: {} };
+    if(body){ init.headers["Content-Type"] = "application/json"; init.body = JSON.stringify(body); }
+    return fetch(path, init).then(function(res){
+      return res.json().catch(function(){ return {}; }).then(function(data){
+        if(!res.ok) throw new Error(data.error || data.detail || "Something went wrong. Try again.");
+        return data;
+      });
+    });
+  }
+  var note = $("resetNote"), btn = $("resetBtn");
+  function say(text, err){ note.className = "note" + (err ? " err" : ""); note.textContent = text; }
+  function fail(text){ btn.disabled = false; say(text, true); }
+
+  // No delivery, no button: say why instead (§244).
+  api("/api/auth/reset").then(function(d){
+    if(d && d.available) return;
+    $("resetForm").classList.add("hidden");
+    $("lead").textContent = (d && d.reason) || "Password reset is not available on this server.";
+  }).catch(function(){});
+
+  $("resetForm").addEventListener("submit", function(ev){
+    ev.preventDefault();
+    var address = $("resetEmail").value.trim();
+    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(address)) return fail("Enter the email address on your account.");
+    if($("step2").classList.contains("hidden")){
+      btn.disabled = true;
+      api("/api/auth/reset/start", { email: address }).then(function(d){
+        btn.disabled = false;
+        $("step2").classList.remove("hidden");
+        btn.textContent = "Set new password";
+        say(d.message || "If that address has a FAM account, a code is on its way.");
+        $("resetCode").focus();
+      }).catch(function(e){ fail(e.message); });
+      return;
+    }
+    var code = $("resetCode").value.replace(/\D/g, "");
+    var pw = $("resetPassword").value;
+    if(code.length !== 6) return fail("Enter the 6-digit code from the email.");
+    if(pw.length < 8) return fail("Use at least 8 characters for your password.");
+    btn.disabled = true;
+    api("/api/auth/reset/finish", { email: address, code: code, "new": pw }).then(function(){
+      say("Your password is changed. Taking you back to sign in…");
+      setTimeout(function(){ location.replace(next); }, 1200);
+    }).catch(function(e){ fail(e.message); });
+  });
+})();
+</script>
+</body>
+</html>
