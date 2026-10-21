@@ -5878,7 +5878,7 @@
       return "circle(" + (grown ? Math.ceil(Math.hypot(b.w, b.h)) : o.r) + "px at " + at + ")";
     }
     // Opened out of the face that was tapped, and closed back into it.
-    function openStory(ov){
+    function growStory(ov){
       ov._from = pressedCircle();
       if(!on() || !ov._from || !seen(ov)) return;
       run(ov, [{ clipPath: circleIn(ov, ov._from, false) }, { clipPath: circleIn(ov, ov._from, true) }], 300,
@@ -5886,7 +5886,7 @@
     }
     // Called before the story is hidden: a copy closes into the face while
     // the real one is already gone.
-    function closeStory(ov){
+    function shrinkStory(ov){
       var o = ov._from;
       ov._from = null;
       if(!on() || !o || ov.hidden || !seen(ov)) return;
@@ -6056,7 +6056,7 @@
     return { on: on, screen: screen, still: still, celebrate: celebrate, watchOverlays: watchOverlays,
              arrive: arrive, arriveRails: arriveRails, toQueue: toQueue, settleReel: settleReel,
              swapIcon: swapIcon, riseBar: riseBar, dropBar: dropBar, retitle: retitle, picture: picture,
-             openStory: openStory, closeStory: closeStory, turnStory: turnStory, popMessages: popMessages,
+             growStory: growStory, shrinkStory: shrinkStory, turnStory: turnStory, popMessages: popMessages,
              badge: badge, dimDown: dimDown, follow: follow, removeRow: removeRow, steps: steps,
              SNAP: "cubic-bezier(.3,1.25,.5,1)" };
   })();
@@ -15722,7 +15722,7 @@
     document.getElementById("storyOverlay").hidden = false;
     showStory();
     // Out of the face that was tapped (§298).
-    Motion.openStory(document.getElementById("storyOverlay"));
+    Motion.growStory(document.getElementById("storyOverlay"));
   }
 
   function currentStory(){
@@ -15926,7 +15926,7 @@
     clearTimeout(storyHoldTimer);
     storyHeld = false;
     // Back into the face it came out of (§298).
-    Motion.closeStory(document.getElementById("storyOverlay"));
+    Motion.shrinkStory(document.getElementById("storyOverlay"));
     document.getElementById("storyOverlay").hidden = true;
     document.getElementById("storyOverlay").classList.remove("paused", "held");
     // The rings reflect what was just watched.
