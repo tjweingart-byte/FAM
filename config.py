@@ -1835,8 +1835,20 @@ class Settings:
     # on its own, so set it before submitting (APP_STORE.md).
     support_email: str = field(
         default_factory=lambda: os.environ.get("SUPPORT_EMAIL", "").strip())
+    # Who is emailed when a report arrives (`moderation.ReportAlerts`), so
+    # the 24-hour promise does not rest on remembering to open /admin. Unset,
+    # SUPPORT_EMAIL is told; with neither, nobody is, and /api/health says so.
+    moderation_email: str = field(
+        default_factory=lambda: os.environ.get("MODERATION_EMAIL", "").strip())
     apple_team_id: str = field(
         default_factory=lambda: os.environ.get("APPLE_TEAM_ID", "").strip())
+    # Sign in with Apple's server key (`apple_tokens.py`): the Key ID of a
+    # key with "Sign in with Apple" enabled. The key itself is a credential,
+    # APPLE_PRIVATE_KEY, read through `credentials` and never from here. With
+    # both and APPLE_TEAM_ID, a deleted account's Apple link is revoked, as
+    # App Store guideline 5.1.1(v) requires of an app using Apple sign-in.
+    apple_key_id: str = field(
+        default_factory=lambda: os.environ.get("APPLE_KEY_ID", "").strip())
     ios_bundle_id: str = field(
         default_factory=lambda: os.environ.get("IOS_BUNDLE_ID", "").strip())
     # The pre-launch waitlist (WAITLIST.md). On, the app is closed to anybody

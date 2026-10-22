@@ -422,6 +422,18 @@ class AccountStore:
             )
             conn.execute("CREATE INDEX IF NOT EXISTS identities_user"
                          " ON identities(user_id)")
+            # Sign in with Apple's refresh token and the client id it was
+            # issued to, kept only so it can be revoked when the account is
+            # deleted (App Store 5.1.1(v), `apple_tokens.py`). Never returned
+            # by `identities_for`, never sent to a client.
+            for ddl in (
+                "ALTER TABLE identities ADD COLUMN token TEXT NOT NULL DEFAULT ''",
+                "ALTER TABLE identities ADD COLUMN token_client TEXT NOT NULL DEFAULT ''",
+            ):
+                try:
+                    conn.execute(ddl)
+                except sqlite3.OperationalError:
+                    pass  # already there
 
             # Password reset (§244): at most one live code per account, kept
             # only as a hash. `issued` counts the codes sent in the current
@@ -869,6 +881,33 @@ class AccountStore:
                  "subject_hint": (r[1][-6:] if r[0] in ("google", "apple") else r[1]),
                  "email": r[2], "created": r[3], "last_login": r[4]}
                 for r in rows]
+
+    def keep_provider_token(self, provider: str, subject: str, token: str,
+                            client_id: str) -> None:
+        """Keep a provider's refresh token beside its identity, so it can be
+        revoked later. A newer one replaces an older one."""
+        if not token:
+            return
+        self._conn().execute(
+            "UPDATE identities SET token = ?, token_client = ?"
+            " WHERE provider = ? AND subject = ?",
+            (token, client_id or "", provider, subject))
+
+    def provider_tokens(self, user_id: str, provider: str = "") -> list[tuple[str, str]]:
+        """(token, client_id) for every kept refresh token of this account -
+        what must be revoked before its identities are deleted."""
+        sql = ("SELECT token, token_client FROM identities"
+               " WHERE user_id = ? AND token != ''")
+        args: tuple = (user_id,)
+        if provider:
+            sql += " AND provider = ?"
+            args += (provider,)
+        try:
+            rows = self._conn().execute(sql, args).fetchall()
+        except Exception:
+            log.exception("could not read provider tokens")
+            return []
+        return [(r[0], r[1]) for r in rows]
 
     def user_for_identity(self, provider: str, subject: str) -> str:
         row = self._conn().execute(

@@ -57,6 +57,7 @@ import messages as messages_mod
 import typing_indicator as typing_mod
 import metering
 import oauth
+import apple_tokens
 import quotas
 import feedback as feedback_mod
 import consent as consent_mod
@@ -1604,6 +1605,10 @@ def erase_listener(user_id: str) -> dict:
     except Exception:
         log.exception("could not erase waitlist rows for %r", user_id)
         removed["waitlist"] = -1
+    # Apple's tokens are revoked before the rows that hold them go (App Store
+    # 5.1.1(v)); off the request, and the deletion never waits on Apple.
+    removed["apple_revoked"] = apple_tokens.revoke_later(
+        ACCOUNTS.provider_tokens(user_id, "apple"))
     credentials_gone = ACCOUNTS.delete_account(user_id)
     removed["identities"] = credentials_gone["identities"]
     removed["sessions"] = credentials_gone["sessions"]
@@ -2053,6 +2058,12 @@ async def health(request: Request) -> dict:
         # empty audience both make the button fail, and both say so here rather
         # than at the moment somebody presses it.
         "oauth": oauth.report(),
+        # Whether Apple sign-in links are cut when an account is deleted
+        # (App Store 5.1.1(v)); configured, and how revocations have gone.
+        "apple_tokens": apple_tokens.report(),
+        # Whether a person is emailed when a report arrives (App Store 1.2's
+        # 24 hours). Says why not, rather than leaving the inbox to be found.
+        "report_alerts": REPORT_ALERTS.status(),
         # Whether tier limits bite, and what they are. A server running with
         # them off looks identical from the outside to one running with them
         # on, and that is exactly the thing worth being able to ask.
@@ -2132,6 +2143,11 @@ class ProviderRequest(BaseModel):
     #: accepts both the raw value and its SHA-256, because Apple is sent the
     #: hash and Google echoes the original.
     nonce: str = Field("", max_length=256)
+    #: Sign in with Apple's one-time authorization code, sent beside the
+    #: identity token by the iOS app. Exchanged once for a refresh token that
+    #: is kept only so deleting the account can revoke it (5.1.1(v),
+    #: `apple_tokens.py`). Optional: without it sign-in is unchanged.
+    authorization_code: str = Field("", max_length=2048)
     want_token: bool = False
 
 
@@ -2349,9 +2365,11 @@ async def auth_provider(req: ProviderRequest, request: Request) -> dict:
 
     The app gets an identity token from the platform SDK and posts it here;
     `oauth.verify` checks the signature, issuer, audience and nonce against the
-    provider's published keys. There is no code exchange and no client secret,
-    because a native app needs neither - which removes the most common way this
-    is built wrong.
+    provider's published keys. Signing in needs no code exchange and no client
+    secret, because a native app needs neither - which removes the most common
+    way this is built wrong. The one exchange is Apple's, after the sign-in has
+    verified, and only to keep a token that account deletion can revoke
+    (`apple_tokens.py`); its secret is made on the server, never in the app.
 
     The two failure modes are deliberately different status codes. 503 means
     *this server* cannot verify tokens for that provider - PyJWT is missing, or
@@ -2375,6 +2393,13 @@ async def auth_provider(req: ProviderRequest, request: Request) -> dict:
             current_user_id=_require_listener(request))
     except accounts_mod.AuthError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if verified.provider == "apple" and req.authorization_code:
+        # Never fails the sign-in: no token kept means only that deleting
+        # this account cannot revoke the link, and /api/health counts it.
+        refresh = await asyncio.to_thread(
+            apple_tokens.exchange, req.authorization_code, verified.audience)
+        ACCOUNTS.keep_provider_token("apple", verified.subject, refresh,
+                                     verified.audience)
     if req.accept_terms:
         _record_terms(request, listener.user_id)
     if is_new:
@@ -2591,11 +2616,15 @@ async def account_unlink(request: Request,
                          provider: str = Query(..., max_length=16)) -> dict:
     """Remove one sign-in route, unless it is the only way in."""
     _rate_limit(request)
+    me = _require_account(request)
+    provider = provider.strip().lower()
+    tokens = ACCOUNTS.provider_tokens(me, provider) if provider == "apple" else []
     try:
-        removed = ACCOUNTS.unlink_identity(_require_account(request),
-                                           provider.strip().lower())
+        removed = ACCOUNTS.unlink_identity(me, provider)
     except accounts_mod.AuthError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if removed and tokens:
+        apple_tokens.revoke_later(tokens)
     return {"ok": bool(removed), "removed": removed}
 
 
@@ -4769,6 +4798,13 @@ async def report_content(req: ReportRequest, request: Request) -> dict:
                                    note=req.note, snapshot=snapshot)
     except moderation_mod.ModerationError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    # A person is told, so the 24-hour promise does not rest on remembering
+    # to open /admin. Never awaited and never fails the report.
+    try:
+        REPORT_ALERTS.notify(MODERATION,
+                             (_public_base(request) or settings.app_home_url) + "/admin")
+    except Exception:  # noqa: BLE001 - the report is filed whatever this does
+        log.exception("could not send the report alert")
     return {"ok": True, "id": report["id"], "message": REPORT_THANKS,
             # What the client should stop showing now: the thing itself.
             "hidden": kind in ("comment", "message", "vibe", "note", "episode")}
@@ -5007,6 +5043,7 @@ SHARES = sharing.ShareStore()
 FEEDBACK = feedback_mod.FeedbackStore()
 CONSENT = consent_mod.ConsentStore()
 MODERATION = moderation_mod.ModerationStore()
+REPORT_ALERTS = moderation_mod.ReportAlerts()
 
 
 #: Page types worth compressing: text. Never audio (raw PCM barely

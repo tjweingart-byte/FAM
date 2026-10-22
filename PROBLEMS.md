@@ -21593,3 +21593,55 @@ in directly, with nowhere to return to, goes to the front door. Checked in
 Chromium for all three cases.
 
 Tests: `tests/test_moderation_and_consent.py`.
+
+## 301. Ready for Apple: revoking Apple sign-in, a report that reaches a person (2026-10-22)
+
+The owner asked what stands between FAM and the App Store, and what makes
+talking to Apple slow. A review of the whole app against the guidelines found
+gaps beyond `APP_STORE.md`'s list; they are now in it ("Gaps found in October
+2026", "What the iOS build must have") with a new Part E, **TestFlight**: what
+it takes, internal testers (no review) and external ones (a light review, and
+the natural home for the waitlist period). Two gaps were the server's, and are
+built:
+
+* **A deleted account's Apple sign-in is revoked** (5.1.1(v) with 4.8). Apple
+  requires an app using Sign in with Apple to revoke the person's tokens
+  through its REST API when the account is deleted; deleting our rows left
+  FAM listed under "Apps using Apple ID" as if nothing had happened.
+  Revoking needs a refresh token, which the identity token is not, so
+  `apple_tokens.py` exchanges the app's one-time `authorization_code` (a new,
+  optional field on `/api/auth/provider`) at Apple's token endpoint after the
+  sign-in has verified, and `accounts.py` keeps it beside the identity
+  (`identities.token`, `token_client`; never returned to a client).
+  `erase_listener` hands it to `revoke_later` before the identity rows go,
+  and unlinking Apple does the same. The client secret both calls need is an
+  ES256 JWT the server makes per call from `APPLE_KEY_ID`, `APPLE_PRIVATE_KEY`
+  (a credential) and `APPLE_TEAM_ID` - never in the app, which is the line
+  `oauth.py`'s "no client secret" was drawn to protect; verifying who
+  somebody is still needs none of it. A failed exchange never fails a
+  sign-in and a failed revoke never stops a deletion; both are counted in
+  `/api/health` > `apple_tokens`, and a revoke is tried three times off the
+  request. Staging calls nothing.
+* **A report emails a person** (1.2's 24 hours). The inbox on `/admin` was
+  only useful to somebody who opened it, and `APP_STORE.md` said so ("FAM
+  has no email delivery" - out of date since `mail.py`, §244).
+  `moderation.ReportAlerts` sends `MODERATION_EMAIL` (else `SUPPORT_EMAIL`)
+  at most one email per 15 minutes: how many reports wait, how long the
+  oldest has, the `/admin` link. It names nobody and quotes nothing; filing a
+  report never waits on it. `/api/health` > `report_alerts` says whether it
+  is on, and why not.
+
+Also: the web app's tab title said "FAM — Clickable Prototype", in front of
+anybody (a reviewer included) who opens the site; it says "FAM". `render.yaml`
+now asks for `SUPPORT_EMAIL`, `MODERATION_EMAIL` and the Apple settings on the
+production service, since nothing else prompted for them.
+
+Not built, and why: everything else on the list is the owner's (EU trader
+status, Apple's email relay registration, the data providers' commercial
+terms, the waitlist-versus-TestFlight decision, Explore's E-marked episodes)
+or the iOS app's (privacy manifest, SDK, network resilience, accessibility,
+"hey FAM", phone sign-up). Revocation cannot be exercised here - no Apple key
+and no network to Apple - so its tests stub the two HTTP calls and check the
+client secret with a real P-256 key.
+
+Tests: `tests/test_app_review_server.py`.
