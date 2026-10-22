@@ -598,3 +598,12 @@ def test_the_web_form_draws_an_unticked_box_and_sends_it():
     assert 'id="acceptTerms"' in wl and "accept_terms: true" in wl
     wl_box = wl.split('id="acceptTerms"', 1)[1].split("</label>", 1)[0]
     assert "Review the <a href=\"/terms\"" in wl_box and ">terms and conditions</a>" in wl_box
+
+
+def test_every_legal_page_has_an_x_back_to_where_you_were():
+    """§300: the terms had no way out; each page draws one close button."""
+    for name in appmod.LEGAL_PAGES:
+        page = appmod.legal_page(name, "help@example.com")
+        assert page.count('id="legalClose"') == 1, name
+        assert 'aria-label="Close"' in page and "history.go(" in page, name
+        assert page.index('id="legalClose"') < page.index("<main>"), name

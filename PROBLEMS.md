@@ -21579,3 +21579,17 @@ reads the app's `closeStory` found Motion's first - they are `growStory`
 and `shrinkStory`.
 
 Tests: `test_implementations_108.py` now says the bar is the plain line.
+
+## 300. An X out of the terms (2026-10-22)
+
+The terms, privacy and support pages had no way out: the app opens them in
+their own tab (`openLegal`, and the sign-up clickwrap's links), and where that
+tab takes the whole screen - an installed app - the listener was stuck. Every
+legal page now has an **X, top right**, added once in `app.legal_page` so the
+three cannot drift. It returns the listener to where they were: a tab the app
+opened is closed; a page opened in the same window steps back past any hops
+between the three pages (counted per tab in `sessionStorage`); a page typed
+in directly, with nowhere to return to, goes to the front door. Checked in
+Chromium for all three cases.
+
+Tests: `tests/test_moderation_and_consent.py`.

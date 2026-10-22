@@ -4577,6 +4577,47 @@ PRIVACY_UPDATED = "21 October 2026"
 TERMS_UPDATED = "21 October 2026"
 
 
+#: The X on every legal page, top right: back to wherever the listener was.
+#: The app opens these in their own tab, so the tab closes; opened in the same
+#: window it steps back past any hops between the three pages; with neither it
+#: goes to the front door. Counted per tab in `sessionStorage`.
+_LEGAL_CLOSE = """<style>
+  .legal-close{ position:fixed; z-index:10; top:calc(12px + env(safe-area-inset-top, 0px));
+    right:calc(12px + env(safe-area-inset-right, 0px)); width:44px; height:44px;
+    border-radius:50%; border:1px solid var(--border); background:var(--bg); color:var(--text);
+    display:flex; align-items:center; justify-content:center; cursor:pointer; padding:0; }
+  .legal-close svg{ width:20px; height:20px; }
+  @media print{ .legal-close{ display:none; } }
+</style>
+<button type="button" class="legal-close" id="legalClose" aria-label="Close" title="Close">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+       stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+</button>
+<script>
+(function(){
+  var LEGAL = /^\\/(terms|privacy|support)\\/?$/, from = null, hops = 0, back = false;
+  try { from = new URL(document.referrer); } catch(e){}
+  var same = !!from && from.origin === location.origin;
+  try {
+    if(same && LEGAL.test(from.pathname)){
+      hops = (+sessionStorage.getItem("famLegalHops") || 0) + 1;
+      back = sessionStorage.getItem("famLegalBack") === "1";
+    } else {
+      back = same && history.length > 1;
+      sessionStorage.setItem("famLegalBack", back ? "1" : "0");
+    }
+    sessionStorage.setItem("famLegalHops", String(hops));
+  } catch(e){ back = same && !hops && history.length > 1; }
+  document.getElementById("legalClose").onclick = function(){
+    if(back){ history.go(-(hops + 1)); return; }
+    window.close();
+    setTimeout(function(){ location.replace("/"); }, 300);
+  };
+})();
+</script>
+"""
+
+
 def legal_page(name: str, support_email: str) -> str:
     """One of `LEGAL_PAGES` with the published contact (1.2) filled in."""
     if support_email:
@@ -4588,7 +4629,8 @@ def legal_page(name: str, support_email: str) -> str:
         link = "us through the app"
         contact = ('<p class="note">Report anything from its menu in the app; a person '
                    'reviews every report.</p>')
-    return (_LEGAL_TEMPLATES[name].replace("{{CONTACT}}", contact)
+    return (_LEGAL_TEMPLATES[name].replace("<main>", _LEGAL_CLOSE + "<main>", 1)
+            .replace("{{CONTACT}}", contact)
             .replace("{{EMAIL_LINK}}", link)
             .replace("{{UPDATED}}", PRIVACY_UPDATED)
             .replace("{{TERMS_UPDATED}}", TERMS_UPDATED)
