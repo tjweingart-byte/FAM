@@ -21645,3 +21645,29 @@ and no network to Apple - so its tests stub the two HTTP calls and check the
 client secret with a real P-256 key.
 
 Tests: `tests/test_app_review_server.py`.
+
+## 302. The waiting screen plays the samples (2026-10-22)
+
+The owner, after §301's App Store review: make the waitlist screen play the
+sign-up samples. A person in line used to see their place, a share link and
+the friend search - nothing they could listen to - and App Review's worry
+about a waitlisted app (a fresh sign-up that can do nothing, 2.1/2.2) is
+exactly that screen.
+
+The status page (`/waitlist/me`) now shows **Most played today** between the
+greeting and the place card: the landing page's own sample section, moved
+there by `showStatus` (one section, one player, one rotation - the way "Learn
+more about FAM" moves `#about`), loaded from `/api/welcome` and played as a
+replay (`cached_only`). Nothing on the server changed: `_waitlist_refusal`
+already let `_welcome_sample_request` through before asking who the listener
+is, so a waitlisted account's replay of a sample passes as a guest's does, and
+any other question is still refused. Profile setup (`?setup=1`) hides it, as
+it hides every other direct child of the page. With no kept samples the
+section stays hidden, as on the landing page.
+
+Checked in Chromium against a server with `WAITLIST=1`: the section sits above
+the place card, a tap asks `/api/audio` for the sample with
+`cached_only=true`, and setup mode hides it. `APP_STORE.md` gap 7 now says the
+web screen is built and the iOS waiting screen must do the same.
+
+Tests: `tests/test_waitlist.py::test_the_status_page_plays_the_samples_too`.

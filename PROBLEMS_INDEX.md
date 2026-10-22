@@ -305,3 +305,4 @@ and `limit` = Lines.
 | 21548 | 35 | 299. The pill at the bottom becomes a plain line (2026-10-21) |
 | 21583 | 14 | 300. An X out of the terms (2026-10-22) |
 | 21597 | 52 | 301. Ready for Apple: revoking Apple sign-in, a report that reaches a person (2026-10-22) |
+| 21649 | 26 | 302. The waiting screen plays the samples (2026-10-22) |

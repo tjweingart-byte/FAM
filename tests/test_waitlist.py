@@ -671,6 +671,30 @@ def test_the_landing_page_plays_the_sign_up_samples_and_nothing_else(world, monk
     assert "fam-audio.js" in guest.get("/waitlist").text
 
 
+def test_the_status_page_plays_the_samples_too(world, monkeypatch):
+    """§302: somebody already in line hears what they are waiting for. The
+    status page moves the landing's sample section above the place card, and
+    the gate lets a *waitlisted account's* replay of a sample through just as
+    it does a guest's - exactly those, nothing else."""
+    sample = {"query": "Why the Eagles lost", "minutes": appmod.BROWSE_MINUTES}
+    monkeypatch.setattr(appmod, "_welcome_episodes", lambda: [sample])
+    monkeypatch.setattr(appmod, "_audio_is_kept", lambda q, m: True)
+    member, body = _join("waiting@fam.test")
+    assert body["status"] == "waitlisted"
+    base = {"q": sample["query"], "minutes": str(appmod.BROWSE_MINUTES),
+            "fmt": "pcm", "cached_only": "true"}
+    r = member.get("/api/audio", params=base)
+    assert not (r.status_code == 403 and "X-FAM-Waitlist" in r.headers)
+    r = member.get("/api/audio", params={**base, "q": "Something else entirely"})
+    assert r.status_code == 403 and "X-FAM-Waitlist" in r.headers
+
+    page = (ROOT / "static" / "waitlist.html").read_text(encoding="utf-8")
+    status = page[page.index("function showStatus(){"):]
+    status = status[:status.index("\n  }\n")]
+    assert 'insertBefore($("samples"), $("placeCard"))' in status
+    assert "loadSamples();" in status
+
+
 # --- 10.2 packet: joining always waitlists; the profile's details ------------
 
 def test_joining_waitlists_even_with_the_gate_off(world, monkeypatch):
