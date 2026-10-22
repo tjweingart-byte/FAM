@@ -21471,3 +21471,111 @@ The owner's "Birthday Implementations" packet, three asks:
    every send and the last error.
 
 Tests: `tests/test_birthday_packet_297.py`.
+
+## 298. Motion, round two: the owner's twelve picks (2026-10-21)
+
+The owner (10.21): "We need more animations within the app for smoother
+flow." After §292 the places that still changed in one frame were found by
+reading the interface, and a second options page (three working phones per
+place) went to the owner, who picked one in each:
+
+| Where | Pick |
+|---|---|
+| Play and pause | Shrink and swap: the old icon shrinks away (90 ms), the new one pops in (180 ms) |
+| The mini player arriving and closing | Rises from behind the tab bar (260 ms), drops back behind it (200 ms) |
+| The title settling | The writer's title wipes in left to right (320 ms) |
+| Pictures arriving | Blur up: soft and slightly large, then sharp (320 ms) |
+| Opening a friend's story | Grows out of the tapped face (300 ms) and closes back into it (240 ms) |
+| The next friend's story | A cube turn, Instagram's (340 ms); one friend's own vibes still change in place |
+| Messages in a thread | Each new bubble pops out of its tail corner (260 ms) |
+| Unread counts | Pop in, bump when the count goes up, shrink away when cleared |
+| Private search | The charcoal falls from the top like a blind (320 ms) and lifts when turned off (260 ms) |
+| Following someone | The button changes on the tap: a tick draws in and it takes its new width (260 ms) |
+| Removing from a list | The row slides out to the left (180 ms), then the gap closes (200 ms) |
+| Sign-up's steps | The words slide 24 px and fade; three bars at the top fill to the step |
+
+**How.** The same `Motion` module, twelve more functions, one rule: **the
+change is made first, the movement is drawn over it.** The play button
+already holds the new icon when the old one shrinks away (a copy in the
+frame, `.motion-icon`); the mini player is already hidden when a copy of it
+drops behind the tabs (`.motion-copy`, moved down by its height and clipped
+by the same amount, so it is never drawn over the tabs); the story is
+already hidden when a copy closes into the face; the badge is already
+hidden when a copy shrinks; the queue is already redrawn without the row
+when a copy of the row slides out and folds, so the rows below glide up;
+private search is already repainted when a copy of the page as it was is
+cut away from the top (on) or the bottom (off). Nothing reads state that a
+movement still owes - `bar.hidden`, the badge, `QUEUE`, the story overlay
+and `#screen-home` are true on the frame the movement starts - and every
+copy is inert, has no ids (except the private-search copy, which keeps them
+for its look and sits after the real page so a lookup by id still finds
+the real one, and is finished at once by the next screen change).
+
+The title wipes over the new words; the first title clears at once rather
+than fading for 100 ms as the mock-up did, so the player never shows the
+old title once the new one is known. A tile's picture blurs up only when it
+arrives at least 100 ms after the tile was drawn (`data-drawn` on
+`seed-img`), so a picture already on the device appears at once; a
+background picture (the player's, the reel's) is held at the first frame
+until it has loaded - it could not be shown before that - and given up
+after eight seconds. Messages pop when they are new since the last draw of
+the same thread, keyed on what they say (so a sent message is not popped
+again when the server numbers it); the first draw of a thread pops nothing.
+Following now changes the button on the tap (it used to wait for the
+server) and is put back if the server refuses; unfollowing now checks the
+answer, which it did not. Sign-up's steps are the sign-up form, the name and
+picture, and the interests, only on first run (`firstRunStep`); the same
+screens opened from Settings are editors and show no bars.
+
+Removing applies to the queue and the Saved shelf (unsaving there now takes
+the row off on the tap, and a refused delete redraws the shelf).
+
+**What none of it may do** is §292's rule, unchanged: the new state is
+live from the first frame, audio is untouched, every movement is 450 ms or
+less, nothing stands in for a wait. Reduced motion: nothing above moves.
+
+**Not verified.** As with §292, Chromium only. The cube turn (`perspective()` in the transform,
+`backface-visibility: hidden` on both faces) and the animated
+`clip-path: circle()` have not been seen in an iPhone's Safari.
+
+The bottom pill itself (the toast and the action bar) is going: the owner
+asked for five options for what replaces it, sent as a separate page; it is
+unchanged here.
+
+Tests: the smoke run's "Round-two motion holds nothing and leaves nothing
+behind".
+
+## 299. The pill at the bottom becomes a plain line (2026-10-21)
+
+The owner (10.21): the pill that pops up at the bottom - when something is
+taken out of the queue or a playlist, or anything else - "should no longer
+be a pill", with five options to choose from. A page of five working phones
+went (say it where it happened, a docked band, a top banner, inside the
+mini player, a plain line); the owner picked **Plain line**.
+
+Both bottom messages become it: the rounded pill (`toast`, "Following",
+"Could not save that") and the dark bar with an action (`snack`, "Removed
+from Queue · Undo", "Added to Queue · Open"). Each is now a centred line of
+text with a short copper rule above it - no box, no border, no shadow, no
+colours of its own (`--snack-bg/fg/act` are gone). It sits just above the
+mini player, else the tabs (`placeAboveBars`, which the pill now uses too:
+it was at a fixed 96 px and could sit on the mini player), on the page's own
+colour fading upward into the page so it reads over whatever scrolls
+behind. The action is the copper word beside the text. The line rises 6 px
+and fades in while the rule draws out from its centre; reduced motion shows
+it at once. Only one shows at a time: a pill hides a bar and a bar a pill,
+as before. Timings and actions are unchanged (2.4 s, 3.5 s with an action).
+
+**Review before the merge.** Reading the branch's whole diff found two
+faults, each fixed: removing a row read its padding and margins through a
+live computed style after the row had left the page (the Saved shelf takes
+it out first), so the gap closed from empty values - they are now read
+before the redraw; and the plain line, being full width, took taps across
+its whole band for 3.5 s - now only its action does. Two collisions the
+full check caught, also fixed: CLAUDE.md went 7 bytes over its budget (the
+`[motion]` line keeps citing §292; §298 is in `constraints.md`), and
+Motion's story helpers were named `openStory`/`closeStory`, so a test that
+reads the app's `closeStory` found Motion's first - they are `growStory`
+and `shrinkStory`.
+
+Tests: `test_implementations_108.py` now says the bar is the plain line.
