@@ -11,13 +11,20 @@ This is that list, taken from what FAM actually holds credentials for
 (`.env.example`, `render.yaml`). Work down it once, fill in the last two
 columns, and keep this file current when a service is added or dropped.
 
+**The company vault is Bitwarden Teams** (chosen 2026-10-22 over 1Password,
+Keeper, Proton Pass and Apple Passwords, for price and an open-source,
+independently audited record). "The password manager" below means it.
+Three collections: *Infrastructure* (GitHub, Render, Cloudflare, registrar,
+email - founders only), *Vendors & API keys*, and *Recovery codes*
+(founders only).
+
 **The rule for every row:**
 
 1. Turn on two-step sign-in with an **authenticator app or a passkey**. Use
    SMS only where nothing else is offered: a number can be moved to another
    SIM by a phone call to the carrier.
-2. Save the service's **recovery codes** in the company password manager,
-   not on one person's laptop.
+2. Save the service's **recovery codes** in Bitwarden's *Recovery codes*
+   collection, not on one person's laptop.
 3. Where the service has **teams or organisations**, require two-step
    sign-in for every member (most call it "enforce 2FA").
 4. Sign in with a **company address** (`@familiarize.net`), never a personal
@@ -30,6 +37,7 @@ columns, and keep this file current when a service is added or dropped.
 
 | Service | What a stolen sign-in exposes | Org-wide enforcement | Who holds it | 2FA on (date) |
 |---|---|---|---|---|
+| **Bitwarden** (the company vault itself) | Every login and key on this page | Turn on two-step login for every member; owner keeps the account's recovery code offline | | |
 | **GitHub** (`tjweingart-byte/FAM`) | All source code; can push to `Main`, which Render deploys | Organisation settings → require 2FA | | |
 | **Render** (`fam`, `fam-staging`, Postgres) | Every environment variable - so every key below - and the production database | Workspace settings → require 2FA | | |
 | **Cloudflare** (R2 `AUDIO_BUCKET`; DNS if hosted there) | Every kept episode's audio; the domain's traffic | Members → require 2FA | | |
@@ -67,6 +75,11 @@ there is nothing to protect.
 
 ## FAM's own credentials (no outside sign-in, but the same care)
 
+* **Keep the most important codes out of the vault.** For GitHub, Render,
+  the email/domain admin and FAM's admin accounts, keep the two-step code
+  in an authenticator on your phone (Apple Passwords, or the free Bitwarden
+  Authenticator app) or on a hardware key - not on the same Bitwarden item
+  as the password, or one stolen vault gives up both halves.
 * **Admin accounts** (`FAM_ADMIN_ACCOUNTS`): `/admin` now refuses any admin
   without two-step sign-in. Turn it on in the app (Settings → Two-step
   sign-in) *before* the deploy that carries §301, or the dashboard will
