@@ -21593,3 +21593,66 @@ in directly, with nowhere to return to, goes to the front door. Checked in
 Chromium for all three cases.
 
 Tests: `tests/test_moderation_and_consent.py`.
+
+## 301. Two-step sign-in, and a second factor on every outside service (2026-10-22)
+
+The owner asked for "a second form of identification for all of the plugins
+we have, for additional security and legal protection", and chose all three
+readings: admin accounts, listener sign-in, and the outside services FAM
+depends on.
+
+**What the second factor is.** A code from an authenticator app (RFC 6238
+TOTP) or one of ten one-time recovery codes. SMS was not chosen: it needs a
+paid vendor, a number can be moved to another SIM, and a phone number on FAM
+has never been verified (ACCOUNTS.md). TOTP needs no delivery, so it works
+for email, phone-only and Apple accounts alike, costs nothing per sign-in,
+and is standard library only (`second_factor.py`).
+
+**Where it is asked.** Every route that ends in a session goes through
+`app._second_step_first` before minting one: password and phone log-in,
+Google/Apple, a password reset (which proves the inbox - one factor), and the
+waitlist's admin preview. A right password is answered 401 with the sentence
+"Enter the 6-digit code from your authenticator app." and a challenge
+(`second_factor` in the body, added by the error handler); nothing changes
+on the device until `/api/auth/2fa/verify` gets a code with it. An old
+client shows the sentence, which is true; no contract changes, since only an
+account that turned it on on a new client is ever asked.
+
+**Admins.** `/api/admin/login` refuses an admin account without two-step
+sign-in (403, after the password was right so it reveals no admin) and
+answers one with it with an `admin` challenge for
+`/api/admin/login/verify`; the three admin pages draw the code field when
+asked. `FAM_ADMIN_REQUIRE_TWO_STEP=0` lifts it; on by default, and an admin
+cannot turn theirs off while it holds. `FAM_ADMIN_TOKEN` is a machine
+credential and is not behind it - said in SECURITY_CHECKLIST.md.
+**Deploying this locks the dashboard to any admin who has not turned it on
+in the app first.**
+
+**Bounds.** A code is accepted once (`last_step`, in the same conditional
+UPDATE that checks it); a challenge takes five tries in five minutes, counted
+before the compare as `finish_reset` does; ten wrong codes on an account in
+fifteen minutes refuse every code, so logging in again and again buys no
+more guesses. Turning it off and drawing new recovery codes need a current
+code, not just the session.
+
+**The record** (the "legal protection" half). `security_events` keeps kinds
+and times - on, off, recovery code used, codes renewed, wrong code, admin
+sign-in - and the owner reads theirs at `GET /api/auth/2fa`; they are
+emailed when it is turned on or off or a recovery code is used. Deleting
+the account erases it with everything else.
+
+**Not done here, and why.** The TOTP secret must be readable to compute the
+code, so it sits beside the password hashes in `accounts.db`; encrypting it
+under a server key is possible later and was not worth a new required
+setting today. Outside services cannot be switched on from code:
+`SECURITY_CHECKLIST.md` lists every one FAM holds a credential for, with
+columns for who holds it and when 2FA was turned on. Whether this meets any
+particular legal obligation is for counsel; the checklist is the record.
+
+The interface: Settings → Two-step sign-in (set-up sheet with an
+`otpauth://` link and the key in fours, then a code, then the recovery codes
+once); the log-in, waitlist and reset pages draw a code step when asked.
+
+Tests: `tests/test_two_step_301.py` (RFC 6238 vectors, every route, bounds,
+admins); `test_admin_tracker.py` sets the requirement off to keep testing the
+password step.

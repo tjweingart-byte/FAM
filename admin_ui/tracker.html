@@ -243,10 +243,11 @@
 
   <div id="gate" class="card gate" hidden>
     <h2>Admins only</h2>
-    <p>This page reads every store in the deployment. Sign in with the email and password of an account listed in <code>FAM_ADMIN_ACCOUNTS</code>.</p>
+    <p>This page reads every store in the deployment. Sign in with the email and password of an account listed in <code>FAM_ADMIN_ACCOUNTS</code>, then the code from its authenticator app.</p>
     <form id="loginForm" class="login" autocomplete="on">
       <input id="adminEmail" type="email" placeholder="Admin email" autocomplete="username" required>
       <input id="adminPassword" type="password" placeholder="Password" autocomplete="current-password" required>
+      <input id="adminCode" type="text" inputmode="numeric" autocomplete="one-time-code" placeholder="6-digit code or recovery code" hidden>
       <button class="go" id="loginBtn" type="submit">Sign in</button>
       <p class="sub err" id="loginErr" hidden></p>
       <!-- Forgot password (§297): the reset page every log-in links to, drawn only when the server can email a code (§244). -->
@@ -486,7 +487,7 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
                          body: body ? JSON.stringify(body) : undefined })
       .then(function (r) {
         return r.json().catch(function () { return {}; }).then(function (j) {
-          if (!r.ok) { var e = new Error(j.error || (typeof j.detail === "string" ? j.detail : "") || ("HTTP " + r.status)); e.status = r.status; throw e; }
+          if (!r.ok) { var e = new Error(j.error || (typeof j.detail === "string" ? j.detail : "") || ("HTTP " + r.status)); e.status = r.status; e.body = j; throw e; }
           return j;
         });
       });
@@ -1083,17 +1084,40 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
     .then(function (r) { return r.json(); })
     .then(function (d) { $("forgotLink").hidden = !(d && d.available); })
     .catch(function () {});
+  // Two steps for an admin (§301): the password answers with a challenge,
+  // and the code from the authenticator app is sent with it. A 403 is an
+  // admin without two-step sign-in, told how to turn it on.
+  var challenge = "";
   $("loginForm").addEventListener("submit", function (ev) {
     ev.preventDefault();
     $("loginErr").hidden = true; $("loginBtn").disabled = true;
-    api("/api/admin/login", { email: $("adminEmail").value.trim(), password: $("adminPassword").value })
+    var asked = challenge
+      ? api("/api/admin/login/verify", { challenge: challenge, code: $("adminCode").value.trim() })
+      : api("/api/admin/login", { email: $("adminEmail").value.trim(), password: $("adminPassword").value });
+    asked
       .then(function () {
+        challenge = ""; $("adminCode").value = ""; $("adminCode").hidden = true;
         $("adminPassword").value = "";
+        $("loginBtn").textContent = "Sign in";
         return load().then(start);
       })
       .catch(function (e) {
+        if (e.body && e.body.second_factor) {
+          challenge = e.body.second_factor.challenge;
+          $("adminCode").hidden = false; $("adminCode").required = true;
+          $("loginBtn").textContent = "Verify";
+          $("loginErr").textContent = e.message;
+          $("loginErr").hidden = false;
+          $("adminCode").focus();
+          return;
+        }
+        if (challenge && e.status === 401 && /expired/.test(e.message)) {
+          challenge = ""; $("adminCode").hidden = true; $("adminCode").required = false;
+          $("loginBtn").textContent = "Sign in";
+        }
         $("loginErr").textContent = e.status === 429 ? "Too many attempts. Wait a moment and try again."
-                                                     : "That email and password are not an admin's.";
+                              : (challenge || e.status === 403) ? e.message
+                              : "That email and password are not an admin's.";
         $("loginErr").hidden = false;
       })
       .then(function () { $("loginBtn").disabled = false; });

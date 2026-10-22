@@ -181,6 +181,9 @@ def client(world, tmp_path, monkeypatch):
     monkeypatch.setattr(appmod, "ACCOUNTS", ACC.AccountStore(str(tmp_path / "app-accounts.db")))
     monkeypatch.setattr(appmod, "ADMIN_TOKEN", "")
     monkeypatch.delenv("FAM_ADMIN_ACCOUNTS", raising=False)
+    # These test the dashboard's password step; the two-step requirement
+    # in front of it (§301) is test_two_step_301.py's.
+    monkeypatch.setenv("FAM_ADMIN_REQUIRE_TWO_STEP", "0")
     return appmod, TestClient(appmod.app)
 
 

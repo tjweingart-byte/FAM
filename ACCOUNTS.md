@@ -170,6 +170,48 @@ Delivery is `mail.py`: plain SMTP (`SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`,
 or Gmail is a dashboard choice. Failures are logged and counted in
 `/api/health` (`mail`). Staging never sends.
 
+### Two-step sign-in (§301)
+
+A second proof besides the password, for any listener who turns it on in
+Settings and for **every admin** at `/admin`:
+
+* **An authenticator app's code** (RFC 6238 TOTP - Apple Passwords, Google
+  Authenticator, 1Password, Authy), or **one of ten recovery codes**, each
+  good once. No SMS: it needs a paid vendor, a number can be moved to
+  another SIM, and a phone number on FAM has never been verified.
+* **Set-up is two moves.** `POST /api/auth/2fa/setup` returns a secret (and
+  an `otpauth://` link for the app); nothing changes until
+  `POST /api/auth/2fa/enable` is sent a code that app made. The recovery
+  codes come back from that call and never again - only hashes are kept.
+* **Signing in.** Every route that ends in a session asks first. A right
+  password on a two-step account is answered `401` with the sentence "Enter
+  the 6-digit code from your authenticator app." and
+  `second_factor: {challenge, methods, expires_in}`; no session is minted.
+  `POST /api/auth/2fa/verify {challenge, code}` finishes it and answers as a
+  login does. Google/Apple sign-in and a password reset ask the same way.
+  An older client shows the sentence, which is true.
+* **Bounds.** A code works once; a challenge has five tries in five
+  minutes; ten wrong codes on an account in fifteen minutes refuse every
+  code until the window passes.
+* **Turning it off** (`/api/auth/2fa/disable`) and **new recovery codes**
+  (`/api/auth/2fa/recovery`) need a current code - holding the session is
+  not enough. An admin cannot turn it off while it is required.
+* **The record.** Turned on, turned off, a recovery code used, codes
+  renewed, a wrong code and every admin sign-in are kept in
+  `security_events` (kinds and times only) and shown to the owner by
+  `GET /api/auth/2fa`; the owner is emailed when it is turned on or off or
+  a recovery code is used. Deleting the account erases all of it.
+* **Admins.** `/api/admin/login` refuses an admin account without two-step
+  sign-in (403, saying how to turn it on) and answers one with it with a
+  challenge for `/api/admin/login/verify`. `FAM_ADMIN_REQUIRE_TWO_STEP=0`
+  lifts the requirement; it is on by default. `FAM_ADMIN_TOKEN` is a
+  machine credential and is not behind a second factor - leave it unset
+  unless a script needs it.
+* **What it does not cover.** The secret has to be readable to compute the
+  code, so it is stored as the app holds it, beside the password hashes; a
+  stolen `accounts.db` still needs each password. Outside services FAM
+  depends on are each their own sign-in - `SECURITY_CHECKLIST.md`.
+
 ### Verifying a provider token
 
 The app gets an identity token from the platform SDK and posts it to
@@ -376,6 +418,12 @@ is not a browser, sends no `Origin`, and needs nothing here.
     GET    /api/auth/reset            whether this server can email a reset code
     POST   /api/auth/reset/start      email a 6-digit code to the account's address
     POST   /api/auth/reset/finish     the code + a new password; signs this device in
+    POST   /api/auth/2fa/verify       a two-step sign-in's challenge + code (§301)
+    GET    /api/auth/2fa              on/off, recovery codes left, recent record
+    POST   /api/auth/2fa/setup        a secret for the authenticator app
+    POST   /api/auth/2fa/enable       a code from the app; returns recovery codes once
+    POST   /api/auth/2fa/disable      a current code; turns it off
+    POST   /api/auth/2fa/recovery     a current code; ten new recovery codes
     GET    /api/account               settings: identities, sessions, tier, usage
     POST   /api/account               change name, email, phone
     DELETE /api/account               erase everything (5.1.1(v))

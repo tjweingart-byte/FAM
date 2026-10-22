@@ -304,3 +304,4 @@ and `limit` = Lines.
 | 21475 | 73 | 298. Motion, round two: the owner's twelve picks (2026-10-21) |
 | 21548 | 35 | 299. The pill at the bottom becomes a plain line (2026-10-21) |
 | 21583 | 14 | 300. An X out of the terms (2026-10-22) |
+| 21597 | 63 | 301. Two-step sign-in, and a second factor on every outside service (2026-10-22) |

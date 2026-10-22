@@ -22,9 +22,8 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
 - **Finding history:** `PROBLEMS_INDEX.md` lists every PROBLEMS.md section with
   its line number (`python tools/problems_index.py` regenerates it; a test fails
   when it is stale). Read the section by offset; never search 700 KB.
-- Other files that cite "CLAUDE.md" (a rule, an open problem by number) mean
-  this core plus `docs/claude/`; the numbered open problems are in
-  `open-problems.md`.
+- Files citing "CLAUDE.md" (a rule, a numbered problem) mean this
+  core plus `docs/claude/`.
 
 | Topic file | Holds |
 |---|---|
@@ -260,7 +259,8 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
 - Identity: server-minted session; account = credentials on that id, never
   the device - a signed-in browser's sign-up gets a fresh id (§190); listening
   works with no account; email/phone/Google/Apple; **reset** emails a code
-  to the account's address (`mail.py`, §244; `/reset`, §297). [op-identity]
+  to the account's address (`mail.py` §244, `/reset` §297); opt-in
+  **two-step sign-in**, required at `/admin` (§301). [op-identity] [two-step]
 
 ## Settled constraints — do not undo without discussing  (`constraints.md`)
 

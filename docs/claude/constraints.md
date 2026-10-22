@@ -1579,6 +1579,30 @@
   does, so a feature that changes what is shared, kept, charged or
   generated changes the terms with it. Every box reads "Review the terms and
   conditions", those words the link to `/terms`.
+<!-- rule:two-step -->
+- **A password alone signs nobody in on an account with two-step sign-in,
+  and nobody into `/admin` at all** *(PROBLEMS.md §301, at the owner's
+  direction: "a second form of identification ... for additional security
+  and legal protection")*. The second proof is a code from an authenticator
+  app (RFC 6238 TOTP, `second_factor.py`, standard library only) or one of
+  ten one-time recovery codes - never SMS (a paid vendor, SIM swaps, and an
+  unverified number). Listeners turn it on in Settings; every admin account
+  must have it (`FAM_ADMIN_REQUIRE_TWO_STEP`, on unless `0`), and an admin
+  cannot turn it off while that holds. Every route that ends in a session -
+  password, phone, Google/Apple, a reset, the waitlist's admin preview, the
+  dashboard - asks `app._second_step_first` before minting one: a right
+  password is answered 401 with the sentence and a challenge
+  (`second_factor` in the body), and nothing changes on the device until
+  `/api/auth/2fa/verify` (or `/api/admin/login/verify`) is sent a code with
+  it. A code works once (`last_step`); a challenge takes five tries in five
+  minutes; ten wrong codes an account in 15 minutes stops every code. The
+  secret is shown at set-up only and the recovery codes only once, kept as
+  hashes; turning it off or drawing new codes needs a current code, not the
+  session. Turning it on, off, a recovery code spent and an admin sign-in
+  are recorded in `security_events` and the owner is emailed; deleting the
+  account erases all of it. The `FAM_ADMIN_TOKEN` header is a machine
+  credential and is not behind it - keep it unset unless a script needs it.
+
 <!-- rule:authorship-provenance -->
 - **Authorship is provenance, and never identity.** *(PROBLEMS.md §95.)* The
   shared cache records who first generated each script, so Explore can leave a

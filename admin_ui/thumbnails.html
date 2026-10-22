@@ -71,6 +71,7 @@
   <form id="loginForm" autocomplete="on">
     <input id="email" type="email" placeholder="Email" autocomplete="username" required>
     <input id="password" type="password" placeholder="Password" autocomplete="current-password" required>
+    <input id="adminCode" type="text" inputmode="numeric" autocomplete="one-time-code" placeholder="6-digit code or recovery code" hidden>
     <button class="go" id="loginBtn" type="submit">Sign in</button>
     <p class="note err" id="loginErr" hidden></p>
       <!-- Forgot password (§297): the reset page every log-in links to, drawn only when the server can email a code (§244). -->
@@ -120,7 +121,7 @@
                          body: body ? JSON.stringify(body) : undefined })
       .then(function (r) {
         return r.json().catch(function () { return {}; }).then(function (j) {
-          if (!r.ok) { var e = new Error(j.error || ("HTTP " + r.status)); e.status = r.status; throw e; }
+          if (!r.ok) { var e = new Error(j.error || ("HTTP " + r.status)); e.status = r.status; e.body = j; throw e; }
           return j;
         });
       });
@@ -253,12 +254,40 @@
     .then(function (r) { return r.json(); })
     .then(function (d) { $("forgotLink").hidden = !(d && d.available); })
     .catch(function () {});
+  // Two steps for an admin (§301): the password answers with a challenge,
+  // and the code from the authenticator app is sent with it. A 403 is an
+  // admin without two-step sign-in, told how to turn it on.
+  var challenge = "";
   $("loginForm").addEventListener("submit", function (ev) {
     ev.preventDefault();
     $("loginErr").hidden = true; $("loginBtn").disabled = true;
-    api("/api/admin/login", { email: $("email").value.trim(), password: $("password").value })
-      .then(load)
-      .catch(function (e) { $("loginErr").textContent = e.message; $("loginErr").hidden = false; })
+    var asked = challenge
+      ? api("/api/admin/login/verify", { challenge: challenge, code: $("adminCode").value.trim() })
+      : api("/api/admin/login", { email: $("email").value.trim(), password: $("password").value });
+    asked
+      .then(function () {
+        challenge = ""; $("adminCode").value = ""; $("adminCode").hidden = true;
+        $("password").value = "";
+        $("loginBtn").textContent = "Sign in";
+        return load();
+      })
+      .catch(function (e) {
+        if (e.body && e.body.second_factor) {
+          challenge = e.body.second_factor.challenge;
+          $("adminCode").hidden = false; $("adminCode").required = true;
+          $("loginBtn").textContent = "Verify";
+          $("loginErr").textContent = e.message;
+          $("loginErr").hidden = false;
+          $("adminCode").focus();
+          return;
+        }
+        if (challenge && e.status === 401 && /expired/.test(e.message)) {
+          challenge = ""; $("adminCode").hidden = true; $("adminCode").required = false;
+          $("loginBtn").textContent = "Sign in";
+        }
+        $("loginErr").textContent = e.message;
+        $("loginErr").hidden = false;
+      })
       .then(function () { $("loginBtn").disabled = false; });
   });
 

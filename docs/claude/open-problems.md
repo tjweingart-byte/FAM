@@ -786,6 +786,10 @@
    cannot reach another listener or Explore. Only PDF needs a package (pypdf,
    optional); .docx is read with `zipfile`.
 <!-- rule:op-identity -->
+> **Current (PROBLEMS.md §301):** two-step sign-in exists - an authenticator
+> app's code or a recovery code, opt-in for listeners and required for every
+> admin at `/admin` (`two-step` in `constraints.md`). A phone number is still
+> not a second factor; nothing sends SMS.
 > **Current (PROBLEMS.md §297):** every log-in offers "Forgot password?" -
 > the app's and the waitlist's as before, and the three admin pages now link
 > to `/reset`, the reset password page (email, then the emailed code and a

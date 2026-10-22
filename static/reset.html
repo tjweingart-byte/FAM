@@ -80,7 +80,10 @@
     if(body){ init.headers["Content-Type"] = "application/json"; init.body = JSON.stringify(body); }
     return fetch(path, init).then(function(res){
       return res.json().catch(function(){ return {}; }).then(function(data){
-        if(!res.ok) throw new Error(data.error || data.detail || "Something went wrong. Try again.");
+        if(!res.ok){
+          var err = new Error(data.error || data.detail || "Something went wrong. Try again.");
+          err.body = data; throw err;
+        }
         return data;
       });
     });
@@ -116,10 +119,17 @@
     if(code.length !== 6) return fail("Enter the 6-digit code from the email.");
     if(pw.length < 8) return fail("Use at least 8 characters for your password.");
     btn.disabled = true;
-    api("/api/auth/reset/finish", { email: address, code: code, "new": pw }).then(function(){
+    function done(){
       say("Your password is changed. Taking you back to sign in…");
       setTimeout(function(){ location.replace(next); }, 1200);
-    }).catch(function(e){ fail(e.message); });
+    }
+    api("/api/auth/reset/finish", { email: address, code: code, "new": pw }).then(done)
+      .catch(function(e){
+        // Two-step sign-in (§301): the password is changed and the sign-in
+        // page asks for the app's code - the change itself succeeded.
+        if(e.body && e.body.second_factor) return done();
+        fail(e.message);
+      });
   });
 })();
 </script>

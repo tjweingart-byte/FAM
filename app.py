@@ -97,6 +97,7 @@ import waitlist as waitlist_mod
 from paths import PROJECT_ROOT
 import mixes as mixes_mod
 import mail as mail_mod
+import second_factor as second_factor_mod
 import push as push_mod
 import listener_clock
 import preferences as prefs_mod
@@ -2160,6 +2161,24 @@ class PasswordChangeRequest(BaseModel):
     new: str = Field(..., max_length=accounts_mod.MAX_PASSWORD)
 
 
+class SecondFactorRequest(BaseModel):
+    """The second proof of a two-step sign-in (§301): the challenge a right
+    password was answered with, and a code from the authenticator app or a
+    recovery code."""
+
+    challenge: str = Field("", max_length=128)
+    code: str = Field("", max_length=32)
+    #: Native clients only; see CredentialsRequest.
+    want_token: bool = False
+
+
+class TwoStepCodeRequest(BaseModel):
+    """A current code, for turning two-step sign-in on or off or drawing new
+    recovery codes (§301)."""
+
+    code: str = Field("", max_length=32)
+
+
 class ResetStartRequest(BaseModel):
     """"Forgot password?": the address to send a code to (§244)."""
 
@@ -2333,6 +2352,7 @@ async def auth_login(req: CredentialsRequest, request: Request) -> dict:
     except accounts_mod.AuthError as exc:
         raise HTTPException(status_code=401, detail=str(exc)) from exc
     listener = _admit_admin(listener)
+    _second_step_first(listener)
     old = _session_token(request)
     token, _user_id = ACCOUNTS.new_session(listener.user_id)
     if old:
@@ -2380,6 +2400,7 @@ async def auth_provider(req: ProviderRequest, request: Request) -> dict:
     if is_new:
         _waitlist_after_signup(listener.user_id, req.referral_code or "")
         listener = ACCOUNTS.listener_of(listener.user_id)
+    _second_step_first(listener)
 
     old = _session_token(request)
     token, _user_id = ACCOUNTS.new_session(listener.user_id)
@@ -2485,6 +2506,9 @@ async def auth_reset_finish(req: ResetFinishRequest, request: Request) -> dict:
             "to this address, and every device was signed out.\n\n"
             "If that was not you, reset it again from the log-in screen now.\n")
     listener = _admit_admin(listener)
+    # A reset proves the inbox, which is one proof: an account with two-step
+    # sign-in on still asks for its code before this device is signed in.
+    _second_step_first(listener)
     old = _session_token(request)
     token, _user_id = ACCOUNTS.new_session(listener.user_id)
     if old:
@@ -2513,6 +2537,160 @@ async def auth_password_set(req: NewPasswordRequest, request: Request) -> dict:
     return {"ok": True}
 
 
+# --- two-step sign-in (§301) ------------------------------------------------
+#
+# A second proof besides the password: a code from an authenticator app, or
+# one of ten recovery codes (second_factor.py says why those and not SMS).
+# Off until the listener turns it on in Settings, required of every admin on
+# `/admin` (`FAM_ADMIN_REQUIRE_TWO_STEP`). Every way in that ends in a
+# session - password, phone, Google, Apple, a reset, the waitlist's admin
+# preview - asks `_second_step_first` before it mints one.
+
+#: What a right password on a two-step account is answered with. A sentence
+#: an old client can show as it is, since it shows every refusal's words.
+SECOND_STEP_ASK = "Enter the 6-digit code from your authenticator app."
+
+
+class SecondFactorRequired(HTTPException):
+    """A 401 that carries the challenge to send the second proof with."""
+
+    def __init__(self, challenge: str) -> None:
+        super().__init__(status_code=401, detail=SECOND_STEP_ASK)
+        self.second_factor = {"challenge": challenge,
+                              "methods": ["app", "recovery"],
+                              "expires_in": accounts_mod.CHALLENGE_SECONDS}
+
+
+def _second_step_first(listener, purpose: str = "app") -> None:
+    """Refuse to mint a session yet if this account has two-step sign-in on.
+
+    Called after the first proof has passed and before any session exists,
+    so a right password on its own changes nothing on this device: no
+    session, no cookie, and the session the client already carried stays
+    whatever it was.
+    """
+    if listener is None or not listener.has_account:
+        return
+    if ACCOUNTS.has_two_step(listener.user_id):
+        raise SecondFactorRequired(ACCOUNTS.new_challenge(listener.user_id, purpose))
+
+
+def _tell_owner(user_id: str, subject: str, body: str) -> None:
+    """Email the account's own address about a change to how it is protected,
+    when there is an address and this server can send. Never blocks."""
+    email = (ACCOUNTS.account(user_id) or {}).get("email", "")
+    if email and mail_mod.status()["available"]:
+        mail_mod.send_later(email, subject, body)
+
+
+@app.post("/api/auth/2fa/verify")
+async def auth_two_step_verify(req: SecondFactorRequest, request: Request) -> dict:
+    """The second half of a two-step sign-in: the challenge and a code.
+    Answers exactly as `/api/auth/login` does when it succeeds."""
+    _rate_limit(request)
+    try:
+        listener, how = await asyncio.to_thread(
+            ACCOUNTS.redeem_challenge, req.challenge, req.code, "app")
+    except accounts_mod.AuthError as exc:
+        raise HTTPException(status_code=401, detail=str(exc)) from exc
+    if how == "recovery":
+        _tell_owner(listener.user_id, "A FAM recovery code was used",
+                    "Somebody signed in to your FAM account with one of its "
+                    "recovery codes. Each works once; "
+                    f"{ACCOUNTS.two_step(listener.user_id)['recovery_codes_left']} "
+                    "are left.\n\nIf that was not you, change your password and "
+                    "draw new recovery codes in Settings now.\n")
+    old = _session_token(request)
+    token, _user_id = ACCOUNTS.new_session(listener.user_id)
+    if old:
+        ACCOUNTS.end_session(old)
+    request.state.set_session = token
+    return {**listener.as_dict(), "admin": _allowed_admin(listener),
+            "second_factor_used": how,
+            **_maybe_token(request, token, req.want_token)}
+
+
+@app.get("/api/auth/2fa")
+async def auth_two_step_status(request: Request) -> dict:
+    """Whether two-step sign-in is on, codes left, and the recent record."""
+    _read_limit(request)
+    user = _require_account(request)
+    return {**ACCOUNTS.two_step(user),
+            "events": ACCOUNTS.security_events_for(user, 10)}
+
+
+@app.post("/api/auth/2fa/setup")
+async def auth_two_step_setup(request: Request) -> dict:
+    """Start turning it on: a secret for the authenticator app. Nothing
+    changes until `/api/auth/2fa/enable` is sent a code the app made."""
+    _rate_limit(request)
+    user = _require_account(request)
+    try:
+        secret = ACCOUNTS.begin_two_step(user)
+    except accounts_mod.AuthError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    account = ACCOUNTS.account(user) or {}
+    label = account.get("email") or account.get("phone") or "account"
+    return {"secret": secret, "secret_grouped": second_factor_mod.grouped(secret),
+            "otpauth_uri": second_factor_mod.otpauth_uri(secret, label),
+            "expires_in": accounts_mod.TWO_STEP_SETUP_SECONDS}
+
+
+@app.post("/api/auth/2fa/enable")
+async def auth_two_step_enable(req: TwoStepCodeRequest, request: Request) -> dict:
+    """Turn it on with a code from the app. The recovery codes come back
+    here and nowhere else, ever: the server keeps only their hashes."""
+    _rate_limit(request)
+    user = _require_account(request)
+    try:
+        codes = ACCOUNTS.enable_two_step(user, req.code)
+    except accounts_mod.AuthError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    # Signed in elsewhere on a password alone is what this replaces.
+    ended = ACCOUNTS.end_other_sessions(user, _session_token(request))
+    _tell_owner(user, "Two-step sign-in is on for your FAM account",
+                "Signing in to FAM now asks for a code from your authenticator "
+                "app as well as your password. Keep your recovery codes "
+                "somewhere safe - they are how you get in without your phone."
+                "\n\nIf you did not turn this on, contact support now.\n")
+    return {**ACCOUNTS.two_step(user), "recovery_codes": codes,
+            "signed_out_elsewhere": ended}
+
+
+@app.post("/api/auth/2fa/disable")
+async def auth_two_step_disable(req: TwoStepCodeRequest, request: Request) -> dict:
+    """Turn it off, with a current code or a recovery code - holding the
+    session is not enough. Refused for an admin while it is required."""
+    _rate_limit(request)
+    user = _require_account(request)
+    listener = ACCOUNTS.listener_of(user)
+    if _allowed_admin(listener) and _admin_requires_two_step():
+        raise HTTPException(status_code=400, detail=(
+            "Admin accounts must keep two-step sign-in on."))
+    try:
+        await asyncio.to_thread(ACCOUNTS.disable_two_step, user, req.code)
+    except accounts_mod.AuthError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    _tell_owner(user, "Two-step sign-in is off for your FAM account",
+                "Signing in to FAM now asks for your password only.\n\n"
+                "If you did not turn this off, change your password and turn "
+                "two-step sign-in back on in Settings now.\n")
+    return ACCOUNTS.two_step(user)
+
+
+@app.post("/api/auth/2fa/recovery")
+async def auth_two_step_recovery(req: TwoStepCodeRequest, request: Request) -> dict:
+    """Ten new recovery codes; every old one stops working."""
+    _rate_limit(request)
+    user = _require_account(request)
+    try:
+        codes = await asyncio.to_thread(ACCOUNTS.renew_recovery_codes, user,
+                                        req.code)
+    except accounts_mod.AuthError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {**ACCOUNTS.two_step(user), "recovery_codes": codes}
+
+
 @app.get("/api/account")
 async def account_read(request: Request) -> dict:
     """Everything the settings screen shows: who you are, how you get in,
@@ -2528,6 +2706,7 @@ async def account_read(request: Request) -> dict:
         "display_name": account.get("display_name", ""),
         "created": account.get("created", 0),
         "identities": ACCOUNTS.identities_for(user),
+        "two_step": ACCOUNTS.two_step(user),
         "has_password": bool(ACCOUNTS.account(user) and _has_password(user)),
         "sessions": ACCOUNTS.sessions_for(user, _session_token(request)),
         "entitlements": entitlements.describe(tier_name),
@@ -10037,6 +10216,21 @@ def _admin_accounts() -> set[str]:
     return {part.strip().lower() for part in raw.split(",") if part.strip()}
 
 
+def _admin_requires_two_step() -> bool:
+    """Whether `/admin` refuses an admin account without two-step sign-in
+    (§301). On unless `FAM_ADMIN_REQUIRE_TWO_STEP=0`: the dashboard reads
+    every listener's data, and a password alone is one leak from all of it.
+    Read at call time, as `FAM_ADMIN_ACCOUNTS` is."""
+    return os.environ.get("FAM_ADMIN_REQUIRE_TWO_STEP", "1").strip() not in (
+        "0", "false", "False")
+
+
+#: What an admin without two-step sign-in is told at `/admin` (§301).
+ADMIN_NEEDS_TWO_STEP = (
+    "Admin accounts need two-step sign-in. Turn it on in the FAM app under "
+    "Settings > Two-step sign-in, then sign in here again.")
+
+
 def _admin_configured() -> bool:
     return bool(ADMIN_TOKEN or _admin_accounts())
 
@@ -10288,6 +10482,49 @@ async def admin_login(req: AdminLogin, request: Request) -> JSONResponse:
     if not _allowed_admin(listener):
         log.warning("admin sign-in refused for a non-admin account")
         raise refused
+    if ACCOUNTS.has_two_step(listener.user_id):
+        raise SecondFactorRequired(ACCOUNTS.new_challenge(listener.user_id, "admin"))
+    if _admin_requires_two_step():
+        # Said only after the password was right, so it tells nobody new
+        # which addresses are admins.
+        log.warning("admin sign-in refused: no two-step sign-in on the account")
+        raise HTTPException(status_code=403, detail=ADMIN_NEEDS_TWO_STEP)
+    return _admin_session(request, listener)
+
+
+class AdminSecondFactor(BaseModel):
+    challenge: str = Field("", max_length=128)
+    code: str = Field("", max_length=32)
+
+
+@app.post("/api/admin/login/verify")
+async def admin_login_verify(req: AdminSecondFactor, request: Request) -> JSONResponse:
+    """The dashboard's second step: the challenge `/api/admin/login` answered
+    with and a code from the admin's authenticator app (§301)."""
+    if not _admin_accounts():
+        raise HTTPException(status_code=404, detail="Not found")
+    _rate_limit(request)
+    try:
+        listener, how = await asyncio.to_thread(
+            ACCOUNTS.redeem_challenge, req.challenge, req.code, "admin")
+    except accounts_mod.AuthError as exc:
+        raise HTTPException(status_code=401, detail=str(exc)) from exc
+    if not _allowed_admin(listener):
+        raise HTTPException(status_code=401,
+                            detail="That email and password are not an admin's.")
+    if how == "recovery":
+        _tell_owner(listener.user_id, "A FAM recovery code was used for /admin",
+                    "Somebody signed in to FAM's admin dashboard with one of "
+                    "your account's recovery codes. If that was not you, change "
+                    "your password and draw new recovery codes now.\n")
+    return _admin_session(request, listener)
+
+
+def _admin_session(request: Request, listener) -> JSONResponse:
+    """Mint the dashboard's own session for an admin who has proved it.
+    Every one is recorded on the account (§301): who opened the dashboard
+    that reads everyone's data, and when."""
+    ACCOUNTS.record_security_event(listener.user_id, "admin_sign_in")
     old = request.cookies.get(ADMIN_COOKIE, "")
     if old:
         ACCOUNTS.end_session(old)
@@ -10575,6 +10812,11 @@ async def http_error(_: Request, exc: HTTPException):
             log.exception("could not attach the quota verdict to a refusal")
     if headers.get("X-FAM-Refused-By"):
         body["refused_by"] = headers["X-FAM-Refused-By"]
+    # A right password on a two-step account (§301): the challenge to send
+    # the code with. Beside the sentence, so a client that only shows the
+    # sentence still says what to do.
+    if getattr(exc, "second_factor", None):
+        body["second_factor"] = exc.second_factor
     return JSONResponse(body, status_code=exc.status_code, headers=headers or None)
 
 
@@ -10867,6 +11109,7 @@ def _admin_previewing_join(req, request: Request):
     if not _allowed_admin(listener):
         return None
     listener = _admit_admin(listener)
+    _second_step_first(listener)
     old = _session_token(request)
     token, _user_id = ACCOUNTS.new_session(listener.user_id)
     if old:

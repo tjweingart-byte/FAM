@@ -64,6 +64,7 @@ from typing import Optional
 # there because the cost report is what splits on it - but what a plan
 # *allows* is this module's business, so it asks entitlements directly.
 import entitlements
+import second_factor
 from metering import PLANS
 from paths import data_path
 
@@ -281,6 +282,30 @@ def _reset_hash(user_id: str, code: str) -> str:
     return hashlib.sha256(f"fam-reset:{user_id}:{code}".encode()).hexdigest()
 
 
+#: Two-step sign-in (§301). A password that was right buys a challenge, not
+#: a session: five minutes and five tries to send the second proof with it,
+#: and no more than SECOND_FACTOR_MAX_FAILURES wrong codes an account in
+#: SECOND_FACTOR_FAILURE_WINDOW whichever challenges they were sent on - so
+#: logging in again and again cannot buy unlimited guesses at six digits.
+CHALLENGE_SECONDS = 5 * 60
+CHALLENGE_MAX_ATTEMPTS = 5
+SECOND_FACTOR_MAX_FAILURES = 10
+SECOND_FACTOR_FAILURE_WINDOW = 15 * 60
+#: A set-up that was started and never confirmed is forgotten after this.
+TWO_STEP_SETUP_SECONDS = 15 * 60
+
+#: Who a challenge may become: the app's own session, or `/admin`'s.
+CHALLENGE_PURPOSES = ("app", "admin")
+
+
+def _recovery_hash(user_id: str, code: str) -> str:
+    """Keyed on the account, as a reset code is. A recovery code carries 50
+    bits, so a stolen table is not a list of usable codes."""
+    return hashlib.sha256(
+        f"fam-recovery:{user_id}:{second_factor.clean_recovery(code)}".encode()
+    ).hexdigest()
+
+
 def _token_hash(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
@@ -437,6 +462,63 @@ class AccountStore:
                        window_start REAL NOT NULL
                    )"""
             )
+
+            # Two-step sign-in (§301). One row per account that has started
+            # or finished setting it up. `pending` is a secret shown but not
+            # yet confirmed with a code from the app; `secret` is the live
+            # one, and an account has it on exactly when `secret` is set.
+            # `last_step` is the last 30-second step a code was accepted for,
+            # so the same code cannot be used twice.
+            #
+            # The secret is kept as the app holds it, not hashed: TOTP needs
+            # the server to compute the same code, so it must be readable.
+            # Alone it signs nobody in - the password is still asked first.
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS second_factors (
+                       user_id         TEXT PRIMARY KEY,
+                       secret          TEXT NOT NULL DEFAULT '',
+                       pending         TEXT NOT NULL DEFAULT '',
+                       pending_created REAL NOT NULL DEFAULT 0,
+                       enabled_at      REAL NOT NULL DEFAULT 0,
+                       last_step       INTEGER NOT NULL DEFAULT 0
+                   )"""
+            )
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS recovery_codes (
+                       user_id   TEXT NOT NULL,
+                       code_hash TEXT NOT NULL,
+                       created   REAL NOT NULL,
+                       used_at   REAL NOT NULL DEFAULT 0,
+                       PRIMARY KEY (user_id, code_hash)
+                   )"""
+            )
+            # A password accepted for a two-step account, waiting for its
+            # second proof. Only the hash of the token is kept, as a
+            # session's is.
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS sign_in_challenges (
+                       token_hash TEXT PRIMARY KEY,
+                       user_id    TEXT NOT NULL,
+                       purpose    TEXT NOT NULL,
+                       created    REAL NOT NULL,
+                       expires    REAL NOT NULL,
+                       attempts   INTEGER NOT NULL DEFAULT 0
+                   )"""
+            )
+            # What happened to an account's sign-in protection, and when:
+            # turned on, turned off, a recovery code spent, a wrong code. The
+            # owner reads their own (`/api/auth/2fa`), and it is the record
+            # of who did what if an account's ownership is ever in question.
+            # Kinds only - never a code, a secret or an address.
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS security_events (
+                       user_id TEXT NOT NULL,
+                       kind    TEXT NOT NULL,
+                       at      REAL NOT NULL
+                   )"""
+            )
+            conn.execute("CREATE INDEX IF NOT EXISTS security_events_user"
+                         " ON security_events(user_id, at)")
 
     def _conn(self) -> sqlite3.Connection:
         conn = getattr(self._local, "conn", None)
@@ -1146,7 +1228,227 @@ class AccountStore:
         self._conn().execute("DELETE FROM identities WHERE user_id = ?", (user_id,))
         self._conn().execute("DELETE FROM password_resets WHERE user_id = ?",
                              (user_id,))
+        # The second factor and its record go with the account: deleting
+        # an account erases what FAM held about it, this included.
+        for table in ("second_factors", "recovery_codes", "sign_in_challenges",
+                      "security_events"):
+            self._conn().execute(f"DELETE FROM {table} WHERE user_id = ?",
+                                 (user_id,))
         cur = self._conn().execute("DELETE FROM accounts WHERE user_id = ?",
                                    (user_id,))
         return {"account": bool(cur.rowcount), "identities": identities,
                 "sessions": sessions, "email": account.get("email", "")}
+
+    # --- two-step sign-in (§301) --------------------------------------------
+    #
+    # Set up in two moves so a half-finished set-up never locks anybody out:
+    # `begin_two_step` hands back a secret to put in an authenticator app,
+    # and nothing changes until `enable_two_step` is sent a code that app
+    # made. Turning it off, and drawing new recovery codes, both need a
+    # current code - holding a session is not enough, because a phone left
+    # unlocked is exactly what this exists to be more than.
+
+    def has_two_step(self, user_id: str) -> bool:
+        if not user_id:
+            return False
+        # Not wrapped: a store that cannot answer must not read as "off",
+        # which would sign somebody in on a password alone.
+        row = self._conn().execute(
+            "SELECT secret FROM second_factors WHERE user_id = ?",
+            (user_id,)).fetchone()
+        return bool(row and row[0])
+
+    def two_step(self, user_id: str) -> dict:
+        """What the owner's Settings shows: on or off, since when, codes left."""
+        row = self._conn().execute(
+            "SELECT secret, enabled_at FROM second_factors WHERE user_id = ?",
+            (user_id,)).fetchone()
+        left = self._conn().execute(
+            "SELECT COUNT(*) FROM recovery_codes WHERE user_id = ? AND used_at = 0",
+            (user_id,)).fetchone()[0]
+        on = bool(row and row[0])
+        return {"enabled": on, "enabled_at": row[1] if on else 0,
+                "recovery_codes_left": int(left) if on else 0}
+
+    def begin_two_step(self, user_id: str, at: float = 0.0) -> str:
+        """A new secret to show, kept as pending until a code confirms it."""
+        account = self.account(user_id)
+        if not account:
+            raise AuthError("Two-step sign-in needs an account. Sign up first.")
+        if self.has_two_step(user_id):
+            raise AuthError("Two-step sign-in is already on.")
+        now = at or time.time()
+        secret = second_factor.new_secret()
+        self._conn().execute(
+            "INSERT INTO second_factors (user_id, pending, pending_created)"
+            " VALUES (?, ?, ?) ON CONFLICT (user_id) DO UPDATE SET"
+            " pending = excluded.pending,"
+            " pending_created = excluded.pending_created",
+            (user_id, secret, now))
+        return secret
+
+    def enable_two_step(self, user_id: str, code: str,
+                        at: float = 0.0) -> list[str]:
+        """Turn it on with a code the app made from the pending secret.
+        Returns the recovery codes - the only time they exist in the clear."""
+        now = at or time.time()
+        row = self._conn().execute(
+            "SELECT secret, pending, pending_created FROM second_factors"
+            " WHERE user_id = ?", (user_id,)).fetchone()
+        if row and row[0]:
+            raise AuthError("Two-step sign-in is already on.")
+        if not row or not row[1] or now - row[2] > TWO_STEP_SETUP_SECONDS:
+            raise AuthError("That set-up has expired. Start again.")
+        step = second_factor.matching_step(row[1], code, now)
+        if step is None:
+            raise AuthError("That code doesn't match. Check the app's clock "
+                            "and use the newest code.")
+        codes = second_factor.new_recovery_codes()
+        self._conn().execute(
+            "UPDATE second_factors SET secret = pending, pending = '',"
+            " pending_created = 0, enabled_at = ?, last_step = ?"
+            " WHERE user_id = ? AND secret = ''", (now, step, user_id))
+        self._replace_recovery_codes(user_id, codes, now)
+        self.record_security_event(user_id, "two_step_on", now)
+        return codes
+
+    def _replace_recovery_codes(self, user_id: str, codes: list[str],
+                                now: float) -> None:
+        self._conn().execute("DELETE FROM recovery_codes WHERE user_id = ?",
+                             (user_id,))
+        for code in codes:
+            self._conn().execute(
+                "INSERT INTO recovery_codes (user_id, code_hash, created)"
+                " VALUES (?, ?, ?)", (user_id, _recovery_hash(user_id, code), now))
+
+    def check_second_factor(self, user_id: str, code: str,
+                            at: float = 0.0) -> str:
+        """Spend one second proof: "app" or "recovery", or AuthError.
+
+        An app code is accepted once (its step is recorded in the same
+        conditional UPDATE that checks it, so two requests racing with one
+        code cannot both pass); a recovery code is spent. Every wrong code
+        is recorded, and past SECOND_FACTOR_MAX_FAILURES in the window every
+        code is refused until the window passes.
+        """
+        now = at or time.time()
+        refused = AuthError("That code doesn't match. Use the newest code "
+                            "from your authenticator app, or a recovery code.")
+        if self._recent_failures(user_id, now) >= SECOND_FACTOR_MAX_FAILURES:
+            raise AuthError("Too many wrong codes. Wait 15 minutes, then try again.")
+        row = self._conn().execute(
+            "SELECT secret FROM second_factors WHERE user_id = ?",
+            (user_id,)).fetchone()
+        if not row or not row[0]:
+            raise refused
+        if second_factor.looks_like_recovery(code):
+            spent = self._conn().execute(
+                "UPDATE recovery_codes SET used_at = ?"
+                " WHERE user_id = ? AND code_hash = ? AND used_at = 0",
+                (now, user_id, _recovery_hash(user_id, code)))
+            if spent.rowcount == 1:
+                self.record_security_event(user_id, "recovery_code_used", now)
+                return "recovery"
+        else:
+            step = second_factor.matching_step(row[0], code, now)
+            if step is not None:
+                taken = self._conn().execute(
+                    "UPDATE second_factors SET last_step = ?"
+                    " WHERE user_id = ? AND last_step < ?", (step, user_id, step))
+                if taken.rowcount == 1:
+                    return "app"
+        self.record_security_event(user_id, "second_factor_failed", now)
+        raise refused
+
+    def _recent_failures(self, user_id: str, now: float) -> int:
+        row = self._conn().execute(
+            "SELECT COUNT(*) FROM security_events WHERE user_id = ?"
+            " AND kind = 'second_factor_failed' AND at > ?",
+            (user_id, now - SECOND_FACTOR_FAILURE_WINDOW)).fetchone()
+        return int(row[0] or 0)
+
+    def disable_two_step(self, user_id: str, code: str, at: float = 0.0) -> None:
+        """Turn it off, with a current app code or a recovery code."""
+        now = at or time.time()
+        self.check_second_factor(user_id, code, now)
+        self._conn().execute("DELETE FROM second_factors WHERE user_id = ?",
+                             (user_id,))
+        self._conn().execute("DELETE FROM recovery_codes WHERE user_id = ?",
+                             (user_id,))
+        self._conn().execute("DELETE FROM sign_in_challenges WHERE user_id = ?",
+                             (user_id,))
+        self.record_security_event(user_id, "two_step_off", now)
+
+    def renew_recovery_codes(self, user_id: str, code: str,
+                             at: float = 0.0) -> list[str]:
+        """Ten new recovery codes, the old ones void. Needs a current code."""
+        now = at or time.time()
+        self.check_second_factor(user_id, code, now)
+        codes = second_factor.new_recovery_codes()
+        self._replace_recovery_codes(user_id, codes, now)
+        self.record_security_event(user_id, "recovery_codes_renewed", now)
+        return codes
+
+    # Challenges: the half-way state between a right password and a session.
+
+    def new_challenge(self, user_id: str, purpose: str = "app",
+                      at: float = 0.0) -> str:
+        if purpose not in CHALLENGE_PURPOSES:
+            raise ValueError(f"unknown challenge purpose {purpose!r}")
+        now = at or time.time()
+        token = secrets.token_urlsafe(TOKEN_BYTES)
+        self._conn().execute(
+            "DELETE FROM sign_in_challenges WHERE expires < ?", (now,))
+        self._conn().execute(
+            "INSERT INTO sign_in_challenges (token_hash, user_id, purpose,"
+            " created, expires) VALUES (?, ?, ?, ?, ?)",
+            (_token_hash(token), user_id, purpose, now, now + CHALLENGE_SECONDS))
+        return token
+
+    def redeem_challenge(self, token: str, code: str, purpose: str = "app",
+                         at: float = 0.0) -> tuple[Listener, str]:
+        """The listener a challenge was for, once its second proof is right,
+        and which proof it was ("app" or "recovery"). The challenge is spent
+        on success and counts its tries like a reset code does."""
+        now = at or time.time()
+        expired = AuthError("That sign-in has expired. Enter your password again.")
+        if not token:
+            raise expired
+        key = _token_hash(token)
+        row = self._conn().execute(
+            "SELECT user_id FROM sign_in_challenges WHERE token_hash = ?"
+            " AND purpose = ?", (key, purpose)).fetchone()
+        if not row:
+            raise expired
+        # Counted before it is checked, in one conditional UPDATE, for the
+        # reason `finish_reset` gives: parallel guesses must not all pass
+        # a check that none of them has added to yet.
+        spent = self._conn().execute(
+            "UPDATE sign_in_challenges SET attempts = attempts + 1"
+            " WHERE token_hash = ? AND attempts < ? AND expires >= ?",
+            (key, CHALLENGE_MAX_ATTEMPTS, now))
+        if spent.rowcount != 1:
+            raise expired
+        how = self.check_second_factor(row[0], code, now)
+        self._conn().execute("DELETE FROM sign_in_challenges WHERE token_hash = ?",
+                             (key,))
+        self._conn().execute(
+            "UPDATE accounts SET last_login = ? WHERE user_id = ?", (now, row[0]))
+        return self.listener_of(row[0]), how
+
+    # The record.
+
+    def record_security_event(self, user_id: str, kind: str,
+                              at: float = 0.0) -> None:
+        try:
+            self._conn().execute(
+                "INSERT INTO security_events (user_id, kind, at) VALUES (?, ?, ?)",
+                (user_id, kind, at or time.time()))
+        except Exception:
+            log.exception("could not record a security event %r", kind)
+
+    def security_events_for(self, user_id: str, limit: int = 20) -> list[dict]:
+        rows = self._conn().execute(
+            "SELECT kind, at FROM security_events WHERE user_id = ?"
+            " ORDER BY at DESC LIMIT ?", (user_id, int(limit))).fetchall()
+        return [{"kind": r[0], "at": r[1]} for r in rows]

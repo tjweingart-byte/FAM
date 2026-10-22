@@ -3394,13 +3394,13 @@
                  than no control. -->
             <div class="auth-sub" id="authSub">Takes ten seconds. Listening stays free either way.</div>
             <form id="authForm" onsubmit="event.preventDefault(); submitAuthForm();" novalidate>
-              <div class="auth-field">
+              <div class="auth-field" id="authEmailField">
                 <div class="auth-label">Email</div>
                 <input class="modal-input" id="authEmail" type="email"
                        autocomplete="email" placeholder="you@example.com"
                        style="margin-bottom:0;" oninput="clearAuthError()">
               </div>
-              <div class="auth-field">
+              <div class="auth-field" id="authPasswordField">
                 <div class="auth-label">Password</div>
                 <div class="pw-row">
                   <input class="modal-input" id="authPassword" type="password"
@@ -3429,6 +3429,17 @@
                          placeholder="(888) 888-8888" style="margin-bottom:0;"
                          oninput="formatPhoneInput(this)">
                 </div>
+              </div>
+              <!-- Two-step sign-in (§301): drawn only after a right password on
+                   an account that has it on, which the server answers with a
+                   challenge instead of a session. -->
+              <div class="auth-field" id="authCodeField" hidden>
+                <div class="auth-label">Code from your authenticator app</div>
+                <input class="modal-input" id="authCode" type="text"
+                       inputmode="numeric" autocomplete="one-time-code"
+                       maxlength="12" placeholder="123456"
+                       style="margin-bottom:0;" oninput="clearAuthError()">
+                <p class="entry-note" style="margin-top:8px;">Lost your phone? Enter one of your recovery codes instead.</p>
               </div>
               <p class="auth-error" id="authError" role="alert" hidden></p>
               <button class="entry-btn primary" id="authSubmit" type="submit">Create account</button>
@@ -14838,13 +14849,17 @@
       body: JSON.stringify(body)
     }).then(function(r){
       return r.json().then(function(d){
-        if(!r.ok) throw new Error(d.error || "That did not work");
+        if(!r.ok){
+          var err = new Error(d.error || "That did not work");
+          err.body = d;
+          throw err;
+        }
         return d;
       });
     }).then(function(d){
       toast(okMessage);
       return refreshAuth().then(function(){ loadProfile(); checkTerms(); return d; });
-    }).catch(function(err){ (onError || toast)(err.message); });
+    }).catch(function(err){ (onError || toast)(err.message, err); });
   }
 
   // `createAccount` and `signIn` are gone, not merely unused. They were two
@@ -14965,6 +14980,103 @@
         });
       }
     });
+  }
+
+  // --- two-step sign-in in Settings (§301) ----------------------------------
+  //
+  // Set up in two moves, as the server does: a secret to put in an
+  // authenticator app, then a code that app made. The recovery codes are
+  // shown once, straight after, and never again - the server keeps only
+  // their hashes. Turning it off, or drawing new codes, needs a current code.
+  var twoStep = null;
+  function loadTwoStep(){
+    return fetch("/api/auth/2fa").then(function(r){ return r.ok ? r.json() : null; })
+      .catch(function(){ return null; })
+      .then(function(d){ twoStep = d; });
+  }
+  function twoStepSummary(){
+    if(!twoStep) return "";
+    return twoStep.enabled ? "On" : "Off";
+  }
+  function openTwoStep(){
+    loadTwoStep().then(function(){
+      if(twoStep && twoStep.enabled) return twoStepOnSheet();
+      startTwoStep();
+    });
+  }
+  function twoStepNote(html){
+    return '<div class="set-note" style="padding:14px 18px 6px;">' + html + '</div>';
+  }
+  function twoStepOnSheet(){
+    var left = twoStep.recovery_codes_left || 0;
+    showActionSheet([
+      { head: twoStepNote("Two-step sign-in is on. Signing in asks for a code "
+          + "from your authenticator app as well as your password. "
+          + left + " recovery code" + (left === 1 ? "" : "s") + " left.") },
+      { label: "Get new recovery codes", action: function(){
+          askTwoStepCode("New recovery codes", function(code){
+            resetPost("/api/auth/2fa/recovery", { code: code })
+              .then(function(d){ twoStep = d; showRecoveryCodes(d.recovery_codes); })
+              .catch(function(err){ toast(err.message); });
+          });
+        } },
+      { label: "Turn off two-step sign-in", danger: true, action: function(){
+          askTwoStepCode("Turn off two-step sign-in", function(code){
+            resetPost("/api/auth/2fa/disable", { code: code })
+              .then(function(d){ twoStep = d; toast("Two-step sign-in is off"); renderSettings(); })
+              .catch(function(err){ toast(err.message); });
+          });
+        } }
+    ]);
+  }
+  function askTwoStepCode(title, then){
+    showModal({ title: title, placeholder: "Code from your app, or a recovery code",
+                confirmLabel: "Confirm", onConfirm: then });
+  }
+  function startTwoStep(){
+    resetPost("/api/auth/2fa/setup", {})
+      .then(function(d){
+        showActionSheet([
+          { head: twoStepNote("Add FAM to an authenticator app &mdash; Apple "
+              + "Passwords, Google Authenticator, 1Password or Authy. "
+              + '<a href="' + escapeHtml(d.otpauth_uri) + '" style="color:inherit;'
+              + 'text-decoration:underline;">Open it in your app</a>, '
+              + "or type this key into it:"
+              + '<div style="font-family:\'Geist Mono\', monospace;font-size:15px;'
+              + 'letter-spacing:.06em;margin:10px 0 2px;user-select:all;">'
+              + escapeHtml(d.secret_grouped) + '</div>') },
+          { label: "Enter the code from the app", action: function(){
+              askTwoStepCode("Code from the app", function(code){
+                resetPost("/api/auth/2fa/enable", { code: code })
+                  .then(function(on){
+                    twoStep = on;
+                    renderSettings();
+                    showRecoveryCodes(on.recovery_codes, true);
+                  })
+                  .catch(function(err){ toast(err.message); });
+              });
+            } }
+        ]);
+      })
+      .catch(function(err){ toast(err.message); });
+  }
+  function showRecoveryCodes(codes, justOn){
+    var text = (codes || []).join("\n");
+    showActionSheet([
+      { head: twoStepNote((justOn ? "Two-step sign-in is on. " : "")
+          + "Save these recovery codes somewhere safe. Each one signs you in "
+          + "once without your phone, and this is the only time they&rsquo;re shown."
+          + '<pre style="font-family:\'Geist Mono\', monospace;font-size:15px;'
+          + 'line-height:1.6;margin:10px 0 2px;user-select:all;white-space:pre-wrap;">'
+          + escapeHtml(text) + '</pre>') },
+      { label: "Copy the codes", action: function(){
+          try {
+            navigator.clipboard.writeText(text).then(function(){ toast("Copied"); },
+              function(){ toast("Couldn\u2019t copy \u2014 write them down instead"); });
+          } catch(e){ toast("Couldn\u2019t copy \u2014 write them down instead"); }
+        } },
+      { label: "I\u2019ve saved them", action: function(){} }
+    ]);
   }
 
   refreshAuth();
@@ -16255,6 +16367,7 @@
     loadAiConsent().then(renderSettings);
     if(AUTH.authenticated){
       loadBlocked().then(renderSettings);
+      loadTwoStep().then(renderSettings);
     }
   }
 
@@ -16367,6 +16480,7 @@
         + '<div class="set-note">When it\u2019s on, anyone who opens an episode you searched can see your @handle in the player\u2019s menu.</div>';
       html += settingsRow("Signed in as", escapeHtml(AUTH.email), "")
         + settingsRow("Change password", "", "changePassword()")
+        + settingsRow("Two-step sign-in", twoStepSummary(), "openTwoStep()")
         + settingsRow("Log out", "", "logOut()")
         + settingsRow("Delete account", "", "confirmDeleteAccount()", true)
         + '<div class="set-note">Password reset isn\u2019t available yet, so keep your password somewhere safe. Deleting your account is immediate and can\u2019t be undone.</div>';
@@ -21392,6 +21506,7 @@
       return;
     }
     authMode = mode;
+    leaveSecondStep();
     // Opened from a gated screen (DailyFAM, say) rather than from the welcome
     // screen, this is a detour: it has to come back to where it started.
     var active = document.querySelector(".screen.active");
@@ -21519,7 +21634,18 @@
     btn.disabled = true;
     btn.textContent = "Saving\u2026";
     postAuth("/api/auth/reset/finish", { email: email, code: code, new: password },
-             "Password changed. You\u2019re signed in.", showResetError)
+             "Password changed. You\u2019re signed in.", function(message, err){
+               // Two-step sign-in (§301): the password is changed, and the
+               // app's code is still asked before this device is signed in.
+               var step = err && err.body && err.body.second_factor;
+               if(step && step.challenge){
+                 document.getElementById("resetPassword").value = "";
+                 askSecondStep(step.challenge, "Password changed. Now enter the "
+                   + "6-digit code from your authenticator app.");
+                 return;
+               }
+               showResetError(message);
+             })
       .then(function(){
         btn.disabled = false;
         btn.textContent = "Set new password";
@@ -21688,7 +21814,72 @@
     num.value = prettyPhone(raw.slice(best.length), best);
   }
 
+  // --- two-step sign-in (§301) ---------------------------------------------
+  //
+  // A right password on an account with two-step sign-in on is answered
+  // with a challenge, not a session. The form then asks for the code from
+  // the authenticator app (or a recovery code) and sends it with that
+  // challenge; nothing is signed in until it has.
+  var authChallenge = "";
+  function askSecondStep(challenge, message){
+    authChallenge = challenge;
+    if(authMode !== "login"){ authMode = "login"; }
+    document.getElementById("authForm").hidden = false;
+    document.getElementById("authReset").hidden = true;
+    ["authEmailField", "authPasswordField", "authPhoneField", "authTermsField"]
+      .forEach(function(id){ document.getElementById(id).hidden = true; });
+    document.getElementById("authNote").hidden = true;
+    document.getElementById("authForgotRow").hidden = true;
+    document.getElementById("authCodeField").hidden = false;
+    document.getElementById("authCode").value = "";
+    document.getElementById("authTitle").textContent = "Two-step sign-in";
+    document.getElementById("authSub").textContent = message ||
+      "Enter the 6-digit code from your authenticator app.";
+    document.getElementById("authSubmit").textContent = "Verify";
+    document.getElementById("authSwitch").innerHTML =
+      'Wrong account? <button type="button" onclick="switchAuthMode(\'login\')">Start again</button>';
+    try { document.getElementById("authCode").focus({ preventScroll: true }); } catch(e){}
+  }
+  function leaveSecondStep(){
+    authChallenge = "";
+    document.getElementById("authCodeField").hidden = true;
+    document.getElementById("authCode").value = "";
+    document.getElementById("authEmailField").hidden = false;
+    document.getElementById("authPasswordField").hidden = false;
+  }
+  // An auth refusal: the code step when it carries a challenge, else the
+  // sentence under the fields.
+  function authRefused(message, err){
+    var step = err && err.body && err.body.second_factor;
+    if(step && step.challenge){ askSecondStep(step.challenge); return; }
+    if(authChallenge && /expired/i.test(message)){
+      var back = authReturn;
+      openAuth("login");
+      authReturn = back;
+    }
+    showAuthError(message);
+  }
+  function submitSecondStep(){
+    var code = document.getElementById("authCode").value.trim();
+    if(!code){ showAuthError("Enter the code from your authenticator app."); return; }
+    clearAuthError();
+    var btn = document.getElementById("authSubmit");
+    btn.disabled = true;
+    btn.textContent = "Checking\u2026";
+    return postAuth("/api/auth/2fa/verify", { challenge: authChallenge, code: code },
+                    "Signed in", authRefused)
+      .then(function(){
+        btn.disabled = false;
+        btn.textContent = "Verify";
+        if(!AUTH.authenticated) return;
+        leaveSecondStep();
+        document.getElementById("authPassword").value = "";
+        afterAuthSuccess();
+      });
+  }
+
   function submitAuthForm(){
+    if(authChallenge){ submitSecondStep(); return; }
     var email = document.getElementById("authEmail").value.trim();
     var password = document.getElementById("authPassword").value;
     var phone = phoneValue("authPhoneCC", "authPhone");
@@ -21717,36 +21908,40 @@
     btn.disabled = true;
     btn.textContent = authMode === "login" ? "Logging in\u2026" : "Creating account\u2026";
     postAuth(path, body, authMode === "login"
-      ? "Signed in" : "Welcome to FAM", showAuthError)
+      ? "Signed in" : "Welcome to FAM", authRefused)
       .then(function(){
         btn.disabled = false;
-        btn.textContent = label;
+        if(!authChallenge) btn.textContent = label;
         if(!AUTH.authenticated) return;    // the error is under the fields
         document.getElementById("authPassword").value = "";
-        // Anything chosen before signing up is theirs now, so it is written
-        // through rather than left stranded in this browser.
-        var local = localPrefs();
-        if((local.interests || []).length || local.language){
-          savePreferences({ interests: local.interests || [],
-                            language: local.language || "en" });
-        }
-        if(authReturn){
-          // Came in from a gated screen. Put them back on it, now working.
-          var back = authReturn;
-          authReturn = "";
-          showScreen(back);
-          if(back === "playfam") loadMixes();
-          if(back === "myfam") loadMyFamFeed();
-          // The Profile tab is a door until there is an account and the whole
-          // page once there is, so coming back to it has to redraw it - and
-          // Settings carries account rows that have just changed meaning.
-          if(back === "profile") loadProfile();
-          if(back === "settings"){ renderSettings(); loadPrefChoices().then(renderSettings); }
-          if(back === "messages") renderThreadList();
-          return;
-        }
-        afterAccount();
+        afterAuthSuccess();
       });
+  }
+
+  function afterAuthSuccess(){
+    // Anything chosen before signing up is theirs now, so it is written
+    // through rather than left stranded in this browser.
+    var local = localPrefs();
+    if((local.interests || []).length || local.language){
+      savePreferences({ interests: local.interests || [],
+                        language: local.language || "en" });
+    }
+    if(authReturn){
+      // Came in from a gated screen. Put them back on it, now working.
+      var back = authReturn;
+      authReturn = "";
+      showScreen(back);
+      if(back === "playfam") loadMixes();
+      if(back === "myfam") loadMyFamFeed();
+      // The Profile tab is a door until there is an account and the whole
+      // page once there is, so coming back to it has to redraw it - and
+      // Settings carries account rows that have just changed meaning.
+      if(back === "profile") loadProfile();
+      if(back === "settings"){ renderSettings(); loadPrefChoices().then(renderSettings); }
+      if(back === "messages") renderThreadList();
+      return;
+    }
+    afterAccount();
   }
 
   function skipAccount(){
