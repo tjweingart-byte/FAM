@@ -2172,6 +2172,14 @@ class SecondFactorRequest(BaseModel):
     want_token: bool = False
 
 
+class TwoStepSetupRequest(BaseModel):
+    """Starting two-step set-up: the current password, on an account that
+    has one (§301) - holding a session is not enough to change how the
+    account is signed in to."""
+
+    password: str = Field("", max_length=accounts_mod.MAX_PASSWORD)
+
+
 class TwoStepCodeRequest(BaseModel):
     """A current code, for turning two-step sign-in on or off or drawing new
     recovery codes (§301)."""
@@ -2616,16 +2624,27 @@ async def auth_two_step_status(request: Request) -> dict:
     _read_limit(request)
     user = _require_account(request)
     return {**ACCOUNTS.two_step(user),
+            # Whether set-up asks for the password (an account with none
+            # proves itself by a fresh sign-in instead).
+            "needs_password": _has_password(user),
             "events": ACCOUNTS.security_events_for(user, 10)}
 
 
 @app.post("/api/auth/2fa/setup")
-async def auth_two_step_setup(request: Request) -> dict:
+async def auth_two_step_setup(request: Request,
+                              req: Optional[TwoStepSetupRequest] = None) -> dict:
     """Start turning it on: a secret for the authenticator app. Nothing
-    changes until `/api/auth/2fa/enable` is sent a code the app made."""
+    changes until `/api/auth/2fa/enable` is sent a code the app made.
+
+    Needs the current password, or on an account without one a fresh
+    sign-in (`may_start_two_step`): otherwise a stolen session could turn
+    it on with the thief's own app and lock the owner out."""
     _rate_limit(request)
     user = _require_account(request)
     try:
+        await asyncio.to_thread(ACCOUNTS.may_start_two_step, user,
+                                (req.password if req else ""),
+                                _session_token(request))
         secret = ACCOUNTS.begin_two_step(user)
     except accounts_mod.AuthError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -10253,7 +10272,9 @@ def _admin_listener(request: Request):
     token = request.cookies.get(ADMIN_COOKIE, "")
     if not token:
         return None
-    return ACCOUNTS.listener_for(token)
+    # An admin-kind session only (§301): an app session, which a password
+    # alone can mint, is never accepted here.
+    return ACCOUNTS.listener_for(token, kind="admin")
 
 
 def _allowed_admin(listener) -> bool:
@@ -10268,8 +10289,14 @@ def _allowed_admin(listener) -> bool:
 
 
 def _is_admin_account(request: Request) -> bool:
-    """Signed in to `/admin` with an admin's email and password."""
-    return _allowed_admin(_admin_listener(request))
+    """Signed in to `/admin` with an admin's email and password - and, while
+    it is required, an account that has two-step sign-in on (§301), checked
+    here as well as at sign-in so a requirement switched on later holds for
+    a dashboard session already open."""
+    listener = _admin_listener(request)
+    if not _allowed_admin(listener):
+        return False
+    return not _admin_requires_two_step() or ACCOUNTS.has_two_step(listener.user_id)
 
 
 def _admin_request(request: Request) -> bool:
@@ -10528,7 +10555,7 @@ def _admin_session(request: Request, listener) -> JSONResponse:
     old = request.cookies.get(ADMIN_COOKIE, "")
     if old:
         ACCOUNTS.end_session(old)
-    token, _ = ACCOUNTS.new_session(listener.user_id)
+    token, _ = ACCOUNTS.new_session(listener.user_id, kind="admin")
     response = JSONResponse({"ok": True, "email": listener.email})
     # No max_age: a browser-session cookie, never a remembered sign-in.
     response.set_cookie(ADMIN_COOKIE, token,

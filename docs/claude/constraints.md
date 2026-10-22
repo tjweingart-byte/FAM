@@ -1600,7 +1600,13 @@
   hashes; turning it off or drawing new codes needs a current code, not the
   session. Turning it on, off, a recovery code spent and an admin sign-in
   are recorded in `security_events` and the owner is emailed; deleting the
-  account erases all of it. The `FAM_ADMIN_TOKEN` header is a machine
+  account erases all of it. Starting set-up needs the password (or, on an
+  account with none, a sign-in under 15 minutes old), so a stolen session
+  cannot turn it on with the thief's app. A session has a **kind**
+  (`app` or `admin`, `sessions.kind`) and a token of one is never accepted
+  as the other: an app session, which a password alone can mint, never
+  opens `/admin`, and the requirement is checked on every dashboard
+  request, not only at its sign-in. The `FAM_ADMIN_TOKEN` header is a machine
   credential and is not behind it - keep it unset unless a script needs it.
 
 <!-- rule:authorship-provenance -->

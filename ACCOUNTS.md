@@ -179,8 +179,12 @@ Settings and for **every admin** at `/admin`:
   Authenticator, 1Password, Authy), or **one of ten recovery codes**, each
   good once. No SMS: it needs a paid vendor, a number can be moved to
   another SIM, and a phone number on FAM has never been verified.
-* **Set-up is two moves.** `POST /api/auth/2fa/setup` returns a secret (and
-  an `otpauth://` link for the app); nothing changes until
+* **Set-up is two moves.** `POST /api/auth/2fa/setup {password}` returns a
+  secret (and an `otpauth://` link for the app). It needs the current
+  password - or, on an account with none (Google, Apple, an email-only
+  join), a sign-in under 15 minutes old - so a stolen session cannot turn
+  it on with somebody else's app. Asking again while a set-up is open
+  returns the same secret. Nothing changes until
   `POST /api/auth/2fa/enable` is sent a code that app made. The recovery
   codes come back from that call and never again - only hashes are kept.
 * **Signing in.** Every route that ends in a session asks first. A right
@@ -201,6 +205,10 @@ Settings and for **every admin** at `/admin`:
   `security_events` (kinds and times only) and shown to the owner by
   `GET /api/auth/2fa`; the owner is emailed when it is turned on or off or
   a recovery code is used. Deleting the account erases all of it.
+* **Two kinds of session.** `sessions.kind` is `app` or `admin`, and a
+  token of one is never accepted as the other: the app's session (which a
+  password alone can mint) never opens `/admin`, and the dashboard's never
+  signs in to the app.
 * **Admins.** `/api/admin/login` refuses an admin account without two-step
   sign-in (403, saying how to turn it on) and answers one with it with a
   challenge for `/api/admin/login/verify`. `FAM_ADMIN_REQUIRE_TWO_STEP=0`
@@ -420,7 +428,7 @@ is not a browser, sends no `Origin`, and needs nothing here.
     POST   /api/auth/reset/finish     the code + a new password; signs this device in
     POST   /api/auth/2fa/verify       a two-step sign-in's challenge + code (§301)
     GET    /api/auth/2fa              on/off, recovery codes left, recent record
-    POST   /api/auth/2fa/setup        a secret for the authenticator app
+    POST   /api/auth/2fa/setup        the password; a secret for the authenticator app
     POST   /api/auth/2fa/enable       a code from the app; returns recovery codes once
     POST   /api/auth/2fa/disable      a current code; turns it off
     POST   /api/auth/2fa/recovery     a current code; ten new recovery codes

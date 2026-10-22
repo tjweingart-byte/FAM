@@ -15001,7 +15001,14 @@
   function openTwoStep(){
     loadTwoStep().then(function(){
       if(twoStep && twoStep.enabled) return twoStepOnSheet();
-      startTwoStep();
+      // The password first, on an account that has one: holding this
+      // session is not proof enough to change how the account signs in.
+      if(twoStep && twoStep.needs_password){
+        showModal({ title: "Your password", placeholder: "", confirmLabel: "Next",
+                    inputType: "password", onConfirm: startTwoStep });
+        return;
+      }
+      startTwoStep("");
     });
   }
   function twoStepNote(html){
@@ -15033,8 +15040,8 @@
     showModal({ title: title, placeholder: "Code from your app, or a recovery code",
                 confirmLabel: "Confirm", onConfirm: then });
   }
-  function startTwoStep(){
-    resetPost("/api/auth/2fa/setup", {})
+  function startTwoStep(password){
+    resetPost("/api/auth/2fa/setup", { password: password || "" })
       .then(function(d){
         showActionSheet([
           { head: twoStepNote("Add FAM to an authenticator app &mdash; Apple "
@@ -15045,20 +15052,27 @@
               + '<div style="font-family:\'Geist Mono\', monospace;font-size:15px;'
               + 'letter-spacing:.06em;margin:10px 0 2px;user-select:all;">'
               + escapeHtml(d.secret_grouped) + '</div>') },
-          { label: "Enter the code from the app", action: function(){
-              askTwoStepCode("Code from the app", function(code){
-                resetPost("/api/auth/2fa/enable", { code: code })
-                  .then(function(on){
-                    twoStep = on;
-                    renderSettings();
-                    showRecoveryCodes(on.recovery_codes, true);
-                  })
-                  .catch(function(err){ toast(err.message); });
-              });
-            } }
+          { label: "Enter the code from the app", action: confirmTwoStep }
         ]);
       })
       .catch(function(err){ toast(err.message); });
+  }
+  // A wrong code asks again with the same secret: the entry already in
+  // their app stays the right one.
+  function confirmTwoStep(){
+    askTwoStepCode("Code from the app", function(code){
+      resetPost("/api/auth/2fa/enable", { code: code })
+        .then(function(on){
+          twoStep = on;
+          renderSettings();
+          showRecoveryCodes(on.recovery_codes, true);
+        })
+        .catch(function(err){
+          toast(err.message);
+          if(/expired|already/i.test(err.message)) return;
+          confirmTwoStep();
+        });
+    });
   }
   function showRecoveryCodes(codes, justOn){
     var text = (codes || []).join("\n");

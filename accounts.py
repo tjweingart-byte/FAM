@@ -294,8 +294,17 @@ SECOND_FACTOR_FAILURE_WINDOW = 15 * 60
 #: A set-up that was started and never confirmed is forgotten after this.
 TWO_STEP_SETUP_SECONDS = 15 * 60
 
-#: Who a challenge may become: the app's own session, or `/admin`'s.
+#: Who a challenge may become: the app's own session, or `/admin`'s - the
+#: same two kinds a session itself can be.
 CHALLENGE_PURPOSES = ("app", "admin")
+SESSION_KINDS = CHALLENGE_PURPOSES
+
+#: Turning two-step sign-in on needs the password, on an account that has
+#: one; an account with none (Google, Apple, an email-only waitlist join)
+#: needs a session this young instead - signing in again is its proof.
+#: Otherwise a stolen session could turn it on with the thief's own app and
+#: lock the owner out of their own account.
+TWO_STEP_FRESH_SESSION_SECONDS = 15 * 60
 
 
 def _recovery_hash(user_id: str, code: str) -> str:
@@ -400,6 +409,12 @@ class AccountStore:
                 # The waitlist's "personalize your experience" (10.2 packet):
                 # YYYY-MM-DD, or "" when not given.
                 "ALTER TABLE accounts ADD COLUMN birth_date TEXT NOT NULL DEFAULT ''",
+                # Which door a session opens (§301): 'app' for the app's own,
+                # 'admin' for the dashboard's. Kept apart so a token from one
+                # is never accepted as the other - an app session minted on a
+                # password alone must not open `/admin`, whose sign-in asks
+                # for a second factor. Existing rows are app sessions.
+                "ALTER TABLE sessions ADD COLUMN kind TEXT NOT NULL DEFAULT 'app'",
             ):
                 try:
                     conn.execute(ddl)
@@ -530,25 +545,32 @@ class AccountStore:
 
     # --- sessions ---------------------------------------------------------
 
-    def new_session(self, user_id: str = "", at: float = 0.0) -> tuple[str, str]:
+    def new_session(self, user_id: str = "", at: float = 0.0,
+                    kind: str = "app") -> tuple[str, str]:
         """Mint a session. Returns (token, user_id).
 
         With no `user_id` this is an anonymous listener, and the id is minted
         here rather than accepted from the client - which is the entire point.
+        `kind` is the door it opens: "app", or "admin" for `/admin` (§301).
         """
+        if kind not in SESSION_KINDS:
+            raise ValueError(f"unknown session kind {kind!r}")
         now = at or time.time()
         token = secrets.token_urlsafe(TOKEN_BYTES)
         user_id = user_id or new_listener_id()
         self._conn().execute(
-            "INSERT INTO sessions (token_hash, user_id, created, expires, last_used)"
-            " VALUES (?, ?, ?, ?, ?)",
-            (_token_hash(token), user_id, now, now + SESSION_TTL, now),
+            "INSERT INTO sessions (token_hash, user_id, created, expires,"
+            " last_used, kind) VALUES (?, ?, ?, ?, ?, ?)",
+            (_token_hash(token), user_id, now, now + SESSION_TTL, now, kind),
         )
         self._maybe_prune(now)
         return token, user_id
 
-    def listener_for(self, token: str, at: float = 0.0) -> Optional[Listener]:
-        """Who this token belongs to, or None if it is unknown or expired."""
+    def listener_for(self, token: str, at: float = 0.0,
+                     kind: str = "app") -> Optional[Listener]:
+        """Who this token belongs to, or None if it is unknown, expired, or a
+        session of another kind (an admin token is not an app session, nor
+        the reverse)."""
         if not token:
             return None
         now = at or time.time()
@@ -559,8 +581,8 @@ class AccountStore:
                 "       a.user_id IS NOT NULL, COALESCE(a.status, '')"
                 " FROM sessions s"
                 " LEFT JOIN accounts a ON a.user_id = s.user_id"
-                " WHERE s.token_hash = ? AND s.expires > ?",
-                (_token_hash(token), now),
+                " WHERE s.token_hash = ? AND s.expires > ? AND s.kind = ?",
+                (_token_hash(token), now, kind),
             ).fetchone()
         except Exception:
             log.exception("could not read session")
@@ -1186,7 +1208,8 @@ class AccountStore:
         try:
             rows = self._conn().execute(
                 "SELECT token_hash, created, last_used, expires FROM sessions"
-                " WHERE user_id = ? AND expires > ? ORDER BY last_used DESC",
+                " WHERE user_id = ? AND expires > ? AND kind = 'app'"
+                " ORDER BY last_used DESC",
                 (user_id, now),
             ).fetchall()
         except Exception:
@@ -1278,6 +1301,13 @@ class AccountStore:
         if self.has_two_step(user_id):
             raise AuthError("Two-step sign-in is already on.")
         now = at or time.time()
+        # A set-up still in progress keeps its secret: asking again (after a
+        # mistyped code, say) must not void the entry already in their app.
+        row = self._conn().execute(
+            "SELECT pending, pending_created FROM second_factors WHERE user_id = ?",
+            (user_id,)).fetchone()
+        if row and row[0] and now - row[1] <= TWO_STEP_SETUP_SECONDS:
+            return row[0]
         secret = second_factor.new_secret()
         self._conn().execute(
             "INSERT INTO second_factors (user_id, pending, pending_created)"
@@ -1304,10 +1334,15 @@ class AccountStore:
             raise AuthError("That code doesn't match. Check the app's clock "
                             "and use the newest code.")
         codes = second_factor.new_recovery_codes()
-        self._conn().execute(
+        # Conditional, and checked: two set-ups confirmed at once (two tabs)
+        # turn it on once, and only that one is handed recovery codes.
+        turned = self._conn().execute(
             "UPDATE second_factors SET secret = pending, pending = '',"
             " pending_created = 0, enabled_at = ?, last_step = ?"
-            " WHERE user_id = ? AND secret = ''", (now, step, user_id))
+            " WHERE user_id = ? AND secret = '' AND pending = ?",
+            (now, step, user_id, row[1]))
+        if turned.rowcount != 1:
+            raise AuthError("Two-step sign-in is already on.")
         self._replace_recovery_codes(user_id, codes, now)
         self.record_security_event(user_id, "two_step_on", now)
         return codes
@@ -1388,6 +1423,27 @@ class AccountStore:
         self._replace_recovery_codes(user_id, codes, now)
         self.record_security_event(user_id, "recovery_codes_renewed", now)
         return codes
+
+    def may_start_two_step(self, user_id: str, password: str = "",
+                           session_token: str = "", at: float = 0.0) -> None:
+        """Raise unless this request has proved more than holding a session:
+        the password, or for an account without one, a fresh sign-in."""
+        now = at or time.time()
+        row = self._conn().execute(
+            "SELECT password FROM accounts WHERE user_id = ?", (user_id,)).fetchone()
+        if not row:
+            raise AuthError("Two-step sign-in needs an account. Sign up first.")
+        if row[0]:
+            if not verify_password(str(password or ""), row[0]):
+                raise AuthError("Enter your current password to turn on "
+                                "two-step sign-in.")
+            return
+        made = self._conn().execute(
+            "SELECT created FROM sessions WHERE token_hash = ? AND user_id = ?",
+            (_token_hash(session_token or ""), user_id)).fetchone()
+        if not made or now - made[0] > TWO_STEP_FRESH_SESSION_SECONDS:
+            raise AuthError("Log out and sign in again, then turn on two-step "
+                            "sign-in within 15 minutes.")
 
     # Challenges: the half-way state between a right password and a session.
 

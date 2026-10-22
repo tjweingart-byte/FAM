@@ -21653,6 +21653,33 @@ The interface: Settings → Two-step sign-in (set-up sheet with an
 `otpauth://` link and the key in fours, then a code, then the recovery codes
 once); the log-in, waitlist and reset pages draw a code step when asked.
 
+**Review before the merge.** An independent read of the branch's diff found
+one hole and three faults, each fixed:
+
+* *The admin requirement could be walked around.* The `fam_admin` cookie
+  was checked against the same `sessions` table as the app's, so an app
+  session - mintable with an admin's password alone while their two-step
+  was off - worked as the dashboard's cookie. Sessions now have a kind
+  (`app`/`admin`, a column added with `app` as the default) and
+  `listener_for` reads only the kind asked for; and `_is_admin_account`
+  checks the requirement on every dashboard request, not only at sign-in.
+* *A stolen session could turn two-step on* with the thief's own app and,
+  ending every other session, lock the owner out for good. Set-up now
+  needs the password, or on a password-less account a sign-in under 15
+  minutes old (`may_start_two_step`).
+* *Asking for set-up again replaced the secret* already typed into the
+  app, after a mistyped code. An open set-up now keeps its secret, and a
+  wrong code in Settings simply asks again.
+* *Two confirmations at once* both handed back recovery codes, one set of
+  them already void. The enabling UPDATE is now checked.
+
+Left as they are, said here: a code used to turn it on is spent, so signing
+in within the same 30 seconds needs the next one; the 10-wrong-codes lock
+is read before the check, so parallel requests can overrun it by the rate
+limit's margin, and a session holder can trip it on purpose (15 minutes);
+and an old client that sends a password to the `/waitlist` join as an
+admin is answered with the code sentence and no field to type it into.
+
 Tests: `tests/test_two_step_301.py` (RFC 6238 vectors, every route, bounds,
-admins); `test_admin_tracker.py` sets the requirement off to keep testing the
-password step.
+admins, the session kinds); `test_admin_tracker.py` sets the requirement
+off to keep testing the password step.

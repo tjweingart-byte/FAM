@@ -221,7 +221,7 @@ def _now_code(secret: str) -> str:
 def _sign_up_and_turn_on(c, email="ian@example.com"):
     assert c.post("/api/auth/signup", json={"email": email, "password": GOOD,
                                             "accept_terms": True}).status_code == 200
-    setup = c.post("/api/auth/2fa/setup").json()
+    setup = c.post("/api/auth/2fa/setup", json={"password": GOOD}).json()
     assert setup["otpauth_uri"].startswith("otpauth://totp/FAM:")
     on = c.post("/api/auth/2fa/enable", json={"code": _now_code(setup["secret"])})
     assert on.status_code == 200, on.text
@@ -232,6 +232,41 @@ def _sign_up_and_turn_on(c, email="ian@example.com"):
 
 def test_set_up_is_for_accounts_only(client):
     assert client.post("/api/auth/2fa/setup").status_code in (401, 403)
+
+
+def test_set_up_needs_the_password_not_just_the_session(client):
+    client.post("/api/auth/signup", json={"email": "ian@example.com",
+                                          "password": GOOD, "accept_terms": True})
+    for body in (None, {}, {"password": "not-the-password"}):
+        r = client.post("/api/auth/2fa/setup", json=body)
+        assert r.status_code == 400 and "password" in r.json()["error"]
+    assert client.get("/api/auth/2fa").json()["needs_password"] is True
+    assert client.post("/api/auth/2fa/setup",
+                       json={"password": GOOD}).status_code == 200
+
+
+def test_an_account_without_a_password_needs_a_fresh_sign_in(store):
+    store._conn().execute("UPDATE accounts SET password = '' WHERE user_id = 'u1'")
+    token, _ = store.new_session("u1", at=T0)
+    store.may_start_two_step("u1", "", token, at=T0 + 60)
+    with pytest.raises(A.AuthError, match="sign in again"):
+        store.may_start_two_step("u1", "", token,
+                                 at=T0 + A.TWO_STEP_FRESH_SESSION_SECONDS + 1)
+
+
+def test_asking_again_keeps_the_secret_already_in_the_app(store):
+    first = store.begin_two_step("u1", at=T0)
+    assert store.begin_two_step("u1", at=T0 + 60) == first
+    later = T0 + A.TWO_STEP_SETUP_SECONDS + 1
+    assert store.begin_two_step("u1", at=later) != first
+
+
+def test_two_confirmations_at_once_turn_it_on_once(store):
+    secret = store.begin_two_step("u1", at=T0)
+    code = SF.code_at(secret, SF.step_for(T0))
+    store.enable_two_step("u1", code, at=T0)
+    with pytest.raises(A.AuthError, match="already on"):
+        store.enable_two_step("u1", code, at=T0)
 
 
 def test_a_right_password_alone_mints_no_session(client, outbox):
@@ -339,6 +374,45 @@ def test_an_admin_with_two_step_gets_in_with_the_code(client, monkeypatch):
     assert client.get("/api/admin/tracker").status_code == 200
     kinds = [e["kind"] for e in client.get("/api/auth/2fa").json()["events"]]
     assert "admin_sign_in" in kinds
+
+
+def test_an_app_session_never_opens_admin(client, monkeypatch):
+    """An app session is minted by a password alone; the dashboard's must
+    have come through its own sign-in. A token of one kind is never
+    accepted as the other."""
+    monkeypatch.setenv("FAM_ADMIN_ACCOUNTS", "boss@fam.test")
+    client.post("/api/auth/signup", json={"email": "boss@fam.test", "password": GOOD,
+                                          "accept_terms": True})
+    app_token = client.post("/api/auth/login", json={
+        "email": "boss@fam.test", "password": GOOD,
+        "want_token": True}).json()["session_token"]
+    client.cookies.set("fam_admin", app_token)
+    assert client.get("/api/admin/tracker").status_code == 404
+    # Nor with the requirement lifted: the kinds stay apart regardless.
+    monkeypatch.setenv("FAM_ADMIN_REQUIRE_TWO_STEP", "0")
+    assert client.get("/api/admin/tracker").status_code == 404
+    client.cookies.clear()
+    admin = client.post("/api/admin/login", json={"email": "boss@fam.test",
+                                                  "password": GOOD})
+    assert admin.status_code == 200
+    admin_token = client.cookies.get("fam_admin")
+    assert appmod.ACCOUNTS.listener_for(admin_token, kind="admin") is not None
+    # And the dashboard's token is no app session, by cookie or bearer.
+    assert appmod.ACCOUNTS.listener_for(admin_token) is None
+    me = client.get("/api/auth/me", headers={"Authorization": f"Bearer {admin_token}"})
+    assert not me.json()["authenticated"]
+
+
+def test_an_admin_session_ends_when_the_requirement_is_not_met(client, monkeypatch):
+    monkeypatch.setenv("FAM_ADMIN_ACCOUNTS", "boss@fam.test")
+    monkeypatch.setenv("FAM_ADMIN_REQUIRE_TWO_STEP", "0")
+    client.post("/api/auth/signup", json={"email": "boss@fam.test", "password": GOOD,
+                                          "accept_terms": True})
+    assert client.post("/api/admin/login", json={
+        "email": "boss@fam.test", "password": GOOD}).status_code == 200
+    assert client.get("/api/admin/tracker").status_code == 200
+    monkeypatch.setenv("FAM_ADMIN_REQUIRE_TWO_STEP", "1")
+    assert client.get("/api/admin/tracker").status_code == 404
 
 
 def test_an_admin_cannot_turn_it_off_while_it_is_required(client, monkeypatch):
