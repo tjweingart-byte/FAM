@@ -13,6 +13,7 @@ Nothing here reaches Apple or an SMTP server; the network seams are stubbed.
 """
 from __future__ import annotations
 
+import dataclasses
 import os
 import sys
 
@@ -26,8 +27,6 @@ import apple_tokens
 import mail
 import moderation
 import oauth
-import dataclasses
-
 import config
 
 
@@ -79,6 +78,30 @@ def test_unconfigured_names_what_to_set(monkeypatch):
         assert name in state["reason"]
     # Nothing to call, nothing called: a code is simply not exchanged.
     assert apple_tokens.exchange("code", "net.familiarize.fam") == ""
+
+
+def test_a_missing_library_is_named_rather_than_failing_later(monkeypatch):
+    """The production image once had no PyJWT (§303): configured, and every
+    exchange would have failed at the import. It says so up front instead."""
+    monkeypatch.setenv("APPLE_PRIVATE_KEY", "-----BEGIN PRIVATE KEY-----")
+    use(monkeypatch, apple_team_id="TEAM123456", apple_key_id="KEY1234567")
+
+    def missing():
+        raise oauth.OAuthUnavailable("PyJWT is not installed. " + oauth.INSTALL_HINT)
+    monkeypatch.setattr(oauth, "_library", missing)
+    state = apple_tokens.status()
+    assert state["available"] is False
+    assert "requirements-oauth.txt" in state["reason"]
+
+
+def test_the_production_image_installs_the_sign_in_library():
+    """Sign in with Apple is required beside Google (4.8); without PyJWT in
+    the image neither can verify a token, whatever is configured (§303)."""
+    import pathlib
+    docker = (pathlib.Path(__file__).resolve().parent.parent / "Dockerfile").read_text()
+    install = [l for l in docker.splitlines() if "pip install" in l or l.startswith("    -r")]
+    assert any("requirements-oauth.txt" in l for l in install)
+    assert "requirements-oauth.txt ./" in docker
 
 
 def test_the_client_secret_is_what_apple_checks(apple_key):

@@ -21671,3 +21671,30 @@ the place card, a tap asks `/api/audio` for the sample with
 web screen is built and the iOS waiting screen must do the same.
 
 Tests: `tests/test_waitlist.py::test_the_status_page_plays_the_samples_too`.
+
+## 303. The production image could not check a sign-in (2026-10-22)
+
+Found re-reading §301-§302 before the merge. `oauth.py` verifies a Google or
+Apple identity token with PyJWT, which lives in `requirements-oauth.txt` -
+kept out of `requirements.txt` on purpose, so a laptop, CI and the preview
+build can run FAM without it. The `Dockerfile` installed `requirements.txt`
+and `requirements-push.txt` and never that file, and nothing recorded that as
+a decision. So on Render, whatever `APPLE_CLIENT_IDS` said, `/api/health` >
+`oauth` would have read unavailable and every Sign in with Apple or Google
+would have been refused 503 - and §301's revocation could never have signed
+a request. Sign in with Apple has to work for App Review (4.8), so it would
+have been the first thing a reviewer hit.
+
+The image now installs `requirements-oauth.txt` too (PyJWT[crypto]; its
+`cryptography` was already there for Web Push). CI is unchanged: it still
+runs without the library, which is how its tests are written.
+`apple_tokens.status()` now reports a missing library in `oauth.py`'s own
+words, after naming any missing setting, rather than failing at the first
+exchange.
+
+Checked on Python 3.12, CI's version, with the image's three requirement
+files installed: the sign-in, account, revocation and requirement tests pass,
+including `test_oauth.py`'s forged-token test, which CI skips.
+
+Tests: `tests/test_app_review_server.py` (the image installs the library; a
+missing library is named).

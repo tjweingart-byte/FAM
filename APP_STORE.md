@@ -18,7 +18,7 @@ the week of the first submission.
 |---|---|---|
 | Paperwork | Legal entity, EIN, D-U-N-S, Apple Developer (organization) | **Owner** - Part A |
 | Server | In-app account deletion, 5.1.1(v) | Built (`DELETE /api/account`) |
-| Server | Sign in with Apple, 4.8 | Built (`oauth.py`); needs `APPLE_CLIENT_IDS` |
+| Server | Sign in with Apple, 4.8 | Built (`oauth.py`); needs `APPLE_CLIENT_IDS`. The production image had no PyJWT until §303, so it could never have verified a token there; it does now |
 | Server | Apple sign-in **revoked** when an account is deleted or the link removed, 5.1.1(v) | Built (`apple_tokens.py`, §301); needs `APPLE_KEY_ID`, `APPLE_PRIVATE_KEY`, and the app sending `authorization_code` |
 | Server | A person is **emailed when a report arrives** (1.2's 24 hours) | Built (`moderation.ReportAlerts`, §301); needs `MODERATION_EMAIL` or `SUPPORT_EMAIL`, and mail (`SMTP_HOST`, `MAIL_FROM`) |
 | Owner | Register the sending domain with **Apple's Private Email Relay**, or reset codes to "Hide My Email" addresses bounce | Part A step 8 |

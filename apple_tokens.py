@@ -93,6 +93,13 @@ def status() -> dict:
         return {"available": False,
                 "reason": "%s not set, so a deleted account's Apple sign-in is "
                           "not revoked (App Store 5.1.1(v))." % ", ".join(missing)}
+    # The key is set but cannot be used without PyJWT: the same refusal, in
+    # the same words, as `oauth.available` (requirements-oauth.txt).
+    try:
+        import oauth
+        oauth._library()
+    except Exception as exc:  # noqa: BLE001 - OAuthUnavailable, said as is
+        return {"available": False, "reason": str(exc)}
     return {"available": True, "reason": ""}
 
 
