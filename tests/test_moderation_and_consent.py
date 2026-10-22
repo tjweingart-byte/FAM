@@ -601,7 +601,7 @@ def test_the_web_form_draws_an_unticked_box_and_sends_it():
 
 
 def test_every_legal_page_has_an_x_back_to_where_you_were():
-    """§298: the terms had no way out; each page draws one close button."""
+    """§300: the terms had no way out; each page draws one close button."""
     for name in appmod.LEGAL_PAGES:
         page = appmod.legal_page(name, "help@example.com")
         assert page.count('id="legalClose"') == 1, name

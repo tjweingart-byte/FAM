@@ -1629,6 +1629,20 @@
   still decides, and search's five loading steps are untouched. With the
   system's reduced motion on, a screen change is a 120 ms crossfade, a sheet
   fades in over 120 ms and closes at once, and nothing else moves.
+  *Round two (§298, the owner's twelve picks, 10.21):* play and pause shrink
+  and swap; the mini player rises from behind the tabs and drops back; the
+  writer's title wipes in; pictures blur up as they land; a friend's story
+  grows out of the face and closes into it, and the next friend's turns
+  like a cube; new messages pop from their tail; unread counts pop, bump
+  and shrink; private search falls like a blind and lifts; Follow changes
+  on the tap with a tick; a removed row slides out and the gap closes; and
+  sign-up's steps slide with three bars that fill. Each is drawn over a
+  change already made - the icon, the bar, the badge, the list and the page
+  are what they will be on the frame the movement starts, and anything
+  shown leaving is an inert copy - so the rule above holds unchanged.
+  *The bottom message (§299):* what an action did is a plain line - text
+  under a short copper rule just above the mini player or the tabs, no box,
+  no shadow - for both the old pill and the old Undo bar.
 <!-- rule:speed-pitch -->
 - **A speed change must not change the voice.** *(§95, `fam-audio.js`.)*
   `playbackRate` on a buffer source resamples, so 1.5x came back a fifth
