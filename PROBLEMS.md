@@ -21593,3 +21593,67 @@ in directly, with nowhere to return to, goes to the front door. Checked in
 Chromium for all three cases.
 
 Tests: `tests/test_moderation_and_consent.py`.
+
+## 301. ScaleDown against the Haiku brief: the ScaleDown half measured (2026-10-22)
+
+Could any part of the brief (`episode_intelligence.understand`) or the
+evidence cut (`evidence_digest.digest`, §270) go to ScaleDown's hosted
+endpoints (`api.scaledown.xyz`, auth `x-api-key`) and come back faster
+without coming back worse? `tools/bench_scaledown.py` asks it on three jobs
+with hand-written labels (32 queries; a field the guide allows two readings
+of is `None` and scored for neither side) and three packets in
+`research.build_packet`'s shape. The rubrics and descriptions are the field
+guide's own words, so both sides are asked the same thing.
+
+**Only the ScaleDown half has numbers.** The build container has no
+`ANTHROPIC_API_KEY` ([no-api-key]); the Haiku leg skips and says so, and
+was checked only against a stub client. For scale only, not as a
+measurement: §268 put the unsplit Haiku-at-medium brief at 6.4-9.1 s, and
+§268's split was expected to roughly halve it.
+
+What the API is, found by asking it: `/classify` takes `text` and
+`labels: [{name, rubric}]` and answers `top_label` with scores and a
+reason; `/extract` takes `entities: {name: description}` and answers spans
+(`text`, `type`, `confidence`) - bimodal, a fast (~0.4-0.7 s) answer that
+is spans of the typed words or nothing, and a slow (~1.5-2.4 s) one that
+normalises ("San Francisco 49ers", "Ohio, US"); `/compress/raw/` takes
+`prompt` and `context` and returns `compressed_prompt`, chosen in chunks of
+the original text (`scaledown.rate` changes how many).
+
+Measured from the container, one request at a time (p50 / p95, n=32; the
+p95 is about the second-slowest):
+
+* **classify** (two `/classify` at once, intent and domain): 0.65 s /
+  4.9 s. Intent 29/29, live domain 30/31 (missed: "how do interest rates
+  affect mortgages" -> markets). The tail is real and repeated across runs:
+  one of the two calls now and then takes 2-5 s.
+* **extract** (one `/extract`): 0.62-0.67 s / 2.2-7.0 s. `place` 30-31/32
+  (it names Detroit and Paris where the guide says empty, or "Ohio, US" for
+  a statewide race), `live_entity` 26-27/28 by required words but 20-23/28
+  as the full official names the guide asks for; **`subject` 10-12/32** -
+  `/extract` mostly returns no subject at all, so it cannot write the field
+  retrieval leans on. `outcome_dependent` read from a span is 23-28/31; as
+  a yes/no `/classify` it is 31/31 (0.55 s / 2.5 s).
+* **compress** (`/compress/raw/`, 3 packets x 3, deterministic): 0.31 s /
+  1.4 s. No sentence reworded, none cut mid-sentence, no figure invented,
+  every kept source kept its `Published:` line - but **5 of the 16 figures
+  the answers turn on were dropped** (Hurts's 254 yards and 2 touchdowns,
+  the 1:52 left; Nvidia's $1.30 a share and $65 billion guidance) while the
+  leather jacket and the parking prices stayed, and chunks overlap, so 2
+  sentences came back twice. `rate: auto` cut harder and lost 9 of 16.
+  The digest keeps every sentence with a digit on a sports or markets
+  episode by code, so on those packets it cannot lose one.
+
+**Reading it.** On these labels ScaleDown's classifier is as accurate as
+the brief needs and quicker than any brief, but it writes three of the
+brief's fields (intent, live domain, outcome_dependent); the brief still has to run for the subject, the
+searches, the window and `must_establish`, so it would replace nothing on
+the search path unless the brief is split again around it. Its compressor
+is not usable as the evidence cut: losing a figure the answer turns on is
+the failure `evidence_digest` exists to prevent. Nothing in FAM calls
+ScaleDown; this is a measurement, not a change.
+
+**To finish it**, where `ANTHROPIC_API_KEY` and `SCALEDOWN_API_KEY` both
+are: `python tools/bench_scaledown.py --json out.json`. `--descriptions
+guide` gives `/extract` the field guide's paragraphs; `--rate auto` tries
+the harder cut.
