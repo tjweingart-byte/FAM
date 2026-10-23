@@ -16,15 +16,14 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   re-derive a rule from first principles.
 - **Adding or changing a rule:** put the reasoning in the right
   `docs/claude/` file under a new `<!-- rule:ID -->` marker, and add one line
-  here citing `[ID]`. `tests/test_claude_md.py` fails if the IDs here and there
-  disagree, and if this file grows past its budget - history goes in the
-  topic files and `PROBLEMS.md`, never here.
+  here citing `[ID]`. `tests/test_claude_md.py` fails if the IDs disagree or
+  this file outgrows its budget - history goes in the topic files and
+  `PROBLEMS.md`, never here.
 - **Finding history:** `PROBLEMS_INDEX.md` lists every PROBLEMS.md section with
-  its line number (`python tools/problems_index.py` regenerates it; a test fails
-  when it is stale). Read the section by offset; never search 700 KB.
-- Other files that cite "CLAUDE.md" (a rule, an open problem by number) mean
-  this core plus `docs/claude/`; the numbered open problems are in
-  `open-problems.md`.
+  its line number (`python tools/problems_index.py` regenerates it; a test
+  fails when stale). Read the section by offset; never search 700 KB.
+- "CLAUDE.md" cited elsewhere means this core plus `docs/claude/`; numbered
+  open problems are in `open-problems.md`.
 
 | Topic file | Holds |
 |---|---|
@@ -72,7 +71,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   server's marks, each ≥2s (first ≥0.5s, §263), audio held to the fifth; a replay skips them (§148). [search-no-cover]
 - **The spec: type a question, and within about a second audio starts giving
   the answer.** Seconds in front of the first word are wrong. [one-sentence-spec]
-- **Amended for search only**, at the owner's direction (§82, §108, §129): EI
+- **Amended for search only**, by the owner (§82, §108, §129): EI
   runs before search; nothing is written before retrieval finishes; the writer
   reasons first (`EFFORT=low`). myFAM, DailyFAM and Explore pay none of it -
   their briefs/scripts are built before the tap. `EPISODE_INTELLIGENCE=0`
@@ -155,7 +154,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
 
 - **The scripts are not good enough; the writing is the product.** The ending
   rewrite (§48) and the §108 opening changes are unheard - listen for them first. [writing-is-the-problem]
-- `python write.py "<query>" --minutes 3` is the loop for improving writing. [write-py-loop]
+- `python write.py "<query>" --minutes 3` is the writing loop. [write-py-loop]
 - Quality came from inputs, not the prompt (§82): EI decides the query, the
   packet dates and grades sources, `DEPTH_BANDS` says what minutes are for. [inputs-not-prompt]
 - The third cause (§108): two texts under two conditions; everything trading
@@ -163,6 +162,8 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
 - `write.py` prints the brief above the script - diagnose brief vs script
   separately; `--no-ei` compares; `tools/ei_eval.py` is the milestone. [brief-above-script]
 - **`examples/` is the strongest lever** - prefer adding an example over a rule. [examples-lever]
+- **Quality per tree node** (§305): code, listening, a grader trusted once
+  it matches the owner. [episode-quality]
 
 ## Open problems  (`open-problems.md`)
 
@@ -512,8 +513,8 @@ Every change ends the same way, without being asked [ship-loop]:
    `https://claude.ai/code/artifact/c8bd86aa-e61e-4262-a1c8-b9c8d8d6645e`.
    It serves `preview/fam-live-artifact.html` (`python preview/build_live_preview.py`),
    published with `capabilities: {"db": {}, "downloads": true}` - both, since
-   passing `db` alone revokes `downloads`. From a new
-   conversation, read that URL first, then publish with it as `url`.
+   passing `db` alone revokes `downloads`. From a new conversation, read
+   that URL first, then publish with it as `url`.
 3. Reply with a short summary and the preview URL.
 4. If something cannot be automated, give the exact command.
 
@@ -539,8 +540,8 @@ Every change ends the same way, without being asked [ship-loop]:
   `.github/workflows/ci.yml` by hand. [landing-smoke]
 - CI runs Python 3.12, this container 3.11 - reproduce in 3.12 first. [ci-python]
 - **Check CI on `Main` before starting work** (`mcp__github__actions_list` on `ci.yml`). [ci-green-first]
-- Fonts differ here and in CI; suspect them on layout disagreements. [fonts-env]
-- No API key here: writing quality and latency are unverified. [no-api-key]
+- Fonts differ here and in CI; suspect them when layouts disagree. [fonts-env]
+- No API key here: writing and latency are unverified. [no-api-key]
 - `tools/shots.py`, `stall_probe.py`, `compare_search.py` exist because claims were wrong without them. [shots-probes]
 - Deleting CSS broke the app twice: use `tools/check_css.py` and `tools/shots.py`. [css-deletion]
 - A top-level name declared twice in `static/index.html` silently wins; `tools/check_js.py` catches it. [js-dup-names]
@@ -548,4 +549,4 @@ Every change ends the same way, without being asked [ship-loop]:
   with `config.py`; interface literals pinned to their variable. [settings-copied]
 - `PROBLEMS.md` is the engineering log - add to it rather than starting new notes. [problems-log]
 - Tests run with no API key or speech engine. [tests-no-key]
-- `diagnose_api.py` for connection failures, `compare_models.py` for models. [diag-tools]
+- `diagnose_api.py` for connections, `compare_models.py` for models. [diag-tools]

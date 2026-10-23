@@ -1666,6 +1666,12 @@ class PodcastPipeline:
 
             category_audit.note(plan.query, getattr(notes, "category", ""),
                                 self.origin or "tap")
+            # And how well it was written (§305), kept beside it.
+            import episode_quality
+
+            episode_quality.note(key, stats.sourced_stamp, plan.query,
+                                 plan.minutes, self.origin or "tap",
+                                 stats.script, notes)
             # The listen that wrote it is its first play (§134).
             self._count_play(key)
             # The audio goes beside it once the tail pad is out, and only

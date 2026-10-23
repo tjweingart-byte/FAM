@@ -172,6 +172,17 @@ def wipe(*, cache, events, erase_listener, scope: str = "seed",
         except Exception:  # noqa: BLE001 - a browse cache is never load-bearing
             log.exception("could not drop the DailyFAM edition")
             report["daily_editions_dropped"] = 0
+        # The quality rows (§305) are measurements of the episodes just
+        # deleted and the listening just emptied - derived from both, so they
+        # go with them, the owner's own scores included: they score episodes
+        # that no longer exist.
+        try:
+            import episode_quality
+
+            report["quality_rows_dropped"] = episode_quality.clear()
+        except Exception:  # noqa: BLE001 - a measurement is never load-bearing
+            log.exception("could not drop the quality rows")
+            report["quality_rows_dropped"] = 0
         report.update(_forget_what_the_log_taught())
     return report
 

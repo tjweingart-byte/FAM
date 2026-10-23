@@ -51,6 +51,7 @@ from demo_script import DemoGenerator
 import credentials
 import client_versions
 import entitlements
+import episode_quality
 import pipeline_errors
 import spend_guard
 import messages as messages_mod
@@ -1062,6 +1063,14 @@ def _database_report() -> list[dict]:
                            live_routing.store().path))
     except Exception:  # pragma: no cover - a report is never load-bearing
         pass
+    # Episode quality (§305). Created by the first written episode, and
+    # reported once it exists, like the routing rows above.
+    try:
+        if episode_quality.exists():
+            stores.append(("episode quality", "EPISODE_QUALITY_DB",
+                           episode_quality.store().path))
+    except Exception:  # pragma: no cover - a report is never load-bearing
+        pass
     # Local news outlets, their stories and resolved places (§194). Created
     # by the collector's first sweep, and reported once it exists, like the
     # provider counts above.
@@ -1605,6 +1614,13 @@ def erase_listener(user_id: str) -> dict:
     except Exception:
         log.exception("could not erase waitlist rows for %r", user_id)
         removed["waitlist"] = -1
+    # How far they got through each episode (§305). The episodes' quality
+    # rows stay: they are about the writing, not the listener.
+    try:
+        removed["quality_listens"] = episode_quality.forget(user_id)
+    except Exception:
+        log.exception("could not erase quality listens for %r", user_id)
+        removed["quality_listens"] = -1
     # Apple's tokens are revoked before the rows that hold them go (App Store
     # 5.1.1(v)); off the request, and the deletion never waits on Apple.
     removed["apple_revoked"] = apple_tokens.revoke_later(
@@ -8617,6 +8633,11 @@ class ProgressRequest(BaseModel):
     #: The episode's real length in seconds, once the player holds all of it;
     #: 0 when it does not know yet. Optional, so older clients still send.
     duration: float = Field(0, ge=0, le=3600)
+    #: Which episode this is (`cache.episode_id`, the `X-FAM-Episode` its
+    #: audio arrived with), so how far it was heard is kept beside how well it
+    #: was written (§305). Optional: '' from an older client, which is
+    #: simply not measured.
+    episode: str = Field("", max_length=80)
 
 
 @app.post("/api/progress")
@@ -8635,6 +8656,12 @@ async def progress_write(req: ProgressRequest, request: Request) -> dict:
     kept = SAVED.note_progress(_listener(request), req.query, req.minutes,
                                req.seconds, title=req.title, context=req.context,
                                duration=req.duration)
+    if req.episode:
+        # The furthest point heard, for the quality report (§305): an exit in
+        # the first seconds is the hook's measure, a finish the story's.
+        await asyncio.to_thread(episode_quality.note_listen, req.episode,
+                                _listener(request), req.seconds, req.duration,
+                                req.minutes)
     return {"ok": True, "remembered": True, "resumable": kept}
 
 
@@ -10513,6 +10540,78 @@ async def admin_thumbnail_image(node_id: str, request: Request,
         raise HTTPException(status_code=404, detail="Not found")
     return Response(content=found[0], media_type=found[1],
                     headers={"Cache-Control": "no-store"})
+
+
+@app.get("/admin/quality", include_in_schema=False)
+async def admin_quality_page(request: Request):
+    """Episode quality by category (§305). A shell, like `/admin`; every row
+    on it is fetched from the endpoints below, which check who is asking."""
+    if not _admin_configured():
+        raise HTTPException(status_code=404, detail="Not found")
+    page = PROJECT_ROOT / "admin_ui" / "quality.html"
+    return HTMLResponse(page.read_text(encoding="utf-8"),
+                        headers={"Cache-Control": "no-store",
+                                 "X-Robots-Tag": "noindex"})
+
+
+@app.get("/api/admin/quality")
+async def admin_quality(request: Request, days: float = 30.0) -> dict:
+    """Every node of the category tree with episodes under it, worst-costing
+    first, with the grader's calibration and each metric's validity (§305)."""
+    _require_admin(request)
+    days = max(1.0, min(float(days or 30.0), float(episode_quality.KEEP_DAYS)))
+    return await asyncio.to_thread(episode_quality.report, days)
+
+
+@app.get("/api/admin/quality/episode")
+async def admin_quality_episode(request: Request, episode: str = "") -> dict:
+    """One measured episode, to read: its script, the code's checks, the
+    grade and the owner's own scores so far."""
+    _require_admin(request)
+    import cache as cache_mod
+
+    parsed = cache_mod.parse_episode_id(episode)
+    if parsed is None or not episode_quality.exists():
+        raise HTTPException(status_code=404, detail="Not found")
+    quality = episode_quality.store()
+    row = await asyncio.to_thread(quality.get, parsed[0], parsed[1])
+    if row is None:
+        raise HTTPException(status_code=404, detail="Not found")
+    labels = {item["metric"]: item["score"]
+              for item in await asyncio.to_thread(quality.labels)
+              if item["key"] == parsed[0] and int(item["sourced"]) == parsed[1]}
+    row.pop("evidence", None)
+    return {"episode": episode, "query": row["query"], "title": row["title"],
+            "minutes": row["minutes"], "origin": row["origin"],
+            "structure": row["structure"], "category": row["category"],
+            "writer_model": row["writer_model"], "prompt": row["prompt"],
+            "sentences": json.loads(row["sentences"] or "[]"),
+            "measures": json.loads(row["measures"] or "{}"),
+            "grade": json.loads(row["grade"]) if row["grade"] else None,
+            "labels": labels, "metrics": list(episode_quality.METRICS),
+            "rubric": episode_quality.RUBRIC}
+
+
+class QualityLabels(BaseModel):
+    episode: str = Field(..., min_length=3, max_length=80)
+    #: metric -> the owner's 1-5 score; what the grader is calibrated against.
+    scores: dict[str, int] = Field(default_factory=dict)
+
+
+@app.post("/api/admin/quality/label")
+async def admin_quality_label(req: QualityLabels, request: Request) -> dict:
+    """The owner's own scores for one episode (§305). A grade only counts
+    toward a node's standing once it agrees with these."""
+    _require_admin(request)
+    kept = 0
+    for metric, score in req.scores.items():
+        if metric not in episode_quality.METRICS or not 1 <= int(score) <= 5:
+            raise HTTPException(status_code=422,
+                                detail=f"{metric}: a metric scored 1 to 5")
+        if await asyncio.to_thread(episode_quality.label, req.episode, metric,
+                                   int(score), "owner"):
+            kept += 1
+    return {"ok": True, "kept": kept}
 
 
 class ThumbnailDecision(BaseModel):

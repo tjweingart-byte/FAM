@@ -73,6 +73,10 @@ FAM_ENVIRONMENT = (
     "EPISODE_INTELLIGENCE", "EI_MODEL", "EI_EFFORT", "EI_MAX_TOKENS",
     "EI_TIMEOUT_SECONDS", "EI_DEFAULT_RECENCY_DAYS", "EI_AHEAD_TIMEOUT_SECONDS",
     "EI_SPLIT", "EI_EXAMPLES", "EI_OUTLINE", "EI_OUTLINE_GRACE_SECONDS",
+    # §305: the quality grader. A developer with QUALITY_GRADE=all set must
+    # not have the suite schedule grades.
+    "QUALITY_GRADE", "QUALITY_GRADER_MODEL", "QUALITY_GRADER_EFFORT",
+    "QUALITY_GRADE_DAILY", "QUALITY_MIN_EPISODES",
     # §270: the evidence cut in front of the writer.
     "EVIDENCE_DIGEST", "EVIDENCE_DIGEST_MODEL", "EVIDENCE_DIGEST_TIMEOUT_SECONDS",
     "EVIDENCE_DIGEST_AHEAD_TIMEOUT_SECONDS", "EVIDENCE_DIGEST_MAX_TOKENS",
@@ -234,6 +238,7 @@ DATA_ENVIRONMENT = (
     "VOICE_REGISTRY_DB", "TRENDING_BANK_DB", "FEEDBACK_DB", "PROVIDER_USAGE_DB",
     "LOCAL_NEWS_DB", "GDELT_EXPORT_DB", "CONSENT_DB", "MODERATION_DB",
     "LIVE_ROUTING_DB", "STORY_POOL_DB", "PIPELINE_ERRORS_DB", "WIKIMEDIA_DB",
+    "EPISODE_QUALITY_DB",
 )
 
 #: Tier limits. Read by `entitlements.py` rather than `config.py`, so the
@@ -570,6 +575,19 @@ def isolated_pipeline_errors(tmp_path, monkeypatch):
     pipeline_errors.reset()
     yield
     pipeline_errors.reset()
+
+
+@pytest.fixture(autouse=True)
+def isolated_episode_quality(tmp_path, monkeypatch):
+    """The quality rows (§305), per test: every episode a test writes to the
+    cache is measured, and must not land in the project root."""
+    import episode_quality
+
+    monkeypatch.setenv("EPISODE_QUALITY_DB",
+                       str(tmp_path / "stores" / "episode_quality.db"))
+    episode_quality.reset()
+    yield
+    episode_quality.reset()
 
 
 @pytest.fixture(autouse=True)

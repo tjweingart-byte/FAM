@@ -887,6 +887,11 @@ def _finish(story, plan, key: str, notes, sentences: list, cache, minutes: int,
 
     category_audit.note(story.query, getattr(notes, "category", ""), origin,
                         composer=getattr(story, "category", "") or "")
+    # And how well it was written (§305), kept beside it.
+    import episode_quality
+
+    episode_quality.note(key, notes.sourced_at, story.query, minutes, origin,
+                         sentences, notes)
     return {"status": "written", "key": key, "dollars": dollars,
             "title": notes.title}
 

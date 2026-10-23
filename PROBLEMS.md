@@ -21722,3 +21722,96 @@ the same person signing in and unlinking at once.
 
 Tests: `tests/test_app_review_server.py` (a forged host never reaches the
 email - it fails on the old line; a failed summary keeps the window).
+
+## 305. Episode quality, measured by category (2026-10-23)
+
+The owner (10.23): "properly categorize episode quality based on their
+category/subcategory in the tree, and on different metrics. These metrics
+should include information quality, story flow, information depth,
+repetition of information, the quality of the hook and storytelling. We want
+to have real ways to measure the quality of these and act on them." Step 1
+of a plan the owner agreed: measure first, then examples attached to tree
+nodes, then a journalist agent tuned against these measures, then seasons.
+Until now nothing measured the writing: a prompt change, an example or a
+different writer was judged by ear, one episode at a time
+([writing-is-the-problem]).
+
+**What is kept** (`episode_quality.py`, `EPISODE_QUALITY_DB`): one row per
+written episode, written beside `category_audit.note` at all four places a
+script is cached (a tap, prefetch, DailyFAM, Trending/Start here), so what
+is measured is exactly what is kept - never an attachment's episode. A row
+holds the script, the writer's `<<CATEGORY:>>` words, the brief's story
+shape, the minutes and word budget, the writer that answered, a twelve-digit
+hash of the writer's instructions and examples (`prompt_version`, so one
+version can be compared with the next), and the evidence the writer read -
+kept only until it is graded or fourteen days, since only the grader reads
+it. The writer now notes those on `ScriptNotes` when it finishes
+(`written_from`, `structure`, `word_budget`, `writer_model`); nothing about
+what is written changes. Rows are kept 180 days.
+
+**Three ways to measure, because no one way is trustworthy for all six:**
+
+- *In code, on every episode, for nothing* (`measure`). Proxies, said as
+  proxies, each with the sentences that cost it points: information - names
+  in the script the evidence never mentions; flow - joins that follow
+  (because, so, but) against joins that add (and then, also); depth -
+  sentences carrying a particular (a name, a figure, a date) and the share
+  of the budget used (a ceiling, never a quota - [duration-ceiling]);
+  repetition - two sentences with mostly the same content words; hook - the
+  first two sentences share a word with the question, carry a particular,
+  and are not a banned opener; storytelling - the ending is not a question,
+  a recap or a tease, and nothing signposts.
+- *By a model grader, after the script, never in front of a listener*
+  (`grade_script`). A stronger model than the writer (`QUALITY_GRADER_MODEL`,
+  empty follows `MODEL`), so Haiku is not marking its own work; a 1-5 scale
+  with every level described, written from the house rules (`RUBRIC`); a
+  score whose quote is not really in the script is dropped (`read_grade`).
+  **Off by default** (`QUALITY_GRADE=off`; `ahead` grades only what was
+  written before a tap, `all` everything) because the budget is the
+  owner's to set; `QUALITY_GRADE_DAILY` caps it; staging never grades
+  ([zero-spend-staging]); a failed grade is a notice on /admin's errors.
+- *By listening.* `/api/progress` now carries the episode id
+  (`FamAudio.episode()`, optional - an older client is simply not
+  measured), and the furthest point each account heard is kept. An exit in
+  the first twenty seconds is the hook's measure; 85% heard the story's
+  ([op-friend-profile]'s line). A guest's listening is never kept
+  ([account-gates-kept]); a deleted account's goes ([op-identity]).
+  Positions are sent every fifteen seconds and at a pause or stop, so a
+  listener who closes the app mid-way can read up to fifteen seconds short.
+
+**Acting on it** (`report`, `/admin/quality`, `tools/quality_report.py`):
+each episode is placed against the tree when the report is read, as
+`app._episode_category` places it ([one-category]), and counts toward its
+node and every ancestor. A node with fewer than `QUALITY_MIN_EPISODES` (5)
+borrows its nearest ancestor's standing; every node is compared with its own
+heading, never the whole product; nodes sort by episodes times shortfall, so
+the branch where weak writing costs the most listening is first, with its
+three weakest episodes to read. The same four-word opening on several
+episodes in a node is flagged as a template.
+
+**What keeps the numbers honest.** A grade counts toward a node's standing
+only once the grader agrees with the owner's own scores on that metric -
+`CALIBRATION_MIN` (20) episodes, 80% within one point (`calibration`). The
+owner scores from the admin page (any weakest episode opens with the rubric
+beside each score) or `quality_report.py --label`. Until then grades are
+shown, marked, and ranking uses code. And every measure is checked against
+listening (`validity`, Spearman against the share heard, from ten
+episodes): one that does not predict listening is reworded, not optimised.
+
+`write.py` prints the code measures under every script and `--grade` adds
+the grader's; `tools/ei_eval.py --script` prints them per prompt and their
+means for the run - the number a prompt or example change is compared on,
+before and after. A full wipe (`demo_data`, scope `all`) drops every row,
+the owner's scores included, since they score episodes that no longer
+exist. The store is on the mounted disk in both Dockerfiles and created by
+the first written episode (lazy, like the routing rows).
+
+Unmeasured, because there is no key here: whether the code proxies track the
+grader, whether the grader tracks the owner, and what grading costs per
+episode on Sonnet (a few thousand tokens in, a few hundred out). The first
+run with a key is `python tools/ei_eval.py --script` then
+`python tools/quality_report.py --grade 20`, and twenty episodes scored by
+hand.
+
+Tests: `tests/test_episode_quality_305.py` (new); `tests/test_data_paths.py`
+(the store registered).

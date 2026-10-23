@@ -1,0 +1,304 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>FAM Episode Quality</title>
+<style>
+  /* The tracker's palette, so the admin pages read as one tool. */
+  :root {
+    --ground:#14111C; --panel:#1C1926; --surface:#262233; --raised:#302A40;
+    --line:#3A3348; --ink:#F1EEF7; --muted:#A79EBA; --faint:#7C7391;
+    --amber:#E9BC63; --green:#6BC2A8; --green-bg:#17322C;
+    --rose:#DE8FA8; --rose-bg:#33202A;
+    --serif: Georgia, "Times New Roman", serif;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    --mono: ui-monospace, Menlo, Consolas, monospace;
+    color-scheme: dark;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--ground); color:var(--ink); font:14px/1.5 var(--sans); }
+  button, input, select { font:inherit; color:inherit; }
+  button { cursor:pointer; }
+  :focus-visible { outline:2px solid var(--amber); outline-offset:2px; border-radius:4px; }
+  .wrap { max-width:1200px; margin:0 auto; padding:22px 16px 60px; }
+  .eyebrow { font:11px var(--mono); letter-spacing:.14em; text-transform:uppercase; color:var(--amber); margin-bottom:6px; }
+  h1 { font-family:var(--serif); font-size:clamp(1.6rem,4vw,2.2rem); font-weight:600; margin:0 0 4px; }
+  h2 { font-family:var(--serif); font-size:1.2rem; font-weight:600; margin:22px 0 8px; }
+  .sub { color:var(--muted); font-size:12.5px; margin:0 0 14px; max-width:780px; }
+  .kpis { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:1px; background:var(--line); border:1px solid var(--line); border-radius:14px; overflow:hidden; margin-bottom:14px; }
+  .kpi { background:var(--panel); padding:12px 14px; }
+  .kpi span { display:block; font:10px var(--mono); letter-spacing:.08em; text-transform:uppercase; color:var(--faint); }
+  .kpi b { display:block; font-family:var(--serif); font-size:24px; font-variant-numeric:tabular-nums; }
+  .kpi em { display:block; font-style:normal; font-size:11.5px; color:var(--muted); }
+  .bar { display:flex; flex-wrap:wrap; gap:8px; align-items:center; background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:10px 12px; margin-bottom:14px; }
+  .bar select { background:var(--surface); border:1px solid var(--line); border-radius:8px; padding:5px 8px; }
+  .ghost { background:var(--surface); border:1px solid var(--line); border-radius:8px; padding:6px 11px; font-size:12px; color:var(--muted); }
+  .ghost.on { color:var(--ink); border-color:var(--amber); }
+  .go { background:var(--amber); color:#1b1408; border:0; border-radius:8px; padding:7px 14px; font-weight:600; }
+  .note { font-size:12.5px; color:var(--muted); }
+  .note.err { color:var(--rose); }
+  .scroll { overflow-x:auto; border:1px solid var(--line); border-radius:12px; background:var(--panel); }
+  table { border-collapse:collapse; width:100%; font-size:12.5px; }
+  th, td { padding:7px 9px; text-align:left; border-bottom:1px solid var(--line); white-space:nowrap; }
+  th { font:10px var(--mono); letter-spacing:.06em; text-transform:uppercase; color:var(--faint); font-weight:400; position:sticky; top:0; background:var(--panel); }
+  td.num { font-variant-numeric:tabular-nums; text-align:right; }
+  tr.node { cursor:pointer; }
+  tr.node:hover td { background:var(--surface); }
+  tr.thin td { color:var(--faint); }
+  .score { display:inline-block; min-width:34px; text-align:center; border-radius:6px; padding:1px 5px; font:11.5px var(--mono); }
+  .s-hi { background:var(--green-bg); color:var(--green); }
+  .s-lo { background:var(--rose-bg); color:var(--rose); }
+  .s-mid { background:var(--surface); color:var(--ink); }
+  .tag { font:10px var(--mono); color:var(--faint); }
+  .warn { color:var(--amber); }
+  .detail td { white-space:normal; background:var(--ground); }
+  .worst a { color:var(--amber); }
+  .episode { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:14px 16px; margin-top:14px; }
+  .episode ol { padding-left:22px; margin:8px 0; }
+  .episode li { margin:3px 0; }
+  .episode li.flag { color:var(--rose); }
+  .labels { display:grid; grid-template-columns:repeat(auto-fill,minmax(250px,1fr)); gap:10px; margin-top:10px; }
+  .labels label { display:block; font-size:12px; color:var(--muted); }
+  .labels select { width:100%; margin-top:3px; background:var(--surface); border:1px solid var(--line); border-radius:8px; padding:5px 8px; }
+  .rubric { font-size:11.5px; color:var(--faint); margin-top:3px; white-space:normal; }
+  .gate { max-width:360px; margin:12vh auto; background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:20px; }
+  .gate form { display:flex; flex-direction:column; gap:8px; margin-top:12px; }
+  .gate input { background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:10px 12px; }
+  [hidden] { display:none !important; }
+</style>
+</head>
+<body>
+<div class="gate" id="gate" hidden>
+  <div class="eyebrow">FAM admin</div>
+  <h1>Episode quality</h1>
+  <p class="sub">Sign in with an admin account.</p>
+  <form id="loginForm" autocomplete="on">
+    <input id="email" type="email" placeholder="Email" autocomplete="username" required>
+    <input id="password" type="password" placeholder="Password" autocomplete="current-password" required>
+    <button class="go" id="loginBtn" type="submit">Sign in</button>
+    <p class="note err" id="loginErr" hidden></p>
+      <!-- Forgot password (§297): the reset page every log-in links to, drawn only when the server can email a code (§244). -->
+      <p id="forgotLink" hidden style="margin:10px 0 0;font-size:13px;"><a href="/reset?next=/admin/quality" style="color:inherit;opacity:.75">Forgot password?</a></p>
+  </form>
+</div>
+
+<div class="wrap" id="app" hidden>
+  <div class="eyebrow"><a href="/admin" style="color:inherit">FAM admin</a> · episode quality</div>
+  <h1>Episode quality</h1>
+  <p class="sub">Every written episode, scored on six things and filed by the category tree (PROBLEMS.md §305).
+    <b>Code</b> scores are proxies measured on every episode, 0 to 1. <b>Grade</b> is the model grader's,
+    shown but not used for ranking until it agrees with your own scores. <b>Listeners</b> is what people did:
+    for the hook, the share who stayed past twenty seconds; for storytelling, the share who finished.
+    Nodes are sorted by episodes × how far below their own heading they fall.</p>
+
+  <div class="kpis" id="kpis"></div>
+
+  <div class="bar">
+    <span class="note">Over the last</span>
+    <select id="days" aria-label="Days">
+      <option value="7">7 days</option><option value="30" selected>30 days</option>
+      <option value="90">90 days</option><option value="180">180 days</option>
+    </select>
+    <button class="ghost on" data-order="priority">Worst first</button>
+    <button class="ghost" data-order="tree">Tree order</button>
+    <label class="note"><input type="checkbox" id="thin"> show nodes with too few episodes</label>
+  </div>
+
+  <div class="scroll"><table id="nodes"></table></div>
+
+  <div id="episode" class="episode" hidden></div>
+
+  <h2>Is the grader trusted?</h2>
+  <p class="sub">Your scores against the grader's, per metric. A metric's grades count once they land
+    within one point of yours on enough episodes. Score episodes from any node's weakest list.</p>
+  <div class="scroll"><table id="calibration"></table></div>
+
+  <h2>Does each measure predict listening?</h2>
+  <p class="sub">Rank correlation between each measure and how much of an episode its listeners heard.
+    One that predicts nothing is a measure to reword, not a number to optimise.</p>
+  <div class="scroll"><table id="validity"></table></div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  var $ = function (id) { return document.getElementById(id); };
+  var data = null, order = "priority", open = "";
+
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
+    });
+  }
+  function api(path, body) {
+    var headers = { "Accept": "application/json" };
+    if (body) headers["Content-Type"] = "application/json";
+    return fetch(path, { method: body ? "POST" : "GET", headers: headers, credentials: "same-origin",
+                         body: body ? JSON.stringify(body) : undefined })
+      .then(function (r) {
+        return r.json().catch(function () { return {}; }).then(function (j) {
+          if (!r.ok) { var e = new Error(j.error || j.detail || ("HTTP " + r.status)); e.status = r.status; throw e; }
+          return j;
+        });
+      });
+  }
+  function kpi(label, value, note) {
+    return '<div class="kpi"><span>' + esc(label) + '</span><b>' + esc(value) + '</b>'
+      + (note ? '<em>' + esc(note) + '</em>' : '') + '</div>';
+  }
+  function score(v) {
+    if (v == null) return '<span class="tag">-</span>';
+    var cls = v >= 0.75 ? "s-hi" : (v < 0.5 ? "s-lo" : "s-mid");
+    return '<span class="score ' + cls + '">' + v.toFixed(2) + '</span>';
+  }
+  function pct(v) { return v == null ? "-" : Math.round(v * 100) + "%"; }
+
+  function render() {
+    var g = data.grading || {};
+    $("kpis").innerHTML = kpi("Episodes", data.episodes, "in the last " + data.days + " days")
+      + kpi("Nodes", data.nodes.length, "with episodes under them")
+      + kpi("Grading", g.mode || "off", g.model ? g.model + ", " + g.effort : "")
+      + kpi("Graded today", g.graded_today == null ? "-" : g.graded_today,
+            "ceiling " + g.daily_ceiling)
+      + kpi("Spent today", g.spent_today == null ? "-" : "$" + g.spent_today.toFixed(2), "on grading")
+      + kpi("Writer versions", Object.keys(data.prompts || {}).length, "instruction versions seen");
+
+    var rows = data.nodes.slice();
+    if (!$("thin").checked) rows = rows.filter(function (n) { return n.enough; });
+    if (order === "tree") rows.sort(function (a, b) { return a.path.join("/") < b.path.join("/") ? -1 : 1; });
+    var head = '<tr><th>Node</th><th>Episodes</th><th>Overall</th><th>vs heading</th>'
+      + data.metrics.map(function (m) { return '<th>' + esc(data.labels[m]) + '</th>'; }).join("")
+      + '<th>Listens</th><th>Out &lt;20s</th><th>Finished</th></tr>';
+    var body = rows.map(function (n) {
+      var indent = order === "tree" ? n.depth * 14 : 0;
+      var cells = data.metrics.map(function (m) {
+        var s = n.scores[m];
+        var extra = "";
+        if (s.grade != null) extra += ' <span class="tag' + (s.trusted ? '' : ' warn') + '" title="model grade'
+          + (s.trusted ? '' : ', not yet trusted') + '">g' + s.grade.toFixed(2) + '</span>';
+        if (s.listeners != null) extra += ' <span class="tag" title="listeners">l' + s.listeners.toFixed(2) + '</span>';
+        return '<td>' + score(s.code) + extra + '</td>';
+      }).join("");
+      var tr = '<tr class="node' + (n.enough ? '' : ' thin') + '" data-node="' + esc(n.node) + '">'
+        + '<td style="padding-left:' + (9 + indent) + 'px">' + esc(n.label)
+        + (order === "tree" ? '' : ' <span class="tag">' + esc(n.path.slice(0, -1).join(" › ")) + '</span>')
+        + (n.shared_opener ? ' <span class="tag warn" title="episodes opening with the same four words">same opening ×' + n.shared_opener + '</span>' : '')
+        + (n.borrowed_from ? ' <span class="tag">borrows ' + esc(n.borrowed_from) + '</span>' : '')
+        + '</td><td class="num">' + n.episodes + '</td><td>' + score(n.overall) + '</td>'
+        + '<td class="num">' + (n.shortfall == null ? "-" : (n.shortfall > 0 ? "−" : "+") + Math.abs(n.shortfall).toFixed(2)) + '</td>'
+        + cells + '<td class="num">' + n.listens + '</td><td class="num">' + pct(n.early_exit)
+        + '</td><td class="num">' + pct(n.finished) + '</td></tr>';
+      if (open === n.node) {
+        tr += '<tr class="detail"><td colspan="' + (7 + data.metrics.length) + '"><div class="worst">Weakest: '
+          + (n.worst.length ? n.worst.map(function (w) {
+              return '<a href="#" data-episode="' + esc(w.episode) + '">' + esc(w.title || w.query) + '</a> ('
+                + w.overall.toFixed(2) + ')';
+            }).join(" · ") : "none scored")
+          + '<br><span class="tag">story shapes: ' + esc(JSON.stringify(n.structures)) + '</span></div></td></tr>';
+      }
+      return tr;
+    }).join("");
+    $("nodes").innerHTML = head + (body || '<tr><td colspan="20" class="note">Nothing written yet in this window'
+      + ($("thin").checked ? '' : ' with enough episodes - tick the box above to see thinner nodes') + '.</td></tr>');
+
+    $("calibration").innerHTML = '<tr><th>Metric</th><th>You scored</th><th>Also graded</th><th>Mean gap</th><th>Within one</th><th>Trusted</th></tr>'
+      + data.metrics.map(function (m) {
+        var c = (data.calibration || {})[m] || {};
+        return '<tr><td>' + esc(data.labels[m]) + '</td><td class="num">' + (c.labelled || 0) + '</td><td class="num">'
+          + (c.n || 0) + '</td><td class="num">' + (c.mean_gap == null ? "-" : c.mean_gap) + '</td><td class="num">'
+          + pct(c.within_one) + '</td><td>' + (c.trusted ? '<span class="score s-hi">yes</span>' : '<span class="tag">not yet</span>') + '</td></tr>';
+      }).join("");
+    $("validity").innerHTML = '<tr><th>Metric</th><th>Code: episodes</th><th>Code: predicts heard</th><th>Grade: episodes</th><th>Grade: predicts heard</th></tr>'
+      + data.metrics.map(function (m) {
+        var v = (data.validity || {})[m] || {}, c = v.code || {}, g = v.grade || {};
+        return '<tr><td>' + esc(data.labels[m]) + '</td><td class="num">' + (c.n || 0) + '</td><td class="num">'
+          + (c.predicts_heard == null ? "-" : c.predicts_heard) + '</td><td class="num">' + (g.n || 0)
+          + '</td><td class="num">' + (g.predicts_heard == null ? "-" : g.predicts_heard) + '</td></tr>';
+      }).join("");
+  }
+
+  function showEpisode(id) {
+    api("/api/admin/quality/episode?episode=" + encodeURIComponent(id)).then(function (e) {
+      var checks = (e.measures || {}).checks || {}, flagged = {};
+      ["repeats", "additive_joins", "signposts", "no_particular"].forEach(function (k) {
+        (checks[k] || []).forEach(function (s) { flagged[s] = k.replace("_", " "); });
+      });
+      var html = '<div class="eyebrow">' + esc(e.origin || "tap") + ' · ' + e.minutes + ' min · '
+        + esc(e.structure || "no shape") + ' · ' + esc(e.category || "no category") + ' · ' + esc(e.writer_model) + '</div>'
+        + '<h2 style="margin-top:0">' + esc(e.title || e.query) + '</h2><p class="sub">Asked: ' + esc(e.query) + '</p>'
+        + '<ol>' + e.sentences.map(function (s) {
+            return '<li' + (flagged[s] ? ' class="flag" title="' + esc(flagged[s]) + '"' : '') + '>' + esc(s) + '</li>';
+          }).join("") + '</ol>';
+      if ((checks.unsupported_names || []).length)
+        html += '<p class="note err">Names not in the evidence: ' + esc(checks.unsupported_names.join(", ")) + '</p>';
+      html += '<p class="note">Your scores (1 = worst, 5 = the house standard). The grader is calibrated against these.</p><div class="labels">'
+        + e.metrics.map(function (m) {
+          var g = e.grade && e.grade[m];
+          return '<label>' + esc(data.labels[m]) + (g ? ' <span class="tag">grader: ' + g.score + '</span>' : '')
+            + '<select data-metric="' + m + '"><option value="">-</option>'
+            + [1, 2, 3, 4, 5].map(function (v) { return '<option' + (e.labels[m] === v ? ' selected' : '') + '>' + v + '</option>'; }).join("")
+            + '</select><div class="rubric">' + esc(e.rubric[m]) + '</div></label>';
+        }).join("") + '</div><p><button class="go" id="saveLabels" data-id="' + esc(e.episode) + '">Save scores</button> '
+        + '<span class="note" id="labelNote"></span></p>';
+      $("episode").innerHTML = html;
+      $("episode").hidden = false;
+      $("episode").scrollIntoView({ behavior: "smooth", block: "start" });
+    }).catch(function (err) { alert(err.message); });
+  }
+
+  function load() {
+    return api("/api/admin/quality?days=" + encodeURIComponent($("days").value)).then(function (d) {
+      data = d;
+      $("gate").hidden = true; $("app").hidden = false;
+      render();
+    }).catch(function (e) {
+      if (e.status === 404 || e.status === 401) { $("app").hidden = true; $("gate").hidden = false; }
+    });
+  }
+
+  document.addEventListener("click", function (ev) {
+    var a = ev.target.closest("[data-episode]");
+    if (a) { ev.preventDefault(); showEpisode(a.dataset.episode); return; }
+    var b = ev.target.closest("button[data-order]");
+    if (b) {
+      order = b.dataset.order;
+      document.querySelectorAll("button[data-order]").forEach(function (x) { x.classList.toggle("on", x === b); });
+      render(); return;
+    }
+    if (ev.target.id === "saveLabels") {
+      var scores = {};
+      document.querySelectorAll("#episode select[data-metric]").forEach(function (s) {
+        if (s.value) scores[s.dataset.metric] = parseInt(s.value, 10);
+      });
+      api("/api/admin/quality/label", { episode: ev.target.dataset.id, scores: scores })
+        .then(function (r) { $("labelNote").textContent = "Saved " + r.kept + "."; load(); })
+        .catch(function (e) { $("labelNote").className = "note err"; $("labelNote").textContent = e.message; });
+      return;
+    }
+    var tr = ev.target.closest("tr.node");
+    if (tr) { open = open === tr.dataset.node ? "" : tr.dataset.node; render(); }
+  });
+  $("days").addEventListener("change", load);
+  $("thin").addEventListener("change", render);
+
+  // "Forgot password?" only where a code can be emailed (§244, §297).
+  fetch("/api/auth/reset", { credentials: "same-origin" })
+    .then(function (r) { return r.json(); })
+    .then(function (d) { $("forgotLink").hidden = !(d && d.available); })
+    .catch(function () {});
+  $("loginForm").addEventListener("submit", function (ev) {
+    ev.preventDefault();
+    $("loginErr").hidden = true; $("loginBtn").disabled = true;
+    api("/api/admin/login", { email: $("email").value.trim(), password: $("password").value })
+      .then(load)
+      .catch(function (e) { $("loginErr").textContent = e.message; $("loginErr").hidden = false; })
+      .then(function () { $("loginBtn").disabled = false; });
+  });
+
+  load();
+})();
+</script>
+</body>
+</html>
