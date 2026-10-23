@@ -13,6 +13,11 @@ There is no authorization-code exchange, no client secret, and no redirect URI,
 because a native app does not need one. That removes the single most common
 way this gets built wrong - a client secret shipped inside the app.
 
+(The one exception is after sign-in, not part of it: Apple requires that a
+deleted account's tokens be revoked, which needs a refresh token, so
+`apple_tokens.py` exchanges the app's authorization code on the server with a
+secret the server makes. Verifying who somebody is still needs none of it.)
+
 ## The rule that carries all the security
 
 **A token is either verified or refused. There is no third branch.** Not
@@ -124,6 +129,10 @@ class VerifiedIdentity:
     email: str = ""
     email_verified: bool = False
     name: str = ""
+    #: The client id the token was minted for (its `aud`): the bundle id from
+    #: the app, a services id from the web. Apple's token endpoint wants the
+    #: same one back (`apple_tokens.exchange`).
+    audience: str = ""
 
     @property
     def is_private_relay(self) -> bool:
@@ -321,4 +330,6 @@ def verify(provider: str, id_token: str, nonce: str = "") -> VerifiedIdentity:
         email=str(claims.get("email") or "").strip().lower(),
         email_verified=verified,
         name=str(claims.get("name") or "").strip()[:120],
+        audience=(claims["aud"][0] if isinstance(claims.get("aud"), list)
+                  and claims["aud"] else str(claims.get("aud") or "")),
     )

@@ -77,6 +77,12 @@ MAX_SNAPSHOT = 4000
 PER_LISTENER_HOUR = 40
 
 
+#: At most one "reports are waiting" email per this many seconds. A burst of
+#: reports - ten people on one comment - is one email naming how many wait,
+#: not ten; the next report after the window sends the next one.
+ALERT_EVERY_SECONDS = 15 * 60
+
+
 class ModerationError(ValueError):
     """A request that cannot be kept, with the sentence that says why."""
 
@@ -382,3 +388,83 @@ class ModerationStore:
                 "oldest_open_hours": None if age is None else round(age / 3600, 1),
                 "review_hours": REVIEW_HOURS,
                 "overdue": bool(age is not None and age > REVIEW_HOURS * 3600)}
+
+
+class ReportAlerts:
+    """Tell a person when a report arrives, so the 24-hour promise is kept.
+
+    The inbox on `/admin` is only useful to somebody who opens it, and nothing
+    used to say a report had arrived - a promise to Apple (1.2) kept by
+    remembering to look. This sends `MODERATION_EMAIL` (else `SUPPORT_EMAIL`)
+    one short email: how many reports wait, how long the oldest has, and
+    where to act. It names **no reporter, no person reported and none of the
+    content** - an inbox is a worse place for abuse than `/admin`, and the
+    reporter is never shown to anybody, even there.
+
+    Paced in memory (`ALERT_EVERY_SECONDS`): a restart may send one email
+    early, which is the cheap direction to be wrong in. Sending is
+    `mail.send_later`, so filing a report never waits on SMTP, and with no
+    mail delivery or no address it sends nothing and `status()` says why.
+    """
+
+    def __init__(self, every: float = ALERT_EVERY_SECONDS) -> None:
+        self.every = every
+        self._last = 0.0
+        self._lock = threading.Lock()
+        self.sent = 0
+
+    @staticmethod
+    def recipient() -> str:
+        from config import settings
+        return (getattr(settings, "moderation_email", "")
+                or getattr(settings, "support_email", "") or "").strip()
+
+    def status(self) -> dict:
+        """For `/api/health`: whether a report reaches a person."""
+        import mail
+        if not self.recipient():
+            return {"available": False,
+                    "reason": "No MODERATION_EMAIL or SUPPORT_EMAIL, so nobody "
+                              "is told when a report arrives."}
+        delivery = mail.status()
+        if not delivery["available"]:
+            return {"available": False, "reason": delivery["reason"]}
+        return {"available": True, "reason": "", "sent": self.sent}
+
+    @staticmethod
+    def message(summary: dict, admin_url: str) -> tuple[str, str]:
+        """The subject and body, from `report_summary` alone."""
+        count = int(summary.get("open") or 0)
+        hours = summary.get("oldest_open_hours")
+        subject = ("FAM: %d report%s waiting" % (count, "" if count == 1 else "s"))
+        wait = ("the oldest has waited %s hours" % hours
+                if hours else "the oldest arrived just now")
+        body = ("%d reported item%s waiting for review on FAM; %s.\n\n"
+                "Reports are to be acted on within %d hours (App Store 1.2, "
+                "and the terms). Remove, suspend or dismiss each one at:\n\n"
+                "%s\n\n"
+                "This email names nobody and quotes nothing on purpose; the "
+                "report itself is in the inbox.\n"
+                % (count, "" if count == 1 else "s", wait, REVIEW_HOURS, admin_url))
+        return subject, body
+
+    def notify(self, store: "ModerationStore", admin_url: str,
+               now: Optional[float] = None) -> bool:
+        """Send if a person can be told and the window has passed."""
+        now = now or time.time()
+        if not self.status()["available"]:
+            return False
+        with self._lock:
+            if self._last and now - self._last < self.every:
+                return False
+        # Composed before the window is taken, so a failure here leaves the
+        # next report free to send.
+        subject, body = self.message(store.report_summary(), admin_url)
+        with self._lock:
+            if self._last and now - self._last < self.every:
+                return False
+            self._last = now
+        import mail
+        mail.send_later(self.recipient(), subject, body)
+        self.sent += 1
+        return True

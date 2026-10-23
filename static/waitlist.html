@@ -557,7 +557,8 @@
     <div class="invited hidden" id="invited">A friend saved you a spot.</div>
 
     <!-- The app's sign-up samples (§181), here too (§190): played as
-         replays, which the gate lets through for exactly these three. -->
+         replays, which the gate lets through for exactly these three. The
+         status page moves this section above the place card (§302). -->
     <section class="samples hidden" id="samples" aria-label="Most played today">
       <div class="samples-kicker label">Most played today</div>
       <button type="button" class="sample" id="sampleCard"></button>
@@ -1966,6 +1967,12 @@
   }
   function showStatus(){
     $("status").classList.remove("hidden");
+    // The same samples the landing page plays, here too (§302): somebody in
+    // line can hear what they are waiting for, not only read about it. One
+    // section, moved rather than copied, so one player and one rotation.
+    // A direct child of the status page, so the profile setup hides it.
+    $("status").insertBefore($("samples"), $("placeCard"));
+    loadSamples();
     drawSetup();
     load().catch(function(e){
       if(e.status === 401) location.replace("/waitlist");

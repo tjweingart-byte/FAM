@@ -33,7 +33,9 @@ section when a decision changes, including why.
   admin is never in line, PROBLEMS.md §216), a shared episode's own two
   calls (decision 10), and the landing page's samples: `/api/welcome`,
   `/api/thumb/*`, and `/api/audio` for exactly one of today's three sign-up
-  samples as a replay (`_welcome_sample_request`, PROBLEMS.md §190).
+  samples as a replay (`_welcome_sample_request`, PROBLEMS.md §190). The
+  status page (`/waitlist/me`) plays the same samples, above the place card
+  (§302), through the same door - a guest or a waitlisted account alike.
 * **One browser, many accounts** (§190): joining from a browser that already
   holds an account's session makes a new account on a fresh listener id and
   moves the browser onto it; the earlier account still signs in.

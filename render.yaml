@@ -137,6 +137,25 @@ services:
         sync: false
       - key: MAIL_FROM
         sync: false
+      # App Review (APP_STORE.md): the published contact for reports and
+      # the terms (1.2), who is emailed when a report arrives, and the iOS
+      # app's identity - Sign in with Apple's audience, universal links, and
+      # the server key that revokes a deleted account's Apple sign-in
+      # (5.1.1(v)). /api/health names whichever is missing.
+      - key: SUPPORT_EMAIL
+        sync: false
+      - key: MODERATION_EMAIL
+        sync: false
+      - key: APPLE_CLIENT_IDS
+        sync: false
+      - key: APPLE_TEAM_ID
+        sync: false
+      - key: IOS_BUNDLE_ID
+        sync: false
+      - key: APPLE_KEY_ID
+        sync: false
+      - key: APPLE_PRIVATE_KEY
+        sync: false
       # Tile pictures (THUMBNAILS.md, §160): the Google AI Studio key the image
       # model is billed on. Unset, nothing is painted and every tile draws its old
       # icon; /api/health says which. THUMBNAILS=1 then paints new branches of

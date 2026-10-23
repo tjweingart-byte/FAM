@@ -307,6 +307,7 @@ one that silently stops covering the seventh.
 |---|---|
 | events, mixes, vibes (`echoes`), profile, preferences, attachments, quota counters | deleted |
 | credentials, identities, sessions | deleted |
+| **Sign in with Apple** | **revoked with Apple** before the identity goes (`apple_tokens.py`, §301), from the refresh token kept when the app sent its `authorization_code`; off the request, and the deletion never waits on it |
 | **cost ledger** | **anonymised, not deleted** |
 | **shared script cache** | **untouched, and needs no decision** |
 
