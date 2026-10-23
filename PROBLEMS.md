@@ -21594,7 +21594,7 @@ Chromium for all three cases.
 
 Tests: `tests/test_moderation_and_consent.py`.
 
-## 301. ScaleDown against the Haiku brief: the ScaleDown half measured (2026-10-22)
+## 301. ScaleDown against the Haiku brief: both halves measured (2026-10-22, 2026-10-23)
 
 Could any part of the brief (`episode_intelligence.understand`) or the
 evidence cut (`evidence_digest.digest`, §270) go to ScaleDown's hosted
@@ -21605,11 +21605,9 @@ of is `None` and scored for neither side) and three packets in
 `research.build_packet`'s shape. The rubrics and descriptions are the field
 guide's own words, so both sides are asked the same thing.
 
-**Only the ScaleDown half has numbers.** The build container has no
-`ANTHROPIC_API_KEY` ([no-api-key]); the Haiku leg skips and says so, and
-was checked only against a stub client. For scale only, not as a
-measurement: §268 put the unsplit Haiku-at-medium brief at 6.4-9.1 s, and
-§268's split was expected to roughly halve it.
+The ScaleDown half was measured first (2026-10-22), with no Anthropic key
+in that container ([no-api-key]); the Haiku half followed on 2026-10-23 in
+a container that had one, and both sides were then run together (below).
 
 What the API is, found by asking it: `/classify` takes `text` and
 `labels: [{name, rubric}]` and answers `top_label` with scores and a
@@ -21620,8 +21618,8 @@ normalises ("San Francisco 49ers", "Ohio, US"); `/compress/raw/` takes
 `prompt` and `context` and returns `compressed_prompt`, chosen in chunks of
 the original text (`scaledown.rate` changes how many).
 
-Measured from the container, one request at a time (p50 / p95, n=32; the
-p95 is about the second-slowest):
+The ScaleDown half, from its own container, one request at a time (p50 /
+p95, n=32; the p95 is about the second-slowest):
 
 * **classify** (two `/classify` at once, intent and domain): 0.65 s /
   4.9 s. Intent 29/29, live domain 30/31 (missed: "how do interest rates
@@ -21644,16 +21642,92 @@ p95 is about the second-slowest):
   The digest keeps every sentence with a digit on a sports or markets
   episode by code, so on those packets it cannot lose one.
 
-**Reading it.** On these labels ScaleDown's classifier is as accurate as
-the brief needs and quicker than any brief, but it writes three of the
-brief's fields (intent, live domain, outcome_dependent); the brief still has to run for the subject, the
-searches, the window and `must_establish`, so it would replace nothing on
-the search path unless the brief is split again around it. Its compressor
-is not usable as the evidence cut: losing a figure the answer turns on is
-the failure `evidence_digest` exists to prevent. Nothing in FAM calls
-ScaleDown; this is a measurement, not a change.
+**The Haiku half (2026-10-23).** `python tools/bench_scaledown.py --json`,
+both sides in one run from one container, sequential; then `--only
+scaledown --job fields --descriptions guide`. Side by side (p50 / p95):
 
-**To finish it**, where `ANTHROPIC_API_KEY` and `SCALEDOWN_API_KEY` both
+| job | ScaleDown | Haiku |
+|---|---|---|
+| classify latency | 0.56 s / 1.07 s | 5.73 s / 8.04 s (the whole brief) |
+| intent | 29/29 | 23/29 |
+| live domain | 30/31 | 30/31 |
+| extract latency | 0.58 s / 0.79 s (guide: 0.51 / 0.92) | the same brief, 5.73 s / 8.04 s |
+| subject | 9/32 (guide: 12/32) | 31/32 |
+| place | 31/32 (guide: 31/32) | 31/32 |
+| live_entity, required words | 27/28 (guide: 24/28) | 27/28 |
+| live_entity, official names | 20/28 (guide: 23/28) | 26/28 |
+| outcome_dependent | span 29/31 (guide: 22/31); yes/no `/classify` 31/31 at 0.49 s / 0.84 s | 21/31 |
+| compress latency | 0.23 s / 0.51 s | 0.99 s / 1.69 s |
+| reworded / cut-off sentences | 0 / 0 | 0 / 0 |
+| needed figures lost | 15/48 | 0/48 |
+| invented figures | 0 | 0 |
+| kept sources keeping their date | all | all |
+| duplicated sentences | 6 | 0 |
+| kept / original (median) | 0.36 | 1.0 |
+
+**2 of 32 Haiku briefs degraded** - "what to expect from Apple's earnings
+report on Thursday" and "tell me something interesting about octopuses",
+both at the 8 s ceiling (§268), so they fell back to the raw query and the
+defaults (`explainer`, no domain, no entity). Those two account for two
+intent misses, the domain miss and the entity miss, and they are the p95.
+17 more briefs noted the outline arriving late (after the rest of the brief);
+none of those degraded.
+
+Reading Haiku's misses against the guide:
+
+* **Intent** (6 misses: 2 degraded, 4 judgments). "who won the World
+  Series" -> update, "who won the Ohio governor election" -> preview, "did
+  the Supreme Court rule on the tariff case" -> update, "how did the S&P 500
+  close today" -> update. The first two are Haiku reasoning from the world -
+  the World Series is under way and the Ohio race is on 3 November - and
+  `INTENTS` says recap is what the listener wants, never what the world has
+  done (§88). The labels stand; Haiku is wrong on all four.
+* **outcome_dependent** (10 misses) is **not Haiku's judgment**:
+  `understand` forces it true for any `recap` or `update` and any live
+  domain but weather (the cautious override above `brief.outcome_dependent`
+  in `episode_intelligence.py`), and the benchmark reads the brief after
+  that override. Every one of the ten is a recap, an update or a live-domain
+  question that the label calls false by the guide's definition. So 21/31 measures
+  the code's caution, which is deliberate; it is not a reason to prefer
+  ScaleDown. The bench does not record the model's raw answer.
+* **Subject** (1 miss) is the scorer, not the label or Haiku: "why is
+  Detroit's car industry shrinking" came back as "the decline of the
+  automotive industry in Detroit, Michigan, ..." - right, but it says
+  "automotive", not "car".
+* **Place** ("the history of Paris" -> "Paris, Ile-de-France, France") and
+  **entity** ("Patrick Mahomes, Kansas City Chiefs" where the guide's example
+  is "Patrick Mahomes") are Haiku departing from the guide's own wording.
+
+**Labels I would revisit**, none changed: "is Tesla stock up today" and "who
+is ahead in the Senate race" (both `outcome=False`). The guide counts a
+closing price and a vote count as outcome-dependent; ScaleDown given the
+guide's paragraphs answered true on both, as did the brief (by the override).
+A mid-session price and a lead are not results, so the labels are
+defensible - but they are the two where the guide reads both ways and could
+be `None`.
+
+**The compress comparison is not like for like.** On all three packets the
+digest returned `no_gain`: it kept every sentence (on the sports and markets
+packets because every sentence with a digit stays by code, on the council
+packet because what it chose was over `KEEP_LIMIT`), so it passed the packet
+through whole. Its 0/48 lost is "cut nothing", not "cut well". ScaleDown cut
+to about a third and lost 15 of the 48 needed-figure checks (the same five
+figures, three runs each, deterministic).
+
+**Reading it.** On these labels ScaleDown's classifier is as accurate as
+the brief needs and about ten times quicker than the brief, but it writes
+only three of the brief's fields (intent, live domain, outcome_dependent);
+the brief still has to run for the subject (ScaleDown 9-12/32 against
+Haiku's 31/32), the searches, the window and `must_establish`, so it would
+replace nothing on the search path unless the brief is split again around
+it, and the brief's 5.7 s is spent on those fields too. Its compressor is
+not usable as the evidence cut: losing a figure the answer turns on is the
+failure `evidence_digest` exists to prevent. The number to take away is the
+brief's own: a p50 of 5.7 s and two of 32 at the 8 s ceiling is the latency
+§268 was meant to halve. Nothing in FAM calls ScaleDown; this is a
+measurement, not a change.
+
+**To re-run it**, where `ANTHROPIC_API_KEY` and `SCALEDOWN_API_KEY` both
 are: `python tools/bench_scaledown.py --json out.json`. `--descriptions
 guide` gives `/extract` the field guide's paragraphs; `--rate auto` tries
 the harder cut.
