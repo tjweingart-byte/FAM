@@ -272,6 +272,49 @@ def test_filing_a_report_tells_a_person(monkeypatch, mailbox):
                                       "reason": "harassment"})
     assert r.status_code == 200, r.text
     assert len(mailbox) == 1 and mailbox[0][2].count("/admin") == 1
+    assert "https://familiarize.net/admin" in mailbox[0][2]
     health = TestClient(appmod.app).get("/api/health").json()
     assert health["report_alerts"]["available"] is True
     assert "apple_tokens" in health
+
+
+def test_a_reporter_cannot_choose_where_the_alert_links(monkeypatch, mailbox):
+    """§304: the email's link comes from settings, never the request's Host
+    headers, which the reporter writes - or a report becomes a phishing
+    email to the moderator."""
+    use(monkeypatch, moderation_email="mod@familiarize.net", public_base_url="",
+        app_home_url="https://familiarize.net")
+    monkeypatch.setattr(appmod, "REPORT_ALERTS", moderation.ReportAlerts())
+    ann, ben = TestClient(appmod.app), TestClient(appmod.app)
+    for c, handle in ((ann, "annhost"), (ben, "benhost")):
+        assert c.post("/api/auth/signup", json={
+            "email": f"{handle}@example.com", "password": "password12"}).status_code == 200
+        assert c.post("/api/me", json={"name": handle, "handle": handle}).status_code == 200
+    cid = ben.post("/api/comments", json={"query": "why the sea is salty",
+                                          "minutes": 2, "text": "rude"}).json()["id"]
+    r = ann.post("/api/report", json={"kind": "comment", "target": str(cid),
+                                      "reason": "harassment"},
+                 headers={"X-Forwarded-Host": "evil-login.example",
+                          "Host": "evil-login.example", "X-Forwarded-Proto": "https"})
+    assert r.status_code == 200, r.text
+    body = mailbox[0][2]
+    assert "evil-login.example" not in body
+    assert "https://familiarize.net/admin" in body
+
+
+def test_a_failed_summary_does_not_spend_the_window(monkeypatch, mailbox, tmp_path):
+    use(monkeypatch, moderation_email="mod@familiarize.net")
+    store = moderation.ModerationStore(path=str(tmp_path / "m.db"))
+    alerts = moderation.ReportAlerts(every=900)
+    broken = {"yes": True}
+    real = store.report_summary
+
+    def summary():
+        if broken["yes"]:
+            raise RuntimeError("database away")
+        return real()
+    monkeypatch.setattr(store, "report_summary", summary)
+    with pytest.raises(RuntimeError):
+        alerts.notify(store, "/admin", now=1000.0)
+    broken["yes"] = False
+    assert alerts.notify(store, "/admin", now=1001.0)

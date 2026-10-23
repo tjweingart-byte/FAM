@@ -21698,3 +21698,27 @@ including `test_oauth.py`'s forged-token test, which CI skips.
 
 Tests: `tests/test_app_review_server.py` (the image installs the library; a
 missing library is named).
+
+## 304. A reporter could choose where the moderator's email links (2026-10-23)
+
+Found by an independent review of §301-§303 before the merge. The report
+alert's `/admin` link was built from `_public_base(request)`, which - with
+`PUBLIC_BASE_URL` unset, as on Render - takes the host from the caller's
+`X-Forwarded-Host` / `Host`. That function's own docstring says the client's
+host is acceptable only because it is never put in an email; §301 put it in
+one. Any account could file a report with a forged host and send the
+moderator "act on it at https://evil-login.example/admin": a phishing link
+for an admin's credentials, delivered by FAM itself.
+
+The link now comes from settings alone (`PUBLIC_BASE_URL`, else
+`APP_HOME_URL`, which defaults to https://familiarize.net). Also: composing the
+email now happens before the 15-minute window is taken, so a failure while
+reading the summary no longer silences the next report's alert.
+
+Left as is, and why: unlinking Apple reads the stored token before deleting
+the identity, so a token stored by a second, simultaneous Apple sign-in
+between the two would not be revoked - a window of milliseconds that needs
+the same person signing in and unlinking at once.
+
+Tests: `tests/test_app_review_server.py` (a forged host never reaches the
+email - it fails on the old line; a failed summary keeps the window).

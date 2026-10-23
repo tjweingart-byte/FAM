@@ -4799,10 +4799,13 @@ async def report_content(req: ReportRequest, request: Request) -> dict:
     except moderation_mod.ModerationError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     # A person is told, so the 24-hour promise does not rest on remembering
-    # to open /admin. Never awaited and never fails the report.
+    # to open /admin. Never awaited and never fails the report. The link is
+    # from settings alone, never `_public_base(request)`: that reads the
+    # caller's Host header, and a reporter must not choose where the
+    # moderator's email sends them (§304).
     try:
         REPORT_ALERTS.notify(MODERATION,
-                             (_public_base(request) or settings.app_home_url) + "/admin")
+                             (settings.public_base_url or settings.app_home_url) + "/admin")
     except Exception:  # noqa: BLE001 - the report is filed whatever this does
         log.exception("could not send the report alert")
     return {"ok": True, "id": report["id"], "message": REPORT_THANKS,

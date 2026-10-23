@@ -457,9 +457,14 @@ class ReportAlerts:
         with self._lock:
             if self._last and now - self._last < self.every:
                 return False
+        # Composed before the window is taken, so a failure here leaves the
+        # next report free to send.
+        subject, body = self.message(store.report_summary(), admin_url)
+        with self._lock:
+            if self._last and now - self._last < self.every:
+                return False
             self._last = now
         import mail
-        subject, body = self.message(store.report_summary(), admin_url)
         mail.send_later(self.recipient(), subject, body)
         self.sent += 1
         return True

@@ -307,3 +307,4 @@ and `limit` = Lines.
 | 21597 | 52 | 301. Ready for Apple: revoking Apple sign-in, a report that reaches a person (2026-10-22) |
 | 21649 | 26 | 302. The waiting screen plays the samples (2026-10-22) |
 | 21675 | 27 | 303. The production image could not check a sign-in (2026-10-22) |
+| 21702 | 24 | 304. A reporter could choose where the moderator's email links (2026-10-23) |
