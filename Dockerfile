@@ -22,8 +22,11 @@ WORKDIR /app
 # speaks to them over `httpx`, which requirements.txt already carries.
 # requirements-push.txt: "your mix is ready" by Web Push (push.py). Pure
 # Python plus `cryptography`; inert until VAPID keys are set.
-COPY requirements.txt requirements-embed.txt requirements-push.txt ./
-RUN pip install --no-cache-dir -r requirements.txt -r requirements-push.txt
+# requirements-1password.txt: FAM_SECRETS from 1Password, the company vault
+# (tools/onepassword_secrets.py, CREDENTIALS.md). Inert until its token is set.
+COPY requirements.txt requirements-embed.txt requirements-push.txt requirements-1password.txt ./
+RUN pip install --no-cache-dir -r requirements.txt -r requirements-push.txt \
+    -r requirements-1password.txt
 
 # The local sentence embedder that orders "Made for you" by meaning as well as
 # by tag (PROBLEMS.md §131). ~110 MB with its runtime, CPU only, no torch.

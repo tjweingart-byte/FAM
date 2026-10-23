@@ -79,7 +79,10 @@ services:
       #
       # FAM_SECRETS instead points the app at a secrets manager it can read for
       # itself, which is not a secret and so could live in this file. A rotated
-      # key is then picked up by the running server. See CREDENTIALS.md.
+      # key is then picked up by the running server. See CREDENTIALS.md - its
+      # 1Password recipe is the company vault's (`cmd:python
+      # tools/onepassword_secrets.py`, OP_SERVICE_ACCOUNT_TOKEN set here). A key
+      # still set here wins over the vault, so move a key by deleting it here.
       - key: ANTHROPIC_API_KEY
         sync: false        # set once in the dashboard; never in the repo
       # No DEMO_MODE here: nothing reads it. Demo mode is derived from whether

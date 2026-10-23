@@ -82,6 +82,10 @@ PAID_CREDENTIALS = (
     # Not paid, but outbound to a third party that emails real people: a
     # staging signup must never register anybody with the vendor.
     "VIRAL_LOOPS_API_TOKEN",
+    # The company vault's service account (§301): it reads every key above.
+    # Staging never asks a secrets manager anyway; removing the token too
+    # means one pasted there by mistake is not even in its environment.
+    "OP_SERVICE_ACCOUNT_TOKEN",
 )
 
 #: Credential-shaped names that buy nothing, so the derived test does not ask

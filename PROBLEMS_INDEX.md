@@ -305,3 +305,4 @@ and `limit` = Lines.
 | 21548 | 35 | 299. The pill at the bottom becomes a plain line (2026-10-21) |
 | 21583 | 14 | 300. An X out of the terms (2026-10-22) |
 | 21597 | 90 | 301. Two-step sign-in, and a second factor on every outside service (2026-10-22) |
+| 21687 | 44 | 302. FAM's keys from 1Password, the company vault (2026-10-23) |

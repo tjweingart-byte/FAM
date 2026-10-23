@@ -71,7 +71,10 @@ FAM_SECRETS='cmd:vault kv get -format=json -field=data secret/fam'
 # Doppler
 FAM_SECRETS='cmd:doppler secrets download --no-file --format json'
 
-# 1Password — one secret per line
+# 1Password, the company vault — the whole vault at once (below)
+FAM_SECRETS='cmd:python tools/onepassword_secrets.py'
+
+# 1Password with the `op` command instead — one secret per line
 FAM_SECRETS='cmd:ANTHROPIC_API_KEY=op read op://vault/fam/anthropic
 cmd:PARALLEL_API_KEY=op read op://vault/fam/parallel'
 
@@ -90,6 +93,59 @@ files does. A command that genuinely needs a leading assignment writes
 **No new dependency, and no vendor chosen on the app's behalf.** The escape
 hatch for a manager nobody has thought of yet is that it is already a shell
 command.
+
+### 1Password, the company vault (§301)
+
+1Password is where FAM's logins and keys live (SECURITY_CHECKLIST.md). A
+**service account** gets a token that can read only the vaults it is given;
+`tools/onepassword_secrets.py` signs in with it through 1Password's own SDK
+(`requirements-1password.txt`, in the image) and prints the vault's keys as one
+JSON object. FAM never knows which vendor answered.
+
+**What it reads:** in the vault, every field whose label is an upper-case
+variable name - `ANTHROPIC_API_KEY`, `GNEWS_KEY`, `R2_SECRET_ACCESS_KEY`,
+spelled as `.env.example` spells them - becomes that variable. Nothing else:
+not a login's username or password, not notes, and never a one-time-password
+field. Two fields with one label are refused rather than one picked.
+
+Setting it up, once:
+
+1. **Make a vault, `FAM Production`,** for the server's keys only - separate
+   from the vaults people use, so the server's token reaches nothing else.
+2. **Add the keys.** Either one item ("FAM server keys", category API
+   Credential or Secure Note) with one field per key, each field *labelled
+   with the variable name*; or one item per vendor, each with its key in a
+   field labelled that way. Mark them as password (concealed) fields.
+3. **Make a service account** (Developer → Service accounts, or
+   developer.1password.com), named `render-fam`, with **read** access to
+   `FAM Production` only. Save the token it shows once - in 1Password,
+   somewhere the service account itself cannot read.
+4. **On Render, on `fam`:**
+   * `OP_SERVICE_ACCOUNT_TOKEN` = the token (a secret: dashboard only);
+   * `FAM_SECRETS` = `cmd:python tools/onepassword_secrets.py`;
+   * `OP_VAULT` only if the vault is named something other than
+     `FAM Production`.
+5. **Deploy, then check `/api/health`.** Its credentials block names the
+   provider and how many values it loaded - never the values. A failure is
+   named there, with the reason in the server log.
+6. **Only then delete each key from Render's environment.** The process
+   environment outranks `FAM_SECRETS` (the chain above), so a key left in the
+   dashboard is the one used and the vault's copy is ignored - the right
+   default while moving, and the reason to finish the move.
+
+After that, rotating a key is: change it in 1Password. The running server
+picks it up on its next refresh (`FAM_SECRETS_TTL`, or the moment Claude
+refuses the old key). The one credential left on Render is
+`OP_SERVICE_ACCOUNT_TOKEN`; if anybody who could read it leaves, make a new
+token, paste it, and revoke the old one.
+
+**Staging never reads it.** A zero-spend deployment ignores `FAM_SECRETS`
+(`spend_guard`), so do not give `fam-staging` a token.
+
+Not verified from here: this container cannot reach 1Password's servers, so
+the first real sign-in happens on a deployment. A bad or missing token was
+run for real and is refused in one sentence; `tests/test_onepassword_secrets.py`
+covers the rest with the SDK stubbed.
 
 ---
 

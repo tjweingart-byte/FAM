@@ -38,6 +38,7 @@ shells out to whatever the deployment already has:
     cmd:gcloud secrets versions access latest --secret=fam
     cmd:vault kv get -format=json -field=data secret/fam
     cmd:ANTHROPIC_API_KEY=op read op://vault/fam/credential
+    cmd:python tools/onepassword_secrets.py   1Password, the whole vault
 
 Every one of those authenticates as the *machine* - an IAM role, a service
 account, a workload identity - not as a stored password. No new dependency, no

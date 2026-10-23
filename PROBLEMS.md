@@ -21683,3 +21683,47 @@ admin is answered with the code sentence and no field to type it into.
 Tests: `tests/test_two_step_301.py` (RFC 6238 vectors, every route, bounds,
 admins, the session kinds); `test_admin_tracker.py` sets the requirement
 off to keep testing the password step.
+
+## 302. FAM's keys from 1Password, the company vault (2026-10-23)
+
+The owner chose 1Password as the company vault (after weighing Bitwarden
+Teams, which was cheaper) and asked for FAM to read its keys from it, so that
+Render holds one token instead of fifteen keys and rotating a key is editing
+it in 1Password.
+
+`FAM_SECRETS` already ran any command and read its output (CREDENTIALS.md),
+and CREDENTIALS.md had a 1Password recipe - one `op read` per key - that
+nothing installed `op` for. This adds `tools/onepassword_secrets.py`, which
+signs in with a **service account** token (`OP_SERVICE_ACCOUNT_TOKEN`) through
+1Password's own Python SDK (`onepassword-sdk==0.4.2`,
+`requirements-1password.txt`, now in the image) and prints the vault's keys as
+one JSON object, which `credentials.parse_payload` already reads:
+
+    FAM_SECRETS='cmd:python tools/onepassword_secrets.py'
+
+**What it reads**: in one vault (`OP_VAULT`, default `FAM Production`), every
+field labelled with an upper-case variable name, from text and password
+fields only. A login's own `username`/`password` are lower case and never
+read; a one-time-password field is never read whatever its label. Two fields
+with one label are refused rather than one chosen by order. The SDK rather
+than `op`: it installs with pip, reads the vault in one sign-in, and adding a
+key is adding a field rather than a line on the host. JSON rather than dotenv
+because a value with a quote or a newline survives it.
+
+**Staging**: already never asks a secrets manager (`spend_guard`); the token
+is now in `PAID_CREDENTIALS` too, so one pasted there by mistake is removed
+from its environment.
+
+**Not verified here**: this container cannot reach 1Password's servers, so a
+real vault has not been read. A bad token was refused for real, in one
+sentence ("invalid service account token"); the rest is
+`tests/test_onepassword_secrets.py` with the SDK stubbed. The first real read
+is the deployment's, checked in `/api/health`'s credentials block.
+
+The order matters on Render: the process environment outranks `FAM_SECRETS`,
+so keys stay in the dashboard (and win) until each is deleted there after the
+vault is confirmed.
+
+SECURITY_CHECKLIST.md now names 1Password, its four vaults and the service
+account's token. An earlier, uncommitted Bitwarden version of the same helper
+was dropped when the choice changed.
