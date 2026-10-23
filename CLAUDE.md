@@ -62,7 +62,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   searched in the last 2h whose episodes are still current; cache only (§190, §192). [trending-searches]
 - **Search is Google's shape** (§190): mic and attach inside the bar's right;
   Length (1-5 min, §219) and Voice bubbles never print the choice; back to 1 min on
-  every return to the app (§305); **Private** is a third bubble (§282). [search-bar]
+  every return to the app; **Private** is a third bubble (§282). [search-bar]
 - **Private search** (§282/§285): charcoal; on till off (bubble=Settings)
   search, Go Deeper; no play, history, author. [private-search]
 - Searches (Go Deeper too) corrected at send, titles never misspell, EI
@@ -205,7 +205,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
 - **Scoring** (§114, §155): subtag-aware `_affinity`, `RELEVANCE_FLOOR`; a live
   story reaches Made for you **only when it names something followed** - the
   floor tops up from evergreen tiles, **never the live pool**. Non-search
-  episodes are `BROWSE_MINUTES` (1, §305) but a Go Deeper's 1-5 (§170); View more /
+  episodes are `BROWSE_MINUTES` (1) but a Go Deeper's 1-5 (§170); View more /
   Refresh deal eight (§165); no wheel, no language picker, no interest cap;
   impressions only damp (`FATIGUE_WEIGHT`); skip `UNSHELVED` in `FILL_ORDER`.
   One bank - personalise the order, not the inventory. [op-taste-scoring]
