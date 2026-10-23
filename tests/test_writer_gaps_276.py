@@ -50,7 +50,7 @@ def test_a_longer_episode_never_gets_less_than_a_browse_one(monkeypatch):
     base = (config.Settings().search_packet_sources,
             config.Settings().search_highlights_per_source)
     previous = base
-    for minutes in range(BROWSE_MINUTES + 1, 11):
+    for minutes in range(config.PACKET_BASE_MINUTES + 1, 11):
         size = research.packet_size(minutes)
         now = (size["packet_sources"], size["highlights_per_source"])
         assert now >= previous, f"{minutes} minutes got less than {previous}"

@@ -583,13 +583,13 @@ def test_a_first_thought_too_long_for_the_budget_is_refused_not_held():
 
 # --- what a listener gets when they have said nothing ---------------------
 
-def test_the_default_episode_is_two_minutes():
+def test_the_default_episode_is_one_minute():
     """One number in one place. It was the literal `3` in about twenty of
     them - every endpoint's Query default, both of the client's length
     controls, prefetch and half the tools - which is the shape a number takes
     when nobody can change it without missing one."""
     import config
-    assert config.DEFAULT_MINUTES == 2
+    assert config.DEFAULT_MINUTES == 1   # §305
 
 
 def test_no_endpoint_hard_codes_its_own_default_length():

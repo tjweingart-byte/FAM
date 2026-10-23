@@ -400,6 +400,7 @@
   listening outvotes" (§121 and before).
 
 <!-- rule:op-taste-scoring -->
+> **Current (PROBLEMS.md §305, the owner 10.23):** `BROWSE_MINUTES` is **one** - myFAM, DailyFAM, the Trending and DailyFAM editions, the startup write-ahead and prefetch all write and play one-minute episodes. Search and Go Deeper still offer 1-5. Where the text below says two, read one.
 > **Current (PROBLEMS.md §286, the owner 10.16):** Made for you's View more opens on the rail's own tiles (the client holds them), and everything it deals after them - the rest of the first page and every Refresh - is an episode already written (`cycle=cached`); when none is left it says "You're all caught up" with a way back to the top, never the first eight again. Every other rail still deals eight and wraps (§165).
 5b. **The taste model is crude, and less crude than it was.**
    *(§114 sharpened the scoring itself, which nothing before it had touched.

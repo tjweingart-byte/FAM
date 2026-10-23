@@ -68,7 +68,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
-from config import (BROWSE_MINUTES, RESEARCH_BACKENDS, WEB_RESEARCH_BACKENDS,
+from config import (PACKET_BASE_MINUTES, RESEARCH_BACKENDS, WEB_RESEARCH_BACKENDS,
                     settings)
 
 log = logging.getLogger("research")
@@ -1359,14 +1359,15 @@ def packet_size(minutes: int) -> dict:
     A five-minute search used to get the same three sources and two
     highlights each as a two-minute one, and the writer drops a beat with
     nothing behind it - so it ended near two minutes whatever was asked.
-    Duration buys depth, and depth needs material: past the browse length
-    each extra minute brings one more source, and four minutes or more a
-    third highlight each. Two minutes and under overrides nothing, so every
-    browse episode is unchanged. The sources come out of the results the one
+    Duration buys depth, and depth needs material: past two minutes
+    (`PACKET_BASE_MINUTES`) each extra minute brings one more source, and
+    four minutes or more a third highlight each. Two minutes and under
+    overrides nothing, so every browse episode and every two-minute search is
+    unchanged. The sources come out of the results the one
     search already returns, so a longer episode costs prompt tokens, never
     another search.
     """
-    extra = max(0, int(minutes) - BROWSE_MINUTES)
+    extra = max(0, int(minutes) - PACKET_BASE_MINUTES)
     if not extra:
         return {}
     highlights = settings.search_highlights_per_source + (

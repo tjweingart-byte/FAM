@@ -21722,3 +21722,48 @@ the same person signing in and unlinking at once.
 
 Tests: `tests/test_app_review_server.py` (a forged host never reaches the
 email - it fails on the old line; a failed summary keeps the window).
+
+## 305. The standard episode is one minute (2026-10-23)
+
+At the owner's direction: every episode nobody chose a length for is one
+minute, and every batched episode is one minute. `BROWSE_MINUTES` and
+`DEFAULT_MINUTES` are 1 (both were 2 since §147), and so are the client's
+`BROWSE_MINUTES` and `DEFAULT_LENGTH_MINUTES`; the Length bubble still offers
+1-5 and resets to one on every return to the app, Go Deeper still offers 1-5
+and opens on the length of the episode it follows, and the Voice bubble is
+untouched.
+
+Search's evidence is unchanged: `research.packet_size` grew a source per
+minute past `BROWSE_MINUTES`, so lowering it would have handed every
+two-minute search a fourth source. It now counts from its own
+`PACKET_BASE_MINUTES` (2).
+
+What this costs, and what was left as is:
+- Minutes are in the cache key (`pipeline.key_for`). Every episode written
+  at two minutes - the Trending and DailyFAM editions, the startup
+  write-ahead, the guest bank (`tools/warm_guest_bank.py`), the landing
+  page's sign-up samples, kept audio - is no longer what a browse tap asks
+  for. Each is rewritten at its next slot or on its first tap; until then a
+  guest tap on a bank tile has no kept audio to replay (403 → sign-up),
+  rails that sort `ready_first` have less ready, and the sign-up/landing
+  samples (`_welcome_samples`: kept audio at `BROWSE_MINUTES` only) start
+  again from the one-minute episodes heard since. Kept two-minute episodes
+  still replay from history, shares and vibes, which carry their own minutes.
+- Saved-for-later tiles and the device's `OfflineShelf` are keyed
+  `query|minutes`: a tile saved or kept offline at two minutes no longer
+  shows as saved/offline on its card (the Saved list itself still plays it).
+- Installed clients that send `minutes=2` from myFAM or DailyFAM are held to
+  `BROWSE_MINUTES` by the server, as since §147; nothing is refused.
+- `DEPTH_BANDS` puts one minute in the `orientation` band written for two
+  ("the answer, the mechanism..., the particulars..., and why it matters").
+  About 150 spoken words is tight for that; no band was added, because
+  writing changes go through `write.py --minutes 1` and an example first.
+
+Found on review before the merge: `tools/seed_demo.py` still defaulted to
+`--minutes 2`, so a demo seeded after this change filled the most-played row
+with episodes the one-minute rail never probes - an empty row on the demo
+that row exists for. It defaults to `BROWSE_MINUTES` now. The client's
+`|| 2` fallbacks on messages, vibes, Go Deeper and `/api/next` read
+`BROWSE_MINUTES` (or `DEFAULT_LENGTH_MINUTES` for Go Deeper's own choice) like
+the rest of the file, and the comments that said browse episodes are two
+minutes say `BROWSE_MINUTES`.

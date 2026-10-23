@@ -1531,8 +1531,8 @@ def main() -> int:
                 "the Topic screen still offers an episode length"
             badges = page.eval_on_selector_all(
                 "#screen-topic .yf-card-len", "e => e.map(x => x.textContent.trim())")
-            assert all(b.lower() == "2 min" for b in badges), \
-                f"card lengths {badges} are not the two-minute browse length"
+            assert all(b.lower() == "1 min" for b in badges), \
+                f"card lengths {badges} are not the one-minute browse length"
             page.evaluate("setTopicFilter('friends')")
             page.wait_for_timeout(700)
             assert page.query_selector("#screen-topic .yf-filter.on:nth-child(2)"), \
@@ -2208,7 +2208,7 @@ def main() -> int:
                 document.dispatchEvent(new Event('visibilitychange'));
                 delete document.visibilityState;
             }""")
-            assert page.evaluate("selectedLengthMinutes") == 2, \
+            assert page.evaluate("selectedLengthMinutes") == 1, \
                 "coming back into the app kept the old length"
 
         def the_player_menu_and_the_queue():
@@ -2637,7 +2637,7 @@ def main() -> int:
             # §190: the bubble says "Length" and no number; the menu ticks it.
             chip = page.text_content("#lengthBubble").strip()
             assert chip == "Length", f"the length bubble reads {chip!r}"
-            assert want == 2, f"the search page opened on {want} min, not 2"
+            assert want == 1, f"the search page opened on {want} min, not 1"
             for element_id in ("lengthModalVal",):
                 shown = page.text_content("#" + element_id).strip()
                 assert shown == "%d min" % want, \
