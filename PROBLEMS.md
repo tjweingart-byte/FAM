@@ -21758,3 +21758,12 @@ What this costs, and what was left as is:
   ("the answer, the mechanism..., the particulars..., and why it matters").
   About 150 spoken words is tight for that; no band was added, because
   writing changes go through `write.py --minutes 1` and an example first.
+
+Found on review before the merge: `tools/seed_demo.py` still defaulted to
+`--minutes 2`, so a demo seeded after this change filled the most-played row
+with episodes the one-minute rail never probes - an empty row on the demo
+that row exists for. It defaults to `BROWSE_MINUTES` now. The client's
+`|| 2` fallbacks on messages, vibes, Go Deeper and `/api/next` read
+`BROWSE_MINUTES` (or `DEFAULT_LENGTH_MINUTES` for Go Deeper's own choice) like
+the rest of the file, and the comments that said browse episodes are two
+minutes say `BROWSE_MINUTES`.

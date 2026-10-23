@@ -234,10 +234,9 @@ SMALL_MODEL = "claude-haiku-5-5"
 #: How long every episode is that searchFAM did not ask for (§147, at the
 #: owner's direction): myFAM, DailyFAM, the Trending bank and prefetch. Only
 #: search offers a length; everything else is one minute (§305; two before
-#: it), fixed in code and
-#: never in the environment, because minutes are in the cache key and a
-#: background edition written at one length and tapped at another is a whole
-#: edition nobody finds.
+#: it), fixed in code and never in the environment, because minutes are in
+#: the cache key and a background edition written at one length and tapped
+#: at another is a whole edition nobody finds.
 BROWSE_MINUTES = 1
 
 #: The length at and under which an episode gets the configured evidence
@@ -246,6 +245,7 @@ BROWSE_MINUTES = 1
 #: evidence exactly where it was, so a two-minute search is not handed a
 #: source more than it had.
 PACKET_BASE_MINUTES = 2
+
 #: How much of an episode prefetch pays for in advance. See `prefetch_level`.
 #: Named here rather than repeated as literals so "the levels" is one fact in
 #: one place: `Settings`, `prefetch.LEVELS` and the tests all read it from here.

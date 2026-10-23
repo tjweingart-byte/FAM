@@ -1360,9 +1360,10 @@ def packet_size(minutes: int) -> dict:
     highlights each as a two-minute one, and the writer drops a beat with
     nothing behind it - so it ended near two minutes whatever was asked.
     Duration buys depth, and depth needs material: past two minutes
-    (`PACKET_BASE_MINUTES`) each extra minute brings one more source, and four minutes or more a
-    third highlight each. Two minutes and under overrides nothing, so every
-    browse episode is unchanged. The sources come out of the results the one
+    (`PACKET_BASE_MINUTES`) each extra minute brings one more source, and
+    four minutes or more a third highlight each. Two minutes and under
+    overrides nothing, so every browse episode and every two-minute search is
+    unchanged. The sources come out of the results the one
     search already returns, so a longer episode costs prompt tokens, never
     another search.
     """

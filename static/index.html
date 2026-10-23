@@ -9440,7 +9440,7 @@
     // a replay-only request a miss is a refusal, not a regeneration.
     //
     // Only a search takes the length control (§147); everything else that
-    // names no length of its own is two minutes.
+    // names no length of its own is `BROWSE_MINUTES` (one, §305).
     var surface = opts.surface || "";
     var minutes = episodeMinutes(opts.minutes, surface);
     currentPlaySurface = opts.cachedOnly ? "explore" : surface;
@@ -10073,9 +10073,9 @@
     // screen. The voice is one tap away, in the panel this pill opens, which
     // is also the only place it can be changed.
     // The episode playing's own length when it is not a search (§147) -
-    // a myFAM episode is two minutes whatever the search length says.
+    // a myFAM episode is `BROWSE_MINUTES` whatever the search length says.
     // And a search's own length too since §190: the search length goes back
-    // to two minutes on every return to the app, the playing episode does not.
+    // to one minute on every return to the app, the playing episode does not.
     var shown = minutes || currentPlayMinutes || selectedLengthMinutes;
     return selectedSpeed + " · " + shown + " min";
   }
@@ -10735,7 +10735,7 @@
     document.getElementById("lengthModalVal").textContent = selectedLengthMinutes + " min";
     document.getElementById("voiceModalVal").textContent = voiceLabel(selectedVoice);
     // Length and voice are a search's to choose (§147). On anything else the
-    // episode is two minutes in the bank voice it was given, so the rows are
+    // episode is `BROWSE_MINUTES` in the bank voice it was given, so the rows are
     // not offered rather than offered and ignored.
     var searched = currentPlaySurface === "search";
     ["lengthModalVal", "voiceModalVal"].forEach(function(id){
@@ -10804,7 +10804,7 @@
     showGoDeeperModal(ep.minutes);
     if(goDeeperThreadOverride) return;
     fetch("/api/next?q=" + encodeURIComponent(ep.query)
-          + "&minutes=" + encodeURIComponent(ep.minutes || 2) + "&cached_only=true")
+          + "&minutes=" + encodeURIComponent(ep.minutes || BROWSE_MINUTES) + "&cached_only=true")
       .then(function(r){ return r.ok ? r.json() : null; })
       .then(function(d){
         // Still the Go Deeper this was asked for, and still open.
@@ -10874,9 +10874,9 @@
       // be told not to repeat it, instead of being one long run-on query.
       parentTopic: (baseTitle && baseTitle !== "this") ? baseTitle : "",
       // The length chosen in the modal. Named, and on a surface the server
-      // does not hold to two minutes - from myFAM or DailyFAM it would
+      // does not hold to `BROWSE_MINUTES` - from myFAM or DailyFAM it would
       // otherwise be a browse tap and ignore the choice (§147).
-      exploreMinutes: Math.max(1, Math.min(5, Math.round(minutes) || 2)),
+      exploreMinutes: Math.max(1, Math.min(5, Math.round(minutes) || DEFAULT_LENGTH_MINUTES)),
       surface: (stack[0] === "home") ? "search" : "other",
       titleOverridden: false,
       private: hush
@@ -13685,8 +13685,8 @@
 
   var myFamTopics = {};   // id -> topic, so a tap knows what to generate
 
-  // How long an episode started from a browse surface runs for: two minutes,
-  // always (§147, at the owner's direction). Only searchFAM offers a length;
+  // How long an episode started from a browse surface runs for: one minute
+  // (§305; two since §147), always, at the owner's direction. Only searchFAM offers a length;
   // myFAM, DailyFAM and everything else that is not a search is written at
   // `BROWSE_MINUTES`, and the server holds them to it whatever is sent.
   var BROWSE_MINUTES = 1;
@@ -17080,7 +17080,7 @@
           + '<span class="yf-round">' + yfPlaySVG(11) + '</span>'
           + '<div style="min-width:0;"><div class="yf-vrow-title">' + escapeHtml(v.title || v.query) + '</div>'
           + '<div class="yf-vrow-meta">' + (topic ? escapeHtml(topic) + ' · ' : '')
-          + (v.minutes || 2) + ' min</div></div></div>';
+          + (v.minutes || BROWSE_MINUTES) + ' min</div></div></div>';
       }).join("");
       html += personMoreHTML("vibes", theirVibes.length > 3);
     } else {
@@ -18163,13 +18163,13 @@
   function sendEpisodeToThread(ep){
     if(!currentThread) return;
     var draft = { id: 0, mine: true, kind: "episode", query: ep.query,
-                  minutes: ep.minutes || 2, title: ep.title || "", pending: true };
+                  minutes: ep.minutes || BROWSE_MINUTES, title: ep.title || "", pending: true };
     threadMessages.push(draft);
     renderThreadBody();
     fetch("/api/messages", {
       method: "POST", headers: {"Content-Type": "application/json"},
       body: JSON.stringify({ to: currentThread.user_id, query: ep.query,
-                             minutes: ep.minutes || 2, title: ep.title || "",
+                             minutes: ep.minutes || BROWSE_MINUTES, title: ep.title || "",
                              episode: ep.episode || "" })
     }).then(function(r){
       return r.json().then(function(d){
@@ -18584,7 +18584,7 @@
         var label = liked ? (m.mine ? "You liked their vibe" : sender + " liked your vibe")
           : m.text ? (m.mine ? "You replied to their vibe" : sender + " replied to your vibe")
           : (m.mine ? "You shared an episode" : sender + " shared an episode");
-        var meta = (m.topic ? escapeHtml(m.topic) + " · " : "") + (m.minutes || 2) + " min";
+        var meta = (m.topic ? escapeHtml(m.topic) + " · " : "") + (m.minutes || BROWSE_MINUTES) + " min";
         var saved = savedHas(m.query, m.minutes);
         var card = day + fromLabel + '<div class="msg-row ' + dirCls + (m.pending ? " pending" : "") + '">'
           + '<div class="yf-ep"><div class="yf-ep-lab">' + yfIcon("share", 12)
@@ -18606,7 +18606,7 @@
         // it - and so it is drawn only for an episode shared *to* them.
         if(m.finished){
           card += '<div class="yf-receipt">' + yfIcon("check", 13)
-            + '<span>You finished it · ' + (m.minutes || 2) + ' min</span></div>';
+            + '<span>You finished it · ' + (m.minutes || BROWSE_MINUTES) + ' min</span></div>';
         }
         return card;
       }
@@ -18630,11 +18630,11 @@
     if(!AUTH.authenticated){ toast("Save for Later needs an account"); return; }
     var on = savedHas(m.query, m.minutes);
     var req = on
-      ? fetch("/api/saved?q=" + encodeURIComponent(m.query) + "&minutes=" + (m.minutes || 2),
+      ? fetch("/api/saved?q=" + encodeURIComponent(m.query) + "&minutes=" + (m.minutes || BROWSE_MINUTES),
               { method: "DELETE" })
       : fetch("/api/saved", {
           method: "POST", headers: {"Content-Type": "application/json"},
-          body: JSON.stringify({ query: m.query, minutes: m.minutes || 2,
+          body: JSON.stringify({ query: m.query, minutes: m.minutes || BROWSE_MINUTES,
                                  title: m.title || "", source: "message" })
         });
     req.then(function(r){ if(!r.ok) throw new Error(); })
@@ -18645,7 +18645,7 @@
             return !(it.query === m.query && Number(it.minutes) === Number(m.minutes));
           });
         } else {
-          savedCache.items = [{ query: m.query, minutes: m.minutes || 2,
+          savedCache.items = [{ query: m.query, minutes: m.minutes || BROWSE_MINUTES,
                                 title: m.title || "" }].concat(items);
         }
         renderThreadBody();

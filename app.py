@@ -5595,8 +5595,8 @@ def _may_be_private(where: str, context: str, topic_id: str) -> bool:
 #: the parameters alone - and Explore is searched episodes only.
 PLAY_SURFACES = ("search", "myfam", "dailyfam", "share", "other")
 
-#: The surfaces that offer no length and no voice: two minutes, and a voice
-#: drawn from the bank per episode (§147).
+#: The surfaces that offer no length and no voice: `BROWSE_MINUTES`, and a
+#: voice drawn from the bank per episode (§147).
 BROWSE_SURFACES = ("myfam", "dailyfam")
 
 
@@ -9586,8 +9586,8 @@ async def audio(
     user = _listener(request)
     where = _play_surface(surface, cached_only, topic_id, context)
     # §147: only searchFAM offers a length. Every myFAM and DailyFAM episode
-    # is two minutes, whatever an older client sends, because minutes are in
-    # the cache key and the background editions are written at two.
+    # is `BROWSE_MINUTES`, whatever an older client sends, because minutes are
+    # in the cache key and the background editions are written at that length.
     if where in BROWSE_SURFACES:
         minutes = BROWSE_MINUTES
     minutes = min(minutes, entitlements.max_minutes(_tier(request),
