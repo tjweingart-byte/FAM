@@ -45,8 +45,8 @@ def _default_minutes() -> int:
 
 
 def test_the_search_page_opens_on_the_length_it_will_generate():
-    """Two minutes, and the packet asked for it by name."""
-    assert _default_minutes() == 2
+    """One minute (§305; two since the packet that asked for it by name)."""
+    assert _default_minutes() == 1
 
 
 def test_every_length_placeholder_agrees_with_the_variable():
@@ -157,6 +157,8 @@ def test_a_longer_search_is_handed_more_evidence(monkeypatch):
         research.settings, search_num_results=8, search_packet_sources=3,
         search_highlights_per_source=2))
     assert research.packet_size(1) == {} and research.packet_size(BROWSE_MINUTES) == {}
+    # §305: browse went to one minute; a two-minute search keeps its packet.
+    assert research.packet_size(2) == {}
     assert research.packet_size(3) == {"packet_sources": 4, "highlights_per_source": 2}
     assert research.packet_size(4) == {"packet_sources": 5, "highlights_per_source": 3}
     assert research.packet_size(5) == {"packet_sources": 6, "highlights_per_source": 3}

@@ -215,7 +215,8 @@ WEB_RESEARCH_BACKENDS = ("parallel", "perplexity")
 #: literal, for the same reason as DEFAULT_PIPELINE.
 DEFAULT_RESEARCH_BACKEND = "parallel"
 
-#: How long an episode is when nobody has said. Two minutes, not three.
+#: How long an episode is when nobody has said. One minute (§305, the
+#: owner's; it was two since §147, three before that).
 #:
 #: Named here because it was a literal `3` in about twenty places - every
 #: endpoint's `Query` default, the client's two length controls, prefetch,
@@ -223,7 +224,7 @@ DEFAULT_RESEARCH_BACKEND = "parallel"
 #: change it without missing one. `DEPTH_BANDS` says what each band of minutes
 #: is *for*; this says which one somebody who has expressed no preference
 #: lands in.
-DEFAULT_MINUTES = 2
+DEFAULT_MINUTES = 1
 #: The cheapest current model: the profile-photo check (§225) and, since
 #: §261, the brief. §227 moved the brief, composer, placer and thumbnails
 #: onto it; §249 moved them back to `MODEL` at the owner's direction; §261
@@ -232,12 +233,19 @@ SMALL_MODEL = "claude-haiku-5-5"
 
 #: How long every episode is that searchFAM did not ask for (§147, at the
 #: owner's direction): myFAM, DailyFAM, the Trending bank and prefetch. Only
-#: search offers a length; everything else is two minutes, fixed in code and
+#: search offers a length; everything else is one minute (§305; two before
+#: it), fixed in code and
 #: never in the environment, because minutes are in the cache key and a
 #: background edition written at one length and tapped at another is a whole
 #: edition nobody finds.
-BROWSE_MINUTES = 2
+BROWSE_MINUTES = 1
 
+#: The length at and under which an episode gets the configured evidence
+#: packet unchanged (`research.packet_size`). Two, as it was when the browse
+#: length was: §305 made browse episodes one minute and left search's
+#: evidence exactly where it was, so a two-minute search is not handed a
+#: source more than it had.
+PACKET_BASE_MINUTES = 2
 #: How much of an episode prefetch pays for in advance. See `prefetch_level`.
 #: Named here rather than repeated as literals so "the levels" is one fact in
 #: one place: `Settings`, `prefetch.LEVELS` and the tests all read it from here.

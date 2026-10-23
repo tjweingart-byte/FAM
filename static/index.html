@@ -4281,7 +4281,7 @@
             <div class="mini-ctrl-btn mix-skip" id="mixSkipBtn" onclick="skipMixItem()" title="Skip to the next episode in this playlist" aria-label="Skip to the next episode in this playlist" hidden><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M5 4l10 8-10 8V4z" fill="currentColor"/><path d="M19 5v14"/></svg></div>
           </div>
           <div class="pc-row2">
-            <div class="speed-len-pill" id="speedLenPill" onclick="openSpeedLengthModal()">1x · 2 min</div>
+            <div class="speed-len-pill" id="speedLenPill" onclick="openSpeedLengthModal()">1x · 1 min</div>
             <span class="pc-gap"></span>
             <span class="pt-icon" id="queueBtn" onclick="openQueue()" title="The queue" aria-label="The queue"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h11M4 12h11M4 18h7"/><path d="M17 14v6l4-3z" fill="currentColor"/></svg><span class="pt-cap">queue</span><span class="q-badge" id="queueBadge" aria-hidden="true" hidden></span></span>
           </div>
@@ -4326,7 +4326,7 @@
           <div class="pa-side" onclick="paTogglePlay()" style="cursor:pointer;"><div class="cc" id="paPlayIcon2" style="background:var(--copper); color:var(--ink); width:52px; height:52px;"><svg width="19" height="19" viewBox="0 0 24 24" fill="var(--ink)"><rect x="6" y="3.8" width="4.6" height="16.4" rx="1.7"/><rect x="13.4" y="3.8" width="4.6" height="16.4" rx="1.7"/></svg></div><div class="lbl">pause</div></div>
           <div class="pa-side" onclick="paSkip()"><div class="cc"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 4l10 8-10 8V4zM19 5v14"/></svg></div><div class="lbl">Tap to skip topic</div></div>
         </div>
-        <div class="speed-len-pill" id="paSpeedLenPill" style="margin:0 auto 16px; display:table;" onclick="openSpeedLengthModal()">1x · 2 min</div>
+        <div class="speed-len-pill" id="paSpeedLenPill" style="margin:0 auto 16px; display:table;" onclick="openSpeedLengthModal()">1x · 1 min</div>
       </section>
 
       <!-- ============ EXPLORE (reels: one at a time, swipe up for the next) ============ -->
@@ -4668,7 +4668,7 @@
           </div>
           <div class="gc-field">
             <div class="gc-label">Length</div>
-            <div class="gc-val" id="lengthModalVal" onclick="openLengthMenu()">2 min</div>
+            <div class="gc-val" id="lengthModalVal" onclick="openLengthMenu()">1 min</div>
           </div>
           <div class="gc-field">
             <div class="gc-label">Voice</div>
@@ -5258,12 +5258,11 @@
   var currentAlbumForPlayer = null;
   var currentTopicIndexInAlbum = -1;
   var scrollLocked = false;
-  // The length a search opens on. Two minutes: long enough for the answer
-  // and the story around it, short enough that somebody who typed a question
-  // has it answered before they have to decide whether to stay.
-  var DEFAULT_LENGTH_MINUTES = 2;
+  // The length a search opens on. One minute (§305, the owner's; two
+  // before it): the standard episode, and the Length bubble offers 1-5.
+  var DEFAULT_LENGTH_MINUTES = 1;
   var selectedLengthMinutes = DEFAULT_LENGTH_MINUTES;
-  // **Every time somebody comes back into the app the length is two minutes
+  // **Every time somebody comes back into the app the length is one minute
   // again** (§190, the owner's): a length is chosen for one search, not
   // kept. Coming back means the page loading (the line above) or returning
   // from the background; the player's own episode is untouched - only the
@@ -10752,14 +10751,14 @@
   // ---------------- Go deeper (follow-up / steer the next episode) ----------------
   var goDeeperContext = null;
   //: How long the follow-up runs, 1-5 minutes, chosen in the modal.
-  var goDeeperMinutes = 2;
+  var goDeeperMinutes = DEFAULT_LENGTH_MINUTES;
   function getGoDeeperBaseKey(context){
     if(goDeeperBaseOverride) return goDeeperBaseOverride;
     if(context === "playall") return BRANCHES[paAlbumKey] ? BRANCHES[paAlbumKey].topics[paIndex] : null;
     return currentPlayingTopicKey;
   }
   function setGoDeeperMinutes(minutes){
-    goDeeperMinutes = Math.max(1, Math.min(5, Math.round(minutes) || 2));
+    goDeeperMinutes = Math.max(1, Math.min(5, Math.round(minutes) || DEFAULT_LENGTH_MINUTES));
     document.querySelectorAll("#goDeeperLengths .deeper-len").forEach(function(el){
       var on = Number(el.dataset.min) === goDeeperMinutes;
       el.classList.toggle("on", on);
@@ -13690,7 +13689,7 @@
   // always (§147, at the owner's direction). Only searchFAM offers a length;
   // myFAM, DailyFAM and everything else that is not a search is written at
   // `BROWSE_MINUTES`, and the server holds them to it whatever is sent.
-  var BROWSE_MINUTES = 2;
+  var BROWSE_MINUTES = 1;
   var myfamLengthMinutes = BROWSE_MINUTES;
 
   // ---- "Save for later" on a card (27/09 packet) ----
