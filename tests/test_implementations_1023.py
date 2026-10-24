@@ -69,6 +69,10 @@ def test_the_dailyfam_tab_scrolls_to_the_top_when_already_there():
     assert guard < body.index("loadMyFamFeed()"), "it redraws before checking"
     assert 'querySelector("#screen-myfam > .scroll")' in body
     assert "scrollTo({ top: 0" in body
+    # Only when DailyFAM is really on screen and scrolled down; otherwise the
+    # tab opens and loads it as before (a screen can show without the stack).
+    assert "scroller.scrollTop > 0" in body
+    assert 'getElementById("screen-myfam").classList.contains("active")' in body
 
 
 # --- "Add to myFAM Playlist", the logo drawn ----------------------------------

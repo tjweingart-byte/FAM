@@ -13413,11 +13413,15 @@
   }
 
   function openMyFamTab(){
-    // Already on DailyFAM: the tab is the way back to the top, as on
-    // Instagram (10.23 packet #1) - no redraw, the rails stay as they are.
-    if(stack.length === 1 && stack[0] === "myfam"){
-      var scroller = document.querySelector("#screen-myfam > .scroll");
-      if(scroller) scroller.scrollTo({ top: 0, behavior: (window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches) ? "auto" : "smooth" });
+    // Already on DailyFAM and scrolled down: the tab is the way back to the
+    // top, as on Instagram (10.23 packet #1) - no redraw, the rails stay as
+    // they are. At the top, or from anywhere else, it opens and loads as it
+    // always did. The screen is asked, not the stack: a screen can be shown
+    // without the stack moving.
+    var scroller = document.querySelector("#screen-myfam > .scroll");
+    if(scroller && scroller.scrollTop > 0 && stack.length === 1 && stack[0] === "myfam"
+       && document.getElementById("screen-myfam").classList.contains("active")){
+      scroller.scrollTo({ top: 0, behavior: (window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches) ? "auto" : "smooth" });
       return;
     }
     loadMyFamFeed();     // also loads Go Deeper
