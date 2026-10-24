@@ -309,4 +309,4 @@ and `limit` = Lines.
 | 21675 | 27 | 303. The production image could not check a sign-in (2026-10-22) |
 | 21702 | 24 | 304. A reporter could choose where the moderator's email links (2026-10-23) |
 | 21726 | 45 | 305. The standard episode is one minute (2026-10-23) |
-| 21771 | 56 | 306. The 10.23 implementations: episodes that would not play, an apology instead of a type name, the DailyFAM tab back to the top, myFAM's logo in a menu, playlist covers, a line on the phone, and a story's send button (2026-10-24) |
+| 21771 | 59 | 306. The 10.23 implementations: episodes that would not play, an apology instead of a type name, the DailyFAM tab back to the top, myFAM's logo in a menu, playlist covers, a line on the phone, and a story's send button (2026-10-24) |

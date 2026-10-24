@@ -21804,9 +21804,12 @@ record keeps `friendly_error`'s type name. Sentences about their own request
 (no evidence, research down) pass through unchanged.
 
 The client, from the packet:
-1. **The DailyFAM tab, tapped on DailyFAM, scrolls to the top** (Instagram's
-   home button) without redrawing the rails. From any other screen it opens
-   DailyFAM as before.
+1. **The DailyFAM tab, tapped on DailyFAM while scrolled down, scrolls to
+   the top** (Instagram's home button) without redrawing the rails. At the
+   top, or from any other screen, it opens and reloads DailyFAM as before.
+   It asks whether `#screen-myfam` is the active screen, not only the stack:
+   a screen can be shown without the stack moving, and checking the stack
+   alone skipped loading the feed (two smoke checks caught it).
 2. **"Add to playlist" is "Add to myFAM Playlist"**, with FAM drawn as the
    logo (the F, the double chevron, the M). `myFamMark()` copies the glyphs
    from the myFAM heading so the brand still changes in one place; the
