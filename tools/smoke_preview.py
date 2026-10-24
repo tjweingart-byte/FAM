@@ -2224,7 +2224,7 @@ def main() -> int:
             rows = page.evaluate(
                 "() => Array.from(document.querySelectorAll('#sheetCard .sheet-item'))"
                 ".map(e => e.textContent.trim())")
-            for want in ("Share", "Add to playlist", "Add to Queue", "Go to Queue"):
+            for want in ("Share", "Add to myFAM Playlist", "Add to Queue", "Go to Queue"):
                 assert want in rows, f"the player's menu has no {want!r}: {rows}"
             assert any(r.startswith("Closed captions") for r in rows), rows
             assert "Remove from this playlist" not in rows, \
