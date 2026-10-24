@@ -21774,5 +21774,8 @@ nothing is hard-deleted on the first pass). Its guidelines and model options
 opinion on uncertain pairs only) are in the new `docs/FAM_AGENTS.md`, which
 holds every agent's guidelines as they are thought of.
 
-Open: the search vendors' terms on storing excerpts; when rollups start;
-whether a repeating article counts as a corroborating link.
+Answered by the owner the same day: an article that only repeats a known
+fact is kept as a **corroborating link** - URL, outlet, grade, date and a
+count on the fact, never its text.
+
+Open: the search vendors' terms on storing excerpts; when rollups start.

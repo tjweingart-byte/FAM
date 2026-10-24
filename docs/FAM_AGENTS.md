@@ -162,6 +162,12 @@ When a new article states something the archive already holds:
   superseded, not deleted (see 5).
 - Information the new article adds (a new figure, a new development) is kept
   even when the rest of the article is a duplicate.
+- **A repeating article is kept as a corroborating link** (the owner's
+  decision, 2026-10-24): its URL, outlet, grade and date are attached to the
+  fact it repeats, and the fact's corroboration count goes up. None of its
+  text is stored. Corroboration tells the writer how widely a fact was
+  reported, and that is never "duplicate information". Each link is
+  counted once per fact, even if the article is seen again.
 
 **5. Scrape the existing archive and remove duplicates, very carefully.**
 A periodic pass (nightly, batched) looks for duplicates that slipped in.
@@ -285,10 +291,8 @@ a step to Sonnet only where the eval shows Haiku falling short.
 
 ### Open questions for the owner
 
-- Should an article that only repeats known facts still count as a
-  corroborating source (a link and a count, no text)? Corroboration helps the
-  writer judge credibility, but it is not "duplicate information" in the
-  stored-text sense. **Current design: yes, as a link only.**
+- ~~Should a repeating article count as a corroborating source?~~ **Answered
+  2026-10-24: yes, as a link and a count, no text** (responsibility 4).
 - How long before rollups (responsibility 6) start: 90 days, or longer?
 - The search vendors' terms on storing excerpts (Parallel, Perplexity):
   check them before the archive stores anything from them.
