@@ -9019,7 +9019,9 @@
       + '<span class="menu-mark-text">FAM</span></span>';
   }
   function addToPlaylistLabel(){
-    return menuLabel("add", "Add to " + myFamMark() + " Playlist");
+    // One span: .menu-row is a flex row with a gap, so loose words and the
+    // mark would each be an item, spaced apart.
+    return menuLabel("add", "<span>Add to " + myFamMark() + " Playlist</span>");
   }
   function menuHead(title, sub, thumb){
     return '<div class="sheet-head">'
