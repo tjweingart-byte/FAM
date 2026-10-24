@@ -21722,3 +21722,57 @@ the same person signing in and unlinking at once.
 
 Tests: `tests/test_app_review_server.py` (a forged host never reaches the
 email - it fails on the old line; a failed summary keeps the window).
+
+## 305. A history archive on MongoDB Atlas, and the first agent (2026-10-24)
+
+Planning only; no code. The owner wants the writer to have a second packet:
+historical context on the topic, from what FAM has already collected,
+beside the fresh web search.
+
+What the code showed first: almost nothing collected is kept. Parallel and
+Perplexity passages are read once by the writer and discarded; `scripts.db`
+keeps scripts a week with hostnames only; GDELT keeps titles and prunes them;
+local news prunes items. So the archive fills from the day it is switched
+on, and cannot be backfilled.
+
+Compared (prices are third-party summaries of list prices, mid-2026; check
+them before buying): MongoDB Atlas, Postgres + pgvector on Render, SQLite +
+numpy on FAM's own disk, Pinecone/Qdrant. Quality depends on the embedder,
+not the store. Measured in this container: an exact numpy scan of
+384-dimension vectors takes 0.2 ms at 10k items, 6.8 ms at 100k and 32 ms
+at 500k, with memory (1.5 KB a vector) the binding limit at about 200-300k.
+Atlas same-region (AWS us-west-2, beside Render's default Oregon) is
+estimated at ~15-50 ms per lookup, unmeasured; it runs beside the web search
+inside the 0.5 s grace window like the reference look, so the listener does
+not wait for it.
+
+Decided by the owner: **MongoDB Atlas, eventually and certainly.** So the
+plan is one archive interface with two backends from the start: SQLite for
+tests, staging (zero spend - its guard admits only a private database, which
+Atlas is not) and a fresh clone; Atlas Flex in Oregon for production, M10 at
+about 1,000 monthly listeners. This amends [storage-durability]'s "every
+store through `db.connect`" for this one store, and that amendment is to be
+written into `docs/claude/constraints.md` when it is built.
+
+Capacity: the vector index in RAM fills a tier before its disk does, so
+storing shorter text alone does not buy time - fewer records do. The owner's
+design: keep **key sentences and important figures** (structured: subject,
+metric, value, unit, as-of date, outcome or forecast) rather than articles;
+keep the **most trusted source's** version of a fact and **no duplicate
+information** from other articles; keep each episode's **article links** for
+a sources view on the episode screen. With monthly rollups after ~90 days,
+five years is estimated at ~630k records at 10,000 listeners (M10) against
+~17M keeping every source (M50). Estimates, from `docs/FINANCIAL.md` §4.
+
+The work is assigned to an agent, not built yet: the **Database inventory
+specialist** - digests incoming packets, stores the key information and
+links, and scrapes the archive for duplicates, very carefully (a stock price
+on two days is two facts; a forecast and an outcome are two facts; a conflict
+is flagged, never resolved by a model; figures are compared by code only;
+nothing is hard-deleted on the first pass). Its guidelines and model options
+(Haiku 5.5 low, batched, ~$5/month at 1,000 listeners; Sonnet 5.5 as a second
+opinion on uncertain pairs only) are in the new `docs/FAM_AGENTS.md`, which
+holds every agent's guidelines as they are thought of.
+
+Open: the search vendors' terms on storing excerpts; when rollups start;
+whether a repeating article counts as a corroborating link.

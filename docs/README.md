@@ -13,6 +13,7 @@ starts with **ONBOARDING.md** and follows its curriculum.
 | [**PRODUCT_HISTORY.md**](PRODUCT_HISTORY.md) | Everything the owner has asked for, by area, with the PROBLEMS.md section where it was decided and whether it is current, changed or reversed. The reversals, and what is still open. |
 | [**FINANCIAL.md**](FINANCIAL.md) | What each part of the process costs per episode and per listener. How the bill changes from 100 to 100,000 listeners. At what point each provider (RunPod, Render, BALLDONTLIE, Finnhub, Polymarket, GNews, GDELT, Exa, NWS, Open-Meteo, Claude, Chatterbox) hits a rate limit, and what the next step costs. |
 | [**SCALING_TIMELINE.md**](SCALING_TIMELINE.md) | When to change each outside service, by stage, by a number you can see on `/admin`, or by a provider's date. What to change it to, and what it costs. The launch checklist. |
+| [**FAM_AGENTS.md**](FAM_AGENTS.md) | The guidelines for each of FAM's background agents as they are thought of - what each is for, what it must never do, and which language model is right-sized for it (price, ease, latency, effectiveness). Starts with the Database inventory specialist (§305). Planning; not in the published page. |
 | [**algorithm/ALGORITHM.md**](algorithm/ALGORITHM.md) | The ranking algorithm, generated from the code by `tools/algorithm_docs.py` (§202); a test fails when it is stale. Not in the published page; it has its own PDF and deck beside it. |
 
 ## Rules these documents follow
