@@ -217,6 +217,27 @@
   .srctag.admin { color:var(--ink); border-color:var(--amber-dk); }
   .srctag.wikipedia { color:var(--green); border-color:var(--green); }
   [hidden] { display:none !important; }
+  /* Episode quality (§306, a page here since §308). */
+  .q-score { display:inline-block; min-width:34px; text-align:center; border-radius:6px; padding:1px 5px; font:11.5px var(--mono); }
+  .q-hi { background:var(--green-bg); color:var(--green); }
+  .q-lo { background:var(--rose-bg); color:var(--rose); }
+  .q-mid { background:var(--surface); color:var(--ink); }
+  .q-tag { font:10px var(--mono); color:var(--faint); }
+  .q-warn { color:var(--amber); }
+  tr.q-node { cursor:pointer; }
+  tr.q-node:hover td { background:var(--surface); }
+  tr.q-thin td { color:var(--faint); }
+  tr.q-detail td { white-space:normal; max-width:none; background:var(--ground); }
+  .q-worst a, .q-pick { color:var(--amber); }
+  .q-episode ol { padding-left:22px; margin:8px 0; }
+  .q-episode li { margin:3px 0; }
+  .q-episode li.q-flag { color:var(--rose); }
+  .q-labels { display:grid; grid-template-columns:repeat(auto-fill,minmax(250px,1fr)); gap:10px; margin-top:10px; }
+  .q-labels label { display:block; font-size:12px; color:var(--muted); }
+  .q-labels select, .q-bar select { width:100%; margin-top:3px; background:var(--surface); border:1px solid var(--line); border-radius:8px; padding:5px 8px; color:var(--ink); }
+  .q-bar { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:10px; }
+  .q-bar select { width:auto; margin:0; }
+  .q-rubric { font-size:11.5px; color:var(--faint); margin-top:3px; }
 </style>
 </head>
 <body>
@@ -265,6 +286,7 @@
     <div class="group">Inbox</div>
     <a href="#reports" data-nav="reports">Reported content <span class="badge" id="navReports"></span></a>
     <a href="#feedback" data-nav="feedback">Feedback <span class="badge" id="navFeedback"></span></a>
+    <a href="#quality" data-nav="quality">Episode quality</a>
     <div class="group">Running costs</div>
     <a href="#services" data-nav="services">Outside service requests</a>
     <div class="group">Voice</div>
@@ -273,7 +295,6 @@
     <div class="group">Other admin pages</div>
     <a href="/admin/waitlist">Waitlist ↗</a>
     <a href="/admin/thumbnails">Thumbnails ↗</a>
-    <a href="/admin/quality">Episode quality ↗</a>
   </nav>
 
   <main id="main" hidden>
@@ -359,6 +380,82 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
       <div id="inboxList"></div>
     </section>
 
+    </div>
+
+    <div class="page" data-page="quality" data-title="Episode quality" hidden>
+    <section class="card section">
+      <h2>Episode quality <small id="qCount"></small></h2>
+      <p class="sub">Every written episode scored on six things and filed by the category tree (PROBLEMS.md §306).
+        <b>Code</b> scores are proxies measured on every episode, 0 to 1. <b>Grade</b> (g) is the model grader's,
+        not used for ranking until it agrees with your own scores. <b>Listeners</b> (l): for the hook, the share
+        who stayed past twenty seconds; for storytelling, the share who finished. Nodes are sorted by episodes ×
+        how far below their own heading they fall; open one for its weakest episodes.</p>
+      <div class="kpis" id="qKpis"></div>
+      <div class="q-bar">
+        <span class="sub" style="margin:0">Over the last</span>
+        <select id="qDays" aria-label="Days">
+          <option value="7">7 days</option><option value="30" selected>30 days</option>
+          <option value="90">90 days</option><option value="180">180 days</option>
+        </select>
+        <button class="chip on" type="button" data-qorder="priority">Worst first</button>
+        <button class="chip" type="button" data-qorder="tree">Tree order</button>
+        <label class="sub" style="margin:0"><input type="checkbox" id="qThin"> nodes with too few episodes</label>
+      </div>
+      <div class="tbl"><table id="qNodes"></table></div>
+    </section>
+
+    <section class="card section q-episode" id="qEpisode" hidden></section>
+
+    <section class="card section">
+      <h2>Score these</h2>
+      <p class="sub">Episodes you have not scored yet, newest first. Twenty or so scored by you is what says
+        whether the grader can be trusted. A <code>tools/quality_compare.py</code> run writes every prompt
+        twice, shown every example (<b>eval-all</b>) and shown the nearest (<b>eval-node</b>); score both.</p>
+      <div class="q-bar">
+        <select id="qScoreOrigin" aria-label="Which episodes">
+          <option value="">Every episode</option>
+          <option value="eval-all,eval-node" selected>The comparison run</option>
+        </select>
+      </div>
+      <div class="tbl"><table id="qToScore"></table></div>
+    </section>
+
+    <section class="card section">
+      <h2>By where they came from</h2>
+      <p class="sub">Each origin's means side by side - a tap, prefetch, the editions, and the two arms of a
+        comparison run. Code proxies, with the grader's in brackets once it has graded any.</p>
+      <div class="tbl"><table id="qOrigins"></table></div>
+    </section>
+
+    <section class="card section">
+      <h2>Is the grader trusted?</h2>
+      <p class="sub">Your scores against the grader's, per metric. A metric's grades count once they land
+        within one point of yours on enough episodes.</p>
+      <div class="tbl"><table id="qCalibration"></table></div>
+    </section>
+
+    <section class="card section">
+      <h2>Does each measure predict listening?</h2>
+      <p class="sub">Rank correlation between each measure and how much of an episode its listeners heard.
+        One that predicts nothing is a measure to reword, not a number to optimise.</p>
+      <div class="tbl"><table id="qValidity"></table></div>
+    </section>
+
+    <section class="card section">
+      <h2>Were the examples chosen from the right branch?</h2>
+      <p class="sub">Before writing, each episode is placed in the tree from its brief, and that placement -
+        with the story shape, the length and the league's time of year - chooses the examples its writer sees
+        (§307, §308). Here it is against what the writer said the episode was about.</p>
+      <div class="kpis" id="qPlacement"></div>
+      <div class="tbl"><table id="qMisplaced"></table></div>
+    </section>
+
+    <section class="card section">
+      <h2>Which examples shaped which episodes?</h2>
+      <p class="sub">Every example file, how many episodes it was shown to and how those scored. A weak one
+        is a candidate to replace; a busy node with no example of its own is where to write the next one.</p>
+      <div class="tbl"><table id="qExamples"></table></div>
+    </section>
     </div>
 
     <div class="page" data-page="errors" data-title="Pipeline errors" hidden>
@@ -992,6 +1089,7 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
     });
     // The chart measures itself, and a hidden page has no width.
     if (name === "overview") drawChart(series);
+    if (name === "quality" && !$("main").hidden) loadQuality();
     window.scrollTo(0, 0);
   }
   function menu(open) {
@@ -1052,6 +1150,7 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
         chipsDrawn = true;
       }
       tick();
+      if (pageName() === "quality" && !first) loadQuality();
       loadInbox();
       loadReports();
       loadVoices();
@@ -1099,6 +1198,190 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
       })
       .then(function () { $("loginBtn").disabled = false; });
   });
+  // ------------------------------------------------------- episode quality
+  // §306's checker, a page here since §308. Fetched when the page is open,
+  // and with each refresh while it is; the episode being scored is left alone.
+  var qData = null, qOrder = "priority", qOpen = "";
+  function qScore(v) {
+    if (v == null) return '<span class="q-tag">-</span>';
+    var cls = v >= 0.75 ? "q-hi" : (v < 0.5 ? "q-lo" : "q-mid");
+    return '<span class="q-score ' + cls + '">' + v.toFixed(2) + '</span>';
+  }
+  function qPct(v) { return v == null ? "-" : Math.round(v * 100) + "%"; }
+  function qKpi(label, value, note) {
+    return '<div class="kpi"><span>' + esc(label) + '</span><b>' + esc(value) + '</b>'
+      + (note ? '<em>' + esc(note) + '</em>' : '') + '</div>';
+  }
+  function loadQuality() {
+    return Promise.all([
+      api("/api/admin/quality?days=" + encodeURIComponent($("qDays").value)),
+      api("/api/admin/quality/to-score?limit=25&origin=" + encodeURIComponent($("qScoreOrigin").value))
+    ]).then(function (got) {
+      qData = got[0];
+      drawQuality();
+      drawToScore(got[1].episodes || []);
+    }).catch(function (e) {
+      $("qNodes").innerHTML = '<tr><td>Could not load: ' + esc(e.message) + '</td></tr>';
+    });
+  }
+  function drawToScore(rows) {
+    $("qToScore").innerHTML = '<tr><th>Episode</th><th>From</th><th>Min</th><th>Graded</th></tr>'
+      + (rows.length ? rows.map(function (r) {
+          return '<tr><td><a href="#quality" class="q-pick" data-qepisode="' + esc(r.episode) + '">'
+            + esc(r.title || r.query) + '</a></td><td>' + esc(r.origin || "tap") + '</td><td class="n">'
+            + r.minutes + '</td><td>' + (r.graded ? "yes" : "-") + '</td></tr>';
+        }).join("") : '<tr><td colspan="4">Nothing left to score here.</td></tr>');
+  }
+  function drawQuality() {
+    var d = qData, g = d.grading || {}, m = d.metrics || [];
+    $("qCount").textContent = d.episodes ? "· " + d.episodes + " episodes" : "";
+    $("qKpis").innerHTML = qKpi("Episodes", d.episodes, "in the last " + d.days + " days")
+      + qKpi("Nodes", d.nodes.length, "with episodes under them")
+      + qKpi("Grading", g.mode || "off", g.model ? g.model + ", " + g.effort : "")
+      + qKpi("Graded today", g.graded_today == null ? "-" : g.graded_today, "ceiling " + g.daily_ceiling)
+      + qKpi("Spent today", g.spent_today == null ? "-" : "$" + g.spent_today.toFixed(2), "on grading")
+      + qKpi("Writer versions", Object.keys(d.prompts || {}).length, "instruction versions seen");
+
+    var rows = d.nodes.slice();
+    if (!$("qThin").checked) rows = rows.filter(function (n) { return n.enough; });
+    if (qOrder === "tree") rows.sort(function (a, b) { return a.path.join("/") < b.path.join("/") ? -1 : 1; });
+    var head = '<tr><th>Node</th><th>Eps</th><th>Overall</th><th>vs heading</th>'
+      + m.map(function (k) { return '<th>' + esc(d.labels[k]) + '</th>'; }).join("")
+      + '<th>Listens</th><th>Out &lt;20s</th><th>Finished</th></tr>';
+    var body = rows.map(function (n) {
+      var cells = m.map(function (k) {
+        var s = n.scores[k], extra = "";
+        if (s.grade != null) extra += ' <span class="q-tag' + (s.trusted ? '' : ' q-warn') + '" title="model grade'
+          + (s.trusted ? '' : ', not yet trusted') + '">g' + s.grade.toFixed(2) + '</span>';
+        if (s.listeners != null) extra += ' <span class="q-tag" title="listeners">l' + s.listeners.toFixed(2) + '</span>';
+        return '<td>' + qScore(s.code) + extra + '</td>';
+      }).join("");
+      var pad = qOrder === "tree" ? 10 + n.depth * 14 : 10;
+      var tr = '<tr class="q-node' + (n.enough ? '' : ' q-thin') + '" data-qnode="' + esc(n.node) + '">'
+        + '<td style="padding-left:' + pad + 'px">' + esc(n.label)
+        + (qOrder === "tree" ? '' : ' <span class="q-tag">' + esc(n.path.slice(0, -1).join(" › ")) + '</span>')
+        + (n.shared_opener ? ' <span class="q-tag q-warn" title="episodes opening with the same four words">same opening ×' + n.shared_opener + '</span>' : '')
+        + (n.borrowed_from ? ' <span class="q-tag">borrows ' + esc(n.borrowed_from) + '</span>' : '')
+        + '</td><td class="n">' + n.episodes + '</td><td>' + qScore(n.overall) + '</td><td class="n">'
+        + (n.shortfall == null ? "-" : (n.shortfall > 0 ? "−" : "+") + Math.abs(n.shortfall).toFixed(2)) + '</td>'
+        + cells + '<td class="n">' + n.listens + '</td><td class="n">' + qPct(n.early_exit)
+        + '</td><td class="n">' + qPct(n.finished) + '</td></tr>';
+      if (qOpen === n.node) {
+        tr += '<tr class="q-detail"><td colspan="' + (7 + m.length) + '"><div class="q-worst">Weakest: '
+          + (n.worst.length ? n.worst.map(function (w) {
+              return '<a href="#quality" data-qepisode="' + esc(w.episode) + '">' + esc(w.title || w.query)
+                + '</a> (' + w.overall.toFixed(2) + ')';
+            }).join(" · ") : "none scored")
+          + '<br><span class="q-tag">story shapes ' + esc(JSON.stringify(n.structures))
+          + ' · seasons ' + esc(JSON.stringify(n.phases || {})) + '</span></div></td></tr>';
+      }
+      return tr;
+    }).join("");
+    $("qNodes").innerHTML = head + (body || '<tr><td colspan="20">Nothing written yet in this window'
+      + ($("qThin").checked ? '' : ' with enough episodes - tick the box above for thinner nodes') + '.</td></tr>');
+
+    var origins = d.origins || {}, names = Object.keys(origins).sort();
+    $("qOrigins").innerHTML = '<tr><th>From</th><th>Eps</th><th>Overall</th>'
+      + m.map(function (k) { return '<th>' + esc(d.labels[k]) + '</th>'; }).join("") + '</tr>'
+      + (names.length ? names.map(function (o) {
+          var x = origins[o];
+          return '<tr><td>' + esc(o) + '</td><td class="n">' + x.episodes + '</td><td>' + qScore(x.overall) + '</td>'
+            + m.map(function (k) {
+                var gr = x.grade[k];
+                return '<td>' + qScore(x.code[k]) + (gr == null ? '' : ' <span class="q-tag">(g' + gr.toFixed(2) + ')</span>') + '</td>';
+              }).join("") + '</tr>';
+        }).join("") : '<tr><td colspan="9">Nothing yet.</td></tr>');
+
+    $("qCalibration").innerHTML = '<tr><th>Metric</th><th>You scored</th><th>Also graded</th><th>Mean gap</th><th>Within one</th><th>Trusted</th></tr>'
+      + m.map(function (k) {
+        var c = (d.calibration || {})[k] || {};
+        return '<tr><td>' + esc(d.labels[k]) + '</td><td class="n">' + (c.labelled || 0) + '</td><td class="n">'
+          + (c.n || 0) + '</td><td class="n">' + (c.mean_gap == null ? "-" : c.mean_gap) + '</td><td class="n">'
+          + qPct(c.within_one) + '</td><td>' + (c.trusted ? '<span class="q-score q-hi">yes</span>' : 'not yet') + '</td></tr>';
+      }).join("");
+    $("qValidity").innerHTML = '<tr><th>Metric</th><th>Code: episodes</th><th>Code: predicts heard</th><th>Grade: episodes</th><th>Grade: predicts heard</th></tr>'
+      + m.map(function (k) {
+        var v = (d.validity || {})[k] || {}, c = v.code || {}, gv = v.grade || {};
+        return '<tr><td>' + esc(d.labels[k]) + '</td><td class="n">' + (c.n || 0) + '</td><td class="n">'
+          + (c.predicts_heard == null ? "-" : c.predicts_heard) + '</td><td class="n">' + (gv.n || 0)
+          + '</td><td class="n">' + (gv.predicts_heard == null ? "-" : gv.predicts_heard) + '</td></tr>';
+      }).join("");
+
+    var placed = d.placement || {}, total = 0;
+    Object.keys(placed).forEach(function (k) { total += placed[k]; });
+    var share = function (k) { return total ? Math.round(100 * (placed[k] || 0) / total) + "%" : "-"; };
+    $("qPlacement").innerHTML = qKpi("Same branch", share("same"), (placed.same || 0) + " episodes")
+      + qKpi("Same heading", share("heading"), (placed.heading || 0) + " episodes")
+      + qKpi("Another heading", share("different"), (placed.different || 0) + " episodes")
+      + qKpi("Not placed", share("unplanned"), "chosen by shape, or all shown")
+      + qKpi("Writer unplaced", share("unknown"), "category not in the tree");
+    var miss = d.misplaced || [];
+    $("qMisplaced").innerHTML = '<tr><th>Placed on</th><th>Writer said</th><th>Episodes</th></tr>'
+      + (miss.length ? miss.map(function (x) {
+          return '<tr><td>' + esc(x.planned) + '</td><td>' + esc(x.written) + '</td><td class="n">' + x.episodes + '</td></tr>';
+        }).join("") : '<tr><td colspan="3">No placement missed its heading.</td></tr>');
+    var ex = d.examples || [];
+    $("qExamples").innerHTML = '<tr><th>Example</th><th>Episodes shown it</th><th>Their overall</th><th>Mostly about</th></tr>'
+      + (ex.length ? ex.map(function (x) {
+          return '<tr><td>' + esc(x.file) + '</td><td class="n">' + x.episodes + '</td><td>' + qScore(x.overall)
+            + '</td><td>' + esc(Object.keys(x.nodes || {}).join(", ")) + '</td></tr>';
+        }).join("") : '<tr><td colspan="4">No episode recorded its examples yet.</td></tr>');
+  }
+  function showQualityEpisode(id) {
+    api("/api/admin/quality/episode?episode=" + encodeURIComponent(id)).then(function (e) {
+      var checks = (e.measures || {}).checks || {}, flagged = {};
+      ["repeats", "additive_joins", "signposts", "no_particular"].forEach(function (k) {
+        (checks[k] || []).forEach(function (s) { flagged[s] = k.replace("_", " "); });
+      });
+      var labels = (qData && qData.labels) || {};
+      var html = '<div class="eyebrow">' + esc(e.origin || "tap") + ' · ' + e.minutes + ' min · '
+        + esc(e.structure || "no shape") + ' · ' + esc(e.category || "no category") + ' · ' + esc(e.writer_model) + '</div>'
+        + '<h2>' + esc(e.title || e.query) + '</h2><p class="sub">Asked: ' + esc(e.query) + '</p>'
+        + '<ol>' + e.sentences.map(function (s) {
+            return '<li' + (flagged[s] ? ' class="q-flag" title="' + esc(flagged[s]) + '"' : '') + '>' + esc(s) + '</li>';
+          }).join("") + '</ol>';
+      if ((checks.unsupported_names || []).length)
+        html += '<p class="sub" style="color:var(--rose)">Names not in the evidence: ' + esc(checks.unsupported_names.join(", ")) + '</p>';
+      html += '<p class="sub">Your scores, 1 (worst) to 5 (the house standard). The grader is checked against these.</p><div class="q-labels">'
+        + e.metrics.map(function (k) {
+          var gr = e.grade && e.grade[k];
+          return '<label>' + esc(labels[k] || k) + (gr ? ' <span class="q-tag">grader: ' + gr.score + '</span>' : '')
+            + '<select data-qmetric="' + k + '"><option value="">-</option>'
+            + [1, 2, 3, 4, 5].map(function (v) { return '<option' + (e.labels[k] === v ? ' selected' : '') + '>' + v + '</option>'; }).join("")
+            + '</select><div class="q-rubric">' + esc(e.rubric[k]) + '</div></label>';
+        }).join("") + '</div><p><button class="go" type="button" id="qSave" data-qid="' + esc(e.episode) + '" style="padding:8px 16px">Save scores</button> '
+        + '<span class="sub" id="qSaved"></span></p>';
+      $("qEpisode").innerHTML = html;
+      $("qEpisode").hidden = false;
+      $("qEpisode").scrollIntoView({ behavior: "smooth", block: "start" });
+    }).catch(function (err) { alert(err.message); });
+  }
+  document.addEventListener("click", function (ev) {
+    var a = ev.target.closest("[data-qepisode]");
+    if (a) { ev.preventDefault(); showQualityEpisode(a.getAttribute("data-qepisode")); return; }
+    var o = ev.target.closest("[data-qorder]");
+    if (o) {
+      qOrder = o.getAttribute("data-qorder");
+      Array.prototype.forEach.call(document.querySelectorAll("[data-qorder]"), function (x) { x.classList.toggle("on", x === o); });
+      if (qData) drawQuality(); return;
+    }
+    if (ev.target.id === "qSave") {
+      var scores = {};
+      Array.prototype.forEach.call(document.querySelectorAll("#qEpisode select[data-qmetric]"), function (s) {
+        if (s.value) scores[s.getAttribute("data-qmetric")] = parseInt(s.value, 10);
+      });
+      api("/api/admin/quality/label", { episode: ev.target.getAttribute("data-qid"), scores: scores })
+        .then(function (r) { $("qSaved").textContent = "Saved " + r.kept + "."; loadQuality(); })
+        .catch(function (e) { $("qSaved").textContent = e.message; });
+      return;
+    }
+    var tr = ev.target.closest("tr.q-node");
+    if (tr && qData) { var nd = tr.getAttribute("data-qnode"); qOpen = qOpen === nd ? "" : nd; drawQuality(); }
+  });
+  $("qDays").addEventListener("change", loadQuality);
+  $("qScoreOrigin").addEventListener("change", loadQuality);
+  $("qThin").addEventListener("change", function () { if (qData) drawQuality(); });
+
   // Reported content (moderation.py). The reporter is never shown, even here.
   var modState = "open";
   function snapshotText(r) {

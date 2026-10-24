@@ -481,10 +481,16 @@ def test_a_deleted_account_takes_its_listening(client):
     assert appmod.erase_listener(user)["quality_listens"] == 1
 
 
-def test_the_admin_page_is_linked_and_signs_in_like_the_others():
+def test_the_checker_is_a_page_of_the_admin_beside_feedback(client):
+    """§308: a page of `/admin` under Inbox, right after Feedback, behind the
+    admin's own sign-in; the old address lands on it."""
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    page = open(os.path.join(root, "admin_ui", "quality.html")).read()
     tracker = open(os.path.join(root, "admin_ui", "tracker.html")).read()
-    assert 'href="/admin/quality"' in tracker
-    assert "/api/admin/login" in page and "forgotLink" in page
-    assert "/api/admin/quality" in page
+    assert not os.path.exists(os.path.join(root, "admin_ui", "quality.html"))
+    feedback = tracker.index('data-nav="feedback"')
+    quality = tracker.index('data-nav="quality"')
+    assert feedback < quality < tracker.index('<div class="group">Running costs')
+    assert 'data-page="quality"' in tracker and "/api/admin/quality" in tracker
+    assert 'href="/admin/quality"' not in tracker
+    r = client.get("/admin/quality", follow_redirects=False)
+    assert r.status_code == 307 and r.headers["location"] == "/admin#quality"

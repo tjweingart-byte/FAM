@@ -311,3 +311,4 @@ and `limit` = Lines.
 | 21726 | 45 | 305. The standard episode is one minute (2026-10-23) |
 | 21771 | 93 | 306. Episode quality, measured by category (2026-10-23) |
 | 21864 | 69 | 307. Examples are filed on the category tree, and the writer is shown the nearest (2026-10-24) |
+| 21933 | 68 | 308. A league's time of year chooses examples; the comparison run; the checker inside /admin (2026-10-24) |

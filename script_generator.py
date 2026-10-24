@@ -55,8 +55,9 @@ log = logging.getLogger(__name__)
 EXAMPLE_MINUTES: dict[str, int] = {}
 
 #: What each example is about and how it is built (§307), by its query:
-#: `{"file", "node", "shape"}`, from the `# node:` and `# shape:` lines above
-#: the query. The node is a category-tree id; the shape one of the brief's
+#: `{"file", "node", "shape", "phase"}`, from the `# node:`, `# shape:` and
+#: `# phase:` lines above the query (the phase - a league's time of year,
+#: `seasons.PHASES` - is optional, §308). The node is a category-tree id; the shape one of the brief's
 #: story shapes (`episode_intelligence.STRUCTURES`). So the writer is shown
 #: the examples nearest its own episode, not all of them (`choose_examples`).
 EXAMPLE_INFO: dict[str, dict] = {}
@@ -87,11 +88,12 @@ def load_style_examples() -> list[tuple[str, str]]:
             head, _, body = path.read_text(encoding="utf-8").partition("\n\n")
         except OSError:
             continue
-        info = {"file": path.name, "node": "", "shape": ""}
+        info = {"file": path.name, "node": "", "shape": "", "phase": ""}
         lines = []
         for line in head.strip().splitlines():
             key, colon, value = line.lstrip("#").partition(":")
-            if line.startswith("#") and colon and key.strip() in ("node", "shape"):
+            if line.startswith("#") and colon and key.strip() in ("node", "shape",
+                                                                  "phase"):
                 info[key.strip()] = " ".join(value.split()).lower()
             elif not line.startswith("#"):
                 lines.append(line)
@@ -579,14 +581,17 @@ class ExampleChoice:
 
     `node` is where the episode was placed in the category tree before it
     was written, `path` that node and its ancestors (nearest first), `shape`
-    the brief's story shape. `queries` is None for every example - nothing
-    singled any example out, so it is shown what every episode was shown
-    before.
+    the brief's story shape, `league` and `phase` where the nearest league
+    above the node is in its year (§308, "" when there is none). `queries`
+    is None for every example - nothing singled any example out, so it is
+    shown what every episode was shown before.
     """
     node: str = ""
     path: tuple = ()
     shape: str = ""
     queries: Optional[tuple] = None
+    league: str = ""
+    phase: str = ""
 
     @property
     def files(self) -> tuple:
@@ -643,16 +648,30 @@ def choose_examples(plan) -> ExampleChoice:
     same heading distant), discounted a fifth because it is about something
     else; one under another heading counts for nothing. When nothing about the episode
     singles any example out - no node, no shape any example has - every
-    example is shown, as before. Never raises."""
+    example is shown, as before.
+
+    **The season** (§308): when a league is above the episode's node, the
+    calendar says where it is in its year (`seasons.phase_for`). An example
+    tagged for that phase counts for more; one tagged for another phase is
+    not shown at all - an in-season recap is the wrong shape for a question
+    asked in the offseason. Untagged examples are for any time of year.
+    Never raises."""
+    import seasons
+
     brief = getattr(plan, "brief", None)
     shape = str(getattr(brief, "structure", "") or "")
     if not settings.examples_by_node or not STYLE_EXAMPLES:
         return ExampleChoice(shape=shape)
     node, path = place_episode(plan)
+    league, phase = seasons.phase_for(path)
     minutes = int(getattr(plan, "minutes", 0) or 0)
     scored = []
     for order, (query, _script) in enumerate(STYLE_EXAMPLES):
         info = EXAMPLE_INFO.get(query, {})
+        tagged = info.get("phase", "")
+        if phase and tagged and tagged != phase:
+            continue   # the wrong time of year for this league
+        in_phase = 1.0 if phase and tagged == phase else 0.0
         own = _example_path(info.get("node", ""))
         near = 0.0
         if own and path:
@@ -670,10 +689,11 @@ def choose_examples(plan) -> ExampleChoice:
         length = EXAMPLE_MINUTES.get(query, 0)
         fit = 1.0 if length == minutes else (0.5 if abs(length - minutes) == 1
                                             else 0.0)
-        scored.append((3 * same_shape + 2 * near + fit, same_shape + near,
-                       fit, order, query))
-    if not any(s[1] for s in scored):
-        return ExampleChoice(node=node, path=path, shape=shape)
+        scored.append((3 * same_shape + 2 * near + 1.5 * in_phase + fit,
+                       same_shape + near + in_phase, fit, order, query))
+    if not scored or not any(s[1] for s in scored):
+        return ExampleChoice(node=node, path=path, shape=shape, league=league,
+                             phase=phase)
     scored.sort(key=lambda s: (-s[0], s[3]))
     room = max(1, int(settings.examples_per_episode or 1))
     picked = scored[:room]
@@ -683,7 +703,8 @@ def choose_examples(plan) -> ExampleChoice:
         if at_length:
             picked[-1] = at_length[0]
     return ExampleChoice(node=node, path=path, shape=shape,
-                         queries=tuple(s[4] for s in picked))
+                         queries=tuple(s[4] for s in picked), league=league,
+                         phase=phase)
 
 
 def writer_system(choice: Optional[ExampleChoice] = None):
@@ -844,6 +865,9 @@ class ScriptNotes:
     #: `<<CATEGORY:>>` and each example against the episodes it shaped.
     planned_node: str = ""
     examples: tuple = ()
+    #: Where the placed node's league was in its year (§308), "" when no
+    #: league is above it - it chose the examples, and is kept beside them.
+    phase: str = ""
 
 
 async def _live_by(task, plan, domain: str, began: float):
@@ -1965,6 +1989,7 @@ class ScriptGenerator:
         if notes is not None:
             notes.planned_node = choice.node
             notes.examples = choice.files
+            notes.phase = choice.phase
         kwargs: dict = {
             "model": model,
             "max_tokens": settings.max_output_tokens,

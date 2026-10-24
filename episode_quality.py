@@ -371,6 +371,8 @@ class QualityStore:
             for ddl in (
                 "ALTER TABLE episodes ADD COLUMN planned_node TEXT NOT NULL DEFAULT ''",
                 "ALTER TABLE episodes ADD COLUMN examples TEXT NOT NULL DEFAULT '[]'",
+                # Where the placed node's league was in its year (§308).
+                "ALTER TABLE episodes ADD COLUMN phase TEXT NOT NULL DEFAULT ''",
             ):
                 try:
                     db.execute(ddl)
@@ -411,7 +413,7 @@ class QualityStore:
         columns = ("key", "sourced", "at", "query", "minutes", "origin",
                    "structure", "category", "title", "writer_model", "prompt",
                    "words", "word_budget", "sentences", "evidence", "measures",
-                   "planned_node", "examples")
+                   "planned_node", "examples", "phase")
         with self._lock, closing(self._connect()) as db:
             # A re-written key under the same sourced stamp is the same
             # episode written again: the newer text is the one heard.
@@ -469,7 +471,7 @@ class QualityStore:
         return self._rows("SELECT key, sourced, at, query, minutes, origin, "
                           "structure, category, title, writer_model, prompt, "
                           "words, word_budget, measures, grade, grade_model, "
-                          "planned_node, examples "
+                          "planned_node, examples, phase "
                           "FROM episodes WHERE at >= ? ORDER BY at DESC", (at,))
 
     def note_listen(self, key: str, sourced: int, listener: str, heard: float,
@@ -509,6 +511,19 @@ class QualityStore:
                 "DO UPDATE SET score = excluded.score, by_whom = excluded.by_whom, "
                 "at = excluded.at",
                 (key, int(sourced), metric, int(score), by_whom, now))
+
+    def unlabelled(self, limit: int = 20, origins: Optional[Iterable] = None) -> list:
+        """Episodes the owner has not scored yet, newest first - the list a
+        person works through so the grader can be checked (§308)."""
+        rows = self._rows(
+            "SELECT e.key, e.sourced, e.at, e.query, e.title, e.origin, "
+            "e.minutes, e.grade != '' AS graded FROM episodes e WHERE NOT EXISTS "
+            "(SELECT 1 FROM labels l WHERE l.key = e.key AND l.sourced = e.sourced) "
+            "ORDER BY e.at DESC LIMIT ?", (int(limit) * 10,))
+        if origins is not None:
+            wanted = set(origins)
+            rows = [r for r in rows if r["origin"] in wanted]
+        return rows[:int(limit)]
 
     def labels(self) -> list:
         return self._rows("SELECT key, sourced, metric, score, by_whom, at "
@@ -606,6 +621,7 @@ def note(key: str, sourced, query: str, minutes: int, origin: str,
             "planned_node": str(getattr(notes, "planned_node", "") or "")[:80],
             "examples": json.dumps([str(f) for f in
                                     (getattr(notes, "examples", ()) or ())]),
+            "phase": str(getattr(notes, "phase", "") or "")[:20],
         })
         _grade_soon(key, sourced, origin)
     except Exception:  # noqa: BLE001 - a measurement never costs an episode
@@ -1048,7 +1064,8 @@ def report(days: float = 30.0, now: Optional[float] = None,
             return {"episodes": 0, "nodes": [], "metrics": list(METRICS),
                     "labels": LABELS, "calibration": {}, "validity": {},
                     "grading": grading_report(None, now), "days": days,
-                    "placement": {}, "misplaced": [], "examples": []}
+                    "placement": {}, "misplaced": [], "examples": [],
+                    "origins": {}}
         quality = store()
     if resolve is None or ancestors is None or label_of is None:
         d_resolve, d_ancestors, d_label = _default_place()
@@ -1174,6 +1191,9 @@ def report(days: float = 30.0, now: Optional[float] = None,
             # written - which chose its examples - is the branch its writer
             # said it was about (§307).
             "placement": _count(e["placement"] for e in eps),
+            # The league's time of year each episode was written in (§308),
+            # so an offseason dip is not read as a writing one.
+            "phases": _count(e["row"].get("phase") for e in eps),
             "worst": _worst(eps, overall),
         })
 
@@ -1208,6 +1228,9 @@ def report(days: float = 30.0, now: Optional[float] = None,
             "writers": _count(r["writer_model"] for r in rows),
             "placement": _count(e["placement"] for e in episodes),
             "misplaced": _misplaced(episodes),
+            # Each origin's means: a tap, prefetch, an edition, and the two
+            # arms of `tools/quality_compare.py` side by side (§308).
+            "origins": _by_origin(episodes, overall),
             "examples": _by_example(episodes, overall)}
 
 
@@ -1248,6 +1271,33 @@ def _misplaced(episodes: list) -> list:
     ranked = sorted(pairs.items(), key=lambda kv: (-kv[1], kv[0]))
     return [{"planned": p, "written": w, "episodes": n}
             for (p, w), n in ranked[:10]]
+
+
+def _by_origin(episodes: list, overall: Callable) -> dict:
+    out: dict = {}
+    for e in episodes:
+        origin = e["row"].get("origin") or "tap"
+        item = out.setdefault(origin, {"episodes": 0, "_overall": [],
+                                       "_code": {m: [] for m in METRICS},
+                                       "_grade": {m: [] for m in METRICS}})
+        item["episodes"] += 1
+        value = overall(e["values"])
+        if value is not None:
+            item["_overall"].append(value)
+        for metric in METRICS:
+            for kind in ("code", "grade"):
+                v = e["values"][metric].get(kind)
+                if v is not None:
+                    item[f"_{kind}"][metric].append(v)
+
+    def mean(xs):
+        return round(sum(xs) / len(xs), 3) if xs else None
+
+    for item in out.values():
+        item["overall"] = mean(item.pop("_overall"))
+        item["code"] = {m: mean(v) for m, v in item.pop("_code").items()}
+        item["grade"] = {m: mean(v) for m, v in item.pop("_grade").items()}
+    return out
 
 
 def _by_example(episodes: list, overall: Callable) -> list:

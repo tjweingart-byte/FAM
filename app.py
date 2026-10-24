@@ -10544,14 +10544,11 @@ async def admin_thumbnail_image(node_id: str, request: Request,
 
 @app.get("/admin/quality", include_in_schema=False)
 async def admin_quality_page(request: Request):
-    """Episode quality by category (§306). A shell, like `/admin`; every row
-    on it is fetched from the endpoints below, which check who is asking."""
+    """Episode quality (§306) is a page of `/admin` since §308, beside the
+    feedback inbox; the old address still lands on it."""
     if not _admin_configured():
         raise HTTPException(status_code=404, detail="Not found")
-    page = PROJECT_ROOT / "admin_ui" / "quality.html"
-    return HTMLResponse(page.read_text(encoding="utf-8"),
-                        headers={"Cache-Control": "no-store",
-                                 "X-Robots-Tag": "noindex"})
+    return RedirectResponse("/admin#quality", status_code=307)
 
 
 @app.get("/api/admin/quality")
@@ -10590,6 +10587,25 @@ async def admin_quality_episode(request: Request, episode: str = "") -> dict:
             "grade": json.loads(row["grade"]) if row["grade"] else None,
             "labels": labels, "metrics": list(episode_quality.METRICS),
             "rubric": episode_quality.RUBRIC}
+
+
+@app.get("/api/admin/quality/to-score")
+async def admin_quality_to_score(request: Request, origin: str = "",
+                                 limit: int = 20) -> dict:
+    """Episodes the owner has not scored yet, newest first (§308): the list
+    worked through so the grader can be checked against a person. `origin`
+    narrows it - `eval-all,eval-node` for a `tools/quality_compare.py` run."""
+    _require_admin(request)
+    if not episode_quality.exists():
+        return {"episodes": []}
+    origins = [o.strip() for o in origin.split(",") if o.strip()] or None
+    rows = await asyncio.to_thread(episode_quality.store().unlabelled,
+                                   max(1, min(int(limit or 20), 100)), origins)
+    return {"episodes": [{"episode": f"{r['key']}.{int(r['sourced'])}",
+                          "query": r["query"], "title": r["title"],
+                          "origin": r["origin"], "minutes": r["minutes"],
+                          "graded": bool(r["graded"]), "at": r["at"]}
+                         for r in rows]}
 
 
 class QualityLabels(BaseModel):

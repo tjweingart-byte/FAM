@@ -2,11 +2,11 @@
 
     python tools/quality_report.py                  # worst-costing nodes, 30 days
     python tools/quality_report.py --days 7 --all   # every node, thin ones too
-    python tools/quality_report.py --json           # the report /admin/quality reads
+    python tools/quality_report.py --json           # the report /admin → Episode quality reads
     python tools/quality_report.py --grade 20       # grade the 20 newest ungraded
     python tools/quality_report.py --label KEY.SOURCED hook=4 flow=3
 
-The same report as `/admin/quality`, read from `EPISODE_QUALITY_DB` on this
+The same report as `/admin` → Episode quality, read from `EPISODE_QUALITY_DB` on this
 machine. `--grade` spends: it calls `QUALITY_GRADER_MODEL` once per episode,
 inside `QUALITY_GRADE_DAILY`, and needs an ANTHROPIC_API_KEY - nothing in
 the build container has one, so it says so rather than reporting nothing.

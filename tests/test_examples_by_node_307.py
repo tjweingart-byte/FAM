@@ -45,6 +45,18 @@ def tree():
     return t
 
 
+@pytest.fixture(autouse=True)
+def mid_season(monkeypatch):
+    """A day the NFL's and Formula One's calendars put in their regular
+    seasons (§308), so these tests choose the same examples in December,
+    when Formula One is out of season, as in October."""
+    import datetime
+
+    import seasons
+
+    monkeypatch.setattr(seasons, "today", lambda: datetime.date(2026, 11, 20))
+
+
 def _plan(query, minutes=2, subject="", shape=""):
     plan = plan_episode(query, minutes, search=False)
     plan.brief = ei.Brief(query=query, subject=subject or query, structure=shape)
@@ -83,7 +95,8 @@ def test_the_header_is_optional_and_never_spoken(tmp_path, monkeypatch):
                                         ("a new query", "New script.")]
     assert sg.EXAMPLE_INFO["a new query"] == {"file": "2-new.txt",
                                               "node": "physics",
-                                              "shape": "explainer"}
+                                              "shape": "explainer",
+                                              "phase": ""}
     assert sg.EXAMPLE_INFO["an old query"]["node"] == ""
 
 

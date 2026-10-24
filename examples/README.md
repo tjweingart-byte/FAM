@@ -53,8 +53,17 @@ Max Verstappen finished...
   yet (all but explainer, historical and sports recap) are the most useful
   ones to write next.
 
+A third line, `# phase:`, is for an example that only fits one time of a
+league's year (§308): `preseason`, `regular_season`, `postseason` or
+`offseason`. The league comes from the node (the Eagles take the NFL's
+calendar, `seasons.CALENDARS`), and an example tagged for one phase is never
+shown in another - the Singapore sprint recap is `regular_season`, so an
+offseason Formula One question is not shown it. Leave it off for anything
+that fits all year; an offseason example (a trade, a contract, the draft) is
+the most useful one to write next.
+
 A file without the two lines still loads; it is simply never singled out.
-`/admin/quality` shows which examples shaped which episodes and how those
+`/admin` → Episode quality shows which examples shaped which episodes and how those
 scored, and which busy nodes have nothing of their own.
 
 ## What makes one useful

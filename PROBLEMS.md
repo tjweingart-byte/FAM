@@ -21929,3 +21929,71 @@ on the §306 means.
 Tests: `tests/test_examples_by_node_307.py` (new); `tests/test_prompt_cache_179.py`
 (the cached text is two blocks that join to `system_prompt()` for an episode
 nothing singles out).
+
+## 308. A league's time of year chooses examples; the comparison run; the checker inside /admin (2026-10-24)
+
+The owner (10.24), three items, with "we will later be building an agent to do
+the first task" - writing the examples - so nothing here writes one.
+
+**1. Season-aware examples, in code** (`seasons.py`). Each league node in the
+seed tree that has a season - NFL, college football, NBA, WNBA, MLB, NHL, the
+Premier League, the Bundesliga, the Champions League, MLS, Formula One, NASCAR
+- has the dates its phases usually begin (`CALENDARS`); a node takes the
+calendar of the nearest league above it, so the Eagles take the NFL's. Four
+phases: `preseason`, `regular_season`, `postseason`, `offseason`; the year
+wraps (the NFL's early January is still last season's regular season, then
+its postseason). An example may carry `# phase:`. In `choose_examples`, an
+example tagged for this phase scores one and a half more; **one tagged for
+another phase is not shown at all** (an in-season recap is the wrong shape
+for an offseason question); an untagged one fits all year. The Singapore
+sprint recap is tagged `regular_season`, so from 11 December to 5 March a
+Formula One question is not shown it. A node with no league above it is
+unchanged.
+
+What the phase is not: it is never told to the writer (a test reads the
+whole request for it), never evidence, never a claim about the world. The
+calendars are the usual dates, not this season's announced ones, so a season
+that starts a week late is "regular season" a week early here; the cost is a
+less fitting example, never a wrong fact ([live-facts]). Whether a game is on
+is still only ever said by the scoreboard. The phase is kept beside each
+episode's quality (`phase` column; per node in the report as `phases`), so an
+offseason dip is not read as a writing one. `write.py` prints it beside the
+placement. The date is UTC (`seasons.today`, which the tests pin: §307's
+tests chose Formula One's in-season example and would have failed every
+December).
+
+**2. Measuring what is built - not run here.** This session has no
+ANTHROPIC_API_KEY and no search key, so nothing was measured. What was built
+so it is one command where the keys are: `tools/quality_compare.py` prepares
+each `ei_eval` prompt once (one brief, one search, one packet) and writes it
+twice from that same preparation - shown every example (`EXAMPLES_BY_NODE=0`,
+origin `eval-all`) and shown the nearest (`=1`, `eval-node`) - so the only
+difference is the examples. Both go into the quality store under those
+origins with ids an admin can open (never cache keys, so nothing serves
+them); it prints each pair and the arms' means, and `--grade` has the grader
+score every one. It refuses on staging and without a key. The report gains
+`origins` (each origin's means, the two arms side by side) and the store
+`unlabelled` (episodes the owner has not scored), served by
+`/api/admin/quality/to-score?origin=`.
+
+**3. The checker is a page of /admin.** `admin_ui/quality.html` is gone; its
+page is `#quality` in the tracker, under Inbox right after Feedback, behind
+the tracker's own sign-in, refreshed with it while open. New on it: **Score
+these** (the unscored episodes, the comparison run first) and **By where
+they came from** (the arms side by side). `/admin/quality` redirects to
+`/admin#quality`, so an old link still lands.
+
+Checked with a browser against a running server with seeded rows: the page,
+an episode opened for scoring and a phone width (screenshots, not committed).
+
+To run where the keys are:
+
+    python tools/quality_compare.py --minutes 1
+    python tools/quality_compare.py --minutes 1 --grade   # also the grader
+
+then /admin → Episode quality → Score these, about twenty episodes, both
+arms. Calibration needs twenty scored per metric before a grade counts.
+
+Tests: `tests/test_seasons_308.py` (new); `tests/test_examples_by_node_307.py`
+(the clock pinned; the phase in the metadata); `tests/test_episode_quality_306.py`
+(the checker is a page of /admin, and the old address redirects).

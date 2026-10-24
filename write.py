@@ -229,8 +229,9 @@ def print_examples(notes) -> None:
     files that placement chose - the line to read when the script copies the
     wrong shape (§307)."""
     shown = ", ".join(notes.examples) if notes.examples else "every example"
-    placed = notes.planned_node or "nowhere (so every example)"
-    print(f"  placed on {placed}; shown {shown}")
+    placed = notes.planned_node or "nowhere"
+    season = f" ({notes.phase.replace('_', ' ')})" if notes.phase else ""
+    print(f"  placed on {placed}{season}; shown {shown}")
     if notes.category:
         print(f"  the writer says it is about: {notes.category}")
 

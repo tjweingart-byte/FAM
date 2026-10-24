@@ -692,8 +692,23 @@ episode keeps the node it was placed on and the example files it was shown
 beside its quality ([episode-quality]), and the report says how often the
 placement was the writer's own branch, which placements missed their
 heading, and how each example's episodes scored. A weak example is replaced;
-a busy node with nothing of its own is where the next one is written. The
-season (a team's offseason against its playoffs) is not in this yet.
+a busy node with nothing of its own is where the next one is written.
+
+<!-- rule:season-phase -->
+**A league's time of year chooses examples too, worked out in code**
+*(PROBLEMS.md §308, at the owner's direction: "stories about certain topics
+can change throughout the year (nfl in season versus out of season), and the
+example script should change with it").* `seasons.CALENDARS` holds, per
+league node, the dates its phases usually begin (`preseason`,
+`regular_season`, `postseason`, `offseason`); a node takes the calendar of
+the nearest league above it. An example may carry `# phase:`; one tagged for
+this phase counts for more, **one tagged for another phase is never shown**,
+and an untagged one fits all year. What does not move: **the phase only
+chooses examples** - it is never told to the writer, never evidence and
+never a claim about the world, because the calendars are approximate and a
+wrong phase costs a less fitting example, never a wrong fact ([live-facts]);
+a node with no league above it is unchanged; the phase is kept beside the
+episode's quality so an offseason dip is not read as a writing one.
 
 <!-- rule:episode-quality -->
 **Episode quality is measured, by category, three ways** *(PROBLEMS.md §306,
@@ -723,8 +738,8 @@ against listening** - one that does not predict how much was heard is
 reworded, not optimised; **an episode is placed against the tree as it is
 when the report is read** ([one-category]), rolls up into every ancestor,
 borrows its parent's standing below `QUALITY_MIN_EPISODES`, and is held to
-its own heading, never the whole product. `/admin/quality`,
-`tools/quality_report.py`, and `write.py` / `tools/ei_eval.py --script` print
+its own heading, never the whole product. `/admin`'s Episode quality page
+(beside Feedback since §308), `tools/quality_report.py`, and `write.py` / `tools/ei_eval.py --script` print
 the same measures. Nothing here changes what is written; it is how a change
 to the writer is judged.
 
