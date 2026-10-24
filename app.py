@@ -841,6 +841,27 @@ def friendly_error(exc: Exception) -> str:
         return f"This question needed research and the backend could not run. {exc}"
     return f"Generation failed: {type(exc).__name__}. See the server log for details."
 
+
+#: What a listener reads when an episode fails for a reason that is ours, not
+#: theirs (the owner's wording, §306). The type name and "see the server log"
+#: are for /admin, which still gets `friendly_error`'s sentence.
+LISTENER_APOLOGY = ("We're sorry that your episode is not available at this "
+                    "time. We are experiencing minor difficulties. Thank you "
+                    "for your patience. -The FAM Team")
+
+
+def listener_error(exc: Exception) -> str:
+    """`friendly_error`, minus anything only an operator could act on.
+
+    The sentences that tell a listener something true about their own request
+    (no evidence, research down) pass through; a type name and a pointer to a
+    log they cannot read become the apology.
+    """
+    said = friendly_error(exc)
+    if said.startswith("Generation failed:"):
+        return LISTENER_APOLOGY
+    return said
+
 # One cache shared by every request this worker serves - and, with the SQLite
 # backend, by every other worker on the machine too.
 SCRIPT_CACHE = build_cache()
@@ -9788,7 +9809,7 @@ async def audio(
                       cache_hit=stats.cache == "hit")
         # Same rule as the ledger above: refunded only if nothing was billed.
         _refund_if_unspent(reserved, user, stats.usage)
-        raise HTTPException(status_code=502, detail=friendly_error(exc)) from exc
+        raise HTTPException(status_code=502, detail=listener_error(exc)) from exc
 
     # `stats.sentences` is the honest test: silence is bytes, but it is not an
     # episode. A script that came back empty must not be served as one.

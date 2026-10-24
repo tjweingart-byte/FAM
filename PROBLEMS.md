@@ -21767,3 +21767,62 @@ that row exists for. It defaults to `BROWSE_MINUTES` now. The client's
 `BROWSE_MINUTES` (or `DEFAULT_LENGTH_MINUTES` for Go Deeper's own choice) like
 the rest of the file, and the comments that said browse episodes are two
 minutes say `BROWSE_MINUTES`.
+
+## 306. The 10.23 implementations: episodes that would not play, an apology instead of a type name, the DailyFAM tab back to the top, myFAM's logo in a menu, playlist covers, a line on the phone, and a story's send button (2026-10-24)
+
+**Episodes stopped playing on 10.23** with "Generation failed:
+RemoteVoiceError. See the server log for details." Render's log said, every
+minute, "no voice worker can speak. Tried, in order: runpod-pod
+(https://ilx5zutqvcjw3d-8002.proxy.runpod.net): nothing ... answers /health"
+- a 404 from RunPod's proxy. The pod's own log shows Render's IP
+(74.220.48.64, Render's outbound range) calling `/health` with 200 once a
+minute until **3:44 PM**, then never again, while the worker kept answering
+the internet's scanners on its direct port at 4:24. So the worker was up the
+whole time; what stopped was the app reaching it. Render had been reaching it
+on the **registered** rung (the worker heartbeats its direct TCP address,
+the app verifies it with `/health`), and the warning lists only `runpod-pod`
+- the registration had lapsed (`VOICE_REGISTRY_TTL`, 300 s) and the proxy
+URL, the only other candidate, is the one §117 found Cloudflare refuses.
+
+Why the heartbeats stopped landing is not knowable from here: a failed
+heartbeat was logged at **debug**, so the pod's log is silent exactly when
+it matters. That is the code change - `register.announce` warns on every
+failed beat and says when one lands again after a run of failures - so the
+next time the pod log names the cause (a timeout, a refused connection, a
+changed `FAM_APP_URL`). What brings the voice back today is operational:
+restart the voice worker on the pod (or the pod), check its log for
+`first registration accepted`, and confirm `/admin`'s voice panel shows a
+`registered` worker.
+
+**The listener's sentence** (the owner's wording): an episode that fails for
+a reason that is ours reads "We're sorry that your episode is not available
+at this time. We are experiencing minor difficulties. Thank you for your
+patience. -The FAM Team". `app.listener_error` is `friendly_error` with the
+catch-all ("Generation failed: <type>. See the server log") swapped for
+`LISTENER_APOLOGY`; the 502 a listener reads uses it, and `/admin`'s error
+record keeps `friendly_error`'s type name. Sentences about their own request
+(no evidence, research down) pass through unchanged.
+
+The client, from the packet:
+1. **The DailyFAM tab, tapped on DailyFAM while scrolled down, scrolls to
+   the top** (Instagram's home button) without redrawing the rails. At the
+   top, or from any other screen, it opens and reloads DailyFAM as before.
+   It asks whether `#screen-myfam` is the active screen, not only the stack:
+   a screen can be shown without the stack moving, and checking the stack
+   alone skipped loading the feed (two smoke checks caught it).
+2. **"Add to playlist" is "Add to myFAM Playlist"**, with FAM drawn as the
+   logo (the F, the double chevron, the M). `myFamMark()` copies the glyphs
+   from the myFAM heading so the brand still changes in one place; the
+   letters "FAM" are kept, clipped, for copy, screen readers and the smoke
+   check. All three menus (player, DailyFAM tile, Explore) use
+   `addToPlaylistLabel()`.
+3. **The add sheet lists playlists as Spotify does**: each mix's cover on
+   the left (the folder a coverless mix shows on the myFAM screen), the name
+   over how many briefings it holds; "Create new playlist" gets a (+) square.
+4. **The line at the bottom stayed on the drawn phone.** `.toast` and `.snack`
+   are children of `.phone`, outside `.frame`, so `left:0; right:0` ran the
+   fade across the bezel. They are inset by the bezel's 14 px, and by nothing
+   at phone width, where there is no bezel.
+5. **A friend's vibe**: the paper plane sits inside the message box and sends
+   what is typed; the heart stays; the button that used to be the plane is
+   the VIBE! arrows, and opens the editor with that episode for your story.
