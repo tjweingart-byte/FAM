@@ -743,8 +743,10 @@ def test_examples_are_read_from_disk(tmp_path, monkeypatch):
     (tmp_path / "examples" / "1-a-topic.txt").write_text(
         "what is a heat pump\n\nIt moves heat rather than making it.\n"
     )
-    # Loading clears the shared minutes table (§286); give the real one back.
+    # Loading clears the shared minutes table (§286) and the table of what
+    # each example is about (§307); give the real ones back.
     monkeypatch.setattr(sg, "EXAMPLE_MINUTES", dict(sg.EXAMPLE_MINUTES))
+    monkeypatch.setattr(sg, "EXAMPLE_INFO", dict(sg.EXAMPLE_INFO))
     monkeypatch.setattr(sg, "__file__", str(tmp_path / "script_generator.py"))
     loaded = sg.load_style_examples()
     assert loaded == [("what is a heat pump", "It moves heat rather than making it.")]
@@ -757,8 +759,10 @@ def test_a_malformed_example_is_skipped_not_fatal(tmp_path, monkeypatch):
     (tmp_path / "examples").mkdir()
     (tmp_path / "examples" / "1-broken.txt").write_text("no blank line so no script")
     (tmp_path / "examples" / "2-fine.txt").write_text("a query\n\nA script.\n")
-    # Loading clears the shared minutes table (§286); give the real one back.
+    # Loading clears the shared minutes table (§286) and the table of what
+    # each example is about (§307); give the real ones back.
     monkeypatch.setattr(sg, "EXAMPLE_MINUTES", dict(sg.EXAMPLE_MINUTES))
+    monkeypatch.setattr(sg, "EXAMPLE_INFO", dict(sg.EXAMPLE_INFO))
     monkeypatch.setattr(sg, "__file__", str(tmp_path / "script_generator.py"))
     assert sg.load_style_examples() == [("a query", "A script.")]
 
