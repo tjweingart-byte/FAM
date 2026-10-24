@@ -790,3 +790,35 @@ the rest of this list it needs taste rather than a key.
   > the mini player or the tabs, the words left, **Open** / **View** /
   > **Undo** right (`snack()`); errors stay toasts.
 
+
+<!-- rule:two-packets -->
+**The writer reads two packets, not one** *(PROBLEMS.md §306, at the owner's
+direction, 2026-10-24).* The pipeline the owner drew: search → EI
+(contextualise: the category, subcategory and context of the search; write
+the inputs for every source) → the plugins (search ladder, live facts,
+forecast, local) for packet one, *what is happening now*, and the history
+store (MongoDB, built on another branch; a research agent later) for packet
+two, *what came before* → consolidate both into what the writer can digest →
+the writer. Packet one is what FAM always had. Packet two is `history.py`:
+
+- EI's contextualising is `Brief.category_path`, placed in code against the
+  category tree (`episode_intelligence.place_category`, the same resolver the
+  composer's categories use) - no call, no wait, never the model's.
+- The store plugs in with `history.register(fetch, name, remote=...)` and
+  is asked with a `HistoryQuery` (subject, entities, category path, intent,
+  place, window, must-establish, limit) that **has no listener field**: the
+  store is shared and a lookup is never personal.
+- It runs beside the search and is waited for only `HISTORY_GRACE_SECONDS`
+  once the evidence is in ([latency-start-earlier]); nobody waiting, its whole
+  ahead ceiling. Every failure is an outcome, never an exception, and leaves
+  the prompt byte for byte as it was ([ei-before-search]). A remote store is
+  not asked on staging ([zero-spend-staging]).
+- Consolidation (`history.consolidate`) is code: newest first; undated,
+  empty and repeated entries out; entries inside the brief's window out when
+  the search found evidence for it (the fresh packet speaks for that
+  stretch); more minutes buy more entries under `HISTORY_MAX_CHARS`.
+- The writer reads it after the evidence as `<background>`: each record
+  dated in code, its kind, never a hostname or where it came from; anything
+  that changes is taken from packet one and the live state, which win.
+- Credited on the sources panel as `archive`; counted on /api/health
+  (`history`); never in the cache key.

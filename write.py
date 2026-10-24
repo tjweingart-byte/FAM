@@ -140,6 +140,16 @@ async def main() -> int:
         if brief.pronounce:
             print("    say as      " + "; ".join(
                 f"{p['name']} = {p['say']}" for p in brief.pronounce))
+        if brief.category_path:
+            print(f"    filed under {' > '.join(brief.category_path)}")
+        if plan.history is not None:
+            # Packet two (§306): what came before, as the writer reads it.
+            print(f"    history     {len(plan.history.entries)} of "
+                  f"{plan.history.returned} from {plan.history.source}"
+                  + (f" (left out: {plan.history.dropped})"
+                     if plan.history.dropped else ""))
+            for entry in plan.history.entries:
+                print(f"                - {entry.when:%Y-%m-%d} {entry.title}")
         if plan.thin_on:
             print(f"    NOT FOUND   {'; '.join(plan.thin_on)}  <- one search "
                   "missed it; that is a fact about the search, not the world")

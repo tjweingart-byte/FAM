@@ -303,6 +303,13 @@ class Brief:
     #: the writer's own replaces it once the script is cached (§209). Empty
     #: on a degraded brief.
     category: str = ""
+    #: **Where `category` sits in FAM's category tree** (§306): the facet,
+    #: then each subcategory down to the node, broadest first - ["sport",
+    #: "american football", "nfl", "philadelphia eagles"]. Set in code by
+    #: `place_category`, never by the model, and never read as `category`:
+    #: it is the context the history store is asked with. Empty when the
+    #: tree cannot place it.
+    category_path: list = field(default_factory=list)
     #: The key of the named broadcast slot the request names
     #: (`named_slots.SLOTS`), set in code and never by the model: "Sunday
     #: Night Football" is one game, and a scoreboard picks it by kick-off.
@@ -356,8 +363,48 @@ class Brief:
                 return text
         return ""
 
+    @property
+    def subcategory(self) -> str:
+        """The most specific node of `category_path` below its facet."""
+        return self.category_path[-1] if len(self.category_path) > 1 else ""
+
     def as_dict(self) -> dict:
         return dataclasses.asdict(self)
+
+
+def place_category(brief: "Brief") -> "Brief":
+    """The brief with `category_path` filled from the category tree (§306).
+
+    The "contextualise" step of the owner's pipeline: what kind of thing
+    this is, and under what, before anything is looked up. In code - the
+    same resolver the composer's categories go through
+    (`stories.resolve_category`), phrases only, never an embedding on the
+    request - so it costs no call and no wait. A copy, because a warmed
+    brief is shared. Never raises; a brief the tree cannot place comes back
+    unchanged.
+    """
+    if brief is None or brief.category_path or brief.degraded:
+        return brief
+    try:
+        import stories
+        import topics
+
+        node = ""
+        for text in (brief.category, brief.subject):
+            node = stories.resolve_category(text) if text else ""
+            if node:
+                break
+        if not node:
+            return brief
+        path = list(reversed(topics.category_tree().ancestors(node))) + [node]
+        if path and path[0] not in topics.FACETS:
+            root = stories.facet_for(node)
+            if root and root not in path:
+                path.insert(0, root)
+        return dataclasses.replace(brief, category_path=path)
+    except Exception:  # noqa: BLE001 - context, never worth an episode
+        log.warning("ei: could not place the category %r", brief.category)
+        return brief
 
 
 #: The narrowest recency window FAM will actually apply, in days.

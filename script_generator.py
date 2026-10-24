@@ -28,6 +28,7 @@ import content_filter
 import credentials
 import episode_intelligence
 import evidence_digest
+import history
 import writer_warm
 import pronunciation
 import live_facts
@@ -892,6 +893,13 @@ class EpisodePlan:
     #: other reader keep `evidence`. **Never in the cache key**, as
     #: `EI_SPLIT` is not: a setting that shapes how an episode is prepared.
     evidence_digest: str = ""
+    #: **The second packet: what came before** (§306, `history.py`) - the
+    #: history store's entries on this subject's past, consolidated against
+    #: the evidence (`history.consolidate`). None when no store is
+    #: registered, it had nothing, or it was not back in time, and the
+    #: prompt is then what it was before the store existed. **Never in the
+    #: cache key**: derived from the request, as the evidence is.
+    history: object = None
 
     @property
     def images(self) -> list:
@@ -1171,6 +1179,10 @@ for the script.
 </evidence>
 """
 
+    # Packet two (§306): what came before, after the evidence it never
+    # outranks. "" when there is none, and the prompt is what it was.
+    background = history.as_prompt_block(plan.history)
+
     # A live state outranks everything, so it goes in front of the evidence it
     # outranks - the instructions that follow refer to it as already read.
     # One block, every outcome. `LiveLookup.as_prompt_block` renders facts
@@ -1340,7 +1352,7 @@ never spoken.
 <request>{plan.query}</request>
 
 It is currently {now_line()}. Prefer the newest information you can establish.
-{attached}{local}{live}{evidence}{temporal}{brief_block}{follow_up}
+{attached}{local}{live}{evidence}{background}{temporal}{brief_block}{follow_up}
 You have about {plan.minutes} minute{"s" if plan.minutes != 1 else ""} - roughly
 {budget} words. That is room for {plan.sections[0]}.
 
@@ -2127,7 +2139,8 @@ class ScriptGenerator:
         if warmed is not None:
             log.info("using a brief warmed before the tap for %r", plan.query)
             _publish_title(notes, warmed)
-            plan = dataclasses.replace(plan, brief=warmed)
+            plan = dataclasses.replace(
+                plan, brief=episode_intelligence.place_category(warmed))
             _take_brief_names(plan)
             return plan
 
@@ -2142,7 +2155,10 @@ class ScriptGenerator:
         brief = await episode_intelligence.understand(
             plan.query, plan.minutes, plan.context, notes, **extra)
         _publish_title(notes, brief)
-        plan = dataclasses.replace(plan, brief=brief)
+        # Contextualised (§306): where the request sits in the category
+        # tree, in code, for the history store to be asked with.
+        plan = dataclasses.replace(
+            plan, brief=episode_intelligence.place_category(brief))
         _take_brief_names(plan)
         return plan
 
@@ -2198,6 +2214,15 @@ class ScriptGenerator:
                         exc_info=True)
             return plan
         return plan if result is None else dataclasses.replace(plan, forecast=result)
+
+    async def history_lookup(self, plan: EpisodePlan,
+                             notes: ScriptNotes | None = None):
+        """Packet two (§306): the history store's record of the subject's
+        past, or None. Never raises; never asked twice for one plan."""
+        if plan.history is not None:
+            return plan.history
+        return await history.lookup(plan, ahead=bool(notes is not None and (
+            getattr(notes, "ahead", False) or getattr(notes, "prefetch", False))))
 
     async def prepare(self, plan: EpisodePlan,
                       notes: ScriptNotes | None = None) -> EpisodePlan:
@@ -2257,6 +2282,10 @@ class ScriptGenerator:
         live_task = asyncio.ensure_future(self.live_lookup(plan, notes))
         # A player's or a team's report (§275), beside the scoreboard.
         players_task = asyncio.ensure_future(self.players_lookup(plan, notes))
+        # Packet two (§306): what came before, from the history store. It
+        # starts with packet one and, like the forecast, never holds the
+        # first word past `HISTORY_GRACE_SECONDS` once the evidence is in.
+        history_task = asyncio.ensure_future(self.history_lookup(plan, notes))
         # When the lookup itself finished, not when the search beside it did
         # (review, §273): it is awaited only after the search.
         live_done: list = []
@@ -2298,6 +2327,7 @@ class ScriptGenerator:
             forecast_task.cancel()
             live_task.cancel()
             players_task.cancel()
+            history_task.cancel()
             if digest_task is not None:
                 digest_task.cancel()
             raise
@@ -2330,10 +2360,24 @@ class ScriptGenerator:
                 cut = result.text
                 if notes is not None and isinstance(notes.research, dict):
                     notes.research["digest"] = result.as_dict()
+            # Nobody waiting, it has its whole ahead ceiling (inside
+            # `history.lookup`); a listener waits only the grace.
+            ahead = bool(notes is not None and (
+                getattr(notes, "ahead", False) or getattr(notes, "prefetch", False)))
+            try:
+                past = await (history_task if ahead else asyncio.wait_for(
+                    asyncio.shield(history_task),
+                    float(settings.history_grace_seconds)))
+            except asyncio.TimeoutError:
+                history_task.cancel()
+                past = history.note(history.HistoryPacket(
+                    "late", detail="not back when the evidence was"),
+                    "search", plan.query)
         except BaseException:
             # A listener who leaves while these are awaited ends them too
             # (review, §273): a shielded wait does not cancel what it shields.
             forecast_task.cancel()
+            history_task.cancel()
             if digest_task is not None:
                 digest_task.cancel()
             raise
@@ -2345,6 +2389,13 @@ class ScriptGenerator:
             evidence_digest=cut,
             thin_on=research_plan.thin_on, local=research_plan.local,
             forecast=forecast, players=players)
+        # The two packets consolidated (§306): of what came before, only
+        # what the fresh packet does not already speak for.
+        plan = dataclasses.replace(plan, history=history.consolidate(past, plan))
+        if notes is not None and isinstance(notes.research, dict):
+            notes.research["history"] = (plan.history or past).as_dict()
+            if plan.history is None:
+                notes.research["history"]["kept"] = 0
 
         # The weather the local ladder fetched when the town had nothing
         # (§194) reaches the writer the way any live state does - one block,
@@ -2403,6 +2454,9 @@ class ScriptGenerator:
                 notes.provenance.add(forecast_source)
             for attached in provenance_mod.from_attachments(plan.attachments):
                 notes.provenance.add(attached)
+            archive_source = history.attribution(plan.history)
+            if archive_source is not None:
+                notes.provenance.add(archive_source)
             _publish_sources(notes)
         # Which live provider this episode was routed to and what it said
         # (§264), one row for /admin. In memory; written off this path.

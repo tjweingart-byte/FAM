@@ -21767,3 +21767,53 @@ that row exists for. It defaults to `BROWSE_MINUTES` now. The client's
 `BROWSE_MINUTES` (or `DEFAULT_LENGTH_MINUTES` for Go Deeper's own choice) like
 the rest of the file, and the comments that said browse episodes are two
 minutes say `BROWSE_MINUTES`.
+
+## 306. Two packets: the history store's seam (2026-10-24)
+
+The owner drew the pipeline as it is to be: search → EI (contextualise -
+category, subcategory, context - and write the inputs for the plugins) →
+plugins → packet one; a MongoDB research agent → packet two, historical
+context → consolidate both packets into what the script writer can digest →
+the writer (Haiku, assisted by an agent). The MongoDB store is being built on
+another branch; this change is everything the pipeline needs so that branch
+only has to call `history.register`.
+
+What was already there: EI, the plugins (search ladder, live facts, players,
+forecast, local) and packet one, and a consolidation step for packet one only
+(the extractive evidence cut, §270). What was missing and is now built:
+
+- **Category and subcategory, before the search.** `Brief.category_path`,
+  placed in code from EI's own `category` (else the subject) against the
+  category tree: "Philadelphia Eagles" → sports > american football > nfl >
+  philadelphia eagles. `Brief.subcategory` is its deepest node. A warmed
+  brief is copied, never mutated.
+- **Packet two** (`history.py`): `HistoryQuery` in (no listener field),
+  `HistoryEntry` out, `lookup` (never raises; outcomes found / empty / off /
+  no_source / staging / timeout / failed / late), `consolidate`,
+  `as_prompt_block`, `attribution`, `report`. `prepare` starts it with the
+  search and the live lookup and waits `HISTORY_GRACE_SECONDS` (0.5) for it
+  once the evidence is in; ahead, its whole `HISTORY_AHEAD_TIMEOUT_SECONDS`.
+- **Consolidating the two.** Code, not a model: undated, empty, repeated
+  and future entries out; inside the brief's window out when the search found
+  evidence; newest first; `HISTORY_ENTRIES_PER_MINUTE` × minutes up to
+  `HISTORY_MAX_ENTRIES`, under `HISTORY_MAX_CHARS`. The writer reads it after
+  `<evidence>` as `<background>`, dated, told that what changes comes from
+  the passages and the live state.
+- `EpisodePlan.history`, `provenance.ARCHIVE`, `/api/health.history`,
+  `write.py` prints the category path and the history packet.
+
+`HISTORY_PACKET=1` by default, and a no-op until a store is registered:
+/api/health says `source: null`. With no store the prompt is unchanged byte
+for byte (`tests/test_history_packet_306.py`).
+
+For the MongoDB branch: register an async `fetch(HistoryQuery) -> list
+[HistoryEntry]` at boot; give every entry a date; return no URL in `text`;
+pass `remote=True` for a hosted cluster (Atlas) so staging never asks it; open
+it the way [storage-durability] asks of every store, and add it to
+`demo_data._forget_what_the_log_taught` if a wipe should empty it
+([wipe-derived]). Agent options for EI, the research agent, consolidation and
+the writer's assistant are in `docs/PIPELINE_AGENTS.md`.
+
+Unverified here (no key): whether packet two makes the writing better. The
+loop is `python write.py "<q>"` with a store registered, which now prints what
+the writer read of it.

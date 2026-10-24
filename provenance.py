@@ -49,7 +49,10 @@ log = logging.getLogger(__name__)
 ARTICLE = "article"
 LIVE = "live"
 ATTACHMENT = "attachment"
-KINDS = (ARTICLE, LIVE, ATTACHMENT)
+#: FAM's own record of a subject's past - the second packet (§306,
+#: `history.py`). Background, never today's news, and labelled so.
+ARCHIVE = "archive"
+KINDS = (ARTICLE, LIVE, ATTACHMENT, ARCHIVE)
 
 
 @dataclass
