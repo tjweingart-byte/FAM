@@ -1,3 +1,5 @@
+# node: flights
+# shape: explainer
 why do flights get cancelled for weather that isn't where I am
 
 Your plane is in Denver. You're in Atlanta, the sky is clear, and the board says cancelled — and the reason is that the aircraft you were going to fly on is a physical object that has to get here, and right now it isn't moving.

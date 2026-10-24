@@ -33,7 +33,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
 | `docs/claude/next-phase.md` | the iOS app and the open decisions |
 | `docs/claude/workflow.md` | shipping, picking up a session, the environment's traps |
 
-## Where this is going  (`product.md`)
+## Where this is going (`product.md`)
 
 - **FAM is social information, not social media** (§199, above all else):
   keeping up takes work, so people miss the conversation; FAM turns what they
@@ -42,7 +42,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   mic since §151; "hey FAM"/"what's up FAM" wake word, opt-in, since §158;
   stopping speech shows a five-second **Search now** with an X, never a silent
   search, §159; the heard words are editable in place and Search now
-  sends the corrected words, §165), **myFAM** (four rails over the evergreen bank and a shared live
+  sends them, §165), **myFAM** (four rails over the evergreen bank and a shared live
   story pool, plus **What you missed last week**), **DailyFAM** (named mixes of
   followed subjects `f:nfl` / `f:nfl~Eagles`, never audio; a 05:00 Eastern
   edition writes every episode ahead with EI; public mixes searchable, (+)
@@ -78,7 +78,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   restores old latency. No preamble to disguise a wait; no text before its
   material. [spec-amended-for-search]
 - A slow answer is a scheduling choice (starting earlier: 18.30s → 0.12s). [slow-is-scheduling]
-- Prefetch-on-typing-pause was removed at the user's request; do not re-add. [no-typing-prefetch]
+- Typing-pause prefetch was removed at the user's request; do not re-add. [no-typing-prefetch]
 - myFAM drives prefetch (§83, §105): drawing the page schedules a cycle, never
   awaited, warming **briefs**; warming whole scripts stays opt-in. [myfam-warms-briefs]
 - **9.30 interface packet** (§181): sign-up rotates today's top three kept
@@ -114,7 +114,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   "DailyFAM", the mixes screen *shows* "myFAM"; code, ids and these docs keep
   the old names. [names-swapped]
 
-## What an episode is  (`product.md`)
+## What an episode is (`product.md`)
 
 - **Satisfied first, curious second**: meet the want that brought them, fully. [satisfy-first]
 - **Never withhold** - close the question they came with, then stop. [never-withhold]
@@ -150,7 +150,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   not names. [category-gaps]
 - Openings are concrete and open a question - not inverted-pyramid news style. [no-inverted-pyramid]
 
-## The writing problem  (`product.md`)
+## The writing problem (`product.md`)
 
 - **The scripts are not good enough; the writing is the product.** The ending
   rewrite (§48) and the §108 opening changes are unheard - listen for them first. [writing-is-the-problem]
@@ -161,11 +161,12 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   the opening for latency is gone. [third-cause-opening]
 - `write.py` prints the brief above the script - diagnose brief vs script
   separately; `--no-ei` compares; `tools/ei_eval.py` is the milestone. [brief-above-script]
-- **`examples/` is the strongest lever** - prefer adding an example over a rule. [examples-lever]
+- **`examples/` is the strongest lever** - prefer adding an example over a rule;
+  shown by nearest tree node (§307). [examples-lever] [examples-by-node]
 - **Quality per tree node** (§306): code, listening, a grader trusted once
   it matches the owner. [episode-quality]
 
-## Open problems  (`open-problems.md`)
+## Open problems (`open-problems.md`)
 
 - **Voice**: Chatterbox is the only voice; Piper deleted. Two honest states -
   Chatterbox speaks, or a placeholder **tone** and everything says so. No hosted
@@ -263,7 +264,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   works with no account; email/phone/Google/Apple; **reset** emails a code
   to the account's address (`mail.py`, §244; `/reset`, §297). [op-identity]
 
-## Settled constraints — do not undo without discussing  (`constraints.md`)
+## Settled constraints — do not undo without discussing (`constraints.md`)
 
 Audio and the opening
 - **A first play streams as voiced** (PCM, or Opus if decoded, §242); **a
@@ -481,15 +482,15 @@ Operations and honesty
   paid keys removed, GDELT/Polymarket off, `FAM_SECRETS` unread, nothing
   leaves the machine but its own private database (§243); replay only. [zero-spend-staging]
 - **Every installed client keeps working**: `X-FAM-Client`, `releases/registry.json`
-  (supported / deprecated / retired → 426), a contract per release replayed in
+  (supported/deprecated/retired → 426), a contract per release replayed in
   CI; fix a break by keeping the old field, never by editing the contract;
   web releases kept at `/v/<version>/`. [old-clients]
 - Per-machine state lives in `~/.fam/`; a key is never written into source. [fam-home-dir]
 - Metering records cost at spend time per listener; never one blended cost. [metering]
-- A credential is never typed by a human (`FAM_SECRETS`, precedence env >
-  FAM_SECRETS > .env > ~/.fam/env). [credentials-fetched]
+- A credential is never typed by a human (precedence env > `FAM_SECRETS` >
+  .env > ~/.fam/env). [credentials-fetched]
 
-## iOS and the next phase  (`next-phase.md`)
+## iOS and the next phase (`next-phase.md`)
 
 - The iOS app is a **native client of this API**, not a web view. [ios-native-client]
 - Every feature is an API before it is a screen. [api-before-screen]
@@ -504,7 +505,7 @@ Operations and honesty
   cache, and `learned_rank` may reorder what cleared the floor, never admit
   below it [dec-embedding].
 
-## How to ship a change (standing instruction)  (`workflow.md`)
+## How to ship a change (standing instruction) (`workflow.md`)
 
 Every change ends the same way, without being asked [ship-loop]:
 
@@ -512,8 +513,8 @@ Every change ends the same way, without being asked [ship-loop]:
 2. Rebuild and **republish the preview to the same URL**:
    `https://claude.ai/code/artifact/c8bd86aa-e61e-4262-a1c8-b9c8d8d6645e`.
    It serves `preview/fam-live-artifact.html` (`python preview/build_live_preview.py`),
-   published with `capabilities: {"db": {}, "downloads": true}` - both, since
-   passing `db` alone revokes `downloads`. From a new conversation, read
+   published with `capabilities: {"db": {}, "downloads": true}` - both: `db`
+   alone revokes `downloads`. From a new conversation, read
    that URL first, then publish with it as `url`.
 3. Reply with a short summary and the preview URL.
 4. If something cannot be automated, give the exact command.
@@ -527,7 +528,7 @@ Every change ends the same way, without being asked [ship-loop]:
 - Feature branches → `staging` (`fam-staging`, zero spend) → batched PR into
   `Main` (`fam`); both services from `render.yaml`, sharing nothing (`STAGING.md`). [staging-flow]
 
-## Picking up a session  (`workflow.md`)
+## Picking up a session (`workflow.md`)
 
 - Develop and push on the branch the session assigns; no PR unless asked. [branch-no-pr]
 - Reading order and the reference docs are listed in `workflow.md`; recent

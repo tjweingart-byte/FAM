@@ -1278,6 +1278,7 @@
   > writes on `MODEL` (boot check). The photo check stays on `SMALL_MODEL`.
 
 <!-- rule:writer-savings -->
+> **Current (PROBLEMS.md §307, at the owner's direction):** the writer's `system` is two cached blocks - the house rules, byte-identical on every call (what the warm-up primes), then the examples this episode is shown ([examples-by-node]), one choice one byte-identical block. That changes which examples a writer reads, on purpose: it is not a saving, and this rule's "never change what is written" is about savings. An episode nothing singles out (no node, no shape any example has) reads exactly what it read before.
 - **Savings on the writer never change what is written, and never cost an
   episode.** *(PROBLEMS.md §179, at the owner's direction.)* Two are in: the
   writer's instructions (house rules plus style example, ~2,500 tokens) are

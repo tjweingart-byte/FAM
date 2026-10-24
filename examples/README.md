@@ -29,6 +29,34 @@ A player is offside if they're nearer the opponent's goal than both the ball
 and the second-last defender at the moment a teammate plays it forward...
 ```
 
+## Filing it on the tree (§307)
+
+Two lines above the query say what the example is about and how it is
+built, so the writer is shown the examples nearest its own episode rather
+than all of them:
+
+```
+# node: formula one
+# shape: sports_recap
+how did max verstappen do in the singapore sprint
+
+Max Verstappen finished...
+```
+
+- `node` is a category-tree id (`python tools/categories_report.py --tree`
+  draws them; a facet such as `sports` is fine for a general one). The most
+  specific node the example is genuinely about.
+- `shape` is one of the brief's story shapes: `breaking`, `business`,
+  `sports_recap`, `sports_preview`, `in_progress`, `explainer`,
+  `historical`, `trend`. Shape outranks topic when examples are chosen - a
+  recap teaches a recap whatever the sport - so the shapes with no example
+  yet (all but explainer, historical and sports recap) are the most useful
+  ones to write next.
+
+A file without the two lines still loads; it is simply never singled out.
+`/admin/quality` shows which examples shaped which episodes and how those
+scored, and which busy nodes have nothing of their own.
+
 ## What makes one useful
 
 - **Write it to be heard, not read.** Say it out loud. If you stumble, rewrite.
@@ -77,9 +105,10 @@ Two or three good ones shift the output a lot. Past about five, returns drop
 off for *voice* - but since the writer moved to Haiku (PROBLEMS.md §286-287)
 the folder also teaches *length* and *range*: one example at each length (1,
 2, 4 and 5 minutes) and a two-minute one per facet (sport, money, health,
-tech, culture, world, science). All of them are in the writer's cached
-instructions, so each one costs a few hundred cached tokens a call; prefer
-replacing a weak one to adding another. `2-singapore-sprint` is the one
+tech, culture, world, science). Since §307 a writer is shown only the
+nearest few (`EXAMPLES_PER_EPISODE`), chosen by shape, branch and length,
+so an example no longer costs every call - but a weak one is still shown to
+every episode near it; prefer replacing it to adding another. `2-singapore-sprint` is the one
 built on a dated result: it was written from its sources, and is here for
 the recap's shape, not its facts.
 

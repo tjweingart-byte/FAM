@@ -119,6 +119,19 @@
   <p class="sub">Rank correlation between each measure and how much of an episode its listeners heard.
     One that predicts nothing is a measure to reword, not a number to optimise.</p>
   <div class="scroll"><table id="validity"></table></div>
+
+  <h2>Were the examples chosen from the right branch?</h2>
+  <p class="sub">Before writing, each episode is placed in the tree from its brief, and that placement
+    chooses the examples its writer sees (PROBLEMS.md §307). Here it is against what the writer said the
+    episode was about: the same branch, the same heading only, another heading, or nothing placed it
+    (its examples were then chosen by story shape and length alone, or all shown).</p>
+  <div class="kpis" id="placement"></div>
+  <div class="scroll"><table id="misplaced"></table></div>
+
+  <h2>Which examples shaped which episodes?</h2>
+  <p class="sub">Every example file, how many episodes it was shown to and how those scored. A weak one
+    is a candidate to replace; a busy node with no example of its own is where to write the next one.</p>
+  <div class="scroll"><table id="examples"></table></div>
 </div>
 
 <script>
@@ -217,6 +230,26 @@
           + (c.predicts_heard == null ? "-" : c.predicts_heard) + '</td><td class="num">' + (g.n || 0)
           + '</td><td class="num">' + (g.predicts_heard == null ? "-" : g.predicts_heard) + '</td></tr>';
       }).join("");
+
+    var placed = data.placement || {}, total = 0;
+    Object.keys(placed).forEach(function (k) { total += placed[k]; });
+    var share = function (k) { return total ? Math.round(100 * (placed[k] || 0) / total) + "%" : "-"; };
+    $("placement").innerHTML = kpi("Same branch", share("same"), (placed.same || 0) + " episodes")
+      + kpi("Same heading", share("heading"), (placed.heading || 0) + " episodes")
+      + kpi("Another heading", share("different"), (placed.different || 0) + " episodes")
+      + kpi("Not placed", share("unplanned"), "chosen by shape, or all shown")
+      + kpi("Writer unplaced", share("unknown"), "category not in the tree");
+    var miss = data.misplaced || [];
+    $("misplaced").innerHTML = '<tr><th>Placed on</th><th>Writer said</th><th>Episodes</th></tr>'
+      + (miss.length ? miss.map(function (m) {
+          return '<tr><td>' + esc(m.planned) + '</td><td>' + esc(m.written) + '</td><td class="num">' + m.episodes + '</td></tr>';
+        }).join("") : '<tr><td colspan="3" class="note">No placement missed its heading.</td></tr>');
+    var ex = data.examples || [];
+    $("examples").innerHTML = '<tr><th>Example</th><th>Episodes shown it</th><th>Their overall</th><th>Mostly about</th></tr>'
+      + (ex.length ? ex.map(function (e) {
+          return '<tr><td>' + esc(e.file) + '</td><td class="num">' + e.episodes + '</td><td>' + score(e.overall)
+            + '</td><td>' + esc(Object.keys(e.nodes || {}).join(", ")) + '</td></tr>';
+        }).join("") : '<tr><td colspan="4" class="note">No episode recorded its examples yet.</td></tr>');
   }
 
   function showEpisode(id) {

@@ -1,3 +1,5 @@
+# node: medicine
+# shape: explainer
 autoimmune
 
 Your body kills off most of the immune cells it makes, in your bone marrow and your thymus, on purpose. It's a quality check: any immune cell that reacts to your own tissue is destroyed before it's ever released into circulation. An autoimmune disease is what happens when that check misses one.

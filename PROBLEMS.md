@@ -21860,3 +21860,72 @@ hand.
 
 Tests: `tests/test_episode_quality_306.py` (new); `tests/test_data_paths.py`
 (the store registered).
+
+## 307. Examples are filed on the category tree, and the writer is shown the nearest (2026-10-24)
+
+Step 2 of the plan §306 began (the owner, 10.23: "episode examples that are
+attached to nodes in the category tree rather than having a set number of
+episodes"; 10.24: "start on step 2"). Seasons are not in it - the owner's
+offseason/in-season point is step 4 - and nothing new is written: the twelve
+examples are the same twelve, filed.
+
+**Filed.** Each `examples/*.txt` now carries `# node:` and `# shape:` above its
+query (`load_style_examples` reads them into `EXAMPLE_INFO`; a file without
+them still loads and is never singled out). The twelve: physics, space science,
+medicine, interest rates, flights, music industry, olympic sport, cybersecurity,
+formula one, trade policy, consumer hardware, markets; seven explainers, four
+historical, one sports recap. No example is yet a breaking story, a business
+update, a preview, a trend or an in-progress game - the gap step 3 is for, and
+the README now says those are the most useful to write.
+
+**Placed before writing, in code** (`script_generator.place_episode`). The
+brief's subject and the question go through `stories.resolve_category` - the
+phrase match, then the nearest node by meaning, which never embeds on the
+request ([category-gaps]) - so placing costs a local read on the search path
+and nothing awaited ([nothing-before-material] untouched).
+
+**Chosen** (`choose_examples`, `EXAMPLES_PER_EPISODE`=4). Shape first (three
+points for the same story shape: a recap teaches a recap whatever the sport),
+then the branch (up to two: an example on the node or an ancestor scores by
+how deep it sits; any other by the ancestors it shares with the node, at four
+fifths), then length (one point for the minutes asked for, half for one off),
+and one at the length asked for is always kept when one exists. **An episode
+nothing singles out - no node, and no shape any example has - is shown every
+example, exactly as before**; `EXAMPLES_BY_NODE=0` does that for every episode.
+Tried on the seeded tree, without the embedding model: a Monaco recap whose
+subject says "Formula One" is placed on formula one, and one whose subject is
+only "Lando Norris at the Monaco Grand Prix" is placed nowhere - no tree phrase
+matches it, and the nearest-meaning rung needs the model - yet both are shown
+the Singapore sprint, on shape alone; a question about the Fed's next move is
+placed on federal reserve and shown the rates example; "why is nvidia stock down"
+places nowhere without the embedding model, and no example is a business
+story, so it is shown all twelve.
+
+**Sent as two cached blocks** (`writer_system(choice)`): the house rules,
+byte-identical on every call - the block the warm-up primes - then the chosen
+examples, always in file order so one choice is one identical block that the
+next episode on that branch reads from the cache. `PROMPT_CACHE=0` sends the
+same words as one string. This changes which examples a writer reads, on
+purpose, so [writer-savings] has a Current note: its "never change what is
+written" is about savings, and this is not one.
+
+**Checked, not trusted.** The node an episode was placed on and the files it
+was shown are kept on `ScriptNotes` (`planned_node`, `examples`) and beside its
+quality row (two columns added to `episode_quality.episodes`; an older store is
+widened). The report (`/admin/quality`, `tools/quality_report.py`) adds:
+whether the placement was the writer's own branch (`same` - the node, or one is
+an ancestor of the other), the same heading only, another heading, unplaced or
+unknown, per node and overall; the commonest placements that missed their
+heading, which is where the tree or the brief's subject is wrong; and each
+example file with the episodes it was shown to, how they scored and what they
+were about. `write.py` prints the placement and the files under every script.
+
+Unmeasured, because there is no key here: whether four nearest examples hold
+the voice and the lengths as well as twelve did (§286-287 added them for
+Haiku), and how often the cache reads a chosen block. The first comparison is
+`EXAMPLES_BY_NODE=0` against `1` on the same `tools/ei_eval.py --script` run,
+on the §306 means.
+
+Tests: `tests/test_examples_by_node_307.py` (new); `tests/test_prompt_cache_179.py`
+(the cached text is two blocks that join to `system_prompt()` for an episode
+nothing singles out).

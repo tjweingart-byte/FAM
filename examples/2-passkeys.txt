@@ -1,3 +1,5 @@
+# node: cybersecurity
+# shape: explainer
 how do passkeys work
 
 A passkey replaces your password with a pair of keys, and the clever part is that the website never gets the one that matters.

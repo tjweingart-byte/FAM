@@ -595,6 +595,16 @@ class Settings:
     quality_grade_daily: int = _env_int("QUALITY_GRADE_DAILY", 200)
     # Fewer episodes than this and a node borrows its parent's scores.
     quality_min_episodes: int = _env_int("QUALITY_MIN_EPISODES", 5)
+    # **Examples by node** (§307, `script_generator.choose_examples`): the
+    # writer is shown the examples nearest its episode - same story shape,
+    # nearest branch of the category tree, one at the length asked for -
+    # rather than all of them. An episode nothing singles out (no node, no
+    # shape any example has) is shown all of
+    # them, as before. `0` shows every example to every episode.
+    examples_by_node: bool = field(
+        default_factory=lambda: os.environ.get("EXAMPLES_BY_NODE", "1")
+        not in ("0", "false", "False", ""))
+    examples_per_episode: int = _env_int("EXAMPLES_PER_EPISODE", 4)
     # **The evidence cut to what the episode can use** (§270,
     # `evidence_digest.py`): Haiku with thinking off picks which of the
     # packet's sentences to keep - numbers only, never words of its own - and

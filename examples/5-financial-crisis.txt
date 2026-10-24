@@ -1,3 +1,5 @@
+# node: markets
+# shape: historical
 what caused the 2008 financial crisis
 
 On the fifteenth of September 2008, Lehman Brothers - a hundred-and-fifty-eight-year-old Wall Street bank - filed for bankruptcy, the largest in American history, and within days the whole financial system was close to seizing up. What brought it there was an ordinary thing: American home loans, millions of them, made to people who were never going to be able to pay them back.
