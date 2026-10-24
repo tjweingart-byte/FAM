@@ -309,4 +309,4 @@ and `limit` = Lines.
 | 21675 | 27 | 303. The production image could not check a sign-in (2026-10-22) |
 | 21702 | 24 | 304. A reporter could choose where the moderator's email links (2026-10-23) |
 | 21726 | 45 | 305. The standard episode is one minute (2026-10-23) |
-| 21771 | 50 | 306. Two packets: the history store's seam (2026-10-24) |
+| 21771 | 60 | 310. Two packets: the history store's seam (2026-10-24) |

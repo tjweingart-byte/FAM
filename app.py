@@ -1862,7 +1862,7 @@ async def health(request: Request) -> dict:
         # The evidence cut in front of the writer (§270): on or off, and how
         # each cut ended since boot, by who was waiting.
         "evidence_digest": evidence_digest_report(),
-        # The second packet (§306): whether a history store is registered,
+        # The second packet (§310): whether a history store is registered,
         # and how each lookup ended since boot, by who was waiting.
         "history": history_report(),
         # The writer's cache warmed at the tap (§270): sent, already warm,

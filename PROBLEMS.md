@@ -21768,7 +21768,17 @@ that row exists for. It defaults to `BROWSE_MINUTES` now. The client's
 the rest of the file, and the comments that said browse episodes are two
 minutes say `BROWSE_MINUTES`.
 
-## 306. Two packets: the history store's seam (2026-10-24)
+## 310. Two packets: the history store's seam (2026-10-24)
+
+*Numbered 310, not 306 (2026-10-24, at the owner's direction): four
+unmerged branches had each claimed numbers after Main's 305, so they are
+reserved in the order the work was started - 306 and 307 for
+`claude/keen-ptolemy-15z3pb` (episode quality by category; examples on the
+category tree), 308 for `claude/zealous-mendel-r8x3n3` (the 10.23
+implementations), 309 for `claude/brave-archimedes-akar5s` (the MongoDB
+history archive and `docs/FAM_AGENTS.md`, written there as a second 305),
+and 310 for this one. A branch that merges renumbers itself to its
+reservation.*
 
 The owner drew the pipeline as it is to be: search → EI (contextualise -
 category, subcategory, context - and write the inputs for the plugins) →
@@ -21804,7 +21814,7 @@ forecast, local) and packet one, and a consolidation step for packet one only
 
 `HISTORY_PACKET=1` by default, and a no-op until a store is registered:
 /api/health says `source: null`. With no store the prompt is unchanged byte
-for byte (`tests/test_history_packet_306.py`).
+for byte (`tests/test_history_packet_310.py`).
 
 For the MongoDB branch: register an async `fetch(HistoryQuery) -> list
 [HistoryEntry]` at boot; give every entry a date; return no URL in `text`;

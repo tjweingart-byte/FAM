@@ -1,6 +1,6 @@
 # The pipeline with agents: options
 
-Written 2026-10-24 for the pipeline the owner drew (PROBLEMS.md §306). No
+Written 2026-10-24 for the pipeline the owner drew (PROBLEMS.md §310). No
 agent is built yet. This document is for deciding how to build them: by price,
 latency, how easy each is to implement, and how the agents talk to each other.
 
@@ -23,8 +23,8 @@ search
 
 | Box in the drawing | In the code today | Model, cost per episode |
 |---|---|---|
-| EI: contextualise | `episode_intelligence.understand`: three structured calls side by side (understand / search / outline). Category and subcategory are now `Brief.category_path`, placed against the category tree in code (§306) | Haiku 5.5, medium effort, 8 s ceiling |
-| EI: plugin inputs | Brief fields each plugin reads: `search_query`/`angles`/`objective`/`recency_days` → search ladder; `live_domain`/`live_entity` → live facts and players; `outcome_dependent` → forecast; `place` → local ladder; `HistoryQuery` → history store (§306) | (part of the EI calls) |
+| EI: contextualise | `episode_intelligence.understand`: three structured calls side by side (understand / search / outline). Category and subcategory are now `Brief.category_path`, placed against the category tree in code (§310) | Haiku 5.5, medium effort, 8 s ceiling |
+| EI: plugin inputs | Brief fields each plugin reads: `search_query`/`angles`/`objective`/`recency_days` → search ladder; `live_domain`/`live_entity` → live facts and players; `outcome_dependent` → forecast; `place` → local ladder; `HistoryQuery` → history store (§310) | (part of the EI calls) |
 | Plugins → packet one | `research.retrieve` (Parallel → Perplexity → GDELT), `live_facts`, `players`, `forecast`, `local_news`, `weather` | No model calls |
 | Research agent → packet two | **New seam:** `history.lookup`, with the store plugged in through `history.register` (MongoDB branch) | None yet |
 | Consolidate | Packet one: `evidence_digest` (an extractive cut; off by default). Both packets: `history.consolidate` (code) and the writer's prompt order: live state → evidence → background | Haiku 5.5, thinking off, when on |
@@ -151,7 +151,7 @@ jobs.
 
 ## 5. Other changes the pipeline needs
 
-Built in this change (§306): the `HistoryQuery`/`HistoryPacket` seam, the
+Built in this change (§310): the `HistoryQuery`/`HistoryPacket` seam, the
 category path, the grace wait, consolidation, the `<background>` block,
 provenance, `/api/health`, `write.py` output, and `FigureGuard` reading
 packet two.

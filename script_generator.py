@@ -893,7 +893,7 @@ class EpisodePlan:
     #: other reader keep `evidence`. **Never in the cache key**, as
     #: `EI_SPLIT` is not: a setting that shapes how an episode is prepared.
     evidence_digest: str = ""
-    #: **The second packet: what came before** (§306, `history.py`) - the
+    #: **The second packet: what came before** (§310, `history.py`) - the
     #: history store's entries on this subject's past, consolidated against
     #: the evidence (`history.consolidate`). None when no store is
     #: registered, it had nothing, or it was not back in time, and the
@@ -1179,7 +1179,7 @@ for the script.
 </evidence>
 """
 
-    # Packet two (§306): what came before, after the evidence it never
+    # Packet two (§310): what came before, after the evidence it never
     # outranks. "" when there is none, and the prompt is what it was.
     background = history.as_prompt_block(plan.history)
 
@@ -2155,7 +2155,7 @@ class ScriptGenerator:
         brief = await episode_intelligence.understand(
             plan.query, plan.minutes, plan.context, notes, **extra)
         _publish_title(notes, brief)
-        # Contextualised (§306): where the request sits in the category
+        # Contextualised (§310): where the request sits in the category
         # tree, in code, for the history store to be asked with.
         plan = dataclasses.replace(
             plan, brief=episode_intelligence.place_category(brief))
@@ -2217,7 +2217,7 @@ class ScriptGenerator:
 
     async def history_lookup(self, plan: EpisodePlan,
                              notes: ScriptNotes | None = None):
-        """Packet two (§306): the history store's record of the subject's
+        """Packet two (§310): the history store's record of the subject's
         past, or None. Never raises; never asked twice for one plan."""
         if plan.history is not None:
             return plan.history
@@ -2282,7 +2282,7 @@ class ScriptGenerator:
         live_task = asyncio.ensure_future(self.live_lookup(plan, notes))
         # A player's or a team's report (§275), beside the scoreboard.
         players_task = asyncio.ensure_future(self.players_lookup(plan, notes))
-        # Packet two (§306): what came before, from the history store. It
+        # Packet two (§310): what came before, from the history store. It
         # starts with packet one and, like the forecast, never holds the
         # first word past `HISTORY_GRACE_SECONDS` once the evidence is in.
         history_task = asyncio.ensure_future(self.history_lookup(plan, notes))
@@ -2389,7 +2389,7 @@ class ScriptGenerator:
             evidence_digest=cut,
             thin_on=research_plan.thin_on, local=research_plan.local,
             forecast=forecast, players=players)
-        # The two packets consolidated (§306): of what came before, only
+        # The two packets consolidated (§310): of what came before, only
         # what the fresh packet does not already speak for.
         plan = dataclasses.replace(plan, history=history.consolidate(past, plan))
         if notes is not None and isinstance(notes.research, dict):

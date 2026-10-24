@@ -1,4 +1,4 @@
-"""The second packet: what came before, from the history store (§306).
+"""The second packet: what came before, from the history store (§310).
 
 The seam the MongoDB store plugs into. Pinned here, because each is a way a
 second packet could cost an episode something:

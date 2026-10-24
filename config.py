@@ -600,7 +600,7 @@ class Settings:
     # A packet shorter than this is read whole: the call costs about a
     # second, and a short packet costs the writer less than that to read.
     evidence_digest_min_chars: int = _env_int("EVIDENCE_DIGEST_MIN_CHARS", 2500)
-    # **The second packet: what came before** (§306, `history.py`). The
+    # **The second packet: what came before** (§310, `history.py`). The
     # history store answers beside the search; once the evidence is in it is
     # waited for only `HISTORY_GRACE_SECONDS` more, so it never holds the
     # first word. On, but a no-op until a store is registered

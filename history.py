@@ -1,4 +1,4 @@
-"""The second packet: what came before, from FAM's own store (§306).
+"""The second packet: what came before, from FAM's own store (§310).
 
 The pipeline the owner drew (2026-10-24) has two packets in front of the
 writer, not one:
@@ -81,7 +81,7 @@ class HistoryQuery:
     #: The bare names a catalogue lists them under ("Philadelphia Eagles").
     entities: tuple = ()
     #: The category tree's path for this request, broadest first - facet,
-    #: then each subcategory - as `Brief.category_path` (§306).
+    #: then each subcategory - as `Brief.category_path` (§310).
     category_path: tuple = ()
     #: One of `episode_intelligence.INTENTS`.
     intent: str = ""

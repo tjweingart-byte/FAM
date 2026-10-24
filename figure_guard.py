@@ -264,7 +264,7 @@ def _material(plan) -> str:
                 log.warning("figure guard: the %s block could not be read", name)
     for attached in getattr(plan, "readable", None) or []:
         parts.append(str(getattr(attached, "text", "") or ""))
-    # Packet two (§306): a figure a dated record states is material too -
+    # Packet two (§310): a figure a dated record states is material too -
     # "the shares fell 30 percent in 2022" was given, not recalled.
     past = getattr(plan, "history", None)
     for entry in getattr(past, "entries", None) or []:
