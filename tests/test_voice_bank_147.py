@@ -258,7 +258,7 @@ def served(bank, monkeypatch, tmp_path):
     return store
 
 
-def test_a_myfam_tap_is_two_minutes_in_a_bank_voice_it_keeps(served):
+def test_a_myfam_tap_is_one_minute_in_a_bank_voice_it_keeps(served):
     client = TestClient(appmod.app)
     # An account: a guest's myFAM tap never writes an episode.
     assert client.post("/api/auth/signup", json={
@@ -268,8 +268,8 @@ def test_a_myfam_tap_is_two_minutes_in_a_bank_voice_it_keeps(served):
                      "&surface=myfam&voice=chatterbox:ellis")
     assert res.status_code == 200
     rows = served.recent(10)
-    assert [(r["minutes"], r["origin"]) for r in rows] == [(2, "myfam")], \
-        "a myFAM episode must be two minutes whatever the client asked"
+    assert [(r["minutes"], r["origin"]) for r in rows] == [(1, "myfam")], \
+        "a myFAM episode must be one minute whatever the client asked"
     kept = rows[0]["voice"]
     assert voice_bank.known(kept)
     heard = {v for v in BankEngine.spoken}
@@ -323,8 +323,8 @@ def test_browse_lengths_are_fixed_in_code():
     import config
     import daily_edition
 
-    assert config.BROWSE_MINUTES == 2
-    assert daily_edition.minutes() == 2
+    assert config.BROWSE_MINUTES == 1   # §305
+    assert daily_edition.minutes() == 1
     assert not hasattr(config.settings, "daily_edition_minutes")
     assert not hasattr(config.settings, "trending_bank_minutes")
 

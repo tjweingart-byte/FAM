@@ -308,4 +308,5 @@ and `limit` = Lines.
 | 21649 | 26 | 302. The waiting screen plays the samples (2026-10-22) |
 | 21675 | 27 | 303. The production image could not check a sign-in (2026-10-22) |
 | 21702 | 24 | 304. A reporter could choose where the moderator's email links (2026-10-23) |
-| 21726 | 93 | 305. Episode quality, measured by category (2026-10-23) |
+| 21726 | 45 | 305. The standard episode is one minute (2026-10-23) |
+| 21771 | 93 | 306. Episode quality, measured by category (2026-10-23) |

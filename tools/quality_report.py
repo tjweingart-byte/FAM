@@ -1,4 +1,4 @@
-"""Episode quality by category, from the command line (PROBLEMS.md §305).
+"""Episode quality by category, from the command line (PROBLEMS.md §306).
 
     python tools/quality_report.py                  # worst-costing nodes, 30 days
     python tools/quality_report.py --days 7 --all   # every node, thin ones too

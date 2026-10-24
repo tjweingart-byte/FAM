@@ -642,9 +642,10 @@ def test_the_ready_ones_come_first_and_are_counted(client):
     # Write the script for one bank topic, as another listener, at the length
     # the screen is asking for.
     topic = topics_mod.TOPIC_BANK[3]
-    plan = appmod._validated_plan(topic.query, 2)
+    plan = appmod._validated_plan(topic.query, appmod.BROWSE_MINUTES)
     appmod.SCRIPT_CACHE.put(appmod._episode_key(plan), ["A sentence."], 600,
-                            topic.query, "", 2, "", "", "someone-else")
+                            topic.query, "", appmod.BROWSE_MINUTES, "", "",
+                            "someone-else")
     # And put it on the row, which now holds only what has been played. It is
     # seeded *last* of the three so it is bottom of the play ranking - which
     # is what makes "a ready tile was not put first" below a real assertion
@@ -873,10 +874,10 @@ def test_the_page_schedules_a_warm_and_never_waits_for_one(client, monkeypatch):
     assert scheduled, "the browse page warmed nothing at all"
     listener, minutes = scheduled[0]
     assert listener, "a warm has to be attributed to the listener it is for"
-    # Two, whatever an older client sent (§147): every myFAM episode is
+    # One, whatever an older client sent (§147, §305): every myFAM episode is
     # `BROWSE_MINUTES`, and a brief warmed at any other length is one nobody
     # ever looks up.
-    assert minutes == appmod.BROWSE_MINUTES == 2, (
+    assert minutes == appmod.BROWSE_MINUTES == 1, (
         "warmed at the wrong length: a brief is keyed by (query, minutes, "
         "context), so this one is a brief nobody ever looks up"
     )

@@ -1,4 +1,4 @@
-"""§305: episode quality, measured by category.
+"""§306: episode quality, measured by category.
 
 Pinned here:
 

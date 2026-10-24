@@ -798,7 +798,7 @@ class Prefetcher:
 
             category_audit.note(candidate.query, getattr(notes, "category", ""),
                                 "prefetch")
-            # And how well it was written (§305), kept beside it.
+            # And how well it was written (§306), kept beside it.
             import episode_quality
 
             episode_quality.note(key, notes.sourced_at, candidate.query,

@@ -1126,7 +1126,7 @@
     samplePlaying = ep.query; sampleState = "playing";
     note.textContent = "Starting the episode…";
     drawSample();
-    window.FamAudio.play(ep.query, ep.minutes || 2, {
+    window.FamAudio.play(ep.query, ep.minutes || 1, {   // BROWSE_MINUTES (§305)
       onFirstAudio: function(){ note.textContent = ""; },
       onEnd: function(){ sampleState = ""; samplePlaying = ""; drawSample(); },
       onError: function(err){

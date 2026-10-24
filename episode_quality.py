@@ -1,4 +1,4 @@
-"""Episode quality, measured by category (PROBLEMS.md §305).
+"""Episode quality, measured by category (PROBLEMS.md §306).
 
 The writing is the product ([writing-is-the-problem]), and until this file
 nothing measured it: a prompt change, a new example or a different writer was
@@ -1241,7 +1241,7 @@ def format_measures(measures: dict) -> str:
     """The code half, as `write.py` prints it under the script."""
     scores = measures.get("scores") or {}
     checks = measures.get("checks") or {}
-    lines = ["quality (code proxies, 0-1; §305):"]
+    lines = ["quality (code proxies, 0-1; §306):"]
     for metric in METRICS:
         value = scores.get(metric)
         lines.append(f"  {LABELS[metric]:<20} "

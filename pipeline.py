@@ -1666,7 +1666,7 @@ class PodcastPipeline:
 
             category_audit.note(plan.query, getattr(notes, "category", ""),
                                 self.origin or "tap")
-            # And how well it was written (§305), kept beside it.
+            # And how well it was written (§306), kept beside it.
             import episode_quality
 
             episode_quality.note(key, stats.sourced_stamp, plan.query,

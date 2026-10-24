@@ -688,7 +688,7 @@ class ScriptNotes:
     #: DailyFAM): its writer is `EDITION_WRITER_MODEL` when that is set
     #: (`writer_for`, §269).
     edition: bool = False
-    #: What the episode's quality is judged against (§305), set when the
+    #: What the episode's quality is judged against (§306), set when the
     #: script is finished: the evidence the writer read (the cut when there
     #: was one), the brief's story shape, the word budget and the writer that
     #: answered. In memory only; `episode_quality.note` keeps what it needs.
@@ -1587,7 +1587,7 @@ class _ScriptReader:
                                         + tuple(self.material.dropped))
             self.notes.score_drops = tuple(self.scores.dropped)
             self.notes.figure_drops = tuple(self.figures.dropped)
-            # What the quality record judges it against (§305).
+            # What the quality record judges it against (§306).
             self.notes.written_from = (getattr(self.plan, "evidence_digest", "")
                                        or getattr(self.plan, "evidence", "")
                                        or "")
@@ -2464,7 +2464,7 @@ class ScriptGenerator:
         request = self._request_kwargs(plan, notes)
         model = request["model"]
         if notes is not None:
-            notes.writer_model = model   # for the quality record (§305)
+            notes.writer_model = model   # for the quality record (§306)
         path = _writer_path(notes)
         started = time.monotonic()
         first_word = None
@@ -2563,7 +2563,7 @@ class ScriptGenerator:
                        if getattr(block, "type", "") == "text")
         reader = _ScriptReader(plan, notes)
         if notes is not None:
-            # For the quality record (§305): the model the batch answered with.
+            # For the quality record (§306): the model the batch answered with.
             notes.writer_model = (getattr(message, "model", None)
                                   or writer_for(notes)[0])
         out: list[str] = list(reader.opening())

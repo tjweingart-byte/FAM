@@ -525,7 +525,7 @@ def _finish(pending: "_Pending", sentences: list, cache, length: int,
     import category_audit
 
     category_audit.note(query, getattr(notes, "category", ""), "dailyfam")
-    # And how well it was written (§305), kept beside it.
+    # And how well it was written (§306), kept beside it.
     import episode_quality
 
     episode_quality.note(key, notes.sourced_at or now, query, length, "dailyfam",

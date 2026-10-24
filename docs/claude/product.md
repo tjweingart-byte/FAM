@@ -667,7 +667,7 @@ strongest available lever on the remaining problem is untouched — and unlike
 the rest of this list it needs taste rather than a key.
 
 <!-- rule:episode-quality -->
-**Episode quality is measured, by category, three ways** *(PROBLEMS.md §305,
+**Episode quality is measured, by category, three ways** *(PROBLEMS.md §306,
 at the owner's direction: "properly categorize episode quality based on their
 category/subcategory in the tree ... information quality, story flow,
 information depth, repetition of information, the quality of the hook and
@@ -724,6 +724,7 @@ to the writer is judged.
   question goes through `autocorrect.correct_text`.
 
 <!-- rule:search-bar -->
+> **Current (PROBLEMS.md §305, the owner 10.23):** the length a search opens on, and returns to every time somebody comes back into the app, is **one minute**, not two (`DEFAULT_LENGTH_MINUTES`); the Length bubble still offers 1-5, and the Voice bubble is unchanged. Where the text below says two minutes, read one.
 > **Current (PROBLEMS.md §282, the owner 10.15):** a third bubble, **Private**, is searchFAM's incognito for one search (`private-search`); while it is on the search page is charcoal in either theme.
 > **Current (PROBLEMS.md §219):** the Length menu offers **1, 2, 3, 4 and 5 minutes** (`SEARCH_LENGTHS`); the server still accepts up to ten, so no installed client is refused.
 - **The search page is Google's shape** *(PROBLEMS.md §190, the owner's 10.1

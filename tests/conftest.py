@@ -73,7 +73,7 @@ FAM_ENVIRONMENT = (
     "EPISODE_INTELLIGENCE", "EI_MODEL", "EI_EFFORT", "EI_MAX_TOKENS",
     "EI_TIMEOUT_SECONDS", "EI_DEFAULT_RECENCY_DAYS", "EI_AHEAD_TIMEOUT_SECONDS",
     "EI_SPLIT", "EI_EXAMPLES", "EI_OUTLINE", "EI_OUTLINE_GRACE_SECONDS",
-    # §305: the quality grader. A developer with QUALITY_GRADE=all set must
+    # §306: the quality grader. A developer with QUALITY_GRADE=all set must
     # not have the suite schedule grades.
     "QUALITY_GRADE", "QUALITY_GRADER_MODEL", "QUALITY_GRADER_EFFORT",
     "QUALITY_GRADE_DAILY", "QUALITY_MIN_EPISODES",
@@ -579,7 +579,7 @@ def isolated_pipeline_errors(tmp_path, monkeypatch):
 
 @pytest.fixture(autouse=True)
 def isolated_episode_quality(tmp_path, monkeypatch):
-    """The quality rows (§305), per test: every episode a test writes to the
+    """The quality rows (§306), per test: every episode a test writes to the
     cache is measured, and must not land in the project root."""
     import episode_quality
 
