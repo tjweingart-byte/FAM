@@ -1896,6 +1896,14 @@
   `python tools/voice_doctor.py` against the running deployment is what turns
   that from careful into known.
 <!-- rule:storage-durability -->
+> **Current (PROBLEMS.md §306):** one store does not go through
+> `db.connect`, at the owner's direction: the history archive
+> (`history_archive.py`) lives in **MongoDB Atlas** in production
+> (`ARCHIVE_BACKEND=atlas`, `MONGODB_URI`). Its local backend is still
+> `data_path("ARCHIVE_DB", ...)` + `db.connect`, and is what tests, staging
+> (forced by `spend_guard`) and a fresh clone use. Atlas without an address
+> turns the archive off and says so; it never falls back to the disk.
+>
 > **Current (PROBLEMS.md §254):** a server pointed at Postgres compares the
 > disk with the database at boot. Accounts in the file on the disk and none
 > of them in Postgres (by id, `db.accounts_missing`) mean the copy never

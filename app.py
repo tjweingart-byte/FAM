@@ -1101,6 +1101,17 @@ def _database_report() -> list[dict]:
                            wikimedia.store().path))
     except Exception:  # pragma: no cover - a report is never load-bearing
         pass
+    # The history archive's local file (§306), when the archive is kept
+    # here rather than on Atlas. Created by the first written episode.
+    try:
+        import history_archive
+        from paths import data_path
+
+        if history_archive.exists():
+            stores.append(("history archive", "ARCHIVE_DB",
+                           data_path("ARCHIVE_DB", "archive.db")))
+    except Exception:  # pragma: no cover - a report is never load-bearing
+        pass
     try:
         code_device = os.stat(PROJECT_ROOT).st_dev
     except OSError:
@@ -1925,6 +1936,9 @@ async def health(request: Request) -> dict:
         # (Wikimedia Enterprise or the keyless summary), and the month's
         # Enterprise requests against the cap.
         "wikipedia": _wikipedia_report(),
+        # The history archive (§306): which backend, why it is off if it
+        # is, and what this process wrote and recalled. Sends nothing.
+        "archive": _archive_report(),
         # Whether every licensed provider in use may be used commercially
         # (§207): GNews' and Finnhub's free plans and Open-Meteo's keyless
         # endpoint may not. The question to ask before charging anybody.
@@ -4030,6 +4044,17 @@ async def entitlements_read(request: Request) -> dict:
         **entitlements.describe(tier_name),
         "usage": _quota_snapshot(user, tier_name),
     }
+
+
+def _archive_report() -> dict:
+    """`history_archive.report`, never raising (§306)."""
+    try:
+        import history_archive
+
+        return history_archive.report()
+    except Exception as exc:  # noqa: BLE001 - a report is never load-bearing
+        log.warning("could not report the archive: %s", exc)
+        return {"enabled": False, "error": type(exc).__name__}
 
 
 def _wikipedia_report() -> dict:

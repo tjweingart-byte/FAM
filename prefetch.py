@@ -798,6 +798,11 @@ class Prefetcher:
 
             category_audit.note(candidate.query, getattr(notes, "category", ""),
                                 "prefetch")
+            # Its articles, for the history archive (§306). Never awaited.
+            import history_archive
+
+            history_archive.after_episode(notes, key, notes.sourced_at,
+                                          "prefetch")
             self.ledger.note_warmed(key, candidate, spent)
             log.info("prefetch warmed %d sentences for %r (%s: %s, $%.4f)",
                      len(sentences), candidate.query, candidate.source,

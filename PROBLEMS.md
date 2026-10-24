@@ -21779,3 +21779,64 @@ fact is kept as a **corroborating link** - URL, outlet, grade, date and a
 count on the fact, never its text.
 
 Open: the search vendors' terms on storing excerpts; when rollups start.
+
+## 306. The history archive is built, for MongoDB Atlas (2026-10-24)
+
+At the owner's direction ("we are going to use MongoDB"), §305's plan, built:
+`history_archive.py`, one interface with two backends - **Atlas** in
+production (`ARCHIVE_BACKEND=atlas`, `MONGODB_URI`, `requirements-archive.txt`)
+and **SQLite** (`ARCHIVE_DB`, `db.connect`) for tests, staging and a fresh
+clone. Setup is `ARCHIVE.md`; `tools/archive_setup.py` creates the indexes,
+including the `facts_vector` Atlas Vector Search index (384-d cosine, scalar
+quantisation, filters on `active`, `published`, `space`), and proves them
+with a real round trip.
+
+What it does:
+
+- **Intake**, after every cached episode (`after_episode`, beside
+  `category_audit.note` in `pipeline`, `prefetch`, `trending_bank`,
+  `daily_edition`): each article the packet was built from
+  (`Packet.findings`, filled wherever `build_packet` runs) is upserted by URL
+  with its passages, grade, date, and the episode's subject and category.
+  Submitted to the archive's own threads, never awaited. A private search is
+  refused; an attachment never reaches it (only shareable episodes are
+  cached). Kept until the inventory agent digests it - the archive cannot be
+  backfilled, so nothing is thrown away except past `ARCHIVE_INTAKE_MAX`.
+- **Episode links** (`episode_sources`), keyed by `cache.episode_id`, for the
+  episode screen's sources view the owner asked for.
+- **The recall**, started at the top of `ScriptGenerator.research` and merged
+  by `research.finish_history_look` on the reference look's terms: within
+  `ARCHIVE_GRACE_SECONDS` (0.5) of the packet or dropped, only beside web
+  sources, after every one of them, never from an article already in the
+  packet, only facts published before the packet's window and never
+  undated. Labelled `earlier reporting from FAM's archive - dated
+  background, never a current state` with the article's original grade, and
+  the writer is told it is history, never how things stand now.
+- **Not on** outcome-dependent questions, weather, a town's news - the
+  reference look's exclusions - **nor on sports or markets episodes**: an old
+  score or price in the packet would vouch for itself past `ScoreGuard` and
+  `FigureGuard`, which accept any figure the material contains. Revisit once
+  the agent stores figures with their as-of dates and the guards can tell
+  history from now.
+- **Only with the sentence model**: the hashing vector is lexical, and a
+  recall that matched spelling would hand the writer the wrong history.
+
+`facts` is empty until the Database inventory specialist is built
+(`docs/FAM_AGENTS.md`, which now says what it reads and writes), so the
+recall adds nothing yet. That is the honest state, not a fallback: intake is
+not recalled, because the owner's design keeps only digested key information.
+
+Staging: `MONGODB_URI` is scrubbed and `ARCHIVE_BACKEND` forced to `sqlite`.
+Production: both are `sync: false` in `render.yaml`, set in the dashboard
+once `archive_setup.py` has passed - the audio bucket's terms (§237), not a
+side effect of a merge. Atlas asked for without an address turns the
+archive off and says so on `/api/health` > `archive`; it never falls back
+to the disk, where history would vanish on the next deploy.
+
+Unverified here: no Atlas cluster is reachable from this container, so the
+Atlas backend is tested against a fake database that records its calls
+(the `$vectorSearch` stage, filters, the `(1 + cosine) / 2` score
+conversion, upsert shapes). The first real run is `archive_setup.py`.
+
+Tests: `tests/test_history_archive_306.py`; the store is in
+`tests/test_data_paths.py`'s lists, both Dockerfiles and `.env.example`.

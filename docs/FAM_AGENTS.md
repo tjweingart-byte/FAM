@@ -90,7 +90,20 @@ task.
 ## 1. Database inventory specialist
 
 **Status:** planned, not built. Designed in conversation on 2026-10-24
-(§305); build after the history archive exists.
+(§305). **The archive it works on is built** (§306, `history_archive.py`,
+`ARCHIVE.md`), so this agent is next.
+
+**What it reads and writes, as built:**
+- It reads `intake` records with `digested: false`: one per article, with
+  passages, grade, date, and the subjects and categories of the episodes
+  that used it.
+- It writes `facts` through `history_archive.add_fact(Fact(...))`, which
+  embeds each fact with the installed sentence model.
+- It marks each intake record `digested` once done.
+- Superseding a fact is `active: false` plus `superseded_by`; the recall
+  already ignores both.
+- `episode_sources` is filled by the archive itself; the agent does not
+  touch it.
 
 ### Purpose
 

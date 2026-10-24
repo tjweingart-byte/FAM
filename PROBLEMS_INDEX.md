@@ -309,3 +309,4 @@ and `limit` = Lines.
 | 21675 | 27 | 303. The production image could not check a sign-in (2026-10-22) |
 | 21702 | 24 | 304. A reporter could choose where the moderator's email links (2026-10-23) |
 | 21726 | 57 | 305. A history archive on MongoDB Atlas, and the first agent (2026-10-24) |
+| 21783 | 61 | 306. The history archive is built, for MongoDB Atlas (2026-10-24) |
