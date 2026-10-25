@@ -1,4 +1,4 @@
-"""The history archive: what FAM has read, kept for the episodes after (§306).
+"""The history archive: what FAM has read, kept for the episodes after (§308).
 
 Every packet used to be read once by the writer and thrown away, so an
 episode knew only what was published inside its recency window. This module
@@ -130,7 +130,7 @@ class Finding:
 
 @dataclass
 class Fact:
-    """One kept sentence or figure (the agent's output; §305)."""
+    """One kept sentence or figure (the agent's output; §307)."""
 
     url: str
     text: str
@@ -144,7 +144,7 @@ class Fact:
     category: str = ""
     #: For a figure: metric, value, unit, period, status (outcome/forecast).
     figure: dict = field(default_factory=dict)
-    #: Articles that repeated it: url, host, grade, published (§305).
+    #: Articles that repeated it: url, host, grade, published (§307).
     corroborations: list = field(default_factory=list)
     id: str = ""
     #: Cosine similarity to the recall's question, when it came from one.

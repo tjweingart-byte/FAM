@@ -21723,7 +21723,7 @@ the same person signing in and unlinking at once.
 Tests: `tests/test_app_review_server.py` (a forged host never reaches the
 email - it fails on the old line; a failed summary keeps the window).
 
-## 305. A history archive on MongoDB Atlas, and the first agent (2026-10-24)
+## 307. A history archive on MongoDB Atlas, and the first agent (2026-10-24)
 
 Planning only; no code. The owner wants the writer to have a second packet:
 historical context on the topic, from what FAM has already collected,
@@ -21780,9 +21780,9 @@ count on the fact, never its text.
 
 Open: the search vendors' terms on storing excerpts; when rollups start.
 
-## 306. The history archive is built, for MongoDB Atlas (2026-10-24)
+## 308. The history archive is built, for MongoDB Atlas (2026-10-24)
 
-At the owner's direction ("we are going to use MongoDB"), §305's plan, built:
+At the owner's direction ("we are going to use MongoDB"), §307's plan, built:
 `history_archive.py`, one interface with two backends - **Atlas** in
 production (`ARCHIVE_BACKEND=atlas`, `MONGODB_URI`, `requirements-archive.txt`)
 and **SQLite** (`ARCHIVE_DB`, `db.connect`) for tests, staging and a fresh
@@ -21838,5 +21838,5 @@ Atlas backend is tested against a fake database that records its calls
 (the `$vectorSearch` stage, filters, the `(1 + cosine) / 2` score
 conversion, upsert shapes). The first real run is `archive_setup.py`.
 
-Tests: `tests/test_history_archive_306.py`; the store is in
+Tests: `tests/test_history_archive_308.py`; the store is in
 `tests/test_data_paths.py`'s lists, both Dockerfiles and `.env.example`.

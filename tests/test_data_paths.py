@@ -139,7 +139,7 @@ ALL_VARS = sorted(DECLARED)
 #: reported once it exists. `PIPELINE_ERRORS_DB` (§269) is created by the
 #: first thing that goes wrong - the routing rows' case. `WIKIMEDIA_DB`
 #: (§278) is created by the first reference look, and reported once it
-#: exists - the same case again. `ARCHIVE_DB` (§306) is created by the
+#: exists - the same case again. `ARCHIVE_DB` (§308) is created by the
 #: first written episode with sources, and reported once it exists.
 LAZY_STORES = {"ARCHIVE_DB", "VOICE_REGISTRY_DB", "TRENDING_BANK_DB", "VOICE_BANK_DB",
                "THUMBNAILS_DB", "PROVIDER_USAGE_DB", "LOCAL_NEWS_DB",

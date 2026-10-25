@@ -1,4 +1,4 @@
-"""The history archive (§306): intake, episode links, the recall beside the search.
+"""The history archive (§308): intake, episode links, the recall beside the search.
 
 The SQLite backend is the real code on a temporary file. The Atlas backend
 is the real code against a fake database that records what it was asked

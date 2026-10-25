@@ -525,7 +525,7 @@ def _finish(pending: "_Pending", sentences: list, cache, length: int,
     import category_audit
 
     category_audit.note(query, getattr(notes, "category", ""), "dailyfam")
-    # Its articles, for the history archive (§306). Never awaited.
+    # Its articles, for the history archive (§308). Never awaited.
     import history_archive
 
     history_archive.after_episode(notes, key, notes.sourced_at, "dailyfam")

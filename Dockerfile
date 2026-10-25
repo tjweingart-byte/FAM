@@ -28,7 +28,7 @@ WORKDIR /app
 # production did until §303, so Sign in with Apple could never have worked
 # there. Inert until APPLE_CLIENT_IDS / GOOGLE_CLIENT_IDS are set.
 # requirements-archive.txt: pymongo, for the history archive on MongoDB
-# Atlas (history_archive.py, §306). Inert until ARCHIVE_BACKEND=atlas and
+# Atlas (history_archive.py, §308). Inert until ARCHIVE_BACKEND=atlas and
 # MONGODB_URI are set; the archive is the local SQLite file until then.
 COPY requirements.txt requirements-embed.txt requirements-push.txt requirements-oauth.txt ./
 COPY requirements-archive.txt ./

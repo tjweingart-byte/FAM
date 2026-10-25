@@ -1101,7 +1101,7 @@ def _database_report() -> list[dict]:
                            wikimedia.store().path))
     except Exception:  # pragma: no cover - a report is never load-bearing
         pass
-    # The history archive's local file (§306), when the archive is kept
+    # The history archive's local file (§308), when the archive is kept
     # here rather than on Atlas. Created by the first written episode.
     try:
         import history_archive
@@ -1936,7 +1936,7 @@ async def health(request: Request) -> dict:
         # (Wikimedia Enterprise or the keyless summary), and the month's
         # Enterprise requests against the cap.
         "wikipedia": _wikipedia_report(),
-        # The history archive (§306): which backend, why it is off if it
+        # The history archive (§308): which backend, why it is off if it
         # is, and what this process wrote and recalled. Sends nothing.
         "archive": _archive_report(),
         # Whether every licensed provider in use may be used commercially
@@ -4047,7 +4047,7 @@ async def entitlements_read(request: Request) -> dict:
 
 
 def _archive_report() -> dict:
-    """`history_archive.report`, never raising (§306)."""
+    """`history_archive.report`, never raising (§308)."""
     try:
         import history_archive
 

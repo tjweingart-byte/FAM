@@ -128,9 +128,9 @@ which is the go/no-go for all of it.
   log, stored only if it beats the hand-tuned order on held-out offers, and
   allowed to re-order what cleared the floor but never to admit a tile under it.
 
-## The history archive and FAM's agents (§305, §306)
+## The history archive and FAM's agents (§307, §308)
 
-**The archive is built (§306)**: `history_archive.py`, MongoDB Atlas in
+**The archive is built (§308)**: `history_archive.py`, MongoDB Atlas in
 production once `ARCHIVE_BACKEND=atlas` (setup in `ARCHIVE.md`), its own
 SQLite file everywhere else; the storage amendment is at
 [storage-durability]. Its facts stay empty until the inventory agent below

@@ -1666,7 +1666,7 @@ class PodcastPipeline:
 
             category_audit.note(plan.query, getattr(notes, "category", ""),
                                 self.origin or "tap")
-            # Its articles, for the history archive (§306). Never awaited;
+            # Its articles, for the history archive (§308). Never awaited;
             # a private search is refused there.
             import history_archive
 

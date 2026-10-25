@@ -1,4 +1,4 @@
-# The history archive on MongoDB Atlas (history_archive.py, PROBLEMS.md §306).
+# The history archive on MongoDB Atlas (history_archive.py, PROBLEMS.md §308).
 # Only needed with ARCHIVE_BACKEND=atlas; without it the archive is the local
 # SQLite file, and tests, staging and a fresh clone never need this.
 # pymongo 4.7+ manages Atlas Vector Search indexes from the driver; it pulls

@@ -1,6 +1,6 @@
 # The history archive on MongoDB Atlas — setting it up
 
-PROBLEMS.md §306. The code is `history_archive.py`; the agent that will fill
+PROBLEMS.md §308. The code is `history_archive.py`; the agent that will fill
 it is described in `docs/FAM_AGENTS.md` (the Database inventory specialist).
 
 ## What it does today
@@ -32,7 +32,7 @@ own file and never reaches Atlas.
    **Oregon (us-west-2)**. That is beside Render's default region, which keeps
    each lookup to a few milliseconds of network. Name it e.g. `fam-archive`.
 3. Move to **M10** (dedicated) at about 1,000 monthly listeners, or when
-   Atlas reports the cluster near its limits (PROBLEMS.md §305 has the
+   Atlas reports the cluster near its limits (PROBLEMS.md §307 has the
    projections). The move is a button in Atlas; nothing in FAM changes.
 
 ### 2. Make a database user

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Set up the history archive on MongoDB Atlas, and prove it works (§306, ARCHIVE.md).
+"""Set up the history archive on MongoDB Atlas, and prove it works (§308, ARCHIVE.md).
 
     MONGODB_URI='mongodb+srv://...' python tools/archive_setup.py
 

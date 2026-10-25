@@ -1896,7 +1896,7 @@
   `python tools/voice_doctor.py` against the running deployment is what turns
   that from careful into known.
 <!-- rule:storage-durability -->
-> **Current (PROBLEMS.md §306):** one store does not go through
+> **Current (PROBLEMS.md §308):** one store does not go through
 > `db.connect`, at the owner's direction: the history archive
 > (`history_archive.py`) lives in **MongoDB Atlas** in production
 > (`ARCHIVE_BACKEND=atlas`, `MONGODB_URI`). Its local backend is still

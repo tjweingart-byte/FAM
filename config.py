@@ -1047,7 +1047,7 @@ class Settings:
     # holds the first word longer than this; later than this it is dropped.
     wikipedia_grace_seconds: float = _env_float("WIKIPEDIA_GRACE_SECONDS", 0.5)
 
-    # --- The history archive (§306, `history_archive.py`) -----------------
+    # --- The history archive (§308, `history_archive.py`) -----------------
     # Every written episode's articles are kept (intake, for the Database
     # inventory specialist to digest, docs/FAM_AGENTS.md) with the episode's
     # source list; the facts it keeps are recalled beside the search as

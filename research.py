@@ -351,7 +351,7 @@ TIER_LABELS = {
     # §278: the reference look's one entry. Never a tier a search result is
     # graded into - only the encyclopedia source is labelled this way.
     "reference": "reference encyclopedia - background facts, never a current state",
-    # §306: what the history archive recalls. Never a tier a search result
+    # §308: what the history archive recalls. Never a tier a search result
     # is graded into - only recalled facts are labelled this way, with the
     # tier their article was graded at beside it.
     "archive": ("earlier reporting from FAM's archive - dated background, "
@@ -581,7 +581,7 @@ class Packet:
     #: out of band like `provenance`: what the archive keeps once the episode
     #: is written. Never read by a prompt.
     findings: list = field(default_factory=list)
-    #: The history recall (§306): "added", "late", "nothing relevant",
+    #: The history recall (§308): "added", "late", "nothing relevant",
     #: "no web sources", or "" when none was asked for.
     archive: str = ""
 
@@ -1238,7 +1238,7 @@ def _findings(results, packet_sources: int, highlights_per_source: int) -> list:
 
 
 # --------------------------------------------------------------------------
-# The history recall (§306): FAM's archive, beside the main search
+# The history recall (§308): FAM's archive, beside the main search
 # --------------------------------------------------------------------------
 async def finish_history_look(packet: "Packet", look) -> None:
     """Merge the archive's recall if it is back within

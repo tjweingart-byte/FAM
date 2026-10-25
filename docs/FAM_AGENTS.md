@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | **Status** | Planning document. No agent here is built yet |
-| **Started** | 2026-10-24 (PROBLEMS.md §305) |
+| **Started** | 2026-10-24 (PROBLEMS.md §307) |
 | **Audience** | The owner, and any Claude session asked to design, build or change one of these agents |
 
 FAM will have many agents. An *agent* here is a background worker that uses
@@ -90,7 +90,7 @@ task.
 ## 1. Database inventory specialist
 
 **Status:** planned, not built. Designed in conversation on 2026-10-24
-(§305). **The archive it works on is built** (§306, `history_archive.py`,
+(§307). **The archive it works on is built** (§308, `history_archive.py`,
 `ARCHIVE.md`), so this agent is next.
 
 **What it reads and writes, as built:**
@@ -115,7 +115,7 @@ from.
 ### Where it sits
 
 - **The archive** is the store this agent fills and tidies. The decisions so
-  far (§305):
+  far (§307):
   - It will live on **MongoDB Atlas**: start on Flex in AWS Oregon
     (us-west-2, beside Render's default region), move to M10 at about 1,000
     monthly listeners.
@@ -227,7 +227,7 @@ A periodic pass (nightly, batched) looks for duplicates that slipped in.
 **6. Roll up old history (later).** After about 90 days, a subject's
 records for a month can be consolidated into one timeline record of dated
 sentences and figures. These are chosen, never rewritten. This is what keeps
-years of history on a small Atlas tier (§305's projections).
+years of history on a small Atlas tier (§307's projections).
 
 ### What it must never do
 
@@ -245,7 +245,7 @@ The agent does three kinds of work, and they need different amounts of
 intelligence.
 
 **Volume assumed:** unique new articles per month at the projections in
-§305, which are estimates from `docs/FINANCIAL.md` §4 and not measured:
+§307, which are estimates from `docs/FINANCIAL.md` §4 and not measured:
 ~8k (100 listeners), ~47k (1,000), ~285k (10,000), ~2.1M (100,000).
 
 **a) Extraction: picking key sentences and figure-bearing sentences.**
@@ -333,7 +333,7 @@ The lines it does not cross, citing the CLAUDE.md rule ids.
 
 ### Model options for this agent
 The kinds of work it does; for each, a table of models with cost at the
-§305 volumes, latency and effectiveness; then the recommendation and the
+§307 volumes, latency and effectiveness; then the recommendation and the
 eval that would change it.
 
 ### Settings it will need

@@ -168,7 +168,7 @@ FAM_ENVIRONMENT = (
     "WIKIPEDIA", "WIKIMEDIA_ENTERPRISE_USERNAME", "WIKIMEDIA_ENTERPRISE_PASSWORD",
     "WIKIMEDIA_MONTHLY_REQUESTS", "WIKIPEDIA_TIMEOUT_SECONDS",
     "WIKIPEDIA_GRACE_SECONDS",
-    # §306: the history archive. `isolated_archive` below gives every test
+    # §308: the history archive. `isolated_archive` below gives every test
     # its own local file; nothing here may point the suite at Atlas.
     "ARCHIVE", "ARCHIVE_BACKEND", "ARCHIVE_DB_NAME", "ARCHIVE_TIMEOUT_SECONDS",
     "ARCHIVE_RECALL", "ARCHIVE_GRACE_SECONDS", "ARCHIVE_RECALL_LIMIT",
@@ -656,7 +656,7 @@ def isolated_wikimedia(tmp_path, monkeypatch):
 
 @pytest.fixture(autouse=True)
 def isolated_archive(tmp_path, monkeypatch):
-    """The history archive (§306), per test: every cached episode writes to
+    """The history archive (§308), per test: every cached episode writes to
     it, and the suite must never write `archive.db` into the project root,
     nor reach Atlas (`MONGODB_URI` is cleared with the credentials)."""
     import history_archive
