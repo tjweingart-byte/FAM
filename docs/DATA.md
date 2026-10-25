@@ -132,6 +132,7 @@ Render deployment; since §208 it pins every store there (21 since §211), as th
 | **local_news.db** (`LOCAL_NEWS_DB`) | `local_news.py`, `places.py`, `weather.py` | `outlets`, `items`, `demand`, `excluded`, `places`, `weather` | No (no `user_id`) | Items pruned daily past 30 days (`LOCAL_NEWS_KEEP_DAYS`, never below the 14-day window; each outlet keeps its newest 200, §208); demand 30 days | n/a · kept |
 | **gdelt_export.db** (`GDELT_EXPORT_DB`, §211) | `gdelt.py` (`ExportStore`) | `files`, `articles`, `theme_counts`, `domains`, `meta` | No, shared | 24 hours of GDELT's 15-minute export files (`GDELT_EXPORT_KEEP_HOURS`), ≤ 1,500 articles per file | n/a · kept |
 | **story_pool.db** (`STORY_POOL_DB`, §267) | `story_store.py` (`StoryStore`), `stories.py` | `snapshots` | No, shared | One row each for the pool (≤ 96 stories) and its ledgers, rewritten every refresh | n/a · **Emptied** |
+| **archive.db** (`ARCHIVE_DB`, §308) | `history_archive.py` (`SQLiteBackend`) | `intake`, `episode_sources`, `facts` | No, shared | The history archive when it is not on MongoDB Atlas (tests, staging, a fresh clone; production until `ARCHIVE_BACKEND=atlas`). Intake kept until digested, at most `ARCHIVE_INTAKE_MAX` = 500,000 articles, oldest dropped; links and facts kept | n/a · kept |
 | **wikimedia.db** (`WIKIMEDIA_DB`, §278) | `wikimedia.py` (`ReferenceStore`) | `answers`, `enterprise` | No, shared | Each name's reference answer for 24 hours (read as a miss after that, overwritten on the next look); one Enterprise request count per month | n/a · kept |
 
 ### 2.2 Each store: what it holds, who writes it, who reads it
@@ -305,6 +306,19 @@ WebP **BLOB**), its scene, prompt, the checker's verdict, status; `spend`
 - `weather` (`weather.py`): one structured forecast snapshot per place,
   fetched on first ask and swept at 05:00 and 17:00 local time. US warnings
   are asked live, not stored.
+
+**The history archive** (`history_archive.py`, §308; `ARCHIVE.md`): in
+MongoDB Atlas in production once `ARCHIVE_BACKEND=atlas`, else
+**archive.db**. Three collections (tables), no listener in any of them:
+`intake`, one record per article URL that entered a written episode's packet
+(title, outlet, grade, publish date, up to 8 passages, the subjects and
+categories of the episodes that used it, first and last seen, how often) -
+the raw material the Database inventory specialist will digest
+(`docs/FAM_AGENTS.md`), kept until then, at most `ARCHIVE_INTAKE_MAX`;
+`episode_sources`, each written episode's article links keyed by its
+`cache.episode_id`, for a sources view on the episode screen; `facts`, the
+key sentences and figures the agent keeps, each with a 384-number vector,
+recalled beside the search. Never a private search or an attachment.
 
 **wikimedia.db** (`wikimedia.ReferenceStore`, §278): the reference look's
 answers - one row per asked name (or name plus the question's words, when two

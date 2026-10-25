@@ -96,6 +96,15 @@ services:
       # lifecycle rules exist and `tools/verify_audio_store.py` has passed,
       # not as a side effect of a merge. Until then audio stays in scripts.db.
       # Staging gets none of these, and spend_guard forces AUDIO_STORE off.
+      # The history archive on MongoDB Atlas (§308, ARCHIVE.md). Asked for in
+      # the dashboard, on the audio bucket's terms: `ARCHIVE_BACKEND=atlas`
+      # is set once the cluster exists and `python tools/archive_setup.py`
+      # has passed against it. Until then the archive is /data/archive.db.
+      # Staging gets neither, and spend_guard forces ARCHIVE_BACKEND=sqlite.
+      - key: ARCHIVE_BACKEND
+        sync: false
+      - key: MONGODB_URI
+        sync: false
       - key: AUDIO_STORE
         sync: false
       - key: AUDIO_BUCKET

@@ -21826,3 +21826,121 @@ The client, from the packet:
 5. **A friend's vibe**: the paper plane sits inside the message box and sends
    what is typed; the heart stays; the button that used to be the plane is
    the VIBE! arrows, and opens the editor with that episode for your story.
+
+## 307. A history archive on MongoDB Atlas, and the first agent (2026-10-24)
+
+Planning only; no code. The owner wants the writer to have a second packet:
+historical context on the topic, from what FAM has already collected,
+beside the fresh web search.
+
+What the code showed first: almost nothing collected is kept. Parallel and
+Perplexity passages are read once by the writer and discarded; `scripts.db`
+keeps scripts a week with hostnames only; GDELT keeps titles and prunes them;
+local news prunes items. So the archive fills from the day it is switched
+on, and cannot be backfilled.
+
+Compared (prices are third-party summaries of list prices, mid-2026; check
+them before buying): MongoDB Atlas, Postgres + pgvector on Render, SQLite +
+numpy on FAM's own disk, Pinecone/Qdrant. Quality depends on the embedder,
+not the store. Measured in this container: an exact numpy scan of
+384-dimension vectors takes 0.2 ms at 10k items, 6.8 ms at 100k and 32 ms
+at 500k, with memory (1.5 KB a vector) the binding limit at about 200-300k.
+Atlas same-region (AWS us-west-2, beside Render's default Oregon) is
+estimated at ~15-50 ms per lookup, unmeasured; it runs beside the web search
+inside the 0.5 s grace window like the reference look, so the listener does
+not wait for it.
+
+Decided by the owner: **MongoDB Atlas, eventually and certainly.** So the
+plan is one archive interface with two backends from the start: SQLite for
+tests, staging (zero spend - its guard admits only a private database, which
+Atlas is not) and a fresh clone; Atlas Flex in Oregon for production, M10 at
+about 1,000 monthly listeners. This amends [storage-durability]'s "every
+store through `db.connect`" for this one store, and that amendment is to be
+written into `docs/claude/constraints.md` when it is built.
+
+Capacity: the vector index in RAM fills a tier before its disk does, so
+storing shorter text alone does not buy time - fewer records do. The owner's
+design: keep **key sentences and important figures** (structured: subject,
+metric, value, unit, as-of date, outcome or forecast) rather than articles;
+keep the **most trusted source's** version of a fact and **no duplicate
+information** from other articles; keep each episode's **article links** for
+a sources view on the episode screen. With monthly rollups after ~90 days,
+five years is estimated at ~630k records at 10,000 listeners (M10) against
+~17M keeping every source (M50). Estimates, from `docs/FINANCIAL.md` §4.
+
+The work is assigned to an agent, not built yet: the **Database inventory
+specialist** - digests incoming packets, stores the key information and
+links, and scrapes the archive for duplicates, very carefully (a stock price
+on two days is two facts; a forecast and an outcome are two facts; a conflict
+is flagged, never resolved by a model; figures are compared by code only;
+nothing is hard-deleted on the first pass). Its guidelines and model options
+(Haiku 5.5 low, batched, ~$5/month at 1,000 listeners; Sonnet 5.5 as a second
+opinion on uncertain pairs only) are in the new `docs/FAM_AGENTS.md`, which
+holds every agent's guidelines as they are thought of.
+
+Answered by the owner the same day: an article that only repeats a known
+fact is kept as a **corroborating link** - URL, outlet, grade, date and a
+count on the fact, never its text.
+
+Open: the search vendors' terms on storing excerpts; when rollups start.
+
+## 308. The history archive is built, for MongoDB Atlas (2026-10-24)
+
+At the owner's direction ("we are going to use MongoDB"), §307's plan, built:
+`history_archive.py`, one interface with two backends - **Atlas** in
+production (`ARCHIVE_BACKEND=atlas`, `MONGODB_URI`, `requirements-archive.txt`)
+and **SQLite** (`ARCHIVE_DB`, `db.connect`) for tests, staging and a fresh
+clone. Setup is `ARCHIVE.md`; `tools/archive_setup.py` creates the indexes,
+including the `facts_vector` Atlas Vector Search index (384-d cosine, scalar
+quantisation, filters on `active`, `published`, `space`), and proves them
+with a real round trip.
+
+What it does:
+
+- **Intake**, after every cached episode (`after_episode`, beside
+  `category_audit.note` in `pipeline`, `prefetch`, `trending_bank`,
+  `daily_edition`): each article the packet was built from
+  (`Packet.findings`, filled wherever `build_packet` runs) is upserted by URL
+  with its passages, grade, date, and the episode's subject and category.
+  Submitted to the archive's own threads, never awaited. A private search is
+  refused; an attachment never reaches it (only shareable episodes are
+  cached). Kept until the inventory agent digests it - the archive cannot be
+  backfilled, so nothing is thrown away except past `ARCHIVE_INTAKE_MAX`.
+- **Episode links** (`episode_sources`), keyed by `cache.episode_id`, for the
+  episode screen's sources view the owner asked for.
+- **The recall**, started at the top of `ScriptGenerator.research` and merged
+  by `research.finish_history_look` on the reference look's terms: within
+  `ARCHIVE_GRACE_SECONDS` (0.5) of the packet or dropped, only beside web
+  sources, after every one of them, never from an article already in the
+  packet, only facts published before the packet's window and never
+  undated. Labelled `earlier reporting from FAM's archive - dated
+  background, never a current state` with the article's original grade, and
+  the writer is told it is history, never how things stand now.
+- **Not on** outcome-dependent questions, weather, a town's news - the
+  reference look's exclusions - **nor on sports or markets episodes**: an old
+  score or price in the packet would vouch for itself past `ScoreGuard` and
+  `FigureGuard`, which accept any figure the material contains. Revisit once
+  the agent stores figures with their as-of dates and the guards can tell
+  history from now.
+- **Only with the sentence model**: the hashing vector is lexical, and a
+  recall that matched spelling would hand the writer the wrong history.
+
+`facts` is empty until the Database inventory specialist is built
+(`docs/FAM_AGENTS.md`, which now says what it reads and writes), so the
+recall adds nothing yet. That is the honest state, not a fallback: intake is
+not recalled, because the owner's design keeps only digested key information.
+
+Staging: `MONGODB_URI` is scrubbed and `ARCHIVE_BACKEND` forced to `sqlite`.
+Production: both are `sync: false` in `render.yaml`, set in the dashboard
+once `archive_setup.py` has passed - the audio bucket's terms (§237), not a
+side effect of a merge. Atlas asked for without an address turns the
+archive off and says so on `/api/health` > `archive`; it never falls back
+to the disk, where history would vanish on the next deploy.
+
+Unverified here: no Atlas cluster is reachable from this container, so the
+Atlas backend is tested against a fake database that records its calls
+(the `$vectorSearch` stage, filters, the `(1 + cosine) / 2` score
+conversion, upsert shapes). The first real run is `archive_setup.py`.
+
+Tests: `tests/test_history_archive_308.py`; the store is in
+`tests/test_data_paths.py`'s lists, both Dockerfiles and `.env.example`.

@@ -351,6 +351,11 @@ TIER_LABELS = {
     # §278: the reference look's one entry. Never a tier a search result is
     # graded into - only the encyclopedia source is labelled this way.
     "reference": "reference encyclopedia - background facts, never a current state",
+    # §308: what the history archive recalls. Never a tier a search result
+    # is graded into - only recalled facts are labelled this way, with the
+    # tier their article was graded at beside it.
+    "archive": ("earlier reporting from FAM's archive - dated background, "
+                "never a current state"),
 }
 
 
@@ -572,6 +577,13 @@ class Packet:
     #: which route served it ("enterprise" | "public") when one was added.
     reference: str = ""
     reference_via: str = ""
+    #: The articles this packet was built from (`history_archive.Finding`),
+    #: out of band like `provenance`: what the archive keeps once the episode
+    #: is written. Never read by a prompt.
+    findings: list = field(default_factory=list)
+    #: The history recall (§308): "added", "late", "nothing relevant",
+    #: "no web sources", or "" when none was asked for.
+    archive: str = ""
 
     def __bool__(self) -> bool:
         return bool(self.context.strip())
@@ -592,6 +604,7 @@ class Packet:
             "tried": list(self.tried),
             "reference": self.reference,
             "reference_via": self.reference_via,
+            "archive": self.archive,
         }
 
 
@@ -1084,6 +1097,7 @@ def _retrieve_blocking(query: str, num_results: int, packet_sources: int,
         # from passages the writer never saw.
         provenance=provenance_mod.from_results(
             list(results)[:packet_sources], retriever=backend),
+        findings=_findings(results, packet_sources, highlights_per_source),
         searches=1,
         seconds=elapsed,
         cost=float(cost),
@@ -1196,6 +1210,7 @@ def _merge_story_look(packet: "Packet", found: tuple, packet_sources: int,
     if not fresh or not extra.strip():
         return 0
     packet.context = (packet.context or "") + "\n" + extra
+    packet.findings.extend(_findings(fresh, len(fresh), highlights_per_source))
     for host in domains(fresh):
         if host not in packet.sources:
             packet.sources.append(host)
@@ -1206,6 +1221,94 @@ def _merge_story_look(packet: "Packet", found: tuple, packet_sources: int,
         for item in added.items:
             packet.provenance.add(item)
     return len(fresh)
+
+
+def _findings(results, packet_sources: int, highlights_per_source: int) -> list:
+    """`history_archive.findings_from`, never raising: an archive that cannot
+    read a result never costs the packet."""
+    try:
+        import history_archive
+
+        return history_archive.findings_from(results, packet_sources,
+                                             highlights_per_source)
+    except Exception:  # noqa: BLE001 - see docstring
+        log.warning("could not note a packet's articles for the archive",
+                    exc_info=True)
+        return []
+
+
+# --------------------------------------------------------------------------
+# The history recall (§308): FAM's archive, beside the main search
+# --------------------------------------------------------------------------
+async def finish_history_look(packet: "Packet", look) -> None:
+    """Merge the archive's recall if it is back within
+    `ARCHIVE_GRACE_SECONDS` of the main packet; drop it otherwise.
+
+    The reference look's rules (§278, §281): only beside web sources, after
+    every one of them, never waited for longer than the grace, and judged
+    after the packet's gaps were named - earlier reporting must never cover a
+    current fact the dated sources lack. A fact from an article already in
+    the packet is left out."""
+    if look is None:
+        return
+    if not packet:
+        look.cancel()
+        packet.archive = "no web sources"
+        return
+    if not look.done():
+        try:
+            await asyncio.wait_for(asyncio.shield(look), timeout=max(
+                0.0, float(settings.archive_grace_seconds)))
+        except asyncio.TimeoutError:
+            pass
+        except Exception:  # noqa: BLE001 - `history_archive.recall` never raises
+            pass
+    if not look.done():
+        look.cancel()
+        packet.archive = "late"
+        try:
+            import history_archive
+
+            history_archive._count("recall_late")
+        except Exception:  # noqa: BLE001
+            pass
+        log.info("the archive recall was not back within %.1fs of the main "
+                 "packet; not waited for", settings.archive_grace_seconds)
+        return
+    try:
+        facts = [] if look.cancelled() else list(look.result() or [])
+    except Exception:  # noqa: BLE001
+        facts = []
+    held = {getattr(item, "url", "") for item in
+            getattr(packet.provenance, "items", []) or []}
+    held |= {getattr(f, "url", "") for f in packet.findings}
+    facts = [f for f in facts if f.url not in held]
+    if not facts:
+        packet.archive = "nothing relevant"
+        return
+    import history_archive
+    import provenance as provenance_mod
+
+    number = len(re.findall(r"^SOURCE \d+$", packet.context or "", re.M)) + 1
+    packet.context = ((packet.context or "").rstrip("\n") + "\n\n"
+                      + history_archive.as_sources(facts, number))
+    articles = list({f.url: SearchResult(url=f.url, title=f.title,
+                                         published_date=f.published)
+                     for f in facts}.values())
+    for host in domains(articles):
+        if host not in packet.sources:
+            packet.sources.append(host)
+    credited = provenance_mod.from_results(articles, retriever="archive")
+    if packet.provenance is None:
+        packet.provenance = credited
+    else:
+        for item in credited.items:
+            packet.provenance.add(item)
+        if "archive" not in packet.provenance.retrievers:
+            packet.provenance.retrievers.append("archive")
+    packet.archive = "added"
+    log.info("the archive added %d fact(s) from %d article(s)", len(facts),
+             len(articles))
 
 
 # --------------------------------------------------------------------------
@@ -1561,6 +1664,8 @@ async def retrieve(query: str, backend: Optional[str] = None,
             extra = build_packet(ranked, packet_sources, highlights_per_source)
             if extra.strip():
                 packet.context = (packet.context or "") + "\n" + extra
+                packet.findings.extend(_findings(ranked, packet_sources,
+                                                 highlights_per_source))
                 packet.searches += 1
                 for host in domains(ranked):
                     if host not in packet.sources:
@@ -1656,6 +1761,8 @@ async def retrieve_with_gdelt(query: str, brief=None, recency_days: int = 0
     packet.context = build_packet(ranked, settings.search_packet_sources,
                                   settings.search_highlights_per_source)
     packet.sources = domains(ranked)
+    packet.findings = _findings(ranked, settings.search_packet_sources,
+                                settings.search_highlights_per_source)
     packet.results_returned = len(results or [])
     packet.searches = 1 if results else 0
     packet.seconds = time.perf_counter() - started

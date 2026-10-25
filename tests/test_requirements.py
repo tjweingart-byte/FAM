@@ -33,6 +33,10 @@ DELIBERATELY_OPTIONAL = {
     # `push.status()` has checked it, which says "pywebpush is not installed"
     # to /api/push and the mix page; every listen time is kept meanwhile.
     "pywebpush": "requirements-push.txt",
+    # The history archive on MongoDB Atlas (§308). Imported only with
+    # ARCHIVE_BACKEND=atlas, after `history_archive.diagnose` has checked it,
+    # which says "pymongo is not installed" on /api/health > archive.
+    "pymongo": "requirements-archive.txt",
     # The production voice and its stack: gigabytes, GPU-only, and installed
     # from requirements-chatterbox.txt. Imported inside the engine, which
     # raises TTSUnavailable when they are absent, so the app starts and says
