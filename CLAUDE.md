@@ -155,7 +155,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
 - `python write.py "<query>" --minutes 3` is the loop for improving writing. [write-py-loop]
 - Quality came from inputs, not the prompt (§82): EI decides the query, the
   packet dates and grades sources, `DEPTH_BANDS` says what minutes are for. [inputs-not-prompt]
-- **Two packets** (§310): a `history.register` store answers beside the
+- **Two packets** (§309): a `history.register` store answers beside the
   search, within its grace; dated background, fresh evidence wins. [two-packets]
 - The third cause (§108): two texts under two conditions; everything trading
   the opening for latency is gone. [third-cause-opening]

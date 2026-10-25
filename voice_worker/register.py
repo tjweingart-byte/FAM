@@ -278,8 +278,11 @@ async def announce(ready: bool, detail: str, sample_rate: int = 0,
             return False
         return True
     except Exception as exc:
-        log.debug("registration to %s failed (%s: %s); retrying on the next beat",
-                  app_url(), type(exc).__name__, exc)
+        # A warning, not debug (§306): on 10.23 heartbeats stopped landing at
+        # 3:44 PM, the registration lapsed, and the pod's log said nothing -
+        # the app's "no voice worker can speak" was the only symptom.
+        log.warning("registration to %s failed (%s: %s); retrying on the next "
+                    "beat", app_url(), type(exc).__name__, exc)
         return False
 
 
@@ -300,6 +303,7 @@ async def heartbeat_forever(state, interval: float = 0.0) -> None:
     wait = interval or _interval()
     log.info("registering with %s as %s every %.0fs", app_url(), public_url(), wait)
     first = True
+    failing = 0
     while True:
         try:
             ready, detail, rate = state()
@@ -310,6 +314,10 @@ async def heartbeat_forever(state, interval: float = 0.0) -> None:
             log.log(logging.INFO if landed else logging.WARNING,
                     "first registration %s", "accepted" if landed else "failed")
             first = False
+        elif landed and failing:
+            log.warning("registration with %s landed again after %d failed "
+                        "beat(s)", app_url(), failing)
+        failing = 0 if landed else failing + 1
         await asyncio.sleep(wait)
 
 

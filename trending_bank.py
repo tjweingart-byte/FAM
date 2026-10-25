@@ -887,6 +887,10 @@ def _finish(story, plan, key: str, notes, sentences: list, cache, minutes: int,
 
     category_audit.note(story.query, getattr(notes, "category", ""), origin,
                         composer=getattr(story, "category", "") or "")
+    # Its articles, for the history archive (§308). Never awaited.
+    import history_archive
+
+    history_archive.after_episode(notes, key, notes.sourced_at, origin)
     return {"status": "written", "key": key, "dollars": dollars,
             "title": notes.title}
 

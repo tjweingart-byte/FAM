@@ -303,7 +303,7 @@ class Brief:
     #: the writer's own replaces it once the script is cached (§209). Empty
     #: on a degraded brief.
     category: str = ""
-    #: **Where `category` sits in FAM's category tree** (§310): the facet,
+    #: **Where `category` sits in FAM's category tree** (§309): the facet,
     #: then each subcategory down to the node, broadest first - ["sport",
     #: "american football", "nfl", "philadelphia eagles"]. Set in code by
     #: `place_category`, never by the model, and never read as `category`:
@@ -373,7 +373,7 @@ class Brief:
 
 
 def place_category(brief: "Brief") -> "Brief":
-    """The brief with `category_path` filled from the category tree (§310).
+    """The brief with `category_path` filled from the category tree (§309).
 
     The "contextualise" step of the owner's pipeline: what kind of thing
     this is, and under what, before anything is looked up. In code - the

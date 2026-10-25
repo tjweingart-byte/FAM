@@ -689,6 +689,11 @@ class ScriptNotes:
     #: DailyFAM): its writer is `EDITION_WRITER_MODEL` when that is set
     #: (`writer_for`, §269).
     edition: bool = False
+    #: What the history archive keeps once this episode is cached (§308):
+    #: `{"subject": ..., "findings": [history_archive.Finding, ...]}`, set by
+    #: `research` from the winning packet. None when nothing was retrieved.
+    #: Read only by `history_archive.after_episode`; never by a prompt.
+    archive: object = None
 
 
 async def _live_by(task, plan, domain: str, began: float):
@@ -893,7 +898,7 @@ class EpisodePlan:
     #: other reader keep `evidence`. **Never in the cache key**, as
     #: `EI_SPLIT` is not: a setting that shapes how an episode is prepared.
     evidence_digest: str = ""
-    #: **The second packet: what came before** (§310, `history.py`) - the
+    #: **The second packet: what came before** (§309, `history.py`) - the
     #: history store's entries on this subject's past, consolidated against
     #: the evidence (`history.consolidate`). None when no store is
     #: registered, it had nothing, or it was not back in time, and the
@@ -1145,6 +1150,15 @@ and do not claim anything about a document beyond what is in it.
                 "changes from the dated sources, which win wherever the two "
                 "differ. Never repeat its sentences word for word; say it in "
                 "your own words.\n")
+        if research_mod.TIER_LABELS["archive"] in plan.evidence:
+            # §308: the archive's recall, and what it may be used for.
+            reference += (
+                "\nA source marked as earlier reporting from FAM's archive is "
+                "history: what was reported then, on the date it carries. Use "
+                "it for how this came to be - what happened before, what was "
+                "said at the time - and say when, plainly. It is never how "
+                "things stand now: anything current comes from the other "
+                "sources, which win wherever the two differ.\n")
         evidence = f"""
 Someone has already searched the web for this and pulled out the passages
 below. They are your source for anything current: read them and use what they
@@ -1179,7 +1193,7 @@ for the script.
 </evidence>
 """
 
-    # Packet two (§310): what came before, after the evidence it never
+    # Packet two (§309): what came before, after the evidence it never
     # outranks. "" when there is none, and the prompt is what it was.
     background = history.as_prompt_block(plan.history)
 
@@ -1877,6 +1891,14 @@ class ScriptGenerator:
         # up on Wikipedia and Wikidata beside each rung's search and added
         # as one extra source when it is back in time. "" for none.
         reference = research_mod.reference_name_for(plan.brief)
+        # **The history recall** (§308): FAM's archive of earlier reporting,
+        # started now so it runs beside every rung, merged once the packet is
+        # in if it is back within `ARCHIVE_GRACE_SECONDS`. None when this
+        # episode is not one it may add to.
+        import history_archive
+
+        recall = history_archive.look(" ".join(filter(None, (
+            str(getattr(plan.brief, "subject", "") or ""), query))), plan.brief)
 
         # **The ladder**, in cost order, stopping at the first rung that
         # brings back evidence. Each rung is the same call with a different
@@ -1920,6 +1942,7 @@ class ScriptGenerator:
             if better:
                 better.fell_back_from = configured
                 packet = better
+        await research_mod.finish_history_look(packet, recall)
         _mark(notes, "retrieval_ready")
 
         if notes is not None:
@@ -1970,6 +1993,10 @@ class ScriptGenerator:
             return plan
         if notes is not None and packet.provenance is not None:
             notes.provenance = packet.provenance
+        if notes is not None and packet.findings:
+            notes.archive = {"subject": str(getattr(plan.brief, "subject", "")
+                                            or ""),
+                             "findings": list(packet.findings)}
         context = packet.context
         measured = story.as_evidence() if story else ""
         if measured:
@@ -2155,7 +2182,7 @@ class ScriptGenerator:
         brief = await episode_intelligence.understand(
             plan.query, plan.minutes, plan.context, notes, **extra)
         _publish_title(notes, brief)
-        # Contextualised (§310): where the request sits in the category
+        # Contextualised (§309): where the request sits in the category
         # tree, in code, for the history store to be asked with.
         plan = dataclasses.replace(
             plan, brief=episode_intelligence.place_category(brief))
@@ -2217,7 +2244,7 @@ class ScriptGenerator:
 
     async def history_lookup(self, plan: EpisodePlan,
                              notes: ScriptNotes | None = None):
-        """Packet two (§310): the history store's record of the subject's
+        """Packet two (§309): the history store's record of the subject's
         past, or None. Never raises; never asked twice for one plan."""
         if plan.history is not None:
             return plan.history
@@ -2282,7 +2309,7 @@ class ScriptGenerator:
         live_task = asyncio.ensure_future(self.live_lookup(plan, notes))
         # A player's or a team's report (§275), beside the scoreboard.
         players_task = asyncio.ensure_future(self.players_lookup(plan, notes))
-        # Packet two (§310): what came before, from the history store. It
+        # Packet two (§309): what came before, from the history store. It
         # starts with packet one and, like the forecast, never holds the
         # first word past `HISTORY_GRACE_SECONDS` once the evidence is in.
         history_task = asyncio.ensure_future(self.history_lookup(plan, notes))
@@ -2389,7 +2416,7 @@ class ScriptGenerator:
             evidence_digest=cut,
             thin_on=research_plan.thin_on, local=research_plan.local,
             forecast=forecast, players=players)
-        # The two packets consolidated (§310): of what came before, only
+        # The two packets consolidated (§309): of what came before, only
         # what the fresh packet does not already speak for.
         plan = dataclasses.replace(plan, history=history.consolidate(past, plan))
         if notes is not None and isinstance(notes.research, dict):

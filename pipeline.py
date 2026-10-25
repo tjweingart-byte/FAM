@@ -1666,6 +1666,12 @@ class PodcastPipeline:
 
             category_audit.note(plan.query, getattr(notes, "category", ""),
                                 self.origin or "tap")
+            # Its articles, for the history archive (§308). Never awaited;
+            # a private search is refused there.
+            import history_archive
+
+            history_archive.after_episode(notes, key, stats.sourced_stamp,
+                                          self.origin)
             # The listen that wrote it is its first play (§134).
             self._count_play(key)
             # The audio goes beside it once the tail pad is out, and only

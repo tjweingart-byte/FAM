@@ -842,6 +842,27 @@ def friendly_error(exc: Exception) -> str:
         return f"This question needed research and the backend could not run. {exc}"
     return f"Generation failed: {type(exc).__name__}. See the server log for details."
 
+
+#: What a listener reads when an episode fails for a reason that is ours, not
+#: theirs (the owner's wording, §306). The type name and "see the server log"
+#: are for /admin, which still gets `friendly_error`'s sentence.
+LISTENER_APOLOGY = ("We're sorry that your episode is not available at this "
+                    "time. We are experiencing minor difficulties. Thank you "
+                    "for your patience. -The FAM Team")
+
+
+def listener_error(exc: Exception) -> str:
+    """`friendly_error`, minus anything only an operator could act on.
+
+    The sentences that tell a listener something true about their own request
+    (no evidence, research down) pass through; a type name and a pointer to a
+    log they cannot read become the apology.
+    """
+    said = friendly_error(exc)
+    if said.startswith("Generation failed:"):
+        return LISTENER_APOLOGY
+    return said
+
 # One cache shared by every request this worker serves - and, with the SQLite
 # backend, by every other worker on the machine too.
 SCRIPT_CACHE = build_cache()
@@ -1100,6 +1121,17 @@ def _database_report() -> list[dict]:
         if wikimedia.exists():
             stores.append(("reference look", "WIKIMEDIA_DB",
                            wikimedia.store().path))
+    except Exception:  # pragma: no cover - a report is never load-bearing
+        pass
+    # The history archive's local file (§308), when the archive is kept
+    # here rather than on Atlas. Created by the first written episode.
+    try:
+        import history_archive
+        from paths import data_path
+
+        if history_archive.exists():
+            stores.append(("history archive", "ARCHIVE_DB",
+                           data_path("ARCHIVE_DB", "archive.db")))
     except Exception:  # pragma: no cover - a report is never load-bearing
         pass
     try:
@@ -1862,7 +1894,7 @@ async def health(request: Request) -> dict:
         # The evidence cut in front of the writer (§270): on or off, and how
         # each cut ended since boot, by who was waiting.
         "evidence_digest": evidence_digest_report(),
-        # The second packet (§310): whether a history store is registered,
+        # The second packet (§309): whether a history store is registered,
         # and how each lookup ended since boot, by who was waiting.
         "history": history_report(),
         # The writer's cache warmed at the tap (§270): sent, already warm,
@@ -1929,6 +1961,9 @@ async def health(request: Request) -> dict:
         # (Wikimedia Enterprise or the keyless summary), and the month's
         # Enterprise requests against the cap.
         "wikipedia": _wikipedia_report(),
+        # The history archive (§308): which backend, why it is off if it
+        # is, and what this process wrote and recalled. Sends nothing.
+        "archive": _archive_report(),
         # Whether every licensed provider in use may be used commercially
         # (§207): GNews' and Finnhub's free plans and Open-Meteo's keyless
         # endpoint may not. The question to ask before charging anybody.
@@ -4034,6 +4069,17 @@ async def entitlements_read(request: Request) -> dict:
         **entitlements.describe(tier_name),
         "usage": _quota_snapshot(user, tier_name),
     }
+
+
+def _archive_report() -> dict:
+    """`history_archive.report`, never raising (§308)."""
+    try:
+        import history_archive
+
+        return history_archive.report()
+    except Exception as exc:  # noqa: BLE001 - a report is never load-bearing
+        log.warning("could not report the archive: %s", exc)
+        return {"enabled": False, "error": type(exc).__name__}
 
 
 def _wikipedia_report() -> dict:
@@ -9792,7 +9838,7 @@ async def audio(
                       cache_hit=stats.cache == "hit")
         # Same rule as the ledger above: refunded only if nothing was billed.
         _refund_if_unspent(reserved, user, stats.usage)
-        raise HTTPException(status_code=502, detail=friendly_error(exc)) from exc
+        raise HTTPException(status_code=502, detail=listener_error(exc)) from exc
 
     # `stats.sentences` is the honest test: silence is bytes, but it is not an
     # episode. A script that came back empty must not be served as one.

@@ -792,7 +792,7 @@ the rest of this list it needs taste rather than a key.
 
 
 <!-- rule:two-packets -->
-**The writer reads two packets, not one** *(PROBLEMS.md §310, at the owner's
+**The writer reads two packets, not one** *(PROBLEMS.md §309, at the owner's
 direction, 2026-10-24).* The pipeline the owner drew: search → EI
 (contextualise: the category, subcategory and context of the search; write
 the inputs for every source) → the plugins (search ladder, live facts,

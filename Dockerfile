@@ -27,9 +27,13 @@ WORKDIR /app
 # both providers report "unavailable" however they are configured - which
 # production did until §303, so Sign in with Apple could never have worked
 # there. Inert until APPLE_CLIENT_IDS / GOOGLE_CLIENT_IDS are set.
+# requirements-archive.txt: pymongo, for the history archive on MongoDB
+# Atlas (history_archive.py, §308). Inert until ARCHIVE_BACKEND=atlas and
+# MONGODB_URI are set; the archive is the local SQLite file until then.
 COPY requirements.txt requirements-embed.txt requirements-push.txt requirements-oauth.txt ./
+COPY requirements-archive.txt ./
 RUN pip install --no-cache-dir -r requirements.txt -r requirements-push.txt \
-    -r requirements-oauth.txt
+    -r requirements-oauth.txt -r requirements-archive.txt
 
 # The local sentence embedder that orders "Made for you" by meaning as well as
 # by tag (PROBLEMS.md §131). ~110 MB with its runtime, CPU only, no torch.
@@ -102,6 +106,7 @@ ENV CACHE_PATH=/data/scripts.db \
     GDELT_EXPORT_DB=/data/gdelt_export.db \
     STORY_POOL_DB=/data/story_pool.db \
     WIKIMEDIA_DB=/data/wikimedia.db \
+    ARCHIVE_DB=/data/archive.db \
     PORT=8000
 RUN mkdir -p /data
 

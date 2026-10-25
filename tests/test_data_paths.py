@@ -47,6 +47,7 @@ import local_news as LN  # noqa: E402
 import gdelt as GD  # noqa: E402
 import story_store as SS  # noqa: E402
 import wikimedia as WM  # noqa: E402
+import history_archive as HA  # noqa: E402
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 
@@ -80,6 +81,7 @@ STORES = [
     ("GDELT_EXPORT_DB", "gdelt_export.db", GD.ExportStore),
     ("STORY_POOL_DB", "story_pool.db", SS.StoryStore),
     ("WIKIMEDIA_DB", "wikimedia.db", WM.ReferenceStore),
+    ("ARCHIVE_DB", "archive.db", HA.SQLiteBackend),
 ]
 
 #: Every `data_path(...)` call in the app, read out of the source.
@@ -137,8 +139,9 @@ ALL_VARS = sorted(DECLARED)
 #: reported once it exists. `PIPELINE_ERRORS_DB` (§269) is created by the
 #: first thing that goes wrong - the routing rows' case. `WIKIMEDIA_DB`
 #: (§278) is created by the first reference look, and reported once it
-#: exists - the same case again.
-LAZY_STORES = {"VOICE_REGISTRY_DB", "TRENDING_BANK_DB", "VOICE_BANK_DB",
+#: exists - the same case again. `ARCHIVE_DB` (§308) is created by the
+#: first written episode with sources, and reported once it exists.
+LAZY_STORES = {"ARCHIVE_DB", "VOICE_REGISTRY_DB", "TRENDING_BANK_DB", "VOICE_BANK_DB",
                "THUMBNAILS_DB", "PROVIDER_USAGE_DB", "LOCAL_NEWS_DB",
                "GDELT_EXPORT_DB", "LIVE_ROUTING_DB", "STORY_POOL_DB",
                "PIPELINE_ERRORS_DB", "WIKIMEDIA_DB"}

@@ -143,7 +143,7 @@ async def main() -> int:
         if brief.category_path:
             print(f"    filed under {' > '.join(brief.category_path)}")
         if plan.history is not None:
-            # Packet two (§310): what came before, as the writer reads it.
+            # Packet two (§309): what came before, as the writer reads it.
             print(f"    history     {len(plan.history.entries)} of "
                   f"{plan.history.returned} from {plan.history.source}"
                   + (f" (left out: {plan.history.dropped})"
