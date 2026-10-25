@@ -24,7 +24,7 @@ is kept beside the script from then on (§132), so seeding audio would only
 spend GPU time on episodes nobody may play.
 
     python tools/seed_demo.py --dry-run     what it would do, spends nothing
-    python tools/seed_demo.py               eight episodes, three minutes each
+    python tools/seed_demo.py               eight episodes, BROWSE_MINUTES each
     python tools/seed_demo.py --episodes 4 --minutes 2
 
 Everything it writes is ordinary app state (scripts.db, myfam.db, social.db),
@@ -43,7 +43,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import demo_data
 from cache import build_cache, cache_key, is_shareable, ttl_for
-from config import settings
+from config import BROWSE_MINUTES, settings
 from script_generator import ScriptGenerator, ScriptNotes, count_words, plan_episode
 import social as social_mod
 import topics as topics_mod
@@ -109,7 +109,7 @@ def record_history(events, topic, minutes: int, thread: str, rng: random.Random)
 async def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--episodes", type=int, default=8)
-    ap.add_argument("--minutes", type=int, default=2)
+    ap.add_argument("--minutes", type=int, default=BROWSE_MINUTES)
     ap.add_argument("--search", action="store_true",
                     help="ground each episode in live sources (much slower)")
     ap.add_argument("--dry-run", action="store_true",

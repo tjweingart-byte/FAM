@@ -21723,6 +21723,110 @@ the same person signing in and unlinking at once.
 Tests: `tests/test_app_review_server.py` (a forged host never reaches the
 email - it fails on the old line; a failed summary keeps the window).
 
+## 305. The standard episode is one minute (2026-10-23)
+
+At the owner's direction: every episode nobody chose a length for is one
+minute, and every batched episode is one minute. `BROWSE_MINUTES` and
+`DEFAULT_MINUTES` are 1 (both were 2 since §147), and so are the client's
+`BROWSE_MINUTES` and `DEFAULT_LENGTH_MINUTES`; the Length bubble still offers
+1-5 and resets to one on every return to the app, Go Deeper still offers 1-5
+and opens on the length of the episode it follows, and the Voice bubble is
+untouched.
+
+Search's evidence is unchanged: `research.packet_size` grew a source per
+minute past `BROWSE_MINUTES`, so lowering it would have handed every
+two-minute search a fourth source. It now counts from its own
+`PACKET_BASE_MINUTES` (2).
+
+What this costs, and what was left as is:
+- Minutes are in the cache key (`pipeline.key_for`). Every episode written
+  at two minutes - the Trending and DailyFAM editions, the startup
+  write-ahead, the guest bank (`tools/warm_guest_bank.py`), the landing
+  page's sign-up samples, kept audio - is no longer what a browse tap asks
+  for. Each is rewritten at its next slot or on its first tap; until then a
+  guest tap on a bank tile has no kept audio to replay (403 → sign-up),
+  rails that sort `ready_first` have less ready, and the sign-up/landing
+  samples (`_welcome_samples`: kept audio at `BROWSE_MINUTES` only) start
+  again from the one-minute episodes heard since. Kept two-minute episodes
+  still replay from history, shares and vibes, which carry their own minutes.
+- Saved-for-later tiles and the device's `OfflineShelf` are keyed
+  `query|minutes`: a tile saved or kept offline at two minutes no longer
+  shows as saved/offline on its card (the Saved list itself still plays it).
+- Installed clients that send `minutes=2` from myFAM or DailyFAM are held to
+  `BROWSE_MINUTES` by the server, as since §147; nothing is refused.
+- `DEPTH_BANDS` puts one minute in the `orientation` band written for two
+  ("the answer, the mechanism..., the particulars..., and why it matters").
+  About 150 spoken words is tight for that; no band was added, because
+  writing changes go through `write.py --minutes 1` and an example first.
+
+Found on review before the merge: `tools/seed_demo.py` still defaulted to
+`--minutes 2`, so a demo seeded after this change filled the most-played row
+with episodes the one-minute rail never probes - an empty row on the demo
+that row exists for. It defaults to `BROWSE_MINUTES` now. The client's
+`|| 2` fallbacks on messages, vibes, Go Deeper and `/api/next` read
+`BROWSE_MINUTES` (or `DEFAULT_LENGTH_MINUTES` for Go Deeper's own choice) like
+the rest of the file, and the comments that said browse episodes are two
+minutes say `BROWSE_MINUTES`.
+
+## 306. The 10.23 implementations: episodes that would not play, an apology instead of a type name, the DailyFAM tab back to the top, myFAM's logo in a menu, playlist covers, a line on the phone, and a story's send button (2026-10-24)
+
+**Episodes stopped playing on 10.23** with "Generation failed:
+RemoteVoiceError. See the server log for details." Render's log said, every
+minute, "no voice worker can speak. Tried, in order: runpod-pod
+(https://ilx5zutqvcjw3d-8002.proxy.runpod.net): nothing ... answers /health"
+- a 404 from RunPod's proxy. The pod's own log shows Render's IP
+(74.220.48.64, Render's outbound range) calling `/health` with 200 once a
+minute until **3:44 PM**, then never again, while the worker kept answering
+the internet's scanners on its direct port at 4:24. So the worker was up the
+whole time; what stopped was the app reaching it. Render had been reaching it
+on the **registered** rung (the worker heartbeats its direct TCP address,
+the app verifies it with `/health`), and the warning lists only `runpod-pod`
+- the registration had lapsed (`VOICE_REGISTRY_TTL`, 300 s) and the proxy
+URL, the only other candidate, is the one §117 found Cloudflare refuses.
+
+Why the heartbeats stopped landing is not knowable from here: a failed
+heartbeat was logged at **debug**, so the pod's log is silent exactly when
+it matters. That is the code change - `register.announce` warns on every
+failed beat and says when one lands again after a run of failures - so the
+next time the pod log names the cause (a timeout, a refused connection, a
+changed `FAM_APP_URL`). What brings the voice back today is operational:
+restart the voice worker on the pod (or the pod), check its log for
+`first registration accepted`, and confirm `/admin`'s voice panel shows a
+`registered` worker.
+
+**The listener's sentence** (the owner's wording): an episode that fails for
+a reason that is ours reads "We're sorry that your episode is not available
+at this time. We are experiencing minor difficulties. Thank you for your
+patience. -The FAM Team". `app.listener_error` is `friendly_error` with the
+catch-all ("Generation failed: <type>. See the server log") swapped for
+`LISTENER_APOLOGY`; the 502 a listener reads uses it, and `/admin`'s error
+record keeps `friendly_error`'s type name. Sentences about their own request
+(no evidence, research down) pass through unchanged.
+
+The client, from the packet:
+1. **The DailyFAM tab, tapped on DailyFAM while scrolled down, scrolls to
+   the top** (Instagram's home button) without redrawing the rails. At the
+   top, or from any other screen, it opens and reloads DailyFAM as before.
+   It asks whether `#screen-myfam` is the active screen, not only the stack:
+   a screen can be shown without the stack moving, and checking the stack
+   alone skipped loading the feed (two smoke checks caught it).
+2. **"Add to playlist" is "Add to myFAM Playlist"**, with FAM drawn as the
+   logo (the F, the double chevron, the M). `myFamMark()` copies the glyphs
+   from the myFAM heading so the brand still changes in one place; the
+   letters "FAM" are kept, clipped, for copy, screen readers and the smoke
+   check. All three menus (player, DailyFAM tile, Explore) use
+   `addToPlaylistLabel()`.
+3. **The add sheet lists playlists as Spotify does**: each mix's cover on
+   the left (the folder a coverless mix shows on the myFAM screen), the name
+   over how many briefings it holds; "Create new playlist" gets a (+) square.
+4. **The line at the bottom stayed on the drawn phone.** `.toast` and `.snack`
+   are children of `.phone`, outside `.frame`, so `left:0; right:0` ran the
+   fade across the bezel. They are inset by the bezel's 14 px, and by nothing
+   at phone width, where there is no bezel.
+5. **A friend's vibe**: the paper plane sits inside the message box and sends
+   what is typed; the heart stays; the button that used to be the plane is
+   the VIBE! arrows, and opens the editor with that episode for your story.
+
 ## 307. A history archive on MongoDB Atlas, and the first agent (2026-10-24)
 
 Planning only; no code. The owner wants the writer to have a second packet:

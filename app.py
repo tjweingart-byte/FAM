@@ -841,6 +841,27 @@ def friendly_error(exc: Exception) -> str:
         return f"This question needed research and the backend could not run. {exc}"
     return f"Generation failed: {type(exc).__name__}. See the server log for details."
 
+
+#: What a listener reads when an episode fails for a reason that is ours, not
+#: theirs (the owner's wording, §306). The type name and "see the server log"
+#: are for /admin, which still gets `friendly_error`'s sentence.
+LISTENER_APOLOGY = ("We're sorry that your episode is not available at this "
+                    "time. We are experiencing minor difficulties. Thank you "
+                    "for your patience. -The FAM Team")
+
+
+def listener_error(exc: Exception) -> str:
+    """`friendly_error`, minus anything only an operator could act on.
+
+    The sentences that tell a listener something true about their own request
+    (no evidence, research down) pass through; a type name and a pointer to a
+    log they cannot read become the apology.
+    """
+    said = friendly_error(exc)
+    if said.startswith("Generation failed:"):
+        return LISTENER_APOLOGY
+    return said
+
 # One cache shared by every request this worker serves - and, with the SQLite
 # backend, by every other worker on the machine too.
 SCRIPT_CACHE = build_cache()
@@ -5620,8 +5641,8 @@ def _may_be_private(where: str, context: str, topic_id: str) -> bool:
 #: the parameters alone - and Explore is searched episodes only.
 PLAY_SURFACES = ("search", "myfam", "dailyfam", "share", "other")
 
-#: The surfaces that offer no length and no voice: two minutes, and a voice
-#: drawn from the bank per episode (§147).
+#: The surfaces that offer no length and no voice: `BROWSE_MINUTES`, and a
+#: voice drawn from the bank per episode (§147).
 BROWSE_SURFACES = ("myfam", "dailyfam")
 
 
@@ -9611,8 +9632,8 @@ async def audio(
     user = _listener(request)
     where = _play_surface(surface, cached_only, topic_id, context)
     # §147: only searchFAM offers a length. Every myFAM and DailyFAM episode
-    # is two minutes, whatever an older client sends, because minutes are in
-    # the cache key and the background editions are written at two.
+    # is `BROWSE_MINUTES`, whatever an older client sends, because minutes are
+    # in the cache key and the background editions are written at that length.
     if where in BROWSE_SURFACES:
         minutes = BROWSE_MINUTES
     minutes = min(minutes, entitlements.max_minutes(_tier(request),
@@ -9813,7 +9834,7 @@ async def audio(
                       cache_hit=stats.cache == "hit")
         # Same rule as the ledger above: refunded only if nothing was billed.
         _refund_if_unspent(reserved, user, stats.usage)
-        raise HTTPException(status_code=502, detail=friendly_error(exc)) from exc
+        raise HTTPException(status_code=502, detail=listener_error(exc)) from exc
 
     # `stats.sentences` is the honest test: silence is bytes, but it is not an
     # episode. A script that came back empty must not be served as one.
