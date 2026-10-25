@@ -21995,3 +21995,39 @@ the writer's assistant are in `docs/PIPELINE_AGENTS.md`.
 Unverified here (no key): whether packet two makes the writing better. The
 loop is `python write.py "<q>"` with a store registered, which now prints what
 the writer read of it.
+
+## 310. The agents guide: the editor in chief and the script supervisor (2026-10-25)
+
+At the owner's direction, `docs/FAM_AGENTS.md` gains two agents and loses a
+rule. Nothing is built; the agents will be built together, later.
+
+- **"Nobody waits on an agent" is withdrawn** as a rule. Agents may sit on a
+  listener's path; the latency they add will be minimised later. Each agent
+  now says where it sits and what it adds in front of the first word, so the
+  cost is known when that work starts. Rule 1 is now that an agent adds
+  quality and never costs an episode: every agent has a ceiling and a
+  fallback ([ei-before-search]).
+- **2. Editor in chief.** Digests both packets into an editorial plan that
+  names numbered source sentences per beat, keeps the order of trust (live >
+  fresh > archive; conflicts settled by grade then date, in code), keeps
+  status honest, names what is thin privately, and, if the owner gives it
+  the writing, writes under every writer rule with no tools on the speaking
+  call.
+- **3. Script supervisor.** Checks the finished script: support (an
+  unsupported volatile fact is a hard failure, an unsupported settled one is
+  not), status and time, the episode rules, and code checks first. It
+  judges and never rewrites; at most one rewrite per episode. It runs ahead
+  of the tap, per sentence while streaming, or as an audit, and it is the
+  owner's choice which on searchFAM. What combining it with the editor would
+  cost is written down; that decision is the owner's.
+- **Options outside Claude** for every agent, the inventory specialist
+  included: general models from other vendors (price bands, not quotes,
+  because they were not checked) and specialised models for a part of a job
+  (rerankers, grounding checkers, NLI cross-encoders, number extractors).
+  The guide names what an external model costs in FAM beyond its price: a
+  consent change when it sees a listener's words (`consent.py`, App Store
+  5.1.2(i)), data terms, a second SDK, `metering.PRICES`, `FAM_SECRETS` and
+  `spend_guard.PAID_CREDENTIALS`, and no GPU but the voice pod.
+
+`docs/PIPELINE_AGENTS.md` (§309) now points at the guide for each agent; its
+"Sonnet critic" suggestion became the script supervisor.

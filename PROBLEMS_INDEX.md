@@ -313,3 +313,4 @@ and `limit` = Lines.
 | 21830 | 57 | 307. A history archive on MongoDB Atlas, and the first agent (2026-10-24) |
 | 21887 | 60 | 308. The history archive is built, for MongoDB Atlas (2026-10-24) |
 | 21947 | 52 | 309. Two packets: the history store's seam (2026-10-24) |
+| 21999 | 36 | 310. The agents guide: the editor in chief and the script supervisor (2026-10-25) |

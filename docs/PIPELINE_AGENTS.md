@@ -4,6 +4,10 @@ Written 2026-10-24 for the pipeline the owner drew (PROBLEMS.md §309). No
 agent is built yet. This document is for deciding how to build them: by price,
 latency, how easy each is to implement, and how the agents talk to each other.
 
+**Each agent's own guidelines, and the model options for it, live in
+`docs/FAM_AGENTS.md`.** This document is the pipeline-level view: where
+agents sit, how they could be run, and how they talk to each other.
+
 **Prices are Anthropic's list prices on 2026-10-24. The token counts and
 latencies below are estimates; none has been measured. Measure before you
 decide** (`write.py`, `/api/health`'s `seconds_by_path`, `metering`).
@@ -122,23 +126,13 @@ from packet one and records from packet two, numbered together, so the cut can
 also drop background that repeats today's news. Never an abstractive summary
 (constraint 4).
 
-**The writer's assistant: before the writer on the tap path, after it only
-ahead of the tap.**
-
-- *Search (streamed):* the help has to come before the first token. That
-  means the EI outline (already built), the consolidated packets, and a
-  better `examples/` folder ([examples-lever]). Afterwards, only the code
-  guards run.
-- *Editions, Trending, write-ahead (nobody waiting):* Haiku writes, then a
-  Sonnet 5.5 critic reads the script against the packets and the episode
-  rules (no tease, last line most concrete, every sentence informs) and
-  returns line-level fixes, and Haiku rewrites. That is roughly two calls
-  more, about $0.03 per episode, half that as a batch. This is the most
-  promising place for an agent to improve the writing, which is the product.
-  A critic must not see anything the writer couldn't, or it will "fix"
-  sentences towards its own memory.
-- The advisor tool is a tool on the speaking call, so constraint 2 rules it
-  out.
+**The writer's assistant is now two named agents** (the owner, 2026-10-25):
+the **editor in chief** (digests the two packets and plans or writes the
+episode) and the **script supervisor** (the quality check on the final
+script). Their guidelines, guardrails and model options, Claude and
+otherwise, are in `docs/FAM_AGENTS.md` sections 2 and 3. Neither is built:
+the agents will be built together, later. The advisor tool is still ruled
+out: it is a tool on the speaking call (constraint 2).
 
 **Communication: typed hand-offs, plus a store keyed by subject.** Hand-offs
 (dataclasses with JSON schemas) through the orchestrator are what FAM already
