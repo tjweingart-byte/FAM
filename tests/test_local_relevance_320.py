@@ -25,6 +25,7 @@ import script_generator as sg  # noqa: E402
 SF = places.Place("San Francisco", "San Francisco", "California", "US",
                   37.77, -122.42, "test")
 AIRSHOW = types.SimpleNamespace(
+    query="Blue Angels airshow over San Francisco Bay today",
     retrieval="Blue Angels airshow San Francisco Bay Fleet Week",
     must_establish=["whether the Blue Angels airshow is flying over the bay today"])
 VALKYRIES = research.Packet(
@@ -41,9 +42,33 @@ def test_a_story_that_only_names_the_place_does_not_answer_the_question():
 
 
 def test_a_general_town_question_is_answered_by_any_town_story():
-    general = types.SimpleNamespace(must_establish=["what's happening in San Francisco today"])
+    general = types.SimpleNamespace(query="what's happening in San Francisco today")
     assert local_news.relevant(VALKYRIES, general, SF)
     assert local_news.relevant(VALKYRIES, types.SimpleNamespace(), SF)
+
+
+def test_what_ei_must_establish_never_throws_away_a_general_question_s_news():
+    """The review's case: a general question whose brief lists phrases a
+    town's stories rarely use in those words."""
+    general = types.SimpleNamespace(
+        query="what's going on in San Anselmo",
+        must_establish=["recent local government decisions",
+                        "upcoming community events",
+                        "notable incidents or developments"])
+    anselmo = places.Place("San Anselmo", "Marin", "California", "US",
+                           37.97, -122.56, "test")
+    council = research.Packet(context="Town council approved the Memorial Park "
+                                      "detention basin contract in San Anselmo.")
+    assert local_news.relevant(council, general, anselmo)
+
+
+def test_one_shared_word_is_not_an_answer():
+    """Two of the question's words, as GDELT asks: "bay" alone is a namesake."""
+    bay_only = research.Packet(context="Traffic on the Bay Bridge in San Francisco.")
+    assert not local_news.relevant(bay_only, AIRSHOW, SF)
+    budget = types.SimpleNamespace(query="San Francisco budget")
+    assert local_news.relevant(research.Packet(context="the city budget passed"),
+                               budget, SF)
 
 
 def test_the_web_rung_never_narrows_to_a_learned_outlet_and_drops_what_misses():

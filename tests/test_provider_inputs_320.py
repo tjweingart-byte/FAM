@@ -55,6 +55,15 @@ def test_polymarket_is_searched_with_the_market_s_own_short_forms():
         live_entity="", forecast_query="Fed decision October")
     words = ls.market_words(question)
     assert words[:3] == ["fed", "decision", "october"], words
+    nyc = types.SimpleNamespace(subject="", live_entity="Zohran Mamdani",
+                                forecast_query="Mamdani win NYC mayoral election")
+    assert "win" not in ls.market_words(nyc), "a lowercase short word is noise"
+    assert "nyc" in ls.market_words(nyc)
+    # The review's case: a market about another race shares only "election".
+    other = {"id": "1", "question": "New Jersey Governor Election Winner - Who "
+                                    "will win the New Jersey governor election?"}
+    assert ls._best_match([(other, other["question"], 1.0)],
+                          ls.market_words(nyc)) is None
     plain = types.SimpleNamespace(subject="the Federal Reserve rate decision",
                                   live_entity="")
     assert "fed" not in ls.market_words(plain), "a subject keeps the old rule"

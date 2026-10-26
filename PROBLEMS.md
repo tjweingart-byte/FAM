@@ -22412,11 +22412,14 @@ article from it. Tests that pinned "the retry drops the window" now pin
 (`episode_intelligence.time_bound`, in the gate). With the window now a
 filter in code, a window on "who was Abraham Lincoln" would drop every good
 biography, and a `causal` question used to default to 14 days on its own
-("why did Rome fall"). A window survives only when something says the
+("why did Rome fall"). A window longer than a week survives only when something says the
 question is about a moment: a live domain, an outcome to wait for, a
 recap/update/preview, a recent development EI is at least fairly sure of
 (`why_now_confidence` medium or high), or the question naming a time
-(today, latest, this week, a weekday, this year or last). The word list decides only whether a
+(today, latest, this week, a weekday, this year or last). A window of a
+week or less (`SHORT_WINDOW_DAYS`) is never removed: that is EI itself
+saying "a moment", and since `ttl_for` reads the window a word list must
+not take it away ([ttl-from-evidence]). The word list decides only whether a
 window may apply, never its size; an episode left with no window is kept as
 long as any evergreen episode, because `ttl_for` reads the window. The
 `why_now` test is what keeps a news question with no time word ("what did
@@ -22426,10 +22429,14 @@ for is searched with none. `tests/test_evergreen_window_320.py`.
 **The local ladder asks what the question is about**
 (`local_news.relevant`). Naming the town was the only test, so "airshow
 over San Francisco Bay" was answered by a Valkyries fan story that said
-"Chase Center in San Francisco". A rung whose stories name the place and
-cover none of the brief's `must_establish` (minus the place's own words and
-"news"-type words) counts as empty; a plain "what's on in X" still takes any
-X story. The web rung searches vetted outlets only, never `learned` ones
+"Chase Center in San Francisco". When the listener's question names
+something beyond the town, a rung whose stories carry fewer than two of
+those words (one, when it names one) counts as empty - GDELT's own two-word
+rule; the place's words and "news"-type words do not count. A plain "what's
+on in X" still takes any X story. Tested on the question's words, never on
+EI's `must_establish`: a review found that a general question's brief lists
+phrases like "recent local government decisions", which a town's stories
+rarely use, so a test on them threw away real town news. The web rung searches vetted outlets only, never `learned` ones
 (one learned site, hoodline.com, had narrowed every later San Francisco
 search to itself). EI's `place` excludes one specific happening in a town -
 a news question on the general ladder. The writer: an older article cannot
@@ -22445,8 +22452,11 @@ resolve were already EI's `live_entity` (§265), so the branch's `entities`
 field is not ported. The search half of the brief (`PARTS["search"]`) now
 also writes:
 - `forecast_query`: two to five words as a prediction market would title
-  the outcome. Polymarket searches it first (`live_sources.market_words`,
-  three-letter words kept: "Fed", "GOP", "NYC"), then `live_entity`.
+  the outcome. Polymarket searches it first (`live_sources.market_words`),
+  then `live_entity`. A three-letter word is kept only when written as a
+  short form ("Fed", "GOP", "NYC"): a review found that a lowercase "win"
+  let "New Jersey Governor Election Winner" match an NYC mayoral question
+  on two shared words.
 - `source_kind` (general, news, official, filings, academic, local):
   Perplexity's `search_mode` (`sec`, `academic`) and a source-preference
   line in Parallel's objective.

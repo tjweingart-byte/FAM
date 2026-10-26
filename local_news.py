@@ -1168,36 +1168,36 @@ def gap_line(place, weather: bool = True, county_news: bool = True,
     return f"We couldn't find any recent news reports out of {town}{about}.{tail}"
 
 
-#: Words that say "the news there" without saying what about. A brief that
-#: asks only for these asks for whatever the town has, and every story
-#: naming the town answers it.
+#: Words that say "the news there" without saying what about. A question
+#: made only of these asks for whatever the town has, and every story naming
+#: the town answers it.
 _GENERAL_WORDS = frozenset({
     "news", "local", "today", "tonight", "week", "weekend", "happening",
     "going", "event", "events", "latest", "town", "city", "area", "recent",
     "stories", "story", "headlines", "update", "updates", "anything", "there",
-    "what's", "whats", "on", "community", "residents", "county",
+    "what's", "whats", "on", "community", "residents", "county", "what",
+    "new", "doing", "near", "around", "tell", "about", "this", "here",
+    "lately", "now", "right", "currently", "morning", "evening", "yesterday",
 })
 
 
-def _wanted(brief, place) -> list:
-    """What the brief must establish, minus the place's own words.
+def _asked_about(brief, place) -> list:
+    """The words of the listener's question that are not the place and not
+    "the news there" - what the question is *about*, if anything.
 
-    The place is already required of every story (`names_place`); what is
-    left is what the question is *about*. Empty for a plain "what's going on
-    in Springfield", which any Springfield story answers.
+    **The question's own words, never EI's `must_establish`** (review,
+    §320): for a general "what's going on in San Anselmo" the brief still
+    lists things like "recent local government decisions", which a town's
+    stories rarely say in those words, so a test on them threw away real
+    town news. Empty for a general question, which any town story answers.
     """
     import research
 
     place_words = research._terms(" ".join(filter(None, [
         getattr(place, "name", ""), getattr(place, "county", ""),
         getattr(place, "region", ""), getattr(place, "country", "")])))
-    out = []
-    for item in (getattr(brief, "must_establish", None) or []):
-        left = [w for w in sorted(research._terms(str(item)))
-                if w not in place_words and w not in _GENERAL_WORDS]
-        if left:
-            out.append(" ".join(left))
-    return out
+    return sorted(w for w in research._terms(str(getattr(brief, "query", "") or ""))
+                  if w not in place_words and w not in _GENERAL_WORDS)
 
 
 def relevant(packet, brief, place) -> bool:
@@ -1206,19 +1206,19 @@ def relevant(packet, brief, place) -> bool:
     **Naming the town was the only test** (§320), so a question about an
     airshow over San Francisco Bay was answered by a Valkyries fan story that
     said "Chase Center in San Francisco", and the writer was told it was the
-    town's news. A rung whose stories name the place and cover none of what
-    the brief asked for now counts as empty, and the ladder goes on. The same
-    coarse word test the retry uses (`research.packet_covers`), never a model
-    call.
+    town's news. When the question names something beyond the town, a rung
+    whose stories carry fewer than two of those words (one, when it names
+    one) counts as empty and the ladder goes on - GDELT's own two-word rule
+    (`gdelt.ExportStore.search`), so one shared word ("bay") is not enough.
+    A general question is answered by any town story. Never a model call.
     """
-    wanted = _wanted(brief, place)
+    wanted = _asked_about(brief, place)
     if not wanted:
         return True
     import research
 
-    covered, _ = research.packet_covers(
-        getattr(packet, "context", "") or "", wanted)
-    return covered
+    have = research._terms(getattr(packet, "context", "") or "")
+    return len(set(wanted) & have) >= min(2, len(wanted))
 
 
 def _packet(items: list, scope: str, place, backend: str):

@@ -463,6 +463,13 @@ _MOMENT_WORDS = re.compile(
     re.IGNORECASE)
 
 
+#: A window this short is EI itself saying the question is about a moment
+#: (review, §320): it is never taken away, whatever words the question uses,
+#: so the guard below only ever removes the long windows a model gives an
+#: evergreen subject out of habit ("who was Abraham Lincoln", 30 days).
+SHORT_WINDOW_DAYS = 7
+
+
 def _names_a_recent_year(text: str, now_year: int) -> bool:
     return any(int(y) in (now_year, now_year - 1, now_year + 1)
                for y in re.findall(r"\b(20\d\d)\b", text or ""))
@@ -805,7 +812,7 @@ def gate(brief: Brief, query: str) -> Brief:
     # **No window on an evergreen question** (§320): the window now drops
     # results in code, so one the model gave "who was Abraham Lincoln" would
     # leave the episode with only what was published this month.
-    if brief.recency_days and not bound:
+    if brief.recency_days > SHORT_WINDOW_DAYS and not bound:
         problems.append(
             f"a {brief.recency_days}-day window on a question about no "
             f"particular moment; searched with no window")

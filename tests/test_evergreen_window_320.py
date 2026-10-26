@@ -61,5 +61,13 @@ def test_a_recent_development_keeps_a_news_question_s_window():
     assert gated("what did the mayor say about the budget").recency_days == 0
 
 
+def test_a_short_window_from_ei_is_never_taken_away():
+    """A window of a week or less is EI saying "a moment" - and it decides
+    the TTL too ([ttl-from-evidence]), so no word list may remove it."""
+    assert gated("Blue Angels schedule", recency_days=1).recency_days >= 1
+    assert gated("Blue Angels schedule", recency_days=7).recency_days == 7
+    assert gated("Blue Angels schedule", recency_days=8).recency_days == 0
+
+
 def test_an_evergreen_question_with_no_window_stays_without_one():
     assert gated("how do vaccines work", recency_days=0).recency_days == 0
