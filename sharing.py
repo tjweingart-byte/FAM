@@ -591,7 +591,7 @@ DATA_MARKER = "<!--FAM_SHARE_DATA-->"
 
 
 #: Where "Want to hear more? Be a part of the conversation with FAM" goes,
-#: App Store or not (PROBLEMS.md §318, at the owner's direction): the waitlist
+#: App Store or not (PROBLEMS.md §319, at the owner's direction): the waitlist
 #: page, which is where the app's own Sign Up goes too (§192). Relative, so it
 #: names the host that served the landing page and nothing else - the same
 #: reason `_public_base` reads the request.
@@ -623,7 +623,7 @@ def landing_payload(share: dict, *, url: str, card_url: str = "",
         # Whether the App Store is where the doors go. False means there is
         # no app to send anybody to - see `join` for where they go instead.
         "has_app": bool(app_store),
-        # "Want to hear more? Be a part of the conversation with FAM" (§318,
+        # "Want to hear more? Be a part of the conversation with FAM" (§319,
         # at the owner's direction; §175 drew it first): the one door drawn
         # whether or not the app is out, and it always goes to this server's
         # waitlist page - a real page on the host that served this one, so it

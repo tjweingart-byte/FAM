@@ -194,7 +194,7 @@ SHARE_ROW = {"id": "abc123", "query": "why bonds move", "minutes": 3,
 
 
 def test_join_goes_to_the_waitlist_even_when_there_is_an_app():
-    """§318, at the owner's direction: the note links to the waitlist page."""
+    """§319, at the owner's direction: the note links to the waitlist page."""
     payload = sharing.landing_payload(
         SHARE_ROW, url="/s/abc123", app_store="https://apps.apple.com/app/fam/id1")
     assert payload["join"] == sharing.JOIN_PATH == "/waitlist"

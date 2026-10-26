@@ -412,7 +412,7 @@ delegated listener, so a control added later is a door by default rather than
 by somebody remembering to wire it.
 
 "Want to hear more? Be a part of the conversation with FAM" (PROBLEMS.md §175,
-§318) is the one door drawn with no `APP_STORE_URL`, and it always goes to the
+§319) is the one door drawn with no `APP_STORE_URL`, and it always goes to the
 waitlist page, `/waitlist`, whether or not the app is out. The iMessage share is the link alone, so Messages
 draws this page's preview card and leaves the typing line for the sender.
 

@@ -89,7 +89,7 @@ def main() -> int:
               f"{len(doors)} doors")
 
         # "Want to hear more? Be a part of the conversation with FAM"
-        # (§318): the door
+        # (§319): the door
         # a recipient is offered, drawn under the player.
         check("The page invites the listener into the conversation",
               "Be a part of the conversation with FAM"
@@ -120,7 +120,7 @@ def main() -> int:
         tried: list[str] = []
         page.route("**/*", lambda route: (tried.append(route.request.url),
                                           route.abort()))
-        # The join door goes to the waitlist (§318); the others to the App Store.
+        # The join door goes to the waitlist (§319); the others to the App Store.
         page.click("[data-door='ask']")
         page.wait_for_timeout(600)
         check("A door goes to the App Store", any(APP_STORE in u for u in tried),

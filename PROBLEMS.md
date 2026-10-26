@@ -22363,7 +22363,7 @@ same neighbours); Atlas replaces the whole document. And an episode's own
 market lookups (§313) are kept per `as_of`, beside the sweep's one price a
 day (§315) - the inventory agent's duplicate pass is where the two meet.
 
-## 318. A shared episode invites the listener into the conversation, via the waitlist (2026-10-26)
+## 319. A shared episode invites the listener into the conversation, via the waitlist (2026-10-26)
 
 At the owner's direction, the note under a shared episode (`/s/<id>`,
 `static/listen.html`) now reads "Want to hear more? Be a part of the

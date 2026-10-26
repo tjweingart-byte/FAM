@@ -434,7 +434,7 @@ Accounts, tiers, sharing
   the listener's own (§162), never made for them. [save-pointer]
 - **A shared link lands on one episode** (`/s/<id>`): other controls are
   `data-door`s; the key equals the sharer's; head rendered server-side; opens
-  counted by the page; its join note always goes to `/waitlist` (§318) -
+  counted by the page; its join note always goes to `/waitlist` (§319) -
   other doors need `APP_STORE_URL`; no `user_id`; host from the request (`_public_base`,
   `X-Forwarded-Proto`, loopback refused); story cards are PNG files to the share
   sheet. [share-link]

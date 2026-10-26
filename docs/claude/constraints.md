@@ -1520,7 +1520,7 @@
   > behind it. Every other door still needs the App Store link.
   > **Current:** the note reads "Want to hear more? Be a part of the
   > conversation with FAM" and always links to the waitlist page
-  > (`sharing.JOIN_PATH` = `/waitlist`), App Store or not *(§318, at the
+  > (`sharing.JOIN_PATH` = `/waitlist`), App Store or not *(§319, at the
   > owner's direction)*. The payload carries no `user_id`: this is the one
   response in the app handed to people who are not listeners.
   **The link names a host now, and nobody has to set one** *(§114).* It read
