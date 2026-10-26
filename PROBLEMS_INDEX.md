@@ -312,3 +312,5 @@ and `limit` = Lines.
 | 21771 | 59 | 306. The 10.23 implementations: episodes that would not play, an apology instead of a type name, the DailyFAM tab back to the top, myFAM's logo in a menu, playlist covers, a line on the phone, and a story's send button (2026-10-24) |
 | 21830 | 57 | 307. A history archive on MongoDB Atlas, and the first agent (2026-10-24) |
 | 21887 | 61 | 308. The history archive is built, for MongoDB Atlas (2026-10-24) |
+| 21948 | 93 | 309. Episode quality, measured by category (2026-10-23) |
+| 22041 | 89 | 310. The quality checker inside /admin, and what was taken out before it merged (2026-10-26) |

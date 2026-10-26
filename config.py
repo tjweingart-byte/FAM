@@ -577,6 +577,25 @@ class Settings:
     # How long a searched brief waits for the outline once the other two
     # parts are in; past it the writer plans the piece itself, as before.
     ei_outline_grace_seconds: float = _env_float("EI_OUTLINE_GRACE_SECONDS", 0.5)
+    # **Episode quality** (§309, `episode_quality.py`). Every written episode
+    # is measured in code for free; the model grader reads it afterwards,
+    # never in front of a listener, and only where this says: `off` (the
+    # default until the owner sets a budget), `ahead` (episodes written
+    # before a tap - prefetch, Trending, DailyFAM) or `all`.
+    quality_grade: str = field(
+        default_factory=lambda: os.environ.get("QUALITY_GRADE", "off"))
+    # The grader is not the writer: a stronger model, so Haiku is not
+    # marking its own work. Empty follows `MODEL`.
+    quality_grader_model: str = field(
+        default_factory=lambda: os.environ.get("QUALITY_GRADER_MODEL")
+        or os.environ.get("MODEL", "claude-sonnet-5"))
+    quality_grader_effort: str = field(
+        default_factory=lambda: os.environ.get("QUALITY_GRADER_EFFORT", "medium"))
+    # A ceiling on grades per day, so a busy day cannot become a bill.
+    quality_grade_daily: int = _env_int("QUALITY_GRADE_DAILY", 200)
+    # Fewer episodes than this and a node is not ranked; the page points to
+    # its nearest ancestor that has enough.
+    quality_min_episodes: int = _env_int("QUALITY_MIN_EPISODES", 5)
     # **The evidence cut to what the episode can use** (§270,
     # `evidence_digest.py`): Haiku with thinking off picks which of the
     # packet's sentences to keep - numbers only, never words of its own - and

@@ -693,6 +693,14 @@ class ScriptNotes:
     #: `research` from the winning packet. None when nothing was retrieved.
     #: Read only by `history_archive.after_episode`; never by a prompt.
     archive: object = None
+    #: What the episode's quality is judged against (§309), set when the
+    #: script is finished: the evidence the writer read (the cut when there
+    #: was one), the brief's story shape, the word budget and the writer that
+    #: answered. In memory only; `episode_quality.note` keeps what it needs.
+    written_from: str = ""
+    structure: str = ""
+    word_budget: int = 0
+    writer_model: str = ""
 
 
 async def _live_by(task, plan, domain: str, began: float):
@@ -1593,6 +1601,13 @@ class _ScriptReader:
                                         + tuple(self.material.dropped))
             self.notes.score_drops = tuple(self.scores.dropped)
             self.notes.figure_drops = tuple(self.figures.dropped)
+            # What the quality record judges it against (§309).
+            self.notes.written_from = (getattr(self.plan, "evidence_digest", "")
+                                       or getattr(self.plan, "evidence", "")
+                                       or "")
+            self.notes.structure = str(getattr(getattr(self.plan, "brief", None),
+                                               "structure", "") or "")
+            self.notes.word_budget = int(getattr(self.plan, "word_budget", 0) or 0)
         # A check that had to catch the writer is a prompt rule failing: one
         # notice per check per episode on /admin's errors (§269).
         for check, dropped in (("opening check", self.guard.dropped),
@@ -2475,6 +2490,8 @@ class ScriptGenerator:
         # could name a different one.
         request = self._request_kwargs(plan, notes)
         model = request["model"]
+        if notes is not None:
+            notes.writer_model = model   # for the quality record (§309)
         path = _writer_path(notes)
         started = time.monotonic()
         first_word = None
@@ -2572,6 +2589,10 @@ class ScriptGenerator:
                        for block in (getattr(message, "content", None) or [])
                        if getattr(block, "type", "") == "text")
         reader = _ScriptReader(plan, notes)
+        if notes is not None:
+            # For the quality record (§309): the model the batch answered with.
+            notes.writer_model = (getattr(message, "model", None)
+                                  or writer_for(notes)[0])
         out: list[str] = list(reader.opening())
         opened = len(out)
         for start in range(0, len(text), _BATCH_SLICE):

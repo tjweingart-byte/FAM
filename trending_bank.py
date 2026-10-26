@@ -891,6 +891,11 @@ def _finish(story, plan, key: str, notes, sentences: list, cache, minutes: int,
     import history_archive
 
     history_archive.after_episode(notes, key, notes.sourced_at, origin)
+    # And how well it was written (§309), kept beside it.
+    import episode_quality
+
+    episode_quality.note(key, notes.sourced_at, story.query, minutes, origin,
+                         sentences, notes)
     return {"status": "written", "key": key, "dollars": dollars,
             "title": notes.title}
 
