@@ -1,4 +1,4 @@
-"""EI's contextualising step: the category path of a search (§309).
+"""EI's contextualising step: the category path of a search (§311).
 
 `Brief.category_path` is where the request sits in FAM's category tree -
 the facet, then each subcategory - placed in code from EI's own category,

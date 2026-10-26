@@ -211,6 +211,11 @@ async def one(generator: ScriptGenerator, query: str, minutes: int,
         row["write_seconds"] = time.perf_counter() - started
         row["budget"] = plan.word_budget
         row["thread"] = notes.thread
+        # The episode's quality, measured as the app measures it (§309).
+        import episode_quality
+
+        row["quality"] = episode_quality.measure(
+            sentences, query, notes.written_from, notes.word_budget)["scores"]
 
     row["cost"] = notes.usage.as_dict()
     return row
@@ -258,6 +263,11 @@ def show(row: dict, minutes: int, write_script: bool) -> None:
         flag = "" if 0.7 <= fit <= 1.1 else "   <- outside the duration"
         print(f"  {row['words']} words against a {row['budget']} budget "
               f"({fit:.0%}){flag}")
+        quality = row.get("quality") or {}
+        if quality:
+            print("  quality (code, §309)  " + "  ".join(
+                f"{name} {'-' if value is None else f'{value:.2f}'}"
+                for name, value in quality.items()))
 
         said = TIME_PHRASES.findall(row["script"])
         if said:
@@ -330,6 +340,16 @@ async def main() -> int:
     spend = sum(r.get("cost", {}).get("web_search_cost", 0.0) for r in rows)
     calls = sum(r.get("cost", {}).get("model_calls", 0) for r in rows)
     print(f"  {calls} model calls, ${spend:.3f} of retrieval")
+    # Each quality proxy's mean across the run (§309): the number a prompt
+    # or example change is compared on, run before and after.
+    scored = [r["quality"] for r in rows if r.get("quality")]
+    if scored:
+        means = []
+        for name in scored[0]:
+            values = [q[name] for q in scored if q.get(name) is not None]
+            if values:
+                means.append(f"{name} {sum(values) / len(values):.2f}")
+        print("  quality, mean of the code proxies: " + "  ".join(means))
     if rows and not args.script:
         print("\n  Briefs and retrieval only. Add --script to judge the episodes,"
               "\n  which is where the temporal check actually happens.")

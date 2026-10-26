@@ -128,6 +128,7 @@ Render deployment; since §208 it pins every store there (21 since §211), as th
 | **provider_usage.db** (`PROVIDER_USAGE_DB`) | `provider_usage.py` | `calls` | No, shared | Forever | n/a · **never wiped** (like metering) |
 | **live_routing.db** (`LIVE_ROUTING_DB`, §264) | `live_routing.py` | `episodes` | No `user_id`; holds the typed question | 14 days (`KEEP_DAYS`) | n/a · kept |
 | **pipeline_errors.db** (`PIPELINE_ERRORS_DB`, §269) | `pipeline_errors.py` | `errors` | No `user_id`; holds the typed question | 14 days (`KEEP_DAYS`) | n/a · kept |
+| **episode_quality.db** (`EPISODE_QUALITY_DB`, §309) | `episode_quality.py` (`QualityStore`) | `episodes`, `listens`, `labels` | `listens` only (the account that listened); `episodes` holds the typed question | 180 days (`KEEP_DAYS`); the evidence text until graded, at most 14 days (`EVIDENCE_DAYS`) | `listens` erased · **Wiped** |
 | **thumbnails.db** (`THUMBNAILS_DB`) | `thumbnails.py` | `thumbnails`, `spend`, `runs` | No, shared | ≤ 1 picture per tree node | n/a · kept |
 | **local_news.db** (`LOCAL_NEWS_DB`) | `local_news.py`, `places.py`, `weather.py` | `outlets`, `items`, `demand`, `excluded`, `places`, `weather` | No (no `user_id`) | Items pruned daily past 30 days (`LOCAL_NEWS_KEEP_DAYS`, never below the 14-day window; each outlet keeps its newest 200, §208); demand 30 days | n/a · kept |
 | **gdelt_export.db** (`GDELT_EXPORT_DB`, §211) | `gdelt.py` (`ExportStore`) | `files`, `articles`, `theme_counts`, `domains`, `meta` | No, shared | 24 hours of GDELT's 15-minute export files (`GDELT_EXPORT_KEEP_HOURS`), ≤ 1,500 articles per file | n/a · kept |
@@ -319,6 +320,19 @@ the raw material the Database inventory specialist will digest
 `cache.episode_id`, for a sources view on the episode screen; `facts`, the
 key sentences and figures the agent keeps, each with a 384-number vector,
 recalled beside the search. Never a private search or an attachment.
+
+**episode_quality.db** (`episode_quality.QualityStore`, §309): how well each
+written episode was written. `episodes`, one row per episode cached anywhere
+(a tap, prefetch, DailyFAM, Trending) - never an attachment's, which is never
+cached, and never a private search's - with its script, the writer's category words, story shape, writer
+model, a hash of the writer's instructions, the code's six scores and, when
+grading is on (`QUALITY_GRADE`, off by default), the grader's; the evidence the
+writer read is kept only until it is graded, at most 14 days. `listens`, the
+furthest point each signed-in account heard each episode (from
+`/api/progress`; never a guest's, and the app sends none for a private
+search), erased with the account. `labels`, the owner's own 1-5 scores, which the grader is checked
+against. Read only by `/admin`'s Episode quality page and
+`tools/quality_report.py`; nothing a listener sees reads it.
 
 **wikimedia.db** (`wikimedia.ReferenceStore`, §278): the reference look's
 answers - one row per asked name (or name plus the question's words, when two

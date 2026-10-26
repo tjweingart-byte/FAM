@@ -274,7 +274,7 @@ def test_an_ordinary_brief_may_be_given_history(archive):
     SimpleNamespace(live_domain="sports"),
 ])
 def test_sports_markets_and_results_are_given_history(archive, brief):
-    """§311, the owner's direction: their history is the most valuable the
+    """§313, the owner's direction: their history is the most valuable the
     archive holds. The guards, not the recall, keep it from passing for now."""
     assert ha.recall_wanted(brief) == ""
 

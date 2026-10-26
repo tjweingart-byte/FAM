@@ -33,7 +33,7 @@ word longer than that. It adds facts only:
 * **only beside web sources** - an archive alone must not make an empty
   packet look researched;
 * on every kind of question but weather and a town's news - sports,
-  markets and outcome-dependent questions included (§311, the owner's
+  markets and outcome-dependent questions included (§313, the owner's
   direction: scores and prices are the archive's most valuable material).
   An old figure cannot pass for today's: `ScoreGuard` lets a score through
   only from the scoreboard or in a sentence about the past, and
@@ -655,7 +655,7 @@ def _count(name: str, n: int = 1) -> None:
 # --------------------------------------------------------------------------
 # Writing: after an episode is kept
 # --------------------------------------------------------------------------
-#: The live domains whose provider data is kept (§311). Weather is a
+#: The live domains whose provider data is kept (§313). Weather is a
 #: forecast, never an outcome ([weather]); a prediction market is never
 #: evidence ([forecast-beside]).
 LIVE_DOMAINS = ("sports", "markets", "elections")
@@ -663,7 +663,7 @@ LIVE_DOMAINS = ("sports", "markets", "elections")
 
 def live_records(*lookups) -> list:
     """What the episode's live providers said, as records the archive keeps
-    (§311, the owner's direction: scores and prices are the archive's most
+    (§313, the owner's direction: scores and prices are the archive's most
     valuable material). Code only - the provider's own lines, its time and
     its status, never a model's words.
 
@@ -757,7 +757,7 @@ def _write(findings: list, subject: str, category: str, episode: str,
     if store is None:
         return
     now = time.time()
-    # The live providers' data (§311): kept as facts at once, in code - a
+    # The live providers' data (§313): kept as facts at once, in code - a
     # score or a price needs no agent to decide what it says.
     for record in live or ():
         try:
@@ -840,7 +840,7 @@ def recall_wanted(brief) -> str:
     if brief is None:
         return "no brief"
     # Sports, markets and outcome-dependent questions are recalled too
-    # (§311, the owner's direction): their history is the archive's most
+    # (§313, the owner's direction): their history is the archive's most
     # valuable material. What keeps an old score or price from passing for
     # today's is downstream - dated sources, `ScoreGuard`, `FigureGuard`'s
     # archive rule and the writer's outcome note - not a refusal here.

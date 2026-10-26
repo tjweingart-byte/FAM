@@ -5,6 +5,7 @@
     python write.py "the fed decision" --minutes 5 --model claude-sonnet-5
     python write.py "nvda stock today" --compare claude-sonnet-5,claude-haiku-5-5
     python write.py "nvda stock today" --compare claude-haiku-5-5:low,claude-haiku-5-5:low+digest
+    python write.py "why is the sky blue" --minutes 1 --grade
 
 The script is the product. Audio is just how it gets delivered, and listening to
 a five minute episode to judge one prompt change is a slow way to work. This
@@ -26,6 +27,11 @@ the rules say land it and stop, never tease, no rhetorical question, no recap -
 and a prompt rule is only a request until you have seen the model obey it. The
 predicted follow-up is printed under the script: it is never spoken, and the
 script is barred from gesturing at it, so it is checked separately.
+
+Under that, **the episode's quality** (§309): the code's six proxies, 0-1,
+with the sentences that cost each its points - every script, for nothing.
+`--grade` adds the model grader's 1-5 on the same six (`QUALITY_GRADER_MODEL`,
+a call of its own after the script). Neither replaces reading it.
 """
 from __future__ import annotations
 
@@ -48,6 +54,9 @@ async def main() -> int:
     ap.add_argument("--prompt", action="store_true", help="print the prompt that was sent")
     ap.add_argument("--no-ei", action="store_true",
                     help="skip episode intelligence and search the raw query")
+    ap.add_argument("--grade", action="store_true",
+                    help="grade the script with the quality grader (§309) - "
+                         "one more model call, after the script")
     ap.add_argument("--compare", default="",
                     help="comma-separated writers, each MODEL or MODEL:EFFORT "
                          "(e.g. claude-sonnet-5,claude-haiku-5-5:medium); add "
@@ -218,7 +227,24 @@ async def main() -> int:
     if words < plan.word_budget * 0.8:
         print("  NOTE: came in short. That is allowed now - it should mean it ran "
               "out of things worth saying, not that it gave up.")
+    await print_quality(generator, plan, notes, sentences, args.grade)
     return 0
+
+
+async def print_quality(generator, plan, notes, sentences, grade: bool) -> None:
+    """The episode's quality, measured as the app measures it (§309)."""
+    import episode_quality
+
+    measures = episode_quality.measure(sentences, plan.query, notes.written_from,
+                                       notes.word_budget)
+    print()
+    print(episode_quality.format_measures(measures))
+    if grade:
+        result, model, dollars, failed = await episode_quality.grade_script(
+            generator.client, plan.query, plan.minutes, notes.structure,
+            notes.written_from, sentences)
+        print(episode_quality.format_grade(result)
+              + f"\n  ({model}, ${dollars:.4f}){'  ' + failed if failed else ''}")
 
 
 def writers(spec: str) -> list:
@@ -309,6 +335,10 @@ async def compare(generator, plan, spec: str) -> int:
         for name in ("meta_openings", "score_drops", "figure_drops"):
             for dropped in getattr(notes, name, ()):
                 print(f'  NOTE ({name}): "{dropped}"')
+        import episode_quality
+
+        print(episode_quality.format_measures(episode_quality.measure(
+            sentences, plan.query, notes.written_from, notes.word_budget)))
         print()
     return 0
 

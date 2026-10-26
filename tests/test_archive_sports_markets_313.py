@@ -1,4 +1,4 @@
-"""Sports and market data in the history archive (§311, the owner's direction).
+"""Sports and market data in the history archive (§313, the owner's direction).
 
 Scores and prices are the archive's most valuable material, so:
 

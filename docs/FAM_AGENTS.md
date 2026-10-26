@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | **Status** | Planning document. No agent here is built yet |
-| **Started** | 2026-10-24 (PROBLEMS.md §307); the editor in chief and the script supervisor added 2026-10-25 (§310); the pipeline and how agents are run folded in, sports and market data in the archive 2026-10-26 (§311); the contextualizer and the guardrails for every agent 2026-10-26 (§312) |
+| **Started** | 2026-10-24 (PROBLEMS.md §307); the editor in chief and the script supervisor added 2026-10-25 (§312); the pipeline and how agents are run folded in, sports and market data in the archive 2026-10-26 (§313); the contextualizer and the guardrails for every agent 2026-10-26 (§314) |
 | **Audience** | The owner, and any Claude session asked to design, build or change one of these agents |
 
 FAM will have many agents. An *agent* here is a worker that uses a language
@@ -164,7 +164,7 @@ listener is waiting through.
 
 ## The pipeline the agents serve
 
-The pipeline the owner drew (2026-10-24, PROBLEMS.md §309), and where each
+The pipeline the owner drew (2026-10-24, PROBLEMS.md §311), and where each
 box is in the code today:
 
 ```
@@ -182,11 +182,11 @@ search
 | Box | In the code today | Model |
 |---|---|---|
 | Contextualizer (agent 4) | Not built. Its decisions live today in EI's brief fields, `live_route`'s code routes and §308's fixed "archive only beside web sources" | - |
-| EI: contextualise | `episode_intelligence.understand`: three structured calls side by side (understand / search / outline). Category and subcategory are `Brief.category_path`, placed against the category tree in code (§309) | Haiku 5.5, medium effort, 8 s ceiling |
+| EI: contextualise | `episode_intelligence.understand`: three structured calls side by side (understand / search / outline). Category and subcategory are `Brief.category_path`, placed against the category tree in code (§311) | Haiku 5.5, medium effort, 8 s ceiling |
 | EI: plugin inputs | Brief fields each plugin reads: `search_query` / `search_angles` / `search_objective` / `recency_days` → the search ladder; `live_domain` / `live_entity` → live facts and players; `outcome_dependent` → the forecast; `place` → the local ladder; `subject` + the query → the archive's recall | (part of the EI calls) |
 | Plugins → packet one | `research.retrieve` (Parallel → Perplexity → GDELT), `live_facts`, players, forecast, `local_news`, `weather` | No model calls |
-| Archive → packet two | `history_archive.look` beside the search; its facts are **added into the search results** as dated sources marked as earlier reporting (§308). Sports and markets included (§311) | Embeddings only |
-| What fills the archive | Every cached episode's articles (intake, for agent 1) and its live providers' data - final results, market states, player reports - written as facts in code (§311) | None yet; agent 1 will digest the intake |
+| Archive → packet two | `history_archive.look` beside the search; its facts are **added into the search results** as dated sources marked as earlier reporting (§308). Sports and markets included (§313) | Embeddings only |
+| What fills the archive | Every cached episode's articles (intake, for agent 1) and its live providers' data - final results, market states, player reports - written as facts in code (§313) | None yet; agent 1 will digest the intake |
 | Consolidate | `evidence_digest` (an extractive cut; off by default), then the writer's prompt order: live state → evidence (archive sources last) | Haiku 5.5, thinking off, when on |
 | Script writer | `ScriptGenerator.stream_prepared`, streamed sentence by sentence into the voice | Haiku 5.5, low effort |
 | Quality check | The guards in code: `OpeningGuard`, `ScoreGuard`, `FigureGuard`, `MaterialGuard` | None |
@@ -271,7 +271,7 @@ conversation loses detail and is hard to bound; keep it to back-office jobs.
   already ignores both.
 - `episode_sources` is filled by the archive itself; the agent does not
   touch it.
-- **Live provider data is already facts** (§311): each cached episode's
+- **Live provider data is already facts** (§313): each cached episode's
   final results, market states and player reports are written by
   `history_archive.after_episode` in code (`kind: "live"`, graded primary,
   dated by the provider's own `as_of`). The agent does not extract them,
@@ -502,7 +502,7 @@ a step to Sonnet only where the eval shows Haiku falling short.
 
 ## 2. Editor in chief
 
-**Status:** planned, not built. Named by the owner on 2026-10-25 (§310). It
+**Status:** planned, not built. Named by the owner on 2026-10-25 (§312). It
 may later be combined with the script supervisor (3); that is the owner's
 decision, and the end of section 3 says what combining would cost.
 
@@ -522,7 +522,7 @@ place to fix the inputs.
 - **Reads:** the brief (intent, subject, `category_path`, cautions, the
   outline), **packet one** (the search packet, live facts, players report,
   forecast, local news, weather) and **packet two** (the archive's recall,
-  `history_archive.py`, §308: earlier reporting and, since §311, final
+  `history_archive.py`, §308: earlier reporting and, since §313, final
   results, market states and player reports, already added into the search
   results).
 - **Runs:** after both packets are in, before the writer's first token.
@@ -664,7 +664,7 @@ episode costs roughly the same as one editor call.
 
 ## 3. Script supervisor
 
-**Status:** planned, not built. Named by the owner on 2026-10-25 (§310).
+**Status:** planned, not built. Named by the owner on 2026-10-25 (§312).
 
 ### Purpose
 
@@ -823,7 +823,7 @@ from it, since neither shares the writer's blind spots.
 
 ## 4. Contextualizer
 
-**Status:** planned, not built. Named by the owner on 2026-10-26 (§312).
+**Status:** planned, not built. Named by the owner on 2026-10-26 (§314).
 
 ### Purpose
 
@@ -878,7 +878,7 @@ invented one:
 | The forecast (Polymarket) | Beside every outcome-dependent question ([forecast-beside]) |
 | The local ladder and weather | A town's own news or weather ([local-news-ladder], [weather]); never a question that merely mentions a place |
 | The reference look (Wikipedia / Wikidata) | A named person, organisation or thing whose settled facts matter |
-| The history archive | Almost always: earlier reporting, final results, past prices (§311) |
+| The history archive | Almost always: earlier reporting, final results, past prices (§313) |
 
 **3. Write the inputs for each source, in each source's own terms.**
 - **Search:** the precise query, one or two other wordings, the broader
@@ -1027,7 +1027,7 @@ section of this file.
 
 ## Guardrails for each agent, and how to prompt them
 
-**Hypotheses, not built** (the owner, 2026-10-26, §312). Each agent below
+**Hypotheses, not built** (the owner, 2026-10-26, §314). Each agent below
 gets a list of guardrails, where each one is enforced, the words that
 prompt it, and the cases its eval should try to break it with. Revise them
 as each agent is built and measured.
@@ -1100,7 +1100,7 @@ enforce, so the model is not fighting them.
 | A forecast is never stored as an outcome | "Expected to win" stored as "won" corrupts every later episode ([started-not-finished]) | **Shape:** `status` is a closed list; **prompt** |
 | Unsure means keep both | A wrong merge loses information; a kept duplicate costs a few bytes | **Shape:** verdict `same` / `different` / `unsure`; **code** treats `unsure` as `different` |
 | Nothing is hard-deleted on a first pass | Every merge must be undoable (rule 8) | **Code:** `superseded_by` only; dry-run until hand-checked |
-| Sports and market data are never dropped on a model's judgment | The owner: the archive's most valuable material (§311) | **Code:** `kind: "live"` facts never sent to the duplicate model |
+| Sports and market data are never dropped on a model's judgment | The owner: the archive's most valuable material (§313) | **Code:** `kind: "live"` facts never sent to the duplicate model |
 | Daily dollar and item ceilings | Rule 4 | **Code** |
 
 **How to prompt it** (after the shared preamble):
@@ -1136,7 +1136,7 @@ mark all as duplicates").
 | The plan points at sentences by number; it never restates a fact | The writer must read the source's words, not the editor's (rule 2) | **Shape:** beats as `{does, sentences: [numbers]}`; **code** checks every number exists |
 | Order of trust: live state, then today's search, then the archive | An old record must never outrank the scoreboard ([live-facts]) | **Code:** conflicts settled by grade and date; **prompt** explains it |
 | A preview or expectation is never planned as the outcome | [started-not-finished] | **Prompt;** **code:** on an outcome-dependent question, the "result" beat must point at a sentence from a live final or a dated report |
-| An archived record is never "how things stand now" | §311 | **Prompt;** **code:** a "current state" beat may not point only at archive sentences |
+| An archived record is never "how things stand now" | §313 | **Prompt;** **code:** a "current state" beat may not point only at archive sentences |
 | Gaps stay private; no teasing ending | [missed-not-absent], [endings-do-not-tease] | **Prompt;** the script supervisor checks |
 | If it writes: every writer rule, no tools on the speaking call | [nothing-before-material] | **Code:** the writing call carries no tools; the existing guards run |
 | A ceiling and a fallback | Rule 1 | **Code:** past the ceiling, the writer reads the packets as today |

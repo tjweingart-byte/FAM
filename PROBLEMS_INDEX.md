@@ -311,8 +311,10 @@ and `limit` = Lines.
 | 21726 | 45 | 305. The standard episode is one minute (2026-10-23) |
 | 21771 | 59 | 306. The 10.23 implementations: episodes that would not play, an apology instead of a type name, the DailyFAM tab back to the top, myFAM's logo in a menu, playlist covers, a line on the phone, and a story's send button (2026-10-24) |
 | 21830 | 57 | 307. A history archive on MongoDB Atlas, and the first agent (2026-10-24) |
-| 21887 | 60 | 308. The history archive is built, for MongoDB Atlas (2026-10-24) |
-| 21947 | 52 | 309. Two packets: the history store's seam (2026-10-24) |
-| 21999 | 36 | 310. The agents guide: the editor in chief and the script supervisor (2026-10-25) |
-| 22035 | 43 | 311. The archive is the second packet, sports and markets included (2026-10-26) |
-| 22078 | 26 | 312. The contextualizer, and guardrails for every agent (2026-10-26) |
+| 21887 | 61 | 308. The history archive is built, for MongoDB Atlas (2026-10-24) |
+| 21948 | 93 | 309. Episode quality, measured by category (2026-10-23) |
+| 22041 | 88 | 310. The quality checker inside /admin, and what was taken out before it merged (2026-10-26) |
+| 22129 | 52 | 311. Two packets: the history store's seam (2026-10-24) |
+| 22181 | 36 | 312. The agents guide: the editor in chief and the script supervisor (2026-10-25) |
+| 22217 | 43 | 313. The archive is the second packet, sports and markets included (2026-10-26) |
+| 22260 | 26 | 314. The contextualizer, and guardrails for every agent (2026-10-26) |

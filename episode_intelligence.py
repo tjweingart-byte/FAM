@@ -303,7 +303,7 @@ class Brief:
     #: the writer's own replaces it once the script is cached (§209). Empty
     #: on a degraded brief.
     category: str = ""
-    #: **Where `category` sits in FAM's category tree** (§309): the facet,
+    #: **Where `category` sits in FAM's category tree** (§311): the facet,
     #: then each subcategory down to the node, broadest first - ["sport",
     #: "american football", "nfl", "philadelphia eagles"]. Set in code by
     #: `place_category`, never by the model, and never read as `category`:
@@ -373,7 +373,7 @@ class Brief:
 
 
 def place_category(brief: "Brief") -> "Brief":
-    """The brief with `category_path` filled from the category tree (§309).
+    """The brief with `category_path` filled from the category tree (§311).
 
     The "contextualise" step of the owner's pipeline: what kind of thing
     this is, and under what, before anything is looked up. In code - the
@@ -1871,7 +1871,7 @@ def build_brief_block(brief: Brief, minutes: int) -> str:
             "and by nothing else. So: find the outcome reported as an outcome, or "
             "write the episode about something that has not finished yet. "
             "Both are real episodes. Choosing between them by guessing is not. "
-            # §311: the archive now reaches these questions too.
+            # §313: the archive now reaches these questions too.
             "Earlier reporting from FAM's archive is never that result: it "
             "is an earlier game, an earlier close, an earlier vote, and is "
             "said as one, with its date.")

@@ -17,9 +17,8 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   new `<!-- rule:ID -->` marker, one line here citing `[ID]`.
   `tests/test_claude_md.py` fails if the IDs disagree or this file passes its
   budget - history goes in the topic files and `PROBLEMS.md`, never here.
-- **Finding history:** `PROBLEMS_INDEX.md` lists every PROBLEMS.md section and
-  line (`tools/problems_index.py` regenerates it; a test fails when stale). Read
-  by offset; never search 700 KB.
+- **History:** `PROBLEMS_INDEX.md` lists every PROBLEMS.md section and line
+  (`tools/problems_index.py`; a test fails when stale). Read by offset.
 - "CLAUDE.md" cited elsewhere means this core plus `docs/claude/`; numbered
   open problems are in `open-problems.md`.
 
@@ -31,7 +30,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
 | `docs/claude/next-phase.md` | the iOS app and the open decisions |
 | `docs/claude/workflow.md` | shipping, picking up a session, the environment's traps |
 
-## Where this is going  (`product.md`)
+## Where this is going (`product.md`)
 
 - **FAM is social information, not social media** (§199, above all else):
   keeping up takes work, so people miss the conversation; FAM turns what they
@@ -109,10 +108,10 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
 - **Group chats** (§213): one row per message to a `g:` thread; graph only. [group-chats]
 
 - **Names swapped for the listener** (§185): the rails screen *shows*
-  "DailyFAM", the mixes screen *shows* "myFAM"; code, ids and these docs keep
-  the old names. [names-swapped]
+  "DailyFAM", the mixes screen *shows* "myFAM"; code, ids and docs keep the
+  old names. [names-swapped]
 
-## What an episode is  (`product.md`)
+## What an episode is (`product.md`)
 
 - **Satisfied first, curious second**: meet the want that brought them, fully. [satisfy-first]
 - **Never withhold** - close the question they came with, then stop. [never-withhold]
@@ -148,22 +147,24 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   not names. [category-gaps]
 - Openings are concrete and open a question - not inverted-pyramid news style. [no-inverted-pyramid]
 
-## The writing problem  (`product.md`)
+## The writing problem (`product.md`)
 
 - **The scripts are not good enough; the writing is the product.** The ending
   rewrite (§48) and the §108 opening changes are unheard - listen for them first. [writing-is-the-problem]
-- `python write.py "<query>" --minutes 3` is the loop for improving writing. [write-py-loop]
+- `python write.py "<query>" --minutes 3` is the writing loop. [write-py-loop]
 - Quality came from inputs, not the prompt (§82): EI decides the query, the
   packet dates and grades sources, `DEPTH_BANDS` says what minutes are for. [inputs-not-prompt]
-- **Two packets** (§309/§311): the archive's recall is added into the search
-  results, sports and markets too; old figures only in dated sentences. [two-packets]
+- **Two packets** (§311/§313): archive recall in the search results,
+  sports and markets too; old figures only when dated. [two-packets]
 - The third cause (§108): two texts under two conditions; everything trading
   the opening for latency is gone. [third-cause-opening]
 - `write.py` prints the brief above the script - diagnose brief vs script
   separately; `--no-ei` compares; `tools/ei_eval.py` is the milestone. [brief-above-script]
 - **`examples/` is the strongest lever** - prefer adding an example over a rule. [examples-lever]
+- **Quality per tree node** (§309): code, listening, a grader trusted once
+  it matches the owner. [episode-quality]
 
-## Open problems  (`open-problems.md`)
+## Open problems (`open-problems.md`)
 
 - **Voice**: Chatterbox is the only voice; Piper deleted. Two honest states -
   Chatterbox speaks, or a placeholder **tone** and everything says so. No hosted
@@ -261,7 +262,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   works with no account; email/phone/Google/Apple; **reset** emails a code
   to the account's address (`mail.py`, §244; `/reset`, §297). [op-identity]
 
-## Settled constraints — do not undo without discussing  (`constraints.md`)
+## Settled constraints — do not undo without discussing (`constraints.md`)
 
 Audio and the opening
 - **A first play streams as voiced** (PCM, or Opus if decoded, §242); **a
@@ -479,15 +480,15 @@ Operations and honesty
   paid keys removed, GDELT/Polymarket off, `FAM_SECRETS` unread, nothing
   leaves the machine but its own private database (§243); replay only. [zero-spend-staging]
 - **Every installed client keeps working**: `X-FAM-Client`, `releases/registry.json`
-  (supported / deprecated / retired → 426), a contract per release replayed in
+  (supported/deprecated/retired → 426), a contract per release replayed in
   CI; fix a break by keeping the old field, never by editing the contract;
   web releases kept at `/v/<version>/`. [old-clients]
 - Per-machine state lives in `~/.fam/`; a key is never written into source. [fam-home-dir]
 - Metering records cost at spend time per listener; never one blended cost. [metering]
-- A credential is never typed by a human (`FAM_SECRETS`, precedence env >
-  FAM_SECRETS > .env > ~/.fam/env). [credentials-fetched]
+- A credential is never typed by a human (precedence env > `FAM_SECRETS` >
+  .env > ~/.fam/env). [credentials-fetched]
 
-## iOS and the next phase  (`next-phase.md`)
+## iOS and the next phase (`next-phase.md`)
 
 - The iOS app is a **native client of this API**, not a web view. [ios-native-client]
 - Every feature is an API before it is a screen. [api-before-screen]
@@ -502,7 +503,7 @@ Operations and honesty
   cache, and `learned_rank` may reorder what cleared the floor, never admit
   below it [dec-embedding].
 
-## How to ship a change (standing instruction)  (`workflow.md`)
+## How to ship a change (standing instruction) (`workflow.md`)
 
 Every change ends the same way, without being asked [ship-loop]:
 
@@ -525,7 +526,7 @@ Every change ends the same way, without being asked [ship-loop]:
 - Feature branches → `staging` (`fam-staging`, zero spend) → batched PR into
   `Main` (`fam`); both services from `render.yaml`, sharing nothing (`STAGING.md`). [staging-flow]
 
-## Picking up a session  (`workflow.md`)
+## Picking up a session (`workflow.md`)
 
 - Develop and push on the branch the session assigns; no PR unless asked. [branch-no-pr]
 - Reading order and the reference docs are listed in `workflow.md`; recent

@@ -803,6 +803,11 @@ class Prefetcher:
 
             history_archive.after_episode(notes, key, notes.sourced_at,
                                           "prefetch")
+            # And how well it was written (§309), kept beside it.
+            import episode_quality
+
+            episode_quality.note(key, notes.sourced_at, candidate.query,
+                                 candidate.minutes, "prefetch", sentences, notes)
             self.ledger.note_warmed(key, candidate, spent)
             log.info("prefetch warmed %d sentences for %r (%s: %s, $%.4f)",
                      len(sentences), candidate.query, candidate.source,

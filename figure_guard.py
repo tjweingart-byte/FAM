@@ -253,7 +253,7 @@ def vouched(value: float, decimals: int, approx: bool, material: list) -> bool:
 # The guard
 # --------------------------------------------------------------------------
 #: Words that tie a figure to a particular moment, so a figure FAM's archive
-#: vouches for may be said (§311): "on October 3", "last Tuesday", "two
+#: vouches for may be said (§313): "on October 3", "last Tuesday", "two
 #: weeks ago", "at the time". Wider than `score_guard._PAST`, which only
 #: lets a sentence go unchecked; this only lets the archive vouch.
 _DATED = re.compile(
@@ -282,7 +282,7 @@ def split_archive(evidence: str) -> tuple:
 def _material(plan) -> str:
     """Everything the writer was given that may state a figure about now -
     never FAM's archive, whose figures were true on the day they carry
-    (`_archived`, §311)."""
+    (`_archived`, §313)."""
     parts = [split_archive(str(getattr(plan, "evidence", "") or ""))[0]]
     for name in ("live", "forecast"):
         block = getattr(plan, name, None)
@@ -297,7 +297,7 @@ def _material(plan) -> str:
 
 
 def _archived(plan) -> str:
-    """The figures FAM's archive added to the packet (§308, §311)."""
+    """The figures FAM's archive added to the packet (§308, §313)."""
     return split_archive(str(getattr(plan, "evidence", "") or ""))[1]
 
 
@@ -315,7 +315,7 @@ class FigureGuard:
     def __init__(self, plan) -> None:
         self.active = _is_markets(plan)
         self.material = material_values(_material(plan)) if self.active else []
-        #: The archive's figures (§311): they vouch only for a sentence that
+        #: The archive's figures (§313): they vouch only for a sentence that
         #: says when - an old price is never how things stand now.
         self.archived = material_values(_archived(plan)) if self.active else []
         self.dropped: list = []

@@ -21944,7 +21944,189 @@ conversion, upsert shapes). The first real run is `archive_setup.py`.
 
 Tests: `tests/test_history_archive_308.py`; the store is in
 `tests/test_data_paths.py`'s lists, both Dockerfiles and `.env.example`.
-## 309. Two packets: the history store's seam (2026-10-24)
+
+## 309. Episode quality, measured by category (2026-10-23)
+
+The owner (10.23): "properly categorize episode quality based on their
+category/subcategory in the tree, and on different metrics. These metrics
+should include information quality, story flow, information depth,
+repetition of information, the quality of the hook and storytelling. We want
+to have real ways to measure the quality of these and act on them." Step 1
+of a plan the owner agreed: measure first, then examples attached to tree
+nodes, then a journalist agent tuned against these measures, then seasons.
+Until now nothing measured the writing: a prompt change, an example or a
+different writer was judged by ear, one episode at a time
+([writing-is-the-problem]).
+
+**What is kept** (`episode_quality.py`, `EPISODE_QUALITY_DB`): one row per
+written episode, written beside `category_audit.note` at all four places a
+script is cached (a tap, prefetch, DailyFAM, Trending/Start here), so what
+is measured is exactly what is kept - never an attachment's episode. A row
+holds the script, the writer's `<<CATEGORY:>>` words, the brief's story
+shape, the minutes and word budget, the writer that answered, a twelve-digit
+hash of the writer's instructions and examples (`prompt_version`, so one
+version can be compared with the next), and the evidence the writer read -
+kept only until it is graded or fourteen days, since only the grader reads
+it. The writer now notes those on `ScriptNotes` when it finishes
+(`written_from`, `structure`, `word_budget`, `writer_model`); nothing about
+what is written changes. Rows are kept 180 days.
+
+**Three ways to measure, because no one way is trustworthy for all six:**
+
+- *In code, on every episode, for nothing* (`measure`). Proxies, said as
+  proxies, each with the sentences that cost it points: information - names
+  in the script the evidence never mentions; flow - joins that follow
+  (because, so, but) against joins that add (and then, also); depth -
+  sentences carrying a particular (a name, a figure, a date) and the share
+  of the budget used (a ceiling, never a quota - [duration-ceiling]);
+  repetition - two sentences with mostly the same content words; hook - the
+  first two sentences share a word with the question, carry a particular,
+  and are not a banned opener; storytelling - the ending is not a question,
+  a recap or a tease, and nothing signposts.
+- *By a model grader, after the script, never in front of a listener*
+  (`grade_script`). A stronger model than the writer (`QUALITY_GRADER_MODEL`,
+  empty follows `MODEL`), so Haiku is not marking its own work; a 1-5 scale
+  with every level described, written from the house rules (`RUBRIC`); a
+  score whose quote is not really in the script is dropped (`read_grade`).
+  **Off by default** (`QUALITY_GRADE=off`; `ahead` grades only what was
+  written before a tap, `all` everything) because the budget is the
+  owner's to set; `QUALITY_GRADE_DAILY` caps it; staging never grades
+  ([zero-spend-staging]); a failed grade is a notice on /admin's errors.
+- *By listening.* `/api/progress` now carries the episode id
+  (`FamAudio.episode()`, optional - an older client is simply not
+  measured), and the furthest point each account heard is kept. An exit in
+  the first twenty seconds is the hook's measure; 85% heard the story's
+  ([op-friend-profile]'s line). A guest's listening is never kept
+  ([account-gates-kept]); a deleted account's goes ([op-identity]).
+  Positions are sent every fifteen seconds and at a pause or stop, so a
+  listener who closes the app mid-way can read up to fifteen seconds short.
+
+**Acting on it** (`report`, `/admin/quality`, `tools/quality_report.py`):
+each episode is placed against the tree when the report is read, as
+`app._episode_category` places it ([one-category]), and counts toward its
+node and every ancestor. A node with fewer than `QUALITY_MIN_EPISODES` (5)
+borrows its nearest ancestor's standing; every node is compared with its own
+heading, never the whole product; nodes sort by episodes times shortfall, so
+the branch where weak writing costs the most listening is first, with its
+three weakest episodes to read. The same four-word opening on several
+episodes in a node is flagged as a template.
+
+**What keeps the numbers honest.** A grade counts toward a node's standing
+only once the grader agrees with the owner's own scores on that metric -
+`CALIBRATION_MIN` (20) episodes, 80% within one point (`calibration`). The
+owner scores from the admin page (any weakest episode opens with the rubric
+beside each score) or `quality_report.py --label`. Until then grades are
+shown, marked, and ranking uses code. And every measure is checked against
+listening (`validity`, Spearman against the share heard, from ten
+episodes): one that does not predict listening is reworded, not optimised.
+
+`write.py` prints the code measures under every script and `--grade` adds
+the grader's; `tools/ei_eval.py --script` prints them per prompt and their
+means for the run - the number a prompt or example change is compared on,
+before and after. A full wipe (`demo_data`, scope `all`) drops every row,
+the owner's scores included, since they score episodes that no longer
+exist. The store is on the mounted disk in both Dockerfiles and created by
+the first written episode (lazy, like the routing rows).
+
+Unmeasured, because there is no key here: whether the code proxies track the
+grader, whether the grader tracks the owner, and what grading costs per
+episode on Sonnet (a few thousand tokens in, a few hundred out). The first
+run with a key is `python tools/ei_eval.py --script` then
+`python tools/quality_report.py --grade 20`, and twenty episodes scored by
+hand.
+
+Tests: `tests/test_episode_quality_309.py` (new); `tests/test_data_paths.py`
+(the store registered).
+
+## 310. The quality checker inside /admin, and what was taken out before it merged (2026-10-26)
+
+The owner (10.26): "we do not want examples to be attached to nodes on a tree.
+There will be a better way to do it, and that will involve the agents that we
+are going to implement this week. So, remove that from the changes made in
+this branch ... make sure that no agents are being made in this branch. The
+quality check tool is important and should stay."
+
+**Taken out, never merged.** This branch had gone on, after §309, to file
+each example on a category-tree node and story shape and show the writer the
+nearest few (`choose_examples`, `EXAMPLES_BY_NODE`, `EXAMPLES_PER_EPISODE`,
+two cached system blocks), then to give each league a calendar
+(`seasons.py`) so an example tagged for one phase of a season was not shown
+in another, with `tools/quality_compare.py` to write prompts both ways. All
+of it is gone: the examples, the writer's instructions and its `system`
+block are exactly Main's, every episode is shown every example as before,
+and nothing about what is written differs from Main. Its log entries were
+removed with it rather than left describing code that does not exist.
+
+**No agent in this branch.** Nothing here plans, loops or acts: the quality
+checker is code, plus one optional grading call per finished episode, off by
+default (`QUALITY_GRADE=off`). The agents planned for this week are Main's
+own work (§307), not this branch's.
+
+**Kept from that work, because it serves the checker:**
+
+- **The checker is a page of /admin** (`#quality`), under Inbox right after
+  Feedback, behind the tracker's own sign-in; `admin_ui/quality.html` is
+  gone and `/admin/quality` redirects to `/admin#quality`.
+- **Score these**: the episodes the owner has not scored yet, newest first
+  (`QualityStore.unlabelled`, `/api/admin/quality/to-score?origin=`), filtered
+  to every episode, searches, or those written ahead. Twenty or so scored per
+  metric is what calibrates the grader ([episode-quality]).
+- **By where they came from**: each origin's means side by side - a search,
+  prefetch, DailyFAM, Trending (`report()["origins"]`; printed by
+  `tools/quality_report.py` too).
+
+Main moved twice under this branch (§305; §306-§308, the history archive),
+so episode quality is §309 here. Where Main's history archive and this
+branch's quality record are both kept beside a written episode, both hooks
+stay, one after the other.
+
+Checked with a browser against a running server before the removal (the page
+and an episode opened for scoring, desktop and phone); the removal took
+sections off that page, not into it.
+
+**Reviewed before the merge** (the owner, 10.26: "double check all changes
+made in this branch, and get the branch ready to merge into main"). An
+independent review of the whole diff and a pass of my own; every confirmed
+finding is fixed:
+
+- *A private search was kept for 180 days.* It is cached with origin
+  `private`, and the quality hook kept its question, script and evidence -
+  readable on /admin, gradeable with `QUALITY_GRADE=all`. The history archive
+  refuses that origin; now so does this ([private-search]).
+- *The daily grading ceiling did not hold.* It was checked before the model
+  was asked and counted only after, so an edition finishing dozens of
+  episodes sent every one; a paid failure was never counted or recorded and
+  was asked again on every `--grade`. Each grade now holds its place under
+  the ceiling before the call, background grades run one at a time (they
+  share the listeners' key), a billed failure is kept as `{"failed": ...}`
+  and counted in the day's spend, and one episode is never graded twice at
+  once.
+- *Listening was measured short.* The app sent position 0 when an episode
+  ended (the "finished" signal for the resume card) and the record keeps the
+  furthest point, so a fully heard one-minute episode read as unfinished; a
+  listener who closed the app at 25 s could read as one who left in the first
+  20. It now sends the whole length at the end (the resume card clears
+  either way), sends the position at once when the app is hidden mid-play,
+  and keeps the request alive as the page closes.
+- *Calibration moved with the report's window.* It counted only scored
+  episodes inside the days shown; it now counts every one.
+- *Recording an episode pruned on every write*, beside the listener's
+  stream, with no index on the listens' clock: pruning is at most hourly and
+  indexed, so a record is one quick write.
+- Smaller: one bad score in a save no longer keeps the others; the owner's
+  scores go when an episode's text is rewritten; a grade is kept only on the
+  text it read; a failed record is a notice on /admin's errors; a sentence's
+  flags on the episode view match whatever its spacing; and "borrows its
+  parent's scores" said more than the code does - a thin node is not
+  ranked, and the page points to its nearest heading with enough.
+
+The store is also listed in `docs/DATA.md` (what it holds, who it is about,
+how long it is kept, and what deleting an account or a wipe does to it).
+
+Tests: `tests/test_episode_quality_309.py` (renamed from `_306`; the page
+inside /admin, the list to score, the origins, and one test per review fix
+above).
+## 311. Two packets: the history store's seam (2026-10-24)
 
 *Numbered 309 (2026-10-25): §306-308 were taken on Main in merge order.*
 
@@ -21996,7 +22178,7 @@ Unverified here (no key): whether packet two makes the writing better. The
 loop is `python write.py "<q>"` with a store registered, which now prints what
 the writer read of it.
 
-## 310. The agents guide: the editor in chief and the script supervisor (2026-10-25)
+## 312. The agents guide: the editor in chief and the script supervisor (2026-10-25)
 
 At the owner's direction, `docs/FAM_AGENTS.md` gains two agents and loses a
 rule. Nothing is built; the agents will be built together, later.
@@ -22029,21 +22211,21 @@ rule. Nothing is built; the agents will be built together, later.
   5.1.2(i)), data terms, a second SDK, `metering.PRICES`, `FAM_SECRETS` and
   `spend_guard.PAID_CREDENTIALS`, and no GPU but the voice pod.
 
-`docs/PIPELINE_AGENTS.md` (§309) now points at the guide for each agent; its
+`docs/PIPELINE_AGENTS.md` (§311) now points at the guide for each agent; its
 "Sonnet critic" suggestion became the script supervisor.
 
-## 311. The archive is the second packet, sports and markets included (2026-10-26)
+## 313. The archive is the second packet, sports and markets included (2026-10-26)
 
 At the owner's direction, three changes:
 
-- **`history.py` is retired; Main's archive is the second packet.** The §309
+- **`history.py` is retired; Main's archive is the second packet.** The §311
   seam (`history.register`, `HistoryQuery`, `history.consolidate`, the
   `<background>` block, `EpisodePlan.history`, the `HISTORY_*` settings,
   `/api/health.history`, `provenance.ARCHIVE`) is deleted. The archive's
   recall (`history_archive.py`, §308) already adds its facts **into the search
   results**, as dated sources marked as earlier reporting, which is what the
-  owner wants: the writer has as much material as there is. Kept from §309:
-  `Brief.category_path` (tests in `test_category_path_309.py`), and
+  owner wants: the writer has as much material as there is. Kept from §311:
+  `Brief.category_path` (tests in `test_category_path_311.py`), and
   `write.py` now prints how many archive sources the packet carries.
 - **Sports and market data are kept and recalled.** The owner: they are
   "arguably the most important information for us to store".
@@ -22066,7 +22248,7 @@ At the owner's direction, three changes:
     says when (`_DATED`: a month, a weekday, "ago", "at the time", a
     quarter) and does not say now. The writer's outcome note adds that an
     archived result is never the outcome asked for.
-- **One agents document.** `docs/PIPELINE_AGENTS.md` (§309) is folded into
+- **One agents document.** `docs/PIPELINE_AGENTS.md` (§311) is folded into
   `docs/FAM_AGENTS.md` - the pipeline as drawn, what is still to do, the
   ways to run an agent and how agents talk - and deleted.
 
@@ -22075,7 +22257,7 @@ not only what an episode used (`docs/FAM_AGENTS.md`, "Still to do in the
 pipeline"); and the owner's call on letting the archive answer an empty
 search alone (§308 adds it only beside web sources).
 
-## 312. The contextualizer, and guardrails for every agent (2026-10-26)
+## 314. The contextualizer, and guardrails for every agent (2026-10-26)
 
 At the owner's direction, `docs/FAM_AGENTS.md` gains a fourth agent and a
 closing section. Nothing is built.

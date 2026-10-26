@@ -666,6 +666,40 @@ adding an example over adding another rule. Nobody has written one yet, so the
 strongest available lever on the remaining problem is untouched — and unlike
 the rest of this list it needs taste rather than a key.
 
+<!-- rule:episode-quality -->
+**Episode quality is measured, by category, three ways** *(PROBLEMS.md §309,
+at the owner's direction: "properly categorize episode quality based on their
+category/subcategory in the tree ... information quality, story flow,
+information depth, repetition of information, the quality of the hook and
+storytelling ... real ways to measure the quality of these and act on
+them").* `episode_quality.py` keeps one row per written episode, written
+beside `category_audit.note` at every place a script is cached, and scores
+those six:
+
+* **in code, on every episode, for nothing** - proxies, said as proxies, each
+  with the sentences that cost it points;
+* **by a model grader, after the script, never in front of a listener** - a
+  stronger model than the writer, a described 1-5 scale, a quote from the
+  script behind every score or the score is dropped; `QUALITY_GRADE` is
+  `off` until the owner sets a budget (`ahead`, `all`), capped by
+  `QUALITY_GRADE_DAILY`, never on staging;
+* **by listening** - how far each account got (`/api/progress` carries the
+  episode id): an exit in the first twenty seconds is the hook's measure, 85%
+  heard the story's.
+
+What does not move: **a grade is not trusted until it agrees with the
+owner's own scores** (`CALIBRATION_MIN` episodes within one point), and until
+then it is shown, marked, and nothing ranks on it; **every measure is checked
+against listening** - one that does not predict how much was heard is
+reworded, not optimised; **an episode is placed against the tree as it is
+when the report is read** ([one-category]), rolls up into every ancestor,
+is not ranked below `QUALITY_MIN_EPISODES` (the page points to its nearest
+ancestor with enough), and is held to
+its own heading, never the whole product. `/admin`'s Episode quality page
+(beside Feedback since §310), `tools/quality_report.py`, and `write.py` / `tools/ei_eval.py --script` print
+the same measures. Nothing here changes what is written; it is how a change
+to the writer is judged.
+
 <!-- rule:trending-searches -->
 > **Current (PROBLEMS.md §192):** five are shown (`TREND_SHOWN`), in a smaller bubble, so all five fit on the screen.
 > **Current (PROBLEMS.md §190):** shown under the search page's two bubbles whenever the box is empty and nothing is attached (not only on focus), as one full-width bubble per search, and ranked by how many listeners searched the question in the last two hours (`TRENDING_SEARCHES_WINDOW`, distinct listeners, plays break ties) - a question nobody searched in that window is not offered. Still current episodes only, still cache-only.
@@ -793,7 +827,7 @@ the rest of this list it needs taste rather than a key.
 
 <!-- rule:two-packets -->
 **The writer reads two packets in one: today's search, and FAM's archive
-added into it** *(PROBLEMS.md §309, §311, at the owner's direction).* The
+added into it** *(PROBLEMS.md §311, §313, at the owner's direction).* The
 pipeline the owner drew: search → EI (contextualise: the category,
 subcategory and context of the search; write the inputs for every source)
 → the plugins (search ladder, live facts, forecast, local) for packet one,
@@ -806,8 +840,8 @@ two, *what came before* → consolidated for the writer → the writer.
 - **Packet two is `history_archive.py`** (§308): its recall runs beside the
   search and its facts are **added into the search results** as dated
   sources marked as earlier reporting from FAM's archive, so the writer has
-  as much material as there is. The `history.py` seam of §309 is retired.
-- **Sports and market data are kept and recalled** (§311): scores and prices
+  as much material as there is. The `history.py` seam of §311 is retired.
+- **Sports and market data are kept and recalled** (§313): scores and prices
   are the archive's most valuable material. Each cached episode's live
   provider data - a final result, a market state at its time, a player's
   report; never a game mid-play, a prediction market or the weather - is
