@@ -22126,3 +22126,54 @@ how long it is kept, and what deleting an account or a wipe does to it).
 Tests: `tests/test_episode_quality_309.py` (renamed from `_306`; the page
 inside /admin, the list to score, the origins, and one test per review fix
 above).
+
+## 318. The voice was up for three days and the app could not find it (2026-10-26)
+
+**What the owner saw:** from 10.23 every new episode ended in the apology,
+"down for days", and the question was whether RunPod is reliable enough.
+It was not RunPod. The pod (`ilx5zutqvcjw3d`) was RUNNING, its worker
+answered `/health` with `"ready":true` on the GPU, and a Render boot at 6:38
+on 10.26 reached it and voiced a word. What failed was the app *finding* it,
+through two broken rungs at once, with no alarm but the listener's apology:
+
+1. **Registration lapsed** (§306's finding, unchanged): the worker stopped
+   heartbeating at 3:44 PM on 10.23 and the pod's image is old enough to log
+   a failed beat at debug (its `/health` has no `registering` or
+   `sample_rate` field), so `regist` finds nothing in its log. From the pod
+   the app answers `401` to an unauthenticated POST, so the network and
+   `FAM_APP_URL` reach it; why the loop stopped is unknown until the pod
+   runs a current image.
+2. **The RunPod-API rung built an address that does not exist.** RunPod's v2
+   answer (§179, never verified against RunPod) named the pod with no
+   `runtime` and no `portMappings`, so `_pods_from` fell back to the
+   configured port behind the proxy - `https://<pod>-8002.proxy.runpod.net` -
+   while the pod exposes 8002 only over TCP (`213.173.105.20:30248`) and its
+   one http port is 8001. `_runpod_pods` returned that guess as soon as v2
+   answered, so v1 and GraphQL, which carry the ports, were never asked.
+3. **Render ran out of memory** six times between 10.21 and 10.26 ("used
+   over 4GB"); each restart drops every episode in flight. Separate from the
+   voice and still open.
+
+What changed:
+
+- `voice_control._runpod_pods`: an answer that names the pod but carries no
+  ports (`_without_ports`) is kept as a fallback and the next API is asked;
+  a note says so on `/api/health`. An answer with ports this deployment
+  declines (plain HTTP off) is complete and ends the walk, as before.
+- `voice_control.supervise_once` (the supervisor's beat): "no worker can
+  speak" is an **error** on /admin's error page under a new `voice` stage,
+  once an hour while it lasts and again the next time it starts; a worker
+  that used to register and has not inside the TTL (within a week) is a
+  **notice**, "registration lapsed" - even while a pinned address still
+  speaks, because it is the day the pod moves that it costs.
+  `registration_lapsed` is also on `/api/health`.
+- `voice_worker/register.announce`: a 3xx is not a registration. It was
+  counted as landed (only >= 400 failed), so a `FAM_APP_URL` that redirects
+  would fail silently forever; it now warns with the address it was sent to.
+
+Operational, done by hand on 10.26: `REMOTE_VOICE_URL=http://213.173.105.20:30248`
+on Render (plain HTTP was already allowed) so the pinned rung speaks while
+registration is fixed. It goes stale the day the pod restarts on a new
+port; delete it once `/api/health` shows a `registered` worker held.
+
+Tests: `tests/test_voice_alerts_318.py`.

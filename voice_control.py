@@ -190,6 +190,9 @@ class _State:
     # so "EXITED" is now unambiguously a fault rather than a clock.
     pod_notes: list = field(default_factory=list)
     last_error: str = ""
+    # kind -> when it was last put on /admin's error page, so a voice that
+    # stays down is reported once an hour rather than once a minute (§318).
+    alerted: dict = field(default_factory=dict)
 
 
 _state = _State()
@@ -414,14 +417,48 @@ async def _runpod_pods() -> list[Endpoint]:
     if not selector or not key:
         return []
     _state.pod_notes = []
+    fallback: list[Endpoint] = []
     for describe in (_pods_over_rest_v2, _pods_over_rest, _pods_over_graphql):
         body = await describe(key)
         if body is None:
             continue
         found = _pods_from(body, selector)
-        if found:
+        if found and not _without_ports(body, selector):
             return found
-    return []
+        if found:
+            # The pod is named but its answer carries no ports, so the only
+            # address buildable from it is a guessed proxy URL. On 10.23 that
+            # was the whole ladder for days (§318): the direct TCP address was
+            # one API version away. Keep the guess, and ask the next one.
+            _note(f"RunPod's {describe.__name__.replace('_pods_over_', '')} "
+                  f"answer lists pod {selector} with no ports, so no direct "
+                  "address could be built from it; asking the next API")
+            fallback = fallback or found
+    return fallback
+
+
+def _without_ports(body: Any, selector: str) -> bool:
+    """Whether every running pod matching `selector` came back with no ports.
+
+    Neither a runtime nor a TCP mapping: the answer said the pod exists and
+    nothing about how to reach it. A pod that publishes ports this deployment
+    declines to use (plain HTTP off) is not this - that answer is complete.
+    """
+    wanted = {part.strip().lower() for part in selector.split(",") if part.strip()}
+    matched = False
+    for pod in _pod_list(body):
+        if not isinstance(pod, dict):
+            continue
+        if (str(pod.get("id") or "").lower() not in wanted
+                and str(pod.get("name") or "").lower() not in wanted):
+            continue
+        status = str(pod.get("desiredStatus") or pod.get("status") or "").upper()
+        if status and status != "RUNNING":
+            continue
+        matched = True
+        if isinstance(pod.get("runtime"), dict) or _tcp_ports(pod):
+            return False
+    return matched
 
 
 #: Pages of `GET /v2/pods` read before giving up. An account with more pods
@@ -1135,15 +1172,93 @@ async def supervise_forever() -> None:
     """
     interval = max(15.0, float(settings.voice_supervise_seconds))
     while True:
-        try:
-            await current(force=True)
-        except VoiceControlError as exc:
-            log.warning("voice supervisor: %s", exc)
-        except asyncio.CancelledError:  # pragma: no cover - shutdown
-            raise
-        except Exception:  # pragma: no cover - must never end the loop
-            log.exception("voice supervisor hit an unexpected error")
+        await supervise_once()
         await asyncio.sleep(interval)
+
+
+#: How often a fault that has not cleared is put on /admin again.
+ALERT_EVERY_SECONDS = 3600.0
+#: A registration older than this is history, not a lapse worth reporting.
+LAPSE_WINDOW_SECONDS = 7 * 86400.0
+
+
+async def supervise_once() -> None:
+    """One supervisor beat: re-verify, and say on /admin what is wrong.
+
+    The log said "no voice worker can speak" every minute from 10.23 and
+    nobody reads a log; the listener's apology was the alarm (§318). So a
+    voice nobody can reach, and a worker that has stopped registering, are
+    both rows on the admin error page - the second even while a pinned
+    address still speaks, because it is the day the pod moves that it costs.
+    """
+    try:
+        await current(force=True)
+        _state.alerted.pop("no worker can speak", None)
+    except VoiceControlError as exc:
+        log.warning("voice supervisor: %s", exc)
+        _alert("no worker can speak", str(exc), "error")
+    except asyncio.CancelledError:  # pragma: no cover - shutdown
+        raise
+    except Exception:  # pragma: no cover - must never end the loop
+        log.exception("voice supervisor hit an unexpected error")
+    lapse = registration_lapse()
+    if lapse:
+        _alert("registration lapsed", lapse, "notice")
+    else:
+        _state.alerted.pop("registration lapsed", None)
+
+
+def _alert(kind: str, detail: str, severity: str) -> None:
+    """Put a voice fault on /admin, at most once an hour while it lasts."""
+    now = time.time()
+    if now - _state.alerted.get(kind, 0.0) < ALERT_EVERY_SECONDS:
+        return
+    _state.alerted[kind] = now
+    try:
+        import pipeline_errors
+
+        pipeline_errors.record("voice", kind, detail, severity=severity)
+    except Exception as exc:  # pragma: no cover - reporting never costs the loop
+        log.warning("could not record a voice fault: %s", exc)
+
+
+def registration_lapse(at: float = 0.0) -> str:
+    """A sentence when a worker used to register and has stopped, else "".
+
+    Registration is what makes a moved pod findable without anybody editing
+    anything; when it lapses the voice can keep working on another rung
+    while that guarantee is quietly gone. Never raises.
+    """
+    if not registration_enabled() or not discovery_enabled():
+        return ""
+    now = at or time.time()
+    try:
+        import voice_registry
+
+        store = voice_registry.registry()
+        if store.live(ttl=settings.voice_registry_ttl, at=now):
+            return ""
+        rows = store.all()
+    except Exception:  # pragma: no cover - a store that will not open
+        return ""
+    if not rows:
+        return ""
+    newest = rows[0]
+    age = now - float(newest.last_seen or 0.0)
+    if age > LAPSE_WINDOW_SECONDS:
+        return ""
+    return (f"the worker at {newest.url} last registered {_ago(age)} ago and "
+            "has not since, so a pod that moves will not be found until it "
+            "does. On the pod: check FAM_APP_URL and VOICE_REGISTRY_TOKEN, "
+            "and its log for 'registration'.")
+
+
+def _ago(seconds: float) -> str:
+    if seconds < 3600:
+        return f"{max(1, round(seconds / 60))} min"
+    if seconds < 86400:
+        return f"{seconds / 3600:.1f} h"
+    return f"{seconds / 86400:.1f} days"
 
 
 # -- reporting -------------------------------------------------------------
@@ -1178,6 +1293,9 @@ def report() -> dict:
                                  if _state.verified_at else None),
         "switches": list(_state.switches),
         "pods": list(_state.pod_notes),
+        # A worker that used to register and has stopped (§318): the voice
+        # may still speak on another rung, but a moved pod will not be found.
+        "registration_lapsed": registration_lapse() or None,
         "error": _state.last_error or None,
     }
 

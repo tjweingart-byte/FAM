@@ -20,7 +20,10 @@ was where somebody looks first. Five timeouts in eleven briefs (§268) sat in
   sentence before it was spoken (score, figure, opening);
 * ``edition`` - an edition episode (Trending, DailyFAM) could not be written;
 * ``episode`` - a listener's episode failed before any audio, came back with
-  no speech, lost its voice, broke mid-stream, or the voice fell behind.
+  no speech, lost its voice, broke mid-stream, or the voice fell behind;
+* ``voice`` - the supervisor found no worker that can speak, or a worker that
+  used to register itself has stopped (§318), whether or not anybody asked
+  for an episode while it was so.
 
 `severity` is ``error`` (somebody heard less than they should have, or
 nothing) or ``notice`` (a guard did its job, or something degraded and the
@@ -60,7 +63,7 @@ RECENT = 60
 #: this many, and the page says so (`steps_capped`).
 STEPS_READ = 50_000
 
-STAGES = ("brief", "live", "research", "writer", "edition", "episode")
+STAGES = ("brief", "live", "research", "writer", "edition", "episode", "voice")
 ERROR = "error"
 NOTICE = "notice"
 
@@ -666,6 +669,29 @@ EXPLAIN = (
          "The listener heard part of the episode.",
          "The voice worker or the network dropped mid-episode.",
          "Check the voice worker if it repeats.")),
+    ("voice", r"^no worker can speak",
+     _ex("No voice worker can speak",
+         "The once-a-minute check found no voice worker it could reach. "
+         "Reported once an hour while it lasts.",
+         "Every new episode fails with the apology until it is fixed; kept "
+         "audio still plays.",
+         "The pod moved and nothing told the app its new address, the pod "
+         "or its worker stopped, or the address in REMOTE_VOICE_URL is stale.",
+         "Read the detail: it names every address tried and why each failed. "
+         "Then check the pod on RunPod (Connect tab for its direct address) "
+         "and /api/health.")),
+    ("voice", r"^registration lapsed",
+     _ex("The voice worker stopped registering",
+         "The worker used to tell the app where it is every minute and has "
+         "stopped. Reported once an hour while it lasts.",
+         "Nothing yet, if another address still works. The day the pod moves "
+         "or restarts, nobody can find it and every episode fails.",
+         "FAM_APP_URL or VOICE_REGISTRY_TOKEN wrong on the pod, the app "
+         "unreachable from it, or a worker image old enough to hide the "
+         "reason (before §306).",
+         "On the pod: check those two settings, search its log for "
+         "'registration', and rebuild it from Dockerfile.voice if its "
+         "/health has no 'registering' field.")),
     ("episode", r"^voice fell behind",
      _ex("The voice fell behind",
          "The voice made audio slower than it was played, so the listener "
