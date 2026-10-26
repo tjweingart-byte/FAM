@@ -6,8 +6,9 @@ Pinned here:
   that cost the points;
 * every written episode is kept with its measures, where its script is
   cached, and a listener's furthest point heard is kept beside it;
-* the report rolls a node's episodes up the tree, borrows for thin nodes,
-  holds each node to its own heading and sorts by what weak writing costs;
+* the report rolls a node's episodes up the tree, points a thin node to its
+  nearest ancestor with enough, holds each node to its own heading and
+  sorts by what weak writing costs;
 * a grade counts only once it agrees with the owner's own scores, and a
   grade with no quote from the script is thrown away;
 * grading is off by default, never on staging, and capped per day;
@@ -21,6 +22,8 @@ import hashlib
 import json
 import os
 import sys
+import time
+from contextlib import closing
 import types
 
 import pytest
@@ -243,7 +246,7 @@ def test_a_node_rolls_up_into_every_ancestor(monkeypatch):
     assert by["nba"]["worst"][0]["episode"].split(".")[0] in (K("nba-0"), K("nba-1"))
 
 
-def test_a_thin_node_borrows_and_an_unplaced_episode_is_said_so(monkeypatch):
+def test_a_thin_node_is_not_ranked_and_an_unplaced_episode_is_said_so(monkeypatch):
     tune(monkeypatch, quality_min_episodes=3)
     _write(3, "nfl", GOOD)
     _write(1, "nba", GOOD)
@@ -546,3 +549,122 @@ def test_the_admin_lists_the_episodes_to_score(client):
     assert [e["episode"] for e in body["episodes"]] == [f"{key}.1000"]
     assert body["episodes"][0]["origin"] == "prefetch"
     assert body["episodes"][0]["graded"] is False
+
+
+# --- review fixes before the merge (§310) ---------------------------------------
+
+
+def test_a_burst_of_grades_stays_under_the_ceiling(monkeypatch):
+    """An edition finishing many episodes at once: each grade holds its place
+    under the ceiling before the model is asked, so none overshoots."""
+    tune(monkeypatch, quality_grade_daily=2)
+    _write(6, "nfl", GOOD)
+    calls = []
+
+    async def slow_grade(client, query, minutes, structure, evidence, sentences):
+        calls.append(query)
+        await asyncio.sleep(0.01)
+        return ({m: {"score": 4, "quote": GOOD[0], "reason": "r"} for m in Q.METRICS}
+                | {"unsupported_claims": []}, "m", 0.01, "")
+
+    monkeypatch.setattr(Q, "grade_script", slow_grade)
+
+    async def burst():
+        return await asyncio.gather(*[
+            Q.grade_stored(None, K(f"nfl-{i}"), 1000 + i) for i in range(6)])
+
+    done = [g for g in asyncio.run(burst()) if g]
+    assert len(calls) == 2 and len(done) == 2
+
+
+def test_a_paid_failure_counts_and_is_not_asked_again(monkeypatch):
+    _write(1, "nfl", GOOD)
+
+    async def stopped(client, query, minutes, structure, evidence, sentences):
+        return None, "m", 0.02, "the grader stopped: max_tokens"
+
+    monkeypatch.setattr(Q, "grade_script", stopped)
+    assert asyncio.run(Q.grade_stored(None, K("nfl-0"), 1000)) is None
+    row = Q.store().get(K("nfl-0"), 1000)
+    assert json.loads(row["grade"]) == {"failed": "the grader stopped: max_tokens"}
+    assert Q.store().graded_since(0) == 1
+    assert Q.store().spent_since(0) == pytest.approx(0.02)
+    assert Q.store().pending(10) == []
+    nfl = {n["node"]: n for n in _report()["nodes"]}["nfl"]
+    assert nfl["scores"]["hook"]["grade"] is None
+
+
+def test_a_grade_of_old_text_is_not_kept_on_new_text(monkeypatch):
+    _write(1, "nfl", GOOD)
+
+    async def rewritten_meanwhile(client, query, minutes, structure, evidence,
+                                  sentences):
+        Q.note(K("nfl-0"), 1000, "eagles", 1, "search",
+               ["A different script entirely, rewritten on Sunday."], _notes())
+        return ({m: {"score": 5, "quote": GOOD[0], "reason": "r"} for m in Q.METRICS}
+                | {"unsupported_claims": []}, "m", 0.01, "")
+
+    monkeypatch.setattr(Q, "grade_script", rewritten_meanwhile)
+    asyncio.run(Q.grade_stored(None, K("nfl-0"), 1000))
+    assert Q.store().get(K("nfl-0"), 1000)["grade"] == ""
+
+
+def test_the_owners_scores_go_when_the_text_changes():
+    Q.note(K1, 1000, "eagles", 1, "search", GOOD, _notes())
+    assert Q.label(f"{K1}.1000", "hook", 4)
+    Q.note(K1, 1000, "eagles", 1, "search", GOOD, _notes())     # same text
+    assert len(Q.store().labels()) == 1
+    Q.note(K1, 1000, "eagles", 1, "search", GOOD[:2], _notes())  # new text
+    assert Q.store().labels() == []
+
+
+def test_the_grader_is_trusted_whatever_window_is_shown(monkeypatch):
+    """Twenty agreeing scores spread over two months trust the grader in
+    the seven-day view too."""
+    monkeypatch.setattr(Q, "CALIBRATION_MIN", 2)
+    store = Q.store()
+    old = time.time() - 40 * Q.DAY
+    for i in range(2):
+        Q.note(K(f"old-{i}"), 1, "eagles", 1, "search", GOOD, _notes())
+        with closing(store._connect()) as db:
+            db.execute("UPDATE episodes SET at = ? WHERE key = ?",
+                       (old, K(f"old-{i}")))
+        store.set_grade(K(f"old-{i}"), 1, {"hook": {"score": 3, "quote": GOOD[0],
+                                                     "reason": ""}}, "m", 0.0)
+        assert Q.label(f"{K(f'old-{i}')}.1", "hook", 3)
+    week = _report(days=7)
+    assert week["calibration"]["hook"]["trusted"] is True
+
+
+def test_a_failed_record_is_on_the_errors_page(monkeypatch):
+    import pipeline_errors
+
+    seen = []
+    monkeypatch.setattr(pipeline_errors, "record", lambda *a, **k: seen.append(a))
+    monkeypatch.setattr(Q.QualityStore, "record",
+                        lambda self, row, now=None: (_ for _ in ()).throw(OSError("disk")))
+    Q.note(K1, 1000, "eagles", 1, "search", GOOD, _notes())   # never raises
+    assert seen and seen[0][1] == "quality record failed"
+
+
+def test_one_bad_score_saves_none(client):
+    key = K("label-all-or-none")
+    Q.note(key, 1000, "eagles", 1, "search", GOOD, _notes())
+    r = client.post("/api/admin/quality/label", headers=ADMIN,
+                    json={"episode": f"{key}.1000",
+                          "scores": {"hook": 3, "not-a-metric": 2}})
+    assert r.status_code == 422
+    assert Q.store().labels() == []
+
+
+def test_the_end_of_an_episode_is_heard_to_its_end():
+    """The app sends the whole length when an episode ends (0 left the
+    quality record at the last fifteen-second tick), sends the position at
+    once when the app is hidden, and keeps the request alive as it closes."""
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    page = open(os.path.join(root, "static", "index.html"), encoding="utf-8").read()
+    end = page[page.index("onEnd: function(){"):][:900]
+    assert "Math.round(FamAudio.duration() || 0) : 0" in end
+    resume = page[page.index("function noteResume("):][:3200]
+    assert "keepalive: true" in resume and "episode: episode" in resume
+    assert 'document.visibilityState !== "hidden"' in page

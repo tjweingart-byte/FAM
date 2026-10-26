@@ -10666,11 +10666,13 @@ async def admin_quality_label(req: QualityLabels, request: Request) -> dict:
     """The owner's own scores for one episode (§309). A grade only counts
     toward a node's standing once it agrees with these."""
     _require_admin(request)
-    kept = 0
+    # Every score is checked before any is kept: one bad entry saves nothing.
     for metric, score in req.scores.items():
         if metric not in episode_quality.METRICS or not 1 <= int(score) <= 5:
             raise HTTPException(status_code=422,
                                 detail=f"{metric}: a metric scored 1 to 5")
+    kept = 0
+    for metric, score in req.scores.items():
         if await asyncio.to_thread(episode_quality.label, req.episode, metric,
                                    int(score), "owner"):
             kept += 1

@@ -36,7 +36,8 @@ predict finishing is a metric to reword, not a number to optimise.
 report is read* - the rule `app._episode_category` keeps - so a tree that
 grows later still places an older episode. Every node's score is its own
 episodes plus everything beneath it; a node with fewer than
-`QUALITY_MIN_EPISODES` borrows its parent's; and a node is compared with its
+`QUALITY_MIN_EPISODES` is not ranked, and points to the nearest ancestor that
+has enough; and a node is compared with its
 own heading, never the whole product, because a sports recap and a health
 explainer will never flow alike. `report` sorts by episodes times shortfall:
 where weak writing costs the most listening comes first.
@@ -87,6 +88,8 @@ KEEP_DAYS = 180
 #: The evidence an episode was written from is kept only until it is graded,
 #: or this long: it is the largest thing in a row and only the grader reads it.
 EVIDENCE_DAYS = 14
+#: Old rows are pruned at most this often, never on every write.
+PRUNE_SECONDS = 3600.0
 #: What of the evidence the grader is shown. A five-minute packet is ~36 KB.
 EVIDENCE_CHARS = 40_000
 
@@ -341,6 +344,7 @@ class QualityStore:
     def __init__(self, path: Optional[str] = None) -> None:
         self.path = data_path("EPISODE_QUALITY_DB", "episode_quality.db", path)
         self._lock = threading.Lock()
+        self._pruned_at = 0.0
         with closing(self._connect()) as db:
             db.execute("""CREATE TABLE IF NOT EXISTS episodes (
                               key           TEXT NOT NULL,
@@ -375,6 +379,7 @@ class QualityStore:
                               at       REAL NOT NULL,
                               PRIMARY KEY (key, sourced, listener))""")
             db.execute("CREATE INDEX IF NOT EXISTS listens_key ON listens (key)")
+            db.execute("CREATE INDEX IF NOT EXISTS listens_at ON listens (at)")
             db.execute("""CREATE TABLE IF NOT EXISTS labels (
                               key     TEXT NOT NULL,
                               sourced INTEGER NOT NULL,
@@ -402,7 +407,14 @@ class QualityStore:
                    "words", "word_budget", "sentences", "evidence", "measures")
         with self._lock, closing(self._connect()) as db:
             # A re-written key under the same sourced stamp is the same
-            # episode written again: the newer text is the one heard.
+            # episode written again: the newer text is the one heard, and
+            # the owner's scores of the old text no longer describe it.
+            before = db.execute("SELECT sentences FROM episodes WHERE key = ? "
+                                "AND sourced = ?",
+                                (row.get("key"), row.get("sourced"))).fetchone()
+            if before is not None and before[0] != row.get("sentences"):
+                db.execute("DELETE FROM labels WHERE key = ? AND sourced = ?",
+                           (row.get("key"), row.get("sourced")))
             db.execute(
                 f"INSERT INTO episodes ({', '.join(columns)}) VALUES "
                 f"({', '.join('?' for _ in columns)}) "
@@ -411,12 +423,16 @@ class QualityStore:
                 + ", grade = '', grade_model = '', grade_dollars = 0, "
                 "graded_at = 0",
                 tuple(row.get(c) for c in columns))
-            db.execute("DELETE FROM episodes WHERE at < ?",
-                       (now - KEEP_DAYS * DAY,))
-            db.execute("UPDATE episodes SET evidence = '' WHERE evidence != '' "
-                       "AND at < ?", (now - EVIDENCE_DAYS * DAY,))
-            db.execute("DELETE FROM listens WHERE at < ?",
-                       (now - KEEP_DAYS * DAY,))
+            # Pruning is at most hourly: this runs where a script is cached,
+            # beside a listener's stream, and must stay one quick write.
+            if now - self._pruned_at >= PRUNE_SECONDS:
+                self._pruned_at = now
+                db.execute("DELETE FROM episodes WHERE at < ?",
+                           (now - KEEP_DAYS * DAY,))
+                db.execute("UPDATE episodes SET evidence = '' WHERE evidence != '' "
+                           "AND at < ?", (now - EVIDENCE_DAYS * DAY,))
+                db.execute("DELETE FROM listens WHERE at < ?",
+                           (now - KEEP_DAYS * DAY,))
 
     def get(self, key: str, sourced: int) -> Optional[dict]:
         rows = self._rows("SELECT * FROM episodes WHERE key = ? AND sourced = ?",
@@ -424,15 +440,23 @@ class QualityStore:
         return rows[0] if rows else None
 
     def set_grade(self, key: str, sourced: int, grade: dict, model: str,
-                  dollars: float, now: Optional[float] = None) -> None:
+                  dollars: float, now: Optional[float] = None,
+                  sentences: Optional[str] = None) -> None:
+        """Keep a grade - only on the text it read, when `sentences` (the
+        stored JSON that was graded) is given: an episode re-written while
+        it was being graded keeps no grade of the old text."""
         now = time.time() if now is None else now
         with self._lock, closing(self._connect()) as db:
             # The evidence has done its only job once graded.
-            db.execute("UPDATE episodes SET grade = ?, grade_model = ?, "
-                       "grade_dollars = ?, graded_at = ?, evidence = '' "
-                       "WHERE key = ? AND sourced = ?",
-                       (json.dumps(grade), model, float(dollars or 0), now,
-                        key, int(sourced)))
+            sql = ("UPDATE episodes SET grade = ?, grade_model = ?, "
+                   "grade_dollars = ?, graded_at = ?, evidence = '' "
+                   "WHERE key = ? AND sourced = ?")
+            args = [json.dumps(grade), model, float(dollars or 0), now, key,
+                    int(sourced)]
+            if sentences is not None:
+                sql += " AND sentences = ?"
+                args.append(sentences)
+            db.execute(sql, tuple(args))
 
     def pending(self, limit: int = 20, origins: Optional[Iterable] = None) -> list:
         """Ungraded episodes, newest first."""
@@ -497,6 +521,13 @@ class QualityStore:
                 "at = excluded.at",
                 (key, int(sourced), metric, int(score), by_whom, now))
 
+    def labelled_grades(self) -> list:
+        """Every episode the owner has scored, with its grade: what the
+        grader is calibrated on, whatever window the report shows."""
+        return self._rows("SELECT e.key, e.sourced, e.grade FROM episodes e "
+                          "WHERE EXISTS (SELECT 1 FROM labels l WHERE l.key = "
+                          "e.key AND l.sourced = e.sourced)")
+
     def unlabelled(self, limit: int = 20, origins: Optional[Iterable] = None) -> list:
         """Episodes the owner has not scored yet, newest first - the list a
         person works through so the grader can be checked (§310)."""
@@ -547,6 +578,8 @@ def reset(quality_store: Optional[QualityStore] = None) -> None:
     with _STORE_LOCK:
         _STORE = quality_store
     _PROMPT_VERSION.clear()
+    _IN_FLIGHT.clear()
+    _ONE_AT_A_TIME.clear()
 
 
 def exists() -> bool:
@@ -613,8 +646,16 @@ def note(key: str, sourced, query: str, minutes: int, origin: str,
             "measures": json.dumps(measures),
         })
         _grade_soon(key, sourced, origin)
-    except Exception:  # noqa: BLE001 - a measurement never costs an episode
+    except Exception as exc:  # noqa: BLE001 - a measurement never costs an episode
         log.exception("could not keep the quality of %r", query)
+        try:
+            import pipeline_errors
+
+            pipeline_errors.record("episode", "quality record failed",
+                                   f"{type(exc).__name__}: {exc}", query,
+                                   pipeline_errors.NOTICE)
+        except Exception:  # noqa: BLE001
+            pass
 
 
 def note_listen(episode: str, listener: str, seconds: float, duration: float,
@@ -840,29 +881,54 @@ def may_grade(origin: str) -> bool:
     return mode == "all" or origin in AHEAD_ORIGINS
 
 
+#: Grades being asked for right now, by `(key, sourced)`: each holds a place
+#: under the daily ceiling until it is kept, so a burst - an edition
+#: finishing dozens of episodes at once - cannot each pass the check before
+#: any is counted, and one episode is never graded twice at once.
+_IN_FLIGHT: set = set()
+_RESERVE = threading.Lock()
+
+
 async def grade_stored(client, key: str, sourced: int,
                        now: Optional[float] = None) -> Optional[dict]:
     """Grade one kept episode and keep the grade, inside the daily ceiling.
-    The failure is on /admin's errors ([failures-visible])."""
+
+    A grade that failed after the model answered was still paid for: it is
+    kept as `{"failed": why}`, so it counts against the ceiling and the
+    day's spend and is not asked for again. The failure is on /admin's
+    errors ([failures-visible])."""
     now = time.time() if now is None else now
     quality = store()
-    if quality.graded_since(now - DAY) >= settings.quality_grade_daily:
-        return None
     row = quality.get(key, sourced)
     if row is None or row.get("grade"):
         return None
-    sentences = json.loads(row.get("sentences") or "[]")
-    grade, model, dollars, failed = await grade_script(
-        client, row["query"], row["minutes"], row["structure"],
-        row.get("evidence") or "", sentences)
-    if grade is None:
-        import pipeline_errors
+    with _RESERVE:
+        if (key, int(sourced)) in _IN_FLIGHT:
+            return None
+        if (quality.graded_since(now - DAY) + len(_IN_FLIGHT)
+                >= settings.quality_grade_daily):
+            return None
+        _IN_FLIGHT.add((key, int(sourced)))
+    try:
+        sentences = json.loads(row.get("sentences") or "[]")
+        grade, model, dollars, failed = await grade_script(
+            client, row["query"], row["minutes"], row["structure"],
+            row.get("evidence") or "", sentences)
+        if grade is None:
+            import pipeline_errors
 
-        pipeline_errors.record("episode", "quality grade failed", failed,
-                               row["query"], pipeline_errors.NOTICE)
-        return None
-    quality.set_grade(key, sourced, grade, model, dollars, now)
-    return grade
+            pipeline_errors.record("episode", "quality grade failed", failed,
+                                   row["query"], pipeline_errors.NOTICE)
+            if dollars:
+                quality.set_grade(key, sourced, {"failed": failed[:200]}, model,
+                                  dollars, now, row.get("sentences"))
+            return None
+        quality.set_grade(key, sourced, grade, model, dollars, now,
+                          row.get("sentences"))
+        return grade
+    finally:
+        with _RESERVE:
+            _IN_FLIGHT.discard((key, int(sourced)))
 
 
 async def grade_pending(client, limit: int = 20,
@@ -904,9 +970,18 @@ def _grade_soon(key: str, sourced: int, origin: str) -> None:
     task.add_done_callback(_TASKS.discard)
 
 
+#: One background grade at a time: grading shares the listeners' API key
+#: and must never compete with an episode somebody is waiting for.
+#: Per event loop: a semaphore belongs to the loop it was first used on.
+_ONE_AT_A_TIME: dict = {}
+
+
 async def _grade_quietly(key: str, sourced: int) -> None:
+    gate = _ONE_AT_A_TIME.setdefault(id(asyncio.get_running_loop()),
+                                     asyncio.Semaphore(1))
     try:
-        await grade_stored(_client(), key, sourced)
+        async with gate:
+            await grade_stored(_client(), key, sourced)
     except asyncio.CancelledError:
         raise
     except Exception:  # noqa: BLE001 - a grade never costs anything else
@@ -1063,7 +1138,10 @@ def report(days: float = 30.0, now: Optional[float] = None,
 
     rows = quality.episodes_since(now - days * DAY)
     labels = quality.labels()
-    trusted = {m: c["trusted"] for m, c in calibration(rows, labels).items()}
+    # Calibration is the grader's standing, not the window's: every episode
+    # the owner scored counts, whatever days the report covers.
+    calibrated = calibration(quality.labelled_grades(), labels)
+    trusted = {m: c["trusted"] for m, c in calibrated.items()}
     listening = _listening(quality.listens_for(r["key"] for r in rows), rows)
 
     placed: dict = {}
@@ -1173,8 +1251,9 @@ def report(days: float = 30.0, now: Optional[float] = None,
 
     by_node = {n["node"]: n for n in out_nodes}
     for item in out_nodes:
-        # A node with too few episodes borrows the nearest ancestor that has
-        # enough; every node is held to its own heading's standard.
+        # A node with too few episodes is not ranked; it names the nearest
+        # ancestor that has enough. Every node is held to its own heading's
+        # standard.
         borrowed = ""
         if not item["enough"]:
             for up in reversed(item["path"][:-1]):
@@ -1195,7 +1274,7 @@ def report(days: float = 30.0, now: Optional[float] = None,
 
     return {"episodes": len(episodes), "days": days, "nodes": out_nodes,
             "metrics": list(METRICS), "labels": LABELS,
-            "calibration": calibration(rows, labels),
+            "calibration": calibrated,
             "validity": validity(episodes),
             "grading": grading_report(quality, now),
             "prompts": _count(r["prompt"] for r in rows),

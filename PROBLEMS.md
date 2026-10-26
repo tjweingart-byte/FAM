@@ -22084,5 +22084,45 @@ Checked with a browser against a running server before the removal (the page
 and an episode opened for scoring, desktop and phone); the removal took
 sections off that page, not into it.
 
+**Reviewed before the merge** (the owner, 10.26: "double check all changes
+made in this branch, and get the branch ready to merge into main"). An
+independent review of the whole diff and a pass of my own; every confirmed
+finding is fixed:
+
+- *A private search was kept for 180 days.* It is cached with origin
+  `private`, and the quality hook kept its question, script and evidence -
+  readable on /admin, gradeable with `QUALITY_GRADE=all`. The history archive
+  refuses that origin; now so does this ([private-search]).
+- *The daily grading ceiling did not hold.* It was checked before the model
+  was asked and counted only after, so an edition finishing dozens of
+  episodes sent every one; a paid failure was never counted or recorded and
+  was asked again on every `--grade`. Each grade now holds its place under
+  the ceiling before the call, background grades run one at a time (they
+  share the listeners' key), a billed failure is kept as `{"failed": ...}`
+  and counted in the day's spend, and one episode is never graded twice at
+  once.
+- *Listening was measured short.* The app sent position 0 when an episode
+  ended (the "finished" signal for the resume card) and the record keeps the
+  furthest point, so a fully heard one-minute episode read as unfinished; a
+  listener who closed the app at 25 s could read as one who left in the first
+  20. It now sends the whole length at the end (the resume card clears
+  either way), sends the position at once when the app is hidden mid-play,
+  and keeps the request alive as the page closes.
+- *Calibration moved with the report's window.* It counted only scored
+  episodes inside the days shown; it now counts every one.
+- *Recording an episode pruned on every write*, beside the listener's
+  stream, with no index on the listens' clock: pruning is at most hourly and
+  indexed, so a record is one quick write.
+- Smaller: one bad score in a save no longer keeps the others; the owner's
+  scores go when an episode's text is rewritten; a grade is kept only on the
+  text it read; a failed record is a notice on /admin's errors; a sentence's
+  flags on the episode view match whatever its spacing; and "borrows its
+  parent's scores" said more than the code does - a thin node is not
+  ranked, and the page points to its nearest heading with enough.
+
+The store is also listed in `docs/DATA.md` (what it holds, who it is about,
+how long it is kept, and what deleting an account or a wipe does to it).
+
 Tests: `tests/test_episode_quality_309.py` (renamed from `_306`; the page
-inside /admin, the list to score, the origins).
+inside /admin, the list to score, the origins, and one test per review fix
+above).

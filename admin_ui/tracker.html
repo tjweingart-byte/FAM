@@ -1246,7 +1246,7 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
         + '<td style="padding-left:' + pad + 'px">' + esc(n.label)
         + (qOrder === "tree" ? '' : ' <span class="q-tag">' + esc(n.path.slice(0, -1).join(" › ")) + '</span>')
         + (n.shared_opener ? ' <span class="q-tag q-warn" title="episodes opening with the same four words">same opening ×' + n.shared_opener + '</span>' : '')
-        + (n.borrowed_from ? ' <span class="q-tag">borrows ' + esc(n.borrowed_from) + '</span>' : '')
+        + (n.borrowed_from ? ' <span class="q-tag" title="too few episodes to rank; its nearest heading with enough">see ' + esc(n.borrowed_from) + '</span>' : '')
         + '</td><td class="n">' + n.episodes + '</td><td>' + qScore(n.overall) + '</td><td class="n">'
         + (n.shortfall == null ? "-" : (n.shortfall > 0 ? "−" : "+") + Math.abs(n.shortfall).toFixed(2)) + '</td>'
         + cells + '<td class="n">' + n.listens + '</td><td class="n">' + qPct(n.early_exit)
@@ -1295,16 +1295,20 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
   }
   function showQualityEpisode(id) {
     api("/api/admin/quality/episode?episode=" + encodeURIComponent(id)).then(function (e) {
+      // The measures hold each sentence with its spacing collapsed, so the
+      // script's sentences are compared the same way.
+      var squash = function (s) { return String(s || "").replace(/\s+/g, " ").trim(); };
       var checks = (e.measures || {}).checks || {}, flagged = {};
       ["repeats", "additive_joins", "signposts", "no_particular"].forEach(function (k) {
-        (checks[k] || []).forEach(function (s) { flagged[s] = k.replace("_", " "); });
+        (checks[k] || []).forEach(function (s) { flagged[squash(s)] = k.replace("_", " "); });
       });
       var labels = (qData && qData.labels) || {};
       var html = '<div class="eyebrow">' + esc(e.origin || "tap") + ' · ' + e.minutes + ' min · '
         + esc(e.structure || "no shape") + ' · ' + esc(e.category || "no category") + ' · ' + esc(e.writer_model) + '</div>'
         + '<h2>' + esc(e.title || e.query) + '</h2><p class="sub">Asked: ' + esc(e.query) + '</p>'
         + '<ol>' + e.sentences.map(function (s) {
-            return '<li' + (flagged[s] ? ' class="q-flag" title="' + esc(flagged[s]) + '"' : '') + '>' + esc(s) + '</li>';
+            var why = flagged[squash(s)];
+            return '<li' + (why ? ' class="q-flag" title="' + esc(why) + '"' : '') + '>' + esc(s) + '</li>';
           }).join("") + '</ol>';
       if ((checks.unsupported_names || []).length)
         html += '<p class="sub" style="color:var(--rose)">Names not in the evidence: ' + esc(checks.unsupported_names.join(", ")) + '</p>';

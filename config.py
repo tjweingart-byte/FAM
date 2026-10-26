@@ -593,7 +593,8 @@ class Settings:
         default_factory=lambda: os.environ.get("QUALITY_GRADER_EFFORT", "medium"))
     # A ceiling on grades per day, so a busy day cannot become a bill.
     quality_grade_daily: int = _env_int("QUALITY_GRADE_DAILY", 200)
-    # Fewer episodes than this and a node borrows its parent's scores.
+    # Fewer episodes than this and a node is not ranked; the page points to
+    # its nearest ancestor that has enough.
     quality_min_episodes: int = _env_int("QUALITY_MIN_EPISODES", 5)
     # **The evidence cut to what the episode can use** (§270,
     # `evidence_digest.py`): Haiku with thinking off picks which of the

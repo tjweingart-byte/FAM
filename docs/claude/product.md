@@ -693,7 +693,8 @@ then it is shown, marked, and nothing ranks on it; **every measure is checked
 against listening** - one that does not predict how much was heard is
 reworded, not optimised; **an episode is placed against the tree as it is
 when the report is read** ([one-category]), rolls up into every ancestor,
-borrows its parent's standing below `QUALITY_MIN_EPISODES`, and is held to
+is not ranked below `QUALITY_MIN_EPISODES` (the page points to its nearest
+ancestor with enough), and is held to
 its own heading, never the whole product. `/admin`'s Episode quality page
 (beside Feedback since §310), `tools/quality_report.py`, and `write.py` / `tools/ei_eval.py --script` print
 the same measures. Nothing here changes what is written; it is how a change

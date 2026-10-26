@@ -9599,7 +9599,13 @@
         // doing that here raced this clear: an episode that ran under its
         // planned length could be saved as part-heard (§127).
         pendingResumeSeek = null;
-        noteResume(title, minutes, 0, "", true);
+        // The whole length, not 0: the resume card is cleared either way (a
+        // position in the last half-minute counts as finished), and the
+        // quality record keeps the furthest point heard, so 0 left it at the
+        // last fifteen-second tick - short of finished on a one-minute
+        // episode (PROBLEMS.md §310).
+        noteResume(title, minutes, FamAudio.isComplete()
+                   ? Math.round(FamAudio.duration() || 0) : 0, "", true);
         hideNowBar();
         setPlayState(false);
         reportOutcomeIfHeard = null;
@@ -14209,12 +14215,25 @@
     var episode = onPlayer ? String(FamAudio.episode() || "").slice(0, 80) : "";
     fetch("/api/progress", {
       method: "POST", headers: {"Content-Type": "application/json"},
+      // Delivered even as the page goes away (below), so the last position
+      // is not lost with the tab.
+      keepalive: true,
       body: JSON.stringify({ query: query, minutes: minutes,
                              seconds: Math.max(0, Math.round(seconds || 0)),
                              title: title || "", context: context,
                              duration: duration, episode: episode })
     }).catch(function(){ /* a lost position costs a card, never playback */ });
   }
+
+  // Leaving the app mid-episode sends where it was at once, rather than the
+  // last fifteen-second tick: a listener who closes it at 25s must not read
+  // as one who left in the first twenty (PROBLEMS.md §310).
+  document.addEventListener("visibilitychange", function(){
+    if(document.visibilityState !== "hidden" || !nowBarState || pendingResumeSeek) return;
+    if(!isPlaying) return;
+    noteResume(nowBarState.query, nowBarState.minutes, FamAudio.position(),
+               nowBarState.title, true);
+  });
 
   // ---------------- sources ----------------
   // Where this episode's facts came from. Fetched after the audio starts, not
