@@ -982,6 +982,32 @@ def watching(rows: list, now: float) -> bool:
     return False
 
 
+def _keep_finals(league: League, rows: list, catalogue: dict, source: str) -> None:
+    """The finished games in one league's sweep, to the history archive
+    (§315). Only a **final**: a score mid-game is a moment, not history.
+    Never raises."""
+    try:
+        import history_archive
+
+        kept = []
+        for row in rows:
+            if status_of(row) != live_facts.FINAL:
+                continue
+            lines = game_facts(league, row, live_facts.FINAL, catalogue)
+            home, away = sides(row, catalogue)
+            if not lines or row.get("id") is None:
+                continue
+            day = _day_of(row) or datetime.now(timezone.utc).date().isoformat()
+            kept.append(history_archive.swept_game(
+                league.key, league.label, row.get("id"), day, lines, source,
+                start_of(row) or datetime.now(timezone.utc),
+                team_said(home) or "the home side",
+                team_said(away) or "the away side"))
+        history_archive.keep_swept(kept)
+    except Exception as exc:  # noqa: BLE001 - the archive never costs a sweep
+        log.warning("sweep finals were not archived: %s", exc)
+
+
 def make_signals():
     """`Signals` is built lazily: `stories` imports `story_sources`, which
     names this class in its registry."""
@@ -1138,6 +1164,9 @@ def make_signals():
                     signal = self._signal(league, row, catalogue, now)
                     if signal is not None:
                         out.append(signal)
+                # Every final the sweep saw, for the history archive (§315):
+                # no request of its own, never awaited.
+                _keep_finals(league, rows, catalogue, self.name)
             for key, exc in failures:
                 log.warning("stories: BALLDONTLIE %s failed: %s", key, exc)
             if failures and not out:

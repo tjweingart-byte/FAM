@@ -313,5 +313,12 @@ and `limit` = Lines.
 | 21830 | 57 | 307. A history archive on MongoDB Atlas, and the first agent (2026-10-24) |
 | 21887 | 61 | 308. The history archive is built, for MongoDB Atlas (2026-10-24) |
 | 21948 | 93 | 309. Episode quality, measured by category (2026-10-23) |
-| 22041 | 89 | 310. The quality checker inside /admin, and what was taken out before it merged (2026-10-26) |
-| 22130 | 51 | 311. The voice was up for three days and the app could not find it (2026-10-26) |
+| 22041 | 88 | 310. The quality checker inside /admin, and what was taken out before it merged (2026-10-26) |
+| 22129 | 52 | 311. Two packets: the history store's seam (2026-10-24) |
+| 22181 | 36 | 312. The agents guide: the editor in chief and the script supervisor (2026-10-25) |
+| 22217 | 43 | 313. The archive is the second packet, sports and markets included (2026-10-26) |
+| 22260 | 26 | 314. The contextualizer, and guardrails for every agent (2026-10-26) |
+| 22286 | 33 | 315. The sweeps' scores and prices are kept in the archive (2026-10-26) |
+| 22319 | 22 | 316. An empty search still gets no archive - for now, and not as a rule (2026-10-26) |
+| 22341 | 25 | 317. Review before merging: a recalled provider fact is credited by name (2026-10-26) |
+| 22366 | 51 | 318. The voice was up for three days and the app could not find it (2026-10-26) |

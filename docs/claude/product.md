@@ -824,3 +824,40 @@ to the writer is judged.
   > the mini player or the tabs, the words left, **Open** / **View** /
   > **Undo** right (`snack()`); errors stay toasts.
 
+
+<!-- rule:two-packets -->
+**The writer reads two packets in one: today's search, and FAM's archive
+added into it** *(PROBLEMS.md §311, §313, at the owner's direction).* The
+pipeline the owner drew: search → EI (contextualise: the category,
+subcategory and context of the search; write the inputs for every source)
+→ the plugins (search ladder, live facts, forecast, local) for packet one,
+*what is happening now*, and the history archive (MongoDB, §308) for packet
+two, *what came before* → consolidated for the writer → the writer.
+
+- EI's contextualising is `Brief.category_path`, placed in code against the
+  category tree (`episode_intelligence.place_category`) - no call, no wait,
+  never the model's.
+- **Packet two is `history_archive.py`** (§308): its recall runs beside the
+  search and its facts are **added into the search results** as dated
+  sources marked as earlier reporting from FAM's archive, so the writer has
+  as much material as there is. The `history.py` seam of §311 is retired.
+- **Sports and market data are kept and recalled** (§313): scores and prices
+  are the archive's most valuable material. Each cached episode's live
+  provider data - a final result, a market state at its time, a player's
+  report; never a game mid-play, a prediction market or the weather - is
+  written as archive facts in code; so is everything the sports and markets
+  sweeps see (§315): each final game once, each watchlist symbol's latest
+  price per trading day, with no request of their own. The recall reaches
+  sports, markets and outcome-dependent questions; weather and a town's
+  news keep their own ladders. A recalled provider fact is credited on the
+  sources panel by the provider's name (§317).
+- **An empty search gets no archive, for now** (§316): a default, not a
+  rule. Whether the archive may answer an empty search is the
+  contextualizer's decision (`docs/FAM_AGENTS.md`, agent 4), made when the
+  agents are built.
+- **An old figure never passes for today's**: `ScoreGuard` lets a score
+  through only from the scoreboard or in a sentence about the past;
+  `FigureGuard` lets an archived figure vouch only for a sentence that says
+  when it was true (`figure_guard._DATED`); the writer is told an archived
+  result is never the outcome asked for, and that the archive is history,
+  never how things stand now.
