@@ -133,13 +133,13 @@ which is the go/no-go for all of it.
 **The archive is built (§308)**: `history_archive.py`, MongoDB Atlas in
 production once `ARCHIVE_BACKEND=atlas` (setup in `ARCHIVE.md`), its own
 SQLite file everywhere else; the storage amendment is at
-[storage-durability]. Its facts stay empty until the inventory agent below
+[storage-durability]. Its facts stay empty until the housemaid agent below
 is built. The owner wants a **history archive** - key
 sentences and figures from every packet, years of them, on **MongoDB Atlas**
 (a local SQLite backend behind the same interface for tests and staging) -
 so the writer gets a second packet of dated historical context beside the
 fresh search. Agents will fill and tidy it and work beside the writer;
-their guidelines - five so far: the **Database inventory specialist**, the
-editor in chief, the script supervisor, the contextualizer and the
-**Overlord** that runs them (§312, §314, §318) - and the models and outside
+their guidelines - five so far: the **Overlord** that runs them, the
+contextualizer, the editor in chief, the script supervisor and
+**Consuela, the housemaid** (§312, §314, §318) - and the models and outside
 plugins weighed for each are in `docs/FAM_AGENTS.md`. Read both before building either.

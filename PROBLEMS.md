@@ -22432,8 +22432,18 @@ the plan beat by beat, one call that plans then writes, or the writer
 starting once the opening beat is decided - is left as an open question,
 because each costs a different amount in front of the first word.
 
+**Consuela, the housemaid** (the owner, 10.26: the inventory box "should be
+renamed the housemaid (with the name 'Consuela'); this is the fifth agent
+that works within the backend database to manage the inventory"). The
+Database inventory specialist is renamed everywhere it is named (the guide,
+`ARCHIVE.md`, `docs/DATA.md`, `next-phase.md`, the comments in `config.py`
+and `history_archive.py`); its proposed settings become `HOUSEMAID_*`. The
+agents are numbered in pipeline order so Consuela is the fifth: 1 Overlord,
+2 Contextualizer, 3 Editor in chief, 4 Script supervisor, 5 Housemaid.
+Earlier sections (§307-§317) keep the old name and numbers as history.
+
 No agent is built; nothing here runs.
 
-Tests: `tests/test_fam_agents_doc.py` (the tandem pairs drawn as one step; the five agents and the template carry
+Tests: `tests/test_fam_agents_doc.py` (the five agents in order and named; the tandem pairs drawn as one step; the five agents and the template carry
 the same sub-tabs; every stage named is one the page draws; a tab per
 section).

@@ -25,7 +25,7 @@ STAGES = [
     ("write", "Writer", "listener"), ("check", "Script supervisor", "listener"),
     ("voice", "Voice", "listener"), ("cache", "Episode kept", "listener"),
     ("orchestrate", "Overlord", "control"),
-    ("intake", "Archive intake", "background"), ("digest", "Inventory: facts + dedupe", "background"),
+    ("intake", "Archive intake", "background"), ("digest", "Housemaid (Consuela)", "background"),
 ]
 LANES = [("listener", "Listener path"), ("control", "Orchestration"),
          ("background", "Background")]
@@ -101,7 +101,7 @@ def build():
     nav, panels = [], []
     for title, stages, sections in tabs:
         t = slug(title)
-        label = re.sub(r"^\d+\. ", "", title).replace("Database inventory specialist", "Inventory specialist")
+        label = re.sub(r"^\d+\. ", "", title)
         nav.append(f'<a class="tab" role="tab" href="#{t}" data-tab="{t}">{html.escape(label)}</a>')
         subnav, subs = [], []
         for name, md in sections:

@@ -30,8 +30,8 @@ def _sections():
 def test_every_agent_has_the_same_subtabs():
     agents = [s for s in _sections() if not s.startswith(("Shared rules", "Template"))]
     assert {s.split("\n", 1)[0] for s in agents} == {
-        "Overlord", "1. Database inventory specialist", "2. Editor in chief",
-        "3. Script supervisor", "4. Contextualizer"}
+        "1. Overlord", "2. Contextualizer", "3. Editor in chief",
+        "4. Script supervisor", "5. Housemaid (Consuela)"}
     for section in agents + [s for s in _sections() if s.startswith("Template")]:
         subs = re.findall(r"^### (.*)$", section, flags=re.M)
         assert subs == SUBTABS, (section.split("\n", 1)[0], subs)
