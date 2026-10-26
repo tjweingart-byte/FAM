@@ -582,9 +582,17 @@ def note(key: str, sourced, query: str, minutes: int, origin: str,
     Called beside `category_audit.note` at all four places a script is
     written to the shared cache (a tap, prefetch, DailyFAM, Trending), so
     what is measured is exactly what is kept - never an attachment's
-    episode, which is never cached ([op-attachments]). Never raises."""
+    episode, which is never cached ([op-attachments]), and never a private
+    search's (origin `private`), which keeps nothing ([private-search]).
+    Never raises."""
     try:
         if not key or not sentences:
+            return
+        import cache
+
+        # A private search keeps nothing of the listener's past the episode
+        # itself ([private-search]): no row here, as no history and no author.
+        if (origin or "") == cache.PRIVATE_ORIGIN:
             return
         sourced = int(sourced or time.time())
         evidence = str(getattr(notes, "written_from", "") or "")

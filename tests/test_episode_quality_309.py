@@ -178,6 +178,15 @@ def test_a_written_episode_is_kept_with_its_measures():
     assert Q.store().get("k2", 1) is None
 
 
+def test_a_private_search_keeps_nothing_here():
+    """[private-search]: no history, no author - and no quality row, which
+    would keep the typed question for months."""
+    import cache
+
+    Q.note(K1, 1000, "something private", 1, cache.PRIVATE_ORIGIN, GOOD, _notes())
+    assert not Q.exists() or Q.store().get(K1, 1000) is None
+
+
 def test_a_listen_keeps_the_furthest_point_heard():
     Q.note(K1, 1000, "eagles", 1, "search", GOOD, _notes())
     Q.note_listen(f"{K1}.1000", "u", 30, 0, 1)
