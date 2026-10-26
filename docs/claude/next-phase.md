@@ -139,5 +139,6 @@ sentences and figures from every packet, years of them, on **MongoDB Atlas**
 (a local SQLite backend behind the same interface for tests and staging) -
 so the writer gets a second packet of dated historical context beside the
 fresh search. Background agents will fill and tidy it; their guidelines,
-starting with the **Database inventory specialist**, and the model chosen
-for each are in `docs/FAM_AGENTS.md`. Read both before building either.
+starting with the **Database inventory specialist** and the **Overlord**
+that schedules them (§311), and the models and plugins weighed for each are
+in `docs/FAM_AGENTS.md`. Read both before building either.

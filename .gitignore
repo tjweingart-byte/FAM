@@ -63,3 +63,6 @@ experiments/
 shots/
 before/
 after/
+
+# Built pages of docs/ (docs/build_html.py, docs/build_agents_html.py), published, never committed.
+docs/build/

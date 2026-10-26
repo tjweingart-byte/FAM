@@ -22126,3 +22126,45 @@ how long it is kept, and what deleting an account or a wipe does to it).
 Tests: `tests/test_episode_quality_309.py` (renamed from `_306`; the page
 inside /admin, the list to score, the origins, and one test per review fix
 above).
+
+## 311. FAM_AGENTS.md condensed, tabbed, and given an Overlord (2026-10-26)
+
+The owner (10.26): the agents document was "way too long"; each agent should
+be "its own tab at the top", showing "which part of the pipeline it is
+working in"; add an agent that is "the 'overlord' of the other agents ...
+telling them when they should be called and what to do"; and under each
+agent, sub-tabs for its guardrails, how to prompt it (and break it), and
+plugin options "with expected cost, latency addition, effectiveness, and
+potential holes", including sources outside Claude that are cheaper for the
+specific task.
+
+Done as: `docs/FAM_AGENTS.md` stays the source (sessions and code comments
+cite it), rewritten so every agent has the same sub-sections - Overview,
+Guardrails, Prompting it and breaking it, Plugin options, Settings and open
+questions. The inventory specialist's original material is ~35% shorter
+with every decision kept (the never-duplicates table, the corroborating-link
+answer, dry run, reversible marks, the model recommendation and costs).
+`docs/build_agents_html.py` turns each `##` into a tab, each `###` into a
+sub-tab, and draws the pipeline (listener path, orchestration, background)
+at the top of each tab with the agent's stages lit, from a
+`<!-- stages: -->` line under its heading.
+
+**The Overlord**, planned: code decides; a planner model is off by default
+and, when on, may only pick from a closed vocabulary that code validates. It
+never changes a setting, flips a dry run, raises a ceiling, deletes, or
+calls a provider; one at a time by a database claim; agents' reports are
+data. Recommendation: FAM's own loop and a task table, rules in code,
+`metering` and `/admin` for spend - no Temporal/Inngest, no agent framework,
+no planner until a situation needs one.
+
+**Outside options** are priced from third-party summaries (Aug-Oct 2026),
+labelled as such and not checked against vendor pages: GPT-5 nano and
+Gemini 2.5 Flash-Lite would run extraction for ~$3-4/month at 1,000
+listeners against Haiku's ~$5, unmeasured on quality. They are viable only
+because the model answers with sentence numbers and code writes the text,
+and each costs a new key in `spend_guard`, metering prices and the owner's
+call on sending publisher text to another vendor. Haiku stays the
+recommendation until the 200-packet eval says otherwise.
+
+Tests: `tests/test_fam_agents_doc.py` (same sub-tabs on every agent and the
+template; stages the page can draw; a tab per section).
