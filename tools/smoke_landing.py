@@ -120,7 +120,8 @@ def main() -> int:
         tried: list[str] = []
         page.route("**/*", lambda route: (tried.append(route.request.url),
                                           route.abort()))
-        page.click("[data-door='join']")
+        # The join door goes to the waitlist (§318); the others to the App Store.
+        page.click("[data-door='ask']")
         page.wait_for_timeout(600)
         check("A door goes to the App Store", any(APP_STORE in u for u in tried),
               str(tried[:3]))
