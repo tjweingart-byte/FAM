@@ -24,10 +24,10 @@ STAGES = [
     ("recall", "Archive: packet two", "listener"), ("editor", "Editor in chief", "listener"),
     ("write", "Writer", "listener"), ("check", "Script supervisor", "listener"),
     ("voice", "Voice", "listener"), ("cache", "Episode kept", "listener"),
-    ("orchestrate", "Overlord", "control"),
+    ("orchestrate", "Overlord", "control"), ("monitor", "IT guy (Keith Wong)", "control"),
     ("intake", "Archive intake", "background"), ("digest", "Housemaid (Consuela)", "background"),
 ]
-LANES = [("listener", "Listener path"), ("control", "Orchestration"),
+LANES = [("listener", "Listener path"), ("control", "Orchestration and operations"),
          ("background", "Background")]
 # Stages that work in tandem, drawn as one step (the owner, 2026-10-26): the
 # contextualizer with EI's brief, the editor in chief with the writer.

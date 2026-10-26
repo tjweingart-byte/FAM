@@ -22442,6 +22442,24 @@ agents are numbered in pipeline order so Consuela is the fifth: 1 Overlord,
 2 Contextualizer, 3 Editor in chief, 4 Script supervisor, 5 Housemaid.
 Earlier sections (§307-§317) keep the old name and numbers as history.
 
+**Keith Wong, the IT guy** (the owner, 10.26): a sixth agent that "will
+constantly monitor the backend ... all of our plugins, errors, usage rates on
+plugins (to see when we are nearing our limits), and connection issues"; it
+fixes what it can "within the limits of the agent" and tells the owner, and
+otherwise notifies "in the most visible way possible (to be decided upon
+later)", and the owner tells it when a fix is done. Written up as agent 6,
+built on signals FAM already keeps - `provider_usage` (limits and the next
+plan), `pipeline_errors` and its `explain()` wording, `/api/health`, the
+voice supervisor, `metering`, each background loop's last run. The watching
+is code on a one-minute tick; a model only writes up an open incident.
+Fixes are a closed list of reversible actions that already exist as
+functions (re-verify the voice ladder, re-run a failed job once, hold a
+background sweep until a limit resets, ask the Overlord to hold an agent),
+each verified by a real call; it starts observe-only. It never changes a
+setting, spends, restarts or stops anything (nothing starts or stops a
+pod), or deletes. A "fixed" from the owner is re-checked, not believed. The
+notification channel is left to the owner, with the options priced.
+
 No agent is built; nothing here runs.
 
 Tests: `tests/test_fam_agents_doc.py` (the five agents in order and named; the tandem pairs drawn as one step; the five agents and the template carry
