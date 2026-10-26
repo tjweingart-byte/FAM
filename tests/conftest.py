@@ -715,6 +715,18 @@ def isolated_thumbnails(tmp_path, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def isolated_x_threads(tmp_path, monkeypatch):
+    """`/admin/x`'s cards (§311) per test: `x_threads._STORE` is a
+    process-global, like the tile pictures above."""
+    import x_threads
+
+    monkeypatch.setenv("X_THREADS_DB", str(tmp_path / "stores" / "x_threads.db"))
+    x_threads.reset()
+    yield
+    x_threads.reset()
+
+
+@pytest.fixture(autouse=True)
 def isolated_quotas(tmp_path, monkeypatch):
     """Every test counts against its own allowance, and by default none bites.
 

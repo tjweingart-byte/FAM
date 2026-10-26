@@ -22126,3 +22126,61 @@ how long it is kept, and what deleting an account or a wipe does to it).
 Tests: `tests/test_episode_quality_309.py` (renamed from `_306`; the page
 inside /admin, the list to score, the origins, and one test per review fix
 above).
+
+## 311. FAM on X: threads found from our own episodes, posted by a person (2026-10-26)
+
+The owner (10.26), with the "FAM x X" playbook (Find -> Add -> Explore ->
+Connect; 3-5 discussions found and 1-2 joined a day): "is there a way we can
+simplify and streamline the whole process? Figure out an algorithm or system
+that can save time by finding trending/relevant conversation threads", then:
+"a new page under something like familiarize.net/admin/x ... behave similarly
+to the /admin/thumbnails page where it gives the option to approve. If i press
+approve, then it redirects me automatically to the X thread with the
+suggested post already pasted in or at least copied ready for me to paste".
+
+**The search is turned around.** Done by hand, Find is an hour of scrolling
+and the playbook's "add a checked episode" means making one per thread.
+`x_threads.py` starts from episodes FAM already has - the current Trending
+edition's stories (their `anchors`), then the most played kept episodes (the
+names in their title and question, `names_for`) - and asks X's recent search
+for posts naming them. So the episode exists, written and checked, before the
+thread is found.
+
+**Choosing is code.** `screen` drops replies, posts older than
+`X_THREADS_WINDOW_HOURS` (6), accounts under 500 or over 200k followers,
+threads past 50 replies, organisations, grief and flame-war subjects (`AVOID`),
+slurs, a post that neither asks nor takes a side, and an author approved in
+the last week. `score` weighs episode match (the cache's embeddings plus the
+names) 0.35, engagement per hour 0.30, a question 0.15, room in the thread
+0.10 and author size 0.10. The match picks the playbook's reply type: under
+`LINK_FLOOR` the reply carries no link and asks a better question (example
+02); a question with an episode is example 03, a stance example 01, and two
+people taking sides on one episode's subject become one card (example 04).
+Every card says why in words. One Haiku call drafts each reply; with no key
+it is drafted in code and the card says so.
+
+**A person posts.** `/admin/x` is the thumbnails page's shape: Find threads,
+cards, Approve / Skip, an editable reply with X's count (a link is 23).
+Approve makes the episode's share link (owned by `fam-x`, one per episode),
+opens `x.com/intent/post?in_reply_to=<id>&text=...` - X's own reply box on
+that post with the words in it - and copies the words as well. The window is
+opened inside the click so it is not a blocked popup. "Listen first" opens
+the same link before approving. Nothing in the module can write to X: it
+holds a read-only bearer token, which is what [no-social-posting] meant by
+"nothing that can post while somebody is asleep" (that rule's note says so).
+X's automation rules restrict automated replies; this is not one.
+
+**Spend.** X's API is pay-per-use since February 2026 (reported ~$0.005 a post
+read). A search is a button, never a timer ([sweep-on-demand]), capped at
+`X_THREADS_MAX_READS` (300) and `X_THREADS_DAILY_READS` (600), counted in the
+store and on the Outside service requests page as "X". `X_BEARER_TOKEN` is in
+`spend_guard.PAID_CREDENTIALS`. Posting through the reply box costs nothing,
+where an API post with a link is reported at ~$0.20.
+
+**Kept a week.** `X_THREADS_DB` holds the cards and runs; a post's text is
+pruned after `KEEP_DAYS` (7). Lazily created, so health and the page never
+make it on a machine that never searched.
+
+**Unverified here:** no X token in this container, so no live search has run;
+the scoring weights are a first guess, to be reweighed after the playbook's
+one-week trial on replies, `/s/` opens and waitlist signups.

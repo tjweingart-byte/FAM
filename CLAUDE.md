@@ -78,7 +78,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   restores old latency. No preamble to disguise a wait; no text before its
   material. [spec-amended-for-search]
 - A slow answer is a scheduling choice (starting earlier: 18.30s → 0.12s). [slow-is-scheduling]
-- Prefetch-on-typing-pause was removed at the user's request; do not re-add. [no-typing-prefetch]
+- Prefetch-on-typing-pause removed at the user's ask; never re-add. [no-typing-prefetch]
 - myFAM drives prefetch (§83, §105): drawing the page schedules a cycle, never
   awaited, warming **briefs**; warming whole scripts stays opt-in. [myfam-warms-briefs]
 - **9.30 interface packet** (§181): sign-up rotates today's top three kept
@@ -439,7 +439,7 @@ Accounts, tiers, sharing
   front door (§175) - other doors need `APP_STORE_URL`; no `user_id`; host from the request (`_public_base`,
   `X-Forwarded-Proto`, loopback refused); story cards are PNG files to the share
   sheet. [share-link]
-- FAM posts nothing to anyone's social account and holds no token. [no-social-posting]
+- FAM never posts, holds no posting token; /admin/x only drafts. [no-social-posting] [x-threads]
 - **App review** (§222): Report everywhere, block both ways (`moderation.py`, `/admin`);
   a listener's words reach Anthropic only after a yes (`consent.py`); photos checked (§224); Terms ticked at sign-up (§228). [app-review-safety]
 - **Authorship is provenance, never identity**: `PodcastPipeline.author`, never
@@ -540,7 +540,7 @@ Every change ends the same way, without being asked [ship-loop]:
   `.github/workflows/ci.yml` by hand. [landing-smoke]
 - CI runs Python 3.12, this container 3.11 - reproduce in 3.12 first. [ci-python]
 - **Check CI on `Main` before starting work** (`mcp__github__actions_list` on `ci.yml`). [ci-green-first]
-- Fonts differ here and in CI; suspect them on layout disagreements. [fonts-env]
+- Fonts differ here and in CI; suspect them when layouts disagree. [fonts-env]
 - No API key here: writing quality and latency are unverified. [no-api-key]
 - `tools/shots.py`, `stall_probe.py`, `compare_search.py` exist because claims were wrong without them. [shots-probes]
 - Deleting CSS broke the app twice: use `tools/check_css.py` and `tools/shots.py`. [css-deletion]

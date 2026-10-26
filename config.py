@@ -1223,6 +1223,20 @@ class Settings:
     trending_bank_max_age_hours: float = _env_float(
         "TRENDING_BANK_MAX_AGE_HOURS", 36.0)
 
+    # --- Conversations on X (`/admin/x`, x_threads.py, §311) ---------------
+    # A read-only X API bearer token (X_BEARER_TOKEN, read through
+    # `credentials`) is the statement of intent; unset, the page says so.
+    # X bills per post read, so a run and a day are both capped.
+    x_threads_max_reads: int = _env_int("X_THREADS_MAX_READS", 300)
+    x_threads_daily_reads: int = _env_int("X_THREADS_DAILY_READS", 600)
+    # Only posts younger than this: a reply is read while a thread is moving.
+    x_threads_window_hours: float = _env_float("X_THREADS_WINDOW_HOURS", 6.0)
+    # How many episodes one run looks for conversations about.
+    x_threads_seeds: int = _env_int("X_THREADS_SEEDS", 10)
+    # Drafts the replies a person approves. A short call; the small model.
+    x_threads_model: str = field(
+        default_factory=lambda: os.environ.get("X_THREADS_MODEL") or SMALL_MODEL)
+
     # --- GNews (gnews.io), the bank's source -------------------------------
     # The key is the statement of intent: unset, Trending is empty and says so.
     gnews_key: str = field(
