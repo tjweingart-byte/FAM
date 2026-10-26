@@ -22372,13 +22372,15 @@ answered `/health` with `"ready":true` on the GPU, and a Render boot at 6:38
 on 10.26 reached it and voiced a word. What failed was the app *finding* it,
 through two broken rungs at once, with no alarm but the listener's apology:
 
-1. **Registration lapsed** (§306's finding, unchanged): the worker stopped
-   heartbeating at 3:44 PM on 10.23 and the pod's image is old enough to log
-   a failed beat at debug (its `/health` has no `registering` or
-   `sample_rate` field), so `regist` finds nothing in its log. From the pod
-   the app answers `401` to an unauthenticated POST, so the network and
-   `FAM_APP_URL` reach it; why the loop stopped is unknown until the pod
-   runs a current image.
+1. **The pod never registered.** §306 read 10.23 as a heartbeat that
+   stopped; on 10.26 the pod itself answered otherwise: `from voice_worker
+   import register` raises ImportError in its image, which predates
+   registration altogether (its `/health` has no `registering` or
+   `sample_rate` field). The app had been finding it through RunPod's API -
+   until that answer lost its ports. From the pod the app answers `401` to an
+   unauthenticated POST, so `FAM_APP_URL` and the network were never the
+   problem. Registration starts working only when the pod runs a current
+   image.
 2. **The RunPod-API rung built an address that does not exist.** RunPod's v2
    answer (§179, never verified against RunPod) named the pod with no
    `runtime` and no `portMappings`, so `_pods_from` fell back to the
@@ -22398,11 +22400,16 @@ What changed:
   declines (plain HTTP off) is complete and ends the walk, as before.
 - `voice_control.supervise_once` (the supervisor's beat): "no worker can
   speak" is an **error** on /admin's error page under a new `voice` stage,
-  once an hour while it lasts and again the next time it starts; a worker
-  that used to register and has not inside the TTL (within a week) is a
-  **notice**, "registration lapsed" - even while a pinned address still
-  speaks, because it is the day the pod moves that it costs.
-  `registration_lapsed` is also on `/api/health`.
+  once an hour while it lasts (a return within ten minutes of clearing is
+  the same incident); a worker that used to register and has not inside the
+  TTL (within a week) is a **notice**, "registration lapsed" - even while a
+  pinned address still speaks, because it is the day the pod moves that it
+  costs. `registration_lapsed` is also on `/api/health`.
+- **The owner is emailed** (SUPPORT_EMAIL, else MODERATION_EMAIL, through
+  `mail.py`) when either fault starts, once a day while it lasts, and when it
+  clears; a fault back within the hour is not a new email, so a flapping
+  worker is at most two an hour. The owner's direction: nothing about the
+  voice should need checking by hand.
 - `voice_worker/register.announce`: a 3xx is not a registration. It was
   counted as landed (only >= 400 failed), so a `FAM_APP_URL` that redirects
   would fail silently forever; it now warns with the address it was sent to.

@@ -193,18 +193,96 @@ def test_a_voice_that_came_back_is_reported_again_the_next_time_it_goes(
         monkeypatch, recorded):
     configure(monkeypatch)
     up = {"now": False}
+    clock = {"t": 1_000_000.0}
 
     async def maybe(force=False):
         if not up["now"]:
             raise voice_control.VoiceControlError("down")
 
     monkeypatch.setattr(voice_control, "current", maybe)
-    run(voice_control.supervise_once())
-    up["now"] = True
-    run(voice_control.supervise_once())
-    up["now"] = False
-    run(voice_control.supervise_once())
+    monkeypatch.setattr(voice_control.time, "time", lambda: clock["t"])
+
+    def beat(is_up, minutes):
+        up["now"] = is_up
+        clock["t"] += minutes * 60
+        run(voice_control.supervise_once())
+
+    beat(False, 0)
+    beat(True, 1)
+    beat(False, 1)      # back inside ten minutes: the same incident
+    beat(True, 1)
+    beat(False, 30)     # a new one
     assert [kind for _, kind, _ in recorded] == ["no worker can speak"] * 2
+
+
+# --- the owner is emailed rather than expected to look --------------------------
+
+@pytest.fixture
+def mailbox(monkeypatch):
+    import mail
+
+    sent = []
+    monkeypatch.setattr(mail, "status", lambda: {"available": True, "reason": ""})
+    monkeypatch.setattr(mail, "send_later",
+                        lambda to, subject, body: sent.append((to, subject, body)))
+    return sent
+
+
+def test_the_owner_is_emailed_when_the_voice_goes_and_when_it_comes_back(
+        monkeypatch, recorded, mailbox):
+    configure(monkeypatch, support_email="owner@example.com")
+    up = {"now": False}
+    clock = {"t": 1_000_000.0}
+
+    async def maybe(force=False):
+        if not up["now"]:
+            raise voice_control.VoiceControlError("no voice worker can speak. Tried X")
+
+    monkeypatch.setattr(voice_control, "current", maybe)
+    monkeypatch.setattr(voice_control.time, "time", lambda: clock["t"])
+    for minute in range(90):            # an hour and a half down
+        clock["t"] += 60
+        run(voice_control.supervise_once())
+    assert [s for _, s, _ in mailbox] == ["FAM: the voice is down"]
+    assert "Tried X" in mailbox[0][2]
+    assert mailbox[0][0] == "owner@example.com"
+    clock["t"] += 25 * 3600             # a day later, still down: one reminder
+    run(voice_control.supervise_once())
+    assert len(mailbox) == 2
+    up["now"] = True
+    clock["t"] += 60
+    run(voice_control.supervise_once())
+    assert mailbox[-1][1] == "FAM: resolved - the voice is down"
+
+
+def test_a_flapping_voice_is_not_an_email_a_minute(monkeypatch, recorded, mailbox):
+    configure(monkeypatch, support_email="owner@example.com")
+    clock = {"t": 1_000_000.0}
+    up = {"now": False}
+
+    async def maybe(force=False):
+        if not up["now"]:
+            raise voice_control.VoiceControlError("down")
+
+    monkeypatch.setattr(voice_control, "current", maybe)
+    monkeypatch.setattr(voice_control.time, "time", lambda: clock["t"])
+    for minute in range(60):
+        up["now"] = bool(minute % 2)
+        clock["t"] += 60
+        run(voice_control.supervise_once())
+    assert len(mailbox) <= 2            # down, then resolved; no more that hour
+
+
+def test_no_address_means_no_email_and_no_error(monkeypatch, recorded, mailbox):
+    configure(monkeypatch, support_email="", moderation_email="")
+
+    async def nobody(force=False):
+        raise voice_control.VoiceControlError("down")
+
+    monkeypatch.setattr(voice_control, "current", nobody)
+    run(voice_control.supervise_once())
+    assert mailbox == []
+    assert recorded == [("voice", "no worker can speak", "error")]
 
 
 def test_a_worker_that_stopped_registering_is_named_even_while_the_voice_works(

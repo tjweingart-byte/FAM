@@ -193,6 +193,12 @@ class _State:
     # kind -> when it was last put on /admin's error page, so a voice that
     # stays down is reported once an hour rather than once a minute (§318).
     alerted: dict = field(default_factory=dict)
+    # kind -> when the owner was last emailed that it started; and the kinds
+    # whose email is still outstanding, so their end can be said too.
+    emailed: dict = field(default_factory=dict)
+    notified: set = field(default_factory=set)
+    # Kinds that are failing right now (reported, not yet cleared).
+    active: set = field(default_factory=set)
 
 
 _state = _State()
@@ -1178,22 +1184,45 @@ async def supervise_forever() -> None:
 
 #: How often a fault that has not cleared is put on /admin again.
 ALERT_EVERY_SECONDS = 3600.0
+#: How often the owner is emailed about a fault that has not cleared. The
+#: first email goes at once; this is the reminder while it lasts.
+EMAIL_EVERY_SECONDS = 86400.0
+#: A fault that clears and comes back inside this is not emailed again, so a
+#: flapping worker is two emails an hour at most, not two a minute.
+EMAIL_AGAIN_AFTER_SECONDS = 3600.0
+#: The same for /admin's rows: a fault back inside ten minutes of clearing
+#: is the same incident, not a new one.
+ALERT_AGAIN_AFTER_SECONDS = 600.0
 #: A registration older than this is history, not a lapse worth reporting.
 LAPSE_WINDOW_SECONDS = 7 * 86400.0
 
+#: What each fault's email says, by kind: subject, then what it costs.
+_EMAILS = {
+    "no worker can speak": (
+        "FAM: the voice is down",
+        "No voice worker can be reached, so every new episode fails with the "
+        "apology until it is fixed. Kept episodes still play."),
+    "registration lapsed": (
+        "FAM: the voice worker stopped registering",
+        "The voice still works on another address, but the worker no longer "
+        "tells the app where it is, so the day the pod moves or restarts "
+        "nobody will find it."),
+}
+
 
 async def supervise_once() -> None:
-    """One supervisor beat: re-verify, and say on /admin what is wrong.
+    """One supervisor beat: re-verify, and tell somebody what is wrong.
 
     The log said "no voice worker can speak" every minute from 10.23 and
     nobody reads a log; the listener's apology was the alarm (§318). So a
     voice nobody can reach, and a worker that has stopped registering, are
-    both rows on the admin error page - the second even while a pinned
-    address still speaks, because it is the day the pod moves that it costs.
+    rows on /admin's error page and an email to the owner (SUPPORT_EMAIL) -
+    the second even while a pinned address still speaks, because it is the
+    day the pod moves that it costs. Nobody has to look for either.
     """
     try:
         await current(force=True)
-        _state.alerted.pop("no worker can speak", None)
+        _cleared("no worker can speak")
     except VoiceControlError as exc:
         log.warning("voice supervisor: %s", exc)
         _alert("no worker can speak", str(exc), "error")
@@ -1205,21 +1234,69 @@ async def supervise_once() -> None:
     if lapse:
         _alert("registration lapsed", lapse, "notice")
     else:
-        _state.alerted.pop("registration lapsed", None)
+        _cleared("registration lapsed")
 
 
 def _alert(kind: str, detail: str, severity: str) -> None:
-    """Put a voice fault on /admin, at most once an hour while it lasts."""
+    """Put a voice fault on /admin, at most once an hour while it lasts, and
+    email the owner when it starts and once a day after."""
     now = time.time()
-    if now - _state.alerted.get(kind, 0.0) < ALERT_EVERY_SECONDS:
-        return
-    _state.alerted[kind] = now
-    try:
-        import pipeline_errors
+    gap = (ALERT_EVERY_SECONDS if kind in _state.active
+           else ALERT_AGAIN_AFTER_SECONDS)
+    _state.active.add(kind)
+    if now - _state.alerted.get(kind, 0.0) >= gap:
+        _state.alerted[kind] = now
+        try:
+            import pipeline_errors
 
-        pipeline_errors.record("voice", kind, detail, severity=severity)
-    except Exception as exc:  # pragma: no cover - reporting never costs the loop
-        log.warning("could not record a voice fault: %s", exc)
+            pipeline_errors.record("voice", kind, detail, severity=severity)
+        except Exception as exc:  # pragma: no cover - never costs the loop
+            log.warning("could not record a voice fault: %s", exc)
+    wait = (EMAIL_EVERY_SECONDS if kind in _state.notified
+            else EMAIL_AGAIN_AFTER_SECONDS)
+    if now - _state.emailed.get(kind, 0.0) >= wait:
+        subject, cost = _EMAILS.get(kind, (f"FAM: voice - {kind}", ""))
+        if _email(subject, f"{cost}\n\nWhat the app found:\n{detail}\n\n"
+                           "Details: /admin (errors, voice stage) and "
+                           "/api/health (tts.remote)."):
+            _state.emailed[kind] = now
+            _state.notified.add(kind)
+
+
+def _cleared(kind: str) -> None:
+    """A fault is gone: one that returns after ten minutes is a new incident,
+    and the owner, if emailed that it started, is told that it ended."""
+    _state.active.discard(kind)
+    if kind in _state.notified:
+        _state.notified.discard(kind)
+        subject = _EMAILS.get(kind, (f"FAM: voice - {kind}",))[0]
+        _email(subject.replace("FAM: ", "FAM: resolved - ", 1),
+               "This has cleared on its own; nothing to do.")
+
+
+def owner_email() -> str:
+    """Who hears about a voice fault: SUPPORT_EMAIL, else MODERATION_EMAIL -
+    the addresses report alerts already go to."""
+    return (getattr(settings, "support_email", "")
+            or getattr(settings, "moderation_email", "") or "").strip()
+
+
+def _email(subject: str, body: str) -> bool:
+    """Send one alert without waiting. Whether it was handed to the mailer;
+    never raises. No address or no mail delivery sends nothing."""
+    to = owner_email()
+    if not to:
+        return False
+    try:
+        import mail
+
+        if not mail.status()["available"]:
+            return False
+        mail.send_later(to, subject, body)
+        return True
+    except Exception as exc:  # pragma: no cover - an alert never costs the loop
+        log.warning("could not email a voice fault: %s", exc)
+        return False
 
 
 def registration_lapse(at: float = 0.0) -> str:
