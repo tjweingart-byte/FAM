@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | **Status** | Planning document. No agent here is built yet |
-| **Started** | 2026-10-24 (PROBLEMS.md §307); the editor in chief and the script supervisor added 2026-10-25 (§310) |
+| **Started** | 2026-10-24 (PROBLEMS.md §307); the editor in chief and the script supervisor added 2026-10-25 (§310); the pipeline and how agents are run folded in, sports and market data in the archive 2026-10-26 (§311) |
 | **Audience** | The owner, and any Claude session asked to design, build or change one of these agents |
 
 FAM will have many agents. An *agent* here is a worker that uses a language
@@ -159,6 +159,95 @@ listener is waiting through.
 
 ---
 
+## The pipeline the agents serve
+
+The pipeline the owner drew (2026-10-24, PROBLEMS.md §309), and where each
+box is in the code today:
+
+```
+search
+  └─ Episode Intelligence
+        1. contextualise: category, subcategory, context of the search
+        2. write the inputs for the plugins
+        ├─ plugins ───────────────────────────► packet one: what is happening now
+        └─ history archive (MongoDB, §308) ──► packet two: what came before
+              └─ consolidate both packets for the writer   (2. Editor in chief)
+                    └─ script writer (Haiku)
+                          └─ quality check                  (3. Script supervisor)
+```
+
+| Box | In the code today | Model |
+|---|---|---|
+| EI: contextualise | `episode_intelligence.understand`: three structured calls side by side (understand / search / outline). Category and subcategory are `Brief.category_path`, placed against the category tree in code (§309) | Haiku 5.5, medium effort, 8 s ceiling |
+| EI: plugin inputs | Brief fields each plugin reads: `search_query` / `search_angles` / `search_objective` / `recency_days` → the search ladder; `live_domain` / `live_entity` → live facts and players; `outcome_dependent` → the forecast; `place` → the local ladder; `subject` + the query → the archive's recall | (part of the EI calls) |
+| Plugins → packet one | `research.retrieve` (Parallel → Perplexity → GDELT), `live_facts`, players, forecast, `local_news`, `weather` | No model calls |
+| Archive → packet two | `history_archive.look` beside the search; its facts are **added into the search results** as dated sources marked as earlier reporting (§308). Sports and markets included (§311) | Embeddings only |
+| What fills the archive | Every cached episode's articles (intake, for agent 1) and its live providers' data - final results, market states, player reports - written as facts in code (§311) | None yet; agent 1 will digest the intake |
+| Consolidate | `evidence_digest` (an extractive cut; off by default), then the writer's prompt order: live state → evidence (archive sources last) | Haiku 5.5, thinking off, when on |
+| Script writer | `ScriptGenerator.stream_prepared`, streamed sentence by sentence into the voice | Haiku 5.5, low effort |
+| Quality check | The guards in code: `OpeningGuard`, `ScoreGuard`, `FigureGuard`, `MaterialGuard` | None |
+
+**Still to do in the pipeline** (none of it built), roughly in order:
+
+1. **Archive scores and prices from the sweeps too.** Today the archive keeps
+   the live data an episode used. The sports sweep and the 2-hourly markets
+   sweep ([sweep-on-demand]) already fetch far more; keeping their final
+   results and closes would fill the archive's most valuable shelf without a
+   single extra request.
+2. **One extractive cut across both packets**, so the cut can drop archive
+   material that repeats today's news (the editor in chief's job, or code).
+3. **A `ResearchPlan`**: every plugin's inputs in one typed object, the
+   contract any future agent writes and reads.
+4. **Warm the recall before the tap**, beside the brief: the recall holds
+   nothing personal, so prefetch may ([prefetch-same-key]).
+5. **Decide the archive alone.** The recall is added only beside web
+   sources (§308), so an empty search gets no archive either. Letting the
+   archive answer alone would give the writer more, at the cost of an empty
+   search looking researched.
+
+---
+
+## How an agent can be run, and how agents talk
+
+The constraints that decide most of this:
+
+1. **Latency** - the spec is a second from tap to the first word
+   ([one-sentence-spec]), amended for search. Agent latency will be minimised
+   later; until then, work done before the tap costs the listener nothing
+   ([decouple-script-audio]).
+2. **No tools on the speaking call** ([nothing-before-material]). Help for
+   the writer comes before it (planning, consolidating) or after it.
+3. **Every agent has a ceiling and a fallback** (rule 1).
+4. **Nothing a model says is evidence** (rule 2).
+5. **Staging spends nothing** ([zero-spend-staging]); **metering per call**
+   ([metering]).
+
+Five ways to run one (Claude prices; per call about 8k tokens in and 1k out
+is ~$0.0013 on Haiku 5.5, ~$0.026 on Sonnet 5.5, ~$0.052 on Opus 5.5):
+
+| | A. Fixed calls, orchestrated in code (today) | B. Tool loop on the Messages API | C. Claude Agent SDK | D. Managed Agents | E. Batches |
+|---|---|---|---|---|---|
+| **What it is** | One structured-output call per role; `asyncio` decides the order | The model calls *our* tools (archive queries, lookups) for several turns | The Claude Code harness as a library: built-in tools, subagents, MCP | Anthropic runs the loop and a sandbox; versioned agents, schedules, multi-agent workflows | A or B sent as a batch |
+| **Price** | Lowest | N calls, each re-sending the context (caching cuts the repeats) | Higher: the harness adds tokens | Tokens plus the session's container | Half of A or B |
+| **Latency** | One round trip per role, side by side | N round trips in series | Process start-up plus a loop | Session start-up plus a loop; background | Minutes to an hour |
+| **Ease in FAM** | Exists (`episode_intelligence._ask`); metering, ceilings and `/admin` wired | Moderate; same SDK, `usage` per turn fits `metering` | Easy to prototype; hard to meter and bound | Config plus `ant apply`; metering from the session | Exists (`claude_batch.py`) |
+| **How agents talk** | Typed hand-offs (`Brief` → packet → plan → script) | Through the orchestrator | Subagent summaries; detail is lost | Built-in workflows and memory stores | As A or B |
+| **Best FAM use** | Everything a listener waits on | Agent 1, and one capped turn on the tap path | Back-office tools: audits, evals | Nightly and scheduled jobs (agent 1's passes) | Editions, write-ahead, audits |
+
+An **MCP server in front of the archive** would let any of B-D, and Claude
+Code during development, use the same tools (`facts_about(subject, before)`,
+`results_between(team, from, to)`). It needs a publicly reachable server,
+so staging cannot use it.
+
+**How agents talk: typed hand-offs, plus the archive as the meeting place.**
+Hand-offs (dataclasses with JSON schemas) through the orchestrator are what
+FAM already does, and they are what tests and `/admin` can see. Agents that
+run at different times (agent 1 at night, the editor at a tap) meet in the
+archive, keyed by subject, category and date. Free-form agent-to-agent
+conversation loses detail and is hard to bound; keep it to back-office jobs.
+
+---
+
 ## 1. Database inventory specialist
 
 **Status:** planned, not built. Designed in conversation on 2026-10-24
@@ -176,6 +265,15 @@ listener is waiting through.
   already ignores both.
 - `episode_sources` is filled by the archive itself; the agent does not
   touch it.
+- **Live provider data is already facts** (§311): each cached episode's
+  final results, market states and player reports are written by
+  `history_archive.after_episode` in code (`kind: "live"`, graded primary,
+  dated by the provider's own `as_of`). The agent does not extract them,
+  but its duplicate pass covers them: the same game's final from two
+  episodes is one fact, and a price series is history, never repetition
+  (responsibility 5's table). **Sports and market data are the archive's
+  most valuable material** (the owner, 2026-10-25): never drop one on a
+  model's judgment.
 
 ### Purpose
 
@@ -418,16 +516,18 @@ place to fix the inputs.
 - **Reads:** the brief (intent, subject, `category_path`, cautions, the
   outline), **packet one** (the search packet, live facts, players report,
   forecast, local news, weather) and **packet two** (the archive's recall,
-  `history_archive.py`, §308, and the `history.py` seam, §309).
+  `history_archive.py`, §308: earlier reporting and, since §311, final
+  results, market states and player reports, already added into the search
+  results).
 - **Runs:** after both packets are in, before the writer's first token.
   - On **searchFAM** a listener is waiting, so everything it adds is in
     front of the first word.
   - On **myFAM, DailyFAM, Trending and the write-ahead**, it runs before
     anyone taps and costs the listener nothing ([spec-amended-for-search]).
 - **What it replaces or absorbs:** the evidence cut (`evidence_digest.py`,
-  off by default), the code consolidation of the two packets
-  (`history.consolidate`), and the planning half of the EI outline. Each of
-  these stays as its fallback.
+  off by default), the prompt order that puts the archive's sources after
+  today's, and the planning half of the EI outline. Each of these stays as
+  its fallback.
 - **Writes:** an **editorial plan** for the writer. If the owner gives it the
   writing too, it writes **the script**.
 

@@ -22031,3 +22031,46 @@ rule. Nothing is built; the agents will be built together, later.
 
 `docs/PIPELINE_AGENTS.md` (§309) now points at the guide for each agent; its
 "Sonnet critic" suggestion became the script supervisor.
+
+## 311. The archive is the second packet, sports and markets included (2026-10-26)
+
+At the owner's direction, three changes:
+
+- **`history.py` is retired; Main's archive is the second packet.** The §309
+  seam (`history.register`, `HistoryQuery`, `history.consolidate`, the
+  `<background>` block, `EpisodePlan.history`, the `HISTORY_*` settings,
+  `/api/health.history`, `provenance.ARCHIVE`) is deleted. The archive's
+  recall (`history_archive.py`, §308) already adds its facts **into the search
+  results**, as dated sources marked as earlier reporting, which is what the
+  owner wants: the writer has as much material as there is. Kept from §309:
+  `Brief.category_path` (tests in `test_category_path_309.py`), and
+  `write.py` now prints how many archive sources the packet carries.
+- **Sports and market data are kept and recalled.** The owner: they are
+  "arguably the most important information for us to store".
+  - *Kept:* the archive already kept the articles of sports and markets
+    episodes. It now also keeps each cached episode's **live provider data**
+    as facts, in code (`history_archive.live_records` / `after_episode`):
+    a market's state at its `as_of`, a game or count once it is **final**
+    (never mid-play), a player's or team's report. Never a prediction
+    market (never evidence) or the weather (a forecast). Graded primary,
+    dated by the provider, the same snapshot kept once. With no sentence
+    model installed they are skipped and counted (`live_skipped`).
+  - *Recalled:* `recall_wanted` no longer refuses sports, markets or
+    outcome-dependent questions (`GUARDED_DOMAINS` is gone). Weather and a
+    town's news keep their own ladders.
+  - *Never passing for today's:* §308 kept them out because an old score or
+    price in the packet would vouch for itself. `ScoreGuard` already lets a
+    score through only from the scoreboard or in a sentence about the past.
+    `FigureGuard` now splits the packet (`split_archive`): today's sources
+    vouch for any sentence; the archive's figures only for a sentence that
+    says when (`_DATED`: a month, a weekday, "ago", "at the time", a
+    quarter) and does not say now. The writer's outcome note adds that an
+    archived result is never the outcome asked for.
+- **One agents document.** `docs/PIPELINE_AGENTS.md` (§309) is folded into
+  `docs/FAM_AGENTS.md` - the pipeline as drawn, what is still to do, the
+  ways to run an agent and how agents talk - and deleted.
+
+Still to do: archive the sports and markets **sweeps'** finals and closes,
+not only what an episode used (`docs/FAM_AGENTS.md`, "Still to do in the
+pipeline"); and the owner's call on letting the archive answer an empty
+search alone (§308 adds it only beside web sources).

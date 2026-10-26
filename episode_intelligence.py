@@ -1870,7 +1870,11 @@ def build_brief_block(brief: Brief, minutes: int) -> str:
             "whether it has - that is settled by the evidence you were given "
             "and by nothing else. So: find the outcome reported as an outcome, or "
             "write the episode about something that has not finished yet. "
-            "Both are real episodes. Choosing between them by guessing is not.")
+            "Both are real episodes. Choosing between them by guessing is not. "
+            # §311: the archive now reaches these questions too.
+            "Earlier reporting from FAM's archive is never that result: it "
+            "is an earlier game, an earlier close, an earlier vote, and is "
+            "said as one, with its date.")
 
     if brief.cautions:
         lines.append("Be careful about this, and take the evidence over your "

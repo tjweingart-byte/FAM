@@ -257,9 +257,6 @@ def test_without_a_sentence_model_there_is_no_recall(archive, monkeypatch):
 
 @pytest.mark.parametrize("brief, why", [
     (None, "no brief"),
-    (SimpleNamespace(outcome_dependent=True), "outcome-dependent"),
-    (SimpleNamespace(live_domain="markets"), "markets"),
-    (SimpleNamespace(live_domain="sports"), "sports"),
     (SimpleNamespace(live_domain="weather"), "weather"),
     (SimpleNamespace(place="Haddonfield, NJ"), "town"),
 ])
@@ -269,6 +266,17 @@ def test_the_recall_stays_off_where_old_facts_would_mislead(archive, brief, why)
 
 def test_an_ordinary_brief_may_be_given_history(archive):
     assert ha.recall_wanted(SimpleNamespace(subject="The Eagles")) == ""
+
+
+@pytest.mark.parametrize("brief", [
+    SimpleNamespace(outcome_dependent=True),
+    SimpleNamespace(live_domain="markets"),
+    SimpleNamespace(live_domain="sports"),
+])
+def test_sports_markets_and_results_are_given_history(archive, brief):
+    """§311, the owner's direction: their history is the most valuable the
+    archive holds. The guards, not the recall, keep it from passing for now."""
+    assert ha.recall_wanted(brief) == ""
 
 
 # --- into the packet -------------------------------------------------------

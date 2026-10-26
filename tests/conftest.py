@@ -77,9 +77,6 @@ FAM_ENVIRONMENT = (
     "EVIDENCE_DIGEST", "EVIDENCE_DIGEST_MODEL", "EVIDENCE_DIGEST_TIMEOUT_SECONDS",
     "EVIDENCE_DIGEST_AHEAD_TIMEOUT_SECONDS", "EVIDENCE_DIGEST_MAX_TOKENS",
     "EVIDENCE_DIGEST_MIN_CHARS", "WRITER_WARM", "WRITER_MODEL",
-    "HISTORY_PACKET", "HISTORY_TIMEOUT_SECONDS", "HISTORY_AHEAD_TIMEOUT_SECONDS",
-    "HISTORY_GRACE_SECONDS", "HISTORY_ENTRIES_PER_MINUTE", "HISTORY_MAX_ENTRIES",
-    "HISTORY_MAX_CHARS",
     # Live facts. A developer with LIVE_SPORTS_PROVIDER=fake set must not run
     # a suite that quietly has a scoreboard in it - a test asserting FAM says
     # "no live feed" would pass or fail on their shell rather than the code.

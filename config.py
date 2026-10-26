@@ -600,22 +600,6 @@ class Settings:
     # A packet shorter than this is read whole: the call costs about a
     # second, and a short packet costs the writer less than that to read.
     evidence_digest_min_chars: int = _env_int("EVIDENCE_DIGEST_MIN_CHARS", 2500)
-    # **The second packet: what came before** (§309, `history.py`). The
-    # history store answers beside the search; once the evidence is in it is
-    # waited for only `HISTORY_GRACE_SECONDS` more, so it never holds the
-    # first word. On, but a no-op until a store is registered
-    # (`history.register`) - /api/health says which.
-    history_packet: bool = field(
-        default_factory=lambda: os.environ.get("HISTORY_PACKET", "1")
-        not in ("0", "false", "False", ""))
-    history_timeout_seconds: float = _env_float("HISTORY_TIMEOUT_SECONDS", 3.0)
-    history_ahead_timeout_seconds: float = _env_float(
-        "HISTORY_AHEAD_TIMEOUT_SECONDS", 15.0)
-    history_grace_seconds: float = _env_float("HISTORY_GRACE_SECONDS", 0.5)
-    # More minutes buy more of the past, never more of the same.
-    history_entries_per_minute: int = _env_int("HISTORY_ENTRIES_PER_MINUTE", 3)
-    history_max_entries: int = _env_int("HISTORY_MAX_ENTRIES", 12)
-    history_max_chars: int = _env_int("HISTORY_MAX_CHARS", 6000)
     # The window applied to a question about a moment when the brief names no
     # other. Two weeks is wide enough to catch a story that broke over a
     # weekend and narrow enough to keep an old well-ranked explainer out of the

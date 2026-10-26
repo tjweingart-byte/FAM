@@ -71,7 +71,6 @@ import prefetch
 import prefetch_sources
 from episode_intelligence import report as ei_report
 from evidence_digest import report as evidence_digest_report
-from history import report as history_report
 from writer_warm import report as writer_warm_report
 from script_generator import writer_report
 import live_captions
@@ -1894,9 +1893,6 @@ async def health(request: Request) -> dict:
         # The evidence cut in front of the writer (§270): on or off, and how
         # each cut ended since boot, by who was waiting.
         "evidence_digest": evidence_digest_report(),
-        # The second packet (§309): whether a history store is registered,
-        # and how each lookup ended since boot, by who was waiting.
-        "history": history_report(),
         # The writer's cache warmed at the tap (§270): sent, already warm,
         # failed, since boot.
         "writer_warm": writer_warm_report(),

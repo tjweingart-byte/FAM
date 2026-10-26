@@ -792,33 +792,31 @@ the rest of this list it needs taste rather than a key.
 
 
 <!-- rule:two-packets -->
-**The writer reads two packets, not one** *(PROBLEMS.md §309, at the owner's
-direction, 2026-10-24).* The pipeline the owner drew: search → EI
-(contextualise: the category, subcategory and context of the search; write
-the inputs for every source) → the plugins (search ladder, live facts,
-forecast, local) for packet one, *what is happening now*, and the history
-store (MongoDB, built on another branch; a research agent later) for packet
-two, *what came before* → consolidate both into what the writer can digest →
-the writer. Packet one is what FAM always had. Packet two is `history.py`:
+**The writer reads two packets in one: today's search, and FAM's archive
+added into it** *(PROBLEMS.md §309, §311, at the owner's direction).* The
+pipeline the owner drew: search → EI (contextualise: the category,
+subcategory and context of the search; write the inputs for every source)
+→ the plugins (search ladder, live facts, forecast, local) for packet one,
+*what is happening now*, and the history archive (MongoDB, §308) for packet
+two, *what came before* → consolidated for the writer → the writer.
 
 - EI's contextualising is `Brief.category_path`, placed in code against the
-  category tree (`episode_intelligence.place_category`, the same resolver the
-  composer's categories use) - no call, no wait, never the model's.
-- The store plugs in with `history.register(fetch, name, remote=...)` and
-  is asked with a `HistoryQuery` (subject, entities, category path, intent,
-  place, window, must-establish, limit) that **has no listener field**: the
-  store is shared and a lookup is never personal.
-- It runs beside the search and is waited for only `HISTORY_GRACE_SECONDS`
-  once the evidence is in ([latency-start-earlier]); nobody waiting, its whole
-  ahead ceiling. Every failure is an outcome, never an exception, and leaves
-  the prompt byte for byte as it was ([ei-before-search]). A remote store is
-  not asked on staging ([zero-spend-staging]).
-- Consolidation (`history.consolidate`) is code: newest first; undated,
-  empty and repeated entries out; entries inside the brief's window out when
-  the search found evidence for it (the fresh packet speaks for that
-  stretch); more minutes buy more entries under `HISTORY_MAX_CHARS`.
-- The writer reads it after the evidence as `<background>`: each record
-  dated in code, its kind, never a hostname or where it came from; anything
-  that changes is taken from packet one and the live state, which win.
-- Credited on the sources panel as `archive`; counted on /api/health
-  (`history`); never in the cache key.
+  category tree (`episode_intelligence.place_category`) - no call, no wait,
+  never the model's.
+- **Packet two is `history_archive.py`** (§308): its recall runs beside the
+  search and its facts are **added into the search results** as dated
+  sources marked as earlier reporting from FAM's archive, so the writer has
+  as much material as there is. The `history.py` seam of §309 is retired.
+- **Sports and market data are kept and recalled** (§311): scores and prices
+  are the archive's most valuable material. Each cached episode's live
+  provider data - a final result, a market state at its time, a player's
+  report; never a game mid-play, a prediction market or the weather - is
+  written as archive facts in code. The recall reaches sports, markets and
+  outcome-dependent questions; weather and a town's news keep their own
+  ladders.
+- **An old figure never passes for today's**: `ScoreGuard` lets a score
+  through only from the scoreboard or in a sentence about the past;
+  `FigureGuard` lets an archived figure vouch only for a sentence that says
+  when it was true (`figure_guard._DATED`); the writer is told an archived
+  result is never the outcome asked for, and that the archive is history,
+  never how things stand now.

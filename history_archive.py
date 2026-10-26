@@ -32,9 +32,13 @@ word longer than that. It adds facts only:
   search's job), and never without a publish date;
 * **only beside web sources** - an archive alone must not make an empty
   packet look researched;
-* never on an outcome-dependent question, a markets or sports episode (an old
-  price or score in the packet would vouch for itself past `FigureGuard` and
-  `ScoreGuard`), weather or a town's news;
+* on every kind of question but weather and a town's news - sports,
+  markets and outcome-dependent questions included (§311, the owner's
+  direction: scores and prices are the archive's most valuable material).
+  An old figure cannot pass for today's: `ScoreGuard` lets a score through
+  only from the scoreboard or in a sentence about the past, and
+  `FigureGuard` lets an archived figure vouch only for a sentence that
+  says when it was true;
 * labelled as earlier reporting, dated, graded, never a hostname, and never a
   current state ([recency-credibility], [started-not-finished]).
 
@@ -104,7 +108,6 @@ RECALL_EXECUTOR = ThreadPoolExecutor(max_workers=2,
 #: The private search's origin (`cache.PRIVATE_ORIGIN`), never archived.
 PRIVATE_ORIGIN = "private"
 #: Live domains whose figures are held to the scoreboard or the market.
-GUARDED_DOMAINS = ("sports", "markets")
 
 
 # --------------------------------------------------------------------------
@@ -542,7 +545,8 @@ _BACKEND_LOCK = threading.Lock()
 #: What has happened in this process, for `/api/health`.
 STATS: dict = {"intake_articles": 0, "episodes_linked": 0, "recalls": 0,
                "recalled_facts": 0, "recall_late": 0, "errors": 0,
-               "last_error": "", "last_recall_ms": None}
+               "last_error": "", "last_recall_ms": None, "live_facts": 0,
+               "live_skipped": 0}
 _STATS_LOCK = threading.Lock()
 _BACKOFF_UNTIL = [0.0]
 _SINCE_PRUNE = [0]
@@ -611,7 +615,8 @@ def reset() -> None:
     with _STATS_LOCK:
         STATS.update({"intake_articles": 0, "episodes_linked": 0, "recalls": 0,
                       "recalled_facts": 0, "recall_late": 0, "errors": 0,
-                      "last_error": "", "last_recall_ms": None})
+                      "last_error": "", "last_recall_ms": None,
+                      "live_facts": 0, "live_skipped": 0})
     _BACKOFF_UNTIL[0] = 0.0
     _SINCE_PRUNE[0] = 0
 
@@ -650,6 +655,74 @@ def _count(name: str, n: int = 1) -> None:
 # --------------------------------------------------------------------------
 # Writing: after an episode is kept
 # --------------------------------------------------------------------------
+#: The live domains whose provider data is kept (§311). Weather is a
+#: forecast, never an outcome ([weather]); a prediction market is never
+#: evidence ([forecast-beside]).
+LIVE_DOMAINS = ("sports", "markets", "elections")
+
+
+def live_records(*lookups) -> list:
+    """What the episode's live providers said, as records the archive keeps
+    (§311, the owner's direction: scores and prices are the archive's most
+    valuable material). Code only - the provider's own lines, its time and
+    its status, never a model's words.
+
+    Kept: a market's state at its `as_of`; a game, race or count only once
+    it is **final** (a score mid-game is not history, it is a moment that
+    will be wrong in a minute); a player's or team's report. Never raises."""
+    import live_facts
+
+    out = []
+    for lookup in lookups:
+        try:
+            if lookup is None or getattr(lookup, "outcome", "") != live_facts.FACTS:
+                continue
+            facts = getattr(lookup, "facts", None)
+            if facts is None or not list(getattr(facts, "facts", None) or []):
+                continue
+            domain = str(getattr(facts, "domain", "") or "")
+            kind = str(getattr(facts, "kind", "") or "")
+            status = str(getattr(facts, "status", "") or "")
+            if kind == live_facts.PREDICTION_MARKET or domain not in LIVE_DOMAINS:
+                continue
+            if (domain != "markets" and kind != live_facts.PLAYER_REPORT
+                    and status != live_facts.FINAL):
+                continue
+            as_of = getattr(facts, "as_of", None)
+            if as_of is None:
+                continue
+            entity = getattr(facts, "entity", None)
+            name = str(getattr(entity, "label", "") or getattr(entity, "id", "")
+                       or "")
+            out.append({
+                "domain": domain, "kind": kind or "state", "status": status,
+                "source": str(getattr(facts, "source", "") or ""),
+                "entity": name, "as_of": as_of.isoformat(),
+                "lines": [str(x) for x in facts.facts if str(x).strip()]})
+        except Exception as exc:  # noqa: BLE001 - never costs the episode
+            log.warning("a live record could not be kept: %s", exc)
+    return out
+
+
+def _live_fact(record: dict, subject: str, category: str) -> Fact:
+    """One live record as an archive fact: dated by the provider's own
+    `as_of`, graded primary, its lines verbatim."""
+    day = str(record.get("as_of", ""))[:10]
+    entity = record.get("entity") or subject
+    title = " ".join(filter(None, (entity, {"markets": "market data",
+                                            "sports": "result",
+                                            "elections": "count"}.get(
+                                                record.get("domain"), "record"),
+                                   day)))
+    return Fact(
+        url=f"live:{record.get('source', '')}:{entity}:{record.get('as_of', '')}",
+        text=" ".join(record.get("lines") or []), title=title,
+        host=str(record.get("source", "")), grade="primary", published=day,
+        kind="live", subject=subject, category=category,
+        figure={"domain": record.get("domain"), "status": record.get("status"),
+                "as_of": record.get("as_of"), "kind": record.get("kind")})
+
+
 def after_episode(notes, key: str, sourced_at: float, origin: str = "") -> None:
     """Queue the episode's articles for the archive. Never raises, never
     waits: the work is submitted to `EXECUTOR`.
@@ -662,7 +735,8 @@ def after_episode(notes, key: str, sourced_at: float, origin: str = "") -> None:
             return
         carried = getattr(notes, "archive", None) or {}
         findings = list(carried.get("findings") or [])
-        if not findings or not key:
+        live = list(carried.get("live") or [])
+        if not (findings or live) or not key:
             return
         import cache as cache_mod
 
@@ -670,19 +744,35 @@ def after_episode(notes, key: str, sourced_at: float, origin: str = "") -> None:
         subject = str(carried.get("subject", "") or "")
         category = str(getattr(notes, "category", "") or "")
         EXECUTOR.submit(_write, findings, subject, category, episode, key,
-                        float(sourced_at or 0))
+                        float(sourced_at or 0), live)
     except Exception as exc:  # noqa: BLE001 - never costs the episode
         log.warning("could not queue an episode for the archive: %s", exc)
 
 
 def _write(findings: list, subject: str, category: str, episode: str,
-           key: str, sourced_at: float) -> None:
+           key: str, sourced_at: float, live: list = ()) -> None:
     if _backing_off():
         return
     store = backend()
     if store is None:
         return
     now = time.time()
+    # The live providers' data (§311): kept as facts at once, in code - a
+    # score or a price needs no agent to decide what it says.
+    for record in live or ():
+        try:
+            add_fact(_live_fact(record, subject, category))
+            _count("live_facts")
+        except RuntimeError:
+            # No embedder installed: a fact that cannot be recalled is not
+            # kept, and the store itself is fine, so no back-off.
+            _count("live_skipped", len(live) - live.index(record))
+            break
+        except Exception as exc:  # noqa: BLE001 - see `_failed`
+            _failed("live fact", exc)
+            break
+    if not findings:
+        return
     try:
         _count("intake_articles", store.intake(findings, subject, category, now))
         if episode:
@@ -749,11 +839,12 @@ def recall_wanted(brief) -> str:
         return "ARCHIVE_RECALL=0"
     if brief is None:
         return "no brief"
-    if getattr(brief, "outcome_dependent", False):
-        return "outcome-dependent"
+    # Sports, markets and outcome-dependent questions are recalled too
+    # (§311, the owner's direction): their history is the archive's most
+    # valuable material. What keeps an old score or price from passing for
+    # today's is downstream - dated sources, `ScoreGuard`, `FigureGuard`'s
+    # archive rule and the writer's outcome note - not a refusal here.
     domain = str(getattr(brief, "live_domain", "") or "")
-    if domain in GUARDED_DOMAINS:
-        return f"a {domain} episode: its figures are held to the live source"
     if domain == "weather" or str(getattr(brief, "place", "") or "").strip():
         return "weather or a town's news"
     return ""
