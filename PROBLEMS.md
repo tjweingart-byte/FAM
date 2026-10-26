@@ -22399,7 +22399,8 @@ goes past an episode that fails".
 **Recency, in code.** The window was only a hint to the search vendor and
 nothing checked what came back, so a March 2025 article reached a "last 24
 hours" packet. `research.within_window` drops dated results older than the
-window (a day's grace; undated kept, still "date not stated") on the main
+window (a whole calendar day's grace, since a published date has no time of
+day; undated kept, still "date not stated") on the main
 search and the story look; GDELT already filters on its own export times.
 The thin-packet retry **widens** the window (`retry_window`: 3x, at least 7
 days) instead of dropping it. The archive (§308/§313) does not answer this:
@@ -22413,13 +22414,14 @@ filter in code, a window on "who was Abraham Lincoln" would drop every good
 biography, and a `causal` question used to default to 14 days on its own
 ("why did Rome fall"). A window survives only when something says the
 question is about a moment: a live domain, an outcome to wait for, a
-recap/update/preview, or the question naming a time (today, latest, this
-week, a weekday, this year or last). The word list decides only whether a
+recap/update/preview, a recent development EI is at least fairly sure of
+(`why_now_confidence` medium or high), or the question naming a time
+(today, latest, this week, a weekday, this year or last). The word list decides only whether a
 window may apply, never its size; an episode left with no window is kept as
-long as any evergreen episode, because `ttl_for` reads the window. The trade: a news
-question with no time word and a model-given window ("what did the mayor
-say about the budget") is now searched with none; its retry still has the
-gap named. `tests/test_evergreen_window_320.py`.
+long as any evergreen episode, because `ttl_for` reads the window. The
+`why_now` test is what keeps a news question with no time word ("what did
+the mayor say about the budget") inside its window; one EI has no reason
+for is searched with none. `tests/test_evergreen_window_320.py`.
 
 **The local ladder asks what the question is about**
 (`local_news.relevant`). Naming the town was the only test, so "airshow
@@ -22433,7 +22435,10 @@ search to itself). EI's `place` excludes one specific happening in a town -
 a news question on the general ladder. The writer: an older article cannot
 speak for a day it was written before, a missed search never says something
 is not happening, and the local block no longer calls what was found all
-there is. `tests/test_local_relevance_320.py`.
+there is. When the town had stories but none about the question
+(`LocalResult.unrelated`), the gap line says "We couldn't find any recent
+news reports out of {town} about this" - never that there were no reports
+- and the writer is told the same. `tests/test_local_relevance_320.py`.
 
 **Each provider's input in its own terms.** The names the catalogues
 resolve were already EI's `live_entity` (§265), so the branch's `entities`
@@ -22445,8 +22450,7 @@ also writes:
 - `source_kind` (general, news, official, filings, academic, local):
   Perplexity's `search_mode` (`sec`, `academic`) and a source-preference
   line in Parallel's objective.
-In code: GDELT is searched with `live_entity`'s names first
-(`research.gdelt_query`); a town's ISO country from the place catalogue is
+In code: a town's ISO country from the place catalogue is
 Parallel's `location` and Perplexity's `country` (never a place only as
 typed); the local web query no longer repeats a town the retrieval already
 names; `place` is asked for with the full state name and a two-letter
@@ -22455,6 +22459,12 @@ country code. Both SDKs were checked for the field names (perplexityai
 brief has neither field and every reader falls back as before. The two
 fields add a few output tokens to the search half; watch `since_boot`.
 `tests/test_provider_inputs_320.py`.
+
+The branch also searched GDELT with the names first. Not ported, after a
+review: it rested on GDELT keeping only a query's first words, which Main's
+export copy does not do (`ExportStore.search` counts every word and needs
+two), so a team's city prepended to the query only let in namesakes
+("Kansas City" for a Chiefs question).
 
 **A stale credential memo.** `credentials.pool` kept a memo built while a
 key was absent once the same key was set again, because the value matched

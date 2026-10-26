@@ -477,9 +477,13 @@ def time_bound(brief: "Brief", query: str, now_year: Optional[int] = None) -> bo
     throw away every good biography. The model is told to give 0 for those,
     and this is what holds when it does not: a window survives only when
     something says the question is about a moment - a live domain, an
-    outcome that has to be waited for, a recap/update/preview, or the
-    question naming a time (today, latest, this week, this year's date).
-    A `causal` question alone is not one ("why did Rome fall").
+    outcome that has to be waited for, a recap/update/preview, a recent
+    development EI is at least fairly sure put it in their head
+    (`why_now_confidence` medium or high), or the question naming a time
+    (today, latest, this week, this year's date). A `causal` question alone
+    is not one ("why did Rome fall"). The `why_now` test is what keeps a
+    news question with no time word ("what did the mayor say about the
+    budget") inside its window.
     """
     import datetime as _dt
 
@@ -489,6 +493,8 @@ def time_bound(brief: "Brief", query: str, now_year: Optional[int] = None) -> bo
     if getattr(brief, "outcome_dependent", False):
         return True
     if getattr(brief, "intent", "") in ("recap", "update", "preview"):
+        return True
+    if getattr(brief, "why_now_confidence", "") in ("medium", "high"):
         return True
     text = " ".join([query or "", getattr(brief, "search_query", "") or ""])
     return bool(_MOMENT_WORDS.search(text)) or _names_a_recent_year(text, year)

@@ -1040,15 +1040,18 @@ padding it.
 """
     has_weather = getattr(local, "weather", None) is not None
     county_news = local.scope == "county" and bool(plan.evidence)
+    unrelated = bool(getattr(local, "unrelated", False))
     said = local_news.gap_line(place, weather=has_weather,
-                               county_news=county_news)
+                               county_news=county_news, unrelated=unrelated)
+    # What the search did not find, said the way the gap line says it (§320).
+    missed = (f"no recent news reports out of {town} about this" if unrelated
+              else f"no recent news reports out of {town} itself")
     weather_step = (f"first the weather in {town} from the weather block "
                     "below, then " if has_weather else "")
     if county_news:
         return f"""
-This is a question about {town}, and our search found no recent news reports
-out of {town} itself. The listener has ALREADY HEARD this sentence, spoken
-before your first word:
+This is a question about {town}, and our search found {missed}.
+The listener has ALREADY HEARD this sentence, spoken before your first word:
 
 "{said}"
 
@@ -1060,8 +1063,8 @@ material ends.
 """
     return f"""
 This is a question about {town}, and our search found no recent news reports
-out of {town} or {county}. The listener has ALREADY HEARD this sentence,
-spoken before your first word:
+out of {town} or {county}{" about this" if unrelated else ""}. The listener
+has ALREADY HEARD this sentence, spoken before your first word:
 
 "{said}"
 
@@ -1545,7 +1548,8 @@ class _ScriptReader:
 
         line = local_news.gap_line(
             local.place, weather=getattr(local, "weather", None) is not None,
-            county_news=getattr(local, "scope", "") == "county")
+            county_news=getattr(local, "scope", "") == "county",
+            unrelated=bool(getattr(local, "unrelated", False)))
         self.emitted_words += count_words(line)
         return [line]
 

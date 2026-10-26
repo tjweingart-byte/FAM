@@ -1124,6 +1124,9 @@ class LocalResult:
     packet: object = None
     #: True when the town itself had nothing - the gap sentence is said.
     gap: bool = False
+    #: True when the town had stories but none about the question (§320):
+    #: the gap sentence then says "about this", never that there was no news.
+    unrelated: bool = False
     #: The weather there, when the town had nothing (or it was asked for).
     weather: object = None
     attempts: list = field(default_factory=list)
@@ -1131,11 +1134,13 @@ class LocalResult:
     def as_dict(self) -> dict:
         return {"place": self.place.as_dict() if self.place else None,
                 "scope": self.scope, "gap": self.gap,
+                "unrelated": self.unrelated,
                 "weather": bool(self.weather),
                 "attempts": list(self.attempts)}
 
 
-def gap_line(place, weather: bool = True, county_news: bool = True) -> str:
+def gap_line(place, weather: bool = True, county_news: bool = True,
+             unrelated: bool = False) -> str:
     """The sentence an episode opens with when the town had nothing (§194).
 
     **Composed here, never by the writer**, at the owner's direction: it is
@@ -1144,7 +1149,9 @@ def gap_line(place, weather: bool = True, county_news: bool = True) -> str:
     search - "we couldn't find" - never about the world ("nothing is
     happening"), which is the line [missed-not-absent] exists to hold. And
     it promises only what follows it: the weather when there is a forecast,
-    the county's news when there is some.
+    the county's news when there is some. `unrelated` (§320): the town had
+    stories, none about the question, so the line says "about this" rather
+    than that there were no reports at all.
     """
     town = place.name
     county = place.county_label or "the surrounding area"
@@ -1157,7 +1164,8 @@ def gap_line(place, weather: bool = True, county_news: bool = True) -> str:
         tail = f" Here's the closest news we have, from across {county}."
     else:
         tail = ""
-    return f"We couldn't find any recent news reports out of {town}.{tail}"
+    about = " about this" if unrelated else ""
+    return f"We couldn't find any recent news reports out of {town}{about}.{tail}"
 
 
 #: Words that say "the news there" without saying what about. A brief that
@@ -1252,6 +1260,7 @@ async def research_local(place, brief=None, search=None) -> LocalResult:
             return result
         log.info("local news: %d town item(s) for %s, none about the question",
                  len(town), place.label)
+        result.unrelated = True
     result.attempts.append(("town", 0))
     result.gap = True
 

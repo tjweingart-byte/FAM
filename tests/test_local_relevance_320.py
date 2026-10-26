@@ -101,3 +101,35 @@ def test_the_local_block_never_calls_what_was_found_all_there_is():
     block = " ".join(sg.build_local_block(plan).split())
     assert "not all that is happening there" in block
     assert "is about San Francisco itself" not in block
+
+
+def test_a_town_with_stories_none_about_the_question_says_about_this():
+    """Not "no recent news reports out of San Francisco" - there were some."""
+    assert local_news.gap_line(SF, weather=False, county_news=False,
+                               unrelated=True) == \
+        "We couldn't find any recent news reports out of San Francisco about this."
+    assert local_news.gap_line(SF, weather=False, county_news=False) == \
+        "We couldn't find any recent news reports out of San Francisco."
+
+    import pytest
+
+    async def nothing(place):
+        return None
+
+    item = types.SimpleNamespace()
+    mp = pytest.MonkeyPatch()
+    mp.setattr(local_news, "refresh_place", nothing)
+    mp.setattr(local_news, "town_items", lambda place: [item])
+    mp.setattr(local_news, "county_items", lambda place: [])
+    mp.setattr(local_news, "_packet",
+               lambda items, scope, place, backend: VALKYRIES)
+    try:
+        got = asyncio.run(local_news.research_local(SF, AIRSHOW, search=None))
+    finally:
+        mp.undo()
+    assert got.gap and got.unrelated and got.packet is None
+    plan = dataclasses.replace(
+        sg.plan_episode("airshow in San Francisco", 2, search=True), local=got)
+    block = " ".join(sg.build_local_block(plan).split())
+    assert "about this" in block
+    assert "about this." in block

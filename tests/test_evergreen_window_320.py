@@ -53,5 +53,13 @@ def test_a_live_domain_or_an_awaited_outcome_keeps_its_window():
     assert gated("Eagles game", intent="recap").recency_days == 30
 
 
+def test_a_recent_development_keeps_a_news_question_s_window():
+    """No time word, but EI is fairly sure something recent prompted it."""
+    assert gated("what did the mayor say about the budget",
+                 why_now="the council voted on the budget this week",
+                 why_now_confidence="medium").recency_days == 30
+    assert gated("what did the mayor say about the budget").recency_days == 0
+
+
 def test_an_evergreen_question_with_no_window_stays_without_one():
     assert gated("how do vaccines work", recency_days=0).recency_days == 0

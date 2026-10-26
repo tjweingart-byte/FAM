@@ -708,7 +708,7 @@
   (`live_facts.budget_seconds`): the first word never waits longer than before.
 
 <!-- rule:local-news-ladder -->
-> **Current (PROBLEMS.md §320):** a rung whose stories name the place but cover none of what the brief asked for counts as empty (`local_news.relevant`); the web rung searches vetted outlets only, never `learned` ones; one specific happening in a town (an airshow, a game) is a news question on the general ladder.
+> **Current (PROBLEMS.md §320):** a rung whose stories name the place but cover none of what the brief asked for counts as empty (`local_news.relevant`), and the gap line then says "about this" rather than that the town had no reports; the web rung searches vetted outlets only, never `learned` ones; one specific happening in a town (an airshow, a game) is a news question on the general ladder.
 > **Current (PROBLEMS.md §258):** the third rung searches the town's known outlets on the configured search backend (Parallel), not Exa; the record names the backend that searched.
 - **A town's news comes from the town's own outlets, and its gap is said in
   words composed in code.** *(PROBLEMS.md §194, at the owner's direction;

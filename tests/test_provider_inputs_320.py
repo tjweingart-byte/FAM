@@ -1,7 +1,6 @@
 """§320: EI writes each provider's input in that provider's own terms.
 
-A market-style title for Polymarket, the resolved names first for GDELT, a
-source kind for Perplexity's `search_mode` and Parallel's objective, and a
+A market-style title for Polymarket, a source kind for Perplexity's `search_mode` and Parallel's objective, and a
 town's country for both web backends. The names the catalogues resolve were
 already EI's `live_entity` (§265). Nothing here reaches the network.
 """
@@ -98,11 +97,3 @@ def test_a_country_is_only_ever_an_iso_code():
     assert research.hints_for(None, "United States") == {"source_kind": "general"}
     assert research.hints_for(None, "gb")["country"] == "GB"
 
-
-def test_gdelt_is_searched_with_the_names_first():
-    question = types.SimpleNamespace(live_entity="Kansas City Chiefs, Buffalo Bills")
-    got = research.gdelt_query("result last night", question)
-    assert got == "Kansas City Chiefs Buffalo Bills result last night"
-    named = types.SimpleNamespace(live_entity="NVIDIA")
-    assert research.gdelt_query("NVIDIA shares today", named) == "NVIDIA shares today"
-    assert research.gdelt_query("x y", None) == "x y"

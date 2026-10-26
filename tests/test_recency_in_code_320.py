@@ -32,6 +32,14 @@ def test_a_day_of_grace_either_side_of_the_window():
     assert research.within_window([result(4)], 2, now=NOW) == []
 
 
+def test_the_grace_is_a_whole_calendar_day_whatever_the_hour():
+    """A published date has no time of day: late in the UTC day, an article
+    dated the first day of the grace is still kept."""
+    late = NOW + timedelta(hours=23)
+    assert research.within_window([result(3)], 2, now=late) != []
+    assert research.within_window([result(4)], 2, now=late) == []
+
+
 def test_no_window_keeps_everything():
     old = result(4000)
     assert research.within_window([old], 0, now=NOW) == [old]

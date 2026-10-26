@@ -486,7 +486,8 @@ def rank_results(results, now: Optional[datetime] = None) -> list:
 
 #: A day either side of the window, for the publisher's clock and ours: an
 #: article stamped late yesterday in one zone is inside "the last day" in
-#: another.
+#: another. Counted in whole calendar days, because a published date has no
+#: time of day (`published_at` reads it as midnight UTC).
 WINDOW_GRACE_DAYS = 1
 #: The thin-packet retry keeps a window rather than dropping it (§320): this
 #: many times the first, and never under a week.
@@ -523,11 +524,11 @@ def within_window(results, recency_days: int,
     if recency_days <= 0:
         return list(results)
     now = now or datetime.now(timezone.utc)
-    cutoff = now - timedelta(days=recency_days + WINDOW_GRACE_DAYS)
+    first_day = (now - timedelta(days=recency_days + WINDOW_GRACE_DAYS)).date()
     kept = []
     for result in results:
         when = published_at(result)
-        if when is not None and when < cutoff:
+        if when is not None and when.date() < first_day:
             continue
         kept.append(result)
     return kept
@@ -940,18 +941,6 @@ SOURCE_PREFERENCES = {
 #: EI's `source_kind` as Perplexity's `search_mode` (§320). Everything else
 #: is the default web search, which is not sent.
 PERPLEXITY_MODES = {"filings": "sec", "academic": "academic"}
-
-
-def gdelt_query(query: str, brief) -> str:
-    """What GDELT's export copy is searched with (§320): the names EI resolved
-    (`live_entity`) first, then the query. GDELT matches words against titles
-    and the people and organisations its own extraction names, and keeps the
-    first words - so a name is worth more than "decision" or "game", and the
-    names go where they cannot be cut off."""
-    raw = str(getattr(brief, "live_entity", "") or "")
-    names = [n.strip() for n in raw.split(",")
-             if n.strip() and n.strip().lower() not in (query or "").lower()]
-    return " ".join(names + [query or ""]).strip()
 
 
 def hints_for(brief, country: str = "") -> dict:
@@ -1786,8 +1775,7 @@ async def retrieve(query: str, backend: Optional[str] = None,
         import gdelt
         import provenance as provenance_mod
 
-        second = await gdelt.retrieve(gdelt_query(query, brief),
-                                      recency_days=recency_days)
+        second = await gdelt.retrieve(query, recency_days=recency_days)
         if second:
             ranked = screen_results(rank_results(second), query=query,
                                     live_domain=live_domain)[:packet_sources]
@@ -1878,8 +1866,7 @@ async def retrieve_with_gdelt(query: str, brief=None, recency_days: int = 0
         import gdelt
         import provenance as provenance_mod
 
-        results = await gdelt.retrieve(gdelt_query(query, brief),
-                                       recency_days=recency_days)
+        results = await gdelt.retrieve(query, recency_days=recency_days)
     except Exception:  # noqa: BLE001 - a rung that raises is a rung that fails
         packet.seconds = time.perf_counter() - started
         log.warning("gdelt failed while retrieving %r", query, exc_info=True)
