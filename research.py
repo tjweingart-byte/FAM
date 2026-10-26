@@ -1244,11 +1244,15 @@ async def finish_history_look(packet: "Packet", look) -> None:
     """Merge the archive's recall if it is back within
     `ARCHIVE_GRACE_SECONDS` of the main packet; drop it otherwise.
 
-    The reference look's rules (§278, §281): only beside web sources, after
-    every one of them, never waited for longer than the grace, and judged
-    after the packet's gaps were named - earlier reporting must never cover a
-    current fact the dated sources lack. A fact from an article already in
-    the packet is left out."""
+    The reference look's timing (§278, §281): after every web source, never
+    waited for longer than the grace, and judged after the packet's gaps
+    were named - earlier reporting must never cover a current fact the dated
+    sources lack. A fact from an article already in the packet is left out.
+
+    An empty search gets no archive **for now** (§316, the owner's
+    direction): today's default, not a rule. Whether the archive may answer
+    an empty search is left to the contextualizer (`docs/FAM_AGENTS.md`,
+    agent 4), decided when the agents are built."""
     if look is None:
         return
     if not packet:

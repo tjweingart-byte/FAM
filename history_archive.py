@@ -30,8 +30,11 @@ word longer than that. It adds facts only:
 
 * published **before** the packet's recency window (what is inside it is the
   search's job), and never without a publish date;
-* **only beside web sources** - an archive alone must not make an empty
-  packet look researched;
+* **only beside web sources, for now** (the owner, §316): an empty search
+  gets no archive. That is today's default, not a rule - whether the
+  archive may answer an empty search is the contextualizer's decision,
+  made when the agents are built (`docs/FAM_AGENTS.md`, agent 4), and
+  nothing here forbids it;
 * on every kind of question but weather and a town's news - sports,
   markets and outcome-dependent questions included (§313, the owner's
   direction: scores and prices are the archive's most valuable material).

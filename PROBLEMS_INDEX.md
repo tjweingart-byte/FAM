@@ -319,3 +319,4 @@ and `limit` = Lines.
 | 22217 | 43 | 313. The archive is the second packet, sports and markets included (2026-10-26) |
 | 22260 | 26 | 314. The contextualizer, and guardrails for every agent (2026-10-26) |
 | 22286 | 33 | 315. The sweeps' scores and prices are kept in the archive (2026-10-26) |
+| 22319 | 22 | 316. An empty search still gets no archive - for now, and not as a rule (2026-10-26) |

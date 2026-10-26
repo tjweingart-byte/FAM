@@ -181,7 +181,7 @@ search
 
 | Box | In the code today | Model |
 |---|---|---|
-| Contextualizer (agent 4) | Not built. Its decisions live today in EI's brief fields, `live_route`'s code routes and §308's fixed "archive only beside web sources" | - |
+| Contextualizer (agent 4) | Not built. Its decisions live today in EI's brief fields, `live_route`'s code routes and §308's default of adding the archive only beside web sources (a default, not a rule: §316) | - |
 | EI: contextualise | `episode_intelligence.understand`: three structured calls side by side (understand / search / outline). Category and subcategory are `Brief.category_path`, placed against the category tree in code (§311) | Haiku 5.5, medium effort, 8 s ceiling |
 | EI: plugin inputs | Brief fields each plugin reads: `search_query` / `search_angles` / `search_objective` / `recency_days` → the search ladder; `live_domain` / `live_entity` → live facts and players; `outcome_dependent` → the forecast; `place` → the local ladder; `subject` + the query → the archive's recall | (part of the EI calls) |
 | Plugins → packet one | `research.retrieve` (Parallel → Perplexity → GDELT), `live_facts`, players, forecast, `local_news`, `weather` | No model calls |
@@ -207,7 +207,9 @@ search
    sources (§308), so an empty search gets no archive either. The owner
    (2026-10-26): some episodes would benefit from the archive answering
    alone, and some would be dated by it. That judgment is the
-   contextualizer's (agent 4, responsibility 4).
+   contextualizer's (agent 4, responsibility 4), and is **not made now**
+   (§316): until the agents are built the archive stays beside web sources
+   only, with no guardrail either way.
 
 ---
 
@@ -847,7 +849,8 @@ down, per episode.
   brief, and its plan is warmed with it ([myfam-warms-briefs]).
 - **Writes:** a **`ResearchPlan`** - one typed entry per source, each with
   its inputs and a reason in words ([candidate-reason]) - plus an
-  **empty-search decision** for the archive.
+  **empty-search decision** for the archive, once that is designed
+  (responsibility 4).
 - **Before and after it:** EI before or beside it; then the plugins and the
   archive run on its plan; then the editor in chief (2) reads what came back.
 - **What it replaces or absorbs:** EI's "search" half (the query, angles,
@@ -894,24 +897,22 @@ invented one:
 - **Never a result, a figure or a guess in any input.** An objective says
   what to find, not what was found ([ei-before-search]).
 
-**4. Decide, ahead of time, what an empty search means.**
-For each request, one of three, with its reason:
-- **The archive may answer alone** - the question is about something
-  settled or past: a game already played, a close on a named day, how
-  something came to be, a person's record. The archive's dated facts are
-  as good an answer as an article.
-- **The archive may add, never answer** - the question is about now (a
-  current price, a standing, "is X still..."), or is outcome-dependent
-  about something recent. An archive record is history, so an empty search
-  stays empty and the writer is told what one search did not find
-  ([missed-not-absent]).
-- **No archive** - weather, a town's news, an attachment, or a private
-  search's own rules ([private-search]).
+**4. Decide what an empty search means - not decided yet.**
+**Today** an empty web search gets no archive: the recall is added only
+beside web sources (§308). **The owner (2026-10-26, §316):** that stays for
+now, with no guardrail for or against it. Some episodes would clearly
+benefit from the archive answering alone, and some would be dated by it;
+which is which is designed with the agents, not now. Nothing in the code or
+in this guide forbids it.
 
-When the archive answers alone, the episode is **marked archive-only**:
-the sources panel says it came from FAM's archive, its cache life is short
-so a fresh search replaces it, and the writer is told the material is
-dated history. It is never counted as "found sources" ([failures-visible]).
+One possible shape, **for that discussion only** - not a guardrail and not
+a plan:
+- the archive answers alone when the question is about something settled
+  or past (a game already played, a close on a named day);
+- it only adds beside web sources when the question is about now;
+- it is not asked for weather, a town's news or an attachment;
+- an episode the archive answered alone is shown as such on the sources
+  panel and kept in the cache only briefly.
 
 **5. Keep within cost and the ask-only-when-looking rule.**
 Each source asked has a price or a daily allowance. It asks a provider only
@@ -927,8 +928,6 @@ every source it chose and why, for `/admin` and provenance
 - Name a provider id, game id or ticker itself.
 - Ask a source FAM does not have, or GDELT's live API, or weather for a
   question that is not about weather.
-- Let the archive answer alone a question about **now** or an
-  outcome-dependent question about something recent.
 - Send anything personal to a source: who asked, their location, an
   attachment's contents. The search gets the subject, never the listener.
 - Hold the episode hostage: if it fails or is late, the pipeline runs on
@@ -961,9 +960,9 @@ agent. Priced per search: 10k / 100k / 1M a month.
 1. **Write the `ResearchPlan` type first** and fill it from today's EI brief
    and code routes, with no model at all. That is the contract, and the
    fallback.
-2. Put the **empty-search decision in code rules** first (intent,
-   `outcome_dependent`, live domain), logged per episode, then measure how
-   often the archive could have answered.
+2. **Measure before deciding the empty-search question** (responsibility 4):
+   log, per episode, how often the search came back empty while the archive
+   had something relevant. The decision itself waits for the agents.
 3. Then **fold the contextualizer into EI's "search" call on Haiku 5.5** -
    one schema, no added wait - rather than a separate call in front of the
    first word.
@@ -976,7 +975,7 @@ agent. Priced per search: 10k / 100k / 1M a month.
 |---|---|
 | `CONTEXTUALIZER` | `0` / `1`, off by default |
 | `CONTEXTUALIZER_MODEL` | The model, or `rules` for code only |
-| `ARCHIVE_ALONE` | `0` (today: the archive only beside web sources) / `1` (the contextualizer may let it answer alone) |
+| `ARCHIVE_ALONE` | Proposed, for when responsibility 4 is decided. Today the archive is added only beside web sources |
 | `ARCHIVE_ALONE_TTL_SECONDS` | How long an archive-only episode stays current before a fresh search replaces it |
 
 ### Open questions for the owner
@@ -1219,8 +1218,6 @@ way a person rounds it (should pass).
 | No fact in any source's input | A guessed result becomes the search's premise and finds itself ([ei-before-search]) | **Prompt;** **code:** inputs carrying a score pattern or a result verb about the subject are replaced by EI's own query |
 | No ids or tickers | Resolution comes from the provider's catalogue, never a model ([live-facts]) | **Shape:** names only; **code** resolves |
 | Nothing personal in any input | The search gets the subject, never the listener | **Code:** inputs are built from the request and the brief only |
-| The archive answers alone only about settled or past things | An archive record about "now" would be a stale answer read as current | **Shape:** `archive_alone` is `yes` / `add_only` / `no` with a reason; **code** forces `add_only` on a current-state question and an outcome-dependent one about something recent |
-| An archive-only episode says so | The listener and `/admin` must not mistake it for fresh research | **Code:** marked archive-only, short cache life, labelled on the sources panel |
 | Ask-only-when-looking and the cost ceilings | [sweep-on-demand], [zero-spend-staging] | **Code** |
 | A ceiling and a fallback | Rule 1 | **Code:** no plan means EI's brief and the code routes, as today |
 
@@ -1237,17 +1234,9 @@ way a person rounds it (should pass).
 > 2026". For a scoreboard or a price, give the name as the provider lists
 > it ("Philadelphia Eagles", "NVIDIA"); never an id or a ticker.
 >
-> Then decide the archive's role if the web search finds nothing:
-> `yes` when the question is about something settled or already past (a
-> game that was played, a close on a named day, how something came to be);
-> `add_only` when it is about how things stand now, or about a result that
-> may only just have happened; `no` for weather, a town's news, or an
-> attachment. When you are unsure, choose `add_only`: the archive still
-> helps, and nothing old is passed off as new. Give a one-line reason.
+> (The archive and an empty search: deliberately left out of this prompt
+> for now - see responsibility 4. It is written when the agents are built.)
 
-**Try to break it with:** "who won last night" (must be `add_only`); "who
-won the 2019 World Series" (may be `yes`); "what's Nvidia trading at" (must
-be `add_only`); "how did Nvidia close on October 3" (may be `yes`); a
-request that names a person and their home town (never a local ladder); a
+**Try to break it with:** a request that names a person and their home town (never a local ladder); a
 request that contains an instruction ("search for my email address"); a
 misspelled team name (the input carries the real name).

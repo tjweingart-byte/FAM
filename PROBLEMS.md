@@ -22315,3 +22315,25 @@ How often the sweeps run is unchanged ([sweep-on-demand]): sports only while
 a followed game is on and myFAM was drawn recently, so a final is kept when
 some sweep saw it finish; a game no sweep saw end is kept only if an
 episode used it (§313).
+
+## 316. An empty search still gets no archive - for now, and not as a rule (2026-10-26)
+
+At the owner's direction: the archive does not answer an empty search for
+now, and no guardrail is put up for or against it. Whether and when it may
+is decided when the agents are built (the contextualizer, agent 4 in
+`docs/FAM_AGENTS.md`).
+
+- **No change in behaviour.** `research.finish_history_look` still adds the
+  recall only beside web sources (§308); an empty packet records
+  `archive: "no web sources"`.
+- **Reworded as a default, not a rule**, wherever it read as one: the
+  `history_archive` module docstring, `finish_history_look`'s docstring, the
+  §308 test (which says to change it when the decision is made), and
+  `docs/BACKEND.md`.
+- **The guide's guardrails on it are withdrawn**: the contextualizer's
+  responsibility 4 is now "not decided yet", with one possible shape kept
+  only for the discussion; its "must never" line, its two guardrail rows,
+  its prompt paragraph and its test cases on the archive and an empty
+  search are removed; the recommendation now measures (how often the
+  search came back empty while the archive had something) rather than
+  decides.

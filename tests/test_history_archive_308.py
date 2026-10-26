@@ -329,6 +329,8 @@ def test_no_history_beside_an_empty_packet():
         return packet
 
     packet = asyncio.new_event_loop().run_until_complete(go())
+    # Today's default (§316), not a rule: the contextualizer will decide
+    # when the archive may answer an empty search. Change this test then.
     assert packet.archive == "no web sources" and not packet.context
 
 
