@@ -22074,3 +22074,29 @@ Still to do: archive the sports and markets **sweeps'** finals and closes,
 not only what an episode used (`docs/FAM_AGENTS.md`, "Still to do in the
 pipeline"); and the owner's call on letting the archive answer an empty
 search alone (§308 adds it only beside web sources).
+
+## 312. The contextualizer, and guardrails for every agent (2026-10-26)
+
+At the owner's direction, `docs/FAM_AGENTS.md` gains a fourth agent and a
+closing section. Nothing is built.
+
+- **4. Contextualizer.** Works beside Episode Intelligence: digests and
+  contextualises the request, decides which of FAM's sources to ask (a
+  closed list), writes each source's inputs in its own terms (search
+  queries and objective with dates, provider names never ids, the archive's
+  period), and decides **what an empty search means**: the archive may
+  answer alone (settled or past things), may only add (anything about now,
+  or a recent outcome), or is not asked (weather, a town, attachments). An
+  archive-only episode is marked, short-lived in the cache and labelled.
+  This is the owner's answer to §308's fixed "archive only beside web
+  sources": some episodes would benefit from the archive alone, some would
+  be dated by it, and deciding which is an agent's judgment. Recommended
+  build order: the `ResearchPlan` type filled from today's brief and code
+  routes; the empty-search decision in code rules, logged; then the agent
+  folded into EI's "search" call on Haiku, so it adds no wait.
+- **Guardrails for every agent, at the bottom of the guide**: how a
+  guardrail is held (code, then the answer's shape, then the prompt), how
+  to write the prompt part, a shared preamble, and for each of the four
+  agents a table of guardrails, the prompt text that states them, and the
+  cases its eval should try to break them with. Hypotheses, to be revised
+  as each agent is built.

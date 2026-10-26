@@ -315,3 +315,4 @@ and `limit` = Lines.
 | 21947 | 52 | 309. Two packets: the history store's seam (2026-10-24) |
 | 21999 | 36 | 310. The agents guide: the editor in chief and the script supervisor (2026-10-25) |
 | 22035 | 43 | 311. The archive is the second packet, sports and markets included (2026-10-26) |
+| 22078 | 26 | 312. The contextualizer, and guardrails for every agent (2026-10-26) |
