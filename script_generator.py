@@ -691,6 +691,8 @@ class ScriptNotes:
     #: What the history archive keeps once this episode is cached (§308):
     #: `{"subject": ..., "findings": [history_archive.Finding, ...]}`, set by
     #: `research` from the winning packet. None when nothing was retrieved.
+    #: `prepare` adds `"live"`: the live providers' final results, market
+    #: states and player reports (`history_archive.live_records`, §313).
     #: Read only by `history_archive.after_episode`; never by a prompt.
     archive: object = None
     #: What the episode's quality is judged against (§309), set when the
@@ -1900,7 +1902,7 @@ class ScriptGenerator:
         # episode is not one it may add to.
         import history_archive
 
-        history = history_archive.look(" ".join(filter(None, (
+        recall = history_archive.look(" ".join(filter(None, (
             str(getattr(plan.brief, "subject", "") or ""), query))), plan.brief)
 
         # **The ladder**, in cost order, stopping at the first rung that
@@ -1945,7 +1947,7 @@ class ScriptGenerator:
             if better:
                 better.fell_back_from = configured
                 packet = better
-        await research_mod.finish_history_look(packet, history)
+        await research_mod.finish_history_look(packet, recall)
         _mark(notes, "retrieval_ready")
 
         if notes is not None:
@@ -2169,7 +2171,8 @@ class ScriptGenerator:
         if warmed is not None:
             log.info("using a brief warmed before the tap for %r", plan.query)
             _publish_title(notes, warmed)
-            plan = dataclasses.replace(plan, brief=warmed)
+            plan = dataclasses.replace(
+                plan, brief=episode_intelligence.place_category(warmed))
             _take_brief_names(plan)
             return plan
 
@@ -2184,7 +2187,10 @@ class ScriptGenerator:
         brief = await episode_intelligence.understand(
             plan.query, plan.minutes, plan.context, notes, **extra)
         _publish_title(notes, brief)
-        plan = dataclasses.replace(plan, brief=brief)
+        # Contextualised (§311): where the request sits in the category
+        # tree, in code - the category and subcategory of the search.
+        plan = dataclasses.replace(
+            plan, brief=episode_intelligence.place_category(brief))
         _take_brief_names(plan)
         return plan
 
@@ -2445,6 +2451,18 @@ class ScriptGenerator:
                 notes.provenance.add(forecast_source)
             for attached in provenance_mod.from_attachments(plan.attachments):
                 notes.provenance.add(attached)
+            # The live providers' data, for the history archive (§313):
+            # final results, market states and player reports, kept once
+            # the episode is cached (`history_archive.after_episode`).
+            import history_archive
+
+            live_kept = history_archive.live_records(plan.live, plan.players)
+            if live_kept:
+                carried = notes.archive or {
+                    "subject": str(getattr(plan.brief, "subject", "") or ""),
+                    "findings": []}
+                carried["live"] = live_kept
+                notes.archive = carried
             _publish_sources(notes)
         # Which live provider this episode was routed to and what it said
         # (§264), one row for /admin. In memory; written off this path.

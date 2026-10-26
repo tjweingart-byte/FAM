@@ -252,9 +252,38 @@ def vouched(value: float, decimals: int, approx: bool, material: list) -> bool:
 # --------------------------------------------------------------------------
 # The guard
 # --------------------------------------------------------------------------
+#: Words that tie a figure to a particular moment, so a figure FAM's archive
+#: vouches for may be said (§313): "on October 3", "last Tuesday", "two
+#: weeks ago", "at the time". Wider than `score_guard._PAST`, which only
+#: lets a sentence go unchecked; this only lets the archive vouch.
+_DATED = re.compile(
+    r"\b(?:january|february|march|april|may \d|june|july|august|september|"
+    r"october|november|december|jan|feb|mar|apr|jun|jul|aug|sept?|oct|nov|"
+    r"dec|monday|tuesday|wednesday|thursday|friday|saturday|sunday|ago|"
+    r"at the time|back then|back in|earlier|previously|before that|"
+    r"that (?:day|week|month|quarter|year)|last (?:quarter|week|month|year)|"
+    r"(?:first|second|third|fourth) quarter|q[1-4])\b", re.I)
+
+
+def split_archive(evidence: str) -> tuple:
+    """The packet as (what was searched now, what FAM's archive added).
+
+    The archive's sources (`history_archive.as_sources`, §308) are marked
+    with their own source type; everything else stays with the search."""
+    import research
+
+    label = "Source type: " + research.TIER_LABELS["archive"]
+    fresh, archived = [], []
+    for block in re.split(r"(?m)^(?=SOURCE \d+\s*$)", evidence or ""):
+        (archived if label in block else fresh).append(block)
+    return "".join(fresh), "".join(archived)
+
+
 def _material(plan) -> str:
-    """Everything the writer was given that may state a figure."""
-    parts = [str(getattr(plan, "evidence", "") or "")]
+    """Everything the writer was given that may state a figure about now -
+    never FAM's archive, whose figures were true on the day they carry
+    (`_archived`, §313)."""
+    parts = [split_archive(str(getattr(plan, "evidence", "") or ""))[0]]
     for name in ("live", "forecast"):
         block = getattr(plan, name, None)
         if block is not None:
@@ -265,6 +294,11 @@ def _material(plan) -> str:
     for attached in getattr(plan, "readable", None) or []:
         parts.append(str(getattr(attached, "text", "") or ""))
     return "\n".join(parts)
+
+
+def _archived(plan) -> str:
+    """The figures FAM's archive added to the packet (§308, §313)."""
+    return split_archive(str(getattr(plan, "evidence", "") or ""))[1]
 
 
 def _is_markets(plan) -> bool:
@@ -281,6 +315,9 @@ class FigureGuard:
     def __init__(self, plan) -> None:
         self.active = _is_markets(plan)
         self.material = material_values(_material(plan)) if self.active else []
+        #: The archive's figures (§313): they vouch only for a sentence that
+        #: says when - an old price is never how things stand now.
+        self.archived = material_values(_archived(plan)) if self.active else []
         self.dropped: list = []
         self.spoken = 0
 
@@ -296,11 +333,16 @@ class FigureGuard:
                 or score_guard._years_other_than_now(text)):
             return ""
         approx = bool(_APPROX.search(text))
+        dated = bool(_DATED.search(text)) and not (
+            score_guard._NOW.search(text) or score_guard._TONIGHT.search(text))
         for value, decimals, unit in figures:
-            if not vouched(value, decimals, approx, self.material):
-                said = f"{value:g}" + ("%" if unit == "percent" else "")
-                return (f"{unit} figure {said} is not in the material"
-                        + ("" if self.material else " (there is none)"))
+            if vouched(value, decimals, approx, self.material):
+                continue
+            if dated and vouched(value, decimals, approx, self.archived):
+                continue
+            said = f"{value:g}" + ("%" if unit == "percent" else "")
+            return (f"{unit} figure {said} is not in the material"
+                    + ("" if self.material else " (there is none)"))
         return ""
 
     def allow(self, sentence: str) -> bool:

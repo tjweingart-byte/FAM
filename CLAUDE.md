@@ -11,17 +11,14 @@ The reasoning, history and exact wording behind each rule live in
 rules supersede has a `> **Current:**` note at its rule. Every line below
 ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
 
-- **Read the full text before changing anything a rule covers**, and before
-  reversing or narrowing one. A one-line summary is not permission to
-  re-derive a rule from first principles.
-- **Adding or changing a rule:** put the reasoning in the right
-  `docs/claude/` file under a new `<!-- rule:ID -->` marker, and add one line
-  here citing `[ID]`. `tests/test_claude_md.py` fails if the IDs disagree or
-  this file outgrows its budget - history goes in the topic files and
-  `PROBLEMS.md`, never here.
-- **Finding history:** `PROBLEMS_INDEX.md` lists every PROBLEMS.md section with
-  its line number (`python tools/problems_index.py` regenerates it; a test
-  fails when stale). Read the section by offset; never search 700 KB.
+- **Read the full text before changing anything a rule covers**, or reversing
+  or narrowing one. A one-line summary is not permission to re-derive a rule.
+- **Adding or changing a rule:** reasoning in a `docs/claude/` file under a
+  new `<!-- rule:ID -->` marker, one line here citing `[ID]`.
+  `tests/test_claude_md.py` fails if the IDs disagree or this file passes its
+  budget - history goes in the topic files and `PROBLEMS.md`, never here.
+- **History:** `PROBLEMS_INDEX.md` lists every PROBLEMS.md section and line
+  (`tools/problems_index.py`; a test fails if stale). Read by offset.
 - "CLAUDE.md" cited elsewhere means this core plus `docs/claude/`; numbered
   open problems are in `open-problems.md`.
 
@@ -157,6 +154,8 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
 - `python write.py "<query>" --minutes 3` is the writing loop. [write-py-loop]
 - Quality came from inputs, not the prompt (§82): EI decides the query, the
   packet dates and grades sources, `DEPTH_BANDS` says what minutes are for. [inputs-not-prompt]
+- **Two packets** (§311/§313): archive recall in the search results,
+  sports and markets too; old figures only when dated. [two-packets]
 - The third cause (§108): two texts under two conditions; everything trading
   the opening for latency is gone. [third-cause-opening]
 - `write.py` prints the brief above the script - diagnose brief vs script

@@ -303,6 +303,14 @@ class Brief:
     #: the writer's own replaces it once the script is cached (§209). Empty
     #: on a degraded brief.
     category: str = ""
+    #: **Where `category` sits in FAM's category tree** (§311): the facet,
+    #: then each subcategory down to the node, broadest first - ["sports",
+    #: "american football", "nfl", "philadelphia eagles"]. Set in code by
+    #: `place_category`, never by the model, and never read as `category`:
+    #: the category and subcategory of the search, for the agents that will
+    #: plan research from it (`docs/FAM_AGENTS.md`). Empty when the tree
+    #: cannot place it.
+    category_path: list = field(default_factory=list)
     #: The key of the named broadcast slot the request names
     #: (`named_slots.SLOTS`), set in code and never by the model: "Sunday
     #: Night Football" is one game, and a scoreboard picks it by kick-off.
@@ -356,8 +364,48 @@ class Brief:
                 return text
         return ""
 
+    @property
+    def subcategory(self) -> str:
+        """The most specific node of `category_path` below its facet."""
+        return self.category_path[-1] if len(self.category_path) > 1 else ""
+
     def as_dict(self) -> dict:
         return dataclasses.asdict(self)
+
+
+def place_category(brief: "Brief") -> "Brief":
+    """The brief with `category_path` filled from the category tree (§311).
+
+    The "contextualise" step of the owner's pipeline: what kind of thing
+    this is, and under what, before anything is looked up. In code - the
+    same resolver the composer's categories go through
+    (`stories.resolve_category`), phrases only, never an embedding on the
+    request - so it costs no call and no wait. A copy, because a warmed
+    brief is shared. Never raises; a brief the tree cannot place comes back
+    unchanged.
+    """
+    if brief is None or brief.category_path or brief.degraded:
+        return brief
+    try:
+        import stories
+        import topics
+
+        node = ""
+        for text in (brief.category, brief.subject):
+            node = stories.resolve_category(text) if text else ""
+            if node:
+                break
+        if not node:
+            return brief
+        path = list(reversed(topics.category_tree().ancestors(node))) + [node]
+        if path and path[0] not in topics.FACETS:
+            root = stories.facet_for(node)
+            if root and root not in path:
+                path.insert(0, root)
+        return dataclasses.replace(brief, category_path=path)
+    except Exception:  # noqa: BLE001 - context, never worth an episode
+        log.warning("ei: could not place the category %r", brief.category)
+        return brief
 
 
 #: The narrowest recency window FAM will actually apply, in days.
@@ -1823,7 +1871,11 @@ def build_brief_block(brief: Brief, minutes: int) -> str:
             "whether it has - that is settled by the evidence you were given "
             "and by nothing else. So: find the outcome reported as an outcome, or "
             "write the episode about something that has not finished yet. "
-            "Both are real episodes. Choosing between them by guessing is not.")
+            "Both are real episodes. Choosing between them by guessing is not. "
+            # §313: the archive now reaches these questions too.
+            "Earlier reporting from FAM's archive is never that result: it "
+            "is an earlier game, an earlier close, an earlier vote, and is "
+            "said as one, with its date.")
 
     if brief.cautions:
         lines.append("Be careful about this, and take the evidence over your "

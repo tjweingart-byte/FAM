@@ -15,17 +15,29 @@ ROOT = pathlib.Path(__file__).resolve().parent
 SRC = ROOT / "FAM_AGENTS.md"
 OUT = pathlib.Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / "build" / "fam-agents.html"
 
-# (id, label, lane). The listener path runs left to right; the archive's facts
-# reach it only through research's recall.
+# (id, label, lane), in the order of the owner's pipeline (§311). An agent's
+# `<!-- stages: a b | feeds: c -->` lights a and b, and outlines c - the box
+# its work drives.
 STAGES = [
-    ("ask", "Tap or search", "listener"), ("brief", "EI brief", "listener"),
-    ("research", "Research + archive recall", "listener"), ("write", "Writer", "listener"),
+    ("ask", "Tap or search", "listener"), ("ei", "EI brief", "listener"),
+    ("context", "Contextualizer", "listener"), ("plugins", "Plugins: packet one", "listener"),
+    ("recall", "Archive: packet two", "listener"), ("editor", "Editor in chief", "listener"),
+    ("write", "Writer", "listener"), ("check", "Script supervisor", "listener"),
     ("voice", "Voice", "listener"), ("cache", "Episode kept", "listener"),
     ("orchestrate", "Overlord", "control"),
-    ("intake", "Archive intake", "background"), ("digest", "Facts: digest + dedupe", "background"),
+    ("intake", "Archive intake", "background"), ("digest", "Inventory: facts + dedupe", "background"),
 ]
-LANES = [("listener", "Listener path - no agent here"), ("control", "Orchestration"),
-         ("background", "Background, after the episode is kept")]
+LANES = [("listener", "Listener path"), ("control", "Orchestration"),
+         ("background", "Background")]
+
+
+def stages_of(text):
+    """(lit, outlined) from a section's `<!-- stages: ... | feeds: ... -->`, or None."""
+    m = re.search(r"<!-- stages:(.*?)-->", text)
+    if not m:
+        return None
+    lit, _, feeds = m.group(1).partition("| feeds:")
+    return lit.split(), feeds.split()
 
 
 def slug(text):
@@ -44,8 +56,7 @@ def split(src):
     tabs = []
     for part in parts:
         title, _, rest = part.partition("\n")
-        m = re.search(r"<!-- stages:(.*?)-->", rest)
-        stages = m.group(1).split() if m else []
+        stages = stages_of(rest) or ([], [])
         rest = re.sub(r"<!-- stages:.*?-->\n?", "", rest)
         overview, *subs = re.split(r"^### ", rest, flags=re.M)
         sections = [("Overview", overview)] if overview.strip() else []
@@ -55,17 +66,17 @@ def split(src):
 
 
 def pipeline(stages):
-    on = set(stages)
+    lit, feeds = map(set, stages)
     rows = []
     for lane, label in LANES:
         steps = []
         for sid, name, l in STAGES:
             if l != lane:
                 continue
-            cls = "on" if sid in on else ("feeds" if sid == "research" and "digest" in on else "")
+            cls = "on" if sid in lit else ("feeds" if sid in feeds else "")
             steps.append(f'<li class="{cls}" data-stage="{sid}">{html.escape(name)}</li>')
         rows.append(f'<div class="lane lane-{lane}"><span class="lane-label">{label}</span><ol>{"".join(steps)}</ol></div>')
-    note = '<p class="pipe-note">Dashed: where this agent\'s work reaches a listener.</p>' if "digest" in on else ""
+    note = '<p class="pipe-note">Filled: where it works. Dashed: what its work drives.</p>' if feeds else ""
     return f'<figure class="pipe" aria-label="Where it works in the pipeline">{"".join(rows)}{note}</figure>'
 
 
@@ -75,7 +86,7 @@ def build():
     nav, panels = [], []
     for title, stages, sections in tabs:
         t = slug(title)
-        label = "Shared rules" if t == "shared-rules" else title.replace("Database inventory specialist", "Inventory specialist")
+        label = re.sub(r"^\d+\. ", "", title).replace("Database inventory specialist", "Inventory specialist")
         nav.append(f'<a class="tab" role="tab" href="#{t}" data-tab="{t}">{html.escape(label)}</a>')
         subnav, subs = [], []
         for name, md in sections:
@@ -169,6 +180,8 @@ td:first-child{font-weight:500}
     var panel=panels.filter(function(p){return p.dataset.tab===tab;})[0]||panels[0];
     panels.forEach(function(p){p.classList.toggle("active",p===panel);});
     document.querySelectorAll(".tab").forEach(function(t){t.setAttribute("aria-selected",t.dataset.tab===panel.dataset.tab?"true":"false");});
+    var bar=document.querySelector(".tabs"), on=bar.querySelector('[aria-selected="true"]');
+    if(on) bar.scrollLeft=Math.max(0,on.offsetLeft-bar.offsetLeft-16);
     var subs=[].slice.call(panel.querySelectorAll(".sub"));
     var sub=subs.filter(function(s){return s.dataset.sub===id;})[0]||subs[0];
     subs.forEach(function(s){s.classList.toggle("active",s===sub);});
