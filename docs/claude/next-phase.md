@@ -139,7 +139,8 @@ sentences and figures from every packet, years of them, on **MongoDB Atlas**
 (a local SQLite backend behind the same interface for tests and staging) -
 so the writer gets a second packet of dated historical context beside the
 fresh search. Agents will fill and tidy it and work beside the writer;
-their guidelines - six so far: the **Overlord** that runs them, the
+their guidelines - seven so far: the **Overlord** that runs them, the
 contextualizer, the editor in chief, the script supervisor,
-**Consuela, the housemaid**, and **Keith Wong, the IT guy** (§312, §314, §318) - and the models and outside
+**Consuela, the housemaid** (intake and upkeep), the **retriever** (gets
+history out on request), and **Keith Wong, the IT guy** (§312, §314, §318) - and the models and outside
 plugins weighed for each are in `docs/FAM_AGENTS.md`. Read both before building either.

@@ -22460,6 +22460,23 @@ setting, spends, restarts or stops anything (nothing starts or stops a
 pod), or deletes. A "fixed" from the owner is re-checked, not believed. The
 notification channel is left to the owner, with the options priced.
 
+**The background lane, redrawn** (the owner, 10.26): "the archive intake and
+housemaid are doing similar things ... This should be consolidated into one,
+housemaid (Consuela), that is responsible for both organizing the packets of
+information that come in, and maintaining the database"; and "the second
+agent within the background should be solely responsible for retrieving the
+information from the request that comes from the contextualizer + EI brief
+... the agent should know what information is needed and where to get the
+information from". Consuela now owns the intake (code today:
+`after_episode`, `keep_swept`) as its first responsibility and is the
+archive's only writer. The new **retriever** (agent 6, name to be chosen)
+is the only reader: it turns the plan's archive entry into one of a closed
+list of lookups - by meaning (`facts_vector`, today's `look`), a result
+between dates, a value on a day, corroboration - builds the query in code,
+never reads `intake`, and keeps the 0.5 s grace window; today's `look` is
+its fallback. Keith moves to 7. Whether the archive may answer an empty
+search alone stays undecided (§316).
+
 No agent is built; nothing here runs.
 
 Tests: `tests/test_fam_agents_doc.py` (the five agents in order and named; the tandem pairs drawn as one step; the five agents and the template carry

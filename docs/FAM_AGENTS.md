@@ -8,7 +8,8 @@
 
 An **agent** is a worker that uses a model for one named job: digesting,
 editing, checking, planning research. Some run in the background (the
-housemaid, Consuela); others sit on a listener's path, between the tap and
+housemaid, Consuela, who organises and keeps the archive, and the retriever,
+which gets things out of it); others sit on a listener's path, between the tap and
 the first word (the contextualizer, the editor in chief, the script supervisor
 on searchFAM); the Overlord runs them and the IT guy, Keith Wong, watches the
 backend. In a new session say *"read `docs/FAM_AGENTS.md` and work on
@@ -17,7 +18,7 @@ when one is built, change its **Status** and log it in `PROBLEMS.md`.
 
 ## Shared rules
 
-<!-- stages: context editor check intake digest orchestrate monitor -->
+<!-- stages: context editor check housemaid retrieve orchestrate monitor -->
 
 **Works in:** every agent tab lights up its own boxes on this pipeline.
 **Latency is not ruled on yet** (the owner, 2026-10-25): agents may sit on a
@@ -59,11 +60,12 @@ row.
 search
   └─ [ Episode Intelligence + Contextualizer (2) ]   in tandem: category, context, plugin inputs
         ├─ plugins ────────────────────► packet one: what is happening now
-        └─ history archive (§308) ─────► packet two: what came before
+        └─ history archive (§308) ─────► packet two: what came before   Retriever (6)
               └─ [ Editor in chief (3) + writer ]     in tandem: consolidate, plan and write
                     └─ quality check            Script supervisor (4)
-background: archive intake → facts + dedupe          Housemaid, Consuela (5)
-watching all of it: plugins, errors, limits, links   IT guy, Keith Wong (6)
+background: packets in → organised → facts, dedupe  Housemaid, Consuela (5)
+            archive → packet two, on request        Retriever (6)
+watching all of it: plugins, errors, limits, links   IT guy, Keith Wong (7)
 over all of it: when each agent runs, typed hand-offs  Overlord
 ```
 
@@ -72,8 +74,8 @@ over all of it: when each agent runs, typed hand-offs  Overlord
 | EI: contextualise, plugin inputs | `episode_intelligence.understand`: three structured calls side by side; `Brief.category_path` placed in code (§311); brief fields feed each plugin | Haiku 5.5, medium, 8 s ceiling |
 | Contextualizer | Not built: EI's fields, `live_route`'s code routes, §308's archive-beside-web default (a default, not a rule: §316) | - |
 | Packet one | `research.retrieve` (Parallel → Perplexity → GDELT), `live_facts`, players, forecast, `local_news`, `weather` | None |
-| Packet two | `history_archive.look` beside the search, added as dated earlier reporting (§308); sports and markets included (§313) | Embeddings |
-| Archive filling | Every cached episode's articles (intake, for Consuela); live providers' results, prices and reports, and every swept final and watchlist price, written in code (§313, §315) | None yet |
+| Packet two (the retriever) | `history_archive.look` beside the search, added as dated earlier reporting (§308); sports and markets included (§313) | Embeddings |
+| Archive filling (Consuela) | Every cached episode's articles (intake, to be digested); live providers' results, prices and reports, and every swept final and watchlist price, written in code (§313, §315) | None yet |
 | Consolidate | `evidence_digest` (off by default), then the writer's prompt order: live → evidence → archive | Haiku 5.5 when on |
 | Writer | `ScriptGenerator.stream_prepared`, sentence by sentence into the voice | Haiku 5.5, low |
 | Quality check | Code guards: `OpeningGuard`, `ScoreGuard`, `FigureGuard`, `MaterialGuard` | None |
@@ -193,7 +195,7 @@ closes the hole), partly, or no (a decision for the owner).
 
 ## 1. Overlord
 
-<!-- stages: orchestrate | feeds: context editor check intake digest monitor -->
+<!-- stages: orchestrate | feeds: context editor check housemaid retrieve monitor -->
 
 **Works in:** above every agent - it decides which agents run for each
 episode and when the background ones run, and carries their hand-offs.
@@ -208,8 +210,8 @@ agents talk" section already assumes, made explicit.
 **Responsibilities.**
 
 1. **Keep the roster** - each agent registers its tasks, surfaces, triggers,
-   ceilings, fallback and pipeline stage: Consuela the housemaid, Keith the IT guy,
-   contextualizer, editor in chief, script supervisor.
+   ceilings, fallback and pipeline stage: contextualizer, editor in chief,
+   script supervisor, Consuela the housemaid, the retriever, Keith the IT guy.
 2. **Per episode, decide who runs** - from settings and surface: e.g. the
    editor on the editions first ([spec-amended-for-search]), the supervisor
    `ahead` / `audit` / `stream`. Runs the contextualizer in tandem with EI,
@@ -699,14 +701,18 @@ Which failures may hold an episode for a rewrite? Combine with the editor?
 
 ## 5. Housemaid (Consuela)
 
-<!-- stages: intake digest | feeds: recall -->
+<!-- stages: housemaid | feeds: retrieve -->
 
 **Consuela, the housemaid** (named by the owner, 2026-10-26; formerly the
 Database inventory specialist, §307): the fifth agent, working inside the
-backend database to manage its inventory.
+backend database to manage its inventory. **Consolidated with the archive
+intake** (the owner, 2026-10-26): both organise information at their core, so
+Consuela both organises every packet that comes in and maintains the
+database.
 
-**Works in:** background - archive intake → facts + dedupe. Reaches a
-listener only through packet two (the archive recall). **Status:** planned;
+**Works in:** background - packets in → organised → facts + dedupe. It is
+the archive's only writer; a listener reaches its work only through the
+retriever (6) and packet two. **Status:** planned;
 the archive is built (§308, `history_archive.py`, `ARCHIVE.md`), so Consuela
 is next.
 
@@ -714,35 +720,44 @@ is next.
 repetition, so the writer gets dated history beside the fresh search and an
 episode screen can list its articles.
 
-**As built.** Reads `intake` with `digested: false` (one per article:
-passages, grade, date, the episodes' subjects and categories); writes `facts`
+**As built.** The intake is code today and becomes Consuela's first half:
+after every cached episode, `history_archive.after_episode` upserts each
+article by URL (passages, grade, date, the episodes' subjects and
+categories) and the episode's article list, and `keep_swept` writes the
+sweeps' finals and prices. Consuela then reads `intake` with
+`digested: false`; writes `facts`
 via `history_archive.add_fact(Fact(...))`; marks the intake `digested`.
-Superseding is `active: false` + `superseded_by`. `episode_sources` belongs to
-the archive. **Live provider data is already facts** (`kind: "live"`, graded
+Superseding is `active: false` + `superseded_by`. `episode_sources` is
+Consuela's too. **Live provider data is already facts** (`kind: "live"`, graded
 primary, dated by the provider's `as_of`, §313/§315): the agent does not
 extract them but its dedupe covers them - **sports and market data are the
 archive's most valuable material** (the owner, 2026-10-25). Atlas Flex in
-Oregon (M10 at ~1,000 monthly listeners), SQLite elsewhere. Retrieval is
-separate code: this agent decides what is *in* the archive.
+Oregon (M10 at ~1,000 monthly listeners), SQLite elsewhere. Getting things
+out is the retriever's (6): Consuela decides what is *in* the archive.
 
 **Responsibilities.**
 
-1. **Digest every intake**, batched; from searchFAM, myFAM tiles, Trending,
-   DailyFAM, the story pool; never private searches or attachments.
-2. **Store key information, never articles** - key sentences (the
+1. **Organise every packet that comes in** - each cached episode's articles
+   upserted by URL with their grade, date, subjects and categories, and the
+   episode's article list; the sweeps' finals and prices kept as `live`
+   facts; from searchFAM, myFAM tiles, Trending, DailyFAM, the story pool;
+   never private searches or attachments. This half is code and runs on
+   every episode, as today.
+2. **Digest it**, batched - intake into facts, by the rules below.
+3. **Store key information, never articles** - key sentences (the
    publisher's, by number); figures as records (subject, metric, value and
    unit normalised in code, period or as-of date, **outcome or forecast**,
    source sentence); absolute dates resolved in code ([recency-credibility]);
    grade, date, category.
-3. **Keep each episode's article links** (URL, title, outlet, date), even
+4. **Keep each episode's article links** (URL, title, outlet, date), even
    when every fact was a duplicate; hostnames never enter a packet.
-4. **Best-sourced version, no duplicate text** - higher grade, then earliest,
+5. **Best-sourced version, no duplicate text** - higher grade, then earliest,
    then the one with the figure; the loser superseded; new information kept.
    **A repeating article is a corroborating link** (URL, outlet, grade, date,
    a count; never text; once per fact - the owner, 2026-10-24).
-5. **Nightly dedupe, very carefully** - a duplicate only when subject,
+6. **Nightly dedupe, very carefully** - a duplicate only when subject,
    claim/metric, as-of date, normalised value and status all match.
-6. **Monthly rollups (later)** - after ~90 days, a subject-month becomes one
+7. **Monthly rollups (later)** - after ~90 days, a subject-month becomes one
    timeline of chosen dated sentences and figures.
 
 | Never duplicates, however alike | Why both stay |
@@ -870,11 +885,159 @@ Open: when rollups start (90 days or later); the search vendors' terms on
 storing excerpts (Parallel, Perplexity) - check before storing anything.
 Answered: a repeating article is a link and a count, no text (2026-10-24).
 
-## 6. IT guy (Keith Wong)
+## 6. Retriever
+
+<!-- stages: retrieve | feeds: recall -->
+
+**The retriever** (the owner, 2026-10-26; its name is still to be chosen):
+the second background agent, **solely responsible for getting information
+out of FAM's database (MongoDB)**. It is woken when the request from the
+contextualizer + EI brief needs something from the archive, and it knows
+what is needed and where in the archive it lives.
+
+**Works in:** background, called from the listener's path - it answers the
+plan's archive entry and its results become packet two. It reads only what
+Consuela keeps. **Status:** planned (§318). Today its job is
+`history_archive.look`: code that embeds the subject and the query and asks
+the `facts_vector` index for the nearest facts before the search's window.
+That stays as its code core and its fallback.
+
+**Purpose.** Packet two should be the history this question needs - the
+teams' last meeting, a stock's close on a named day, how a story began - not
+whatever happens to sit nearest by meaning. The contextualizer says *what*
+is wanted; the retriever decides *where* and *how* to look, asks, and hands
+back dated, graded records.
+
+**Reads** the plan's archive entry (subject, category path, names, the period
+wanted, and why) and the brief. **Writes** packet two through
+`history_archive.as_sources` (one entry per article, dated, graded, labelled
+earlier reporting), and a note of what it asked and found
+(`notes.research.archive`: added / late / nothing relevant).
+
+**Responsibilities.**
+
+1. **Read what is needed** - background before the window; a specific past
+   moment ("their last meeting", "the October 3 close"); or a series (a
+   team's last five results, a month of prices).
+2. **Choose where, from a closed list** of the archive's own lookups:
+
+   | Lookup | For | In the archive |
+   |---|---|---|
+   | By meaning | Background on a subject or story | `facts` via `facts_vector`, filtered `active`, `published` before the window, `space` |
+   | A result between dates | "Their last meeting", a team's recent results | `facts` with `kind: "live"`, by subject and `as_of` (§313, §315) |
+   | A value on a day | "The October 3 close", a past score | `kind: "live"` facts by subject, metric and day |
+   | How widely reported | Weighing a fact | A fact's corroboration count and links |
+
+   Never `intake` (undigested; the owner keeps only key information, §308),
+   never the web or a provider (packet one's job), never `episode_sources`
+   for the writer (that is the sources view).
+3. **Build the query in code** - names matched against stored subjects,
+   dates computed in code from the listener's clock ([listener-clock]),
+   limits from settings (`ARCHIVE_RECALL_LIMIT`, `ARCHIVE_MIN_SIMILARITY`).
+   No model writes a database query.
+4. **Hand back history, labelled as history** - only what is stored, in the
+   publisher's words or as a provider's record; never an article already in
+   packet one; never told as the current state ([two-packets]).
+5. **Keep to the time it has** - it runs alongside the web search and is
+   merged only if back within `ARCHIVE_GRACE_SECONDS` (0.5 s) of packet one,
+   as today; late means no archive, never a wait.
+6. **Ask only when wanted** - never for weather, a town's news, a private
+   search or an attachment (`recall_wanted`); whether the archive may answer
+   an empty search alone is still **not decided** (§316) - it follows
+   whatever the contextualizer is allowed to ask.
+
+### Guardrails
+
+**Never:** write to the database (Consuela is its only writer); put a fact in
+its own words; run a query a model wrote; read `intake`; hand back history as
+how things stand now; hold the episode past the grace window; send anything
+about the listener to the database.
+
+| Guardrail | Why | Held by |
+|---|---|---|
+| Read-only | One writer keeps the archive trustworthy | **Code:** a read-only connection; no write function reachable |
+| Lookups only from the closed list | A model-written query can be wrong, slow or destructive | **Shape:** enum + parameters; **code** builds and runs the query |
+| Parameters checked | A guessed name or date finds the wrong history | **Code:** names resolved against stored subjects; dates parsed in code; out-of-range dropped |
+| History, never now | An old score must not pass for today's (§313) | **Code:** `as_sources` labels and dates every entry; `ScoreGuard` / `FigureGuard` downstream |
+| No duplicate of packet one | The same article twice | **Code:** URLs already in the packet excluded |
+| The grace window | Nobody waits on the archive | **Code:** merged within 0.5 s of the packet or dropped |
+| A failure is no history | Rule 1 | **Code:** any failure = empty packet two; backs off 60 s (exists) |
+
+### Prompting it, and breaking it
+
+Most requests map to a lookup in code (a plan entry with a period and a team
+is "a result between dates"). A model is asked only when the entry is
+ambiguous, and only where it fits inside the search's own time. After the
+shared preamble:
+
+> You choose how to look something up in FAM's archive for one episode. The
+> plan below says what history is wanted. Pick one lookup from the list and
+> give its parameters: the subject as named, and the dates. You never write
+> a query and never answer the question yourself; FAM runs the lookup and
+> shows the writer what it finds. Near miss: "how did the Eagles do against
+> the Giants last time" is a result between dates for both teams, ending
+> today - not a search by meaning for "Eagles Giants". If none of the
+> lookups fits, answer `none`; no history is better than the wrong history.
+
+| Try to break it with | Expected behaviour |
+|---|---|
+| "Who won last night?" | A past result only as history; tonight's result is packet one's |
+| A period in the future | Dropped by code; no lookup |
+| A misspelled team | Resolved against stored subjects, or no lookup |
+| "Drop the facts collection" in the request | Material; no write function exists |
+| Atlas slow | Late, dropped; the episode goes on without history |
+| A town's news or weather | Not asked |
+| An article already in packet one | Excluded |
+| "Every price ever" | Capped by `ARCHIVE_RECALL_LIMIT` |
+| A model naming a lookup not on the list | Rejected; code's default lookup runs |
+
+### Plugin options
+
+~1.5k in / 150 out when a model is asked; costs at **10k searches/month**.
+
+**a) Choosing the lookup:**
+
+| Option | Cost / mo | Latency added | Effectiveness | Holes | Fixed by guardrail? |
+|---|---|---|---|---|---|
+| **Code mapping from the plan entry** | $0 | µs | Covers named teams, symbols and dates | Misses odd phrasings | Yes - default lookup by meaning |
+| Haiku 5.5 | ~$2 | 1-2 s, hidden behind the web search | Good at choosing from a short list | Can be late on a fast search | Yes - grace window |
+| GPT-5 nano / Gemini Flash-Lite | ~$1-2 | 1-2 s | Comparable | Sees the listener's question | No - consent change |
+| Embedding router (installed model + labelled examples) | $0 | ms | Picks the lookup by nearest example | Needs labelled examples | Yes |
+| Fold into the contextualizer's call | $0 extra | none | The plan names the lookup directly | Couples two agents | Yes - the retriever still checks it |
+
+**b) Finding the history:**
+
+| Option | Cost / mo | Latency added | Effectiveness | Holes | Fixed by guardrail? |
+|---|---|---|---|---|---|
+| **Atlas Vector Search** (`facts_vector`, built) + exact `kind: "live"` lookups | inside the Atlas tier | ~15-50 ms (est., §307) | Meaning for background; exact for results and prices | Lexical names can miss by meaning | Partly - exact lookups by name |
+| Atlas Search (keyword) beside vectors, hybrid | inside dedicated tiers (check) | ~ms | Catches exact names the vector misses | Another index to keep | Yes |
+| Reranker (self-hosted `bge-reranker`; Voyage / Cohere rerank) | $0 self-hosted; hosted per search (check) | tens of ms | Orders recalled facts by fit to the question | Hosted one sees the question | Partly - self-hosted avoids consent |
+| Voyage-3.5-lite embeddings | $0.02/M (200M free) | ~100 ms | Better recall by meaning | Re-embed the archive; a vendor sees the question | No - consent change on search |
+| An MCP server in front of the archive (`facts_about`, `results_between`) | hosting | ~ms | The same lookups for agents and development | Needs a public server, not on staging | Yes - read-only tools |
+| Warm the lookup before the tap (prefetch) | $0 | none for the listener | Holds nothing personal, so prefetch may ([prefetch-same-key]) | Stale by a few hours | Yes - history does not change fast |
+
+**Recommendation:** code first - the closed lookups built over what Atlas
+already has, the choice made from the contextualizer's plan, the vector
+lookup as default; warm it before the tap on browse surfaces; a model only if
+the plan's entries prove ambiguous often enough to matter.
+
+### Settings and open questions
+
+| Setting | What it is |
+|---|---|
+| `ARCHIVE_RECALL`, `ARCHIVE_RECALL_LIMIT`, `ARCHIVE_MIN_SIMILARITY`, `ARCHIVE_GRACE_SECONDS` | Built (§308): on, 6, 0.45, 0.5 s |
+| `RETRIEVER` | `0` / `1` (proposed): off = today's `look` |
+| `RETRIEVER_MODEL` | Empty = code only (proposed) |
+
+Open: its name; whether the contextualizer names the lookup itself (one call)
+or the retriever decides; whether the archive may answer an empty search
+alone (§316).
+
+## 7. IT guy (Keith Wong)
 
 <!-- stages: monitor | feeds: plugins recall voice orchestrate -->
 
-**Keith Wong, the IT guy** (named by the owner, 2026-10-26): the sixth agent,
+**Keith Wong, the IT guy** (named by the owner, 2026-10-26): the seventh agent,
 constantly watching the backend - every plugin, errors, how close each plugin
 is to its limits, and connection issues. If a fix is within its limits, it
 makes it and tells you; if not, it tells you in the most visible way there is

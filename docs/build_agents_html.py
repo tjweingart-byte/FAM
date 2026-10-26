@@ -25,7 +25,7 @@ STAGES = [
     ("write", "Writer", "listener"), ("check", "Script supervisor", "listener"),
     ("voice", "Voice", "listener"), ("cache", "Episode kept", "listener"),
     ("orchestrate", "Overlord", "control"), ("monitor", "IT guy (Keith Wong)", "control"),
-    ("intake", "Archive intake", "background"), ("digest", "Housemaid (Consuela)", "background"),
+    ("housemaid", "Housemaid (Consuela)", "background"), ("retrieve", "Retriever", "background"),
 ]
 LANES = [("listener", "Listener path"), ("control", "Orchestration and operations"),
          ("background", "Background")]
@@ -159,6 +159,7 @@ a:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius
 .lane ol{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:6px}
 .lane li.step{position:relative;display:flex;align-items:center}
 .lane li.step + li.step::before{content:"\2192";position:absolute;left:-11px;top:50%;transform:translateY(-50%);font-size:10px;color:var(--faint)}
+.lane-control li.step + li.step::before{content:none}
 .lane li.tandem{gap:4px;padding:3px;border:1px solid var(--line);border-radius:999px;background:var(--surface-2)}
 .lane .plus{font:600 12px/1 var(--mono);color:var(--muted)}
 .chip{font-size:12.5px;line-height:1.2;padding:6px 10px;border:1px solid var(--line);border-radius:999px;color:var(--faint);background:var(--bg)}
