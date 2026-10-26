@@ -49,16 +49,18 @@ An agent that breaks one is wrong however good its output looks.
 
 ### Pipeline and how agents run
 
-The pipeline the owner drew (2026-10-24, §311):
+The pipeline the owner drew (2026-10-24, §311), with two pairs that work
+**in tandem** (the owner, 2026-10-26): the contextualizer with EI's brief,
+and the editor in chief with the writer. A pair is one stage, not two in a
+row.
 
 ```
 search
-  └─ Episode Intelligence  +  Contextualizer (4)    category, context, plugin inputs
+  └─ [ Episode Intelligence + Contextualizer (4) ]   in tandem: category, context, plugin inputs
         ├─ plugins ────────────────────► packet one: what is happening now
         └─ history archive (§308) ─────► packet two: what came before
-              └─ consolidate both packets             Editor in chief (2)
-                    └─ script writer (Haiku)
-                          └─ quality check            Script supervisor (3)
+              └─ [ Editor in chief (2) + writer ]     in tandem: consolidate, plan and write
+                    └─ quality check            Script supervisor (3)
 background: archive intake → facts                    Inventory specialist (1)
 over all of it: when each agent runs, typed hand-offs  Overlord
 ```
@@ -208,8 +210,9 @@ agents talk" section already assumes, made explicit.
    contextualizer, editor in chief, script supervisor.
 2. **Per episode, decide who runs** - from settings and surface: e.g. the
    editor on the editions first ([spec-amended-for-search]), the supervisor
-   `ahead` / `audit` / `stream`. Starts the contextualizer beside EI, waits
-   for both packets, then the editor, writer, supervisor.
+   `ahead` / `audit` / `stream`. Runs the contextualizer in tandem with EI,
+   waits for both packets, then the editor and the writer in tandem, then
+   the supervisor.
 3. **Hand off, typed** - `Brief` → `ResearchPlan` → packets → plan → script →
    verdicts; checks each against its schema before passing it on; a missing
    or late hand-off means the step runs as it does today.
@@ -484,15 +487,16 @@ Answered: a repeating article is a link and a count, no text (2026-10-24).
 
 <!-- stages: editor | feeds: write -->
 
-**Works in:** consolidate - after both packets, before the writer's first
-token. On searchFAM a listener waits through it; on myFAM, DailyFAM, Trending
-and the write-ahead it runs before the tap. **Status:** planned (§312). May
+**Works in:** consolidate and write, **in tandem with the writer** (the
+owner, 2026-10-26) - after both packets, one stage with the writer rather
+than a step in front of it. On searchFAM a listener waits through the pair;
+on myFAM, DailyFAM, Trending and the write-ahead it runs before the tap. **Status:** planned (§312). May
 later be combined with the script supervisor - the owner's decision (see 3).
 
 **Purpose.** Turn everything gathered into the episode. The writer today reads
 the packets raw and plans in its head; the editor decides what the episode is,
-which material carries each part and in what order, then hands the writer
-that plan - or writes the episode itself. Most of what was wrong with the
+which material carries each part and in what order, and the writer writes
+from that plan as it is made - or the editor writes the episode itself. Most of what was wrong with the
 writing came from its inputs ([inputs-not-prompt]); this is where to fix them.
 
 **Reads** the brief (intent, subject, `category_path`, cautions, outline),
@@ -602,8 +606,12 @@ fixed set, scored by the supervisor's checks.
 | `EDITOR_TIMEOUT_SECONDS`, `EDITOR_AHEAD_TIMEOUT_SECONDS` | Ceilings; past them the writer reads the packets |
 | `EDITOR_RERANKER` | Empty, or the reranker |
 
-Open: plan only, or plan and write? On searchFAM from the start, or editions
-first? Combine with the script supervisor?
+Open: what "in tandem" means in the call - the plan handed over beat by beat
+while the writer streams, one call that plans then writes (`EDITOR_WRITES`),
+or the plan first with the writer starting the moment the opening beat is
+decided? Each costs a different amount in front of the first word. On
+searchFAM from the start, or editions first? Combine with the script
+supervisor?
 
 ## 3. Script supervisor
 
@@ -739,8 +747,8 @@ Which failures may hold an episode for a rewrite? Combine with the editor?
 
 <!-- stages: context | feeds: plugins recall -->
 
-**Works in:** beside EI, before any source is asked - on searchFAM in front of
-the first word; on myFAM, DailyFAM, Trending and the write-ahead before the
+**Works in:** **in tandem with EI's brief** (the owner, 2026-10-26) - one
+stage, before any source is asked - on searchFAM in front of the first word; on myFAM, DailyFAM, Trending and the write-ahead before the
 tap, warmed with the brief ([myfam-warms-briefs]). **Status:** planned (§314).
 
 **Purpose.** Understand the request in context and turn it into **the
@@ -831,7 +839,7 @@ latency matters more here than for any other agent.
 |---|---|---|---|---|---|
 | **Code rules** (`live_route`, `intent`, `outcome_dependent`, `live_domain`) | $0 | ms | The fallback and a strong baseline | Cannot write queries in context | Yes |
 | **Haiku 5.5, low, folded into EI's search call** | ~$5 | **none** (same call) | Choosing from a list and writing queries is what EI's Haiku already does | - | Yes |
-| Haiku 5.5 as a separate call | ~$5 | one small call beside EI | Same | Adds a call if not parallel | Yes - Overlord runs it beside EI |
+| Haiku 5.5 as a separate call | ~$5 | none if run in parallel with EI | Same | Adds a wait if not parallel | Yes - Overlord runs the pair together |
 | Sonnet 5.5 | ~$100 | slower | Better on "about now or about then?" | Latency | Yes - write-ahead only |
 | Embedding router (installed model + labelled examples) | $0 | ms | Picks sources and the empty-search verdict by nearest example | Cannot write queries | Yes - pairs with EI's queries |
 | Fine-tuned classifier (ModernBERT, DeBERTa) on FAM's logged requests | $0 to run; labelling time | ms | Cheapest accurate router once a few thousand are labelled | Needs a box that is not the voice pod | Yes |
@@ -852,7 +860,7 @@ router only if source choice proves wrong often.
 | `CONTEXTUALIZER_MODEL` | The model, or `rules` |
 | `ARCHIVE_ALONE`, `ARCHIVE_ALONE_TTL_SECONDS` | For when responsibility 4 is decided |
 
-Open: a separate agent or part of EI's call? Which questions may the archive
+Open: in tandem as part of EI's own call, or a separate call run alongside it? Which questions may the archive
 answer alone? How does an archive-only episode look on the sources panel?
 
 ## Template

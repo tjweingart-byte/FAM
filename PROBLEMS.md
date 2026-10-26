@@ -22419,8 +22419,21 @@ quality). Self-hosted specialised models (grounding checkers, rerankers, NLI)
 avoid both holes but need a machine that is not the voice pod. Every
 recommendation is unchanged from §307-§314.
 
+**Two pairs in tandem** (the owner, 10.26, after seeing the page: "the
+writer should be working in tandem with the editor in chief" and "the
+contextualizer should be working in tandem with the EI brief"). Each pair is
+now one stage, drawn as one step with both boxes inside it, and the guide
+says so at the pipeline, the Overlord's hand-offs, and both agents'
+overviews. For the contextualizer this matches the standing recommendation
+(fold it into EI's own call). For the editor it is new, and it changes what
+the writer is: the editor no longer hands a finished plan to a writer
+waiting behind it. How the two share the work while the script streams -
+the plan beat by beat, one call that plans then writes, or the writer
+starting once the opening beat is decided - is left as an open question,
+because each costs a different amount in front of the first word.
+
 No agent is built; nothing here runs.
 
-Tests: `tests/test_fam_agents_doc.py` (the five agents and the template carry
+Tests: `tests/test_fam_agents_doc.py` (the tandem pairs drawn as one step; the five agents and the template carry
 the same sub-tabs; every stage named is one the page draws; a tab per
 section).

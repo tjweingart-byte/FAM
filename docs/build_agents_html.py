@@ -29,6 +29,9 @@ STAGES = [
 ]
 LANES = [("listener", "Listener path"), ("control", "Orchestration"),
          ("background", "Background")]
+# Stages that work in tandem, drawn as one step (the owner, 2026-10-26): the
+# contextualizer with EI's brief, the editor in chief with the writer.
+TANDEM = [("ei", "context"), ("editor", "write")]
 
 
 def stages_of(text):
@@ -67,17 +70,29 @@ def split(src):
 
 def pipeline(stages):
     lit, feeds = map(set, stages)
+
+    def chip(sid, name):
+        cls = " on" if sid in lit else (" feeds" if sid in feeds else "")
+        return f'<span class="chip{cls}" data-stage="{sid}">{html.escape(name)}</span>'
+
     rows = []
     for lane, label in LANES:
-        steps = []
-        for sid, name, l in STAGES:
-            if l != lane:
-                continue
-            cls = "on" if sid in lit else ("feeds" if sid in feeds else "")
-            steps.append(f'<li class="{cls}" data-stage="{sid}">{html.escape(name)}</li>')
+        names = [(sid, name) for sid, name, l in STAGES if l == lane]
+        steps, i = [], 0
+        while i < len(names):
+            if i + 1 < len(names) and (names[i][0], names[i + 1][0]) in TANDEM:
+                steps.append('<li class="step tandem" title="In tandem">'
+                             f'{chip(*names[i])}<span class="plus">+</span>{chip(*names[i + 1])}</li>')
+                i += 2
+            else:
+                steps.append(f'<li class="step">{chip(*names[i])}</li>')
+                i += 1
         rows.append(f'<div class="lane lane-{lane}"><span class="lane-label">{label}</span><ol>{"".join(steps)}</ol></div>')
-    note = '<p class="pipe-note">Filled: where it works. Dashed: what its work drives.</p>' if feeds else ""
-    return f'<figure class="pipe" aria-label="Where it works in the pipeline">{"".join(rows)}{note}</figure>'
+    note = "Paired boxes work in tandem."
+    if feeds:
+        note = "Filled: where it works. Dashed: what its work drives. " + note
+    return (f'<figure class="pipe" aria-label="Where it works in the pipeline">{"".join(rows)}'
+            f'<p class="pipe-note">{note}</p></figure>')
 
 
 def build():
@@ -142,10 +157,13 @@ a:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius
 .lane{display:grid;grid-template-columns:150px minmax(0,1fr);gap:10px;align-items:center}
 .lane-label{font:500 11px/1.3 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}
 .lane ol{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:6px}
-.lane li{font-size:12.5px;line-height:1.2;padding:6px 10px;border:1px solid var(--line);border-radius:999px;color:var(--faint);background:var(--bg);position:relative}
-.lane li + li::before{content:"\2192";position:absolute;left:-11px;top:50%;transform:translateY(-50%);font-size:10px;color:var(--faint)}
-.lane li.on{background:var(--accent);border-color:var(--accent);color:var(--bg);font-weight:600}
-.lane li.feeds{border:1.5px dashed var(--accent);color:var(--text)}
+.lane li.step{position:relative;display:flex;align-items:center}
+.lane li.step + li.step::before{content:"\2192";position:absolute;left:-11px;top:50%;transform:translateY(-50%);font-size:10px;color:var(--faint)}
+.lane li.tandem{gap:4px;padding:3px;border:1px solid var(--line);border-radius:999px;background:var(--surface-2)}
+.lane .plus{font:600 12px/1 var(--mono);color:var(--muted)}
+.chip{font-size:12.5px;line-height:1.2;padding:6px 10px;border:1px solid var(--line);border-radius:999px;color:var(--faint);background:var(--bg)}
+.chip.on{background:var(--accent);border-color:var(--accent);color:var(--bg);font-weight:600}
+.chip.feeds{border:1.5px dashed var(--accent);color:var(--text)}
 .pipe-note{margin:0;font-size:12px;color:var(--faint)}
 .subtabs{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 6px}
 .subtab{font:500 13px/1 var(--body);color:var(--muted);text-decoration:none;padding:8px 12px;border:1px solid var(--line);border-radius:999px}

@@ -52,7 +52,15 @@ def test_builder_gives_each_section_a_tab(tmp_path):
     builder.OUT = tmp_path / "agents.html"
     page = builder.build().read_text()
     assert page.count('class="tab"') == len(_sections())
-    assert '<li class="on" data-stage="orchestrate">' in page
-    assert '<li class="on" data-stage="editor">' in page
-    assert '<li class="feeds" data-stage="recall">' in page
+    assert '<span class="chip on" data-stage="orchestrate">' in page
+    assert '<span class="chip on" data-stage="editor">' in page
+    assert '<span class="chip feeds" data-stage="recall">' in page
+
+
+def test_tandem_pairs_are_drawn_as_one_step(tmp_path):
+    builder = _builder()
+    page = builder.pipeline(([], []))
+    steps = re.findall(r'<li class="step( tandem)?"[^>]*>(.*?)</li>', page)
+    pairs = [re.findall(r'data-stage="(\w+)"', inner) for tandem, inner in steps if tandem]
+    assert pairs == [["ei", "context"], ["editor", "write"]]
     assert "<agent>" not in page
