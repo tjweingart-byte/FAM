@@ -321,4 +321,5 @@ and `limit` = Lines.
 | 22286 | 33 | 315. The sweeps' scores and prices are kept in the archive (2026-10-26) |
 | 22319 | 22 | 316. An empty search still gets no archive - for now, and not as a rule (2026-10-26) |
 | 22341 | 25 | 317. Review before merging: a recalled provider fact is credited by name (2026-10-26) |
-| 22366 | 92 | 320. What the trusting-fermat branch fixed, brought to Main (2026-10-26) |
+| 22366 | 18 | 319. A shared episode invites the listener into the conversation, via the waitlist (2026-10-26) |
+| 22384 | 92 | 320. What the trusting-fermat branch fixed, brought to Main (2026-10-26) |
