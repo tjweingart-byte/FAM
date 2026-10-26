@@ -53,7 +53,7 @@ def web(monkeypatch):
     queue: list = []
 
     def fake(query, num_results, recency_days=0, include_domains=(),
-             objective="", extra_queries=()):
+             objective="", extra_queries=(), hints=None):
         calls.append({"query": query, "recency_days": recency_days,
                       "include_domains": tuple(include_domains)})
         results = queue.pop(0) if queue else []

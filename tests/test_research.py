@@ -67,7 +67,7 @@ def stub_parallel(monkeypatch, answer) -> list:
     calls: list = []
 
     def fake(query, num_results, recency_days=0, include_domains=(),
-             objective="", extra_queries=()):
+             objective="", extra_queries=(), hints=None):
         call = {"query": query, "num_results": num_results,
                 "recency_days": recency_days,
                 "include_domains": tuple(include_domains),
