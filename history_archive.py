@@ -110,7 +110,6 @@ RECALL_EXECUTOR = ThreadPoolExecutor(max_workers=2,
                                      thread_name_prefix="archive-recall")
 #: The private search's origin (`cache.PRIVATE_ORIGIN`), never archived.
 PRIVATE_ORIGIN = "private"
-#: Live domains whose figures are held to the scoreboard or the market.
 
 
 # --------------------------------------------------------------------------

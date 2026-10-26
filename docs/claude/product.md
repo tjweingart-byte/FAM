@@ -847,9 +847,14 @@ two, *what came before* → consolidated for the writer → the writer.
   report; never a game mid-play, a prediction market or the weather - is
   written as archive facts in code; so is everything the sports and markets
   sweeps see (§315): each final game once, each watchlist symbol's latest
-  price per trading day, with no request of their own. The recall reaches sports, markets and
-  outcome-dependent questions; weather and a town's news keep their own
-  ladders.
+  price per trading day, with no request of their own. The recall reaches
+  sports, markets and outcome-dependent questions; weather and a town's
+  news keep their own ladders. A recalled provider fact is credited on the
+  sources panel by the provider's name (§317).
+- **An empty search gets no archive, for now** (§316): a default, not a
+  rule. Whether the archive may answer an empty search is the
+  contextualizer's decision (`docs/FAM_AGENTS.md`, agent 4), made when the
+  agents are built.
 - **An old figure never passes for today's**: `ScoreGuard` lets a score
   through only from the scoreboard or in a sentence about the past;
   `FigureGuard` lets an archived figure vouch only for a sentence that says

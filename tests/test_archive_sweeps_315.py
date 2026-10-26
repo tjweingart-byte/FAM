@@ -128,3 +128,37 @@ def test_without_a_sentence_model_nothing_is_kept_and_it_is_counted(archive, que
     bs._keep_finals(LEAGUES["nfl"], [_game(1, "final")], {}, "BALLDONTLIE")
     assert archive.counts()["facts"] == 0
     assert ha.STATS["swept_skipped"] == 1 and ha.STATS["errors"] == 0
+
+
+def test_a_recalled_provider_fact_is_credited_by_name_never_its_key():
+    """A live or swept fact has no web address: the sources panel names the
+    provider, and its `live:` key never becomes a label, a link or a host."""
+    import asyncio
+
+    import provenance
+    import research
+
+    fact = ha.Fact(url="live:Tiingo:Nvidia (NVDA):2026-10-26T20:00:00+00:00",
+                   text="Nvidia (NVDA) last traded at 182.43.", title="Nvidia",
+                   host="Tiingo", grade="primary", published="2026-10-26",
+                   kind="live")
+
+    async def go():
+        packet = research.Packet(
+            context=("SOURCE 1\nTitle: Today\nPublished: 2026-10-28 (today)\n"
+                     "Source type: wire service\nKey evidence:\nIt moved.\n"),
+            sources=["apnews.com"], backend="parallel",
+            findings=[ha.Finding(url="https://apnews.com/today")])
+        future = asyncio.get_event_loop().create_future()
+        future.set_result([fact])
+        await research.finish_history_look(packet, future)
+        return packet
+
+    packet = asyncio.new_event_loop().run_until_complete(go())
+    assert packet.archive == "added" and "182.43" in packet.context
+    labels = [item.label for item in packet.provenance.items]
+    assert "Tiingo" in labels
+    assert not any("live:" in label for label in labels)
+    assert not any("live:" in host for host in packet.sources)
+    credit = next(i for i in packet.provenance.items if i.label == "Tiingo")
+    assert credit.kind == provenance.LIVE and credit.url == ""

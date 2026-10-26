@@ -22337,3 +22337,28 @@ is decided when the agents are built (the contextualizer, agent 4 in
   search are removed; the recommendation now measures (how often the
   search came back empty while the archive had something) rather than
   decides.
+
+## 317. Review before merging: a recalled provider fact is credited by name (2026-10-26)
+
+A review of the whole branch (§311-§316) before it goes to Main found one
+bug and two stale comments.
+
+- **Bug:** the facts §313 and §315 keep from live providers and sweeps have
+  no web address (`live:<provider>:<subject>:<time>`), and
+  `research.finish_history_look` credited every recalled fact as a web
+  article. A recalled score or price would have reached the sources panel
+  labelled with that key ("live:tiingo:nvidia (nvda):2026-10-26t20..."). Now
+  only `http(s)` facts are credited as articles (and counted as hosts);
+  a provider fact is credited by the provider's own name ("Tiingo",
+  "BALLDONTLIE") as a `live` attribution, "from FAM's archive - provider
+  data, dated", with no link. Pinned in `test_archive_sweeps_315.py`.
+- **Stale:** a comment left behind when `GUARDED_DOMAINS` was removed, and
+  `Brief.category_path`'s docstring, which still named the retired history
+  store (and said "sport" for the facet `sports`).
+
+Known and left as is: the SQLite archive's upsert updates a fact's text but
+not its vector or date, so a corrected final or a later price on the same
+day is recalled by the first version's vector (the same subject, so the
+same neighbours); Atlas replaces the whole document. And an episode's own
+market lookups (§313) are kept per `as_of`, beside the sweep's one price a
+day (§315) - the inventory agent's duplicate pass is where the two meet.

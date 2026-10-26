@@ -1298,11 +1298,19 @@ async def finish_history_look(packet: "Packet", look) -> None:
                       + history_archive.as_sources(facts, number))
     articles = list({f.url: SearchResult(url=f.url, title=f.title,
                                          published_date=f.published)
-                     for f in facts}.values())
+                     for f in facts if f.url.startswith(("http://", "https://"))
+                     }.values())
     for host in domains(articles):
         if host not in packet.sources:
             packet.sources.append(host)
     credited = provenance_mod.from_results(articles, retriever="archive")
+    # A live provider's data kept in the archive (§313, §315) has no web
+    # address: it is credited by the provider's name, never its `live:` key.
+    for label, day in sorted({(f.host or "FAM archive", f.published)
+                              for f in facts if f.url.startswith("live:")}):
+        credited.add(provenance_mod.Attribution(
+            label=label, kind=provenance_mod.LIVE,
+            tier="from FAM's archive - provider data, dated", at=day))
     if packet.provenance is None:
         packet.provenance = credited
     else:

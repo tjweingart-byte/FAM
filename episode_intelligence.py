@@ -304,11 +304,12 @@ class Brief:
     #: on a degraded brief.
     category: str = ""
     #: **Where `category` sits in FAM's category tree** (§311): the facet,
-    #: then each subcategory down to the node, broadest first - ["sport",
+    #: then each subcategory down to the node, broadest first - ["sports",
     #: "american football", "nfl", "philadelphia eagles"]. Set in code by
     #: `place_category`, never by the model, and never read as `category`:
-    #: it is the context the history store is asked with. Empty when the
-    #: tree cannot place it.
+    #: the category and subcategory of the search, for the agents that will
+    #: plan research from it (`docs/FAM_AGENTS.md`). Empty when the tree
+    #: cannot place it.
     category_path: list = field(default_factory=list)
     #: The key of the named broadcast slot the request names
     #: (`named_slots.SLOTS`), set in code and never by the model: "Sunday
