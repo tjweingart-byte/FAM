@@ -745,8 +745,7 @@ class PolymarketSource(LiveSource):
         return True, "Polymarket answered"
 
     async def resolve(self, brief) -> Optional[Entity]:
-        subject = live_route.entity_of(brief)
-        wanted = subject_words(subject)
+        wanted = market_words(brief)
         if not wanted:
             return None
         try:
@@ -874,13 +873,27 @@ going expected chance odds market markets prediction predictions
 """.split())
 
 
-def subject_words(subject: str) -> list:
-    """A brief's subject as the words a market would be named by."""
+def subject_words(subject: str, shortest: int = 4) -> list:
+    """A brief's subject as the words a market would be named by.
+
+    `shortest` is 3 for EI's `forecast_query` (§320), which is written in a
+    market's own short forms - "Fed", "GOP", "NYC" - and 4 for a subject,
+    where a three-letter word is more often noise than a name."""
     out: list = []
     for word in re.findall(r"[^\W_]+", (subject or "").lower()):
-        if len(word) > 3 and word not in _MARKET_STOPWORDS and word not in out:
+        if len(word) >= shortest and word not in _MARKET_STOPWORDS and word not in out:
             out.append(word)
     return out
+
+
+def market_words(brief) -> list:
+    """What Polymarket is searched with (§320): EI's market-style title
+    first, then the name the catalogues resolve (`live_route.entity_of`).
+    A degraded brief has no title, and searches the name as before."""
+    words = subject_words(getattr(brief, "forecast_query", "") or "", shortest=3)
+    words += [w for w in subject_words(live_route.entity_of(brief))
+              if w not in words]
+    return words
 
 
 def _best_match(candidates, wanted: list):

@@ -516,9 +516,9 @@ def test_a_packet_with_nothing_in_it_always_buys_the_second_look(monkeypatch):
     `packet_covers("", [])` is True - so a search that found *absolutely
     nothing* counted as satisfied and the one retry that exists for this case
     never ran. The commonest way in is the recency window."""
-    # Nothing inside the window; everything outside it.
+    # Nothing inside the first window; something in the wider one.
     searched = stub_parallel(
-        monkeypatch, lambda call: [] if call["recency_days"] else RESULTS)
+        monkeypatch, lambda call: [] if call["recency_days"] == 1 else RESULTS)
 
     packet = asyncio.run(research.retrieve(
         "what happened overnight",
@@ -526,8 +526,11 @@ def test_a_packet_with_nothing_in_it_always_buys_the_second_look(monkeypatch):
                                     retrieval="what happened overnight",
                                     must_establish=[])))
     calls = [call["recency_days"] for call in searched]
-    assert len(calls) == 2, "the windowless second look never ran"
-    assert calls[0] and not calls[1], "the second look must drop the window"
+    assert len(calls) == 2, "the second look never ran"
+    # §320: wider, never none - a dropped window let a March 2025 article
+    # into a "last 24 hours" episode.
+    assert calls[0] and calls[1], "the second look must keep a window"
+    assert calls[1] > calls[0], "the second look's window must be wider"
     assert packet, "the retry found sources and they did not reach the packet"
     assert packet.retried
 

@@ -1160,6 +1160,59 @@ def gap_line(place, weather: bool = True, county_news: bool = True) -> str:
     return f"We couldn't find any recent news reports out of {town}.{tail}"
 
 
+#: Words that say "the news there" without saying what about. A brief that
+#: asks only for these asks for whatever the town has, and every story
+#: naming the town answers it.
+_GENERAL_WORDS = frozenset({
+    "news", "local", "today", "tonight", "week", "weekend", "happening",
+    "going", "event", "events", "latest", "town", "city", "area", "recent",
+    "stories", "story", "headlines", "update", "updates", "anything", "there",
+    "what's", "whats", "on", "community", "residents", "county",
+})
+
+
+def _wanted(brief, place) -> list:
+    """What the brief must establish, minus the place's own words.
+
+    The place is already required of every story (`names_place`); what is
+    left is what the question is *about*. Empty for a plain "what's going on
+    in Springfield", which any Springfield story answers.
+    """
+    import research
+
+    place_words = research._terms(" ".join(filter(None, [
+        getattr(place, "name", ""), getattr(place, "county", ""),
+        getattr(place, "region", ""), getattr(place, "country", "")])))
+    out = []
+    for item in (getattr(brief, "must_establish", None) or []):
+        left = [w for w in sorted(research._terms(str(item)))
+                if w not in place_words and w not in _GENERAL_WORDS]
+        if left:
+            out.append(" ".join(left))
+    return out
+
+
+def relevant(packet, brief, place) -> bool:
+    """Does this rung's packet answer the question, not only name the place?
+
+    **Naming the town was the only test** (§320), so a question about an
+    airshow over San Francisco Bay was answered by a Valkyries fan story that
+    said "Chase Center in San Francisco", and the writer was told it was the
+    town's news. A rung whose stories name the place and cover none of what
+    the brief asked for now counts as empty, and the ladder goes on. The same
+    coarse word test the retry uses (`research.packet_covers`), never a model
+    call.
+    """
+    wanted = _wanted(brief, place)
+    if not wanted:
+        return True
+    import research
+
+    covered, _ = research.packet_covers(
+        getattr(packet, "context", "") or "", wanted)
+    return covered
+
+
 def _packet(items: list, scope: str, place, backend: str):
     import provenance as provenance_mod
     import research
@@ -1191,14 +1244,21 @@ async def research_local(place, brief=None, search=None) -> LocalResult:
 
     town = town_items(place) if target else []
     if town:
-        result.scope = TOWN
-        result.packet = _packet(town, TOWN, place, "local-town")
-        result.attempts.append(("town", len(town)))
-        return result
+        packet = _packet(town, TOWN, place, "local-town")
+        if relevant(packet, brief, place):
+            result.scope = TOWN
+            result.packet = packet
+            result.attempts.append(("town", len(town)))
+            return result
+        log.info("local news: %d town item(s) for %s, none about the question",
+                 len(town), place.label)
     result.attempts.append(("town", 0))
     result.gap = True
 
     county = county_items(place) if target else []
+    if county and not relevant(_packet(county, COUNTY, place, "local-county"),
+                               brief, place):
+        county = []
     result.attempts.append(("county", len(county)))
     if county:
         result.scope = COUNTY
@@ -1206,11 +1266,21 @@ async def research_local(place, brief=None, search=None) -> LocalResult:
         return result
 
     if search is not None:
+        # **Only outlets somebody vetted** (§320): seeded and registry ones.
+        # A learned outlet (`_learn`) is any non-national site an earlier
+        # search happened to find, and restricting the search to those
+        # collapsed it to one site - hoodline.com - for every later San
+        # Francisco question. With none vetted the search is open, and
+        # still keeps only what names the place.
         known = sorted({o.host for o in (target.for_place(
             place.name, place.county, place.region) if target else [])
-            if o.host and o.state != EXCLUDED})
-        query = " ".join(filter(None, [
-            getattr(brief, "retrieval", "") or "", place.name, place.region]))
+            if o.host and o.state != EXCLUDED and o.source != "learned"})
+        # The town and region once (§320): a retrieval that already names
+        # them is not sent "San Francisco ... San Francisco California".
+        retrieval = getattr(brief, "retrieval", "") or ""
+        query = " ".join(filter(None, [retrieval] + [
+            w for w in (place.name, place.region)
+            if w and w.lower() not in retrieval.lower()]))
         try:
             # Only results that name the place survive inside the search
             # (`research.names_place`) - the fix that stops invention.
@@ -1223,9 +1293,13 @@ async def research_local(place, brief=None, search=None) -> LocalResult:
         label = str(getattr(packet, "backend", "") or "web")
         result.attempts.append((label, len(getattr(packet, "sources", []) or [])
                                 if packet else 0))
+        if packet and not relevant(packet, brief, place):
+            log.info("local news: the web rung named %s but not the question",
+                     place.label)
+            packet = None
         if packet:
-            # Every result here names the town, so this *is* town news and
-            # there is no gap to announce.
+            # Every result here names the town and answers the question, so
+            # this *is* town news and there is no gap to announce.
             result.scope = label
             result.gap = False
             result.packet = packet
