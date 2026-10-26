@@ -18,7 +18,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   `tests/test_claude_md.py` fails if the IDs disagree or this file passes its
   budget - history goes in the topic files and `PROBLEMS.md`, never here.
 - **History:** `PROBLEMS_INDEX.md` lists every PROBLEMS.md section and line
-  (`tools/problems_index.py`; a test fails when stale). Read by offset.
+  (`tools/problems_index.py`; a test fails if stale). Read by offset.
 - "CLAUDE.md" cited elsewhere means this core plus `docs/claude/`; numbered
   open problems are in `open-problems.md`.
 

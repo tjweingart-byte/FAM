@@ -22282,3 +22282,36 @@ closing section. Nothing is built.
   agents a table of guardrails, the prompt text that states them, and the
   cases its eval should try to break them with. Hypotheses, to be revised
   as each agent is built.
+
+## 315. The sweeps' scores and prices are kept in the archive (2026-10-26)
+
+At the owner's direction. §313 kept the live data an episode used; the
+sports sweep and the markets sweep already fetch far more, and scores and
+prices are the archive's most valuable material.
+
+- **Sports** (`balldontlie_scores._keep_finals`, from the BALLDONTLIE
+  sweep's `collect`): every game the sweep sees as **final** - never one
+  under way, scheduled or off - becomes one archive fact, keyed by league
+  and game id, so the same final seen on every sweep of the day is one
+  fact and a corrected score replaces it. Text is the scoreboard's own
+  sentence (`game_facts`) behind the league and the day: "NFL, 2026-10-25:
+  Philadelphia Eagles beat New York Giants 24 to 17."
+- **Markets** (`story_sources._keep_prices`, from the Finnhub or Tiingo
+  sweep's `collect`): each watchlist symbol's quote, **one fact per symbol
+  per trading day** (dated by the provider's own `t`), replaced by each
+  later sweep, so the day's last sweep leaves its last price. Worded as
+  the provider said it - "last traded at 182.43, up 2.5 percent on the day,
+  as of 20:00 UTC on 2026-10-26" - and "with the US market closed" only
+  when the provider says so; never "closed at".
+- **No request of its own**, nothing awaited: records are queued on the
+  archive's thread (`history_archive.keep_swept`). A final or price already
+  kept with the same words is not embedded again (`_SWEPT_SEEN`, in memory;
+  after a restart the upsert keeps it one fact). With no sentence model the
+  facts are skipped and counted (`swept_skipped`), never a back-off; any
+  failure is logged and never costs the sweep. Counted on `/api/health`'s
+  `archive` (`swept_facts`).
+
+How often the sweeps run is unchanged ([sweep-on-demand]): sports only while
+a followed game is on and myFAM was drawn recently, so a final is kept when
+some sweep saw it finish; a game no sweep saw end is kept only if an
+episode used it (§313).

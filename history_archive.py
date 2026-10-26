@@ -546,7 +546,7 @@ _BACKEND_LOCK = threading.Lock()
 STATS: dict = {"intake_articles": 0, "episodes_linked": 0, "recalls": 0,
                "recalled_facts": 0, "recall_late": 0, "errors": 0,
                "last_error": "", "last_recall_ms": None, "live_facts": 0,
-               "live_skipped": 0}
+               "live_skipped": 0, "swept_facts": 0, "swept_skipped": 0}
 _STATS_LOCK = threading.Lock()
 _BACKOFF_UNTIL = [0.0]
 _SINCE_PRUNE = [0]
@@ -616,7 +616,9 @@ def reset() -> None:
         STATS.update({"intake_articles": 0, "episodes_linked": 0, "recalls": 0,
                       "recalled_facts": 0, "recall_late": 0, "errors": 0,
                       "last_error": "", "last_recall_ms": None,
-                      "live_facts": 0, "live_skipped": 0})
+                      "live_facts": 0, "live_skipped": 0, "swept_facts": 0,
+                      "swept_skipped": 0})
+    _SWEPT_SEEN.clear()
     _BACKOFF_UNTIL[0] = 0.0
     _SINCE_PRUNE[0] = 0
 
@@ -715,12 +717,101 @@ def _live_fact(record: dict, subject: str, category: str) -> Fact:
                                                 record.get("domain"), "record"),
                                    day)))
     return Fact(
+        id=str(record.get("id", "") or ""),
         url=f"live:{record.get('source', '')}:{entity}:{record.get('as_of', '')}",
         text=" ".join(record.get("lines") or []), title=title,
         host=str(record.get("source", "")), grade="primary", published=day,
         kind="live", subject=subject, category=category,
         figure={"domain": record.get("domain"), "status": record.get("status"),
                 "as_of": record.get("as_of"), "kind": record.get("kind")})
+
+
+# --------------------------------------------------------------------------
+# The sweeps' scores and prices (§315)
+# --------------------------------------------------------------------------
+#: What a sweep already kept, by fact id and what it said, so a final seen
+#: on every sweep of the day, or a price that has not moved, is embedded
+#: once. In memory: after a restart the first sweep writes each again, and
+#: the store's upsert keeps it one fact.
+_SWEPT_SEEN: dict = {}
+SWEPT_SEEN_MAX = 5000
+
+
+def keep_swept(records: list) -> None:
+    """Keep what a sweep fetched anyway: a game once it is **final**, a
+    symbol's latest price for its trading day (§315, the owner's direction:
+    scores and prices are the archive's most valuable material). Records
+    are `live_records`' shape plus a stable `id`, `subject` and `category`.
+    No request of its own; queued on the archive's thread; never raises,
+    never waits."""
+    try:
+        if not records or not enabled():
+            return
+        fresh = []
+        for record in records:
+            mark = (record.get("id"), tuple(record.get("lines") or ()))
+            if _SWEPT_SEEN.get(mark[0]) == mark[1]:
+                continue
+            fresh.append(record)
+        if fresh:
+            EXECUTOR.submit(_write_swept, fresh)
+    except Exception as exc:  # noqa: BLE001 - never costs the sweep
+        log.warning("could not queue a sweep for the archive: %s", exc)
+
+
+def _write_swept(records: list) -> None:
+    if _backing_off() or backend() is None:
+        return
+    for index, record in enumerate(records):
+        try:
+            add_fact(_live_fact(record, str(record.get("subject", "") or ""),
+                                str(record.get("category", "") or "")))
+        except RuntimeError:
+            # No sentence model: nothing kept can be recalled. Not a store
+            # failure, so no back-off.
+            _count("swept_skipped", len(records) - index)
+            return
+        except Exception as exc:  # noqa: BLE001 - see `_failed`
+            _failed("swept fact", exc)
+            return
+        _count("swept_facts")
+        if len(_SWEPT_SEEN) >= SWEPT_SEEN_MAX:
+            _SWEPT_SEEN.clear()
+        _SWEPT_SEEN[record.get("id")] = tuple(record.get("lines") or ())
+
+
+def swept_game(league_key: str, league_label: str, game_id, day: str,
+               lines: list, source: str, as_of: datetime, home: str,
+               away: str) -> dict:
+    """A final game from the sports sweep, as a record `keep_swept` takes."""
+    return {"id": url_id(f"sweep:sports:{league_key}:{game_id}"),
+            "domain": "sports", "kind": "final", "status": "final",
+            "source": source, "entity": f"{home} vs {away}",
+            "subject": f"{home} vs {away}", "category": league_label,
+            "as_of": as_of.isoformat(),
+            "lines": [f"{league_label}, {day}: " + " ".join(lines)]}
+
+
+def swept_price(symbol: str, label: str, price: float, change, as_of: datetime,
+                is_open, source: str) -> dict:
+    """A symbol's latest price from the markets sweep, one record per symbol
+    per trading day - the last sweep of the day leaves the day's last price.
+    Worded as what the provider said, never "closed at" unless the market
+    is known to be shut."""
+    day = as_of.astimezone(timezone.utc).date().isoformat()
+    moved = ""
+    if change is not None:
+        way = "up" if float(change) >= 0 else "down"
+        moved = f", {way} {abs(float(change)):.1f} percent on the day"
+    state = (" with the US market closed" if is_open is False else "")
+    return {"id": url_id(f"sweep:markets:{symbol}:{day}"),
+            "domain": "markets", "kind": "price", "status": "",
+            "source": source, "entity": f"{label} ({symbol})",
+            "subject": label, "category": "stock market",
+            "as_of": as_of.isoformat(),
+            "lines": [f"{label} ({symbol}) last traded at {float(price):.2f}"
+                      f"{moved}, as of {as_of.astimezone(timezone.utc):%H:%M} "
+                      f"UTC on {day}{state}."]}
 
 
 def after_episode(notes, key: str, sourced_at: float, origin: str = "") -> None:

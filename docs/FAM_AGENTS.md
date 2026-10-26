@@ -186,18 +186,16 @@ search
 | EI: plugin inputs | Brief fields each plugin reads: `search_query` / `search_angles` / `search_objective` / `recency_days` → the search ladder; `live_domain` / `live_entity` → live facts and players; `outcome_dependent` → the forecast; `place` → the local ladder; `subject` + the query → the archive's recall | (part of the EI calls) |
 | Plugins → packet one | `research.retrieve` (Parallel → Perplexity → GDELT), `live_facts`, players, forecast, `local_news`, `weather` | No model calls |
 | Archive → packet two | `history_archive.look` beside the search; its facts are **added into the search results** as dated sources marked as earlier reporting (§308). Sports and markets included (§313) | Embeddings only |
-| What fills the archive | Every cached episode's articles (intake, for agent 1) and its live providers' data - final results, market states, player reports - written as facts in code (§313) | None yet; agent 1 will digest the intake |
+| What fills the archive | Every cached episode's articles (intake, for agent 1) and its live providers' data - final results, market states, player reports - written as facts in code (§313); and everything the sports and markets sweeps see - each final game, each watchlist symbol's latest price per trading day (§315) | None yet; agent 1 will digest the intake |
 | Consolidate | `evidence_digest` (an extractive cut; off by default), then the writer's prompt order: live state → evidence (archive sources last) | Haiku 5.5, thinking off, when on |
 | Script writer | `ScriptGenerator.stream_prepared`, streamed sentence by sentence into the voice | Haiku 5.5, low effort |
 | Quality check | The guards in code: `OpeningGuard`, `ScoreGuard`, `FigureGuard`, `MaterialGuard` | None |
 
 **Still to do in the pipeline** (none of it built), roughly in order:
 
-1. **Archive scores and prices from the sweeps too.** Today the archive keeps
-   the live data an episode used. The sports sweep and the 2-hourly markets
-   sweep ([sweep-on-demand]) already fetch far more; keeping their final
-   results and closes would fill the archive's most valuable shelf without a
-   single extra request.
+1. ~~Archive scores and prices from the sweeps too.~~ **Done (§315):** every
+   final the sports sweep sees and each watchlist symbol's latest price per
+   trading day are kept as archive facts, with no request of their own.
 2. **One extractive cut across both packets**, so the cut can drop archive
    material that repeats today's news (the editor in chief's job, or code).
 3. **A `ResearchPlan`**: every plugin's inputs in one typed object, the
@@ -271,9 +269,10 @@ conversation loses detail and is hard to bound; keep it to back-office jobs.
   already ignores both.
 - `episode_sources` is filled by the archive itself; the agent does not
   touch it.
-- **Live provider data is already facts** (§313): each cached episode's
-  final results, market states and player reports are written by
-  `history_archive.after_episode` in code (`kind: "live"`, graded primary,
+- **Live provider data is already facts** (§313, §315): each cached
+  episode's final results, market states and player reports, and every
+  final and watchlist price the sweeps see, are written in code
+  (`history_archive.after_episode`, `keep_swept`) (`kind: "live"`, graded primary,
   dated by the provider's own `as_of`). The agent does not extract them,
   but its duplicate pass covers them: the same game's final from two
   episodes is one fact, and a price series is history, never repetition

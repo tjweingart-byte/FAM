@@ -845,7 +845,9 @@ two, *what came before* → consolidated for the writer → the writer.
   are the archive's most valuable material. Each cached episode's live
   provider data - a final result, a market state at its time, a player's
   report; never a game mid-play, a prediction market or the weather - is
-  written as archive facts in code. The recall reaches sports, markets and
+  written as archive facts in code; so is everything the sports and markets
+  sweeps see (§315): each final game once, each watchlist symbol's latest
+  price per trading day, with no request of their own. The recall reaches sports, markets and
   outcome-dependent questions; weather and a town's news keep their own
   ladders.
 - **An old figure never passes for today's**: `ScoreGuard` lets a score
