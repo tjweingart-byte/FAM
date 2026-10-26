@@ -15,11 +15,20 @@ name: Voice worker
 #             not obliged to have the disk - set the repository variable
 #             BUILD_VOICE_IMAGE=true, or run it by hand from the Actions tab.
 #
-# What it deliberately does NOT do: deploy. Nothing here restarts a pod or
-# changes an endpoint, because a workflow that can replace the running voice
-# on a push is a workflow that can take the voice down on a typo. The pod's
-# template points at `:latest` or at a tag, and rolling it is one click in a
-# console by somebody who meant to.
+#   release   on Main only, after `contract` passes: creates a GitHub release
+#             named `voice-<sha>`. The voice runs on a RunPod Serverless
+#             endpoint built by RunPod's GitHub integration, which rebuilds
+#             and rolls its workers on a new release - so a change to the
+#             worker reaches the card with nobody running docker or clicking
+#             a console (§318, the owner's direction: nothing about the voice
+#             is done by hand). Set the repository variable
+#             VOICE_AUTO_RELEASE=false to stop it.
+#
+# This reverses "deliberately does NOT deploy", which was written for a pod
+# rolled by hand. What stands between a typo and the voice now: `contract`
+# must pass first, a failed RunPod build leaves the old workers serving,
+# RunPod keeps every earlier build to roll back to, and the app emails the
+# owner within minutes of the voice going down (§318).
 
 on:
   push:
@@ -29,6 +38,12 @@ on:
       - "tts.py"
       - "voice_control.py"
       - "remote_voice.py"
+      # What the worker imports beyond its own package, so a change to any
+      # of it is built into the card (§318).
+      - "voice_store.py"
+      - "voice_bank.py"
+      - "audio_utils.py"
+      - "requirements.txt"
       - "requirements-chatterbox.txt"
       - "requirements-voice-worker.txt"
       - ".github/workflows/voice-worker.yml"
@@ -131,3 +146,28 @@ jobs:
           echo "Pushed ghcr.io/${{ github.repository }}/fam-voice:${{ github.sha }}"
           echo "Point the RunPod template at it, then check the app with:"
           echo "  python tools/voice_doctor.py --speak"
+
+  release:
+    needs: contract
+    if: >-
+      github.event_name == 'push' && github.ref == 'refs/heads/Main' &&
+      vars.VOICE_AUTO_RELEASE != 'false'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      # A release, not a tag push: RunPod's GitHub integration rebuilds a
+      # Serverless endpoint on a new release, not on a commit. One per commit
+      # that touched the worker, named by it, so RunPod's build list reads as
+      # the commits that made each card.
+      - name: Release the worker to RunPod
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          tag="voice-${GITHUB_SHA::7}"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "$tag already released"; exit 0
+          fi
+          gh release create "$tag" --target "$GITHUB_SHA" --title "$tag" \
+            --notes "Voice worker at ${GITHUB_SHA}. RunPod rebuilds the Serverless endpoint from this release (PROBLEMS.md §318)."

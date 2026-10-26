@@ -42,6 +42,79 @@ which is the default and is the in-process card `Dockerfile.gpu` deploys.
 Nothing in this document removes that path — it is the destination, and this is
 the detour taken while the volume does not justify a full-time GPU.
 
+## The current setup: Serverless, built from GitHub (§318)
+
+> The owner's direction on 10.26, after three days of a healthy pod the app
+> could not find: **nothing about the voice is checked or changed by hand**,
+> including when RunPod changes something. A Serverless endpoint has a
+> permanent id, so there is no address to discover; RunPod builds the image
+> from this repository, so there is nothing to rebuild; and the app emails
+> the owner when the voice goes down. The pod sections below are history and
+> the fallback.
+
+**Once, in the RunPod console** (about 20 minutes, most of it the first build):
+
+1. **Connect GitHub.** Settings → Connections → GitHub → Connect; give RunPod
+   access to this repository.
+2. **A network volume for the voice.** Storage → New Network Volume, 20 GB,
+   in a data center that lists several 24 GB GPUs (RTX 4090, A5000, L4,
+   3090). A volume ties workers to its data center, so pick one with choice.
+3. **Put the voice on it.** Deploy the cheapest pod (a CPU pod is enough)
+   with that volume attached; on a pod it mounts at `/workspace`. On the old
+   voice pod's web terminal:
+
+       find / -name 'reference_3*' -not -path '/proc/*' 2>/dev/null
+       cd <the directory it names>
+       runpodctl send reference_3.wav
+       runpodctl send reference_3.rights.json
+
+   Each `send` prints a `runpodctl receive <code>` line; run it on the new
+   pod after `mkdir -p /workspace/voices && cd /workspace/voices`. Check
+   with `ls -la /workspace/voices` (both files), then terminate that pod.
+   The rights record must clear all three fields (step 2 of the pod setup
+   below); without it the worker refuses to speak, by design.
+4. **The endpoint.** Serverless → New Endpoint → Import Git Repository → this
+   repository, branch `Main`, Dockerfile path `Dockerfile.voice`.
+
+   | Setting | Value | Why |
+   |---|---|---|
+   | GPUs | every 24 GB type offered, plus one 48 GB type | availability: one scarce type is how a queue never drains |
+   | Network volume | the one from step 2 | the voice and the weights |
+   | Active workers | 1 | no cold start in front of a listener (~$343/month) |
+   | Max workers | 4 | more listeners at once get more cards, billed only while busy |
+   | Idle timeout | 60 s | |
+   | FlashBoot | on | |
+   | Env `HF_HOME` | `/runpod-volume/hf` | Serverless mounts the volume at `/runpod-volume`, not `/state` |
+   | Env `FAM_VOICES_DIR` | `/runpod-volume/voices` | where step 3 put the files |
+
+   The mode needs no variable: the image sees `RUNPOD_ENDPOINT_ID` and runs
+   the handler. Deploy, and watch the **Builds** tab (10-20 minutes the first
+   time). Copy the **endpoint id**.
+5. **Test it there.** Endpoint → Requests, run `{"input": {"warm": true}}`:
+   it should answer `"ready": true, "engine": "chatterbox"`. Then
+   `{"input": {"text": "Testing the FAM voice."}}` should answer with audio.
+
+**Once, on Render** (the `fam` service → Environment):
+
+- Set `RUNPOD_ENDPOINT_ID` to the id and `REMOTE_VOICE_TRANSPORT=runpod`.
+  `RUNPOD_API_KEY` is already there.
+- Delete `REMOTE_VOICE_URL` and `RUNPOD_POD`: the ladder tries them before
+  the endpoint, so while they are set the pod still speaks.
+- After the redeploy, `/api/health` → `tts.remote.reachable.state` is `ok`
+  and `tts.control.held.rung` is `serverless`. Play a new episode.
+- **Rollback**, if it is not: put `REMOTE_VOICE_URL` back (the pod is
+  untouched). Once Serverless has run a day, terminate the pod.
+
+**After that, nothing.** A change to the worker merged into `Main` passes
+the `Voice worker` workflow's contract tests, which then create a GitHub
+release (`voice-<sha>`); RunPod rebuilds the endpoint from it and rolls its
+workers. A failed build leaves the old workers serving; any earlier build
+can be rolled back to from the endpoint's Builds tab; set the repository
+variable `VOICE_AUTO_RELEASE=false` to stop the releases. The endpoint id
+never changes, so Render is never edited again, and if the voice does go
+down the app emails `SUPPORT_EMAIL` within minutes, daily while it lasts,
+and when it is back.
+
 ## Once, ever
 
 ### 1. Build and push the worker image

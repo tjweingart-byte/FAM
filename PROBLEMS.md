@@ -22414,6 +22414,27 @@ What changed:
   counted as landed (only >= 400 failed), so a `FAM_APP_URL` that redirects
   would fail silently forever; it now warns with the address it was sent to.
 
+
+**Then Serverless, built from GitHub** (same day, the owner's decision after
+the hosting comparison: "we do not want to have to check anything manually,
+or change anything manually when something changes with RunPod"). A pod's
+address changes on every restart and its image is rebuilt by hand; a
+Serverless endpoint's id is permanent and RunPod's GitHub integration builds
+`Dockerfile.voice` itself. The setup is the new first section of
+`REMOTE_VOICE.md`. Two things changed here for it:
+
+- `.github/workflows/voice-worker.yml` gains a `release` job: on `Main`,
+  after `contract` passes, it creates the GitHub release `voice-<sha>`,
+  which is what makes RunPod rebuild (a commit does not). That reverses the
+  workflow's "deliberately does NOT deploy", written for a pod rolled by
+  hand; what stands between a typo and the voice is now `contract`, a failed
+  build leaving the old workers serving, RunPod's earlier builds to roll back
+  to, and the owner's email. `VOICE_AUTO_RELEASE=false` stops it. The
+  workflow's paths gain what the worker imports (`voice_store.py`,
+  `voice_bank.py`, `audio_utils.py`, `requirements.txt`).
+- `REMOTE_VOICE.md` says where Serverless mounts a volume (`/runpod-volume`,
+  not `/state`), so the endpoint sets `HF_HOME` and `FAM_VOICES_DIR`.
+
 Operational, done by hand on 10.26: `REMOTE_VOICE_URL=http://213.173.105.20:30248`
 on Render (plain HTTP was already allowed) so the pinned rung speaks while
 registration is fixed. It goes stale the day the pod restarts on a new
