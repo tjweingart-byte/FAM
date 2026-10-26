@@ -88,11 +88,15 @@ def main() -> int:
         check("Every control that is not play is a door", len(doors) >= 4,
               f"{len(doors)} doors")
 
-        # "Want to hear more? Join FAM for free" (9.29 packet): the door
+        # "Want to hear more? Be a part of the conversation with FAM"
+        # (§318): the door
         # a recipient is offered, drawn under the player.
-        check("The page offers to join FAM for free",
-              "Join FAM for free" in page.inner_text("[data-door='join']")
+        check("The page invites the listener into the conversation",
+              "Be a part of the conversation with FAM"
+              in page.inner_text("[data-door='join']")
               and "Want to hear more?" in page.inner_text("#doors"))
+        check("That invitation links to the waitlist page",
+              page.get_attribute("[data-door='join']", "href") == "/waitlist")
 
         page.click("#play")
         page.wait_for_timeout(1800)

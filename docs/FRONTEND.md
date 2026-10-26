@@ -1090,7 +1090,8 @@ push.
     for a shared `(q, minutes)` with nothing attached
     (`_shared_episode_request`).
   - Every other control is a `data-door` to the App Store or the front
-    door. "Join FAM for free" is always drawn.
+    door. "Want to hear more? Be a part of the conversation with FAM" is
+    always drawn and links to `/waitlist` (§318).
   - The page counts opens through `POST /api/share/<id>/open`.
   - A dead link returns a 404 page that says so; it does not redirect.
   - Its smoke run is `tools/smoke_landing.py`, built by

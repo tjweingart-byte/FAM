@@ -22362,3 +22362,21 @@ day is recalled by the first version's vector (the same subject, so the
 same neighbours); Atlas replaces the whole document. And an episode's own
 market lookups (§313) are kept per `as_of`, beside the sweep's one price a
 day (§315) - the inventory agent's duplicate pass is where the two meet.
+
+## 318. A shared episode invites the listener into the conversation, via the waitlist (2026-10-26)
+
+At the owner's direction, the note under a shared episode (`/s/<id>`,
+`static/listen.html`) now reads "Want to hear more? Be a part of the
+conversation with FAM →" and links to the waitlist page. It replaces §175's
+"Join FAM for free", which went to the App Store when there was one and
+otherwise to the front door.
+
+- `sharing.JOIN_PATH` is `/waitlist`, and `landing_payload`'s `join` is that
+  path whether or not `APP_STORE_URL` is set; the page's one delegated door
+  handler sends the join door to `share.join` and the other doors to the App
+  Store as before.
+- The door is a real `<a href="/waitlist">`, so the page still works as a
+  link with scripts off, and the arrow is part of the link.
+- The no-app footnote lost "Joining is free and opens FAM in your browser",
+  which was no longer what the link did.
+- Pinned in `tests/test_packet_175.py` and `tools/smoke_landing.py`.

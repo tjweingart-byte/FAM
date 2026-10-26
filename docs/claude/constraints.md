@@ -1517,7 +1517,11 @@
   > when `APP_STORE_URL` is set and otherwise to this server's own front door
   > (`sharing.JOIN_PATH`), which opens on sign-up for a newcomer - a real page
   > on the host that served the link, so still never a control with nothing
-  > behind it. Every other door still needs the App Store link. The payload carries no `user_id`: this is the one
+  > behind it. Every other door still needs the App Store link.
+  > **Current:** the note reads "Want to hear more? Be a part of the
+  > conversation with FAM" and always links to the waitlist page
+  > (`sharing.JOIN_PATH` = `/waitlist`), App Store or not *(§318, at the
+  > owner's direction)*. The payload carries no `user_id`: this is the one
   response in the app handed to people who are not listeners.
   **The link names a host now, and nobody has to set one** *(§114).* It read
   `PUBLIC_BASE_URL` and nothing anywhere prompts for it, so no deployment had

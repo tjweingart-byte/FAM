@@ -407,13 +407,13 @@ they actually came for in the process.
 The rule the page keeps: **the only control that works is play, and everything
 else is a door to the App Store.** Play, pause, scrub and the two fifteen-second
 buttons are the whole of what it does. The wordmark, "Ask your own question",
-"Browse episodes" and "Join FAM for free" are all `data-door`, handled by one
+"Browse episodes" and "Be a part of the conversation with FAM" are all `data-door`, handled by one
 delegated listener, so a control added later is a door by default rather than
 by somebody remembering to wire it.
 
-"Want to hear more? Join FAM for free" (PROBLEMS.md §175) is the one door drawn
-with no `APP_STORE_URL`: it then goes to the front door, `/`, which opens on
-sign-up for a newcomer. The iMessage share is the link alone, so Messages
+"Want to hear more? Be a part of the conversation with FAM" (PROBLEMS.md §175,
+§318) is the one door drawn with no `APP_STORE_URL`, and it always goes to the
+waitlist page, `/waitlist`, whether or not the app is out. The iMessage share is the link alone, so Messages
 draws this page's preview card and leaves the typing line for the sender.
 
 ### Tracing a link back to its episode

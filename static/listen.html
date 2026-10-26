@@ -118,6 +118,7 @@
   }
   .door{
     display:block; width:100%; text-align:center; cursor:pointer;
+    box-sizing:border-box; text-decoration:none;
     font-family:'Geist', sans-serif; font-size:15px; font-weight:600;
     padding:15px 18px; border-radius:14px; border:0; margin:0 0 10px;
     background:var(--paper); color:var(--ink);
@@ -240,13 +241,13 @@
   // Everything that is not play. Drawn only when there is somewhere for them
   // to go: with no APP_STORE_URL this page is the player and nothing else,
   // because a control with nothing behind it is worse than no control.
-  // "Want to hear more? Join FAM for free" is drawn either way (9.29
-  // packet): to the App Store when there is one, otherwise to this server's
-  // front door, which opens on sign-up. The other doors still need the app.
+  // "Want to hear more? Be a part of the conversation with FAM" is drawn
+  // either way (PROBLEMS.md 318) and always goes to the waitlist page. The
+  // other doors still need the app.
   var doors = $("doors");
   var join =
     '<p class="join-lede">Want to hear more?</p>' +
-    '<button class="door join" data-door="join" type="button">Join FAM for free &rarr;</button>';
+    '<a class="door join" data-door="join" href="/waitlist">Be a part of the conversation with FAM &rarr;</a>';
   doors.hidden = false;
   if (share.has_app) {
     doors.innerHTML = join +
@@ -255,8 +256,7 @@
       '<button class="door quiet" data-door="browse" type="button">Browse episodes</button>';
   } else {
     doors.innerHTML = join +
-      '<p class="footnote">FAM makes an episode about anything you ask. ' +
-      'Joining is free and opens FAM in your browser.</p>';
+      '<p class="footnote">FAM makes an episode about anything you ask.</p>';
   }
 
   // One delegated handler, so a control added later is a door by default
@@ -265,7 +265,8 @@
     var el = event.target.closest ? event.target.closest("[data-door]") : null;
     if (!el) return;
     event.preventDefault();
-    var to = share.has_app ? share.app_store : share.join;
+    var to = el.getAttribute("data-door") === "join" || !share.has_app
+      ? share.join : share.app_store;
     if (!to) return;
     window.location.href = to;
   });

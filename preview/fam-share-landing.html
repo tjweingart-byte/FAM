@@ -131,6 +131,7 @@
   }
   .door{
     display:block; width:100%; text-align:center; cursor:pointer;
+    box-sizing:border-box; text-decoration:none;
     font-family:'Geist', sans-serif; font-size:15px; font-weight:600;
     padding:15px 18px; border-radius:14px; border:0; margin:0 0 10px;
     background:var(--paper); color:var(--ink);
@@ -176,7 +177,7 @@
     <section class="doors" id="doors" hidden></section>
   </main>
 
-<script>window.FAM_SHARE = {"id": "preview-share", "title": "Who Makes the Chips", "question": "why is semiconductor manufacturing so concentrated in taiwan", "minutes": 3, "url": "https://fam.audio/s/preview-share", "card": "https://fam.audio/api/share/card?share=preview-share", "app_store": "https://apps.apple.com/app/fam/id0000000000", "has_app": true, "join": "https://apps.apple.com/app/fam/id0000000000"};</script>
+<script>window.FAM_SHARE = {"id": "preview-share", "title": "Who Makes the Chips", "question": "why is semiconductor manufacturing so concentrated in taiwan", "minutes": 3, "url": "https://fam.audio/s/preview-share", "card": "https://fam.audio/api/share/card?share=preview-share", "app_store": "https://apps.apple.com/app/fam/id0000000000", "has_app": true, "join": "/waitlist"};</script>
 <script>
   // The share page names itself too (§172, §208): every /api/ call it makes -
   // fam-audio.js's stream included - carries `X-FAM-Client`, so /api/health
@@ -1301,13 +1302,13 @@ window.FamAudio = (function () {
   // Everything that is not play. Drawn only when there is somewhere for them
   // to go: with no APP_STORE_URL this page is the player and nothing else,
   // because a control with nothing behind it is worse than no control.
-  // "Want to hear more? Join FAM for free" is drawn either way (9.29
-  // packet): to the App Store when there is one, otherwise to this server's
-  // front door, which opens on sign-up. The other doors still need the app.
+  // "Want to hear more? Be a part of the conversation with FAM" is drawn
+  // either way (PROBLEMS.md 318) and always goes to the waitlist page. The
+  // other doors still need the app.
   var doors = $("doors");
   var join =
     '<p class="join-lede">Want to hear more?</p>' +
-    '<button class="door join" data-door="join" type="button">Join FAM for free &rarr;</button>';
+    '<a class="door join" data-door="join" href="/waitlist">Be a part of the conversation with FAM &rarr;</a>';
   doors.hidden = false;
   if (share.has_app) {
     doors.innerHTML = join +
@@ -1316,8 +1317,7 @@ window.FamAudio = (function () {
       '<button class="door quiet" data-door="browse" type="button">Browse episodes</button>';
   } else {
     doors.innerHTML = join +
-      '<p class="footnote">FAM makes an episode about anything you ask. ' +
-      'Joining is free and opens FAM in your browser.</p>';
+      '<p class="footnote">FAM makes an episode about anything you ask.</p>';
   }
 
   // One delegated handler, so a control added later is a door by default
@@ -1326,7 +1326,8 @@ window.FamAudio = (function () {
     var el = event.target.closest ? event.target.closest("[data-door]") : null;
     if (!el) return;
     event.preventDefault();
-    var to = share.has_app ? share.app_store : share.join;
+    var to = el.getAttribute("data-door") === "join" || !share.has_app
+      ? share.join : share.app_store;
     if (!to) return;
     window.location.href = to;
   });

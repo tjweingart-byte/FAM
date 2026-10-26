@@ -590,11 +590,12 @@ HEAD_MARKER = "<!--FAM_SHARE_HEAD-->"
 DATA_MARKER = "<!--FAM_SHARE_DATA-->"
 
 
-#: Where "Join FAM for free" goes when there is no App Store link: the web
-#: app's front door, which opens on sign-up for a newcomer (`bootToFirstScreen`).
-#: Relative, so it names the host that served the landing page and nothing
-#: else - the same reason `_public_base` reads the request.
-JOIN_PATH = "/"
+#: Where "Want to hear more? Be a part of the conversation with FAM" goes,
+#: App Store or not (PROBLEMS.md §318, at the owner's direction): the waitlist
+#: page, which is where the app's own Sign Up goes too (§192). Relative, so it
+#: names the host that served the landing page and nothing else - the same
+#: reason `_public_base` reads the request.
+JOIN_PATH = "/waitlist"
 
 
 def landing_payload(share: dict, *, url: str, card_url: str = "",
@@ -622,13 +623,12 @@ def landing_payload(share: dict, *, url: str, card_url: str = "",
         # Whether the App Store is where the doors go. False means there is
         # no app to send anybody to - see `join` for where they go instead.
         "has_app": bool(app_store),
-        # "Want to hear more? Join FAM for free" (9.29 packet, at the owner's
-        # direction): the one door drawn whether or not the app is out. With
-        # an App Store link it goes there; without one it goes to this
-        # server's own front door, which opens on sign-up for anybody not
-        # signed in - a real page on the host that served this one, so it is
-        # never a control with nothing behind it.
-        "join": app_store or JOIN_PATH,
+        # "Want to hear more? Be a part of the conversation with FAM" (§318,
+        # at the owner's direction; §175 drew it first): the one door drawn
+        # whether or not the app is out, and it always goes to this server's
+        # waitlist page - a real page on the host that served this one, so it
+        # is never a control with nothing behind it.
+        "join": JOIN_PATH,
     }
 
 
