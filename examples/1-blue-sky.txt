@@ -1,5 +1,3 @@
-# node: physics
-# shape: explainer
 why is the sky blue
 
 Sunlight arrives white - every colour at once - and the air bends some of those colours out of its path far more than others. The molecules of nitrogen and oxygen are tiny, much smaller than a wavelength of light, and something that small scatters short waves far more strongly than long ones. Blue light, with its short wave, gets knocked sideways several times more than red.

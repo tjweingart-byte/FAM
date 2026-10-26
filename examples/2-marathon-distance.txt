@@ -1,5 +1,3 @@
-# node: olympic sport
-# shape: historical
 why is a marathon 26.2 miles
 
 A marathon is twenty-six point two miles because of where a royal box was sitting at the London Olympics in 1908.

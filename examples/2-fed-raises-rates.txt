@@ -1,5 +1,3 @@
-# node: interest rates
-# shape: explainer
 what does it mean when the fed raises rates
 
 When the Federal Reserve raises rates, it is raising one number - the rate banks charge each other to borrow money overnight - and that number quietly sets the price of almost every loan in the country.

@@ -1,6 +1,3 @@
-# node: formula one
-# shape: sports_recap
-# phase: regular_season
 how did max verstappen do in the singapore sprint and what did mclaren's collision change
 
 Max Verstappen won the Singapore sprint on Saturday the tenth of October by two and a half seconds from Lewis Hamilton - from pole, after being beaten off the line, because the driver who beat him, George Russell, threw the whole race away inside the first lap.

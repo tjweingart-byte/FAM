@@ -42,7 +42,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   mic since §151; "hey FAM"/"what's up FAM" wake word, opt-in, since §158;
   stopping speech shows a five-second **Search now** with an X, never a silent
   search, §159; the heard words are editable in place and Search now
-  sends them, §165), **myFAM** (four rails over the evergreen bank and a shared live
+  sends the corrected words, §165), **myFAM** (four rails over the evergreen bank and a shared live
   story pool, plus **What you missed last week**), **DailyFAM** (named mixes of
   followed subjects `f:nfl` / `f:nfl~Eagles`, never audio; a 05:00 Eastern
   edition writes every episode ahead with EI; public mixes searchable, (+)
@@ -71,14 +71,14 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   server's marks, each ≥2s (first ≥0.5s, §263), audio held to the fifth; a replay skips them (§148). [search-no-cover]
 - **The spec: type a question, and within about a second audio starts giving
   the answer.** Seconds in front of the first word are wrong. [one-sentence-spec]
-- **Amended for search only**, by the owner (§82, §108, §129): EI
+- **Amended for search only**, at the owner's direction (§82, §108, §129): EI
   runs before search; nothing is written before retrieval finishes; the writer
   reasons first (`EFFORT=low`). myFAM, DailyFAM and Explore pay none of it -
   their briefs/scripts are built before the tap. `EPISODE_INTELLIGENCE=0`
   restores old latency. No preamble to disguise a wait; no text before its
   material. [spec-amended-for-search]
 - A slow answer is a scheduling choice (starting earlier: 18.30s → 0.12s). [slow-is-scheduling]
-- Typing-pause prefetch was removed at the user's request; do not re-add. [no-typing-prefetch]
+- Prefetch-on-typing-pause was removed at the user's request; do not re-add. [no-typing-prefetch]
 - myFAM drives prefetch (§83, §105): drawing the page schedules a cycle, never
   awaited, warming **briefs**; warming whole scripts stays opt-in. [myfam-warms-briefs]
 - **9.30 interface packet** (§181): sign-up rotates today's top three kept
@@ -92,7 +92,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   DEEPER pill at the top, share/vibe/save on the right (§192), captions sheet
   slid up, a ⋯ menu; no "exclude from taste" (§171); the searcher shown only
   if `searches_public`. [player-layout]
-- **Search DailyFAM opens on an A-Z catalogue** of others' cached episodes,
+- **Search DailyFAM opens on an A to Z catalogue** of others' cached episodes,
   lettered (`/api/myfam/catalog`); typing shows the closest (§193). [dailyfam-catalogue]
 - **Your categories** (§229/§253/§255): today's cache; reels end "all caught up". [your-categories]
 - **A queue** (§190): Add to / Go to Queue from the player's and a DailyFAM
@@ -161,9 +161,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   the opening for latency is gone. [third-cause-opening]
 - `write.py` prints the brief above the script - diagnose brief vs script
   separately; `--no-ei` compares; `tools/ei_eval.py` is the milestone. [brief-above-script]
-- **`examples/` is the strongest lever** - prefer an example over a rule; shown
-  by nearest tree node and season (§307-308). [examples-lever] [examples-by-node]
-  [season-phase]
+- **`examples/` is the strongest lever** - prefer adding an example over a rule. [examples-lever]
 - **Quality per tree node** (§306): code, listening, a grader trusted once
   it matches the owner. [episode-quality]
 
@@ -514,9 +512,9 @@ Every change ends the same way, without being asked [ship-loop]:
 2. Rebuild and **republish the preview to the same URL**:
    `https://claude.ai/code/artifact/c8bd86aa-e61e-4262-a1c8-b9c8d8d6645e`.
    It serves `preview/fam-live-artifact.html` (`python preview/build_live_preview.py`),
-   published with `capabilities: {"db": {}, "downloads": true}` - both: `db`
-   alone revokes `downloads`. From a new conversation, read
-   that URL first, then publish with it as `url`.
+   published with `capabilities: {"db": {}, "downloads": true}` - both, since
+   passing `db` alone revokes `downloads`. From a new
+   conversation, read that URL first, then publish with it as `url`.
 3. Reply with a short summary and the preview URL.
 4. If something cannot be automated, give the exact command.
 
@@ -531,7 +529,7 @@ Every change ends the same way, without being asked [ship-loop]:
 
 ## Picking up a session (`workflow.md`)
 
-- Develop and push on the session's branch; no PR unless asked. [branch-no-pr]
+- Develop and push on the branch the session assigns; no PR unless asked. [branch-no-pr]
 - Reading order and the reference docs are listed in `workflow.md`; recent
   history is in `PROBLEMS_INDEX.md`. [reading-order]
 - Setup: `pip install -r requirements.txt` and `pip install playwright`. [setup-deps]
@@ -542,13 +540,13 @@ Every change ends the same way, without being asked [ship-loop]:
   `.github/workflows/ci.yml` by hand. [landing-smoke]
 - CI runs Python 3.12, this container 3.11 - reproduce in 3.12 first. [ci-python]
 - **Check CI on `Main` before starting work** (`mcp__github__actions_list` on `ci.yml`). [ci-green-first]
-- Fonts differ here and in CI; suspect them when layouts disagree. [fonts-env]
-- No API key here: writing and latency are unverified. [no-api-key]
-- `tools/shots.py`, `stall_probe.py`, `compare_search.py` exist: claims were wrong without them. [shots-probes]
+- Fonts differ here and in CI; suspect them on layout disagreements. [fonts-env]
+- No API key here: writing quality and latency are unverified. [no-api-key]
+- `tools/shots.py`, `stall_probe.py`, `compare_search.py` exist because claims were wrong without them. [shots-probes]
 - Deleting CSS broke the app twice: use `tools/check_css.py` and `tools/shots.py`. [css-deletion]
 - A top-level name declared twice in `static/index.html` silently wins; `tools/check_js.py` catches it. [js-dup-names]
 - **A setting is settled only where it is copied** - `.env.example` must agree
   with `config.py`; interface literals pinned to their variable. [settings-copied]
 - `PROBLEMS.md` is the engineering log - add to it rather than starting new notes. [problems-log]
 - Tests run with no API key or speech engine. [tests-no-key]
-- `diagnose_api.py` for connections, `compare_models.py` for models. [diag-tools]
+- `diagnose_api.py` for connection failures, `compare_models.py` for models. [diag-tools]

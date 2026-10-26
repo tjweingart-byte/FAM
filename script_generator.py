@@ -22,7 +22,7 @@ import logging
 import re
 import time
 from dataclasses import dataclass
-from typing import AsyncIterator, Optional
+from typing import AsyncIterator
 
 import content_filter
 import credentials
@@ -54,14 +54,6 @@ log = logging.getLogger(__name__)
 #: than a stated one.
 EXAMPLE_MINUTES: dict[str, int] = {}
 
-#: What each example is about and how it is built (§307), by its query:
-#: `{"file", "node", "shape", "phase"}`, from the `# node:`, `# shape:` and
-#: `# phase:` lines above the query (the phase - a league's time of year,
-#: `seasons.PHASES` - is optional, §308). The node is a category-tree id; the shape one of the brief's
-#: story shapes (`episode_intelligence.STRUCTURES`). So the writer is shown
-#: the examples nearest its own episode, not all of them (`choose_examples`).
-EXAMPLE_INFO: dict[str, dict] = {}
-
 
 def load_style_examples() -> list[tuple[str, str]]:
     """Briefings from examples/ that show the model the house voice.
@@ -70,16 +62,14 @@ def load_style_examples() -> list[tuple[str, str]]:
     demonstration far more closely than a description. This is the most direct
     control there is over how the writing sounds.
 
-    Files are `<minutes>-<slug>.txt`: optional `# node: ...` and `# shape: ...`
-    lines, then the query, a blank line, then the script. Read once at import;
-    an empty folder changes nothing.
+    Files are `<minutes>-<slug>.txt`: first line the query, blank line, then the
+    script. Read once at import; an empty folder changes nothing.
     """
     import pathlib
 
     directory = pathlib.Path(__file__).resolve().parent / "examples"
     found: list[tuple[str, str]] = []
     EXAMPLE_MINUTES.clear()
-    EXAMPLE_INFO.clear()
     if not directory.is_dir():
         return found
 
@@ -88,19 +78,9 @@ def load_style_examples() -> list[tuple[str, str]]:
             head, _, body = path.read_text(encoding="utf-8").partition("\n\n")
         except OSError:
             continue
-        info = {"file": path.name, "node": "", "shape": "", "phase": ""}
-        lines = []
-        for line in head.strip().splitlines():
-            key, colon, value = line.lstrip("#").partition(":")
-            if line.startswith("#") and colon and key.strip() in ("node", "shape",
-                                                                  "phase"):
-                info[key.strip()] = " ".join(value.split()).lower()
-            elif not line.startswith("#"):
-                lines.append(line)
-        query, script = " ".join(lines).strip(), body.strip()
+        query, script = head.strip(), body.strip()
         if query and script:
             found.append((query, script))
-            EXAMPLE_INFO[query] = info
             minutes = path.name.split("-", 1)[0]
             if minutes.isdigit():
                 EXAMPLE_MINUTES[query] = int(minutes)
@@ -115,14 +95,9 @@ def load_style_examples() -> list[tuple[str, str]]:
 STYLE_EXAMPLES = load_style_examples()
 
 
-def style_example_block(queries=None) -> str:
-    """The examples, formatted for the system prompt: all of them, or only
-    those whose query is in `queries` (`choose_examples`), always in file
-    order so one choice is one byte-identical block. Empty when there are
-    none."""
-    chosen = [(q, s) for q, s in STYLE_EXAMPLES
-              if queries is None or q in queries]
-    if not chosen:
+def style_example_block() -> str:
+    """The examples, formatted for the system prompt. Empty when there are none."""
+    if not STYLE_EXAMPLES:
         return ""
     parts = [
         "\nThis is the house voice. Match its rhythm, its directness and the way "
@@ -132,7 +107,7 @@ def style_example_block(queries=None) -> str:
         "the spoken script only; you must still end with the "
         "<<NEXT: ...>> line:\n"
     ]
-    for query, script in chosen:
+    for query, script in STYLE_EXAMPLES:
         words = len(script.split())
         minutes = EXAMPLE_MINUTES.get(query)
         length = f' minutes="{minutes}"' if minutes else ""
@@ -575,161 +550,23 @@ def system_prompt() -> str:
     return SYSTEM_PROMPT + style_example_block()
 
 
-@dataclass(frozen=True)
-class ExampleChoice:
-    """Which examples one episode's writer is shown (§307), and why.
-
-    `node` is where the episode was placed in the category tree before it
-    was written, `path` that node and its ancestors (nearest first), `shape`
-    the brief's story shape, `league` and `phase` where the nearest league
-    above the node is in its year (§308, "" when there is none). `queries`
-    is None for every example - nothing singled any example out, so it is
-    shown what every episode was shown before.
-    """
-    node: str = ""
-    path: tuple = ()
-    shape: str = ""
-    queries: Optional[tuple] = None
-    league: str = ""
-    phase: str = ""
-
-    @property
-    def files(self) -> tuple:
-        names = [EXAMPLE_INFO.get(q, {}).get("file", "")
-                 for q, _ in STYLE_EXAMPLES
-                 if self.queries is None or q in self.queries]
-        return tuple(n for n in names if n)
-
-
-def place_episode(plan) -> tuple:
-    """`(node, path)`: where an episode sits in the category tree before it
-    is written, from the brief's subject and the question - in code, a local
-    read, never a model call and never an embedding on this path
-    (`stories.resolve_category`, the readers' own rung). `("", ())` when
-    nothing places it. Never raises."""
-    try:
-        import stories
-        import topics
-
-        brief = getattr(plan, "brief", None)
-        words = " ".join(w for w in (str(getattr(brief, "subject", "") or ""),
-                                     str(getattr(plan, "query", "") or ""))
-                         if w)
-        node = stories.resolve_category(words, near=True) if words else ""
-        if not node:
-            return "", ()
-        up = [a for a in topics.category_tree().ancestors(node) if a != node]
-        return node, tuple([node] + up)
-    except Exception:  # noqa: BLE001 - a placement is never worth an episode
-        log.warning("could not place %r in the tree", getattr(plan, "query", ""))
-        return "", ()
-
-
-def _example_path(node: str) -> tuple:
-    if not node:
-        return ()
-    try:
-        import topics
-
-        up = [a for a in topics.category_tree().ancestors(node) if a != node]
-    except Exception:  # noqa: BLE001
-        up = []
-    return tuple([node] + up)
-
-
-def choose_examples(plan) -> ExampleChoice:
-    """The examples nearest this episode (§307): the same story shape first,
-    then the nearest branch of the tree, then the length asked for, at most
-    `EXAMPLES_PER_EPISODE` and always one at that length when one exists.
-
-    An example on the episode's own node or an ancestor of it is nearer the
-    deeper it sits; any other is nearer the more ancestors it shares with
-    the node (a sibling under the same parent is near, a cousin under the
-    same heading distant), discounted a fifth because it is about something
-    else; one under another heading counts for nothing. When nothing about the episode
-    singles any example out - no node, no shape any example has - every
-    example is shown, as before.
-
-    **The season** (§308): when a league is above the episode's node, the
-    calendar says where it is in its year (`seasons.phase_for`). An example
-    tagged for that phase counts for more; one tagged for another phase is
-    not shown at all - an in-season recap is the wrong shape for a question
-    asked in the offseason. Untagged examples are for any time of year.
-    Never raises."""
-    import seasons
-
-    brief = getattr(plan, "brief", None)
-    shape = str(getattr(brief, "structure", "") or "")
-    if not settings.examples_by_node or not STYLE_EXAMPLES:
-        return ExampleChoice(shape=shape)
-    node, path = place_episode(plan)
-    league, phase = seasons.phase_for(path)
-    minutes = int(getattr(plan, "minutes", 0) or 0)
-    scored = []
-    for order, (query, _script) in enumerate(STYLE_EXAMPLES):
-        info = EXAMPLE_INFO.get(query, {})
-        tagged = info.get("phase", "")
-        if phase and tagged and tagged != phase:
-            continue   # the wrong time of year for this league
-        in_phase = 1.0 if phase and tagged == phase else 0.0
-        own = _example_path(info.get("node", ""))
-        near = 0.0
-        if own and path:
-            if own[0] in path:
-                near = len(own) / len(path)
-            else:
-                shared = 0
-                for mine, theirs in zip(reversed(own), reversed(path)):
-                    if mine != theirs:
-                        break
-                    shared += 1
-                near = 0.8 * shared / len(path)
-        same_shape = 1.0 if shape and shape != "general" \
-            and info.get("shape") == shape else 0.0
-        length = EXAMPLE_MINUTES.get(query, 0)
-        fit = 1.0 if length == minutes else (0.5 if abs(length - minutes) == 1
-                                            else 0.0)
-        scored.append((3 * same_shape + 2 * near + 1.5 * in_phase + fit,
-                       same_shape + near + in_phase, fit, order, query))
-    if not scored or not any(s[1] for s in scored):
-        return ExampleChoice(node=node, path=path, shape=shape, league=league,
-                             phase=phase)
-    scored.sort(key=lambda s: (-s[0], s[3]))
-    room = max(1, int(settings.examples_per_episode or 1))
-    picked = scored[:room]
-    # Never at the cost of the only one: with room for one, relevance wins.
-    if room > 1 and not any(s[2] == 1.0 for s in picked):
-        at_length = [s for s in scored[room:] if s[2] == 1.0]
-        if at_length:
-            picked[-1] = at_length[0]
-    return ExampleChoice(node=node, path=path, shape=shape,
-                         queries=tuple(s[4] for s in picked), league=league,
-                         phase=phase)
-
-
-def writer_system(choice: Optional[ExampleChoice] = None):
+def writer_system():
     """The writer's `system`, marked cacheable unless `PROMPT_CACHE=0` (§179).
 
-    Two blocks, each with a `cache_control` marker: the house rules, which
-    are byte-identical on every call - so every episode reads them from the
-    cache, and the warm-up primes them - and then the examples this episode
-    is shown (§307): all of them, or `choice`'s. One choice is one
-    byte-identical block, so episodes on the same branch read that from the
-    cache too. Everything else that varies - the brief, the evidence, the
-    question - is in the user message after it. `PROMPT_CACHE=0` sends the
-    same text as one plain string.
+    The same text either way: one block holding `system_prompt()`, with a
+    `cache_control` marker on it. Everything that varies per episode - the
+    brief, the evidence, the question - is in the user message after it, so
+    the cached prefix is byte-identical from call to call, which is the only
+    condition a cache read has. Nothing about what is written changes; only
+    what the ~2,500 identical tokens cost and how soon the first one is read.
     """
-    examples = style_example_block(None if choice is None else choice.queries)
+    text = system_prompt()
     if not settings.prompt_cache:
-        return SYSTEM_PROMPT + examples
+        return text
     marker: dict = {"type": "ephemeral"}
     if str(settings.prompt_cache_ttl or "").strip() == "1h":
         marker["ttl"] = "1h"
-    blocks = [{"type": "text", "text": SYSTEM_PROMPT, "cache_control": marker}]
-    if examples:
-        blocks.append({"type": "text", "text": examples,
-                       "cache_control": dict(marker)})
-    return blocks
+    return [{"type": "text", "text": text, "cache_control": marker}]
 
 
 @dataclass
@@ -859,15 +696,6 @@ class ScriptNotes:
     structure: str = ""
     word_budget: int = 0
     writer_model: str = ""
-    #: Where the episode was placed in the tree before it was written, and
-    #: the example files its writer was shown (§307) - kept beside its
-    #: quality, so the placement can be checked against the writer's own
-    #: `<<CATEGORY:>>` and each example against the episodes it shaped.
-    planned_node: str = ""
-    examples: tuple = ()
-    #: Where the placed node's league was in its year (§308), "" when no
-    #: league is above it - it chose the examples, and is kept beside them.
-    phase: str = ""
 
 
 async def _live_by(task, plan, domain: str, began: float):
@@ -1983,17 +1811,10 @@ class ScriptGenerator:
         ]
         content.append({"type": "text", "text": build_prompt(plan)})
         model, effort = writer_for(notes)
-        # The examples nearest this episode (§307), chosen in code from where
-        # the brief places it in the tree - a local read, nothing awaited.
-        choice = choose_examples(plan)
-        if notes is not None:
-            notes.planned_node = choice.node
-            notes.examples = choice.files
-            notes.phase = choice.phase
         kwargs: dict = {
             "model": model,
             "max_tokens": settings.max_output_tokens,
-            "system": writer_system(choice),
+            "system": writer_system(),
             "output_config": {"effort": effort},
             "messages": [{"role": "user", "content": content}],
         }

@@ -1,5 +1,3 @@
-# node: trade policy
-# shape: explainer
 why does the suez canal matter so much
 
 The Suez Canal is a hundred and twenty miles of water across the Egyptian desert, and it saves a ship sailing between Asia and Europe the trip around the entire continent of Africa.

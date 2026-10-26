@@ -657,7 +657,6 @@ good one, and those have fixes in different files. Read the EI block first.
 twenty-prompt milestone.
 
 <!-- rule:examples-lever -->
-> **Current (PROBLEMS.md §307):** each example is filed on a node of the category tree and a story shape, and an episode's writer is shown the nearest few rather than all twelve ([examples-by-node]); an episode nothing singles out is still shown them all.
 > **Current (PROBLEMS.md §286, §287):** twelve examples - one each at 1, 4 and 5 minutes and nine at 2 minutes across the facets, three of them from the owner's own listening - each shown with its minutes beside its words, so the writer sees what a length holds and a range of subjects.
 **`examples/` is the strongest lever on the writing, and it now holds one.**
 Briefings dropped in there are shown to the model as the house voice. Rules
@@ -666,49 +665,6 @@ ones move the output more than any amount of further prompt wording. Prefer
 adding an example over adding another rule. Nobody has written one yet, so the
 strongest available lever on the remaining problem is untouched — and unlike
 the rest of this list it needs taste rather than a key.
-
-<!-- rule:examples-by-node -->
-**Examples are filed on the category tree, and the writer is shown the
-nearest** *(PROBLEMS.md §307, at the owner's direction: "episode examples
-that are attached to nodes in the category tree rather than having a set
-number of episodes").* Each file in `examples/` carries `# node:` (a tree
-id) and `# shape:` (one of the brief's story shapes) above its query. Before
-the writer is called, the episode is **placed in the tree in code** - the
-brief's subject and the question through `stories.resolve_category`, a local
-read, never a model call and never an embedding on the request - and
-`choose_examples` picks at most `EXAMPLES_PER_EPISODE` (4): the same story
-shape first, then the nearest branch (an example on the node or an ancestor
-counts for more the deeper it sits; any other for the ancestors it shares,
-discounted), then the length asked for, always one at that length when one
-exists. An episode with no node is still chosen for by shape and length;
-**one nothing singles out - no node, and no shape any example has - is shown
-every example, exactly as before**, and `EXAMPLES_BY_NODE=0` shows every example to every episode.
-
-What does not move: shape before topic, because a recap teaches a recap
-whatever the sport; the house rules are their own cached block, identical on
-every call, and one choice of examples is one byte-identical block after it
-([writer-savings]); and **the placement is checked, not trusted** - every
-episode keeps the node it was placed on and the example files it was shown
-beside its quality ([episode-quality]), and the report says how often the
-placement was the writer's own branch, which placements missed their
-heading, and how each example's episodes scored. A weak example is replaced;
-a busy node with nothing of its own is where the next one is written.
-
-<!-- rule:season-phase -->
-**A league's time of year chooses examples too, worked out in code**
-*(PROBLEMS.md §308, at the owner's direction: "stories about certain topics
-can change throughout the year (nfl in season versus out of season), and the
-example script should change with it").* `seasons.CALENDARS` holds, per
-league node, the dates its phases usually begin (`preseason`,
-`regular_season`, `postseason`, `offseason`); a node takes the calendar of
-the nearest league above it. An example may carry `# phase:`; one tagged for
-this phase counts for more, **one tagged for another phase is never shown**,
-and an untagged one fits all year. What does not move: **the phase only
-chooses examples** - it is never told to the writer, never evidence and
-never a claim about the world, because the calendars are approximate and a
-wrong phase costs a less fitting example, never a wrong fact ([live-facts]);
-a node with no league above it is unchanged; the phase is kept beside the
-episode's quality so an offseason dip is not read as a writing one.
 
 <!-- rule:episode-quality -->
 **Episode quality is measured, by category, three ways** *(PROBLEMS.md §306,
@@ -739,7 +695,7 @@ reworded, not optimised; **an episode is placed against the tree as it is
 when the report is read** ([one-category]), rolls up into every ancestor,
 borrows its parent's standing below `QUALITY_MIN_EPISODES`, and is held to
 its own heading, never the whole product. `/admin`'s Episode quality page
-(beside Feedback since §308), `tools/quality_report.py`, and `write.py` / `tools/ei_eval.py --script` print
+(beside Feedback since §NEW), `tools/quality_report.py`, and `write.py` / `tools/ei_eval.py --script` print
 the same measures. Nothing here changes what is written; it is how a change
 to the writer is judged.
 

@@ -10544,7 +10544,7 @@ async def admin_thumbnail_image(node_id: str, request: Request,
 
 @app.get("/admin/quality", include_in_schema=False)
 async def admin_quality_page(request: Request):
-    """Episode quality (§306) is a page of `/admin` since §308, beside the
+    """Episode quality (§306) is a page of `/admin` since §NEW, beside the
     feedback inbox; the old address still lands on it."""
     if not _admin_configured():
         raise HTTPException(status_code=404, detail="Not found")
@@ -10592,9 +10592,10 @@ async def admin_quality_episode(request: Request, episode: str = "") -> dict:
 @app.get("/api/admin/quality/to-score")
 async def admin_quality_to_score(request: Request, origin: str = "",
                                  limit: int = 20) -> dict:
-    """Episodes the owner has not scored yet, newest first (§308): the list
+    """Episodes the owner has not scored yet, newest first (§NEW): the list
     worked through so the grader can be checked against a person. `origin`
-    narrows it - `eval-all,eval-node` for a `tools/quality_compare.py` run."""
+    narrows it - `prefetch,dailyfam,trending,startup` for the episodes
+    written ahead."""
     _require_admin(request)
     if not episode_quality.exists():
         return {"episodes": []}

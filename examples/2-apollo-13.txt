@@ -1,5 +1,3 @@
-# node: space science
-# shape: historical
 how did apollo 13 get home
 
 In April 1970, fifty-five hours into the flight and about two hundred thousand miles from Earth, an oxygen tank on Apollo 13 blew apart, and the three men aboard went from heading for the Moon to living in a vehicle that was never built to bring anyone home.

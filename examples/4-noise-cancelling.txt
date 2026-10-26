@@ -1,5 +1,3 @@
-# node: consumer hardware
-# shape: explainer
 how do noise cancelling headphones work
 
 Noise cancelling headphones don't block the hum of a plane engine. They play it back to you - a copy of it, turned upside down, timed so precisely that the two arrive at your ear together and cancel each other out.

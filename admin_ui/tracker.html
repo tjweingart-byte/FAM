@@ -217,7 +217,7 @@
   .srctag.admin { color:var(--ink); border-color:var(--amber-dk); }
   .srctag.wikipedia { color:var(--green); border-color:var(--green); }
   [hidden] { display:none !important; }
-  /* Episode quality (§306, a page here since §308). */
+  /* Episode quality (§306, a page here since §NEW). */
   .q-score { display:inline-block; min-width:34px; text-align:center; border-radius:6px; padding:1px 5px; font:11.5px var(--mono); }
   .q-hi { background:var(--green-bg); color:var(--green); }
   .q-lo { background:var(--rose-bg); color:var(--rose); }
@@ -408,13 +408,13 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
 
     <section class="card section">
       <h2>Score these</h2>
-      <p class="sub">Episodes you have not scored yet, newest first. Twenty or so scored by you is what says
-        whether the grader can be trusted. A <code>tools/quality_compare.py</code> run writes every prompt
-        twice, shown every example (<b>eval-all</b>) and shown the nearest (<b>eval-node</b>); score both.</p>
+      <p class="sub">Episodes you have not scored yet, newest first. Twenty or so scored by you, on each
+        metric, is what says whether the grader can be trusted; open one to read it and score it.</p>
       <div class="q-bar">
         <select id="qScoreOrigin" aria-label="Which episodes">
-          <option value="">Every episode</option>
-          <option value="eval-all,eval-node" selected>The comparison run</option>
+          <option value="" selected>Every episode</option>
+          <option value="search,tap">Searches</option>
+          <option value="prefetch,dailyfam,trending,startup">Written ahead</option>
         </select>
       </div>
       <div class="tbl"><table id="qToScore"></table></div>
@@ -422,8 +422,8 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
 
     <section class="card section">
       <h2>By where they came from</h2>
-      <p class="sub">Each origin's means side by side - a tap, prefetch, the editions, and the two arms of a
-        comparison run. Code proxies, with the grader's in brackets once it has graded any.</p>
+      <p class="sub">Each origin's means side by side - a search, prefetch, DailyFAM, Trending. Code proxies,
+        with the grader's in brackets once it has graded any.</p>
       <div class="tbl"><table id="qOrigins"></table></div>
     </section>
 
@@ -441,21 +441,6 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
       <div class="tbl"><table id="qValidity"></table></div>
     </section>
 
-    <section class="card section">
-      <h2>Were the examples chosen from the right branch?</h2>
-      <p class="sub">Before writing, each episode is placed in the tree from its brief, and that placement -
-        with the story shape, the length and the league's time of year - chooses the examples its writer sees
-        (§307, §308). Here it is against what the writer said the episode was about.</p>
-      <div class="kpis" id="qPlacement"></div>
-      <div class="tbl"><table id="qMisplaced"></table></div>
-    </section>
-
-    <section class="card section">
-      <h2>Which examples shaped which episodes?</h2>
-      <p class="sub">Every example file, how many episodes it was shown to and how those scored. A weak one
-        is a candidate to replace; a busy node with no example of its own is where to write the next one.</p>
-      <div class="tbl"><table id="qExamples"></table></div>
-    </section>
     </div>
 
     <div class="page" data-page="errors" data-title="Pipeline errors" hidden>
@@ -1199,7 +1184,7 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
       .then(function () { $("loginBtn").disabled = false; });
   });
   // ------------------------------------------------------- episode quality
-  // §306's checker, a page here since §308. Fetched when the page is open,
+  // §306's checker, a page here since §NEW. Fetched when the page is open,
   // and with each refresh while it is; the episode being scored is left alone.
   var qData = null, qOrder = "priority", qOpen = "";
   function qScore(v) {
@@ -1273,7 +1258,7 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
                 + '</a> (' + w.overall.toFixed(2) + ')';
             }).join(" · ") : "none scored")
           + '<br><span class="q-tag">story shapes ' + esc(JSON.stringify(n.structures))
-          + ' · seasons ' + esc(JSON.stringify(n.phases || {})) + '</span></div></td></tr>';
+          + '</span></div></td></tr>';
       }
       return tr;
     }).join("");
@@ -1307,25 +1292,6 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
           + '</td><td class="n">' + (gv.predicts_heard == null ? "-" : gv.predicts_heard) + '</td></tr>';
       }).join("");
 
-    var placed = d.placement || {}, total = 0;
-    Object.keys(placed).forEach(function (k) { total += placed[k]; });
-    var share = function (k) { return total ? Math.round(100 * (placed[k] || 0) / total) + "%" : "-"; };
-    $("qPlacement").innerHTML = qKpi("Same branch", share("same"), (placed.same || 0) + " episodes")
-      + qKpi("Same heading", share("heading"), (placed.heading || 0) + " episodes")
-      + qKpi("Another heading", share("different"), (placed.different || 0) + " episodes")
-      + qKpi("Not placed", share("unplanned"), "chosen by shape, or all shown")
-      + qKpi("Writer unplaced", share("unknown"), "category not in the tree");
-    var miss = d.misplaced || [];
-    $("qMisplaced").innerHTML = '<tr><th>Placed on</th><th>Writer said</th><th>Episodes</th></tr>'
-      + (miss.length ? miss.map(function (x) {
-          return '<tr><td>' + esc(x.planned) + '</td><td>' + esc(x.written) + '</td><td class="n">' + x.episodes + '</td></tr>';
-        }).join("") : '<tr><td colspan="3">No placement missed its heading.</td></tr>');
-    var ex = d.examples || [];
-    $("qExamples").innerHTML = '<tr><th>Example</th><th>Episodes shown it</th><th>Their overall</th><th>Mostly about</th></tr>'
-      + (ex.length ? ex.map(function (x) {
-          return '<tr><td>' + esc(x.file) + '</td><td class="n">' + x.episodes + '</td><td>' + qScore(x.overall)
-            + '</td><td>' + esc(Object.keys(x.nodes || {}).join(", ")) + '</td></tr>';
-        }).join("") : '<tr><td colspan="4">No episode recorded its examples yet.</td></tr>');
   }
   function showQualityEpisode(id) {
     api("/api/admin/quality/episode?episode=" + encodeURIComponent(id)).then(function (e) {

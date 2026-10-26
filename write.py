@@ -224,24 +224,10 @@ async def main() -> int:
     return 0
 
 
-def print_examples(notes) -> None:
-    """Where the episode was placed before it was written, and the example
-    files that placement chose - the line to read when the script copies the
-    wrong shape (§307)."""
-    shown = ", ".join(notes.examples) if notes.examples else "every example"
-    placed = notes.planned_node or "nowhere"
-    season = f" ({notes.phase.replace('_', ' ')})" if notes.phase else ""
-    print(f"  placed on {placed}{season}; shown {shown}")
-    if notes.category:
-        print(f"  the writer says it is about: {notes.category}")
-
-
 async def print_quality(generator, plan, notes, sentences, grade: bool) -> None:
-    """The episode's quality, measured as the app measures it (§306), and
-    the examples its writer was shown (§307)."""
+    """The episode's quality, measured as the app measures it (§306)."""
     import episode_quality
 
-    print_examples(notes)
     measures = episode_quality.measure(sentences, plan.query, notes.written_from,
                                        notes.word_budget)
     print()
@@ -344,7 +330,6 @@ async def compare(generator, plan, spec: str) -> int:
                 print(f'  NOTE ({name}): "{dropped}"')
         import episode_quality
 
-        print_examples(notes)
         print(episode_quality.format_measures(episode_quality.measure(
             sentences, plan.query, notes.written_from, notes.word_budget)))
         print()

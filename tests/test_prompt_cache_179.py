@@ -6,11 +6,6 @@ one reads them at a tenth of the input price and starts sooner. What these pin
 is the part that makes that true and the part that makes it safe: the cached
 text is exactly `system_prompt()`, nothing that varies per episode is in it,
 and `PROMPT_CACHE=0` sends the plain string as before.
-
-> **Current (§307):** two cached blocks - the house rules, identical on every
-> call, then the examples the episode is shown (`choose_examples`): all of
-> them for an episode nothing singles out, whose two blocks join to exactly
-> `system_prompt()`, as pinned here.
 """
 from __future__ import annotations
 
@@ -40,21 +35,19 @@ def test_on_by_default(monkeypatch):
     assert fresh.prompt_cache_ttl == "5m"
 
 
-def test_the_cached_blocks_are_the_whole_system_prompt_and_nothing_else(monkeypatch):
+def test_the_cached_block_is_the_whole_system_prompt_and_nothing_else(monkeypatch):
     _with(monkeypatch, prompt_cache=True, prompt_cache_ttl="5m")
     system = _kwargs()["system"]
-    marker = {"type": "ephemeral"}
-    assert [b["cache_control"] for b in system] == [marker, marker]
-    assert system[0]["text"] == script_generator.SYSTEM_PROMPT
-    assert "".join(b["text"] for b in system) == system_prompt()
+    assert system == [{"type": "text", "text": system_prompt(),
+                       "cache_control": {"type": "ephemeral"}}]
 
 
 def test_the_prefix_is_identical_across_episodes(monkeypatch):
     """A cache read needs a byte-identical prefix. Two different questions
-    send the same house-rules block first; what differs goes after it."""
+    must send the same system block; what differs goes in the user turn."""
     _with(monkeypatch, prompt_cache=True)
     first, second = _kwargs("heat pumps"), _kwargs("the Fed's rate decision")
-    assert first["system"][0] == second["system"][0]
+    assert first["system"] == second["system"]
     assert first["messages"] != second["messages"]
 
 

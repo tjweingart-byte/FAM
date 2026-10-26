@@ -482,7 +482,7 @@ def test_a_deleted_account_takes_its_listening(client):
 
 
 def test_the_checker_is_a_page_of_the_admin_beside_feedback(client):
-    """§308: a page of `/admin` under Inbox, right after Feedback, behind the
+    """§NEW: a page of `/admin` under Inbox, right after Feedback, behind the
     admin's own sign-in; the old address lands on it."""
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     tracker = open(os.path.join(root, "admin_ui", "tracker.html")).read()
@@ -494,3 +494,46 @@ def test_the_checker_is_a_page_of_the_admin_beside_feedback(client):
     assert 'href="/admin/quality"' not in tracker
     r = client.get("/admin/quality", follow_redirects=False)
     assert r.status_code == 307 and r.headers["location"] == "/admin#quality"
+
+
+# --- scoring by hand, and the origins side by side (§NEW) ----------------------
+
+
+def _scored(name, origin, script, labelled=False):
+    key = K(name)
+    Q.note(key, 1000, "eagles cowboys score", 1, origin, script,
+           _notes(category="nfl"))
+    if labelled:
+        assert Q.label(f"{key}.1000", "hook", 4)
+    return key
+
+
+def test_each_origin_is_reported_side_by_side():
+    _scored("o1", "search", GOOD)
+    _scored("o2", "prefetch", ["It was a game.", "So, to sum up, who knows?"])
+    origins = _report()["origins"]
+    assert set(origins) == {"search", "prefetch"}
+    assert origins["search"]["overall"] > origins["prefetch"]["overall"]
+    assert origins["prefetch"]["code"]["storytelling"] < 1.0
+    assert origins["search"]["grade"]["hook"] is None
+
+
+def test_the_episodes_to_score_are_the_ones_not_scored_yet():
+    done = _scored("s1", "search", GOOD, labelled=True)
+    todo = _scored("s2", "prefetch", GOOD)
+    other = _scored("s3", "search", GOOD)
+    keys = [r["key"] for r in Q.store().unlabelled(10)]
+    assert done not in keys and set(keys) == {todo, other}
+    ahead = Q.store().unlabelled(10, ["prefetch", "dailyfam", "trending"])
+    assert [r["key"] for r in ahead] == [todo]
+
+
+def test_the_admin_lists_the_episodes_to_score(client):
+    assert client.get("/api/admin/quality/to-score").status_code == 404
+    key = _scored("a1", "prefetch", GOOD)
+    _scored("a2", "search", GOOD)
+    body = client.get("/api/admin/quality/to-score?origin=prefetch,dailyfam",
+                      headers=ADMIN).json()
+    assert [e["episode"] for e in body["episodes"]] == [f"{key}.1000"]
+    assert body["episodes"][0]["origin"] == "prefetch"
+    assert body["episodes"][0]["graded"] is False

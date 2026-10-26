@@ -67,20 +67,13 @@ def show(report: dict, every: bool) -> None:
     g = report["grading"]
     print(f"\n  grading: {g['mode']} on {g['model']} ({g['effort']}), "
           f"{g['graded_today']} today of {g['daily_ceiling']}, ${g['spent_today']}")
-    # Where each episode was placed before writing, against the writer's own
-    # category, and which examples shaped which episodes (§307).
-    placed = report.get("placement") or {}
-    if placed:
-        print("\n  placed before writing vs the writer's category: "
-              + ", ".join(f"{k} {v}" for k, v in placed.items()))
-    for miss in report.get("misplaced") or []:
-        print(f"    placed on {miss['planned']!r}, writer said {miss['written']!r}"
-              f" ({miss['episodes']})")
-    if report.get("examples"):
-        print("\n  examples: episodes shown each, and how they scored")
-    for ex in report.get("examples") or []:
-        print(f"    {ex['file']:<32}{ex['episodes']:>5}{_cell(ex['overall']):>8}  "
-              + ", ".join(ex["nodes"]))
+    # Each origin's means side by side: a search, prefetch, the editions.
+    origins = report.get("origins") or {}
+    if origins:
+        print("\n  by where they came from (code proxies' means):")
+    for origin, item in sorted(origins.items()):
+        print(f"    {origin:<12}{item['episodes']:>5}{_cell(item['overall']):>8}  "
+              + "  ".join(f"{m} {_cell(item['code'][m]).strip()}" for m in Q.METRICS))
 
 
 async def grade(limit: int) -> int:

@@ -365,19 +365,6 @@ class QualityStore:
                               graded_at     REAL NOT NULL DEFAULT 0,
                               PRIMARY KEY (key, sourced))""")
             db.execute("CREATE INDEX IF NOT EXISTS episodes_at ON episodes (at)")
-            # Where the episode was placed before it was written, and the
-            # example files its writer was shown (§307). Added after the
-            # table shipped, so an existing store is widened, not recreated.
-            for ddl in (
-                "ALTER TABLE episodes ADD COLUMN planned_node TEXT NOT NULL DEFAULT ''",
-                "ALTER TABLE episodes ADD COLUMN examples TEXT NOT NULL DEFAULT '[]'",
-                # Where the placed node's league was in its year (§308).
-                "ALTER TABLE episodes ADD COLUMN phase TEXT NOT NULL DEFAULT ''",
-            ):
-                try:
-                    db.execute(ddl)
-                except Exception:  # noqa: BLE001 - already there
-                    pass
             db.execute("""CREATE TABLE IF NOT EXISTS listens (
                               key      TEXT NOT NULL,
                               sourced  INTEGER NOT NULL,
@@ -412,8 +399,7 @@ class QualityStore:
         now = time.time() if now is None else now
         columns = ("key", "sourced", "at", "query", "minutes", "origin",
                    "structure", "category", "title", "writer_model", "prompt",
-                   "words", "word_budget", "sentences", "evidence", "measures",
-                   "planned_node", "examples", "phase")
+                   "words", "word_budget", "sentences", "evidence", "measures")
         with self._lock, closing(self._connect()) as db:
             # A re-written key under the same sourced stamp is the same
             # episode written again: the newer text is the one heard.
@@ -470,8 +456,7 @@ class QualityStore:
     def episodes_since(self, at: float) -> list:
         return self._rows("SELECT key, sourced, at, query, minutes, origin, "
                           "structure, category, title, writer_model, prompt, "
-                          "words, word_budget, measures, grade, grade_model, "
-                          "planned_node, examples, phase "
+                          "words, word_budget, measures, grade, grade_model "
                           "FROM episodes WHERE at >= ? ORDER BY at DESC", (at,))
 
     def note_listen(self, key: str, sourced: int, listener: str, heard: float,
@@ -514,7 +499,7 @@ class QualityStore:
 
     def unlabelled(self, limit: int = 20, origins: Optional[Iterable] = None) -> list:
         """Episodes the owner has not scored yet, newest first - the list a
-        person works through so the grader can be checked (§308)."""
+        person works through so the grader can be checked (§NEW)."""
         rows = self._rows(
             "SELECT e.key, e.sourced, e.at, e.query, e.title, e.origin, "
             "e.minutes, e.grade != '' AS graded FROM episodes e WHERE NOT EXISTS "
@@ -618,10 +603,6 @@ def note(key: str, sourced, query: str, minutes: int, origin: str,
             "sentences": json.dumps([str(s) for s in sentences]),
             "evidence": evidence[:EVIDENCE_CHARS],
             "measures": json.dumps(measures),
-            "planned_node": str(getattr(notes, "planned_node", "") or "")[:80],
-            "examples": json.dumps([str(f) for f in
-                                    (getattr(notes, "examples", ()) or ())]),
-            "phase": str(getattr(notes, "phase", "") or "")[:20],
         })
         _grade_soon(key, sourced, origin)
     except Exception:  # noqa: BLE001 - a measurement never costs an episode
@@ -1064,7 +1045,6 @@ def report(days: float = 30.0, now: Optional[float] = None,
             return {"episodes": 0, "nodes": [], "metrics": list(METRICS),
                     "labels": LABELS, "calibration": {}, "validity": {},
                     "grading": grading_report(None, now), "days": days,
-                    "placement": {}, "misplaced": [], "examples": [],
                     "origins": {}}
         quality = store()
     if resolve is None or ancestors is None or label_of is None:
@@ -1122,15 +1102,8 @@ def report(days: float = 30.0, now: Optional[float] = None,
             values["storytelling"]["listeners"] = (heard["finished"]
                                                    / heard["listens"])
         path = place(row.get("category") or "")
-        try:
-            shown = json.loads(row.get("examples") or "[]")
-        except ValueError:
-            shown = []
         episodes.append({"row": row, "values": values, "heard": heard,
-                         "path": path, "opener": measures.get("opener", ""),
-                         "placement": placement(row.get("planned_node") or "",
-                                                path, ancestors),
-                         "examples": shown})
+                         "path": path, "opener": measures.get("opener", "")})
         for depth, node in enumerate(path):
             entry = nodes.setdefault(node, {
                 "node": node, "path": list(reversed(path[depth:])),
@@ -1187,13 +1160,6 @@ def report(days: float = 30.0, now: Optional[float] = None,
             # is a template, which every listener of that node hears.
             "shared_opener": shared if shared > 1 else 0,
             "structures": _count(e["row"]["structure"] for e in eps),
-            # Whether the node the episode was placed on before it was
-            # written - which chose its examples - is the branch its writer
-            # said it was about (§307).
-            "placement": _count(e["placement"] for e in eps),
-            # The league's time of year each episode was written in (§308),
-            # so an offseason dip is not read as a writing one.
-            "phases": _count(e["row"].get("phase") for e in eps),
             "worst": _worst(eps, overall),
         })
 
@@ -1226,51 +1192,9 @@ def report(days: float = 30.0, now: Optional[float] = None,
             "grading": grading_report(quality, now),
             "prompts": _count(r["prompt"] for r in rows),
             "writers": _count(r["writer_model"] for r in rows),
-            "placement": _count(e["placement"] for e in episodes),
-            "misplaced": _misplaced(episodes),
-            # Each origin's means: a tap, prefetch, an edition, and the two
-            # arms of `tools/quality_compare.py` side by side (§308).
-            "origins": _by_origin(episodes, overall),
-            "examples": _by_example(episodes, overall)}
-
-
-#: How the node an episode was placed on before writing compares with the
-#: writer's own category (§307): `same` branch (the same node, or one is an
-#: ancestor of the other), the same `heading` only, a `different` heading,
-#: `unplanned` (nothing placed it: its examples were chosen by shape and
-#: length alone, or all shown) or
-#: `unknown` (the writer's category is not in the tree).
-PLACEMENTS = ("same", "heading", "different", "unplanned", "unknown")
-
-
-def placement(planned: str, written: list, ancestors: Callable) -> str:
-    if not planned:
-        return "unplanned"
-    if not written or written[0] == UNPLACED:
-        return "unknown"
-    if planned in written:
-        return "same"
-    try:
-        up = [planned] + [a for a in ancestors(planned) if a != planned]
-    except Exception:  # noqa: BLE001
-        up = [planned]
-    if written[0] in up:
-        return "same"
-    return "heading" if up[-1] == written[-1] else "different"
-
-
-def _misplaced(episodes: list) -> list:
-    """The commonest placements that missed the writer's heading: where the
-    examples were chosen from the wrong branch, to fix in the tree."""
-    pairs: dict = {}
-    for e in episodes:
-        if e["placement"] != "different":
-            continue
-        pair = (e["row"].get("planned_node") or "", e["path"][0])
-        pairs[pair] = pairs.get(pair, 0) + 1
-    ranked = sorted(pairs.items(), key=lambda kv: (-kv[1], kv[0]))
-    return [{"planned": p, "written": w, "episodes": n}
-            for (p, w), n in ranked[:10]]
+            # Each origin's means side by side: a tap, prefetch, the
+            # editions (§NEW).
+            "origins": _by_origin(episodes, overall)}
 
 
 def _by_origin(episodes: list, overall: Callable) -> dict:
@@ -1298,32 +1222,6 @@ def _by_origin(episodes: list, overall: Callable) -> dict:
         item["code"] = {m: mean(v) for m, v in item.pop("_code").items()}
         item["grade"] = {m: mean(v) for m, v in item.pop("_grade").items()}
     return out
-
-
-def _by_example(episodes: list, overall: Callable) -> list:
-    """Each example file: how many episodes it was shown to, how those
-    scored, and which nodes they were about - the case for replacing a weak
-    example, or writing one where none fits (§307)."""
-    out: dict = {}
-    for e in episodes:
-        value = overall(e["values"])
-        for name in e["examples"]:
-            item = out.setdefault(name, {"file": name, "episodes": 0,
-                                         "_scores": [], "nodes": {}})
-            item["episodes"] += 1
-            if value is not None:
-                item["_scores"].append(value)
-            node = e["path"][0]
-            item["nodes"][node] = item["nodes"].get(node, 0) + 1
-    rows = []
-    for item in out.values():
-        scores = item.pop("_scores")
-        item["overall"] = round(sum(scores) / len(scores), 3) if scores else None
-        item["nodes"] = dict(sorted(item["nodes"].items(),
-                                    key=lambda kv: -kv[1])[:5])
-        rows.append(item)
-    rows.sort(key=lambda r: (-r["episodes"], r["file"]))
-    return rows
 
 
 def _count(items: Iterable) -> dict:
