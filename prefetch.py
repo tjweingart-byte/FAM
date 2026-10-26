@@ -798,7 +798,12 @@ class Prefetcher:
 
             category_audit.note(candidate.query, getattr(notes, "category", ""),
                                 "prefetch")
-            # And how well it was written (§306), kept beside it.
+            # Its articles, for the history archive (§308). Never awaited.
+            import history_archive
+
+            history_archive.after_episode(notes, key, notes.sourced_at,
+                                          "prefetch")
+            # And how well it was written (§309), kept beside it.
             import episode_quality
 
             episode_quality.note(key, notes.sourced_at, candidate.query,

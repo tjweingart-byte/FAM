@@ -577,7 +577,7 @@ class Settings:
     # How long a searched brief waits for the outline once the other two
     # parts are in; past it the writer plans the piece itself, as before.
     ei_outline_grace_seconds: float = _env_float("EI_OUTLINE_GRACE_SECONDS", 0.5)
-    # **Episode quality** (§306, `episode_quality.py`). Every written episode
+    # **Episode quality** (§309, `episode_quality.py`). Every written episode
     # is measured in code for free; the model grader reads it afterwards,
     # never in front of a listener, and only where this says: `off` (the
     # default until the owner sets a budget), `ahead` (episodes written
@@ -1072,6 +1072,37 @@ class Settings:
     # How long past the main search the reference may still arrive. It never
     # holds the first word longer than this; later than this it is dropped.
     wikipedia_grace_seconds: float = _env_float("WIKIPEDIA_GRACE_SECONDS", 0.5)
+
+    # --- The history archive (§308, `history_archive.py`) -----------------
+    # Every written episode's articles are kept (intake, for the Database
+    # inventory specialist to digest, docs/FAM_AGENTS.md) with the episode's
+    # source list; the facts it keeps are recalled beside the search as
+    # dated earlier reporting. Never a private search or an attachment.
+    archive: bool = field(
+        default_factory=lambda: os.environ.get("ARCHIVE", "1")
+        not in ("0", "false", "False", ""))
+    # `sqlite` (ARCHIVE_DB, the default: tests, staging, a fresh clone) or
+    # `atlas` (MongoDB Atlas, MONGODB_URI from FAM_SECRETS). `atlas` with no
+    # URI turns the archive off and says so; it never falls back to the disk.
+    archive_backend: str = field(
+        default_factory=lambda: os.environ.get("ARCHIVE_BACKEND", "sqlite")
+        .strip().lower())
+    archive_db_name: str = field(
+        default_factory=lambda: os.environ.get("ARCHIVE_DB_NAME", "fam").strip()
+        or "fam")
+    # One call to Atlas. A failure backs the archive off for a minute.
+    archive_timeout_seconds: float = _env_float("ARCHIVE_TIMEOUT_SECONDS", 2.0)
+    # The recall beside the search: how long past the main packet it may
+    # still arrive (never longer in front of the first word), how many facts
+    # it may add, and how close (cosine) a fact must be to the question.
+    archive_recall: bool = field(
+        default_factory=lambda: os.environ.get("ARCHIVE_RECALL", "1")
+        not in ("0", "false", "False", ""))
+    archive_grace_seconds: float = _env_float("ARCHIVE_GRACE_SECONDS", 0.5)
+    archive_recall_limit: int = _env_int("ARCHIVE_RECALL_LIMIT", 6)
+    archive_min_similarity: float = _env_float("ARCHIVE_MIN_SIMILARITY", 0.45)
+    # Undigested articles kept before the oldest are dropped.
+    archive_intake_max: int = _env_int("ARCHIVE_INTAKE_MAX", 500000)
 
     # How far apart the boot's background jobs start (§144): the story sweep
     # at once, the trending bank one stagger later, the DailyFAM edition two.

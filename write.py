@@ -28,7 +28,7 @@ and a prompt rule is only a request until you have seen the model obey it. The
 predicted follow-up is printed under the script: it is never spoken, and the
 script is barred from gesturing at it, so it is checked separately.
 
-Under that, **the episode's quality** (§306): the code's six proxies, 0-1,
+Under that, **the episode's quality** (§309): the code's six proxies, 0-1,
 with the sentences that cost each its points - every script, for nothing.
 `--grade` adds the model grader's 1-5 on the same six (`QUALITY_GRADER_MODEL`,
 a call of its own after the script). Neither replaces reading it.
@@ -55,7 +55,7 @@ async def main() -> int:
     ap.add_argument("--no-ei", action="store_true",
                     help="skip episode intelligence and search the raw query")
     ap.add_argument("--grade", action="store_true",
-                    help="grade the script with the quality grader (§306) - "
+                    help="grade the script with the quality grader (§309) - "
                          "one more model call, after the script")
     ap.add_argument("--compare", default="",
                     help="comma-separated writers, each MODEL or MODEL:EFFORT "
@@ -225,7 +225,7 @@ async def main() -> int:
 
 
 async def print_quality(generator, plan, notes, sentences, grade: bool) -> None:
-    """The episode's quality, measured as the app measures it (§306)."""
+    """The episode's quality, measured as the app measures it (§309)."""
     import episode_quality
 
     measures = episode_quality.measure(sentences, plan.query, notes.written_from,

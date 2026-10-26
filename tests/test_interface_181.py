@@ -163,12 +163,12 @@ def test_explore_opens_from_beside_made_for_you():
 
 
 def test_the_players_menu_adds_to_a_mix_and_sources_sit_by_the_title():
-    """§190 moved the (+) into the three dots' menu ("Add to playlist") and
+    """§190 moved the (+) into the three dots' menu ("Add to myFAM Playlist" since §306) and
     the sources to the right of the title, where Spotify's green button is."""
     player = HTML[HTML.index('id="screen-player"'):HTML.index('id="screen-playall"')]
     assert 'onclick="openPlayerMenu()"' in player
     menu = HTML.split("function openPlayerMenu(){", 1)[1].split("\n  }\n", 1)[0]
-    assert '"Add to playlist"), action: function(){ openAddToMix(); }' in menu
+    assert 'addToPlaylistLabel(), action: function(){ openAddToMix(); }' in menu
     row = player.split('<div class="p-titlerow">', 1)[1].split('<div class="progress-wrap">', 1)[0]
     assert row.index('id="p-title"') < row.index('id="srcPanel"')
 

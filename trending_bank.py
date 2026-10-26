@@ -887,7 +887,11 @@ def _finish(story, plan, key: str, notes, sentences: list, cache, minutes: int,
 
     category_audit.note(story.query, getattr(notes, "category", ""), origin,
                         composer=getattr(story, "category", "") or "")
-    # And how well it was written (§306), kept beside it.
+    # Its articles, for the history archive (§308). Never awaited.
+    import history_archive
+
+    history_archive.after_episode(notes, key, notes.sourced_at, origin)
+    # And how well it was written (§309), kept beside it.
     import episode_quality
 
     episode_quality.note(key, notes.sourced_at, story.query, minutes, origin,

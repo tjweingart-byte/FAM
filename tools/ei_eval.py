@@ -211,7 +211,7 @@ async def one(generator: ScriptGenerator, query: str, minutes: int,
         row["write_seconds"] = time.perf_counter() - started
         row["budget"] = plan.word_budget
         row["thread"] = notes.thread
-        # The episode's quality, measured as the app measures it (§306).
+        # The episode's quality, measured as the app measures it (§309).
         import episode_quality
 
         row["quality"] = episode_quality.measure(
@@ -265,7 +265,7 @@ def show(row: dict, minutes: int, write_script: bool) -> None:
               f"({fit:.0%}){flag}")
         quality = row.get("quality") or {}
         if quality:
-            print("  quality (code, §306)  " + "  ".join(
+            print("  quality (code, §309)  " + "  ".join(
                 f"{name} {'-' if value is None else f'{value:.2f}'}"
                 for name, value in quality.items()))
 
@@ -340,7 +340,7 @@ async def main() -> int:
     spend = sum(r.get("cost", {}).get("web_search_cost", 0.0) for r in rows)
     calls = sum(r.get("cost", {}).get("model_calls", 0) for r in rows)
     print(f"  {calls} model calls, ${spend:.3f} of retrieval")
-    # Each quality proxy's mean across the run (§306): the number a prompt
+    # Each quality proxy's mean across the run (§309): the number a prompt
     # or example change is compared on, run before and after.
     scored = [r["quality"] for r in rows if r.get("quality")]
     if scored:

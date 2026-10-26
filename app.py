@@ -842,6 +842,27 @@ def friendly_error(exc: Exception) -> str:
         return f"This question needed research and the backend could not run. {exc}"
     return f"Generation failed: {type(exc).__name__}. See the server log for details."
 
+
+#: What a listener reads when an episode fails for a reason that is ours, not
+#: theirs (the owner's wording, §306). The type name and "see the server log"
+#: are for /admin, which still gets `friendly_error`'s sentence.
+LISTENER_APOLOGY = ("We're sorry that your episode is not available at this "
+                    "time. We are experiencing minor difficulties. Thank you "
+                    "for your patience. -The FAM Team")
+
+
+def listener_error(exc: Exception) -> str:
+    """`friendly_error`, minus anything only an operator could act on.
+
+    The sentences that tell a listener something true about their own request
+    (no evidence, research down) pass through; a type name and a pointer to a
+    log they cannot read become the apology.
+    """
+    said = friendly_error(exc)
+    if said.startswith("Generation failed:"):
+        return LISTENER_APOLOGY
+    return said
+
 # One cache shared by every request this worker serves - and, with the SQLite
 # backend, by every other worker on the machine too.
 SCRIPT_CACHE = build_cache()
@@ -1063,7 +1084,7 @@ def _database_report() -> list[dict]:
                            live_routing.store().path))
     except Exception:  # pragma: no cover - a report is never load-bearing
         pass
-    # Episode quality (§306). Created by the first written episode, and
+    # Episode quality (§309). Created by the first written episode, and
     # reported once it exists, like the routing rows above.
     try:
         if episode_quality.exists():
@@ -1108,6 +1129,17 @@ def _database_report() -> list[dict]:
         if wikimedia.exists():
             stores.append(("reference look", "WIKIMEDIA_DB",
                            wikimedia.store().path))
+    except Exception:  # pragma: no cover - a report is never load-bearing
+        pass
+    # The history archive's local file (§308), when the archive is kept
+    # here rather than on Atlas. Created by the first written episode.
+    try:
+        import history_archive
+        from paths import data_path
+
+        if history_archive.exists():
+            stores.append(("history archive", "ARCHIVE_DB",
+                           data_path("ARCHIVE_DB", "archive.db")))
     except Exception:  # pragma: no cover - a report is never load-bearing
         pass
     try:
@@ -1614,7 +1646,7 @@ def erase_listener(user_id: str) -> dict:
     except Exception:
         log.exception("could not erase waitlist rows for %r", user_id)
         removed["waitlist"] = -1
-    # How far they got through each episode (§306). The episodes' quality
+    # How far they got through each episode (§309). The episodes' quality
     # rows stay: they are about the writing, not the listener.
     try:
         removed["quality_listens"] = episode_quality.forget(user_id)
@@ -1941,6 +1973,9 @@ async def health(request: Request) -> dict:
         # (Wikimedia Enterprise or the keyless summary), and the month's
         # Enterprise requests against the cap.
         "wikipedia": _wikipedia_report(),
+        # The history archive (§308): which backend, why it is off if it
+        # is, and what this process wrote and recalled. Sends nothing.
+        "archive": _archive_report(),
         # Whether every licensed provider in use may be used commercially
         # (§207): GNews' and Finnhub's free plans and Open-Meteo's keyless
         # endpoint may not. The question to ask before charging anybody.
@@ -4046,6 +4081,17 @@ async def entitlements_read(request: Request) -> dict:
         **entitlements.describe(tier_name),
         "usage": _quota_snapshot(user, tier_name),
     }
+
+
+def _archive_report() -> dict:
+    """`history_archive.report`, never raising (§308)."""
+    try:
+        import history_archive
+
+        return history_archive.report()
+    except Exception as exc:  # noqa: BLE001 - a report is never load-bearing
+        log.warning("could not report the archive: %s", exc)
+        return {"enabled": False, "error": type(exc).__name__}
 
 
 def _wikipedia_report() -> dict:
@@ -8635,7 +8681,7 @@ class ProgressRequest(BaseModel):
     duration: float = Field(0, ge=0, le=3600)
     #: Which episode this is (`cache.episode_id`, the `X-FAM-Episode` its
     #: audio arrived with), so how far it was heard is kept beside how well it
-    #: was written (§306). Optional: '' from an older client, which is
+    #: was written (§309). Optional: '' from an older client, which is
     #: simply not measured.
     episode: str = Field("", max_length=80)
 
@@ -8657,7 +8703,7 @@ async def progress_write(req: ProgressRequest, request: Request) -> dict:
                                req.seconds, title=req.title, context=req.context,
                                duration=req.duration)
     if req.episode:
-        # The furthest point heard, for the quality report (§306): an exit in
+        # The furthest point heard, for the quality report (§309): an exit in
         # the first seconds is the hook's measure, a finish the story's.
         await asyncio.to_thread(episode_quality.note_listen, req.episode,
                                 _listener(request), req.seconds, req.duration,
@@ -9815,7 +9861,7 @@ async def audio(
                       cache_hit=stats.cache == "hit")
         # Same rule as the ledger above: refunded only if nothing was billed.
         _refund_if_unspent(reserved, user, stats.usage)
-        raise HTTPException(status_code=502, detail=friendly_error(exc)) from exc
+        raise HTTPException(status_code=502, detail=listener_error(exc)) from exc
 
     # `stats.sentences` is the honest test: silence is bytes, but it is not an
     # episode. A script that came back empty must not be served as one.
@@ -10544,7 +10590,7 @@ async def admin_thumbnail_image(node_id: str, request: Request,
 
 @app.get("/admin/quality", include_in_schema=False)
 async def admin_quality_page(request: Request):
-    """Episode quality (§306) is a page of `/admin` since §NEW, beside the
+    """Episode quality (§309) is a page of `/admin` since §310, beside the
     feedback inbox; the old address still lands on it."""
     if not _admin_configured():
         raise HTTPException(status_code=404, detail="Not found")
@@ -10554,7 +10600,7 @@ async def admin_quality_page(request: Request):
 @app.get("/api/admin/quality")
 async def admin_quality(request: Request, days: float = 30.0) -> dict:
     """Every node of the category tree with episodes under it, worst-costing
-    first, with the grader's calibration and each metric's validity (§306)."""
+    first, with the grader's calibration and each metric's validity (§309)."""
     _require_admin(request)
     days = max(1.0, min(float(days or 30.0), float(episode_quality.KEEP_DAYS)))
     return await asyncio.to_thread(episode_quality.report, days)
@@ -10592,7 +10638,7 @@ async def admin_quality_episode(request: Request, episode: str = "") -> dict:
 @app.get("/api/admin/quality/to-score")
 async def admin_quality_to_score(request: Request, origin: str = "",
                                  limit: int = 20) -> dict:
-    """Episodes the owner has not scored yet, newest first (§NEW): the list
+    """Episodes the owner has not scored yet, newest first (§310): the list
     worked through so the grader can be checked against a person. `origin`
     narrows it - `prefetch,dailyfam,trending,startup` for the episodes
     written ahead."""
@@ -10617,7 +10663,7 @@ class QualityLabels(BaseModel):
 
 @app.post("/api/admin/quality/label")
 async def admin_quality_label(req: QualityLabels, request: Request) -> dict:
-    """The owner's own scores for one episode (§306). A grade only counts
+    """The owner's own scores for one episode (§309). A grade only counts
     toward a node's standing once it agrees with these."""
     _require_admin(request)
     kept = 0

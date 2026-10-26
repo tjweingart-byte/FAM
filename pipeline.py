@@ -1666,7 +1666,13 @@ class PodcastPipeline:
 
             category_audit.note(plan.query, getattr(notes, "category", ""),
                                 self.origin or "tap")
-            # And how well it was written (§306), kept beside it.
+            # Its articles, for the history archive (§308). Never awaited;
+            # a private search is refused there.
+            import history_archive
+
+            history_archive.after_episode(notes, key, stats.sourced_stamp,
+                                          self.origin)
+            # And how well it was written (§309), kept beside it.
             import episode_quality
 
             episode_quality.note(key, stats.sourced_stamp, plan.query,

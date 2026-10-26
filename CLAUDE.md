@@ -162,7 +162,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
 - `write.py` prints the brief above the script - diagnose brief vs script
   separately; `--no-ei` compares; `tools/ei_eval.py` is the milestone. [brief-above-script]
 - **`examples/` is the strongest lever** - prefer adding an example over a rule. [examples-lever]
-- **Quality per tree node** (§306): code, listening, a grader trusted once
+- **Quality per tree node** (§309): code, listening, a grader trusted once
   it matches the owner. [episode-quality]
 
 ## Open problems (`open-problems.md`)

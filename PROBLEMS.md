@@ -21768,7 +21768,184 @@ that row exists for. It defaults to `BROWSE_MINUTES` now. The client's
 the rest of the file, and the comments that said browse episodes are two
 minutes say `BROWSE_MINUTES`.
 
-## 306. Episode quality, measured by category (2026-10-23)
+## 306. The 10.23 implementations: episodes that would not play, an apology instead of a type name, the DailyFAM tab back to the top, myFAM's logo in a menu, playlist covers, a line on the phone, and a story's send button (2026-10-24)
+
+**Episodes stopped playing on 10.23** with "Generation failed:
+RemoteVoiceError. See the server log for details." Render's log said, every
+minute, "no voice worker can speak. Tried, in order: runpod-pod
+(https://ilx5zutqvcjw3d-8002.proxy.runpod.net): nothing ... answers /health"
+- a 404 from RunPod's proxy. The pod's own log shows Render's IP
+(74.220.48.64, Render's outbound range) calling `/health` with 200 once a
+minute until **3:44 PM**, then never again, while the worker kept answering
+the internet's scanners on its direct port at 4:24. So the worker was up the
+whole time; what stopped was the app reaching it. Render had been reaching it
+on the **registered** rung (the worker heartbeats its direct TCP address,
+the app verifies it with `/health`), and the warning lists only `runpod-pod`
+- the registration had lapsed (`VOICE_REGISTRY_TTL`, 300 s) and the proxy
+URL, the only other candidate, is the one §117 found Cloudflare refuses.
+
+Why the heartbeats stopped landing is not knowable from here: a failed
+heartbeat was logged at **debug**, so the pod's log is silent exactly when
+it matters. That is the code change - `register.announce` warns on every
+failed beat and says when one lands again after a run of failures - so the
+next time the pod log names the cause (a timeout, a refused connection, a
+changed `FAM_APP_URL`). What brings the voice back today is operational:
+restart the voice worker on the pod (or the pod), check its log for
+`first registration accepted`, and confirm `/admin`'s voice panel shows a
+`registered` worker.
+
+**The listener's sentence** (the owner's wording): an episode that fails for
+a reason that is ours reads "We're sorry that your episode is not available
+at this time. We are experiencing minor difficulties. Thank you for your
+patience. -The FAM Team". `app.listener_error` is `friendly_error` with the
+catch-all ("Generation failed: <type>. See the server log") swapped for
+`LISTENER_APOLOGY`; the 502 a listener reads uses it, and `/admin`'s error
+record keeps `friendly_error`'s type name. Sentences about their own request
+(no evidence, research down) pass through unchanged.
+
+The client, from the packet:
+1. **The DailyFAM tab, tapped on DailyFAM while scrolled down, scrolls to
+   the top** (Instagram's home button) without redrawing the rails. At the
+   top, or from any other screen, it opens and reloads DailyFAM as before.
+   It asks whether `#screen-myfam` is the active screen, not only the stack:
+   a screen can be shown without the stack moving, and checking the stack
+   alone skipped loading the feed (two smoke checks caught it).
+2. **"Add to playlist" is "Add to myFAM Playlist"**, with FAM drawn as the
+   logo (the F, the double chevron, the M). `myFamMark()` copies the glyphs
+   from the myFAM heading so the brand still changes in one place; the
+   letters "FAM" are kept, clipped, for copy, screen readers and the smoke
+   check. All three menus (player, DailyFAM tile, Explore) use
+   `addToPlaylistLabel()`.
+3. **The add sheet lists playlists as Spotify does**: each mix's cover on
+   the left (the folder a coverless mix shows on the myFAM screen), the name
+   over how many briefings it holds; "Create new playlist" gets a (+) square.
+4. **The line at the bottom stayed on the drawn phone.** `.toast` and `.snack`
+   are children of `.phone`, outside `.frame`, so `left:0; right:0` ran the
+   fade across the bezel. They are inset by the bezel's 14 px, and by nothing
+   at phone width, where there is no bezel.
+5. **A friend's vibe**: the paper plane sits inside the message box and sends
+   what is typed; the heart stays; the button that used to be the plane is
+   the VIBE! arrows, and opens the editor with that episode for your story.
+
+## 307. A history archive on MongoDB Atlas, and the first agent (2026-10-24)
+
+Planning only; no code. The owner wants the writer to have a second packet:
+historical context on the topic, from what FAM has already collected,
+beside the fresh web search.
+
+What the code showed first: almost nothing collected is kept. Parallel and
+Perplexity passages are read once by the writer and discarded; `scripts.db`
+keeps scripts a week with hostnames only; GDELT keeps titles and prunes them;
+local news prunes items. So the archive fills from the day it is switched
+on, and cannot be backfilled.
+
+Compared (prices are third-party summaries of list prices, mid-2026; check
+them before buying): MongoDB Atlas, Postgres + pgvector on Render, SQLite +
+numpy on FAM's own disk, Pinecone/Qdrant. Quality depends on the embedder,
+not the store. Measured in this container: an exact numpy scan of
+384-dimension vectors takes 0.2 ms at 10k items, 6.8 ms at 100k and 32 ms
+at 500k, with memory (1.5 KB a vector) the binding limit at about 200-300k.
+Atlas same-region (AWS us-west-2, beside Render's default Oregon) is
+estimated at ~15-50 ms per lookup, unmeasured; it runs beside the web search
+inside the 0.5 s grace window like the reference look, so the listener does
+not wait for it.
+
+Decided by the owner: **MongoDB Atlas, eventually and certainly.** So the
+plan is one archive interface with two backends from the start: SQLite for
+tests, staging (zero spend - its guard admits only a private database, which
+Atlas is not) and a fresh clone; Atlas Flex in Oregon for production, M10 at
+about 1,000 monthly listeners. This amends [storage-durability]'s "every
+store through `db.connect`" for this one store, and that amendment is to be
+written into `docs/claude/constraints.md` when it is built.
+
+Capacity: the vector index in RAM fills a tier before its disk does, so
+storing shorter text alone does not buy time - fewer records do. The owner's
+design: keep **key sentences and important figures** (structured: subject,
+metric, value, unit, as-of date, outcome or forecast) rather than articles;
+keep the **most trusted source's** version of a fact and **no duplicate
+information** from other articles; keep each episode's **article links** for
+a sources view on the episode screen. With monthly rollups after ~90 days,
+five years is estimated at ~630k records at 10,000 listeners (M10) against
+~17M keeping every source (M50). Estimates, from `docs/FINANCIAL.md` §4.
+
+The work is assigned to an agent, not built yet: the **Database inventory
+specialist** - digests incoming packets, stores the key information and
+links, and scrapes the archive for duplicates, very carefully (a stock price
+on two days is two facts; a forecast and an outcome are two facts; a conflict
+is flagged, never resolved by a model; figures are compared by code only;
+nothing is hard-deleted on the first pass). Its guidelines and model options
+(Haiku 5.5 low, batched, ~$5/month at 1,000 listeners; Sonnet 5.5 as a second
+opinion on uncertain pairs only) are in the new `docs/FAM_AGENTS.md`, which
+holds every agent's guidelines as they are thought of.
+
+Answered by the owner the same day: an article that only repeats a known
+fact is kept as a **corroborating link** - URL, outlet, grade, date and a
+count on the fact, never its text.
+
+Open: the search vendors' terms on storing excerpts; when rollups start.
+
+## 308. The history archive is built, for MongoDB Atlas (2026-10-24)
+
+At the owner's direction ("we are going to use MongoDB"), §307's plan, built:
+`history_archive.py`, one interface with two backends - **Atlas** in
+production (`ARCHIVE_BACKEND=atlas`, `MONGODB_URI`, `requirements-archive.txt`)
+and **SQLite** (`ARCHIVE_DB`, `db.connect`) for tests, staging and a fresh
+clone. Setup is `ARCHIVE.md`; `tools/archive_setup.py` creates the indexes,
+including the `facts_vector` Atlas Vector Search index (384-d cosine, scalar
+quantisation, filters on `active`, `published`, `space`), and proves them
+with a real round trip.
+
+What it does:
+
+- **Intake**, after every cached episode (`after_episode`, beside
+  `category_audit.note` in `pipeline`, `prefetch`, `trending_bank`,
+  `daily_edition`): each article the packet was built from
+  (`Packet.findings`, filled wherever `build_packet` runs) is upserted by URL
+  with its passages, grade, date, and the episode's subject and category.
+  Submitted to the archive's own threads, never awaited. A private search is
+  refused; an attachment never reaches it (only shareable episodes are
+  cached). Kept until the inventory agent digests it - the archive cannot be
+  backfilled, so nothing is thrown away except past `ARCHIVE_INTAKE_MAX`.
+- **Episode links** (`episode_sources`), keyed by `cache.episode_id`, for the
+  episode screen's sources view the owner asked for.
+- **The recall**, started at the top of `ScriptGenerator.research` and merged
+  by `research.finish_history_look` on the reference look's terms: within
+  `ARCHIVE_GRACE_SECONDS` (0.5) of the packet or dropped, only beside web
+  sources, after every one of them, never from an article already in the
+  packet, only facts published before the packet's window and never
+  undated. Labelled `earlier reporting from FAM's archive - dated
+  background, never a current state` with the article's original grade, and
+  the writer is told it is history, never how things stand now.
+- **Not on** outcome-dependent questions, weather, a town's news - the
+  reference look's exclusions - **nor on sports or markets episodes**: an old
+  score or price in the packet would vouch for itself past `ScoreGuard` and
+  `FigureGuard`, which accept any figure the material contains. Revisit once
+  the agent stores figures with their as-of dates and the guards can tell
+  history from now.
+- **Only with the sentence model**: the hashing vector is lexical, and a
+  recall that matched spelling would hand the writer the wrong history.
+
+`facts` is empty until the Database inventory specialist is built
+(`docs/FAM_AGENTS.md`, which now says what it reads and writes), so the
+recall adds nothing yet. That is the honest state, not a fallback: intake is
+not recalled, because the owner's design keeps only digested key information.
+
+Staging: `MONGODB_URI` is scrubbed and `ARCHIVE_BACKEND` forced to `sqlite`.
+Production: both are `sync: false` in `render.yaml`, set in the dashboard
+once `archive_setup.py` has passed - the audio bucket's terms (§237), not a
+side effect of a merge. Atlas asked for without an address turns the
+archive off and says so on `/api/health` > `archive`; it never falls back
+to the disk, where history would vanish on the next deploy.
+
+Unverified here: no Atlas cluster is reachable from this container, so the
+Atlas backend is tested against a fake database that records its calls
+(the `$vectorSearch` stage, filters, the `(1 + cosine) / 2` score
+conversion, upsert shapes). The first real run is `archive_setup.py`.
+
+Tests: `tests/test_history_archive_308.py`; the store is in
+`tests/test_data_paths.py`'s lists, both Dockerfiles and `.env.example`.
+
+## 309. Episode quality, measured by category (2026-10-23)
 
 The owner (10.23): "properly categorize episode quality based on their
 category/subcategory in the tree, and on different metrics. These metrics
@@ -21858,5 +22035,54 @@ run with a key is `python tools/ei_eval.py --script` then
 `python tools/quality_report.py --grade 20`, and twenty episodes scored by
 hand.
 
-Tests: `tests/test_episode_quality_306.py` (new); `tests/test_data_paths.py`
+Tests: `tests/test_episode_quality_309.py` (new); `tests/test_data_paths.py`
 (the store registered).
+
+## 310. The quality checker inside /admin, and what was taken out before it merged (2026-10-26)
+
+The owner (10.26): "we do not want examples to be attached to nodes on a tree.
+There will be a better way to do it, and that will involve the agents that we
+are going to implement this week. So, remove that from the changes made in
+this branch ... make sure that no agents are being made in this branch. The
+quality check tool is important and should stay."
+
+**Taken out, never merged.** This branch had gone on, after §309, to file
+each example on a category-tree node and story shape and show the writer the
+nearest few (`choose_examples`, `EXAMPLES_BY_NODE`, `EXAMPLES_PER_EPISODE`,
+two cached system blocks), then to give each league a calendar
+(`seasons.py`) so an example tagged for one phase of a season was not shown
+in another, with `tools/quality_compare.py` to write prompts both ways. All
+of it is gone: the examples, the writer's instructions and its `system`
+block are exactly Main's, every episode is shown every example as before,
+and nothing about what is written differs from Main. Its log entries were
+removed with it rather than left describing code that does not exist.
+
+**No agent in this branch.** Nothing here plans, loops or acts: the quality
+checker is code, plus one optional grading call per finished episode, off by
+default (`QUALITY_GRADE=off`). The agents planned for this week are Main's
+own work (§307), not this branch's.
+
+**Kept from that work, because it serves the checker:**
+
+- **The checker is a page of /admin** (`#quality`), under Inbox right after
+  Feedback, behind the tracker's own sign-in; `admin_ui/quality.html` is
+  gone and `/admin/quality` redirects to `/admin#quality`.
+- **Score these**: the episodes the owner has not scored yet, newest first
+  (`QualityStore.unlabelled`, `/api/admin/quality/to-score?origin=`), filtered
+  to every episode, searches, or those written ahead. Twenty or so scored per
+  metric is what calibrates the grader ([episode-quality]).
+- **By where they came from**: each origin's means side by side - a search,
+  prefetch, DailyFAM, Trending (`report()["origins"]`; printed by
+  `tools/quality_report.py` too).
+
+Main moved twice under this branch (§305; §306-§308, the history archive),
+so episode quality is §309 here. Where Main's history archive and this
+branch's quality record are both kept beside a written episode, both hooks
+stay, one after the other.
+
+Checked with a browser against a running server before the removal (the page
+and an episode opened for scoring, desktop and phone); the removal took
+sections off that page, not into it.
+
+Tests: `tests/test_episode_quality_309.py` (renamed from `_306`; the page
+inside /admin, the list to score, the origins).

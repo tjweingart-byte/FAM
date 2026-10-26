@@ -127,3 +127,17 @@ which is the go/no-go for all of it.
   the ranker's own six signals, rebuilt point in time from the impression
   log, stored only if it beats the hand-tuned order on held-out offers, and
   allowed to re-order what cleared the floor but never to admit a tile under it.
+
+## The history archive and FAM's agents (§307, §308)
+
+**The archive is built (§308)**: `history_archive.py`, MongoDB Atlas in
+production once `ARCHIVE_BACKEND=atlas` (setup in `ARCHIVE.md`), its own
+SQLite file everywhere else; the storage amendment is at
+[storage-durability]. Its facts stay empty until the inventory agent below
+is built. The owner wants a **history archive** - key
+sentences and figures from every packet, years of them, on **MongoDB Atlas**
+(a local SQLite backend behind the same interface for tests and staging) -
+so the writer gets a second packet of dated historical context beside the
+fresh search. Background agents will fill and tidy it; their guidelines,
+starting with the **Database inventory specialist**, and the model chosen
+for each are in `docs/FAM_AGENTS.md`. Read both before building either.

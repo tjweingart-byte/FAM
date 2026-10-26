@@ -688,7 +688,12 @@ class ScriptNotes:
     #: DailyFAM): its writer is `EDITION_WRITER_MODEL` when that is set
     #: (`writer_for`, §269).
     edition: bool = False
-    #: What the episode's quality is judged against (§306), set when the
+    #: What the history archive keeps once this episode is cached (§308):
+    #: `{"subject": ..., "findings": [history_archive.Finding, ...]}`, set by
+    #: `research` from the winning packet. None when nothing was retrieved.
+    #: Read only by `history_archive.after_episode`; never by a prompt.
+    archive: object = None
+    #: What the episode's quality is judged against (§309), set when the
     #: script is finished: the evidence the writer read (the cut when there
     #: was one), the brief's story shape, the word budget and the writer that
     #: answered. In memory only; `episode_quality.note` keeps what it needs.
@@ -1145,6 +1150,15 @@ and do not claim anything about a document beyond what is in it.
                 "changes from the dated sources, which win wherever the two "
                 "differ. Never repeat its sentences word for word; say it in "
                 "your own words.\n")
+        if research_mod.TIER_LABELS["archive"] in plan.evidence:
+            # §308: the archive's recall, and what it may be used for.
+            reference += (
+                "\nA source marked as earlier reporting from FAM's archive is "
+                "history: what was reported then, on the date it carries. Use "
+                "it for how this came to be - what happened before, what was "
+                "said at the time - and say when, plainly. It is never how "
+                "things stand now: anything current comes from the other "
+                "sources, which win wherever the two differ.\n")
         evidence = f"""
 Someone has already searched the web for this and pulled out the passages
 below. They are your source for anything current: read them and use what they
@@ -1587,7 +1601,7 @@ class _ScriptReader:
                                         + tuple(self.material.dropped))
             self.notes.score_drops = tuple(self.scores.dropped)
             self.notes.figure_drops = tuple(self.figures.dropped)
-            # What the quality record judges it against (§306).
+            # What the quality record judges it against (§309).
             self.notes.written_from = (getattr(self.plan, "evidence_digest", "")
                                        or getattr(self.plan, "evidence", "")
                                        or "")
@@ -1880,6 +1894,14 @@ class ScriptGenerator:
         # up on Wikipedia and Wikidata beside each rung's search and added
         # as one extra source when it is back in time. "" for none.
         reference = research_mod.reference_name_for(plan.brief)
+        # **The history recall** (§308): FAM's archive of earlier reporting,
+        # started now so it runs beside every rung, merged once the packet is
+        # in if it is back within `ARCHIVE_GRACE_SECONDS`. None when this
+        # episode is not one it may add to.
+        import history_archive
+
+        history = history_archive.look(" ".join(filter(None, (
+            str(getattr(plan.brief, "subject", "") or ""), query))), plan.brief)
 
         # **The ladder**, in cost order, stopping at the first rung that
         # brings back evidence. Each rung is the same call with a different
@@ -1923,6 +1945,7 @@ class ScriptGenerator:
             if better:
                 better.fell_back_from = configured
                 packet = better
+        await research_mod.finish_history_look(packet, history)
         _mark(notes, "retrieval_ready")
 
         if notes is not None:
@@ -1973,6 +1996,10 @@ class ScriptGenerator:
             return plan
         if notes is not None and packet.provenance is not None:
             notes.provenance = packet.provenance
+        if notes is not None and packet.findings:
+            notes.archive = {"subject": str(getattr(plan.brief, "subject", "")
+                                            or ""),
+                             "findings": list(packet.findings)}
         context = packet.context
         measured = story.as_evidence() if story else ""
         if measured:
@@ -2464,7 +2491,7 @@ class ScriptGenerator:
         request = self._request_kwargs(plan, notes)
         model = request["model"]
         if notes is not None:
-            notes.writer_model = model   # for the quality record (§306)
+            notes.writer_model = model   # for the quality record (§309)
         path = _writer_path(notes)
         started = time.monotonic()
         first_word = None
@@ -2563,7 +2590,7 @@ class ScriptGenerator:
                        if getattr(block, "type", "") == "text")
         reader = _ScriptReader(plan, notes)
         if notes is not None:
-            # For the quality record (§306): the model the batch answered with.
+            # For the quality record (§309): the model the batch answered with.
             notes.writer_model = (getattr(message, "model", None)
                                   or writer_for(notes)[0])
         out: list[str] = list(reader.opening())

@@ -1,4 +1,4 @@
-"""Episode quality, measured by category (PROBLEMS.md §306).
+"""Episode quality, measured by category (PROBLEMS.md §309).
 
 The writing is the product ([writing-is-the-problem]), and until this file
 nothing measured it: a prompt change, a new example or a different writer was
@@ -499,7 +499,7 @@ class QualityStore:
 
     def unlabelled(self, limit: int = 20, origins: Optional[Iterable] = None) -> list:
         """Episodes the owner has not scored yet, newest first - the list a
-        person works through so the grader can be checked (§NEW)."""
+        person works through so the grader can be checked (§310)."""
         rows = self._rows(
             "SELECT e.key, e.sourced, e.at, e.query, e.title, e.origin, "
             "e.minutes, e.grade != '' AS graded FROM episodes e WHERE NOT EXISTS "
@@ -1193,7 +1193,7 @@ def report(days: float = 30.0, now: Optional[float] = None,
             "prompts": _count(r["prompt"] for r in rows),
             "writers": _count(r["writer_model"] for r in rows),
             # Each origin's means side by side: a tap, prefetch, the
-            # editions (§NEW).
+            # editions (§310).
             "origins": _by_origin(episodes, overall)}
 
 
@@ -1285,7 +1285,7 @@ def format_measures(measures: dict) -> str:
     """The code half, as `write.py` prints it under the script."""
     scores = measures.get("scores") or {}
     checks = measures.get("checks") or {}
-    lines = ["quality (code proxies, 0-1; §306):"]
+    lines = ["quality (code proxies, 0-1; §309):"]
     for metric in METRICS:
         value = scores.get(metric)
         lines.append(f"  {LABELS[metric]:<20} "

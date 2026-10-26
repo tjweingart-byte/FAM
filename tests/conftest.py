@@ -73,7 +73,7 @@ FAM_ENVIRONMENT = (
     "EPISODE_INTELLIGENCE", "EI_MODEL", "EI_EFFORT", "EI_MAX_TOKENS",
     "EI_TIMEOUT_SECONDS", "EI_DEFAULT_RECENCY_DAYS", "EI_AHEAD_TIMEOUT_SECONDS",
     "EI_SPLIT", "EI_EXAMPLES", "EI_OUTLINE", "EI_OUTLINE_GRACE_SECONDS",
-    # §306: the quality grader. A developer with QUALITY_GRADE=all set must
+    # §309: the quality grader. A developer with QUALITY_GRADE=all set must
     # not have the suite schedule grades.
     "QUALITY_GRADE", "QUALITY_GRADER_MODEL", "QUALITY_GRADER_EFFORT",
     "QUALITY_GRADE_DAILY", "QUALITY_MIN_EPISODES",
@@ -172,6 +172,11 @@ FAM_ENVIRONMENT = (
     "WIKIPEDIA", "WIKIMEDIA_ENTERPRISE_USERNAME", "WIKIMEDIA_ENTERPRISE_PASSWORD",
     "WIKIMEDIA_MONTHLY_REQUESTS", "WIKIPEDIA_TIMEOUT_SECONDS",
     "WIKIPEDIA_GRACE_SECONDS",
+    # §308: the history archive. `isolated_archive` below gives every test
+    # its own local file; nothing here may point the suite at Atlas.
+    "ARCHIVE", "ARCHIVE_BACKEND", "ARCHIVE_DB_NAME", "ARCHIVE_TIMEOUT_SECONDS",
+    "ARCHIVE_RECALL", "ARCHIVE_GRACE_SECONDS", "ARCHIVE_RECALL_LIMIT",
+    "ARCHIVE_MIN_SIMILARITY", "ARCHIVE_INTAKE_MAX",
     # Prefetch: whether episodes are written before anybody asks, how much is
     # paid in advance and what the day's ceiling is. A developer with
     # PREFETCH=1 set must not run a suite that spends money where CI does not.
@@ -579,7 +584,7 @@ def isolated_pipeline_errors(tmp_path, monkeypatch):
 
 @pytest.fixture(autouse=True)
 def isolated_episode_quality(tmp_path, monkeypatch):
-    """The quality rows (§306), per test: every episode a test writes to the
+    """The quality rows (§309), per test: every episode a test writes to the
     cache is measured, and must not land in the project root."""
     import episode_quality
 
@@ -665,6 +670,20 @@ def isolated_wikimedia(tmp_path, monkeypatch):
     wikimedia.reset_store()
     yield
     wikimedia.reset_store()
+
+
+@pytest.fixture(autouse=True)
+def isolated_archive(tmp_path, monkeypatch):
+    """The history archive (§308), per test: every cached episode writes to
+    it, and the suite must never write `archive.db` into the project root,
+    nor reach Atlas (`MONGODB_URI` is cleared with the credentials)."""
+    import history_archive
+
+    monkeypatch.setenv("ARCHIVE_DB", str(tmp_path / "stores" / "archive.db"))
+    monkeypatch.delenv("MONGODB_URI", raising=False)
+    history_archive.reset()
+    yield
+    history_archive.reset()
 
 
 @pytest.fixture(autouse=True)

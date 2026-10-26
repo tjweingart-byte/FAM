@@ -1615,6 +1615,11 @@
   .wm-glyph svg, .wm-a svg{ display:block; width:100%; height:100%;
     overflow:visible; }
   .wm-glyph.f{ aspect-ratio:12.9 / 16.9; }
+  /* "myFAM" inside a sentence (10.23 packet #2): the heading's own glyphs,
+     with the letters kept for copy and screen readers but not drawn. */
+  .menu-mark{ white-space:nowrap; }
+  .menu-mark-text{ position:absolute; width:1px; height:1px; overflow:hidden;
+    clip:rect(0 0 0 0); white-space:nowrap; }
   .wm-glyph.m{ aspect-ratio:14.9 / 16.9; }
   /* Gap between the leading word and the mark on myFAM / DailyFAM / explore.
      Not :not(:first-child) - the leading word is a text node, so the F really
@@ -2138,7 +2143,9 @@
      the tabs) on the page's own colour, fading into the page above it so it
      reads over whatever scrolls behind. `bottom` is set when it shows, from
      what is on screen. */
-  .toast, .snack{ position:absolute; left:0; right:0; bottom:96px; z-index:1000;
+  /* Inset by the drawn phone's bezel (10.23 packet #4): both live in
+     .phone, outside .frame, so `left:0` ran the fade across the bezel. */
+  .toast, .snack{ position:absolute; left:14px; right:14px; bottom:96px; z-index:1000;
     display:flex; flex-direction:column; align-items:center; gap:7px;
     padding:26px 20px 9px; text-align:center; color:var(--text);
     background:linear-gradient(to bottom, rgba(var(--bg-rgb),0), rgba(var(--bg-rgb),0.98) 45%);
@@ -2149,6 +2156,7 @@
     background:var(--copper); transform:scaleX(0); transform-origin:50% 50%;
     transition:transform .26s cubic-bezier(.2,.8,.2,1) .06s; }
   .toast.show, .snack.show{ opacity:1; transform:translateY(0); }
+  @media (max-width:520px){ .toast, .snack{ left:0; right:0; } }
   .toast.show::before, .snack.show::before{ transform:scaleX(1); }
   /* Only the action takes a tap; the line and its fade leave the page under
      them pressable. */
@@ -2259,6 +2267,15 @@
   .sheet-item{ padding:14px 22px; font-size:13.5px; font-weight:600; color:var(--text); cursor:pointer; }
   .sheet-item.danger{ color:var(--coral); }
   .sheet-item:active{ background:var(--surface-2); }
+  /* A playlist in "Add to a myFAM mix", as Spotify lists them (10.23 packet
+     #3): its cover on the left, the name over how much is in it. */
+  .mix-pick{ display:flex; align-items:center; gap:12px; }
+  .mix-pick .mix-folder{ flex:0 0 42px; height:42px; border-radius:8px;
+    background-color:var(--surface-2); color:var(--text); }
+  .mix-pick-body{ min-width:0; }
+  .mix-pick-name, .mix-pick-meta{ display:block; }
+  .mix-pick-name{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .mix-pick-meta{ font-size:11.5px; font-weight:500; color:var(--text-muted); margin-top:2px; }
   .sheet-cancel{
     margin:8px 16px 0; padding:12px; text-align:center; border-radius:14px; background:var(--bg);
     color:var(--text-muted); font-weight:700; font-size:13px; cursor:pointer;
@@ -3006,9 +3023,14 @@
   /* Reply, like, share to your story (10.15 packet, §282). */
   .story-reply{ display:flex; align-items:center; gap:6px; margin-top:4px; }
   .story-reply[hidden]{ display:none; }
-  .story-reply input{ flex:1; min-width:0; height:44px; border-radius:999px; padding:0 18px;
-    border:1px solid rgba(244,239,228,0.55); background:rgba(0,0,0,0.18); color:#F4EFE4;
-    font:14px 'Geist', sans-serif; outline:none; }
+  .story-reply-box{ flex:1; min-width:0; display:flex; align-items:center; height:44px;
+    border-radius:999px; border:1px solid rgba(244,239,228,0.55); background:rgba(0,0,0,0.18); }
+  .story-reply input{ flex:1; min-width:0; height:100%; border:none; background:none;
+    padding:0 4px 0 18px; color:#F4EFE4; font:14px 'Geist', sans-serif; outline:none; }
+  .story-send{ flex:none; width:40px; height:40px; margin-right:2px; border:none; background:none;
+    color:#F4EFE4; display:flex; align-items:center; justify-content:center; cursor:pointer;
+    padding:0; border-radius:50%; }
+  .story-reply-box:focus-within{ border-color:#F4EFE4; }
   .story-reply input::placeholder{ color:rgba(244,239,228,0.75); }
   .story-act{ width:42px; height:44px; flex:none; border:none; background:none; color:#F4EFE4;
     display:flex; align-items:center; justify-content:center; cursor:pointer; padding:0; }
@@ -4875,14 +4897,20 @@
             Play episode</button>
           <!-- Reply, like and share to your story (10.15 packet, §282),
                Instagram's row: a reply goes to their messages with the
-               episode, a like tells them too, and the arrow opens VIBE!
-               with this episode for your own story. Not on your own. -->
+               episode, a like tells them too, and the VIBE! arrows open
+               the editor with this episode for your own story. Not on your
+               own. The paper plane sits in the box and sends what is typed
+               (10.23 packet #5). -->
           <form class="story-reply" id="storyReply" onsubmit="event.preventDefault(); sendStoryReply();">
+            <div class="story-reply-box">
             <input id="storyReplyInput" type="text" maxlength="500" autocomplete="off" enterkeyhint="send"
                    placeholder="Send message..." aria-label="Reply to this vibe"
                    onfocus="pauseStory()" onblur="storyReplyBlur()">
+            <button type="submit" class="story-send" id="storySend" aria-label="Send"
+                    onmousedown="event.preventDefault()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 3 10.2 14.3"/><path d="M21.5 3 14.6 21l-4.4-6.7L3.5 10z"/></svg></button>
+            </div>
             <button type="button" class="story-act" id="storyLike" aria-pressed="false" onclick="likeStory()" aria-label="Like"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20.5s-7.5-4.6-9.2-9.3C1.6 7.8 3.9 4.5 7.3 4.5c2 0 3.6 1.1 4.7 2.8 1.1-1.7 2.7-2.8 4.7-2.8 3.4 0 5.7 3.3 4.5 6.7-1.7 4.7-9.2 9.3-9.2 9.3z"/></svg></button>
-            <button type="button" class="story-act" id="storyReshare" onclick="shareStoryToMine()" aria-label="Share to your story"><svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 3 10.2 14.3"/><path d="M21.5 3 14.6 21l-4.4-6.7L3.5 10z"/></svg></button>
+            <button type="button" class="story-act" id="storyReshare" onclick="shareStoryToMine()" aria-label="VIBE! to your story"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10.4A4.4 4.4 0 0 1 8.4 6H18"/><path d="m15 3 3 3-3 3"/><path d="M20 13.6A4.4 4.4 0 0 1 15.6 18H6"/><path d="m9 21-3-3 3-3"/></svg></button>
           </form>
         </div>
       </div>
@@ -8982,6 +9010,19 @@
       + ' stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"'
       + ' aria-hidden="true">' + MENU_ICONS[icon] + '</svg>' + text + '</span>';
   }
+  // "myFAM" as the logo draws it - the heading's glyphs, copied from the
+  // heading so the brand still changes in one place (10.23 packet #2).
+  function myFamMark(){
+    var h = document.querySelector('.wordmark[aria-label="myFAM"]');
+    var glyphs = h ? h.innerHTML.replace(/^my/, "") : "";
+    return '<span class="menu-mark">my' + glyphs
+      + '<span class="menu-mark-text">FAM</span></span>';
+  }
+  function addToPlaylistLabel(){
+    // One span: .menu-row is a flex row with a gap, so loose words and the
+    // mark would each be an item, spaced apart.
+    return menuLabel("add", "<span>Add to " + myFamMark() + " Playlist</span>");
+  }
   function menuHead(title, sub, thumb){
     return '<div class="sheet-head">'
       + (thumb ? '<span class="sheet-head-pic" style="background-image:url(&quot;'
@@ -9008,7 +9049,7 @@
         action: saveForLater },
       { label: menuLabel("cc", "Closed captions · " + (ccOn ? "On" : "Off")),
         action: toggleCC },
-      { label: menuLabel("add", "Add to playlist"), action: function(){ openAddToMix(); } }
+      { label: addToPlaylistLabel(), action: function(){ openAddToMix(); } }
     ];
     // Only inside a myFAM playlist (§190): there is a playlist to take it
     // out of.
@@ -9203,7 +9244,7 @@
       { label: menuLabel("share", "Share"),
         action: function(){ openShareModal({ query: tile.query, title: tile.title,
                                              minutes: BROWSE_MINUTES }); } },
-      { label: menuLabel("add", "Add to playlist"),
+      { label: addToPlaylistLabel(),
         action: function(){ openAddToMix(tile.query, tile.title); } },
       { label: menuLabel("addq", "Add to Queue"), action: function(){ addToQueue(entry); } },
       { label: menuLabel("queue", "Go to Queue"), action: openQueue }
@@ -13373,6 +13414,17 @@
   }
 
   function openMyFamTab(){
+    // Already on DailyFAM and scrolled down: the tab is the way back to the
+    // top, as on Instagram (10.23 packet #1) - no redraw, the rails stay as
+    // they are. At the top, or from anywhere else, it opens and loads as it
+    // always did. The screen is asked, not the stack: a screen can be shown
+    // without the stack moving.
+    var scroller = document.querySelector("#screen-myfam > .scroll");
+    if(scroller && scroller.scrollTop > 0 && stack.length === 1 && stack[0] === "myfam"
+       && document.getElementById("screen-myfam").classList.contains("active")){
+      scroller.scrollTo({ top: 0, behavior: (window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches) ? "auto" : "smooth" });
+      return;
+    }
     loadMyFamFeed();     // also loads Go Deeper
     setTab("myfam");
   }
@@ -14153,7 +14205,7 @@
     var duration = (onPlayer && FamAudio.isComplete())
       ? Math.round(FamAudio.duration()) : 0;
     // Which episode, so how far it was heard is kept beside how well it was
-    // written (PROBLEMS.md §306). Only the one on the player is known.
+    // written (PROBLEMS.md §309). Only the one on the player is known.
     var episode = onPlayer ? String(FamAudio.episode() || "").slice(0, 80) : "";
     fetch("/api/progress", {
       method: "POST", headers: {"Content-Type": "application/json"},
@@ -19354,11 +19406,24 @@
       var entry = topic.id || { query: topic.query, title: topic.title };
       var items = [{ group: "Add " + escapeHtml(topic.label) + " to a myFAM mix" }];
       mixes.forEach(function(m){
-        items.push({ label: escapeHtml(m.name), action: function(){ addTopicToMix(m, entry, topic.label); } });
+        items.push({ label: mixPickRow(m), action: function(){ addTopicToMix(m, entry, topic.label); } });
       });
-      items.push({ label: "+ Create new playlist", action: function(){ createMixWithTopic(entry, topic.label); } });
+      items.push({ label: '<span class="mix-pick"><span class="mix-folder">'
+          + '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"'
+          + ' stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>'
+          + '</span><span class="mix-pick-body"><span class="mix-pick-name">Create new playlist</span></span></span>',
+        action: function(){ createMixWithTopic(entry, topic.label); } });
       showActionSheet(items);
     }).catch(function(){ toast("Could not load your myFAM mixes"); });
+  }
+  // One playlist in the add sheet: cover (or the folder a mix without one
+  // shows on the myFAM screen), name, and how many briefings it holds.
+  function mixPickRow(m){
+    var n = (m.items || m.topics || []).length;
+    return '<span class="mix-pick">'
+      + '<span class="mix-folder' + (m.cover ? " has-cover" : "") + '"' + coverStyle(m) + '>' + folderSVG() + '</span>'
+      + '<span class="mix-pick-body"><span class="mix-pick-name">' + escapeHtml(m.name) + '</span>'
+      + '<span class="mix-pick-meta">' + n + (n === 1 ? " briefing" : " briefings") + '</span></span></span>';
   }
   function addTopicToMix(m, entry, label){
     var payload = (m.items || []).map(function(i){
@@ -20612,7 +20677,7 @@
       { label: menuLabel("comment", "Comments"), action: openReelComments },
       { label: menuLabel("cc", "Closed captions · " + (ccOn ? "On" : "Off")),
         action: toggleReelCC },
-      { label: menuLabel("add", "Add to playlist"),
+      { label: addToPlaylistLabel(),
         action: function(){ openAddToMix(ep.query, ep.title); } },
       { label: menuLabel("addq", "Add to Queue"), action: function(){
           addToQueue({ title: ep.title, prompt: ep.query, minutes: ep.minutes,

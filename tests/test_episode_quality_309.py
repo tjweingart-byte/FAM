@@ -1,4 +1,4 @@
-"""§306: episode quality, measured by category.
+"""§309: episode quality, measured by category.
 
 Pinned here:
 
@@ -482,7 +482,7 @@ def test_a_deleted_account_takes_its_listening(client):
 
 
 def test_the_checker_is_a_page_of_the_admin_beside_feedback(client):
-    """§NEW: a page of `/admin` under Inbox, right after Feedback, behind the
+    """§310: a page of `/admin` under Inbox, right after Feedback, behind the
     admin's own sign-in; the old address lands on it."""
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     tracker = open(os.path.join(root, "admin_ui", "tracker.html")).read()
@@ -496,7 +496,7 @@ def test_the_checker_is_a_page_of_the_admin_beside_feedback(client):
     assert r.status_code == 307 and r.headers["location"] == "/admin#quality"
 
 
-# --- scoring by hand, and the origins side by side (§NEW) ----------------------
+# --- scoring by hand, and the origins side by side (§310) ----------------------
 
 
 def _scored(name, origin, script, labelled=False):

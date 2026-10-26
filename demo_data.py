@@ -172,7 +172,7 @@ def wipe(*, cache, events, erase_listener, scope: str = "seed",
         except Exception:  # noqa: BLE001 - a browse cache is never load-bearing
             log.exception("could not drop the DailyFAM edition")
             report["daily_editions_dropped"] = 0
-        # The quality rows (§306) are measurements of the episodes just
+        # The quality rows (§309) are measurements of the episodes just
         # deleted and the listening just emptied - derived from both, so they
         # go with them, the owner's own scores included: they score episodes
         # that no longer exist.

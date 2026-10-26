@@ -79,6 +79,10 @@ PAID_CREDENTIALS = (
     "REMOTE_VOICE_URL", "REMOTE_VOICE_TOKEN",
     # The audio bucket (§237): every write and read is a metered operation.
     "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY",
+    # §308: the history archive on MongoDB Atlas, billed by the cluster and
+    # outside the private network. Staging keeps its archive in its own
+    # SQLite file (`ARCHIVE_BACKEND` is forced below).
+    "MONGODB_URI",
     # Not paid, but outbound to a third party that emails real people: a
     # staging signup must never register anybody with the vendor.
     "VIRAL_LOOPS_API_TOKEN",
@@ -132,6 +136,8 @@ FORCED = {
     # Kept audio stays in scripts.db (§237): a bucket bills per operation,
     # and staging's replays arrive with their bytes (`export_episode`).
     "AUDIO_STORE": "",
+    # §308: the archive in the deployment's own file, never Atlas.
+    "ARCHIVE_BACKEND": "sqlite",
 }
 
 _STATE: dict = {"enabled": False, "reason": "", "scrubbed": [], "forced": {},

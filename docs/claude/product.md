@@ -667,7 +667,7 @@ strongest available lever on the remaining problem is untouched — and unlike
 the rest of this list it needs taste rather than a key.
 
 <!-- rule:episode-quality -->
-**Episode quality is measured, by category, three ways** *(PROBLEMS.md §306,
+**Episode quality is measured, by category, three ways** *(PROBLEMS.md §309,
 at the owner's direction: "properly categorize episode quality based on their
 category/subcategory in the tree ... information quality, story flow,
 information depth, repetition of information, the quality of the hook and
@@ -695,7 +695,7 @@ reworded, not optimised; **an episode is placed against the tree as it is
 when the report is read** ([one-category]), rolls up into every ancestor,
 borrows its parent's standing below `QUALITY_MIN_EPISODES`, and is held to
 its own heading, never the whole product. `/admin`'s Episode quality page
-(beside Feedback since §NEW), `tools/quality_report.py`, and `write.py` / `tools/ei_eval.py --script` print
+(beside Feedback since §310), `tools/quality_report.py`, and `write.py` / `tools/ei_eval.py --script` print
 the same measures. Nothing here changes what is written; it is how a change
 to the writer is judged.
 
