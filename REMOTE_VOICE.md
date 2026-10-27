@@ -503,6 +503,11 @@ earlier, not by filling the gap**. When a request arrives, `app.py` fires
 sent *before Claude has written a word*. The script takes several seconds to
 write, and the worker boots during them.
 
+A browse tile's script is written before the tap, so that wake has nothing
+to hide behind there. The same wake is therefore also sent when the app opens
+(`/api/auth/me`, for an account that may play, never a guest; PROBLEMS.md
+§324), which is the earliest a listener is known to be here.
+
 The wake is a hint, not a mechanism. It never raises, never blocks, and never
 delays a request; a miss costs only the cold start it was trying to hide. It
 also will not stampede — a worker that is already booting does not boot faster

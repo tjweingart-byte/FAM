@@ -2266,6 +2266,14 @@ async def auth_me(request: Request) -> dict:
     if listener is None:
         return {"user_id": "", "email": "", "authenticated": False,
                 "waitlist": settings.waitlist, "home": settings.app_home_url}
+    # The app asks this first on every open, so it is the earliest moment a
+    # listener is known to be here: ask for a GPU now rather than at the tap.
+    # myFAM and DailyFAM tiles are written before the tap, so a wake sent with
+    # the audio request has nothing to hide behind and the listener waits out
+    # the whole cold start. Only for an account that may play - a guest hears
+    # kept audio only (§154), and a waitlisted account is sent away.
+    if listener.is_authenticated and listener.status != "waitlisted":
+        _wake_remote_voice()
     return {**listener.as_dict(), "waitlist": settings.waitlist,
             "home": settings.app_home_url}
 

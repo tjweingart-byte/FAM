@@ -219,3 +219,19 @@ def test_a_dismissed_tile_is_replaced_only_by_one_that_qualifies(client):
     body = client.get("/api/godeeper").json()
     assert [r["query"] for r in body["resume"]] == ["first half listen"]
     assert body["threads"] == [] and body["similar"] == []
+
+
+# --- opening the app wakes the voice, for an account that may play -------
+
+def test_opening_the_app_wakes_the_voice_for_an_account_only(client, monkeypatch):
+    """A tile on myFAM or DailyFAM is written before the tap, so a wake sent
+    with the audio request hides nothing: it is sent from `/api/auth/me`,
+    which the app asks first on every open. A guest plays kept audio only."""
+    woke: list = []
+    monkeypatch.setattr(appmod, "_wake_remote_voice", lambda: woke.append(1))
+    client.get("/api/auth/me")
+    assert woke == [], "a guest's open woke the GPU"
+    signed_in(client, "wake-on-open@example.com")
+    woke.clear()
+    client.get("/api/auth/me")
+    assert woke == [1]

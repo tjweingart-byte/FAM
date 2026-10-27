@@ -22767,3 +22767,31 @@ on /admin → How names are said. Unchanged by it: an admin's respelling is
 never replaced, and a name Wikidata cannot match to exactly one item still
 gets no answer - which is the likelier cause of the remaining problems
 (surnames alone, nicknames), alongside names that never reached the lexicon.
+
+## 324. The voice is woken when the app opens, not at the tap (2026-10-27)
+
+The owner (10.27): "the delay from runpod on the serverless is too high for
+the first episode, is there a way that we can wake up the runpod server when
+the first person opens the app to limit that delay?"
+
+**Why the existing wake hid nothing on browse.** `remote_voice.wake()` was
+sent from `/api/audio`, alongside script generation. On search that is
+seconds of cover (EI, retrieval, the writer). A myFAM or DailyFAM tile is
+written before the tap, so its tap goes straight to the voice and the wake
+lands at the same moment as the first chunk: the listener waited out the
+whole cold start (73 s measured on 10.27, REMOTE_VOICE.md).
+
+**Now:** `/api/auth/me`, the first thing the app asks on every open
+(`refreshAuth()` before `bootToFirstScreen`), sends the same wake for an
+account that may play. Never for a guest (kept audio only, §154) or a
+waitlisted account. It is still the hint it was: never raises, never
+blocks, throttled by `REMOTE_VOICE_WAKE_INTERVAL`, a no-op unless
+`VOICE_BACKEND=remote` with the `runpod` transport. Server-side only, so the
+iOS client gets it by asking the same endpoint.
+
+**What it does not cover:** the endpoint's idle timeout (60 s). A listener
+who browses longer than that before tapping meets a cold worker again;
+raising the idle timeout in the RunPod console is the cheapest answer, and
+re-waking on the app returning to the foreground is the next one in code.
+Each open now bills a boot and an idle timeout of GPU even when nothing is
+played.
