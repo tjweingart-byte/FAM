@@ -22767,3 +22767,130 @@ on /admin → How names are said. Unchanged by it: an admin's respelling is
 never replaced, and a name Wikidata cannot match to exactly one item still
 gets no answer - which is the likelier cause of the remaining problems
 (surnames alone, nicknames), alongside names that never reached the lexicon.
+
+## 324. Wikipedia's reading belongs to the name it follows (2026-10-27)
+
+The owner (10.27), with screenshots of /admin → How names are said: "Does
+wikipedia need more guard rails? the actual word and wikipedia word are
+completely different" - Dooku = "DOO-koo" (an admin's) beside "Wikipedia
+says tih-RA-nuhs"; A'ja Wilson = "AY-zhuh", Anya Taylor-Joy = "AN-yuh",
+Catherine Zeta-Jones = "ZEE-tuh", Anton Du Beke = "doo BEK", Andoni Iraola =
+"ahn-doh-nee ee-rah-oh-lah sah-gahr-nah", Arcosa = "AR-kohs", all applied
+"from Wikipedia"; Antonio Banderas = "ahn-TOHN-yoh vahn-DEH-rahs".
+
+**Three faults, one cause each.**
+
+1. **The first template in the lead was taken, whoever it was about.**
+   Count Dooku's article reads "also known as Darth Tyranus (/tɪˈrænəs/)";
+   Wikidata's exact match on "Dooku" was right, the article was right, the
+   template was another name's. Arcosa matched an item whose article says
+   "Arkose" (/ˈɑːrkoʊs/, the rock). `from_wikitext(wikitext, name)` now takes
+   a template only when the last clause before it (templates, references and
+   links stripped; a comma, semicolon or full stop starts a clause) holds a
+   word of the name (`says_name`).
+2. **A reading for part of a name, or more than the name, was kept for the
+   whole name.** Wikipedia often gives IPA for only the hard part ("Anya",
+   "Zeta", "Du Beke", "A'ja") or for the full legal name ("Andoni Iraola
+   Sagarna"). The lexicon swaps the whole name for the reading, so the voice
+   would have said "AY-zhuh" for "A'ja Wilson" - dropping "Wilson". A
+   reading must now have one word per word of the name (`fits`), from the
+   article and from Wikidata's P898 alike.
+3. **Spanish β was respelled "v".** An English voice says Banderas with a
+   b; the table now maps β to "b".
+
+**A backstop on replacing.** A model's guess is replaced unasked only when
+Wikipedia's reading is near the name's spelling or near that guess
+(`resembles`, `RESEMBLES` = 0.25 by letters); Irish spellings far from their
+sounds stay replaceable because the model's guess is near Wikipedia's. One
+near neither is kept as "differs" and shown on /admin to take or leave.
+
+**What was already applied.** `prune()` (run at the start of every "Check
+all") withdraws Wikipedia's readings that fail `fits` - no request needed -
+and a re-check that no longer finds a reading for a Wikipedia-sourced entry
+withdraws it, so the next model to meet the name says it again. Dooku's
+admin entry was never changed (an admin's never is); its stale "Wikipedia
+says" note clears on the next forced check.
+
+**Not run from here:** this container cannot reach Wikipedia; the lead
+shapes in `tests/test_admin_page_289.py` are written from the screenshots.
+The owner's step: /admin → How names are said → **Check every name again**.
+
+## 325. Checking every word: the dictionary and the voice round trip (2026-10-27)
+
+The owner (10.27): "we want a way to check the pronunciation on these that
+can apply to all words within, not only ones that wikipedia can cross-check
+... build the dictionary + voice round-trip check, and investigate more
+checks to use."
+
+**What every earlier check had in common:** text compared with text - a
+model's respelling with Wikipedia's. None looked at a word nobody listed,
+and none heard Chatterbox, which is the only thing a listener hears.
+
+**1. The dictionary (`hard_words.py`).** The CMU Pronouncing Dictionary -
+134,000 English words and common names - is vendored as its data file
+(`pronounce_data/cmudict.dict.gz`, 0.9 MB, BSD-2-Clause, licence beside it).
+Not the `cmudict` pip package: that wrapper is GPL-3.0, and FAM ships closed.
+A scan (/admin → How names are said → **Scan recent episodes**, in the
+background) reads the 600 most recent cached episodes - `recent` never lists
+a private search, and an attached episode is never cached, so nothing
+personal is read - and keeps the 300 words most used that the dictionary
+lacks (plain forms count: "kickoffs", "re-signed", "Eagles'"), the lexicon
+does not respell, and are not initialisms (spoken as letters). Each comes
+with its count, how many episodes, and the first sentence that used it.
+**Sounds fine** hides a word for good; **Respell** puts it in the form. The
+dictionary also says how a common word *should* sound (`expected`), which
+the round trip uses for words nobody respelled.
+
+**2. The round trip (`voice_check.py`, `voice_worker/hearing.py`).** **Hear**
+sends a word through exactly what an episode's words go through
+(`pronunciation.respell`, `spoken_text.speakable`), the production voice says
+it, and a phoneme recogniser on the same card - wav2vec2 trained to write
+sounds in IPA, not words, so it cannot round a name to the nearest word it
+knows - writes down what it heard. That IPA becomes a respelling
+(`wiki_pronounce.ipa_to_respelling`) and is compared, by sound class
+(`sound_key`: "ah"/"a", "ee"/"i", "oo"/"u" are one sound), with the lexicon's
+respelling or the dictionary's. ≥ 70 % alike reads "said as meant", 50-70 %
+"a little differently", under 50 % "differently". The audio comes back with
+every check, because **the thresholds are a guess until they have been
+checked against a person's ears**, and nothing here changes the lexicon by
+itself. **Hear every name** / **Hear the unheard** run up to 150 words in the
+background, one at a time, as a task on the app's own loop (a thread with
+its own loop would share the voice's connection pool across loops).
+
+Wire: a request with `"hear": true` gets `heard` (or `heard_error`) beside
+its audio; an episode's chunks never ask, so nothing on the listening path
+changed. A worker built before this ignores the field, and the app says
+"rebuild" instead of guessing. `transformers` already comes with
+Chatterbox; the recogniser's ~1.2 GB downloads into `HF_HOME` on first use.
+On the placeholder tone there is nothing to hear, and the check says so (409).
+
+**Not verified here:** this container reaches neither Hugging Face nor a
+GPU. The recogniser, the 16 kHz resampling and the thresholds are untested
+against the real voice; `tests/test_voice_round_trip_325.py` pins the logic
+with the model stubbed.
+
+**More checks, investigated** (none built; in rough order of value):
+
+- **Whole sentences through a word recogniser (Whisper).** Synthesize a real
+  chunk, transcribe it, align to the script: catches the voice skipping,
+  repeating or mumbling words - failures no single-word check can see, and
+  the ones Chatterbox is known for. The same worker, the same `hear` seam.
+- **Listeners tell us.** A "said a word wrong" reason on the player's Report,
+  carrying the caption sentence being heard. The cheapest signal there is.
+- **Numbers, symbols and units.** A text-only pass over `speakable` output
+  for digits, "$", "%", "vs.", scores and dates it left unconverted - no GPU.
+- **Heteronyms.** Words the dictionary lists two ways (lead, read, live,
+  close, bass, wind) and place names that are also words (Reading, Nice,
+  Polish): flag sentences using them and hear the sentence, not the word.
+- **Acronym or initialism.** NATO and NASA are words, NFL and CFB letters;
+  a short list beats a rule. The scan skips all-capitals words today.
+- **Wiktionary.** Same Wikimedia API as the Wikipedia check; IPA for many
+  surnames and places that have no article of their own.
+- **A native-language guess.** espeak-ng or Epitran say a name the Spanish,
+  Polish or Irish way when told the language (Wikidata's citizenship or
+  native language); a second opinion to compare with the model's.
+- **Official guides.** The leagues publish phonetic guides for their players
+  each season; the VOA guide covers names in the news; NameShouts and Forvo
+  sell recordings by API. Best for sports names, which dominate the list.
+- **Two models.** Ask a second model for each respelling and flag
+  disagreement. Cheap, but their mistakes are correlated.
