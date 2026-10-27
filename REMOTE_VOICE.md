@@ -105,15 +105,12 @@ the detour taken while the volume does not justify a full-time GPU.
 - **Rollback**, if it is not: put `REMOTE_VOICE_URL` back (the pod is
   untouched). Once Serverless has run a day, terminate the pod.
 
-**After that, nothing.** A change to the worker merged into `Main` passes
-the `Voice worker` workflow's contract tests, which then create a GitHub
-release (`voice-<sha>`); RunPod rebuilds the endpoint from it and rolls its
-workers. A failed build leaves the old workers serving; any earlier build
-can be rolled back to from the endpoint's Builds tab; set the repository
-variable `VOICE_AUTO_RELEASE=false` to stop the releases. The endpoint id
-never changes, so Render is never edited again, and if the voice does go
-down the app emails `SUPPORT_EMAIL` within minutes, daily while it lasts,
-and when it is back.
+**After that, nothing.** RunPod rebuilds the endpoint from `Main` on every
+push and rolls its workers to the new build (Builds tab; seen on 10.27). A
+failed build leaves the old workers serving, and any earlier build can be
+rolled back to from the same tab. The endpoint id never changes, so Render
+is never edited again, and if the voice does go down the app emails
+`SUPPORT_EMAIL` within minutes, daily while it lasts, and when it is back.
 
 ## Once, ever
 

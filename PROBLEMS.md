@@ -22423,15 +22423,14 @@ Serverless endpoint's id is permanent and RunPod's GitHub integration builds
 `Dockerfile.voice` itself. The setup is the new first section of
 `REMOTE_VOICE.md`. Two things changed here for it:
 
-- `.github/workflows/voice-worker.yml` gains a `release` job: on `Main`,
-  after `contract` passes, it creates the GitHub release `voice-<sha>`,
-  which is what makes RunPod rebuild (a commit does not). That reverses the
-  workflow's "deliberately does NOT deploy", written for a pod rolled by
-  hand; what stands between a typo and the voice is now `contract`, a failed
-  build leaving the old workers serving, RunPod's earlier builds to roll back
-  to, and the owner's email. `VOICE_AUTO_RELEASE=false` stops it. The
-  workflow's paths gain what the worker imports (`voice_store.py`,
-  `voice_bank.py`, `audio_utils.py`, `requirements.txt`).
+- RunPod rebuilds the endpoint from `Main` on **every push** (10.27: the
+  endpoint's first build was #180, and merging #181 started a second). A
+  `release` job in `.github/workflows/voice-worker.yml`, written first on
+  RunPod's documentation that a GitHub release is what triggers a rebuild,
+  was removed the same day: it would have been a second build of every
+  voice change. The workflow keeps its contract job and gains, in its
+  paths, what the worker imports (`voice_store.py`, `voice_bank.py`,
+  `audio_utils.py`, `requirements.txt`).
 - `REMOTE_VOICE.md` says where Serverless mounts a volume (`/runpod-volume`,
   not `/state`), so the endpoint sets `HF_HOME` and `FAM_VOICES_DIR`.
 
