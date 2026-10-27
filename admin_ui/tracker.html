@@ -504,7 +504,7 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
     <div class="page" data-page="voices" data-title="Voice bank" hidden>
     <section class="card section" id="voicesCard">
       <h2>Voice bank</h2>
-      <p class="sub">The voices listeners can pick on searchFAM, and that every other episode is drawn from. A new voice is a WAV of a few seconds of clean speech, with the speaker's consent recorded.</p>
+      <p class="sub">The voices listeners can pick on searchFAM, and that every other episode is drawn from. A new voice is a WAV of a few seconds of clean speech, with the speaker's consent recorded. Silence before the first word is trimmed and a quiet recording levelled when it is added, and the page says so.</p>
       <div id="voiceList"></div>
       <details>
         <summary>Add a voice</summary>
@@ -518,6 +518,7 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
           <label class="sub"><input type="checkbox" id="vSynthetic" required> Cleared for a synthetic voice</label>
           <button class="go" id="vBtn" type="submit">Add voice</button>
           <p class="sub err" id="vErr" hidden></p>
+          <p class="sub" id="vNote" hidden></p>
         </form>
       </details>
     </section>
@@ -1530,7 +1531,7 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
     ev.preventDefault();
     var file = $("vFile").files[0];
     if (!file) return;
-    $("vErr").hidden = true; $("vBtn").disabled = true;
+    $("vErr").hidden = true; $("vNote").hidden = true; $("vBtn").disabled = true;
     var reader = new FileReader();
     reader.onload = function () {
       var b64 = String(reader.result).split(",")[1] || "";
@@ -1540,7 +1541,18 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
         rights: { consent: $("vConsent").checked ? "yes" : "no",
                   commercial_use: $("vCommercial").checked ? "yes" : "no",
                   synthetic_voice_cleared: $("vSynthetic").checked ? "yes" : "no" }
-      }).then(function () {
+      }).then(function (r) {
+        // A recording that opened in silence or was quiet is trimmed and
+        // levelled on the server (§324); say what was kept, so the voice
+        // listened to is known to differ from the file uploaded.
+        var m = r && r.mastered;
+        if (m) {
+          var did = [];
+          if (m.trimmed_seconds > 0) did.push("trimmed " + m.trimmed_seconds.toFixed(1) + "s of silence from the start");
+          if (Math.abs(m.gain_db) >= 0.5) did.push((m.gain_db > 0 ? "raised" : "lowered") + " the level " + Math.abs(m.gain_db).toFixed(0) + " dB");
+          $("vNote").textContent = "Added " + r.voice.label + (did.length ? " - " + did.join(" and ") + "." : ".");
+          $("vNote").hidden = false;
+        }
         $("voiceForm").reset(); delete $("vSlug").dataset.touched; loadVoices();
       }).catch(function (e) {
         $("vErr").textContent = e.message; $("vErr").hidden = false;

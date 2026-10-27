@@ -22767,3 +22767,28 @@ on /admin → How names are said. Unchanged by it: an admin's respelling is
 never replaced, and a name Wikidata cannot match to exactly one item still
 gets no answer - which is the likelier cause of the remaining problems
 (surnames alone, nicknames), alongside names that never reached the lexicon.
+
+## 324. The voice bank trims an upload instead of refusing it (2026-10-27)
+
+The owner (10.27): adding a new voice on /admin was refused with "the
+recording starts with 0.8s of silence"; asked whether that was a problem on
+our end, then "yes, make the admin page auto-trim on upload".
+
+**It was the §176 check working as written**: Chatterbox learns the accent
+from the first six seconds, so `check_recording` refuses more than
+`MAX_LEAD_SILENCE` (0.5 s) before the first word, and speech under
+`MIN_LOUDNESS_DBFS`. The fix was `tools/master_reference.py`, which an admin
+on the page cannot run.
+
+**Now:** `POST /api/admin/voices` (the page, and `tools/voice_bank.py add
+--url`) passes the upload through `voice_bank.prepare_upload` first. Only a
+recording the check would refuse for silence or loudness is changed - trimmed
+to `KEEP_LEAD` (0.1 s) before the first word and levelled to `TARGET_DBFS`
+under the peak ceiling, by `voice_bank.master_recording`, which the tool now
+calls too, so the two make the same file. The reply carries `mastered`
+(`trimmed_seconds`, `gain_db`, or null) and the page prints it, because the
+voice kept differs from the file uploaded and the listening test is of the
+kept one. A recording that passes is stored byte for byte; anything but
+16-bit PCM is unchanged and judged by the check as before. The local CLI path
+(`tools/voice_bank.py add` without `--url`) still refuses, pointing at the tool.
+

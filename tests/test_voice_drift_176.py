@@ -315,3 +315,45 @@ def test_the_fingerprint_fails_a_voice_that_drifts():
     failures = verify_voice.judge(result)
     assert any("chunk 2" in f for f in failures)
     assert any("changes between sentences" in f for f in failures)
+
+
+# --- the admin upload masters what the check would refuse (§324) ----------
+
+def test_an_upload_that_opens_in_silence_is_trimmed_and_says_so():
+    audio, mastered = voice_bank.prepare_upload(tone(lead=0.8))
+    assert mastered is not None
+    assert 0.6 < mastered["trimmed_seconds"] < 0.8
+    assert voice_bank.recording_stats(audio)["lead_silence"] <= 0.15
+    voice_bank.check_recording(audio)
+
+
+def test_a_quiet_upload_is_levelled():
+    audio, mastered = voice_bank.prepare_upload(tone(amplitude=500))
+    assert mastered["gain_db"] > 10
+    voice_bank.check_recording(audio)
+
+
+def test_an_upload_that_passes_is_kept_byte_for_byte():
+    original = tone(lead=0.2)
+    assert voice_bank.prepare_upload(original) == (original, None)
+    junk = b"not a wav"
+    assert voice_bank.prepare_upload(junk) == (junk, None)
+
+
+def test_the_admin_endpoint_keeps_the_mastered_recording(monkeypatch, tmp_path):
+    import base64
+    import app as app_module
+    from fastapi.testclient import TestClient
+
+    bank = voice_bank.VoiceBank(str(tmp_path / "bank.db"))
+    monkeypatch.setattr(voice_bank, "bank", lambda: bank)
+    monkeypatch.setattr(app_module, "_require_admin", lambda request: None)
+    reply = TestClient(app_module.app).post("/api/admin/voices", json={
+        "slug": "maya", "label": "Maya",
+        "audio": base64.b64encode(tone(lead=0.8)).decode("ascii"),
+        "rights": {"consent": "yes", "commercial_use": "yes",
+                   "synthetic_voice_cleared": "yes"}})
+    assert reply.status_code == 200, reply.text
+    assert reply.json()["mastered"]["trimmed_seconds"] > 0.6
+    kept, _rights, _sha = bank.recording("maya")
+    assert voice_bank.recording_stats(kept)["lead_silence"] <= 0.15

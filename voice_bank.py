@@ -198,6 +198,81 @@ def recording_stats(audio: bytes) -> dict:
     return stats
 
 
+#: What `master_recording` makes of an upload (§324): the first word this
+#: long after the start, the speech at this level, the peak never above this.
+KEEP_LEAD = 0.1
+TARGET_DBFS = -20.0
+PEAK_CEILING_DBFS = -1.0
+
+
+def master_recording(audio: bytes) -> bytes:
+    """The recording, trimmed to its first word and levelled. 16-bit PCM WAV
+    in and out; anything else is returned unchanged for the check to judge.
+
+    Shared by the admin upload (`prepare_upload`) and
+    `tools/master_reference.py`, so the page and the tool make the same file.
+    """
+    import numpy as np
+
+    stats = recording_stats(audio)
+    if stats["lead_silence"] is None:
+        return audio
+    with wave.open(io.BytesIO(audio)) as wav:
+        params = wav.getparams()
+        raw = wav.readframes(wav.getnframes())
+    samples = np.frombuffer(raw, dtype="<i2").astype(np.float32) / 32768.0
+    channels = params.nchannels
+    rate = params.framerate
+
+    cut = max(0.0, stats["lead_silence"] - KEEP_LEAD)
+    samples = samples[int(cut * rate) * channels:]
+
+    gain_db = 0.0
+    if stats["loudness_dbfs"] is not None:
+        gain_db = TARGET_DBFS - stats["loudness_dbfs"]
+        gain_db = min(gain_db, PEAK_CEILING_DBFS - stats["peak_dbfs"])
+    samples = np.clip(samples * (10 ** (gain_db / 20)), -1.0, 1.0)
+
+    out = io.BytesIO()
+    with wave.open(out, "wb") as wav:
+        wav.setnchannels(channels)
+        wav.setsampwidth(2)
+        wav.setframerate(rate)
+        wav.writeframes((samples * 32767.0).astype("<i2").tobytes())
+    return out.getvalue()
+
+
+def prepare_upload(audio: bytes) -> tuple[bytes, Optional[dict]]:
+    """An admin's upload, mastered only if the check would refuse it (§324).
+
+    A recording that already starts on its first word at a usable level is
+    kept byte for byte - a changed file is a changed voice. One that opens in
+    silence or is quiet is trimmed and levelled, and what was done is
+    returned so the page can say so: the admin listens to the voice that was
+    kept, not the one they uploaded. A file that cannot be read is returned
+    unchanged for `check_recording` to refuse in its own words.
+    """
+    try:
+        stats = recording_stats(audio)
+    except Exception:  # noqa: BLE001 - not a WAV; the check names why
+        return audio, None
+    lead, level = stats["lead_silence"], stats["loudness_dbfs"]
+    if lead is None:
+        return audio, None
+    silent = lead > MAX_LEAD_SILENCE
+    quiet = level is not None and level < MIN_LOUDNESS_DBFS
+    if not (silent or quiet):
+        return audio, None
+    mastered = master_recording(audio)
+    after = recording_stats(mastered)
+    return mastered, {
+        "trimmed_seconds": round(max(0.0, lead - after["lead_silence"]), 2),
+        "gain_db": (round(after["loudness_dbfs"] - level, 1)
+                    if level is not None and after["loudness_dbfs"] is not None
+                    else 0.0),
+    }
+
+
 def check_recording(audio: bytes) -> float:
     """Refuse anything that is not a usable WAV. Returns its length in seconds."""
     if not audio:
