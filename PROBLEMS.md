@@ -22767,3 +22767,50 @@ on /admin → How names are said. Unchanged by it: an admin's respelling is
 never replaced, and a name Wikidata cannot match to exactly one item still
 gets no answer - which is the likelier cause of the remaining problems
 (surnames alone, nicknames), alongside names that never reached the lexicon.
+
+## 324. Wikipedia's reading belongs to the name it follows (2026-10-27)
+
+The owner (10.27), with screenshots of /admin → How names are said: "Does
+wikipedia need more guard rails? the actual word and wikipedia word are
+completely different" - Dooku = "DOO-koo" (an admin's) beside "Wikipedia
+says tih-RA-nuhs"; A'ja Wilson = "AY-zhuh", Anya Taylor-Joy = "AN-yuh",
+Catherine Zeta-Jones = "ZEE-tuh", Anton Du Beke = "doo BEK", Andoni Iraola =
+"ahn-doh-nee ee-rah-oh-lah sah-gahr-nah", Arcosa = "AR-kohs", all applied
+"from Wikipedia"; Antonio Banderas = "ahn-TOHN-yoh vahn-DEH-rahs".
+
+**Three faults, one cause each.**
+
+1. **The first template in the lead was taken, whoever it was about.**
+   Count Dooku's article reads "also known as Darth Tyranus (/tɪˈrænəs/)";
+   Wikidata's exact match on "Dooku" was right, the article was right, the
+   template was another name's. Arcosa matched an item whose article says
+   "Arkose" (/ˈɑːrkoʊs/, the rock). `from_wikitext(wikitext, name)` now takes
+   a template only when the last clause before it (templates, references and
+   links stripped; a comma, semicolon or full stop starts a clause) holds a
+   word of the name (`says_name`).
+2. **A reading for part of a name, or more than the name, was kept for the
+   whole name.** Wikipedia often gives IPA for only the hard part ("Anya",
+   "Zeta", "Du Beke", "A'ja") or for the full legal name ("Andoni Iraola
+   Sagarna"). The lexicon swaps the whole name for the reading, so the voice
+   would have said "AY-zhuh" for "A'ja Wilson" - dropping "Wilson". A
+   reading must now have one word per word of the name (`fits`), from the
+   article and from Wikidata's P898 alike.
+3. **Spanish β was respelled "v".** An English voice says Banderas with a
+   b; the table now maps β to "b".
+
+**A backstop on replacing.** A model's guess is replaced unasked only when
+Wikipedia's reading is near the name's spelling or near that guess
+(`resembles`, `RESEMBLES` = 0.25 by letters); Irish spellings far from their
+sounds stay replaceable because the model's guess is near Wikipedia's. One
+near neither is kept as "differs" and shown on /admin to take or leave.
+
+**What was already applied.** `prune()` (run at the start of every "Check
+all") withdraws Wikipedia's readings that fail `fits` - no request needed -
+and a re-check that no longer finds a reading for a Wikipedia-sourced entry
+withdraws it, so the next model to meet the name says it again. Dooku's
+admin entry was never changed (an admin's never is); its stale "Wikipedia
+says" note clears on the next forced check.
+
+**Not run from here:** this container cannot reach Wikipedia; the lead
+shapes in `tests/test_admin_page_289.py` are written from the screenshots.
+The owner's step: /admin → How names are said → **Check every name again**.

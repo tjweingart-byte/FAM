@@ -101,7 +101,7 @@ _PHONES = (
     ("b", "b", False), ("d", "d", False), ("f", "f", False), ("h", "h", False),
     ("k", "k", False), ("l", "l", False), ("m", "m", False), ("n", "n", False),
     ("p", "p", False), ("s", "s", False), ("t", "t", False), ("v", "v", False),
-    ("w", "w", False), ("z", "z", False), ("β", "v", False), ("ɣ", "g", False),
+    ("w", "w", False), ("z", "z", False), ("β", "b", False), ("ɣ", "g", False),
     ("c", "k", False), ("q", "k", False), ("ɦ", "h", False),
 )
 _STRESS, _SECONDARY = "ˈ", "ˌ"
@@ -266,34 +266,84 @@ def _first_reading(params: list) -> list:
     return out
 
 
-def from_wikitext(wikitext: str) -> Optional[dict]:
+#: How far back from a pronunciation template its subject is looked for.
+ANCHOR_CHARS = 300
+
+
+def _unmarked(wikitext: str) -> str:
+    """Wikitext as the words a reader sees: templates, references and
+    comments dropped, links as their shown words, bold and italics bare."""
+    text = re.sub(r"<!--.*?-->", " ", wikitext or "", flags=re.S)
+    text = re.sub(r"<ref[^>/]*/>|<ref[^>]*>.*?</ref>", " ", text, flags=re.S)
+    while True:
+        bare = re.sub(r"\{\{[^{}]*\}\}", " ", text)
+        if bare == text:
+            break
+        text = bare
+    text = re.sub(r"\[\[(?:[^\]|]*\|)?([^\]]*)\]\]", r"\1", text)
+    return text.replace("'''", "").replace("''", "")
+
+
+def says_name(before: str, name: str) -> bool:
+    """Whether the words just before a pronunciation template are `name`'s
+    (10.27): a lead says several things ("Count Dooku, also known as Darth
+    Tyranus (/tɪˈrænəs/)"), and a template belongs to the name it follows,
+    not to the article. The phrase read is the last clause with words in it
+    - a comma, semicolon or full stop starts a new one - and it must hold a
+    word of the name."""
+    import wikimedia
+
+    clauses = [c for c in re.split(r"[,;.]", _unmarked(before))
+               if re.search(r"[^\W\d_]", c)]
+    if not clauses:
+        return False
+    said = set(wikimedia.normalise(clauses[-1]).split())
+    words = wikimedia.normalise(name).split()
+    wanted = [w for w in words if len(w) >= 3] or words
+    return any(w in said for w in wanted)
+
+
+def fits(name: str, say: str) -> bool:
+    """Whether a reading says the whole name and only it: one word of
+    respelling per word of the name (10.27). The lexicon swaps the whole
+    name for the reading, so "A'ja Wilson" read as A'ja's "AY-zhuh" would
+    drop "Wilson", and "Andoni Iraola" read as his full "Andoni Iraola
+    Sagarna" would add a word nobody wrote."""
+    return bool(say) and len(name.split()) == len(say.split())
+
+
+def from_wikitext(wikitext: str, name: str = "") -> Optional[dict]:
     """How an article's lead says its subject: `{"say", "ipa", "how"}` from
     the first `{{respell}}`, else `{{IPAc-en}}`, else `{{IPA}}`/`{{IPA-xx}}`;
-    None when it says nothing."""
+    None when it says nothing. Given the `name` asked about, only a template
+    that follows that name (`says_name`) and reads all of it (`fits`) counts."""
     found = {}
     for match in _TEMPLATE.finditer(wikitext or ""):
-        name = match.group(1).strip().lower().replace("_", " ")
+        if name and not says_name(
+                wikitext[max(0, match.start() - ANCHOR_CHARS):match.start()], name):
+            continue
+        kind = match.group(1).strip().lower().replace("_", " ")
         params = match.group(2).split("|")
-        if name == "respell" and "respell" not in found:
+        if kind == "respell" and "respell" not in found:
             say = respell_template(params)
-            if say:
+            if say and (not name or fits(name, say)):
                 found["respell"] = {"say": say, "ipa": "", "how": "Wikipedia's respelling"}
-        elif name in ("ipac-en", "ipac en") and "ipac" not in found:
+        elif kind in ("ipac-en", "ipac en") and "ipac" not in found:
             ipa = "".join(_first_reading(params))
             say = ipa_to_respelling(ipa)
-            if say:
+            if say and (not name or fits(name, say)):
                 found["ipac"] = {"say": say, "ipa": ipa, "how": "Wikipedia's English IPA"}
-        elif (name == "ipa" or name.startswith("ipa-") or name.startswith("ipa ")) \
+        elif (kind == "ipa" or kind.startswith("ipa-") or kind.startswith("ipa ")) \
                 and "ipa" not in found:
             plain = [p.strip() for p in params if p.strip() and "=" not in p]
             # {{IPA|de|ˈʃmɪt}} names its language first; {{IPA-de|ˈʃmɪt}} not.
-            if name == "ipa" and len(plain) > 1 and re.fullmatch(r"[a-z-]{2,8}", plain[0]):
+            if kind == "ipa" and len(plain) > 1 and re.fullmatch(r"[a-z-]{2,8}", plain[0]):
                 lang, plain = plain[0], plain[1:]
             else:
-                lang = name[4:] if len(name) > 4 else ""
+                lang = kind[4:] if len(kind) > 4 else ""
             ipa = plain[0] if plain else ""
             say = ipa_to_respelling(ipa)
-            if say:
+            if say and (not name or fits(name, say)):
                 found["ipa"] = {"say": say, "ipa": ipa,
                                 "how": "Wikipedia's IPA" + (f" ({lang})" if lang else "")}
     for key in ("respell", "ipac", "ipa"):
@@ -340,7 +390,7 @@ def lookup(name: str) -> dict:
             out["title"] = title
             out["url"] = wikimedia.ARTICLE_URL + quote(title.replace(" ", "_"))
             try:
-                said = from_wikitext(_lead(title))
+                said = from_wikitext(_lead(title), name)
             except wikimedia.BackingOff:
                 raise
             except wikimedia.WikimediaError as exc:
@@ -352,7 +402,7 @@ def lookup(name: str) -> dict:
                 value = (((claim.get("mainsnak") or {}).get("datavalue") or {})
                          .get("value"))
                 say = ipa_to_respelling(str(value or ""))
-                if say:
+                if fits(name, say):
                     said = {"say": say, "ipa": str(value), "how": "Wikidata's IPA"}
                     break
         if said:
@@ -383,6 +433,26 @@ def agrees(ours: str, theirs: str) -> bool:
     return a == b or difflib.SequenceMatcher(None, a, b).ratio() >= 0.8
 
 
+#: How alike Wikipedia's reading must be to the name's spelling, or to the
+#: guess it would replace, to replace it unasked (10.27). Irish and other
+#: spellings far from their sounds ("Caoimhe" = "KEE-vuh") fall under it
+#: against the spelling, but a model's guess at them is near Wikipedia's;
+#: an article's other name ("Dooku" read as "tih-RA-nuhs") is near neither.
+RESEMBLES = 0.25
+
+
+def resembles(name: str, say: str, guess: str = "") -> bool:
+    """Whether a reading is plausibly of this name: near its spelling or
+    near the guess it replaces. One that is near neither is only shown on
+    /admin, beside the entry, to take or leave."""
+    theirs = _letters(say)
+    if not theirs:
+        return False
+    return any(difflib.SequenceMatcher(None, mine, theirs).ratio() >= RESEMBLES
+               for mine in (re.sub(r"[^a-z]", "", name.lower()), _letters(guess))
+               if mine)
+
+
 def _stressed(say: str):
     """Which syllable is in capitals, counting across words, or None."""
     sylls = [s for s in re.split(r"[-\s]+", say or "") if s]
@@ -404,10 +474,18 @@ def check(name: str, apply: bool = True) -> dict:
     if result["status"] == FOUND and entry:
         result["status"] = AGREES if agrees(entry["say"], result["say"]) else DIFFERS
         if result["status"] == DIFFERS and apply \
-                and entry["source"] in ("writer", "brief"):
+                and entry["source"] in ("writer", "brief", "wikipedia") \
+                and resembles(name, result["say"], entry["say"]):
             if pronunciation.lexicon().learn([(name, result["say"])], "wikipedia"):
                 result["applied"] = True
                 result["status"] = AGREES
+    elif apply and entry and entry["source"] == "wikipedia" \
+            and result["status"] in (NONE, AMBIGUOUS):
+        # Wikipedia no longer stands behind a reading it gave before the
+        # guards (10.27): it goes, and the next model to meet the name
+        # says it again.
+        if pronunciation.lexicon().remove(name):
+            result["withdrawn"] = True
     if result["status"] == FAILED:
         # Not kept (review): a failure - a 429's back-off above all - says
         # nothing about the name, and a kept one would skip it for a month.
@@ -483,10 +561,33 @@ def check_all(force: bool = False) -> int:
     import voice_bank
 
     try:
-        names = [r["name"] for r in voice_bank.bank().pronunciations()]
+        rows = voice_bank.bank().pronunciations()
     except Exception:  # noqa: BLE001
         return 0
-    return queue(names, force=force)
+    prune(rows)
+    return queue([r["name"] for r in rows], force=force)
+
+
+def prune(rows: Optional[list] = None) -> list:
+    """Withdraw Wikipedia's readings that do not say the whole name (10.27,
+    `fits`) - kept before that guard existed. No request is made; returns
+    the names withdrawn. Never raises."""
+    import pronunciation
+    import voice_bank
+
+    gone = []
+    try:
+        rows = voice_bank.bank().pronunciations() if rows is None else rows
+        for row in rows:
+            if row["source"] == "wikipedia" and not fits(row["name"], row["say"]):
+                if pronunciation.lexicon().remove(row["name"]):
+                    gone.append(row["name"])
+    except Exception as exc:  # noqa: BLE001
+        log.warning("wiki_pronounce: could not prune: %s", exc)
+    if gone:
+        log.info("wiki_pronounce: withdrew %d reading(s) that did not fit "
+                 "their names: %s", len(gone), ", ".join(gone))
+    return gone
 
 
 def _finish() -> None:
