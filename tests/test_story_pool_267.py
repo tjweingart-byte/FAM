@@ -244,7 +244,7 @@ def parallel(monkeypatch):
              "outlet_error": None}
 
     def search(query, num_results, recency_days=0, include_domains=(),
-               objective="", extra_queries=()):
+               objective="", extra_queries=(), hints=None):
         if include_domains:
             calls["outlets"] += 1
             calls["hosts"] = tuple(include_domains)

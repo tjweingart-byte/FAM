@@ -366,7 +366,7 @@ def parallel(monkeypatch):
                          _result("https://apnews.com/b-2")], "delay": 0.2}
 
     def search(query, num_results, recency_days=0, include_domains=(),
-               objective="", extra_queries=()):
+               objective="", extra_queries=(), hints=None):
         time.sleep(state["delay"])
         return list(state["results"]), 0.001
 
