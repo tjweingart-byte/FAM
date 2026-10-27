@@ -22894,3 +22894,51 @@ with the model stubbed.
   sell recordings by API. Best for sports names, which dominate the list.
 - **Two models.** Ask a second model for each respelling and flag
   disagreement. Cheap, but their mistakes are correlated.
+
+## 326. Go Deeper on LinkedIn finds its own posts (2026-10-27)
+
+The owner (10.27), after §322: "It is not clear how to use this LinkedIn
+tool. I want it to be more automated in the sense that the X tool goes out
+and scrapes the platform then comes up with recommended posts."
+
+**What X has that LinkedIn does not** is a search API: `/admin/x` reads X's
+own recent search with a bearer token. LinkedIn sells nothing like it, and
+its User Agreement forbids scraping (the vendors that scraped it - Proxycurl
+the best known - were sued off the market). So the automation goes through
+the one door FAM already has: the **web search its research pays for**.
+Parallel and Perplexity both index public LinkedIn posts, and both take a
+domain filter. **Find posts** (`linkedin_posts.run`) does, per press:
+
+1. The same seeds as X (`x_threads.seeds`: the Trending edition, then the
+   most played kept episodes), up to `LINKEDIN_SEEDS` (10).
+2. One search each through Parallel, else Perplexity (`research._search_*`),
+   `include_domains=("linkedin.com",)`, after-date `LINKEDIN_WINDOW_DAYS` (7),
+   counted on the Outside service requests page under the vendor's name.
+3. `posts_from` keeps results that are posts (`parse_url`: profiles, pages,
+   jobs and articles drop out), the author from how the vendor titled it
+   ("Jane Doe on LinkedIn: ...", "...'s Post", "| Jane Doe | 12 comments").
+4. `_shortlist`: the §322 screen (teaching, not announcing), one author a
+   week, nothing already on the page; every post ranked against every kept
+   episode (`catalogue` embeds each episode once a run, `rank` per post);
+   **a found post that no episode is the subject of is not a card**, since
+   nothing could be linked. Best match first, one per author, eight at most.
+5. One drafting call per card, as before; the card says "found searching
+   LinkedIn for <episode>" and that its words may be the search's excerpt.
+
+Capped per press and per day (`LINKEDIN_DAILY_SEARCHES`, 40, counted in a
+new `runs` table written before the first search and after each, as X's
+is); a button, never a timer ([sweep-on-demand]); staging has no search key,
+so the page says it cannot search ([zero-spend-staging]). Searching costs
+about $0.001-0.005 a search plus the drafting, shown together on the page.
+
+**The page says how to use it**: three numbered steps at the top, Find posts
+as the one button, and pasting (with the search links) folded under "Found a
+post yourself? Paste it". It polls only while a search runs.
+
+**Still true:** nothing here requests linkedin.com, FAM holds no LinkedIn
+credential, and a person pastes and posts every comment. **Unverified here:**
+no search key in this container, so no live run has been read - how much of
+a post the vendors' excerpts carry, and how many of a week's posts they have
+indexed, are the first things to look at after the first press. If the
+excerpts prove too thin to draft from, the card already says to open the
+post first.

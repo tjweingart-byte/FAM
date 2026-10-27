@@ -103,12 +103,16 @@ def test_search_links_are_linkedins_own_search_from_fams_episodes():
     assert link["title"] == OTHER["title"]
 
 
-def test_nothing_here_reads_or_writes_linkedin():
-    """[no-social-posting]: no request leaves for LinkedIn, no credential."""
+def test_nothing_here_fetches_linkedin_or_holds_its_credential():
+    """[no-social-posting], [linkedin]: the module makes no web request of
+    its own - "Find posts" goes through the research vendors' search
+    (`research._search_*`), restricted to linkedin.com - and holds no
+    LinkedIn credential."""
     source = (ROOT / "linkedin_posts.py").read_text()
-    for forbidden in ("httpx", "requests", "urlopen", "oauth", "LINKEDIN_TOKEN",
-                      "credentials.active(\"LINKEDIN"):
+    for forbidden in ("import httpx", "import requests", "urlopen", "oauth",
+                      "LINKEDIN_TOKEN", "credentials.active(\"LINKEDIN"):
         assert forbidden not in source
+    assert "research._search_parallel" in source and "research._search_perplexity" in source
 
 
 # --- choosing ---------------------------------------------------------------------
@@ -460,3 +464,167 @@ def test_the_page_does_not_create_the_store(client):
 
 def test_the_admin_menu_links_the_page():
     assert 'href="/admin/linkedin"' in (ROOT / "admin_ui" / "tracker.html").read_text()
+
+
+# --- Find posts: the search run (§326) --------------------------------------------------
+
+
+class _Result:
+    def __init__(self, url, title="", text="", date="2026-10-26"):
+        self.url, self.title, self.published_date = url, title, date
+        self.highlights = [text] if text else []
+
+
+def _post_url(n, slug="jane-doe-4b2a1c"):
+    return f"https://www.linkedin.com/posts/{slug}_rates-activity-72512345678901{n:05d}-AbCd"
+
+
+def test_search_results_become_posts_and_the_rest_is_dropped():
+    found = L.posts_from([
+        _Result(_post_url(1), "Jane Doe on LinkedIn: Here's how the Fed decides", TEACHING),
+        _Result(_post_url(1), "duplicate", TEACHING),
+        _Result("https://www.linkedin.com/in/jane-doe/", "Jane Doe - Economist"),
+        _Result("https://www.linkedin.com/pulse/some-article", "An article"),
+        _Result("https://www.linkedin.com/jobs/view/123", "A job"),
+    ])
+    assert len(found) == 1
+    assert found[0]["author_name"] == "Jane Doe" and found[0]["text"] == TEACHING
+
+
+@pytest.mark.parametrize("title, name", [
+    ("Jane Doe on LinkedIn: Rates explained", "Jane Doe"),
+    ("Sam Lee's Post - LinkedIn", "Sam Lee"),
+    ("Rates, explained | Ana Ruiz | 14 comments", "Ana Ruiz"),
+    ("Something with no name in it", ""),
+])
+def test_the_author_is_read_from_how_the_search_titled_the_post(title, name):
+    assert L.author_from_title(title) == name
+
+
+def test_a_search_asks_only_linkedin_and_is_counted(monkeypatch):
+    import provider_usage
+    import research
+
+    asked, counted = [], []
+    monkeypatch.setattr(research, "backend_available", lambda name: name == "parallel")
+    monkeypatch.setattr(research, "_search_parallel",
+                        lambda *a, **k: asked.append(a) or ([], 0.005))
+    monkeypatch.setattr(provider_usage, "record", lambda name, **k: counted.append(name))
+    seed = x_threads.Seed("k", "q?", "How the Fed Decides", 3, ("Federal Reserve",), "cached")
+    results, dollars = asyncio.run(L.search(seed, recency_days=7))
+    query, n, days, domains, objective = asked[0]
+    assert domains == ("linkedin.com",) and days == 7 and "Federal Reserve" in query
+    assert "How the Fed Decides" in objective and dollars == 0.005
+    assert counted == ["parallel"]
+
+
+def _searcher(results_by_title, calls=None):
+    async def searcher(seed, *, recency_days):
+        if calls is not None:
+            calls.append((seed.title, recency_days))
+        return results_by_title.get(seed.title, []), 0.005
+    return searcher
+
+
+def _run(cache, searcher, now=NOW, **kw):
+    return asyncio.run(L.run(cache, now=now, searcher=searcher, drafter=_drafter(), **kw))
+
+
+PROMO = ("Thrilled to announce our new Federal Reserve interest rates webinar! "
+         "Register now, seats are limited, and here's how to join the session.")
+
+
+def test_a_run_keeps_posts_that_teach_with_an_episode_one_per_author():
+    cache = FakeCache([EPISODE, OTHER])
+    results = {EPISODE["title"]: [
+        _Result(_post_url(1), "Jane Doe on LinkedIn: rates", TEACHING),
+        _Result(_post_url(2), "Jane Doe on LinkedIn: more", TEACHING + "\nAnd more."),
+        _Result(_post_url(3, "sam-lee"), "Sam Lee on LinkedIn: webinar", PROMO),
+        _Result(_post_url(4, "ana-ruiz"), "Ana Ruiz on LinkedIn: lake",
+                "Spent the weekend at the lake with the family, the weather was lovely "
+                "and everyone had a good time. Back to the office tomorrow."),
+    ]}
+    calls = []
+    report = _run(cache, _searcher(results, calls))
+    assert {t for t, _ in calls} == {EPISODE["title"], OTHER["title"]}
+    assert all(days == 7 for _, days in calls)
+    assert report["searched"] == 2 and report["posts"] == 4 and report["cards"] == 1
+    [card] = L.store().all()
+    assert card["origin"] == L.FOUND and card["author_name"] == "Jane Doe"
+    assert card["episode"]["key"] == "k-rates" and card["draft"]
+    assert card["reason"].startswith(f"found searching LinkedIn for “{EPISODE['title']}”")
+    assert L.store().last_run()["cards"] == 1
+    assert L.health()["searches_today"] == 2
+
+
+def test_a_post_no_episode_is_the_subject_of_is_not_a_card():
+    results = {OTHER["title"]: [_Result(_post_url(1), "Jane Doe on LinkedIn: rates", TEACHING)]}
+    report = _run(FakeCache([OTHER]), _searcher(results))
+    assert report["posts"] == 1 and report["cards"] == 0 and L.store().all() == []
+
+
+def test_a_post_already_on_the_page_is_not_found_again():
+    _add()
+    results = {EPISODE["title"]: [_Result(_post_url(0).replace(
+        "7251234567890100000", "7251234567890123456"), "Jane Doe on LinkedIn", TEACHING)]}
+    report = _run(FakeCache([EPISODE]), _searcher(results))
+    assert report["cards"] == 0 and len(L.store().all()) == 1
+
+
+def test_a_failed_search_is_reported_and_the_run_goes_on():
+    async def searcher(seed, *, recency_days):
+        if seed.key == "k-eagles":
+            raise RuntimeError("HTTP 429")
+        return [_Result(_post_url(1), "Jane Doe on LinkedIn", TEACHING)], 0.005
+    report = _run(FakeCache([EPISODE, OTHER]), searcher)
+    assert report["cards"] == 1 and "HTTP 429" in report["errors"][0]
+
+
+def test_the_daily_ceiling_stops_a_run(monkeypatch):
+    import dataclasses
+
+    monkeypatch.setattr(L.config, "settings", dataclasses.replace(
+        L.config.settings, linkedin_daily_searches=2))
+    _run(FakeCache([EPISODE, OTHER]), _searcher({}))
+    report = _run(FakeCache([EPISODE, OTHER]), _searcher({}), now=NOW + 60)
+    assert "LINKEDIN_DAILY_SEARCHES" in report["stopped"]
+
+
+def test_without_a_search_key_a_run_says_so(monkeypatch):
+    import research
+
+    monkeypatch.setattr(research, "backend_available", lambda name: False)
+    report = asyncio.run(L.run(FakeCache([EPISODE]), now=NOW))
+    assert "PARALLEL_API_KEY" in report["stopped"]
+    assert L.available()[0] is False
+
+
+def test_nothing_to_search_for_is_said():
+    report = _run(FakeCache([]), _searcher({}))
+    assert "no kept episode" in report["stopped"]
+
+
+def test_the_run_button_is_admin_only_and_refused_in_words_without_a_key(client, monkeypatch):
+    import research
+
+    assert client.post("/api/admin/linkedin/run").status_code == 404
+    monkeypatch.setattr(research, "backend_available", lambda name: False)
+    r = client.post("/api/admin/linkedin/run", headers=ADMIN)
+    assert r.status_code == 409 and "PARALLEL_API_KEY" in _detail(r)
+    body = client.get("/api/admin/linkedin", headers=ADMIN).json()
+    assert body["running"] is False and body["health"]["available"] is False
+
+
+def test_the_run_button_starts_a_search(client, monkeypatch):
+    import app as appmod
+
+    started = []
+
+    async def fake_run(cache):
+        started.append(cache)
+        return {"cards": 0}
+    monkeypatch.setattr(L, "available", lambda: (True, "test"))
+    monkeypatch.setattr(L, "run", fake_run)
+    r = client.post("/api/admin/linkedin/run", headers=ADMIN)
+    assert r.status_code == 200 and r.json() == {"started": True}
+    assert started == [appmod.SCRIPT_CACHE]

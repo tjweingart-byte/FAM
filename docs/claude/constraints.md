@@ -1582,7 +1582,15 @@
 <!-- rule:linkedin -->
 - **Go Deeper on LinkedIn is found and posted by a person** (§322,
   `linkedin_posts.py`, `/admin/linkedin`). A LinkedIn post meant to teach or
-  inform gets a comment linking the kept episode that goes deeper. LinkedIn
+  inform gets a comment linking the kept episode that goes deeper.
+  > **Current:** since §326 code finds them: **Find posts** asks the search
+  > vendor FAM's research already uses (Parallel, else Perplexity),
+  > restricted to linkedin.com, for last week's public posts about the
+  > episodes `/admin/x` seeds from - still never a request to linkedin.com,
+  > never a LinkedIn credential. A button, never a timer; capped per press
+  > (`LINKEDIN_SEEDS`) and per day (`LINKEDIN_DAILY_SEARCHES`); staging has
+  > no search key. Only a post an episode is the subject of becomes a card;
+  > pasting stays for the ones a person finds. LinkedIn
   has no API that reads others' posts and forbids scraping and automated
   comments, so **nothing here reads LinkedIn and FAM holds no LinkedIn
   credential**: the page builds LinkedIn search links from the same episodes

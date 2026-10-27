@@ -11,18 +11,22 @@ approves every comment and posts it from FAM's account, the same shape as
 
 ## Rules that are load-bearing
 
-**A person finds, a person posts; FAM never does** ([no-social-posting]).
+**Code finds, a person posts; FAM never does** ([no-social-posting]).
 LinkedIn has no API that reads other people's posts, and its User Agreement
-forbids scraping and automated comments. So nothing here fetches LinkedIn:
-the page builds *search links* from the episodes FAM already has (a person
-opens them in their own browser), and a person pastes a post they found.
-Approve copies the comment and opens the post; the person pastes and posts.
-FAM holds no LinkedIn credential.
+forbids scraping and automated comments. So nothing here fetches
+linkedin.com and FAM holds no LinkedIn credential. **Find posts** (§326)
+asks the web search FAM's research already pays for (Parallel, else
+Perplexity), restricted to linkedin.com, for public posts from the last
+week - the search vendor's index, not LinkedIn. A person may also paste a
+post. Approve copies the comment and opens the post; the person pastes and
+posts.
 
-**Starts from episodes FAM already has**, like X: the search links are the
-Trending edition's and the most played episodes' names, so a post found
-from one has its episode before it is found. A pasted post is matched
-against every kept episode.
+**Starts from episodes FAM already has**, like X: a run searches for the
+Trending edition's and the most played episodes' names (`x_threads.seeds`),
+so a post found from one has its episode before it is found. Every post is
+ranked against every kept episode, and a found post no episode is the
+subject of is not a card. A run is a button, never a timer
+([sweep-on-demand]), capped per press and per day.
 
 **Teaching, not announcing.** `screen` turns away announcements, hiring
 and promotion, and posts that do not read as teaching; a person may add
@@ -73,6 +77,8 @@ DRAFT_CHARS = 500
 MIN_CHARS = 120
 
 WAITING, APPROVED, SKIPPED = "waiting", "approved", "skipped"
+#: How a card came to be on the page.
+FOUND, PASTED = "found", "pasted"
 STATUSES = (WAITING, APPROVED, SKIPPED)
 
 #: How many kept episodes a card offers: the best, and two to switch to.
@@ -243,12 +249,10 @@ def screen_post(text: str) -> str:
     return ""
 
 
-def episodes_for(cache, text: str, *, limit: int = OFFERED) -> list[dict]:
-    """The kept episodes most about what the post is about, best first, each
-    with its match (0-1): the X page's `match` - the cache's embeddings plus
-    the episode's names - against the newest 200 kept episodes, never an
-    explicit one. A name counts only as a whole word: a post runs to
-    thousands of characters, and "Fed" is inside "federal"."""
+def catalogue(cache) -> list[dict]:
+    """The episodes a post can be matched to: the newest 200 kept, never an
+    explicit one, each with its names and its vector worked out once - a
+    search run matches dozens of posts against the same episodes."""
     import embeddings
 
     rows = []
@@ -256,32 +260,57 @@ def episodes_for(cache, text: str, *, limit: int = OFFERED) -> list[dict]:
         rows = cache.recent(limit=200) if cache is not None else []
     except Exception as exc:  # noqa: BLE001 - a match never raises
         log.warning("linkedin: could not read the cache: %s", exc)
+    out = []
+    for row in rows:
+        if row.get("explicit") or not row.get("query"):
+            continue
+        title = row.get("title") or row["query"]
+        try:
+            vector = embeddings.embed(f"{title}. {row['query']}")
+        except Exception:  # noqa: BLE001
+            vector = None
+        out.append({"key": row["key"], "query": row["query"], "title": title,
+                    "minutes": int(row.get("minutes") or 1),
+                    "plays": int(row.get("plays") or 0),
+                    "names": x_threads.names_for(title, row["query"]),
+                    "vector": vector})
+    return out
+
+
+def rank(episodes: list[dict], text: str, *, limit: int = OFFERED) -> list[dict]:
+    """`episodes` (a `catalogue`) most about what the post is about, best
+    first, each with its match (0-1): the X page's `match` - embeddings 0.6,
+    the episode's names 0.4. A name counts only as a whole word: a post runs
+    to thousands of characters, and "Fed" is inside "federal"."""
+    import embeddings
+
     try:
         post_vector = embeddings.embed(text)
     except Exception:  # noqa: BLE001
         post_vector = None
     low = (text or "").lower()
     scored = []
-    for row in rows:
-        if row.get("explicit") or not row.get("query"):
-            continue
-        title = row.get("title") or row["query"]
-        names = x_threads.names_for(title, row["query"])
+    for e in episodes:
         semantic = 0.0
-        if post_vector is not None:
+        if post_vector is not None and e.get("vector") is not None:
             try:
-                semantic = max(0.0, embeddings.cosine(
-                    post_vector, embeddings.embed(f"{title}. {row['query']}")))
+                semantic = max(0.0, embeddings.cosine(post_vector, e["vector"]))
             except Exception:  # noqa: BLE001
                 semantic = 0.0
+        names = e.get("names") or ()
         named = (sum(1 for n in names if re.search(
             r"(?<!\w)" + re.escape(n.lower()) + r"(?!\w)", low)) / len(names)) if names else 0.0
-        score = round(min(1.0, 0.6 * semantic + 0.4 * named), 4)
-        scored.append({"key": row["key"], "query": row["query"], "title": title,
-                       "minutes": int(row.get("minutes") or 1),
-                       "plays": int(row.get("plays") or 0), "match": score})
+        scored.append({"key": e["key"], "query": e["query"], "title": e["title"],
+                       "minutes": e["minutes"], "plays": e["plays"],
+                       "match": round(min(1.0, 0.6 * semantic + 0.4 * named), 4)})
     scored.sort(key=lambda e: (-e["match"], -e["plays"]))
     return scored[:limit]
+
+
+def episodes_for(cache, text: str, *, limit: int = OFFERED) -> list[dict]:
+    """The kept episodes most about a post, best first (`rank` over the
+    cache's `catalogue`)."""
+    return rank(catalogue(cache), text, limit=limit)
 
 
 def linked(episode: Optional[dict]) -> bool:
@@ -435,6 +464,8 @@ class Card:
     question: str = ""
     drafted_by: str = ""
     dollars: float = 0.0        # what drafting this card has cost, every match
+    origin: str = PASTED        # FOUND by a search run, or PASTED by a person
+    found_by: str = ""          # the episode whose search found it
 
     @property
     def episode(self) -> Optional[dict]:
@@ -464,6 +495,8 @@ class Store:
                        question    TEXT NOT NULL DEFAULT '',
                        drafted_by  TEXT NOT NULL DEFAULT '',
                        dollars     REAL NOT NULL DEFAULT 0,
+                       origin      TEXT NOT NULL DEFAULT 'pasted',
+                       found_by    TEXT NOT NULL DEFAULT '',
                        status      TEXT NOT NULL DEFAULT 'waiting',
                        decided_at  REAL NOT NULL DEFAULT 0,
                        posted      TEXT NOT NULL DEFAULT '',
@@ -471,6 +504,15 @@ class Store:
                    )""")
             conn.execute("CREATE INDEX IF NOT EXISTS posts_status"
                          " ON posts(status, added_at)")
+            # One row per "Find posts" run: what it asked, what it cost, and
+            # how the daily search ceiling is counted.
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS runs (
+                       at       REAL NOT NULL,
+                       searches INTEGER NOT NULL DEFAULT 0,
+                       dollars  REAL NOT NULL DEFAULT 0,
+                       report   TEXT NOT NULL DEFAULT '{}'
+                   )""")
 
     def _conn(self) -> sqlite3.Connection:
         conn = getattr(self._local, "conn", None)
@@ -485,29 +527,32 @@ class Store:
         conn = self._conn()
         values = (card.url, card.text, card.author, card.author_name, card.screened,
                   json.dumps(card.episodes), int(card.chosen), card.reason,
-                  card.draft, card.question, card.drafted_by, float(card.dollars))
+                  card.draft, card.question, card.drafted_by, float(card.dollars),
+                  card.origin, card.found_by)
         cur = conn.execute(
             "UPDATE posts SET url = ?, text = ?, author = ?, author_name = ?,"
             " screened = ?, episodes = ?, chosen = ?, reason = ?, draft = ?,"
-            " question = ?, drafted_by = ?, dollars = ? WHERE post_id = ?",
+            " question = ?, drafted_by = ?, dollars = ?, origin = ?, found_by = ?"
+            " WHERE post_id = ?",
             values + (card.post_id,))
         if cur.rowcount == 0:
             conn.execute(
                 "INSERT INTO posts (url, text, author, author_name, screened,"
                 " episodes, chosen, reason, draft, question, drafted_by, dollars,"
-                " post_id, added_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                " origin, found_by, post_id, added_at)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 values + (card.post_id, at))
 
     def card(self, post_id: str) -> Optional[Card]:
         row = self._conn().execute(
             "SELECT post_id, url, text, author, author_name, screened, episodes,"
-            " chosen, reason, draft, question, drafted_by, dollars FROM posts"
-            " WHERE post_id = ?", (post_id,)).fetchone()
+            " chosen, reason, draft, question, drafted_by, dollars, origin, found_by"
+            " FROM posts WHERE post_id = ?", (post_id,)).fetchone()
         if not row:
             return None
         return Card(row[0], row[1], row[2], row[3], row[4], row[5],
                     json.loads(row[6] or "[]"), int(row[7]), row[8], row[9],
-                    row[10], row[11], float(row[12] or 0))
+                    row[10], row[11], float(row[12] or 0), row[13], row[14])
 
     def get(self, post_id: str) -> Optional[dict]:
         rows = self.all(post_id=post_id)
@@ -516,7 +561,8 @@ class Store:
     def all(self, status: str = "", post_id: str = "", limit: int = 100) -> list[dict]:
         sql = ("SELECT post_id, added_at, url, text, author, author_name, screened,"
                " episodes, chosen, reason, draft, question, drafted_by, status,"
-               " decided_at, posted, share_url, dollars FROM posts WHERE 1=1")
+               " decided_at, posted, share_url, dollars, origin, found_by"
+               " FROM posts WHERE 1=1")
         args: list = []
         if status:
             sql += " AND status = ?"
@@ -541,7 +587,7 @@ class Store:
                 "linked": linked(episode), "reason": r[9], "draft": r[10],
                 "question": r[11], "drafted_by": r[12], "status": r[13],
                 "decided_at": r[14], "posted": r[15], "share_url": r[16],
-                "dollars": float(r[17] or 0)})
+                "dollars": float(r[17] or 0), "origin": r[18], "found_by": r[19]})
         return out
 
     def decide(self, post_id: str, status: str, at: float, *, posted: str = "",
@@ -594,11 +640,46 @@ class Store:
         cur = self._conn().execute(
             "DELETE FROM posts WHERE added_at < ? AND NOT (status = ? AND decided_at >= ?)",
             (cutoff, APPROVED, cutoff))
+        self._conn().execute("DELETE FROM runs WHERE at < ?", (now - 30 * 86400,))
         return cur.rowcount
 
     def dollars(self) -> float:
-        row = self._conn().execute("SELECT COALESCE(SUM(dollars), 0) FROM posts").fetchone()
-        return round(float(row[0] or 0), 4)
+        """Drafting on the cards kept, plus every run's searching."""
+        drafted = self._conn().execute(
+            "SELECT COALESCE(SUM(dollars), 0) FROM posts").fetchone()[0]
+        searched = self._conn().execute(
+            "SELECT COALESCE(SUM(dollars), 0) FROM runs").fetchone()[0]
+        return round(float(drafted or 0) + float(searched or 0), 4)
+
+    def known(self) -> set:
+        return {r[0] for r in self._conn().execute("SELECT post_id FROM posts")}
+
+    # -- runs
+
+    def record_run(self, at: float, searches: int, dollars: float, report: dict) -> None:
+        """Write a run's row, or rewrite it: written before its first search
+        and after each, so what was searched is counted even when the run
+        dies before it finishes (as `/admin/x` does)."""
+        cur = self._conn().execute(
+            "UPDATE runs SET searches = ?, dollars = ?, report = ? WHERE at = ?",
+            (int(searches), float(dollars), json.dumps(report), at))
+        if cur.rowcount == 0:
+            self._conn().execute(
+                "INSERT INTO runs (at, searches, dollars, report) VALUES (?, ?, ?, ?)",
+                (at, int(searches), float(dollars), json.dumps(report)))
+
+    def searches_since(self, since: float) -> int:
+        row = self._conn().execute("SELECT COALESCE(SUM(searches), 0) FROM runs"
+                                   " WHERE at >= ?", (since,)).fetchone()
+        return int(row[0] or 0)
+
+    def last_run(self) -> Optional[dict]:
+        row = self._conn().execute("SELECT at, searches, dollars, report FROM runs"
+                                   " ORDER BY at DESC LIMIT 1").fetchone()
+        if not row:
+            return None
+        return {"at": row[0], "searches": row[1], "dollars": row[2],
+                **json.loads(row[3] or "{}")}
 
     def counts(self) -> dict:
         rows = self._conn().execute(
@@ -708,16 +789,256 @@ async def _match(cache, card: Card, drafter=None) -> None:
     card.dollars = round(card.dollars + float(dollars or 0), 6)
 
 
+# --------------------------------------------------------------------------
+# Finding posts: the web search FAM already uses, never linkedin.com itself
+
+#: The two search vendors FAM's research already pays for, in the order
+#: tried. Both index public LinkedIn posts; neither is LinkedIn.
+BACKENDS = ("parallel", "perplexity")
+#: Cards one run leaves on the page: the X page's day, 3-5 found, 1-2 joined.
+SHORTLIST = 8
+#: Results asked of one search.
+RESULTS_PER_SEARCH = 10
+
+#: How a search vendor titles a LinkedIn post: "Jane Doe on LinkedIn: ...",
+#: "Jane Doe's Post - LinkedIn", or "... | Jane Doe | 12 comments".
+_TITLE_ON = re.compile(r"^(.{2,80}?) on LinkedIn\b")
+_TITLE_POST = re.compile(r"^(.{2,80}?)['’]s Post\b")
+_TITLE_BAR = re.compile(r"\|\s*([^|]{2,80}?)\s*\|\s*\d+\s+comments?", re.I)
+
+
+def backend() -> str:
+    """The vendor a run searches with, or "" when none can be asked."""
+    import research
+
+    for name in BACKENDS:
+        if research.backend_available(name):
+            return name
+    return ""
+
+
+def available() -> tuple[bool, str]:
+    """Whether a run can search, and why not. Cheap; no network."""
+    try:
+        import spend_guard
+
+        if spend_guard.enabled():
+            return False, "this deployment spends nothing (staging), so nothing is searched"
+    except Exception:  # noqa: BLE001
+        pass
+    name = backend()
+    if not name:
+        return False, "neither PARALLEL_API_KEY nor PERPLEXITY_API_KEY is set"
+    return True, f"searches LinkedIn's public posts through {name.title()}"
+
+
+def author_from_title(title: str) -> str:
+    """The poster's name from how a search vendor titled the post, or ""."""
+    title = " ".join(str(title or "").split())
+    for pattern in (_TITLE_ON, _TITLE_POST, _TITLE_BAR):
+        found = pattern.search(title)
+        if found:
+            name = found.group(1).strip(" -|:")
+            if name and len(name.split()) <= 6:
+                return name
+    return ""
+
+
+def objective(seed) -> str:
+    return (f"Recent public LinkedIn posts in which somebody teaches, explains "
+            f"or gives their view on {seed.title} ({', '.join(seed.names)}).")
+
+
+async def search(seed, *, recency_days: int, name: str = "") -> tuple[list, float]:
+    """One search for LinkedIn posts about `seed`: `(results, dollars)`.
+    Restricted to linkedin.com through the vendor's own domain filter.
+    Raises on a refusal - an outage is not a quiet empty result - and is
+    counted on the Outside service requests page either way."""
+    import provider_usage
+    import research
+
+    name = name or backend()
+    query = " ".join(seed.names) + " LinkedIn post"
+
+    def _blocking():
+        if name == "parallel":
+            return research._search_parallel(
+                query, RESULTS_PER_SEARCH, recency_days, ("linkedin.com",),
+                objective(seed))
+        return research._search_perplexity(
+            objective(seed), RESULTS_PER_SEARCH, recency_days, ("linkedin.com",))
+
+    try:
+        results, dollars = await asyncio.to_thread(_blocking)
+    except Exception:
+        provider_usage.record(name, ok=False)
+        raise
+    provider_usage.record(name)
+    return results, float(dollars)
+
+
+def posts_from(results) -> list[dict]:
+    """Search results that are LinkedIn posts, in the fields a card needs:
+    profiles, company pages, jobs and articles are not posts."""
+    out, seen = [], set()
+    for r in results or []:
+        try:
+            post_id, clean, slug = parse_url(getattr(r, "url", ""))
+        except NotAPost:
+            continue
+        if post_id in seen:
+            continue
+        seen.add(post_id)
+        title = str(getattr(r, "title", "") or "")
+        text = "\n".join(str(h) for h in (getattr(r, "highlights", None) or []) if h)
+        out.append({"post_id": post_id, "url": clean, "slug": slug,
+                    "author_name": author_from_title(title) or name_from_slug(slug),
+                    "text": (text or title).strip(),
+                    "published": str(getattr(r, "published_date", "") or "")})
+    return out
+
+
+def _day_start(now: float) -> float:
+    return now - (now % 86400)
+
+
+async def run(cache, *, now: Optional[float] = None, searcher=None,
+              drafter=None, held: Optional[Store] = None) -> dict:
+    """Find, screen, rank and draft; leave the cards on the page.
+
+    Starts from the episodes FAM already has (`x_threads.seeds`, the same
+    the X page looks for), searches for public LinkedIn posts about each,
+    and keeps the best few that teach something an episode goes deeper on.
+    Returns the run's report, which is also stored and shown: a run that
+    found nothing says what it asked and why nothing qualified
+    ([failures-visible]).
+    """
+    now = time.time() if now is None else now
+    held = held or await asyncio.to_thread(store)
+    await asyncio.to_thread(held.prune, now)
+    settings = config.settings
+    report: dict = {"seeds": [], "searched": 0, "results": 0, "posts": 0,
+                    "screened_out": 0, "cards": 0, "errors": [], "backend": ""}
+    if searcher is None:
+        ok, why = available()
+        if not ok:
+            report["stopped"] = why
+            await asyncio.to_thread(held.record_run, now, 0, 0.0, report)
+            return report
+        report["backend"] = backend()
+        searcher = search
+    used = await asyncio.to_thread(held.searches_since, _day_start(now))
+    room = min(settings.linkedin_seeds, settings.linkedin_daily_searches - used)
+    if room < 1:
+        report["stopped"] = ("today's search ceiling (LINKEDIN_DAILY_SEARCHES) "
+                             "is used up")
+        await asyncio.to_thread(held.record_run, now, 0, 0.0, report)
+        return report
+    chosen = await asyncio.to_thread(lambda: x_threads.seeds(
+        cache, trending=x_threads.trending_now(), limit=room))
+    report["seeds"] = [{"title": s.title, "names": list(s.names), "origin": s.origin}
+                       for s in chosen]
+    if not chosen:
+        report["stopped"] = ("no kept episode has a name to search for: write "
+                             "the Trending edition or play some episodes first")
+        await asyncio.to_thread(held.record_run, now, 0, 0.0, report)
+        return report
+    searched, dollars, found = 0, 0.0, []
+    await asyncio.to_thread(held.record_run, now, 0, 0.0, report)
+    try:
+        for seed in chosen:
+            try:
+                results, cost = await searcher(
+                    seed, recency_days=settings.linkedin_window_days)
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:  # noqa: BLE001 - one seed never ends the run
+                report["errors"].append(f"{seed.title}: {exc}"[:200])
+                continue
+            searched += 1
+            dollars = round(dollars + cost, 6)
+            report["searched"], report["results"] = searched, report["results"] + len(results)
+            # Counted the moment it is spent ([failures-visible]).
+            await asyncio.to_thread(held.record_run, now, searched, dollars, report)
+            found.extend((p, seed) for p in posts_from(results))
+        picked = await asyncio.to_thread(_shortlist, cache, held, found, now)
+        report["posts"] = len({p["post_id"] for p, _ in found})
+        report["screened_out"] = max(0, report["posts"] - len(picked))
+        for card in picked:
+            card.draft, card.question, card.drafted_by, cost = await (drafter or draft)(
+                card.text, card.episode)
+            card.dollars = round(float(cost or 0), 6)
+            await asyncio.to_thread(held.put, card, now)
+            report["cards"] += 1
+    except asyncio.CancelledError:
+        report["stopped"] = "the run was stopped before it finished"
+        raise
+    except Exception as exc:  # noqa: BLE001 - said on the page, then raised
+        report["stopped"] = f"the run failed: {type(exc).__name__}: {exc}"[:300]
+        raise
+    finally:
+        await asyncio.to_thread(held.record_run, now, searched, dollars, report)
+    return report
+
+
+def _shortlist(cache, held: Store, found: list, now: float) -> list[Card]:
+    """Screen and rank what a run found: one card per author, best first.
+    The episode a post was found from is not assumed to be its match - each
+    post is ranked against every kept episode, and one that no episode is
+    the subject of is not a card (a found post with nothing to link is not
+    worth a person's minute; a pasted one is, so it keeps its card)."""
+    known = held.known()
+    episodes = catalogue(cache)
+    best: dict = {}
+    for post, seed in found:
+        if post["post_id"] in known or post["post_id"] in best:
+            continue
+        if screen_post(post["text"]):
+            continue
+        author = author_key(post["slug"], post["author_name"])
+        if not author or held.recent_author(author, now - 7 * 86400,
+                                            name=post["author_name"]):
+            continue
+        if held.find_text(post["text"]) is not None:
+            continue
+        offered = rank(episodes, post["text"])
+        if not offered or not linked(offered[0]):
+            continue
+        card = Card(post["post_id"], post["url"], post["text"][:6000], author,
+                    post["author_name"], "", offered, 0, origin=FOUND,
+                    found_by=seed.title)
+        card.reason = (f"found searching LinkedIn for “{seed.title}”"
+                       + (f", posted {post['published']}" if post["published"] else "")
+                       + "; " + reason(card.text, card.episode, ""))
+        best[post["post_id"]] = (offered[0]["match"], card)
+    out, authors = [], set()
+    for _, card in sorted(best.values(), key=lambda pair: -pair[0]):
+        if card.author in authors:
+            continue
+        authors.add(card.author)
+        out.append(card)
+        if len(out) >= SHORTLIST:
+            break
+    return out
+
+
 def health() -> dict:
-    out = {"available": True,
-           "detail": "nothing here reads LinkedIn: a person finds and pastes posts"}
+    ok, why = available()
+    settings = config.settings
+    out = {"available": ok, "detail": why,
+           "daily_searches": settings.linkedin_daily_searches,
+           "seeds": settings.linkedin_seeds,
+           "window_days": settings.linkedin_window_days}
     if not _exists():
         out["counts"], out["dollars"] = {}, 0.0
+        out["searches_today"], out["last_run"] = 0, None
         return out
     try:
         held = store()
         out["counts"] = held.counts()
         out["dollars"] = held.dollars()
+        out["searches_today"] = held.searches_since(_day_start(time.time()))
+        out["last_run"] = held.last_run()
     except Exception as exc:  # noqa: BLE001
         out["error"] = str(exc)
     return out
