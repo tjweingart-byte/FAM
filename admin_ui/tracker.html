@@ -531,6 +531,7 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
       <div class="wikibar">
         <div><b>Checked against Wikipedia</b><span id="wikiState">Every name a model adds is looked up on Wikipedia in the background; where Wikipedia says it differently, Wikipedia's version replaces the model's. Yours are never replaced - Wikipedia's reading is shown beside them.</span></div>
         <button class="go" id="wikiAll" type="button">Check all with Wikipedia</button>
+        <button class="ghost" id="wikiAgain" type="button" title="Asks Wikipedia about every name again, including ones it answered in the last month">Check every name again</button>
       </div>
       <form class="login" id="sayForm" style="margin-top:6px">
         <input id="sayName" placeholder="Name as spelled, e.g. Sagapolutele" maxlength="60" required>
@@ -1581,7 +1582,7 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
   }
   function drawWiki(st) {
     st = st || {};
-    $("wikiAll").disabled = !st.enabled || !!st.running;
+    $("wikiAll").disabled = $("wikiAgain").disabled = !st.enabled || !!st.running;
     var counts = { differs: 0, unchecked: 0 };
     sayRows.forEach(function (x) { if (!x.wikipedia) counts.unchecked++; else if (x.wikipedia.status === "differs") counts.differs++; });
     var f = $("sayFilter").children;
@@ -1605,13 +1606,15 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
     Array.prototype.forEach.call($("sayFilter").children, function (c) { c.classList.toggle("on", c === b); });
     drawSay();
   });
-  $("wikiAll").addEventListener("click", function () {
-    $("wikiAll").disabled = true;
-    api("/api/admin/pronunciations/wikipedia", {}).then(function (r) {
-      $("wikiState").textContent = r.queued ? "Checking " + r.queued + " names with Wikipedia…" : "Every name was checked in the last month; nothing to ask.";
+  function checkWiki(force) {
+    $("wikiAll").disabled = $("wikiAgain").disabled = true;
+    api("/api/admin/pronunciations/wikipedia" + (force ? "?force=true" : ""), {}).then(function (r) {
+      $("wikiState").textContent = r.queued ? "Checking " + r.queued + " names with Wikipedia" + (force ? " again" : "") + "…" : force ? "No names on file to ask about." : "Every name was checked in the last month; nothing to ask - use Check every name again.";
       setTimeout(loadSay, 1500);
-    }).catch(function (e) { $("wikiState").textContent = e.message; $("wikiAll").disabled = false; });
-  });
+    }).catch(function (e) { $("wikiState").textContent = e.message; $("wikiAll").disabled = $("wikiAgain").disabled = false; });
+  }
+  $("wikiAll").addEventListener("click", function () { checkWiki(false); });
+  $("wikiAgain").addEventListener("click", function () { checkWiki(true); });
   $("sayWiki").addEventListener("click", function () {
     var name = $("sayName").value.trim();
     if (!name) { $("sayName").focus(); return; }

@@ -446,11 +446,11 @@ def _due(names: Iterable[str], force: bool = False) -> list:
     except Exception:  # noqa: BLE001
         checked = {}
     cutoff = time.time() - RECHECK_DAYS * 86400
-    out = []
-    for name in dict.fromkeys(n for n in names if n):
-        if force or checked.get(name, 0) < cutoff:
-            out.append(name)
-    return out
+    out = [n for n in dict.fromkeys(n for n in names if n)
+           if force or checked.get(n, 0) < cutoff]
+    # Never asked first, then the longest since (10.27): a forced run over a
+    # list longer than `MAX_PER_RUN` goes on where the last one stopped.
+    return sorted(out, key=lambda n: checked.get(n, 0))
 
 
 def queue(names: Iterable[str], force: bool = False) -> int:

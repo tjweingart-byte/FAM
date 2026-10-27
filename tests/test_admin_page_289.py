@@ -540,3 +540,19 @@ def test_the_heard_id_wins_over_a_newer_episode(client, monkeypatch):
           .json()["reports"] if r["id"] == rid][0]["episode"]
     assert ep["transcript"] == ["The Eagles won.", "It was close."]
     assert ep["title"] == "Eagles edge the Giants"
+
+
+def test_a_forced_check_asks_the_longest_unasked_first(lexicon):
+    """10.27: "Check every name again" goes on where the last run stopped
+    when the list is longer than one run."""
+    for name in ("Mbappe", "Giannis"):
+        lexicon.keep_pronunciation_check({"name": name, "status": wiki_pronounce.NONE})
+        time.sleep(0.01)
+    assert wiki_pronounce._due(["Mbappe", "Giannis", "Jokic"]) == ["Jokic"]
+    assert wiki_pronounce._due(["Giannis", "Jokic", "Mbappe"], force=True) == [
+        "Jokic", "Mbappe", "Giannis"]
+
+
+def test_the_admin_page_can_force_a_full_recheck():
+    page = (pathlib.Path(__file__).resolve().parent.parent / "admin_ui" / "tracker.html").read_text()
+    assert 'id="wikiAgain"' in page and "?force=true" in page
