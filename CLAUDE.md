@@ -75,7 +75,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   restores old latency. No preamble to disguise a wait; no text before its
   material. [spec-amended-for-search]
 - A slow answer is a scheduling choice (starting earlier: 18.30s → 0.12s). [slow-is-scheduling]
-- Prefetch-on-typing-pause removed at the user's ask; never re-add. [no-typing-prefetch]
+- Prefetch-on-typing-pause was removed at the user's request; do not re-add. [no-typing-prefetch]
 - myFAM drives prefetch (§83, §105): drawing the page schedules a cycle, never
   awaited, warming **briefs**; warming whole scripts stays opt-in. [myfam-warms-briefs]
 - **9.30 interface packet** (§181): sign-up rotates today's top three kept
@@ -539,7 +539,7 @@ Every change ends the same way, without being asked [ship-loop]:
   `.github/workflows/ci.yml` by hand. [landing-smoke]
 - CI runs Python 3.12, this container 3.11 - reproduce in 3.12 first. [ci-python]
 - **Check CI on `Main` before starting work** (`mcp__github__actions_list` on `ci.yml`). [ci-green-first]
-- Fonts differ here and in CI; suspect them when layouts disagree. [fonts-env]
+- Fonts differ here and in CI; suspect them on layout disagreements. [fonts-env]
 - No API key here: writing quality and latency are unverified. [no-api-key]
 - `tools/shots.py`, `stall_probe.py`, `compare_search.py` exist because claims were wrong without them. [shots-probes]
 - Deleting CSS broke the app twice: use `tools/check_css.py` and `tools/shots.py`. [css-deletion]

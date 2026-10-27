@@ -7,6 +7,7 @@ drafted reply. A person approves and posts in X; FAM never posts.
 from __future__ import annotations
 
 import asyncio
+import calendar
 import os
 import pathlib
 import re
@@ -94,8 +95,7 @@ def test_xs_response_is_read_with_its_authors():
     [post] = X.parse(payload)
     assert (post.id, post.author, post.followers, post.replies) == ("77", "amy", 900, 2)
     # Read as UTC, whatever the machine's zone.
-    assert post.created_at == 1_800_000_000.0 + 2 * 86400 * 0 + (
-        __import__("calendar").timegm((2027, 1, 15, 8, 0, 0)) - 1_800_000_000)
+    assert post.created_at == calendar.timegm((2027, 1, 15, 8, 0, 0))
     assert post.url == "https://x.com/amy/status/77"
 
 

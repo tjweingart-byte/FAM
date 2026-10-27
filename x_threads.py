@@ -268,6 +268,8 @@ def seeds(cache, *, trending: Iterable = (), limit: int = 10) -> list[Seed]:
     `trending` is `[(story, episode_key)]` from the current edition; the rest
     is filled from the most played cached episodes. Only episodes that are
     kept (`cache.recent`) qualify: a card must be able to play what it links.
+    One that swears (the E before its title) is not offered under a
+    stranger's post, wherever it came from.
     """
     out: list[Seed] = []
     seen: set = set()
@@ -284,7 +286,7 @@ def seeds(cache, *, trending: Iterable = (), limit: int = 10) -> list[Seed]:
             log.warning("x threads: could not read the cache: %s", exc)
     for key, story in wanted.items():
         row = entries.get(key)
-        if not row:
+        if not row or row.get("explicit"):
             continue
         names = tuple(getattr(story, "anchors", ()) or ()) or names_for(
             getattr(story, "title", "") or row.get("title", ""), row["query"])
