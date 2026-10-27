@@ -22894,3 +22894,78 @@ with the model stubbed.
   sell recordings by API. Best for sports names, which dominate the list.
 - **Two models.** Ask a second model for each respelling and flag
   disagreement. Cheap, but their mistakes are correlated.
+
+## 326. Every X card is about the post it answers (2026-10-27)
+
+The owner (10.27), after the first live searches on `/admin/x`: "Some of the
+X posts that it was generating are not relevant to the tweet. Make sure all
+the recommended posts, comments, and episodes are relevant to the tweet that
+it is responding to."
+
+**Why they were not.** Three causes, each a place §321 trusted a name too
+far. The search asked X for any post naming the episode's names, so a
+one-word name ("Eagles") brought back birds as readily as the team. Nothing
+after the search required the post to be *about* the episode: a post below
+`LINK_FLOOR` was still carded, as "a better question", whatever it was
+about. And the drafting call was handed the episode and wrote to it, with no
+step that asked whether the post and the episode were the same subject.
+Production also scores with the hashing embedder (no ONNX model is
+installed), which is lexical, so "match" was mostly the names again.
+
+**Now, three gates, cheapest first.**
+
+- *The search.* A name of two or more words ("Jalen Hurts") is asked for on
+  its own; a one-word name only beside one of the episode's own subject
+  words (`context_words`: the longest content words of its question and
+  title that are not a name) - `("Jalen Hurts" OR (Eagles (defence OR
+  starters ...)))`. Fewer posts come back, and every one costs a read.
+- *Code* (`on_subject`, before anything is drafted). The post must name
+  what the episode names; a one-word name must come with one of the
+  episode's subject words besides. A post that fails gets no card at all -
+  "Would you trade a car for a walkable city?" under an Eagles episode is
+  no longer a question-only card.
+- *The model* (`judge_and_draft`, the same single drafting call). It now
+  answers `same_subject` (the same team, person, company, event or question,
+  not a shared word; unsure is no), `episode_fits` (would someone reading
+  this exact post want this exact episode), `other_same_subject` for a
+  both-sides pair, and a one-sentence `why`, before the reply - which is
+  told to answer what the post says, not the episode's angle. Not the same
+  subject: the card is dropped and named in the run's report ("set aside as
+  not about the episode" on the page). Same subject but the episode does not
+  answer it: the card stays as a question with no link. The `why` is shown
+  on every card ("Checked: ..."). Since the gate drops cards, a run drafts
+  down a ranking of twice `SHORTLIST` until it has eight that pass, so a
+  search costs at most sixteen short calls.
+
+With no model key only the code gates run, and the card says it was checked
+in code. `linkedin_posts.py` uses `x_threads.match`, `LINK_FLOOR`, `seeds`,
+`names_for` and `AVOID`; none of them changed.
+
+**Unverified here:** no X token or Claude key in this container, so the
+judgement has been exercised only through test stand-ins; the first live
+search after the deploy is the check. The ONNX embedder would make the
+match score semantic rather than lexical (`tools/install_embed.sh`).
+
+**The owner's cards (10.27), and the review before merging.** The two cards
+sent back - Manchester United posts under a Trending episode on a diverted
+*United* flight - are tests now: X is never asked for "United" alone, and a
+post sharing only that word is dropped before anything is drafted. The
+review of this branch added: a post the model sets aside is kept as
+`set_aside` (never on the page) so the next search neither bills nor judges
+it again; words that name no subject (`GENERIC`: "happened", "today",
+"latest" ...) count neither as context in the search nor as overlap in
+`on_subject`; a one-word name with no subject words left is not searched at
+all; and a card checked only in code no longer reads "Checked: checked in
+code".
+A second independent review found nothing blocking; fixed from it: a failed
+relevance call (an error, unreadable JSON) no longer leaves every card
+linked - the episode is not linked on the code's word alone, and a parsed
+judgement stands when only the words are missing; a Trending story's two
+one-word anchors together ("Trump", "Zelensky") count as on subject and are
+searched as a pair; names match as whole words ("Ford" is not in "afford");
+a long post is read whole (`note_tweet`); a set-aside post cannot be
+approved or reopened by its id; a reply written to connect two posts is
+replaced by the code's when the second post is judged off subject; an
+episode with nothing specific to search is listed under `unsearchable`,
+takes no reads and is not a failed search; and a word the check ignores is
+never asked of X.

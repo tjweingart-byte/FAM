@@ -63,7 +63,9 @@ def test_a_title_names_what_to_search_for():
 
 def test_the_search_asks_for_conversations_being_started():
     q = X.x_query(["Jalen Hurts", "Eagles"])
-    assert q.startswith('("Jalen Hurts" OR Eagles)')
+    # With no subject words to go beside it, "Eagles" alone is not asked for.
+    assert q.startswith('"Jalen Hurts" lang:en')
+    assert X.x_query(["Eagles"]) == ""
     for part in ("lang:en", "-is:retweet", "-is:reply", "-is:nullcast"):
         assert part in q
     assert X.x_query([]) == ""
@@ -128,11 +130,103 @@ def test_a_good_thread_passes_and_says_why_in_words():
     assert 0 < cand.score <= 1
 
 
-def test_without_its_subject_the_reply_carries_no_link():
+def test_a_post_that_is_not_about_the_episode_gets_no_card():
+    """The owner (10.27): every card must be about the post it answers."""
     post = _post(text="Would you trade having a car for a walkable city?")
-    [cand] = X.shortlist([(post, _seed())], NOW, window_hours=6)
-    assert cand.kind == X.QUESTION_ONLY
-    assert "no link" in cand.reason
+    assert X.shortlist([(post, _seed())], NOW, window_hours=6) == []
+
+
+def test_a_shared_word_is_not_a_shared_subject():
+    """Eagles the birds are not the Philadelphia Eagles' defence."""
+    seed = X.Seed("k", "Can the Eagles defence hold up?", "The Eagles defence",
+                  3, ("Eagles",))
+    birds = _post(text="Anyone else seen the bald eagles nesting by the river?")
+    team = _post(text="Does anyone think the Eagles defence survives December?")
+    assert "nothing else" in X.on_subject(birds, seed)
+    assert X.on_subject(team, seed) == ""
+    # A name of two words is specific enough alone.
+    assert X.on_subject(_post(text="Why is Jalen Hurts so calm?"),
+                        X.Seed("k", "q", "t", 1, ("Jalen Hurts",))) == ""
+
+
+def test_man_united_posts_never_answer_a_united_airlines_episode():
+    """The cards the owner sent back (10.27): a Trending episode on a
+    diverted United flight was offered under two Manchester United posts."""
+    seed = X.Seed("k", "Why was a United flight diverted over a threat?",
+                  "United flight diverted over threat", 1, ("United",), "trending")
+    carrick = _post(text="Man United will stick with Michael Carrick despite defeats "
+                         "to Bournemouth and Como. He's expected to lead United against "
+                         "Chelsea on Saturday. United fans, right decision or mistake?")
+    howe = _post(text="MAN UNITED MANAGER UPDATE! Eddie Howe is reportedly a leading "
+                      "candidate to replace Michael Carrick. Would Howe be the right "
+                      "man for United?")
+    flight = _post(text="Anyone know why the United flight got diverted? Real threat?")
+    # X is never asked for "United" alone...
+    assert seed.search().startswith("(United (")
+    # ...and a post that only shares the word gets no card.
+    assert X.on_subject(carrick, seed) and X.on_subject(howe, seed)
+    assert X.shortlist([(carrick, seed), (howe, seed)], NOW, window_hours=6) == []
+    assert X.on_subject(flight, seed) == ""
+
+
+def test_a_one_word_name_is_searched_beside_the_episodes_own_words():
+    seed = X.Seed("k", "Can the Eagles defence hold up without its starters?",
+                  "The Eagles defence", 3, ("Jalen Hurts", "Eagles"))
+    q = seed.search()
+    assert q.startswith('("Jalen Hurts" OR (Eagles (')
+    assert "defence" in q and "starters" in q
+
+
+def _verdict_run(verdict, post=None):
+    async def searcher(query, *, max_results, since):
+        return [post or _post("1")]
+
+    async def drafter(cand):
+        return "A reply about the post?", "test-model", 0.001, verdict
+    return asyncio.run(X.run(FakeCache([EPISODE]), now=NOW, searcher=searcher,
+                             drafter=drafter))
+
+
+def test_the_model_judging_a_post_off_subject_drops_the_card():
+    report = _verdict_run(X.Verdict(same_subject=False, why="about birds"))
+    assert report["cards"] == 0 and "about birds" in report["off_subject"][0]
+    assert X.store().all() == []
+
+
+def test_a_post_set_aside_is_neither_shown_nor_judged_again():
+    judged = []
+
+    async def searcher(query, *, max_results, since):
+        return [_post("1")]
+
+    async def drafter(cand):
+        judged.append(cand.post.id)
+        return "r", "test-model", 0.001, X.Verdict(same_subject=False, why="birds")
+    for at in (NOW, NOW + 60):
+        asyncio.run(X.run(FakeCache([EPISODE]), now=at, searcher=searcher, drafter=drafter))
+    assert judged == ["1"]
+    assert X.store().all() == [] and X.store().counts() == {X.SET_ASIDE: 1}
+
+
+def test_words_that_name_no_subject_do_not_make_one():
+    seed = X.Seed("k", "What happened with the Eagles today?", "The Eagles today",
+                  1, ("Eagles",))
+    assert "happened" not in X.context_words(seed) and "today" not in X.context_words(seed)
+    assert X.on_subject(_post(text="Did anyone see the eagles today by the lake?"), seed)
+
+
+def test_an_episode_that_does_not_answer_the_post_is_not_linked():
+    report = _verdict_run(X.Verdict(episode_fits=False, why="a different game"))
+    [card] = X.store().all()
+    assert report["cards"] == 1 and card["kind"] == X.QUESTION_ONLY
+    assert "no link" in card["reason"] and "a different game" in card["reason"]
+
+
+def test_a_relevant_card_says_what_was_checked():
+    _verdict_run(X.Verdict(why="both about the Eagles' pass defence"))
+    [card] = X.store().all()
+    assert card["kind"] != X.QUESTION_ONLY
+    assert "Checked: both about the Eagles' pass defence" in card["reason"]
 
 
 def test_one_card_per_author_best_first():
@@ -208,11 +302,11 @@ def test_a_run_leaves_cards_and_says_what_it_did():
 
     async def searcher(query, *, max_results, since):
         asked.append((query, max_results, since))
-        return [_post("1", author="a"), _post("2", author="b", text="Eagles are overrated, honestly.")]
+        return [_post("1", author="a"), _post("2", author="b", text="The Eagles defence is overrated, honestly.")]
 
     report = _run(FakeCache([EPISODE]), searcher)
     assert report["cards"] == 2 and report["read"] == 2
-    assert asked[0][0].startswith('("Philadelphia Eagles Defence" OR Eagles)')
+    assert asked[0][0].startswith('("Philadelphia Eagles Defence" OR (Eagles (')
     assert asked[0][2] == NOW - 6 * 3600
     cards = X.store().all()
     assert {c["post_id"] for c in cards} == {"1", "2"}
@@ -410,3 +504,73 @@ def test_health_does_not_create_the_store(client):
 
 def test_the_admin_menu_links_the_page():
     assert 'href="/admin/x"' in (ROOT / "admin_ui" / "tracker.html").read_text()
+
+
+# --- the review before merging (§326) ------------------------------------------
+
+
+def test_two_of_a_trending_storys_names_together_are_on_subject():
+    seed = X.Seed("k", "Did Trump and Zelensky agree a ceasefire?",
+                  "Trump and Zelensky", 1, ("Trump", "Zelensky"), "trending")
+    assert X.on_subject(_post(text="Trump meets Zelensky at the White House"), seed) == ""
+    assert seed.search().startswith("((Trump Zelensky) OR")
+
+
+def test_a_name_is_matched_as_a_whole_word():
+    seed = X.Seed("k", "Is the Ford electric truck worth it?", "Ford's electric truck",
+                  1, ("Ford",))
+    assert "does not name" in X.on_subject(
+        _post(text="I cannot afford an electric truck this year"), seed)
+    assert X.on_subject(_post(text="Is #Ford winning the electric truck race?"), seed) == ""
+
+
+def test_a_long_post_is_read_whole():
+    [post] = X.parse({"data": [{"id": "9", "text": "Cut short…",
+                                "note_tweet": {"text": "The whole long post."}}]})
+    assert post.text == "The whole long post."
+
+
+def test_a_set_aside_post_cannot_be_acted_on_by_its_id():
+    [cand] = X.shortlist([(_post("77"), _seed())], NOW, window_hours=6)
+    X.store().add(cand, NOW, status=X.SET_ASIDE)
+    assert X.store().get("77") is None
+
+
+def test_when_the_relevance_check_fails_nothing_is_linked(monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+
+    class Broken:
+        class messages:
+            @staticmethod
+            async def create(**kw):
+                raise RuntimeError("overloaded")
+    [cand] = X.shortlist([(_post(), _seed())], NOW, window_hours=6)
+    reply, by, _d, verdict = asyncio.run(X.judge_and_draft(cand, Broken()))
+    assert by == "code" and verdict.episode_fits is False
+
+
+def test_a_both_sides_reply_is_not_kept_for_one_side():
+    seed = X.Seed("k-eagles", EPISODE["query"], EPISODE["title"], 3,
+                  ("Philadelphia Eagles", "Eagles"))
+    a = _post("1", author="a", text="The Eagles defence is overrated, honestly.")
+    b = _post("2", author="b", text="Honestly the Eagles defence is underrated.")
+    [first, *_] = X.shortlist([(a, seed), (b, seed)], NOW, window_hours=6)
+    assert first.kind == X.BOTH_SIDES and first.other is not None
+    X.apply_verdict(first, X.Verdict(other_same_subject=False, why="birds"))
+    assert first.other is None and first.kind != X.BOTH_SIDES
+
+
+def test_a_run_rewrites_a_two_post_reply_when_one_post_goes():
+    async def searcher(query, *, max_results, since):
+        return [_post("1", author="a", text="The Eagles defence is overrated, honestly."),
+                _post("2", author="b", text="Honestly the Eagles defence is underrated.")]
+
+    async def drafter(cand):
+        return ("Both of you are half right.", "test-model", 0.0,
+                X.Verdict(other_same_subject=cand.other is None, why="checked"))
+    asyncio.run(X.run(FakeCache([EPISODE]), now=NOW, searcher=searcher, drafter=drafter))
+    cards = X.store().all()
+    paired = [c for c in cards if c["drafted_by"] == "code"]
+    assert paired, "the pair was formed and then split"
+    assert all(c["draft"] != "Both of you are half right." for c in paired)
+    assert all(c["other"] is None for c in cards)
