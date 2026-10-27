@@ -213,6 +213,13 @@
   .wiki.agrees { color:var(--green); }
   .wiki.differs { color:var(--amber); }
   .ghost.tiny { padding:3px 8px; font-size:11.5px; }
+  /* What the voice was heard to say (§325). */
+  .heard { grid-column:1 / -1; font-size:12px; color:var(--muted); }
+  .heard.matches { color:var(--green); }
+  .heard.unsure { color:var(--amber); }
+  .heard.differs { color:var(--rose); }
+  .heard audio { display:block; height:30px; margin-top:4px; max-width:100%; }
+  .hardex { grid-column:1 / -1; font-size:12px; color:var(--faint); }
   .srctag { white-space:nowrap; font:11px var(--mono); color:var(--faint); border:1px solid var(--line); border-radius:999px; padding:0 7px; }
   .srctag.admin { color:var(--ink); border-color:var(--amber-dk); }
   .srctag.wikipedia { color:var(--green); border-color:var(--green); }
@@ -533,6 +540,10 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
         <button class="go" id="wikiAll" type="button">Check all with Wikipedia</button>
         <button class="ghost" id="wikiAgain" type="button" title="Asks Wikipedia about every name again, including ones it answered in the last month">Check every name again</button>
       </div>
+      <div class="wikibar">
+        <div><b>Heard back from the voice</b><span id="hearState">Hear sends a name through the production voice exactly as an episode would, and a phoneme recogniser on the same card writes down what it heard. The match is an estimate - listen to the audio before changing anything.</span></div>
+        <button class="go" id="hearAll" type="button">Hear every name</button>
+      </div>
       <form class="login" id="sayForm" style="margin-top:6px">
         <input id="sayName" placeholder="Name as spelled, e.g. Sagapolutele" maxlength="60" required>
         <input id="saySay" placeholder="As said, e.g. sah-gah-poh-loo-TEH-leh" maxlength="120" required>
@@ -549,6 +560,16 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
         <button class="chip" type="button" data-sayf="unchecked">Not checked yet</button>
       </div>
       <div id="sayList"></div>
+    </section>
+    <section class="card section" id="hardCard">
+      <h2>Words the voice may not know</h2>
+      <p class="sub">Every word in recent episodes, looked up in the CMU Pronouncing Dictionary (134,000 English words and common names). These are the words it does not have and nobody has respelled - the voice is guessing at them. Most used first. Hear one; if it is wrong, Respell puts it in the form above; if it is fine, it leaves the list for good.</p>
+      <div class="wikibar">
+        <div><b>Recent episodes</b><span id="hardState">Not scanned yet.</span></div>
+        <button class="go" id="hardScan" type="button">Scan recent episodes</button>
+        <button class="ghost" id="hardHear" type="button">Hear the unheard</button>
+      </div>
+      <div id="hardList"></div>
     </section>
     </div>
   </main>
@@ -1142,7 +1163,7 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
       loadInbox();
       loadReports();
       loadVoices();
-      loadSay();
+      loadSay(); loadHard();
       return api("/api/admin/schema").then(function (x) { drawStores(x.stores || []); });
     }).catch(function (e) {
       if (e.status === 404) {
@@ -1576,7 +1597,9 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
       }
       return '<div class="vrow sayrow"><div class="sayname"><b>' + esc(x.name) + '</b> = <code>' + esc(x.say) + '</code> ' +
         '<span class="srctag ' + esc(x.source) + '">' + esc(sourceWord(x.source)) + '</span></div>' + wiki +
-        '<div class="sayacts"><button class="ghost tiny" type="button" data-say-edit="' + esc(x.name) + '" data-say="' + esc(x.say) + '">Edit</button>' +
+        heardHTML(x.voice, heardAudio[x.name]) +
+        '<div class="sayacts"><button class="ghost tiny" type="button" data-hear="' + esc(x.name) + '">Hear</button> ' +
+        '<button class="ghost tiny" type="button" data-say-edit="' + esc(x.name) + '" data-say="' + esc(x.say) + '">Edit</button>' +
         ' <button class="ghost tiny" type="button" data-say-rm="' + esc(x.name) + '">Remove</button></div></div>';
     }).join("") : '<p class="sub">' + (sayRows.length ? "No names match this filter." : "No names on file yet.") + '</p>';
   }
@@ -1597,9 +1620,101 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
   function loadSay() {
     return api("/api/admin/pronunciations").then(function (v) {
       sayRows = v.pronunciations || [];
-      drawSay(); drawWiki(v.wikipedia);
+      drawSay(); drawWiki(v.wikipedia); drawHearing(v.hearing);
     }).catch(function () {});
   }
+  // Heard back from the voice (§325): what a phoneme recogniser heard the
+  // production voice say, beside what was meant, and the audio to judge by.
+  var heardAudio = {}, hearPoll = null, hardRows = [];
+  var HEARD_WORDS = { matches: "The voice said it as meant", unsure: "The voice said it a little differently",
+                      differs: "The voice said it differently", heard: "The voice said" };
+  function heardHTML(v, audio) {
+    if (!v && !audio) return "";
+    var out = "";
+    if (v) {
+      out = '<span class="heard ' + esc(v.verdict) + '">' + esc(HEARD_WORDS[v.verdict] || "Heard") +
+        ': <code>' + esc(v.heard_say || "nothing") + '</code>' +
+        (v.expected ? ' <span class="faint">meant <code>' + esc(v.expected) + '</code>' +
+          (v.expected_from === "dictionary" ? " (dictionary)" : "") +
+          (v.score != null ? " · " + Math.round(v.score * 100) + "% alike" : "") + '</span>' : "") +
+        (v.heard ? ' <span class="faint" title="What the recogniser heard, in IPA">/' + esc(v.heard) + '/</span>' : "");
+    } else out = '<span class="heard">';
+    if (audio) out += '<audio controls src="' + esc(audio) + '"></audio>';
+    return out + '</span>';
+  }
+  function drawHearing(st) {
+    st = st || {};
+    $("hearAll").disabled = $("hardHear").disabled = !!st.running;
+    var line = "";
+    if (st.running) line = "Hearing: " + st.done + " of " + st.total + " words" + (st.differs ? ", " + st.differs + " said differently so far" : "") + "…";
+    else if (st.error) line = "Stopped: " + st.error;
+    else if (st.finished) line = "Last run " + when(st.finished) + ": " + st.done + " words heard, " + st.differs + " said differently or unsure.";
+    if (line) $("hearState").textContent = line;
+    if (hearPoll) { clearTimeout(hearPoll); hearPoll = null; }
+    if (st.running) hearPoll = setTimeout(function () { loadSay(); loadHard(); }, 5000);
+  }
+  function hearOne(btn, word, after) {
+    btn.disabled = true; btn.textContent = "Hearing…";
+    api("/api/admin/pronunciations/hear", { name: word }).then(function (v) {
+      heardAudio[word] = v.audio;
+      after(v);
+    }).catch(function (e) { alert(e.message); })
+      .then(function () { btn.disabled = false; btn.textContent = "Hear"; });
+  }
+  $("hearAll").addEventListener("click", function () {
+    $("hearAll").disabled = true;
+    api("/api/admin/pronunciations/hear-all", {}).then(function (r) {
+      $("hearState").textContent = r.queued ? "Hearing " + r.queued + " names…" : "A run is already going, or there is nothing to hear.";
+      setTimeout(loadSay, 2000);
+    }).catch(function (e) { $("hearState").textContent = e.message; $("hearAll").disabled = false; });
+  });
+  // Words the voice may not know (§325).
+  function drawHard(v) {
+    var sc = v.scan || {};
+    $("hardScan").disabled = !!sc.running;
+    $("hardState").textContent = !v.dictionary ? "The pronouncing dictionary is missing on this server (pronounce_data/cmudict.dict.gz)." :
+      sc.running ? "Reading recent episodes…" :
+      sc.error ? "The last scan failed: " + sc.error :
+      sc.at ? "Last scan " + when(sc.at) + ": " + sc.episodes + " episodes read, " + sc.words + " words the voice may not know." :
+      hardRows.length ? hardRows.length + " words from an earlier scan." : "Not scanned yet.";
+    $("hardList").innerHTML = hardRows.length ? hardRows.map(function (x) {
+      return '<div class="vrow sayrow"><div class="sayname"><b>' + esc(x.word) + '</b> <span class="faint">' +
+        x.count + '× in ' + x.episodes + ' episode' + (x.episodes === 1 ? '' : 's') + '</span></div>' +
+        (x.example ? '<span class="hardex">“' + esc(x.example) + '”' + (x.title ? ' - ' + esc(x.title) : '') + '</span>' : '') +
+        heardHTML(x.voice, heardAudio[x.word]) +
+        '<div class="sayacts"><button class="ghost tiny" type="button" data-hear="' + esc(x.word) + '">Hear</button> ' +
+        '<button class="ghost tiny" type="button" data-hard-respell="' + esc(x.word) + '">Respell</button> ' +
+        '<button class="ghost tiny" type="button" data-hard-ok="' + esc(x.word) + '">Sounds fine</button></div></div>';
+    }).join("") : '<p class="sub">' + (v.scan && v.scan.at ? "Every word in recent episodes is in the dictionary or respelled." : "Scan recent episodes to list them.") + '</p>';
+    if (sc.running) setTimeout(loadHard, 3000);
+  }
+  function loadHard() {
+    return api("/api/admin/hard-words").then(function (v) {
+      hardRows = v.words || [];
+      drawHard(v); drawHearing(v.hearing);
+    }).catch(function () {});
+  }
+  $("hardScan").addEventListener("click", function () {
+    $("hardScan").disabled = true;
+    api("/api/admin/hard-words/scan", {}).then(function () { setTimeout(loadHard, 1500); })
+      .catch(function (e) { $("hardState").textContent = e.message; $("hardScan").disabled = false; });
+  });
+  $("hardHear").addEventListener("click", function () {
+    $("hardHear").disabled = true;
+    api("/api/admin/hard-words/hear-all", {}).then(function (r) {
+      $("hardState").textContent = r.queued ? "Hearing " + r.queued + " words…" : "A run is already going, or every listed word has been heard.";
+      setTimeout(loadHard, 2000);
+    }).catch(function (e) { $("hardState").textContent = e.message; $("hardHear").disabled = false; });
+  });
+  $("hardList").addEventListener("click", function (ev) {
+    var t = ev.target;
+    var hear = t && t.getAttribute("data-hear");
+    if (hear) { hearOne(t, hear, function () { loadHard(); }); return; }
+    var respell = t && t.getAttribute("data-hard-respell");
+    if (respell) { $("sayName").value = respell; $("saySay").value = ""; $("saySay").focus(); $("sayCard").scrollIntoView({ behavior: "smooth" }); return; }
+    var ok = t && t.getAttribute("data-hard-ok");
+    if (ok) { t.disabled = true; api("/api/admin/hard-words/ok", { name: ok }).then(loadHard); }
+  });
   $("sayFilter").addEventListener("click", function (ev) {
     var b = ev.target.closest("[data-sayf]"); if (!b) return;
     sayFilter = b.getAttribute("data-sayf");
@@ -1631,6 +1746,8 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
   });
   $("sayList").addEventListener("click", function (ev) {
     var t = ev.target;
+    var hear = t && t.getAttribute("data-hear");
+    if (hear) { hearOne(t, hear, function () { loadSay(); }); return; }
     var edit = t && t.getAttribute("data-say-edit");
     if (edit) { $("sayName").value = edit; $("saySay").value = t.getAttribute("data-say") || ""; $("saySay").focus(); return; }
     var use = t && t.getAttribute("data-say-use");

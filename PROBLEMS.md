@@ -22814,3 +22814,83 @@ says" note clears on the next forced check.
 **Not run from here:** this container cannot reach Wikipedia; the lead
 shapes in `tests/test_admin_page_289.py` are written from the screenshots.
 The owner's step: /admin → How names are said → **Check every name again**.
+
+## 325. Checking every word: the dictionary and the voice round trip (2026-10-27)
+
+The owner (10.27): "we want a way to check the pronunciation on these that
+can apply to all words within, not only ones that wikipedia can cross-check
+... build the dictionary + voice round-trip check, and investigate more
+checks to use."
+
+**What every earlier check had in common:** text compared with text - a
+model's respelling with Wikipedia's. None looked at a word nobody listed,
+and none heard Chatterbox, which is the only thing a listener hears.
+
+**1. The dictionary (`hard_words.py`).** The CMU Pronouncing Dictionary -
+134,000 English words and common names - is vendored as its data file
+(`pronounce_data/cmudict.dict.gz`, 0.9 MB, BSD-2-Clause, licence beside it).
+Not the `cmudict` pip package: that wrapper is GPL-3.0, and FAM ships closed.
+A scan (/admin → How names are said → **Scan recent episodes**, in the
+background) reads the 600 most recent cached episodes - `recent` never lists
+a private search, and an attached episode is never cached, so nothing
+personal is read - and keeps the 300 words most used that the dictionary
+lacks (plain forms count: "kickoffs", "re-signed", "Eagles'"), the lexicon
+does not respell, and are not initialisms (spoken as letters). Each comes
+with its count, how many episodes, and the first sentence that used it.
+**Sounds fine** hides a word for good; **Respell** puts it in the form. The
+dictionary also says how a common word *should* sound (`expected`), which
+the round trip uses for words nobody respelled.
+
+**2. The round trip (`voice_check.py`, `voice_worker/hearing.py`).** **Hear**
+sends a word through exactly what an episode's words go through
+(`pronunciation.respell`, `spoken_text.speakable`), the production voice says
+it, and a phoneme recogniser on the same card - wav2vec2 trained to write
+sounds in IPA, not words, so it cannot round a name to the nearest word it
+knows - writes down what it heard. That IPA becomes a respelling
+(`wiki_pronounce.ipa_to_respelling`) and is compared, by sound class
+(`sound_key`: "ah"/"a", "ee"/"i", "oo"/"u" are one sound), with the lexicon's
+respelling or the dictionary's. ≥ 70 % alike reads "said as meant", 50-70 %
+"a little differently", under 50 % "differently". The audio comes back with
+every check, because **the thresholds are a guess until they have been
+checked against a person's ears**, and nothing here changes the lexicon by
+itself. **Hear every name** / **Hear the unheard** run up to 150 words in the
+background, one at a time, as a task on the app's own loop (a thread with
+its own loop would share the voice's connection pool across loops).
+
+Wire: a request with `"hear": true` gets `heard` (or `heard_error`) beside
+its audio; an episode's chunks never ask, so nothing on the listening path
+changed. A worker built before this ignores the field, and the app says
+"rebuild" instead of guessing. `transformers` already comes with
+Chatterbox; the recogniser's ~1.2 GB downloads into `HF_HOME` on first use.
+On the placeholder tone there is nothing to hear, and the check says so (409).
+
+**Not verified here:** this container reaches neither Hugging Face nor a
+GPU. The recogniser, the 16 kHz resampling and the thresholds are untested
+against the real voice; `tests/test_voice_round_trip_325.py` pins the logic
+with the model stubbed.
+
+**More checks, investigated** (none built; in rough order of value):
+
+- **Whole sentences through a word recogniser (Whisper).** Synthesize a real
+  chunk, transcribe it, align to the script: catches the voice skipping,
+  repeating or mumbling words - failures no single-word check can see, and
+  the ones Chatterbox is known for. The same worker, the same `hear` seam.
+- **Listeners tell us.** A "said a word wrong" reason on the player's Report,
+  carrying the caption sentence being heard. The cheapest signal there is.
+- **Numbers, symbols and units.** A text-only pass over `speakable` output
+  for digits, "$", "%", "vs.", scores and dates it left unconverted - no GPU.
+- **Heteronyms.** Words the dictionary lists two ways (lead, read, live,
+  close, bass, wind) and place names that are also words (Reading, Nice,
+  Polish): flag sentences using them and hear the sentence, not the word.
+- **Acronym or initialism.** NATO and NASA are words, NFL and CFB letters;
+  a short list beats a rule. The scan skips all-capitals words today.
+- **Wiktionary.** Same Wikimedia API as the Wikipedia check; IPA for many
+  surnames and places that have no article of their own.
+- **A native-language guess.** espeak-ng or Epitran say a name the Spanish,
+  Polish or Irish way when told the language (Wikidata's citizenship or
+  native language); a second opinion to compare with the model's.
+- **Official guides.** The leagues publish phonetic guides for their players
+  each season; the VOA guide covers names in the news; NameShouts and Forvo
+  sell recordings by API. Best for sports names, which dominate the list.
+- **Two models.** Ask a second model for each respelling and flag
+  disagreement. Cheap, but their mistakes are correlated.

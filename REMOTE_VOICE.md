@@ -375,6 +375,20 @@ schedule, a pod that is found and not running is always a fault - RunPod
 evicted it, the account ran out, or somebody stopped it by hand - and the
 note that names it is a diagnosis rather than a disambiguation.
 
+### Hearing it back (§325)
+
+A request may carry `"hear": true`. The worker then also runs a phoneme
+recogniser (`voice_worker/hearing.py`, `facebook/wav2vec2-lv-60-espeak-cv-ft`,
+Apache-2.0) over the audio it just made and answers `heard` (IPA, a space
+between phones) beside the audio, or `heard_error` saying why it could not.
+Only /admin's round trip sends it; an episode's chunks never do, and the
+recogniser is not loaded until the first request that does. Its weights
+(~1.2 GB) download once into `HF_HOME` - on Serverless the network volume,
+inside the 600 s execution timeout - and stay resident, ~1.3 GB of the card.
+`VOICE_HEARING_MODEL` on the endpoint swaps in another CTC-over-IPA model.
+A worker built before this ignores the field; the app says "rebuild" rather
+than guessing. Nothing to set on Render.
+
 ### And the image builds itself
 
 `.github/workflows/voice-worker.yml` checks that the two halves still agree
