@@ -270,11 +270,13 @@ def context_words(seed: "Seed", limit: int = 4) -> tuple:
     import news_clusters
 
     named = {w.lower() for n in seed.names for w in n.split()}
+    generic = {news_clusters._stem(w) for w in GENERIC}
     seen, out = set(), []
     for word in _WORD.findall(f"{seed.query} {seed.title}"):
         low = word.lower().strip("'.-")
         if (len(low) < 4 or low in _STOP or low in named or low in seen
-                or low in GENERIC or low in news_clusters.STOPWORDS or low.isdigit()):
+                or low in GENERIC or low in news_clusters.STOPWORDS or low.isdigit()
+                or news_clusters._stem(low) in generic):
             continue
         seen.add(low)
         out.append(low)
@@ -303,6 +305,11 @@ def x_query(names: Iterable[str], context: Iterable[str] = ()) -> str:
         # A one-word name with no subject words beside it is not searched at
         # all: every post it found would be billed, then dropped by
         # `on_subject`.
+    # Two one-word names together ("Trump" and "Zelensky", a Trending
+    # story's anchors) are as specific as a two-word name.
+    single = [n for n in names if n and " " not in n]
+    if len(single) >= 2:
+        terms.insert(0, f"({single[0]} {single[1]})")
     if not terms:
         return ""
     body = terms[0] if len(terms) == 1 else "(" + " OR ".join(terms) + ")"
@@ -318,10 +325,12 @@ def on_subject(post: "Post", seed: Optional["Seed"]) -> str:
     if seed is None:
         return "no episode to be about"
     low = (post.text or "").lower()
-    named = [n for n in seed.names if n.lower() in low]
+    # Whole words: "Ford" is not in "afford"; "#Ford" and "Ford's" are.
+    named = [n for n in seed.names if re.search(
+        r"(?<![a-z0-9])" + re.escape(n.lower()) + r"(?![a-z0-9])", low)]
     if not named:
         return "does not name what the episode is about"
-    if any(" " in n for n in named):
+    if any(" " in n for n in named) or len(named) >= 2:
         return ""
     import news_clusters
 
@@ -403,7 +412,9 @@ def parse(payload: dict) -> list[Post]:
         except ValueError:
             created = 0.0
         out.append(Post(
-            id=str(row.get("id") or ""), text=str(row.get("text") or ""),
+            # A long post's `text` is cut; its whole words are `note_tweet`.
+            id=str(row.get("id") or ""),
+            text=str((row.get("note_tweet") or {}).get("text") or row.get("text") or ""),
             created_at=created, author=str(user.get("username") or ""),
             author_name=str(user.get("name") or ""),
             followers=int((user.get("public_metrics") or {}).get("followers_count") or 0),
@@ -451,7 +462,7 @@ async def search(query: str, *, max_results: int, since: float,
         "sort_order": "relevancy",
         "start_time": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(since)),
         "tweet.fields": "created_at,public_metrics,lang,author_id,"
-                        "in_reply_to_user_id,possibly_sensitive",
+                        "in_reply_to_user_id,possibly_sensitive,note_tweet",
         "expansions": "author_id",
         "user.fields": "username,name,public_metrics,verified_type",
     }
@@ -818,14 +829,18 @@ async def judge_and_draft(cand: Candidate, client=None) -> tuple:
                           other_same_subject=bool(body.get("other_same_subject")),
                           why=str(body.get("why") or "")[:300])
         reply = trim(body.get("reply") or "")
-        if not reply and verdict.same_subject:
-            raise ValueError("an empty reply")
+        if not reply:
+            # The judgement stands; only the words are the code's.
+            return trim(fallback_draft(cand)), "code", dollars, verdict
         return reply, model, dollars, verdict
     except asyncio.CancelledError:
         raise
     except Exception as exc:  # noqa: BLE001
         log.warning("x threads: drafting fell back to code: %s", exc)
-        return trim(fallback_draft(cand)), "code", 0.0, Verdict()
+        # The relevance check did not run: the code's gate has passed the
+        # post, but no episode is linked on its word alone.
+        return trim(fallback_draft(cand)), "code", 0.0, Verdict(
+            episode_fits=False, why="the relevance check could not run, so no link")
 
 
 def apply_verdict(cand: Candidate, verdict: Verdict) -> str:
@@ -936,7 +951,9 @@ class Store:
              json.dumps(episode), cand.draft, cand.drafted_by, status))
 
     def get(self, post_id: str) -> Optional[dict]:
-        rows = self.all(post_id=post_id)
+        """One card by its post, or None - a set-aside post is not a card,
+        so nothing can approve or reopen it by its id."""
+        rows = [r for r in self.all(post_id=post_id) if r["status"] != SET_ASIDE]
         return rows[0] if rows else None
 
     def all(self, status: str = "", post_id: str = "", limit: int = 100) -> list[dict]:
@@ -1107,6 +1124,15 @@ async def run(cache, *, now: Optional[float] = None, searcher=None,
                              "the Trending edition or play some episodes first")
         held.record_run(now, 0, report)
         return report
+    # An episode with nothing specific to ask X for is not searched, and
+    # takes no share of the reads (said, not counted as a failure).
+    report["unsearchable"] = [s.title for s in chosen if not s.search()]
+    chosen = [s for s in chosen if s.search()]
+    if not chosen:
+        report["stopped"] = ("no episode has a name specific enough to search X "
+                             "for: write the Trending edition or play some episodes")
+        held.record_run(now, 0, report)
+        return report
     per = max(10, min(100, room // len(chosen)))
     since = now - config.settings.x_threads_window_hours * 3600
     found: list = []
@@ -1117,9 +1143,6 @@ async def run(cache, *, now: Optional[float] = None, searcher=None,
             if reads + 10 > room:
                 break
             ask = min(per, room - reads)
-            if not seed.search():
-                report["errors"].append(f"{seed.title}: nothing specific enough to search for")
-                continue
             try:
                 posts = await searcher(seed.search(), max_results=ask, since=since)
             except asyncio.CancelledError:
@@ -1153,6 +1176,7 @@ async def run(cache, *, now: Optional[float] = None, searcher=None,
             reply, by, dollars = result[:3]
             verdict = result[3] if len(result) > 3 else Verdict()
             report["dollars"] = round(report["dollars"] + dollars, 4)
+            had_other = cand.other is not None
             dropped = apply_verdict(cand, verdict)
             if dropped:
                 report["off_subject"].append(f"@{cand.post.author}: {dropped}"[:200])
@@ -1160,7 +1184,10 @@ async def run(cache, *, now: Optional[float] = None, searcher=None,
                 cand.reason = f"Set aside: {dropped}"
                 held.add(cand, now, status=SET_ASIDE)
                 continue
-            if by != "code" and not verdict.episode_fits and cand.kind == QUESTION_ONLY \
+            if had_other and cand.other is None:
+                # Written to connect two posts, one of which is gone.
+                reply, by = trim(fallback_draft(cand)), "code"
+            elif by != "code" and not verdict.episode_fits and cand.kind == QUESTION_ONLY \
                     and "episode" in reply.lower():
                 # Told not to mention the episode, and did: the code's
                 # question rather than words that point at nothing.

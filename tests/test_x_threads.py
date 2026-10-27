@@ -504,3 +504,73 @@ def test_health_does_not_create_the_store(client):
 
 def test_the_admin_menu_links_the_page():
     assert 'href="/admin/x"' in (ROOT / "admin_ui" / "tracker.html").read_text()
+
+
+# --- the review before merging (§324) ------------------------------------------
+
+
+def test_two_of_a_trending_storys_names_together_are_on_subject():
+    seed = X.Seed("k", "Did Trump and Zelensky agree a ceasefire?",
+                  "Trump and Zelensky", 1, ("Trump", "Zelensky"), "trending")
+    assert X.on_subject(_post(text="Trump meets Zelensky at the White House"), seed) == ""
+    assert seed.search().startswith("((Trump Zelensky) OR")
+
+
+def test_a_name_is_matched_as_a_whole_word():
+    seed = X.Seed("k", "Is the Ford electric truck worth it?", "Ford's electric truck",
+                  1, ("Ford",))
+    assert "does not name" in X.on_subject(
+        _post(text="I cannot afford an electric truck this year"), seed)
+    assert X.on_subject(_post(text="Is #Ford winning the electric truck race?"), seed) == ""
+
+
+def test_a_long_post_is_read_whole():
+    [post] = X.parse({"data": [{"id": "9", "text": "Cut short…",
+                                "note_tweet": {"text": "The whole long post."}}]})
+    assert post.text == "The whole long post."
+
+
+def test_a_set_aside_post_cannot_be_acted_on_by_its_id():
+    [cand] = X.shortlist([(_post("77"), _seed())], NOW, window_hours=6)
+    X.store().add(cand, NOW, status=X.SET_ASIDE)
+    assert X.store().get("77") is None
+
+
+def test_when_the_relevance_check_fails_nothing_is_linked(monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+
+    class Broken:
+        class messages:
+            @staticmethod
+            async def create(**kw):
+                raise RuntimeError("overloaded")
+    [cand] = X.shortlist([(_post(), _seed())], NOW, window_hours=6)
+    reply, by, _d, verdict = asyncio.run(X.judge_and_draft(cand, Broken()))
+    assert by == "code" and verdict.episode_fits is False
+
+
+def test_a_both_sides_reply_is_not_kept_for_one_side():
+    seed = X.Seed("k-eagles", EPISODE["query"], EPISODE["title"], 3,
+                  ("Philadelphia Eagles", "Eagles"))
+    a = _post("1", author="a", text="The Eagles defence is overrated, honestly.")
+    b = _post("2", author="b", text="Honestly the Eagles defence is underrated.")
+    [first, *_] = X.shortlist([(a, seed), (b, seed)], NOW, window_hours=6)
+    assert first.kind == X.BOTH_SIDES and first.other is not None
+    X.apply_verdict(first, X.Verdict(other_same_subject=False, why="birds"))
+    assert first.other is None and first.kind != X.BOTH_SIDES
+
+
+def test_a_run_rewrites_a_two_post_reply_when_one_post_goes():
+    async def searcher(query, *, max_results, since):
+        return [_post("1", author="a", text="The Eagles defence is overrated, honestly."),
+                _post("2", author="b", text="Honestly the Eagles defence is underrated.")]
+
+    async def drafter(cand):
+        return ("Both of you are half right.", "test-model", 0.0,
+                X.Verdict(other_same_subject=cand.other is None, why="checked"))
+    asyncio.run(X.run(FakeCache([EPISODE]), now=NOW, searcher=searcher, drafter=drafter))
+    cards = X.store().all()
+    paired = [c for c in cards if c["drafted_by"] == "code"]
+    assert paired, "the pair was formed and then split"
+    assert all(c["draft"] != "Both of you are half right." for c in paired)
+    assert all(c["other"] is None for c in cards)

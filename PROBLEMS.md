@@ -22830,3 +22830,15 @@ it again; words that name no subject (`GENERIC`: "happened", "today",
 `on_subject`; a one-word name with no subject words left is not searched at
 all; and a card checked only in code no longer reads "Checked: checked in
 code".
+A second independent review found nothing blocking; fixed from it: a failed
+relevance call (an error, unreadable JSON) no longer leaves every card
+linked - the episode is not linked on the code's word alone, and a parsed
+judgement stands when only the words are missing; a Trending story's two
+one-word anchors together ("Trump", "Zelensky") count as on subject and are
+searched as a pair; names match as whole words ("Ford" is not in "afford");
+a long post is read whole (`note_tweet`); a set-aside post cannot be
+approved or reopened by its id; a reply written to connect two posts is
+replaced by the code's when the second post is judged off subject; an
+episode with nothing specific to search is listed under `unsearchable`,
+takes no reads and is not a failed search; and a word the check ignores is
+never asked of X.
