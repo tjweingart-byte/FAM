@@ -1559,6 +1559,26 @@
   Instagram and Snapchat, which cannot carry a link as text - the story card.
   This is the correct shape rather than a stage: no OAuth to maintain, no
   tokens to leak, and nothing that can post while somebody is asleep.
+  > **Current:** since §321 FAM holds one read-only X search credential
+  > (`X_BEARER_TOKEN`) for its own account's outreach, and still nothing
+  > that can post - see [x-threads].
+<!-- rule:x-threads -->
+- **FAM on X is found by code and posted by a person** (§321, `x_threads.py`,
+  `/admin/x`). A search starts from episodes FAM already has (the Trending
+  edition, then the most played kept episodes) and looks for the threads
+  they answer, so the episode exists before the thread is found. Code
+  screens (age, replies, author size, organisations, grief and flame-war
+  subjects, one author a week) and scores (episode match, engagement per
+  hour, a question, room in the thread, author fit); each card carries its
+  reason in words ([candidate-reason]). A reply links an episode only when
+  the episode is the thread's subject; otherwise it asks a better question.
+  **Approve opens X's own reply box with the words in it and copies them**
+  (`x.com/intent/post?in_reply_to=`); the person presses Post. Nothing here
+  can write to X, and nothing runs on a timer: a search is a button
+  ([sweep-on-demand]), capped per search and per day because X bills per
+  post read; staging scrubs the token ([zero-spend-staging]). With no model
+  key the reply is drafted in code and the card says so. Cards are kept a
+  week.
 <!-- rule:app-review-safety -->
 - **Report anything, block both ways, and ask before a listener's words go to
   the AI** (App Store 1.2 and 5.1.2(i), §222). Every comment, message, vibe,

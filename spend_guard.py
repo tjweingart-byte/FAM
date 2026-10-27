@@ -61,6 +61,8 @@ PAID_CREDENTIALS = (
     # §258: the search backends.
     "PARALLEL_API_KEY", "PERPLEXITY_API_KEY",
     "GNEWS_KEY",
+    # §321: X's recent search, billed per post read (`/admin/x`).
+    "X_BEARER_TOKEN",
     # Open-Meteo's paid plan (§194), for weather and place names.
     "OPEN_METEO_API_KEY",
     # Email (§244): providers bill per message past a free tier.
