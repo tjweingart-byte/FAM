@@ -506,7 +506,8 @@ write, and the worker boots during them.
 A browse tile's script is written before the tap, so that wake has nothing
 to hide behind there. The same wake is therefore also sent when the app opens
 (`/api/auth/me`, for an account that may play, never a guest; PROBLEMS.md
-§324), which is the earliest a listener is known to be here.
+§324), which is the earliest a listener is known to be here, and again when
+it returns to the foreground (`POST /api/voice/wake`).
 
 The wake is a hint, not a mechanism. It never raises, never blocks, and never
 delays a request; a miss costs only the cold start it was trying to hide. It

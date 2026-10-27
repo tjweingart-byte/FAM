@@ -22791,7 +22791,13 @@ iOS client gets it by asking the same endpoint.
 
 **What it does not cover:** the endpoint's idle timeout (60 s). A listener
 who browses longer than that before tapping meets a cold worker again;
-raising the idle timeout in the RunPod console is the cheapest answer, and
-re-waking on the app returning to the foreground is the next one in code.
+raising the idle timeout in the RunPod console is the cheapest answer.
 Each open now bills a boot and an idle timeout of GPU even when nothing is
 played.
+
+**And on returning to the foreground** (the owner, same day). A phone that
+kept the app in the background never reloads it, so `/api/auth/me` is not
+asked again. The page now sends `POST /api/voice/wake` on `visibilitychange`
+to visible, signed-in only; the server holds the same rule through
+`_wake_for` (guests and waitlisted get `{"woke": false}`, and under
+`WAITLIST=1` the path is closed to anyone not active).

@@ -235,3 +235,17 @@ def test_opening_the_app_wakes_the_voice_for_an_account_only(client, monkeypatch
     woke.clear()
     client.get("/api/auth/me")
     assert woke == [1]
+
+
+def test_returning_to_the_app_wakes_the_voice_for_an_account_only(client, monkeypatch):
+    """A phone that kept the app in the background never asks `/api/auth/me`
+    again, so a return to the foreground asks `/api/voice/wake`."""
+    woke: list = []
+    monkeypatch.setattr(appmod, "_wake_remote_voice", lambda: woke.append(1))
+    r = client.post("/api/voice/wake")
+    assert r.status_code == 200 and r.json() == {"woke": False}
+    assert woke == []
+    signed_in(client, "wake-on-return@example.com")
+    woke.clear()
+    assert client.post("/api/voice/wake").json() == {"woke": True}
+    assert woke == [1]

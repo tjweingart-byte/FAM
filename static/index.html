@@ -15082,6 +15082,15 @@
 
   refreshAuth();
 
+  // Coming back to the app is opening it, on a phone that kept it in the
+  // background: ask for the voice now, not at the tap (PROBLEMS.md §324). A
+  // guest's ask would be refused, so it is not sent. Never awaited - a lost
+  // wake costs only the cold start it was trying to hide.
+  document.addEventListener("visibilitychange", function(){
+    if(document.visibilityState !== "visible" || !AUTH.authenticated) return;
+    fetch("/api/voice/wake", { method: "POST" }).catch(function(){});
+  });
+
   // What the Profile tab is to somebody with no account: a door, and nothing
   // else.
   //
