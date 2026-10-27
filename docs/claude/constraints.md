@@ -1579,6 +1579,23 @@
   post read; staging scrubs the token ([zero-spend-staging]). With no model
   key the reply is drafted in code and the card says so. Cards are kept a
   week.
+<!-- rule:linkedin -->
+- **Go Deeper on LinkedIn is found and posted by a person** (§322,
+  `linkedin_posts.py`, `/admin/linkedin`). A LinkedIn post meant to teach or
+  inform gets a comment linking the kept episode that goes deeper. LinkedIn
+  has no API that reads others' posts and forbids scraping and automated
+  comments, so **nothing here reads LinkedIn and FAM holds no LinkedIn
+  credential**: the page builds LinkedIn search links from the same episodes
+  `/admin/x` seeds from, and a person pastes the post (address and words).
+  Code screens out announcements, hiring, promotion, grief and posts that do
+  not teach (a person may add one anyway; the card says so), keeps one
+  author a week (by profile or typed name; an approved card outlives
+  pruning for that week), refuses a post already on the page, and matches every kept non-explicit episode (`/admin/x`'s
+  embeddings and names). Below `LINK_FLOOR` there is no comment, only the Go
+  Deeper question to search in FAM, then "Match again". Approve copies the
+  comment - the person's words, then `Go Deeper: "<title>" (n min) <link>` -
+  and opens the post; the person pastes and posts. Only an approval writes
+  what was posted. Each card counts its drafting cost. Cards are kept a week.
 <!-- rule:app-review-safety -->
 - **Report anything, block both ways, and ask before a listener's words go to
   the AI** (App Store 1.2 and 5.1.2(i), §222). Every comment, message, vibe,

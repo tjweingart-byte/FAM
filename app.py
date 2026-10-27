@@ -94,6 +94,7 @@ import categories as categories_mod
 import topics as topics_mod
 import thumbnails as thumbnails_mod
 import x_threads
+import linkedin_posts
 import accounts as accounts_mod
 import viral_loops as viral_loops_mod
 import waitlist as waitlist_mod
@@ -1069,6 +1070,13 @@ def _database_report() -> list[dict]:
     if x_threads._exists():
         try:
             stores.append(("x threads", "X_THREADS_DB", x_threads.store().path))
+        except Exception:  # pragma: no cover - a report is never load-bearing
+            pass
+    # Go Deeper on LinkedIn (§322): created by the first post pasted.
+    if linkedin_posts._exists():
+        try:
+            stores.append(("linkedin posts", "LINKEDIN_POSTS_DB",
+                           linkedin_posts.store().path))
         except Exception:  # pragma: no cover - a report is never load-bearing
             pass
     # Requests per outside service per day (§179). Created by the first
@@ -10911,6 +10919,174 @@ async def admin_x_decide(req: XDecision, request: Request) -> dict:
             "share_url": link,
             "intent_url": x_threads.intent_url(req.post_id, text),
             "post_url": card["post"]["url"]}
+
+
+# --- Go Deeper on LinkedIn (§322, linkedin_posts.py) ---------------------------
+# LinkedIn posts that teach something, and the kept episode that goes deeper.
+# Nothing here reads LinkedIn: the page builds search links a person opens,
+# and a person pastes the posts worth commenting on. A person approves each
+# comment and posts it in LinkedIn ([no-social-posting]).
+
+
+@app.get("/admin/linkedin", include_in_schema=False)
+async def admin_linkedin_page(request: Request):
+    """The review page, `/admin/x`'s shape."""
+    if not _admin_configured():
+        raise HTTPException(status_code=404, detail="Not found")
+    page = PROJECT_ROOT / "admin_ui" / "linkedin.html"
+    return HTMLResponse(page.read_text(encoding="utf-8"),
+                        headers={"Cache-Control": "no-store",
+                                 "X-Robots-Tag": "noindex"})
+
+
+@app.get("/api/admin/linkedin")
+async def admin_linkedin(request: Request, status: str = "") -> dict:
+    """Every card, and the LinkedIn searches built from today's episodes."""
+    _require_admin(request)
+    if status and status not in linkedin_posts.STATUSES:
+        raise HTTPException(status_code=422, detail="Unknown status.")
+    cards = []
+    if linkedin_posts._exists():
+        cards = await asyncio.to_thread(lambda: linkedin_posts.store().all(status))
+    # The Trending edition and the cache are read off the loop.
+    searches = await asyncio.to_thread(lambda: linkedin_posts.search_links(
+        SCRIPT_CACHE, trending=x_threads.trending_now(),
+        limit=settings.x_threads_seeds))
+    health = await asyncio.to_thread(linkedin_posts.health)
+    return {"health": health, "cards": cards, "searches": searches,
+            "comment_chars": linkedin_posts.COMMENT_CHARS}
+
+
+class LinkedInPaste(BaseModel):
+    url: str = Field(..., min_length=1, max_length=600)
+    text: str = Field(..., min_length=1, max_length=6000)
+    author_name: str = Field("", max_length=120)
+    #: Add it although the screen turned it away; the card says why.
+    anyway: bool = False
+
+
+@app.post("/api/admin/linkedin/add")
+async def admin_linkedin_add(req: LinkedInPaste, request: Request) -> dict:
+    """A post a person found and pasted: screened, matched against every
+    kept episode, its comment drafted. A refusal says why, and the page
+    offers to add it anyway."""
+    _require_admin(request)
+    try:
+        card = await linkedin_posts.add(SCRIPT_CACHE, url=req.url, text=req.text,
+                                        author_name=req.author_name, anyway=req.anyway)
+    except linkedin_posts.NotAPost as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except linkedin_posts.Refused as exc:
+        # The page offers "Add it anyway" only for a refusal that may be
+        # overruled - never for a post that already has a card.
+        raise HTTPException(status_code=409, detail=str(exc),
+                            headers={"X-FAM-Overrule": "anyway"}) from exc
+    except linkedin_posts.OnThePage as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return {"card": card}
+
+
+class LinkedInCard(BaseModel):
+    post_id: str = Field(..., min_length=1, max_length=40,
+                         pattern=r"^(activity|share|ugcPost):[0-9]+$")
+
+
+@app.post("/api/admin/linkedin/match")
+async def admin_linkedin_match(req: LinkedInCard, request: Request) -> dict:
+    """Match a card again: after the Go Deeper episode it needed was made."""
+    _require_admin(request)
+    if not linkedin_posts._exists():
+        raise HTTPException(status_code=404, detail="No cards yet")
+    try:
+        card = await linkedin_posts.rematch(SCRIPT_CACHE, req.post_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="No card for that post") from exc
+    return {"card": card}
+
+
+def _linkedin_episode(card: dict, chosen: Optional[int]) -> dict:
+    """The offered episode the person chose, only one that is the post's
+    subject: no episode, no link."""
+    episodes = card.get("episodes") or []
+    index = card.get("chosen", 0) if chosen is None else chosen
+    if not 0 <= index < len(episodes) or not linkedin_posts.linked(episodes[index]):
+        raise HTTPException(status_code=409, detail=(
+            "No kept episode is this post's subject. Make one: search its Go "
+            "Deeper question in FAM, then press Match again."))
+    return episodes[index]
+
+
+def _linkedin_link(episode: dict, request: Request) -> str:
+    """The episode as a share link FAM owns: one per episode, like `/admin/x`'s."""
+    try:
+        share = SHARES.create(linkedin_posts.SHARER, episode["query"],
+                              int(episode.get("minutes") or 1),
+                              episode.get("title") or "")
+    except sharing.ShareError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    link, public = _share_url(share["id"], request)
+    if not public:
+        raise HTTPException(status_code=409, detail=(
+            "This server does not know its public address, so the episode "
+            "link would not open on LinkedIn. Set PUBLIC_BASE_URL."))
+    return link
+
+
+class LinkedInListen(LinkedInCard):
+    chosen: Optional[int] = Field(None, ge=0, le=linkedin_posts.OFFERED - 1)
+
+
+@app.post("/api/admin/linkedin/listen")
+async def admin_linkedin_listen(req: LinkedInListen, request: Request) -> dict:
+    """The episode's link, to hear it before vouching for it."""
+    _require_admin(request)
+    if not linkedin_posts._exists():
+        raise HTTPException(status_code=404, detail="No cards yet")
+    card = await asyncio.to_thread(lambda: linkedin_posts.store().get(req.post_id))
+    if card is None:
+        raise HTTPException(status_code=404, detail="No card for that post")
+    episode = _linkedin_episode(card, req.chosen)
+    return {"url": await asyncio.to_thread(_linkedin_link, episode, request)}
+
+
+class LinkedInDecision(LinkedInCard):
+    action: str = Field(..., pattern="^(approve|skip|reopen)$")
+    #: The comment as the person edited it on the card; the draft if empty.
+    text: str = Field("", max_length=2000)
+    #: Which offered episode goes in the Go Deeper line.
+    chosen: Optional[int] = Field(None, ge=0, le=linkedin_posts.OFFERED - 1)
+
+
+@app.post("/api/admin/linkedin/decide")
+async def admin_linkedin_decide(req: LinkedInDecision, request: Request) -> dict:
+    """A person's verdict on one card. Approve makes the episode's share
+    link, puts the comment together and hands it back with the post's
+    address; the page copies the words and opens the post. LinkedIn has no
+    prefilled comment box, so the person pastes. Nothing is posted here."""
+    _require_admin(request)
+    if not linkedin_posts._exists():
+        raise HTTPException(status_code=404, detail="No cards yet")
+    held = await asyncio.to_thread(linkedin_posts.store)
+    card = await asyncio.to_thread(held.get, req.post_id)
+    if card is None:
+        raise HTTPException(status_code=404, detail="No card for that post")
+    now = time.time()
+    if req.action != "approve":
+        status = (linkedin_posts.SKIPPED if req.action == "skip"
+                  else linkedin_posts.WAITING)
+        await asyncio.to_thread(held.decide, req.post_id, status, now)
+        return {"post_id": req.post_id, "status": status}
+    episode = _linkedin_episode(card, req.chosen)
+    link = await asyncio.to_thread(_linkedin_link, episode, request)
+    try:
+        text = linkedin_posts.compose(req.text or card["draft"], episode, link)
+    except linkedin_posts.TooLong as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    chosen = card["chosen"] if req.chosen is None else req.chosen
+    await asyncio.to_thread(held.decide, req.post_id, linkedin_posts.APPROVED, now,
+                            posted=text, share_url=link, chosen=chosen)
+    return {"post_id": req.post_id, "status": linkedin_posts.APPROVED,
+            "text": text, "share_url": link, "post_url": card["url"]}
 
 
 @app.exception_handler(HTTPException)

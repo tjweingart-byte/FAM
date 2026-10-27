@@ -1,0 +1,389 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Go Deeper on LinkedIn</title>
+<style>
+  /* The tracker's palette, so the admin pages read as one tool; `/admin/x`'s cards. */
+  :root {
+    --ground:#14111C; --panel:#1C1926; --surface:#262233; --raised:#302A40;
+    --line:#3A3348; --ink:#F1EEF7; --muted:#A79EBA; --faint:#7C7391;
+    --amber:#E9BC63; --amber-dk:#8A6A22; --green:#6BC2A8; --green-bg:#17322C;
+    --rose:#DE8FA8; --rose-bg:#33202A;
+    --serif: Georgia, "Times New Roman", serif;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    --mono: ui-monospace, Menlo, Consolas, monospace;
+    color-scheme: dark;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--ground); color:var(--ink); font:14px/1.5 var(--sans); }
+  button, input, textarea { font:inherit; color:inherit; }
+  button { cursor:pointer; }
+  a { color:var(--amber); }
+  :focus-visible { outline:2px solid var(--amber); outline-offset:2px; border-radius:4px; }
+  .wrap { max-width:1100px; margin:0 auto; padding:22px 16px 60px; }
+  .eyebrow { font:11px var(--mono); letter-spacing:.14em; text-transform:uppercase; color:var(--amber); margin-bottom:6px; }
+  .eyebrow a { color:inherit; }
+  h1 { font-family:var(--serif); font-size:clamp(1.6rem,4vw,2.2rem); font-weight:600; margin:0 0 4px; }
+  .sub { color:var(--muted); font-size:12.5px; margin:0 0 14px; max-width:760px; }
+  .kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:1px; background:var(--line); border:1px solid var(--line); border-radius:14px; overflow:hidden; margin-bottom:14px; }
+  .kpi { background:var(--panel); padding:12px 14px; }
+  .kpi span { display:block; font:10px var(--mono); letter-spacing:.08em; text-transform:uppercase; color:var(--faint); }
+  .kpi b { display:block; font-family:var(--serif); font-size:24px; font-variant-numeric:tabular-nums; }
+  .kpi em { display:block; font-style:normal; font-size:11.5px; color:var(--muted); }
+  .bar { display:flex; flex-wrap:wrap; gap:8px; align-items:center; background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:12px; margin-bottom:14px; }
+  .go { background:var(--amber); color:#1b1408; border:0; border-radius:8px; padding:7px 14px; font-weight:600; }
+  .go:disabled { opacity:.5; cursor:default; }
+  .ghost { background:var(--surface); border:1px solid var(--line); border-radius:8px; padding:6px 11px; font-size:12px; color:var(--muted); }
+  .ghost.on { color:var(--ink); border-color:var(--amber); }
+  .note { font-size:12.5px; color:var(--muted); }
+  .note.err { color:var(--rose); }
+  .tabs { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:12px; }
+  .list { display:flex; flex-direction:column; gap:12px; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px; display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:14px; }
+  .card.done { opacity:.7; }
+  @media (max-width:760px) { .card { grid-template-columns:1fr; } }
+  .post { background:#000; border:1px solid #2f3336; border-radius:12px; padding:12px; color:#e7e9ea; }
+  .post + .post { margin-top:8px; }
+  .who { font-size:13px; }
+  .who b { color:#e7e9ea; }
+  .who span { color:#71767b; }
+  .text { margin:6px 0 8px; white-space:pre-wrap; word-break:break-word; }
+  .metrics { font:11px var(--mono); color:#71767b; display:flex; gap:12px; flex-wrap:wrap; }
+  .side { display:flex; flex-direction:column; gap:8px; min-width:0; }
+  .chips { display:flex; flex-wrap:wrap; gap:4px; }
+  .chip { font:10px var(--mono); border-radius:999px; padding:2px 7px; background:var(--surface); color:var(--muted); }
+  .chip.kind { color:var(--amber); }
+  .chip.ok { background:var(--green-bg); color:var(--green); }
+  .chip.bad { background:var(--rose-bg); color:var(--rose); }
+  .reason { font-size:12px; color:var(--muted); }
+  .episode { font-size:12.5px; }
+  .episode b { font-family:var(--serif); font-size:15px; }
+  textarea { width:100%; min-height:96px; resize:vertical; background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:10px 12px; line-height:1.45; }
+  .count { font:11px var(--mono); color:var(--faint); text-align:right; }
+  .count.over { color:var(--rose); }
+  .acts { display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+  .acts label { font-size:12px; color:var(--muted); }
+  .posted { font-size:12px; color:var(--green); white-space:pre-wrap; word-break:break-word; }
+  .gate { max-width:360px; margin:12vh auto; background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:20px; }
+  .gate form { display:flex; flex-direction:column; gap:8px; margin-top:12px; }
+  .gate input { background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:10px 12px; }
+  .post { background:#1b1f23; border:1px solid #38434f; border-radius:10px; color:#e9e9e9; }
+  .who span { color:#a8a8a8; }
+  .metrics { color:#a8a8a8; }
+  .searches { display:flex; flex-direction:column; gap:6px; }
+  .search { display:flex; gap:8px; align-items:baseline; flex-wrap:wrap; font-size:12.5px; }
+  .search b { font-family:var(--serif); font-size:14px; font-weight:600; }
+  .search span { color:var(--faint); font:11px var(--mono); }
+  .panel { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:12px; margin-bottom:14px; }
+  .panel h2 { font:11px var(--mono); letter-spacing:.12em; text-transform:uppercase; color:var(--amber); margin:0 0 8px; font-weight:400; }
+  .paste { display:grid; grid-template-columns:minmax(0,2fr) minmax(0,1fr); gap:8px; }
+  .paste input { background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:9px 12px; min-width:0; }
+  .paste textarea, .paste .acts { grid-column:1 / -1; }
+  @media (max-width:760px) { .paste { grid-template-columns:1fr; } }
+  .pick { display:flex; flex-direction:column; gap:4px; font-size:12.5px; }
+  .pick label { display:flex; gap:6px; align-items:baseline; }
+  .question { font-size:12.5px; background:var(--surface); border-radius:8px; padding:8px 10px; }
+  [hidden] { display:none !important; }
+</style>
+</head>
+<body>
+<div class="gate" id="gate" hidden>
+  <div class="eyebrow">FAM admin</div>
+  <h1>Go Deeper on LinkedIn</h1>
+  <p class="sub">Sign in with an admin account.</p>
+  <form id="loginForm" autocomplete="on">
+    <input id="email" type="email" placeholder="Email" autocomplete="username" required>
+    <input id="password" type="password" placeholder="Password" autocomplete="current-password" required>
+    <button class="go" id="loginBtn" type="submit">Sign in</button>
+    <p class="note err" id="loginErr" hidden></p>
+      <!-- Forgot password (§297): the reset page every log-in links to, drawn only when the server can email a code (§244). -->
+      <p id="forgotLink" hidden style="margin:10px 0 0;font-size:13px;"><a href="/reset?next=/admin/linkedin" style="color:inherit;opacity:.75">Forgot password?</a></p>
+  </form>
+</div>
+
+<div class="wrap" id="app" hidden>
+  <div class="eyebrow"><a href="/admin">FAM admin</a> · Go Deeper on LinkedIn</div>
+  <h1>Posts to go deeper on</h1>
+  <p class="sub">LinkedIn posts that teach something, each matched to a FAM episode that goes further.
+    FAM never reads LinkedIn: open a search below, and paste the posts worth adding to. <b>Approve</b>
+    copies the comment, with its Go Deeper line, and opens the post; you paste it and press Comment in
+    LinkedIn. FAM never posts. Listen before you link an episode.</p>
+
+  <div class="kpis" id="kpis"></div>
+
+  <div class="panel">
+    <h2>Find · today's episodes, searched on LinkedIn</h2>
+    <div class="searches" id="searches"></div>
+  </div>
+
+  <div class="panel">
+    <h2>Paste a post</h2>
+    <form class="paste" id="pasteForm" autocomplete="off">
+      <input id="pUrl" placeholder="The post's address (… → Copy link to post)" required>
+      <input id="pName" placeholder="Author's name (optional)">
+      <textarea id="pText" placeholder="The post's words, copied from LinkedIn" required></textarea>
+      <div class="acts">
+        <button class="go" id="pasteBtn" type="submit">Match an episode</button>
+        <button class="ghost" id="anywayBtn" type="button" hidden>Add it anyway</button>
+        <span class="note" id="pasteNote"></span>
+      </div>
+    </form>
+  </div>
+
+  <div class="tabs" id="tabs"></div>
+  <div class="list" id="list"></div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  var $ = function (id) { return document.getElementById(id); };
+  var TABS = [["waiting", "Waiting for you"], ["approved", "Approved"], ["skipped", "Skipped"], ["", "All"]];
+  // LinkedIn's ceiling on a comment, from the server (`linkedin_posts.COMMENT_CHARS`).
+  var COMMENT_CHARS = 1250;
+  var tab = "waiting", data = null, edits = {}, picks = {};
+
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
+    });
+  }
+  function api(path, body) {
+    var headers = { "Accept": "application/json" };
+    if (body) headers["Content-Type"] = "application/json";
+    return fetch(path, { method: body ? "POST" : "GET", headers: headers, credentials: "same-origin",
+                         body: body ? JSON.stringify(body) : undefined })
+      .then(function (r) {
+        return r.json().catch(function () { return {}; }).then(function (j) {
+          if (!r.ok) {
+            var e = new Error(j.error || (typeof j.detail === "string" ? j.detail : "") || ("HTTP " + r.status));
+            e.status = r.status; e.overrule = r.headers.get("X-FAM-Overrule") === "anyway"; throw e;
+          }
+          return j;
+        });
+      });
+  }
+  function kpi(label, value, note) {
+    return '<div class="kpi"><span>' + esc(label) + '</span><b>' + esc(value) + '</b>'
+      + (note ? '<em>' + esc(note) + '</em>' : '') + '</div>';
+  }
+  function card(id) {
+    return (data.cards || []).filter(function (k) { return k.post_id === id; })[0];
+  }
+  // The offered episodes that are the post's subject (the server's
+  // `linked`): no episode, no link.
+  function choosable(k) {
+    return (k.episodes || []).map(function (e, i) { return [e, i]; })
+      .filter(function (p) { return p[0].linked; });
+  }
+  function pick(k) { return picks[k.post_id] != null ? picks[k.post_id] : k.chosen; }
+  // The Go Deeper line's length, the link counted as a typical share address.
+  function counted(k, text) {
+    var ep = (k.episodes || [])[pick(k)] || {};
+    var line = "Go Deeper: “" + (ep.title || "") + "” (" + (ep.minutes || 1) + " min) " + location.origin + "/s/xxxxxxxxxxxx";
+    return text.trim().length + (text.trim() ? 2 : 0) + line.length;
+  }
+
+  function postBox(k) {
+    return '<div class="post"><div class="who"><b>' + esc(k.author_name || "LinkedIn member") + '</b> <span>'
+      + (k.author ? esc(k.author) : "") + '</span></div><div class="text">' + esc(k.text) + '</div>'
+      + '<div class="metrics"><a href="' + esc(k.url) + '" target="_blank" rel="noopener">Open on LinkedIn ↗</a></div></div>';
+  }
+
+  function render() {
+    var c = (data.health || {}).counts || {};
+    $("kpis").innerHTML =
+      kpi("Waiting", c.waiting || 0) +
+      kpi("Approved", c.approved || 0, "kept a week") +
+      kpi("Skipped", c.skipped || 0) +
+      kpi("Drafting spend", "$" + Number((data.health || {}).dollars || 0).toFixed(2), "every match, the cards kept");
+
+    var ss = data.searches || [];
+    $("searches").innerHTML = ss.length ? ss.map(function (s) {
+      return '<div class="search"><a href="' + esc(s.url) + '" target="_blank" rel="noopener">Search LinkedIn ↗</a>'
+        + '<b>' + esc(s.title) + '</b><span>' + esc(s.names.join(" · ")) + (s.origin === "trending" ? " · Trending" : "")
+        + '</span></div>';
+    }).join("") : '<p class="note">No kept episode has a name to search for yet: write the Trending edition or play some episodes first.</p>';
+
+    $("tabs").innerHTML = TABS.map(function (t) {
+      var n = !t[0] ? (data.cards || []).length : (c[t[0]] || 0);
+      return '<button class="ghost' + (t[0] === tab ? " on" : "") + '" data-tab="' + t[0] + '">'
+        + esc(t[1]) + " · " + n + '</button>';
+    }).join("");
+
+    var rows = (data.cards || []).filter(function (k) { return !tab || k.status === tab; });
+    if (!rows.length) {
+      $("list").innerHTML = '<p class="note">' + (tab === "waiting"
+        ? "Nothing waiting. Open a search above and paste a post that teaches something." : "Nothing here.") + '</p>';
+      return;
+    }
+    $("list").innerHTML = rows.map(function (k) {
+      var id = k.post_id, text = edits[id] != null ? edits[id] : (k.draft || "");
+      var options = choosable(k), chips = [];
+      chips.push('<span class="chip kind">' + (options.length ? "Go Deeper episode" : "No episode yet") + '</span>');
+      if (k.screened) chips.push('<span class="chip bad">added anyway</span>');
+      if (k.drafted_by === "code") chips.push('<span class="chip bad" title="No model could be asked; a plain comment written in code">drafted in code</span>');
+      if (k.status === "approved") chips.push('<span class="chip ok">approved</span>');
+      var side = '<div class="side"><div class="chips">' + chips.join("") + '</div>'
+        + '<div class="reason">' + esc(k.reason) + '</div>';
+      if (k.status === "approved") {
+        side += '<div class="posted">' + esc(k.posted) + '</div><div class="acts">'
+          + '<button class="go" data-act="again" data-id="' + id + '">Copy and open the post again</button>'
+          + '<button class="ghost" data-act="reopen" data-id="' + id + '">Back to waiting</button></div>';
+      } else if (!options.length) {
+        side += (k.question ? '<div class="question">Make the episode: search <b>' + esc(k.question) + '</b> in FAM, then match again.</div>'
+          : '<div class="question">Make the episode: search this post\'s question in FAM, then match again.</div>')
+          + '<div class="acts"><button class="go" data-act="match" data-id="' + id + '">Match again</button>'
+          + (k.status === "skipped" ? '<button class="ghost" data-act="reopen" data-id="' + id + '">Back to waiting</button>'
+            : '<button class="ghost" data-act="skip" data-id="' + id + '">Skip</button>') + '</div>';
+      } else {
+        var chosen = pick(k), n = counted(k, text);
+        side += '<div class="pick">' + options.map(function (p) {
+          return '<label><input type="radio" name="ep-' + esc(id) + '" data-pick="' + esc(id) + '" value="' + p[1] + '"'
+            + (p[1] === chosen ? " checked" : "") + '> <span><b>' + esc(p[0].title) + '</b> · ' + p[0].minutes
+            + ' min · ' + Math.round(p[0].match * 100) + '%</span></label>';
+        }).join("") + '</div>'
+          + '<div class="acts"><button class="ghost" data-act="listen" data-id="' + id + '">Listen first</button></div>'
+          + '<textarea data-edit="' + esc(id) + '" aria-label="Comment">' + esc(text) + '</textarea>'
+          + '<div class="count' + (n > COMMENT_CHARS ? " over" : "") + '" id="count-' + esc(id) + '">' + n + ' / ' + COMMENT_CHARS
+          + ' with the Go Deeper line</div>'
+          + '<div class="acts"><button class="go" data-act="approve" data-id="' + id + '">Approve</button>'
+          + (k.status === "skipped" ? '<button class="ghost" data-act="reopen" data-id="' + id + '">Back to waiting</button>'
+            : '<button class="ghost" data-act="skip" data-id="' + id + '">Skip</button>')
+          + '<button class="ghost" data-act="match" data-id="' + id + '">Match again</button></div>';
+      }
+      side += '</div>';
+      return '<div class="card' + (k.status !== "waiting" ? " done" : "") + '"><div>' + postBox(k) + '</div>' + side + '</div>';
+    }).join("");
+  }
+
+  function load() {
+    return api("/api/admin/linkedin").then(function (d) {
+      data = d;
+      COMMENT_CHARS = d.comment_chars || COMMENT_CHARS;
+      $("gate").hidden = true; $("app").hidden = false;
+      var typing = document.activeElement && document.activeElement.dataset
+        && document.activeElement.dataset.edit;
+      if (!typing) render();
+    }).catch(function (e) {
+      if (e.status === 404 || e.status === 401) { $("app").hidden = true; $("gate").hidden = false; }
+    });
+  }
+
+  function copy(text) {
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(text);
+    } catch (e) {}
+    return Promise.reject(new Error("no clipboard"));
+  }
+
+  document.addEventListener("input", function (ev) {
+    var id = ev.target.dataset && ev.target.dataset.edit;
+    if (!id) return;
+    edits[id] = ev.target.value;
+    var n = counted(card(id), ev.target.value), el = $("count-" + id);
+    el.textContent = n + " / " + COMMENT_CHARS + " with the Go Deeper line";
+    el.className = "count" + (n > COMMENT_CHARS ? " over" : "");
+  });
+  document.addEventListener("change", function (ev) {
+    var id = ev.target.dataset && ev.target.dataset.pick;
+    if (!id) return;
+    picks[id] = Number(ev.target.value);
+    render();
+  });
+
+  document.addEventListener("click", function (ev) {
+    var b = ev.target.closest("button");
+    if (!b) return;
+    if (b.dataset.tab != null) { tab = b.dataset.tab; render(); return; }
+    var id = b.dataset.id, act = b.dataset.act;
+    if (!id || !act) return;
+    var k = card(id);
+    if (act === "again") {
+      copy(k.posted).catch(function () {});
+      window.open(k.url, "_blank");
+      return;
+    }
+    if (act === "listen") {
+      var lw = window.open("", "_blank");
+      b.disabled = true;
+      api("/api/admin/linkedin/listen", { post_id: id, chosen: pick(k) }).then(function (r) {
+        if (lw) lw.location.href = r.url; else window.open(r.url, "_blank");
+      }).catch(function (e) { if (lw) lw.close(); alert(e.message); })
+        .then(function () { b.disabled = false; });
+      return;
+    }
+    if (act === "match") {
+      b.disabled = true; b.textContent = "Matching…";
+      api("/api/admin/linkedin/match", { post_id: id }).then(function () { delete picks[id]; return load(); })
+        .catch(function (e) { alert(e.message); b.disabled = false; });
+      return;
+    }
+    if (act === "approve") {
+      var text = edits[id] != null ? edits[id] : (k.draft || "");
+      if (counted(k, text) > COMMENT_CHARS) { alert("The comment is longer than LinkedIn allows. Shorten it first."); return; }
+      // Opened inside the click: a window opened after an await is a blocked popup.
+      var win = window.open("", "_blank");
+      b.disabled = true;
+      api("/api/admin/linkedin/decide", { post_id: id, action: "approve", text: text, chosen: pick(k) })
+        .then(function (r) {
+          copy(r.text).catch(function () {});
+          if (win && !win.closed) win.location.href = r.post_url;
+          else alert("Your browser blocked the LinkedIn window. The comment is on the Approved tab: press Copy and open the post again.");
+          delete edits[id]; delete picks[id];
+          return load();
+        })
+        .catch(function (e) { if (win) win.close(); alert(e.message); b.disabled = false; });
+      return;
+    }
+    b.disabled = true;
+    api("/api/admin/linkedin/decide", { post_id: id, action: act }).then(load)
+      .catch(function (e) { alert(e.message); b.disabled = false; });
+  });
+
+  function paste(anyway) {
+    $("pasteBtn").disabled = true; $("anywayBtn").hidden = true;
+    $("pasteNote").className = "note"; $("pasteNote").textContent = "Matching against the kept episodes and drafting…";
+    api("/api/admin/linkedin/add", { url: $("pUrl").value.trim(), text: $("pText").value,
+                                     author_name: $("pName").value.trim(), anyway: !!anyway })
+      .then(function () {
+        $("pUrl").value = ""; $("pText").value = ""; $("pName").value = "";
+        $("pasteNote").textContent = "Added."; tab = "waiting";
+        return load();
+      })
+      .catch(function (e) {
+        $("pasteNote").className = "note err"; $("pasteNote").textContent = e.message;
+        // The screen's refusal can be overruled; a bad address, or a post
+        // already on the page, cannot.
+        $("anywayBtn").hidden = !e.overrule;
+      })
+      .then(function () { $("pasteBtn").disabled = false; });
+  }
+  $("pasteForm").addEventListener("submit", function (ev) { ev.preventDefault(); paste(false); });
+  $("anywayBtn").addEventListener("click", function () { paste(true); });
+
+  // "Forgot password?" only where a code can be emailed (§244, §297).
+  fetch("/api/auth/reset", { credentials: "same-origin" })
+    .then(function (r) { return r.json(); })
+    .then(function (d) { $("forgotLink").hidden = !(d && d.available); })
+    .catch(function () {});
+  $("loginForm").addEventListener("submit", function (ev) {
+    ev.preventDefault();
+    $("loginErr").hidden = true; $("loginBtn").disabled = true;
+    api("/api/admin/login", { email: $("email").value.trim(), password: $("password").value })
+      .then(load)
+      .catch(function (e) { $("loginErr").textContent = e.message; $("loginErr").hidden = false; })
+      .then(function () { $("loginBtn").disabled = false; });
+  });
+
+
+  // No polling: nothing changes the cards but this page, and each load
+  // reads the cache to build the searches.
+  load();
+})();
+</script>
+</body>
+</html>
