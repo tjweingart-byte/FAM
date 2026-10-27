@@ -60,7 +60,7 @@ _ARPABET = {
 
 def _load() -> dict:
     """word (lower case) -> its first pronunciation, in ARPAbet. Loaded once,
-    on first use (~15 MB); {} when the file is missing, said once."""
+    on first use (~22 MB); {} when the file is missing, said once."""
     with _LOCK:
         if _DICT:
             return _DICT
@@ -81,7 +81,9 @@ def _load() -> dict:
 
 
 def available() -> bool:
-    return bool(_load())
+    """Whether the dictionary is on this server - asked without loading it,
+    so the admin page does not pay ~22 MB to say so."""
+    return bool(_DICT) or os.path.exists(DICTIONARY)
 
 
 def arpabet_to_ipa(phones: str) -> str:
