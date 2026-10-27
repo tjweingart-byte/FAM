@@ -448,7 +448,7 @@ def screen(post: Post, now: float, *, window_hours: float,
     except Exception:  # noqa: BLE001
         pass
     if post.author and post.author.lower() in {a.lower() for a in replied_to}:
-        return "already replied to this author this week"
+        return "this author is on the page or was replied to this week"
     if not (asks(post.text) or takes_a_side(post.text)):
         return "neither asks nor takes a side"
     return ""
@@ -462,17 +462,19 @@ def velocity(post: Post, now: float) -> float:
     return min(1.0, math.log1p(per_hour) / math.log1p(200.0))
 
 
-def match(post: Post, seed: Optional[Seed]) -> float:
+def match(post: Post, seed: Optional[Seed], about: Optional[list] = None) -> float:
     """How much the episode is about what the post is about, 0-1: the same
-    embeddings the cache matches questions with, plus the seed's names."""
+    embeddings the cache matches questions with, plus the seed's names.
+    `about` is the episode's vector when the caller already has it - one
+    encode per episode a run, not one per post."""
     if seed is None:
         return 0.0
     import embeddings
 
-    about = f"{seed.title}. {seed.query}"
     try:
-        semantic = max(0.0, embeddings.cosine(embeddings.embed(post.text),
-                                              embeddings.embed(about)))
+        if about is None:
+            about = embeddings.embed(f"{seed.title}. {seed.query}")
+        semantic = max(0.0, embeddings.cosine(embeddings.embed(post.text), about))
     except Exception:  # noqa: BLE001
         semantic = 0.0
     low = post.text.lower()
@@ -480,9 +482,10 @@ def match(post: Post, seed: Optional[Seed]) -> float:
     return round(min(1.0, 0.6 * semantic + 0.4 * named), 4)
 
 
-def score(post: Post, seed: Optional[Seed], now: float) -> tuple[float, dict]:
+def score(post: Post, seed: Optional[Seed], now: float,
+          about: Optional[list] = None) -> tuple[float, dict]:
     parts = {
-        "match": match(post, seed),
+        "match": match(post, seed, about),
         "velocity": round(velocity(post, now), 4),
         "question": 1.0 if asks(post.text) else (0.5 if takes_a_side(post.text) else 0.0),
         "room": round(1.0 - min(post.replies, MAX_REPLIES) / MAX_REPLIES, 4),
@@ -540,12 +543,23 @@ def opposed(a: Post, b: Post) -> bool:
 def shortlist(found: list[tuple[Post, Seed]], now: float, *, window_hours: float,
               replied_to: Iterable[str] = (), size: int = SHORTLIST) -> list[Candidate]:
     """Screen, score and choose: one card per author, best first."""
+    import embeddings
+
     replied_to = list(replied_to)
     best: dict = {}
+    vectors: dict = {}
     for post, seed in found:
         if screen(post, now, window_hours=window_hours, replied_to=replied_to):
             continue
-        total, parts = score(post, seed, now)
+        about = None
+        if seed is not None:
+            if seed.key not in vectors:
+                try:
+                    vectors[seed.key] = embeddings.embed(f"{seed.title}. {seed.query}")
+                except Exception:  # noqa: BLE001
+                    vectors[seed.key] = None
+            about = vectors[seed.key]
+        total, parts = score(post, seed, now, about)
         kept = best.get(post.id)
         if kept is None or total > kept.score:
             kind = kind_of(post, parts)
@@ -631,12 +645,29 @@ def fallback_draft(cand: Candidate) -> str:
             "What part of it are you most curious about?")
 
 
+def x_length(text: str, links: int = 0) -> int:
+    """A post's length as X counts it: most Latin, Greek and Cyrillic
+    characters weigh 1, everything else (CJK, emoji) 2, and each link 23.
+    Counted per code point, so an emoji sequence errs long - the safe side
+    of a ceiling X enforces."""
+    total = 0
+    for ch in str(text or ""):
+        cp = ord(ch)
+        light = (cp <= 4351 or 8192 <= cp <= 8205 or 8208 <= cp <= 8223
+                 or 8242 <= cp <= 8247)
+        total += 1 if light else 2
+    return total + links * (LINK_CHARS + 1)
+
+
 def trim(text: str, limit: int = DRAFT_CHARS) -> str:
+    """A draft cut to `limit` at a word, the ellipsis included."""
     text = " ".join(str(text or "").split())
     if len(text) <= limit:
         return text
-    cut = text[:limit].rsplit(" ", 1)[0].rstrip(",;:-")
-    return cut + "…"
+    cut = text[:max(limit - 1, 0)]
+    if " " in cut:
+        cut = cut.rsplit(" ", 1)[0]
+    return cut.rstrip(",;:-") + "…"
 
 
 async def draft(cand: Candidate, client=None) -> tuple[str, str, float]:
@@ -673,11 +704,19 @@ async def draft(cand: Candidate, client=None) -> tuple[str, str, float]:
         return trim(fallback_draft(cand)), "code", 0.0
 
 
+class TooLong(ValueError):
+    """The reply is longer than X allows. Said, never cut: what reaches X
+    must be exactly what the person approved."""
+
+
 def compose(text: str, link: str = "") -> str:
-    """The post as X will count it: the words, then the link."""
+    """The post: the person's words, then the link. Raises `TooLong`
+    rather than shortening words somebody approved."""
     text = " ".join(str(text or "").split())
-    room = POST_CHARS - (LINK_CHARS + 1 if link else 0)
-    text = trim(text, room)
+    length = x_length(text, links=1 if link else 0)
+    if length > POST_CHARS:
+        raise TooLong(f"The reply is {length} characters as X counts them"
+                      f"{' with the link' if link else ''}; X allows {POST_CHARS}.")
     return f"{text} {link}" if link else text
 
 
@@ -736,9 +775,11 @@ class Store:
         return {r[0] for r in self._conn().execute("SELECT post_id FROM candidates")}
 
     def replied_authors(self, since: float) -> list:
+        """Authors approved since `since`, and those with a card still
+        waiting: one author a week means one card, not one per run."""
         rows = self._conn().execute(
-            "SELECT post FROM candidates WHERE status = ? AND decided_at >= ?",
-            (APPROVED, since)).fetchall()
+            "SELECT post FROM candidates WHERE (status = ? AND decided_at >= ?)"
+            " OR status = ?", (APPROVED, since, WAITING)).fetchall()
         return [json.loads(r[0]).get("author", "") for r in rows]
 
     def add(self, cand: Candidate, at: float) -> None:
@@ -809,8 +850,14 @@ class Store:
     # -- runs
 
     def record_run(self, at: float, reads: int, report: dict) -> None:
-        self._conn().execute("INSERT INTO runs (at, reads, report) VALUES (?, ?, ?)",
-                             (at, int(reads), json.dumps(report)))
+        """Write a run's row, or rewrite it: a run's row is written before
+        its first search and again after each, so reads X has billed are
+        counted even when the run dies before it finishes."""
+        cur = self._conn().execute("UPDATE runs SET reads = ?, report = ? WHERE at = ?",
+                                   (int(reads), json.dumps(report), at))
+        if cur.rowcount == 0:
+            self._conn().execute("INSERT INTO runs (at, reads, report) VALUES (?, ?, ?)",
+                                 (at, int(reads), json.dumps(report)))
 
     def reads_since(self, since: float) -> int:
         row = self._conn().execute("SELECT COALESCE(SUM(reads), 0) FROM runs"
@@ -835,9 +882,8 @@ def _exists() -> bool:
     if _STORE:
         return True
     try:
-        import os
-
-        return os.path.exists(data_path("X_THREADS_DB", "x_threads.db"))
+        # Its file, or its schema under Postgres (`db.has_tables`).
+        return store_db.has_tables(data_path("X_THREADS_DB", "x_threads.db"))
     except Exception:  # noqa: BLE001
         return False
 
@@ -907,7 +953,8 @@ async def run(cache, *, now: Optional[float] = None, searcher=None,
                              "is used up")
         held.record_run(now, 0, report)
         return report
-    chosen = seeds(cache, trending=trending_now(), limit=config.settings.x_threads_seeds)
+    chosen = await asyncio.to_thread(seeds, cache, trending=trending_now(),
+                                     limit=config.settings.x_threads_seeds)
     report["seeds"] = [{"title": s.title, "search": s.search(), "origin": s.origin}
                        for s in chosen]
     if not chosen:
@@ -919,32 +966,47 @@ async def run(cache, *, now: Optional[float] = None, searcher=None,
     since = now - config.settings.x_threads_window_hours * 3600
     found: list = []
     reads = 0
-    for seed in chosen:
-        if reads + 10 > room:
-            break
-        ask = min(per, room - reads)
-        try:
-            posts = await searcher(seed.search(), max_results=ask, since=since)
-        except asyncio.CancelledError:
-            raise
-        except Exception as exc:  # noqa: BLE001 - one seed never ends the run
-            report["errors"].append(f"{seed.title}: {exc}"[:200])
-            continue
-        reads += len(posts)
-        report["asked"] += 1
-        found.extend((p, seed) for p in posts)
-    report["read"] = reads
-    known = held.known()
-    fresh = [(p, s) for p, s in found if p.id not in known]
-    picked = shortlist(fresh, now, window_hours=config.settings.x_threads_window_hours,
-                       replied_to=held.replied_authors(now - 7 * 86400))
-    report["screened_out"] = len({p.id for p, _ in fresh}) - len(picked)
-    for cand in picked:
-        cand.draft, cand.drafted_by, dollars = await (drafter or draft)(cand)
-        report["dollars"] = round(report["dollars"] + dollars, 4)
-        held.add(cand, now)
-    report["cards"] = len(picked)
-    held.record_run(now, reads, report)
+    held.record_run(now, 0, report)
+    try:
+        for seed in chosen:
+            if reads + 10 > room:
+                break
+            ask = min(per, room - reads)
+            try:
+                posts = await searcher(seed.search(), max_results=ask, since=since)
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:  # noqa: BLE001 - one seed never ends the run
+                report["errors"].append(f"{seed.title}: {exc}"[:200])
+                continue
+            reads += len(posts)
+            report["asked"] += 1
+            report["read"] = reads
+            # Counted the moment X has billed them ([failures-visible]).
+            held.record_run(now, reads, report)
+            found.extend((p, seed) for p in posts)
+        known = held.known()
+        fresh = [(p, s) for p, s in found if p.id not in known]
+        # Embedding every post is CPU work; it never runs on the loop that
+        # streams listeners' audio.
+        picked = await asyncio.to_thread(
+            shortlist, fresh, now,
+            window_hours=config.settings.x_threads_window_hours,
+            replied_to=held.replied_authors(now - 7 * 86400))
+        report["screened_out"] = len({p.id for p, _ in fresh}) - len(picked)
+        for cand in picked:
+            cand.draft, cand.drafted_by, dollars = await (drafter or draft)(cand)
+            report["dollars"] = round(report["dollars"] + dollars, 4)
+            held.add(cand, now)
+            report["cards"] += 1
+    except asyncio.CancelledError:
+        report["stopped"] = "the run was stopped before it finished"
+        raise
+    except Exception as exc:  # noqa: BLE001 - said on the page, then raised
+        report["stopped"] = f"the run failed: {type(exc).__name__}: {exc}"[:300]
+        raise
+    finally:
+        held.record_run(now, reads, report)
     return report
 
 

@@ -145,9 +145,20 @@
     return m < 60 ? m + "m" : Math.round(m / 60) + "h";
   }
   function linked(card) { return !!(card.episode && card.kind !== "question"); }
+  // X's own count (`x_threads.x_length`): most Latin, Greek and Cyrillic
+  // characters weigh 1, everything else (CJK, emoji) 2, a link 23.
+  function xLength(text) {
+    var n = 0;
+    for (var ch of text) {
+      var cp = ch.codePointAt(0);
+      n += (cp <= 4351 || (cp >= 8192 && cp <= 8205) || (cp >= 8208 && cp <= 8223)
+            || (cp >= 8242 && cp <= 8247)) ? 1 : 2;
+    }
+    return n;
+  }
   function counted(card, text) {
     var withLink = linked(card) && !(edits[card.post_id + ":nolink"]);
-    return text.replace(/\s+/g, " ").trim().length + (withLink ? LINK_CHARS + 1 : 0);
+    return xLength(text.replace(/\s+/g, " ").trim()) + (withLink ? LINK_CHARS + 1 : 0);
   }
 
   // What the last run did, in words: a run that found nothing must not look
@@ -259,10 +270,14 @@
 
   // Opened inside the click, before the request: a window opened after an
   // await is a popup the browser blocks.
+  // The opened tab (X, or the share page) gets no handle back to this one.
+  // `win` is a tab opened inside the click; null means the browser blocked
+  // it, and opening another now (after an await) would be blocked too.
   function openX(win, url) {
-    if (win && !win.closed) { win.location.href = url; return true; }
-    var w = window.open(url, "_blank");
-    return !!w;
+    if (!win || win.closed) return false;
+    win.opener = null;
+    win.location.href = url;
+    return true;
   }
 
   document.addEventListener("input", function (ev) {
@@ -290,14 +305,14 @@
     if (act === "again") {
       var url = "https://x.com/intent/post?in_reply_to=" + encodeURIComponent(id) + "&text=" + encodeURIComponent(k.posted);
       copy(k.posted).catch(function () {});
-      openX(null, url);
+      window.open(url, "_blank", "noopener");
       return;
     }
     if (act === "listen") {
       var lw = window.open("", "_blank");
       b.disabled = true;
       api("/api/admin/x/listen", { post_id: id }).then(function (r) {
-        if (lw) lw.location.href = r.url; else window.open(r.url, "_blank");
+        if (lw) { lw.opener = null; lw.location.href = r.url; } else window.open(r.url, "_blank", "noopener");
       }).catch(function (e) { if (lw) lw.close(); alert(e.message); })
         .then(function () { b.disabled = false; });
       return;

@@ -10901,7 +10901,10 @@ async def admin_x_decide(req: XDecision, request: Request) -> dict:
     link = ""
     if not req.no_link and card["kind"] != x_threads.QUESTION_ONLY:
         link = _x_episode_link(card, request)
-    text = x_threads.compose(words, link)
+    try:
+        text = x_threads.compose(words, link)
+    except x_threads.TooLong as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     await asyncio.to_thread(held.decide, req.post_id, x_threads.APPROVED, now,
                             posted=text, share_url=link)
     return {"post_id": req.post_id, "status": x_threads.APPROVED, "text": text,

@@ -117,7 +117,7 @@ def test_threads_fam_does_not_join(post, why):
 
 
 def test_one_author_a_week():
-    assert "already replied" in X.screen(_post(author="Fan"), NOW, window_hours=6,
+    assert "replied to this week" in X.screen(_post(author="Fan"), NOW, window_hours=6,
                                          replied_to=["fan"])
 
 
@@ -155,11 +155,25 @@ def test_the_compose_screen_is_a_reply_with_the_words_in_it():
     assert qs["in_reply_to"] == ["12345"] and qs["text"] == ["Hello & welcome"]
 
 
-def test_a_reply_fits_a_post_with_its_link():
-    text = X.compose("word " * 200, "https://familiarize.net/s/abc")
-    words = text.rsplit(" ", 1)[0]
-    assert len(words) + 1 + X.LINK_CHARS <= X.POST_CHARS
-    assert text.endswith("https://familiarize.net/s/abc")
+def test_a_reply_that_fits_is_posted_word_for_word_with_its_link():
+    words = "w" * (X.POST_CHARS - X.LINK_CHARS - 1)
+    assert X.compose(words, "https://familiarize.net/s/abc") == \
+        words + " https://familiarize.net/s/abc"
+
+
+def test_a_reply_too_long_for_x_is_refused_never_cut():
+    """What reaches X is exactly what the person approved (review, §321)."""
+    with pytest.raises(X.TooLong):
+        X.compose("w" * (X.POST_CHARS - X.LINK_CHARS), "https://familiarize.net/s/abc")
+    # X weighs CJK and emoji as two.
+    assert X.x_length("abc") == 3 and X.x_length("日本") == 4
+    with pytest.raises(X.TooLong):
+        X.compose("日" * 141)
+
+
+def test_a_draft_cut_without_a_space_still_fits():
+    assert len(X.trim("x" * 300, 220)) == 220
+    assert len(X.trim("word " * 100, 220)) <= 220
 
 
 def test_with_no_model_the_reply_is_drafted_in_code(monkeypatch):
@@ -245,6 +259,49 @@ def test_nothing_to_search_for_is_said():
     assert "no kept episode" in _run(FakeCache([]), searcher)["stopped"]
 
 
+def test_reads_are_counted_even_when_the_run_dies():
+    """X bills each read as it returns; a run that fails afterwards must not
+    leave them uncounted for the daily ceiling (review, §321)."""
+    async def searcher(query, *, max_results, since):
+        return [_post("1")]
+
+    async def drafter(cand):
+        raise RuntimeError("database is locked")
+
+    with pytest.raises(RuntimeError):
+        asyncio.run(X.run(FakeCache([EPISODE]), now=NOW, searcher=searcher,
+                          drafter=drafter))
+    assert X.store().reads_since(NOW - 1) == 1
+    assert "failed" in X.store().last_run()["stopped"]
+
+
+def test_an_author_with_a_card_waiting_is_not_carded_again():
+    async def searcher(query, *, max_results, since):
+        return [_post("1", author="amy")]
+    _run(FakeCache([EPISODE]), searcher)
+
+    async def again(query, *, max_results, since):
+        return [_post("2", author="amy")]
+
+    async def drafter(cand):
+        return "r", "m", 0.0
+    report = asyncio.run(X.run(FakeCache([EPISODE]), now=NOW + 60,
+                               searcher=again, drafter=drafter))
+    assert report["cards"] == 0
+
+
+def test_the_window_never_asks_x_past_seven_days(monkeypatch):
+    import importlib
+    import config
+
+    monkeypatch.setenv("X_THREADS_WINDOW_HOURS", "500")
+    try:
+        assert importlib.reload(config).settings.x_threads_window_hours == 168.0
+    finally:
+        monkeypatch.delenv("X_THREADS_WINDOW_HOURS")
+        importlib.reload(config)
+
+
 def test_old_cards_are_pruned_after_a_week():
     held = X.store()
     [cand] = X.shortlist([(_post(), _seed())], NOW, window_hours=6)
@@ -305,6 +362,16 @@ def test_approve_hands_back_xs_reply_box_with_the_words_and_the_episode(client):
     assert qs["in_reply_to"] == ["4242"] and qs["text"] == [body["text"]]
     [card] = client.get("/api/admin/x?status=approved", headers=ADMIN).json()["cards"]
     assert card["posted"] == body["text"]
+
+
+def test_approving_a_reply_too_long_for_x_is_refused(client):
+    _card()
+    r = client.post("/api/admin/x/decide", headers=ADMIN, json={
+        "post_id": "4242", "action": "approve", "text": "w" * 270})
+    body = r.json()
+    assert r.status_code == 422 and "X allows 280" in (body.get("detail") or body.get("error"))
+    [card] = client.get("/api/admin/x", headers=ADMIN).json()["cards"]
+    assert card["status"] == X.WAITING
 
 
 def test_a_question_only_card_carries_no_link(client):

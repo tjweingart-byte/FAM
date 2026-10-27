@@ -22550,3 +22550,23 @@ make it on a machine that never searched.
 **Unverified here:** no X token in this container, so no live search has run;
 the scoring weights are a first guess, to be reweighed after the playbook's
 one-week trial on replies, `/s/` opens and waitlist signups.
+
+**Review before merging (2026-10-27).** An independent read of the whole
+diff found nothing blocking (no XSS, no admin gap, nothing that posts) and
+these, all fixed: scoring embedded every post on the event loop that streams
+listeners' audio, and re-embedded the episode once per post - it now runs in
+a thread and embeds each episode once; the day's reads were written only at
+the end of a run, so a run that died after X had billed them left them
+uncounted - the run's row is now written before the first search and after
+each; `_exists()` checked for a file, so on Postgres the cards vanished after
+a redeploy - it asks `db.has_tables`, as the other lazy stores do; an
+approved reply too long for X was cut with an ellipsis, so what reached X was
+not what was approved - it is refused with a 422 and counted the way X counts
+(CJK and emoji weigh two), in Python and on the page alike, and `trim` no
+longer overruns by one when there is no space; the opened X tab kept a handle
+on the admin page (`opener` is cleared); an author with a card still waiting
+could be carded again by the next run; `X_THREADS_WINDOW_HOURS` is clamped
+to X's seven days. Left as they are, deliberately: the one-search-at-a-time
+flag and the daily ceiling hold within one server process, which is what
+production runs; and the drafting calls (at most eight a search) are in each
+run's report rather than `metering.db`, whose rows are listeners' episodes.

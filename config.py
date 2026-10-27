@@ -1230,7 +1230,9 @@ class Settings:
     x_threads_max_reads: int = _env_int("X_THREADS_MAX_READS", 300)
     x_threads_daily_reads: int = _env_int("X_THREADS_DAILY_READS", 600)
     # Only posts younger than this: a reply is read while a thread is moving.
-    x_threads_window_hours: float = _env_float("X_THREADS_WINDOW_HOURS", 6.0)
+    # X's recent search reaches back seven days and refuses anything older.
+    x_threads_window_hours: float = max(
+        1.0, min(_env_float("X_THREADS_WINDOW_HOURS", 6.0), 168.0))
     # How many episodes one run looks for conversations about.
     x_threads_seeds: int = _env_int("X_THREADS_SEEDS", 10)
     # Drafts the replies a person approves. A short call; the small model.
