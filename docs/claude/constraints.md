@@ -1594,8 +1594,12 @@
   > episodes `/admin/x` seeds from - still never a request to linkedin.com,
   > never a LinkedIn credential. A button, never a timer; capped per press
   > (`LINKEDIN_SEEDS`) and per day (`LINKEDIN_DAILY_SEARCHES`); staging has
-  > no search key. Only a post an episode is the subject of becomes a card;
-  > pasting stays for the ones a person finds. LinkedIn
+  > no search key. Only a post an episode is the subject of becomes a card:
+  > X's §326 checks hold here too - the episode's subject words in the
+  > search, `x_threads.on_subject` on every episode a post is ranked
+  > against, and the drafting call judging first (an off-subject found post
+  > is set aside, unseen and not re-read; a pasted one loses its link).
+  > Pasting stays for the ones a person finds. LinkedIn
   has no API that reads others' posts and forbids scraping and automated
   comments, so **nothing here reads LinkedIn and FAM holds no LinkedIn
   credential**: the page builds LinkedIn search links from the same episodes

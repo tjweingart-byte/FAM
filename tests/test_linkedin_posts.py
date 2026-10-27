@@ -628,3 +628,75 @@ def test_the_run_button_starts_a_search(client, monkeypatch):
     r = client.post("/api/admin/linkedin/run", headers=ADMIN)
     assert r.status_code == 200 and r.json() == {"started": True}
     assert started == [appmod.SCRIPT_CACHE]
+
+
+# --- every card is about the post it answers (§327, after X's §326) ----------------------
+
+
+MAN_UTD = {"key": "k-utd", "query": "Why is Manchester United struggling this season?",
+           "title": "Why Manchester United Keeps Losing", "minutes": 2, "plays": 3,
+           "explicit": False}
+AIRLINE = ("Here's how United Airlines rebuilt its boarding process, and the lessons "
+           "every operations team can take from it:\n1. Measure the gate\n2. Board by "
+           "window\n3. Publish the data.")
+
+
+def test_a_shared_name_is_not_a_shared_subject():
+    [ep] = L.episodes_for(FakeCache([MAN_UTD]), AIRLINE)
+    assert ep["off_subject"] and not L.linked(ep)
+
+
+def test_the_search_carries_the_episodes_subject_words(monkeypatch):
+    import research
+
+    asked = []
+    monkeypatch.setattr(research, "backend_available", lambda name: name == "parallel")
+    monkeypatch.setattr(research, "_search_parallel",
+                        lambda *a, **k: asked.append(a[0]) or ([], 0.0))
+    seed = x_threads.Seed("k", "Can the Eagles defence hold up?", "The Eagles Defence", 2,
+                          ("Eagles",), "cached")
+    asyncio.run(L.search(seed, recency_days=7))
+    assert "Eagles" in asked[0] and "defence" in asked[0]
+
+
+def _judging(fits, why="about an airline, not the club"):
+    async def drafter(text, episode):
+        if not L.linked(episode):
+            return "", "q?", "test-model", 0.0, ""
+        return ("A comment.", "q?", "test-model", 0.001, "" if fits else why)
+    return drafter
+
+
+def test_a_found_post_judged_off_subject_is_set_aside_and_not_read_again():
+    results = {EPISODE["title"]: [_Result(_post_url(1), "Jane Doe on LinkedIn", TEACHING)]}
+    report = asyncio.run(L.run(FakeCache([EPISODE]), now=NOW, searcher=_searcher(results),
+                               drafter=_judging(False)))
+    assert report["cards"] == 0 and report["set_aside"] == 1
+    assert L.store().all() == [] and L.store().counts() == {}
+    again = asyncio.run(L.run(FakeCache([EPISODE]), now=NOW + 60,
+                              searcher=_searcher(results), drafter=_judging(True)))
+    assert again["cards"] == 0  # remembered, not judged again
+
+
+def test_a_set_aside_post_can_still_be_pasted():
+    results = {EPISODE["title"]: [_Result(URL, "Jane Doe on LinkedIn", TEACHING)]}
+    asyncio.run(L.run(FakeCache([EPISODE]), now=NOW, searcher=_searcher(results),
+                      drafter=_judging(False)))
+    card = _add(cache=FakeCache([EPISODE]), drafter=_judging(True))
+    assert card["status"] == L.WAITING and card["linked"]
+
+
+def test_a_pasted_post_judged_off_subject_keeps_its_card_without_a_link():
+    card = _add(drafter=_judging(False))
+    assert not card["linked"] and card["draft"] == ""
+    assert "checked: about an airline" in card["reason"]
+
+
+def test_the_model_judges_before_it_drafts():
+    episode = dict(EPISODE, match=0.9, off_subject="")
+    model = _Model('{"fits": false, "why": "an airline, not the club", '
+                   '"comment": "ignored", "question": "q?"}')
+    comment, question, by, _, misfit = asyncio.run(
+        L.judge_and_draft(TEACHING, episode, client=model))
+    assert comment == "" and misfit == "an airline, not the club"
+    assert "fits" in model.asked[0]["system"]

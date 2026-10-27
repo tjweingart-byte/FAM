@@ -79,6 +79,10 @@ MIN_CHARS = 120
 WAITING, APPROVED, SKIPPED = "waiting", "approved", "skipped"
 #: How a card came to be on the page.
 FOUND, PASTED = "found", "pasted"
+#: A found post the drafting call judged to be about something else (as
+#: `x_threads.SET_ASIDE`, §326): kept only so the next run neither reads
+#: nor judges it again, and never shown.
+SET_ASIDE = "set_aside"
 STATUSES = (WAITING, APPROVED, SKIPPED)
 
 #: How many kept episodes a card offers: the best, and two to switch to.
@@ -302,9 +306,30 @@ def rank(episodes: list[dict], text: str, *, limit: int = OFFERED) -> list[dict]
             r"(?<!\w)" + re.escape(n.lower()) + r"(?!\w)", low)) / len(names)) if names else 0.0
         scored.append({"key": e["key"], "query": e["query"], "title": e["title"],
                        "minutes": e["minutes"], "plays": e["plays"],
-                       "match": round(min(1.0, 0.6 * semantic + 0.4 * named), 4)})
+                       "match": round(min(1.0, 0.6 * semantic + 0.4 * named), 4),
+                       "off_subject": off_subject(text, e)})
     scored.sort(key=lambda e: (-e["match"], -e["plays"]))
     return scored[:limit]
+
+
+def off_subject(text: str, episode: dict) -> str:
+    """Why the post is not about the episode's subject, or "" when it is:
+    the X page's `on_subject` (§326) - it must name what the episode names,
+    and a one-word name must come with one of the episode's own subject
+    words. "United" is not Manchester United; a shared word is not a shared
+    subject. An episode with no names to check is judged by the match alone."""
+    names = tuple(episode.get("names") or ())
+    if not names:
+        return ""
+    seed = x_threads.Seed(episode.get("key", ""), episode.get("query", ""),
+                          episode.get("title", ""), int(episode.get("minutes") or 1), names)
+    return x_threads.on_subject(_Text(text), seed)
+
+
+@dataclass
+class _Text:
+    """What `x_threads.on_subject` reads of a post: its words."""
+    text: str
 
 
 def episodes_for(cache, text: str, *, limit: int = OFFERED) -> list[dict]:
@@ -314,7 +339,10 @@ def episodes_for(cache, text: str, *, limit: int = OFFERED) -> list[dict]:
 
 
 def linked(episode: Optional[dict]) -> bool:
-    return bool(episode) and float(episode.get("match") or 0) >= x_threads.LINK_FLOOR
+    """Whether an episode may be linked under the post: it matches, and
+    neither the subject check nor the drafting call found it off-subject."""
+    return (bool(episode) and float(episode.get("match") or 0) >= x_threads.LINK_FLOOR
+            and not episode.get("off_subject"))
 
 
 def reason(text: str, episode: Optional[dict], screened: str) -> str:
@@ -327,6 +355,9 @@ def reason(text: str, episode: Optional[dict], screened: str) -> str:
     if linked(episode):
         bits.append(f"goes deeper with “{episode['title']}” "
                     f"({int(episode['match'] * 100)}% match)")
+    elif episode and episode.get("off_subject"):
+        bits.append(f"closest kept episode, “{episode['title']}”, is not its "
+                    f"subject ({episode['off_subject']}), so no link yet")
     elif episode:
         bits.append(f"closest kept episode, “{episode['title']}”, is not its "
                     f"subject ({int(episode['match'] * 100)}%), so no link yet")
@@ -343,6 +374,14 @@ DRAFT_SYSTEM = """You draft one LinkedIn comment for FAM, an app that turns \
 what people care about into short audio stories. The comment goes under \
 somebody else's post that teaches or explains something. A person at FAM \
 reads it and posts it themselves.
+
+First, when an episode is given, judge - strictly, because an off-topic \
+comment is spam - `fits`: is the post about the same subject as the \
+episode (the same company, person, team, idea or question, not merely a \
+shared word or name: Apple the company is not apples, a United Airlines \
+flight is not Manchester United), and would somebody who read this post \
+want this exact episode? When unsure, false; say why in `why`. With no \
+episode, `fits` is true. When `fits` is false, leave `comment` empty.
 
 How FAM comments:
 - Add to their point; do not praise it. Open with something specific the \
@@ -361,8 +400,9 @@ after reading this post - one line, as somebody would type it."""
 
 DRAFT_SCHEMA = {
     "type": "object",
-    "properties": {"comment": {"type": "string"}, "question": {"type": "string"}},
-    "required": ["comment", "question"],
+    "properties": {"fits": {"type": "boolean"}, "why": {"type": "string"},
+                   "comment": {"type": "string"}, "question": {"type": "string"}},
+    "required": ["fits", "why", "comment", "question"],
     "additionalProperties": False,
 }
 
@@ -389,14 +429,26 @@ def fallback_comment(episode: Optional[dict]) -> str:
 
 async def draft(text: str, episode: Optional[dict],
                 client=None) -> tuple[str, str, str, float]:
-    """`(comment, question, drafted_by, dollars)`. Never raises but
-    cancellation: a model that cannot be asked leaves the code's comment."""
+    """`(comment, question, drafted_by, dollars)`, for a caller that wants
+    the words only (`judge_and_draft` is what the page uses)."""
+    comment, question, by, dollars, _misfit = await judge_and_draft(text, episode, client)
+    return comment, question, by, dollars
+
+
+async def judge_and_draft(text: str, episode: Optional[dict],
+                          client=None) -> tuple[str, str, str, float, str]:
+    """`(comment, question, drafted_by, dollars, misfit)`: one call that
+    first judges whether the post and the episode are about the same thing
+    (`misfit` says why not, "" when they are), then writes the comment.
+    Never raises but cancellation: a model that cannot be asked leaves the
+    code's comment and the code's gate (`off_subject`), said on the card."""
     import credentials
     import metering
 
     if client is None and not credentials.active("ANTHROPIC_API_KEY"):
-        return x_threads.trim(fallback_comment(episode), DRAFT_CHARS), "", "code", 0.0
+        return x_threads.trim(fallback_comment(episode), DRAFT_CHARS), "", "code", 0.0, ""
     model = config.settings.linkedin_model
+    dollars = 0.0
     try:
         if client is None:
             from anthropic_client import build_async_client
@@ -411,17 +463,38 @@ async def draft(text: str, episode: Optional[dict],
         usage.add_model_call(model, getattr(response, "usage", None))
         dollars = metering.price_of(usage).total
         body = json.loads(next(b.text for b in response.content if b.type == "text"))
+        question = " ".join(str(body.get("question") or "").split())[:200]
+        if linked(episode) and body.get("fits") is False:
+            why = " ".join(str(body.get("why") or "").split())[:200]
+            return "", question, model, dollars, why or "the post is about something else"
         comment = x_threads.trim(body.get("comment") or "", DRAFT_CHARS) \
             if linked(episode) else ""
-        question = " ".join(str(body.get("question") or "").split())[:200]
         if linked(episode) and not comment:
             raise ValueError("an empty comment")
-        return comment, question, model, dollars
+        return comment, question, model, dollars, ""
     except asyncio.CancelledError:
         raise
     except Exception as exc:  # noqa: BLE001
         log.warning("linkedin: drafting fell back to code: %s", exc)
-        return x_threads.trim(fallback_comment(episode), DRAFT_CHARS), "", "code", 0.0
+        return (x_threads.trim(fallback_comment(episode), DRAFT_CHARS), "", "code",
+                dollars, "")
+
+
+async def _judged(drafter, text: str, episode: Optional[dict]) -> tuple:
+    """A drafter's answer as `(comment, question, by, dollars, misfit)`: a
+    stand-in that only drafts (four values) never judges."""
+    out = tuple(await (drafter or judge_and_draft)(text, episode))
+    return out if len(out) == 5 else out + ("",)
+
+
+def mark_misfit(card: "Card", misfit: str) -> None:
+    """Fold the drafting call's "not about this" into the card: the episode
+    is off-subject, so the card has no comment and says why."""
+    episode = card.episode
+    if episode is not None:
+        episode["off_subject"] = f"checked: {misfit}"
+    card.draft = ""
+    card.reason = reason(card.text, card.episode, card.screened)
 
 
 class TooLong(ValueError):
@@ -562,7 +635,7 @@ class Store:
         sql = ("SELECT post_id, added_at, url, text, author, author_name, screened,"
                " episodes, chosen, reason, draft, question, drafted_by, status,"
                " decided_at, posted, share_url, dollars, origin, found_by"
-               " FROM posts WHERE 1=1")
+               " FROM posts WHERE status != 'set_aside'")
         args: list = []
         if status:
             sql += " AND status = ?"
@@ -621,6 +694,12 @@ class Store:
             " LIMIT 1",
             (author or None, name or None, besides, WAITING, APPROVED, since)).fetchone()
         return row is not None
+
+    def status_of(self, post_id: str) -> str:
+        """A post's status, set-aside included, or "" when it has no row."""
+        row = self._conn().execute("SELECT status FROM posts WHERE post_id = ?",
+                                   (post_id,)).fetchone()
+        return row[0] if row else ""
 
     def find_text(self, text: str, *, besides: str = "") -> Optional[dict]:
         """A card already holding these words: one post reached as
@@ -683,7 +762,8 @@ class Store:
 
     def counts(self) -> dict:
         rows = self._conn().execute(
-            "SELECT status, COUNT(*) FROM posts GROUP BY status").fetchall()
+            "SELECT status, COUNT(*) FROM posts WHERE status != 'set_aside'"
+            " GROUP BY status").fetchall()
         return {s: n for s, n in rows}
 
 
@@ -738,9 +818,14 @@ async def add(cache, *, url: str, text: str, author_name: str = "",
     text = str(text or "").strip()
     if not text:
         raise Refused("Paste the post's words as well: FAM does not read LinkedIn.")
-    existing = await asyncio.to_thread(held.get, post_id)
+    # A post a run set aside (about something else) may still be pasted: a
+    # person looking at it is a better judge than the run was.
+    was = await asyncio.to_thread(held.status_of, post_id)
+    existing = None if was in ("", SET_ASIDE) else {"status": was}
     if existing is None:
-        existing = await asyncio.to_thread(held.find_text, text)
+        existing = await asyncio.to_thread(held.find_text, text, besides=post_id)
+        if existing is not None and existing["status"] == SET_ASIDE:
+            existing = None
     if existing is not None:
         raise OnThePage(f"That post is already on the page ({existing['status']}).")
     author_name = " ".join(str(author_name or "").split())[:120] or name_from_slug(slug)
@@ -757,6 +842,8 @@ async def add(cache, *, url: str, text: str, author_name: str = "",
     card = Card(post_id, clean, text[:6000], author, author_name, screened)
     await _match(cache, card, drafter)
     await asyncio.to_thread(held.put, card, now)
+    if was == SET_ASIDE:
+        await asyncio.to_thread(held.decide, post_id, WAITING, now)
     return await asyncio.to_thread(held.get, post_id) or {}
 
 
@@ -782,8 +869,10 @@ async def _match(cache, card: Card, drafter=None) -> None:
     card.episodes = await asyncio.to_thread(episodes_for, cache, card.text)
     card.chosen = 0
     card.reason = reason(card.text, card.episode, card.screened)
-    card.draft, card.question, card.drafted_by, dollars = await (drafter or draft)(
-        card.text, card.episode)
+    card.draft, card.question, card.drafted_by, dollars, misfit = await _judged(
+        drafter, card.text, card.episode)
+    if misfit:
+        mark_misfit(card, misfit)
     # Every match's drafting is counted on its card and summed on the page
     # ([failures-visible]): Match again is a model call each time.
     card.dollars = round(card.dollars + float(dollars or 0), 6)
@@ -858,7 +947,9 @@ async def search(seed, *, recency_days: int, name: str = "") -> tuple[list, floa
     import research
 
     name = name or backend()
-    query = " ".join(seed.names) + " LinkedIn post"
+    # The episode's own subject words beside its names (§326): "Eagles"
+    # alone finds birds as often as the team.
+    query = " ".join((*seed.names, *x_threads.context_words(seed))) + " LinkedIn post"
 
     def _blocking():
         if name == "parallel":
@@ -965,9 +1056,17 @@ async def run(cache, *, now: Optional[float] = None, searcher=None,
         report["posts"] = len({p["post_id"] for p, _ in found})
         report["screened_out"] = max(0, report["posts"] - len(picked))
         for card in picked:
-            card.draft, card.question, card.drafted_by, cost = await (drafter or draft)(
-                card.text, card.episode)
+            card.draft, card.question, card.drafted_by, cost, misfit = await _judged(
+                drafter, card.text, card.episode)
             card.dollars = round(float(cost or 0), 6)
+            if misfit:
+                # About something else: remembered, so the next run neither
+                # reads nor judges it again, and never shown.
+                mark_misfit(card, misfit)
+                await asyncio.to_thread(held.put, card, now)
+                await asyncio.to_thread(held.decide, card.post_id, SET_ASIDE, now)
+                report["set_aside"] = report.get("set_aside", 0) + 1
+                continue
             await asyncio.to_thread(held.put, card, now)
             report["cards"] += 1
     except asyncio.CancelledError:

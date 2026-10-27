@@ -23017,3 +23017,16 @@ a post the vendors' excerpts carry, and how many of a week's posts they have
 indexed, are the first things to look at after the first press. If the
 excerpts prove too thin to draft from, the card already says to open the
 post first.
+
+**§326's lessons, brought here before merging.** Main took §326 while this
+branch was open: X cards were going under posts that only shared a name with
+their episode (United Airlines under Manchester United). LinkedIn's ranking
+had the same hole, so the same three checks: the search carries the
+episode's subject words (`x_threads.context_words`) beside its names;
+`off_subject` runs `x_threads.on_subject` on every episode a post is ranked
+against, and an off-subject episode is never linked; and the drafting call
+(`judge_and_draft`) judges `fits` before it writes - a found post it judges
+off-subject is stored as `set_aside` (never shown, never read or judged
+again), and a pasted one keeps its card without a link, the reason on it.
+A person may still paste a set-aside post. This entry was §326 on the
+branch and is §327 after the merge.
