@@ -434,11 +434,11 @@ Accounts, tiers, sharing
   the listener's own (§162), never made for them. [save-pointer]
 - **A shared link lands on one episode** (`/s/<id>`): other controls are
   `data-door`s; the key equals the sharer's; head rendered server-side; opens
-  counted by the page; "Join FAM for free" always drawn - App Store, else the
-  front door (§175) - other doors need `APP_STORE_URL`; no `user_id`; host from the request (`_public_base`,
+  counted by the page; its join note always goes to `/waitlist` (§319) -
+  other doors need `APP_STORE_URL`; no `user_id`; host from the request (`_public_base`,
   `X-Forwarded-Proto`, loopback refused); story cards are PNG files to the share
   sheet. [share-link]
-- FAM posts nothing to anyone's social account and holds no token. [no-social-posting]
+- FAM never posts, holds no posting token; /admin/x only drafts. [no-social-posting] [x-threads]
 - **App review** (§222): Report everywhere, block both ways (`moderation.py`, `/admin`);
   a listener's words reach Anthropic only after a yes (`consent.py`); photos checked (§224); Terms ticked at sign-up (§228). [app-review-safety]
 - **Authorship is provenance, never identity**: `PodcastPipeline.author`, never

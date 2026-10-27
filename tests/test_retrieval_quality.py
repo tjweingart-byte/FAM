@@ -53,7 +53,7 @@ def web(monkeypatch):
     queue: list = []
 
     def fake(query, num_results, recency_days=0, include_domains=(),
-             objective="", extra_queries=()):
+             objective="", extra_queries=(), hints=None):
         calls.append({"query": query, "recency_days": recency_days,
                       "include_domains": tuple(include_domains)})
         results = queue.pop(0) if queue else []
@@ -197,10 +197,11 @@ def test_a_thin_packet_buys_exactly_one_more_search(web):
     assert packet.searches == 2, "a retry that is not counted is a cost nobody sees"
 
 
-def test_the_retry_drops_the_window_and_searches_the_resolved_subject(web):
+def test_the_retry_widens_the_window_and_searches_the_resolved_subject(web):
     """Not a rephrasing by another model call - that would put a second round
     trip in front of the first word. The two things most likely to have caused
-    an empty result are the window and the wording, so it changes both."""
+    an empty result are the window and the wording, so it changes both - the
+    window wider, never dropped (§320)."""
     calls, queue = web
     queue.append([])
     queue.append([FakeResult("Found", "https://reuters.com/x",
@@ -211,7 +212,7 @@ def test_the_retry_drops_the_window_and_searches_the_resolved_subject(web):
 
     asyncio.run(research.retrieve("49ers result last night", brief=brief))
     assert calls[1]["query"] == "San Francisco 49ers game result"
-    assert calls[1]["recency_days"] == 0
+    assert calls[1]["recency_days"] == research.retry_window(1) == 7
 
 
 def test_the_better_packet_wins_and_its_cost_is_the_sum_of_both(web):

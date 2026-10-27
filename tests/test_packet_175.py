@@ -193,23 +193,24 @@ SHARE_ROW = {"id": "abc123", "query": "why bonds move", "minutes": 3,
              "title": "Bonds"}
 
 
-def test_join_goes_to_the_app_store_when_there_is_one():
+def test_join_goes_to_the_waitlist_even_when_there_is_an_app():
+    """§319, at the owner's direction: the note links to the waitlist page."""
     payload = sharing.landing_payload(
         SHARE_ROW, url="/s/abc123", app_store="https://apps.apple.com/app/fam/id1")
-    assert payload["join"] == "https://apps.apple.com/app/fam/id1"
+    assert payload["join"] == sharing.JOIN_PATH == "/waitlist"
 
 
-def test_join_goes_to_the_front_door_when_there_is_no_app():
-    """The front door opens on sign-up for anybody not signed in, on the host
-    that served the landing page - a real page, never a dead control."""
+def test_join_goes_to_the_waitlist_when_there_is_no_app():
+    """The waitlist page on the host that served the landing page - a real
+    page, never a dead control."""
     payload = sharing.landing_payload(SHARE_ROW, url="/s/abc123")
     assert payload["has_app"] is False
-    assert payload["join"] == sharing.JOIN_PATH == "/"
+    assert payload["join"] == sharing.JOIN_PATH == "/waitlist"
 
 
 def test_the_landing_page_offers_join_whether_or_not_the_app_is_out():
     page = (ROOT / "static" / "listen.html").read_text()
     assert "Want to hear more?" in page
-    assert "Join FAM for free" in page
-    assert 'data-door="join"' in page
+    assert "Be a part of the conversation with FAM" in page
+    assert 'data-door="join" href="/waitlist"' in page
     assert "share.join" in page

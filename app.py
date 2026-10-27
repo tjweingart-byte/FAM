@@ -93,6 +93,7 @@ import autocorrect as autocorrect_mod
 import categories as categories_mod
 import topics as topics_mod
 import thumbnails as thumbnails_mod
+import x_threads
 import accounts as accounts_mod
 import viral_loops as viral_loops_mod
 import waitlist as waitlist_mod
@@ -1062,6 +1063,12 @@ def _database_report() -> list[dict]:
         try:
             stores.append(("thumbnails", "THUMBNAILS_DB",
                            thumbnails_mod.store().path))
+        except Exception:  # pragma: no cover - a report is never load-bearing
+            pass
+    # Conversations on X (§321): created by the first search on /admin/x.
+    if x_threads._exists():
+        try:
+            stores.append(("x threads", "X_THREADS_DB", x_threads.store().path))
         except Exception:  # pragma: no cover - a report is never load-bearing
             pass
     # Requests per outside service per day (§179). Created by the first
@@ -10756,6 +10763,154 @@ async def admin_thumbnail_run(req: ThumbnailRun, request: Request) -> dict:
     _BACKGROUND.add(asyncio.create_task(_run()))
     return {"started": True, "limit": req.limit, "wanted": len(todo),
             "room_today": room}
+
+
+# --- Conversations on X (§321, x_threads.py) ---------------------------------
+# Threads on X one of FAM's episodes could add to, found from the episodes
+# FAM already has. A person approves each reply and posts it in X; FAM holds
+# a read-only search credential and never posts ([no-social-posting]).
+
+#: One search at a time: a second press while one runs would spend X's
+#: per-read billing twice on the same threads.
+_X_RUNNING: list = []
+
+
+@app.get("/admin/x", include_in_schema=False)
+async def admin_x_page(request: Request):
+    """The review page. A shell, like `/admin/thumbnails`; every card on it
+    is fetched from the endpoints below, which are what check who is asking."""
+    if not _admin_configured():
+        raise HTTPException(status_code=404, detail="Not found")
+    page = PROJECT_ROOT / "admin_ui" / "x.html"
+    return HTMLResponse(page.read_text(encoding="utf-8"),
+                        headers={"Cache-Control": "no-store",
+                                 "X-Robots-Tag": "noindex"})
+
+
+@app.get("/api/admin/x")
+async def admin_x(request: Request, status: str = "") -> dict:
+    """Every card (newest run first, waiting before decided), whether X can
+    be asked, what today's reads have used, and what the last run did."""
+    _require_admin(request)
+    if status and status not in x_threads.STATUSES:
+        raise HTTPException(status_code=422, detail="Unknown status.")
+    cards = []
+    if x_threads._exists():
+        cards = await asyncio.to_thread(x_threads.store().all, status)
+    return {"health": x_threads.health(), "running": bool(_X_RUNNING),
+            "cards": cards, "kinds": x_threads.KINDS}
+
+
+@app.post("/api/admin/x/run")
+async def admin_x_run(request: Request) -> dict:
+    """Look for threads now, in the background, inside the read ceilings.
+    Returns at once; the page polls the list to watch the cards arrive."""
+    _require_admin(request)
+    ok, why = x_threads.available()
+    if not ok:
+        raise HTTPException(status_code=409, detail=f"Cannot search X: {why}.")
+    if _X_RUNNING:
+        raise HTTPException(status_code=409, detail="A search is already running.")
+
+    async def _run() -> None:
+        try:
+            report = await x_threads.run(SCRIPT_CACHE)
+            log.info("x threads (admin run): %s",
+                     {k: v for k, v in report.items() if k != "seeds"})
+        except Exception:  # noqa: BLE001 - recorded, never raised into nothing
+            log.exception("x threads: the run failed")
+        finally:
+            _X_RUNNING.clear()
+
+    _X_RUNNING.append(time.time())
+    _BACKGROUND.add(asyncio.create_task(_run()))
+    return {"started": True}
+
+
+class XCard(BaseModel):
+    post_id: str = Field(..., min_length=1, max_length=40, pattern=r"^[0-9]+$")
+
+
+def _x_episode_link(card: dict, request: Request) -> str:
+    """The card's episode as a share link FAM owns, or "" when the card has
+    no episode. One link per episode however many threads it is offered on
+    (`ShareStore.create` is once per sharer, question and length)."""
+    episode = card.get("episode") or {}
+    if not episode.get("query"):
+        return ""
+    try:
+        share = SHARES.create(x_threads.SHARER, episode["query"],
+                              int(episode.get("minutes") or 1),
+                              episode.get("title") or "")
+    except sharing.ShareError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    link, public = _share_url(share["id"], request)
+    if not public:
+        raise HTTPException(status_code=409, detail=(
+            "This server does not know its public address, so the episode "
+            "link would not open on X. Set PUBLIC_BASE_URL."))
+    return link
+
+
+@app.post("/api/admin/x/listen")
+async def admin_x_listen(req: XCard, request: Request) -> dict:
+    """The episode's link, to hear it before approving - the playbook's
+    "add a checked episode": nobody vouches for audio they have not heard."""
+    _require_admin(request)
+    if not x_threads._exists():
+        raise HTTPException(status_code=404, detail="No cards yet")
+    card = await asyncio.to_thread(x_threads.store().get, req.post_id)
+    if card is None:
+        raise HTTPException(status_code=404, detail="No card for that post")
+    link = _x_episode_link(card, request)
+    if not link:
+        raise HTTPException(status_code=404, detail="This card has no episode.")
+    return {"url": link}
+
+
+class XDecision(BaseModel):
+    post_id: str = Field(..., min_length=1, max_length=40, pattern=r"^[0-9]+$")
+    action: str = Field(..., pattern="^(approve|skip|reopen)$")
+    #: The reply as the person edited it on the card; the stored draft if empty.
+    text: str = Field("", max_length=1000)
+    #: Leave the episode's link off this reply even when it has one.
+    no_link: bool = False
+
+
+@app.post("/api/admin/x/decide")
+async def admin_x_decide(req: XDecision, request: Request) -> dict:
+    """A person's verdict on one card. Approve makes the episode's share link
+    (owned by FAM, never a listener), puts the reply together, and hands back
+    X's compose screen with the words in it - the page opens it and copies
+    the words. Nothing is posted from here."""
+    _require_admin(request)
+    if not x_threads._exists():
+        raise HTTPException(status_code=404, detail="No cards yet")
+    held = x_threads.store()
+    card = await asyncio.to_thread(held.get, req.post_id)
+    if card is None:
+        raise HTTPException(status_code=404, detail="No card for that post")
+    now = time.time()
+    if req.action != "approve":
+        status = x_threads.SKIPPED if req.action == "skip" else x_threads.WAITING
+        await asyncio.to_thread(held.decide, req.post_id, status, now)
+        return {"post_id": req.post_id, "status": status}
+    words = " ".join((req.text or card["draft"] or "").split())
+    if not words:
+        raise HTTPException(status_code=422, detail="There is no reply to post.")
+    link = ""
+    if not req.no_link and card["kind"] != x_threads.QUESTION_ONLY:
+        link = _x_episode_link(card, request)
+    try:
+        text = x_threads.compose(words, link)
+    except x_threads.TooLong as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    await asyncio.to_thread(held.decide, req.post_id, x_threads.APPROVED, now,
+                            posted=text, share_url=link)
+    return {"post_id": req.post_id, "status": x_threads.APPROVED, "text": text,
+            "share_url": link,
+            "intent_url": x_threads.intent_url(req.post_id, text),
+            "post_url": card["post"]["url"]}
 
 
 @app.exception_handler(HTTPException)

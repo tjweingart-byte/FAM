@@ -22440,3 +22440,211 @@ registration is fixed. It goes stale the day the pod restarts on a new
 port; delete it once `/api/health` shows a `registered` worker held.
 
 Tests: `tests/test_voice_alerts_318.py`.
+
+## 319. A shared episode invites the listener into the conversation, via the waitlist (2026-10-26)
+
+At the owner's direction, the note under a shared episode (`/s/<id>`,
+`static/listen.html`) now reads "Want to hear more? Be a part of the
+conversation with FAM →" and links to the waitlist page. It replaces §175's
+"Join FAM for free", which went to the App Store when there was one and
+otherwise to the front door.
+
+- `sharing.JOIN_PATH` is `/waitlist`, and `landing_payload`'s `join` is that
+  path whether or not `APP_STORE_URL` is set; the page's one delegated door
+  handler sends the join door to `share.join` and the other doors to the App
+  Store as before.
+- The door is a real `<a href="/waitlist">`, so the page still works as a
+  link with scripts off, and the arrow is part of the link.
+- The no-app footnote lost "Joining is free and opens FAM in your browser",
+  which was no longer what the link did.
+- Pinned in `tests/test_packet_175.py` and `tools/smoke_landing.py`.
+
+## 320. What the trusting-fermat branch fixed, brought to Main (2026-10-26)
+
+`claude/trusting-fermat-o26y4h` (10.14, §262-§267 on that branch, numbers
+Main later used for other work) was never merged. The owner went through it
+item by item; this is what was still needed, ported onto today's Main.
+
+**A playlist goes past an episode that fails to play** (`mixItemFailed`,
+index.html). A failed playlist episode - an error from `/api/audio` or the
+45-second give-up in `generate` - toasted and left `mixPlay` where it was,
+so the playlist silently stopped (reported 10.13: a playlist of eight
+played two). It now names the failure and starts the next one; two
+failures in a row, or no connection, end the playlist and say so; a quota
+or account refusal ends the queue before its screen. Smoke: "A playlist
+goes past an episode that fails".
+
+**Recency, in code.** The window was only a hint to the search vendor and
+nothing checked what came back, so a March 2025 article reached a "last 24
+hours" packet. `research.within_window` drops dated results older than the
+window (a whole calendar day's grace, since a published date has no time of
+day; undated kept, still "date not stated") on the main
+search and the story look; GDELT already filters on its own export times.
+The thin-packet retry **widens** the window (`retry_window`: 3x, at least 7
+days) instead of dropping it. The archive (§308/§313) does not answer this:
+it adds dated earlier reporting beside the search, and never removed an old
+article from it. Tests that pinned "the retry drops the window" now pin
+"wider, never none".
+
+**No window on a question about no particular moment**
+(`episode_intelligence.time_bound`, in the gate). With the window now a
+filter in code, a window on "who was Abraham Lincoln" would drop every good
+biography, and a `causal` question used to default to 14 days on its own
+("why did Rome fall"). A window longer than a week survives only when something says the
+question is about a moment: a live domain, an outcome to wait for, a
+recap/update/preview, a recent development EI is at least fairly sure of
+(`why_now_confidence` medium or high), or the question naming a time
+(today, latest, this week, a weekday, this year or last). A window of a
+week or less (`SHORT_WINDOW_DAYS`) is never removed: that is EI itself
+saying "a moment", and since `ttl_for` reads the window a word list must
+not take it away ([ttl-from-evidence]). The word list decides only whether a
+window may apply, never its size; an episode left with no window is kept as
+long as any evergreen episode, because `ttl_for` reads the window. The
+`why_now` test is what keeps a news question with no time word ("what did
+the mayor say about the budget") inside its window; one EI has no reason
+for is searched with none. `tests/test_evergreen_window_320.py`.
+
+**The local ladder asks what the question is about**
+(`local_news.relevant`). Naming the town was the only test, so "airshow
+over San Francisco Bay" was answered by a Valkyries fan story that said
+"Chase Center in San Francisco". When the listener's question names
+something beyond the town, a rung whose stories carry fewer than two of
+those words (one, when it names one) counts as empty - GDELT's own two-word
+rule; the place's words and "news"-type words do not count. A plain "what's
+on in X" still takes any X story. Tested on the question's words, never on
+EI's `must_establish`: a review found that a general question's brief lists
+phrases like "recent local government decisions", which a town's stories
+rarely use, so a test on them threw away real town news. The web rung searches vetted outlets only, never `learned` ones
+(one learned site, hoodline.com, had narrowed every later San Francisco
+search to itself). EI's `place` excludes one specific happening in a town -
+a news question on the general ladder. The writer: an older article cannot
+speak for a day it was written before, a missed search never says something
+is not happening, and the local block no longer calls what was found all
+there is. When the town had stories but none about the question
+(`LocalResult.unrelated`), the gap line says "We couldn't find any recent
+news reports out of {town} about this" - never that there were no reports
+- and the writer is told the same. `tests/test_local_relevance_320.py`.
+
+**Each provider's input in its own terms.** The names the catalogues
+resolve were already EI's `live_entity` (§265), so the branch's `entities`
+field is not ported. The search half of the brief (`PARTS["search"]`) now
+also writes:
+- `forecast_query`: two to five words as a prediction market would title
+  the outcome. Polymarket searches it first (`live_sources.market_words`),
+  then `live_entity`. A three-letter word is kept only when written as a
+  short form ("Fed", "GOP", "NYC"): a review found that a lowercase "win"
+  let "New Jersey Governor Election Winner" match an NYC mayoral question
+  on two shared words.
+- `source_kind` (general, news, official, filings, academic, local):
+  Perplexity's `search_mode` (`sec`, `academic`) and a source-preference
+  line in Parallel's objective.
+In code: a town's ISO country from the place catalogue is
+Parallel's `location` and Perplexity's `country` (never a place only as
+typed); the local web query no longer repeats a town the retrieval already
+names; `place` is asked for with the full state name and a two-letter
+country code. Both SDKs were checked for the field names (perplexityai
+0.46.1 `search_mode`/`country`, parallel-web 1.3.7 `location`). A degraded
+brief has neither field and every reader falls back as before. The two
+fields add a few output tokens to the search half; watch `since_boot`.
+`tests/test_provider_inputs_320.py`.
+
+The branch also searched GDELT with the names first. Not ported, after a
+review: it rested on GDELT keeping only a query's first words, which Main's
+export copy does not do (`ExportStore.search` counts every word and needs
+two), so a team's city prepended to the query only let in namesakes
+("Kansas City" for a Chiefs question).
+
+**A stale credential memo.** `credentials.pool` kept a memo built while a
+key was absent once the same key was set again, because the value matched
+one it had published before the rebuild and read as its own failover - an
+empty pool with the key in the environment. A rebuild now forgets a publish
+it no longer sees. `tests/test_credential_memo_320.py` fails without it.
+
+**Not ported, by the owner's decision:** the kept market readings
+(`quote_book.py`) and the kept scores and 30-minute final watch - the
+archive keeps sweeps' finals and closes (§315); and the market-data vendor
+ranking, which is decided.
+
+Unverified here (no key): the writing and the brief's new fields. Listening
+checks: `python write.py "airshow in San Francisco bay today" --minutes 2`,
+`python write.py "why did the roman empire fall" --minutes 3` (the brief
+should say no window), `python write.py "will the Fed cut rates in
+December" --minutes 2` (the brief prints `market`).
+
+## 321. FAM on X: threads found from our own episodes, posted by a person (2026-10-26)
+
+The owner (10.26), with the "FAM x X" playbook (Find -> Add -> Explore ->
+Connect; 3-5 discussions found and 1-2 joined a day): "is there a way we can
+simplify and streamline the whole process? Figure out an algorithm or system
+that can save time by finding trending/relevant conversation threads", then:
+"a new page under something like familiarize.net/admin/x ... behave similarly
+to the /admin/thumbnails page where it gives the option to approve. If i press
+approve, then it redirects me automatically to the X thread with the
+suggested post already pasted in or at least copied ready for me to paste".
+
+**The search is turned around.** Done by hand, Find is an hour of scrolling
+and the playbook's "add a checked episode" means making one per thread.
+`x_threads.py` starts from episodes FAM already has - the current Trending
+edition's stories (their `anchors`), then the most played kept episodes (the
+names in their title and question, `names_for`) - and asks X's recent search
+for posts naming them. So the episode exists, written and checked, before the
+thread is found.
+
+**Choosing is code.** `screen` drops replies, posts older than
+`X_THREADS_WINDOW_HOURS` (6), accounts under 500 or over 200k followers,
+threads past 50 replies, organisations, grief and flame-war subjects (`AVOID`),
+slurs, a post that neither asks nor takes a side, and an author approved in
+the last week. `score` weighs episode match (the cache's embeddings plus the
+names) 0.35, engagement per hour 0.30, a question 0.15, room in the thread
+0.10 and author size 0.10. The match picks the playbook's reply type: under
+`LINK_FLOOR` the reply carries no link and asks a better question (example
+02); a question with an episode is example 03, a stance example 01, and two
+people taking sides on one episode's subject become one card (example 04).
+Every card says why in words. One Haiku call drafts each reply; with no key
+it is drafted in code and the card says so.
+
+**A person posts.** `/admin/x` is the thumbnails page's shape: Find threads,
+cards, Approve / Skip, an editable reply with X's count (a link is 23).
+Approve makes the episode's share link (owned by `fam-x`, one per episode),
+opens `x.com/intent/post?in_reply_to=<id>&text=...` - X's own reply box on
+that post with the words in it - and copies the words as well. The window is
+opened inside the click so it is not a blocked popup. "Listen first" opens
+the same link before approving. Nothing in the module can write to X: it
+holds a read-only bearer token, which is what [no-social-posting] meant by
+"nothing that can post while somebody is asleep" (that rule's note says so).
+X's automation rules restrict automated replies; this is not one.
+
+**Spend.** X's API is pay-per-use since February 2026 (reported ~$0.005 a post
+read). A search is a button, never a timer ([sweep-on-demand]), capped at
+`X_THREADS_MAX_READS` (300) and `X_THREADS_DAILY_READS` (600), counted in the
+store and on the Outside service requests page as "X". `X_BEARER_TOKEN` is in
+`spend_guard.PAID_CREDENTIALS`. Posting through the reply box costs nothing,
+where an API post with a link is reported at ~$0.20.
+
+**Kept a week.** `X_THREADS_DB` holds the cards and runs; a post's text is
+pruned after `KEEP_DAYS` (7). Lazily created, so health and the page never
+make it on a machine that never searched.
+
+**Unverified here:** no X token in this container, so no live search has run;
+the scoring weights are a first guess, to be reweighed after the playbook's
+one-week trial on replies, `/s/` opens and waitlist signups.
+
+**Review before merging (2026-10-27).** An independent read of the whole
+diff found nothing blocking (no XSS, no admin gap, nothing that posts) and
+these, all fixed: scoring embedded every post on the event loop that streams
+listeners' audio, and re-embedded the episode once per post - it now runs in
+a thread and embeds each episode once; the day's reads were written only at
+the end of a run, so a run that died after X had billed them left them
+uncounted - the run's row is now written before the first search and after
+each; `_exists()` checked for a file, so on Postgres the cards vanished after
+a redeploy - it asks `db.has_tables`, as the other lazy stores do; an
+approved reply too long for X was cut with an ellipsis, so what reached X was
+not what was approved - it is refused with a 422 and counted the way X counts
+(CJK and emoji weigh two), in Python and on the page alike, and `trim` no
+longer overruns by one when there is no space; the opened X tab kept a handle
+on the admin page (`opener` is cleared); an author with a card still waiting
+could be carded again by the next run; `X_THREADS_WINDOW_HOURS` is clamped
+to X's seven days. Left as they are, deliberately: the one-search-at-a-time
+flag and the daily ceiling hold within one server process, which is what
+production runs; and the drafting calls (at most eight a search) are in each
+run's report rather than `metering.db`, whose rows are listeners' episodes.
