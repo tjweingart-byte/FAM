@@ -22650,7 +22650,95 @@ flag and the daily ceiling hold within one server process, which is what
 production runs; and the drafting calls (at most eight a search) are in each
 run's report rather than `metering.db`, whose rows are listeners' episodes.
 
-## 322. Asking Wikipedia about every name again (2026-10-27)
+## 322. Go Deeper on LinkedIn: a person finds the post, FAM brings the episode (2026-10-27)
+
+The owner (10.27), from a flip chart titled "LinkedIn: Go Deeper": "When
+someone makes a post on LinkedIn meant to educate or inform, FAM adds a link
+to an episode to 'Go Deeper' on the topic. FAM systematically adds depth to
+people already teaching something." The how: "similar to the X admin
+algorithm, automatically scrape LinkedIn for the posts and recommend
+comments/episodes on an approval basis", with somebody watching over the X
+and LinkedIn pages, approving and rejecting.
+
+**The one part not built as written: scraping.** LinkedIn's API reads only
+an organisation's own posts, its User Agreement forbids scraping and
+automated commenting (it won *hiQ* on that clause), and accounts that
+comment by automation are restricted - the first one at risk would be FAM's.
+So nothing in `linkedin_posts.py` fetches LinkedIn and FAM holds no LinkedIn
+credential. The systematic part is kept where it is allowed: the page builds
+**LinkedIn search links** (its own content search, newest first) from the
+same episodes `/admin/x` seeds from (`x_threads.seeds`: the Trending
+edition, then the most played kept episodes), and a person opens them in
+their own browser and **pastes** a post worth adding to - its address and
+its words. Finding a post from an episode means the episode exists first,
+the X page's turn-around.
+
+**Choosing is code.** `parse_url` takes the two shapes a post's address has
+(`/posts/<author>_...-activity-<id>` and `/feed/update/urn:li:activity:<id>`),
+refuses `lnkd.in` (following it would be FAM fetching LinkedIn) and anything
+not on linkedin.com, and keeps the author's profile slug for one author a
+week. `screen_post` turns away posts under 120 characters, `x_threads.AVOID`
+subjects, slurs, announcements, hiring and promotion (`_PROMO`), and posts
+that do not read as teaching (`_TEACH`, or three list lines). The chart also
+allows a post the episode "simply gives more context" to, so a refusal is a
+409 in words and the page offers **Add it anyway**; the card then says
+"added anyway: <why>". `episodes_for` scores every kept, non-explicit
+episode the way `x_threads.match` does (embeddings 0.6, names 0.4) and offers
+the best three; only those over `x_threads.LINK_FLOOR` can be linked.
+
+**No episode, no link.** Under the floor the card has no comment: it shows
+the Go Deeper question the drafting call wrote ("search this in FAM"), and
+**Match again** re-reads the cache once that search has made the episode.
+Nothing here generates an episode; searching does, on the path that already
+researches and checks one.
+
+**A person posts.** LinkedIn has no prefilled comment link like X's
+`intent/post`, so Approve makes the episode's share link (owned by
+`fam-linkedin`, one per episode), composes the comment - the person's words,
+a blank line, `Go Deeper: "<title>" (n min) <link>` - copies it, and opens the
+post in a window opened inside the click; the person pastes and presses
+Comment. A comment over LinkedIn's 1,250 characters is refused, never cut.
+The Approved tab keeps "Copy and open the post again" for a browser that
+refused the clipboard. One Haiku call (`LINKEDIN_MODEL`) drafts the comment
+and the question; with no key the comment is a plain sentence in code and
+the card says "drafted in code".
+
+**Kept a week**, in `LINKEDIN_POSTS_DB` (lazily created, like `/admin/x`'s).
+No spend beyond the drafting call: no LinkedIn API exists to pay for.
+
+**Unverified here:** no model key, so no drafted comment has been read; the
+`_TEACH`/`_PROMO` patterns are a first guess to be tuned against the posts
+people actually paste. CLAUDE.md's core is now at its 40,000-byte budget.
+
+**Review before merging (10.27).** An independent read of the branch found
+holes, confirmed by running them, all fixed with tests:
+- *One author a week was shorter than a week.* Pruning went by `added_at`,
+  the check by `decided_at`, so a post approved on day 6 freed its author
+  on day 7. An approved card is now kept until a week after its approval.
+- *A `/feed/update/` address skipped it.* That shape names no author; the
+  check now falls back to the typed name (and matches names across both
+  shapes), and with neither it refuses in words ("type their name").
+- *Re-pasting a post rewrote its card under its old verdict.* A post
+  already on the page - by id, or by identical words under another id kind
+  (`activity:` vs `ugcPost:`) - is refused, even "anyway"; the page offers
+  "Add it anyway" only when the server marks a refusal `X-FAM-Overrule`.
+- *Skip or Back to waiting after Approve erased what was posted.* Only an
+  approval writes `posted`/`share_url` now.
+- *Store calls ran on the event loop* (and `SHARES.create`, `health`,
+  `trending_now`); all go through `asyncio.to_thread`.
+- *Drafting spend went only to a log line*; each card now carries what its
+  matches cost, summed on the page ([failures-visible]).
+- *Percent-encoded URNs were refused*; the path is decoded first, and a
+  `/posts/` slug outside `[A-Za-z0-9_%-]` is refused.
+- *Names matched as substrings* ("Fed" in "federal") across posts of
+  thousands of characters; they match as whole words now.
+- The page no longer polls: only it changes the cards, and each load reads
+  the cache. The model path of `draft` is tested with a stand-in client.
+
+`/admin/x` has the first and fourth holes too (`x_threads.Store.prune` and
+`decide`); left for its own change, since that page is merged and in use.
+
+## 323. Asking Wikipedia about every name again (2026-10-27)
 
 The owner (10.27): "I typed in the wrong thing for the wikipedia password and
 key, and wikipedia probably wasn't able to check all of the pronunciations in

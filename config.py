@@ -1239,6 +1239,12 @@ class Settings:
     x_threads_model: str = field(
         default_factory=lambda: os.environ.get("X_THREADS_MODEL") or SMALL_MODEL)
 
+    # --- Go Deeper on LinkedIn (`/admin/linkedin`, linkedin_posts.py, §322) -
+    # Nothing reads LinkedIn: a person pastes a post. This drafts the comment
+    # a person approves and posts. A short call; the small model.
+    linkedin_model: str = field(
+        default_factory=lambda: os.environ.get("LINKEDIN_MODEL") or SMALL_MODEL)
+
     # --- GNews (gnews.io), the bank's source -------------------------------
     # The key is the statement of intent: unset, Trending is empty and says so.
     gnews_key: str = field(

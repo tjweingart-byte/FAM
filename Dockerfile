@@ -104,6 +104,7 @@ ENV CACHE_PATH=/data/scripts.db \
     PIPELINE_ERRORS_DB=/data/pipeline_errors.db \
     EPISODE_QUALITY_DB=/data/episode_quality.db \
     X_THREADS_DB=/data/x_threads.db \
+    LINKEDIN_POSTS_DB=/data/linkedin_posts.db \
     LOCAL_NEWS_DB=/data/local_news.db \
     GDELT_EXPORT_DB=/data/gdelt_export.db \
     STORY_POOL_DB=/data/story_pool.db \

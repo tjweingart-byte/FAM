@@ -148,6 +148,8 @@ FAM_ENVIRONMENT = (
     "X_THREADS_MAX_READS",
     "X_THREADS_DAILY_READS", "X_THREADS_WINDOW_HOURS", "X_THREADS_SEEDS",
     "X_THREADS_MODEL",
+    # /admin/linkedin (§322).
+    "LINKEDIN_MODEL",
     # GDELT and the live provider credentials. A developer with any of these
     # set must not run a suite that quietly has a real provider in it - a test
     # asserting FAM says "no live feed" would then pass or fail on their shell.
@@ -732,6 +734,17 @@ def isolated_x_threads(tmp_path, monkeypatch):
     x_threads.reset()
     yield
     x_threads.reset()
+
+
+@pytest.fixture(autouse=True)
+def isolated_linkedin_posts(tmp_path, monkeypatch):
+    """`/admin/linkedin`'s cards (§322) per test, like `/admin/x`'s above."""
+    import linkedin_posts
+
+    monkeypatch.setenv("LINKEDIN_POSTS_DB", str(tmp_path / "stores" / "linkedin_posts.db"))
+    linkedin_posts.reset()
+    yield
+    linkedin_posts.reset()
 
 
 @pytest.fixture(autouse=True)

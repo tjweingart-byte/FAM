@@ -325,4 +325,5 @@ and `limit` = Lines.
 | 22445 | 18 | 319. A shared episode invites the listener into the conversation, via the waitlist (2026-10-26) |
 | 22463 | 112 | 320. What the trusting-fermat branch fixed, brought to Main (2026-10-26) |
 | 22575 | 78 | 321. FAM on X: threads found from our own episodes, posted by a person (2026-10-26) |
-| 22653 | 30 | 322. Asking Wikipedia about every name again (2026-10-27) |
+| 22653 | 88 | 322. Go Deeper on LinkedIn: a person finds the post, FAM brings the episode (2026-10-27) |
+| 22741 | 30 | 323. Asking Wikipedia about every name again (2026-10-27) |

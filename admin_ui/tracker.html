@@ -296,6 +296,7 @@
     <a href="/admin/waitlist">Waitlist ↗</a>
     <a href="/admin/thumbnails">Thumbnails ↗</a>
     <a href="/admin/x">FAM on X ↗</a>
+    <a href="/admin/linkedin">Go Deeper on LinkedIn ↗</a>
   </nav>
 
   <main id="main" hidden>
@@ -1608,7 +1609,7 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
   function checkWiki(force) {
     $("wikiAll").disabled = $("wikiAgain").disabled = true;
     api("/api/admin/pronunciations/wikipedia" + (force ? "?force=true" : ""), {}).then(function (r) {
-      $("wikiState").textContent = r.queued ? "Checking " + r.queued + " names with Wikipedia" + (force ? " again" : "") + "…" : "Every name was checked in the last month; nothing to ask.";
+      $("wikiState").textContent = r.queued ? "Checking " + r.queued + " names with Wikipedia" + (force ? " again" : "") + "…" : force ? "No names on file to ask about." : "Every name was checked in the last month; nothing to ask - use Check every name again.";
       setTimeout(loadSay, 1500);
     }).catch(function (e) { $("wikiState").textContent = e.message; $("wikiAll").disabled = $("wikiAgain").disabled = false; });
   }
