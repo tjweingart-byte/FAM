@@ -146,9 +146,20 @@ async def main() -> int:
             print(f"    must answer {'; '.join(brief.must_establish)}")
         if brief.cautions:
             print(f"    careful of  {'; '.join(brief.cautions)}")
+        if getattr(brief, "forecast_query", ""):
+            print(f"    market      {brief.forecast_query!r}")
+        if getattr(brief, "source_kind", "general") != "general":
+            print(f"    sources     {brief.source_kind}")
         if brief.pronounce:
             print("    say as      " + "; ".join(
                 f"{p['name']} = {p['say']}" for p in brief.pronounce))
+        if brief.category_path:
+            print(f"    filed under {' > '.join(brief.category_path)}")
+        archived = (plan.evidence or "").count(
+            "Source type: " + research.TIER_LABELS["archive"])
+        if archived:
+            # The archive's recall (§308), added into the search results.
+            print(f"    archive     {archived} earlier report(s) added to the packet")
         if plan.thin_on:
             print(f"    NOT FOUND   {'; '.join(plan.thin_on)}  <- one search "
                   "missed it; that is a fact about the search, not the world")

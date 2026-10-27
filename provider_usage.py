@@ -53,7 +53,7 @@ LABELS = {
     "gdelt": "GDELT",
     "polymarket": "Polymarket",
     "gnews": "GNews",
-    # §311: recent search for /admin/x, billed per post read.
+    # §321: recent search for /admin/x, billed per post read.
     "x": "X",
     "finnhub": "Finnhub",
     # §290: the free plans used while developing.

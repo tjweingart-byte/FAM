@@ -388,6 +388,30 @@ WATCHLIST = {
 }
 
 
+def _keep_prices(rows: list, is_open, source: str) -> None:
+    """The sweep's quotes to the history archive (§315). A quote with no
+    price is skipped; its time is the provider's (`t`), else now. Never
+    raises."""
+    try:
+        import history_archive
+
+        kept = []
+        for symbol, data in rows:
+            price = (data or {}).get("c")
+            if not price:
+                continue
+            stamp = (data or {}).get("t")
+            as_of = (datetime.fromtimestamp(float(stamp), timezone.utc)
+                     if isinstance(stamp, (int, float)) and stamp > 0
+                     else datetime.now(timezone.utc))
+            kept.append(history_archive.swept_price(
+                symbol, WATCHLIST.get(symbol, symbol), float(price),
+                (data or {}).get("dp"), as_of, is_open, source))
+        history_archive.keep_swept(kept)
+    except Exception as exc:  # noqa: BLE001 - the archive never costs a sweep
+        log.warning("sweep prices were not archived: %s", exc)
+
+
 class FinnhubSignals(stories.StorySource):
     """One quote per watchlist symbol; a signal for whatever actually moved.
 
@@ -490,6 +514,9 @@ class FinnhubSignals(stories.StorySource):
         for symbol, data in rows:
             if data:
                 live_sources.remember_quote(symbol, data, is_open)
+        # Every watchlist price, for the history archive (§315): the latest
+        # per symbol per trading day. No request of its own, never awaited.
+        _keep_prices(rows, is_open, self.name)
         threshold = float(settings.stories_market_move_percent)
         moved = []
         for symbol, data in rows:

@@ -484,6 +484,56 @@ def rank_results(results, now: Optional[datetime] = None) -> list:
     return sorted(results, key=key)
 
 
+#: A day either side of the window, for the publisher's clock and ours: an
+#: article stamped late yesterday in one zone is inside "the last day" in
+#: another. Counted in whole calendar days, because a published date has no
+#: time of day (`published_at` reads it as midnight UTC).
+WINDOW_GRACE_DAYS = 1
+#: The thin-packet retry keeps a window rather than dropping it (§320): this
+#: many times the first, and never under a week.
+RETRY_WINDOW_FACTOR = 3
+RETRY_WINDOW_MIN_DAYS = 7
+
+
+def retry_window(recency_days: int) -> int:
+    """The window the second look searches with. Zero only for zero.
+
+    It used to be zero always, so a "last 24 hours" question whose first
+    search came back thin was searched again with no date at all - and a
+    March 2025 article about a Nasdaq correction out-scored everything dated
+    this week (§320). An evergreen question (no window) is unchanged.
+    """
+    if recency_days <= 0:
+        return 0
+    return max(recency_days * RETRY_WINDOW_FACTOR, RETRY_WINDOW_MIN_DAYS)
+
+
+def within_window(results, recency_days: int,
+                  now: Optional[datetime] = None) -> list:
+    """Drop what is dated before the window. **Recency filters** - here, in code.
+
+    The window was only ever a hint to the search vendor (`after_date`,
+    `search_after_date_filter`), and a vendor's filter is its own idea of a
+    date: nothing here checked what came back, so an article from last year
+    reached a "today" episode dated and graded and looking like evidence
+    (§320). An undated result is kept - its date is "not stated" in the
+    packet, never filled in - because dropping it would make "undated" a
+    reason to exclude a live quotes page. GDELT needs none of this: it is
+    read from export files whose times are its own (§211).
+    """
+    if recency_days <= 0:
+        return list(results)
+    now = now or datetime.now(timezone.utc)
+    first_day = (now - timedelta(days=recency_days + WINDOW_GRACE_DAYS)).date()
+    kept = []
+    for result in results:
+        when = published_at(result)
+        if when is not None and when.date() < first_day:
+            continue
+        kept.append(result)
+    return kept
+
+
 def names_place(results, place: str) -> list:
     """Only the results that name `place` (§194, the fix that stops invention).
 
@@ -742,7 +792,8 @@ def _cutoff(recency_days: int) -> Optional[datetime]:
 
 def _search_parallel(query: str, num_results: int, recency_days: int = 0,
                      include_domains: tuple = (), objective: str = "",
-                     extra_queries: tuple = ()) -> tuple[list, float]:
+                     extra_queries: tuple = (), hints: Optional[dict] = None
+                     ) -> tuple[list, float]:
     """One Parallel search: (results, dollars). Raises on any failure."""
     key = _key("parallel")
     if not key:
@@ -762,6 +813,10 @@ def _search_parallel(query: str, num_results: int, recency_days: int = 0,
         policy["include_domains"] = list(include_domains)[:PARALLEL_MAX_DOMAINS]
     if policy:
         advanced["source_policy"] = policy
+    # A town's question is searched from its country (§320): Parallel's
+    # `location`, an ISO code from the place catalogue.
+    if (hints or {}).get("country"):
+        advanced["location"] = hints["country"]
     body: dict = {
         # Parallel wants short keyword queries; a raw question (EI off, or no
         # `retrieval` in the brief) is cut rather than sent whole.
@@ -789,8 +844,8 @@ def _search_parallel(query: str, num_results: int, recency_days: int = 0,
 
 
 def _search_perplexity(query: str, num_results: int, recency_days: int = 0,
-                       include_domains: tuple = (), objective: str = ""
-                       ) -> tuple[list, float]:
+                       include_domains: tuple = (), objective: str = "",
+                       hints: Optional[dict] = None) -> tuple[list, float]:
     """One Perplexity search: (results, dollars). Raises on any failure."""
     key = _key("perplexity")
     if not key:
@@ -809,6 +864,14 @@ def _search_perplexity(query: str, num_results: int, recency_days: int = 0,
         body["search_after_date_filter"] = cutoff.strftime("%m/%d/%Y")
     if include_domains:
         body["search_domain_filter"] = list(include_domains)[:PERPLEXITY_MAX_DOMAINS]
+    # Perplexity's own modes for its own indexes (§320): SEC filings and
+    # academic papers, from EI's `source_kind`; its `country` on a town's
+    # question. Perplexity has no objective field - the query carries it.
+    mode = PERPLEXITY_MODES.get((hints or {}).get("source_kind", ""))
+    if mode:
+        body["search_mode"] = mode
+    if (hints or {}).get("country"):
+        body["country"] = hints["country"]
     data = _post(PERPLEXITY_URL, {"Authorization": f"Bearer {key}"}, body)
     results = [
         SearchResult(url=str(item.get("url") or ""),
@@ -829,7 +892,7 @@ def _search_perplexity(query: str, num_results: int, recency_days: int = 0,
 #: only: `Brief.recency_days` is untouched, so how long the episode stays
 #: current is still decided by what it was built on and never by these words
 #: ([ttl-from-evidence]). A floor too narrow for the subject costs one more
-#: search - the second look drops the window - and never the episode.
+#: search - the second look widens the window (§320) - and never the episode.
 _DAY_WORDS = re.compile(
     r"\b(today|today's|tonight|tonight's|yesterday|yesterday's|last night|"
     r"this morning|this afternoon|this evening|right now)\b", re.I)
@@ -863,6 +926,34 @@ def search_window(brief) -> int:
     return 0
 
 
+#: EI's `source_kind` as a sentence in Parallel's objective (§320). "general"
+#: and an unknown kind add nothing.
+SOURCE_PREFERENCES = {
+    "news": "Prefer wire services and established news outlets' reports.",
+    "official": "Prefer the official source itself: the government body, "
+                "league, company or institution's own statement or site.",
+    "filings": "Prefer the company's own filings and results releases "
+               "(SEC filings, earnings releases, investor relations).",
+    "academic": "Prefer peer-reviewed research, universities and scientific "
+                "institutions.",
+    "local": "Prefer the town's own newspapers, broadcasters and official sites.",
+}
+#: EI's `source_kind` as Perplexity's `search_mode` (§320). Everything else
+#: is the default web search, which is not sent.
+PERPLEXITY_MODES = {"filings": "sec", "academic": "academic"}
+
+
+def hints_for(brief, country: str = "") -> dict:
+    """What each backend may be told beyond the query (§320): the source
+    kind and, on a local question, the place's country from the catalogue
+    (`places`), never from the model."""
+    out = {"source_kind": str(getattr(brief, "source_kind", "") or "general")}
+    code = (country or "").strip().upper()
+    if len(code) == 2 and code.isalpha():
+        out["country"] = code
+    return out
+
+
 def objective_for(brief, recency_days: Optional[int] = None) -> str:
     """What Parallel is told the search is for, from the brief - never the
     listener's own words, which the consent notice does not send to a
@@ -876,7 +967,7 @@ def objective_for(brief, recency_days: Optional[int] = None) -> str:
     facts the request already enforces - and the window's line is left off
     when there is none, so an evergreen question is never told to want
     "recent, dated reporting". `recency_days` defaults to the brief's;
-    the second look, which drops the window, passes 0.
+    the second look passes its wider one (`retry_window`, §320).
     """
     if brief is None:
         return ""
@@ -898,6 +989,10 @@ def objective_for(brief, recency_days: Optional[int] = None) -> str:
         if wanted:
             text += " that establishes: " + "; ".join(wanted[:4])
         text += "."
+    # Parallel's own advice: "be specific about source preferences" (§320).
+    prefer = SOURCE_PREFERENCES.get(str(getattr(brief, "source_kind", "") or ""))
+    if prefer and prefer.lower() not in text.lower():
+        text += " " + prefer
     cutoff = _cutoff(days)
     if cutoff is not None:
         text += (f" Only sources published on or after "
@@ -1051,7 +1146,8 @@ def _retrieve_blocking(query: str, num_results: int, packet_sources: int,
                        recency_days: int = 0, live_domain: str = "",
                        include_domains: tuple = (), must_name: str = "",
                        backend: str = "parallel", objective: str = "",
-                       extra_queries: tuple = ()) -> Packet:
+                       extra_queries: tuple = (),
+                       hints: Optional[dict] = None) -> Packet:
     """One web search, ranked, packed and costed.
 
     `recency_days` becomes the backend's after-date filter, which is the
@@ -1066,10 +1162,10 @@ def _retrieve_blocking(query: str, num_results: int, packet_sources: int,
         if backend == "parallel":
             returned, cost = _search_parallel(query, num_results, recency_days,
                                               include_domains, objective,
-                                              extra_queries)
+                                              extra_queries, hints)
         elif backend == "perplexity":
             returned, cost = _search_perplexity(query, num_results, recency_days,
-                                                include_domains, objective)
+                                                include_domains, objective, hints)
         else:
             raise ResearchUnavailable(
                 f"{backend!r} is not a web search backend. Use one of: "
@@ -1085,6 +1181,7 @@ def _retrieve_blocking(query: str, num_results: int, packet_sources: int,
 
     results = screen_results(rank_results(returned), query=query,
                              live_domain=live_domain)
+    results = within_window(results, recency_days)
     if must_name:
         results = names_place(results, must_name)
     import provenance as provenance_mod
@@ -1111,8 +1208,9 @@ def _retrieve_blocking(query: str, num_results: int, packet_sources: int,
 async def _second_look(query: str, num_results: int, packet_sources: int,
                        highlights_per_source: int, live_domain: str = "",
                        include_domains: tuple = (), must_name: str = "",
-                       backend: str = "parallel", objective: str = ""
-                       ) -> Optional[Packet]:
+                       backend: str = "parallel", objective: str = "",
+                       recency_days: int = 0,
+                       hints: Optional[dict] = None) -> Optional[Packet]:
     """The one extra search, which is allowed to fail quietly. `retrieve` is not.
 
     The distinction is the whole reason this is a separate function, and it is
@@ -1134,8 +1232,8 @@ async def _second_look(query: str, num_results: int, packet_sources: int,
     try:
         return await asyncio.to_thread(
             _retrieve_blocking, query, num_results, packet_sources,
-            highlights_per_source, 0, live_domain,
-            include_domains, must_name, backend, objective)
+            highlights_per_source, recency_days, live_domain,
+            include_domains, must_name, backend, objective, (), hints)
     except Exception as exc:  # noqa: BLE001 - see docstring
         log.warning("the second look failed for %r: %s; keeping the first "
                     "packet", query, exc)
@@ -1144,7 +1242,8 @@ async def _second_look(query: str, num_results: int, packet_sources: int,
 
 def _story_look_blocking(query: str, num_results: int, hosts: tuple,
                          recency_days: int, live_domain: str, backend: str,
-                         objective: str, extra_queries: tuple) -> tuple:
+                         objective: str, extra_queries: tuple,
+                         hints: Optional[dict] = None) -> tuple:
     """The tapped story's own outlets, searched for the same thing (§267).
 
     The same backend, query, window and objective as the main search, held
@@ -1159,10 +1258,11 @@ def _story_look_blocking(query: str, num_results: int, hosts: tuple,
     try:
         if backend == "parallel":
             returned, cost = _search_parallel(query, num_results, recency_days,
-                                              hosts, objective, extra_queries)
+                                              hosts, objective, extra_queries,
+                                              hints)
         elif backend == "perplexity":
             returned, cost = _search_perplexity(query, num_results, recency_days,
-                                                hosts, objective)
+                                                hosts, objective, hints)
         else:
             raise ResearchUnavailable(
                 f"{backend!r} is not a web search backend.")
@@ -1173,8 +1273,9 @@ def _story_look_blocking(query: str, num_results: int, hosts: tuple,
         provider_usage.record(backend, ok=False)
         raise
     provider_usage.record(backend)
-    return (screen_results(rank_results(returned), query=query,
-                           live_domain=live_domain), float(cost))
+    return (within_window(screen_results(rank_results(returned), query=query,
+                                         live_domain=live_domain),
+                          recency_days), float(cost))
 
 
 async def _story_look(*args) -> Optional[tuple]:
@@ -1244,11 +1345,15 @@ async def finish_history_look(packet: "Packet", look) -> None:
     """Merge the archive's recall if it is back within
     `ARCHIVE_GRACE_SECONDS` of the main packet; drop it otherwise.
 
-    The reference look's rules (§278, §281): only beside web sources, after
-    every one of them, never waited for longer than the grace, and judged
-    after the packet's gaps were named - earlier reporting must never cover a
-    current fact the dated sources lack. A fact from an article already in
-    the packet is left out."""
+    The reference look's timing (§278, §281): after every web source, never
+    waited for longer than the grace, and judged after the packet's gaps
+    were named - earlier reporting must never cover a current fact the dated
+    sources lack. A fact from an article already in the packet is left out.
+
+    An empty search gets no archive **for now** (§316, the owner's
+    direction): today's default, not a rule. Whether the archive may answer
+    an empty search is left to the contextualizer (`docs/FAM_AGENTS.md`,
+    agent 4), decided when the agents are built."""
     if look is None:
         return
     if not packet:
@@ -1294,11 +1399,19 @@ async def finish_history_look(packet: "Packet", look) -> None:
                       + history_archive.as_sources(facts, number))
     articles = list({f.url: SearchResult(url=f.url, title=f.title,
                                          published_date=f.published)
-                     for f in facts}.values())
+                     for f in facts if f.url.startswith(("http://", "https://"))
+                     }.values())
     for host in domains(articles):
         if host not in packet.sources:
             packet.sources.append(host)
     credited = provenance_mod.from_results(articles, retriever="archive")
+    # A live provider's data kept in the archive (§313, §315) has no web
+    # address: it is credited by the provider's name, never its `live:` key.
+    for label, day in sorted({(f.host or "FAM archive", f.published)
+                              for f in facts if f.url.startswith("live:")}):
+        credited.add(provenance_mod.Attribution(
+            label=label, kind=provenance_mod.LIVE,
+            tier="from FAM's archive - provider data, dated", at=day))
     if packet.provenance is None:
         packet.provenance = credited
     else:
@@ -1564,19 +1677,20 @@ async def retrieve(query: str, backend: Optional[str] = None,
     # function takes: whatever it has found when the main packet (and its one
     # retry, and the cross-check) are done is merged, and anything later is
     # dropped. So it adds evidence and never a second to the first word.
+    hints = hints_for(brief, str(overrides.get("country", "") or ""))
     story_hosts = tuple(overrides.get("story_hosts", ()) or ())
     story_look = None
     if story_hosts and not include_domains and not must_name:
         story_look = asyncio.ensure_future(_story_look(
             query, num_results, story_hosts, recency_days, live_domain,
-            chosen, objective, queries_for(query, brief)))
+            chosen, objective, queries_for(query, brief), hints))
     searched = False
     try:
         packet = await asyncio.to_thread(
             _retrieve_blocking, query, num_results, packet_sources,
             highlights_per_source, recency_days, live_domain,
             include_domains, must_name, chosen, objective,
-            queries_for(query, brief))
+            queries_for(query, brief), hints)
         searched = True
     finally:
         # A main search that raised takes the story look with it: there is
@@ -1595,7 +1709,7 @@ async def retrieve(query: str, backend: Optional[str] = None,
     # exactly this case never ran. The commonest way to get here is the
     # recency window: a narrow one on a subject nothing was published about
     # in that window returns zero results, and the second look is the one that
-    # drops the window.
+    # widens it (never drops it - §320).
     if (not packet or not covered) and settings.research_retry:
         # **EI's own broader phrasing first**, then the resolved subject, then
         # the raw query - `Brief.broader` picks whichever exists and differs
@@ -1610,12 +1724,16 @@ async def retrieve(query: str, backend: Optional[str] = None,
         # `RESEARCH_SECOND_LOOK` (Perplexity) when that can serve, and to the
         # configured backend otherwise.
         other = second_look_backend(chosen)
+        # A wider window, never none (§320): see `retry_window`.
+        wider = retry_window(recency_days)
         log.info("%s packet missed %s for %r; one more search on %s for %r "
-                 "with no window", chosen, missing, query, other, broader)
+                 "with window %sd", chosen, missing, query, other, broader,
+                 wider or "none")
         second = await _second_look(broader, num_results, packet_sources,
                                     highlights_per_source,
                                     live_domain, include_domains, must_name,
-                                    other, written or objective_for(brief, 0))
+                                    other, written or objective_for(brief, wider),
+                                    wider, hints)
         if second is not None:
             _, second_missing = packet_covers(second.context, must_establish)
             # Keep whichever packet answers more of the brief; on a tie keep

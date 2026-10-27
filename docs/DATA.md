@@ -129,7 +129,7 @@ Render deployment; since §208 it pins every store there (21 since §211), as th
 | **live_routing.db** (`LIVE_ROUTING_DB`, §264) | `live_routing.py` | `episodes` | No `user_id`; holds the typed question | 14 days (`KEEP_DAYS`) | n/a · kept |
 | **pipeline_errors.db** (`PIPELINE_ERRORS_DB`, §269) | `pipeline_errors.py` | `errors` | No `user_id`; holds the typed question | 14 days (`KEEP_DAYS`) | n/a · kept |
 | **episode_quality.db** (`EPISODE_QUALITY_DB`, §309) | `episode_quality.py` (`QualityStore`) | `episodes`, `listens`, `labels` | `listens` only (the account that listened); `episodes` holds the typed question | 180 days (`KEEP_DAYS`); the evidence text until graded, at most 14 days (`EVIDENCE_DAYS`) | `listens` erased · **Wiped** |
-| **x_threads.db** (`X_THREADS_DB`, §311) | `x_threads.py` (`Store`) | `candidates`, `runs` | No listener; holds public X posts and their authors' handles | 7 days (`KEEP_DAYS`); runs 30 days | n/a · kept |
+| **x_threads.db** (`X_THREADS_DB`, §321) | `x_threads.py` (`Store`) | `candidates`, `runs` | No listener; holds public X posts and their authors' handles | 7 days (`KEEP_DAYS`); runs 30 days | n/a · kept |
 | **thumbnails.db** (`THUMBNAILS_DB`) | `thumbnails.py` | `thumbnails`, `spend`, `runs` | No, shared | ≤ 1 picture per tree node | n/a · kept |
 | **local_news.db** (`LOCAL_NEWS_DB`) | `local_news.py`, `places.py`, `weather.py` | `outlets`, `items`, `demand`, `excluded`, `places`, `weather` | No (no `user_id`) | Items pruned daily past 30 days (`LOCAL_NEWS_KEEP_DAYS`, never below the 14-day window; each outlet keeps its newest 200, §208); demand 30 days | n/a · kept |
 | **gdelt_export.db** (`GDELT_EXPORT_DB`, §211) | `gdelt.py` (`ExportStore`) | `files`, `articles`, `theme_counts`, `domains`, `meta` | No, shared | 24 hours of GDELT's 15-minute export files (`GDELT_EXPORT_KEEP_HOURS`), ≤ 1,500 articles per file | n/a · kept |
@@ -322,7 +322,7 @@ the raw material the Database inventory specialist will digest
 key sentences and figures the agent keeps, each with a 384-number vector,
 recalled beside the search. Never a private search or an attachment.
 
-**x_threads.db** (`x_threads.Store`, §311): `/admin/x`'s cards. `candidates`,
+**x_threads.db** (`x_threads.Store`, §321): `/admin/x`'s cards. `candidates`,
 one row per public X post a search found worth replying to - its text, the
 author's handle, name and follower count, the episode it matched, the drafted
 reply, and the admin's verdict (and, once approved, the words handed to X).

@@ -146,7 +146,7 @@ ALL_VARS = sorted(DECLARED)
 #: exists - the same case again. `ARCHIVE_DB` (§308) is created by the
 #: first written episode with sources, and reported once it exists.
 #: `EPISODE_QUALITY_DB` (§309) is created by the first written episode - the
-#: routing rows' case. `X_THREADS_DB` (§311) is created by the first
+#: routing rows' case. `X_THREADS_DB` (§321) is created by the first
 #: search on `/admin/x`, and reported once it exists.
 LAZY_STORES = {"X_THREADS_DB", "ARCHIVE_DB", "VOICE_REGISTRY_DB", "TRENDING_BANK_DB", "VOICE_BANK_DB",
                "THUMBNAILS_DB", "PROVIDER_USAGE_DB", "LOCAL_NEWS_DB",

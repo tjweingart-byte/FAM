@@ -691,6 +691,8 @@ class ScriptNotes:
     #: What the history archive keeps once this episode is cached (§308):
     #: `{"subject": ..., "findings": [history_archive.Finding, ...]}`, set by
     #: `research` from the winning packet. None when nothing was retrieved.
+    #: `prepare` adds `"live"`: the live providers' final results, market
+    #: states and player reports (`history_archive.live_records`, §313).
     #: Read only by `history_archive.after_episode`; never by a prompt.
     archive: object = None
     #: What the episode's quality is judged against (§309), set when the
@@ -1030,21 +1032,26 @@ def build_local_block(plan: EpisodePlan) -> str:
     if not local.gap:
         return f"""
 This is a question about {town}. The evidence below comes from outlets that
-cover {town}, or from stories that name it, and is about {town} itself. Stay
-on {town}. It is fine for the episode to be shorter than the time allows:
-end when the material ends rather than padding it.
+cover {town}, or from stories that name it. It is what was found, not all
+that is happening there: never say something is not happening in {town}
+because it is not below (§320). Stay on {town}. It is fine for the episode
+to be shorter than the time allows: end when the material ends rather than
+padding it.
 """
     has_weather = getattr(local, "weather", None) is not None
     county_news = local.scope == "county" and bool(plan.evidence)
+    unrelated = bool(getattr(local, "unrelated", False))
     said = local_news.gap_line(place, weather=has_weather,
-                               county_news=county_news)
+                               county_news=county_news, unrelated=unrelated)
+    # What the search did not find, said the way the gap line says it (§320).
+    missed = (f"no recent news reports out of {town} about this" if unrelated
+              else f"no recent news reports out of {town} itself")
     weather_step = (f"first the weather in {town} from the weather block "
                     "below, then " if has_weather else "")
     if county_news:
         return f"""
-This is a question about {town}, and our search found no recent news reports
-out of {town} itself. The listener has ALREADY HEARD this sentence, spoken
-before your first word:
+This is a question about {town}, and our search found {missed}.
+The listener has ALREADY HEARD this sentence, spoken before your first word:
 
 "{said}"
 
@@ -1056,8 +1063,8 @@ material ends.
 """
     return f"""
 This is a question about {town}, and our search found no recent news reports
-out of {town} or {county}. The listener has ALREADY HEARD this sentence,
-spoken before your first word:
+out of {town} or {county}{" about this" if unrelated else ""}. The listener
+has ALREADY HEARD this sentence, spoken before your first word:
 
 "{said}"
 
@@ -1128,7 +1135,10 @@ and do not claim anything about a document beyond what is in it.
                 "supply it from memory: what you remember is months old and "
                 "arrives in the same confident voice as the researched half, "
                 "and a listener cannot tell the two apart. Say the short true "
-                "thing in passing and keep going.\n"
+                "thing in passing and keep going. **Whether something is "
+                "happening or exists at all** - an event, a show, a closure - "
+                "is never established by a search that missed it: never say "
+                "it is not happening (§320).\n"
                 "- If it is something **already settled** - a scheduled date, a "
                 "fixture, a rule, a figure that was fixed some time ago - then "
                 "the search missing it proves nothing, because nobody has "
@@ -1279,6 +1289,13 @@ Time, and this is where these go wrong most often:
   a score, a figure or an outcome for anything still to come, however
   confidently you could guess it. Talk about it in the future tense.
 - An undated source cannot date anything. Do not use it to decide when.
+- **An article cannot speak for a day it was written before** (§320). When
+  the listener names a day and something on it - a move, a result, a
+  decision - a source published before that day says nothing about it. Never
+  move their date to the day an older article describes, and never tell them
+  their figure "belongs to a different day" on the strength of one. Say what
+  is established about their day; give an older figure only with its own
+  date, as the background it is.
 """
 
     follow_up = ""
@@ -1531,7 +1548,8 @@ class _ScriptReader:
 
         line = local_news.gap_line(
             local.place, weather=getattr(local, "weather", None) is not None,
-            county_news=getattr(local, "scope", "") == "county")
+            county_news=getattr(local, "scope", "") == "county",
+            unrelated=bool(getattr(local, "unrelated", False)))
         self.emitted_words += count_words(line)
         return [line]
 
@@ -1900,7 +1918,7 @@ class ScriptGenerator:
         # episode is not one it may add to.
         import history_archive
 
-        history = history_archive.look(" ".join(filter(None, (
+        recall = history_archive.look(" ".join(filter(None, (
             str(getattr(plan.brief, "subject", "") or ""), query))), plan.brief)
 
         # **The ladder**, in cost order, stopping at the first rung that
@@ -1945,7 +1963,7 @@ class ScriptGenerator:
             if better:
                 better.fell_back_from = configured
                 packet = better
-        await research_mod.finish_history_look(packet, history)
+        await research_mod.finish_history_look(packet, recall)
         _mark(notes, "retrieval_ready")
 
         if notes is not None:
@@ -2049,9 +2067,14 @@ class ScriptGenerator:
                 if backend in tried:
                     continue
                 try:
+                    # The town's country from the catalogue (§320):
+                    # Parallel's `location`, Perplexity's `country`. A place
+                    # only as typed is the model's, and is not sent.
                     packet = await research_mod.retrieve(
                         query, backend=backend, brief=plan.brief,
-                        include_domains=domains, must_name=must_name)
+                        include_domains=domains, must_name=must_name,
+                        country="" if place.source == "as typed"
+                        else (getattr(place, "country", "") or ""))
                 except Exception:  # noqa: BLE001 - see `_retrieve`
                     log.warning("the local %s rung failed for %r", backend,
                                 query, exc_info=True)
@@ -2169,7 +2192,8 @@ class ScriptGenerator:
         if warmed is not None:
             log.info("using a brief warmed before the tap for %r", plan.query)
             _publish_title(notes, warmed)
-            plan = dataclasses.replace(plan, brief=warmed)
+            plan = dataclasses.replace(
+                plan, brief=episode_intelligence.place_category(warmed))
             _take_brief_names(plan)
             return plan
 
@@ -2184,7 +2208,10 @@ class ScriptGenerator:
         brief = await episode_intelligence.understand(
             plan.query, plan.minutes, plan.context, notes, **extra)
         _publish_title(notes, brief)
-        plan = dataclasses.replace(plan, brief=brief)
+        # Contextualised (§311): where the request sits in the category
+        # tree, in code - the category and subcategory of the search.
+        plan = dataclasses.replace(
+            plan, brief=episode_intelligence.place_category(brief))
         _take_brief_names(plan)
         return plan
 
@@ -2445,6 +2472,18 @@ class ScriptGenerator:
                 notes.provenance.add(forecast_source)
             for attached in provenance_mod.from_attachments(plan.attachments):
                 notes.provenance.add(attached)
+            # The live providers' data, for the history archive (§313):
+            # final results, market states and player reports, kept once
+            # the episode is cached (`history_archive.after_episode`).
+            import history_archive
+
+            live_kept = history_archive.live_records(plan.live, plan.players)
+            if live_kept:
+                carried = notes.archive or {
+                    "subject": str(getattr(plan.brief, "subject", "") or ""),
+                    "findings": []}
+                carried["live"] = live_kept
+                notes.archive = carried
             _publish_sources(notes)
         # Which live provider this episode was routed to and what it said
         # (§264), one row for /admin. In memory; written off this path.

@@ -22126,8 +22126,374 @@ how long it is kept, and what deleting an account or a wipe does to it).
 Tests: `tests/test_episode_quality_309.py` (renamed from `_306`; the page
 inside /admin, the list to score, the origins, and one test per review fix
 above).
+## 311. Two packets: the history store's seam (2026-10-24)
 
-## 311. FAM on X: threads found from our own episodes, posted by a person (2026-10-26)
+*Numbered 309 (2026-10-25): §306-308 were taken on Main in merge order.*
+
+The owner drew the pipeline as it is to be: search → EI (contextualise -
+category, subcategory, context - and write the inputs for the plugins) →
+plugins → packet one; a MongoDB research agent → packet two, historical
+context → consolidate both packets into what the script writer can digest →
+the writer (Haiku, assisted by an agent). The MongoDB store is being built on
+another branch; this change is everything the pipeline needs so that branch
+only has to call `history.register`.
+
+What was already there: EI, the plugins (search ladder, live facts, players,
+forecast, local) and packet one, and a consolidation step for packet one only
+(the extractive evidence cut, §270). What was missing and is now built:
+
+- **Category and subcategory, before the search.** `Brief.category_path`,
+  placed in code from EI's own `category` (else the subject) against the
+  category tree: "Philadelphia Eagles" → sports > american football > nfl >
+  philadelphia eagles. `Brief.subcategory` is its deepest node. A warmed
+  brief is copied, never mutated.
+- **Packet two** (`history.py`): `HistoryQuery` in (no listener field),
+  `HistoryEntry` out, `lookup` (never raises; outcomes found / empty / off /
+  no_source / staging / timeout / failed / late), `consolidate`,
+  `as_prompt_block`, `attribution`, `report`. `prepare` starts it with the
+  search and the live lookup and waits `HISTORY_GRACE_SECONDS` (0.5) for it
+  once the evidence is in; ahead, its whole `HISTORY_AHEAD_TIMEOUT_SECONDS`.
+- **Consolidating the two.** Code, not a model: undated, empty, repeated
+  and future entries out; inside the brief's window out when the search found
+  evidence; newest first; `HISTORY_ENTRIES_PER_MINUTE` × minutes up to
+  `HISTORY_MAX_ENTRIES`, under `HISTORY_MAX_CHARS`. The writer reads it after
+  `<evidence>` as `<background>`, dated, told that what changes comes from
+  the passages and the live state.
+- `EpisodePlan.history`, `provenance.ARCHIVE`, `/api/health.history`,
+  `write.py` prints the category path and the history packet.
+
+`HISTORY_PACKET=1` by default, and a no-op until a store is registered:
+/api/health says `source: null`. With no store the prompt is unchanged byte
+for byte (`tests/test_history_packet_309.py`).
+
+For the MongoDB branch: register an async `fetch(HistoryQuery) -> list
+[HistoryEntry]` at boot; give every entry a date; return no URL in `text`;
+pass `remote=True` for a hosted cluster (Atlas) so staging never asks it; open
+it the way [storage-durability] asks of every store, and add it to
+`demo_data._forget_what_the_log_taught` if a wipe should empty it
+([wipe-derived]). Agent options for EI, the research agent, consolidation and
+the writer's assistant are in `docs/PIPELINE_AGENTS.md`.
+
+Unverified here (no key): whether packet two makes the writing better. The
+loop is `python write.py "<q>"` with a store registered, which now prints what
+the writer read of it.
+
+## 312. The agents guide: the editor in chief and the script supervisor (2026-10-25)
+
+At the owner's direction, `docs/FAM_AGENTS.md` gains two agents and loses a
+rule. Nothing is built; the agents will be built together, later.
+
+- **"Nobody waits on an agent" is withdrawn** as a rule. Agents may sit on a
+  listener's path; the latency they add will be minimised later. Each agent
+  now says where it sits and what it adds in front of the first word, so the
+  cost is known when that work starts. Rule 1 is now that an agent adds
+  quality and never costs an episode: every agent has a ceiling and a
+  fallback ([ei-before-search]).
+- **2. Editor in chief.** Digests both packets into an editorial plan that
+  names numbered source sentences per beat, keeps the order of trust (live >
+  fresh > archive; conflicts settled by grade then date, in code), keeps
+  status honest, names what is thin privately, and, if the owner gives it
+  the writing, writes under every writer rule with no tools on the speaking
+  call.
+- **3. Script supervisor.** Checks the finished script: support (an
+  unsupported volatile fact is a hard failure, an unsupported settled one is
+  not), status and time, the episode rules, and code checks first. It
+  judges and never rewrites; at most one rewrite per episode. It runs ahead
+  of the tap, per sentence while streaming, or as an audit, and it is the
+  owner's choice which on searchFAM. What combining it with the editor would
+  cost is written down; that decision is the owner's.
+- **Options outside Claude** for every agent, the inventory specialist
+  included: general models from other vendors (price bands, not quotes,
+  because they were not checked) and specialised models for a part of a job
+  (rerankers, grounding checkers, NLI cross-encoders, number extractors).
+  The guide names what an external model costs in FAM beyond its price: a
+  consent change when it sees a listener's words (`consent.py`, App Store
+  5.1.2(i)), data terms, a second SDK, `metering.PRICES`, `FAM_SECRETS` and
+  `spend_guard.PAID_CREDENTIALS`, and no GPU but the voice pod.
+
+`docs/PIPELINE_AGENTS.md` (§311) now points at the guide for each agent; its
+"Sonnet critic" suggestion became the script supervisor.
+
+## 313. The archive is the second packet, sports and markets included (2026-10-26)
+
+At the owner's direction, three changes:
+
+- **`history.py` is retired; Main's archive is the second packet.** The §311
+  seam (`history.register`, `HistoryQuery`, `history.consolidate`, the
+  `<background>` block, `EpisodePlan.history`, the `HISTORY_*` settings,
+  `/api/health.history`, `provenance.ARCHIVE`) is deleted. The archive's
+  recall (`history_archive.py`, §308) already adds its facts **into the search
+  results**, as dated sources marked as earlier reporting, which is what the
+  owner wants: the writer has as much material as there is. Kept from §311:
+  `Brief.category_path` (tests in `test_category_path_311.py`), and
+  `write.py` now prints how many archive sources the packet carries.
+- **Sports and market data are kept and recalled.** The owner: they are
+  "arguably the most important information for us to store".
+  - *Kept:* the archive already kept the articles of sports and markets
+    episodes. It now also keeps each cached episode's **live provider data**
+    as facts, in code (`history_archive.live_records` / `after_episode`):
+    a market's state at its `as_of`, a game or count once it is **final**
+    (never mid-play), a player's or team's report. Never a prediction
+    market (never evidence) or the weather (a forecast). Graded primary,
+    dated by the provider, the same snapshot kept once. With no sentence
+    model installed they are skipped and counted (`live_skipped`).
+  - *Recalled:* `recall_wanted` no longer refuses sports, markets or
+    outcome-dependent questions (`GUARDED_DOMAINS` is gone). Weather and a
+    town's news keep their own ladders.
+  - *Never passing for today's:* §308 kept them out because an old score or
+    price in the packet would vouch for itself. `ScoreGuard` already lets a
+    score through only from the scoreboard or in a sentence about the past.
+    `FigureGuard` now splits the packet (`split_archive`): today's sources
+    vouch for any sentence; the archive's figures only for a sentence that
+    says when (`_DATED`: a month, a weekday, "ago", "at the time", a
+    quarter) and does not say now. The writer's outcome note adds that an
+    archived result is never the outcome asked for.
+- **One agents document.** `docs/PIPELINE_AGENTS.md` (§311) is folded into
+  `docs/FAM_AGENTS.md` - the pipeline as drawn, what is still to do, the
+  ways to run an agent and how agents talk - and deleted.
+
+Still to do: archive the sports and markets **sweeps'** finals and closes,
+not only what an episode used (`docs/FAM_AGENTS.md`, "Still to do in the
+pipeline"); and the owner's call on letting the archive answer an empty
+search alone (§308 adds it only beside web sources).
+
+## 314. The contextualizer, and guardrails for every agent (2026-10-26)
+
+At the owner's direction, `docs/FAM_AGENTS.md` gains a fourth agent and a
+closing section. Nothing is built.
+
+- **4. Contextualizer.** Works beside Episode Intelligence: digests and
+  contextualises the request, decides which of FAM's sources to ask (a
+  closed list), writes each source's inputs in its own terms (search
+  queries and objective with dates, provider names never ids, the archive's
+  period), and decides **what an empty search means**: the archive may
+  answer alone (settled or past things), may only add (anything about now,
+  or a recent outcome), or is not asked (weather, a town, attachments). An
+  archive-only episode is marked, short-lived in the cache and labelled.
+  This is the owner's answer to §308's fixed "archive only beside web
+  sources": some episodes would benefit from the archive alone, some would
+  be dated by it, and deciding which is an agent's judgment. Recommended
+  build order: the `ResearchPlan` type filled from today's brief and code
+  routes; the empty-search decision in code rules, logged; then the agent
+  folded into EI's "search" call on Haiku, so it adds no wait.
+- **Guardrails for every agent, at the bottom of the guide**: how a
+  guardrail is held (code, then the answer's shape, then the prompt), how
+  to write the prompt part, a shared preamble, and for each of the four
+  agents a table of guardrails, the prompt text that states them, and the
+  cases its eval should try to break them with. Hypotheses, to be revised
+  as each agent is built.
+
+## 315. The sweeps' scores and prices are kept in the archive (2026-10-26)
+
+At the owner's direction. §313 kept the live data an episode used; the
+sports sweep and the markets sweep already fetch far more, and scores and
+prices are the archive's most valuable material.
+
+- **Sports** (`balldontlie_scores._keep_finals`, from the BALLDONTLIE
+  sweep's `collect`): every game the sweep sees as **final** - never one
+  under way, scheduled or off - becomes one archive fact, keyed by league
+  and game id, so the same final seen on every sweep of the day is one
+  fact and a corrected score replaces it. Text is the scoreboard's own
+  sentence (`game_facts`) behind the league and the day: "NFL, 2026-10-25:
+  Philadelphia Eagles beat New York Giants 24 to 17."
+- **Markets** (`story_sources._keep_prices`, from the Finnhub or Tiingo
+  sweep's `collect`): each watchlist symbol's quote, **one fact per symbol
+  per trading day** (dated by the provider's own `t`), replaced by each
+  later sweep, so the day's last sweep leaves its last price. Worded as
+  the provider said it - "last traded at 182.43, up 2.5 percent on the day,
+  as of 20:00 UTC on 2026-10-26" - and "with the US market closed" only
+  when the provider says so; never "closed at".
+- **No request of its own**, nothing awaited: records are queued on the
+  archive's thread (`history_archive.keep_swept`). A final or price already
+  kept with the same words is not embedded again (`_SWEPT_SEEN`, in memory;
+  after a restart the upsert keeps it one fact). With no sentence model the
+  facts are skipped and counted (`swept_skipped`), never a back-off; any
+  failure is logged and never costs the sweep. Counted on `/api/health`'s
+  `archive` (`swept_facts`).
+
+How often the sweeps run is unchanged ([sweep-on-demand]): sports only while
+a followed game is on and myFAM was drawn recently, so a final is kept when
+some sweep saw it finish; a game no sweep saw end is kept only if an
+episode used it (§313).
+
+## 316. An empty search still gets no archive - for now, and not as a rule (2026-10-26)
+
+At the owner's direction: the archive does not answer an empty search for
+now, and no guardrail is put up for or against it. Whether and when it may
+is decided when the agents are built (the contextualizer, agent 4 in
+`docs/FAM_AGENTS.md`).
+
+- **No change in behaviour.** `research.finish_history_look` still adds the
+  recall only beside web sources (§308); an empty packet records
+  `archive: "no web sources"`.
+- **Reworded as a default, not a rule**, wherever it read as one: the
+  `history_archive` module docstring, `finish_history_look`'s docstring, the
+  §308 test (which says to change it when the decision is made), and
+  `docs/BACKEND.md`.
+- **The guide's guardrails on it are withdrawn**: the contextualizer's
+  responsibility 4 is now "not decided yet", with one possible shape kept
+  only for the discussion; its "must never" line, its two guardrail rows,
+  its prompt paragraph and its test cases on the archive and an empty
+  search are removed; the recommendation now measures (how often the
+  search came back empty while the archive had something) rather than
+  decides.
+
+## 317. Review before merging: a recalled provider fact is credited by name (2026-10-26)
+
+A review of the whole branch (§311-§316) before it goes to Main found one
+bug and two stale comments.
+
+- **Bug:** the facts §313 and §315 keep from live providers and sweeps have
+  no web address (`live:<provider>:<subject>:<time>`), and
+  `research.finish_history_look` credited every recalled fact as a web
+  article. A recalled score or price would have reached the sources panel
+  labelled with that key ("live:tiingo:nvidia (nvda):2026-10-26t20..."). Now
+  only `http(s)` facts are credited as articles (and counted as hosts);
+  a provider fact is credited by the provider's own name ("Tiingo",
+  "BALLDONTLIE") as a `live` attribution, "from FAM's archive - provider
+  data, dated", with no link. Pinned in `test_archive_sweeps_315.py`.
+- **Stale:** a comment left behind when `GUARDED_DOMAINS` was removed, and
+  `Brief.category_path`'s docstring, which still named the retired history
+  store (and said "sport" for the facet `sports`).
+
+Known and left as is: the SQLite archive's upsert updates a fact's text but
+not its vector or date, so a corrected final or a later price on the same
+day is recalled by the first version's vector (the same subject, so the
+same neighbours); Atlas replaces the whole document. And an episode's own
+market lookups (§313) are kept per `as_of`, beside the sweep's one price a
+day (§315) - the inventory agent's duplicate pass is where the two meet.
+
+## 319. A shared episode invites the listener into the conversation, via the waitlist (2026-10-26)
+
+At the owner's direction, the note under a shared episode (`/s/<id>`,
+`static/listen.html`) now reads "Want to hear more? Be a part of the
+conversation with FAM →" and links to the waitlist page. It replaces §175's
+"Join FAM for free", which went to the App Store when there was one and
+otherwise to the front door.
+
+- `sharing.JOIN_PATH` is `/waitlist`, and `landing_payload`'s `join` is that
+  path whether or not `APP_STORE_URL` is set; the page's one delegated door
+  handler sends the join door to `share.join` and the other doors to the App
+  Store as before.
+- The door is a real `<a href="/waitlist">`, so the page still works as a
+  link with scripts off, and the arrow is part of the link.
+- The no-app footnote lost "Joining is free and opens FAM in your browser",
+  which was no longer what the link did.
+- Pinned in `tests/test_packet_175.py` and `tools/smoke_landing.py`.
+
+## 320. What the trusting-fermat branch fixed, brought to Main (2026-10-26)
+
+`claude/trusting-fermat-o26y4h` (10.14, §262-§267 on that branch, numbers
+Main later used for other work) was never merged. The owner went through it
+item by item; this is what was still needed, ported onto today's Main.
+
+**A playlist goes past an episode that fails to play** (`mixItemFailed`,
+index.html). A failed playlist episode - an error from `/api/audio` or the
+45-second give-up in `generate` - toasted and left `mixPlay` where it was,
+so the playlist silently stopped (reported 10.13: a playlist of eight
+played two). It now names the failure and starts the next one; two
+failures in a row, or no connection, end the playlist and say so; a quota
+or account refusal ends the queue before its screen. Smoke: "A playlist
+goes past an episode that fails".
+
+**Recency, in code.** The window was only a hint to the search vendor and
+nothing checked what came back, so a March 2025 article reached a "last 24
+hours" packet. `research.within_window` drops dated results older than the
+window (a whole calendar day's grace, since a published date has no time of
+day; undated kept, still "date not stated") on the main
+search and the story look; GDELT already filters on its own export times.
+The thin-packet retry **widens** the window (`retry_window`: 3x, at least 7
+days) instead of dropping it. The archive (§308/§313) does not answer this:
+it adds dated earlier reporting beside the search, and never removed an old
+article from it. Tests that pinned "the retry drops the window" now pin
+"wider, never none".
+
+**No window on a question about no particular moment**
+(`episode_intelligence.time_bound`, in the gate). With the window now a
+filter in code, a window on "who was Abraham Lincoln" would drop every good
+biography, and a `causal` question used to default to 14 days on its own
+("why did Rome fall"). A window longer than a week survives only when something says the
+question is about a moment: a live domain, an outcome to wait for, a
+recap/update/preview, a recent development EI is at least fairly sure of
+(`why_now_confidence` medium or high), or the question naming a time
+(today, latest, this week, a weekday, this year or last). A window of a
+week or less (`SHORT_WINDOW_DAYS`) is never removed: that is EI itself
+saying "a moment", and since `ttl_for` reads the window a word list must
+not take it away ([ttl-from-evidence]). The word list decides only whether a
+window may apply, never its size; an episode left with no window is kept as
+long as any evergreen episode, because `ttl_for` reads the window. The
+`why_now` test is what keeps a news question with no time word ("what did
+the mayor say about the budget") inside its window; one EI has no reason
+for is searched with none. `tests/test_evergreen_window_320.py`.
+
+**The local ladder asks what the question is about**
+(`local_news.relevant`). Naming the town was the only test, so "airshow
+over San Francisco Bay" was answered by a Valkyries fan story that said
+"Chase Center in San Francisco". When the listener's question names
+something beyond the town, a rung whose stories carry fewer than two of
+those words (one, when it names one) counts as empty - GDELT's own two-word
+rule; the place's words and "news"-type words do not count. A plain "what's
+on in X" still takes any X story. Tested on the question's words, never on
+EI's `must_establish`: a review found that a general question's brief lists
+phrases like "recent local government decisions", which a town's stories
+rarely use, so a test on them threw away real town news. The web rung searches vetted outlets only, never `learned` ones
+(one learned site, hoodline.com, had narrowed every later San Francisco
+search to itself). EI's `place` excludes one specific happening in a town -
+a news question on the general ladder. The writer: an older article cannot
+speak for a day it was written before, a missed search never says something
+is not happening, and the local block no longer calls what was found all
+there is. When the town had stories but none about the question
+(`LocalResult.unrelated`), the gap line says "We couldn't find any recent
+news reports out of {town} about this" - never that there were no reports
+- and the writer is told the same. `tests/test_local_relevance_320.py`.
+
+**Each provider's input in its own terms.** The names the catalogues
+resolve were already EI's `live_entity` (§265), so the branch's `entities`
+field is not ported. The search half of the brief (`PARTS["search"]`) now
+also writes:
+- `forecast_query`: two to five words as a prediction market would title
+  the outcome. Polymarket searches it first (`live_sources.market_words`),
+  then `live_entity`. A three-letter word is kept only when written as a
+  short form ("Fed", "GOP", "NYC"): a review found that a lowercase "win"
+  let "New Jersey Governor Election Winner" match an NYC mayoral question
+  on two shared words.
+- `source_kind` (general, news, official, filings, academic, local):
+  Perplexity's `search_mode` (`sec`, `academic`) and a source-preference
+  line in Parallel's objective.
+In code: a town's ISO country from the place catalogue is
+Parallel's `location` and Perplexity's `country` (never a place only as
+typed); the local web query no longer repeats a town the retrieval already
+names; `place` is asked for with the full state name and a two-letter
+country code. Both SDKs were checked for the field names (perplexityai
+0.46.1 `search_mode`/`country`, parallel-web 1.3.7 `location`). A degraded
+brief has neither field and every reader falls back as before. The two
+fields add a few output tokens to the search half; watch `since_boot`.
+`tests/test_provider_inputs_320.py`.
+
+The branch also searched GDELT with the names first. Not ported, after a
+review: it rested on GDELT keeping only a query's first words, which Main's
+export copy does not do (`ExportStore.search` counts every word and needs
+two), so a team's city prepended to the query only let in namesakes
+("Kansas City" for a Chiefs question).
+
+**A stale credential memo.** `credentials.pool` kept a memo built while a
+key was absent once the same key was set again, because the value matched
+one it had published before the rebuild and read as its own failover - an
+empty pool with the key in the environment. A rebuild now forgets a publish
+it no longer sees. `tests/test_credential_memo_320.py` fails without it.
+
+**Not ported, by the owner's decision:** the kept market readings
+(`quote_book.py`) and the kept scores and 30-minute final watch - the
+archive keeps sweeps' finals and closes (§315); and the market-data vendor
+ranking, which is decided.
+
+Unverified here (no key): the writing and the brief's new fields. Listening
+checks: `python write.py "airshow in San Francisco bay today" --minutes 2`,
+`python write.py "why did the roman empire fall" --minutes 3` (the brief
+should say no window), `python write.py "will the Fed cut rates in
+December" --minutes 2` (the brief prints `market`).
+
+## 321. FAM on X: threads found from our own episodes, posted by a person (2026-10-26)
 
 The owner (10.26), with the "FAM x X" playbook (Find -> Add -> Explore ->
 Connect; 3-5 discussions found and 1-2 joined a day): "is there a way we can

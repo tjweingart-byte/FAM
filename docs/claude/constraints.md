@@ -317,6 +317,7 @@
   `Brief.degraded`, the log and `/api/health`. An EI that had quietly stopped
   running would look identical from outside to one that was working.
 <!-- rule:recency-credibility -->
+> **Current (PROBLEMS.md §320):** the window is checked in code as well as asked of the vendor: `research.within_window` drops a dated result older than the window (a day's grace; undated kept), and the thin-packet retry **widens** the window (`retry_window`: 3x, at least a week) instead of dropping it. A window longer than a week on a question about no particular moment is removed (`episode_intelligence.time_bound`, in the gate); a week or less is EI's own "a moment" and is never removed. Parallel's objective names EI's `source_kind`; Perplexity reads it as `search_mode`.
 > **Current (PROBLEMS.md §178):** before anything is graded, `research.screen_results` drops a simulated or video-game league's page (a Madden league's "result" for a game not yet played) unless the question is about one, and on a sports question (`live_domain == "sports"`) drops unknown outlets once two known ones answered. The writer never argues a factual disagreement aloud: it says the better-supported reading and nothing about the sources.
 
 - **Recency filters; credibility sorts.** *(§82.)* Two mechanisms doing two
@@ -707,6 +708,7 @@
   (`live_facts.budget_seconds`): the first word never waits longer than before.
 
 <!-- rule:local-news-ladder -->
+> **Current (PROBLEMS.md §320):** a rung whose stories name the place but cover none of what the brief asked for counts as empty (`local_news.relevant`, on the question's own words, two of them as GDELT asks), and the gap line then says "about this" rather than that the town had no reports; the web rung searches vetted outlets only, never `learned` ones; one specific happening in a town (an airshow, a game) is a news question on the general ladder.
 > **Current (PROBLEMS.md §258):** the third rung searches the town's known outlets on the configured search backend (Parallel), not Exa; the record names the backend that searched.
 - **A town's news comes from the town's own outlets, and its gap is said in
   words composed in code.** *(PROBLEMS.md §194, at the owner's direction;
@@ -1118,6 +1120,7 @@
   `AUDIO_CACHE_MAX_MB`; past it a heard episode replays its same script in
   its same voice, synthesised once more.
 <!-- rule:ttl-from-evidence -->
+> **Current (PROBLEMS.md §320):** the one place question words touch the window: EI's gate removes a window **longer than a week** from a question nothing marks as a moment (`time_bound`), so such an episode is kept as long as any evergreen one. A window of a week or less - EI saying "a moment" - is never removed, so the volatile TTL is never lost to a word list.
 - **How long a script stays current comes from what it was built on, never
   from the words of the question.** *(§89, `cache.ttl_for`.)* It used to be a keyword
   match, and `"Chiefs game"` — the reported case — contained no volatile word,
@@ -1517,7 +1520,11 @@
   > when `APP_STORE_URL` is set and otherwise to this server's own front door
   > (`sharing.JOIN_PATH`), which opens on sign-up for a newcomer - a real page
   > on the host that served the link, so still never a control with nothing
-  > behind it. Every other door still needs the App Store link. The payload carries no `user_id`: this is the one
+  > behind it. Every other door still needs the App Store link.
+  > **Current:** the note reads "Want to hear more? Be a part of the
+  > conversation with FAM" and always links to the waitlist page
+  > (`sharing.JOIN_PATH` = `/waitlist`), App Store or not *(§319, at the
+  > owner's direction)*. The payload carries no `user_id`: this is the one
   response in the app handed to people who are not listeners.
   **The link names a host now, and nobody has to set one** *(§114).* It read
   `PUBLIC_BASE_URL` and nothing anywhere prompts for it, so no deployment had
@@ -1552,11 +1559,11 @@
   Instagram and Snapchat, which cannot carry a link as text - the story card.
   This is the correct shape rather than a stage: no OAuth to maintain, no
   tokens to leak, and nothing that can post while somebody is asleep.
-  > **Current:** since §311 FAM holds one read-only X search credential
+  > **Current:** since §321 FAM holds one read-only X search credential
   > (`X_BEARER_TOKEN`) for its own account's outreach, and still nothing
   > that can post - see [x-threads].
 <!-- rule:x-threads -->
-- **FAM on X is found by code and posted by a person** (§311, `x_threads.py`,
+- **FAM on X is found by code and posted by a person** (§321, `x_threads.py`,
   `/admin/x`). A search starts from episodes FAM already has (the Trending
   edition, then the most played kept episodes) and looks for the threads
   they answer, so the episode exists before the thread is found. Code

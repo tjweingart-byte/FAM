@@ -1,4 +1,4 @@
-"""Conversations on X, found from FAM's own episodes (§311, `/admin/x`).
+"""Conversations on X, found from FAM's own episodes (§321, `/admin/x`).
 
 The playbook's Find step, done by code: start from episodes FAM already has,
 look for the threads they answer, and leave a short list of cards with a

@@ -1065,7 +1065,7 @@ def _database_report() -> list[dict]:
                            thumbnails_mod.store().path))
         except Exception:  # pragma: no cover - a report is never load-bearing
             pass
-    # Conversations on X (§311): created by the first search on /admin/x.
+    # Conversations on X (§321): created by the first search on /admin/x.
     if x_threads._exists():
         try:
             stores.append(("x threads", "X_THREADS_DB", x_threads.store().path))
@@ -10765,7 +10765,7 @@ async def admin_thumbnail_run(req: ThumbnailRun, request: Request) -> dict:
             "room_today": room}
 
 
-# --- Conversations on X (§311, x_threads.py) ---------------------------------
+# --- Conversations on X (§321, x_threads.py) ---------------------------------
 # Threads on X one of FAM's episodes could add to, found from the episodes
 # FAM already has. A person approves each reply and posts it in X; FAM holds
 # a read-only search credential and never posts ([no-social-posting]).

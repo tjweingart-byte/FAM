@@ -745,8 +745,7 @@ class PolymarketSource(LiveSource):
         return True, "Polymarket answered"
 
     async def resolve(self, brief) -> Optional[Entity]:
-        subject = live_route.entity_of(brief)
-        wanted = subject_words(subject)
+        wanted = market_words(brief)
         if not wanted:
             return None
         try:
@@ -874,13 +873,40 @@ going expected chance odds market markets prediction predictions
 """.split())
 
 
-def subject_words(subject: str) -> list:
-    """A brief's subject as the words a market would be named by."""
+def subject_words(subject: str, short_forms: bool = False) -> list:
+    """A brief's subject as the words a market would be named by.
+
+    `short_forms` is for EI's `forecast_query` (§320), which is written in a
+    market's own short forms: a three-letter word is kept when it is written
+    as one - "Fed", "GOP", "NYC" - and never a lowercase "win" or "the",
+    which every market shares and which let a market about another race
+    pass `_best_match` (review, §320). Otherwise a three-letter word is more
+    often noise than a name."""
     out: list = []
-    for word in re.findall(r"[^\W_]+", (subject or "").lower()):
-        if len(word) > 3 and word not in _MARKET_STOPWORDS and word not in out:
+    for token in re.findall(r"[^\W_]+", subject or ""):
+        word = token.lower()
+        short = (short_forms and len(word) == 3 and token[:1].isupper()
+                 and word not in _SHORT_STOPWORDS)
+        if (len(word) > 3 or short) and word not in _MARKET_STOPWORDS \
+                and word not in out:
             out.append(word)
     return out
+
+
+#: Capitalised three-letter words that are still not names: a forecast query
+#: can open with one ("The", "Who").
+_SHORT_STOPWORDS = frozenset("the who and for will win get not are can how".split())
+
+
+def market_words(brief) -> list:
+    """What Polymarket is searched with (§320): EI's market-style title
+    first, then the name the catalogues resolve (`live_route.entity_of`).
+    A degraded brief has no title, and searches the name as before."""
+    words = subject_words(getattr(brief, "forecast_query", "") or "",
+                          short_forms=True)
+    words += [w for w in subject_words(live_route.entity_of(brief))
+              if w not in words]
+    return words
 
 
 def _best_match(candidates, wanted: list):

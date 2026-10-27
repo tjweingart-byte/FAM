@@ -51,6 +51,7 @@ import logging
 import re
 import time
 from dataclasses import dataclass, field
+from typing import Optional
 
 import credentials
 import live_facts
@@ -287,8 +288,10 @@ class Brief:
     outcome_dependent: bool = False
     #: The town or city the request is about, as "Town, Region, Country",
     #: when what they want is what is happening *there* - its news, its
-    #: events, its weather (§194). Empty for everything else, including a
-    #: question that merely mentions a place ("the history of Paris"). Named
+    #: events, its weather (§194). Empty for one specific happening there
+    #: (an airshow, a game, a storm), which is a news question searched
+    #: everywhere (§320), and for a question that merely mentions a place
+    #: ("the history of Paris"). Named
     #: as typed; where it is comes from a catalogue (`places`), never from
     #: here, and never from the listener's saved location.
     place: str = ""
@@ -303,6 +306,14 @@ class Brief:
     #: the writer's own replaces it once the script is cached (§209). Empty
     #: on a degraded brief.
     category: str = ""
+    #: **Where `category` sits in FAM's category tree** (§311): the facet,
+    #: then each subcategory down to the node, broadest first - ["sports",
+    #: "american football", "nfl", "philadelphia eagles"]. Set in code by
+    #: `place_category`, never by the model, and never read as `category`:
+    #: the category and subcategory of the search, for the agents that will
+    #: plan research from it (`docs/FAM_AGENTS.md`). Empty when the tree
+    #: cannot place it.
+    category_path: list = field(default_factory=list)
     #: The key of the named broadcast slot the request names
     #: (`named_slots.SLOTS`), set in code and never by the model: "Sunday
     #: Night Football" is one game, and a scoreboard picks it by kick-off.
@@ -314,6 +325,15 @@ class Brief:
     #: personal, and applied only to the text handed to the voice. Empty when there are none, and on a
     #: degraded brief.
     pronounce: list = field(default_factory=list)
+    #: Two to five words as a prediction market would title this outcome
+    #: ("Fed decision October"), for Polymarket's search (§320). Empty when
+    #: there is no outcome to bet on, and on a degraded brief - the forecast
+    #: then searches `live_entity` or the subject, as before.
+    forecast_query: str = ""
+    #: What kind of source answers this best (`SOURCE_KINDS`, §320): read by
+    #: Perplexity as its `search_mode` (filings, academic) and by Parallel's
+    #: objective as a stated source preference. "general" says nothing.
+    source_kind: str = "general"
     #: **The plan of the piece, from the question alone** (§270, the third
     #: part of a split brief). Each beat is `{"does", "needs"}`: what that
     #: part of the episode has to find out, and what the evidence must hold
@@ -356,8 +376,48 @@ class Brief:
                 return text
         return ""
 
+    @property
+    def subcategory(self) -> str:
+        """The most specific node of `category_path` below its facet."""
+        return self.category_path[-1] if len(self.category_path) > 1 else ""
+
     def as_dict(self) -> dict:
         return dataclasses.asdict(self)
+
+
+def place_category(brief: "Brief") -> "Brief":
+    """The brief with `category_path` filled from the category tree (§311).
+
+    The "contextualise" step of the owner's pipeline: what kind of thing
+    this is, and under what, before anything is looked up. In code - the
+    same resolver the composer's categories go through
+    (`stories.resolve_category`), phrases only, never an embedding on the
+    request - so it costs no call and no wait. A copy, because a warmed
+    brief is shared. Never raises; a brief the tree cannot place comes back
+    unchanged.
+    """
+    if brief is None or brief.category_path or brief.degraded:
+        return brief
+    try:
+        import stories
+        import topics
+
+        node = ""
+        for text in (brief.category, brief.subject):
+            node = stories.resolve_category(text) if text else ""
+            if node:
+                break
+        if not node:
+            return brief
+        path = list(reversed(topics.category_tree().ancestors(node))) + [node]
+        if path and path[0] not in topics.FACETS:
+            root = stories.facet_for(node)
+            if root and root not in path:
+                path.insert(0, root)
+        return dataclasses.replace(brief, category_path=path)
+    except Exception:  # noqa: BLE001 - context, never worth an episode
+        log.warning("ei: could not place the category %r", brief.category)
+        return brief
 
 
 #: The narrowest recency window FAM will actually apply, in days.
@@ -384,6 +444,67 @@ MAX_ANGLE_CHARS = 80
 #: The objective is a sentence or two. Longer is the model writing the
 #: episode into the search.
 MAX_OBJECTIVE_CHARS = 600
+
+
+#: Words that put a question at a moment. Only the *guardrail* reads these
+#: (§320): they decide whether a window may apply at all, never what it is.
+#: An episode left with no window is kept as long as any evergreen one,
+#: because `ttl_for` reads the window ([ttl-from-evidence]). A year is a
+#: marker only when it is this year or last - "the 1969 moon landing" is
+#: history.
+_MOMENT_WORDS = re.compile(
+    r"\b(today|tonight|yesterday|tomorrow|now|currently|current|latest|"
+    r"recent|recently|lately|breaking|news|update|updates|so far|upcoming|"
+    r"this (morning|afternoon|evening|week|weekend|month|year|season|quarter)|"
+    r"last (night|week|weekend|month|game|match|season|quarter)|"
+    r"next (week|weekend|month|game|match|season)|"
+    r"as of|still|anymore|any more|just|happening|"
+    r"monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b",
+    re.IGNORECASE)
+
+
+#: A window this short is EI itself saying the question is about a moment
+#: (review, §320): it is never taken away, whatever words the question uses,
+#: so the guard below only ever removes the long windows a model gives an
+#: evergreen subject out of habit ("who was Abraham Lincoln", 30 days).
+SHORT_WINDOW_DAYS = 7
+
+
+def _names_a_recent_year(text: str, now_year: int) -> bool:
+    return any(int(y) in (now_year, now_year - 1, now_year + 1)
+               for y in re.findall(r"\b(20\d\d)\b", text or ""))
+
+
+def time_bound(brief: "Brief", query: str, now_year: Optional[int] = None) -> bool:
+    """Is this question about a moment, so a recency window may apply?
+
+    **The guardrail for evergreen questions** (§320, at the owner's
+    direction). The window is a filter in code (`research.within_window`) -
+    dated results older than it are dropped - so a window on "who was Abraham Lincoln" would
+    throw away every good biography. The model is told to give 0 for those,
+    and this is what holds when it does not: a window survives only when
+    something says the question is about a moment - a live domain, an
+    outcome that has to be waited for, a recap/update/preview, a recent
+    development EI is at least fairly sure put it in their head
+    (`why_now_confidence` medium or high), or the question naming a time
+    (today, latest, this week, this year's date). A `causal` question alone
+    is not one ("why did Rome fall"). The `why_now` test is what keeps a
+    news question with no time word ("what did the mayor say about the
+    budget") inside its window.
+    """
+    import datetime as _dt
+
+    year = now_year or _dt.datetime.now(_dt.timezone.utc).year
+    if getattr(brief, "live_domain", ""):
+        return True
+    if getattr(brief, "outcome_dependent", False):
+        return True
+    if getattr(brief, "intent", "") in ("recap", "update", "preview"):
+        return True
+    if getattr(brief, "why_now_confidence", "") in ("medium", "high"):
+        return True
+    text = " ".join([query or "", getattr(brief, "search_query", "") or ""])
+    return bool(_MOMENT_WORDS.search(text)) or _names_a_recent_year(text, year)
 
 
 def _window(days) -> int:
@@ -680,11 +801,22 @@ def gate(brief: Brief, query: str) -> Brief:
     # window it competes against every well-ranked article ever written on the
     # subject, which is how a two-year-old explainer ends up being the evidence
     # for "what happened last night".
-    if brief.intent in ("recap", "update", "preview", "causal") and not brief.recency_days:
+    bound = time_bound(brief, query)
+    if brief.intent in ("recap", "update", "preview", "causal") and not brief.recency_days \
+            and bound:
         problems.append(
             f"a {brief.intent} with no recency window; defaulting to "
             f"{settings.ei_default_recency_days} days")
         brief.recency_days = _window(settings.ei_default_recency_days)
+
+    # **No window on an evergreen question** (§320): the window now drops
+    # results in code, so one the model gave "who was Abraham Lincoln" would
+    # leave the episode with only what was published this month.
+    if brief.recency_days > SHORT_WINDOW_DAYS and not bound:
+        problems.append(
+            f"a {brief.recency_days}-day window on a question about no "
+            f"particular moment; searched with no window")
+        brief.recency_days = 0
 
     # A question whose answer is a result is outcome-dependent whether or not
     # the model said so. Both of these are asking for something that does not
@@ -759,6 +891,11 @@ def gate(brief: Brief, query: str) -> Brief:
 # --------------------------------------------------------------------------
 # The model call
 # --------------------------------------------------------------------------
+#: The kind of source that answers a question best (§320).
+SOURCE_KINDS = ("general", "news", "official", "filings", "academic", "local")
+MAX_FORECAST_QUERY_CHARS = 60
+
+
 BRIEF_SCHEMA = {
     "type": "object",
     "properties": {
@@ -826,6 +963,12 @@ BRIEF_SCHEMA = {
         # This call already names the subject, so a handful of output tokens
         # respells it too - and it runs before the first word, which is the
         # only mention a pronunciation arriving later could miss.
+        # **Inputs written for each provider in its own terms** (§320): a
+        # market-style title for Polymarket, a source kind for Perplexity's
+        # mode and Parallel's objective. The names the catalogues resolve are
+        # `live_entity` (§265).
+        "forecast_query": {"type": "string"},
+        "source_kind": {"type": "string", "enum": list(SOURCE_KINDS)},
         "pronounce": {
             "type": "array",
             "items": {
@@ -842,7 +985,7 @@ BRIEF_SCHEMA = {
                  "search_objective", "must_establish",
                  "recency_days", "structure", "cautions", "live_domain",
                  "live_entity", "outcome_dependent", "place", "title", "category",
-                 "pronounce"],
+                 "pronounce", "forecast_query", "source_kind"],
     "additionalProperties": False,
 }
 
@@ -920,7 +1063,9 @@ FIELD_GUIDE = """- **intent** - what job is being asked for.
 - **why_now** - what recent development plausibly put this in their head today,
   if any, and **why_now_confidence** for how sure that is. Nothing plausible
   means empty and low. Do not claim to know their motive.
-- **search_query** - what to actually search for. See the rules above.
+- **search_query** - what to actually search for. See the rules above. Three
+  to eight words: the names and the specific thing, as a headline would put
+  them.
 - **search_fallback** - the same search, broader, for when the first one comes
   back with nothing. Drop the qualifiers and keep the subject: if the first is
   "Bank of England November rate decision vote split", this is "Bank of England
@@ -949,8 +1094,9 @@ FIELD_GUIDE = """- **intent** - what job is being asked for.
   this episode to work. Short noun phrases, not sentences. These are checked
   against what comes back, so make them things a report would actually say.
 - **recency_days** - how recent evidence must be to answer this. A question
-  about a specific recent event is days; a question about how something works
-  is 0, meaning age does not matter. **Give the widest window that is still
+  about a specific recent event is days; a question about how something works,
+  a person, a place, history or an idea is 0, meaning age does not matter
+  ("who was Abraham Lincoln" is 0). **Give the widest window that is still
   honest**, not the narrowest that would do. This filters what the search may
   even consider, and the evidence is sorted newest-first inside it anyway - so
   a window that is too wide costs nothing and a window that is too narrow
@@ -983,12 +1129,18 @@ FIELD_GUIDE = """- **intent** - what job is being asked for.
   outcome-dependent whether it finished an hour ago or is still going. False
   for how something works, what someone is like, or what is at stake.
 - **place** - when the request is about what is going on in one particular
-  town, city or county - its local news, its events, its council, its
-  weather - that place as "Town, State or Region, Country", spelled correctly
-  ("San Anselmo, California, US"). Empty when the request only mentions a
-  place on the way to something else ("the history of Paris", "why is
-  Detroit's car industry shrinking"), and empty for a whole country. Never a
-  place they did not name: if they say "my town" without naming it, empty.
+  town, city or county in general - its local news, what's on there, its
+  council, its weather - that place as "Town, full State or Region name,
+  two-letter country code", spelled correctly ("San Anselmo, California, US";
+  never "CA" for the state). Empty when the request
+  asks about one specific thing that happens to be there - a named or
+  particular event, show, game, festival, storm, crash or protest ("airshow
+  in San Francisco Bay today", "Fleet Week", "the marathon in Boston"):
+  that is a news question, searched everywhere, with the place in
+  `retrieval`. Empty when the request only mentions a place on the way to
+  something else ("the history of Paris", "why is Detroit's car industry
+  shrinking"), and empty for a whole country. Never a place they did not
+  name: if they say "my town" without naming it, empty.
 - **title** - what this episode is called in a list: three to seven words
   naming the resolved subject and the angle, in title case. **Clear first,
   curious second**: the actual person, team, company or event by name, so a
@@ -1016,7 +1168,17 @@ FIELD_GUIDE = """- **intent** - what job is being asked for.
   hard word on its own as well as the full name, because an episode names
   somebody in full once and by surname after that. Only names you actually
   know how to say - a confident wrong respelling is worse than none - and
-  nothing an English speaker already says right. Empty for most requests."""
+  nothing an English speaker already says right. Empty for most requests.
+- **forecast_query** - only when the answer is an outcome people bet on (an
+  election, a rate decision, a championship, a court ruling): two to five
+  words as a prediction market would title it, with the short forms markets
+  use ("Fed decision October", "Eagles win Super Bowl", "NYC mayoral
+  election"). Empty otherwise.
+- **source_kind** - the kind of source that answers this best: `news` for
+  something that happened, `official` for a government, league or company
+  statement, `filings` for a company's SEC filings or results, `academic`
+  for research and science, `local` for a town's own reporting, `general`
+  when no one kind is better."""
 
 
 def _entries(guide: str) -> dict:
@@ -1067,7 +1229,8 @@ PARTS = {
                    "recency_days", "structure", "cautions", "live_domain",
                    "live_entity", "outcome_dependent", "place"),
     "search": ("search_query", "search_fallback", "search_angles",
-               "search_objective", "title", "category", "pronounce"),
+               "search_objective", "title", "category", "pronounce",
+               "forecast_query", "source_kind"),
 }
 
 
@@ -1246,6 +1409,8 @@ EXAMPLE_BRIEFS = (
         "title": "The Eagles' Latest Game and What Decided It",
         "category": "NFL football",
         "pronounce": [],
+        "forecast_query": "",
+        "source_kind": "news",
     }),
     ("nvda stock today", "Wednesday 14 October 2026 at 11:30 EDT", 2, {
         "intent": "update",
@@ -1275,6 +1440,8 @@ EXAMPLE_BRIEFS = (
         "title": "Why Nvidia Shares Are Moving Today",
         "category": "semiconductor stocks",
         "pronounce": [],
+        "forecast_query": "",
+        "source_kind": "news",
     }),
     ("latest on shohei ohtani", "Tuesday 13 October 2026 at 19:05 PDT", 3, {
         "intent": "update",
@@ -1306,6 +1473,8 @@ EXAMPLE_BRIEFS = (
         "category": "Major League Baseball",
         "pronounce": [{"name": "Shohei", "say": "SHOH-hay"},
                       {"name": "Ohtani", "say": "oh-TAH-nee"}],
+        "forecast_query": "",
+        "source_kind": "news",
     }),
     ("how do heat pumps work", "Friday 9 October 2026 at 12:00 BST", 4, {
         "intent": "explainer",
@@ -1335,6 +1504,8 @@ EXAMPLE_BRIEFS = (
         "title": "How a Heat Pump Moves Heat Uphill",
         "category": "home heating",
         "pronounce": [],
+        "forecast_query": "",
+        "source_kind": "general",
     }),
 )
 
@@ -1467,6 +1638,11 @@ def _search_fields(data: dict, query: str) -> dict:
         "title": clean_title(str(data.get("title", "")), query),
         "category": " ".join(str(data.get("category", "") or "").split())[:80],
         "pronounce": _pronounce_pairs(data.get("pronounce")),
+        "forecast_query": " ".join(str(data.get("forecast_query", "") or "").split()
+                                   )[:MAX_FORECAST_QUERY_CHARS],
+        "source_kind": (str(data.get("source_kind", "") or "")
+                        if str(data.get("source_kind", "") or "") in SOURCE_KINDS
+                        else "general"),
     }
 
 
@@ -1823,7 +1999,11 @@ def build_brief_block(brief: Brief, minutes: int) -> str:
             "whether it has - that is settled by the evidence you were given "
             "and by nothing else. So: find the outcome reported as an outcome, or "
             "write the episode about something that has not finished yet. "
-            "Both are real episodes. Choosing between them by guessing is not.")
+            "Both are real episodes. Choosing between them by guessing is not. "
+            # §313: the archive now reaches these questions too.
+            "Earlier reporting from FAM's archive is never that result: it "
+            "is an earlier game, an earlier close, an earlier vote, and is "
+            "said as one, with its date.")
 
     if brief.cautions:
         lines.append("Be careful about this, and take the evidence over your "

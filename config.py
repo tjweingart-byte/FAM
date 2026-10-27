@@ -1223,7 +1223,7 @@ class Settings:
     trending_bank_max_age_hours: float = _env_float(
         "TRENDING_BANK_MAX_AGE_HOURS", 36.0)
 
-    # --- Conversations on X (`/admin/x`, x_threads.py, §311) ---------------
+    # --- Conversations on X (`/admin/x`, x_threads.py, §321) ---------------
     # A read-only X API bearer token (X_BEARER_TOKEN, read through
     # `credentials`) is the statement of intent; unset, the page says so.
     # X bills per post read, so a run and a day are both capped.

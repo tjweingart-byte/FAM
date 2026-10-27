@@ -144,7 +144,7 @@ FAM_ENVIRONMENT = (
     "GNEWS_KEY", "GNEWS_LANG", "GNEWS_CATEGORIES", "GNEWS_COUNTRIES",
     "GNEWS_MAX_ARTICLES", "GNEWS_CORROBORATE", "GNEWS_TIMEOUT_SECONDS",
     "GNEWS_REQUEST_GAP_SECONDS", "GNEWS_DAILY_REQUESTS",
-    # /admin/x (§311); its token is cleared by `isolated_x_threads`.
+    # /admin/x (§321); its token is cleared by `isolated_x_threads`.
     "X_THREADS_MAX_READS",
     "X_THREADS_DAILY_READS", "X_THREADS_WINDOW_HOURS", "X_THREADS_SEEDS",
     "X_THREADS_MODEL",
@@ -720,7 +720,7 @@ def isolated_thumbnails(tmp_path, monkeypatch):
 
 @pytest.fixture(autouse=True)
 def isolated_x_threads(tmp_path, monkeypatch):
-    """`/admin/x`'s cards (§311) per test: `x_threads._STORE` is a
+    """`/admin/x`'s cards (§321) per test: `x_threads._STORE` is a
     process-global, like the tile pictures above."""
     import x_threads
 
