@@ -764,6 +764,42 @@ class RemoteChatterboxEngine(TTSEngine):
             at=time.time(), latency=elapsed)
         return pcm
 
+    async def hear(self, text: str, voice: str | None = None) -> dict:
+        """Say `text` and hear it back (§325): `{"pcm", "heard", "heard_by"}`.
+
+        For /admin's round trip only - one request, no failover, outside the
+        listeners' semaphore, never on an episode's path. A worker built
+        before the round trip ignores `hear` and answers audio alone; that
+        is said, not guessed at.
+        """
+        config = self.config()
+        endpoint = await self._endpoint(config)
+        if not endpoint.url:
+            raise RemoteVoiceError(
+                f"remote voice is not configured: {config.problem()}")
+        payload = dict(self._payload(text, config, voice), hear=True)
+        try:
+            output = await self._speak(payload, config, endpoint)
+        except RemoteVoiceError:
+            raise
+        except Exception as exc:
+            raise RemoteVoiceError(
+                f"remote voice ({config.transport}) failed: "
+                f"{type(exc).__name__}: {exc}") from exc
+        if isinstance(output, dict) and not output.get("audio") and output.get("error"):
+            raise RemoteVoiceError(f"the voice worker said: {str(output['error'])[:300]}")
+        pcm = self._pcm_from(output, config)
+        if "heard" not in output and "heard_error" not in output:
+            raise RemoteVoiceError(
+                "the voice worker made the audio but cannot hear it yet: its "
+                "image was built before the round trip (§325). Rebuild and "
+                "redeploy Dockerfile.voice.")
+        if output.get("heard_error"):
+            raise RemoteVoiceError(
+                f"the voice worker could not hear: {str(output['heard_error'])[:300]}")
+        return {"pcm": pcm, "heard": str(output.get("heard") or ""),
+                "heard_by": str(output.get("heard_by") or "")}
+
     async def _speak(self, payload: dict, config: RemoteConfig, endpoint) -> dict:
         """One request to one worker, in that worker's envelope."""
         if endpoint.transport == "runpod":

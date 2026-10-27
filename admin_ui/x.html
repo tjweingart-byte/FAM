@@ -169,7 +169,7 @@
     var errs = (r.errors || []).length;
     return ["Last search (" + when + "): " + (r.seeds || []).length + " episodes looked for, "
       + (r.read || 0) + " posts read, " + (r.cards || 0) + " new cards"
-      // Set aside by the relevance check: about something else (§324).
+      // Set aside by the relevance check: about something else (§326).
       + ((r.off_subject || []).length ? ", " + r.off_subject.length + " set aside as not about the episode" : "")
       + (errs ? ", " + errs + " searches failed (" + r.errors[0] + ")" : "") + ".", errs > 0 && !r.cards];
   }

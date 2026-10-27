@@ -506,7 +506,7 @@ def test_the_admin_menu_links_the_page():
     assert 'href="/admin/x"' in (ROOT / "admin_ui" / "tracker.html").read_text()
 
 
-# --- the review before merging (§324) ------------------------------------------
+# --- the review before merging (§326) ------------------------------------------
 
 
 def test_two_of_a_trending_storys_names_together_are_on_subject():

@@ -85,7 +85,7 @@ SHORTLIST = 8
 #: Statuses. `waiting` is on the page; the others are the person's verdict.
 WAITING, APPROVED, SKIPPED = "waiting", "approved", "skipped"
 STATUSES = (WAITING, APPROVED, SKIPPED)
-#: A post the relevance check judged to be about something else (§324):
+#: A post the relevance check judged to be about something else (§326):
 #: kept only so the next search neither reads nor judges it again, and never
 #: shown on the page.
 SET_ASIDE = "set_aside"
