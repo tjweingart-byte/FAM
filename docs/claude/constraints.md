@@ -1572,6 +1572,11 @@
   hour, a question, room in the thread, author fit); each card carries its
   reason in words ([candidate-reason]). A reply links an episode only when
   the episode is the thread's subject; otherwise it asks a better question.
+  **Every card is about the post it answers** (§324): a one-word name is
+  searched only beside the episode's own subject words; code drops a post
+  that shares a name and nothing else (`on_subject`); the drafting call
+  judges first - not the same subject drops the card, an episode that does
+  not answer this post loses its link - and the reply answers the post.
   **Approve opens X's own reply box with the words in it and copies them**
   (`x.com/intent/post?in_reply_to=`); the person presses Post. Nothing here
   can write to X, and nothing runs on a timer: a search is a button

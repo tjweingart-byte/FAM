@@ -63,7 +63,7 @@ def test_a_title_names_what_to_search_for():
 
 def test_the_search_asks_for_conversations_being_started():
     q = X.x_query(["Jalen Hurts", "Eagles"])
-    assert q.startswith('("Jalen Hurts" OR Eagles)')
+    assert q.startswith('("Jalen Hurts" OR Eagles)')  # no subject words given
     for part in ("lang:en", "-is:retweet", "-is:reply", "-is:nullcast"):
         assert part in q
     assert X.x_query([]) == ""
@@ -128,11 +128,61 @@ def test_a_good_thread_passes_and_says_why_in_words():
     assert 0 < cand.score <= 1
 
 
-def test_without_its_subject_the_reply_carries_no_link():
+def test_a_post_that_is_not_about_the_episode_gets_no_card():
+    """The owner (10.27): every card must be about the post it answers."""
     post = _post(text="Would you trade having a car for a walkable city?")
-    [cand] = X.shortlist([(post, _seed())], NOW, window_hours=6)
-    assert cand.kind == X.QUESTION_ONLY
-    assert "no link" in cand.reason
+    assert X.shortlist([(post, _seed())], NOW, window_hours=6) == []
+
+
+def test_a_shared_word_is_not_a_shared_subject():
+    """Eagles the birds are not the Philadelphia Eagles' defence."""
+    seed = X.Seed("k", "Can the Eagles defence hold up?", "The Eagles defence",
+                  3, ("Eagles",))
+    birds = _post(text="Anyone else seen the bald eagles nesting by the river?")
+    team = _post(text="Does anyone think the Eagles defence survives December?")
+    assert "nothing else" in X.on_subject(birds, seed)
+    assert X.on_subject(team, seed) == ""
+    # A name of two words is specific enough alone.
+    assert X.on_subject(_post(text="Why is Jalen Hurts so calm?"),
+                        X.Seed("k", "q", "t", 1, ("Jalen Hurts",))) == ""
+
+
+def test_a_one_word_name_is_searched_beside_the_episodes_own_words():
+    seed = X.Seed("k", "Can the Eagles defence hold up without its starters?",
+                  "The Eagles defence", 3, ("Jalen Hurts", "Eagles"))
+    q = seed.search()
+    assert q.startswith('("Jalen Hurts" OR (Eagles (')
+    assert "defence" in q and "starters" in q
+
+
+def _verdict_run(verdict, post=None):
+    async def searcher(query, *, max_results, since):
+        return [post or _post("1")]
+
+    async def drafter(cand):
+        return "A reply about the post?", "test-model", 0.001, verdict
+    return asyncio.run(X.run(FakeCache([EPISODE]), now=NOW, searcher=searcher,
+                             drafter=drafter))
+
+
+def test_the_model_judging_a_post_off_subject_drops_the_card():
+    report = _verdict_run(X.Verdict(same_subject=False, why="about birds"))
+    assert report["cards"] == 0 and "about birds" in report["off_subject"][0]
+    assert X.store().all() == []
+
+
+def test_an_episode_that_does_not_answer_the_post_is_not_linked():
+    report = _verdict_run(X.Verdict(episode_fits=False, why="a different game"))
+    [card] = X.store().all()
+    assert report["cards"] == 1 and card["kind"] == X.QUESTION_ONLY
+    assert "no link" in card["reason"] and "a different game" in card["reason"]
+
+
+def test_a_relevant_card_says_what_was_checked():
+    _verdict_run(X.Verdict(why="both about the Eagles' pass defence"))
+    [card] = X.store().all()
+    assert card["kind"] != X.QUESTION_ONLY
+    assert "Checked: both about the Eagles' pass defence" in card["reason"]
 
 
 def test_one_card_per_author_best_first():
@@ -208,11 +258,11 @@ def test_a_run_leaves_cards_and_says_what_it_did():
 
     async def searcher(query, *, max_results, since):
         asked.append((query, max_results, since))
-        return [_post("1", author="a"), _post("2", author="b", text="Eagles are overrated, honestly.")]
+        return [_post("1", author="a"), _post("2", author="b", text="The Eagles defence is overrated, honestly.")]
 
     report = _run(FakeCache([EPISODE]), searcher)
     assert report["cards"] == 2 and report["read"] == 2
-    assert asked[0][0].startswith('("Philadelphia Eagles Defence" OR Eagles)')
+    assert asked[0][0].startswith('("Philadelphia Eagles Defence" OR (Eagles (')
     assert asked[0][2] == NOW - 6 * 3600
     cards = X.store().all()
     assert {c["post_id"] for c in cards} == {"1", "2"}
