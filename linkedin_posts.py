@@ -14,7 +14,7 @@ approves every comment and posts it from FAM's account, the same shape as
 **Code finds, a person posts; FAM never does** ([no-social-posting]).
 LinkedIn has no API that reads other people's posts, and its User Agreement
 forbids scraping and automated comments. So nothing here fetches
-linkedin.com and FAM holds no LinkedIn credential. **Find posts** (§326)
+linkedin.com and FAM holds no LinkedIn credential. **Find posts** (§327)
 asks the web search FAM's research already pays for (Parallel, else
 Perplexity), restricted to linkedin.com, for public posts from the last
 week - the search vendor's index, not LinkedIn. A person may also paste a

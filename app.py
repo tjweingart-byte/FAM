@@ -11072,7 +11072,7 @@ _LINKEDIN_RUNNING: list = []
 
 @app.post("/api/admin/linkedin/run")
 async def admin_linkedin_run(request: Request) -> dict:
-    """Find posts now (§326), in the background, inside the search ceilings:
+    """Find posts now (§327), in the background, inside the search ceilings:
     public LinkedIn posts about FAM's kept episodes, through the research
     vendor FAM already uses. Returns at once; the page polls while it runs."""
     _require_admin(request)

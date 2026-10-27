@@ -1244,7 +1244,7 @@ class Settings:
     # a person approves and posts. A short call; the small model.
     linkedin_model: str = field(
         default_factory=lambda: os.environ.get("LINKEDIN_MODEL") or SMALL_MODEL)
-    # "Find posts" (§326): one search a kept episode, through the research
+    # "Find posts" (§327): one search a kept episode, through the research
     # vendors FAM already pays for, restricted to linkedin.com. A run and a
     # day are both capped; only posts this recent are looked for.
     linkedin_seeds: int = _env_int("LINKEDIN_SEEDS", 10)

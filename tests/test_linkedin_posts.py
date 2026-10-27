@@ -466,7 +466,7 @@ def test_the_admin_menu_links_the_page():
     assert 'href="/admin/linkedin"' in (ROOT / "admin_ui" / "tracker.html").read_text()
 
 
-# --- Find posts: the search run (§326) --------------------------------------------------
+# --- Find posts: the search run (§327) --------------------------------------------------
 
 
 class _Result:

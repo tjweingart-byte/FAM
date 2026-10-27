@@ -338,7 +338,7 @@ and words, the author's profile name, the three kept episodes that match it
 best, the drafted comment and Go Deeper question, what drafting it cost, and the
 admin's verdict (and, once approved, the words copied for LinkedIn). Nothing
 here reads LinkedIn. No listener's data; pruned after 7 days, an approved card
-a week after its approval. `runs` (§326), one row per Find posts press: what
+a week after its approval. `runs` (§327), one row per Find posts press: what
 it searched for, how many searches and what they cost, which is how the daily
 search ceiling is counted; kept 30 days. Read only by `/admin/linkedin`.
 
