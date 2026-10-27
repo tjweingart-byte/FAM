@@ -93,6 +93,7 @@ ENV FAM_STATE=/state \
     PIPELINE_ERRORS_DB=/state/data/pipeline_errors.db \
     EPISODE_QUALITY_DB=/state/data/episode_quality.db \
     X_THREADS_DB=/state/data/x_threads.db \
+    LINKEDIN_POSTS_DB=/state/data/linkedin_posts.db \
     LOCAL_NEWS_DB=/state/data/local_news.db \
     GDELT_EXPORT_DB=/state/data/gdelt_export.db \
     STORY_POOL_DB=/state/data/story_pool.db \
