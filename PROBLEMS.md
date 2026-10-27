@@ -22801,3 +22801,12 @@ asked again. The page now sends `POST /api/voice/wake` on `visibilitychange`
 to visible, signed-in only; the server holds the same rule through
 `_wake_for` (guests and waitlisted get `{"woke": false}`, and under
 `WAITLIST=1` the path is closed to anyone not active).
+
+**And the idle timeout to 180 s** (the owner, same day). It is the RunPod
+endpoint's setting, not FAM's, so it is changed in the console (Serverless →
+the endpoint → Edit → Idle timeout); REMOTE_VOICE.md and FINANCIAL.md now say
+180 s. Every worker that boots now bills up to three idle minutes after its
+last job instead of one, the price of a listener who browses before tapping
+finding the worker the open woke still up. `REMOTE_VOICE_WAKE_INTERVAL`
+stays at 60 s: under the timeout, so a wake from a returning listener is
+sent while the worker is still up.

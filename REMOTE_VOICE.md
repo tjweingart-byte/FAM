@@ -79,7 +79,7 @@ network volume `safe_peach_goat_volume` (EU-RO-1).
    | Network volume | the one from step 2 | the voice and the weights |
    | Active workers | 0 for now | billed only while voicing; ~$343/month for 1, which buys no cold starts - revisit at launch |
    | Max workers | 4 | more listeners at once get more cards, billed only while busy |
-   | Idle timeout | 60 s | idle seconds are billed too, so not longer |
+   | Idle timeout | 180 s | idle seconds are billed, but a listener who browses before tapping meets a warm worker (§324) |
    | FlashBoot | on | shorter cold starts |
    | Execution timeout | 600 s | the first job downloads the weights |
    | Container disk | 20 GB or more | the image is large |
@@ -155,7 +155,7 @@ makes serverless viable at all.
 | Network volume | the one from step 2 | weights and the voice |
 | Active workers | 0 | the whole point; nothing idle is billed |
 | Max workers | 1–2 | one card serves one generation at a time |
-| Idle timeout | 60s | long enough that a second episode is warm |
+| Idle timeout | 180s | long enough that browsing before a tap, and a second episode, are warm (§324) |
 | FlashBoot | on | it is what makes a warm start ~instant |
 | Env | nothing | the image sees `RUNPOD_ENDPOINT_ID` and runs the handler |
 
@@ -518,6 +518,7 @@ If measurement says the wake is not covering it, in order of preference:
 
 1. **Raise the idle timeout.** The cheapest fix by far: it only bills while a
    worker is up, and a listener who plays two episodes gets the second warm.
+   Raised from 60 s to 180 s with the wake on open (PROBLEMS.md §324).
 2. **One active worker during peak hours.** This is a pod wearing a different
    hat — it is billed continuously — so price it as one.
 3. **Switch to `REMOTE_VOICE_TRANSPORT=http`.** At that point you are paying
