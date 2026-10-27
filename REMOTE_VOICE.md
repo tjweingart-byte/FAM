@@ -42,6 +42,80 @@ which is the default and is the in-process card `Dockerfile.gpu` deploys.
 Nothing in this document removes that path — it is the destination, and this is
 the detour taken while the volume does not justify a full-time GPU.
 
+## The current setup: Serverless, built from GitHub (§318)
+
+> The owner's direction on 10.26, after three days of a healthy pod the app
+> could not find: **nothing about the voice is checked or changed by hand**,
+> including when RunPod changes something. A Serverless endpoint has a
+> permanent id, so there is no address to discover; RunPod builds the image
+> from this repository, so there is nothing to rebuild; and the app emails
+> the owner when the voice goes down. The pod sections below are history and
+> the fallback.
+
+**Once, in the RunPod console** (done on 10.27; about 20 minutes, most of
+it the first build). The endpoint is `FAM`, id `g65qlmwz4sc02u`, on the
+network volume `safe_peach_goat_volume` (EU-RO-1).
+
+1. **Connect GitHub.** Settings → Connections → GitHub → Connect; give RunPod
+   access to this repository.
+2. **A network volume for the voice.** A volume ties workers to its data
+   center, so it should be one that lists several 24 GB GPUs.
+3. **The voice on it.** `reference_3.wav` and `reference_3.rights.json` sit
+   at the top of the volume (`/workspace/` on a pod attached to it). On
+   10.27 they were copied there from the pod's `/state/voices/`, and
+   `sha256sum` matched the recording listeners had been hearing
+   (`f5db4e3e…bb7c`). To put them on a new volume: attach it to any cheap
+   pod and copy them across with `runpodctl send` / `runpodctl receive`.
+   The rights record must clear all three fields (step 2 of the pod setup
+   below); without it the worker refuses to speak, by design.
+4. **The endpoint.** Serverless → Get started (New Endpoint once one exists)
+   → Deploy from a GitHub repository → this repository, branch `Main`,
+   Dockerfile path `Dockerfile.voice`, **Queue** (not Load balancer: the
+   worker is `handler.py`, called through `/runsync`).
+
+   | Setting | Value | Why |
+   |---|---|---|
+   | GPUs | **Previous generation**: 24 GB PRO (RTX 4090), RTX A5000, RTX 3090 | "Latest generation" needs a CUDA 12.8 image; this one is CUDA 12.4 with torch 2.6. The 4090 is the card Chatterbox was measured on; the L4 is left out as too slow |
+   | Network volume | the one from step 2 | the voice and the weights |
+   | Active workers | 0 for now | billed only while voicing; ~$343/month for 1, which buys no cold starts - revisit at launch |
+   | Max workers | 4 | more listeners at once get more cards, billed only while busy |
+   | Idle timeout | 60 s | idle seconds are billed too, so not longer |
+   | FlashBoot | on | shorter cold starts |
+   | Execution timeout | 600 s | the first job downloads the weights |
+   | Container disk | 20 GB or more | the image is large |
+   | Env `FAM_VOICES_DIR` | `/runpod-volume` | Serverless mounts the volume at `/runpod-volume`; the files are at its top |
+   | Env `HF_HOME` | `/runpod-volume/hf` | the weights, downloaded once and kept |
+
+   The mode needs no variable: the image sees `RUNPOD_ENDPOINT_ID` and runs
+   the handler. Deploy, and watch the **Builds** tab (10-20 minutes the first
+   time).
+5. **Test it there.** Endpoint → Requests, with the box holding only
+   `{"input": {"warm": true}}`: on 10.27 it answered `"ready": true`,
+   `"detail": "cuda, cloning reference_3.wav"` and the same
+   `reference_sha256`, after a 73 s cold start. Then
+   `{"input": {"text": "Testing the FAM voice."}}` answered with 1.92 s of
+   24 kHz audio in 0.8 s from a warm worker.
+
+**Once, on Render** (the `fam` service → Environment):
+
+- Set `RUNPOD_ENDPOINT_ID` to the id and `REMOTE_VOICE_TRANSPORT=runpod`.
+  `RUNPOD_API_KEY` is already there. Optionally pin the recording with
+  `VOICE_REFERENCE_FINGERPRINT=f5db4e3e5c3801acd42e7fab7a4832b37fcd2bd5c784f420dc73e55ab902bb7c`
+  (§176), so a wrong file on a future volume is refused rather than heard.
+- Delete `REMOTE_VOICE_URL` and `RUNPOD_POD`: the ladder tries them before
+  the endpoint, so while they are set the pod still speaks.
+- After the redeploy, `/api/health` → `tts.remote.reachable.state` is `ok`
+  and `tts.control.held.rung` is `serverless`. Play a new episode.
+- **Rollback**, if it is not: put `REMOTE_VOICE_URL` back (the pod is
+  untouched). Once Serverless has run a day, terminate the pod.
+
+**After that, nothing.** RunPod rebuilds the endpoint from `Main` on every
+push and rolls its workers to the new build (Builds tab; seen on 10.27). A
+failed build leaves the old workers serving, and any earlier build can be
+rolled back to from the same tab. The endpoint id never changes, so Render
+is never edited again, and if the voice does go down the app emails
+`SUPPORT_EMAIL` within minutes, daily while it lasts, and when it is back.
+
 ## Once, ever
 
 ### 1. Build and push the worker image

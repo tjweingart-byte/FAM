@@ -190,6 +190,15 @@ class _State:
     # so "EXITED" is now unambiguously a fault rather than a clock.
     pod_notes: list = field(default_factory=list)
     last_error: str = ""
+    # kind -> when it was last put on /admin's error page, so a voice that
+    # stays down is reported once an hour rather than once a minute (§318).
+    alerted: dict = field(default_factory=dict)
+    # kind -> when the owner was last emailed that it started; and the kinds
+    # whose email is still outstanding, so their end can be said too.
+    emailed: dict = field(default_factory=dict)
+    notified: set = field(default_factory=set)
+    # Kinds that are failing right now (reported, not yet cleared).
+    active: set = field(default_factory=set)
 
 
 _state = _State()
@@ -414,14 +423,48 @@ async def _runpod_pods() -> list[Endpoint]:
     if not selector or not key:
         return []
     _state.pod_notes = []
+    fallback: list[Endpoint] = []
     for describe in (_pods_over_rest_v2, _pods_over_rest, _pods_over_graphql):
         body = await describe(key)
         if body is None:
             continue
         found = _pods_from(body, selector)
-        if found:
+        if found and not _without_ports(body, selector):
             return found
-    return []
+        if found:
+            # The pod is named but its answer carries no ports, so the only
+            # address buildable from it is a guessed proxy URL. On 10.23 that
+            # was the whole ladder for days (§318): the direct TCP address was
+            # one API version away. Keep the guess, and ask the next one.
+            _note(f"RunPod's {describe.__name__.replace('_pods_over_', '')} "
+                  f"answer lists pod {selector} with no ports, so no direct "
+                  "address could be built from it; asking the next API")
+            fallback = fallback or found
+    return fallback
+
+
+def _without_ports(body: Any, selector: str) -> bool:
+    """Whether every running pod matching `selector` came back with no ports.
+
+    Neither a runtime nor a TCP mapping: the answer said the pod exists and
+    nothing about how to reach it. A pod that publishes ports this deployment
+    declines to use (plain HTTP off) is not this - that answer is complete.
+    """
+    wanted = {part.strip().lower() for part in selector.split(",") if part.strip()}
+    matched = False
+    for pod in _pod_list(body):
+        if not isinstance(pod, dict):
+            continue
+        if (str(pod.get("id") or "").lower() not in wanted
+                and str(pod.get("name") or "").lower() not in wanted):
+            continue
+        status = str(pod.get("desiredStatus") or pod.get("status") or "").upper()
+        if status and status != "RUNNING":
+            continue
+        matched = True
+        if isinstance(pod.get("runtime"), dict) or _tcp_ports(pod):
+            return False
+    return matched
 
 
 #: Pages of `GET /v2/pods` read before giving up. An account with more pods
@@ -1135,15 +1178,170 @@ async def supervise_forever() -> None:
     """
     interval = max(15.0, float(settings.voice_supervise_seconds))
     while True:
-        try:
-            await current(force=True)
-        except VoiceControlError as exc:
-            log.warning("voice supervisor: %s", exc)
-        except asyncio.CancelledError:  # pragma: no cover - shutdown
-            raise
-        except Exception:  # pragma: no cover - must never end the loop
-            log.exception("voice supervisor hit an unexpected error")
+        await supervise_once()
         await asyncio.sleep(interval)
+
+
+#: How often a fault that has not cleared is put on /admin again.
+ALERT_EVERY_SECONDS = 3600.0
+#: How often the owner is emailed about a fault that has not cleared. The
+#: first email goes at once; this is the reminder while it lasts.
+EMAIL_EVERY_SECONDS = 86400.0
+#: A fault that clears and comes back inside this is not emailed again, so a
+#: flapping worker is two emails an hour at most, not two a minute.
+EMAIL_AGAIN_AFTER_SECONDS = 3600.0
+#: The same for /admin's rows: a fault back inside ten minutes of clearing
+#: is the same incident, not a new one.
+ALERT_AGAIN_AFTER_SECONDS = 600.0
+#: A registration older than this is history, not a lapse worth reporting.
+LAPSE_WINDOW_SECONDS = 7 * 86400.0
+
+#: What each fault's email says, by kind: subject, then what it costs.
+_EMAILS = {
+    "no worker can speak": (
+        "FAM: the voice is down",
+        "No voice worker can be reached, so every new episode fails with the "
+        "apology until it is fixed. Kept episodes still play."),
+    "registration lapsed": (
+        "FAM: the voice worker stopped registering",
+        "The voice still works on another address, but the worker no longer "
+        "tells the app where it is, so the day the pod moves or restarts "
+        "nobody will find it."),
+}
+
+
+async def supervise_once() -> None:
+    """One supervisor beat: re-verify, and tell somebody what is wrong.
+
+    The log said "no voice worker can speak" every minute from 10.23 and
+    nobody reads a log; the listener's apology was the alarm (§318). So a
+    voice nobody can reach, and a worker that has stopped registering, are
+    rows on /admin's error page and an email to the owner (SUPPORT_EMAIL) -
+    the second even while a pinned address still speaks, because it is the
+    day the pod moves that it costs. Nobody has to look for either.
+    """
+    try:
+        await current(force=True)
+        _cleared("no worker can speak")
+    except VoiceControlError as exc:
+        log.warning("voice supervisor: %s", exc)
+        _alert("no worker can speak", str(exc), "error")
+    except asyncio.CancelledError:  # pragma: no cover - shutdown
+        raise
+    except Exception:  # pragma: no cover - must never end the loop
+        log.exception("voice supervisor hit an unexpected error")
+    lapse = registration_lapse()
+    if lapse:
+        _alert("registration lapsed", lapse, "notice")
+    else:
+        _cleared("registration lapsed")
+
+
+def _alert(kind: str, detail: str, severity: str) -> None:
+    """Put a voice fault on /admin, at most once an hour while it lasts, and
+    email the owner when it starts and once a day after."""
+    now = time.time()
+    gap = (ALERT_EVERY_SECONDS if kind in _state.active
+           else ALERT_AGAIN_AFTER_SECONDS)
+    _state.active.add(kind)
+    if now - _state.alerted.get(kind, 0.0) >= gap:
+        _state.alerted[kind] = now
+        try:
+            import pipeline_errors
+
+            pipeline_errors.record("voice", kind, detail, severity=severity)
+        except Exception as exc:  # pragma: no cover - never costs the loop
+            log.warning("could not record a voice fault: %s", exc)
+    wait = (EMAIL_EVERY_SECONDS if kind in _state.notified
+            else EMAIL_AGAIN_AFTER_SECONDS)
+    if now - _state.emailed.get(kind, 0.0) >= wait:
+        subject, cost = _EMAILS.get(kind, (f"FAM: voice - {kind}", ""))
+        if _email(subject, f"{cost}\n\nWhat the app found:\n{detail}\n\n"
+                           "Details: /admin (errors, voice stage) and "
+                           "/api/health (tts.remote)."):
+            _state.emailed[kind] = now
+            _state.notified.add(kind)
+
+
+def _cleared(kind: str) -> None:
+    """A fault is gone: one that returns after ten minutes is a new incident,
+    and the owner, if emailed that it started, is told that it ended."""
+    _state.active.discard(kind)
+    if kind in _state.notified:
+        _state.notified.discard(kind)
+        subject = _EMAILS.get(kind, (f"FAM: voice - {kind}",))[0]
+        _email(subject.replace("FAM: ", "FAM: resolved - ", 1),
+               "This has cleared on its own; nothing to do.")
+
+
+def owner_email() -> str:
+    """Who hears about a voice fault: SUPPORT_EMAIL, else MODERATION_EMAIL -
+    the addresses report alerts already go to."""
+    return (getattr(settings, "support_email", "")
+            or getattr(settings, "moderation_email", "") or "").strip()
+
+
+def _email(subject: str, body: str) -> bool:
+    """Send one alert without waiting. Whether it was handed to the mailer;
+    never raises. No address or no mail delivery sends nothing."""
+    to = owner_email()
+    if not to:
+        return False
+    try:
+        import mail
+
+        if not mail.status()["available"]:
+            return False
+        mail.send_later(to, subject, body)
+        return True
+    except Exception as exc:  # pragma: no cover - an alert never costs the loop
+        log.warning("could not email a voice fault: %s", exc)
+        return False
+
+
+def registration_lapse(at: float = 0.0) -> str:
+    """A sentence when a worker used to register and has stopped, else "".
+
+    Registration is what makes a moved pod findable without anybody editing
+    anything; when it lapses the voice can keep working on another rung
+    while that guarantee is quietly gone. Never raises.
+    """
+    if not registration_enabled() or not discovery_enabled():
+        return ""
+    if _serverless() is not None:
+        # A Serverless endpoint is a rung with a permanent address, so a pod
+        # that stopped registering costs nothing: there is no pod to lose.
+        # Without this, the old pod's rows would read as a lapse every day
+        # after the move to Serverless (§318).
+        return ""
+    now = at or time.time()
+    try:
+        import voice_registry
+
+        store = voice_registry.registry()
+        if store.live(ttl=settings.voice_registry_ttl, at=now):
+            return ""
+        rows = store.all()
+    except Exception:  # pragma: no cover - a store that will not open
+        return ""
+    if not rows:
+        return ""
+    newest = rows[0]
+    age = now - float(newest.last_seen or 0.0)
+    if age > LAPSE_WINDOW_SECONDS:
+        return ""
+    return (f"the worker at {newest.url} last registered {_ago(age)} ago and "
+            "has not since, so a pod that moves will not be found until it "
+            "does. On the pod: check FAM_APP_URL and VOICE_REGISTRY_TOKEN, "
+            "and its log for 'registration'.")
+
+
+def _ago(seconds: float) -> str:
+    if seconds < 3600:
+        return f"{max(1, round(seconds / 60))} min"
+    if seconds < 86400:
+        return f"{seconds / 3600:.1f} h"
+    return f"{seconds / 86400:.1f} days"
 
 
 # -- reporting -------------------------------------------------------------
@@ -1178,6 +1376,9 @@ def report() -> dict:
                                  if _state.verified_at else None),
         "switches": list(_state.switches),
         "pods": list(_state.pod_notes),
+        # A worker that used to register and has stopped (§318): the voice
+        # may still speak on another rung, but a moved pod will not be found.
+        "registration_lapsed": registration_lapse() or None,
         "error": _state.last_error or None,
     }
 
