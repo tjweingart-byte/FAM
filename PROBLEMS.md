@@ -22363,6 +22363,85 @@ same neighbours); Atlas replaces the whole document. And an episode's own
 market lookups (§313) are kept per `as_of`, beside the sweep's one price a
 day (§315) - the inventory agent's duplicate pass is where the two meet.
 
+## 318. The voice was up for three days and the app could not find it (2026-10-26)
+
+**What the owner saw:** from 10.23 every new episode ended in the apology,
+"down for days", and the question was whether RunPod is reliable enough.
+It was not RunPod. The pod (`ilx5zutqvcjw3d`) was RUNNING, its worker
+answered `/health` with `"ready":true` on the GPU, and a Render boot at 6:38
+on 10.26 reached it and voiced a word. What failed was the app *finding* it,
+through two broken rungs at once, with no alarm but the listener's apology:
+
+1. **The pod never registered.** §306 read 10.23 as a heartbeat that
+   stopped; on 10.26 the pod itself answered otherwise: `from voice_worker
+   import register` raises ImportError in its image, which predates
+   registration altogether (its `/health` has no `registering` or
+   `sample_rate` field). The app had been finding it through RunPod's API -
+   until that answer lost its ports. From the pod the app answers `401` to an
+   unauthenticated POST, so `FAM_APP_URL` and the network were never the
+   problem. Registration starts working only when the pod runs a current
+   image.
+2. **The RunPod-API rung built an address that does not exist.** RunPod's v2
+   answer (§179, never verified against RunPod) named the pod with no
+   `runtime` and no `portMappings`, so `_pods_from` fell back to the
+   configured port behind the proxy - `https://<pod>-8002.proxy.runpod.net` -
+   while the pod exposes 8002 only over TCP (`213.173.105.20:30248`) and its
+   one http port is 8001. `_runpod_pods` returned that guess as soon as v2
+   answered, so v1 and GraphQL, which carry the ports, were never asked.
+3. **Render ran out of memory** six times between 10.21 and 10.26 ("used
+   over 4GB"); each restart drops every episode in flight. Separate from the
+   voice and still open.
+
+What changed:
+
+- `voice_control._runpod_pods`: an answer that names the pod but carries no
+  ports (`_without_ports`) is kept as a fallback and the next API is asked;
+  a note says so on `/api/health`. An answer with ports this deployment
+  declines (plain HTTP off) is complete and ends the walk, as before.
+- `voice_control.supervise_once` (the supervisor's beat): "no worker can
+  speak" is an **error** on /admin's error page under a new `voice` stage,
+  once an hour while it lasts (a return within ten minutes of clearing is
+  the same incident); a worker that used to register and has not inside the
+  TTL (within a week) is a **notice**, "registration lapsed" - even while a
+  pinned address still speaks, because it is the day the pod moves that it
+  costs - unless a Serverless endpoint is configured, which has no pod to
+  lose. `registration_lapsed` is also on `/api/health`.
+- **The owner is emailed** (SUPPORT_EMAIL, else MODERATION_EMAIL, through
+  `mail.py`) when either fault starts, once a day while it lasts, and when it
+  clears; a fault back within the hour is not a new email, so a flapping
+  worker is at most two an hour. The owner's direction: nothing about the
+  voice should need checking by hand.
+- `voice_worker/register.announce`: a 3xx is not a registration. It was
+  counted as landed (only >= 400 failed), so a `FAM_APP_URL` that redirects
+  would fail silently forever; it now warns with the address it was sent to.
+
+
+**Then Serverless, built from GitHub** (same day, the owner's decision after
+the hosting comparison: "we do not want to have to check anything manually,
+or change anything manually when something changes with RunPod"). A pod's
+address changes on every restart and its image is rebuilt by hand; a
+Serverless endpoint's id is permanent and RunPod's GitHub integration builds
+`Dockerfile.voice` itself. The setup is the new first section of
+`REMOTE_VOICE.md`. Two things changed here for it:
+
+- RunPod rebuilds the endpoint from `Main` on **every push** (10.27: the
+  endpoint's first build was #180, and merging #181 started a second). A
+  `release` job in `.github/workflows/voice-worker.yml`, written first on
+  RunPod's documentation that a GitHub release is what triggers a rebuild,
+  was removed the same day: it would have been a second build of every
+  voice change. The workflow keeps its contract job and gains, in its
+  paths, what the worker imports (`voice_store.py`, `voice_bank.py`,
+  `audio_utils.py`, `requirements.txt`).
+- `REMOTE_VOICE.md` says where Serverless mounts a volume (`/runpod-volume`,
+  not `/state`), so the endpoint sets `HF_HOME` and `FAM_VOICES_DIR`.
+
+Operational, done by hand on 10.26: `REMOTE_VOICE_URL=http://213.173.105.20:30248`
+on Render (plain HTTP was already allowed) so the pinned rung speaks while
+registration is fixed. It goes stale the day the pod restarts on a new
+port; delete it once `/api/health` shows a `registered` worker held.
+
+Tests: `tests/test_voice_alerts_318.py`.
+
 ## 319. A shared episode invites the listener into the conversation, via the waitlist (2026-10-26)
 
 At the owner's direction, the note under a shared episode (`/s/<id>`,

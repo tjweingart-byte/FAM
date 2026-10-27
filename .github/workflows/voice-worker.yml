@@ -15,11 +15,13 @@ name: Voice worker
 #             not obliged to have the disk - set the repository variable
 #             BUILD_VOICE_IMAGE=true, or run it by hand from the Actions tab.
 #
-# What it deliberately does NOT do: deploy. Nothing here restarts a pod or
-# changes an endpoint, because a workflow that can replace the running voice
-# on a push is a workflow that can take the voice down on a typo. The pod's
-# template points at `:latest` or at a tag, and rolling it is one click in a
-# console by somebody who meant to.
+# What it does not do: deploy. The voice runs on a RunPod Serverless
+# endpoint connected to this repository, and RunPod rebuilds it from `Main`
+# on every push (seen on 10.27: merging #181 started a build), so a change
+# to the worker reaches the card with nobody running docker or clicking a
+# console (§318). A release job meant to trigger that rebuild was written
+# first and removed the same day: it would have been a second build of
+# every voice change.
 
 on:
   push:
@@ -29,6 +31,12 @@ on:
       - "tts.py"
       - "voice_control.py"
       - "remote_voice.py"
+      # What the worker imports beyond its own package, so a change to any
+      # of it runs the contract check too (§318).
+      - "voice_store.py"
+      - "voice_bank.py"
+      - "audio_utils.py"
+      - "requirements.txt"
       - "requirements-chatterbox.txt"
       - "requirements-voice-worker.txt"
       - ".github/workflows/voice-worker.yml"

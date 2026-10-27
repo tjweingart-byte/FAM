@@ -276,6 +276,16 @@ async def announce(ready: bool, detail: str, sample_rate: int = 0,
             log.warning("registration refused by %s: HTTP %s %s", app_url(),
                         response.status_code, response.text[:200])
             return False
+        if response.status_code >= 300:
+            # Not followed, and not a success: a redirect means FAM_APP_URL
+            # names an address that has moved, and the POST never reached
+            # the registry. Counting it as landed was a silent outage (§318).
+            log.warning("registration to %s was redirected (HTTP %s) to %s; "
+                        "nothing was registered. Set FAM_APP_URL to the "
+                        "address it redirects to", app_url(),
+                        response.status_code,
+                        response.headers.get("location", "an unnamed address"))
+            return False
         return True
     except Exception as exc:
         # A warning, not debug (§306): on 10.23 heartbeats stopped landing at

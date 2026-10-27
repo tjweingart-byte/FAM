@@ -321,7 +321,8 @@ and `limit` = Lines.
 | 22286 | 33 | 315. The sweeps' scores and prices are kept in the archive (2026-10-26) |
 | 22319 | 22 | 316. An empty search still gets no archive - for now, and not as a rule (2026-10-26) |
 | 22341 | 25 | 317. Review before merging: a recalled provider fact is credited by name (2026-10-26) |
-| 22366 | 18 | 319. A shared episode invites the listener into the conversation, via the waitlist (2026-10-26) |
-| 22384 | 112 | 320. What the trusting-fermat branch fixed, brought to Main (2026-10-26) |
-| 22496 | 78 | 321. FAM on X: threads found from our own episodes, posted by a person (2026-10-26) |
-| 22574 | 60 | 322. Go Deeper on LinkedIn: a person finds the post, FAM brings the episode (2026-10-27) |
+| 22366 | 79 | 318. The voice was up for three days and the app could not find it (2026-10-26) |
+| 22445 | 18 | 319. A shared episode invites the listener into the conversation, via the waitlist (2026-10-26) |
+| 22463 | 112 | 320. What the trusting-fermat branch fixed, brought to Main (2026-10-26) |
+| 22575 | 78 | 321. FAM on X: threads found from our own episodes, posted by a person (2026-10-26) |
+| 22653 | 60 | 322. Go Deeper on LinkedIn: a person finds the post, FAM brings the episode (2026-10-27) |
