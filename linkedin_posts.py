@@ -67,6 +67,10 @@ SEARCH_URL = "https://www.linkedin.com/search/results/content/"
 SHARER = "fam-linkedin"
 
 KEEP_DAYS = 7
+#: How long a pruned post's id is remembered (`seen`): past the widest
+#: search window (`LINKEDIN_WINDOW_DAYS`, at most 30), so a search can never
+#: bring back a post a person already approved, skipped or had set aside.
+SEEN_DAYS = 45
 
 #: LinkedIn's ceiling on a comment, and what the drafted words may use
 #: before the Go Deeper line.
@@ -577,6 +581,13 @@ class Store:
                    )""")
             conn.execute("CREATE INDEX IF NOT EXISTS posts_status"
                          " ON posts(status, added_at)")
+            # The ids of pruned posts, words gone: what stops a later search
+            # carding a post FAM already commented on (§327).
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS seen (
+                       post_id TEXT PRIMARY KEY,
+                       at      REAL NOT NULL
+                   )""")
             # One row per "Find posts" run: what it asked, what it cost, and
             # how the daily search ceiling is counted.
             conn.execute(
@@ -716,22 +727,50 @@ class Store:
         """Cards past `KEEP_DAYS`; an approved one is kept until a week
         after its approval, or pruning would shorten one author a week."""
         cutoff = now - KEEP_DAYS * 86400
-        cur = self._conn().execute(
-            "DELETE FROM posts WHERE added_at < ? AND NOT (status = ? AND decided_at >= ?)",
-            (cutoff, APPROVED, cutoff))
-        self._conn().execute("DELETE FROM runs WHERE at < ?", (now - 30 * 86400,))
+        where = "added_at < ? AND NOT (status = ? AND decided_at >= ?)"
+        conn = self._conn()
+        for (post_id,) in conn.execute(f"SELECT post_id FROM posts WHERE {where}",
+                                       (cutoff, APPROVED, cutoff)).fetchall():
+            conn.execute("INSERT OR IGNORE INTO seen (post_id, at) VALUES (?, ?)",
+                         (post_id, now))
+        cur = conn.execute(f"DELETE FROM posts WHERE {where}", (cutoff, APPROVED, cutoff))
+        conn.execute("DELETE FROM seen WHERE at < ?", (now - SEEN_DAYS * 86400,))
+        conn.execute("DELETE FROM runs WHERE at < ?", (now - 30 * 86400,))
         return cur.rowcount
 
-    def dollars(self) -> float:
-        """Drafting on the cards kept, plus every run's searching."""
+    def dollars(self, now: Optional[float] = None) -> float:
+        """Searching and drafting over the last seven days: the cards added
+        and the runs pressed since then, one window for both."""
+        since = (time.time() if now is None else now) - 7 * 86400
         drafted = self._conn().execute(
-            "SELECT COALESCE(SUM(dollars), 0) FROM posts").fetchone()[0]
+            "SELECT COALESCE(SUM(dollars), 0) FROM posts WHERE added_at >= ?",
+            (since,)).fetchone()[0]
         searched = self._conn().execute(
-            "SELECT COALESCE(SUM(dollars), 0) FROM runs").fetchone()[0]
+            "SELECT COALESCE(SUM(dollars), 0) FROM runs WHERE at >= ?",
+            (since,)).fetchone()[0]
         return round(float(drafted or 0) + float(searched or 0), 4)
 
     def known(self) -> set:
-        return {r[0] for r in self._conn().execute("SELECT post_id FROM posts")}
+        """Every post on the page, set aside, or pruned within `SEEN_DAYS`."""
+        conn = self._conn()
+        return ({r[0] for r in conn.execute("SELECT post_id FROM posts")}
+                | {r[0] for r in conn.execute("SELECT post_id FROM seen")})
+
+    def insert_new(self, card: "Card", at: float, status: str = WAITING) -> bool:
+        """Write a run's card only when the post has no row, its status in
+        the same statement: a search never rewrites a card a person pasted
+        or decided while it ran. False when the row was already there."""
+        cur = self._conn().execute(
+            "INSERT OR IGNORE INTO posts (url, text, author, author_name, screened,"
+            " episodes, chosen, reason, draft, question, drafted_by, dollars,"
+            " origin, found_by, post_id, added_at, status, decided_at)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (card.url, card.text, card.author, card.author_name, card.screened,
+             json.dumps(card.episodes), int(card.chosen), card.reason, card.draft,
+             card.question, card.drafted_by, float(card.dollars), card.origin,
+             card.found_by, card.post_id, at, status,
+             at if status != WAITING else 0.0))
+        return cur.rowcount > 0
 
     # -- runs
 
@@ -840,6 +879,10 @@ async def add(cache, *, url: str, text: str, author_name: str = "",
     if screened and not anyway:
         raise Refused(screened)
     card = Card(post_id, clean, text[:6000], author, author_name, screened)
+    if was == SET_ASIDE:
+        # What judging it already cost stays counted ([failures-visible]).
+        before = await asyncio.to_thread(held.card, post_id)
+        card.dollars = before.dollars if before is not None else 0.0
     await _match(cache, card, drafter)
     await asyncio.to_thread(held.put, card, now)
     if was == SET_ASIDE:
@@ -855,6 +898,10 @@ async def rematch(cache, post_id: str, *, drafter=None,
                   held: Optional[Store] = None) -> dict:
     """Match a card again - after the Go Deeper episode it needed was made."""
     held = held or await asyncio.to_thread(store)
+    # A set-aside post is not on the page: matching it would bill a model
+    # call for a card nobody can see.
+    if await asyncio.to_thread(held.status_of, post_id) in ("", SET_ASIDE):
+        raise KeyError(post_id)
     card = await asyncio.to_thread(held.card, post_id)
     if card is None:
         raise KeyError(post_id)
@@ -934,8 +981,12 @@ def author_from_title(title: str) -> str:
 
 
 def objective(seed) -> str:
+    """What a search is for, in words; Perplexity's whole query. It carries
+    the episode's subject words beside its names (§326): "Eagles" alone
+    finds birds as often as the team."""
+    about = ", ".join((*seed.names, *x_threads.context_words(seed)))
     return (f"Recent public LinkedIn posts in which somebody teaches, explains "
-            f"or gives their view on {seed.title} ({', '.join(seed.names)}).")
+            f"or gives their view on {seed.title} ({about}).")
 
 
 async def search(seed, *, recency_days: int, name: str = "") -> tuple[list, float]:
@@ -1021,8 +1072,10 @@ async def run(cache, *, now: Optional[float] = None, searcher=None,
     used = await asyncio.to_thread(held.searches_since, _day_start(now))
     room = min(settings.linkedin_seeds, settings.linkedin_daily_searches - used)
     if room < 1:
-        report["stopped"] = ("today's search ceiling (LINKEDIN_DAILY_SEARCHES) "
-                             "is used up")
+        report["stopped"] = (
+            "LINKEDIN_SEEDS is 0, so a press searches for nothing"
+            if settings.linkedin_seeds < 1 else
+            "today's search ceiling (LINKEDIN_DAILY_SEARCHES) is used up")
         await asyncio.to_thread(held.record_run, now, 0, 0.0, report)
         return report
     chosen = await asyncio.to_thread(lambda: x_threads.seeds(
@@ -1037,25 +1090,43 @@ async def run(cache, *, now: Optional[float] = None, searcher=None,
     searched, dollars, found = 0, 0.0, []
     await asyncio.to_thread(held.record_run, now, 0, 0.0, report)
     try:
+        import research
+
         for seed in chosen:
+            # Counted before it is asked: a search that times out after the
+            # vendor billed it still counts toward the day's ceiling.
+            searched += 1
+            report["searched"] = searched
+            await asyncio.to_thread(held.record_run, now, searched, dollars, report)
             try:
                 results, cost = await searcher(
                     seed, recency_days=settings.linkedin_window_days)
             except asyncio.CancelledError:
                 raise
+            except research.ResearchUnavailable as exc:
+                # Configuration, not a request: nothing was asked or billed.
+                searched -= 1
+                report["searched"] = searched
+                report["errors"].append(f"{seed.title}: {exc}"[:200])
+                continue
             except Exception as exc:  # noqa: BLE001 - one seed never ends the run
                 report["errors"].append(f"{seed.title}: {exc}"[:200])
                 continue
-            searched += 1
             dollars = round(dollars + cost, 6)
-            report["searched"], report["results"] = searched, report["results"] + len(results)
+            report["results"] += len(results)
             # Counted the moment it is spent ([failures-visible]).
             await asyncio.to_thread(held.record_run, now, searched, dollars, report)
             found.extend((p, seed) for p in posts_from(results))
+        known = await asyncio.to_thread(held.known)
+        fresh = {p["post_id"] for p, _ in found if p["post_id"] not in known}
         picked = await asyncio.to_thread(_shortlist, cache, held, found, now)
         report["posts"] = len({p["post_id"] for p, _ in found})
-        report["screened_out"] = max(0, report["posts"] - len(picked))
+        report["screened_out"] = max(0, len(fresh) - len(picked))
+        # Twice the cards are ranked; drafting stops at `SHORTLIST`, so a
+        # post set aside is replaced from further down, as on X.
         for card in picked:
+            if report["cards"] >= SHORTLIST:
+                break
             card.draft, card.question, card.drafted_by, cost, misfit = await _judged(
                 drafter, card.text, card.episode)
             card.dollars = round(float(cost or 0), 6)
@@ -1063,12 +1134,11 @@ async def run(cache, *, now: Optional[float] = None, searcher=None,
                 # About something else: remembered, so the next run neither
                 # reads nor judges it again, and never shown.
                 mark_misfit(card, misfit)
-                await asyncio.to_thread(held.put, card, now)
-                await asyncio.to_thread(held.decide, card.post_id, SET_ASIDE, now)
-                report["set_aside"] = report.get("set_aside", 0) + 1
+                if await asyncio.to_thread(held.insert_new, card, now, SET_ASIDE):
+                    report["set_aside"] = report.get("set_aside", 0) + 1
                 continue
-            await asyncio.to_thread(held.put, card, now)
-            report["cards"] += 1
+            if await asyncio.to_thread(held.insert_new, card, now):
+                report["cards"] += 1
     except asyncio.CancelledError:
         report["stopped"] = "the run was stopped before it finished"
         raise
@@ -1116,7 +1186,7 @@ def _shortlist(cache, held: Store, found: list, now: float) -> list[Card]:
             continue
         authors.add(card.author)
         out.append(card)
-        if len(out) >= SHORTLIST:
+        if len(out) >= 2 * SHORTLIST:
             break
     return out
 

@@ -700,3 +700,81 @@ def test_the_model_judges_before_it_drafts():
         L.judge_and_draft(TEACHING, episode, client=model))
     assert comment == "" and misfit == "an airline, not the club"
     assert "fits" in model.asked[0]["system"]
+
+
+# --- the second review (§327) ---------------------------------------------------------
+
+
+def test_a_post_commented_on_is_never_found_again_after_its_card_is_pruned():
+    results = {EPISODE["title"]: [_Result(_post_url(1), "Jane Doe on LinkedIn", TEACHING)]}
+    _run(FakeCache([EPISODE]), _searcher(results))
+    [card] = L.store().all()
+    L.store().decide(card["post_id"], L.APPROVED, NOW, posted="c", share_url="u")
+    later = NOW + 15 * 86400
+    report = _run(FakeCache([EPISODE]), _searcher(results), now=later)
+    assert L.store().all() == [] and report["cards"] == 0
+    assert card["post_id"] in L.store().known()
+
+
+def test_a_search_never_rewrites_a_card_a_person_already_has():
+    _add()
+    held = L.store()
+    pid = "activity:7251234567890123456"
+    held.decide(pid, L.APPROVED, NOW, posted="Mine.", share_url="u")
+    found = L.Card(pid, URL, "other words", "jane-doe-4b2a1c", "Jane Doe", origin=L.FOUND)
+    assert held.insert_new(found, NOW, L.SET_ASIDE) is False
+    card = held.get(pid)
+    assert card["status"] == L.APPROVED and card["posted"] == "Mine." and card["text"] == TEACHING
+
+
+def test_a_failed_search_still_counts_toward_the_days_ceiling():
+    async def searcher(seed, *, recency_days):
+        raise TimeoutError("read timed out")
+    report = _run(FakeCache([EPISODE, OTHER]), searcher)
+    assert report["searched"] == 2 and len(report["errors"]) == 2
+    assert L.store().searches_since(NOW - 3600) == 2
+
+
+def test_perplexity_is_asked_with_the_subject_words_too(monkeypatch):
+    import research
+
+    asked = []
+    monkeypatch.setattr(research, "backend_available", lambda name: name == "perplexity")
+    monkeypatch.setattr(research, "_search_perplexity",
+                        lambda *a, **k: asked.append(a) or ([], 0.0))
+    seed = x_threads.Seed("k", "Can the Eagles defence hold up?", "The Eagles Defence", 2,
+                          ("Eagles",), "cached")
+    asyncio.run(L.search(seed, recency_days=7))
+    assert "Eagles" in asked[0][0] and "defence" in asked[0][0]
+    assert asked[0][3] == ("linkedin.com",)
+
+
+def test_match_again_refuses_a_set_aside_post():
+    results = {EPISODE["title"]: [_Result(_post_url(1), "Jane Doe on LinkedIn", TEACHING)]}
+    asyncio.run(L.run(FakeCache([EPISODE]), now=NOW, searcher=_searcher(results),
+                      drafter=_judging(False)))
+    with pytest.raises(KeyError):
+        asyncio.run(L.rematch(FakeCache([EPISODE]), "activity:7251234567890100001",
+                              drafter=_judging(True)))
+
+
+def test_pasting_a_set_aside_post_keeps_what_judging_it_cost():
+    results = {EPISODE["title"]: [_Result(URL, "Jane Doe on LinkedIn", TEACHING)]}
+    asyncio.run(L.run(FakeCache([EPISODE]), now=NOW, searcher=_searcher(results),
+                      drafter=_judging(False)))
+    card = _add(cache=FakeCache([EPISODE]), drafter=_judging(True))
+    assert card["dollars"] == pytest.approx(0.002)
+
+
+def test_a_set_aside_post_is_replaced_from_further_down():
+    results = {EPISODE["title"]: [
+        _Result(_post_url(i, f"author-{i}"), f"Author {i} on LinkedIn", TEACHING + f"\nNote {i}.")
+        for i in range(1, 12)]}
+    judged = []
+
+    async def drafter(text, episode):
+        judged.append(text)
+        return ("A comment.", "q?", "test-model", 0.0, "off" if len(judged) <= 2 else "")
+    report = asyncio.run(L.run(FakeCache([EPISODE]), now=NOW, searcher=_searcher(results),
+                               drafter=drafter))
+    assert report["set_aside"] == 2 and report["cards"] == L.SHORTLIST

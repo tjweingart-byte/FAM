@@ -330,4 +330,4 @@ and `limit` = Lines.
 | 22771 | 47 | 324. Wikipedia's reading belongs to the name it follows (2026-10-27) |
 | 22818 | 80 | 325. Checking every word: the dictionary and the voice round trip (2026-10-27) |
 | 22898 | 75 | 326. Every X card is about the post it answers (2026-10-27) |
-| 22973 | 61 | 327. Go Deeper on LinkedIn finds its own posts (2026-10-27) |
+| 22973 | 83 | 327. Go Deeper on LinkedIn finds its own posts (2026-10-27) |

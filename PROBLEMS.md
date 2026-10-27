@@ -23030,3 +23030,25 @@ off-subject is stored as `set_aside` (never shown, never read or judged
 again), and a pasted one keeps its card without a link, the reason on it.
 A person may still paste a set-aside post. This entry was §326 on the
 branch and is §327 after the merge.
+
+**Second review before merging (10.27)**, fixed with tests:
+- *A post could be found again after its card was pruned* - with a window
+  wider than the week, or a vendor date off by a day, a post FAM had already
+  commented on came back as a fresh card. Pruned ids now go to `seen`, kept
+  45 days (past the widest window), and `known()` reads both.
+- *A run could rewrite a card a person pasted or decided while it ran.* A
+  run now writes only with `insert_new` (`INSERT OR IGNORE`, the status in
+  the same statement, so a set-aside card is never briefly "waiting").
+- *A failed search did not count toward the day's ceiling*, though a timeout
+  may have been billed. A search is counted before it is asked; only a
+  configuration refusal (`ResearchUnavailable`, nothing sent) is not.
+- *Perplexity was asked without the subject words* - `objective` carries them
+  now, so both vendors get §326's query.
+- *Match again on a set-aside post* billed a model call for a hidden card; it
+  is refused. *Re-pasting one* kept its card but dropped what judging it had
+  cost; the cost is carried over.
+- *Spend summed 30 days of searching with a week of drafting*; both are the
+  last seven days now, and the page says so.
+- Twice the shortlist is ranked and drafting stops at eight cards, so a
+  set-aside post is replaced from further down, as on X; `screened_out`
+  counts only posts not already known; `LINKEDIN_SEEDS=0` says so.

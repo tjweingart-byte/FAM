@@ -130,7 +130,7 @@ Render deployment; since §208 it pins every store there (21 since §211), as th
 | **pipeline_errors.db** (`PIPELINE_ERRORS_DB`, §269) | `pipeline_errors.py` | `errors` | No `user_id`; holds the typed question | 14 days (`KEEP_DAYS`) | n/a · kept |
 | **episode_quality.db** (`EPISODE_QUALITY_DB`, §309) | `episode_quality.py` (`QualityStore`) | `episodes`, `listens`, `labels` | `listens` only (the account that listened); `episodes` holds the typed question | 180 days (`KEEP_DAYS`); the evidence text until graded, at most 14 days (`EVIDENCE_DAYS`) | `listens` erased · **Wiped** |
 | **x_threads.db** (`X_THREADS_DB`, §321) | `x_threads.py` (`Store`) | `candidates`, `runs` | No listener; holds public X posts and their authors' handles | 7 days (`KEEP_DAYS`); runs 30 days | n/a · kept |
-| **linkedin_posts.db** (`LINKEDIN_POSTS_DB`, §322) | `linkedin_posts.py` (`Store`) | `posts`, `runs` | No listener; holds public LinkedIn posts found by a search or pasted, and their authors' names | 7 days (`KEEP_DAYS`); an approved card until a week after its approval; runs 30 days | n/a · kept |
+| **linkedin_posts.db** (`LINKEDIN_POSTS_DB`, §322) | `linkedin_posts.py` (`Store`) | `posts`, `seen`, `runs` | No listener; holds public LinkedIn posts found by a search or pasted, and their authors' names | 7 days (`KEEP_DAYS`); an approved card until a week after its approval; runs 30 days | n/a · kept |
 | **thumbnails.db** (`THUMBNAILS_DB`) | `thumbnails.py` | `thumbnails`, `spend`, `runs` | No, shared | ≤ 1 picture per tree node | n/a · kept |
 | **local_news.db** (`LOCAL_NEWS_DB`) | `local_news.py`, `places.py`, `weather.py` | `outlets`, `items`, `demand`, `excluded`, `places`, `weather` | No (no `user_id`) | Items pruned daily past 30 days (`LOCAL_NEWS_KEEP_DAYS`, never below the 14-day window; each outlet keeps its newest 200, §208); demand 30 days | n/a · kept |
 | **gdelt_export.db** (`GDELT_EXPORT_DB`, §211) | `gdelt.py` (`ExportStore`) | `files`, `articles`, `theme_counts`, `domains`, `meta` | No, shared | 24 hours of GDELT's 15-minute export files (`GDELT_EXPORT_KEEP_HOURS`), ≤ 1,500 articles per file | n/a · kept |
@@ -340,7 +340,9 @@ admin's verdict (and, once approved, the words copied for LinkedIn). Nothing
 here reads LinkedIn. No listener's data; pruned after 7 days, an approved card
 a week after its approval. `runs` (§327), one row per Find posts press: what
 it searched for, how many searches and what they cost, which is how the daily
-search ceiling is counted; kept 30 days. Read only by `/admin/linkedin`.
+search ceiling is counted; kept 30 days. `seen` (§327), only the ids of pruned
+posts, kept 45 days so a search never brings back a post already decided.
+Read only by `/admin/linkedin`.
 
 **episode_quality.db** (`episode_quality.QualityStore`, §309): how well each
 written episode was written. `episodes`, one row per episode cached anywhere

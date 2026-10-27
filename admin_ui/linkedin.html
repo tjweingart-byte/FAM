@@ -227,7 +227,7 @@
       kpi("Approved", c.approved || 0, "kept a week") +
       kpi("Searches today", (h.searches_today || 0) + " / " + (h.daily_searches || 0),
           (h.seeds || 0) + " most per press") +
-      kpi("Spend", "$" + Number(h.dollars || 0).toFixed(2), "searching and drafting, kept a week");
+      kpi("Spend", "$" + Number(h.dollars || 0).toFixed(2), "searching and drafting, last 7 days");
 
     $("runBtn").disabled = !h.available || data.running;
     if (!h.available) { $("runNote").className = "note err"; $("runNote").textContent = "Cannot search: " + h.detail + ". You can still paste a post below."; }
