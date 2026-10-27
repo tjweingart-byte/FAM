@@ -312,6 +312,15 @@ def test_history_is_not_a_lapse(monkeypatch, registry):
     assert voice_control.registration_lapse(at=1_000_000.0 + 30 * 86400) == ""
 
 
+def test_a_serverless_endpoint_makes_a_lapse_irrelevant(monkeypatch, registry):
+    """After the move to Serverless the old pod's registration is history:
+    there is no pod left to lose, so no daily email about one."""
+    configure(monkeypatch, voice_registry_token="shhh",
+              runpod_endpoint_id="g65qlmwz4sc02u", runpod_api_key="k")
+    registry.register({"url": "http://213.173.105.20:30248"}, at=1_000_000.0)
+    assert voice_control.registration_lapse(at=1_000_000.0 + 3600) == ""
+
+
 def test_no_registration_configured_is_not_a_lapse(monkeypatch):
     configure(monkeypatch, voice_registry_token="")
     assert voice_control.registration_lapse() == ""

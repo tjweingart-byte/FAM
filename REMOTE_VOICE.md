@@ -52,52 +52,56 @@ the detour taken while the volume does not justify a full-time GPU.
 > the owner when the voice goes down. The pod sections below are history and
 > the fallback.
 
-**Once, in the RunPod console** (about 20 minutes, most of it the first build):
+**Once, in the RunPod console** (done on 10.27; about 20 minutes, most of
+it the first build). The endpoint is `FAM`, id `g65qlmwz4sc02u`, on the
+network volume `safe_peach_goat_volume` (EU-RO-1).
 
 1. **Connect GitHub.** Settings → Connections → GitHub → Connect; give RunPod
    access to this repository.
-2. **A network volume for the voice.** Storage → New Network Volume, 20 GB,
-   in a data center that lists several 24 GB GPUs (RTX 4090, A5000, L4,
-   3090). A volume ties workers to its data center, so pick one with choice.
-3. **Put the voice on it.** Deploy the cheapest pod (a CPU pod is enough)
-   with that volume attached; on a pod it mounts at `/workspace`. On the old
-   voice pod's web terminal:
-
-       find / -name 'reference_3*' -not -path '/proc/*' 2>/dev/null
-       cd <the directory it names>
-       runpodctl send reference_3.wav
-       runpodctl send reference_3.rights.json
-
-   Each `send` prints a `runpodctl receive <code>` line; run it on the new
-   pod after `mkdir -p /workspace/voices && cd /workspace/voices`. Check
-   with `ls -la /workspace/voices` (both files), then terminate that pod.
+2. **A network volume for the voice.** A volume ties workers to its data
+   center, so it should be one that lists several 24 GB GPUs.
+3. **The voice on it.** `reference_3.wav` and `reference_3.rights.json` sit
+   at the top of the volume (`/workspace/` on a pod attached to it). On
+   10.27 they were copied there from the pod's `/state/voices/`, and
+   `sha256sum` matched the recording listeners had been hearing
+   (`f5db4e3e…bb7c`). To put them on a new volume: attach it to any cheap
+   pod and copy them across with `runpodctl send` / `runpodctl receive`.
    The rights record must clear all three fields (step 2 of the pod setup
    below); without it the worker refuses to speak, by design.
-4. **The endpoint.** Serverless → New Endpoint → Import Git Repository → this
-   repository, branch `Main`, Dockerfile path `Dockerfile.voice`.
+4. **The endpoint.** Serverless → Get started (New Endpoint once one exists)
+   → Deploy from a GitHub repository → this repository, branch `Main`,
+   Dockerfile path `Dockerfile.voice`, **Queue** (not Load balancer: the
+   worker is `handler.py`, called through `/runsync`).
 
    | Setting | Value | Why |
    |---|---|---|
-   | GPUs | every 24 GB type offered, plus one 48 GB type | availability: one scarce type is how a queue never drains |
+   | GPUs | **Previous generation**: 24 GB PRO (RTX 4090), RTX A5000, RTX 3090 | "Latest generation" needs a CUDA 12.8 image; this one is CUDA 12.4 with torch 2.6. The 4090 is the card Chatterbox was measured on; the L4 is left out as too slow |
    | Network volume | the one from step 2 | the voice and the weights |
-   | Active workers | 1 | no cold start in front of a listener (~$343/month) |
+   | Active workers | 0 for now | billed only while voicing; ~$343/month for 1, which buys no cold starts - revisit at launch |
    | Max workers | 4 | more listeners at once get more cards, billed only while busy |
-   | Idle timeout | 60 s | |
-   | FlashBoot | on | |
-   | Env `HF_HOME` | `/runpod-volume/hf` | Serverless mounts the volume at `/runpod-volume`, not `/state` |
-   | Env `FAM_VOICES_DIR` | `/runpod-volume/voices` | where step 3 put the files |
+   | Idle timeout | 60 s | idle seconds are billed too, so not longer |
+   | FlashBoot | on | shorter cold starts |
+   | Execution timeout | 600 s | the first job downloads the weights |
+   | Container disk | 20 GB or more | the image is large |
+   | Env `FAM_VOICES_DIR` | `/runpod-volume` | Serverless mounts the volume at `/runpod-volume`; the files are at its top |
+   | Env `HF_HOME` | `/runpod-volume/hf` | the weights, downloaded once and kept |
 
    The mode needs no variable: the image sees `RUNPOD_ENDPOINT_ID` and runs
    the handler. Deploy, and watch the **Builds** tab (10-20 minutes the first
-   time). Copy the **endpoint id**.
-5. **Test it there.** Endpoint → Requests, run `{"input": {"warm": true}}`:
-   it should answer `"ready": true, "engine": "chatterbox"`. Then
-   `{"input": {"text": "Testing the FAM voice."}}` should answer with audio.
+   time).
+5. **Test it there.** Endpoint → Requests, with the box holding only
+   `{"input": {"warm": true}}`: on 10.27 it answered `"ready": true`,
+   `"detail": "cuda, cloning reference_3.wav"` and the same
+   `reference_sha256`, after a 73 s cold start. Then
+   `{"input": {"text": "Testing the FAM voice."}}` answered with 1.92 s of
+   24 kHz audio in 0.8 s from a warm worker.
 
 **Once, on Render** (the `fam` service → Environment):
 
 - Set `RUNPOD_ENDPOINT_ID` to the id and `REMOTE_VOICE_TRANSPORT=runpod`.
-  `RUNPOD_API_KEY` is already there.
+  `RUNPOD_API_KEY` is already there. Optionally pin the recording with
+  `VOICE_REFERENCE_FINGERPRINT=f5db4e3e5c3801acd42e7fab7a4832b37fcd2bd5c784f420dc73e55ab902bb7c`
+  (§176), so a wrong file on a future volume is refused rather than heard.
 - Delete `REMOTE_VOICE_URL` and `RUNPOD_POD`: the ladder tries them before
   the endpoint, so while they are set the pod still speaks.
 - After the redeploy, `/api/health` → `tts.remote.reachable.state` is `ok`

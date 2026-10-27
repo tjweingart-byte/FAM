@@ -22404,7 +22404,8 @@ What changed:
   the same incident); a worker that used to register and has not inside the
   TTL (within a week) is a **notice**, "registration lapsed" - even while a
   pinned address still speaks, because it is the day the pod moves that it
-  costs. `registration_lapsed` is also on `/api/health`.
+  costs - unless a Serverless endpoint is configured, which has no pod to
+  lose. `registration_lapsed` is also on `/api/health`.
 - **The owner is emailed** (SUPPORT_EMAIL, else MODERATION_EMAIL, through
   `mail.py`) when either fault starts, once a day while it lasts, and when it
   clears; a fault back within the hour is not a new email, so a flapping

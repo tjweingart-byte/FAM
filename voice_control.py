@@ -1308,6 +1308,12 @@ def registration_lapse(at: float = 0.0) -> str:
     """
     if not registration_enabled() or not discovery_enabled():
         return ""
+    if _serverless() is not None:
+        # A Serverless endpoint is a rung with a permanent address, so a pod
+        # that stopped registering costs nothing: there is no pod to lose.
+        # Without this, the old pod's rows would read as a lapse every day
+        # after the move to Serverless (§318).
+        return ""
     now = at or time.time()
     try:
         import voice_registry

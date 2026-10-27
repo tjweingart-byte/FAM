@@ -15,13 +15,13 @@ name: Voice worker
 #             not obliged to have the disk - set the repository variable
 #             BUILD_VOICE_IMAGE=true, or run it by hand from the Actions tab.
 #
-# What it deliberately does not do any more is the deploying: the voice runs
-# on a RunPod Serverless endpoint connected to this repository, and RunPod
-# rebuilds it from `Main` on every push (seen on 10.27: #181 merged, a build
-# started) - so a change to the worker reaches the card with nobody running
-# docker or clicking a console (§318). A release job that told RunPod to
-# rebuild was written first and removed the same day: it would have been a
-# second build of every voice change.
+# What it does not do: deploy. The voice runs on a RunPod Serverless
+# endpoint connected to this repository, and RunPod rebuilds it from `Main`
+# on every push (seen on 10.27: merging #181 started a build), so a change
+# to the worker reaches the card with nobody running docker or clicking a
+# console (§318). A release job meant to trigger that rebuild was written
+# first and removed the same day: it would have been a second build of
+# every voice change.
 
 on:
   push:
@@ -32,7 +32,7 @@ on:
       - "voice_control.py"
       - "remote_voice.py"
       # What the worker imports beyond its own package, so a change to any
-      # of it is built into the card (§318).
+      # of it runs the contract check too (§318).
       - "voice_store.py"
       - "voice_bank.py"
       - "audio_utils.py"
