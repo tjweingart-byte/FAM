@@ -22818,3 +22818,15 @@ in code. `linkedin_posts.py` uses `x_threads.match`, `LINK_FLOOR`, `seeds`,
 judgement has been exercised only through test stand-ins; the first live
 search after the deploy is the check. The ONNX embedder would make the
 match score semantic rather than lexical (`tools/install_embed.sh`).
+
+**The owner's cards (10.27), and the review before merging.** The two cards
+sent back - Manchester United posts under a Trending episode on a diverted
+*United* flight - are tests now: X is never asked for "United" alone, and a
+post sharing only that word is dropped before anything is drafted. The
+review of this branch added: a post the model sets aside is kept as
+`set_aside` (never on the page) so the next search neither bills nor judges
+it again; words that name no subject (`GENERIC`: "happened", "today",
+"latest" ...) count neither as context in the search nor as overlap in
+`on_subject`; a one-word name with no subject words left is not searched at
+all; and a card checked only in code no longer reads "Checked: checked in
+code".

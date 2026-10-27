@@ -63,7 +63,9 @@ def test_a_title_names_what_to_search_for():
 
 def test_the_search_asks_for_conversations_being_started():
     q = X.x_query(["Jalen Hurts", "Eagles"])
-    assert q.startswith('("Jalen Hurts" OR Eagles)')  # no subject words given
+    # With no subject words to go beside it, "Eagles" alone is not asked for.
+    assert q.startswith('"Jalen Hurts" lang:en')
+    assert X.x_query(["Eagles"]) == ""
     for part in ("lang:en", "-is:retweet", "-is:reply", "-is:nullcast"):
         assert part in q
     assert X.x_query([]) == ""
@@ -189,6 +191,28 @@ def test_the_model_judging_a_post_off_subject_drops_the_card():
     report = _verdict_run(X.Verdict(same_subject=False, why="about birds"))
     assert report["cards"] == 0 and "about birds" in report["off_subject"][0]
     assert X.store().all() == []
+
+
+def test_a_post_set_aside_is_neither_shown_nor_judged_again():
+    judged = []
+
+    async def searcher(query, *, max_results, since):
+        return [_post("1")]
+
+    async def drafter(cand):
+        judged.append(cand.post.id)
+        return "r", "test-model", 0.001, X.Verdict(same_subject=False, why="birds")
+    for at in (NOW, NOW + 60):
+        asyncio.run(X.run(FakeCache([EPISODE]), now=at, searcher=searcher, drafter=drafter))
+    assert judged == ["1"]
+    assert X.store().all() == [] and X.store().counts() == {X.SET_ASIDE: 1}
+
+
+def test_words_that_name_no_subject_do_not_make_one():
+    seed = X.Seed("k", "What happened with the Eagles today?", "The Eagles today",
+                  1, ("Eagles",))
+    assert "happened" not in X.context_words(seed) and "today" not in X.context_words(seed)
+    assert X.on_subject(_post(text="Did anyone see the eagles today by the lake?"), seed)
 
 
 def test_an_episode_that_does_not_answer_the_post_is_not_linked():

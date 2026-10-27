@@ -85,6 +85,19 @@ SHORTLIST = 8
 #: Statuses. `waiting` is on the page; the others are the person's verdict.
 WAITING, APPROVED, SKIPPED = "waiting", "approved", "skipped"
 STATUSES = (WAITING, APPROVED, SKIPPED)
+#: A post the relevance check judged to be about something else (§324):
+#: kept only so the next search neither reads nor judges it again, and never
+#: shown on the page.
+SET_ASIDE = "set_aside"
+
+#: Words in a question that say nothing about its subject: a post sharing
+#: only these with an episode ("eagles today") is not on its subject.
+GENERIC = frozenset("""
+happened happening happen today tonight yesterday tomorrow latest news update
+updates week weekend month year years still going really right think know
+make made mean thing things people story explained explain whats what's
+first last next good best worst big biggest
+""".split())
 
 #: The playbook's four kinds of reply (FAM_X.pdf, examples 01-04).
 ANGLE_AND_EPISODE = "angle_episode"     # 01: another angle + episode
@@ -261,7 +274,7 @@ def context_words(seed: "Seed", limit: int = 4) -> tuple:
     for word in _WORD.findall(f"{seed.query} {seed.title}"):
         low = word.lower().strip("'.-")
         if (len(low) < 4 or low in _STOP or low in named or low in seen
-                or low in news_clusters.STOPWORDS or low.isdigit()):
+                or low in GENERIC or low in news_clusters.STOPWORDS or low.isdigit()):
             continue
         seen.add(low)
         out.append(low)
@@ -287,8 +300,9 @@ def x_query(names: Iterable[str], context: Iterable[str] = ()) -> str:
         elif context:
             around = context[0] if len(context) == 1 else "(" + " OR ".join(context) + ")"
             terms.append(f"({name} {around})")
-        else:
-            terms.append(name)
+        # A one-word name with no subject words beside it is not searched at
+        # all: every post it found would be billed, then dropped by
+        # `on_subject`.
     if not terms:
         return ""
     body = terms[0] if len(terms) == 1 else "(" + " OR ".join(terms) + ")"
@@ -313,7 +327,8 @@ def on_subject(post: "Post", seed: Optional["Seed"]) -> str:
 
     # Only the name it matched is taken away: "Defence" in a longer name it
     # did not match is still one of the episode's subject words.
-    words = news_clusters.tokens(post.text) - {
+    generic = {news_clusters._stem(w) for w in GENERIC}
+    words = news_clusters.tokens(post.text) - generic - {
         news_clusters._stem(w.lower()) for n in named for w in n.split()}
     about = news_clusters.tokens(f"{seed.title} {seed.query}")
     if not words & about:
@@ -781,7 +796,7 @@ async def judge_and_draft(cand: Candidate, client=None) -> tuple:
     import metering
 
     if client is None and not credentials.active("ANTHROPIC_API_KEY"):
-        return trim(fallback_draft(cand)), "code", 0.0, Verdict(why="checked in code")
+        return trim(fallback_draft(cand)), "code", 0.0, Verdict()
     model = config.settings.x_threads_model
     try:
         if client is None:
@@ -810,7 +825,7 @@ async def judge_and_draft(cand: Candidate, client=None) -> tuple:
         raise
     except Exception as exc:  # noqa: BLE001
         log.warning("x threads: drafting fell back to code: %s", exc)
-        return trim(fallback_draft(cand)), "code", 0.0, Verdict(why="checked in code")
+        return trim(fallback_draft(cand)), "code", 0.0, Verdict()
 
 
 def apply_verdict(cand: Candidate, verdict: Verdict) -> str:
@@ -909,16 +924,16 @@ class Store:
             " OR status = ?", (APPROVED, since, WAITING)).fetchall()
         return [json.loads(r[0]).get("author", "") for r in rows]
 
-    def add(self, cand: Candidate, at: float) -> None:
+    def add(self, cand: Candidate, at: float, status: str = WAITING) -> None:
         episode = asdict(cand.seed) if cand.seed is not None else {}
         self._conn().execute(
             "INSERT OR IGNORE INTO candidates (post_id, found_at, score, kind,"
-            " reason, post, other, episode, draft, drafted_by)"
-            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            " reason, post, other, episode, draft, drafted_by, status)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (cand.post.id, at, cand.score, cand.kind, cand.reason,
              json.dumps(asdict(cand.post)),
              json.dumps(asdict(cand.other)) if cand.other is not None else "",
-             json.dumps(episode), cand.draft, cand.drafted_by))
+             json.dumps(episode), cand.draft, cand.drafted_by, status))
 
     def get(self, post_id: str) -> Optional[dict]:
         rows = self.all(post_id=post_id)
@@ -932,6 +947,9 @@ class Store:
         if status:
             sql += " AND status = ?"
             args.append(status)
+        elif not post_id:
+            sql += " AND status != ?"
+            args.append(SET_ASIDE)
         if post_id:
             sql += " AND post_id = ?"
             args.append(post_id)
@@ -1099,6 +1117,9 @@ async def run(cache, *, now: Optional[float] = None, searcher=None,
             if reads + 10 > room:
                 break
             ask = min(per, room - reads)
+            if not seed.search():
+                report["errors"].append(f"{seed.title}: nothing specific enough to search for")
+                continue
             try:
                 posts = await searcher(seed.search(), max_results=ask, since=since)
             except asyncio.CancelledError:
@@ -1135,6 +1156,9 @@ async def run(cache, *, now: Optional[float] = None, searcher=None,
             dropped = apply_verdict(cand, verdict)
             if dropped:
                 report["off_subject"].append(f"@{cand.post.author}: {dropped}"[:200])
+                # Remembered, unseen, so it is neither read nor judged again.
+                cand.reason = f"Set aside: {dropped}"
+                held.add(cand, now, status=SET_ASIDE)
                 continue
             if by != "code" and not verdict.episode_fits and cand.kind == QUESTION_ONLY \
                     and "episode" in reply.lower():
