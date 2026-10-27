@@ -147,6 +147,26 @@ def test_a_shared_word_is_not_a_shared_subject():
                         X.Seed("k", "q", "t", 1, ("Jalen Hurts",))) == ""
 
 
+def test_man_united_posts_never_answer_a_united_airlines_episode():
+    """The cards the owner sent back (10.27): a Trending episode on a
+    diverted United flight was offered under two Manchester United posts."""
+    seed = X.Seed("k", "Why was a United flight diverted over a threat?",
+                  "United flight diverted over threat", 1, ("United",), "trending")
+    carrick = _post(text="Man United will stick with Michael Carrick despite defeats "
+                         "to Bournemouth and Como. He's expected to lead United against "
+                         "Chelsea on Saturday. United fans, right decision or mistake?")
+    howe = _post(text="MAN UNITED MANAGER UPDATE! Eddie Howe is reportedly a leading "
+                      "candidate to replace Michael Carrick. Would Howe be the right "
+                      "man for United?")
+    flight = _post(text="Anyone know why the United flight got diverted? Real threat?")
+    # X is never asked for "United" alone...
+    assert seed.search().startswith("(United (")
+    # ...and a post that only shares the word gets no card.
+    assert X.on_subject(carrick, seed) and X.on_subject(howe, seed)
+    assert X.shortlist([(carrick, seed), (howe, seed)], NOW, window_hours=6) == []
+    assert X.on_subject(flight, seed) == ""
+
+
 def test_a_one_word_name_is_searched_beside_the_episodes_own_words():
     seed = X.Seed("k", "Can the Eagles defence hold up without its starters?",
                   "The Eagles defence", 3, ("Jalen Hurts", "Eagles"))

@@ -661,7 +661,7 @@ First, judge relevance - strictly, because an off-topic reply is spam:
 - same_subject: is the post about the same subject as FAM's episode - the \
 same team, person, company, event or question - and not merely sharing a \
 word or a name with it (the Philadelphia Eagles are not eagles; Apple the \
-company is not apples)? When unsure, false.
+company is not apples; a United Airlines flight is not Manchester United)? When unsure, false.
 - episode_fits: would someone reading this exact post want this exact \
 episode - does it answer or deepen what the post is asking or arguing? A \
 story on the same subject about something else is false. When unsure, false.
