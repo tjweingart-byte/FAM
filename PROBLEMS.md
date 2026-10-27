@@ -22649,3 +22649,33 @@ to X's seven days. Left as they are, deliberately: the one-search-at-a-time
 flag and the daily ceiling hold within one server process, which is what
 production runs; and the drafting calls (at most eight a search) are in each
 run's report rather than `metering.db`, whose rows are listeners' episodes.
+
+## 322. Asking Wikipedia about every name again (2026-10-27)
+
+The owner (10.27): "I typed in the wrong thing for the wikipedia password and
+key, and wikipedia probably wasn't able to check all of the pronunciations in
+the admin page. Please run wikimedia by all of these pronunciations again,
+because the episodes still have significant pronunciation problems."
+
+**The Enterprise login does not reach the name check.** `wiki_pronounce`
+asks the keyless Wikidata search and Wikipedia's `action=parse`; only the
+reference look's summaries use `WIKIMEDIA_ENTERPRISE_USERNAME`/`_PASSWORD`.
+A wrong login cost the summaries their Enterprise reply (the public one
+served instead), never a pronunciation. A check that failed outright -
+network, 429, Wikipedia down - was already never kept, so a plain "Check all"
+asks it again.
+
+**What did stop a re-run:** every answer that came back - "not on Wikipedia",
+"more than one", "agrees" - stands for `RECHECK_DAYS` (30), and the admin
+page's button never passed `force`, so a second click inside the month said
+"nothing to ask". The page now has **Check every name again**
+(`POST /api/admin/pronunciations/wikipedia?force=true`). `_due` orders names
+never asked first, then the longest since, so a forced run over more than
+`MAX_PER_RUN` (400) names goes on where the last one stopped with each click.
+
+**Not run from here:** this container cannot reach en.wikipedia.org,
+wikidata.org or the production server, so the re-check is the owner's click
+on /admin → How names are said. Unchanged by it: an admin's respelling is
+never replaced, and a name Wikidata cannot match to exactly one item still
+gets no answer - which is the likelier cause of the remaining problems
+(surnames alone, nicknames), alongside names that never reached the lexicon.
