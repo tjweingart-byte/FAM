@@ -48,7 +48,7 @@ import threading
 import time
 from dataclasses import asdict, dataclass, field
 from typing import Optional
-from urllib.parse import quote, urlparse
+from urllib.parse import quote, unquote, urlparse
 
 import db as store_db
 import config
@@ -100,6 +100,8 @@ _LIST_LINE = re.compile(r"^\s*(\d+[.)]|[-•→✅▶*])\s+\S", re.M)
 
 _ACTIVITY = re.compile(r"(?:activity|share|ugcPost)[:-](\d{15,22})")
 _URN = re.compile(r"urn:li:(activity|share|ugcPost):(\d{15,22})")
+#: What a profile-and-words slug in `/posts/<slug>/` may hold.
+_SLUG = re.compile(r"^[A-Za-z0-9_%\-]+$")
 
 
 class NotAPost(ValueError):
@@ -129,7 +131,10 @@ def parse_url(url: str) -> tuple[str, str, str]:
                        "from the browser bar.")
     if host != "linkedin.com" and not host.endswith(".linkedin.com"):
         raise NotAPost("That is not a LinkedIn address.")
-    path = parts.path or "/"
+    # LinkedIn's search results hand out the URN percent-encoded
+    # (`urn%3Ali%3Aactivity%3A...`); the clean address is rebuilt from the
+    # digits, so decoding here admits nothing new.
+    path = unquote(parts.path or "/")
     found = _URN.search(path)
     if found:
         kind, digits = found.group(1), found.group(2)
@@ -138,7 +143,10 @@ def parse_url(url: str) -> tuple[str, str, str]:
     if path.startswith("/posts/"):
         found = _ACTIVITY.search(path)
         if found:
-            slug = path[len("/posts/"):].strip("/")
+            slug = (parts.path or "/")[len("/posts/"):].strip("/")
+            if not _SLUG.match(slug):
+                raise NotAPost("That LinkedIn address is not a post. Use the "
+                               "post's “Copy link to post” and paste that.")
             author = slug.split("_", 1)[0] if "_" in slug else ""
             kind = "ugcPost" if "ugcPost" in found.group(0) else (
                 "share" if found.group(0).startswith("share") else "activity")
@@ -146,6 +154,16 @@ def parse_url(url: str) -> tuple[str, str, str]:
                     f"https://www.linkedin.com/posts/{slug}/", author.lower())
     raise NotAPost("That LinkedIn address is not a post. Use the post's "
                    "“Copy link to post” and paste that.")
+
+
+def author_key(slug: str, author_name: str) -> str:
+    """Who a post is by, for one author a week: the profile slug when the
+    address carries one, else the typed name - a `/feed/update/` address
+    names nobody, and a check that quietly skips it is no check."""
+    if slug:
+        return slug.lower()
+    name = " ".join(str(author_name or "").lower().split())
+    return f"name:{name}" if name else ""
 
 
 def name_from_slug(slug: str) -> str:
@@ -228,7 +246,9 @@ def screen_post(text: str) -> str:
 def episodes_for(cache, text: str, *, limit: int = OFFERED) -> list[dict]:
     """The kept episodes most about what the post is about, best first, each
     with its match (0-1): the X page's `match` - the cache's embeddings plus
-    the episode's names - against every kept episode, never an explicit one."""
+    the episode's names - against the newest 200 kept episodes, never an
+    explicit one. A name counts only as a whole word: a post runs to
+    thousands of characters, and "Fed" is inside "federal"."""
     import embeddings
 
     rows = []
@@ -254,7 +274,8 @@ def episodes_for(cache, text: str, *, limit: int = OFFERED) -> list[dict]:
                     post_vector, embeddings.embed(f"{title}. {row['query']}")))
             except Exception:  # noqa: BLE001
                 semantic = 0.0
-        named = (sum(1 for n in names if n.lower() in low) / len(names)) if names else 0.0
+        named = (sum(1 for n in names if re.search(
+            r"(?<!\w)" + re.escape(n.lower()) + r"(?!\w)", low)) / len(names)) if names else 0.0
         score = round(min(1.0, 0.6 * semantic + 0.4 * named), 4)
         scored.append({"key": row["key"], "query": row["query"], "title": title,
                        "minutes": int(row.get("minutes") or 1),
@@ -413,6 +434,7 @@ class Card:
     draft: str = ""
     question: str = ""
     drafted_by: str = ""
+    dollars: float = 0.0        # what drafting this card has cost, every match
 
     @property
     def episode(self) -> Optional[dict]:
@@ -441,6 +463,7 @@ class Store:
                        draft       TEXT NOT NULL DEFAULT '',
                        question    TEXT NOT NULL DEFAULT '',
                        drafted_by  TEXT NOT NULL DEFAULT '',
+                       dollars     REAL NOT NULL DEFAULT 0,
                        status      TEXT NOT NULL DEFAULT 'waiting',
                        decided_at  REAL NOT NULL DEFAULT 0,
                        posted      TEXT NOT NULL DEFAULT '',
@@ -462,29 +485,29 @@ class Store:
         conn = self._conn()
         values = (card.url, card.text, card.author, card.author_name, card.screened,
                   json.dumps(card.episodes), int(card.chosen), card.reason,
-                  card.draft, card.question, card.drafted_by)
+                  card.draft, card.question, card.drafted_by, float(card.dollars))
         cur = conn.execute(
             "UPDATE posts SET url = ?, text = ?, author = ?, author_name = ?,"
             " screened = ?, episodes = ?, chosen = ?, reason = ?, draft = ?,"
-            " question = ?, drafted_by = ? WHERE post_id = ?",
+            " question = ?, drafted_by = ?, dollars = ? WHERE post_id = ?",
             values + (card.post_id,))
         if cur.rowcount == 0:
             conn.execute(
                 "INSERT INTO posts (url, text, author, author_name, screened,"
-                " episodes, chosen, reason, draft, question, drafted_by,"
-                " post_id, added_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                " episodes, chosen, reason, draft, question, drafted_by, dollars,"
+                " post_id, added_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 values + (card.post_id, at))
 
     def card(self, post_id: str) -> Optional[Card]:
         row = self._conn().execute(
             "SELECT post_id, url, text, author, author_name, screened, episodes,"
-            " chosen, reason, draft, question, drafted_by FROM posts"
+            " chosen, reason, draft, question, drafted_by, dollars FROM posts"
             " WHERE post_id = ?", (post_id,)).fetchone()
         if not row:
             return None
         return Card(row[0], row[1], row[2], row[3], row[4], row[5],
                     json.loads(row[6] or "[]"), int(row[7]), row[8], row[9],
-                    row[10], row[11])
+                    row[10], row[11], float(row[12] or 0))
 
     def get(self, post_id: str) -> Optional[dict]:
         rows = self.all(post_id=post_id)
@@ -493,7 +516,7 @@ class Store:
     def all(self, status: str = "", post_id: str = "", limit: int = 100) -> list[dict]:
         sql = ("SELECT post_id, added_at, url, text, author, author_name, screened,"
                " episodes, chosen, reason, draft, question, drafted_by, status,"
-               " decided_at, posted, share_url FROM posts WHERE 1=1")
+               " decided_at, posted, share_url, dollars FROM posts WHERE 1=1")
         args: list = []
         if status:
             sql += " AND status = ?"
@@ -517,34 +540,65 @@ class Store:
                 "episodes": episodes, "chosen": chosen, "episode": episode,
                 "linked": linked(episode), "reason": r[9], "draft": r[10],
                 "question": r[11], "drafted_by": r[12], "status": r[13],
-                "decided_at": r[14], "posted": r[15], "share_url": r[16]})
+                "decided_at": r[14], "posted": r[15], "share_url": r[16],
+                "dollars": float(r[17] or 0)})
         return out
 
     def decide(self, post_id: str, status: str, at: float, *, posted: str = "",
                share_url: str = "", chosen: Optional[int] = None) -> bool:
-        sql = "UPDATE posts SET status = ?, decided_at = ?, posted = ?, share_url = ?"
-        args: list = [status, at, posted, share_url]
+        """A verdict. Only an approval writes what was posted: Skip or Back
+        to waiting after one keeps the record of the comment that may be on
+        LinkedIn now."""
+        sql = "UPDATE posts SET status = ?, decided_at = ?"
+        args: list = [status, at]
+        if status == APPROVED:
+            sql += ", posted = ?, share_url = ?"
+            args += [posted, share_url]
         if chosen is not None:
             sql += ", chosen = ?"
             args.append(int(chosen))
         cur = self._conn().execute(sql + " WHERE post_id = ?", args + [post_id])
         return cur.rowcount > 0
 
-    def recent_author(self, author: str, since: float, *, besides: str = "") -> bool:
-        """Whether `author` has a card waiting, or was commented on since
-        `since`: one author a week, as on X."""
-        if not author:
+    def recent_author(self, author: str, since: float, *, besides: str = "",
+                      name: str = "") -> bool:
+        """Whether `author` (or somebody of the same `name`) has a card
+        waiting, or was commented on since `since`: one author a week, as on
+        X. By name too, because one address shape carries a profile slug and
+        the other only the name somebody typed."""
+        name = " ".join(str(name or "").lower().split())
+        if not author and not name:
             return False
         row = self._conn().execute(
-            "SELECT 1 FROM posts WHERE author = ? AND post_id != ? AND"
-            " (status = ? OR (status = ? AND decided_at >= ?)) LIMIT 1",
-            (author, besides, WAITING, APPROVED, since)).fetchone()
+            "SELECT 1 FROM posts WHERE (author = ? OR LOWER(author_name) = ?)"
+            " AND post_id != ? AND (status = ? OR (status = ? AND decided_at >= ?))"
+            " LIMIT 1",
+            (author or None, name or None, besides, WAITING, APPROVED, since)).fetchone()
         return row is not None
 
+    def find_text(self, text: str, *, besides: str = "") -> Optional[dict]:
+        """A card already holding these words: one post reached as
+        `activity:` in one address and `ugcPost:` in another is one post."""
+        wanted = " ".join(str(text or "").split())
+        for row in self._conn().execute(
+                "SELECT post_id, text, status FROM posts WHERE post_id != ?",
+                (besides,)).fetchall():
+            if " ".join(str(row[1] or "").split()) == wanted:
+                return {"post_id": row[0], "status": row[2]}
+        return None
+
     def prune(self, now: float) -> int:
-        cur = self._conn().execute("DELETE FROM posts WHERE added_at < ?",
-                                   (now - KEEP_DAYS * 86400,))
+        """Cards past `KEEP_DAYS`; an approved one is kept until a week
+        after its approval, or pruning would shorten one author a week."""
+        cutoff = now - KEEP_DAYS * 86400
+        cur = self._conn().execute(
+            "DELETE FROM posts WHERE added_at < ? AND NOT (status = ? AND decided_at >= ?)",
+            (cutoff, APPROVED, cutoff))
         return cur.rowcount
+
+    def dollars(self) -> float:
+        row = self._conn().execute("SELECT COALESCE(SUM(dollars), 0) FROM posts").fetchone()
+        return round(float(row[0] or 0), 4)
 
     def counts(self) -> dict:
         rows = self._conn().execute(
@@ -593,38 +647,52 @@ async def add(cache, *, url: str, text: str, author_name: str = "",
               drafter=None, held: Optional[Store] = None) -> dict:
     """Screen a pasted post, match it against the kept episodes, draft the
     comment and leave the card on the page. Raises `NotAPost` for an address
-    that is not a post and `Refused` (with the reason) for one the screen
-    turns away, unless `anyway`."""
+    that is not a post, `Refused` (with the reason) for one the screen turns
+    away unless `anyway`, and `OnThePage` for a post that already has a card
+    - whatever `anyway` says, since its card holds a verdict."""
     now = time.time() if now is None else now
-    held = held or store()
-    held.prune(now)
-    post_id, clean, author = parse_url(url)
+    held = held or await asyncio.to_thread(store)
+    await asyncio.to_thread(held.prune, now)
+    post_id, clean, slug = parse_url(url)
     text = str(text or "").strip()
     if not text:
         raise Refused("Paste the post's words as well: FAM does not read LinkedIn.")
-    screened = screen_post(text)
-    if not screened and held.recent_author(author, now - 7 * 86400, besides=post_id):
-        screened = "this author is on the page or was commented on this week"
+    existing = await asyncio.to_thread(held.get, post_id)
+    if existing is None:
+        existing = await asyncio.to_thread(held.find_text, text)
+    if existing is not None:
+        raise OnThePage(f"That post is already on the page ({existing['status']}).")
+    author_name = " ".join(str(author_name or "").split())[:120] or name_from_slug(slug)
+    author = author_key(slug, author_name)
+    reasons = [screen_post(text)]
+    if not author:
+        reasons.append("no author to check one a week against: type their name")
+    elif await asyncio.to_thread(held.recent_author, author, now - 7 * 86400,
+                                 besides=post_id, name=author_name):
+        reasons.append("this author is on the page or was commented on this week")
+    screened = "; ".join(r for r in reasons if r)
     if screened and not anyway:
         raise Refused(screened)
-    card = Card(post_id, clean, text[:6000], author,
-                " ".join(str(author_name or "").split())[:120] or name_from_slug(author),
-                screened)
+    card = Card(post_id, clean, text[:6000], author, author_name, screened)
     await _match(cache, card, drafter)
-    held.put(card, now)
-    return held.get(post_id) or {}
+    await asyncio.to_thread(held.put, card, now)
+    return await asyncio.to_thread(held.get, post_id) or {}
+
+
+class OnThePage(ValueError):
+    """The post already has a card; use Match again or Back to waiting."""
 
 
 async def rematch(cache, post_id: str, *, drafter=None,
                   held: Optional[Store] = None) -> dict:
     """Match a card again - after the Go Deeper episode it needed was made."""
-    held = held or store()
-    card = held.card(post_id)
+    held = held or await asyncio.to_thread(store)
+    card = await asyncio.to_thread(held.card, post_id)
     if card is None:
         raise KeyError(post_id)
     await _match(cache, card, drafter)
-    held.put(card, time.time())
-    return held.get(post_id) or {}
+    await asyncio.to_thread(held.put, card, time.time())
+    return await asyncio.to_thread(held.get, post_id) or {}
 
 
 async def _match(cache, card: Card, drafter=None) -> None:
@@ -635,18 +703,21 @@ async def _match(cache, card: Card, drafter=None) -> None:
     card.reason = reason(card.text, card.episode, card.screened)
     card.draft, card.question, card.drafted_by, dollars = await (drafter or draft)(
         card.text, card.episode)
-    if dollars:
-        log.info("linkedin: drafted for $%.4f", dollars)
+    # Every match's drafting is counted on its card and summed on the page
+    # ([failures-visible]): Match again is a model call each time.
+    card.dollars = round(card.dollars + float(dollars or 0), 6)
 
 
 def health() -> dict:
     out = {"available": True,
            "detail": "nothing here reads LinkedIn: a person finds and pastes posts"}
     if not _exists():
-        out["counts"] = {}
+        out["counts"], out["dollars"] = {}, 0.0
         return out
     try:
-        out["counts"] = store().counts()
+        held = store()
+        out["counts"] = held.counts()
+        out["dollars"] = held.dollars()
     except Exception as exc:  # noqa: BLE001
         out["error"] = str(exc)
     return out

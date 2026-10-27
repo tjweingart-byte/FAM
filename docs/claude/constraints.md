@@ -1589,11 +1589,13 @@
   `/admin/x` seeds from, and a person pastes the post (address and words).
   Code screens out announcements, hiring, promotion, grief and posts that do
   not teach (a person may add one anyway; the card says so), keeps one
-  author a week, and matches every kept non-explicit episode (`/admin/x`'s
+  author a week (by profile or typed name; an approved card outlives
+  pruning for that week), refuses a post already on the page, and matches every kept non-explicit episode (`/admin/x`'s
   embeddings and names). Below `LINK_FLOOR` there is no comment, only the Go
   Deeper question to search in FAM, then "Match again". Approve copies the
   comment - the person's words, then `Go Deeper: "<title>" (n min) <link>` -
-  and opens the post; the person pastes and posts. Cards are kept a week.
+  and opens the post; the person pastes and posts. Only an approval writes
+  what was posted. Each card counts its drafting cost. Cards are kept a week.
 <!-- rule:app-review-safety -->
 - **Report anything, block both ways, and ask before a listener's words go to
   the AI** (App Store 1.2 and 5.1.2(i), §222). Every comment, message, vibe,

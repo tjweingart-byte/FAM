@@ -172,7 +172,8 @@ def test_the_words_must_be_pasted_too():
 def test_one_author_a_week():
     _add()
     with pytest.raises(L.Refused, match="this author"):
-        _add(url=URL.replace("7251234567890123456", "7251234567890999999"))
+        _add(url=URL.replace("7251234567890123456", "7251234567890999999"),
+             text=TEACHING + "\n\nPart two.")
 
 
 def test_without_its_subject_there_is_no_comment_only_a_question():
@@ -209,6 +210,124 @@ def test_old_cards_are_pruned_after_a_week():
     _add()
     held = L.store()
     assert held.prune(NOW + 8 * 86400) == 1 and held.all() == []
+
+
+# --- what the review found (§322) ------------------------------------------------------
+
+
+FEED = "https://www.linkedin.com/feed/update/urn:li:activity:7251234567890999999/"
+
+
+def test_an_encoded_urn_is_a_post_and_a_strange_slug_is_not():
+    post_id, clean, _ = L.parse_url(
+        "https://www.linkedin.com/feed/update/urn%3Ali%3Aactivity%3A7251234567890123456/")
+    assert post_id == "activity:7251234567890123456" and "%3A" not in clean
+    with pytest.raises(L.NotAPost):
+        L.parse_url('https://www.linkedin.com/posts/a_b"><img-activity-7251234567890123456-x')
+
+
+def test_an_address_with_no_author_is_checked_by_the_typed_name():
+    _add()  # Jane Doe, from the slug
+    other = TEACHING + "\n\nPart two."
+    with pytest.raises(L.Refused, match="this author"):
+        _add(url=FEED, text=other, author_name="  jane   DOE ")
+    with pytest.raises(L.Refused, match="type their name"):
+        _add(url=FEED, text=other)
+    card = _add(url=FEED, text=other, author_name="Someone Else")
+    assert card["author"] == "name:someone else"
+
+
+def test_a_post_already_on_the_page_is_not_carded_again_even_anyway():
+    _add()
+    with pytest.raises(L.OnThePage, match="already on the page"):
+        _add(anyway=True)
+    # The same post under another kind of id is the same words.
+    with pytest.raises(L.OnThePage):
+        _add(url=FEED, author_name="Other", anyway=True)
+
+
+def test_an_approval_keeps_its_author_for_a_week_after_it_whatever_pruning_does():
+    _add()
+    held = L.store()
+    held.decide("activity:7251234567890123456", L.APPROVED, NOW + 6 * 86400,
+                posted="words", share_url="https://f.am/s/a")
+    assert held.prune(NOW + 7 * 86400 + 3600) == 0
+    assert held.recent_author("jane-doe-4b2a1c", NOW + 7 * 86400 + 3600 - 7 * 86400)
+    assert held.prune(NOW + 13 * 86400 + 3600) == 1
+
+
+def test_skip_or_reopen_after_approval_keeps_what_was_posted():
+    _add()
+    held = L.store()
+    pid = "activity:7251234567890123456"
+    held.decide(pid, L.APPROVED, NOW, posted="The comment.", share_url="https://f.am/s/a")
+    held.decide(pid, L.WAITING, NOW + 1)
+    held.decide(pid, L.SKIPPED, NOW + 2)
+    card = held.get(pid)
+    assert card["posted"] == "The comment." and card["share_url"] == "https://f.am/s/a"
+
+
+def test_a_name_counts_only_as_a_whole_word():
+    fed = {"key": "k-fed", "query": "What is the Fed doing?", "title": "The Fed",
+           "minutes": 1, "plays": 0, "explicit": False}
+    text = "The federal budget and the federation of states, explained. " * 3
+    [found] = L.episodes_for(FakeCache([fed]), text)
+    assert found["match"] < 0.4  # no credit for "Fed" inside "federal"
+
+
+def test_every_match_counts_its_drafting_cost():
+    _add()
+    asyncio.run(L.rematch(FakeCache([OTHER, EPISODE]), "activity:7251234567890123456",
+                          drafter=_drafter()))
+    assert L.store().dollars() == pytest.approx(0.002)
+    assert L.health()["dollars"] == pytest.approx(0.002)
+
+
+class _Block:
+    type = "text"
+
+    def __init__(self, text):
+        self.text = text
+
+
+class _Model:
+    """A stand-in for the Anthropic client: answers with `body`."""
+
+    def __init__(self, body):
+        self.body = body
+        self.messages = self
+        self.asked = []
+
+    async def create(self, **kw):
+        self.asked.append(kw)
+
+        class R:
+            content = [_Block(self.body)]
+            usage = None
+        return R()
+
+
+def test_the_models_comment_and_question_are_read():
+    episode = dict(EPISODE, match=0.9)
+    model = _Model('{"comment": "What the committee signals first matters most.", '
+                   '"question": "How does the Fed signal a move?"}')
+    comment, question, by, _ = asyncio.run(L.draft(TEACHING, episode, client=model))
+    assert comment.startswith("What the committee") and question.endswith("move?")
+    assert by == L.config.settings.linkedin_model
+    assert "Federal Reserve Decides" in model.asked[0]["messages"][0]["content"]
+
+
+def test_with_no_episode_the_models_comment_is_dropped_and_its_question_kept():
+    model = _Model('{"comment": "Some words anyway.", "question": "How do teams scale?"}')
+    comment, question, by, _ = asyncio.run(L.draft(TEACHING, None, client=model))
+    assert comment == "" and question == "How do teams scale?"
+
+
+def test_an_empty_or_broken_answer_falls_back_to_code():
+    episode = dict(EPISODE, match=0.9)
+    for body in ('{"comment": "", "question": "q"}', "not json"):
+        comment, _, by, dollars = asyncio.run(L.draft(TEACHING, episode, client=_Model(body)))
+        assert by == "code" and comment == L.fallback_comment(episode) and dollars == 0.0
 
 
 # --- the endpoints -------------------------------------------------------------------
@@ -272,9 +391,14 @@ def test_a_refusal_is_said_and_can_be_overruled(client):
     r = client.post("/api/admin/linkedin/add", headers=ADMIN,
                     json={"url": URL, "text": "Thrilled to announce our webinar! " * 5})
     assert r.status_code == 409 and "announcement" in _detail(r)
+    assert r.headers.get("x-fam-overrule") == "anyway"
     r = client.post("/api/admin/linkedin/add", headers=ADMIN,
                     json={"url": URL, "text": "Thrilled to announce our webinar! " * 5, "anyway": True})
     assert r.status_code == 200
+    again = client.post("/api/admin/linkedin/add", headers=ADMIN,
+                        json={"url": URL, "text": TEACHING, "anyway": True})
+    assert again.status_code == 409 and "already on the page" in _detail(again)
+    assert "x-fam-overrule" not in again.headers
     bad = client.post("/api/admin/linkedin/add", headers=ADMIN,
                       json={"url": "https://lnkd.in/x", "text": TEACHING})
     assert bad.status_code == 422 and "short link" in _detail(bad)
@@ -300,6 +424,25 @@ def test_a_comment_too_long_for_linkedin_is_refused(client):
     assert r.status_code == 422 and "LinkedIn allows" in _detail(r)
     [card] = client.get("/api/admin/linkedin", headers=ADMIN).json()["cards"]
     assert card["status"] == L.WAITING
+
+
+def test_approve_uses_the_episode_the_person_chose(client, monkeypatch):
+    import app as appmod
+
+    second = dict(EPISODE, key="k-rates-2", title="Interest Rates and the Federal Reserve",
+                  query="Why does the Federal Reserve move interest rates slowly?")
+    monkeypatch.setattr(appmod, "SCRIPT_CACHE", FakeCache([EPISODE, second]))
+    card = client.post("/api/admin/linkedin/add", headers=ADMIN,
+                       json={"url": URL, "text": TEACHING}).json()["card"]
+    assert all(e["linked"] for e in card["episodes"][:2])
+    other = card["episodes"][1]
+    heard = client.post("/api/admin/linkedin/listen", headers=ADMIN,
+                        json={"post_id": PID, "chosen": 1}).json()
+    body = client.post("/api/admin/linkedin/decide", headers=ADMIN, json={
+        "post_id": PID, "action": "approve", "chosen": 1}).json()
+    assert other["title"] in body["text"] and body["share_url"] == heard["url"]
+    [stored] = client.get("/api/admin/linkedin?status=approved", headers=ADMIN).json()["cards"]
+    assert stored["chosen"] == 1
 
 
 def test_skip_and_reopen(client):

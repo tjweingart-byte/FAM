@@ -160,7 +160,7 @@
         return r.json().catch(function () { return {}; }).then(function (j) {
           if (!r.ok) {
             var e = new Error(j.error || (typeof j.detail === "string" ? j.detail : "") || ("HTTP " + r.status));
-            e.status = r.status; throw e;
+            e.status = r.status; e.overrule = r.headers.get("X-FAM-Overrule") === "anyway"; throw e;
           }
           return j;
         });
@@ -199,7 +199,7 @@
       kpi("Waiting", c.waiting || 0) +
       kpi("Approved", c.approved || 0, "kept a week") +
       kpi("Skipped", c.skipped || 0) +
-      kpi("Searches", (data.searches || []).length, "from Trending and the most played");
+      kpi("Drafting spend", "$" + Number((data.health || {}).dollars || 0).toFixed(2), "every match, the cards kept");
 
     var ss = data.searches || [];
     $("searches").innerHTML = ss.length ? ss.map(function (s) {
@@ -356,8 +356,9 @@
       })
       .catch(function (e) {
         $("pasteNote").className = "note err"; $("pasteNote").textContent = e.message;
-        // The screen's refusal can be overruled; a bad address cannot.
-        $("anywayBtn").hidden = e.status !== 409;
+        // The screen's refusal can be overruled; a bad address, or a post
+        // already on the page, cannot.
+        $("anywayBtn").hidden = !e.overrule;
       })
       .then(function () { $("pasteBtn").disabled = false; });
   }
@@ -379,8 +380,9 @@
   });
 
 
+  // No polling: nothing changes the cards but this page, and each load
+  // reads the cache to build the searches.
   load();
-  setInterval(function () { if (!document.hidden && data) load(); }, 15000);
 })();
 </script>
 </body>

@@ -10947,11 +10947,13 @@ async def admin_linkedin(request: Request, status: str = "") -> dict:
         raise HTTPException(status_code=422, detail="Unknown status.")
     cards = []
     if linkedin_posts._exists():
-        cards = await asyncio.to_thread(linkedin_posts.store().all, status)
-    searches = await asyncio.to_thread(
-        linkedin_posts.search_links, SCRIPT_CACHE,
-        trending=x_threads.trending_now(), limit=settings.x_threads_seeds)
-    return {"health": linkedin_posts.health(), "cards": cards, "searches": searches,
+        cards = await asyncio.to_thread(lambda: linkedin_posts.store().all(status))
+    # The Trending edition and the cache are read off the loop.
+    searches = await asyncio.to_thread(lambda: linkedin_posts.search_links(
+        SCRIPT_CACHE, trending=x_threads.trending_now(),
+        limit=settings.x_threads_seeds))
+    health = await asyncio.to_thread(linkedin_posts.health)
+    return {"health": health, "cards": cards, "searches": searches,
             "comment_chars": linkedin_posts.COMMENT_CHARS}
 
 
@@ -10975,6 +10977,11 @@ async def admin_linkedin_add(req: LinkedInPaste, request: Request) -> dict:
     except linkedin_posts.NotAPost as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except linkedin_posts.Refused as exc:
+        # The page offers "Add it anyway" only for a refusal that may be
+        # overruled - never for a post that already has a card.
+        raise HTTPException(status_code=409, detail=str(exc),
+                            headers={"X-FAM-Overrule": "anyway"}) from exc
+    except linkedin_posts.OnThePage as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     return {"card": card}
 
@@ -11035,10 +11042,11 @@ async def admin_linkedin_listen(req: LinkedInListen, request: Request) -> dict:
     _require_admin(request)
     if not linkedin_posts._exists():
         raise HTTPException(status_code=404, detail="No cards yet")
-    card = await asyncio.to_thread(linkedin_posts.store().get, req.post_id)
+    card = await asyncio.to_thread(lambda: linkedin_posts.store().get(req.post_id))
     if card is None:
         raise HTTPException(status_code=404, detail="No card for that post")
-    return {"url": _linkedin_link(_linkedin_episode(card, req.chosen), request)}
+    episode = _linkedin_episode(card, req.chosen)
+    return {"url": await asyncio.to_thread(_linkedin_link, episode, request)}
 
 
 class LinkedInDecision(LinkedInCard):
@@ -11058,7 +11066,7 @@ async def admin_linkedin_decide(req: LinkedInDecision, request: Request) -> dict
     _require_admin(request)
     if not linkedin_posts._exists():
         raise HTTPException(status_code=404, detail="No cards yet")
-    held = linkedin_posts.store()
+    held = await asyncio.to_thread(linkedin_posts.store)
     card = await asyncio.to_thread(held.get, req.post_id)
     if card is None:
         raise HTTPException(status_code=404, detail="No card for that post")
@@ -11069,7 +11077,7 @@ async def admin_linkedin_decide(req: LinkedInDecision, request: Request) -> dict
         await asyncio.to_thread(held.decide, req.post_id, status, now)
         return {"post_id": req.post_id, "status": status}
     episode = _linkedin_episode(card, req.chosen)
-    link = _linkedin_link(episode, request)
+    link = await asyncio.to_thread(_linkedin_link, episode, request)
     try:
         text = linkedin_posts.compose(req.text or card["draft"], episode, link)
     except linkedin_posts.TooLong as exc:

@@ -22709,3 +22709,31 @@ No spend beyond the drafting call: no LinkedIn API exists to pay for.
 **Unverified here:** no model key, so no drafted comment has been read; the
 `_TEACH`/`_PROMO` patterns are a first guess to be tuned against the posts
 people actually paste. CLAUDE.md's core is now at its 40,000-byte budget.
+
+**Review before merging (10.27).** An independent read of the branch found
+holes, confirmed by running them, all fixed with tests:
+- *One author a week was shorter than a week.* Pruning went by `added_at`,
+  the check by `decided_at`, so a post approved on day 6 freed its author
+  on day 7. An approved card is now kept until a week after its approval.
+- *A `/feed/update/` address skipped it.* That shape names no author; the
+  check now falls back to the typed name (and matches names across both
+  shapes), and with neither it refuses in words ("type their name").
+- *Re-pasting a post rewrote its card under its old verdict.* A post
+  already on the page - by id, or by identical words under another id kind
+  (`activity:` vs `ugcPost:`) - is refused, even "anyway"; the page offers
+  "Add it anyway" only when the server marks a refusal `X-FAM-Overrule`.
+- *Skip or Back to waiting after Approve erased what was posted.* Only an
+  approval writes `posted`/`share_url` now.
+- *Store calls ran on the event loop* (and `SHARES.create`, `health`,
+  `trending_now`); all go through `asyncio.to_thread`.
+- *Drafting spend went only to a log line*; each card now carries what its
+  matches cost, summed on the page ([failures-visible]).
+- *Percent-encoded URNs were refused*; the path is decoded first, and a
+  `/posts/` slug outside `[A-Za-z0-9_%-]` is refused.
+- *Names matched as substrings* ("Fed" in "federal") across posts of
+  thousands of characters; they match as whole words now.
+- The page no longer polls: only it changes the cards, and each load reads
+  the cache. The model path of `draft` is tested with a stand-in client.
+
+`/admin/x` has the first and fourth holes too (`x_threads.Store.prune` and
+`decide`); left for its own change, since that page is merged and in use.
