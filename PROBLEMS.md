@@ -23206,7 +23206,9 @@ short". `DEFAULT_MINUTES` and `BROWSE_MINUTES` are 1.5 (both 1 since §305),
 and so are the client's `DEFAULT_LENGTH_MINUTES` and `BROWSE_MINUTES`. The
 Length bubble offers 1, 1.5, 2, 3, 4 and 5 and goes back to 1.5 on every
 return to the app; Go Deeper has a sixth pill, 1.5, and opens on the length
-of the episode it follows, held to the half minute (`offeredMinutes`).
+of the episode it follows, held to the half minute (`offeredMinutes`). Six
+pills reading "N min" ran past the modal at 320px and "1.5 min" wrapped, so
+the pills say the number alone and the label says "Length (minutes)".
 
 Minutes were whole numbers everywhere, so this is more than two constants:
 - `config.as_minutes` holds a length to the nearest half minute and keeps a
