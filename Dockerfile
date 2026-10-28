@@ -119,4 +119,9 @@ ENV CACHE_PATH=/data/scripts.db \
 RUN mkdir -p /data
 
 EXPOSE 8000
-CMD ["sh", "-c", "python -m uvicorn app:app --host 0.0.0.0 --port ${PORT:-8000}"]
+# One process, always (§336). uvicorn takes its worker count from
+# WEB_CONCURRENCY when --workers is not given, and production ran two: every
+# background job twice (editions, GDELT, the voice warm-up - paid calls
+# included), two embedding models, two sets of in-process state. FAM keeps
+# state in its process (POSTGRES.md) and must run as one.
+CMD ["sh", "-c", "python -m uvicorn app:app --host 0.0.0.0 --port ${PORT:-8000} --workers 1"]

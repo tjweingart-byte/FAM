@@ -113,3 +113,15 @@ def test_the_real_model_pads_to_the_batch_not_to_128():
     e = embeddings._OnnxEmbedder(_real_model())
     assert len(e.tokenizer.encode("a short title").ids) < 128
     assert e.session.get_session_options().intra_op_num_threads == embeddings.embed_threads()
+
+
+def test_every_way_of_starting_the_server_runs_one_process():
+    """§336: uvicorn reads WEB_CONCURRENCY when --workers is not given, and
+    production ran two processes - every background job twice."""
+    here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    for name in ("Dockerfile", "start.sh", "run.sh"):
+        text = open(os.path.join(here, name)).read()
+        lines = [line for line in text.splitlines()
+                 if "uvicorn app:app" in line and not line.lstrip().startswith("#")]
+        assert lines, name
+        assert all("--workers 1" in line for line in lines), name

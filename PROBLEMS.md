@@ -23377,7 +23377,10 @@ a restart, or once a written episode mints a category, which is what the
 night editions do. Every node name was padded to 128 tokens, so the whole
 tree was one batch of hundreds of 128-token rows. Now `encode_many` splits
 it into passes of 16 under the lock, unpadded: 2,000 node names in one call
-add 13 MB and take 3.5 s on a background thread.
+add 13 MB and take 3.5 s on a background thread. The same chain is in the logs
+at 12:12 UTC (waitlist visit, `/api/welcome`, restart a minute later) and
+12:50 (waitlist visit, `/api/welcome`, 2,016 MB at 12:51 with
+`category-near` running).
 
 The watch from §334 stays, and now names what runs when memory jumps: it
 samples every 15 seconds, every HTTP request records its own change in
@@ -23387,3 +23390,26 @@ requests in flight, those finished since the last sample (largest rise
 first), the event loop's tasks and the threads (`memory_report.jump_step`;
 `/api/admin/memory` keeps them under `watch.jumps`). If anything else ever
 steps up like this, the log says what.
+
+## 336. One process, always (2026-10-28)
+
+Production's restart log (12:12 UTC, 10.28):
+
+    INFO:     Started parent process [7]
+    INFO:     Started server process [10]
+    INFO:     Started server process [9]
+
+Two uvicorn workers in one instance. Nothing in FAM asks for them: uvicorn
+takes its worker count from `WEB_CONCURRENCY` when `--workers` is not given,
+and the service had it set (by hand or by the platform). Every log line of
+a background job had been appearing twice - the story sweep, local news,
+GDELT's download, the voice health check - and so had everything they do:
+both processes ran the Trending and DailyFAM editions and their boot
+catch-ups (paid model and search calls), both warmed the serverless voice,
+both loaded the embedding model and rebuilt the category vectors (§335).
+FAM keeps state in its process (`POSTGRES.md`: the story pool, the sweep
+clocks, prefetch's ledgers, the spend limiter, live captions) and is built
+to run as one.
+
+The Dockerfile's `CMD`, `start.sh` and `run.sh` now say `--workers 1`, so no
+variable can make it two again; a test reads all three.
