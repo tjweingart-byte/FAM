@@ -23413,3 +23413,80 @@ to run as one.
 
 The Dockerfile's `CMD`, `start.sh` and `run.sh` now say `--workers 1`, so no
 variable can make it two again; a test reads all three.
+
+## 337. The marketing engines read the post before they write (2026-10-28)
+
+The owner (10.28), with a flip chart, "X & LinkedIn Automated Marketing
+Engines": "Target: Tweets/LinkedIn posts that have ___ amount of
+comments/likes [posts with HIGH ENGAGEMENT] -> go through (cross reference
+FAM's cached episodes) -> find a match - the post & cached episode ->
+creatively curate a post that is best fit for the post it is replying to &
+platform that it's on". X: "curiosity, being a part of the conversation".
+LinkedIn: "informative, context giving, allowing people to Go Deeper or have
+more context". Circled: "The engines need some kind of awareness/intelligence
+(like Episode Intelligence)".
+
+**What §321-§327 already did, and what was missing.** Both engines start from
+kept episodes and find posts about them; a person approves and posts. Three
+gaps against the chart:
+
+1. *No engagement floor.* X weighed engagement per hour (0.30) but carded a
+   post nobody had touched; LinkedIn ignored engagement.
+2. *X matched a post only to the episode whose search found it.* LinkedIn
+   already ranked every post against every kept episode; X did not, so a post
+   one search found and another episode answered was dropped as off-subject.
+3. *The drafting call knew the episode's title and nothing else*, so it could
+   not say anything the title did not - and was told never to. Both platforms
+   were written in nearly one voice.
+
+**Now.**
+
+- *High engagement.* `X_THREADS_MIN_ENGAGEMENT` (25 likes, replies, reposts
+  and quotes together) screens X posts. The chart left the number blank, so
+  25 is a first guess and a setting. LinkedIn has no API: `engagement_from`
+  reads "12 comments" / "1.2K reactions" off the search result's title and
+  excerpt; under `LINKEDIN_MIN_ENGAGEMENT` (20) a found post is not a card,
+  an unknown count refuses nothing (a layer must not subtract availability),
+  and engagement orders posts that match about as well (0.15 of the sort).
+- *Every kept episode.* `catalogue`, `rank` and `off_subject` moved from
+  `linkedin_posts` to `outreach_intelligence` (LinkedIn keeps the names), and
+  `x_threads.shortlist(episodes=...)` ranks each post against them all. The
+  card keeps its three best on-subject episodes; one with no names to check
+  is not offered on X. The found-by episode stays an option; the card says
+  when another one is closer.
+- *Outreach Intelligence* (`outreach_intelligence.py`), EI's lesson: decide
+  before writing, write only from material. The one drafting call per card
+  now answers the read's fields first - `subject`, `intent` (asking, arguing,
+  teaching, news, reacting), `wants`, `same_subject`, `choice` (which of the
+  offered episodes answers this post, -1 none), `why`, `angle`, `detail` -
+  then the words. Each offered episode is shown with what it says: its
+  summary line and the opening of its script (`material`, ~900 characters,
+  read from the cache only). The read is stored (a `reading` column; both
+  stores are widened in place) and shown on every card ("Read: Asking about
+  ...; adds: ..."; "Read in code" without a model). A read choosing another
+  offered episode switches the card's episode, never to one under
+  `LINK_FLOOR`; a read choosing none leaves X a question with no link and
+  LinkedIn no comment, every offered episode marked off-subject.
+- *The platforms' voices* (`OI.VOICE`). X: one more person in the thread,
+  curious about the same thing; answer this post in its register; spark
+  curiosity with the specific the thread has not said, stated plainly, never
+  teased; may end with one genuine question. LinkedIn: build on somebody
+  teaching with the context behind their point; two to four plain sentences;
+  end with what the episode goes deeper on that a post could not hold.
+- *Nothing is stated that FAM has not got.* With material in the prompt the
+  old "never a number unless in the title" became "unless in the post or the
+  episode's title, one line or opening" - and code checks it:
+  `unsupported_figures` sends a reply naming a figure none of those states
+  back to the code's words, and the card says "Rewritten in code".
+
+Same as ever: a button, never a timer; nothing posts; no LinkedIn request or
+credential; one model call per card (the read and the words together, the
+schema ordered so the call decides first), so the spend is as before plus a
+longer prompt.
+
+**Unverified here:** no X token, search key or Claude key in this container,
+so no live read has been seen. `tests/test_outreach_intelligence_337.py`
+pins the logic with stand-ins. The floors are guesses - after a week, compare
+approved cards' engagement with the floor. A read of the thread's replies
+(X's `conversation_id` search) would give the engine the conversation, not
+only its first post; it costs reads, so it waits for this to prove itself.

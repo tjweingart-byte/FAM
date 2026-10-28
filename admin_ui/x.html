@@ -59,6 +59,7 @@
   .chip.ok { background:var(--green-bg); color:var(--green); }
   .chip.bad { background:var(--rose-bg); color:var(--rose); }
   .reason { font-size:12px; color:var(--muted); }
+  .read { font-size:12.5px; border-left:3px solid var(--line); padding:2px 0 2px 8px; }
   .episode { font-size:12.5px; }
   .episode b { font-family:var(--serif); font-size:15px; }
   textarea { width:100%; min-height:96px; resize:vertical; background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:10px 12px; line-height:1.45; }
@@ -189,7 +190,8 @@
       kpi("Approved", c.approved || 0, "kept a week") +
       kpi("Skipped", c.skipped || 0) +
       kpi("X reads today", (h.reads_today || 0) + " / " + (h.daily_reads || 0),
-          (h.max_reads || 0) + " most per search");
+          (h.max_reads || 0) + " most per search") +
+      kpi("Engagement floor", h.min_engagement || 0, "likes, replies, reposts and quotes");
     $("runBtn").disabled = !h.available || data.running;
     if (!h.available) { $("runNote").className = "note err"; $("runNote").textContent = "Cannot search X: " + h.detail + "."; }
     else if (data.running) { $("runNote").className = "note"; $("runNote").textContent = "Searching X and drafting replies. Cards appear here as they arrive."; }
@@ -217,7 +219,9 @@
       if (k.drafted_by === "code") chips.push('<span class="chip bad" title="No model could be asked; written from the episode title">drafted in code</span>');
       if (k.status === "approved") chips.push('<span class="chip ok">approved</span>');
       var side = '<div class="side"><div class="chips">' + chips.join("") + '</div>'
-        + '<div class="reason">' + esc(k.reason) + '</div>';
+        + '<div class="reason">' + esc(k.reason) + '</div>'
+        + (k.read_line ? '<div class="read" title="What FAM understood about the post before it wrote (§337)">'
+          + (k.read && k.read.by === "code" ? "Read in code: " : "Read: ") + esc(k.read_line) + '</div>' : '');
       if (ep && linked(k)) {
         side += '<div class="episode">Episode: <b>' + esc(ep.title) + '</b> · ' + ep.minutes + ' min'
           + ' <button class="ghost" data-act="listen" data-id="' + id + '">Listen first</button></div>';

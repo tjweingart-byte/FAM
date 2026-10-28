@@ -35,6 +35,15 @@ scrubbed there, and a run says so rather than pretending it found nothing.
 episode it matched, how fast the thread is moving, how much room is left in
 it. The page shows that line; a score with no sentence is not a reason.
 
+**High engagement, every kept episode, then a read** (§337): a post under
+`X_THREADS_MIN_ENGAGEMENT` interactions is not a card; a post found from one
+episode is matched against every kept episode (`outreach_intelligence.rank`),
+so the episode that answers it is offered even when another one's search
+found it; and the drafting call reads the post first - its subject, what it
+is doing, which episode answers it, the angle FAM adds - from what the
+episodes actually say (`outreach_intelligence.py`), then writes in X's voice:
+curiosity, and being part of the conversation.
+
 **A layer that adds quality must not subtract availability**: with no
 model key the reply is drafted in code from the episode's title, and the card
 says so.
@@ -59,6 +68,7 @@ from urllib.parse import quote
 
 import db as store_db
 import config
+import outreach_intelligence as OI
 from paths import data_path
 from config import as_minutes
 
@@ -209,6 +219,13 @@ class Candidate:
     draft: str = ""
     drafted_by: str = ""        # a model id, or "code"
     other: Optional[Post] = None  # the opposing post, for BOTH_SIDES
+    #: The episodes the read chooses among, `[(Seed, match)]`, `seed` first
+    #: (§337); empty means `seed` alone.
+    options: list = field(default_factory=list)
+    #: What each offered episode says (`outreach_intelligence.material`), by key.
+    material: dict = field(default_factory=dict)
+    #: What the drafting call understood about the post (`OI.Read.as_dict`).
+    read: dict = field(default_factory=dict)
 
 
 # --------------------------------------------------------------------------
@@ -504,8 +521,13 @@ def takes_a_side(text: str) -> bool:
     return bool(_STANCE.search(text or ""))
 
 
+def engagement(post: Post) -> int:
+    """Everything people did with a post: likes, replies, reposts, quotes."""
+    return post.likes + post.replies + post.reposts + post.quotes
+
+
 def screen(post: Post, now: float, *, window_hours: float,
-           replied_to: Iterable[str] = ()) -> str:
+           replied_to: Iterable[str] = (), min_engagement: int = 0) -> str:
     """Why this post is not a thread to join, or "" when it is. Code only."""
     if post.is_reply:
         return "a reply, not a conversation's start"
@@ -515,6 +537,8 @@ def screen(post: Post, now: float, *, window_hours: float,
         return "marked sensitive"
     if post.created_at and now - post.created_at > window_hours * 3600:
         return "older than the window"
+    if engagement(post) < min_engagement:
+        return "too little engagement yet"
     if post.verified_type in ("business", "government"):
         return "an organisation, not a person"
     if post.followers < MIN_FOLLOWERS:
@@ -548,7 +572,8 @@ def velocity(post: Post, now: float) -> float:
     return min(1.0, math.log1p(per_hour) / math.log1p(200.0))
 
 
-def match(post: Post, seed: Optional[Seed], about: Optional[list] = None) -> float:
+def match(post: Post, seed: Optional[Seed], about: Optional[list] = None,
+          post_vector: Optional[list] = None) -> float:
     """How much the episode is about what the post is about, 0-1: the same
     embeddings the cache matches questions with, plus the seed's names.
     `about` is the episode's vector when the caller already has it - one
@@ -560,7 +585,9 @@ def match(post: Post, seed: Optional[Seed], about: Optional[list] = None) -> flo
     try:
         if about is None:
             about = embeddings.embed(f"{seed.title}. {seed.query}")
-        semantic = max(0.0, embeddings.cosine(embeddings.embed(post.text), about))
+        if post_vector is None:
+            post_vector = embeddings.embed(post.text)
+        semantic = max(0.0, embeddings.cosine(post_vector, about))
     except Exception:  # noqa: BLE001
         semantic = 0.0
     low = post.text.lower()
@@ -569,9 +596,10 @@ def match(post: Post, seed: Optional[Seed], about: Optional[list] = None) -> flo
 
 
 def score(post: Post, seed: Optional[Seed], now: float,
-          about: Optional[list] = None) -> tuple[float, dict]:
+          about: Optional[list] = None,
+          post_vector: Optional[list] = None) -> tuple[float, dict]:
     parts = {
-        "match": match(post, seed, about),
+        "match": match(post, seed, about, post_vector),
         "velocity": round(velocity(post, now), 4),
         "question": 1.0 if asks(post.text) else (0.5 if takes_a_side(post.text) else 0.0),
         "room": round(1.0 - min(post.replies, MAX_REPLIES) / MAX_REPLIES, 4),
@@ -600,7 +628,7 @@ def reason(post: Post, seed: Optional[Seed], parts: dict, kind: str,
     """Why this card is on the page, in words ([candidate-reason])."""
     bits = []
     hours = (now - post.created_at) / 3600.0 if post.created_at else 0.0
-    engaged = post.likes + post.replies + post.reposts + post.quotes
+    engaged = engagement(post)
     bits.append(f"{engaged} interactions in {max(hours, 0.1):.1f}h")
     bits.append(f"{post.replies} replies so far")
     if asks(post.text):
@@ -626,33 +654,80 @@ def opposed(a: Post, b: Post) -> bool:
                                     news_clusters.tokens(b.text))
 
 
+def _seed_of(episode: dict) -> Seed:
+    """A catalogue entry (`outreach_intelligence.catalogue`) as a Seed."""
+    return Seed(episode["key"], episode["query"], episode["title"],
+                as_minutes(episode.get("minutes") or 1),
+                tuple(episode.get("names") or ())[:3], "cached",
+                int(episode.get("plays") or 0))
+
+
 def shortlist(found: list[tuple[Post, Seed]], now: float, *, window_hours: float,
-              replied_to: Iterable[str] = (), size: int = SHORTLIST) -> list[Candidate]:
-    """Screen, score and choose: one card per author, best first."""
+              replied_to: Iterable[str] = (), size: int = SHORTLIST,
+              episodes: Optional[list] = None,
+              min_engagement: Optional[int] = None) -> list[Candidate]:
+    """Screen, score and choose: one card per author, best first.
+
+    With `episodes` (an `outreach_intelligence.catalogue`), every post is
+    also matched against every kept episode (§337): the episode whose search
+    found a post is not assumed to be the one that answers it. Each card
+    keeps its best `OI.OFFERED` on-subject episodes for the read to choose
+    among; a post no episode is the subject of is not a card."""
     import embeddings
 
+    if min_engagement is None:
+        min_engagement = config.settings.x_threads_min_engagement
     replied_to = list(replied_to)
     best: dict = {}
-    vectors: dict = {}
+    vectors: dict = {e["key"]: e.get("vector") for e in episodes or ()}
+    ranked: dict = {}
+    posts: dict = {}            # each post's vector, embedded once
+
+    def about(option: Seed):
+        if option.key not in vectors:
+            try:
+                vectors[option.key] = embeddings.embed(f"{option.title}. {option.query}")
+            except Exception:  # noqa: BLE001
+                vectors[option.key] = None
+        return vectors[option.key]
+
     for post, seed in found:
-        if screen(post, now, window_hours=window_hours, replied_to=replied_to):
+        if screen(post, now, window_hours=window_hours, replied_to=replied_to,
+                  min_engagement=min_engagement):
             continue
-        if on_subject(post, seed):
+        options = [seed] if seed is not None and not on_subject(post, seed) else []
+        if post.id not in posts:
+            try:
+                posts[post.id] = embeddings.embed(post.text)
+            except Exception:  # noqa: BLE001
+                posts[post.id] = None
+        if episodes:
+            if post.id not in ranked:
+                # A name to check is what keeps a shared word from passing
+                # as a shared subject; an episode with none is not offered.
+                ranked[post.id] = [e for e in OI.rank(episodes, post.text,
+                                                      limit=OI.OFFERED + 1,
+                                                      post_vector=posts[post.id])
+                                   if e["names"] and not e["off_subject"]]
+            for e in ranked[post.id]:
+                if all(o.key != e["key"] for o in options):
+                    options.append(_seed_of(e))
+        if not options:
             continue
-        about = None
-        if seed is not None:
-            if seed.key not in vectors:
-                try:
-                    vectors[seed.key] = embeddings.embed(f"{seed.title}. {seed.query}")
-                except Exception:  # noqa: BLE001
-                    vectors[seed.key] = None
-            about = vectors[seed.key]
-        total, parts = score(post, seed, now, about)
+        scored = sorted(((score(post, o, now, about(o), posts[post.id]), o)
+                         for o in options),
+                        key=lambda pair: -pair[0][0])
+        (total, parts), primary = scored[0]
         kept = best.get(post.id)
         if kept is None or total > kept.score:
             kind = kind_of(post, parts)
-            best[post.id] = Candidate(post, seed, total, parts, kind,
-                                      reason(post, seed, parts, kind, now))
+            cand = Candidate(post, primary, total, parts, kind,
+                             reason(post, primary, parts, kind, now))
+            cand.options = [(o, p["match"]) for (_t, p), o in scored[:OI.OFFERED]]
+            if seed is not None and primary.key != seed.key:
+                cand.reason += (f" Found searching for “{seed.title}”; another kept "
+                                "episode is closer to it.")
+            best[post.id] = cand
     ranked = sorted(best.values(), key=lambda c: -c.score)
     out, authors = [], set()
     for cand in ranked:
@@ -680,47 +755,26 @@ def shortlist(found: list[tuple[Post, Seed]], now: float, *, window_hours: float
 # Drafting
 
 
-DRAFT_SYSTEM = """You draft one reply on X for FAM, an app that turns what \
-people care about into short audio stories. The reply goes under somebody \
-else's post. A person at FAM reads it and posts it themselves.
-
-First, judge relevance - strictly, because an off-topic reply is spam:
-- same_subject: is the post about the same subject as FAM's episode - the \
-same team, person, company, event or question - and not merely sharing a \
-word or a name with it (the Philadelphia Eagles are not eagles; Apple the \
-company is not apples; a United Airlines flight is not Manchester United)? When unsure, false.
-- episode_fits: would someone reading this exact post want this exact \
-episode - does it answer or deepen what the post is asking or arguing? A \
-story on the same subject about something else is false. When unsure, false.
+#: The drafting call: Outreach Intelligence's read (§337), X's voice, and
+#: what an X card needs besides - the both-sides pair, and the reply.
+DRAFT_RULES = """What an X reply needs besides:
 - other_same_subject: when a second post is given, is it about that same \
 subject and conversation? false when no second post is given.
+- reply: the reply itself, answering THIS post's own question, claim or \
+point - not the episode's angle. No link: one is added after your words \
+when there is an episode."""
 
-Then the reply, which must answer what THIS post says - its own question, \
-claim or point - not the episode's angle:
-- Read the post and answer it like a person. Contribute a thoughtful angle \
-first: a distinction, a fact on the post's own subject, or what the two \
-sides actually disagree about.
-- End with one short, genuine question back to the poster.
-- Only when episode_fits is true may you say "we explored this in a short \
-episode" once, plainly; otherwise never mention FAM or an episode. Never "check out", never "link below", no hashtags, \
-no emoji, no exclamation marks, no flattery ("great question").
-- Never state a number, score, date or result unless it appears in the post \
-or the episode title. Never claim to know the poster.
-- At most {chars} characters. No link: one is added after your words when \
-there is an episode."""
+DRAFT_SYSTEM = OI.system(OI.X, DRAFT_RULES, DRAFT_CHARS)
 
-DRAFT_SCHEMA = {
-    "type": "object",
-    "properties": {
-        "same_subject": {"type": "boolean"},
-        "episode_fits": {"type": "boolean"},
-        "other_same_subject": {"type": "boolean"},
-        "why": {"type": "string"},
-        "reply": {"type": "string"},
-    },
-    "required": ["same_subject", "episode_fits", "other_same_subject", "why", "reply"],
-    "additionalProperties": False,
-}
+DRAFT_SCHEMA = OI.schema({"other_same_subject": {"type": "boolean"},
+                          "reply": {"type": "string"}})
+
+
+def offered(cand: Candidate) -> list:
+    """The episodes this card's read chooses among, `seed` first."""
+    if cand.options:
+        return [seed for seed, _match in cand.options]
+    return [cand.seed] if cand.seed is not None else []
 
 
 def draft_prompt(cand: Candidate) -> str:
@@ -728,15 +782,17 @@ def draft_prompt(cand: Candidate) -> str:
     if cand.other is not None:
         lines += [f"Another side, by @{cand.other.author}:", cand.other.text.strip(), "",
                   "Connect the two perspectives: name the trade-off between them."]
-    if cand.seed is not None:
-        lines.append(f"FAM's episode: “{cand.seed.title}” "
-                     f"(the question it answers: {cand.seed.query})")
     if cand.kind == QUESTION_ONLY or cand.seed is None:
-        lines.append("The episode will not be linked. Ask a better question - one "
-                     "that helps people in the thread see what they disagree about. "
-                     "Do not mention FAM or an episode.")
+        lines.append("FAM has no episode to link here: choice is -1. Ask a better "
+                     "question - one that helps people in the thread see what they "
+                     "disagree about. Do not mention FAM or an episode.")
+        if cand.seed is not None:
+            lines.append(f"(The nearest episode, for the read only: “{cand.seed.title}”.)")
+    else:
+        lines += ["FAM's kept episodes, closest first:",
+                  OI.options_block([asdict(o) for o in offered(cand)], cand.material)]
     lines.append("Judge relevance in the `why` field in one sentence: what the "
-                 "post is about, and whether the episode is that.")
+                 "post is about, and whether the chosen episode is that.")
     return "\n".join(lines)
 
 
@@ -789,6 +845,12 @@ class Verdict:
     episode_fits: bool = True
     other_same_subject: bool = True
     why: str = ""
+    #: Which offered episode answers the post (`offered(cand)`), when it fits.
+    choice: int = 0
+    #: The whole read (§337), shown on the card.
+    read: Optional[dict] = None
+    #: Why the words were replaced by the code's, or "".
+    replaced: str = ""
 
 
 async def draft(cand: Candidate, client=None) -> tuple[str, str, float]:
@@ -799,16 +861,18 @@ async def draft(cand: Candidate, client=None) -> tuple[str, str, float]:
 
 
 async def judge_and_draft(cand: Candidate, client=None) -> tuple:
-    """`(reply, drafted_by, dollars, verdict)`: one call that first judges
-    whether the post and the episode are about the same thing, then writes
-    the reply to the post. Never raises but cancellation: a model that
-    cannot be asked leaves the code's draft and the code's gate
-    (`on_subject`), said so on the card."""
+    """`(reply, drafted_by, dollars, verdict)`: one call that first reads the
+    post (§337) - what it is about, what it is doing, which offered episode
+    answers it - then writes the reply to the post. Never raises but
+    cancellation: a model that cannot be asked leaves the code's draft and
+    the code's gate (`on_subject`), said so on the card."""
     import credentials
     import metering
 
+    options = offered(cand)
     if client is None and not credentials.active("ANTHROPIC_API_KEY"):
-        return trim(fallback_draft(cand)), "code", 0.0, Verdict()
+        read = OI.code_read(cand.post.text, options)
+        return trim(fallback_draft(cand)), "code", 0.0, Verdict(read=read.as_dict())
     model = config.settings.x_threads_model
     try:
         if client is None:
@@ -816,8 +880,7 @@ async def judge_and_draft(cand: Candidate, client=None) -> tuple:
 
             client = build_async_client(credentials.active("ANTHROPIC_API_KEY"))
         response = await client.messages.create(
-            model=model, max_tokens=600,
-            system=DRAFT_SYSTEM.format(chars=DRAFT_CHARS),
+            model=model, max_tokens=900, system=DRAFT_SYSTEM,
             output_config={"format": {"type": "json_schema", "schema": DRAFT_SCHEMA}},
             messages=[{"role": "user", "content": draft_prompt(cand)}])
         usage = metering.Usage()
@@ -825,13 +888,25 @@ async def judge_and_draft(cand: Candidate, client=None) -> tuple:
         dollars = metering.price_of(usage).total
         text = next(b.text for b in response.content if b.type == "text")
         body = json.loads(text)
-        verdict = Verdict(same_subject=bool(body.get("same_subject")),
-                          episode_fits=bool(body.get("episode_fits")),
+        read = OI.parse(body, len(options), model)
+        verdict = Verdict(same_subject=read.same_subject,
+                          episode_fits=read.choice >= 0,
                           other_same_subject=bool(body.get("other_same_subject")),
-                          why=str(body.get("why") or "")[:300])
+                          why=read.why, choice=max(read.choice, 0),
+                          read=read.as_dict())
         reply = trim(body.get("reply") or "")
         if not reply:
             # The judgement stands; only the words are the code's.
+            return trim(fallback_draft(cand)), "code", dollars, verdict
+        chosen = options[verdict.choice] if verdict.episode_fits and options else None
+        said = cand.material.get(chosen.key) if chosen is not None else None
+        stray = OI.unsupported_figures(reply, OI.sources_for(
+            "\n".join([cand.post.text] + ([cand.other.text] if cand.other else [])),
+            asdict(chosen) if chosen is not None else None, said))
+        if stray:
+            # A figure FAM has not got is not said under its name.
+            verdict.replaced = (f"the drafted reply named {', '.join(stray[:3])}, "
+                                "which neither the post nor the episode states")
             return trim(fallback_draft(cand)), "code", dollars, verdict
         return reply, model, dollars, verdict
     except asyncio.CancelledError:
@@ -840,15 +915,25 @@ async def judge_and_draft(cand: Candidate, client=None) -> tuple:
         log.warning("x threads: drafting fell back to code: %s", exc)
         # The relevance check did not run: the code's gate has passed the
         # post, but no episode is linked on its word alone.
+        why = "the relevance check could not run, so no link"
         return trim(fallback_draft(cand)), "code", 0.0, Verdict(
-            episode_fits=False, why="the relevance check could not run, so no link")
+            episode_fits=False, why=why,
+            read=OI.code_read(cand.post.text, options, why=why).as_dict())
 
 
 def apply_verdict(cand: Candidate, verdict: Verdict) -> str:
     """Fold the judgement into the card. Returns why the card is dropped, or
     "" when it stays - the post itself is about something else."""
+    if verdict.read:
+        cand.read = dict(verdict.read)
     if not verdict.same_subject:
         return verdict.why or "the post is about something else"
+    options = cand.options or []
+    if (verdict.episode_fits and 0 < verdict.choice < len(options)
+            and options[verdict.choice][1] >= LINK_FLOOR):
+        # The read chose another kept episode as the one that answers it.
+        cand.seed, cand.parts["match"] = options[verdict.choice]
+        cand.reason += f" The read chose “{cand.seed.title}” as the episode that answers it."
     if cand.other is not None and not verdict.other_same_subject:
         cand.other = None
         cand.kind = THREAD_TO_EPISODE if asks(cand.post.text) else ANGLE_AND_EPISODE
@@ -859,6 +944,8 @@ def apply_verdict(cand: Candidate, verdict: Verdict) -> str:
         cand.reason += " Same subject, but the episode does not answer this post, so no link."
     if verdict.why:
         cand.reason += f" Checked: {verdict.why}"
+    if verdict.replaced:
+        cand.reason += f" Rewritten in code: {verdict.replaced}."
     return ""
 
 
@@ -912,6 +999,13 @@ class Store:
                    )""")
             conn.execute("CREATE INDEX IF NOT EXISTS candidates_status"
                          " ON candidates(status, found_at)")
+            # §337: what the drafting call understood about the post. Added
+            # after the table shipped, so an existing file is widened.
+            try:
+                conn.execute("ALTER TABLE candidates ADD COLUMN reading"
+                             " TEXT NOT NULL DEFAULT ''")
+            except sqlite3.OperationalError:
+                pass  # already there
             conn.execute(
                 """CREATE TABLE IF NOT EXISTS runs (
                        at      REAL NOT NULL,
@@ -944,12 +1038,13 @@ class Store:
         episode = asdict(cand.seed) if cand.seed is not None else {}
         self._conn().execute(
             "INSERT OR IGNORE INTO candidates (post_id, found_at, score, kind,"
-            " reason, post, other, episode, draft, drafted_by, status)"
-            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            " reason, post, other, episode, draft, drafted_by, status, reading)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (cand.post.id, at, cand.score, cand.kind, cand.reason,
              json.dumps(asdict(cand.post)),
              json.dumps(asdict(cand.other)) if cand.other is not None else "",
-             json.dumps(episode), cand.draft, cand.drafted_by, status))
+             json.dumps(episode), cand.draft, cand.drafted_by, status,
+             json.dumps(cand.read) if cand.read else ""))
 
     def get(self, post_id: str) -> Optional[dict]:
         """One card by its post, or None - a set-aside post is not a card,
@@ -959,7 +1054,7 @@ class Store:
 
     def all(self, status: str = "", post_id: str = "", limit: int = 100) -> list[dict]:
         sql = ("SELECT post_id, found_at, score, kind, reason, post, other, episode,"
-               " draft, drafted_by, status, decided_at, posted, share_url"
+               " draft, drafted_by, status, decided_at, posted, share_url, reading"
                " FROM candidates WHERE 1=1")
         args: list = []
         if status:
@@ -987,7 +1082,9 @@ class Store:
                 "post": post, "other": other,
                 "episode": json.loads(r[7]) if r[7] else None,
                 "draft": r[8], "drafted_by": r[9], "status": r[10],
-                "decided_at": r[11], "posted": r[12], "share_url": r[13]})
+                "decided_at": r[11], "posted": r[12], "share_url": r[13],
+                "read": json.loads(r[14]) if r[14] else None,
+                "read_line": OI.summary(json.loads(r[14]) if r[14] else None)})
         return out
 
     def decide(self, post_id: str, status: str, at: float, *, posted: str = "",
@@ -1163,16 +1260,22 @@ async def run(cache, *, now: Optional[float] = None, searcher=None,
         # streams listeners' audio.
         # Twice the cards wanted, so a card the judgement drops can be
         # replaced from further down the ranking.
+        # Every kept episode, not only the ones searched for (§337): the
+        # episode that answers a post may not be the one that found it.
+        episodes = await asyncio.to_thread(OI.catalogue, cache)
         picked = await asyncio.to_thread(
             shortlist, fresh, now,
             window_hours=config.settings.x_threads_window_hours,
             replied_to=held.replied_authors(now - 7 * 86400),
-            size=2 * SHORTLIST)
+            size=2 * SHORTLIST, episodes=episodes)
         report["screened_out"] = len({p.id for p, _ in fresh}) - len(picked)
         report["off_subject"] = []
         for cand in picked:
             if report["cards"] >= SHORTLIST:
                 break
+            # What each offered episode says, so the read writes from it.
+            cand.material = await asyncio.to_thread(
+                lambda: {s.key: OI.material(cache, s.key) for s in offered(cand)})
             result = await (drafter or judge_and_draft)(cand)
             reply, by, dollars = result[:3]
             verdict = result[3] if len(result) > 3 else Verdict()
@@ -1210,6 +1313,7 @@ async def run(cache, *, now: Optional[float] = None, searcher=None,
 def health() -> dict:
     ok, why = available()
     out = {"available": ok, "detail": why,
+           "min_engagement": config.settings.x_threads_min_engagement,
            "max_reads": config.settings.x_threads_max_reads,
            "daily_reads": config.settings.x_threads_daily_reads,
            "window_hours": config.settings.x_threads_window_hours}

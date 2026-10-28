@@ -36,6 +36,15 @@ one anyway (the episode may simply give more context), and the card says so.
 comment - it names the Go Deeper question an episode would answer, to be
 searched in FAM, and "Match again" finds it once it is kept.
 
+**High engagement, then a read** (§337): a found post whose search result
+shows fewer reactions and comments than `LINKEDIN_MIN_ENGAGEMENT` is not a
+card, and the most engaged rank first among equally good matches. The
+drafting call reads the post before it writes (`outreach_intelligence.py`):
+what it is about and teaching, which of the three offered episodes goes
+deeper on it - from what each episode says, not only its title - and the
+context FAM adds; then it writes in LinkedIn's voice: informative,
+context-giving, a reason to Go Deeper.
+
 **A candidate carries its reason in words** ([candidate-reason]), and with
 no model key the comment is drafted in code and the card says so.
 
@@ -46,6 +55,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import math
 import re
 import sqlite3
 import threading
@@ -56,6 +66,7 @@ from urllib.parse import quote, unquote, urlparse
 
 import db as store_db
 import config
+import outreach_intelligence as OI
 import x_threads
 from paths import data_path
 from config import as_minutes
@@ -91,7 +102,7 @@ SET_ASIDE = "set_aside"
 STATUSES = (WAITING, APPROVED, SKIPPED)
 
 #: How many kept episodes a card offers: the best, and two to switch to.
-OFFERED = 3
+OFFERED = OI.OFFERED
 
 #: Posts that announce or sell rather than teach.
 _PROMO = re.compile(
@@ -258,83 +269,11 @@ def screen_post(text: str) -> str:
     return ""
 
 
-def catalogue(cache) -> list[dict]:
-    """The episodes a post can be matched to: the newest 200 kept, never an
-    explicit one, each with its names and its vector worked out once - a
-    search run matches dozens of posts against the same episodes."""
-    import embeddings
-
-    rows = []
-    try:
-        rows = cache.recent(limit=200) if cache is not None else []
-    except Exception as exc:  # noqa: BLE001 - a match never raises
-        log.warning("linkedin: could not read the cache: %s", exc)
-    out = []
-    for row in rows:
-        if row.get("explicit") or not row.get("query"):
-            continue
-        title = row.get("title") or row["query"]
-        try:
-            vector = embeddings.embed(f"{title}. {row['query']}")
-        except Exception:  # noqa: BLE001
-            vector = None
-        out.append({"key": row["key"], "query": row["query"], "title": title,
-                    "minutes": as_minutes(row.get("minutes") or 1),
-                    "plays": int(row.get("plays") or 0),
-                    "names": x_threads.names_for(title, row["query"]),
-                    "vector": vector})
-    return out
-
-
-def rank(episodes: list[dict], text: str, *, limit: int = OFFERED) -> list[dict]:
-    """`episodes` (a `catalogue`) most about what the post is about, best
-    first, each with its match (0-1): the X page's `match` - embeddings 0.6,
-    the episode's names 0.4. A name counts only as a whole word: a post runs
-    to thousands of characters, and "Fed" is inside "federal"."""
-    import embeddings
-
-    try:
-        post_vector = embeddings.embed(text)
-    except Exception:  # noqa: BLE001
-        post_vector = None
-    low = (text or "").lower()
-    scored = []
-    for e in episodes:
-        semantic = 0.0
-        if post_vector is not None and e.get("vector") is not None:
-            try:
-                semantic = max(0.0, embeddings.cosine(post_vector, e["vector"]))
-            except Exception:  # noqa: BLE001
-                semantic = 0.0
-        names = e.get("names") or ()
-        named = (sum(1 for n in names if re.search(
-            r"(?<!\w)" + re.escape(n.lower()) + r"(?!\w)", low)) / len(names)) if names else 0.0
-        scored.append({"key": e["key"], "query": e["query"], "title": e["title"],
-                       "minutes": e["minutes"], "plays": e["plays"],
-                       "match": round(min(1.0, 0.6 * semantic + 0.4 * named), 4),
-                       "off_subject": off_subject(text, e)})
-    scored.sort(key=lambda e: (-e["match"], -e["plays"]))
-    return scored[:limit]
-
-
-def off_subject(text: str, episode: dict) -> str:
-    """Why the post is not about the episode's subject, or "" when it is:
-    the X page's `on_subject` (§326) - it must name what the episode names,
-    and a one-word name must come with one of the episode's own subject
-    words. "United" is not Manchester United; a shared word is not a shared
-    subject. An episode with no names to check is judged by the match alone."""
-    names = tuple(episode.get("names") or ())
-    if not names:
-        return ""
-    seed = x_threads.Seed(episode.get("key", ""), episode.get("query", ""),
-                          episode.get("title", ""), as_minutes(episode.get("minutes") or 1), names)
-    return x_threads.on_subject(_Text(text), seed)
-
-
-@dataclass
-class _Text:
-    """What `x_threads.on_subject` reads of a post: its words."""
-    text: str
+#: The episodes a post can be matched to, and how they are ranked: shared
+#: with `/admin/x` since §337 (`outreach_intelligence`).
+catalogue = OI.catalogue
+rank = OI.rank
+off_subject = OI.off_subject
 
 
 def episodes_for(cache, text: str, *, limit: int = OFFERED) -> list[dict]:
@@ -375,51 +314,35 @@ def reason(text: str, episode: Optional[dict], screened: str) -> str:
 # Drafting
 
 
-DRAFT_SYSTEM = """You draft one LinkedIn comment for FAM, an app that turns \
-what people care about into short audio stories. The comment goes under \
-somebody else's post that teaches or explains something. A person at FAM \
-reads it and posts it themselves.
+#: The drafting call: Outreach Intelligence's read (§337), LinkedIn's
+#: voice, and what a LinkedIn card needs besides.
+DRAFT_RULES = """What a LinkedIn card needs besides:
+- comment: the comment itself. When no episode is offered, or choice is \
+-1, leave it empty.
+- question: the Go Deeper question a listener would ask FAM after reading \
+this post - one line, as somebody would type it."""
 
-First, when an episode is given, judge - strictly, because an off-topic \
-comment is spam - `fits`: is the post about the same subject as the \
-episode (the same company, person, team, idea or question, not merely a \
-shared word or name: Apple the company is not apples, a United Airlines \
-flight is not Manchester United), and would somebody who read this post \
-want this exact episode? When unsure, false; say why in `why`. With no \
-episode, `fits` is true. When `fits` is false, leave `comment` empty.
+DRAFT_SYSTEM = OI.system(OI.LINKEDIN, DRAFT_RULES, DRAFT_CHARS)
 
-How FAM comments:
-- Add to their point; do not praise it. Open with something specific the \
-episode goes further on: a distinction, the context behind their point, or \
-what it leaves open. Two or three sentences, plain and professional.
-- Never "great post", "love this", "thanks for sharing", never hashtags, \
-emoji, exclamation marks or "check out".
-- Never state a number, date, name or result unless it is in the post or \
-the episode title. Never claim to know the author.
-- Do not include a link or the episode's title: a line "Go Deeper: <title> \
-<link>" is added after your words.
-- At most {chars} characters.
-
-Also write `question`: the Go Deeper question a listener would ask FAM \
-after reading this post - one line, as somebody would type it."""
-
-DRAFT_SCHEMA = {
-    "type": "object",
-    "properties": {"fits": {"type": "boolean"}, "why": {"type": "string"},
-                   "comment": {"type": "string"}, "question": {"type": "string"}},
-    "required": ["fits", "why", "comment", "question"],
-    "additionalProperties": False,
-}
+DRAFT_SCHEMA = OI.schema({"comment": {"type": "string"},
+                          "question": {"type": "string"}})
 
 
-def draft_prompt(text: str, episode: Optional[dict]) -> str:
+def offered(card: "Card") -> list[dict]:
+    """The episodes a card's read chooses among: those it may link."""
+    return [e for e in card.episodes if linked(e)]
+
+
+def draft_prompt(text: str, episode: Optional[dict], options: Optional[list] = None,
+                 materials: Optional[dict] = None) -> str:
+    options = options if options is not None else ([episode] if linked(episode) else [])
     lines = ["The post:", (text or "").strip(), ""]
-    if linked(episode):
-        lines.append(f"FAM's episode: “{episode['title']}” "
-                     f"(the question it answers: {episode['query']})")
+    if options:
+        lines += ["FAM's kept episodes, closest first:",
+                  OI.options_block(options, materials)]
     else:
-        lines.append("FAM has no episode on this yet. Leave `comment` empty "
-                     "and write only the question.")
+        lines.append("FAM has no episode on this yet: choice is -1. Leave "
+                     "`comment` empty and write only the question.")
     return "\n".join(lines)
 
 
@@ -436,22 +359,28 @@ async def draft(text: str, episode: Optional[dict],
                 client=None) -> tuple[str, str, str, float]:
     """`(comment, question, drafted_by, dollars)`, for a caller that wants
     the words only (`judge_and_draft` is what the page uses)."""
-    comment, question, by, dollars, _misfit = await judge_and_draft(text, episode, client)
+    comment, question, by, dollars, *_rest = await judge_and_draft(text, episode, client)
     return comment, question, by, dollars
 
 
-async def judge_and_draft(text: str, episode: Optional[dict],
-                          client=None) -> tuple[str, str, str, float, str]:
-    """`(comment, question, drafted_by, dollars, misfit)`: one call that
-    first judges whether the post and the episode are about the same thing
-    (`misfit` says why not, "" when they are), then writes the comment.
-    Never raises but cancellation: a model that cannot be asked leaves the
-    code's comment and the code's gate (`off_subject`), said on the card."""
+async def judge_and_draft(text: str, episode: Optional[dict], client=None, *,
+                          options: Optional[list] = None,
+                          materials: Optional[dict] = None) -> tuple:
+    """`(comment, question, drafted_by, dollars, misfit, read)`: one call that
+    first reads the post (§337) - what it is about and teaching, and which of
+    `options` (default: `episode`) goes deeper on it (`misfit` says why none
+    does, "" when one does) - then writes the comment. Never raises but
+    cancellation: a model that cannot be asked leaves the code's comment and
+    the code's gate (`off_subject`), said on the card."""
     import credentials
     import metering
 
+    if options is None:
+        options = [episode] if linked(episode) else []
     if client is None and not credentials.active("ANTHROPIC_API_KEY"):
-        return x_threads.trim(fallback_comment(episode), DRAFT_CHARS), "", "code", 0.0, ""
+        read = OI.code_read(text, options, intent="teaching" if teaches(text) else "")
+        return (x_threads.trim(fallback_comment(episode), DRAFT_CHARS), "", "code",
+                0.0, "", read)
     model = config.settings.linkedin_model
     dollars = 0.0
     try:
@@ -460,46 +389,82 @@ async def judge_and_draft(text: str, episode: Optional[dict],
 
             client = build_async_client(credentials.active("ANTHROPIC_API_KEY"))
         response = await client.messages.create(
-            model=model, max_tokens=800,
-            system=DRAFT_SYSTEM.format(chars=DRAFT_CHARS),
+            model=model, max_tokens=1100, system=DRAFT_SYSTEM,
             output_config={"format": {"type": "json_schema", "schema": DRAFT_SCHEMA}},
-            messages=[{"role": "user", "content": draft_prompt(text, episode)}])
+            messages=[{"role": "user", "content": draft_prompt(text, episode, options,
+                                                               materials)}])
         usage = metering.Usage()
         usage.add_model_call(model, getattr(response, "usage", None))
         dollars = metering.price_of(usage).total
         body = json.loads(next(b.text for b in response.content if b.type == "text"))
+        read = OI.parse(body, len(options), model)
         question = " ".join(str(body.get("question") or "").split())[:200]
-        if linked(episode) and body.get("fits") is False:
-            why = " ".join(str(body.get("why") or "").split())[:200]
-            return "", question, model, dollars, why or "the post is about something else"
-        comment = x_threads.trim(body.get("comment") or "", DRAFT_CHARS) \
-            if linked(episode) else ""
-        if linked(episode) and not comment:
+        if options and (not read.same_subject or read.choice < 0):
+            return ("", question, model, dollars,
+                    read.why or "the post is about something else", read)
+        comment = x_threads.trim(body.get("comment") or "", DRAFT_CHARS) if options else ""
+        if options and not comment:
             raise ValueError("an empty comment")
-        return comment, question, model, dollars, ""
+        if options:
+            chosen = options[read.choice]
+            stray = OI.unsupported_figures(comment, OI.sources_for(
+                text, chosen, (materials or {}).get(chosen.get("key", ""))))
+            if stray:
+                # A figure FAM has not got is not said under its name.
+                read.replaced = (f"the drafted comment named {', '.join(stray[:3])}, "
+                                 "which neither the post nor the episode states")
+                return (x_threads.trim(fallback_comment(chosen), DRAFT_CHARS),
+                        question, "code", dollars, "", read)
+        return comment, question, model, dollars, "", read
     except asyncio.CancelledError:
         raise
     except Exception as exc:  # noqa: BLE001
         log.warning("linkedin: drafting fell back to code: %s", exc)
         return (x_threads.trim(fallback_comment(episode), DRAFT_CHARS), "", "code",
-                dollars, "")
+                dollars, "", OI.code_read(text, options,
+                                          intent="teaching" if teaches(text) else ""))
 
 
-async def _judged(drafter, text: str, episode: Optional[dict]) -> tuple:
-    """A drafter's answer as `(comment, question, by, dollars, misfit)`: a
-    stand-in that only drafts (four values) never judges."""
-    out = tuple(await (drafter or judge_and_draft)(text, episode))
-    return out if len(out) == 5 else out + ("",)
+async def _judged(drafter, text: str, episode: Optional[dict], *,
+                  options: Optional[list] = None, materials: Optional[dict] = None) -> tuple:
+    """A drafter's answer as `(comment, question, by, dollars, misfit, read)`:
+    a stand-in that only drafts (four values) never judges, and one that
+    does not read (five) leaves no read."""
+    if drafter is None:
+        return tuple(await judge_and_draft(text, episode, options=options,
+                                           materials=materials))
+    out = tuple(await drafter(text, episode))
+    return out + ("", None)[len(out) - 4:] if len(out) < 6 else out
 
 
-def mark_misfit(card: "Card", misfit: str) -> None:
+def mark_misfit(card: "Card", misfit: str, *, every: bool = False) -> None:
     """Fold the drafting call's "not about this" into the card: the episode
-    is off-subject, so the card has no comment and says why."""
-    episode = card.episode
-    if episode is not None:
-        episode["off_subject"] = f"checked: {misfit}"
+    is off-subject - with `every`, each episode the read was offered - so the
+    card has no comment and says why."""
+    for episode in (offered(card) if every else [card.episode]):
+        if episode is not None:
+            episode["off_subject"] = f"checked: {misfit}"
     card.draft = ""
     card.reason = reason(card.text, card.episode, card.screened)
+
+
+def apply(card: "Card", answer: tuple) -> str:
+    """A drafter's answer on the card: the words, the read, the episode the
+    read chose. Returns the misfit, "" when an episode goes deeper on it."""
+    comment, question, by, dollars, misfit, read = answer
+    options = offered(card)
+    card.draft, card.question, card.drafted_by = comment, question, by
+    card.read = read.as_dict() if read is not None else {}
+    card.dollars = round(card.dollars + float(dollars or 0), 6)
+    if misfit:
+        mark_misfit(card, misfit, every=read is not None)
+        return misfit
+    if read is not None and 0 < read.choice < len(options):
+        card.chosen = card.episodes.index(options[read.choice])
+        card.reason += f" The read chose “{card.episode['title']}” as the one that goes deeper."
+    if read is not None and read.replaced:
+        card.reason += f" Rewritten in code: {read.replaced}."
+    return ""
 
 
 class TooLong(ValueError):
@@ -544,6 +509,10 @@ class Card:
     dollars: float = 0.0        # what drafting this card has cost, every match
     origin: str = PASTED        # FOUND by a search run, or PASTED by a person
     found_by: str = ""          # the episode whose search found it
+    #: Reactions and comments as the search result showed them; -1 unknown.
+    engagement: int = -1
+    #: What the drafting call understood about the post (§337).
+    read: dict = field(default_factory=dict)
 
     @property
     def episode(self) -> Optional[dict]:
@@ -582,6 +551,15 @@ class Store:
                    )""")
             conn.execute("CREATE INDEX IF NOT EXISTS posts_status"
                          " ON posts(status, added_at)")
+            # §337, added after the table shipped, so an existing file is
+            # widened: the post's engagement and what the read understood.
+            for ddl in ("ALTER TABLE posts ADD COLUMN engagement"
+                        " INTEGER NOT NULL DEFAULT -1",
+                        "ALTER TABLE posts ADD COLUMN reading TEXT NOT NULL DEFAULT ''"):
+                try:
+                    conn.execute(ddl)
+                except sqlite3.OperationalError:
+                    pass  # already there
             # The ids of pruned posts, words gone: what stops a later search
             # carding a post FAM already commented on (§327).
             conn.execute(
@@ -613,31 +591,33 @@ class Store:
         values = (card.url, card.text, card.author, card.author_name, card.screened,
                   json.dumps(card.episodes), int(card.chosen), card.reason,
                   card.draft, card.question, card.drafted_by, float(card.dollars),
-                  card.origin, card.found_by)
+                  card.origin, card.found_by, int(card.engagement),
+                  json.dumps(card.read) if card.read else "")
         cur = conn.execute(
             "UPDATE posts SET url = ?, text = ?, author = ?, author_name = ?,"
             " screened = ?, episodes = ?, chosen = ?, reason = ?, draft = ?,"
-            " question = ?, drafted_by = ?, dollars = ?, origin = ?, found_by = ?"
-            " WHERE post_id = ?",
+            " question = ?, drafted_by = ?, dollars = ?, origin = ?, found_by = ?,"
+            " engagement = ?, reading = ? WHERE post_id = ?",
             values + (card.post_id,))
         if cur.rowcount == 0:
             conn.execute(
                 "INSERT INTO posts (url, text, author, author_name, screened,"
                 " episodes, chosen, reason, draft, question, drafted_by, dollars,"
-                " origin, found_by, post_id, added_at)"
-                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                " origin, found_by, engagement, reading, post_id, added_at)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 values + (card.post_id, at))
 
     def card(self, post_id: str) -> Optional[Card]:
         row = self._conn().execute(
             "SELECT post_id, url, text, author, author_name, screened, episodes,"
-            " chosen, reason, draft, question, drafted_by, dollars, origin, found_by"
-            " FROM posts WHERE post_id = ?", (post_id,)).fetchone()
+            " chosen, reason, draft, question, drafted_by, dollars, origin, found_by,"
+            " engagement, reading FROM posts WHERE post_id = ?", (post_id,)).fetchone()
         if not row:
             return None
         return Card(row[0], row[1], row[2], row[3], row[4], row[5],
                     json.loads(row[6] or "[]"), int(row[7]), row[8], row[9],
-                    row[10], row[11], float(row[12] or 0), row[13], row[14])
+                    row[10], row[11], float(row[12] or 0), row[13], row[14],
+                    int(row[15]), json.loads(row[16]) if row[16] else {})
 
     def get(self, post_id: str) -> Optional[dict]:
         rows = self.all(post_id=post_id)
@@ -646,8 +626,8 @@ class Store:
     def all(self, status: str = "", post_id: str = "", limit: int = 100) -> list[dict]:
         sql = ("SELECT post_id, added_at, url, text, author, author_name, screened,"
                " episodes, chosen, reason, draft, question, drafted_by, status,"
-               " decided_at, posted, share_url, dollars, origin, found_by"
-               " FROM posts WHERE status != 'set_aside'")
+               " decided_at, posted, share_url, dollars, origin, found_by,"
+               " engagement, reading FROM posts WHERE status != 'set_aside'")
         args: list = []
         if status:
             sql += " AND status = ?"
@@ -672,7 +652,10 @@ class Store:
                 "linked": linked(episode), "reason": r[9], "draft": r[10],
                 "question": r[11], "drafted_by": r[12], "status": r[13],
                 "decided_at": r[14], "posted": r[15], "share_url": r[16],
-                "dollars": float(r[17] or 0), "origin": r[18], "found_by": r[19]})
+                "dollars": float(r[17] or 0), "origin": r[18], "found_by": r[19],
+                "engagement": int(r[20]),
+                "read": json.loads(r[21]) if r[21] else None,
+                "read_line": OI.summary(json.loads(r[21]) if r[21] else None)})
         return out
 
     def decide(self, post_id: str, status: str, at: float, *, posted: str = "",
@@ -764,12 +747,14 @@ class Store:
         cur = self._conn().execute(
             "INSERT OR IGNORE INTO posts (url, text, author, author_name, screened,"
             " episodes, chosen, reason, draft, question, drafted_by, dollars,"
-            " origin, found_by, post_id, added_at, status, decided_at)"
-            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            " origin, found_by, engagement, reading, post_id, added_at, status,"
+            " decided_at)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (card.url, card.text, card.author, card.author_name, card.screened,
              json.dumps(card.episodes), int(card.chosen), card.reason, card.draft,
              card.question, card.drafted_by, float(card.dollars), card.origin,
-             card.found_by, card.post_id, at, status,
+             card.found_by, int(card.engagement),
+             json.dumps(card.read) if card.read else "", card.post_id, at, status,
              at if status != WAITING else 0.0))
         return cur.rowcount > 0
 
@@ -917,13 +902,19 @@ async def _match(cache, card: Card, drafter=None) -> None:
     card.episodes = await asyncio.to_thread(episodes_for, cache, card.text)
     card.chosen = 0
     card.reason = reason(card.text, card.episode, card.screened)
-    card.draft, card.question, card.drafted_by, dollars, misfit = await _judged(
-        drafter, card.text, card.episode)
-    if misfit:
-        mark_misfit(card, misfit)
     # Every match's drafting is counted on its card and summed on the page
     # ([failures-visible]): Match again is a model call each time.
-    card.dollars = round(card.dollars + float(dollars or 0), 6)
+    apply(card, await _read_and_draft(cache, card, drafter))
+
+
+async def _read_and_draft(cache, card: Card, drafter=None) -> tuple:
+    """The drafting call for a card, shown every episode it may link and
+    what each one says (§337)."""
+    options = offered(card)
+    materials = await asyncio.to_thread(
+        lambda: {e["key"]: OI.material(cache, e["key"]) for e in options})
+    return await _judged(drafter, card.text, card.episode, options=options,
+                         materials=materials)
 
 
 # --------------------------------------------------------------------------
@@ -942,6 +933,9 @@ RESULTS_PER_SEARCH = 10
 _TITLE_ON = re.compile(r"^(.{2,80}?) on LinkedIn\b")
 _TITLE_POST = re.compile(r"^(.{2,80}?)['’]s Post\b")
 _TITLE_BAR = re.compile(r"\|\s*([^|]{2,80}?)\s*\|\s*\d+\s+comments?", re.I)
+#: How a search result shows what people did with a post: "12 comments",
+#: "1.2K reactions", "340 likes".
+_COUNT = re.compile(r"(\d[\d,]*(?:\.\d+)?)\s*([kKmM])?\+?\s+(reactions?|likes?|comments?|reposts?)\b")
 
 
 def backend() -> str:
@@ -1020,6 +1014,23 @@ async def search(seed, *, recency_days: int, name: str = "") -> tuple[list, floa
     return results, float(dollars)
 
 
+def engagement_from(*texts: str) -> int:
+    """Reactions, likes, comments and reposts together, as a search result
+    shows them, or -1 when it shows none. Each kind counted once, at the
+    highest figure given for it (a title and an excerpt may both say it)."""
+    best: dict = {}
+    for text in texts:
+        for number, scale, kind in _COUNT.findall(str(text or "")):
+            try:
+                value = float(number.replace(",", ""))
+            except ValueError:
+                continue
+            value *= {"k": 1_000, "m": 1_000_000}.get(scale.lower(), 1)
+            kind = kind.lower().rstrip("s")
+            best[kind] = max(best.get(kind, 0), int(value))
+    return sum(best.values()) if best else -1
+
+
 def posts_from(results) -> list[dict]:
     """Search results that are LinkedIn posts, in the fields a card needs:
     profiles, company pages, jobs and articles are not posts."""
@@ -1037,7 +1048,8 @@ def posts_from(results) -> list[dict]:
         out.append({"post_id": post_id, "url": clean, "slug": slug,
                     "author_name": author_from_title(title) or name_from_slug(slug),
                     "text": (text or title).strip(),
-                    "published": str(getattr(r, "published_date", "") or "")})
+                    "published": str(getattr(r, "published_date", "") or ""),
+                    "engagement": engagement_from(title, text)})
     return out
 
 
@@ -1128,13 +1140,10 @@ async def run(cache, *, now: Optional[float] = None, searcher=None,
         for card in picked:
             if report["cards"] >= SHORTLIST:
                 break
-            card.draft, card.question, card.drafted_by, cost, misfit = await _judged(
-                drafter, card.text, card.episode)
-            card.dollars = round(float(cost or 0), 6)
-            if misfit:
+            card.dollars = 0.0
+            if apply(card, await _read_and_draft(cache, card, drafter)):
                 # About something else: remembered, so the next run neither
                 # reads nor judges it again, and never shown.
-                mark_misfit(card, misfit)
                 if await asyncio.to_thread(held.insert_new, card, now, SET_ASIDE):
                     report["set_aside"] = report.get("set_aside", 0) + 1
                 continue
@@ -1159,9 +1168,15 @@ def _shortlist(cache, held: Store, found: list, now: float) -> list[Card]:
     worth a person's minute; a pasted one is, so it keeps its card)."""
     known = held.known()
     episodes = catalogue(cache)
+    floor = config.settings.linkedin_min_engagement
     best: dict = {}
     for post, seed in found:
         if post["post_id"] in known or post["post_id"] in best:
+            continue
+        engaged = int(post.get("engagement", -1))
+        # High engagement is the target (§337); a count the search did not
+        # show refuses nothing.
+        if 0 <= engaged < floor:
             continue
         if screen_post(post["text"]):
             continue
@@ -1176,11 +1191,15 @@ def _shortlist(cache, held: Store, found: list, now: float) -> list[Card]:
             continue
         card = Card(post["post_id"], post["url"], post["text"][:6000], author,
                     post["author_name"], "", offered, 0, origin=FOUND,
-                    found_by=seed.title)
+                    found_by=seed.title, engagement=engaged)
         card.reason = (f"found searching LinkedIn for “{seed.title}”"
                        + (f", posted {post['published']}" if post["published"] else "")
+                       + (f", {engaged} reactions and comments" if engaged >= 0 else "")
                        + "; " + reason(card.text, card.episode, ""))
-        best[post["post_id"]] = (offered[0]["match"], card)
+        # The match leads; engagement (0-1 on a log scale, about 500 is 1)
+        # orders posts that match about as well.
+        lift = min(1.0, math.log1p(engaged) / math.log1p(500)) if engaged > 0 else 0.0
+        best[post["post_id"]] = (offered[0]["match"] + 0.15 * lift, card)
     out, authors = [], set()
     for _, card in sorted(best.values(), key=lambda pair: -pair[0]):
         if card.author in authors:
@@ -1196,6 +1215,7 @@ def health() -> dict:
     ok, why = available()
     settings = config.settings
     out = {"available": ok, "detail": why,
+           "min_engagement": settings.linkedin_min_engagement,
            "daily_searches": settings.linkedin_daily_searches,
            "seeds": settings.linkedin_seeds,
            "window_days": settings.linkedin_window_days}

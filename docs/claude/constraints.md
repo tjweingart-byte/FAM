@@ -1584,6 +1584,16 @@
   post read; staging scrubs the token ([zero-spend-staging]). With no model
   key the reply is drafted in code and the card says so. Cards are kept a
   week.
+  > **Current:** since §337 (`outreach_intelligence.py`) a post needs
+  > `X_THREADS_MIN_ENGAGEMENT` (25) likes, replies, reposts and quotes; it is
+  > matched against every kept episode, not only the one whose search found
+  > it; and the drafting call **reads before it writes** - subject, intent,
+  > which of three offered episodes answers it (from each one's summary and
+  > script opening, not its title), the angle - stored and shown on the
+  > card, then writes in X's voice (curiosity, part of the conversation). A
+  > figure neither the post nor the episode states sends the words back to
+  > the code's. LinkedIn shares the read in its own voice (context, Go
+  > Deeper) and `LINKEDIN_MIN_ENGAGEMENT` (20) where the search shows counts.
 <!-- rule:linkedin -->
 - **Go Deeper on LinkedIn is found and posted by a person** (§322,
   `linkedin_posts.py`, `/admin/linkedin`). A LinkedIn post meant to teach or

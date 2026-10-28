@@ -696,10 +696,12 @@ def test_the_model_judges_before_it_drafts():
     episode = dict(EPISODE, match=0.9, off_subject="")
     model = _Model('{"fits": false, "why": "an airline, not the club", '
                    '"comment": "ignored", "question": "q?"}')
-    comment, question, by, _, misfit = asyncio.run(
+    comment, question, by, _, misfit, _read = asyncio.run(
         L.judge_and_draft(TEACHING, episode, client=model))
     assert comment == "" and misfit == "an airline, not the club"
-    assert "fits" in model.asked[0]["system"]
+    # Since §337 the judgement is the read's: the subject, then the choice.
+    system = model.asked[0]["system"]
+    assert system.index("same_subject") < system.index("choice") < system.index("comment:")
 
 
 # --- the second review (§327) ---------------------------------------------------------
