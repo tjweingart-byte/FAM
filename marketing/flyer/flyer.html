@@ -49,13 +49,15 @@
   .rings i:nth-child(4){ width:6.0in; height:6.0in; opacity:0.6; }
   .rings i:nth-child(5){ width:7.4in; height:7.4in; opacity:0.35; }
 
-  .poster-top{ position:absolute; left:0.45in; right:0.45in; top:0.4in;
+  .poster-top{ position:absolute; left:0.38in; right:0.45in; top:0.32in;
     display:flex; align-items:center; justify-content:space-between; }
-  .wordmark{ color:var(--ink); height:0.42in; width:1.22in; display:block; overflow:visible; }
-  .tag{ font-family:'Geist Mono', monospace; font-size:9pt; font-weight:600; letter-spacing:0.2em;
+  /* The logo as the app shows it: yellow FAM on its own dark tile. */
+  .badge{ display:block; background:var(--ink); border-radius:0.2in; padding:0.17in 0.26in; }
+  .wordmark{ color:var(--yellow); height:0.56in; width:1.62in; display:block; overflow:visible; }
+  .tag{ align-self:flex-start; margin-top:0.12in; font-family:'Geist Mono', monospace; font-size:9pt; font-weight:600; letter-spacing:0.2em;
     text-transform:uppercase; color:var(--ink); background:var(--paper); padding:0.06in 0.14in; border-radius:999px; }
 
-  h1{ position:absolute; left:0.45in; top:1.3in; margin:0; width:4.4in;
+  h1{ position:absolute; left:0.45in; top:1.45in; margin:0; width:4.4in;
     font-family:'Bricolage Grotesque', sans-serif; font-weight:800; text-transform:uppercase;
     font-size:48pt; line-height:0.92; letter-spacing:-0.025em; color:var(--ink); }
   /* "want to know" in yellow on ink, a label stuck on the poster */
@@ -126,13 +128,13 @@
   <section class="poster">
     <div class="rings" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
     <div class="poster-top">
-      <svg class="wordmark" viewBox="0 0 48.7 16.9" aria-label="FAM">
+      <div class="badge">      <svg class="wordmark" viewBox="0 0 48.7 16.9" aria-label="FAM">
         <g fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round">
           <g transform="translate(-4.55,-4.55)"><path d="M6 20V9.2A3.2 3.2 0 0 1 9.2 6H16"/><path d="M6 13h8"/></g>
           <g transform="translate(11.35,-4.55)"><path d="M5 13l7-7 7 7"/><path d="M5 20l7-7 7 7"/></g>
           <g transform="translate(29.25,-4.55)"><path d="M6 20V6l6 9 6-9v14"/></g>
         </g>
-      </svg>
+      </svg></div>
       <div class="tag">Social information</div>
     </div>
     <h1>Listen to<br>everything<br>you <span class="hl">want</span><br><span class="hl">to know</span><br>about.</h1>
