@@ -38,7 +38,7 @@ PEAK_CEILING_DBFS = voice_bank.PEAK_CEILING_DBFS
 def master(audio: bytes) -> bytes:
     """The recording, trimmed and levelled. 16-bit PCM WAV in and out.
 
-    The same function the admin page's upload uses (§324).
+    The same function the admin page's upload uses (§328).
     """
     if voice_bank.recording_stats(audio)["lead_silence"] is None:
         raise SystemExit("only 16-bit PCM WAV is supported; convert it first")

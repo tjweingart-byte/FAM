@@ -198,7 +198,7 @@ def recording_stats(audio: bytes) -> dict:
     return stats
 
 
-#: What `master_recording` makes of an upload (§324): the first word this
+#: What `master_recording` makes of an upload (§328): the first word this
 #: long after the start, the speech at this level, the peak never above this.
 KEEP_LEAD = 0.1
 TARGET_DBFS = -20.0
@@ -243,7 +243,7 @@ def master_recording(audio: bytes) -> bytes:
 
 
 def prepare_upload(audio: bytes) -> tuple[bytes, Optional[dict]]:
-    """An admin's upload, mastered only if the check would refuse it (§324).
+    """An admin's upload, mastered only if the check would refuse it (§328).
 
     A recording that already starts on its first word at a usable level is
     kept byte for byte - a changed file is a changed voice. One that opens in
@@ -359,6 +359,36 @@ class VoiceBank:
                        how    TEXT NOT NULL DEFAULT '',
                        title  TEXT NOT NULL DEFAULT '',
                        url    TEXT NOT NULL DEFAULT ''
+                   )""")
+            # Words the voice may not know (§325, `hard_words.py`): the last
+            # scan of written episodes for words outside the pronouncing
+            # dictionary and the lexicon. A scan replaces the whole table.
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS hard_words (
+                       word     TEXT PRIMARY KEY,
+                       count    INTEGER NOT NULL,
+                       episodes INTEGER NOT NULL,
+                       example  TEXT NOT NULL DEFAULT '',
+                       title    TEXT NOT NULL DEFAULT '',
+                       at       REAL NOT NULL
+                   )""")
+            # Words an admin heard and said were fine: never listed again.
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS hard_words_ok (
+                       word TEXT PRIMARY KEY,
+                       at   REAL NOT NULL
+                   )""")
+            # What the voice was heard to say (§325, `voice_check.py`).
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS voice_checks (
+                       word     TEXT PRIMARY KEY,
+                       at       REAL NOT NULL,
+                       sent     TEXT NOT NULL DEFAULT '',
+                       expected TEXT NOT NULL DEFAULT '',
+                       heard    TEXT NOT NULL DEFAULT '',
+                       heard_say TEXT NOT NULL DEFAULT '',
+                       score    REAL,
+                       verdict  TEXT NOT NULL DEFAULT ''
                    )""")
 
     def _conn(self) -> sqlite3.Connection:
@@ -505,6 +535,51 @@ class VoiceBank:
             "SELECT name, at, status, say, ipa, how, title, url"
             " FROM pronunciation_checks").fetchall()
         cols = ("name", "at", "status", "say", "ipa", "how", "title", "url")
+        return [dict(zip(cols, r)) for r in rows]
+
+    # -- words the voice may not know, and what it was heard to say (§325) --
+
+    def replace_hard_words(self, rows: list) -> None:
+        conn = self._conn()
+        now = time.time()
+        conn.execute("DELETE FROM hard_words")
+        for r in rows:
+            conn.execute(
+                "INSERT OR REPLACE INTO hard_words (word, count, episodes, example,"
+                " title, at) VALUES (?, ?, ?, ?, ?, ?)",
+                (str(r["word"])[:60], int(r["count"]), int(r["episodes"]),
+                 str(r.get("example") or "")[:240], str(r.get("title") or "")[:200], now))
+
+    def hard_words(self) -> list[dict]:
+        rows = self._conn().execute(
+            "SELECT word, count, episodes, example, title, at FROM hard_words"
+            " WHERE word NOT IN (SELECT word FROM hard_words_ok)"
+            " ORDER BY count DESC, word").fetchall()
+        cols = ("word", "count", "episodes", "example", "title", "at")
+        return [dict(zip(cols, r)) for r in rows]
+
+    def hard_word_ok(self, word: str) -> None:
+        self._conn().execute(
+            "INSERT OR REPLACE INTO hard_words_ok (word, at) VALUES (?, ?)",
+            (word[:60], time.time()))
+
+    def hard_words_ok(self) -> set:
+        return {r[0] for r in self._conn().execute("SELECT word FROM hard_words_ok")}
+
+    def keep_voice_check(self, result: dict) -> None:
+        self._conn().execute(
+            "INSERT OR REPLACE INTO voice_checks (word, at, sent, expected, heard,"
+            " heard_say, score, verdict) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (str(result.get("word") or "")[:60], time.time(),
+             str(result.get("sent") or "")[:200], str(result.get("expected") or "")[:160],
+             str(result.get("heard") or "")[:300], str(result.get("heard_say") or "")[:160],
+             result.get("score"), str(result.get("verdict") or "")[:20]))
+
+    def voice_checks(self) -> list[dict]:
+        rows = self._conn().execute(
+            "SELECT word, at, sent, expected, heard, heard_say, score, verdict"
+            " FROM voice_checks").fetchall()
+        cols = ("word", "at", "sent", "expected", "heard", "heard_say", "score", "verdict")
         return [dict(zip(cols, r)) for r in rows]
 
     def forget_pronunciation(self, name: str) -> bool:

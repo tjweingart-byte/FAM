@@ -317,7 +317,7 @@ def test_the_fingerprint_fails_a_voice_that_drifts():
     assert any("changes between sentences" in f for f in failures)
 
 
-# --- the admin upload masters what the check would refuse (§324) ----------
+# --- the admin upload masters what the check would refuse (§328) ----------
 
 def test_an_upload_that_opens_in_silence_is_trimmed_and_says_so():
     audio, mastered = voice_bank.prepare_upload(tone(lead=0.8))

@@ -327,4 +327,8 @@ and `limit` = Lines.
 | 22575 | 78 | 321. FAM on X: threads found from our own episodes, posted by a person (2026-10-26) |
 | 22653 | 88 | 322. Go Deeper on LinkedIn: a person finds the post, FAM brings the episode (2026-10-27) |
 | 22741 | 30 | 323. Asking Wikipedia about every name again (2026-10-27) |
-| 22771 | 25 | 324. The voice bank trims an upload instead of refusing it (2026-10-27) |
+| 22771 | 47 | 324. Wikipedia's reading belongs to the name it follows (2026-10-27) |
+| 22818 | 80 | 325. Checking every word: the dictionary and the voice round trip (2026-10-27) |
+| 22898 | 75 | 326. Every X card is about the post it answers (2026-10-27) |
+| 22973 | 83 | 327. Go Deeper on LinkedIn finds its own posts (2026-10-27) |
+| 23056 | 24 | 328. The voice bank trims an upload instead of refusing it (2026-10-27) |
