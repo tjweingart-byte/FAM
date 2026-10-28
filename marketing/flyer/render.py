@@ -19,14 +19,15 @@ def main():
     with sync_playwright() as p:
         browser = p.chromium.launch(executable_path=CHROME if Path(CHROME).exists() else None)
         page = browser.new_page(viewport={"width": 816, "height": 1056}, device_scale_factor=2)
+        # Print media for the PDF and the preview alike: on screen the sheet sits
+        # on a grey desk with a margin, which would push it onto a second page.
+        page.emulate_media(media="print")
         for name, query in (("dark", ""), ("light", "?light")):
             page.goto(PAGE + query, wait_until="networkidle")
             page.evaluate("document.fonts.ready")
             page.pdf(path=str(HERE / f"flyer-{name}.pdf"), width="8.5in", height="11in",
                      print_background=True, prefer_css_page_size=True)
-            page.emulate_media(media="print")
             page.locator(".sheet").screenshot(path=str(HERE / f"flyer-{name}.png"))
-            page.emulate_media(media="screen")
             print(f"wrote flyer-{name}.pdf and flyer-{name}.png")
         browser.close()
 

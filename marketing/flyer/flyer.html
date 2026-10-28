@@ -33,17 +33,19 @@
   html,body{ margin:0; padding:0; background:#777; }
   body{ -webkit-print-color-adjust:exact; print-color-adjust:exact;
     font-family:'Geist', system-ui, sans-serif; color:var(--ink); }
-  @media print{ html,body{ background:none; } .sheet{ margin:0 !important; box-shadow:none !important; } }
+  @media print{ html,body{ background:none; height:11in; overflow:hidden; } }
 
-  .sheet{ position:relative; width:8.5in; height:11in; overflow:hidden; margin:0.4in auto;
-    background:var(--page); box-shadow:0 10px 40px rgba(0,0,0,0.35); }
+  .sheet{ position:relative; width:8.5in; height:11in; overflow:hidden; margin:0;
+    background:var(--page); break-after:avoid; page-break-after:avoid; }
+  /* On screen only: the sheet on a grey desk. Printing never sees the margin. */
+  @media screen{ .sheet{ margin:0.4in auto; box-shadow:0 10px 40px rgba(0,0,0,0.35); } }
   /* Dusk at the foot, the waitlist hero's light; none on the low-ink sheet. */
   .sheet::before{ content:""; position:absolute; inset:0; pointer-events:none;
     background:
       radial-gradient(90% 38% at 50% 104%, rgba(240,155,70,0.42), rgba(240,155,70,0) 70%); }
   html.light .sheet::before{ display:none; }
 
-  .in{ position:absolute; inset:0.55in 0.6in 0.5in; display:flex; flex-direction:column; }
+  .in{ position:absolute; inset:0.55in 0.6in 0.56in; display:flex; flex-direction:column; }
 
   /* Top: wordmark and tagline */
   .top{ display:flex; align-items:center; justify-content:space-between; }
@@ -108,7 +110,7 @@
   html.qr-filled .qr-target{ border:0; }
   html.qr-filled .qr-target > *{ display:none; }
 
-  .legal{ position:absolute; left:0.6in; right:0.6in; bottom:0.2in; display:flex; justify-content:space-between;
+  .legal{ position:absolute; left:0.6in; right:0.6in; bottom:0.3in; display:flex; justify-content:space-between;
     font-family:'Geist Mono', monospace; font-size:7pt; letter-spacing:0.12em; text-transform:uppercase; color:var(--faint); }
 </style>
 <script>
