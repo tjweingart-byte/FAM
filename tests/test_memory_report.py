@@ -65,3 +65,33 @@ def test_the_watch_reports_each_line_once(monkeypatch):
 def test_the_image_sets_two_arenas():
     here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     assert "ENV MALLOC_ARENA_MAX=2" in open(os.path.join(here, "Dockerfile")).read()
+
+
+def test_a_jump_names_what_was_running(monkeypatch):
+    import time as _t
+    monkeypatch.setattr(memory_report, "JUMPS", memory_report.collections.deque(maxlen=10))
+    monkeypatch.setattr(memory_report, "IN_FLIGHT", {})
+    monkeypatch.setattr(memory_report, "FINISHED", memory_report.collections.deque(maxlen=300))
+    since = _t.time() - 1
+    memory_report.request_started(1, "GET /api/myfam")
+    memory_report.request_started(2, "GET /api/explore")
+    memory_report.request_ended(2)
+    tasks = [{"task": "_sweep_audio_forever", "count": 1}]
+    assert memory_report.jump_step(400.0, 450.0, since, tasks) is None
+    jump = memory_report.jump_step(400.0, 1900.0, since, tasks)
+    assert jump["to_mb"] == 1900.0
+    assert [r["request"] for r in jump["in_flight"]] == ["GET /api/myfam"]
+    assert [r["request"] for r in jump["finished"]] == ["GET /api/explore"]
+    assert jump["tasks"] == tasks
+    assert memory_report.watch_state()["jumps"][-1] is jump
+
+
+def test_every_request_is_tracked_and_released(monkeypatch):
+    from fastapi.testclient import TestClient
+    import app as appmod
+
+    monkeypatch.setattr(memory_report, "IN_FLIGHT", {})
+    monkeypatch.setattr(memory_report, "FINISHED", memory_report.collections.deque(maxlen=300))
+    TestClient(appmod.app).get("/api/health")
+    assert memory_report.IN_FLIGHT == {}
+    assert any(f[1] == "GET /api/health" for f in memory_report.FINISHED)

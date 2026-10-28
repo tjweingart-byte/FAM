@@ -23330,3 +23330,86 @@ server reaching gigabytes with little live data.
 
 If memory now stays flat, the arenas were the cause. If it still climbs,
 the watch's report says where.
+
+## 335. The embedding model's pool: one pass at a time (2026-10-28)
+
+Production's memory graph with only the owner using the app (10.28, the
+plan now 4 GB): resident size rose in **steps of ~1.5 GB, each in under a
+minute and each with a CPU spike**, then stayed flat for hours; a second
+step reached the limit and Render restarted it. `/api/admin/memory` at
+2,043 MB (§334's watch had caught the step: 416.8 -> 2,014.5 MB in one
+sample) showed Python's own data at ~127 MB and **`mmapped_mb` 2,150**:
+large blocks held live by native code, which no number of glibc arenas
+could release.
+
+**onnxruntime's working-memory pool.** It never shrinks, and every forward
+pass running *at once* takes its own share. Measured here: one batch of 16
+texts at the 128-token limit holds ~105 MB; 24 such batches at once held
+1,090 MB; one batch of 200, 1,040 MB. Opening DailyFAM ranks several rails
+concurrently, each embedding its listener's history and its tiles
+(`taste_vectors`, ≤6 inline and the rest in batches of 16), so one person
+could run a dozen passes at once. onnxruntime also starts a thread per core
+it can see - 32 on Render's hosts, on a plan that may use 2 - the CPU spike.
+
+Fixed in `embeddings._OnnxEmbedder`:
+
+* **One pass at a time** (`_run_lock`). Passes take milliseconds; taking
+  turns is not visible to a listener.
+* **At most `MAX_BATCH` (16) texts a pass**, whatever the caller sends
+  (`tools/learn_rank.py --settled` sent everything at once).
+* **`FAM_EMBED_THREADS` threads a pass, 2 by default**, and one inter-op.
+* **No fixed padding.** The model's `tokenizer.json` padded every text to
+  128 tokens; the batch was already padded to its longest member, and the
+  mask excludes padding, so the vectors are identical (max difference 0.0)
+  while six titles take 27 ms instead of 191 ms and far less memory.
+
+Measured after: 24 concurrent batches of tile texts hold 197 MB resident
+(was ~1.1 GB); 24 at the 128-token limit, 342 MB.
+
+**The log named the trigger** (production, 02:47-02:57 PDT, nobody signed
+in): a visitor opened `/waitlist` from a Facebook link at 02:50:41; its
+`/api/welcome` at 02:50:43 prepared ~100 cached episodes at once (a
+`SEARCH yes` line each, in one second); at 02:50:48 the watch logged
+1,356 MB with a **`category-near`** thread running, and 2,101 MB a minute
+later. `category_near._build` embeds every node of the category tree in
+**one** call (`encoder(ids)`) whenever the tree's generation changes - after
+a restart, or once a written episode mints a category, which is what the
+night editions do. Every node name was padded to 128 tokens, so the whole
+tree was one batch of hundreds of 128-token rows. Now `encode_many` splits
+it into passes of 16 under the lock, unpadded: 2,000 node names in one call
+add 13 MB and take 3.5 s on a background thread. The same chain is in the logs
+at 12:12 UTC (waitlist visit, `/api/welcome`, restart a minute later) and
+12:50 (waitlist visit, `/api/welcome`, 2,016 MB at 12:51 with
+`category-near` running).
+
+The watch from §334 stays, and now names what runs when memory jumps: it
+samples every 15 seconds, every HTTP request records its own change in
+resident size (`_track_memory`), and a rise of `JUMP_MB` (150) between two
+samples is logged at WARNING as `memory jump: <from> -> <to> MB` with the
+requests in flight, those finished since the last sample (largest rise
+first), the event loop's tasks and the threads (`memory_report.jump_step`;
+`/api/admin/memory` keeps them under `watch.jumps`). If anything else ever
+steps up like this, the log says what.
+
+## 336. One process, always (2026-10-28)
+
+Production's restart log (12:12 UTC, 10.28):
+
+    INFO:     Started parent process [7]
+    INFO:     Started server process [10]
+    INFO:     Started server process [9]
+
+Two uvicorn workers in one instance. Nothing in FAM asks for them: uvicorn
+takes its worker count from `WEB_CONCURRENCY` when `--workers` is not given,
+and the service had it set (by hand or by the platform). Every log line of
+a background job had been appearing twice - the story sweep, local news,
+GDELT's download, the voice health check - and so had everything they do:
+both processes ran the Trending and DailyFAM editions and their boot
+catch-ups (paid model and search calls), both warmed the serverless voice,
+both loaded the embedding model and rebuilt the category vectors (§335).
+FAM keeps state in its process (`POSTGRES.md`: the story pool, the sweep
+clocks, prefetch's ledgers, the spend limiter, live captions) and is built
+to run as one.
+
+The Dockerfile's `CMD`, `start.sh` and `run.sh` now say `--workers 1`, so no
+variable can make it two again; a test reads all three.

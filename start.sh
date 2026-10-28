@@ -117,4 +117,4 @@ EOM
   elif command -v xdg-open >/dev/null 2>&1; then xdg-open "http://localhost:${PORT}"
   fi ) >/dev/null 2>&1 &
 
-exec "$PY" -m uvicorn app:app --host 0.0.0.0 --port "$PORT"
+exec "$PY" -m uvicorn app:app --host 0.0.0.0 --port "$PORT" --workers 1
