@@ -53,7 +53,9 @@
     display:flex; align-items:center; justify-content:space-between; }
   /* The logo as the app shows it: yellow FAM on its own dark tile. */
   .badge{ display:block; background:var(--ink); border-radius:0.2in; padding:0.17in 0.26in; }
-  .wordmark{ color:var(--yellow); height:0.56in; width:1.62in; display:block; overflow:visible; }
+  /* Spaced by eye, not by bounding box: the F's open lower right reads as a
+     wider gap than the M's stem, so the chevron and M sit 2 units closer. */
+  .wordmark{ color:var(--yellow); height:0.56in; width:1.553in; display:block; overflow:visible; }
   .tag{ align-self:flex-start; margin-top:0.12in; font-family:'Geist Mono', monospace; font-size:9pt; font-weight:600; letter-spacing:0.2em;
     text-transform:uppercase; color:var(--ink); background:var(--paper); padding:0.06in 0.14in; border-radius:999px; }
 
@@ -75,13 +77,14 @@
     padding:0.09in 0.18in 0.09in 0.1in; border-radius:999px; white-space:nowrap; }
   .sticker b{ display:grid; place-items:center; width:0.32in; height:0.32in; border-radius:50%; }
   .sticker b svg{ width:0.18in; height:0.18in; }
-  /* A zigzag down the phone - left, right, left - each a third onto it;
-     none covers the episode title or the play button. */
-  .s1{ left:4.2in; top:1.7in; transform:rotate(-6deg); background:var(--paper); color:var(--ink); }
+  /* A zigzag down the phone - left, right, left - each only catching the
+     phone's edge, so the screen stays readable. */
+  .s1{ left:3.9in; top:1.48in; transform:rotate(-6deg); background:var(--paper); color:var(--ink); }
   .s1 b{ background:var(--coral); color:#fff; }
-  .s3{ left:5.72in; top:3.1in; transform:rotate(5deg); background:var(--paper); color:var(--ink); }
+  .s3{ left:6.36in; top:3.0in; transform:rotate(5deg); background:var(--paper); color:var(--ink);
+    border-radius:0.3in; padding:0.11in 0.2in 0.11in 0.12in; line-height:1.08; }
   .s3 b{ background:var(--sage); color:#fff; }
-  .s2{ left:3.7in; top:5.05in; transform:rotate(-4deg); background:var(--ink); color:var(--cream);
+  .s2{ left:2.55in; top:5.15in; transform:rotate(-4deg); background:var(--ink); color:var(--cream);
     border-radius:0.3in; padding:0.11in 0.2in 0.11in 0.12in; line-height:1.08; }
   .s2 b{ background:var(--yellow); color:var(--ink); }
 
@@ -128,11 +131,11 @@
   <section class="poster">
     <div class="rings" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
     <div class="poster-top">
-      <div class="badge">      <svg class="wordmark" viewBox="0 0 48.7 16.9" aria-label="FAM">
+      <div class="badge"><svg class="wordmark" viewBox="0 0 46.7 16.9" aria-label="FAM">
         <g fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round">
           <g transform="translate(-4.55,-4.55)"><path d="M6 20V9.2A3.2 3.2 0 0 1 9.2 6H16"/><path d="M6 13h8"/></g>
-          <g transform="translate(11.35,-4.55)"><path d="M5 13l7-7 7 7"/><path d="M5 20l7-7 7 7"/></g>
-          <g transform="translate(29.25,-4.55)"><path d="M6 20V6l6 9 6-9v14"/></g>
+          <g transform="translate(9.35,-4.55)"><path d="M5 13l7-7 7 7"/><path d="M5 20l7-7 7 7"/></g>
+          <g transform="translate(27.25,-4.55)"><path d="M6 20V6l6 9 6-9v14"/></g>
         </g>
       </svg></div>
       <div class="tag">Social information</div>
@@ -144,7 +147,7 @@
 
   <div class="sticker s1"><b><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></b>1 min</div>
   <div class="sticker s2"><b><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h11M4 11h11M4 16h7"/><path d="M17 18.5V9l4-1.5"/><circle cx="15" cy="18.5" r="2"/></svg></b><span>Custom playlists<br>of information</span></div>
-  <div class="sticker s3"><b><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2.6 5.6 6.1.7-4.5 4.2 1.2 6L12 16.6 6.6 19.5l1.2-6L3.3 9.3l6.1-.7z"/></svg></b>Your interests</div>
+  <div class="sticker s3"><b><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2.6 5.6 6.1.7-4.5 4.2 1.2 6L12 16.6 6.6 19.5l1.2-6L3.3 9.3l6.1-.7z"/></svg></b><span>Your<br>interests</span></div>
 
   <p class="pitch">One minute <u>personalized</u><br>audio episodes.</p>
 
