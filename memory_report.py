@@ -19,7 +19,7 @@ returned - `db.Cursor`). Three readings, cheapest first:
   full process cannot itself run it out of memory; `complete: false` says
   the bound was reached and the numbers are a floor.
 
-Nothing here runs unless an admin asks - except the watch (§333): the
+Nothing here runs unless an admin asks - except the watch (§334): the
 server samples its own size every minute and writes a full report to the
 log the first time each boot it crosses each of `WATCH_MB`, because the
 state worth seeing is the one before Render restarts it, when nobody is
@@ -224,7 +224,7 @@ def report(trim_first: bool = True, census: bool = False) -> dict:
     return out
 
 
-# --- the watch (§333) ------------------------------------------------------
+# --- the watch (§334) ------------------------------------------------------
 
 #: Sizes at which the watch writes a full report, once each per boot.
 WATCH_MB = (800, 1200, 1600)

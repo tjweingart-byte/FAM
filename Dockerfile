@@ -7,7 +7,7 @@ FROM python:3.12-slim
 # "Running pip as the 'root' user" warning is noise - and Render highlights it
 # on every build, where it hides a warning that matters.
 ENV PIP_ROOT_USER_ACTION=ignore
-# Two glibc arenas, not eight per core (§333). The server runs ~80 threads
+# Two glibc arenas, not eight per core (§334). The server runs ~80 threads
 # (the request pool, psycopg's pool, background jobs); each could get an
 # arena of its own, and memory freed in one after a large Postgres result
 # stays there. Set MALLOC_ARENA_MAX on the service to override.

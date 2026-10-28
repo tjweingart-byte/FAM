@@ -766,8 +766,10 @@ async def lifespan(_: FastAPI):
     # read and a delete, never by looking at the settings.
     if hasattr(SCRIPT_CACHE, "sweep_audio"):
         _BACKGROUND.add(asyncio.create_task(_sweep_audio_forever()))
+    # Unheard episodes drawn from an older bank draw again (§333).
+    _BACKGROUND.add(asyncio.create_task(asyncio.to_thread(_redeal_voices)))
     # The server's own size once a minute, and a full report in the log the
-    # first time each boot it crosses each watch line (§333).
+    # first time each boot it crosses each watch line (§334).
     _BACKGROUND.add(asyncio.create_task(_watch_memory_forever()))
     if audio_store_mod.get_store() is not None:
         # Not awaited: a bucket that is slow to answer must not hold up boot.
@@ -4283,6 +4285,7 @@ async def admin_add_voice(req: BankVoiceRequest, request: Request) -> dict:
                                       replace=req.replace)
     except (ValueError, voice_bank.VoiceBankError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    _redeal_voices()
     return {"ok": True, "voice": added.as_dict(), "mastered": mastered}
 
 
@@ -4291,7 +4294,31 @@ async def admin_remove_voice(slug: str, request: Request) -> dict:
     """Take a voice out of the bank. Episodes already given it keep their
     kept audio; a play that needs it voiced again draws another (§147)."""
     _require_admin(request)
-    return {"ok": voice_bank.bank().remove(slug)}
+    removed = voice_bank.bank().remove(slug)
+    _redeal_voices()
+    return {"ok": removed}
+
+
+def _redeal_voices() -> int:
+    """When the bank's voices differ from the ones unheard episodes were
+    dealt from, deal them again (§333): myFAM and DailyFAM episodes written
+    before a voice was added would otherwise keep the old bank's draw - the
+    default, for a bank that held nothing else - for their whole week.
+    At boot and after every change on /admin. Never raises."""
+    try:
+        bank = voice_bank.bank()
+        signature = voice_bank.redeal_signature()
+        if bank.dealt(signature):
+            return 0
+        cleared = (SCRIPT_CACHE.redeal_voices()
+                   if hasattr(SCRIPT_CACHE, "redeal_voices") else 0)
+        bank.mark_dealt(signature)
+        log.info("voice bank is now %s: %d unheard episodes will draw a voice "
+                 "from it", signature, cleared)
+        return cleared
+    except Exception:  # noqa: BLE001 - an old draw still plays
+        log.exception("could not re-deal episode voices")
+        return 0
 
 
 class PronunciationRequest(BaseModel):
@@ -10409,7 +10436,7 @@ async def admin_memory(request: Request, census: bool = False,
     _require_admin(request)
     import memory_report
     out = await asyncio.to_thread(memory_report.report, trim, census)
-    # What the server saw of itself while nobody was looking (§333).
+    # What the server saw of itself while nobody was looking (§334).
     out["watch"] = memory_report.watch_state()
     return out
 
@@ -11492,7 +11519,7 @@ async def _check_audio_store() -> None:
 
 
 async def _watch_memory_forever(every: float = 60.0) -> None:
-    """§333: Render restarts the server when it runs out of memory, and the
+    """§334: Render restarts the server when it runs out of memory, and the
     state worth seeing is the one just before - so the server records its
     own size and logs a full report (`memory_report.watch_step`) as it grows."""
     import memory_report
