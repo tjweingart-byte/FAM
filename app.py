@@ -4223,16 +4223,22 @@ async def admin_voices(request: Request) -> dict:
 
 @app.post("/api/admin/voices")
 async def admin_add_voice(req: BankVoiceRequest, request: Request) -> dict:
-    """Add a voice to the bank (§147). `tools/voice_bank.py add` calls this."""
+    """Add a voice to the bank (§147). `tools/voice_bank.py add` calls this.
+
+    A recording that opens in silence or is quiet is trimmed and levelled
+    first (§328) and `mastered` says by how much; one that passes as it is
+    is kept byte for byte and `mastered` is None.
+    """
     _require_admin(request)
     try:
         audio = base64.b64decode(req.audio, validate=True)
+        audio, mastered = voice_bank.prepare_upload(audio)
         added = voice_bank.bank().add(req.slug, req.label, audio, req.rights,
                                       description=req.description,
                                       replace=req.replace)
     except (ValueError, voice_bank.VoiceBankError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return {"ok": True, "voice": added.as_dict()}
+    return {"ok": True, "voice": added.as_dict(), "mastered": mastered}
 
 
 @app.delete("/api/admin/voices/{slug}")

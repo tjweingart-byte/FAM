@@ -44,6 +44,11 @@
    > silence or is quiet (`tools/master_reference.py` fixes one), and
    > `python verify_voice.py --fingerprint` measures whether every chunk
    > sounds like the recording and like each other.
+   > **Current (PROBLEMS.md §328, at the owner's direction):** the admin
+   > page's upload no longer refuses a recording for opening in silence or
+   > being quiet - `voice_bank.prepare_upload` trims and levels it with the
+   > same function as `tools/master_reference.py` and the page says by how
+   > much. A recording that passes as it is is kept byte for byte.
    **Hard names are respelled for the voice** *(§165, `pronunciation.py`)*:
    EI's brief and the writer's `<<SAY: Name = respelling>>` lines (written
    *before* the script) feed one lexicon in the voice bank's database, an
