@@ -39,6 +39,12 @@
   /* Plain paper: the field only sets the margins the layout hangs from. */
   .field{ position:absolute; inset:0.4in; }
 
+  /* The double chevron, giant and faint behind everything, running off the
+     printable area like a watermark: traced from the owner's chevron file
+     (its pixels are the path coordinates). */
+  .chevron-clip{ position:absolute; inset:0.4in; overflow:hidden; }
+  .chevron{ position:absolute; left:-0.9in; top:0.6in; width:9.5in; height:9.986in; opacity:0.22; }
+
   /* One grid. The logo and the gold block share the left edge; the code and
      the phone share the right edge. The phone stands half over the block and
      past its top and bottom, so the words and the picture read as one unit. */
@@ -82,6 +88,11 @@
 </head>
 <body>
 <div class="sheet">
+  <div class="chevron-clip"><svg class="chevron" viewBox="694 478 606 637" aria-hidden="true">
+    <g fill="none" stroke="#F0BF63" stroke-width="92" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M740 766L997 524L1254 766"/><path d="M740 1069L997 814L1254 1069"/>
+    </g>
+  </svg></div>
   <div class="field">
     <div class="top">
       <div class="badge"><svg class="wordmark" viewBox="212 357 1114 311" aria-label="FAM">
@@ -103,10 +114,10 @@
 
     <div class="words">
       <h1>Listen to<br>everything<br>you want<br>to know<br>about.</h1>
-      <p class="pitch">One minute personalized<br>audio episodes.</p>
+      <p class="pitch">Short personalized<br>audio episodes.</p>
     </div>
 
-    <div class="phone"><img src="player.jpg" alt="A FAM episode playing"></div>
+    <div class="phone"><img src="player-1m30.jpg" alt="A FAM episode playing"></div>
   </div>
 </div>
 </body>
