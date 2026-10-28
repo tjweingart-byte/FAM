@@ -102,7 +102,7 @@ def _critical_path():
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("questions", nargs="*", default=list(DEFAULT_QUESTIONS))
-    parser.add_argument("--minutes", type=int, default=3)
+    parser.add_argument("--minutes", type=float, default=3)
     parser.add_argument("--drain", action="store_true",
                         help="speak each episode to the end rather than "
                              "stopping at the first audio")

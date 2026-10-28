@@ -64,6 +64,7 @@ from typing import Optional
 from urllib.parse import quote
 
 from paths import data_path
+from config import as_minutes
 
 log = logging.getLogger(__name__)
 
@@ -207,7 +208,7 @@ def render(target_key: str, *, title: str, question: str, minutes: int,
     values = {
         "title": (title or "A FAM episode").strip()[:MAX_TITLE],
         "question": (question or "").strip()[:MAX_QUERY],
-        "minutes": max(1, int(minutes or 0)),
+        "minutes": max(1, as_minutes(minutes)),
         "url": url or "",
     }
     return _rendered(chosen, chosen.template, chosen.subject, values)
@@ -377,7 +378,7 @@ def story_card(title: str, question: str, minutes: int, handle: str = "",
     """
     lines = _wrap(title or "A FAM episode", per_line=18, max_lines=4)
     ask = _wrap(question or "", per_line=34, max_lines=2)
-    minutes = max(1, int(minutes or 0))
+    minutes = max(1, as_minutes(minutes))
     esc = html.escape
 
     title_svg = "".join(
@@ -467,7 +468,7 @@ class ShareStore:
         query = " ".join(str(query or "").split())[:MAX_QUERY]
         if not query:
             raise ShareError("There is no episode to share.")
-        minutes = max(0, int(minutes or 0))
+        minutes = max(0, as_minutes(minutes))
         title = " ".join(str(title or "").split())[:MAX_TITLE]
         now = at or time.time()
 
@@ -509,7 +510,7 @@ class ShareStore:
         """
         query = " ".join(str(query or "").split())[:MAX_QUERY]
         try:
-            minutes = int(minutes)
+            minutes = as_minutes(minutes)
         except (TypeError, ValueError):
             return False
         if not query:
@@ -616,7 +617,7 @@ def landing_payload(share: dict, *, url: str, card_url: str = "",
         "id": str(share.get("id") or ""),
         "title": (share.get("title") or "A FAM episode").strip()[:MAX_TITLE],
         "question": (share.get("query") or "").strip()[:MAX_QUERY],
-        "minutes": max(1, int(share.get("minutes") or 0)),
+        "minutes": max(1, as_minutes(share.get("minutes") or 0)),
         "url": url or "",
         "card": card_url or "",
         "app_store": app_store or "",

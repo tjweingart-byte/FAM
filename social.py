@@ -44,6 +44,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 from paths import data_path
+from config import as_minutes
 
 log = logging.getLogger(__name__)
 
@@ -667,7 +668,7 @@ class SocialStore:
             " caption = excluded.caption, style = COALESCE(?, echoes.style),"
             " tags = COALESCE(?, echoes.tags), audience = COALESCE(?, echoes.audience),"
             " unstoried = 0",
-            (user_id, query, str(title)[:200], int(minutes), str(thread)[:200], now,
+            (user_id, query, str(title)[:200], as_minutes(minutes), str(thread)[:200], now,
              clean_caption(caption), json.dumps(layout) if layout else "",
              json.dumps(tagged) if tagged else "", audience or "",
              None if layout is None else (json.dumps(layout) if layout else ""),
@@ -677,7 +678,7 @@ class SocialStore:
         row = conn.execute(
             "SELECT id, user_id, query, title, minutes, thread, at FROM echoes"
             " WHERE user_id = ? AND query = ? AND minutes = ?",
-            (user_id, query, int(minutes)),
+            (user_id, query, as_minutes(minutes)),
         ).fetchone()
         return Echo(*row)
 
@@ -687,7 +688,7 @@ class SocialStore:
         try:
             row = self._conn().execute(
                 "SELECT tags FROM echoes WHERE user_id = ? AND query = ? AND minutes = ?",
-                (user_id, " ".join(str(query).split())[:300], int(minutes))).fetchone()
+                (user_id, " ".join(str(query).split())[:300], as_minutes(minutes))).fetchone()
             return {t.get("user_id") for t in json.loads(row[0])} if row and row[0] else set()
         except Exception:
             return set()
@@ -819,7 +820,7 @@ class SocialStore:
     def unecho(self, user_id: str, query: str, minutes: int) -> bool:
         cur = self._conn().execute(
             "DELETE FROM echoes WHERE user_id = ? AND query = ? AND minutes = ?",
-            (user_id, " ".join(str(query).split())[:300], int(minutes)),
+            (user_id, " ".join(str(query).split())[:300], as_minutes(minutes)),
         )
         return bool(cur.rowcount)
 
@@ -840,14 +841,14 @@ class SocialStore:
         conn = self._conn()
         if not value:
             conn.execute("DELETE FROM ratings WHERE user_id = ? AND query = ?"
-                         " AND minutes = ?", (user_id, query, int(minutes)))
+                         " AND minutes = ?", (user_id, query, as_minutes(minutes)))
             return 0
         conn.execute(
             "INSERT INTO ratings (user_id, query, minutes, value, at)"
             " VALUES (?, ?, ?, ?, ?)"
             " ON CONFLICT(user_id, query, minutes) DO UPDATE SET"
             " value = excluded.value, at = excluded.at",
-            (user_id, query, int(minutes), value, time.time()))
+            (user_id, query, as_minutes(minutes), value, time.time()))
         return value
 
     def episode_counts_many(self, pairs, user_id: str = "") -> dict:
@@ -911,15 +912,15 @@ class SocialStore:
             out["vibes"] = int(conn.execute(
                 "SELECT COUNT(*) FROM echoes WHERE query = ? AND minutes = ?"
                 " AND (audience = '' OR user_id = ?)",
-                (query, int(minutes), user_id or "")).fetchone()[0])
+                (query, as_minutes(minutes), user_id or "")).fetchone()[0])
             for value, n in conn.execute(
                     "SELECT value, COUNT(*) FROM ratings WHERE query = ?"
-                    " AND minutes = ? GROUP BY value", (query, int(minutes))):
+                    " AND minutes = ? GROUP BY value", (query, as_minutes(minutes))):
                 out["likes" if value > 0 else "dislikes"] = int(n)
             if user_id:
                 row = conn.execute(
                     "SELECT value FROM ratings WHERE user_id = ? AND query = ?"
-                    " AND minutes = ?", (user_id, query, int(minutes))).fetchone()
+                    " AND minutes = ?", (user_id, query, as_minutes(minutes))).fetchone()
                 out["rating"] = int(row[0]) if row else 0
                 out["vibed"] = self.has_echoed(user_id, query, minutes)
         except Exception:
@@ -948,7 +949,7 @@ class SocialStore:
         try:
             return bool(self._conn().execute(
                 "SELECT 1 FROM echoes WHERE user_id = ? AND query = ? AND minutes = ?",
-                (user_id, " ".join(str(query).split())[:300], int(minutes)),
+                (user_id, " ".join(str(query).split())[:300], as_minutes(minutes)),
             ).fetchone())
         except Exception:
             return False
@@ -1093,7 +1094,7 @@ class SocialStore:
                                    "x": tag.get("x", 0.5), "y": tag.get("y", 0.3)})
             out.setdefault(user_id, []).append(
                 {"id": int(eid), "query": query, "title": title or "",
-                 "minutes": int(minutes or 0),
+                 "minutes": as_minutes(minutes),
                  "thread": thread or "", "at": float(at),
                  # What they said about it, drawn with the story (10.5 #9).
                  "caption": caption or "",
@@ -1134,14 +1135,14 @@ class SocialStore:
             row = conn.execute(
                 "SELECT id, parent_id, query, minutes FROM comments WHERE id = ?",
                 (int(parent_id),)).fetchone()
-            if not row or row[2] != query or int(row[3]) != int(minutes):
+            if not row or row[2] != query or as_minutes(row[3]) != as_minutes(minutes):
                 raise SocialError("That comment is not here any more.")
             parent = int(row[1]) or int(row[0])
         now = time.time()
         cur = conn.execute(
             "INSERT INTO comments (user_id, query, minutes, parent_id, text, at)"
             " VALUES (?, ?, ?, ?, ?, ?)",
-            (user_id, query, int(minutes), parent, text, now))
+            (user_id, query, as_minutes(minutes), parent, text, now))
         person = self.person(user_id)
         return self._comment_dict(cur.lastrowid, user_id, parent, text, now,
                                   person, 0, False, user_id)
@@ -1174,7 +1175,7 @@ class SocialStore:
                 " (SELECT COUNT(*) FROM comment_likes l WHERE l.comment_id = c.id)"
                 " FROM comments c WHERE c.query = ? AND c.minutes = ?"
                 " ORDER BY c.at DESC LIMIT ?",
-                (query, int(minutes), int(limit) * 4)).fetchall()
+                (query, as_minutes(minutes), int(limit) * 4)).fetchall()
         except Exception:
             log.exception("could not read an episode's comments")
             return []
@@ -1228,7 +1229,7 @@ class SocialStore:
             log.exception("could not count comments")
             return out
         for query, minutes, n in rows:
-            orig = wanted.get((query, int(minutes)))
+            orig = wanted.get((query, as_minutes(minutes)))
             if orig is not None:
                 out[orig] = int(n)
         return out

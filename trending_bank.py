@@ -77,7 +77,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 import config
-from config import settings
+from config import as_minutes, settings
 from paths import data_path
 
 log = logging.getLogger(__name__)
@@ -210,7 +210,7 @@ class Edition:
             episodes=data.get("episodes", {}) or {},
             detail=data.get("detail", ""),
             requests=int(data.get("requests", 0) or 0),
-            minutes=int(data.get("minutes", 0) or 0),
+            minutes=as_minutes(data.get("minutes", 0) or 0),
         )
 
     def as_dict(self) -> dict:

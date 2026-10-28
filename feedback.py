@@ -32,6 +32,7 @@ import uuid
 from typing import Optional
 
 from paths import data_path
+from config import as_minutes
 
 log = logging.getLogger(__name__)
 
@@ -104,7 +105,7 @@ def episode_snapshot(query: str, minutes: int, title: str = "",
             break
         kept.append(sentence)
         used += len(sentence) + 1
-    return {"query": (query or "")[:500], "minutes": int(minutes or 0),
+    return {"query": (query or "")[:500], "minutes": as_minutes(minutes),
             "title": (title or "")[:MAX_FIELD], "thumb": thumb_path(thumb),
             "sources": items,
             "services": [{k: str(row.get(k) or "")[:MAX_FIELD]

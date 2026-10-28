@@ -81,9 +81,9 @@ def test_length_and_voice_are_bubbles_that_do_not_print_the_choice():
         assert gone not in controls, gone
 
 
-def test_the_length_is_one_minute_again_on_coming_back():
-    assert "var DEFAULT_LENGTH_MINUTES = 1;" in INDEX
-    block = INDEX.split("var DEFAULT_LENGTH_MINUTES = 1;", 1)[1].split("});", 1)[0]
+def test_the_length_is_the_standard_again_on_coming_back():
+    assert "var DEFAULT_LENGTH_MINUTES = 1.5;" in INDEX
+    block = INDEX.split("var DEFAULT_LENGTH_MINUTES = 1.5;", 1)[1].split("});", 1)[0]
     assert 'document.visibilityState !== "visible"' in block
     assert "selectedLengthMinutes = DEFAULT_LENGTH_MINUTES;" in block
 
@@ -321,6 +321,6 @@ def test_a_playlist_entry_is_removed_once_and_by_id():
 
 
 def test_coming_back_keeps_the_playing_episodes_length():
-    block = INDEX.split("var DEFAULT_LENGTH_MINUTES = 1;", 1)[1].split("});", 1)[0]
+    block = INDEX.split("var DEFAULT_LENGTH_MINUTES = 1.5;", 1)[1].split("});", 1)[0]
     assert "playing.exploreMinutes = currentPlayMinutes" in block
     assert "TOPICS[key].exploreMinutes = selectedLengthMinutes;" in _fn("regenerateAtNewLength")

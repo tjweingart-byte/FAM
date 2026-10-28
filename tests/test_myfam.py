@@ -874,10 +874,10 @@ def test_the_page_schedules_a_warm_and_never_waits_for_one(client, monkeypatch):
     assert scheduled, "the browse page warmed nothing at all"
     listener, minutes = scheduled[0]
     assert listener, "a warm has to be attributed to the listener it is for"
-    # One, whatever an older client sent (§147, §305): every myFAM episode is
+    # A minute and a half, whatever an older client sent (§147, §305, §332): every myFAM episode is
     # `BROWSE_MINUTES`, and a brief warmed at any other length is one nobody
     # ever looks up.
-    assert minutes == appmod.BROWSE_MINUTES == 1, (
+    assert minutes == appmod.BROWSE_MINUTES == 1.5, (
         "warmed at the wrong length: a brief is keyed by (query, minutes, "
         "context), so this one is a brief nobody ever looks up"
     )

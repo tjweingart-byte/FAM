@@ -58,6 +58,7 @@ import db as store_db
 import config
 import x_threads
 from paths import data_path
+from config import as_minutes
 
 log = logging.getLogger("fam.linkedin_posts")
 
@@ -278,7 +279,7 @@ def catalogue(cache) -> list[dict]:
         except Exception:  # noqa: BLE001
             vector = None
         out.append({"key": row["key"], "query": row["query"], "title": title,
-                    "minutes": int(row.get("minutes") or 1),
+                    "minutes": as_minutes(row.get("minutes") or 1),
                     "plays": int(row.get("plays") or 0),
                     "names": x_threads.names_for(title, row["query"]),
                     "vector": vector})
@@ -326,7 +327,7 @@ def off_subject(text: str, episode: dict) -> str:
     if not names:
         return ""
     seed = x_threads.Seed(episode.get("key", ""), episode.get("query", ""),
-                          episode.get("title", ""), int(episode.get("minutes") or 1), names)
+                          episode.get("title", ""), as_minutes(episode.get("minutes") or 1), names)
     return x_threads.on_subject(_Text(text), seed)
 
 
@@ -506,7 +507,7 @@ class TooLong(ValueError):
 
 
 def go_deeper_line(episode: dict, link: str) -> str:
-    return f"Go Deeper: “{episode['title']}” ({int(episode.get('minutes') or 1)} min) {link}"
+    return f"Go Deeper: “{episode['title']}” ({as_minutes(episode.get('minutes') or 1)} min) {link}"
 
 
 def compose(words: str, episode: dict, link: str) -> str:

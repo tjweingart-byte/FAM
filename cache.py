@@ -57,7 +57,7 @@ import audio_codec
 import audio_store
 import content_filter
 import embeddings
-from config import settings
+from config import as_minutes, settings
 from paths import data_path
 
 log = logging.getLogger(__name__)
@@ -345,7 +345,7 @@ def cache_key(
     payload = json.dumps(
         {
             "q": canonical or normalize_query(query),
-            "m": int(minutes),
+            "m": as_minutes(minutes),
             # A follow-up is a different episode from the same words asked cold.
             "ctx": canonical_context or "",
             # A researched episode is a different thing from an instant one.
@@ -377,7 +377,7 @@ def key_bucket(
     """
     payload = json.dumps(
         {
-            "m": int(minutes),
+            "m": as_minutes(minutes),
             "ctx": canonical_context or "",
             "search": bool(searched),
             "model": settings.model,
@@ -901,7 +901,7 @@ class MemoryScriptCache:
                 and list(before[1]) != list(sentences)):
             self._archive(key, self.sourced_at(key) or 0.0)
         sourced, fresh_until, expires = _clocks(ttl, sourced_at, now)
-        self._data[key] = (expires, list(sentences), thread, query, int(minutes))
+        self._data[key] = (expires, list(sentences), thread, query, as_minutes(minutes))
         self._created[key] = now
         self._clocks[key] = (sourced, fresh_until)
         # New words, so any audio kept for the old ones no longer matches -
@@ -1639,7 +1639,7 @@ class SqliteScriptCache:
                 "  voice = CASE WHEN scripts.voice != '' THEN scripts.voice"
                 "               ELSE excluded.voice END",
                 (key, expires, now, query[:500], json.dumps(sentences),
-                 thread[:200], int(minutes), bucket, vector, sources or "",
+                 thread[:200], as_minutes(minutes), bucket, vector, sources or "",
                  (author or "")[:64], (title or "")[:120], (summary or "")[:240],
                  int(ttl) if slide else 0, sourced, fresh_until,
                  (origin or "")[:16], (voice or "")[:80], (category or "")[:60]),

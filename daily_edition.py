@@ -897,7 +897,7 @@ async def run_forever(mix_store, generator=None, cache=None,
                              at=time.time())
         log.warning("daily edition: %s", NO_WRITER)
         return
-    log.info("daily edition: at %s %s, %d min an episode; next at %s",
+    log.info("daily edition: at %s %s, %s min an episode; next at %s",
              ", ".join(f"{h:02d}:00" for h in hours()),
              _settings().daily_edition_timezone, minutes(),
              slot_id(next_slot()))
