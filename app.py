@@ -40,6 +40,7 @@ from anthropic_client import build_async_client, describe_http_version, http2_en
 import audio_codec as audio_codec_mod
 import db as db_mod
 import audio_store as audio_store_mod
+import image_store
 import cache as cache_mod
 from cache import (MemoryScriptCache, SqliteScriptCache, build_cache, cache_key,
                    is_shareable, normalize_query, parse_episode_id, research_words)
@@ -763,6 +764,8 @@ async def lifespan(_: FastAPI):
     if audio_store_mod.get_store() is not None:
         # Not awaited: a bucket that is slow to answer must not hold up boot.
         _BACKGROUND.add(asyncio.create_task(_check_audio_store()))
+        # Pictures still inside the databases move to the bucket (§330).
+        _BACKGROUND.add(asyncio.create_task(_move_images_to_bucket()))
     elif audio_store_mod.status().get("error"):
         log.error("audio store: %s", audio_store_mod.status()["error"])
     yield
@@ -2104,6 +2107,8 @@ async def health(request: Request) -> dict:
                      "viral_loops": VIRAL_LOOPS.configured,
                      "outbox_pending": WAITLIST.outbox_summary()["pending"]},
         "voice_store": VOICE_STORE["dir"],
+        # Where pictures live (§330): the bucket, or inline in their rows.
+        "images": {**image_store.describe(), "moved": dict(_IMAGE_MOVE)},
         # Where kept audio lives and how it is packed (§237): the bucket, the
         # boot check's real write/read/delete, the codec, and the last sweep.
         "audio": {**audio_store_mod.status(), **audio_codec_mod.describe(),
@@ -5483,9 +5488,10 @@ app.add_middleware(carry_the_session)
 #: topics). Everything else - listening included - answers 403. The admin
 #: endpoints check their own credential and are passed through for it.
 #: `/api/thumb/` is a category's picture - nobody's data - which the landing
-#: page's samples draw (§190).
+#: page's samples draw (§190). `/api/image/` is a photo the status page shows
+#: its owner, named by its own hash (§330).
 WAITLIST_OPEN_PREFIXES = ("/api/auth/", "/api/waitlist/", "/api/admin/",
-                          "/api/thumb/")
+                          "/api/thumb/", "/api/image/")
 WAITLIST_OPEN_PATHS = frozenset({
     "/api/health", "/api/voice/register", "/api/client-status",
     "/api/me", "/api/preferences",
@@ -10385,6 +10391,18 @@ def _require_admin(request: Request) -> None:
         raise HTTPException(status_code=404, detail="Not found")
 
 
+@app.get("/api/admin/memory")
+async def admin_memory(request: Request, census: bool = False,
+                       trim: bool = True) -> dict:
+    """Where the resident memory is (§331, `memory_report.py`): glibc's
+    count of bytes in use and held free, then a `malloc_trim` and what it
+    gave back; with `?census=1`, this project's largest globals. Asked of
+    the running process, by an admin, never on a timer."""
+    _require_admin(request)
+    import memory_report
+    return await asyncio.to_thread(memory_report.report, trim, census)
+
+
 @app.get("/api/usage")
 async def usage(
     request: Request,
@@ -10681,6 +10699,24 @@ async def admin_wipe(req: WipeRequest, request: Request) -> dict:
 # public endpoint serves approved pictures only and does nothing else: no
 # model call, no generation, one indexed read. Everything that paints or
 # judges a picture is behind `_require_admin`.
+
+
+@app.get("/api/image/{name:path}", include_in_schema=False)
+async def stored_image(name: str) -> Response:
+    """A profile photo, group photo or mix cover kept in the bucket (§330),
+    by the path its row holds. The name is the picture's own hash, so it is
+    only known to whoever was shown it - the same people who saw it when it
+    was a `data:` URL inside a response. Cached for a year: a changed
+    picture is a different name."""
+    found = None
+    object_name = image_store.name_from_url(image_store.URL_PREFIX + name)
+    if object_name:
+        found = await asyncio.to_thread(image_store.read, object_name)
+    if not found:
+        raise HTTPException(status_code=404, detail="Not found")
+    data, mime = found
+    return Response(content=data, media_type=mime, headers={
+        "Cache-Control": "public, max-age=31536000, immutable"})
 
 
 @app.get("/api/thumb/{node_id:path}", include_in_schema=False)
@@ -11442,6 +11478,38 @@ async def _check_audio_store() -> None:
         log.error("audio store: the R2 bucket did not answer (%s); new audio"
                   " stays in scripts.db until it does",
                   _AUDIO_STORE_CHECK.get("why"))
+
+
+#: What the boot's move of inline pictures did (§330) - `/api/health` says.
+_IMAGE_MOVE: dict = {}
+
+
+async def _move_images_to_bucket(batch: int = 200) -> None:
+    """Move every picture still held inline into the bucket, a batch per
+    store at a time so no more than one batch is in memory, until a pass
+    moves nothing. Once per boot; new pictures go to the bucket as they are
+    saved, so after the first deploy this finds nothing."""
+    stores = {"profiles": SOCIAL, "groups": MESSAGES, "mixes": MIXES}
+    if thumbnails_mod._exists():
+        stores["thumbnails"] = thumbnails_mod.store()
+    total: dict = {}
+    try:
+        while True:
+            moved = await asyncio.to_thread(image_store.migrate, batch, stores)
+            counts = {k: v for k, v in moved.items() if isinstance(v, int)}
+            for label, n in counts.items():
+                total[label] = total.get(label, 0) + n
+            failed = {k: v for k, v in moved.items() if not isinstance(v, int)}
+            if failed or not any(counts.values()):
+                if failed:
+                    total["failed"] = failed
+                break
+    except Exception:  # noqa: BLE001 - what stays inline still draws
+        log.exception("could not move pictures to the bucket")
+        total["error"] = "move failed"
+    _IMAGE_MOVE.update({"at": time.time(), **total})
+    if any(isinstance(v, int) and v for v in total.values()):
+        log.info("image store: moved %s picture(s) to the bucket", total)
 
 
 async def _sweep_audio_forever(every: float = 3600.0) -> None:

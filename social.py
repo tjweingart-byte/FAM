@@ -37,6 +37,7 @@ import re
 import sqlite3
 
 import db as store_db
+import image_store
 import threading
 import time
 from dataclasses import dataclass
@@ -50,9 +51,9 @@ MAX_NAME = 40
 MAX_HANDLE = 24
 #: How big a profile picture may be, as a `data:` URL.
 #:
-#: Stored inline rather than as a file, because a file means a writable media
-#: directory, a URL that serves it, a cache header and a deletion path - four
-#: new things to get wrong for one small square. At 256x256 JPEG a picture is
+#: Arrives inline; kept in the bucket when there is one (`image_store`, §330),
+#: which is the media store, URL, cache header and deletion path this once
+#: avoided by keeping it in the row. At 256x256 JPEG a picture is
 #: comfortably under this; a client that sends the original off a phone camera
 #: is refused with a sentence telling it to downscale, rather than quietly
 #: filling the database.
@@ -106,6 +107,10 @@ def clean_avatar(avatar: str) -> str:
     avatar = str(avatar or "").strip()
     if not avatar:
         return ""
+    # A picture already in the bucket (§330) is our own address, not a
+    # remote URL; `_check_photo` still refuses one that is not this row's.
+    if image_store.is_url(avatar):
+        return avatar
     if not avatar.startswith(_AVATAR_PREFIX):
         raise SocialError("A profile picture has to be an image from your device.")
     if len(avatar) > MAX_AVATAR:
@@ -588,6 +593,8 @@ class SocialStore:
         if taken:
             raise SocialError(f"@{handle} is taken.")
         existing = self.person(user_id)
+        if picture:
+            picture = image_store.keep("avatar", picture)
         now = time.time()
         # Only name and handle are overwritten. `joined` and `last_seen` are
         # observations the server made and naming yourself is not new evidence
@@ -601,7 +608,31 @@ class SocialStore:
              existing["last_seen"] or now,
              existing["avatar"] if picture is None else picture),
         )
+        if picture is not None and existing["avatar"] != picture:
+            self._release_avatar(existing["avatar"])
         return self.person(user_id)
+
+    def _release_avatar(self, avatar: str) -> None:
+        """Delete a replaced picture from the bucket once no profile names it."""
+        image_store.release(avatar, lambda: self._conn().execute(
+            "SELECT 1 FROM people WHERE avatar = ? LIMIT 1", (avatar,)
+        ).fetchone() is not None)
+
+    def move_pictures_to_bucket(self, limit: int = 500) -> int:
+        """Inline profile pictures into the bucket (§330). Compare-and-set, so
+        a picture changed meanwhile is left to its new value."""
+        rows = self._conn().execute(
+            "SELECT user_id, avatar FROM people WHERE avatar LIKE 'data:%' LIMIT ?",
+            (int(limit),)).fetchall()
+        moved = 0
+        for user_id, avatar in rows:
+            kept = image_store.keep("avatar", avatar)
+            if kept != avatar:
+                cur = self._conn().execute(
+                    "UPDATE people SET avatar = ? WHERE user_id = ? AND avatar = ?",
+                    (kept, user_id, avatar))
+                moved += cur.rowcount or 0
+        return moved
 
     # --- echoes -----------------------------------------------------------
 
@@ -1596,6 +1627,11 @@ class SocialStore:
                              (json.dumps(kept) if kept else "", eid))
         except Exception:
             log.exception("could not untag %r", user_id)
+        avatar = ""
+        try:
+            avatar = self.person(user_id).get("avatar") or ""
+        except Exception:
+            log.exception("could not read the picture of %r", user_id)
         for table in ('echoes', 'notes', 'ratings', 'people'):
             try:
                 cur = self._conn().execute(
@@ -1603,4 +1639,7 @@ class SocialStore:
                 removed += cur.rowcount or 0
             except Exception:
                 log.exception("could not erase %s for %r", table, user_id)
+        # The photo in the bucket goes with the row (§330).
+        if avatar:
+            self._release_avatar(avatar)
         return removed
