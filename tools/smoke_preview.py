@@ -1531,8 +1531,8 @@ def main() -> int:
                 "the Topic screen still offers an episode length"
             badges = page.eval_on_selector_all(
                 "#screen-topic .yf-card-len", "e => e.map(x => x.textContent.trim())")
-            assert all(b.lower() == "1 min" for b in badges), \
-                f"card lengths {badges} are not the one-minute browse length"
+            assert all(b.lower() == "1.5 min" for b in badges), \
+                f"card lengths {badges} are not the minute-and-a-half browse length"
             page.evaluate("setTopicFilter('friends')")
             page.wait_for_timeout(700)
             assert page.query_selector("#screen-topic .yf-filter.on:nth-child(2)"), \
@@ -2253,7 +2253,7 @@ def main() -> int:
                 document.dispatchEvent(new Event('visibilitychange'));
                 delete document.visibilityState;
             }""")
-            assert page.evaluate("selectedLengthMinutes") == 1, \
+            assert page.evaluate("selectedLengthMinutes") == 1.5, \
                 "coming back into the app kept the old length"
 
         def the_player_menu_and_the_queue():
@@ -2682,10 +2682,10 @@ def main() -> int:
             # §190: the bubble says "Length" and no number; the menu ticks it.
             chip = page.text_content("#lengthBubble").strip()
             assert chip == "Length", f"the length bubble reads {chip!r}"
-            assert want == 1, f"the search page opened on {want} min, not 1"
+            assert want == 1.5, f"the search page opened on {want} min, not 1.5"
             for element_id in ("lengthModalVal",):
                 shown = page.text_content("#" + element_id).strip()
-                assert shown == "%d min" % want, \
+                assert shown == "%g min" % want, \
                     f"#{element_id} reads {shown!r}, the setting is {want} min"
             # And the menu ticks the one the chip names, which is the pair
             # that disagreed.
@@ -2703,7 +2703,7 @@ def main() -> int:
                 }""")
             page.evaluate("closeSheet()")
             page.wait_for_timeout(200)
-            assert ticked.strip().startswith("%d min" % want), \
+            assert ticked.strip().startswith("%g min" % want), \
                 f"the menu ticks {ticked!r}, the chip says {chip!r}"
 
         def picker():
@@ -3942,7 +3942,7 @@ def main() -> int:
             assert page.is_visible("#goDeeperInput"), "no box to type a follow-up"
             lengths = page.eval_on_selector_all(
                 "#goDeeperLengths .deeper-len", "e => e.map(b => b.textContent.trim())")
-            assert lengths == [f"{m} min" for m in range(1, 6)], lengths
+            assert lengths == ["1", "1.5", "2", "3", "4", "5"], lengths  # §332
             page.click('#goDeeperLengths .deeper-len[data-min="4"]')
             page.fill("#goDeeperInput", "what happens next")
             # An earlier check may already have made a follow-up (§285's

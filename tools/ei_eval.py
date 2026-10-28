@@ -291,7 +291,7 @@ def show(row: dict, minutes: int, write_script: bool) -> None:
 
 async def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--minutes", type=int, default=3)
+    ap.add_argument("--minutes", type=float, default=3)
     ap.add_argument("--script", action="store_true",
                     help="write every episode, not just the brief and retrieval")
     ap.add_argument("--only", default="", help=f"one of: {', '.join(PROMPTS)}")

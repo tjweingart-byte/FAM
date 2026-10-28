@@ -40,6 +40,7 @@ import uuid
 from typing import Optional
 
 from paths import data_path
+from config import as_minutes
 
 #: What can be reported, and what `target` names for each.
 #:   comment  - the comment id
@@ -88,7 +89,7 @@ class ModerationError(ValueError):
 
 
 def episode_target(query: str, minutes: int) -> str:
-    return "%d:%s" % (int(minutes), " ".join(str(query).split())[:300])
+    return "%s:%s" % (as_minutes(minutes), " ".join(str(query).split())[:300])
 
 
 class ModerationStore:

@@ -321,11 +321,11 @@ class RemoteChatterboxEngine(TTSEngine):
     #: reconfigured endpoint is not answered with the old one's answer.
     _found_route: tuple[str, str] | None = None
     #: Workers already put on /admin for speaking a bank voice without
-    #: saying which recording they cloned (§332): once per address.
+    #: saying which recording they cloned (§333): once per address.
     _unconfirmed: set = set()
     #: Per instance - one pipeline, one episode: a bank voice was asked for
     #: and some chunk came back from a worker that did not confirm it, so
-    #: this episode's audio is not kept under that voice's name (§332).
+    #: this episode's audio is not kept under that voice's name (§333).
     voice_unconfirmed: bool = False
 
     # -- configuration -----------------------------------------------------
@@ -845,7 +845,7 @@ class RemoteChatterboxEngine(TTSEngine):
         return replacement
 
     def _refuse_other_voice(self, payload: dict, output: dict, endpoint) -> None:
-        """Hold a reply to the bank voice it was asked for (§332).
+        """Hold a reply to the bank voice it was asked for (§333).
 
         A worker names the recording it cloned (`voice_sha`). One that names
         a different recording spoke a different voice, and that is a failure

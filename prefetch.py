@@ -87,7 +87,7 @@ from typing import Optional, Protocol
 
 import listener_clock
 import research
-from config import PREFETCH_LEVELS, settings
+from config import PREFETCH_LEVELS, as_minutes, settings
 
 log = logging.getLogger(__name__)
 
@@ -440,7 +440,7 @@ class BriefStore:
 
     @staticmethod
     def key(query: str, minutes: int, context: str = "") -> str:
-        return f"{int(minutes)}|{context.strip().lower()}|{' '.join(query.lower().split())}"
+        return f"{as_minutes(minutes)}|{context.strip().lower()}|{' '.join(query.lower().split())}"
 
     def put(self, query: str, minutes: int, brief, context: str = "",
             now: Optional[float] = None, source: str = "") -> None:
@@ -605,9 +605,9 @@ class Prefetcher:
                 continue
             # Before the dedupe, because length is part of what makes two
             # guesses the same guess.
-            if (minutes and candidate.minutes != int(minutes)
+            if (minutes and candidate.minutes != as_minutes(minutes)
                     and not candidate.pinned_length):
-                candidate = dataclasses.replace(candidate, minutes=int(minutes))
+                candidate = dataclasses.replace(candidate, minutes=as_minutes(minutes))
             # The same rule a live episode obeys. A question that is nobody
             # else's business must not be written speculatively either - it
             # would be a script nobody can be served, paid for in advance.

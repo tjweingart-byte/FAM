@@ -158,7 +158,7 @@ def main(argv=None) -> int:
     parser.add_argument("--engine", default="auto",
                         choices=("auto", "chatterbox", "debug"))
     parser.add_argument("--runs", type=int, default=3)
-    parser.add_argument("--minutes", type=int, default=3)
+    parser.add_argument("--minutes", type=float, default=3)
     parser.add_argument("--values", default=",".join(str(v) for v in DEFAULT_VALUES))
     parser.add_argument("--out", default="")
     args = parser.parse_args(argv)

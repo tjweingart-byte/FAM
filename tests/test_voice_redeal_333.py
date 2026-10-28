@@ -1,4 +1,4 @@
-"""§332: every voice was heard as the default.
+"""§333: every voice was heard as the default.
 
 Two causes, each tested where it is enforced:
 
@@ -40,9 +40,12 @@ def test_only_unheard_episodes_are_dealt_again(make, tmp_path):
     cache.put("heard", ["a."], 3600, "q1", "", 1, origin="myfam", voice="reference_3")
     cache.put("unheard", ["a."], 3600, "q2", "", 1, origin="dailyfam",
               voice="reference_3")
+    # A search's voice was its searcher's choice, not a draw.
+    cache.put("searched", ["a."], 3600, "q3", "", 1, origin="search", voice="ellis")
     cache.put_audio("heard", "remote:reference_3", 24000, b"\x01\x00" * 2400,
                     ["a."], [0.0])
     assert cache.redeal_voices() == 1
+    assert cache.voice_of("searched") == "ellis"
     assert cache.voice_of("heard") == "reference_3", \
         "an episode with kept audio must keep the voice that replays it"
     assert cache.voice_of("unheard") == ""

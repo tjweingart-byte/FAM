@@ -79,10 +79,10 @@
    > never on an episode's chunks). Its verdict is a hint with the audio
    > beside it; nothing changes the lexicon by itself.
 <!-- rule:op-voice-bank -->
-> **Current (PROBLEMS.md §332):** when the bank's voices change, every
+> **Current (PROBLEMS.md §333):** when the bank's voices change, every
 > episode with no audio kept in any voice forgets its drawn voice and draws
 > again from the new bank (`redeal_voices`, at boot and after /admin adds or
-> removes one). A worker's reply names the recording it cloned
+> removes one); a search's voice is a choice and is never re-dealt. A worker's reply names the recording it cloned
 > (`voice_sha`): another recording is a failure, none named plays but is
 > never kept under the voice's name and is put on /admin once.
 >
@@ -426,6 +426,8 @@
 
 <!-- rule:op-taste-scoring -->
 > **Current (PROBLEMS.md §305, the owner 10.23):** `BROWSE_MINUTES` is **one** - myFAM, DailyFAM, the Trending and DailyFAM editions, the startup write-ahead and prefetch all write and play one-minute episodes. Search and Go Deeper still offer 1-5. Where the text below says two, read one.
+
+> **Current (PROBLEMS.md §332, the owner 10.28):** `BROWSE_MINUTES` is **a minute and a half** (1.5) - one felt too short, two too long. Every surface above writes and plays 1.5-minute episodes; lengths are held to the half minute (`config.as_minutes`). Where the text above or below says one or two, read 1.5.
 > **Current (PROBLEMS.md §286, the owner 10.16):** Made for you's View more opens on the rail's own tiles (the client holds them), and everything it deals after them - the rest of the first page and every Refresh - is an episode already written (`cycle=cached`); when none is left it says "You're all caught up" with a way back to the top, never the first eight again. Every other rail still deals eight and wraps (§165).
 5b. **The taste model is crude, and less crude than it was.**
    *(§114 sharpened the scoring itself, which nothing before it had touched.

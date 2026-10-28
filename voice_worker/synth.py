@@ -180,7 +180,7 @@ async def synthesise(payload: dict) -> dict:
         "audio_seconds": round(seconds, 3),
         "synth_seconds": round(elapsed, 3),
         "engine": "chatterbox",
-        # The recording this chunk was actually cloned from (§332). The app
+        # The recording this chunk was actually cloned from (§333). The app
         # holds it against the bank voice it asked for: a worker that spoke
         # some other voice used to be indistinguishable from one that obeyed.
         "voice_sha": _cloned_sha(engine),

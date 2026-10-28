@@ -23199,7 +23199,52 @@ size, deduplicated and bounded (`complete: false` when the bound is hit).
 Native memory - the embedding model's runtime, psycopg's buffers - is in
 `rss` and the allocator's numbers but never in the census.
 
-## 332. Every voice was heard as the default (2026-10-28)
+## 332. The standard episode is a minute and a half (2026-10-28)
+
+At the owner's direction: "2 minutes feels too long and 1 minute feels too
+short". `DEFAULT_MINUTES` and `BROWSE_MINUTES` are 1.5 (both 1 since §305),
+and so are the client's `DEFAULT_LENGTH_MINUTES` and `BROWSE_MINUTES`. The
+Length bubble offers 1, 1.5, 2, 3, 4 and 5 and goes back to 1.5 on every
+return to the app; Go Deeper has a sixth pill, 1.5, and opens on the length
+of the episode it follows, held to the half minute (`offeredMinutes`). Six
+pills reading "N min" ran past the modal at 320px and "1.5 min" wrapped, so
+the pills say the number alone and the label says "Length (minutes)".
+
+Minutes were whole numbers everywhere, so this is more than two constants:
+- `config.as_minutes` holds a length to the nearest half minute and keeps a
+  whole length an `int`. It replaces every `int(minutes)` that named an
+  episode - `cache.cache_key`/`key_bucket` (where `int(1.5)` would have
+  filed a minute-and-a-half episode under one minute's key), saved, shares,
+  social (vibes, likes, comments), messages, moderation targets, metering,
+  episode quality, feedback, prefetch's dedupe key, the Trending bank, the
+  X and LinkedIn drafts, and `plan_episode`. Because `1` stays `1`, every
+  key and row written before this still matches.
+- Endpoints take `Minutes` (`app.py`: a float through `as_minutes`) instead
+  of `int`, so `minutes=1.5` is accepted rather than a 422; `minutes=1` from
+  an installed client is still `1`.
+- SQLite needed nothing: an INTEGER column keeps 1.5 as written. Postgres
+  would have rounded it into a BIGINT, so `db.translate` declares a
+  `minutes` column DOUBLE PRECISION and `Connection._float_minutes` upgrades
+  a table made before, once per table per process, the first time its store
+  says CREATE TABLE IF NOT EXISTS. Tested against a real Postgres
+  (`test_a_table_made_before_half_minutes_keeps_them`).
+- `plan_episode`'s `target_seconds` is a whole number of seconds (90).
+- Arithmetic that floors is left as it is: `research.packet_size` and
+  `episode_intelligence.max_beats` treat 1.5 as 1, so a browse episode keeps
+  the packet and the beats it had; `DEPTH_BANDS` puts it in `orientation`,
+  written for up to two.
+
+What this costs, as §305 did: every one-minute episode - the Trending and
+DailyFAM editions, the startup write-ahead, the guest bank, the sign-up and
+landing samples, kept audio - is no longer what a browse tap asks for. Each
+is rewritten at its next slot or first tap; until then a guest tap on a bank
+tile has no kept audio (403 → sign-up) and `ready_first` has less ready.
+Saved and offline tiles keyed `query|1` no longer show as saved/offline on
+their cards; the Saved list still plays them. History, shares and vibes
+carry their own minutes and replay as before. Writing quality at 1.5 is
+unheard: `python write.py "<query>" --minutes 1.5` is the loop.
+
+## 333. Every voice was heard as the default (2026-10-28)
 
 The owner (10.28): "We have added new voices to the app, but when I select
 them when generating an episode, it always does the default voice. The
@@ -23228,7 +23273,9 @@ report comes true with that code, and neither could be seen.
    (`app._redeal_voices`). An episode with kept audio keeps its voice: that
    is what replays it without the GPU. Every unheard episode is cleared
    whatever it held, so the new draw is as fair as the old one; a default
-   draw is still one of the bank's voices.
+   draw is still one of the bank's voices. A searched episode is
+   never re-dealt (`CHOSEN_VOICE_ORIGINS`: search, private): its voice was
+   the searcher's choice, and Explore replays it in that voice.
 2. **Nothing said which voice the worker spoke.** The worker clones what it
    is sent, but an image older than the bank (§147) ignores `voice` and
    `voice_sha` and speaks its default - and §318 found the pod still serving
@@ -23257,4 +23304,4 @@ RunPod rebuild not yet finished; it clears when the new image serves.
 Episodes already kept in a bank voice's name by such a worker still replay
 as it spoke them until their week ends.
 
-Tests: `tests/test_voice_redeal_332.py`.
+Tests: `tests/test_voice_redeal_333.py`.

@@ -26,7 +26,7 @@ import time
 from contextlib import asynccontextmanager
 from urllib.parse import quote
 from collections import defaultdict, deque
-from typing import Optional, Union
+from typing import Annotated, Optional, Union
 
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi import Response
@@ -34,7 +34,7 @@ from fastapi.responses import (
     HTMLResponse, JSONResponse, RedirectResponse, StreamingResponse)
 from fastapi.staticfiles import StaticFiles
 from starlette.datastructures import Headers, MutableHeaders
-from pydantic import BaseModel, Field, field_validator
+from pydantic import AfterValidator, BaseModel, Field, field_validator
 
 from anthropic_client import build_async_client, describe_http_version, http2_enabled
 import audio_codec as audio_codec_mod
@@ -67,8 +67,8 @@ import image_check
 import moderation as moderation_mod
 import saved as saved_mod
 import sharing
-from config import (BROWSE_MINUTES, DEFAULT_MINUTES, DEFAULT_PIPELINE, describe_key,
-                    key_source, settings)
+from config import (BROWSE_MINUTES, DEFAULT_MINUTES, DEFAULT_PIPELINE, as_minutes,
+                    describe_key, key_source, settings)
 import prefetch
 import prefetch_sources
 from episode_intelligence import report as ei_report
@@ -127,6 +127,11 @@ log = logging.getLogger("podcast")
 # first run of a new version this adopts voices an older project folder already
 # downloaded; every run after, it is a no-op.
 VOICE_STORE = voice_store.ensure_ready()
+
+#: An episode length on the wire (§332): any number, held to the nearest half
+#: minute by `as_minutes`, so the standard minute and a half is accepted and a
+#: whole length is the `int` every key written before it was built from.
+Minutes = Annotated[float, AfterValidator(as_minutes)]
 if VOICE_STORE["adopted"]:
     log.info(
         "reused %d voice(s) from a previous version of the app: %s",
@@ -761,7 +766,7 @@ async def lifespan(_: FastAPI):
     # read and a delete, never by looking at the settings.
     if hasattr(SCRIPT_CACHE, "sweep_audio"):
         _BACKGROUND.add(asyncio.create_task(_sweep_audio_forever()))
-    # Unheard episodes drawn from an older bank draw again (§332).
+    # Unheard episodes drawn from an older bank draw again (§333).
     _BACKGROUND.add(asyncio.create_task(asyncio.to_thread(_redeal_voices)))
     if audio_store_mod.get_store() is not None:
         # Not awaited: a bucket that is slow to answer must not hold up boot.
@@ -1757,7 +1762,7 @@ def _validated_plan(q: str, minutes: int, context: str = "", search: bool | None
 
 class ScriptRequest(BaseModel):
     query: str = Field(..., max_length=500)
-    minutes: int = Field(..., ge=1, le=10)
+    minutes: Minutes = Field(..., ge=1, le=10)
     #: Omitted means "let the question decide" - see /api/audio.
     search: bool | None = None
 
@@ -2749,7 +2754,7 @@ class SendMessageRequest(BaseModel):
     #: script cache's key - so the recipient's play is a cache hit and the
     #: share cost one row.
     query: str = Field("", max_length=messages_mod.MAX_QUERY)
-    minutes: int = Field(0, ge=0, le=60)
+    minutes: Minutes = Field(0, ge=0, le=60)
     title: str = Field("", max_length=messages_mod.MAX_TITLE)
     #: A reply to, or a like on, a friend's vibe (§282): the episode rides
     #: along so the message names the vibe it answers, but nothing was
@@ -2763,7 +2768,7 @@ class SendMessageRequest(BaseModel):
 
 class SaveRequest(BaseModel):
     query: str = Field(..., max_length=saved_mod.MAX_QUERY)
-    minutes: int = Field(DEFAULT_MINUTES, ge=0, le=60)
+    minutes: Minutes = Field(DEFAULT_MINUTES, ge=0, le=60)
     title: str = Field("", max_length=saved_mod.MAX_TITLE)
     source: str = Field("", max_length=40)
     folder_id: str = Field("", max_length=64)
@@ -2781,7 +2786,7 @@ class MoveRequest(BaseModel):
 
 class ShareRequest(BaseModel):
     query: str = Field(..., max_length=sharing.MAX_QUERY)
-    minutes: int = Field(DEFAULT_MINUTES, ge=0, le=60)
+    minutes: Minutes = Field(DEFAULT_MINUTES, ge=0, le=60)
     title: str = Field("", max_length=sharing.MAX_TITLE)
 
 
@@ -2835,7 +2840,7 @@ def _episode_target(query: str, minutes) -> str:
     """The moderation key for an episode, from the question as the cache
     matches it (`normalize_query`), so a report filed with what the listener
     typed and a cache row stored lower-cased name the same episode (§226)."""
-    return moderation_mod.episode_target(normalize_query(query or ""), int(minutes or 0))
+    return moderation_mod.episode_target(normalize_query(query or ""), as_minutes(minutes))
 
 
 def _episode_removed(viewer: str, query: str, minutes) -> bool:
@@ -2854,7 +2859,7 @@ def _episode_author(query: str, minutes: int) -> str:
     try:
         for entry in store.recent(TRENDING_SEARCHES_SCAN, origin="search"):
             if (normalize_query(entry.get("query") or "") == norm
-                    and int(entry.get("minutes") or 0) == int(minutes)):
+                    and as_minutes(entry.get("minutes") or 0) == as_minutes(minutes)):
                 return entry.get("author") or ""
     except Exception:  # noqa: BLE001 - a report is kept without an author
         log.exception("could not read an episode's author for a report")
@@ -3521,7 +3526,7 @@ def _shared_episode(query: str, minutes: int, episode: str = "") -> str:
     if SCRIPT_CACHE is None or not query or not is_shareable(query):
         return ""
     try:
-        length = max(1, min(10, int(minutes or DEFAULT_MINUTES)))
+        length = max(1, min(10, as_minutes(minutes or DEFAULT_MINUTES)))
         keys = [cache_key(query, length, None, "", searched)
                 for searched in (True, False)]
         found = ""
@@ -3696,7 +3701,7 @@ async def messages_leave_group(gid: str, request: Request) -> dict:
 async def saved_read(request: Request,
                      folder_id: Optional[str] = Query(None, max_length=64),
                      q: str = Query("", max_length=saved_mod.MAX_QUERY),
-                     minutes: int = Query(0, ge=0, le=60)) -> dict:
+                     minutes: Minutes = Query(0, ge=0, le=60)) -> dict:
     """The shelf, or - with `q` - whether one episode is on it.
 
     The second form is what draws the save control's state. It is the same
@@ -3741,7 +3746,7 @@ async def saved_save(req: SaveRequest, request: Request) -> dict:
 @app.delete("/api/saved")
 async def saved_unsave(request: Request,
                        q: str = Query(..., max_length=saved_mod.MAX_QUERY),
-                       minutes: int = Query(0, ge=0, le=60)) -> dict:
+                       minutes: Minutes = Query(0, ge=0, le=60)) -> dict:
     """Un-press the save control, which knows the episode and not a row id."""
     _read_limit(request)
     user = _require_account(request)
@@ -4293,7 +4298,7 @@ async def admin_remove_voice(slug: str, request: Request) -> dict:
 
 def _redeal_voices() -> int:
     """When the bank's voices differ from the ones unheard episodes were
-    dealt from, deal them again (§332): myFAM and DailyFAM episodes written
+    dealt from, deal them again (§333): myFAM and DailyFAM episodes written
     before a voice was added would otherwise keep the old bank's draw - the
     default, for a bank that held nothing else - for their whole week.
     At boot and after every change on /admin. Never raises."""
@@ -4572,7 +4577,7 @@ class FeedbackEpisode(BaseModel):
     thumbnails (`feedback.thumb_path`); without it the server picks the
     player's picture itself (`_player_picture`)."""
     q: str = ""
-    minutes: int = 0
+    minutes: Minutes = 0
     context: str = ""
     title: str = ""
     thumb: str = ""
@@ -4971,7 +4976,7 @@ class ReportRequest(BaseModel):
     #: named by `query` and `minutes` instead.
     target: str = Field("", max_length=120)
     query: str = Field("", max_length=300)
-    minutes: int = Field(0, ge=0, le=10)
+    minutes: Minutes = Field(0, ge=0, le=10)
     reason: str = Field(..., max_length=24)
     note: str = Field("", max_length=moderation_mod.MAX_NOTE)
 
@@ -7222,7 +7227,7 @@ def _seen_ids(seen: str) -> set:
 @app.get("/api/myfam/section")
 async def myfam_section(request: Request,
                         key: str = Query(..., max_length=32),
-                        minutes: int = Query(DEFAULT_MINUTES, ge=1, le=10),
+                        minutes: Minutes = Query(DEFAULT_MINUTES, ge=1, le=10),
                         interests: str = Query("", max_length=200),
                         page_size: int = Query(0, ge=0, le=40),
                         seen: str = Query("", max_length=6000),
@@ -7453,7 +7458,7 @@ def _topic_is_written(query: str, minutes: int) -> bool:
 async def episode_card(request: Request,
                        q: str = Query("", max_length=300),
                        title: str = Query("", max_length=300),
-                       minutes: int = Query(0, ge=0, le=10),
+                       minutes: Minutes = Query(0, ge=0, le=10),
                        episode: str = Query("", max_length=80),
                        context: str = Query("", max_length=300)) -> dict:
     """What the player draws around an episode (§190): its picture, and who
@@ -8137,13 +8142,13 @@ class EventRequest(BaseModel):
     #: is filed under the category of the episode that was actually heard
     #: (§209). Both optional: an older client sends neither, and its events
     #: are looked up at the browse length as they always were.
-    minutes: int = Field(0, ge=0, le=10)
+    minutes: Minutes = Field(0, ge=0, le=10)
     episode: str = Field("", max_length=80)
 
 
 @app.get("/api/myfam")
 async def myfam(request: Request, interests: str = Query("", max_length=200),
-                minutes: int = Query(DEFAULT_MINUTES, ge=1, le=10)):
+                minutes: Minutes = Query(DEFAULT_MINUTES, ge=1, le=10)):
     """The four myFAM rails, ranked for this listener.
 
     **Costs no model call and cannot cause one.** Both inventories are already
@@ -8301,7 +8306,7 @@ class PersonRequest(BaseModel):
 class EchoRequest(BaseModel):
     query: str = Field(..., max_length=300)
     title: str = Field("", max_length=200)
-    minutes: int = Field(DEFAULT_MINUTES, ge=1, le=10)
+    minutes: Minutes = Field(DEFAULT_MINUTES, ge=1, le=10)
     thread: str = Field("", max_length=200)
     #: What the person vibing it says about it (10.5 packet #9), shown with
     #: the episode when it plays as a story. Optional; cut to
@@ -8547,7 +8552,7 @@ async def set_close_friend(req: CloseFriendRequest, request: Request) -> dict:
 
 @app.delete("/api/echo")
 async def delete_echo(request: Request, q: str = Query("", max_length=300),
-                      minutes: int = Query(DEFAULT_MINUTES, ge=1, le=10)):
+                      minutes: Minutes = Query(DEFAULT_MINUTES, ge=1, le=10)):
     _read_limit(request)
     user = _listener(request)
     ok = SOCIAL.unecho(user, q, minutes)
@@ -8579,7 +8584,7 @@ async def post_vibe(req: EchoRequest, request: Request):
 
 @app.delete("/api/vibe")
 async def delete_vibe(request: Request, q: str = Query("", max_length=300),
-                      minutes: int = Query(DEFAULT_MINUTES, ge=1, le=10)):
+                      minutes: Minutes = Query(DEFAULT_MINUTES, ge=1, le=10)):
     """Take a vibe back. The same act as `DELETE /api/echo`."""
     return await delete_echo(request, q, minutes)
 
@@ -8593,7 +8598,7 @@ async def delete_vibe(request: Request, q: str = Query("", max_length=300),
 # (`account-gates-kept`), and the 401 is what opens the sign-up screen.
 class CommentRequest(BaseModel):
     query: str = Field(..., max_length=300)
-    minutes: int = Field(DEFAULT_MINUTES, ge=1, le=10)
+    minutes: Minutes = Field(DEFAULT_MINUTES, ge=1, le=10)
     #: Cut to `social.MAX_COMMENT` rather than refused.
     text: str = Field(..., max_length=2000)
     #: The comment this answers, or 0 for a new one.
@@ -8606,7 +8611,7 @@ class CommentLikeRequest(BaseModel):
 
 @app.get("/api/comments")
 async def episode_comments(request: Request, q: str = Query("", max_length=300),
-                           minutes: int = Query(DEFAULT_MINUTES, ge=1, le=10)) -> dict:
+                           minutes: Minutes = Query(DEFAULT_MINUTES, ge=1, le=10)) -> dict:
     """An episode's comments, most liked first, each with its replies."""
     _read_limit(request)
     viewer = _listener(request)
@@ -8666,7 +8671,7 @@ async def my_vibes(request: Request, limit: int = Query(40, ge=1, le=200)):
     # A guest has neither: folders are kept on an account.
     filed = SAVED.vibe_files(user) if _has_account(request) else {}
     return {"vibes": [dict(v.as_dict(person["name"], person["handle"]),
-                           folder_id=filed.get((v.query, int(v.minutes)), ""))
+                           folder_id=filed.get((v.query, as_minutes(v.minutes)), ""))
                       for v in vibes],
             "folders": SAVED.folders(user, "vibe") if _has_account(request) else [],
             "count": len(SOCIAL.echoes_by(user, limit=200))}
@@ -8674,7 +8679,7 @@ async def my_vibes(request: Request, limit: int = Query(40, ge=1, le=200)):
 
 class VibeFileRequest(BaseModel):
     query: str = Field(..., max_length=300)
-    minutes: int = Field(DEFAULT_MINUTES, ge=0, le=60)
+    minutes: Minutes = Field(DEFAULT_MINUTES, ge=0, le=60)
     #: A vibe folder's id, or "" to take the vibe out of any folder.
     folder_id: str = Field("", max_length=64)
 
@@ -8863,7 +8868,7 @@ async def circle(request: Request, notes: int = Query(0, ge=0, le=1)) -> dict:
 
 class ProgressRequest(BaseModel):
     query: str = Field(..., max_length=saved_mod.MAX_QUERY)
-    minutes: int = Field(..., ge=1, le=10)
+    minutes: Minutes = Field(..., ge=1, le=10)
     seconds: float = Field(..., ge=0, le=3600)
     title: str = Field("", max_length=saved_mod.MAX_TITLE)
     #: The topic a follow-up was asked from. Part of the episode's cache key,
@@ -8906,7 +8911,7 @@ async def progress_write(req: ProgressRequest, request: Request) -> dict:
 
 class HistoryRequest(BaseModel):
     query: str = Field(..., max_length=saved_mod.MAX_QUERY)
-    minutes: int = Field(..., ge=1, le=10)
+    minutes: Minutes = Field(..., ge=1, le=10)
     surface: str = Field(..., max_length=16)
     title: str = Field("", max_length=saved_mod.MAX_TITLE)
     context: str = Field("", max_length=300)
@@ -8926,7 +8931,7 @@ def _kept_under_question(item: dict) -> str:
     if SCRIPT_CACHE is None:
         return ""
     try:
-        key = _episode_key(_validated_plan(item["query"], int(item["minutes"]),
+        key = _episode_key(_validated_plan(item["query"], as_minutes(item["minutes"]),
                                            item.get("context") or ""))
         # Pinned as a new row would be, so it stays kept while it is shown.
         return _pin_heard(key) if key else ""
@@ -9116,7 +9121,7 @@ async def dismiss_go_deeper(req: DismissRequest, request: Request):
 
 class RateRequest(BaseModel):
     query: str = Field(..., max_length=300)
-    minutes: int = Field(DEFAULT_MINUTES, ge=1, le=10)
+    minutes: Minutes = Field(DEFAULT_MINUTES, ge=1, le=10)
     #: 1 like, -1 dislike, 0 take it back.
     value: int = Field(..., ge=-1, le=1)
     #: The card's cache key, so the counts that come back include its play
@@ -9157,7 +9162,7 @@ async def rate_episode(req: RateRequest, request: Request):
 @app.get("/api/episode/stats")
 async def episode_stats(request: Request,
                         q: str = Query(..., max_length=300),
-                        minutes: int = Query(DEFAULT_MINUTES, ge=1, le=10),
+                        minutes: Minutes = Query(DEFAULT_MINUTES, ge=1, le=10),
                         key: str = Query("", max_length=128)):
     """Plays, vibes, likes and dislikes for one episode, right now (§134).
 
@@ -9236,7 +9241,7 @@ async def trending_searches(request: Request) -> dict:
         # the opposite of what a trending search is for. With the semantic
         # key on (`CACHE_SEMANTIC_KEY`, off by default) the key needs a model
         # call to compute, and the row is offered on trust.
-        minutes = int(entry.get("minutes") or 0)
+        minutes = as_minutes(entry.get("minutes") or 0)
         if not settings.cache_semantic_key and entry.get("key") not in (
                 cache_key(query, minutes, None, "", True),
                 cache_key(query, minutes, None, "", False)):
@@ -9561,7 +9566,7 @@ async def interest_episodes(request: Request,
             return
         seen.add(q.lower())
         card = {"query": q, "title": title or (q[:1].upper() + q[1:]),
-                "minutes": int(minutes or 0), "source": source,
+                "minutes": as_minutes(minutes), "source": source,
                 "age_seconds": max(0.0, now - at) if at else None}
         card.update(extra)
         cards.append(card)
@@ -9607,7 +9612,7 @@ async def interest_episodes(request: Request,
 async def episode_sources(
     request: Request,
     q: str = Query(..., description="What the listener asked"),
-    minutes: int = Query(DEFAULT_MINUTES, ge=1, le=10),
+    minutes: Minutes = Query(DEFAULT_MINUTES, ge=1, le=10),
     context: str = Query("", description="Topic the listener just heard"),
     # As /api/audio's (§288): `SEARCH_MODE` decides when the client says
     # nothing, so this reads the key the episode was written under.
@@ -9646,7 +9651,7 @@ async def episode_sources(
 async def episode_transcript(
     request: Request,
     q: str = Query(..., description="What the listener asked"),
-    minutes: int = Query(DEFAULT_MINUTES, ge=1, le=10),
+    minutes: Minutes = Query(DEFAULT_MINUTES, ge=1, le=10),
     context: str = Query("", description="Topic the listener just heard"),
     # As /api/audio's (§288): `SEARCH_MODE` decides when the client says
     # nothing, so this reads the key the episode was written under.
@@ -9705,7 +9710,7 @@ async def episode_transcript(
 async def progress(
     request: Request,
     q: str = Query(..., description="What the listener asked"),
-    minutes: int = Query(DEFAULT_MINUTES, ge=1, le=10),
+    minutes: Minutes = Query(DEFAULT_MINUTES, ge=1, le=10),
     context: str = Query("", description="Topic the listener just heard"),
     # Same reason as /api/audio: the answer is keyed on the episode, and the
     # key has to be built the way the audio request built it.
@@ -9748,7 +9753,7 @@ async def progress(
 async def next_thread(
     request: Request,
     q: str = Query(..., description="What the listener asked"),
-    minutes: int = Query(DEFAULT_MINUTES, ge=1, le=10),
+    minutes: Minutes = Query(DEFAULT_MINUTES, ge=1, le=10),
     context: str = Query("", description="Topic the listener just heard"),
     # Same reason as /api/audio: this looks up a cache entry, and the entry it
     # looks for has to be keyed the same way the audio request keyed it.
@@ -9798,7 +9803,7 @@ async def next_thread(
 async def audio(
     request: Request,
     q: str = Query(..., description="What the listener asked"),
-    minutes: int = Query(DEFAULT_MINUTES, ge=1, le=10),
+    minutes: Minutes = Query(DEFAULT_MINUTES, ge=1, le=10),
     fmt: str = Query("wav", pattern="^(wav|pcm|opus)$"),
     context: str = Query("", description="Topic the listener just heard, for a follow-up"),
     voice: str = Query("", description="Voice id from /api/voices"),
@@ -11056,7 +11061,7 @@ def _x_episode_link(card: dict, request: Request) -> str:
         return ""
     try:
         share = SHARES.create(x_threads.SHARER, episode["query"],
-                              int(episode.get("minutes") or 1),
+                              as_minutes(episode.get("minutes") or 1),
                               episode.get("title") or "")
     except sharing.ShareError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -11261,7 +11266,7 @@ def _linkedin_link(episode: dict, request: Request) -> str:
     """The episode as a share link FAM owns: one per episode, like `/admin/x`'s."""
     try:
         share = SHARES.create(linkedin_posts.SHARER, episode["query"],
-                              int(episode.get("minutes") or 1),
+                              as_minutes(episode.get("minutes") or 1),
                               episode.get("title") or "")
     except sharing.ShareError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -11473,7 +11478,7 @@ def _held_episode_keys() -> set:
     # the exact episode the message names.
     try:
         for query, minutes, episode in MESSAGES.episodes():
-            pairs.add((query, int(minutes or 0)))
+            pairs.add((query, as_minutes(minutes)))
             parsed = parse_episode_id(episode) if episode else None
             if parsed is not None:
                 keys.add(parsed[0])

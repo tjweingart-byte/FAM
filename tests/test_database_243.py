@@ -184,6 +184,17 @@ def test_a_literal_is_never_rewritten():
     assert sql("CREATE TABLE t (n TEXT COLLATE NOCASE)") == "CREATE TABLE t (n TEXT)"
 
 
+def test_an_episode_length_is_a_float_in_postgres():
+    """§332: the standard episode is a minute and a half, and a BIGINT would
+    round 1.5 to 2 - another episode's key. Nothing else changes type."""
+    assert sql("CREATE TABLE t (query TEXT, minutes INTEGER NOT NULL DEFAULT 0,"
+               " plays INTEGER)") == ("CREATE TABLE t (query TEXT, minutes DOUBLE"
+                                      " PRECISION NOT NULL DEFAULT 0, plays BIGINT)")
+    assert sql("ALTER TABLE scripts ADD COLUMN minutes INTEGER NOT NULL DEFAULT 0") == \
+        "ALTER TABLE scripts ADD COLUMN minutes DOUBLE PRECISION NOT NULL DEFAULT 0"
+    assert "BIGINT" in sql("CREATE TABLE t (poll_minutes INTEGER)")
+
+
 def test_a_public_database_is_not_allowed_by_the_guard(monkeypatch):
     monkeypatch.setenv("DATABASE_URL", "postgresql://u:p@db.example.com:5432/fam")
     monkeypatch.setattr(db, "_resolves_private", lambda host: False)
@@ -208,6 +219,23 @@ def test_a_replace_is_an_upsert_on_the_key(tmp_path):
     rows = conn.execute("SELECT user_id, topics, at FROM prefs").fetchall()
     assert [tuple(r) for r in rows] == [("u1", "nba", 1791600001.75)]
     assert rows[0]["topics"] == "nba"
+
+
+@needs_postgres
+def test_a_table_made_before_half_minutes_keeps_them(tmp_path):
+    """§332: a `minutes` column made BIGINT is upgraded the next time its
+    store opens, whole lengths unchanged, and then holds 1.5 as written."""
+    conn = db.connect(str(tmp_path / "saved.db"), isolation_level=None)
+    conn.execute("CREATE TABLE IF NOT EXISTS early (q TEXT, poll INTEGER)")
+    conn.execute("ALTER TABLE early ADD COLUMN minutes BIGINT NOT NULL DEFAULT 0")
+    conn.execute("INSERT INTO early (q, poll, minutes) VALUES (?, ?, ?)", ("a", 1, 2))
+    db._FLOAT_MINUTES.discard((conn.schema, "early"))
+    conn.execute("CREATE TABLE IF NOT EXISTS early (q TEXT, poll INTEGER,"
+                 " minutes INTEGER NOT NULL DEFAULT 0)")
+    conn.execute("INSERT INTO early (q, poll, minutes) VALUES (?, ?, ?)", ("b", 1, 1.5))
+    rows = conn.execute("SELECT q, minutes FROM early ORDER BY q").fetchall()
+    assert [tuple(r) for r in rows] == [("a", 2), ("b", 1.5)]
+    assert conn.execute("SELECT q FROM early WHERE minutes = ?", (1.5,)).fetchone()[0] == "b"
 
 
 def _failed_write_in_a_transaction(conn):
