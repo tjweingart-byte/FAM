@@ -23331,24 +23331,46 @@ server reaching gigabytes with little live data.
 If memory now stays flat, the arenas were the cause. If it still climbs,
 the watch's report says where.
 
-## 335. Naming what runs when memory jumps (2026-10-28)
+## 335. The embedding model's pool: one pass at a time (2026-10-28)
 
 Production's memory graph with only the owner using the app (10.28, the
-plan now 4 GB): resident size rises in **steps of ~1.5 GB, each in under a
-minute and each with a CPU spike**, then stays flat for hours; a second
-step reaches the limit and Render restarts it. Not a leak (it would creep)
-and not load (it would fall with it): one operation needing that much at
-once, the allocator then keeping the space.
+plan now 4 GB): resident size rose in **steps of ~1.5 GB, each in under a
+minute and each with a CPU spike**, then stayed flat for hours; a second
+step reached the limit and Render restarted it. `/api/admin/memory` at
+2,043 MB (§334's watch had caught the step: 416.8 -> 2,014.5 MB in one
+sample) showed Python's own data at ~127 MB and **`mmapped_mb` 2,150**:
+large blocks held live by native code, which no number of glibc arenas
+could release.
 
-Ruled out here, measured: the embedding model (`tokenizer.json` truncates
-at 128 tokens; a batch of 64 at the limit adds ~200 MB, and the ranker
-sends 16 at most) and `cache.recent` (scripts are stored as plain
-sentences: 1,000 rows are a few MB).
+**onnxruntime's working-memory pool.** It never shrinks, and every forward
+pass running *at once* takes its own share. Measured here: one batch of 16
+texts at the 128-token limit holds ~105 MB; 24 such batches at once held
+1,090 MB; one batch of 200, 1,040 MB. Opening DailyFAM ranks several rails
+concurrently, each embedding its listener's history and its tiles
+(`taste_vectors`, ≤6 inline and the rest in batches of 16), so one person
+could run a dozen passes at once. onnxruntime also starts a thread per core
+it can see - 32 on Render's hosts, on a plan that may use 2 - the CPU spike.
 
-So the server names it: the watch now samples every 15 seconds, every HTTP
-request records its own change in resident size (`_track_memory`), and a
-rise of `JUMP_MB` (150) between two samples is logged at WARNING as
-`memory jump: <from> -> <to> MB` with the requests in flight, the requests
-finished since the last sample (largest rise first), the event loop's
-tasks by coroutine and the threads by pool (`memory_report.jump_step`).
-`/api/admin/memory` keeps this boot's jumps under `watch.jumps`.
+Fixed in `embeddings._OnnxEmbedder`:
+
+* **One pass at a time** (`_run_lock`). Passes take milliseconds; taking
+  turns is not visible to a listener.
+* **At most `MAX_BATCH` (16) texts a pass**, whatever the caller sends
+  (`tools/learn_rank.py --settled` sent everything at once).
+* **`FAM_EMBED_THREADS` threads a pass, 2 by default**, and one inter-op.
+* **No fixed padding.** The model's `tokenizer.json` padded every text to
+  128 tokens; the batch was already padded to its longest member, and the
+  mask excludes padding, so the vectors are identical (max difference 0.0)
+  while six titles take 27 ms instead of 191 ms and far less memory.
+
+Measured after: 24 concurrent batches of tile texts hold 197 MB resident
+(was ~1.1 GB); 24 at the 128-token limit, 342 MB.
+
+The watch from §334 stays, and now names what runs when memory jumps: it
+samples every 15 seconds, every HTTP request records its own change in
+resident size (`_track_memory`), and a rise of `JUMP_MB` (150) between two
+samples is logged at WARNING as `memory jump: <from> -> <to> MB` with the
+requests in flight, those finished since the last sample (largest rise
+first), the event loop's tasks and the threads (`memory_report.jump_step`;
+`/api/admin/memory` keeps them under `watch.jumps`). If anything else ever
+steps up like this, the log says what.

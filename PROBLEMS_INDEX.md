@@ -338,4 +338,4 @@ and `limit` = Lines.
 | 23202 | 45 | 332. The standard episode is a minute and a half (2026-10-28) |
 | 23247 | 62 | 333. Every voice was heard as the default (2026-10-28) |
 | 23309 | 25 | 334. Two arenas, and a watch that reports before the restart (2026-10-28) |
-| 23334 | 22 | 335. Naming what runs when memory jumps (2026-10-28) |
+| 23334 | 44 | 335. The embedding model's pool: one pass at a time (2026-10-28) |
