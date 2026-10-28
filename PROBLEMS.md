@@ -23243,3 +23243,28 @@ Saved and offline tiles keyed `query|1` no longer show as saved/offline on
 their cards; the Saved list still plays them. History, shares and vibes
 carry their own minutes and replay as before. Writing quality at 1.5 is
 unheard: `python write.py "<query>" --minutes 1.5` is the loop.
+
+## 333. Two arenas, and a watch that reports before the restart (2026-10-28)
+
+`/api/admin/memory?census=1` (§331) on production, read at 445 MB soon after
+a restart: 125 MB in use on the main heap, the largest of this project's
+globals 4.6 MB (the spell checker), nothing growing - and **82 threads**.
+The report saw only glibc's main arena. Each thread may get an arena of its
+own (up to eight per core), memory freed in one stays in it, and on
+Postgres a large result is read whole (`db.Cursor`, §331) - often on a
+worker thread (`asyncio.to_thread`). That is the classic shape of a Python
+server reaching gigabytes with little live data.
+
+* **`MALLOC_ARENA_MAX=2`** in the Dockerfile: two arenas whatever the thread
+  count. Set on the service to override. A local run showed no cost.
+* **The report counts every arena** (`all_arenas`, from `malloc_info`) and
+  names the threads by pool (`thread_names`).
+* **The watch** (`_watch_memory_forever`): the server samples its own size
+  every minute (six hours kept) and, the first time each boot it crosses
+  800, 1,200 and 1,600 MB, logs a full report with the census at WARNING
+  (`memory watch: passed ...`). The state worth reading is the one before
+  Render restarts it, which nobody is there to ask for. `/api/admin/memory`
+  carries the samples and this boot's reports under `watch`.
+
+If memory now stays flat, the arenas were the cause. If it still climbs,
+the watch's report says where.

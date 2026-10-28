@@ -336,3 +336,4 @@ and `limit` = Lines.
 | 23123 | 53 | 330. Pictures move to the bucket; everything else to Postgres (2026-10-28) |
 | 23176 | 26 | 331. Where 2 GB goes: a memory report asked of the running process (2026-10-28) |
 | 23202 | 45 | 332. The standard episode is a minute and a half (2026-10-28) |
+| 23247 | 25 | 333. Two arenas, and a watch that reports before the restart (2026-10-28) |

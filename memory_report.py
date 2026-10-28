@@ -19,14 +19,24 @@ returned - `db.Cursor`). Three readings, cheapest first:
   full process cannot itself run it out of memory; `complete: false` says
   the bound was reached and the numbers are a floor.
 
-Nothing here runs unless an admin asks.
+Nothing here runs unless an admin asks - except the watch (§333): the
+server samples its own size every minute and writes a full report to the
+log the first time each boot it crosses each of `WATCH_MB`, because the
+state worth seeing is the one before Render restarts it, when nobody is
+looking. `all_arenas()` counts every glibc arena (one per thread, up to
+eight per core, unless `MALLOC_ARENA_MAX` says fewer), where `allocator()`
+sees only the main one.
 """
 from __future__ import annotations
 
+import collections
 import ctypes
 import gc
 import os
+import re
 import sys
+import tempfile
+import threading
 import time
 import types
 from typing import Optional
@@ -74,6 +84,57 @@ def allocator() -> dict:
     return {"heap_mb": mb(info.arena), "in_use_mb": mb(info.uordblks),
             "free_held_mb": mb(info.fordblks), "mmapped_mb": mb(info.hblkhd),
             "note": "main heap only; other threads' arenas count in rss, not here"}
+
+
+def all_arenas() -> dict:
+    """Every arena's totals from `malloc_info`: how many arenas, the memory
+    they hold from the system, and how much of it is free. Empty off glibc."""
+    libc = _libc()
+    if libc is None or not hasattr(libc, "malloc_info"):
+        return {}
+    libc.fopen.restype = ctypes.c_void_p
+    libc.fopen.argtypes = [ctypes.c_char_p, ctypes.c_char_p]
+    libc.fclose.argtypes = [ctypes.c_void_p]
+    libc.malloc_info.argtypes = [ctypes.c_int, ctypes.c_void_p]
+    fd, path = tempfile.mkstemp(prefix="fam-malloc-", suffix=".xml")
+    os.close(fd)
+    try:
+        fp = libc.fopen(path.encode(), b"w")
+        if not fp:
+            return {}
+        try:
+            libc.malloc_info(0, fp)
+        finally:
+            libc.fclose(fp)
+        with open(path, encoding="utf-8", errors="replace") as fh:
+            xml = fh.read()
+    finally:
+        try:
+            os.unlink(path)
+        except OSError:
+            pass
+    # The totals over every arena follow the last </heap>.
+    tail = xml[xml.rfind("</heap>"):] if "</heap>" in xml else xml
+    def size(kind: str, typ: str) -> int:
+        m = re.search(rf'<{kind} type="{typ}"[^>]*size="(\d+)"', tail)
+        return int(m.group(1)) if m else 0
+    mb = lambda n: round(n / 1048576, 1)  # noqa: E731
+    return {"arenas": xml.count("<heap nr="),
+            "held_from_system_mb": mb(size("system", "current")),
+            "free_in_arenas_mb": mb(size("total", "fast") + size("total", "rest")),
+            "mmapped_mb": mb(size("total", "mmap")),
+            "arena_max": os.environ.get("MALLOC_ARENA_MAX") or "default (8 per core)",
+            "cpus": os.cpu_count()}
+
+
+def thread_names(top: int = 12) -> list:
+    """Live threads grouped by name, digits dropped - which pools made them."""
+    counts: dict = {}
+    for t in threading.enumerate():
+        name = re.sub(r"[-_ ]?\d+", "", t.name) or "thread"
+        counts[name] = counts.get(name, 0) + 1
+    return [{"name": k, "count": v} for k, v in
+            sorted(counts.items(), key=lambda kv: -kv[1])[:top]]
 
 
 def trim() -> dict:
@@ -151,7 +212,9 @@ def by_type(top: int = 15) -> list:
 
 def report(trim_first: bool = True, census: bool = False) -> dict:
     out = {"rss_mb": rss_mb(), "allocator": allocator(),
-           "threads": len(os.listdir("/proc/self/task")) if os.path.isdir("/proc/self/task") else None}
+           "all_arenas": all_arenas(),
+           "threads": len(os.listdir("/proc/self/task")) if os.path.isdir("/proc/self/task") else None,
+           "thread_names": thread_names()}
     if trim_first:
         out["trim"] = trim()
         out["allocator_after_trim"] = allocator()
@@ -159,3 +222,38 @@ def report(trim_first: bool = True, census: bool = False) -> dict:
         out["holders"] = holders()
         out["by_type"] = by_type()
     return out
+
+
+# --- the watch (§333) ------------------------------------------------------
+
+#: Sizes at which the watch writes a full report, once each per boot.
+WATCH_MB = (800, 1200, 1600)
+#: One sample a minute for the last six hours.
+SAMPLES: collections.deque = collections.deque(maxlen=360)
+#: The reports the watch wrote this boot, newest last.
+SNAPSHOTS: list = []
+_CROSSED: set = set()
+
+
+def watch_step(now: Optional[float] = None, rss: Optional[float] = None) -> Optional[dict]:
+    """One sample. Returns a report the first time `rss` crosses one of
+    `WATCH_MB` this boot (the caller logs it), else None. No trim: the
+    point is to see the size as it was."""
+    rss = rss_mb() if rss is None else rss
+    if rss is None:
+        return None
+    SAMPLES.append((round(time.time() if now is None else now), rss))
+    crossed = [mb for mb in WATCH_MB if rss >= mb and mb not in _CROSSED]
+    if not crossed:
+        return None
+    _CROSSED.update(crossed)
+    snap = {"at": round(time.time()), "crossed_mb": max(crossed),
+            **report(trim_first=False, census=True)}
+    SNAPSHOTS.append(snap)
+    del SNAPSHOTS[:-len(WATCH_MB)]
+    return snap
+
+
+def watch_state() -> dict:
+    return {"thresholds_mb": list(WATCH_MB), "crossed_mb": sorted(_CROSSED),
+            "samples": list(SAMPLES), "snapshots": list(SNAPSHOTS)}

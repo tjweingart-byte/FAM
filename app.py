@@ -766,6 +766,9 @@ async def lifespan(_: FastAPI):
     # read and a delete, never by looking at the settings.
     if hasattr(SCRIPT_CACHE, "sweep_audio"):
         _BACKGROUND.add(asyncio.create_task(_sweep_audio_forever()))
+    # The server's own size once a minute, and a full report in the log the
+    # first time each boot it crosses each watch line (§333).
+    _BACKGROUND.add(asyncio.create_task(_watch_memory_forever()))
     if audio_store_mod.get_store() is not None:
         # Not awaited: a bucket that is slow to answer must not hold up boot.
         _BACKGROUND.add(asyncio.create_task(_check_audio_store()))
@@ -10405,7 +10408,10 @@ async def admin_memory(request: Request, census: bool = False,
     the running process, by an admin, never on a timer."""
     _require_admin(request)
     import memory_report
-    return await asyncio.to_thread(memory_report.report, trim, census)
+    out = await asyncio.to_thread(memory_report.report, trim, census)
+    # What the server saw of itself while nobody was looking (§333).
+    out["watch"] = memory_report.watch_state()
+    return out
 
 
 @app.get("/api/usage")
@@ -11483,6 +11489,22 @@ async def _check_audio_store() -> None:
         log.error("audio store: the R2 bucket did not answer (%s); new audio"
                   " stays in scripts.db until it does",
                   _AUDIO_STORE_CHECK.get("why"))
+
+
+async def _watch_memory_forever(every: float = 60.0) -> None:
+    """§333: Render restarts the server when it runs out of memory, and the
+    state worth seeing is the one just before - so the server records its
+    own size and logs a full report (`memory_report.watch_step`) as it grows."""
+    import memory_report
+    while True:
+        try:
+            snap = await asyncio.to_thread(memory_report.watch_step)
+            if snap:
+                log.warning("memory watch: passed %s MB - %s", snap["crossed_mb"],
+                            json.dumps(snap, default=str))
+        except Exception:  # noqa: BLE001 - a watch that dies watches nothing
+            log.exception("memory watch failed; trying again")
+        await asyncio.sleep(every)
 
 
 #: What the boot's move of inline pictures did (§330) - `/api/health` says.
