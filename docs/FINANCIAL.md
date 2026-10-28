@@ -260,7 +260,7 @@ live: `/api/health` reports it.
 - **Estimate, compute only:** serverless flex at $0.69/h costs the same as an
   L4 pod ($9.36/day) at about 13.5 GPU-hours/day. At 4.6x that is about 62
   hours of *new* audio a day.
-- **In practice:** the 60 s idle timeout and cold starts pull the real
+- **In practice:** the 180 s idle timeout and cold starts pull the real
   break-even well below that. `REMOTE_VOICE.md`'s rule of thumb is "cheaper
   below ~4 hours of audio a day".
 - **Recommendation:** serverless until the GPU line in `usage_report.py` is

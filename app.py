@@ -2266,8 +2266,40 @@ async def auth_me(request: Request) -> dict:
     if listener is None:
         return {"user_id": "", "email": "", "authenticated": False,
                 "waitlist": settings.waitlist, "home": settings.app_home_url}
+    # The app asks this first on every open, so it is the earliest moment a
+    # listener is known to be here: ask for a GPU now rather than at the tap
+    # (§329). `/api/voice/wake` is the same for a return to the foreground.
+    _wake_for(listener)
     return {**listener.as_dict(), "waitlist": settings.waitlist,
             "home": settings.app_home_url}
+
+
+def _wake_for(listener) -> bool:
+    """Wake the remote voice for a listener who has just arrived, if they may play.
+
+    myFAM and DailyFAM tiles are written before the tap, so a wake sent with
+    the audio request has nothing to hide behind there and the listener waits
+    out the whole cold start (§329). Only for an account that may play - a
+    guest hears kept audio only (§154), and a waitlisted account is sent away.
+    """
+    if listener is None or not listener.is_authenticated or listener.status == "waitlisted":
+        return False
+    _wake_remote_voice()
+    return True
+
+
+@app.post("/api/voice/wake")
+async def voice_wake(request: Request) -> dict:
+    """The app came back to the foreground: start a GPU booting now (§329).
+
+    A phone that leaves the app open in the background never reloads it, so
+    `/api/auth/me` is not asked again; this is the open for that case. Costs
+    no model call, never blocks, and `REMOTE_VOICE_WAKE_INTERVAL` keeps
+    repeats from queueing jobs. `woke` says whether a wake was asked for, not
+    whether a worker was cold.
+    """
+    _read_limit(request)
+    return {"woke": _wake_for(getattr(request.state, "listener", None))}
 
 
 def _one_identifier(req: CredentialsRequest) -> str:

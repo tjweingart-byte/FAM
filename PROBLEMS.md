@@ -23076,3 +23076,46 @@ voice kept differs from the file uploaded and the listening test is of the
 kept one. A recording that passes is stored byte for byte; anything but
 16-bit PCM is unchanged and judged by the check as before. The local CLI path
 (`tools/voice_bank.py add` without `--url`) still refuses, pointing at the tool.
+
+## 329. The voice is woken when the app opens, not at the tap (2026-10-27)
+
+The owner (10.27): "the delay from runpod on the serverless is too high for
+the first episode, is there a way that we can wake up the runpod server when
+the first person opens the app to limit that delay?"
+
+**Why the existing wake hid nothing on browse.** `remote_voice.wake()` was
+sent from `/api/audio`, alongside script generation. On search that is
+seconds of cover (EI, retrieval, the writer). A myFAM or DailyFAM tile is
+written before the tap, so its tap goes straight to the voice and the wake
+lands at the same moment as the first chunk: the listener waited out the
+whole cold start (73 s measured on 10.27, REMOTE_VOICE.md).
+
+**Now:** `/api/auth/me`, the first thing the app asks on every open
+(`refreshAuth()` before `bootToFirstScreen`), sends the same wake for an
+account that may play. Never for a guest (kept audio only, §154) or a
+waitlisted account. It is still the hint it was: never raises, never
+blocks, throttled by `REMOTE_VOICE_WAKE_INTERVAL`, a no-op unless
+`VOICE_BACKEND=remote` with the `runpod` transport. Server-side only, so the
+iOS client gets it by asking the same endpoint.
+
+**What it does not cover:** the endpoint's idle timeout (60 s). A listener
+who browses longer than that before tapping meets a cold worker again;
+raising the idle timeout in the RunPod console is the cheapest answer.
+Each open now bills a boot and an idle timeout of GPU even when nothing is
+played.
+
+**And on returning to the foreground** (the owner, same day). A phone that
+kept the app in the background never reloads it, so `/api/auth/me` is not
+asked again. The page now sends `POST /api/voice/wake` on `visibilitychange`
+to visible, signed-in only; the server holds the same rule through
+`_wake_for` (guests and waitlisted get `{"woke": false}`, and under
+`WAITLIST=1` the path is closed to anyone not active).
+
+**And the idle timeout to 180 s** (the owner, same day). It is the RunPod
+endpoint's setting, not FAM's, so it is changed in the console (Serverless →
+the endpoint → Edit → Idle timeout); REMOTE_VOICE.md and FINANCIAL.md now say
+180 s. Every worker that boots now bills up to three idle minutes after its
+last job instead of one, the price of a listener who browses before tapping
+finding the worker the open woke still up. `REMOTE_VOICE_WAKE_INTERVAL`
+stays at 60 s: under the timeout, so a wake from a returning listener is
+sent while the worker is still up.

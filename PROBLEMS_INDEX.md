@@ -332,3 +332,4 @@ and `limit` = Lines.
 | 22898 | 75 | 326. Every X card is about the post it answers (2026-10-27) |
 | 22973 | 83 | 327. Go Deeper on LinkedIn finds its own posts (2026-10-27) |
 | 23056 | 24 | 328. The voice bank trims an upload instead of refusing it (2026-10-27) |
+| 23080 | 43 | 329. The voice is woken when the app opens, not at the tap (2026-10-27) |

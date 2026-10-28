@@ -79,7 +79,7 @@ network volume `safe_peach_goat_volume` (EU-RO-1).
    | Network volume | the one from step 2 | the voice and the weights |
    | Active workers | 0 for now | billed only while voicing; ~$343/month for 1, which buys no cold starts - revisit at launch |
    | Max workers | 4 | more listeners at once get more cards, billed only while busy |
-   | Idle timeout | 60 s | idle seconds are billed too, so not longer |
+   | Idle timeout | 180 s | idle seconds are billed, but a listener who browses before tapping meets a warm worker (§329) |
    | FlashBoot | on | shorter cold starts |
    | Execution timeout | 600 s | the first job downloads the weights |
    | Container disk | 20 GB or more | the image is large |
@@ -155,7 +155,7 @@ makes serverless viable at all.
 | Network volume | the one from step 2 | weights and the voice |
 | Active workers | 0 | the whole point; nothing idle is billed |
 | Max workers | 1–2 | one card serves one generation at a time |
-| Idle timeout | 60s | long enough that a second episode is warm |
+| Idle timeout | 180s | long enough that browsing before a tap, and a second episode, are warm (§329) |
 | FlashBoot | on | it is what makes a warm start ~instant |
 | Env | nothing | the image sees `RUNPOD_ENDPOINT_ID` and runs the handler |
 
@@ -517,6 +517,12 @@ earlier, not by filling the gap**. When a request arrives, `app.py` fires
 sent *before Claude has written a word*. The script takes several seconds to
 write, and the worker boots during them.
 
+A browse tile's script is written before the tap, so that wake has nothing
+to hide behind there. The same wake is therefore also sent when the app opens
+(`/api/auth/me`, for an account that may play, never a guest; PROBLEMS.md
+§329), which is the earliest a listener is known to be here, and again when
+it returns to the foreground (`POST /api/voice/wake`).
+
 The wake is a hint, not a mechanism. It never raises, never blocks, and never
 delays a request; a miss costs only the cold start it was trying to hide. It
 also will not stampede — a worker that is already booting does not boot faster
@@ -526,6 +532,7 @@ If measurement says the wake is not covering it, in order of preference:
 
 1. **Raise the idle timeout.** The cheapest fix by far: it only bills while a
    worker is up, and a listener who plays two episodes gets the second warm.
+   Raised from 60 s to 180 s with the wake on open (PROBLEMS.md §329).
 2. **One active worker during peak hours.** This is a pod wearing a different
    hat — it is billed continuously — so price it as one.
 3. **Switch to `REMOTE_VOICE_TRANSPORT=http`.** At that point you are paying
