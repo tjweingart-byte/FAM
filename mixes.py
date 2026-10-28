@@ -35,6 +35,7 @@ import re
 import sqlite3
 
 import db as store_db
+import image_store
 import threading
 import time
 import uuid
@@ -345,15 +346,17 @@ def taste_tags(item: MixItem) -> tuple[str, ...]:
 def clean_cover(cover: str) -> str:
     """A mix's cover photo, as a data URL, or "" for none.
 
-    Kept inline on the mix row: the whole of this app's storage is SQLite on
-    one disk, and a cropped 360px JPEG is smaller than a message thread.
-    Refused rather than trimmed when it is not an image, because a cover that
-    silently fails to draw looks like the app lost it. If covers ever move to
-    object storage, this is where the URL comes back instead.
+    Arrives inline; the store keeps it in the bucket when there is one
+    (`image_store`, §330) and the row keeps its `/api/image/` path, which is
+    accepted back here as it is. Refused rather than trimmed when it is not
+    an image, because a cover that silently fails to draw looks like the app
+    lost it.
     """
     cover = str(cover or "").strip()
     if not cover:
         return ""
+    if image_store.is_url(cover):
+        return cover
     if len(cover) > MAX_COVER_CHARS:
         raise MixError("That photo is too large. Try a smaller one.")
     if not cover.startswith(_COVER_PREFIXES):
@@ -677,6 +680,7 @@ class MixStore:
             raise MixError(f"You already have {MAX_MIXES_PER_USER} mixes.")
         if any(m.name.lower() == name.lower() for m in existing):
             raise MixError(f"You already have a mix called {name}.")
+        cover = image_store.keep("cover", cover)
         now = time.time()
         mix = Mix(uuid.uuid4().hex[:12], user_id, name, items, now, now,
                   public=bool(public), cover=cover)
@@ -716,8 +720,12 @@ class MixStore:
             mix.items = clean_items(topic_ids)
         if public is not None:
             mix.public = bool(public)
+        replaced = ""
         if cover is not None:
-            mix.cover = clean_cover(cover)
+            kept = image_store.keep("cover", clean_cover(cover))
+            if kept != mix.cover:
+                replaced = mix.cover
+            mix.cover = kept
         if listen_at is not None:
             import push
             try:
@@ -736,6 +744,7 @@ class MixStore:
              json.dumps([i.as_dict() for i in mix.items]), int(mix.public),
              mix.cover, mix.listen_at, mix.listen_tz, mix_id, user_id),
         )
+        self._release_covers([replaced])
         return mix
 
     def get_public(self, mix_id: str, viewer: str = "") -> Optional[Mix]:
@@ -832,16 +841,52 @@ class MixStore:
         """
         if not user_id or not source_id:
             return False
+        covers = self._covers("user_id = ? AND source_id = ?", (user_id, source_id))
         cur = self._conn().execute(
             "DELETE FROM mixes WHERE user_id = ? AND source_id = ?", (user_id, source_id)
         )
+        self._release_covers(covers)
         return bool(cur.rowcount)
 
     def delete(self, user_id: str, mix_id: str) -> bool:
+        covers = self._covers("id = ? AND user_id = ?", (mix_id, user_id))
         cur = self._conn().execute(
             "DELETE FROM mixes WHERE id = ? AND user_id = ?", (mix_id, user_id)
         )
+        self._release_covers(covers)
         return bool(cur.rowcount)
+
+    def _covers(self, where: str, args: tuple) -> list[str]:
+        try:
+            return [r[0] for r in self._conn().execute(
+                f"SELECT cover FROM mixes WHERE {where} AND cover != ''", args)]
+        except Exception:
+            log.exception("could not read covers")
+            return []
+
+    def _release_covers(self, covers) -> None:
+        """Delete covers from the bucket that no mix names any more - a copy
+        shares its original's (§330)."""
+        for cover in set(c for c in covers if c):
+            image_store.release(cover, lambda c=cover: self._conn().execute(
+                "SELECT 1 FROM mixes WHERE cover = ? LIMIT 1", (c,)
+            ).fetchone() is not None)
+
+    def move_pictures_to_bucket(self, limit: int = 500) -> int:
+        """Inline covers into the bucket (§330), compare-and-set. A copy and
+        its original carry the same bytes, so they land on one object."""
+        rows = self._conn().execute(
+            "SELECT id, cover FROM mixes WHERE cover LIKE 'data:%' LIMIT ?",
+            (int(limit),)).fetchall()
+        moved = 0
+        for mix_id, cover in rows:
+            kept = image_store.keep("cover", cover)
+            if kept != cover:
+                cur = self._conn().execute(
+                    "UPDATE mixes SET cover = ? WHERE id = ? AND cover = ?",
+                    (kept, mix_id, cover))
+                moved += cur.rowcount or 0
+        return moved
 
     def forget(self, user_id: str) -> int:
         """Erase everything this store holds for one listener.
@@ -856,6 +901,7 @@ class MixStore:
         than that it tried.
         """
         removed = 0
+        covers = self._covers("user_id = ?", (user_id,))
         for table in ('mixes',):
             try:
                 cur = self._conn().execute(
@@ -870,6 +916,7 @@ class MixStore:
                 "UPDATE mixes SET source_user = '' WHERE source_user = ?", (user_id,))
         except Exception:
             log.exception("could not clear copies' owner for %r", user_id)
+        self._release_covers(covers)
         return removed
 
 

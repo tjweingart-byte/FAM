@@ -61,6 +61,7 @@ import logging
 import sqlite3
 
 import db as store_db
+import image_store
 import threading
 import time
 from dataclasses import dataclass
@@ -668,8 +669,12 @@ class MessageStore:
         cleaned and checked (`social.clean_avatar`, the photo check)."""
         if not self.is_member(gid, user_id):
             raise MessageError("You are not in that group.")
+        before = self.group(gid).get("avatar") or ""
+        avatar = image_store.keep("group", avatar or "")
         self._conn().execute("UPDATE groups SET avatar = ? WHERE id = ?",
-                             (avatar or "", gid))
+                             (avatar, gid))
+        if before != avatar:
+            self._release_photo(before)
         self.send(user_id, gid, kind="system",
                   text="changed the group photo" if avatar else "took the group photo off")
         return self.group(gid)
@@ -677,9 +682,33 @@ class MessageStore:
     def remove_group_photo(self, gid: str) -> bool:
         """A reviewer taking a reported group's photo down (§251). True if
         there was one to take down."""
+        before = self.group(gid).get("avatar") or ""
         cur = self._conn().execute(
             "UPDATE groups SET avatar = '' WHERE id = ? AND avatar != ''", (gid,))
+        if cur.rowcount:
+            self._release_photo(before)
         return bool(cur.rowcount)
+
+    def _release_photo(self, avatar: str) -> None:
+        """Delete a replaced group photo from the bucket once no group names it."""
+        image_store.release(avatar, lambda: self._conn().execute(
+            "SELECT 1 FROM groups WHERE avatar = ? LIMIT 1", (avatar,)
+        ).fetchone() is not None)
+
+    def move_pictures_to_bucket(self, limit: int = 500) -> int:
+        """Inline group photos into the bucket (§330), compare-and-set."""
+        rows = self._conn().execute(
+            "SELECT id, avatar FROM groups WHERE avatar LIKE 'data:%' LIMIT ?",
+            (int(limit),)).fetchall()
+        moved = 0
+        for gid, avatar in rows:
+            kept = image_store.keep("group", avatar)
+            if kept != avatar:
+                cur = self._conn().execute(
+                    "UPDATE groups SET avatar = ? WHERE id = ? AND avatar = ?",
+                    (kept, gid, avatar))
+                moved += cur.rowcount or 0
+        return moved
 
     def leave_group(self, user_id: str, gid: str) -> bool:
         """Leave a group. Said in the group first, so the others know."""

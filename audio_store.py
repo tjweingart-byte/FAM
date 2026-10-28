@@ -155,7 +155,8 @@ class MemoryAudioStore:
         self.objects: dict[str, tuple[bytes, str]] = {}
         self.calls: list[tuple[str, str]] = []
 
-    def put(self, name: str, data: bytes, storage_class: str = "") -> None:
+    def put(self, name: str, data: bytes, storage_class: str = "",
+            content_type: str = "") -> None:
         self.calls.append(("put", name))
         self.objects[name] = (bytes(data), storage_class or "STANDARD")
 
@@ -231,8 +232,10 @@ class R2AudioStore:
         if resp.status_code >= 300:
             raise AudioStoreError(f"{what}: HTTP {resp.status_code} {resp.text[:200]}")
 
-    def put(self, name: str, data: bytes, storage_class: str = "") -> None:
-        headers = {"content-type": "audio/ogg"}
+    def put(self, name: str, data: bytes, storage_class: str = "",
+            content_type: str = "") -> None:
+        # Audio unless told otherwise: pictures share the bucket (§330).
+        headers = {"content-type": content_type or "audio/ogg"}
         if storage_class:
             headers["x-amz-storage-class"] = storage_class
         self._check(self._request("PUT", name, bytes(data), headers), f"PUT {name}")

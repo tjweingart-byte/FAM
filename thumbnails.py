@@ -66,6 +66,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import hashlib
+import image_store
 import io
 import json
 import logging
@@ -460,18 +461,63 @@ class ThumbnailStore:
             r = self._conn().execute(
                 "SELECT pending_image, pending_mime FROM thumbnails"
                 " WHERE node_id = ?", (node_id,)).fetchone()
-            if not r or r[0] is None:
+            data = image_store.resolve_bytes(r[0]) if r and r[0] is not None else None
+            if data is None:
                 return None
-            return bytes(r[0]), r[1] or "image/png"
+            return bytes(data), r[1] or "image/png"
         sql = "SELECT image, mime FROM thumbnails WHERE node_id = ?"
         args: tuple = (node_id,)
         if not any_status:
             sql += " AND status = ?"
             args += (STATUS_APPROVED,)
         r = self._conn().execute(sql, args).fetchone()
-        if not r or r[0] is None:
+        # A pointer is read from the bucket (§330); bytes are the picture.
+        data = image_store.resolve_bytes(r[0]) if r and r[0] is not None else None
+        if data is None:
             return None
-        return bytes(r[0]), r[1] or "image/png"
+        return bytes(data), r[1] or "image/png"
+
+    def _blobs(self, node_id: str) -> tuple:
+        r = self._conn().execute(
+            "SELECT image, pending_image FROM thumbnails WHERE node_id = ?",
+            (node_id,)).fetchone()
+        return tuple(r) if r else (None, None)
+
+    def _release(self, *blobs) -> None:
+        """Delete pictures from the bucket that no row points at any more."""
+        for blob in blobs:
+            if not image_store.pointer_name(blob):
+                continue
+            blob = bytes(blob)
+            image_store.release(blob, lambda b=blob: self._conn().execute(
+                "SELECT 1 FROM thumbnails WHERE image = ? OR pending_image = ?"
+                " LIMIT 1", (b, b)).fetchone() is not None)
+
+    def move_pictures_to_bucket(self, limit: int = 500) -> int:
+        """Pictures held as bytes into the bucket (§330), compare-and-set; the
+        row keeps a pointer, so `image IS NOT NULL` still means "has one"."""
+        moved = 0
+        for column, mime_column in (("image", "mime"), ("pending_image", "pending_mime")):
+            # Pointers are left out in SQL, so a batch is never filled with
+            # rows already moved while inline ones wait behind them.
+            rows = self._conn().execute(
+                f"SELECT node_id, {column}, {mime_column} FROM thumbnails"
+                f" WHERE {column} IS NOT NULL AND substr({column}, 1, ?) != ?"
+                " LIMIT ?", (len(image_store.POINTER), image_store.POINTER,
+                             int(limit))).fetchall()
+            for node_id, blob, mime in rows:
+                if image_store.pointer_name(blob):
+                    continue
+                kept = image_store.keep_bytes("thumb", bytes(blob), mime or "image/png")
+                if kept != bytes(blob):
+                    cur = self._conn().execute(
+                        f"UPDATE thumbnails SET {column} = ?"
+                        f" WHERE node_id = ? AND {column} = ?",
+                        (kept, node_id, bytes(blob)))
+                    moved += cur.rowcount or 0
+        if moved:
+            self.reload()
+        return moved
 
     def all(self, status: str = "") -> list[Thumb]:
         sql = f"SELECT {self._COLUMNS} FROM thumbnails"
@@ -484,6 +530,8 @@ class ThumbnailStore:
 
     def put(self, thumb: Thumb, image: Optional[bytes]) -> None:
         now = thumb.updated_at or time.time()
+        image = image_store.keep_bytes("thumb", image, thumb.mime or "image/png")
+        before = self._blobs(thumb.node_id)
         existing = self.get(thumb.node_id)
         created = existing.created_at if existing else now
         self._conn().execute(
@@ -506,6 +554,7 @@ class ThumbnailStore:
              thumb.scene, thumb.prompt, json.dumps(thumb.check),
              thumb.attempts, thumb.cost_usd, int(thumb.flagged), thumb.reason,
              created, now))
+        self._release(*before)
         self.reload()
 
     def set_status(self, node_id: str, status: str, reason: str = "") -> bool:
@@ -522,6 +571,8 @@ class ThumbnailStore:
                     reason: str) -> None:
         """Hold a repainted picture for a person without touching the live
         one: its bytes, status and version (so its URL) stay as they were."""
+        image = image_store.keep_bytes("thumb", image, mime or "image/png")
+        held = self._blobs(node_id)[1]
         self._conn().execute(
             "UPDATE thumbnails SET pending_image = ?, pending_mime = ?,"
             " pending_scene = ?, pending_check = ?,"
@@ -529,9 +580,11 @@ class ThumbnailStore:
             " WHERE node_id = ?",
             (image, mime, scene, json.dumps(check), attempts, cost_usd,
              reason, node_id))
+        self._release(held)
 
     def promote_pending(self, node_id: str) -> bool:
         """Put the held picture live, as a new version."""
+        live = self._blobs(node_id)[0]
         cur = self._conn().execute(
             "UPDATE thumbnails SET image = pending_image,"
             " mime = pending_mime, scene = pending_scene,"
@@ -540,15 +593,20 @@ class ThumbnailStore:
             " pending_scene = '', pending_check = '{}'"
             " WHERE node_id = ? AND pending_image IS NOT NULL",
             (STATUS_APPROVED, time.time(), node_id))
+        if cur.rowcount:
+            self._release(live)
         self.reload()
         return cur.rowcount > 0
 
     def drop_pending(self, node_id: str) -> bool:
+        held = self._blobs(node_id)[1]
         cur = self._conn().execute(
             "UPDATE thumbnails SET pending_image = NULL, pending_mime = '',"
             " pending_scene = '', pending_check = '{}',"
             " reason = 'new picture rejected; the live one stays'"
             " WHERE node_id = ? AND pending_image IS NOT NULL", (node_id,))
+        if cur.rowcount:
+            self._release(held)
         return cur.rowcount > 0
 
     def note_failed_repaint(self, node_id: str, attempts: int,

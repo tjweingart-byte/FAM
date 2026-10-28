@@ -8,6 +8,12 @@ nothing, shows on /admin, and the episode is voiced again on its next play.
 Until `AUDIO_STORE` is set, everything stays in `scripts.db` as before,
 still packed as Opus.
 
+**Pictures share the bucket** (§330, `image_store.py`): profile and group
+photos, mix covers and category pictures under `images/`, which no
+lifecycle rule touches - FAM deletes one when no row names it. The rows keep
+`/api/image/...` paths; what was inline moves at boot
+(`tools/images_to_r2.py` counts what is left).
+
 ## What is kept, and for how long
 
 | Audio | Where | How long |

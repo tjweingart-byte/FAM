@@ -23119,3 +23119,82 @@ last job instead of one, the price of a listener who browses before tapping
 finding the worker the open woke still up. `REMOTE_VOICE_WAKE_INTERVAL`
 stays at 60 s: under the timeout, so a wake from a returning listener is
 sent while the worker is still up.
+
+## 330. Pictures move to the bucket; everything else to Postgres (2026-10-28)
+
+The owner (10.28), after Render's "exceeded its memory limit" emails: "all
+storage should have been removed from render and into cloudflare and
+MongoDB. Where is this problem coming from" - then "move everything to
+Postgres and images to R2".
+
+**Two different limits.** The emails are RAM, not disk: the Starter plan's
+512 MB, of which the process holds ~310 MB before a listener (measured
+here: ~180 MB app, ~130 MB embedding model; §131 measured 215 MB with the
+bank embedded), and a first play holds its whole PCM (~6 MB a minute at its
+end, with the copy `_keep_audio` takes). No unbounded in-process cache was
+found and `MALLOC_ARENA_MAX=2` changed nothing under a 3,000-request run. A
+bigger plan is the fix for that; nothing in this section saves RAM.
+
+**The disk** still held all 31 SQLite stores. Only kept audio (R2, §237,
+with `AUDIO_STORE=r2`) and the history archive (Atlas, §308, with
+`ARCHIVE_BACKEND=atlas`) had left. The largest thing a listener adds is the
+`events` log's impressions (~205 bytes a row measured with its indexes,
+kept 30 days), and the largest single values were pictures held in rows:
+profile photos and group photos as `data:` URLs up to 96 KB, mix covers up
+to 200 KB, category pictures as BLOBs.
+
+**Pictures now go to the audio bucket** (`image_store.py`), under
+`images/<kind>/<sha256>.<ext>`, which no lifecycle rule touches. The row
+keeps `/api/image/<kind>/<sha256>.<ext>`, which a client puts in `<img src>`
+exactly where it put the `data:` URL - no client change, old clients
+included. A thumbnail row keeps a pointer (`r2:` + name) in its BLOB so
+"has a picture" is still `image IS NOT NULL`. No bucket, or a failed write,
+and the `data:` URL is stored as before.
+
+* **Deleted when nothing names it**, never by age: a replaced or removed
+  photo, a reviewer's takedown, a deleted mix, account deletion. Names are
+  per kind, so "still used" is one table's question (a mix copy shares its
+  original's cover and keeps it).
+* **The photo check is unchanged**: a client sends a `data:` URL when it
+  changes a picture; a path is accepted back only as the row's own value
+  (`_check_photo` refuses any other as unreadable).
+* **What is already inline moves at boot** (`_move_images_to_bucket`, 200 a
+  store per pass, compare-and-set), reported under `/api/health` →
+  `images`. `tools/images_to_r2.py` counts what is left and moves it by hand.
+* `/api/image/` is open on the waitlist like `/api/thumb/`: the status page
+  shows its owner's photo, and the name is the picture's own hash.
+* **Known gap:** `/admin/thumbnails` shows a moved picture's `bytes` as its
+  pointer's length (`length(image)`), not the picture's; finding the real
+  size would cost a bucket request per row on a page that lists them all.
+
+**Postgres needed no code**: every store already opens through
+`db.connect` (§243), and `tools/sqlite_to_postgres.py` copies the disk.
+Moving the pictures first makes that copy smaller. The switch-over is
+`POSTGRES.md`'s, and one instance remains the rule until the in-process
+state it lists is shared.
+
+## 331. Where 2 GB goes: a memory report asked of the running process (2026-10-28)
+
+The owner's `/api/health` (10.28) after §330: `memory.rss_mb` 2,086.6,
+`peak_mb` 2,091.1 - on Postgres (every store `persistence: database`), with
+R2 audio on. The same code measured ~310 MB here with the embedding model
+loaded and stayed flat under 3,000 requests, so the difference is
+production's: its data, its traffic, its background jobs.
+
+Two explanations fit and the code alone cannot pick between them:
+
+* **Held, not used.** On Postgres a query's whole result is read before its
+  first row is returned (`db.Cursor` - so a connection can go back to the
+  pool), where SQLite streamed. A scan that was a row at a time is now the
+  whole result at once, and glibc keeps the freed memory rather than giving
+  it back. The scripts schema is 169 MB for 560 entries, GDELT's copy
+  109 MB, local news 36 MB.
+* **Used.** Something keeps growing with the data.
+
+`/api/admin/memory` (admin only, `memory_report.py`) answers it from the
+process: glibc's bytes in use and held free, then a `malloc_trim(0)` and the
+resident size before and after (a large drop is "held"; the trim itself is
+harmless), and with `?census=1` this project's largest globals by reachable
+size, deduplicated and bounded (`complete: false` when the bound is hit).
+Native memory - the embedding model's runtime, psycopg's buffers - is in
+`rss` and the allocator's numbers but never in the census.
