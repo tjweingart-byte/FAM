@@ -660,6 +660,10 @@ class ScriptCache(Protocol):
     #: Optional on a backend: callers read it with `getattr`, so a cache that
     #: predates it answers "" rather than raising.
     def summary(self, key: str) -> str: ...
+    #: The kept script's sentences, or [] - read without counting a hit, for
+    #: callers that quote an episode rather than replay it (the outreach
+    #: engines, §337). Optional on a backend, like `summary`.
+    def script(self, key: str) -> list[str]: ...
     #: What kind of thing the episode is about, as the writer worded it on
     #: its `<<CATEGORY:>>` line (§189) - raw words, resolved against the
     #: category tree where it is read. Optional on a backend, like `summary`.
@@ -883,6 +887,11 @@ class MemoryScriptCache:
             return None
         self.hits += 1
         return list(entry[1])
+
+    def script(self, key: str) -> list[str]:
+        """`get(key, current=False)` without counting a hit (§337)."""
+        entry = self._data.get(key)
+        return list(entry[1]) if entry and entry[0] >= time.time() else []
 
     def put(
         self, key: str, sentences: list[str], ttl: int, query: str = "",
@@ -2255,6 +2264,21 @@ class SqliteScriptCache:
         except Exception:
             log.exception("script cache summary read failed")
             return ""
+
+    def script(self, key: str) -> list[str]:
+        """The kept script's sentences, scrubbed, or [] - `get(key,
+        current=False)` without counting a hit: the outreach engines quote
+        an episode to a drafting call (§337), and a quote is not a replay."""
+        try:
+            row = self._conn().execute(
+                "SELECT sentences, expires FROM scripts WHERE key = ?", (key,)
+            ).fetchone()
+            if not row or row[1] < time.time():
+                return []
+            return content_filter.scrub_all(json.loads(row[0]))
+        except Exception:
+            log.exception("script cache script read failed")
+            return []
 
     def explicit(self, key: str) -> bool:
         """Whether the kept episode swears (§171) - the E on its title.

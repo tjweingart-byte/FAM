@@ -1253,6 +1253,9 @@ class Settings:
         1.0, min(_env_float("X_THREADS_WINDOW_HOURS", 6.0), 168.0))
     # How many episodes one run looks for conversations about.
     x_threads_seeds: int = _env_int("X_THREADS_SEEDS", 10)
+    # High engagement is the target (§337): a post with fewer interactions
+    # (likes, replies, reposts and quotes together) is not a card.
+    x_threads_min_engagement: int = max(0, _env_int("X_THREADS_MIN_ENGAGEMENT", 25))
     # Drafts the replies a person approves. A short call; the small model.
     x_threads_model: str = field(
         default_factory=lambda: os.environ.get("X_THREADS_MODEL") or SMALL_MODEL)
@@ -1268,6 +1271,10 @@ class Settings:
     linkedin_seeds: int = _env_int("LINKEDIN_SEEDS", 10)
     linkedin_daily_searches: int = _env_int("LINKEDIN_DAILY_SEARCHES", 40)
     linkedin_window_days: int = max(1, min(_env_int("LINKEDIN_WINDOW_DAYS", 7), 30))
+    # High engagement is the target (§337): a found post whose reactions and
+    # comments the search shows, and number fewer than this, is not a card.
+    # A post whose counts the search does not show is not refused for it.
+    linkedin_min_engagement: int = max(0, _env_int("LINKEDIN_MIN_ENGAGEMENT", 20))
 
     # --- GNews (gnews.io), the bank's source -------------------------------
     # The key is the statement of intent: unset, Trending is empty and says so.

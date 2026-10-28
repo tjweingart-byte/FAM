@@ -59,6 +59,7 @@
   .chip.ok { background:var(--green-bg); color:var(--green); }
   .chip.bad { background:var(--rose-bg); color:var(--rose); }
   .reason { font-size:12px; color:var(--muted); }
+  .read { font-size:12.5px; border-left:3px solid var(--line); padding:2px 0 2px 8px; }
   .episode { font-size:12.5px; }
   .episode b { font-family:var(--serif); font-size:15px; }
   textarea { width:100%; min-height:96px; resize:vertical; background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:10px 12px; line-height:1.45; }
@@ -205,7 +206,8 @@
     return '<div class="post"><div class="who"><b>' + esc(k.author_name || "LinkedIn member") + '</b> <span>'
       + esc(who) + '</span></div><div class="text">' + esc(k.text) + '</div>'
       + (k.origin === "found" ? '<div class="excerpt">From the search: may be part of the post. Open it to read it all before you comment.</div>' : '')
-      + '<div class="metrics"><a href="' + esc(k.url) + '" target="_blank" rel="noopener">Open on LinkedIn ↗</a></div></div>';
+      + '<div class="metrics">' + (k.engagement >= 0 ? '<span>' + k.engagement + ' reactions and comments</span>' : '')
+      + '<a href="' + esc(k.url) + '" target="_blank" rel="noopener">Open on LinkedIn ↗</a></div></div>';
   }
 
   // What the last run did, in words: a run that found nothing must not look
@@ -227,6 +229,7 @@
       kpi("Approved", c.approved || 0, "kept a week") +
       kpi("Searches today", (h.searches_today || 0) + " / " + (h.daily_searches || 0),
           (h.seeds || 0) + " most per press") +
+      kpi("Engagement floor", h.min_engagement || 0, "reactions and comments, when the search shows them") +
       kpi("Spend", "$" + Number(h.dollars || 0).toFixed(2), "searching and drafting, last 7 days");
 
     $("runBtn").disabled = !h.available || data.running;
@@ -264,7 +267,9 @@
       if (k.drafted_by === "code") chips.push('<span class="chip bad" title="No model could be asked; a plain comment written in code">drafted in code</span>');
       if (k.status === "approved") chips.push('<span class="chip ok">approved</span>');
       var side = '<div class="side"><div class="chips">' + chips.join("") + '</div>'
-        + '<div class="reason">' + esc(k.reason) + '</div>';
+        + '<div class="reason">' + esc(k.reason) + '</div>'
+        + (k.read_line ? '<div class="read" title="What FAM understood about the post before it wrote (§337)">'
+          + (k.read && k.read.by === "code" ? "Read in code: " : "Read: ") + esc(k.read_line) + '</div>' : '');
       if (k.status === "approved") {
         side += '<div class="posted">' + esc(k.posted) + '</div><div class="acts">'
           + '<button class="go" data-act="again" data-id="' + id + '">Copy and open the post again</button>'
