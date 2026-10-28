@@ -40,8 +40,7 @@
   /* Dusk at the foot, the waitlist hero's light; none on the low-ink sheet. */
   .sheet::before{ content:""; position:absolute; inset:0; pointer-events:none;
     background:
-      radial-gradient(90% 38% at 50% 104%, rgba(240,155,70,0.42), rgba(240,155,70,0) 70%),
-      radial-gradient(60% 30% at 95% 62%, rgba(226,105,79,0.20), rgba(226,105,79,0) 70%); }
+      radial-gradient(90% 38% at 50% 104%, rgba(240,155,70,0.42), rgba(240,155,70,0) 70%); }
   html.light .sheet::before{ display:none; }
 
   .in{ position:absolute; inset:0.55in 0.6in 0.5in; display:flex; flex-direction:column; }
@@ -73,8 +72,8 @@
      screenshot uncropped; it rises beside the headline's short last line. */
   .phone{ position:relative; flex:0 0 1.95in; align-self:flex-start; margin-top:-1.05in;
     transform:rotate(3deg); border-radius:0.3in; padding:0.08in; background:#0F0E12;
-    box-shadow:0 0 0 1.5px rgba(244,239,228,0.18), 0 18px 40px rgba(0,0,0,0.45); }
-  html.light .phone{ box-shadow:0 0 0 1.5px rgba(30,27,39,0.25), 0 10px 24px rgba(30,27,39,0.18); }
+    box-shadow:0 0 0 1.5px rgba(244,239,228,0.18); }
+  html.light .phone{ box-shadow:0 0 0 1.5px rgba(30,27,39,0.25); }
   .phone img{ display:block; width:100%; height:auto; aspect-ratio:780/1627; border-radius:0.23in; }
 
   /* Foot: the call to action and the QR box */
