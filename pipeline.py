@@ -1330,7 +1330,15 @@ class PodcastPipeline:
 
         Off the event loop: compressing ten minutes of PCM is a few hundred
         milliseconds, and it happens after the last byte has already gone.
+
+        Not when the voice could not say it spoke the voice asked for
+        (§333): kept under that voice's name, it would replay as that voice
+        for a week whatever it actually was.
         """
+        if getattr(self.engine, "voice_unconfirmed", False):
+            log.info("audio for %s not kept: the voice did not confirm %s",
+                     stats.audio_key[:12], self._audio_voice())
+            return
         try:
             kept = await asyncio.to_thread(
                 self.cache.put_audio, stats.audio_key, self._audio_voice(),

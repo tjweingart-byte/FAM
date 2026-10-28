@@ -23243,3 +23243,65 @@ Saved and offline tiles keyed `query|1` no longer show as saved/offline on
 their cards; the Saved list still plays them. History, shares and vibes
 carry their own minutes and replay as before. Writing quality at 1.5 is
 unheard: `python write.py "<query>" --minutes 1.5` is the loop.
+
+## 333. Every voice was heard as the default (2026-10-28)
+
+The owner (10.28): "We have added new voices to the app, but when I select
+them when generating an episode, it always does the default voice. The
+batched episodes in myfam and dailyfam should be randomized on the voice, and
+a newly searched/generated episode should be in the voice the user selects."
+
+**What the code does, measured here.** Both rules were already the code
+(§147): a search is spoken in the listener's choice, anything else in a
+voice drawn from the bank and kept beside the script. With
+`VOICE_BACKEND=remote` and a stand-in worker, on SQLite and on Postgres, a
+search after choosing a voice sent `voice: nova` with its fingerprint and
+the myFAM taps drew from the default and both bank voices. Production
+could not be reached from here, so what follows is the two ways the owner's
+report comes true with that code, and neither could be seen.
+
+1. **myFAM and DailyFAM were dealt from the old bank.** A browse episode's
+   voice is drawn when it is written - the editions stamp
+   `voice_bank.random_slug()` - and kept for its week, first one wins. Drawn
+   from a bank that held only the default, the draw is the default, and every
+   episode written before the voices were added stays in it for a week.
+   **Now:** when the bank's voices are not the ones unheard episodes were
+   dealt from (`voice_bank.redeal_signature`, kept in its `deals` table),
+   every episode with **no audio kept in any voice** has its voice
+   forgotten (`redeal_voices`, both caches), so its next play draws from the
+   bank as it is. At boot and after every add or remove on /admin
+   (`app._redeal_voices`). An episode with kept audio keeps its voice: that
+   is what replays it without the GPU. Every unheard episode is cleared
+   whatever it held, so the new draw is as fair as the old one; a default
+   draw is still one of the bank's voices. A searched episode is
+   never re-dealt (`CHOSEN_VOICE_ORIGINS`: search, private): its voice was
+   the searcher's choice, and Explore replays it in that voice.
+2. **Nothing said which voice the worker spoke.** The worker clones what it
+   is sent, but an image older than the bank (§147) ignores `voice` and
+   `voice_sha` and speaks its default - and §318 found the pod still serving
+   from an image older than registration, on rungs (`REMOTE_VOICE_URL`,
+   `RUNPOD_POD`) the ladder asks before Serverless. Its audio was then kept
+   under the chosen voice's name, so it replayed as "Nova" in the default
+   voice for a week. **Now:** a worker's reply names the recording it
+   cloned (`voice_sha`, `voice_worker/synth.py`). For a bank voice,
+   `RemoteChatterboxEngine._refuse_other_voice`:
+   * a different recording is a failure like any other - the next worker is
+     tried (`_after_failure`), and with none the chunk fails rather than
+     speaking another voice, as every remote failure already does;
+   * no recording named is a worker built before it said. Its audio plays -
+     refusing every worker that predates a field would be this check
+     subtracting availability, and the Serverless image is a rebuild behind
+     every push - but `_keep_audio` does not keep it under the voice's name
+     (`voice_unconfirmed`), and /admin shows the worker once per address
+     ("voice not confirmed", a notice, `voice` stage) naming what to do.
+
+**For the owner to check** (it cannot be seen from here): /admin's errors
+page, `voice` stage, after the next search in a bank voice. "voice not
+confirmed" naming a `pinned` or `runpod-pod` worker is the old pod: delete
+`REMOTE_VOICE_URL` / `RUNPOD_POD` on Render (or stop the pod) so the
+Serverless endpoint answers. Naming `serverless` right after a deploy is the
+RunPod rebuild not yet finished; it clears when the new image serves.
+Episodes already kept in a bank voice's name by such a worker still replay
+as it spoke them until their week ends.
+
+Tests: `tests/test_voice_redeal_333.py`.
