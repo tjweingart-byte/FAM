@@ -23491,3 +23491,24 @@ pins the logic with stand-ins. The floors are guesses - after a week, compare
 approved cards' engagement with the floor. A read of the thread's replies
 (X's `conversation_id` search) would give the engine the conversation, not
 only its first post; it costs reads, so it waits for this to prove itself.
+
+**Review before merging (10.28).** An independent read of the branch found
+no XSS, no posting path, and migrations safe on Postgres (a duplicate column
+is `sqlite3.OperationalError` there too). Fixed from it, with tests:
+- *X could link one episode under words written from another.* A read
+  choosing an offered episode under `LINK_FLOOR` left the first one linked;
+  now the card links none (a question).
+- *The code's X reply named the episode the read had moved away from*; it
+  is written after the read now, about the episode the card links.
+- *LinkedIn's `choice` counts only linkable episodes*, and was applied only
+  above 0 - with the closest episode off-subject, the card pointed at it
+  and Approve refused. It maps every choice now; the code's comment is
+  about the first linkable episode, not the closest.
+- *The figure guard threw away good replies over shorthand* ("24/7", "5G",
+  "Q3", "2nd", "3x", "COVID-19", "49ers"): digits joined to letters or
+  slashes are not figures.
+- An episode's script is quoted through `cache.script`, never `get`, so the
+  engines count no cache hits.
+Left as it is: LinkedIn's engagement is read from the excerpt as well as the
+title, so a post saying "we hit 10K likes" reads as engaged. The search
+vendors' formats are unseen; look at the first live run before narrowing it.

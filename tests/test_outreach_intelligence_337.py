@@ -340,3 +340,56 @@ def test_nothing_here_posts_or_reads_linkedin(module):
     source = (pathlib.Path(__file__).resolve().parent.parent / f"{module}.py").read_text()
     assert ".post(" not in source and "oauth" not in source.lower()
     assert "httpx" not in source or module == "x_threads"
+
+
+# --- the review before merging ------------------------------------------------------
+
+
+def test_a_read_choosing_an_episode_too_far_to_link_links_none():
+    """Not the first episode instead: its link would sit under words
+    written from another episode."""
+    far = _seed(RATES, ("Federal Reserve",))
+    cand = X.Candidate(_post(), _seed(), 0.9, {"match": 0.6}, X.THREAD_TO_EPISODE, "Why.")
+    cand.options = [(cand.seed, 0.6), (far, 0.4)]
+    verdict = X.Verdict(choice=1)
+    X.apply_verdict(cand, verdict)
+    assert cand.kind == X.QUESTION_ONLY and verdict.episode_fits is False
+    assert cand.seed.key == "k-eagles" and "too far from the post" in cand.reason
+
+
+def test_the_codes_words_name_the_episode_the_card_links():
+    rates = _seed(RATES, ("Federal Reserve",))
+
+    async def searcher(query, *, max_results, since):
+        return [_post()]
+
+    async def drafter(cand):
+        cand.options = [(cand.seed, 0.8), (rates, 0.7)]
+        return (X.fallback_draft(cand), "code", 0.0, X.Verdict(choice=1))
+    asyncio.run(X.run(Cache([EAGLES]), now=NOW, searcher=searcher, drafter=drafter))
+    [card] = X.store().all()
+    assert card["episode"]["key"] == "k-rates"
+    assert RATES["title"] in card["draft"] and EAGLES["title"] not in card["draft"]
+
+
+def test_linkedins_choice_counts_only_the_episodes_it_may_link():
+    card = L.Card("activity:1", "u", TEACHING, "jane", "Jane", "",
+                  [dict(EAGLES, match=0.9, off_subject="shares a name only"),
+                   dict(RATES, match=0.8, off_subject="")])
+    read = OI.parse(dict(READ, choice=0), 1, "m")
+    L.apply(card, ("Words.", "q?", "m", 0.0, "", read))
+    assert card.chosen == 1 and L.linked(card.episode)
+
+
+def test_linkedins_code_comment_is_about_an_episode_it_may_link(monkeypatch):
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    unlinked = dict(EAGLES, match=0.9, off_subject="shares a name only")
+    linkable = dict(RATES, match=0.8, off_subject="")
+    comment, *_ = asyncio.run(L.judge_and_draft(TEACHING, unlinked, options=[linkable]))
+    assert comment
+
+
+def test_shorthand_is_not_a_figure():
+    words = "It is 24/7 and 5G, up 3x in Q3, the 2nd year of COVID-19 for the 49ers."
+    assert OI.unsupported_figures(words, ["a post"]) == []
+    assert OI.unsupported_figures("31 points, $4.5 and 40%.", ["a post"]) == ["31", "4.5", "40"]

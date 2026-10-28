@@ -929,11 +929,19 @@ def apply_verdict(cand: Candidate, verdict: Verdict) -> str:
     if not verdict.same_subject:
         return verdict.why or "the post is about something else"
     options = cand.options or []
-    if (verdict.episode_fits and 0 < verdict.choice < len(options)
-            and options[verdict.choice][1] >= LINK_FLOOR):
-        # The read chose another kept episode as the one that answers it.
-        cand.seed, cand.parts["match"] = options[verdict.choice]
-        cand.reason += f" The read chose “{cand.seed.title}” as the episode that answers it."
+    if verdict.episode_fits and 0 < verdict.choice < len(options):
+        if options[verdict.choice][1] >= LINK_FLOOR:
+            # The read chose another kept episode as the one that answers it.
+            cand.seed, cand.parts["match"] = options[verdict.choice]
+            cand.reason += (f" The read chose “{cand.seed.title}” as the episode"
+                            " that answers it.")
+        else:
+            # The words were written from an episode too far from the post
+            # to link; linking the first one instead would put one
+            # episode's words over another's link.
+            verdict.episode_fits = False
+            cand.reason += (f" The read chose “{options[verdict.choice][0].title}”,"
+                            " too far from the post to link.")
     if cand.other is not None and not verdict.other_same_subject:
         cand.other = None
         cand.kind = THREAD_TO_EPISODE if asks(cand.post.text) else ANGLE_AND_EPISODE
@@ -1288,8 +1296,10 @@ async def run(cache, *, now: Optional[float] = None, searcher=None,
                 cand.reason = f"Set aside: {dropped}"
                 held.add(cand, now, status=SET_ASIDE)
                 continue
-            if had_other and cand.other is None:
-                # Written to connect two posts, one of which is gone.
+            if by == "code" or (had_other and cand.other is None):
+                # The code's words name the card's episode as it now stands
+                # (the read may have changed it), and a reply written to
+                # connect two posts, one of which is gone, is the code's.
                 reply, by = trim(fallback_draft(cand)), "code"
             elif by != "code" and not verdict.episode_fits and cand.kind == QUESTION_ONLY \
                     and "episode" in reply.lower():

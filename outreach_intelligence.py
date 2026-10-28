@@ -395,7 +395,11 @@ def summary(read: Optional[dict]) -> str:
 # What the words may say
 
 
-_FIGURE = re.compile(r"\$?\d[\d,]*(?:\.\d+)?%?")
+#: A figure standing alone: "31", "$4.5", "40%", "1,200". Digits joined to
+#: letters or slashes are names and shorthand, not claims - "5G", "Q3",
+#: "2nd", "3x", "24/7", "COVID-19", "49ers".
+_FIGURE = re.compile(r"(?<![A-Za-z0-9/])(?<![A-Za-z]-)\$?\d[\d,]*(?:\.\d+)?%?"
+                     r"(?![A-Za-z0-9/])")
 
 
 def _figures(text: str) -> set:

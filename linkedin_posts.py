@@ -377,9 +377,11 @@ async def judge_and_draft(text: str, episode: Optional[dict], client=None, *,
 
     if options is None:
         options = [episode] if linked(episode) else []
+    # The code's comment is about the first episode it may link.
+    first = options[0] if options else episode
     if client is None and not credentials.active("ANTHROPIC_API_KEY"):
         read = OI.code_read(text, options, intent="teaching" if teaches(text) else "")
-        return (x_threads.trim(fallback_comment(episode), DRAFT_CHARS), "", "code",
+        return (x_threads.trim(fallback_comment(first), DRAFT_CHARS), "", "code",
                 0.0, "", read)
     model = config.settings.linkedin_model
     dollars = 0.0
@@ -420,7 +422,7 @@ async def judge_and_draft(text: str, episode: Optional[dict], client=None, *,
         raise
     except Exception as exc:  # noqa: BLE001
         log.warning("linkedin: drafting fell back to code: %s", exc)
-        return (x_threads.trim(fallback_comment(episode), DRAFT_CHARS), "", "code",
+        return (x_threads.trim(fallback_comment(first), DRAFT_CHARS), "", "code",
                 dollars, "", OI.code_read(text, options,
                                           intent="teaching" if teaches(text) else ""))
 
@@ -459,9 +461,13 @@ def apply(card: "Card", answer: tuple) -> str:
     if misfit:
         mark_misfit(card, misfit, every=read is not None)
         return misfit
-    if read is not None and 0 < read.choice < len(options):
-        card.chosen = card.episodes.index(options[read.choice])
-        card.reason += f" The read chose “{card.episode['title']}” as the one that goes deeper."
+    if read is not None and 0 <= read.choice < len(options):
+        # `choice` counts the linkable episodes only; `chosen` counts them all.
+        chosen = card.episodes.index(options[read.choice])
+        if chosen != card.chosen:
+            card.chosen = chosen
+            card.reason += (f" The read chose “{card.episode['title']}” as the one"
+                            " that goes deeper.")
     if read is not None and read.replaced:
         card.reason += f" Rewritten in code: {read.replaced}."
     return ""
