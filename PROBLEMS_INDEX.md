@@ -335,3 +335,4 @@ and `limit` = Lines.
 | 23080 | 43 | 329. The voice is woken when the app opens, not at the tap (2026-10-27) |
 | 23123 | 53 | 330. Pictures move to the bucket; everything else to Postgres (2026-10-28) |
 | 23176 | 26 | 331. Where 2 GB goes: a memory report asked of the running process (2026-10-28) |
+| 23202 | 60 | 332. Every voice was heard as the default (2026-10-28) |

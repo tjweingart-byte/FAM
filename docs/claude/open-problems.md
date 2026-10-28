@@ -79,6 +79,13 @@
    > never on an episode's chunks). Its verdict is a hint with the audio
    > beside it; nothing changes the lexicon by itself.
 <!-- rule:op-voice-bank -->
+> **Current (PROBLEMS.md §332):** when the bank's voices change, every
+> episode with no audio kept in any voice forgets its drawn voice and draws
+> again from the new bank (`redeal_voices`, at boot and after /admin adds or
+> removes one). A worker's reply names the recording it cloned
+> (`voice_sha`): another recording is a failure, none named plays but is
+> never kept under the voice's name and is put on /admin once.
+>
 > **Current (PROBLEMS.md §294, at the owner's direction):** a search by a
 > listener who has **never picked a voice** is spoken in the voice the
 > episode's audio is already kept in (`cache.audio_voices`, last played

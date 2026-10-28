@@ -378,6 +378,13 @@ class VoiceBank:
                        word TEXT PRIMARY KEY,
                        at   REAL NOT NULL
                    )""")
+            # Which banks unheard episodes have been dealt voices from
+            # (§332, `redeal_signature`): one row per set of voices.
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS deals (
+                       signature TEXT PRIMARY KEY,
+                       at        REAL NOT NULL
+                   )""")
             # What the voice was heard to say (§325, `voice_check.py`).
             conn.execute(
                 """CREATE TABLE IF NOT EXISTS voice_checks (
@@ -460,6 +467,17 @@ class VoiceBank:
         except json.JSONDecodeError:
             rights = {}
         return bytes(row[0]), rights, row[2]
+
+    # -- which bank the unheard episodes were dealt from (§332) -------------
+
+    def dealt(self, signature: str) -> bool:
+        return self._conn().execute(
+            "SELECT 1 FROM deals WHERE signature = ?", (signature,)).fetchone() is not None
+
+    def mark_dealt(self, signature: str) -> None:
+        self._conn().execute(
+            "INSERT OR REPLACE INTO deals (signature, at) VALUES (?, ?)",
+            (signature, time.time()))
 
     # -- each listener's search voice --------------------------------------
 
@@ -636,6 +654,12 @@ def random_slug(rng: random.Random | None = None) -> str:
     """A voice for an episode nobody chose one for (myFAM, DailyFAM)."""
     voices = catalogue()
     return (rng or random).choice(voices).slug
+
+
+def redeal_signature() -> str:
+    """The voices a random draw chooses from, as one string (§332). When it
+    changes, episodes nobody has heard yet are dealt again from the new bank."""
+    return ",".join(sorted(v.slug for v in catalogue()))
 
 
 # ---------------------------------------------------------------------------

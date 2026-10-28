@@ -993,6 +993,14 @@ class MemoryScriptCache:
             self._voices[key] = voice
         return self._voices[key]
 
+    def redeal_voices(self) -> int:
+        """See `SqliteScriptCache.redeal_voices`."""
+        heard = {k for k, _v in self._audio}
+        unheard = [k for k, v in self._voices.items() if v and k not in heard]
+        for key in unheard:
+            self._voices[key] = ""
+        return len(unheard)
+
     def origin_of(self, key: str) -> str:
         return self._origins.get(key, "") if key in self._data else ""
 
@@ -2286,6 +2294,26 @@ class SqliteScriptCache:
         except Exception:
             log.exception("script cache voice write failed")
         return self.voice_of(key)
+
+    def redeal_voices(self) -> int:
+        """Forget the voice of every episode with no audio kept in any voice,
+        so its next play draws one from the bank as it is now (§332).
+
+        A voice is drawn when an episode is written, from the bank as it was
+        then: everything written while the bank held only the default kept
+        the default for its whole week after new voices arrived. Only an
+        episode nobody has heard is re-dealt - one with kept audio keeps its
+        voice, which is what replays it without the GPU. Every unheard one
+        is cleared, whatever it held, so the new draw is as fair as the old.
+        """
+        try:
+            cur = self._conn().execute(
+                "UPDATE scripts SET voice = '' WHERE voice != ''"
+                " AND key NOT IN (SELECT key FROM episode_audio)")
+            return cur.rowcount or 0
+        except Exception:
+            log.exception("script cache voice re-deal failed")
+            return 0
 
     def origin_of(self, key: str) -> str:
         try:

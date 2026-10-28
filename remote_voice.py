@@ -320,6 +320,13 @@ class RemoteChatterboxEngine(TTSEngine):
     #: A route the worker named itself, kept as (base url, route) so a
     #: reconfigured endpoint is not answered with the old one's answer.
     _found_route: tuple[str, str] | None = None
+    #: Workers already put on /admin for speaking a bank voice without
+    #: saying which recording they cloned (§332): once per address.
+    _unconfirmed: set = set()
+    #: Per instance - one pipeline, one episode: a bank voice was asked for
+    #: and some chunk came back from a worker that did not confirm it, so
+    #: this episode's audio is not kept under that voice's name (§332).
+    voice_unconfirmed: bool = False
 
     # -- configuration -----------------------------------------------------
 
@@ -719,6 +726,7 @@ class RemoteChatterboxEngine(TTSEngine):
                         raise RemoteVoiceError(
                             "the remote voice returned no audio. Worker said: "
                             f"{str(output['error'])[:300]}")
+                    self._refuse_other_voice(payload, output, endpoint)
                 except RemoteVoiceError as exc:
                     # A bank voice this worker has never been sent (§147).
                     # Not a fault with the worker - send the recording once,
@@ -731,6 +739,7 @@ class RemoteChatterboxEngine(TTSEngine):
                     payload = self._payload(text, config, voice,
                                             with_recording=True)
                     output = await self._speak(payload, config, endpoint)
+                    self._refuse_other_voice(payload, output, endpoint)
             except RemoteVoiceError as exc:
                 # A real call is the only thing that learns what a health check
                 # cannot - a worker whose /health is green and whose /synth is
@@ -745,6 +754,7 @@ class RemoteChatterboxEngine(TTSEngine):
                             endpoint.url, exc, replacement.url, replacement.rung)
                 output = await self._speak(payload, config, replacement)
                 endpoint = replacement
+                self._refuse_other_voice(payload, output, endpoint)
             except Exception as exc:
                 # Network errors arrive as a dozen different exception types.
                 # All of them mean the same thing to a listener, and none of
@@ -833,6 +843,54 @@ class RemoteChatterboxEngine(TTSEngine):
         if replacement.key() == endpoint.key():
             return None
         return replacement
+
+    def _refuse_other_voice(self, payload: dict, output: dict, endpoint) -> None:
+        """Hold a reply to the bank voice it was asked for (§332).
+
+        A worker names the recording it cloned (`voice_sha`). One that names
+        a different recording spoke a different voice, and that is a failure
+        like any other - this raises, so the next worker is tried - because
+        none of a worker's failures may become a different voice.
+
+        One that names none was built before it said, and may be an image
+        older than the bank itself, which speaks its default for every voice
+        it is sent: the owner heard every voice as the default with nothing
+        anywhere saying why. Its audio still plays - refusing every worker
+        that predates a field would be this check subtracting availability -
+        but is not kept under the voice's name, and the worker is put on
+        /admin once.
+        """
+        asked = str(payload.get("voice_sha") or "").lower()
+        if not asked or not isinstance(output, dict) or not output.get("audio"):
+            return
+        spoke = str(output.get("voice_sha") or "").lower()
+        if spoke and spoke != asked:
+            raise RemoteVoiceError(
+                f"the voice worker at {getattr(endpoint, 'url', '')} was asked "
+                f"for voice {payload.get('voice')!r} (sha256 {asked[:12]}…) and "
+                f"cloned another recording ({spoke[:12]}…)")
+        if spoke:
+            return
+        self.voice_unconfirmed = True
+        where = f"{getattr(endpoint, 'rung', '')} {getattr(endpoint, 'url', '')}".strip()
+        if where in type(self)._unconfirmed:
+            return
+        type(self)._unconfirmed.add(where)
+        detail = (f"the voice worker ({where}) spoke voice "
+                  f"{payload.get('voice')!r} without saying which recording "
+                  "it cloned. An image built before the voice bank (§147) "
+                  "speaks the default voice for every voice it is sent. "
+                  "Rebuild it from Dockerfile.voice, or take it off the ladder "
+                  "(REMOTE_VOICE_URL, RUNPOD_POD) so the Serverless endpoint "
+                  "answers. Its audio is not kept under the voice's name.")
+        log.warning("remote voice: %s", detail)
+        try:
+            import pipeline_errors
+
+            pipeline_errors.record("voice", "voice not confirmed", detail,
+                                   severity=pipeline_errors.NOTICE)
+        except Exception as exc:  # pragma: no cover - never costs a chunk
+            log.debug("could not record an unconfirmed voice: %s", exc)
 
     @classmethod
     def _pcm_from(cls, output: dict, config: RemoteConfig) -> bytes:
