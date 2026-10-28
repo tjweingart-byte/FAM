@@ -619,14 +619,16 @@ searchFAM from the start, or editions first?
 
 ## 4. Script supervisor
 
-<!-- stages: check | feeds: cache voice -->
+<!-- stages: plugins check | feeds: write cache voice -->
 
-**Works in:** quality check and **fact check** - after the writer: before
-caching (ahead of the tap), per sentence while streaming (searchFAM), and as
-an audit after. **Status:** planned (§312). Kept as its own agent, and given
+**Works in:** first the **source screen** - the moment packet one comes back,
+before the writer reads it - then the **fact check** and quality check after
+the writer: before caching (ahead of the tap), per sentence while streaming
+(searchFAM), and as an audit after. **Status:** planned (§312). Kept as its own agent, and given
 fact-checking (the owner, 2026-10-28): **every script, every time, has its
 figures, quotes, important facts and claims checked**, on top of the quality
-of the writing.
+of the writing; and **every packet is screened as soon as it comes back, so
+no opinion piece or blog post reaches the writer** (the owner, 2026-10-28).
 
 **Purpose.** The check FAM lacks: is every figure right, every quote really
 said and by whom, every important fact and claim supported, every event's
@@ -643,9 +645,34 @@ numbers, severity); it never rewrites.
 
 | Where | What runs | What a failure does |
 |---|---|---|
+| **Every surface, the moment the packet comes back** | The source screen, in code (µs), beside today's `research.screen_results` | The opinion piece or blog post is dropped before the writer sees it, logged and counted |
 | **Ahead of the tap** (editions, write-ahead, prefetched scripts) | The whole fact check and the writing check, before caching | Holds the episode for **one** rewrite; the better of the two is kept |
 | **searchFAM, while streaming** | Per sentence, before it is voiced: figures and quotes in code, the grounding checker on facts and claims | The sentence is not spoken, logged and reported - as `ScoreGuard` and `FigureGuard` already drop sentences |
 | **searchFAM, right after** | The whole fact check and the writing check, as an audit | A hard failure retires the cached copy so the next listener gets a rewrite; [heard-is-kept] keeps the heard one replayable |
+
+**Responsibilities - source screen** (every packet, before the writer):
+
+- **Drop every opinion piece and blog post** from packet one - op-eds,
+  editorials, columns, commentary, letters, reviews written as opinion, and
+  posts on blogs and blogging platforms. Only reporting reaches the writer.
+- **Where it runs:** inside the screen research already has
+  (`research.screen_results`, which drops simulated-league pages and, on
+  sports, unknown outlets), on every rung of the ladder and the second look,
+  so a dropped page never reaches the packet, the writer, the sources panel
+  or Consuela's intake.
+- **How it decides, in code first:** the URL's path (`/opinion/`,
+  `/opinions/`, `/editorial/`, `/op-ed/`, `/commentary/`, `/columnists/`,
+  `/blog/`, `/blogs/`), the title's label ("Opinion:", "Op-Ed", "Editorial",
+  "Column", "Commentary", "Letters"), the page type where a provider reports
+  it (`OpinionNewsArticle`, `BlogPosting`), and blogging hosts (Medium,
+  Substack, Blogspot, WordPress.com, Tumblr). A page none of these settles
+  is kept on searchFAM and, ahead of the tap, judged by a small model.
+- **If screening leaves the packet thin**, the thin-packet retry runs on what
+  is left ([recency-credibility]'s one retry), looking again for reporting;
+  if nothing remains, the episode goes on as a missed search does
+  ([missed-not-absent]; nothing is refused for want of evidence, §256).
+- **Every drop is logged** with its host and the reason, and counted on
+  `/admin`, so a screen that drops too much is seen, not silent.
 
 **Responsibilities - fact check** (every script):
 
@@ -705,6 +732,9 @@ change.
 
 | Guardrail | Why | Held by |
 |---|---|---|
+| No opinion piece or blog post reaches the writer | The owner's rule: only reporting is evidence | **Code:** the screen inside `research.screen_results`, before the packet is built, on every rung |
+| The screen never takes the time in front of the first word | It runs on every searchFAM packet | **Code:** markers only on search (µs); a model only ahead of the tap |
+| A screen that drops too much is seen | A silent filter can empty every packet on a topic | **Code:** every drop logged with host and reason; counts on `/admin` |
 | Judges with exactly the writer's material | More knowledge marks right writing wrong | **Code:** handed the writer's own prompt material (plus the reference look, read-only, for settled facts on ahead and audit runs) |
 | Figures by code, every episode | A wrong number spoken confidently is the worst mistake ([score-guard]) | **Code:** `figure_guard`'s reader, widened from markets to every figure, matched on subject and moment |
 | Quotes by code | A quote is exact or it is not a quote | **Code:** the quoted span found in the material (normalised), and the speaker named beside it matched |
@@ -747,6 +777,11 @@ cannot settle, and to run the writing checks. After the shared preamble:
 
 | Try to break it with | Expected behaviour |
 |---|---|
+| A `/opinion/` URL, or a title starting "Opinion:" | Dropped before the writer |
+| A Substack or Medium post | Dropped |
+| A news report that quotes an op-ed | Kept - it is reporting; the quote is checked as a quote |
+| A packet that was all opinion | Thin-packet retry for reporting; else a missed search |
+| An opinion piece with no label at all, on searchFAM | Kept (code cannot tell); caught ahead of the tap by the model, and counted on audits |
 | A true but unsupported current price | Fail - unsupported volatile |
 | "Revenue rose 12%" where the material says 21% | Fail - figure not in the material |
 | Tuesday's close told as Monday's | Fail - same figure, wrong moment |
@@ -767,16 +802,27 @@ cannot settle, and to run the writing checks. After the shared preamble:
 
 | # | Need | Why it matters for this agent | So it rules in / out |
 |---|---|---|---|
-| 1 | **Exactness on figures and quotes** | A wrong number or a quote never said is the mistake a listener repeats | In: code - exact, free, cannot be argued with; out: a model's judgment on any number or quote |
-| 2 | **Precision on "is this claim supported"** | Unsupported volatile facts and invented firsts are the failures that matter most | In: grounding checkers built for this, which cannot invent; a model only to list claims and settle what they cannot |
-| 3 | **Independence from the writer** | A checker sharing the writer's blind spots passes its mistakes | In: a different model (Sonnet, another family); out: Haiku as the only judge of Haiku's writing |
-| 4 | **Speed per sentence on searchFAM** | Every time includes search, where each check sits before a sentence is voiced | In: code and small local models (ms); out: a model call per sentence |
-| 5 | **Never blocking on taste** | Only named failures may hold an episode | Closed verdicts; code decides what holds |
+| 1 | **Screening sources in microseconds, before the writer** | Every packet, including searchFAM's, in front of the first word | In: code markers (URL path, title label, page type, blogging hosts); a small model only ahead of the tap; out: a model call on search |
+| 2 | **Exactness on figures and quotes** | A wrong number or a quote never said is the mistake a listener repeats | In: code - exact, free, cannot be argued with; out: a model's judgment on any number or quote |
+| 3 | **Precision on "is this claim supported"** | Unsupported volatile facts and invented firsts are the failures that matter most | In: grounding checkers built for this, which cannot invent; a model only to list claims and settle what they cannot |
+| 4 | **Independence from the writer** | A checker sharing the writer's blind spots passes its mistakes | In: a different model (Sonnet, another family); out: Haiku as the only judge of Haiku's writing |
+| 5 | **Speed per sentence on searchFAM** | Every time includes search, where each check sits before a sentence is voiced | In: code and small local models (ms); out: a model call per sentence |
+| 6 | **Never blocking on taste** | Only named failures may hold an episode | Closed verdicts; code decides what holds |
 
 Whole-script check ~10k in / 800 out (the claims list plus verdicts); costs
 at **10k episodes/month**.
 
-**a) Fact check:**
+**a) Source screen** (every packet):
+
+| Option | Cost / mo | Latency added | Effectiveness | Holes | Fixed by guardrail? |
+|---|---|---|---|---|---|
+| **Code markers** (URL path, title label, provider page type, blogging hosts) in `research.screen_results` | $0 | µs | Catches the labelled majority | Unlabelled opinion; a news site's blog section with a neutral URL | Partly - model ahead of the tap; audits count misses |
+| Small local classifier (DistilBERT / DeBERTa fine-tuned on opinion vs news) | $0 (CPU) | ~5-20 ms per page (est.) | Reads the lede's voice ("I", "we must", "should") | Needs labelled pages; a box that is not the voice pod | Yes - code markers first |
+| **Haiku 5.5** on pages code could not settle, ahead of the tap | ~$1-3 | batch | Good at "is this reporting or opinion" | Too slow on search | Yes - ahead only |
+| A host list of opinion-only and blogging sites | $0 | µs | Exact for those hosts | Needs keeping up | Yes - Keith reports hosts dropped most |
+| Provider filters (exclude domains or content types in the search request, where Parallel / Perplexity allow) | $0 | none | Opinion never fetched | Varies by provider; a second place rules live | Partly - code screen still runs |
+
+**b) Fact check:**
 
 | Option | Cost / mo | Latency added | Effectiveness | Holes | Fixed by guardrail? |
 |---|---|---|---|---|---|
@@ -790,29 +836,32 @@ at **10k episodes/month**.
 | Reference look (Wikipedia / Wikidata, built) for settled facts | $0 | ~100 ms | Confirms a settled fact the packet lacked | Can be stale | Partly - settled facts only, recorded |
 | Google Fact Check Tools API (ClaimReview) | free (check) | ~200 ms | Published fact-checks of viral claims | Covers very few claims; sees the script | Partly - an extra signal on audits |
 
-**b) Quality of the writing:**
+**c) Quality of the writing:**
 
 | Option | Cost / mo | Latency added | Effectiveness | Holes | Fixed by guardrail? |
 |---|---|---|---|---|---|
 | **Code checks** (mechanical) | $0 | ms | Exact for what code can decide | Only mechanical | Yes - always first |
 | **Sonnet 5.5** (batched on editions; audit on search) | ~$125 (batch) | none before the tap | **Right size for judging the writing**; a different model from the writer | Too slow before speech on search | Yes - ahead and audit modes |
-| Haiku 5.5 | ~$13 | 1-3 s | Good at rule checks | Self-preference judging Haiku's writing | No - need 3 |
+| Haiku 5.5 | ~$13 | 1-3 s | Good at rule checks | Self-preference judging Haiku's writing | No - need 4 |
 | Opus 5.5 | ~$500 | slower | For building the eval and auditing samples | Price | Yes - samples only |
 | Gemini / GPT as a second judge | ~$7 (nano) to ~$250 (main) | like Haiku to Sonnet | A different family: least self-preference | On search the script answers the listener's question | Partly - editions until consent is checked |
 | Hosted eval platforms (Patronus, Galileo) | subscription | varies | Ready-made evaluators for the eval set | Another vendor in the data path | Partly - eval set only |
 
 **The choice, driven by those needs:**
 
-- **Need 1 → code for every figure and every quote,** on every episode,
+- **Need 1 → code markers inside `research.screen_results`** on every packet,
+  a small model on unsettled pages ahead of the tap only, and a local
+  classifier if audits show unlabelled opinion getting through.
+- **Need 2 → code for every figure and every quote,** on every episode,
   including each sentence before it is voiced on searchFAM.
-- **Needs 2 and 4 → a self-hosted grounding checker per sentence** for
+- **Needs 3 and 5 → a self-hosted grounding checker per sentence** for
   facts and claims, on its own machine; superlatives and firsts found by
   code and judged by it.
-- **Needs 2 and 3 → Sonnet 5.5 lists the claims and runs the writing
+- **Needs 3 and 4 → Sonnet 5.5 lists the claims and runs the writing
   checks** - before caching on the editions and the write-ahead (batched),
   and as the audit right after every searchFAM episode. The reference look
   confirms settled facts on those runs.
-- **Need 5 → code decides** which verdicts hold an episode or drop a
+- **Need 6 → code decides** which verdicts hold an episode or drop a
   sentence.
 - **First:** an eval of ~100 real scripts hand-marked for every figure,
   quote, fact and claim and every writing check; each check earns its place
@@ -830,9 +879,15 @@ write. The owner keeps them separate (2026-10-28).
 | `SUPERVISOR_MODE` | `ahead`, `stream`, `audit` - the fact check runs in every mode |
 | `SUPERVISOR_MODEL`, `SUPERVISOR_GROUNDING` | Judge model (never the writer's); grounding checker |
 | `SUPERVISOR_REWRITES` | `1` |
+| `SUPERVISOR_SCREEN` | On: opinion pieces and blog posts dropped from every packet (proposed) |
 | `SUPERVISOR_TIMEOUT_SECONDS` | Past it, the episode goes ahead, the miss is counted, and the audit still runs |
 
-Open: on searchFAM, how much per-sentence checking is worth its time before
+Open: is an official blog that announces its own news (a company's,
+a government agency's) a primary source to keep, or a blog post to drop?
+When a question asks for opinions ("what are critics saying about..."),
+should the screen stand aside, as the simulation screen does when a question
+is about a video game? Is labelled "analysis" reporting or opinion? On
+searchFAM, how much per-sentence checking is worth its time before
 speech (code is ms; the grounding checker tens to hundreds of ms per
 sentence)? Which failures may hold an episode for a rewrite, beyond the
 named ones? Should an unsupported cause be a failure rather than a note?

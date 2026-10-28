@@ -22533,6 +22533,25 @@ code; taste never holds an episode. Its plugin needs now lead with
 exactness on figures and quotes (code) and precision on claims (a grounding
 checker, with Sonnet listing the claims off the listener's path).
 
+**The supervisor screens sources first** (the owner, 10.28: "check sources to
+eliminate certain sources as soon as the packet comes back to eliminate all
+opinion pieces and blog posts from the collected sources"). A source screen
+now opens the supervisor's work: on every packet, every surface, before the
+writer reads it, opinion pieces (op-eds, editorials, columns, commentary,
+letters) and blog posts are dropped. It belongs inside the screen research
+already has - `research.screen_results`, which drops simulated-league pages
+and, on sports, unknown outlets, on every rung and the second look - so a
+dropped page never reaches the packet, the writer, the sources panel or the
+archive's intake. Code decides on search (URL path, title label, a
+provider's page type, blogging hosts: microseconds, so nothing is added in
+front of the first word); a small model judges unsettled pages only ahead of
+the tap. A packet the screen leaves thin gets the existing one retry; an
+empty one is a missed search, never a refusal (§256). This filters by kind
+of writing, not by credibility, so [recency-credibility]'s "credibility
+sorts" is unchanged; the simulation screen is the precedent. Open: official
+blogs that announce their own news; questions that ask for opinions;
+labelled "analysis".
+
 No agent is built; nothing here runs.
 
 Tests: `tests/test_fam_agents_doc.py` (the five agents in order and named; the tandem pairs drawn as one step; the five agents and the template carry
