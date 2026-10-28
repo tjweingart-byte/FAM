@@ -22509,6 +22509,30 @@ the listener's words rule out outside models on search; Consuela's volume and
 having no one waiting make batched Haiku right; the supervisor's
 independence from the writer rules out Haiku as its only judge.
 
+**The script supervisor stays, and fact-checks every script** (the owner,
+10.28: first "remove the script supervisor ... the editor in chief should be
+able to do everything the script supervisor is currently able to do", then,
+before that was committed, "add the script supervisor in like before. We
+also want it to fact check information in the script on top of checking the
+quality of the writing. It should check figures, quotes, important facts,
+and claims every time"). The removal was never committed; the supervisor is
+agent 4 as before, kept separate from the editor, and now fact-checks
+**every script on every surface**: ahead of the tap before caching; on
+searchFAM per sentence before it is voiced (figures and quotes in code, the
+grounding checker on facts and claims, a failing sentence not spoken, as
+`ScoreGuard` and `FigureGuard` already drop sentences) and as a whole-script
+audit right after. **Figures** - every number, not only sports and markets
+- must match the material for the same subject and moment (`figure_guard`'s
+reader widened); **quotes** must appear as said and by the same speaker;
+**important facts** are matched to a source sentence (unsupported settled
+facts are notes, checked against the reference look on ahead and audit
+runs; unsupported volatile or contradicted ones fail); **claims** - causes,
+comparisons, superlatives and firsts - need explicit support, an
+unsupported first or superlative failing. The hard failures are named in
+code; taste never holds an episode. Its plugin needs now lead with
+exactness on figures and quotes (code) and precision on claims (a grounding
+checker, with Sonnet listing the claims off the listener's path).
+
 No agent is built; nothing here runs.
 
 Tests: `tests/test_fam_agents_doc.py` (the five agents in order and named; the tandem pairs drawn as one step; the five agents and the template carry

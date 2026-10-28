@@ -49,7 +49,7 @@ def slug(text):
 
 
 def render(md):
-    body = markdown.markdown(md, extensions=["tables", "fenced_code", "mdx_truly_sane_lists"])
+    body = markdown.markdown(md, extensions=["tables", "fenced_code", "mdx_truly_sane_lists", "sane_lists"])
     body = re.sub(r"<thead>\s*<tr>\s*<th></th>\s*<th></th>\s*</tr>\s*</thead>", "", body)
     return body.replace("<table>", '<div class="tw"><table>').replace("</table>", "</table></div>")
 
