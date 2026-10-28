@@ -23330,3 +23330,25 @@ server reaching gigabytes with little live data.
 
 If memory now stays flat, the arenas were the cause. If it still climbs,
 the watch's report says where.
+
+## 335. Naming what runs when memory jumps (2026-10-28)
+
+Production's memory graph with only the owner using the app (10.28, the
+plan now 4 GB): resident size rises in **steps of ~1.5 GB, each in under a
+minute and each with a CPU spike**, then stays flat for hours; a second
+step reaches the limit and Render restarts it. Not a leak (it would creep)
+and not load (it would fall with it): one operation needing that much at
+once, the allocator then keeping the space.
+
+Ruled out here, measured: the embedding model (`tokenizer.json` truncates
+at 128 tokens; a batch of 64 at the limit adds ~200 MB, and the ranker
+sends 16 at most) and `cache.recent` (scripts are stored as plain
+sentences: 1,000 rows are a few MB).
+
+So the server names it: the watch now samples every 15 seconds, every HTTP
+request records its own change in resident size (`_track_memory`), and a
+rise of `JUMP_MB` (150) between two samples is logged at WARNING as
+`memory jump: <from> -> <to> MB` with the requests in flight, the requests
+finished since the last sample (largest rise first), the event loop's
+tasks by coroutine and the threads by pool (`memory_report.jump_step`).
+`/api/admin/memory` keeps this boot's jumps under `watch.jumps`.

@@ -5517,6 +5517,29 @@ def carry_the_session(app):
 app.add_middleware(carry_the_session)
 
 
+def _track_memory(app):
+    """Every HTTP request's own change in resident size, kept for the memory
+    watch to name when the server jumps (§335). Two reads of
+    /proc/self/status per request; nothing is logged here."""
+    import memory_report
+
+    async def asgi(scope, receive, send):
+        if scope.get("type") != "http":
+            await app(scope, receive, send)
+            return
+        key = id(scope)
+        memory_report.request_started(
+            key, f"{scope.get('method', '')} {scope.get('path', '')}")
+        try:
+            await app(scope, receive, send)
+        finally:
+            memory_report.request_ended(key)
+    return asgi
+
+
+app.add_middleware(_track_memory)
+
+
 #: While `WAITLIST` is on, the API a listener who is not active may still reach:
 #: signing up and in, the waitlist's own endpoints, and the profile fields the
 #: status page edits (`/api/me`: name, handle, photo; `/api/preferences`:
@@ -11518,14 +11541,32 @@ async def _check_audio_store() -> None:
                   _AUDIO_STORE_CHECK.get("why"))
 
 
-async def _watch_memory_forever(every: float = 60.0) -> None:
+async def _watch_memory_forever(every: float = 15.0) -> None:
     """§334: Render restarts the server when it runs out of memory, and the
     state worth seeing is the one just before - so the server records its
-    own size and logs a full report (`memory_report.watch_step`) as it grows."""
+    own size and logs a full report (`memory_report.watch_step`) as it grows.
+    §335: every 15 seconds, and a rise of `JUMP_MB` between two samples is
+    logged with what was running (`memory_report.jump_step`)."""
     import memory_report
+    previous = None
+    since = time.time()
     while True:
         try:
-            snap = await asyncio.to_thread(memory_report.watch_step)
+            # What the event loop is running, named by coroutine (§335).
+            tasks: dict = {}
+            for task in asyncio.all_tasks():
+                coro = task.get_coro()
+                name = getattr(coro, "__qualname__", None) or task.get_name()
+                tasks[name] = tasks.get(name, 0) + 1
+            running = [{"task": k, "count": v} for k, v in
+                       sorted(tasks.items(), key=lambda kv: -kv[1])[:25]]
+            rss = memory_report.rss_mb()
+            jump = memory_report.jump_step(previous, rss, since, running)
+            if jump:
+                log.warning("memory jump: %s -> %s MB - %s", jump["from_mb"],
+                            jump["to_mb"], json.dumps(jump, default=str))
+            previous, since = rss, time.time()
+            snap = await asyncio.to_thread(memory_report.watch_step, None, rss)
             if snap:
                 log.warning("memory watch: passed %s MB - %s", snap["crossed_mb"],
                             json.dumps(snap, default=str))

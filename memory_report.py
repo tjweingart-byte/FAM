@@ -20,7 +20,7 @@ returned - `db.Cursor`). Three readings, cheapest first:
   the bound was reached and the numbers are a floor.
 
 Nothing here runs unless an admin asks - except the watch (§334): the
-server samples its own size every minute and writes a full report to the
+server samples its own size every 15 seconds and writes a full report to the
 log the first time each boot it crosses each of `WATCH_MB`, because the
 state worth seeing is the one before Render restarts it, when nobody is
 looking. `all_arenas()` counts every glibc arena (one per thread, up to
@@ -228,8 +228,8 @@ def report(trim_first: bool = True, census: bool = False) -> dict:
 
 #: Sizes at which the watch writes a full report, once each per boot.
 WATCH_MB = (800, 1200, 1600)
-#: One sample a minute for the last six hours.
-SAMPLES: collections.deque = collections.deque(maxlen=360)
+#: One sample every 15 seconds for the last six hours.
+SAMPLES: collections.deque = collections.deque(maxlen=1440)
 #: The reports the watch wrote this boot, newest last.
 SNAPSHOTS: list = []
 _CROSSED: set = set()
@@ -256,4 +256,60 @@ def watch_step(now: Optional[float] = None, rss: Optional[float] = None) -> Opti
 
 def watch_state() -> dict:
     return {"thresholds_mb": list(WATCH_MB), "crossed_mb": sorted(_CROSSED),
-            "samples": list(SAMPLES), "snapshots": list(SNAPSHOTS)}
+            "samples": list(SAMPLES), "snapshots": list(SNAPSHOTS),
+            "jumps": list(JUMPS)}
+
+
+# --- what was running when it jumped (§335) -------------------------------
+#
+# Production's memory rises in steps of ~1.5 GB, each in under a minute and
+# each with a CPU spike, then stays flat: one operation needing that much at
+# once, not a leak and not load. The watch's size lines say *that* it grew;
+# this says *what was running*: every request in flight and finished since
+# the last sample, with its own change in size, and the server's background
+# tasks and threads at that moment.
+
+#: A rise between two samples at least this large is logged as a jump.
+JUMP_MB = 150
+#: Requests in flight: id -> (method + path, started, rss at start).
+IN_FLIGHT: dict = {}
+#: Requests finished recently: (ended, method + path, seconds, rss change).
+FINISHED: collections.deque = collections.deque(maxlen=300)
+#: This boot's jumps, newest last.
+JUMPS: collections.deque = collections.deque(maxlen=10)
+
+
+def request_started(key: int, label: str) -> None:
+    IN_FLIGHT[key] = (label, time.time(), rss_mb() or 0.0)
+
+
+def request_ended(key: int) -> None:
+    started = IN_FLIGHT.pop(key, None)
+    if started is None:
+        return
+    label, at, rss_then = started
+    now = time.time()
+    FINISHED.append((now, label, round(now - at, 2),
+                     round((rss_mb() or 0.0) - rss_then, 1)))
+
+
+def jump_step(previous: Optional[float], rss: Optional[float],
+              since: float, tasks: list) -> Optional[dict]:
+    """A report when `rss` rose by `JUMP_MB` or more since `previous`, else
+    None: what was in flight, what finished since `since` (largest rise
+    first), and the background tasks and threads."""
+    if previous is None or rss is None or rss - previous < JUMP_MB:
+        return None
+    now = time.time()
+    finished = sorted((f for f in list(FINISHED) if f[0] >= since),
+                      key=lambda f: -f[3])
+    jump = {"at": round(now), "from_mb": previous, "to_mb": rss,
+            "in_flight": [{"request": label, "seconds": round(now - at, 1),
+                           "rss_change_mb": round((rss or 0) - r0, 1)}
+                          for label, at, r0 in list(IN_FLIGHT.values())],
+            "finished": [{"request": label, "seconds": secs, "rss_change_mb": d}
+                         for _t, label, secs, d in finished[:20]],
+            "tasks": tasks, "threads": thread_names(20),
+            "all_arenas": all_arenas()}
+    JUMPS.append(jump)
+    return jump
