@@ -179,8 +179,10 @@ def material(cache, key: str, chars: int = MATERIAL_CHARS) -> dict:
         except Exception:  # noqa: BLE001
             out[field_name] = ""
     try:
-        get = getattr(cache, "get", None)
-        sentences = get(key, current=False) if get else None
+        # `script`, never `get`: a quote is not a replay, and `get` counts
+        # a hit - the hit rates a prefetch decision waits on ([dec-prefetch]).
+        script = getattr(cache, "script", None)
+        sentences = script(key) if script else None
     except Exception:  # noqa: BLE001
         sentences = None
     excerpt = ""

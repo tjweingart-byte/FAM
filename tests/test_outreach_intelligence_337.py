@@ -40,8 +40,11 @@ class Cache:
     def recent(self, limit=40, exclude_author="", origin="", keys=()):
         return [r for r in self.rows if not keys or r["key"] in keys][:limit]
 
+    def script(self, key):
+        return self.said.get(key) or []
+
     def get(self, key, current=True):
-        return self.said.get(key)
+        raise AssertionError("a quote must not count a cache hit")
 
     def summary(self, key):
         return {"k-rates": "How the Fed's committee sets rates, and what it reads first."}.get(key, "")
@@ -227,6 +230,19 @@ def test_an_old_answer_without_a_choice_still_reads():
     assert OI.parse({}, 1, "m").choice == 0
     assert OI.parse({"choice": 5}, 3, "m").choice == -1
     assert OI.parse({"intent": "shouting"}, 1, "m").intent == "other"
+
+
+def test_material_from_the_real_cache_counts_no_hit(tmp_path):
+    import cache as C
+
+    store = C.SqliteScriptCache(str(tmp_path / "scripts.db"))
+    store.put("k-rates", ["The Federal Reserve meets eight times a year."], 3600,
+              "How does the Fed decide rates?", minutes=3, summary="How rates are set.")
+    said = OI.material(store, "k-rates")
+    assert said["excerpt"] == "The Federal Reserve meets eight times a year."
+    assert said["summary"] == "How rates are set."
+    hits = store._conn().execute("SELECT hits FROM scripts WHERE key = 'k-rates'").fetchone()[0]
+    assert hits == 0
 
 
 def test_material_reads_only_what_the_cache_keeps():

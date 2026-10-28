@@ -1186,11 +1186,11 @@ def _shortlist(cache, held: Store, found: list, now: float) -> list[Card]:
             continue
         if held.find_text(post["text"]) is not None:
             continue
-        offered = rank(episodes, post["text"])
-        if not offered or not linked(offered[0]):
+        ranked = rank(episodes, post["text"])
+        if not ranked or not linked(ranked[0]):
             continue
         card = Card(post["post_id"], post["url"], post["text"][:6000], author,
-                    post["author_name"], "", offered, 0, origin=FOUND,
+                    post["author_name"], "", ranked, 0, origin=FOUND,
                     found_by=seed.title, engagement=engaged)
         card.reason = (f"found searching LinkedIn for “{seed.title}”"
                        + (f", posted {post['published']}" if post["published"] else "")
@@ -1199,7 +1199,7 @@ def _shortlist(cache, held: Store, found: list, now: float) -> list[Card]:
         # The match leads; engagement (0-1 on a log scale, about 500 is 1)
         # orders posts that match about as well.
         lift = min(1.0, math.log1p(engaged) / math.log1p(500)) if engaged > 0 else 0.0
-        best[post["post_id"]] = (offered[0]["match"] + 0.15 * lift, card)
+        best[post["post_id"]] = (ranked[0]["match"] + 0.15 * lift, card)
     out, authors = [], set()
     for _, card in sorted(best.values(), key=lambda pair: -pair[0]):
         if card.author in authors:

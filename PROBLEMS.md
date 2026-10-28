@@ -23461,7 +23461,8 @@ gaps against the chart:
   offered episodes answers this post, -1 none), `why`, `angle`, `detail` -
   then the words. Each offered episode is shown with what it says: its
   summary line and the opening of its script (`material`, ~900 characters,
-  read from the cache only). The read is stored (a `reading` column; both
+  read from the cache only, through a new `cache.script(key)` - never `get`,
+  which counts a hit, and hit rates are what [dec-prefetch] waits on). The read is stored (a `reading` column; both
   stores are widened in place) and shown on every card ("Read: Asking about
   ...; adds: ..."; "Read in code" without a model). A read choosing another
   offered episode switches the card's episode, never to one under
