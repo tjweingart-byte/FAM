@@ -22498,6 +22498,17 @@ written by the agent (a play's row is re-filed by the existing code, §209). Cod
 categorisers disagree or nothing places. Painting stays with `thumbnails`,
 behind the checker and a person.
 
+**Plugin choices driven by need** (the owner, 10.28: "explain what the agent
+needs to be most capable at, and have that drive the decision making for what
+plugin to use for each agent"). Each agent's Plugin options tab now opens
+with what it must be best at - its needs ranked, each with why it matters for
+that agent and what it rules in or out - and ends with the choice, each pick
+traced to the need that decided it. The tables are unchanged, and so is
+every pick: the needs make explicit why, e.g. the contextualizer's speed and
+the listener's words rule out outside models on search; Consuela's volume and
+having no one waiting make batched Haiku right; the supervisor's
+independence from the writer rules out Haiku as its only judge.
+
 No agent is built; nothing here runs.
 
 Tests: `tests/test_fam_agents_doc.py` (the five agents in order and named; the tandem pairs drawn as one step; the five agents and the template carry

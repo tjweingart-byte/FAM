@@ -65,3 +65,13 @@ def test_tandem_pairs_are_drawn_as_one_step(tmp_path):
     pairs = [re.findall(r'data-stage="(\w+)"', inner) for tandem, inner in steps if tandem]
     assert pairs == [["ei", "context"], ["editor", "write"]]
     assert "<agent>" not in page
+
+
+def test_plugin_choices_follow_from_what_each_agent_needs():
+    agents = [s for s in _sections() if not s.startswith(("Shared rules", "Template"))]
+    for section in agents:
+        plugins = section.split("### Plugin options", 1)[1].split("\n### ", 1)[0]
+        name = section.split("\n", 1)[0]
+        assert "**What it must be best at**" in plugins, name
+        assert "**The choice, driven by those needs:**" in plugins, name
+        assert "**Recommendation:**" not in plugins, name

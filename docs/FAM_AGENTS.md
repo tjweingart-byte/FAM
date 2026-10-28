@@ -276,6 +276,15 @@ Each case is a test with a fake agent or planner returning the bad answer.
 
 ### Plugin options
 
+**What it must be best at**, most important first - each need decides part of the choice below:
+
+| # | Need | Why it matters for this agent | So it rules in / out |
+|---|---|---|---|
+| 1 | **Never doing the wrong thing** | It touches every agent; one wrong action repeats everywhere | Predictable code over intelligence; out: free-form agent frameworks and planners that act |
+| 2 | **Adding no time on the listener's path** | It sits between every hand-off on a search | In: plain `asyncio` hand-offs; out: any model call, gateway or workflow service on the tap |
+| 3 | **Never losing or doubling work** | Restarts and two servers must not run a pass twice | In: a task table with claims; durable-workflow services only if that proves not enough |
+| 4 | **Being visible** | You must see what every agent did and spent | In: `metering` and `/admin` as the record; tracing tools only as a second view |
+
 **a) Orchestration and scheduling**
 
 | Option | Cost / mo | Latency added | Effectiveness | Holes | Fixed by guardrail? |
@@ -306,8 +315,14 @@ Each case is a test with a fake agent or planner returning the bad answer.
 | OpenRouter | ~5.5% on credits | ~25-100 ms | One key, many models | Sees every prompt, including listener words | No - consent change |
 | Langfuse | free (50k units) / $29 | async | Traces, prompt versions, evals | Traces hold material and listener words off-machine | Partly - FAM-material agents only |
 
-**Recommendation:** code orchestration (way A) and FAM's own loop; no
-planner, framework or workflow service until a real situation needs one.
+**The choice, driven by those needs:**
+
+- **Needs 1 and 2 → code orchestration (way A), no planner.** Nothing a model
+  decides can act, and nothing is added on the tap.
+- **Need 3 → FAM's own loop and a task table with claims.** Inngest or
+  Temporal only if it outgrows that.
+- **Need 4 → `metering` and `/admin`.** LiteLLM or Langfuse at most as a second
+  view, and only for agents that never see a listener's words.
 
 ### Settings and open questions
 
@@ -410,6 +425,15 @@ until responsibility 4 is decided.)
 
 ### Plugin options
 
+**What it must be best at**, most important first - each need decides part of the choice below:
+
+| # | Need | Why it matters for this agent | So it rules in / out |
+|---|---|---|---|
+| 1 | **Speed** | On searchFAM it is in front of the first word | In: folded into EI's existing call, or run beside it; out: any extra round trip in series, Sonnet on search |
+| 2 | **Choosing the right sources from a closed list** | A wrong source costs money or misses the answer | Classification, not deep reasoning: code rules or a small model are enough |
+| 3 | **Writing a precise query with dates and no guessed fact** | A guessed result becomes the search's premise | Needs a language model (a router cannot write queries); a small one suffices with code checking for facts |
+| 4 | **Keeping the listener's words with Anthropic** | It reads exactly what the listener typed | Out: outside general models until the consent change; in: local routers |
+
 ~3k in / 400 out per search; costs at **10k searches/month**. On searchFAM
 latency matters more here than for any other agent.
 
@@ -424,11 +448,17 @@ latency matters more here than for any other agent.
 | Open model on Groq / Cerebras | ~$3-30 | fastest generation | Writes queries quickly; quality unmeasured | Sees the listener's words | No - consent change |
 | GPT-5 nano / Gemini Flash-Lite | ~$3-5 | ~like Haiku | Comparable | Same | No - consent change |
 
-**Recommendation:** write the `ResearchPlan` type first and fill it from
-today's brief and code routes with no model; log how often a search comes
-back empty while the archive had something; then fold the contextualizer into
-**EI's search call on Haiku 5.5** - one schema, no added wait; an embedding
-router only if source choice proves wrong often.
+**The choice, driven by those needs:**
+
+- **Needs 1, 3 and 4 → Haiku 5.5, folded into EI's search call.** It is one
+  schema in a call that already happens, it writes queries, and it is
+  covered by the consent FAM already has.
+- **Need 2 → code rules first** (the fallback), and an embedding router only
+  if source choice proves wrong often.
+- **Sonnet only on the write-ahead**, where need 1 does not bind.
+- **First:** write the `ResearchPlan` type and fill it from today's brief and
+  code routes, and log how often a search comes back empty while the archive
+  had something.
 
 ### Settings and open questions
 
@@ -536,6 +566,15 @@ After the shared preamble:
 
 ### Plugin options
 
+**What it must be best at**, most important first - each need decides part of the choice below:
+
+| # | Need | Why it matters for this agent | So it rules in / out |
+|---|---|---|---|
+| 1 | **Editorial judgment** | What the episode is, what to cut, what order - the writing is the product | In: the strongest model the time allows; Sonnet is the likeliest to improve the writing |
+| 2 | **Pointing at the right sentences, never restating** | The writer must read the source's words | Shape and code guarantee no invention; a reranker can sharpen selection |
+| 3 | **Speed on searchFAM** | With the writer, it is in front of the first word | On search: a fast model (Haiku); out: a slow plan in series |
+| 4 | **Keeping the listener's words with Anthropic** | On search it reads the question | Out on search: outside general models; in: self-hosted rerankers |
+
 Per episode ~10k in / 1k out; costs at **10k episodes/month** (×10 for 100k).
 
 | Option | Cost / mo | Latency added on search | Effectiveness | Holes | Fixed by guardrail? |
@@ -548,11 +587,18 @@ Per episode ~10k in / 1k out; costs at **10k episodes/month** (×10 for 100k).
 | Open model on Groq / Cerebras | ~$10-90 | fastest generation | Buys latency back if Sonnet-level planning is too slow; quality unmeasured | Consent; vendor terms | No on search without consent change |
 | Gemini Pro / OpenAI's main GPT | ~$150-300 | like Sonnet | Alternative to Sonnet for editions | No reason to prefer without an eval | Yes on editions |
 
-**Recommendation:** build the plan format first (beats, numbered sentences,
-opening slots, landing line); start on the **editions and write-ahead with
-Sonnet 5.5, batched**; on searchFAM **Haiku 5.5**, plus a self-hosted
-reranker if the eval shows missed material; measure with `write.py` on a
-fixed set, scored by the supervisor's checks.
+**The choice, driven by those needs:**
+
+- **Need 1 → Sonnet 5.5, batched, on the editions and the write-ahead.**
+  Nobody waits there, so judgment is cheapest to buy.
+- **Needs 3 and 4 → Haiku 5.5 on searchFAM.**
+- **Need 2 → a self-hosted reranker,** if the eval shows Haiku missing
+  material.
+- **Outside general models:** ruled out on search by need 4, and with no clear
+  gain on the editions.
+- **First:** build the plan format (beats, numbered sentences, opening slots,
+  landing line). Measure with `write.py` on a fixed set, scored by the
+  supervisor's checks.
 
 ### Settings and open questions
 
@@ -665,6 +711,15 @@ After the shared preamble:
 
 ### Plugin options
 
+**What it must be best at**, most important first - each need decides part of the choice below:
+
+| # | Need | Why it matters for this agent | So it rules in / out |
+|---|---|---|---|
+| 1 | **Independence from the writer** | A checker that shares the writer's blind spots passes its mistakes | In: a different model (Sonnet, another family) or a specialised checker; out: Haiku as the only judge |
+| 2 | **Precision on "is this sentence supported"** | An unsupported volatile fact is the one hard failure that matters most | In: grounding checkers built for exactly this, which cannot invent |
+| 3 | **Speed per sentence, if it checks while streaming** | Each check would sit before that sentence is voiced | In: small local models (ms); out: a model call per sentence |
+| 4 | **Never blocking on taste** | Only four verdicts may hold an episode | Closed verdicts; code decides what holds |
+
 Whole-script check ~10k in / 500 out; costs at **10k episodes/month**.
 
 | Option | Cost / mo | Latency added | Effectiveness | Holes | Fixed by guardrail? |
@@ -679,10 +734,15 @@ Whole-script check ~10k in / 500 out; costs at **10k episodes/month**.
 | Gemini / GPT as a second judge | ~$7 (nano) to ~$250 (main) | like Haiku to Sonnet | Different family = less self-preference | On search the script answers the listener's question | Partly - check whether consent applies on search |
 | Hosted eval platforms (Patronus, Galileo) | subscription | varies | Ready-made evaluators and dashboards for the eval set | Another vendor in the data path | Partly - eval set only, not live |
 
-**Recommendation:** code first; a **self-hosted grounding checker** per
-sentence for support; **Sonnet 5.5** for the writing checks on the editions
-and write-ahead, batched, and as an audit on searchFAM until the latency work
-decides. First an eval: ~100 real scripts hand-marked against every check.
+**The choice, driven by those needs:**
+
+- **Needs 2 and 3 → a self-hosted grounding checker per sentence**
+  (MiniCheck-class), on its own machine.
+- **Need 1 → Sonnet 5.5 for the writing checks** on the editions and the
+  write-ahead, batched, and as an audit on searchFAM until the latency work
+  decides. Gemini or GPT is worth comparing as a second judge on the editions.
+- **Need 4 → code first** for every mechanical check and every figure.
+- **First:** an eval of ~100 real scripts hand-marked against every check.
 
 **Combining it with the editor** would be one call, cheaper and faster, but
 loses independence - a model grading its own writing passes what it meant to
@@ -832,6 +892,15 @@ code parses value, unit and date from sentence 5 itself):
 
 ### Plugin options
 
+**What it must be best at**, most important first - each need decides part of the choice below:
+
+| # | Need | Why it matters for this agent | So it rules in / out |
+|---|---|---|---|
+| 1 | **Faithfulness** | What it stores is treated as true for years | Answer is sentence numbers only and figures go through code, so any decent small model is safe |
+| 2 | **Low cost at volume** | Every article, ~2M a month at 100k listeners | In: the cheapest adequate model, batched; out: Sonnet for extraction |
+| 3 | **Caution on duplicates** | A wrong merge loses information; a kept duplicate costs bytes | In: a careful second opinion on the few unsure pairs; NLI as a free first look |
+| 4 | **Nothing to wait for** | It runs in the background | Latency is irrelevant: batch everything |
+
 Volume: ~47k new articles/month at 1,000 listeners (§307 estimate; ~285k at
 10k, ~2.1M at 100k).
 
@@ -866,12 +935,19 @@ languages). Every hole is closed by "uncertain = not compared".
 | **Haiku 5.5** yes/no | <$1 | batch | First look on leftover pairs | Says `same` too easily | Yes - unsure = keep; dry run |
 | **Sonnet 5.5** second opinion | ~$1 (few % of pairs) | seconds | Careful on edge cases | - | Yes - never drops alone |
 
-**Recommendation:** Haiku 5.5 low, batched, for extraction and the first
-dedupe look; Sonnet on unsure pairs; code (+ `dateparser`, `quantulum3`) for
-every figure and date; the installed model + MinHash for candidates. About
-**$5/month at 1,000 listeners, $30 at 10,000, $250 at 100,000**. First an
-eval of ~200 real packets checked by hand; try GPT-5 nano or Flash-Lite on
-it before adding a vendor.
+**The choice, driven by those needs:**
+
+- **Needs 2 and 4 → Haiku 5.5 at low effort, batched,** for extraction and the
+  first dedupe look. GPT-5 nano or Gemini Flash-Lite are a small saving with
+  no consent issue (FAM's material only), to be tried on the eval before a
+  vendor is added.
+- **Need 1 → code** (with `dateparser` and `quantulum3`) for every figure and
+  date.
+- **Need 3 → Sonnet only on unsure pairs.** The installed model and MinHash
+  find the candidates.
+- **Cost:** about **$5/month at 1,000 listeners, $30 at 10,000, $250 at
+  100,000**.
+- **First:** an eval of ~200 real packets checked by hand.
 
 ### Settings and open questions
 
@@ -995,6 +1071,15 @@ shared preamble:
 
 ### Plugin options
 
+**What it must be best at**, most important first - each need decides part of the choice below:
+
+| # | Need | Why it matters for this agent | So it rules in / out |
+|---|---|---|---|
+| 1 | **Speed** | It has the search's own time plus 0.5 s | In: code lookups (ms); a model only if hidden behind the search |
+| 2 | **Knowing where to look** | The right lookup (a result, a close, background) is most of the quality | In: a mapping from the contextualizer's plan; the plan can name the lookup itself |
+| 3 | **Finding the right history** | Nearest by meaning is not always what the question needs | In: vectors plus keywords (hybrid), exact `live` lookups, a reranker |
+| 4 | **Being read-only and safe** | A model-written query can be wrong, slow or destructive | Out: any query a model writes; in: a closed list of lookups |
+
 ~1.5k in / 150 out when a model is asked; costs at **10k searches/month**.
 
 **a) Choosing the lookup:**
@@ -1018,10 +1103,18 @@ shared preamble:
 | An MCP server in front of the archive (`facts_about`, `results_between`) | hosting | ~ms | The same lookups for agents and development | Needs a public server, not on staging | Yes - read-only tools |
 | Warm the lookup before the tap (prefetch) | $0 | none for the listener | Holds nothing personal, so prefetch may ([prefetch-same-key]) | Stale by a few hours | Yes - history does not change fast |
 
-**Recommendation:** code first - the closed lookups built over what Atlas
-already has, the choice made from the contextualizer's plan, the vector
-lookup as default; warm it before the tap on browse surfaces; a model only if
-the plan's entries prove ambiguous often enough to matter.
+**The choice, driven by those needs:**
+
+- **Needs 1 and 4 → code:** the closed lookups, built over what Atlas already
+  has.
+- **Need 2 → the contextualizer names the lookup in its plan,** with the vector
+  lookup as the default.
+- **Need 3 → Atlas Vector Search plus Atlas Search (hybrid),** and a
+  self-hosted reranker if order matters. Voyage embeddings only with the
+  consent change and a re-embed.
+- **Warm the lookup before the tap** on browse surfaces.
+- **A model only if** the plan's entries prove ambiguous often enough to
+  matter.
 
 ### Settings and open questions
 
@@ -1131,6 +1224,16 @@ pick from the list. After the shared preamble:
 
 ### Plugin options
 
+**What it must be best at**, most important first - each need decides part of the choice below:
+
+| # | Need | Why it matters for this agent | So it rules in / out |
+|---|---|---|---|
+| 1 | **Never missing a real problem** | Including the whole server being down, which FAM cannot report about itself | In: an outside uptime check and job heartbeats beside FAM's own signals |
+| 2 | **Never making things worse** | A bad fix at 3 a.m. is an outage | In: fixes from a closed list, each verified; a model only writes up |
+| 3 | **Reaching a person when it is urgent** | The owner asked for the most visible way possible | In: a channel that repeats until acknowledged; out: relying on `/admin` alone |
+| 4 | **Low noise** | Alert fatigue hides the real one | One incident per cause; thresholds in code |
+| 5 | **Cheap to run all the time** | It ticks every minute, forever | Out: a model on every tick; in: code, and a model per incident |
+
 **a) Watching** (beyond what FAM already records):
 
 | Option | Cost / mo | Latency added | Effectiveness | Holes | Fixed by guardrail? |
@@ -1163,11 +1266,16 @@ pick from the list. After the shared preamble:
 | SMS (Twilio) | ~$0.01 per message (check) + number | seconds | High | Cost per alert; one-way | Yes - urgent only |
 | PagerDuty / Opsgenie | free small-team tier; paid per user (check) | seconds | Highest: phone calls, repeats until acknowledged, an "acknowledge / resolved" button | Another vendor | Yes - matches "we tell Keith when it is fixed": resolve there, Keith re-checks |
 
-**Recommendation:** watching in code over FAM's own signals, plus one outside
-uptime check of `/api/health` and job heartbeats; Haiku 5.5 only to write up
-an open incident; start observe-only. For "most visible": `/admin` as the
-record, email for warnings, and for urgent a channel that repeats until
-acknowledged (PagerDuty-class, or SMS) - the owner's decision.
+**The choice, driven by those needs:**
+
+- **Need 1 → FAM's own signals, plus UptimeRobot or Better Stack on
+  `/api/health`,** and Healthchecks.io heartbeats from each loop.
+- **Needs 2 and 5 → code watching,** with Haiku 5.5 only to write up an open
+  incident. Start observe-only.
+- **Need 3 → `/admin` as the record, email for warnings, and for urgent a
+  repeat-until-acknowledged channel** (PagerDuty-class, or SMS) - the
+  owner's decision.
+- **Need 4 → grouping in code.** Sentry is optional, with redaction.
 
 ### Settings and open questions
 
@@ -1304,6 +1412,16 @@ nothing places. After the shared preamble:
 
 ### Plugin options
 
+**What it must be best at**, most important first - each need decides part of the choice below:
+
+| # | Need | Why it matters for this agent | So it rules in / out |
+|---|---|---|---|
+| 1 | **Accuracy against FAM's own tree** | Pages, reels, ranking and pictures all hang off the node | In: candidates drawn from the tree; out: generic taxonomies (Google `classifyText`) |
+| 2 | **Consistency** | The same episode must land on the same node, and the tile must match the player | In: code-first and deterministic; a model only on ties |
+| 3 | **Telling "about" from "mentions"** | A word in passing must not move an episode | In: a small model when the categorisers disagree; zero-shot NLI as a free alternative |
+| 4 | **Picture safety** | A picture may carry a logo or face until a person approves it | In: the existing `thumbnails.pick*` rules; an offline CLIP check |
+| 5 | **Cheap, and never before the first word** | Once per written episode, after the writer | Batched on editions; out: anything on the voice's path |
+
 ~3k in (the episode's title, opening and end, the vocabulary lines and
 candidates) / 100 out per episode it is asked about; costs at **10k
 episodes/month**, before code settles most of them.
@@ -1330,12 +1448,17 @@ episodes/month**, before code settles most of them.
 | Claude's picture checker (built, §167) | per picture painted | background | Logos, text, faces, products, borders | Off the episode path | Yes - a person approves flagged ones |
 | Gemini image model (built; `THUMBNAILS=0` in production) | per picture (check) | background | Paints a node's picture from a nameless scene | Cost per node; logos if names leak | Yes - `names_leak`, the checker, review |
 
-**Recommendation:** code first (the writer's words through
-`resolve_category`, the picture through `thumbnails.pick*`); Haiku 5.5 only
-when the categorisers disagree or nothing places, batched on editions; log
-everything in `category_audit`, and once a few thousand episodes are filed,
-measure a fine-tuned classifier against it. Painting stays where it is,
-behind the checker and a person.
+**The choice, driven by those needs:**
+
+- **Needs 1 and 2 → code first:** the writer's words through
+  `resolve_category`, and the tree's candidates.
+- **Need 3 → Haiku 5.5 only when the categorisers disagree or nothing
+  places,** batched on editions. Once a few thousand episodes are filed in
+  `category_audit`, measure a fine-tuned classifier against it.
+- **Need 4 → `thumbnails.pick*`, approved pictures only,** with CLIP offline
+  to flag drift. Painting stays behind the checker and a person.
+- **Need 5 → after the writer, beside the cache write.** Outside general
+  models are ruled out on search until the consent change.
 
 ### Settings and open questions
 
@@ -1373,8 +1496,11 @@ expected behaviour, each a test with a fake model.
 
 ### Plugin options
 
-Per kind of work: Claude, outside and no-model options with cost per month,
-latency added, effectiveness, holes and whether a guardrail fixes them; then
-the recommendation and the eval that would change it.
+First, **what it must be best at**: its needs, most important first, each
+with why it matters and what it rules in or out. Then, per kind of work,
+Claude, outside and no-model options with cost per month, latency added,
+effectiveness, holes and whether a guardrail fixes them. End with **the
+choice, driven by those needs** - each pick traced to the need that decided
+it - and the eval that would change it.
 
 ### Settings and open questions
