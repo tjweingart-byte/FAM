@@ -23366,6 +23366,19 @@ Fixed in `embeddings._OnnxEmbedder`:
 Measured after: 24 concurrent batches of tile texts hold 197 MB resident
 (was ~1.1 GB); 24 at the 128-token limit, 342 MB.
 
+**The log named the trigger** (production, 02:47-02:57 PDT, nobody signed
+in): a visitor opened `/waitlist` from a Facebook link at 02:50:41; its
+`/api/welcome` at 02:50:43 prepared ~100 cached episodes at once (a
+`SEARCH yes` line each, in one second); at 02:50:48 the watch logged
+1,356 MB with a **`category-near`** thread running, and 2,101 MB a minute
+later. `category_near._build` embeds every node of the category tree in
+**one** call (`encoder(ids)`) whenever the tree's generation changes - after
+a restart, or once a written episode mints a category, which is what the
+night editions do. Every node name was padded to 128 tokens, so the whole
+tree was one batch of hundreds of 128-token rows. Now `encode_many` splits
+it into passes of 16 under the lock, unpadded: 2,000 node names in one call
+add 13 MB and take 3.5 s on a background thread.
+
 The watch from §334 stays, and now names what runs when memory jumps: it
 samples every 15 seconds, every HTTP request records its own change in
 resident size (`_track_memory`), and a rise of `JUMP_MB` (150) between two
