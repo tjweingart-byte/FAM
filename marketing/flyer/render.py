@@ -2,20 +2,31 @@
 
     python marketing/flyer/render.py
 
-Writes flyer.pdf (US Letter, no margins) and a PNG preview, flyer.png,
-beside this file. Needs network for the Google Fonts.
+Writes qr-waitlist.svg (the code for WAITLIST_URL), then flyer.pdf (US
+Letter, no margins) and a PNG preview, flyer.png, beside this file. Needs
+network for the Google Fonts, and `pip install segno playwright`.
 """
 
 from pathlib import Path
 
+import segno
 from playwright.sync_api import sync_playwright
 
 HERE = Path(__file__).resolve().parent
 CHROME = "/opt/pw-browsers/chromium-1243/chrome-linux64/chrome"
 PAGE = (HERE / "flyer.html").as_uri()
+WAITLIST_URL = "https://familiarize.net/waitlist"
+
+
+def write_qr():
+    # Medium error correction survives a scuffed or creased poster; no border,
+    # because the flyer's white box around the code is its quiet zone.
+    segno.make(WAITLIST_URL, error="m").save(
+        str(HERE / "qr-waitlist.svg"), border=0, dark="#1E1B27", light=None, scale=10)
 
 
 def main():
+    write_qr()
     with sync_playwright() as p:
         browser = p.chromium.launch(executable_path=CHROME if Path(CHROME).exists() else None)
         page = browser.new_page(viewport={"width": 816, "height": 1056}, device_scale_factor=2)
