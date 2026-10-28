@@ -40,3 +40,28 @@ def test_only_an_admin_may_ask(monkeypatch):
     assert client.get("/api/admin/memory").status_code == 404
     got = client.get("/api/admin/memory", headers={"x-admin-token": "secret"})
     assert got.status_code == 200 and "trim" in got.json()
+
+
+def test_the_report_counts_every_arena_and_names_threads():
+    out = memory_report.report(trim_first=False)
+    assert "arenas" in out["all_arenas"] and out["all_arenas"]["arenas"] >= 1
+    assert any(t["name"] == "MainThread" for t in out["thread_names"])
+
+
+def test_the_watch_reports_each_line_once(monkeypatch):
+    monkeypatch.setattr(memory_report, "_CROSSED", set())
+    monkeypatch.setattr(memory_report, "SNAPSHOTS", [])
+    monkeypatch.setattr(memory_report, "holders", lambda: {"largest": []})
+    assert memory_report.watch_step(now=1, rss=500) is None
+    first = memory_report.watch_step(now=2, rss=900)
+    assert first and first["crossed_mb"] == 800
+    assert memory_report.watch_step(now=3, rss=950) is None
+    # A jump past two lines reports once, at the higher one.
+    assert memory_report.watch_step(now=4, rss=1700)["crossed_mb"] == 1600
+    assert memory_report.watch_state()["crossed_mb"] == [800, 1200, 1600]
+    assert len(memory_report.watch_state()["snapshots"]) == 2
+
+
+def test_the_image_sets_two_arenas():
+    here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    assert "ENV MALLOC_ARENA_MAX=2" in open(os.path.join(here, "Dockerfile")).read()
