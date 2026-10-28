@@ -5,11 +5,12 @@
 <title>FAM Flyer</title>
 <!--
   The printed flyer: US Letter (8.5 x 11 in), portrait, for campuses, offices
-  and BART stations. Three blocks, read in order from across a platform:
+  and BART stations.
 
-    1. the yellow poster  - the headline, and the phone breaking out of it
-    2. the pitch          - "One minute personalized audio episodes."
-    3. the ink strip      - scan to join, and the QR box
+  One yellow field, one column to read, one picture. The eye goes down the
+  left: the logo, the headline, the line under it, then the scan row; the
+  phone stands beside the column and is the only image. Nothing else is on
+  the page - no stickers, rings, highlights or arrows - on purpose.
 
   Everything sits inside a 0.4 in white margin, so a home or office printer
   (which cannot print the edge of the sheet) prints it whole.
@@ -23,10 +24,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Geist:wght@400..700&family=Geist+Mono:wght@400..600&display=swap" rel="stylesheet">
 <style>
   @page{ size:8.5in 11in; margin:0; }
-  :root{
-    --paper:#FFFFFF; --ink:#1E1B27; --muted:#5E5770;
-    --yellow:#FFD23F; --yellow-deep:#F5C020; --coral:#E2694F; --cream:#F4EFE4; --sage:#5C8669;
-  }
+  :root{ --paper:#FFFFFF; --ink:#1E1B27; --yellow:#FFD23F; }
   *{ box-sizing:border-box; }
   html,body{ margin:0; padding:0; background:#777; }
   body{ -webkit-print-color-adjust:exact; print-color-adjust:exact;
@@ -36,90 +34,38 @@
   .sheet{ position:relative; width:8.5in; height:11in; overflow:hidden; margin:0; background:var(--paper); }
   @media screen{ .sheet{ margin:0.4in auto; box-shadow:0 10px 40px rgba(0,0,0,0.35); } }
 
-  /* ---------- 1. the yellow poster ---------- */
-  .poster{ position:absolute; left:0.4in; right:0.4in; top:0.4in; height:5.55in;
-    background:var(--yellow); border-radius:0.28in; overflow:hidden; }
-  /* Sound rings radiating from behind the phone: the one picture of "audio". */
-  .rings{ position:absolute; left:5.58in; top:3.33in; width:0; height:0; }
-  .rings i{ position:absolute; left:0; top:0; border-radius:50%; border:0.05in solid var(--yellow-deep);
-    transform:translate(-50%,-50%); }
-  .rings i:nth-child(1){ width:2.4in; height:2.4in; background:var(--yellow-deep); border:0; }
-  .rings i:nth-child(2){ width:3.5in; height:3.5in; }
-  .rings i:nth-child(3){ width:4.7in; height:4.7in; }
-  .rings i:nth-child(4){ width:6.0in; height:6.0in; opacity:0.6; }
-  .rings i:nth-child(5){ width:7.4in; height:7.4in; opacity:0.35; }
+  .field{ position:absolute; inset:0.4in; background:var(--yellow); border-radius:0.3in; overflow:hidden; }
 
-  .poster-top{ position:absolute; left:0.38in; right:0.45in; top:0.32in;
-    display:flex; align-items:center; justify-content:space-between; }
-  /* The logo as the app shows it: yellow FAM on its own dark tile. */
-  .badge{ display:block; background:var(--ink); border-radius:0.2in; padding:0.17in 0.26in; }
-  /* Spaced by eye, not by bounding box: the F's open lower right reads as a
-     wider gap than the M's stem, so the chevron and M sit 2 units closer. */
+  /* The logo as the app shows it: yellow FAM on its own dark tile. Spaced by
+     eye, not by bounding box: the F's open lower right reads as a wider gap
+     than the M's stem, so the chevron and M sit 2 units closer. */
+  .badge{ position:absolute; left:0.45in; top:0.45in; background:var(--ink); border-radius:0.2in; padding:0.17in 0.26in; }
   .wordmark{ color:var(--yellow); height:0.56in; width:1.553in; display:block; overflow:visible; }
-  .tag{ align-self:flex-start; margin-top:0.12in; font-family:'Geist Mono', monospace; font-size:9pt; font-weight:600; letter-spacing:0.2em;
-    text-transform:uppercase; color:var(--ink); background:var(--paper); padding:0.06in 0.14in; border-radius:999px; }
 
-  h1{ position:absolute; left:0.45in; top:1.45in; margin:0; width:4.4in;
+  h1{ position:absolute; left:0.45in; top:1.85in; margin:0; width:4.1in;
     font-family:'Bricolage Grotesque', sans-serif; font-weight:800; text-transform:uppercase;
-    font-size:48pt; line-height:0.92; letter-spacing:-0.025em; color:var(--ink); }
-  /* "want to know" in yellow on ink, a label stuck on the poster */
-  h1 .hl{ display:inline-block; background:var(--ink); color:var(--yellow); padding:0.02in 0.08in 0; margin:0.03in -0.08in 0.03in 0; line-height:0.92;
-    -webkit-box-decoration-break:clone; box-decoration-break:clone; }
+    font-size:46pt; line-height:0.9; letter-spacing:-0.025em; }
 
-  /* ---------- the phone, breaking out of the poster ---------- */
-  .phone{ position:absolute; left:4.85in; top:1.3in; width:2.25in; transform:rotate(7deg);
-    border-radius:0.36in; padding:0.09in; background:#0F0E12; z-index:3; }
-  .phone img{ display:block; width:100%; height:auto; aspect-ratio:780/1627; border-radius:0.28in; }
+  .pitch{ position:absolute; left:0.45in; top:5.1in; width:3.9in; margin:0;
+    font-family:'Bricolage Grotesque', sans-serif; font-weight:600;
+    font-size:22pt; line-height:1.15; letter-spacing:-0.01em; }
 
-  /* Stickers: what "personalized" means, said in subjects, stuck on the phone. */
-  .sticker{ position:absolute; z-index:4; display:flex; align-items:center; gap:0.09in;
-    font-family:'Bricolage Grotesque', sans-serif; font-weight:700; font-size:15pt; line-height:1;
-    padding:0.09in 0.18in 0.09in 0.1in; border-radius:999px; white-space:nowrap; }
-  .sticker b{ display:grid; place-items:center; width:0.32in; height:0.32in; border-radius:50%; }
-  .sticker b svg{ width:0.18in; height:0.18in; }
-  /* A zigzag down the phone - left, right, left - each only catching the
-     phone's edge, so the screen stays readable. */
-  .s1{ left:3.9in; top:1.48in; transform:rotate(-6deg); background:var(--paper); color:var(--ink); }
-  .s1 b{ background:var(--coral); color:#fff; }
-  .s3{ left:6.36in; top:3.0in; transform:rotate(5deg); background:var(--paper); color:var(--ink);
-    border-radius:0.3in; padding:0.11in 0.2in 0.11in 0.12in; line-height:1.08; }
-  .s3 b{ background:var(--sage); color:#fff; }
-  .s2{ left:2.55in; top:5.15in; transform:rotate(-4deg); background:var(--ink); color:var(--cream);
-    border-radius:0.3in; padding:0.11in 0.2in 0.11in 0.12in; line-height:1.08; }
-  .s2 b{ background:var(--yellow); color:var(--ink); }
+  .phone{ position:absolute; left:4.6in; top:0.95in; width:2.78in; transform:rotate(4deg);
+    border-radius:0.42in; padding:0.1in; background:#0F0E12; }
+  .phone img{ display:block; width:100%; height:auto; aspect-ratio:780/1627; border-radius:0.33in; }
 
-  /* ---------- 2. the pitch ---------- */
-  .pitch{ position:absolute; left:0.85in; top:6.5in; width:6.9in; margin:0;
-    font-family:'Bricolage Grotesque', sans-serif; font-weight:800;
-    font-size:34pt; line-height:1.04; letter-spacing:-0.02em; }
-  .pitch u{ text-decoration:none; background:var(--yellow); padding:0 0.08in 0.02in; margin:0 -0.02in;
-    border-radius:0.05in; -webkit-box-decoration-break:clone; box-decoration-break:clone; }
-
-  /* ---------- 3. the ink strip ---------- */
-  .strip{ position:absolute; left:0.4in; right:0.4in; bottom:0.4in; height:2.85in;
-    background:var(--ink); border-radius:0.28in; color:var(--cream); }
-  .cta{ position:absolute; left:0.45in; top:0.4in; width:4.2in; }
-  .cta-k{ display:inline-flex; align-items:center; gap:0.09in; font-family:'Geist Mono', monospace;
-    font-size:9.5pt; font-weight:600; letter-spacing:0.2em; text-transform:uppercase; color:var(--yellow); }
-  .cta-k::before{ content:""; width:0.1in; height:0.1in; border-radius:50%; background:var(--coral); }
-  .cta h2{ font-family:'Bricolage Grotesque', sans-serif; font-weight:800; margin:0.14in 0 0;
-    font-size:46pt; line-height:0.92; letter-spacing:-0.025em; color:var(--paper); }
-  .cta h2 em{ font-style:normal; color:var(--yellow); }
-  /* A drawn arrow from the words to the code. */
-  .arrow{ position:absolute; left:3.05in; top:1.72in; width:1.75in; height:0.85in; color:var(--yellow); }
-
-  /* 2.4 in white square: a 2 in code plus quiet zone. */
-  .qr{ position:absolute; right:0.25in; top:0.25in; width:2.35in; height:2.35in; border-radius:0.16in;
-    background:#fff; display:grid; place-items:center; }
+  /* The scan row: the code and the one instruction beside it. */
+  .scan{ position:absolute; left:0.45in; right:0.45in; bottom:0.45in; display:flex; align-items:center; gap:0.4in; }
+  .qr{ flex:0 0 2.3in; height:2.3in; border-radius:0.16in; background:#fff; display:grid; place-items:center; }
   .qr-target{ width:2in; height:2in; border:1.5px dashed #B9B1CC; border-radius:0.06in;
     display:grid; place-items:center; text-align:center; color:#8A83A0;
     font-family:'Geist Mono', monospace; font-size:8.5pt; letter-spacing:0.14em; text-transform:uppercase; line-height:1.6; }
   .qr-target svg{ width:0.42in; height:0.42in; margin:0 auto 0.06in; display:block; color:#B9B1CC; }
   html.qr-filled .qr-target{ border:0; }
   html.qr-filled .qr-target > *{ display:none; }
-
-  .legal{ position:absolute; left:0.45in; bottom:0.3in; font-family:'Geist Mono', monospace; font-size:7pt;
-    letter-spacing:0.14em; text-transform:uppercase; color:#8A83A0; }
+  .scan-k{ font-family:'Geist Mono', monospace; font-size:10pt; font-weight:600; letter-spacing:0.2em; text-transform:uppercase; }
+  .scan h2{ font-family:'Bricolage Grotesque', sans-serif; font-weight:800; margin:0.1in 0 0;
+    font-size:40pt; line-height:0.95; letter-spacing:-0.025em; }
 </style>
 <script>
   if (/[?&]qr-filled\b/.test(location.search)) document.documentElement.classList.add('qr-filled');
@@ -127,44 +73,30 @@
 </head>
 <body>
 <div class="sheet">
+  <div class="field">
+    <div class="badge"><svg class="wordmark" viewBox="0 0 46.7 16.9" aria-label="FAM">
+      <g fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round">
+        <g transform="translate(-4.55,-4.55)"><path d="M6 20V9.2A3.2 3.2 0 0 1 9.2 6H16"/><path d="M6 13h8"/></g>
+        <g transform="translate(9.35,-4.55)"><path d="M5 13l7-7 7 7"/><path d="M5 20l7-7 7 7"/></g>
+        <g transform="translate(27.25,-4.55)"><path d="M6 20V6l6 9 6-9v14"/></g>
+      </g>
+    </svg></div>
 
-  <section class="poster">
-    <div class="rings" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
-    <div class="poster-top">
-      <div class="badge"><svg class="wordmark" viewBox="0 0 46.7 16.9" aria-label="FAM">
-        <g fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round">
-          <g transform="translate(-4.55,-4.55)"><path d="M6 20V9.2A3.2 3.2 0 0 1 9.2 6H16"/><path d="M6 13h8"/></g>
-          <g transform="translate(9.35,-4.55)"><path d="M5 13l7-7 7 7"/><path d="M5 20l7-7 7 7"/></g>
-          <g transform="translate(27.25,-4.55)"><path d="M6 20V6l6 9 6-9v14"/></g>
-        </g>
-      </svg></div>
-      <div class="tag">Social information</div>
+    <h1>Listen to<br>everything<br>you want<br>to know<br>about.</h1>
+    <p class="pitch">One minute personalized audio episodes.</p>
+
+    <div class="phone"><img src="player.jpg" alt="A FAM episode playing"></div>
+
+    <div class="scan">
+      <div class="qr" aria-label="QR code goes here">
+        <div class="qr-target"><div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM20 14v1M14 20h1M17 17h4v4h-4z"/></svg>QR code<br>2 in &times; 2 in</div></div>
+      </div>
+      <div>
+        <div class="scan-k">Now in early access</div>
+        <h2>Scan to join<br>the waitlist.</h2>
+      </div>
     </div>
-    <h1>Listen to<br>everything<br>you <span class="hl">want</span><br><span class="hl">to know</span><br>about.</h1>
-  </section>
-
-  <div class="phone"><img src="player.jpg" alt="A FAM episode playing"></div>
-
-  <div class="sticker s1"><b><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></b>1 min</div>
-  <div class="sticker s2"><b><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h11M4 11h11M4 16h7"/><path d="M17 18.5V9l4-1.5"/><circle cx="15" cy="18.5" r="2"/></svg></b><span>Custom playlists<br>of information</span></div>
-  <div class="sticker s3"><b><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2.6 5.6 6.1.7-4.5 4.2 1.2 6L12 16.6 6.6 19.5l1.2-6L3.3 9.3l6.1-.7z"/></svg></b><span>Your<br>interests</span></div>
-
-  <p class="pitch">One minute <u>personalized</u><br>audio episodes.</p>
-
-  <section class="strip">
-    <div class="cta">
-      <div class="cta-k">Now in early access</div>
-      <h2>Scan to join<br>the <em>waitlist.</em></h2>
-    </div>
-    <svg class="arrow" viewBox="0 0 175 85" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-      <path d="M8 62 C 60 84, 120 76, 160 30"/><path d="M137 30 L 162 26 L 164 51"/>
-    </svg>
-    <div class="qr" aria-label="QR code goes here">
-      <div class="qr-target"><div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM20 14v1M14 20h1M17 17h4v4h-4z"/></svg>QR code<br>2 in &times; 2 in</div></div>
-    </div>
-    <div class="legal">&copy; 2026 APALI</div>
-  </section>
-
+  </div>
 </div>
 </body>
 </html>
