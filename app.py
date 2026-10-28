@@ -11061,7 +11061,40 @@ async def admin_linkedin(request: Request, status: str = "") -> dict:
         limit=settings.x_threads_seeds))
     health = await asyncio.to_thread(linkedin_posts.health)
     return {"health": health, "cards": cards, "searches": searches,
+            "running": bool(_LINKEDIN_RUNNING),
             "comment_chars": linkedin_posts.COMMENT_CHARS}
+
+
+#: One "Find posts" at a time: a second press while one runs would pay for
+#: the same searches twice.
+_LINKEDIN_RUNNING: list = []
+
+
+@app.post("/api/admin/linkedin/run")
+async def admin_linkedin_run(request: Request) -> dict:
+    """Find posts now (§327), in the background, inside the search ceilings:
+    public LinkedIn posts about FAM's kept episodes, through the research
+    vendor FAM already uses. Returns at once; the page polls while it runs."""
+    _require_admin(request)
+    ok, why = linkedin_posts.available()
+    if not ok:
+        raise HTTPException(status_code=409, detail=f"Cannot search for posts: {why}.")
+    if _LINKEDIN_RUNNING:
+        raise HTTPException(status_code=409, detail="A search is already running.")
+
+    async def _run() -> None:
+        try:
+            report = await linkedin_posts.run(SCRIPT_CACHE)
+            log.info("linkedin (admin run): %s",
+                     {k: v for k, v in report.items() if k != "seeds"})
+        except Exception:  # noqa: BLE001 - recorded, never raised into nothing
+            log.exception("linkedin: the run failed")
+        finally:
+            _LINKEDIN_RUNNING.clear()
+
+    _LINKEDIN_RUNNING.append(time.time())
+    _BACKGROUND.add(asyncio.create_task(_run()))
+    return {"started": True}
 
 
 class LinkedInPaste(BaseModel):

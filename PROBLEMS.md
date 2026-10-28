@@ -22969,3 +22969,86 @@ replaced by the code's when the second post is judged off subject; an
 episode with nothing specific to search is listed under `unsearchable`,
 takes no reads and is not a failed search; and a word the check ignores is
 never asked of X.
+
+## 327. Go Deeper on LinkedIn finds its own posts (2026-10-27)
+
+The owner (10.27), after §322: "It is not clear how to use this LinkedIn
+tool. I want it to be more automated in the sense that the X tool goes out
+and scrapes the platform then comes up with recommended posts."
+
+**What X has that LinkedIn does not** is a search API: `/admin/x` reads X's
+own recent search with a bearer token. LinkedIn sells nothing like it, and
+its User Agreement forbids scraping (the vendors that scraped it - Proxycurl
+the best known - were sued off the market). So the automation goes through
+the one door FAM already has: the **web search its research pays for**.
+Parallel and Perplexity both index public LinkedIn posts, and both take a
+domain filter. **Find posts** (`linkedin_posts.run`) does, per press:
+
+1. The same seeds as X (`x_threads.seeds`: the Trending edition, then the
+   most played kept episodes), up to `LINKEDIN_SEEDS` (10).
+2. One search each through Parallel, else Perplexity (`research._search_*`),
+   `include_domains=("linkedin.com",)`, after-date `LINKEDIN_WINDOW_DAYS` (7),
+   counted on the Outside service requests page under the vendor's name.
+3. `posts_from` keeps results that are posts (`parse_url`: profiles, pages,
+   jobs and articles drop out), the author from how the vendor titled it
+   ("Jane Doe on LinkedIn: ...", "...'s Post", "| Jane Doe | 12 comments").
+4. `_shortlist`: the §322 screen (teaching, not announcing), one author a
+   week, nothing already on the page; every post ranked against every kept
+   episode (`catalogue` embeds each episode once a run, `rank` per post);
+   **a found post that no episode is the subject of is not a card**, since
+   nothing could be linked. Best match first, one per author, eight at most.
+5. One drafting call per card, as before; the card says "found searching
+   LinkedIn for <episode>" and that its words may be the search's excerpt.
+
+Capped per press and per day (`LINKEDIN_DAILY_SEARCHES`, 40, counted in a
+new `runs` table written before the first search and after each, as X's
+is); a button, never a timer ([sweep-on-demand]); staging has no search key,
+so the page says it cannot search ([zero-spend-staging]). Searching costs
+about $0.001-0.005 a search plus the drafting, shown together on the page.
+
+**The page says how to use it**: three numbered steps at the top, Find posts
+as the one button, and pasting (with the search links) folded under "Found a
+post yourself? Paste it". It polls only while a search runs.
+
+**Still true:** nothing here requests linkedin.com, FAM holds no LinkedIn
+credential, and a person pastes and posts every comment. **Unverified here:**
+no search key in this container, so no live run has been read - how much of
+a post the vendors' excerpts carry, and how many of a week's posts they have
+indexed, are the first things to look at after the first press. If the
+excerpts prove too thin to draft from, the card already says to open the
+post first.
+
+**§326's lessons, brought here before merging.** Main took §326 while this
+branch was open: X cards were going under posts that only shared a name with
+their episode (United Airlines under Manchester United). LinkedIn's ranking
+had the same hole, so the same three checks: the search carries the
+episode's subject words (`x_threads.context_words`) beside its names;
+`off_subject` runs `x_threads.on_subject` on every episode a post is ranked
+against, and an off-subject episode is never linked; and the drafting call
+(`judge_and_draft`) judges `fits` before it writes - a found post it judges
+off-subject is stored as `set_aside` (never shown, never read or judged
+again), and a pasted one keeps its card without a link, the reason on it.
+A person may still paste a set-aside post. This entry was §326 on the
+branch and is §327 after the merge.
+
+**Second review before merging (10.27)**, fixed with tests:
+- *A post could be found again after its card was pruned* - with a window
+  wider than the week, or a vendor date off by a day, a post FAM had already
+  commented on came back as a fresh card. Pruned ids now go to `seen`, kept
+  45 days (past the widest window), and `known()` reads both.
+- *A run could rewrite a card a person pasted or decided while it ran.* A
+  run now writes only with `insert_new` (`INSERT OR IGNORE`, the status in
+  the same statement, so a set-aside card is never briefly "waiting").
+- *A failed search did not count toward the day's ceiling*, though a timeout
+  may have been billed. A search is counted before it is asked; only a
+  configuration refusal (`ResearchUnavailable`, nothing sent) is not.
+- *Perplexity was asked without the subject words* - `objective` carries them
+  now, so both vendors get §326's query.
+- *Match again on a set-aside post* billed a model call for a hidden card; it
+  is refused. *Re-pasting one* kept its card but dropped what judging it had
+  cost; the cost is carried over.
+- *Spend summed 30 days of searching with a week of drafting*; both are the
+  last seven days now, and the page says so.
+- Twice the shortlist is ranked and drafting stops at eight cards, so a
+  set-aside post is replaced from further down, as on X; `screened_out`
+  counts only posts not already known; `LINKEDIN_SEEDS=0` says so.

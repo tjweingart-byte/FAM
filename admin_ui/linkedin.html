@@ -86,6 +86,14 @@
   .pick { display:flex; flex-direction:column; gap:4px; font-size:12.5px; }
   .pick label { display:flex; gap:6px; align-items:baseline; }
   .question { font-size:12.5px; background:var(--surface); border-radius:8px; padding:8px 10px; }
+  .how { margin:6px 0 16px; padding-left:20px; max-width:780px; color:var(--muted); font-size:13px; }
+  .how li { margin:3px 0; }
+  .how b { color:var(--ink); }
+  .more { margin-top:18px; }
+  .more summary { cursor:pointer; font:11px var(--mono); letter-spacing:.12em; text-transform:uppercase; color:var(--amber); }
+  .more[open] summary { margin-bottom:10px; }
+  .more h2 { margin-top:16px; }
+  .excerpt { font:11px var(--mono); color:#a8a8a8; margin-top:6px; }
   [hidden] { display:none !important; }
 </style>
 </head>
@@ -107,20 +115,26 @@
 <div class="wrap" id="app" hidden>
   <div class="eyebrow"><a href="/admin">FAM admin</a> · Go Deeper on LinkedIn</div>
   <h1>Posts to go deeper on</h1>
-  <p class="sub">LinkedIn posts that teach something, each matched to a FAM episode that goes further.
-    FAM never reads LinkedIn: open a search below, and paste the posts worth adding to. <b>Approve</b>
-    copies the comment, with its Go Deeper line, and opens the post; you paste it and press Comment in
-    LinkedIn. FAM never posts. Listen before you link an episode.</p>
+  <ol class="how">
+    <li><b>Press Find posts.</b> FAM searches public LinkedIn posts from the last week about today's
+      episodes, and keeps the few that teach something one of its episodes goes deeper on.</li>
+    <li><b>Read each card.</b> Open the post, press Listen first, and edit the drafted comment.</li>
+    <li><b>Approve.</b> The comment is copied and the post opens on LinkedIn: paste it and press
+      Comment. FAM never posts, and Skip leaves the post alone.</li>
+  </ol>
 
   <div class="kpis" id="kpis"></div>
 
-  <div class="panel">
-    <h2>Find · today's episodes, searched on LinkedIn</h2>
-    <div class="searches" id="searches"></div>
+  <div class="bar">
+    <button class="go" id="runBtn">Find posts</button>
+    <span class="note" id="runNote"></span>
   </div>
 
-  <div class="panel">
-    <h2>Paste a post</h2>
+  <div class="tabs" id="tabs"></div>
+  <div class="list" id="list"></div>
+
+  <details class="panel more" id="morePanel">
+    <summary>Found a post yourself? Paste it</summary>
     <form class="paste" id="pasteForm" autocomplete="off">
       <input id="pUrl" placeholder="The post's address (… → Copy link to post)" required>
       <input id="pName" placeholder="Author's name (optional)">
@@ -131,10 +145,9 @@
         <span class="note" id="pasteNote"></span>
       </div>
     </form>
-  </div>
-
-  <div class="tabs" id="tabs"></div>
-  <div class="list" id="list"></div>
+    <h2>Or search LinkedIn yourself, from today's episodes</h2>
+    <div class="searches" id="searches"></div>
+  </details>
 </div>
 
 <script>
@@ -188,18 +201,39 @@
   }
 
   function postBox(k) {
+    var who = k.author && k.author.indexOf("name:") !== 0 ? k.author : "";
     return '<div class="post"><div class="who"><b>' + esc(k.author_name || "LinkedIn member") + '</b> <span>'
-      + (k.author ? esc(k.author) : "") + '</span></div><div class="text">' + esc(k.text) + '</div>'
+      + esc(who) + '</span></div><div class="text">' + esc(k.text) + '</div>'
+      + (k.origin === "found" ? '<div class="excerpt">From the search: may be part of the post. Open it to read it all before you comment.</div>' : '')
       + '<div class="metrics"><a href="' + esc(k.url) + '" target="_blank" rel="noopener">Open on LinkedIn ↗</a></div></div>';
   }
 
+  // What the last run did, in words: a run that found nothing must not look
+  // like a page that never ran ([failures-visible]).
+  function lastRun(r) {
+    var when = new Date(r.at * 1000).toLocaleString();
+    if (r.stopped) return ["Last search (" + when + ") stopped: " + r.stopped, true];
+    var errs = (r.errors || []).length;
+    return ["Last search (" + when + "): " + (r.searched || 0) + " searches, " + (r.posts || 0)
+      + " LinkedIn posts read, " + (r.cards || 0) + " new cards"
+      + (r.cards ? "" : " - none taught something an episode goes deeper on")
+      + (errs ? "; " + errs + " searches failed (" + r.errors[0] + ")" : "") + ".", errs > 0 && !r.cards];
+  }
+
   function render() {
-    var c = (data.health || {}).counts || {};
+    var h = data.health || {}, c = h.counts || {};
     $("kpis").innerHTML =
       kpi("Waiting", c.waiting || 0) +
       kpi("Approved", c.approved || 0, "kept a week") +
-      kpi("Skipped", c.skipped || 0) +
-      kpi("Drafting spend", "$" + Number((data.health || {}).dollars || 0).toFixed(2), "every match, the cards kept");
+      kpi("Searches today", (h.searches_today || 0) + " / " + (h.daily_searches || 0),
+          (h.seeds || 0) + " most per press") +
+      kpi("Spend", "$" + Number(h.dollars || 0).toFixed(2), "searching and drafting, last 7 days");
+
+    $("runBtn").disabled = !h.available || data.running;
+    if (!h.available) { $("runNote").className = "note err"; $("runNote").textContent = "Cannot search: " + h.detail + ". You can still paste a post below."; }
+    else if (data.running) { $("runNote").className = "note"; $("runNote").textContent = "Searching LinkedIn posts and drafting comments. Cards appear below as they are ready."; }
+    else if (h.last_run) { var lr = lastRun(h.last_run); $("runNote").textContent = lr[0]; $("runNote").className = lr[1] ? "note err" : "note"; }
+    else { $("runNote").className = "note"; $("runNote").textContent = "Not searched yet. " + h.detail + "."; }
 
     var ss = data.searches || [];
     $("searches").innerHTML = ss.length ? ss.map(function (s) {
@@ -207,6 +241,7 @@
         + '<b>' + esc(s.title) + '</b><span>' + esc(s.names.join(" · ")) + (s.origin === "trending" ? " · Trending" : "")
         + '</span></div>';
     }).join("") : '<p class="note">No kept episode has a name to search for yet: write the Trending edition or play some episodes first.</p>';
+    if (!(data.cards || []).length && !$("morePanel").open && !h.available) $("morePanel").open = true;
 
     $("tabs").innerHTML = TABS.map(function (t) {
       var n = !t[0] ? (data.cards || []).length : (c[t[0]] || 0);
@@ -217,13 +252,14 @@
     var rows = (data.cards || []).filter(function (k) { return !tab || k.status === tab; });
     if (!rows.length) {
       $("list").innerHTML = '<p class="note">' + (tab === "waiting"
-        ? "Nothing waiting. Open a search above and paste a post that teaches something." : "Nothing here.") + '</p>';
+        ? "Nothing waiting. Press Find posts." : "Nothing here.") + '</p>';
       return;
     }
     $("list").innerHTML = rows.map(function (k) {
       var id = k.post_id, text = edits[id] != null ? edits[id] : (k.draft || "");
       var options = choosable(k), chips = [];
       chips.push('<span class="chip kind">' + (options.length ? "Go Deeper episode" : "No episode yet") + '</span>');
+      chips.push('<span class="chip">' + (k.origin === "found" ? "found" : "pasted") + '</span>');
       if (k.screened) chips.push('<span class="chip bad">added anyway</span>');
       if (k.drafted_by === "code") chips.push('<span class="chip bad" title="No model could be asked; a plain comment written in code">drafted in code</span>');
       if (k.status === "approved") chips.push('<span class="chip ok">approved</span>');
@@ -380,9 +416,17 @@
   });
 
 
-  // No polling: nothing changes the cards but this page, and each load
-  // reads the cache to build the searches.
+  $("runBtn").addEventListener("click", function () {
+    $("runBtn").disabled = true;
+    api("/api/admin/linkedin/run", {})
+      .then(function () { return load(); })
+      .catch(function (e) { $("runNote").className = "note err"; $("runNote").textContent = e.message; $("runBtn").disabled = false; });
+  });
+
+  // Polled only while a search runs: otherwise only this page changes the
+  // cards, and each load reads the cache to build the searches.
   load();
+  setInterval(function () { if (!document.hidden && data && data.running) load(); }, 4000);
 })();
 </script>
 </body>
