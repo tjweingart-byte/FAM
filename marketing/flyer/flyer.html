@@ -37,11 +37,11 @@
   /* Plain paper: the field only sets the margins the layout hangs from. */
   .field{ position:absolute; inset:0.4in; }
 
-  /* The logo as the app shows it: yellow FAM on its own dark tile. Spaced by
-     eye, not by bounding box: the F's open lower right reads as a wider gap
-     than the M's stem, so the chevron and M sit 2 units closer. */
+  /* The logo on its dark tile, drawn from the owner's logo file: the path
+     coordinates are that image's own pixels, so the letters' widths and the
+     gaps either side of the chevron are the file's, not re-derived. */
   .badge{ position:absolute; left:0.45in; top:0.45in; background:var(--ink); border-radius:0.2in; padding:0.17in 0.26in; }
-  .wordmark{ color:var(--logo); height:0.56in; width:1.553in; display:block; overflow:visible; }
+  .wordmark{ color:var(--logo); height:0.52in; width:1.863in; display:block; overflow:visible; }
 
   h1{ position:absolute; left:0.45in; top:1.85in; margin:0; width:4.1in;
     font-family:'Bricolage Grotesque', sans-serif; font-weight:800; text-transform:uppercase;
@@ -75,11 +75,11 @@
 <body>
 <div class="sheet">
   <div class="field">
-    <div class="badge"><svg class="wordmark" viewBox="0 0 46.7 16.9" aria-label="FAM">
-      <g fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round">
-        <g transform="translate(-4.55,-4.55)"><path d="M6 20V9.2A3.2 3.2 0 0 1 9.2 6H16"/><path d="M6 13h8"/></g>
-        <g transform="translate(9.35,-4.55)"><path d="M5 13l7-7 7 7"/><path d="M5 20l7-7 7 7"/></g>
-        <g transform="translate(27.25,-4.55)"><path d="M6 20V6l6 9 6-9v14"/></g>
+    <div class="badge"><svg class="wordmark" viewBox="212 357 1114 311" aria-label="FAM">
+      <g fill="none" stroke="currentColor" stroke-width="56" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M240 640V441A57 57 0 0 1 297 385H471"/><path d="M240 528H435"/>
+        <path d="M628 497L750 387L872 497"/><path d="M628 640L750 531L872 640"/>
+        <path d="M1040 640V385L1169 507L1300 385V640"/>
       </g>
     </svg></div>
 
