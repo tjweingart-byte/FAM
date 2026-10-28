@@ -327,7 +327,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("query", help="what to ask. A real question, not a fixture.")
     parser.add_argument("--base", default="http://127.0.0.1:8000")
-    parser.add_argument("--minutes", type=int, default=3)
+    parser.add_argument("--minutes", type=float, default=3)
     parser.add_argument("--search", default="", choices=["", "0", "1"],
                         help="force research on or off; omit to let the "
                              "question decide, as production does")

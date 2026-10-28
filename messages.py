@@ -69,6 +69,7 @@ from typing import Optional
 
 import content_filter
 from paths import data_path
+from config import as_minutes
 
 log = logging.getLogger(__name__)
 
@@ -302,10 +303,10 @@ class MessageStore:
             " query, minutes, title, at, episode)"
             " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (thread, sender, recipient, kind, text, query,
-             max(0, int(minutes or 0)), title, now, episode),
+             max(0, as_minutes(minutes)), title, now, episode),
         )
         return Message(cur.lastrowid, thread, sender, recipient, kind, text,
-                       query, max(0, int(minutes or 0)), title, now, episode)
+                       query, max(0, as_minutes(minutes)), title, now, episode)
 
     # --- reading ----------------------------------------------------------
 

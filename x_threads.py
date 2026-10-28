@@ -60,6 +60,7 @@ from urllib.parse import quote
 import db as store_db
 import config
 from paths import data_path
+from config import as_minutes
 
 log = logging.getLogger("fam.x_threads")
 
@@ -375,7 +376,7 @@ def seeds(cache, *, trending: Iterable = (), limit: int = 10) -> list[Seed]:
             getattr(story, "title", "") or row.get("title", ""), row["query"])
         if names:
             out.append(Seed(key, row["query"], row.get("title") or story.title,
-                            int(row.get("minutes") or 1), names[:3],
+                            as_minutes(row.get("minutes") or 1), names[:3],
                             "trending", int(row.get("plays") or 0)))
             seen.add(key)
     rest = sorted((r for k, r in entries.items() if k not in seen),
@@ -389,7 +390,7 @@ def seeds(cache, *, trending: Iterable = (), limit: int = 10) -> list[Seed]:
         if not names:
             continue
         out.append(Seed(row["key"], row["query"], row.get("title") or row["query"],
-                        int(row.get("minutes") or 1), names, "cached",
+                        as_minutes(row.get("minutes") or 1), names, "cached",
                         int(row.get("plays") or 0)))
     return out[:limit]
 

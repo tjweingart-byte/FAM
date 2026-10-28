@@ -589,7 +589,7 @@ def test_the_default_episode_is_one_minute():
     controls, prefetch and half the tools - which is the shape a number takes
     when nobody can change it without missing one."""
     import config
-    assert config.DEFAULT_MINUTES == 1   # §305
+    assert config.DEFAULT_MINUTES == 1.5   # §332
 
 
 def test_no_endpoint_hard_codes_its_own_default_length():

@@ -61,7 +61,7 @@ from contextlib import closing
 from typing import Callable, Iterable, Optional
 
 import db as store_db
-from config import settings
+from config import as_minutes, settings
 from paths import data_path
 
 log = logging.getLogger(__name__)
@@ -498,7 +498,7 @@ class QualityStore:
                 "                THEN excluded.duration ELSE listens.duration END, "
                 "at = excluded.at",
                 (key, int(sourced), listener, float(heard), float(duration),
-                 int(minutes), now))
+                 as_minutes(minutes), now))
 
     def listens_for(self, keys: Iterable[str]) -> list:
         keys = sorted(set(keys))
@@ -634,7 +634,7 @@ def note(key: str, sourced, query: str, minutes: int, origin: str,
         store().record({
             "key": key, "sourced": sourced, "at": time.time(),
             "query": " ".join(str(query or "").split())[:300],
-            "minutes": int(minutes or 0), "origin": str(origin or "")[:20],
+            "minutes": as_minutes(minutes), "origin": str(origin or "")[:20],
             "structure": str(getattr(notes, "structure", "") or "")[:40],
             "category": str(getattr(notes, "category", "") or "")[:80],
             "title": str(getattr(notes, "title", "") or "")[:160],
@@ -672,7 +672,7 @@ def note_listen(episode: str, listener: str, seconds: float, duration: float,
             return
         key, sourced = parsed
         store().note_listen(key, sourced, listener, max(0.0, float(seconds or 0)),
-                            max(0.0, float(duration or 0)), int(minutes or 0))
+                            max(0.0, float(duration or 0)), as_minutes(minutes))
     except Exception:  # noqa: BLE001 - a measurement never costs playback
         log.exception("could not keep a listen")
 

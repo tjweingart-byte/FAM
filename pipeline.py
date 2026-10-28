@@ -1465,7 +1465,7 @@ class PodcastPipeline:
                 # anything except the hit rate - and a rate inferred from
                 # anywhere but the serving path is a rate nobody should trust.
                 stats.prefetched = prefetch.note_consumed(key)
-                log.info("cache %s hit for %r (%d min)%s", stats.match, plan.query,
+                log.info("cache %s hit for %r (%s min)%s", stats.match, plan.query,
                          plan.minutes, " [warmed ahead of the tap]"
                          if stats.prefetched else "")
                 # The audio, if it has been made before in this voice: read

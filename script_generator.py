@@ -41,7 +41,7 @@ import prefetch
 from anthropic_client import build_async_client
 from cache import is_shareable, research_reason
 import live_captions
-from config import settings
+from config import as_minutes, settings
 
 import research as research_mod
 
@@ -83,7 +83,7 @@ def load_style_examples() -> list[tuple[str, str]]:
             found.append((query, script))
             minutes = path.name.split("-", 1)[0]
             if minutes.isdigit():
-                EXAMPLE_MINUTES[query] = int(minutes)
+                EXAMPLE_MINUTES[query] = as_minutes(minutes)
         else:
             log.warning("skipping style example %s: expected a query, a blank line, then the script",
                         path.name)
@@ -950,8 +950,8 @@ def plan_episode(
     cached_only: bool = False, attachments: tuple = (),
 ) -> EpisodePlan:
     """Map a duration in minutes onto a concrete writing brief."""
-    minutes = max(settings.min_minutes, min(settings.max_minutes, int(minutes)))
-    target_seconds = minutes * 60
+    minutes = max(settings.min_minutes, min(settings.max_minutes, as_minutes(minutes)))
+    target_seconds = int(round(minutes * 60))
     word_budget = int(round(minutes * settings.target_wpm))
 
     # How much story this much time can hold. Not a template to fill - a note

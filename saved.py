@@ -49,6 +49,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 from paths import data_path
+from config import as_minutes
 
 log = logging.getLogger(__name__)
 
@@ -349,7 +350,7 @@ class SavedStore:
         query = " ".join(str(query or "").split())[:MAX_QUERY]
         if not query:
             raise SavedError("There is no episode to save.")
-        minutes = max(0, int(minutes or 0))
+        minutes = max(0, as_minutes(minutes))
         title = " ".join(str(title or "").split())[:MAX_TITLE]
         folder_id = self._checked_folder(user_id, folder_id)
         now = at or time.time()
@@ -384,7 +385,7 @@ class SavedStore:
     def find(self, user_id: str, query: str, minutes: int) -> Optional[SavedItem]:
         row = self._conn().execute(
             "SELECT id FROM items WHERE user_id = ? AND query = ? AND minutes = ?",
-            (user_id, query, int(minutes))).fetchone()
+            (user_id, query, as_minutes(minutes))).fetchone()
         return self.item(user_id, row[0]) if row else None
 
     def item(self, user_id: str, item_id: str) -> Optional[SavedItem]:
@@ -437,7 +438,7 @@ class SavedStore:
         query = " ".join(str(query or "").split())[:MAX_QUERY]
         cur = self._conn().execute(
             "DELETE FROM items WHERE user_id = ? AND query = ? AND minutes = ?",
-            (user_id, query, max(0, int(minutes or 0))))
+            (user_id, query, max(0, as_minutes(minutes))))
         return bool(cur.rowcount)
 
     def move(self, user_id: str, item_id: str, folder_id: str) -> Optional[SavedItem]:
@@ -457,7 +458,7 @@ class SavedStore:
         vibe folders; a saved-shelf folder is refused like a missing one.
         """
         query = " ".join(str(query or "").split())[:MAX_QUERY]
-        minutes = max(0, int(minutes or 0))
+        minutes = max(0, as_minutes(minutes))
         folder_id = self._checked_folder(user_id, folder_id, "vibe")
         if not folder_id:
             self._conn().execute(
@@ -517,7 +518,7 @@ class SavedStore:
         More than `RESUME_MAX_FRACTION` through counts as finished.
         """
         query = " ".join(str(query or "").split())[:MAX_QUERY]
-        minutes = int(minutes or 0)
+        minutes = as_minutes(minutes)
         if not user_id or not query or minutes <= 0:
             return False
         duration = max(0.0, float(duration or 0))
@@ -626,7 +627,7 @@ class SavedStore:
         empty or provisional one without moving the row.
         """
         query = " ".join(str(query or "").split())[:MAX_QUERY]
-        minutes = int(minutes or 0)
+        minutes = as_minutes(minutes)
         if (not user_id or not query or minutes <= 0
                 or surface not in HISTORY_SURFACES):
             return False
@@ -667,7 +668,7 @@ class SavedStore:
             self._conn().execute(
                 "UPDATE history SET title = ? WHERE user_id = ? AND query = ?"
                 " AND minutes = ? AND context = ?",
-                (title, user_id, query, int(minutes or 0), str(context or "")[:300]))
+                (title, user_id, query, as_minutes(minutes), str(context or "")[:300]))
         except Exception:
             log.exception("could not retitle history for %r", user_id)
 

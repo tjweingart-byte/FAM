@@ -43,7 +43,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import demo_data
 from cache import build_cache, cache_key, is_shareable, ttl_for
-from config import BROWSE_MINUTES, settings
+from config import BROWSE_MINUTES, as_minutes, settings
 from script_generator import ScriptGenerator, ScriptNotes, count_words, plan_episode
 import social as social_mod
 import topics as topics_mod
@@ -109,13 +109,14 @@ def record_history(events, topic, minutes: int, thread: str, rng: random.Random)
 async def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--episodes", type=int, default=8)
-    ap.add_argument("--minutes", type=int, default=BROWSE_MINUTES)
+    ap.add_argument("--minutes", type=float, default=BROWSE_MINUTES)
     ap.add_argument("--search", action="store_true",
                     help="ground each episode in live sources (much slower)")
     ap.add_argument("--dry-run", action="store_true",
                     help="list what would be generated; spends nothing")
     ap.add_argument("--seed", type=int, default=7, help="for repeatable history")
     args = ap.parse_args()
+    args.minutes = as_minutes(args.minutes)  # 3, not 3.0: the key a tap builds (§332)
 
     chosen = pick_topics(max(1, args.episodes))
     rng = random.Random(args.seed)
