@@ -125,6 +125,16 @@ def wipe(*, cache, events, erase_listener, scope: str = "seed",
     if cache is not None:
         if scope == "all":
             scripts = cache.clear()
+            # Derived from those scripts (§325): the words the voice may not
+            # know, each with a sentence and a title from an episode now gone.
+            # What the voice was heard to say, and the words an admin passed,
+            # are facts about the voice and stay.
+            try:
+                import voice_bank
+
+                voice_bank.bank().replace_hard_words([])
+            except Exception:  # noqa: BLE001 - see `_forget_what_the_log_taught`
+                log.exception("could not clear the hard-words scan")
         else:
             for user_id in SEED_USER_IDS:
                 scripts += cache.forget_author(user_id)

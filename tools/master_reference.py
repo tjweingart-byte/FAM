@@ -23,50 +23,26 @@ from __future__ import annotations
 
 import argparse
 import hashlib
-import io
 import pathlib
 import sys
-import wave
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
 import voice_bank  # noqa: E402
 
-KEEP_LEAD = 0.1
-TARGET_DBFS = -20.0
-PEAK_CEILING_DBFS = -1.0
+KEEP_LEAD = voice_bank.KEEP_LEAD
+TARGET_DBFS = voice_bank.TARGET_DBFS
+PEAK_CEILING_DBFS = voice_bank.PEAK_CEILING_DBFS
 
 
 def master(audio: bytes) -> bytes:
-    """The recording, trimmed and levelled. 16-bit PCM WAV in and out."""
-    import numpy as np
+    """The recording, trimmed and levelled. 16-bit PCM WAV in and out.
 
-    stats = voice_bank.recording_stats(audio)
-    if stats["lead_silence"] is None:
+    The same function the admin page's upload uses (§328).
+    """
+    if voice_bank.recording_stats(audio)["lead_silence"] is None:
         raise SystemExit("only 16-bit PCM WAV is supported; convert it first")
-    with wave.open(io.BytesIO(audio)) as wav:
-        params = wav.getparams()
-        raw = wav.readframes(wav.getnframes())
-    samples = np.frombuffer(raw, dtype="<i2").astype(np.float32) / 32768.0
-    channels = params.nchannels
-    rate = params.framerate
-
-    cut = max(0.0, stats["lead_silence"] - KEEP_LEAD)
-    samples = samples[int(cut * rate) * channels:]
-
-    gain_db = 0.0
-    if stats["loudness_dbfs"] is not None:
-        gain_db = TARGET_DBFS - stats["loudness_dbfs"]
-        gain_db = min(gain_db, PEAK_CEILING_DBFS - stats["peak_dbfs"])
-    samples = np.clip(samples * (10 ** (gain_db / 20)), -1.0, 1.0)
-
-    out = io.BytesIO()
-    with wave.open(out, "wb") as wav:
-        wav.setnchannels(channels)
-        wav.setsampwidth(2)
-        wav.setframerate(rate)
-        wav.writeframes((samples * 32767.0).astype("<i2").tobytes())
-    return out.getvalue()
+    return voice_bank.master_recording(audio)
 
 
 def describe(label: str, audio: bytes) -> None:

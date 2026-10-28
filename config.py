@@ -1244,6 +1244,12 @@ class Settings:
     # a person approves and posts. A short call; the small model.
     linkedin_model: str = field(
         default_factory=lambda: os.environ.get("LINKEDIN_MODEL") or SMALL_MODEL)
+    # "Find posts" (§327): one search a kept episode, through the research
+    # vendors FAM already pays for, restricted to linkedin.com. A run and a
+    # day are both capped; only posts this recent are looked for.
+    linkedin_seeds: int = _env_int("LINKEDIN_SEEDS", 10)
+    linkedin_daily_searches: int = _env_int("LINKEDIN_DAILY_SEARCHES", 40)
+    linkedin_window_days: int = max(1, min(_env_int("LINKEDIN_WINDOW_DAYS", 7), 30))
 
     # --- GNews (gnews.io), the bank's source -------------------------------
     # The key is the statement of intent: unset, Trending is empty and says so.

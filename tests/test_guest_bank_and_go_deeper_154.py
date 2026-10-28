@@ -249,3 +249,19 @@ def test_returning_to_the_app_wakes_the_voice_for_an_account_only(client, monkey
     woke.clear()
     assert client.post("/api/voice/wake").json() == {"woke": True}
     assert woke == [1]
+
+
+def test_a_waitlisted_account_never_wakes_the_voice(monkeypatch):
+    """Sent away from the app (`/waitlist/me`), so a GPU booted for it is a
+    bill for nothing - whether or not `WAITLIST` is on to refuse the path."""
+    import accounts
+
+    woke: list = []
+    monkeypatch.setattr(appmod, "_wake_remote_voice", lambda: woke.append(1))
+    waiting = accounts.Listener(user_id="u1", email="w@example.com",
+                                has_account=True, status="waitlisted")
+    active = accounts.Listener(user_id="u2", email="a@example.com",
+                               has_account=True, status="active")
+    assert appmod._wake_for(waiting) is False and woke == []
+    assert appmod._wake_for(None) is False and woke == []
+    assert appmod._wake_for(active) is True and woke == [1]

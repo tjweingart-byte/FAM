@@ -2268,7 +2268,7 @@ async def auth_me(request: Request) -> dict:
                 "waitlist": settings.waitlist, "home": settings.app_home_url}
     # The app asks this first on every open, so it is the earliest moment a
     # listener is known to be here: ask for a GPU now rather than at the tap
-    # (§324). `/api/voice/wake` is the same for a return to the foreground.
+    # (§329). `/api/voice/wake` is the same for a return to the foreground.
     _wake_for(listener)
     return {**listener.as_dict(), "waitlist": settings.waitlist,
             "home": settings.app_home_url}
@@ -2279,7 +2279,7 @@ def _wake_for(listener) -> bool:
 
     myFAM and DailyFAM tiles are written before the tap, so a wake sent with
     the audio request has nothing to hide behind there and the listener waits
-    out the whole cold start (§324). Only for an account that may play - a
+    out the whole cold start (§329). Only for an account that may play - a
     guest hears kept audio only (§154), and a waitlisted account is sent away.
     """
     if listener is None or not listener.is_authenticated or listener.status == "waitlisted":
@@ -2290,7 +2290,7 @@ def _wake_for(listener) -> bool:
 
 @app.post("/api/voice/wake")
 async def voice_wake(request: Request) -> dict:
-    """The app came back to the foreground: start a GPU booting now (§324).
+    """The app came back to the foreground: start a GPU booting now (§329).
 
     A phone that leaves the app open in the background never reloads it, so
     `/api/auth/me` is not asked again; this is the open for that case. Costs
@@ -4255,16 +4255,22 @@ async def admin_voices(request: Request) -> dict:
 
 @app.post("/api/admin/voices")
 async def admin_add_voice(req: BankVoiceRequest, request: Request) -> dict:
-    """Add a voice to the bank (§147). `tools/voice_bank.py add` calls this."""
+    """Add a voice to the bank (§147). `tools/voice_bank.py add` calls this.
+
+    A recording that opens in silence or is quiet is trimmed and levelled
+    first (§328) and `mastered` says by how much; one that passes as it is
+    is kept byte for byte and `mastered` is None.
+    """
     _require_admin(request)
     try:
         audio = base64.b64decode(req.audio, validate=True)
+        audio, mastered = voice_bank.prepare_upload(audio)
         added = voice_bank.bank().add(req.slug, req.label, audio, req.rights,
                                       description=req.description,
                                       replace=req.replace)
     except (ValueError, voice_bank.VoiceBankError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return {"ok": True, "voice": added.as_dict()}
+    return {"ok": True, "voice": added.as_dict(), "mastered": mastered}
 
 
 @app.delete("/api/admin/voices/{slug}")
@@ -4278,6 +4284,10 @@ async def admin_remove_voice(slug: str, request: Request) -> dict:
 class PronunciationRequest(BaseModel):
     name: str = Field(..., max_length=60)
     say: str = Field(..., max_length=120)
+
+
+class HearRequest(BaseModel):
+    name: str = Field(..., min_length=1, max_length=60)
 
 
 class LocalOutletRequest(BaseModel):
@@ -4349,9 +4359,112 @@ async def admin_pronunciations(request: Request) -> dict:
     for row in rows:
         if row["name"] in checks:
             row["wikipedia"] = checks[row["name"]]
+    _attach_voice_checks(bank, rows, "name")
+    import voice_check
+
     return {"pronunciations": rows,
             "wikipedia": {"enabled": wiki_pronounce.enabled(),
-                          **dict(wiki_pronounce.STATE)}}
+                          **dict(wiki_pronounce.STATE)},
+            "hearing": dict(voice_check.STATE)}
+
+
+def _attach_voice_checks(bank, rows: list, field: str) -> None:
+    """What the voice was last heard to say for each row (§325), beside it."""
+    try:
+        heard = {c["word"]: c for c in bank.voice_checks()}
+    except Exception:  # noqa: BLE001 - advice, never the list itself
+        return
+    for row in rows:
+        if row[field] in heard:
+            row["voice"] = heard[row[field]]
+
+
+async def _hear(name: str) -> dict:
+    import voice_check
+
+    try:
+        return await voice_check.check(name.strip(), with_audio=True)
+    except voice_check.VoiceCheckUnavailable as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001 - the voice's own words
+        raise HTTPException(status_code=502, detail=(
+            f"The voice could not be heard: {exc}")[:400]) from exc
+
+
+@app.post("/api/admin/pronunciations/hear")
+async def admin_hear_pronunciation(req: HearRequest, request: Request) -> dict:
+    """Say one word with the production voice, hear it back with a phoneme
+    recogniser, and compare (§325, `voice_check.py`). Returns the audio too,
+    so a person can judge what the comparison only estimates. Changes
+    nothing in the lexicon."""
+    _require_admin(request)
+    return await _hear(req.name)
+
+
+@app.post("/api/admin/pronunciations/hear-all")
+async def admin_hear_all_pronunciations(request: Request) -> dict:
+    """Hear every name on file in the background (§325), the ones never
+    heard first; at most `voice_check.MAX_PER_RUN` a run."""
+    _require_admin(request)
+    import voice_check
+
+    bank = voice_bank.bank()
+    heard = {c["word"]: c["at"] for c in bank.voice_checks()}
+    names = sorted((r["name"] for r in bank.pronunciations()),
+                   key=lambda n: heard.get(n, 0))
+    return {"queued": voice_check.run_in_background(names),
+            "state": dict(voice_check.STATE)}
+
+
+@app.get("/api/admin/hard-words")
+async def admin_hard_words(request: Request) -> dict:
+    """Words in recent episodes the voice may not know (§325,
+    `hard_words.py`): not in the CMU pronouncing dictionary and not
+    respelled, most used first, with what the voice was heard to say."""
+    _require_admin(request)
+    import hard_words
+    import voice_check
+
+    bank = voice_bank.bank()
+    # A word respelled since the scan is no longer the voice's guess.
+    respelled = {w.lower() for n in pronunciation.lexicon().entries() for w in n.split()}
+    rows = [r for r in bank.hard_words() if r["word"].lower() not in respelled]
+    _attach_voice_checks(bank, rows, "word")
+    return {"words": rows, "scan": dict(hard_words.STATE),
+            "dictionary": hard_words.available(),
+            "hearing": dict(voice_check.STATE)}
+
+
+@app.post("/api/admin/hard-words/scan")
+async def admin_scan_hard_words(request: Request) -> dict:
+    """Read recent episodes for words the voice may not know, in the
+    background. Never on an episode's path."""
+    _require_admin(request)
+    import hard_words
+
+    return {"started": hard_words.scan_in_background(SCRIPT_CACHE),
+            "scan": dict(hard_words.STATE)}
+
+
+@app.post("/api/admin/hard-words/ok")
+async def admin_hard_word_ok(req: HearRequest, request: Request) -> dict:
+    """An admin heard this word and it is fine: never listed again."""
+    _require_admin(request)
+    voice_bank.bank().hard_word_ok(req.name.strip())
+    return {"ok": True}
+
+
+@app.post("/api/admin/hard-words/hear-all")
+async def admin_hear_hard_words(request: Request) -> dict:
+    """Hear the most-used listed words in the background (§325)."""
+    _require_admin(request)
+    import voice_check
+
+    bank = voice_bank.bank()
+    heard = {c["word"] for c in bank.voice_checks()}
+    words = [r["word"] for r in bank.hard_words() if r["word"] not in heard]
+    return {"queued": voice_check.run_in_background(words),
+            "state": dict(voice_check.STATE)}
 
 
 @app.post("/api/admin/pronunciations/wikipedia")
@@ -10986,7 +11099,40 @@ async def admin_linkedin(request: Request, status: str = "") -> dict:
         limit=settings.x_threads_seeds))
     health = await asyncio.to_thread(linkedin_posts.health)
     return {"health": health, "cards": cards, "searches": searches,
+            "running": bool(_LINKEDIN_RUNNING),
             "comment_chars": linkedin_posts.COMMENT_CHARS}
+
+
+#: One "Find posts" at a time: a second press while one runs would pay for
+#: the same searches twice.
+_LINKEDIN_RUNNING: list = []
+
+
+@app.post("/api/admin/linkedin/run")
+async def admin_linkedin_run(request: Request) -> dict:
+    """Find posts now (§327), in the background, inside the search ceilings:
+    public LinkedIn posts about FAM's kept episodes, through the research
+    vendor FAM already uses. Returns at once; the page polls while it runs."""
+    _require_admin(request)
+    ok, why = linkedin_posts.available()
+    if not ok:
+        raise HTTPException(status_code=409, detail=f"Cannot search for posts: {why}.")
+    if _LINKEDIN_RUNNING:
+        raise HTTPException(status_code=409, detail="A search is already running.")
+
+    async def _run() -> None:
+        try:
+            report = await linkedin_posts.run(SCRIPT_CACHE)
+            log.info("linkedin (admin run): %s",
+                     {k: v for k, v in report.items() if k != "seeds"})
+        except Exception:  # noqa: BLE001 - recorded, never raised into nothing
+            log.exception("linkedin: the run failed")
+        finally:
+            _LINKEDIN_RUNNING.clear()
+
+    _LINKEDIN_RUNNING.append(time.time())
+    _BACKGROUND.add(asyncio.create_task(_run()))
+    return {"started": True}
 
 
 class LinkedInPaste(BaseModel):

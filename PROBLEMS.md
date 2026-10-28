@@ -22768,7 +22768,316 @@ never replaced, and a name Wikidata cannot match to exactly one item still
 gets no answer - which is the likelier cause of the remaining problems
 (surnames alone, nicknames), alongside names that never reached the lexicon.
 
-## 324. The voice is woken when the app opens, not at the tap (2026-10-27)
+## 324. Wikipedia's reading belongs to the name it follows (2026-10-27)
+
+The owner (10.27), with screenshots of /admin → How names are said: "Does
+wikipedia need more guard rails? the actual word and wikipedia word are
+completely different" - Dooku = "DOO-koo" (an admin's) beside "Wikipedia
+says tih-RA-nuhs"; A'ja Wilson = "AY-zhuh", Anya Taylor-Joy = "AN-yuh",
+Catherine Zeta-Jones = "ZEE-tuh", Anton Du Beke = "doo BEK", Andoni Iraola =
+"ahn-doh-nee ee-rah-oh-lah sah-gahr-nah", Arcosa = "AR-kohs", all applied
+"from Wikipedia"; Antonio Banderas = "ahn-TOHN-yoh vahn-DEH-rahs".
+
+**Three faults, one cause each.**
+
+1. **The first template in the lead was taken, whoever it was about.**
+   Count Dooku's article reads "also known as Darth Tyranus (/tɪˈrænəs/)";
+   Wikidata's exact match on "Dooku" was right, the article was right, the
+   template was another name's. Arcosa matched an item whose article says
+   "Arkose" (/ˈɑːrkoʊs/, the rock). `from_wikitext(wikitext, name)` now takes
+   a template only when the last clause before it (templates, references and
+   links stripped; a comma, semicolon or full stop starts a clause) holds a
+   word of the name (`says_name`).
+2. **A reading for part of a name, or more than the name, was kept for the
+   whole name.** Wikipedia often gives IPA for only the hard part ("Anya",
+   "Zeta", "Du Beke", "A'ja") or for the full legal name ("Andoni Iraola
+   Sagarna"). The lexicon swaps the whole name for the reading, so the voice
+   would have said "AY-zhuh" for "A'ja Wilson" - dropping "Wilson". A
+   reading must now have one word per word of the name (`fits`), from the
+   article and from Wikidata's P898 alike.
+3. **Spanish β was respelled "v".** An English voice says Banderas with a
+   b; the table now maps β to "b".
+
+**A backstop on replacing.** A model's guess is replaced unasked only when
+Wikipedia's reading is near the name's spelling or near that guess
+(`resembles`, `RESEMBLES` = 0.25 by letters); Irish spellings far from their
+sounds stay replaceable because the model's guess is near Wikipedia's. One
+near neither is kept as "differs" and shown on /admin to take or leave.
+
+**What was already applied.** `prune()` (run at the start of every "Check
+all") withdraws Wikipedia's readings that fail `fits` - no request needed -
+and a re-check that no longer finds a reading for a Wikipedia-sourced entry
+withdraws it, so the next model to meet the name says it again. Dooku's
+admin entry was never changed (an admin's never is); its stale "Wikipedia
+says" note clears on the next forced check.
+
+**Not run from here:** this container cannot reach Wikipedia; the lead
+shapes in `tests/test_admin_page_289.py` are written from the screenshots.
+The owner's step: /admin → How names are said → **Check every name again**.
+
+## 325. Checking every word: the dictionary and the voice round trip (2026-10-27)
+
+The owner (10.27): "we want a way to check the pronunciation on these that
+can apply to all words within, not only ones that wikipedia can cross-check
+... build the dictionary + voice round-trip check, and investigate more
+checks to use."
+
+**What every earlier check had in common:** text compared with text - a
+model's respelling with Wikipedia's. None looked at a word nobody listed,
+and none heard Chatterbox, which is the only thing a listener hears.
+
+**1. The dictionary (`hard_words.py`).** The CMU Pronouncing Dictionary -
+134,000 English words and common names - is vendored as its data file
+(`pronounce_data/cmudict.dict.gz`, 0.9 MB, BSD-2-Clause, licence beside it).
+Not the `cmudict` pip package: that wrapper is GPL-3.0, and FAM ships closed.
+A scan (/admin → How names are said → **Scan recent episodes**, in the
+background) reads the 600 most recent cached episodes - `recent` never lists
+a private search, and an attached episode is never cached, so nothing
+personal is read - and keeps the 300 words most used that the dictionary
+lacks (plain forms count: "kickoffs", "re-signed", "Eagles'"), the lexicon
+does not respell, and are not initialisms (spoken as letters). Each comes
+with its count, how many episodes, and the first sentence that used it.
+**Sounds fine** hides a word for good; **Respell** puts it in the form. The
+dictionary also says how a common word *should* sound (`expected`), which
+the round trip uses for words nobody respelled.
+
+**2. The round trip (`voice_check.py`, `voice_worker/hearing.py`).** **Hear**
+sends a word through exactly what an episode's words go through
+(`pronunciation.respell`, `spoken_text.speakable`), the production voice says
+it, and a phoneme recogniser on the same card - wav2vec2 trained to write
+sounds in IPA, not words, so it cannot round a name to the nearest word it
+knows - writes down what it heard. That IPA becomes a respelling
+(`wiki_pronounce.ipa_to_respelling`) and is compared, by sound class
+(`sound_key`: "ah"/"a", "ee"/"i", "oo"/"u" are one sound), with the lexicon's
+respelling or the dictionary's. ≥ 70 % alike reads "said as meant", 50-70 %
+"a little differently", under 50 % "differently". The audio comes back with
+every check, because **the thresholds are a guess until they have been
+checked against a person's ears**, and nothing here changes the lexicon by
+itself. **Hear every name** / **Hear the unheard** run up to 150 words in the
+background, one at a time, as a task on the app's own loop (a thread with
+its own loop would share the voice's connection pool across loops).
+
+Wire: a request with `"hear": true` gets `heard` (or `heard_error`) beside
+its audio; an episode's chunks never ask, so nothing on the listening path
+changed. A worker built before this ignores the field, and the app says
+"rebuild" instead of guessing. `transformers` already comes with
+Chatterbox; the recogniser's ~1.2 GB downloads into `HF_HOME` on first use.
+On the placeholder tone there is nothing to hear, and the check says so (409).
+
+**Not verified here:** this container reaches neither Hugging Face nor a
+GPU. The recogniser, the 16 kHz resampling and the thresholds are untested
+against the real voice; `tests/test_voice_round_trip_325.py` pins the logic
+with the model stubbed.
+
+**More checks, investigated** (none built; in rough order of value):
+
+- **Whole sentences through a word recogniser (Whisper).** Synthesize a real
+  chunk, transcribe it, align to the script: catches the voice skipping,
+  repeating or mumbling words - failures no single-word check can see, and
+  the ones Chatterbox is known for. The same worker, the same `hear` seam.
+- **Listeners tell us.** A "said a word wrong" reason on the player's Report,
+  carrying the caption sentence being heard. The cheapest signal there is.
+- **Numbers, symbols and units.** A text-only pass over `speakable` output
+  for digits, "$", "%", "vs.", scores and dates it left unconverted - no GPU.
+- **Heteronyms.** Words the dictionary lists two ways (lead, read, live,
+  close, bass, wind) and place names that are also words (Reading, Nice,
+  Polish): flag sentences using them and hear the sentence, not the word.
+- **Acronym or initialism.** NATO and NASA are words, NFL and CFB letters;
+  a short list beats a rule. The scan skips all-capitals words today.
+- **Wiktionary.** Same Wikimedia API as the Wikipedia check; IPA for many
+  surnames and places that have no article of their own.
+- **A native-language guess.** espeak-ng or Epitran say a name the Spanish,
+  Polish or Irish way when told the language (Wikidata's citizenship or
+  native language); a second opinion to compare with the model's.
+- **Official guides.** The leagues publish phonetic guides for their players
+  each season; the VOA guide covers names in the news; NameShouts and Forvo
+  sell recordings by API. Best for sports names, which dominate the list.
+- **Two models.** Ask a second model for each respelling and flag
+  disagreement. Cheap, but their mistakes are correlated.
+
+## 326. Every X card is about the post it answers (2026-10-27)
+
+The owner (10.27), after the first live searches on `/admin/x`: "Some of the
+X posts that it was generating are not relevant to the tweet. Make sure all
+the recommended posts, comments, and episodes are relevant to the tweet that
+it is responding to."
+
+**Why they were not.** Three causes, each a place §321 trusted a name too
+far. The search asked X for any post naming the episode's names, so a
+one-word name ("Eagles") brought back birds as readily as the team. Nothing
+after the search required the post to be *about* the episode: a post below
+`LINK_FLOOR` was still carded, as "a better question", whatever it was
+about. And the drafting call was handed the episode and wrote to it, with no
+step that asked whether the post and the episode were the same subject.
+Production also scores with the hashing embedder (no ONNX model is
+installed), which is lexical, so "match" was mostly the names again.
+
+**Now, three gates, cheapest first.**
+
+- *The search.* A name of two or more words ("Jalen Hurts") is asked for on
+  its own; a one-word name only beside one of the episode's own subject
+  words (`context_words`: the longest content words of its question and
+  title that are not a name) - `("Jalen Hurts" OR (Eagles (defence OR
+  starters ...)))`. Fewer posts come back, and every one costs a read.
+- *Code* (`on_subject`, before anything is drafted). The post must name
+  what the episode names; a one-word name must come with one of the
+  episode's subject words besides. A post that fails gets no card at all -
+  "Would you trade a car for a walkable city?" under an Eagles episode is
+  no longer a question-only card.
+- *The model* (`judge_and_draft`, the same single drafting call). It now
+  answers `same_subject` (the same team, person, company, event or question,
+  not a shared word; unsure is no), `episode_fits` (would someone reading
+  this exact post want this exact episode), `other_same_subject` for a
+  both-sides pair, and a one-sentence `why`, before the reply - which is
+  told to answer what the post says, not the episode's angle. Not the same
+  subject: the card is dropped and named in the run's report ("set aside as
+  not about the episode" on the page). Same subject but the episode does not
+  answer it: the card stays as a question with no link. The `why` is shown
+  on every card ("Checked: ..."). Since the gate drops cards, a run drafts
+  down a ranking of twice `SHORTLIST` until it has eight that pass, so a
+  search costs at most sixteen short calls.
+
+With no model key only the code gates run, and the card says it was checked
+in code. `linkedin_posts.py` uses `x_threads.match`, `LINK_FLOOR`, `seeds`,
+`names_for` and `AVOID`; none of them changed.
+
+**Unverified here:** no X token or Claude key in this container, so the
+judgement has been exercised only through test stand-ins; the first live
+search after the deploy is the check. The ONNX embedder would make the
+match score semantic rather than lexical (`tools/install_embed.sh`).
+
+**The owner's cards (10.27), and the review before merging.** The two cards
+sent back - Manchester United posts under a Trending episode on a diverted
+*United* flight - are tests now: X is never asked for "United" alone, and a
+post sharing only that word is dropped before anything is drafted. The
+review of this branch added: a post the model sets aside is kept as
+`set_aside` (never on the page) so the next search neither bills nor judges
+it again; words that name no subject (`GENERIC`: "happened", "today",
+"latest" ...) count neither as context in the search nor as overlap in
+`on_subject`; a one-word name with no subject words left is not searched at
+all; and a card checked only in code no longer reads "Checked: checked in
+code".
+A second independent review found nothing blocking; fixed from it: a failed
+relevance call (an error, unreadable JSON) no longer leaves every card
+linked - the episode is not linked on the code's word alone, and a parsed
+judgement stands when only the words are missing; a Trending story's two
+one-word anchors together ("Trump", "Zelensky") count as on subject and are
+searched as a pair; names match as whole words ("Ford" is not in "afford");
+a long post is read whole (`note_tweet`); a set-aside post cannot be
+approved or reopened by its id; a reply written to connect two posts is
+replaced by the code's when the second post is judged off subject; an
+episode with nothing specific to search is listed under `unsearchable`,
+takes no reads and is not a failed search; and a word the check ignores is
+never asked of X.
+
+## 327. Go Deeper on LinkedIn finds its own posts (2026-10-27)
+
+The owner (10.27), after §322: "It is not clear how to use this LinkedIn
+tool. I want it to be more automated in the sense that the X tool goes out
+and scrapes the platform then comes up with recommended posts."
+
+**What X has that LinkedIn does not** is a search API: `/admin/x` reads X's
+own recent search with a bearer token. LinkedIn sells nothing like it, and
+its User Agreement forbids scraping (the vendors that scraped it - Proxycurl
+the best known - were sued off the market). So the automation goes through
+the one door FAM already has: the **web search its research pays for**.
+Parallel and Perplexity both index public LinkedIn posts, and both take a
+domain filter. **Find posts** (`linkedin_posts.run`) does, per press:
+
+1. The same seeds as X (`x_threads.seeds`: the Trending edition, then the
+   most played kept episodes), up to `LINKEDIN_SEEDS` (10).
+2. One search each through Parallel, else Perplexity (`research._search_*`),
+   `include_domains=("linkedin.com",)`, after-date `LINKEDIN_WINDOW_DAYS` (7),
+   counted on the Outside service requests page under the vendor's name.
+3. `posts_from` keeps results that are posts (`parse_url`: profiles, pages,
+   jobs and articles drop out), the author from how the vendor titled it
+   ("Jane Doe on LinkedIn: ...", "...'s Post", "| Jane Doe | 12 comments").
+4. `_shortlist`: the §322 screen (teaching, not announcing), one author a
+   week, nothing already on the page; every post ranked against every kept
+   episode (`catalogue` embeds each episode once a run, `rank` per post);
+   **a found post that no episode is the subject of is not a card**, since
+   nothing could be linked. Best match first, one per author, eight at most.
+5. One drafting call per card, as before; the card says "found searching
+   LinkedIn for <episode>" and that its words may be the search's excerpt.
+
+Capped per press and per day (`LINKEDIN_DAILY_SEARCHES`, 40, counted in a
+new `runs` table written before the first search and after each, as X's
+is); a button, never a timer ([sweep-on-demand]); staging has no search key,
+so the page says it cannot search ([zero-spend-staging]). Searching costs
+about $0.001-0.005 a search plus the drafting, shown together on the page.
+
+**The page says how to use it**: three numbered steps at the top, Find posts
+as the one button, and pasting (with the search links) folded under "Found a
+post yourself? Paste it". It polls only while a search runs.
+
+**Still true:** nothing here requests linkedin.com, FAM holds no LinkedIn
+credential, and a person pastes and posts every comment. **Unverified here:**
+no search key in this container, so no live run has been read - how much of
+a post the vendors' excerpts carry, and how many of a week's posts they have
+indexed, are the first things to look at after the first press. If the
+excerpts prove too thin to draft from, the card already says to open the
+post first.
+
+**§326's lessons, brought here before merging.** Main took §326 while this
+branch was open: X cards were going under posts that only shared a name with
+their episode (United Airlines under Manchester United). LinkedIn's ranking
+had the same hole, so the same three checks: the search carries the
+episode's subject words (`x_threads.context_words`) beside its names;
+`off_subject` runs `x_threads.on_subject` on every episode a post is ranked
+against, and an off-subject episode is never linked; and the drafting call
+(`judge_and_draft`) judges `fits` before it writes - a found post it judges
+off-subject is stored as `set_aside` (never shown, never read or judged
+again), and a pasted one keeps its card without a link, the reason on it.
+A person may still paste a set-aside post. This entry was §326 on the
+branch and is §327 after the merge.
+
+**Second review before merging (10.27)**, fixed with tests:
+- *A post could be found again after its card was pruned* - with a window
+  wider than the week, or a vendor date off by a day, a post FAM had already
+  commented on came back as a fresh card. Pruned ids now go to `seen`, kept
+  45 days (past the widest window), and `known()` reads both.
+- *A run could rewrite a card a person pasted or decided while it ran.* A
+  run now writes only with `insert_new` (`INSERT OR IGNORE`, the status in
+  the same statement, so a set-aside card is never briefly "waiting").
+- *A failed search did not count toward the day's ceiling*, though a timeout
+  may have been billed. A search is counted before it is asked; only a
+  configuration refusal (`ResearchUnavailable`, nothing sent) is not.
+- *Perplexity was asked without the subject words* - `objective` carries them
+  now, so both vendors get §326's query.
+- *Match again on a set-aside post* billed a model call for a hidden card; it
+  is refused. *Re-pasting one* kept its card but dropped what judging it had
+  cost; the cost is carried over.
+- *Spend summed 30 days of searching with a week of drafting*; both are the
+  last seven days now, and the page says so.
+- Twice the shortlist is ranked and drafting stops at eight cards, so a
+  set-aside post is replaced from further down, as on X; `screened_out`
+  counts only posts not already known; `LINKEDIN_SEEDS=0` says so.
+
+## 328. The voice bank trims an upload instead of refusing it (2026-10-27)
+
+The owner (10.27): adding a new voice on /admin was refused with "the
+recording starts with 0.8s of silence"; asked whether that was a problem on
+our end, then "yes, make the admin page auto-trim on upload".
+
+**It was the §176 check working as written**: Chatterbox learns the accent
+from the first six seconds, so `check_recording` refuses more than
+`MAX_LEAD_SILENCE` (0.5 s) before the first word, and speech under
+`MIN_LOUDNESS_DBFS`. The fix was `tools/master_reference.py`, which an admin
+on the page cannot run.
+
+**Now:** `POST /api/admin/voices` (the page, and `tools/voice_bank.py add
+--url`) passes the upload through `voice_bank.prepare_upload` first. Only a
+recording the check would refuse for silence or loudness is changed - trimmed
+to `KEEP_LEAD` (0.1 s) before the first word and levelled to `TARGET_DBFS`
+under the peak ceiling, by `voice_bank.master_recording`, which the tool now
+calls too, so the two make the same file. The reply carries `mastered`
+(`trimmed_seconds`, `gain_db`, or null) and the page prints it, because the
+voice kept differs from the file uploaded and the listening test is of the
+kept one. A recording that passes is stored byte for byte; anything but
+16-bit PCM is unchanged and judged by the check as before. The local CLI path
+(`tools/voice_bank.py add` without `--url`) still refuses, pointing at the tool.
+
+## 329. The voice is woken when the app opens, not at the tap (2026-10-27)
 
 The owner (10.27): "the delay from runpod on the serverless is too high for
 the first episode, is there a way that we can wake up the runpod server when

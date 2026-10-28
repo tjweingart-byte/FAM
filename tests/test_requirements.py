@@ -102,6 +102,8 @@ def imported() -> dict:
     question here is what a deployed copy of the app needs in order to run.
     """
     local = {p.stem for p in ROOT.glob("*.py")}
+    # This repository's own packages (`voice_worker`), not a dependency.
+    local |= {p.parent.name for p in ROOT.glob("*/__init__.py")}
     standard = set(sys.stdlib_module_names)
     out: dict[str, set] = {}
     for path in sorted(ROOT.glob("*.py")):

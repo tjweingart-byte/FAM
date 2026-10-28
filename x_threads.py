@@ -85,6 +85,19 @@ SHORTLIST = 8
 #: Statuses. `waiting` is on the page; the others are the person's verdict.
 WAITING, APPROVED, SKIPPED = "waiting", "approved", "skipped"
 STATUSES = (WAITING, APPROVED, SKIPPED)
+#: A post the relevance check judged to be about something else (§326):
+#: kept only so the next search neither reads nor judges it again, and never
+#: shown on the page.
+SET_ASIDE = "set_aside"
+
+#: Words in a question that say nothing about its subject: a post sharing
+#: only these with an episode ("eagles today") is not on its subject.
+GENERIC = frozenset("""
+happened happening happen today tonight yesterday tomorrow latest news update
+updates week weekend month year years still going really right think know
+make made mean thing things people story explained explain whats what's
+first last next good best worst big biggest
+""".split())
 
 #: The playbook's four kinds of reply (FAM_X.pdf, examples 01-04).
 ANGLE_AND_EPISODE = "angle_episode"     # 01: another angle + episode
@@ -181,7 +194,7 @@ class Seed:
     plays: int = 0
 
     def search(self) -> str:
-        return x_query(self.names)
+        return x_query(self.names, context_words(self))
 
 
 @dataclass
@@ -250,16 +263,86 @@ def names_for(title: str, query: str, limit: int = 3) -> tuple:
     return tuple(out[:limit])
 
 
-def x_query(names: Iterable[str]) -> str:
+def context_words(seed: "Seed", limit: int = 4) -> tuple:
+    """The episode's own subject words, beside its names: what tells the
+    Eagles' defence from a post about eagles. The longest content words of
+    its question and title that are not part of a name."""
+    import news_clusters
+
+    named = {w.lower() for n in seed.names for w in n.split()}
+    generic = {news_clusters._stem(w) for w in GENERIC}
+    seen, out = set(), []
+    for word in _WORD.findall(f"{seed.query} {seed.title}"):
+        low = word.lower().strip("'.-")
+        if (len(low) < 4 or low in _STOP or low in named or low in seen
+                or low in GENERIC or low in news_clusters.STOPWORDS or low.isdigit()
+                or news_clusters._stem(low) in generic):
+            continue
+        seen.add(low)
+        out.append(low)
+    out.sort(key=len, reverse=True)
+    return tuple(out[:limit])
+
+
+def x_query(names: Iterable[str], context: Iterable[str] = ()) -> str:
     """X's search syntax for posts naming any of `names`: English, original
     posts only (no reposts, replies or ads), so the result is conversations
-    being *started*, which is where a reply is read."""
-    quoted = [f'"{n}"' if " " in n else n
-              for n in (str(x).replace('"', "").strip() for x in names) if n]
-    if not quoted:
+    being *started*, which is where a reply is read.
+
+    A name of two or more words ("Jalen Hurts") is specific enough alone. A
+    one-word name ("Eagles") is asked for only beside one of `context`, the
+    episode's own subject words - alone it finds birds as often as the team,
+    and every post it finds is billed."""
+    names = [str(x).replace('"', "").strip() for x in names]
+    context = [str(c).replace('"', "").strip() for c in context if str(c).strip()]
+    terms = []
+    for name in (n for n in names if n):
+        if " " in name:
+            terms.append(f'"{name}"')
+        elif context:
+            around = context[0] if len(context) == 1 else "(" + " OR ".join(context) + ")"
+            terms.append(f"({name} {around})")
+        # A one-word name with no subject words beside it is not searched at
+        # all: every post it found would be billed, then dropped by
+        # `on_subject`.
+    # Two one-word names together ("Trump" and "Zelensky", a Trending
+    # story's anchors) are as specific as a two-word name.
+    single = [n for n in names if n and " " not in n]
+    if len(single) >= 2:
+        terms.insert(0, f"({single[0]} {single[1]})")
+    if not terms:
         return ""
-    body = quoted[0] if len(quoted) == 1 else "(" + " OR ".join(quoted) + ")"
+    body = terms[0] if len(terms) == 1 else "(" + " OR ".join(terms) + ")"
     return f"{body} lang:en -is:retweet -is:reply -is:nullcast"
+
+
+def on_subject(post: "Post", seed: Optional["Seed"]) -> str:
+    """Why this post is not about the episode's subject, or "" when it is.
+
+    Code only, and it runs before anything is drafted. A post must name what
+    the episode names, and a one-word name must come with one of the
+    episode's own subject words - a shared word is not a shared subject."""
+    if seed is None:
+        return "no episode to be about"
+    low = (post.text or "").lower()
+    # Whole words: "Ford" is not in "afford"; "#Ford" and "Ford's" are.
+    named = [n for n in seed.names if re.search(
+        r"(?<![a-z0-9])" + re.escape(n.lower()) + r"(?![a-z0-9])", low)]
+    if not named:
+        return "does not name what the episode is about"
+    if any(" " in n for n in named) or len(named) >= 2:
+        return ""
+    import news_clusters
+
+    # Only the name it matched is taken away: "Defence" in a longer name it
+    # did not match is still one of the episode's subject words.
+    generic = {news_clusters._stem(w) for w in GENERIC}
+    words = news_clusters.tokens(post.text) - generic - {
+        news_clusters._stem(w.lower()) for n in named for w in n.split()}
+    about = news_clusters.tokens(f"{seed.title} {seed.query}")
+    if not words & about:
+        return "shares a name with the episode but nothing else"
+    return ""
 
 
 def seeds(cache, *, trending: Iterable = (), limit: int = 10) -> list[Seed]:
@@ -329,7 +412,9 @@ def parse(payload: dict) -> list[Post]:
         except ValueError:
             created = 0.0
         out.append(Post(
-            id=str(row.get("id") or ""), text=str(row.get("text") or ""),
+            # A long post's `text` is cut; its whole words are `note_tweet`.
+            id=str(row.get("id") or ""),
+            text=str((row.get("note_tweet") or {}).get("text") or row.get("text") or ""),
             created_at=created, author=str(user.get("username") or ""),
             author_name=str(user.get("name") or ""),
             followers=int((user.get("public_metrics") or {}).get("followers_count") or 0),
@@ -377,7 +462,7 @@ async def search(query: str, *, max_results: int, since: float,
         "sort_order": "relevancy",
         "start_time": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(since)),
         "tweet.fields": "created_at,public_metrics,lang,author_id,"
-                        "in_reply_to_user_id,possibly_sensitive",
+                        "in_reply_to_user_id,possibly_sensitive,note_tweet",
         "expansions": "author_id",
         "user.fields": "username,name,public_metrics,verified_type",
     }
@@ -551,6 +636,8 @@ def shortlist(found: list[tuple[Post, Seed]], now: float, *, window_hours: float
     for post, seed in found:
         if screen(post, now, window_hours=window_hours, replied_to=replied_to):
             continue
+        if on_subject(post, seed):
+            continue
         about = None
         if seed is not None:
             if seed.key not in vectors:
@@ -596,13 +683,25 @@ DRAFT_SYSTEM = """You draft one reply on X for FAM, an app that turns what \
 people care about into short audio stories. The reply goes under somebody \
 else's post. A person at FAM reads it and posts it themselves.
 
-How FAM replies (its playbook):
+First, judge relevance - strictly, because an off-topic reply is spam:
+- same_subject: is the post about the same subject as FAM's episode - the \
+same team, person, company, event or question - and not merely sharing a \
+word or a name with it (the Philadelphia Eagles are not eagles; Apple the \
+company is not apples; a United Airlines flight is not Manchester United)? When unsure, false.
+- episode_fits: would someone reading this exact post want this exact \
+episode - does it answer or deepen what the post is asking or arguing? A \
+story on the same subject about something else is false. When unsure, false.
+- other_same_subject: when a second post is given, is it about that same \
+subject and conversation? false when no second post is given.
+
+Then the reply, which must answer what THIS post says - its own question, \
+claim or point - not the episode's angle:
 - Read the post and answer it like a person. Contribute a thoughtful angle \
-first: a distinction, a fact from the episode's subject, or what the two \
+first: a distinction, a fact on the post's own subject, or what the two \
 sides actually disagree about.
 - End with one short, genuine question back to the poster.
-- When an episode is given, you may say "we explored this in a short \
-episode" once, plainly. Never "check out", never "link below", no hashtags, \
+- Only when episode_fits is true may you say "we explored this in a short \
+episode" once, plainly; otherwise never mention FAM or an episode. Never "check out", never "link below", no hashtags, \
 no emoji, no exclamation marks, no flattery ("great question").
 - Never state a number, score, date or result unless it appears in the post \
 or the episode title. Never claim to know the poster.
@@ -611,8 +710,14 @@ there is an episode."""
 
 DRAFT_SCHEMA = {
     "type": "object",
-    "properties": {"reply": {"type": "string"}},
-    "required": ["reply"],
+    "properties": {
+        "same_subject": {"type": "boolean"},
+        "episode_fits": {"type": "boolean"},
+        "other_same_subject": {"type": "boolean"},
+        "why": {"type": "string"},
+        "reply": {"type": "string"},
+    },
+    "required": ["same_subject", "episode_fits", "other_same_subject", "why", "reply"],
     "additionalProperties": False,
 }
 
@@ -622,13 +727,15 @@ def draft_prompt(cand: Candidate) -> str:
     if cand.other is not None:
         lines += [f"Another side, by @{cand.other.author}:", cand.other.text.strip(), "",
                   "Connect the two perspectives: name the trade-off between them."]
-    if cand.kind == QUESTION_ONLY or cand.seed is None:
-        lines.append("There is no episode for this. Ask a better question - one "
-                     "that helps people in the thread see what they disagree about. "
-                     "Do not mention FAM or an episode.")
-    else:
+    if cand.seed is not None:
         lines.append(f"FAM's episode: “{cand.seed.title}” "
                      f"(the question it answers: {cand.seed.query})")
+    if cand.kind == QUESTION_ONLY or cand.seed is None:
+        lines.append("The episode will not be linked. Ask a better question - one "
+                     "that helps people in the thread see what they disagree about. "
+                     "Do not mention FAM or an episode.")
+    lines.append("Judge relevance in the `why` field in one sentence: what the "
+                 "post is about, and whether the episode is that.")
     return "\n".join(lines)
 
 
@@ -670,14 +777,37 @@ def trim(text: str, limit: int = DRAFT_CHARS) -> str:
     return cut.rstrip(",;:-") + "…"
 
 
+@dataclass
+class Verdict:
+    """The drafting call's judgement of one card, before its words are used.
+    `same_subject` false drops the card; `episode_fits` false keeps the reply
+    but takes the episode off it; `other_same_subject` false drops the second
+    post of a both-sides card."""
+
+    same_subject: bool = True
+    episode_fits: bool = True
+    other_same_subject: bool = True
+    why: str = ""
+
+
 async def draft(cand: Candidate, client=None) -> tuple[str, str, float]:
-    """`(reply, drafted_by, dollars)`. Never raises but cancellation: a model
-    that cannot be asked leaves the code's draft, said so on the card."""
+    """`(reply, drafted_by, dollars)`, for a caller that wants the words only
+    (`judge_and_draft` is what a run uses)."""
+    reply, by, dollars, _verdict = await judge_and_draft(cand, client)
+    return reply, by, dollars
+
+
+async def judge_and_draft(cand: Candidate, client=None) -> tuple:
+    """`(reply, drafted_by, dollars, verdict)`: one call that first judges
+    whether the post and the episode are about the same thing, then writes
+    the reply to the post. Never raises but cancellation: a model that
+    cannot be asked leaves the code's draft and the code's gate
+    (`on_subject`), said so on the card."""
     import credentials
     import metering
 
     if client is None and not credentials.active("ANTHROPIC_API_KEY"):
-        return trim(fallback_draft(cand)), "code", 0.0
+        return trim(fallback_draft(cand)), "code", 0.0, Verdict()
     model = config.settings.x_threads_model
     try:
         if client is None:
@@ -693,15 +823,42 @@ async def draft(cand: Candidate, client=None) -> tuple[str, str, float]:
         usage.add_model_call(model, getattr(response, "usage", None))
         dollars = metering.price_of(usage).total
         text = next(b.text for b in response.content if b.type == "text")
-        reply = trim(json.loads(text).get("reply") or "")
+        body = json.loads(text)
+        verdict = Verdict(same_subject=bool(body.get("same_subject")),
+                          episode_fits=bool(body.get("episode_fits")),
+                          other_same_subject=bool(body.get("other_same_subject")),
+                          why=str(body.get("why") or "")[:300])
+        reply = trim(body.get("reply") or "")
         if not reply:
-            raise ValueError("an empty reply")
-        return reply, model, dollars
+            # The judgement stands; only the words are the code's.
+            return trim(fallback_draft(cand)), "code", dollars, verdict
+        return reply, model, dollars, verdict
     except asyncio.CancelledError:
         raise
     except Exception as exc:  # noqa: BLE001
         log.warning("x threads: drafting fell back to code: %s", exc)
-        return trim(fallback_draft(cand)), "code", 0.0
+        # The relevance check did not run: the code's gate has passed the
+        # post, but no episode is linked on its word alone.
+        return trim(fallback_draft(cand)), "code", 0.0, Verdict(
+            episode_fits=False, why="the relevance check could not run, so no link")
+
+
+def apply_verdict(cand: Candidate, verdict: Verdict) -> str:
+    """Fold the judgement into the card. Returns why the card is dropped, or
+    "" when it stays - the post itself is about something else."""
+    if not verdict.same_subject:
+        return verdict.why or "the post is about something else"
+    if cand.other is not None and not verdict.other_same_subject:
+        cand.other = None
+        cand.kind = THREAD_TO_EPISODE if asks(cand.post.text) else ANGLE_AND_EPISODE
+        cand.reason = cand.reason.split(" Another side from")[0]
+    if not verdict.episode_fits and cand.kind != QUESTION_ONLY:
+        cand.kind = QUESTION_ONLY
+        cand.other = None
+        cand.reason += " Same subject, but the episode does not answer this post, so no link."
+    if verdict.why:
+        cand.reason += f" Checked: {verdict.why}"
+    return ""
 
 
 class TooLong(ValueError):
@@ -782,19 +939,21 @@ class Store:
             " OR status = ?", (APPROVED, since, WAITING)).fetchall()
         return [json.loads(r[0]).get("author", "") for r in rows]
 
-    def add(self, cand: Candidate, at: float) -> None:
+    def add(self, cand: Candidate, at: float, status: str = WAITING) -> None:
         episode = asdict(cand.seed) if cand.seed is not None else {}
         self._conn().execute(
             "INSERT OR IGNORE INTO candidates (post_id, found_at, score, kind,"
-            " reason, post, other, episode, draft, drafted_by)"
-            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            " reason, post, other, episode, draft, drafted_by, status)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (cand.post.id, at, cand.score, cand.kind, cand.reason,
              json.dumps(asdict(cand.post)),
              json.dumps(asdict(cand.other)) if cand.other is not None else "",
-             json.dumps(episode), cand.draft, cand.drafted_by))
+             json.dumps(episode), cand.draft, cand.drafted_by, status))
 
     def get(self, post_id: str) -> Optional[dict]:
-        rows = self.all(post_id=post_id)
+        """One card by its post, or None - a set-aside post is not a card,
+        so nothing can approve or reopen it by its id."""
+        rows = [r for r in self.all(post_id=post_id) if r["status"] != SET_ASIDE]
         return rows[0] if rows else None
 
     def all(self, status: str = "", post_id: str = "", limit: int = 100) -> list[dict]:
@@ -805,6 +964,9 @@ class Store:
         if status:
             sql += " AND status = ?"
             args.append(status)
+        elif not post_id:
+            sql += " AND status != ?"
+            args.append(SET_ASIDE)
         if post_id:
             sql += " AND post_id = ?"
             args.append(post_id)
@@ -962,6 +1124,15 @@ async def run(cache, *, now: Optional[float] = None, searcher=None,
                              "the Trending edition or play some episodes first")
         held.record_run(now, 0, report)
         return report
+    # An episode with nothing specific to ask X for is not searched, and
+    # takes no share of the reads (said, not counted as a failure).
+    report["unsearchable"] = [s.title for s in chosen if not s.search()]
+    chosen = [s for s in chosen if s.search()]
+    if not chosen:
+        report["stopped"] = ("no episode has a name specific enough to search X "
+                             "for: write the Trending edition or play some episodes")
+        held.record_run(now, 0, report)
+        return report
     per = max(10, min(100, room // len(chosen)))
     since = now - config.settings.x_threads_window_hours * 3600
     found: list = []
@@ -989,14 +1160,39 @@ async def run(cache, *, now: Optional[float] = None, searcher=None,
         fresh = [(p, s) for p, s in found if p.id not in known]
         # Embedding every post is CPU work; it never runs on the loop that
         # streams listeners' audio.
+        # Twice the cards wanted, so a card the judgement drops can be
+        # replaced from further down the ranking.
         picked = await asyncio.to_thread(
             shortlist, fresh, now,
             window_hours=config.settings.x_threads_window_hours,
-            replied_to=held.replied_authors(now - 7 * 86400))
+            replied_to=held.replied_authors(now - 7 * 86400),
+            size=2 * SHORTLIST)
         report["screened_out"] = len({p.id for p, _ in fresh}) - len(picked)
+        report["off_subject"] = []
         for cand in picked:
-            cand.draft, cand.drafted_by, dollars = await (drafter or draft)(cand)
+            if report["cards"] >= SHORTLIST:
+                break
+            result = await (drafter or judge_and_draft)(cand)
+            reply, by, dollars = result[:3]
+            verdict = result[3] if len(result) > 3 else Verdict()
             report["dollars"] = round(report["dollars"] + dollars, 4)
+            had_other = cand.other is not None
+            dropped = apply_verdict(cand, verdict)
+            if dropped:
+                report["off_subject"].append(f"@{cand.post.author}: {dropped}"[:200])
+                # Remembered, unseen, so it is neither read nor judged again.
+                cand.reason = f"Set aside: {dropped}"
+                held.add(cand, now, status=SET_ASIDE)
+                continue
+            if had_other and cand.other is None:
+                # Written to connect two posts, one of which is gone.
+                reply, by = trim(fallback_draft(cand)), "code"
+            elif by != "code" and not verdict.episode_fits and cand.kind == QUESTION_ONLY \
+                    and "episode" in reply.lower():
+                # Told not to mention the episode, and did: the code's
+                # question rather than words that point at nothing.
+                reply, by = trim(fallback_draft(cand)), "code"
+            cand.draft, cand.drafted_by = reply, by
             held.add(cand, now)
             report["cards"] += 1
     except asyncio.CancelledError:

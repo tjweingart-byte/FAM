@@ -44,6 +44,11 @@
    > silence or is quiet (`tools/master_reference.py` fixes one), and
    > `python verify_voice.py --fingerprint` measures whether every chunk
    > sounds like the recording and like each other.
+   > **Current (PROBLEMS.md §328, at the owner's direction):** the admin
+   > page's upload no longer refuses a recording for opening in silence or
+   > being quiet - `voice_bank.prepare_upload` trims and levels it with the
+   > same function as `tools/master_reference.py` and the page says by how
+   > much. A recording that passes as it is is kept byte for byte.
    **Hard names are respelled for the voice** *(§165, `pronunciation.py`)*:
    EI's brief and the writer's `<<SAY: Name = respelling>>` lines (written
    *before* the script) feed one lexicon in the voice bank's database, an
@@ -60,6 +65,19 @@
    > an admin and over the writer and the brief (`pronunciation.SOURCES`):
    > a model's guess it disagrees with is replaced; an admin's is only shown
    > beside it on /admin, which also checks the whole list on request.
+   > **Current (PROBLEMS.md §324):** a template counts only when it
+   > follows the name in the lead (`says_name` - "Count Dooku, also known
+   > as Darth Tyranus (/tɪˈrænəs/)" is Tyranus's), and only when it says
+   > the whole name, one word per word (`fits`); a reading near neither the
+   > name's spelling nor the guess it would replace is only shown
+   > (`resembles`); Wikipedia's own readings that fail these are withdrawn.
+   > **Current (PROBLEMS.md §325):** every word is checked, not only
+   > names: `hard_words.py` lists words in recent episodes outside the CMU
+   > Pronouncing Dictionary (vendored data, BSD) and the lexicon, and
+   > `voice_check.py` has the production voice say a word while a phoneme
+   > recogniser on the same card hears it back (`"hear": true` on the wire,
+   > never on an episode's chunks). Its verdict is a hint with the audio
+   > beside it; nothing changes the lexicon by itself.
 <!-- rule:op-voice-bank -->
 > **Current (PROBLEMS.md §294, at the owner's direction):** a search by a
 > listener who has **never picked a voice** is spoken in the voice the

@@ -79,7 +79,7 @@ network volume `safe_peach_goat_volume` (EU-RO-1).
    | Network volume | the one from step 2 | the voice and the weights |
    | Active workers | 0 for now | billed only while voicing; ~$343/month for 1, which buys no cold starts - revisit at launch |
    | Max workers | 4 | more listeners at once get more cards, billed only while busy |
-   | Idle timeout | 180 s | idle seconds are billed, but a listener who browses before tapping meets a warm worker (§324) |
+   | Idle timeout | 180 s | idle seconds are billed, but a listener who browses before tapping meets a warm worker (§329) |
    | FlashBoot | on | shorter cold starts |
    | Execution timeout | 600 s | the first job downloads the weights |
    | Container disk | 20 GB or more | the image is large |
@@ -155,7 +155,7 @@ makes serverless viable at all.
 | Network volume | the one from step 2 | weights and the voice |
 | Active workers | 0 | the whole point; nothing idle is billed |
 | Max workers | 1–2 | one card serves one generation at a time |
-| Idle timeout | 180s | long enough that browsing before a tap, and a second episode, are warm (§324) |
+| Idle timeout | 180s | long enough that browsing before a tap, and a second episode, are warm (§329) |
 | FlashBoot | on | it is what makes a warm start ~instant |
 | Env | nothing | the image sees `RUNPOD_ENDPOINT_ID` and runs the handler |
 
@@ -375,6 +375,20 @@ schedule, a pod that is found and not running is always a fault - RunPod
 evicted it, the account ran out, or somebody stopped it by hand - and the
 note that names it is a diagnosis rather than a disambiguation.
 
+### Hearing it back (§325)
+
+A request may carry `"hear": true`. The worker then also runs a phoneme
+recogniser (`voice_worker/hearing.py`, `facebook/wav2vec2-lv-60-espeak-cv-ft`,
+Apache-2.0) over the audio it just made and answers `heard` (IPA, a space
+between phones) beside the audio, or `heard_error` saying why it could not.
+Only /admin's round trip sends it; an episode's chunks never do, and the
+recogniser is not loaded until the first request that does. Its weights
+(~1.2 GB) download once into `HF_HOME` - on Serverless the network volume,
+inside the 600 s execution timeout - and stay resident, ~1.3 GB of the card.
+`VOICE_HEARING_MODEL` on the endpoint swaps in another CTC-over-IPA model.
+A worker built before this ignores the field; the app says "rebuild" rather
+than guessing. Nothing to set on Render.
+
 ### And the image builds itself
 
 `.github/workflows/voice-worker.yml` checks that the two halves still agree
@@ -506,7 +520,7 @@ write, and the worker boots during them.
 A browse tile's script is written before the tap, so that wake has nothing
 to hide behind there. The same wake is therefore also sent when the app opens
 (`/api/auth/me`, for an account that may play, never a guest; PROBLEMS.md
-§324), which is the earliest a listener is known to be here, and again when
+§329), which is the earliest a listener is known to be here, and again when
 it returns to the foreground (`POST /api/voice/wake`).
 
 The wake is a hint, not a mechanism. It never raises, never blocks, and never
@@ -518,7 +532,7 @@ If measurement says the wake is not covering it, in order of preference:
 
 1. **Raise the idle timeout.** The cheapest fix by far: it only bills while a
    worker is up, and a listener who plays two episodes gets the second warm.
-   Raised from 60 s to 180 s with the wake on open (PROBLEMS.md §324).
+   Raised from 60 s to 180 s with the wake on open (PROBLEMS.md §329).
 2. **One active worker during peak hours.** This is a pod wearing a different
    hat — it is billed continuously — so price it as one.
 3. **Switch to `REMOTE_VOICE_TRANSPORT=http`.** At that point you are paying

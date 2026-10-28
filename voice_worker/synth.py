@@ -172,7 +172,7 @@ async def synthesise(payload: dict) -> dict:
              len(text.split()), seconds, elapsed,
              seconds / elapsed if elapsed else 0.0)
 
-    return {
+    reply = {
         "audio": base64.b64encode(pcm).decode("ascii"),
         "sample_rate": int(rate),
         "format": WIRE_FORMAT,
@@ -181,6 +181,29 @@ async def synthesise(payload: dict) -> dict:
         "synth_seconds": round(elapsed, 3),
         "engine": "chatterbox",
     }
+    if payload.get("hear"):
+        reply.update(await hear(pcm, int(rate)))
+    return reply
+
+
+async def hear(pcm: bytes, rate: int) -> dict:
+    """The round trip's second half (§325, `voice_worker/hearing.py`): what a
+    phoneme recogniser heard in the audio just made. `heard` on success,
+    `heard_error` saying why not - never raised, because the audio itself
+    was made and the caller may still want to play it."""
+    import asyncio
+
+    from voice_worker import hearing
+
+    ready, detail = hearing.available()
+    if not ready:
+        return {"heard_error": detail}
+    try:
+        heard = await asyncio.to_thread(hearing.recognise, pcm, rate)
+    except Exception as exc:  # noqa: BLE001 - phrased for /admin
+        log.exception("hearing failed")
+        return {"heard_error": f"{type(exc).__name__}: {exc}"}
+    return {"heard": heard, "heard_by": hearing.MODEL}
 
 
 async def _load() -> int:
