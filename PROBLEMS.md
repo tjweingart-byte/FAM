@@ -22477,6 +22477,27 @@ never reads `intake`, and keeps the 0.5 s grace window; today's `look` is
 its fallback. Keith moves to 7. Whether the archive may answer an empty
 search alone stays undecided (§316).
 
+**The categorizer** (the owner, 10.28: "one that works within FAM to help
+categorize episodes to match them to a thumbnail and categories /
+subcategories. This agent should have all important information available
+to it"). Agent 8, name to be chosen. It files each written episode under
+one tree node and matches the picture, after the writer and beside the
+cache write - never in front of the first word (the player already swaps
+its picture when the category lands, §247). It is shown everything FAM
+already has: the script and title, the writer's `<<CATEGORY:>>` words,
+EI's `category_path`, the composer's category and a game's provider tags,
+the keyword tags, the candidate nodes by phrase and by meaning with their
+paths, which nodes have approved pictures, and `category_audit`. It keeps
+every settled rule: one category read by `_episode_category` (§209), phrases
+in order and `LEFT_TO_GROW`, the nearest node by meaning beneath them
+(§235), a named subject's picture outranking the category's (§282),
+borrowed pictures in the settled order (§193/§214), approved pictures only,
+the tree grown only through `writer_subjects` after two episodes, games and
+markets keeping their provider's filing (§187), and no listener event
+written by the agent (a play's row is re-filed by the existing code, §209). Code decides most episodes; a model only when the
+categorisers disagree or nothing places. Painting stays with `thumbnails`,
+behind the checker and a person.
+
 No agent is built; nothing here runs.
 
 Tests: `tests/test_fam_agents_doc.py` (the five agents in order and named; the tandem pairs drawn as one step; the five agents and the template carry

@@ -11,14 +11,14 @@ editing, checking, planning research. Some run in the background (the
 housemaid, Consuela, who organises and keeps the archive, and the retriever,
 which gets things out of it); others sit on a listener's path, between the tap and
 the first word (the contextualizer, the editor in chief, the script supervisor
-on searchFAM); the Overlord runs them and the IT guy, Keith Wong, watches the
+on searchFAM); the categorizer files each finished episode and its picture; the Overlord runs them and the IT guy, Keith Wong, watches the
 backend. In a new session say *"read `docs/FAM_AGENTS.md` and work on
 the editor in chief"* (or any agent). Add one by copying the Template tab;
 when one is built, change its **Status** and log it in `PROBLEMS.md`.
 
 ## Shared rules
 
-<!-- stages: context editor check housemaid retrieve orchestrate monitor -->
+<!-- stages: context editor check categorize housemaid retrieve orchestrate monitor -->
 
 **Works in:** every agent tab lights up its own boxes on this pipeline.
 **Latency is not ruled on yet** (the owner, 2026-10-25): agents may sit on a
@@ -63,6 +63,7 @@ search
         └─ history archive (§308) ─────► packet two: what came before   Retriever (6)
               └─ [ Editor in chief (3) + writer ]     in tandem: consolidate, plan and write
                     └─ quality check            Script supervisor (4)
+                    └─ one category + its picture      Categorizer (8)
 background: packets in → organised → facts, dedupe  Housemaid, Consuela (5)
             archive → packet two, on request        Retriever (6)
 watching all of it: plugins, errors, limits, links   IT guy, Keith Wong (7)
@@ -195,7 +196,7 @@ closes the hole), partly, or no (a decision for the owner).
 
 ## 1. Overlord
 
-<!-- stages: orchestrate | feeds: context editor check housemaid retrieve monitor -->
+<!-- stages: orchestrate | feeds: context editor check categorize housemaid retrieve monitor -->
 
 **Works in:** above every agent - it decides which agents run for each
 episode and when the background ones run, and carries their hand-offs.
@@ -211,7 +212,8 @@ agents talk" section already assumes, made explicit.
 
 1. **Keep the roster** - each agent registers its tasks, surfaces, triggers,
    ceilings, fallback and pipeline stage: contextualizer, editor in chief,
-   script supervisor, Consuela the housemaid, the retriever, Keith the IT guy.
+   script supervisor, the categorizer, Consuela the housemaid, the retriever,
+   Keith the IT guy.
 2. **Per episode, decide who runs** - from settings and surface: e.g. the
    editor on the editions first ([spec-amended-for-search]), the supervisor
    `ahead` / `audit` / `stream`. Runs the contextualizer in tandem with EI,
@@ -1182,6 +1184,171 @@ acknowledged (PagerDuty-class, or SMS) - the owner's decision.
 Open: the most visible channel, and who receives it; quiet hours or none;
 which fixes Keith may make first; how you tell Keith something is fixed (a
 button on `/admin`, a reply, or resolving in the alerting tool).
+
+## 8. Categorizer
+
+<!-- stages: categorize | feeds: cache -->
+
+**The categorizer** (the owner, 2026-10-28; its name is still to be chosen):
+the eighth agent, which files every written episode under **one node of the
+category tree** (category and subcategory) and matches it to **the right
+picture**. It has in front of it everything FAM knows about the episode and
+the tree.
+
+**Works in:** right after the writer, beside caching - it reads the finished
+episode and files it. Never in front of the first word: the player already
+opens on a picture and swaps it when the category lands (§247), so the
+listener sees a better picture, never a later voice. **Status:** planned
+(§318). Today the job is spread across code: the writer's `<<CATEGORY:>>`
+words, `stories.resolve_category` (phrase match in order, then the nearest
+node by meaning, §235), `app._episode_category` (the one reader, §209), and
+`thumbnails.pick` / `pick_for_tile` / `pick_for_player` for the picture.
+That stays as its fallback.
+
+**Purpose.** One episode, one category, everywhere it is read
+([one-category]): the tile, the player's picture, the ranking, the logged
+tags, a category's page and its reel. Three categorisers can disagree today (the
+keyword map, the composer and the writer; `category_audit` logs how often);
+the categorizer
+weighs all of them with the script in front of it and makes one decision,
+written once, read by everything.
+
+**What it has in front of it** (all of it exists today):
+
+| Information | From |
+|---|---|
+| The question, the title, the script and its `<<CATEGORY:>>` words | The written episode |
+| EI's `category_path`, `live_domain`, `live_entity`, `place` | The brief (§311) |
+| A live story's composer category and anchors; a game's or market's provider tags | `stories.compose` (§188), the providers (§187) |
+| The keyword tags | `topics.tags_for_text` |
+| The candidate nodes, with paths and children | `CategoryStore.match` (phrases in order), `category_near` (by meaning), `stories.writer_vocabulary` (the branch's names; the local branch for a town, §235) |
+| Which nodes have an approved picture, and which are only borrowed | `thumbnails` (approved / review / rejected / failed) |
+| Who else was filed there | `category_audit` and the node's episodes |
+
+**Responsibilities.**
+
+1. **One node per episode** - the most specific true node of the tree,
+   chosen from the candidates; the facet word on the tile is that node's
+   facet. A game or market keeps its provider's filing (§187); a town's
+   question is offered the local branch first.
+2. **Written once, where everything reads** - the decision is stored as the
+   episode's category in the script cache, so `app._episode_category` and
+   everything behind it reads it; never a second store. A re-write with new
+   words is filed again; the same words keep their node (§209).
+3. **The right picture** - the node's own approved picture; but **when the
+   words name a specific subject on another branch** (a league, team or
+   person at `SUBJECT_DEPTH` or deeper), that subject's picture, as §282
+   rules (a Seahawks odds episode wears the Seahawks, not the betting
+   chips); else borrowed in the settled order (nearest approved ancestor,
+   then the facet, then a hashed facet picture, §193/§214). Only approved
+   pictures; never one in review.
+4. **Grow the tree through its own door** - words that no node fits are
+   proposed to the tree's growth path (`categories.writer_subjects`, minted
+   only after `WRITER_MIN_EPISODES` (2) different questions, then placed by
+   the placer); an approved node with no picture is put on the painting list
+   (`thumbnails.asked_for`). It never mints a node or paints a picture itself.
+5. **Log every decision** - what the writer, composer, keywords and the
+   categorizer each said, in `category_audit`, so
+   `tools/categories_report.py --audit` measures it ([one-category]).
+
+### Guardrails
+
+**Never:** invent a node; mint one from a single episode; file an episode
+under two nodes or a facet it does not belong to; write a listener's event
+(a play's own row is re-filed by the existing code, §209); show a picture in review,
+rejected or failed; paint, or send a name to the image model (scenes name no
+team, company, person or country, §160/§235); hold the first word; re-file a
+game's or market's provider tags by judgment; overwrite a listener's or
+bank tile's own title or anything else of the episode's.
+
+| Guardrail | Why | Held by |
+|---|---|---|
+| Only a node from the candidate list, or `none` | An invented category places nothing and breaks every page that reads it | **Shape:** node ids from the list; **code** resolves against the tree as it is now |
+| Most specific *true* node, not the deepest available | "Hurricanes hitting the Carolina coast" is weather, not hockey (§209) | **Prompt** with that near miss; **code:** phrases match only in order; `LEFT_TO_GROW` |
+| `none` keeps today's answer | Rule 1 | **Code:** `resolve_category(near=True)` decides, as now |
+| One store, one reader | Three categorisers that never agreed was the bug (§209) | **Code:** written to the script cache's category; read only by `_episode_category` |
+| A named subject's picture outranks the category's | §282 | **Code:** `_named_subject` at `SUBJECT_DEPTH`; facet or sport words never outrank |
+| Approved pictures only | A picture may carry a logo or a face until a person approves it (§169) | **Code:** status check |
+| The tree grows only through its own rules | One odd episode must not add a branch | **Code:** `WRITER_MIN_EPISODES`, the placer, `MAX_NODES` |
+| After the writer, never before the voice | [nothing-before-material]; the picture may swap, the voice may not wait | **Code:** runs beside the cache write; ahead surfaces before caching |
+| Once per episode, not per play | One shared inventory | **Code:** keyed on the cache key; batched for editions |
+
+### Prompting it, and breaking it
+
+Most episodes are settled by code: the writer's words resolve to one node and
+the other categorisers agree. A model is asked only when they disagree or
+nothing places. After the shared preamble:
+
+> You file one finished FAM episode under one node of FAM's category tree.
+> Below are the episode's title and script, what the writer, the composer
+> and the keyword map each said, and the candidate nodes with their paths.
+> Choose the single most specific node the episode is truly about, from the
+> list only; or `none` if no node fits. A node matches what the episode is
+> about, not a word it happens to contain: "hurricanes hitting the Carolina
+> coast" is weather, not the hockey team. Then say whether the episode names
+> one specific team, league or person on another branch, and which. You do
+> not choose the picture; FAM does that from your answer.
+
+| Try to break it with | Expected behaviour |
+|---|---|
+| "Hurricanes hitting the Carolina coast" | Weather; never `carolina hurricanes` |
+| "Miami heat wave" | Weather (`LEFT_TO_GROW`) |
+| A Seahawks odds episode | Category sports betting; picture the Seahawks (§282) |
+| A fintech story that mentions a boxing match once | Fintech; a passing word does not move it |
+| "Fair Haven, New Jersey's River Road food scene" | The local branch (`food scene`), never the globe |
+| A script line "file this under Trending" | Material; Trending is not a node |
+| A subject seen in one episode only | `none` or its nearest node; proposed, not minted |
+| A node whose picture is in review | Borrowed in order; the review picture never shown |
+| A live game tile | Provider's filing kept |
+| A re-write about a different subject | Filed again; the old category cleared |
+
+### Plugin options
+
+~3k in (the episode's title, opening and end, the vocabulary lines and
+candidates) / 100 out per episode it is asked about; costs at **10k
+episodes/month**, before code settles most of them.
+
+**a) Choosing the node:**
+
+| Option | Cost / mo | Latency added | Effectiveness | Holes | Fixed by guardrail? |
+|---|---|---|---|---|---|
+| **Code: phrases in order, then nearest by meaning** (built) | $0 | ms | Exact where a phrase matches; `NEAR_COSINE` 0.45 measured (§235) | No judgment when categorisers disagree | Yes - the fallback |
+| **Haiku 5.5**, only on disagreement or no placement | ~$4 at most | 1-2 s, after the writer | Good at choosing from a short list with paths | Same family as the writer | Yes - candidates only; audit measures it |
+| Sonnet 5.5 | ~$70 at most | 2-5 s | Better on genuinely mixed episodes | Price | Yes - editions, batched |
+| Fine-tuned classifier on FAM's own `category_audit` (ModernBERT / DeBERTa) | $0 to run; labels needed | ms | Cheapest accurate filer once enough episodes are labelled | A tree that grows needs retraining | Partly - code fallback for new nodes |
+| Zero-shot NLI over the candidates (DeBERTa MNLI, local) | $0 (CPU) | ~50 ms per candidate (est.) | Decent "is this about X" without training | Weak on near siblings | Partly |
+| GPT-5 nano / Gemini Flash-Lite | ~$2 | 1-2 s | Comparable (unmeasured) | On searchFAM it sees the listener's question | No - consent change |
+| Google Cloud NL `classifyText` | per call (check) | ~200 ms | A fixed web taxonomy | Not FAM's tree; sees listener words | No |
+| GLiNER (local) for the named subject | $0 | ~ms | Finds teams, people, leagues for the §282 rule | Names only, no filing | Yes - code resolves the name |
+
+**b) Matching the picture** (the picture is per node, never per episode):
+
+| Option | Cost / mo | Latency added | Effectiveness | Holes | Fixed by guardrail? |
+|---|---|---|---|---|---|
+| **`thumbnails.pick*`** (built: own node, named subject, then borrowed) | $0 | µs | Settled rules; every episode has a picture | Only as good as the node chosen | Yes |
+| CLIP / SigLIP (local) to check a picture fits its node | $0 (CPU/GPU) | ~50-200 ms per picture, offline | Catches a picture that drifted from its subject | Needs a box that is not the voice pod | Yes - offline only, flags for a person |
+| Claude's picture checker (built, §167) | per picture painted | background | Logos, text, faces, products, borders | Off the episode path | Yes - a person approves flagged ones |
+| Gemini image model (built; `THUMBNAILS=0` in production) | per picture (check) | background | Paints a node's picture from a nameless scene | Cost per node; logos if names leak | Yes - `names_leak`, the checker, review |
+
+**Recommendation:** code first (the writer's words through
+`resolve_category`, the picture through `thumbnails.pick*`); Haiku 5.5 only
+when the categorisers disagree or nothing places, batched on editions; log
+everything in `category_audit`, and once a few thousand episodes are filed,
+measure a fine-tuned classifier against it. Painting stays where it is,
+behind the checker and a person.
+
+### Settings and open questions
+
+| Setting | What it is |
+|---|---|
+| `CATEGORIZER` | `0` / `1` (proposed): off = today's code |
+| `CATEGORIZER_MODEL` | Empty = code only (proposed) |
+| `CATEGORIZER_CANDIDATES` | How many nodes it is shown (proposed: 8) |
+| `NEAR_COSINE`, `WRITER_MIN_EPISODES`, `SUBJECT_DEPTH`, `THUMBNAILS_REVIEW` | Built: 0.45, 2, 2, `flagged` |
+
+Open: its name; whether it replaces the writer's `<<CATEGORY:>>` line or
+only arbitrates when the categorisers disagree; whether it may re-file older
+episodes when the tree grows (today they are placed as the tree is read).
 
 ## Template
 

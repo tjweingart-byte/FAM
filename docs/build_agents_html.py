@@ -24,6 +24,7 @@ STAGES = [
     ("recall", "Archive: packet two", "listener"), ("editor", "Editor in chief", "listener"),
     ("write", "Writer", "listener"), ("check", "Script supervisor", "listener"),
     ("voice", "Voice", "listener"), ("cache", "Episode kept", "listener"),
+    ("categorize", "Categorizer", "listener"),
     ("orchestrate", "Overlord", "control"), ("monitor", "IT guy (Keith Wong)", "control"),
     ("housemaid", "Housemaid (Consuela)", "background"), ("retrieve", "Retriever", "background"),
 ]
