@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>FAM Flyer</title>
+<!--
+  The printed flyer: US Letter (8.5 x 11 in), portrait, for campuses, offices
+  and BART stations. Read from across a platform first (the headline), then
+  up close (the QR code). The QR box is a white square with a quiet zone:
+  paste or print a code into it at 2 in or larger.
+
+  Two colourways from one file:
+    flyer.html          - dark, the app's own colours (print shop, full bleed)
+    flyer.html?light    - paper white, low ink (office and home printers)
+
+  Render the PDFs with: python marketing/flyer/render.py
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Geist:wght@400..700&family=Geist+Mono:wght@400..600&display=swap" rel="stylesheet">
+<style>
+  @page{ size:8.5in 11in; margin:0; }
+  :root{
+    --page:#1E1B27; --ink:#F4EFE4; --muted:#B9B1CC; --faint:#8A83A0;
+    --gold:#E0B563; --deeper:#FFD23F; --coral:#E2694F;
+    --line:rgba(244,239,228,0.22); --chip:rgba(244,239,228,0.08);
+  }
+  html.light{
+    --page:#FFFFFF; --ink:#1E1B27; --muted:#4D465E; --faint:#7D768C;
+    --gold:#A87520; --deeper:#A87520; --coral:#C4502F;
+    --line:rgba(30,27,39,0.22); --chip:rgba(30,27,39,0.05);
+  }
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; padding:0; background:#777; }
+  body{ -webkit-print-color-adjust:exact; print-color-adjust:exact;
+    font-family:'Geist', system-ui, sans-serif; color:var(--ink); }
+  @media print{ html,body{ background:none; } .sheet{ margin:0 !important; box-shadow:none !important; } }
+
+  .sheet{ position:relative; width:8.5in; height:11in; overflow:hidden; margin:0.4in auto;
+    background:var(--page); box-shadow:0 10px 40px rgba(0,0,0,0.35); }
+  /* Dusk at the foot, the waitlist hero's light; none on the low-ink sheet. */
+  .sheet::before{ content:""; position:absolute; inset:0; pointer-events:none;
+    background:
+      radial-gradient(90% 38% at 50% 104%, rgba(240,155,70,0.42), rgba(240,155,70,0) 70%),
+      radial-gradient(60% 30% at 95% 62%, rgba(226,105,79,0.20), rgba(226,105,79,0) 70%); }
+  html.light .sheet::before{ display:none; }
+
+  .in{ position:absolute; inset:0.55in 0.6in 0.5in; display:flex; flex-direction:column; }
+
+  /* Top: wordmark and tagline */
+  .top{ display:flex; align-items:center; justify-content:space-between; }
+  .wordmark{ color:var(--gold); height:0.52in; display:block; }
+  .tag{ font-family:'Geist Mono', monospace; font-size:10.5pt; letter-spacing:0.18em;
+    text-transform:uppercase; color:var(--muted); }
+
+  /* The headline, readable from across a platform */
+  h1{ font-family:'Bricolage Grotesque', sans-serif; font-weight:800; margin:0.34in 0 0;
+    font-size:58pt; line-height:0.92; letter-spacing:-0.02em; text-transform:uppercase; }
+  h1 em{ font-style:normal; color:var(--gold); }
+
+  /* Middle: what it is, beside the player */
+  .mid{ display:flex; gap:0.35in; margin-top:0.3in; flex:1; min-height:0; }
+  .copy{ flex:1; display:flex; flex-direction:column; }
+  .lede{ font-size:14.5pt; line-height:1.36; margin:0; color:var(--ink); }
+  .lede b{ color:var(--gold); font-weight:600; }
+  .points{ list-style:none; margin:0.22in 0 0; padding:0; display:flex; flex-direction:column; gap:0.13in; }
+  .points li{ display:flex; gap:0.14in; align-items:flex-start; font-size:11.5pt; line-height:1.3; color:var(--muted); }
+  .points b{ color:var(--ink); font-weight:600; display:block; font-size:12.5pt; }
+  .ic{ flex:0 0 0.36in; height:0.36in; border-radius:50%; border:1.5px solid var(--gold);
+    display:grid; place-items:center; color:var(--gold); }
+  .ic svg{ width:0.19in; height:0.19in; }
+
+  .phone{ flex:0 0 2.2in; align-self:stretch; transform:rotate(3deg); display:flex;
+    border-radius:0.34in; padding:0.08in; background:#0F0E12;
+    box-shadow:0 0 0 1.5px rgba(244,239,228,0.18), 0 18px 40px rgba(0,0,0,0.45); }
+  .phone{ position:relative; }
+  .phone::after{ content:""; position:absolute; left:0.08in; right:0.08in; bottom:0.08in; height:0.9in;
+    border-radius:0 0 0.27in 0.27in; background:linear-gradient(180deg, rgba(42,39,51,0), #2A2733 85%); }
+  html.light .phone{ box-shadow:0 0 0 1.5px rgba(30,27,39,0.25), 0 10px 24px rgba(30,27,39,0.18); }
+  .phone img{ display:block; width:100%; border-radius:0.27in; height:100%;
+    object-fit:cover; object-position:top; }
+
+  /* Foot: the call to action and the QR box */
+  .foot{ margin-top:0.3in; display:flex; align-items:center; gap:0.38in;
+    border-top:1.5px solid var(--line); padding-top:0.3in; }
+  .cta{ flex:1; }
+  .cta-k{ font-family:'Geist Mono', monospace; font-size:10pt; letter-spacing:0.18em;
+    text-transform:uppercase; color:var(--coral); margin-bottom:0.08in; }
+  .cta h2{ font-family:'Bricolage Grotesque', sans-serif; font-weight:700; margin:0;
+    font-size:33pt; line-height:0.98; letter-spacing:-0.01em; }
+  .cta p{ margin:0.12in 0 0; font-size:12.5pt; line-height:1.4; color:var(--muted); }
+  .arrow{ display:inline-flex; align-items:center; gap:0.08in; margin-top:0.16in;
+    font-family:'Geist Mono', monospace; font-size:10.5pt; letter-spacing:0.14em; text-transform:uppercase;
+    color:var(--page); background:var(--deeper); padding:0.07in 0.16in; border-radius:999px; font-weight:600; }
+  html.light .arrow{ color:#fff; }
+  .arrow svg{ width:0.17in; height:0.17in; }
+
+  /* 2.5 in white square: a 2 in code plus a quarter inch of quiet zone each side. */
+  .qr{ flex:0 0 2.5in; height:2.5in; border-radius:0.16in; background:#fff; position:relative;
+    display:grid; place-items:center; }
+  html.light .qr{ box-shadow:0 0 0 1.5px var(--ink); }
+  .qr-target{ width:2in; height:2in; border:1.5px dashed #B9B1CC; border-radius:0.06in;
+    display:grid; place-items:center; text-align:center; color:#8A83A0;
+    font-family:'Geist Mono', monospace; font-size:8.5pt; letter-spacing:0.14em; text-transform:uppercase; line-height:1.6; }
+  .qr-target svg{ width:0.42in; height:0.42in; margin:0 auto 0.06in; display:block; color:#B9B1CC; }
+  /* Corner ticks so the code can be lined up by hand. */
+  .qr i{ position:absolute; width:0.2in; height:0.2in; border:2.5px solid #1E1B27; }
+  .qr i:nth-of-type(1){ top:0.12in; left:0.12in; border-right:0; border-bottom:0; }
+  .qr i:nth-of-type(2){ top:0.12in; right:0.12in; border-left:0; border-bottom:0; }
+  .qr i:nth-of-type(3){ bottom:0.12in; left:0.12in; border-right:0; border-top:0; }
+  .qr i:nth-of-type(4){ bottom:0.12in; right:0.12in; border-left:0; border-top:0; }
+  html.qr-filled .qr-target{ border:0; }
+  html.qr-filled .qr-target > *{ display:none; }
+
+  .legal{ position:absolute; left:0.6in; right:0.6in; bottom:0.2in; display:flex; justify-content:space-between;
+    font-family:'Geist Mono', monospace; font-size:7pt; letter-spacing:0.12em; text-transform:uppercase; color:var(--faint); }
+</style>
+<script>
+  if (/[?&]light\b/.test(location.search)) document.documentElement.classList.add('light');
+  if (/[?&]qr-filled\b/.test(location.search)) document.documentElement.classList.add('qr-filled');
+</script>
+</head>
+<body>
+<div class="sheet">
+  <div class="in">
+    <div class="top">
+      <svg class="wordmark" viewBox="0 0 48.7 16.9" style="width:1.5in;overflow:visible" aria-label="FAM">
+        <g fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round">
+          <g transform="translate(-4.55,-4.55)"><path d="M6 20V9.2A3.2 3.2 0 0 1 9.2 6H16"/><path d="M6 13h8"/></g>
+          <g transform="translate(11.35,-4.55)"><path d="M5 13l7-7 7 7"/><path d="M5 20l7-7 7 7"/></g>
+          <g transform="translate(29.25,-4.55)"><path d="M6 20V6l6 9 6-9v14"/></g>
+        </g>
+      </svg>
+      <div class="tag">The social information network</div>
+    </div>
+
+    <h1>Listen to everything you <em>want to know</em> about.</h1>
+
+    <div class="mid">
+      <div class="copy">
+        <p class="lede">Your teams, your city, your field, your rabbit holes &mdash; turned into
+          <b>short audio stories</b> for your commute, your walk, your workout.</p>
+        <ul class="points">
+          <li><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg></span>
+            <span><b>Ask anything.</b>Hear the answer as a 1-5 minute story.</span></li>
+          <li><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg></span>
+            <span><b>Your daily mix.</b>What you follow, written fresh every morning.</span></li>
+          <li><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.5"/><path d="M16 14.2c2.9.3 5 2.6 5 5.8"/></svg></span>
+            <span><b>Never left out.</b>See what your friends are learning.</span></li>
+        </ul>
+      </div>
+      <div class="phone"><img src="player.jpg" alt="A FAM episode playing"></div>
+    </div>
+
+    <div class="foot">
+      <div class="cta">
+        <div class="cta-k">Now in early access</div>
+        <h2>Scan to join<br>the waitlist.</h2>
+        <p>Grab your spot, then invite friends to move up the line.</p>
+        <div class="arrow">Scan the code <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>
+      </div>
+      <div class="qr" aria-label="QR code goes here">
+        <i></i><i></i><i></i><i></i>
+        <div class="qr-target"><div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM20 14v1M14 20h1M17 17h4v4h-4z"/></svg>QR code<br>2 in &times; 2 in</div></div>
+      </div>
+    </div>
+  </div>
+  <div class="legal"><span>&copy; 2026 APALI</span><span>Listen anywhere. Never left out.</span></div>
+</div>
+</body>
+</html>
