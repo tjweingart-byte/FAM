@@ -22608,6 +22608,24 @@ grounding checker off the voice pod), and Keith (usage APIs, incidents, fix
 report, conformance checks, `/admin`), with seven owner decisions first.
 Nothing was built in this session.
 
+**The owner's answers (10.28):** "C3P0 writes the title" - recorded as decided,
+not yet built, beside [title-from-content] in `docs/claude/product.md`
+(rewritten when built); a mismatch with the finished script is retitled by
+C3P0, so the title stays its. "Aggregate only for demographics (but have
+data on age, gender, etc. and how they correlate with things. Do not keep
+names or personal information about people)" - Consuela keeps totals and
+correlations by category, region, time and demographic band above a minimum
+group size, never a per-person row; accounts store a birth date today and no
+gender, so any new field is optional and needs the Privacy Policy and consent
+first; computed beside the accounts data, not in MongoDB. "There should not be
+full packets kept for 90 days, they should be consolidated by Consuela as
+soon as they enter the database. They should be further consolidated after
+90 days to show important figures, quotes, trends, and article links" -
+consolidation on entry (key sentences, figures, quotes, facts, each with its
+link), a second at 90 days; today's intake, which keeps passages until
+digested (§308), becomes a short-lived queue. The guide, the rule books and
+the build prompt say so; its open decisions are now six.
+
 No agent is built; nothing here runs.
 
 Tests: `tests/test_fam_agents_doc.py` (the five agents in order and named; the tandem pairs drawn as one step; the five agents and the template carry

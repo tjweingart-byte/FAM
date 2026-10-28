@@ -48,42 +48,58 @@ changing what a listener hears until the owner turns something on.
 | Retriever | Sonic | Reads MongoDB only; returns one date-ordered history packet |
 | Editor in chief | Diana Russini | With the writer: extractive summary of both packets, outline, a journalist's open, flow and close |
 | Script supervisor | Mclovin | Screens opinion and blogs from both packets; checks each sentence while the writer writes - quotes, figures, facts, dates, mixed stories - against the two packets only |
-| Housekeeper | Consuela | MongoDB's only writer: files packets by node, dedupes, full packets 90 days then key items, keeps all sports and market data |
+| Housekeeper | Consuela | MongoDB's only writer: consolidates each packet as it enters, files it by node, dedupes, consolidates again at 90 days, keeps all sports and market data, keeps aggregate demographic signals |
 | IT guy | Keith Wong | Watches errors, usage against every plan, and the agents; fixes what it may silently with a report; plans for the rest; owns `/admin`'s content |
 
 Names are internal: never shown to a listener.
 
-## Decisions the owner must make before the affected work
+## Already decided by the owner (2026-10-28)
 
-Ask the owner these at the start, in one message; do the unaffected work
-while waiting. Each one changes or touches a settled rule.
+1. **C3P0 writes the episode title.** Its title is the episode's title.
+   Mclovin compares it with the finished script; on a mismatch C3P0 retitles
+   from the finished script. When this is built, rewrite the
+   `[title-from-content]` rule in `docs/claude/product.md` and its
+   `CLAUDE.md` line (the `tests/test_claude_md.py` budget applies), and keep
+   the parts of it that still hold: a listener's or bank tile's own title
+   (`titleOverridden`) is never replaced; tiles claim no results.
+2. **Demographics are aggregate only.** Consuela keeps what is searched and
+   heard by category, region and time, and how it correlates with
+   demographics such as **age and gender** - but only as totals and
+   correlations for groups above a minimum size, ages in bands, never names,
+   account ids or any row per person, never guests or private searches.
+   Accounts store a `birth_date` today (`accounts.py`) and no gender. A new
+   field (gender, or anything else) must be **optional**, covered by the
+   Privacy Policy and asked for with consent (`consent.py`), before it is
+   collected or used. Ask the owner which fields, where they are asked
+   (sign-up or Settings), the minimum group size and the age bands.
+3. **No full packets in MongoDB.** Consuela consolidates every packet **the
+   moment it enters**: key sentences, figures, quotes and facts, chosen
+   (never rewritten), each with its article link, date and grade. **After
+   90 days** it consolidates again to the very key information: important
+   figures, quotes, trends (kept as the dated series itself) and article
+   links. Sports and market records are never consolidated away.
 
-1. **C3P0 writes the episode title.** This amends `[title-from-content]`
-   (the writer titles an episode by what it turned out to be about). Proposed:
-   C3P0's title is the episode's title; Mclovin compares it with the
-   finished script and a mismatch falls back to the writer's `<<TITLE:>>`.
-   If confirmed, rewrite the rule in `docs/claude/product.md` and its
-   `CLAUDE.md` line (the `tests/test_claude_md.py` budget applies).
-2. **Consuela's "demographics, who is searching".** Rule 7 and
-   `[private-search]` / `[account-gates-kept]` / `consent.py` forbid keeping
-   who a listener is. Proposed: aggregate counts only (category, region,
-   time), with a minimum group size, never guests or private searches;
-   anything per-person waits for a Privacy Policy change and consent.
-3. **Full packets in MongoDB for 90 days.** §307 sized the archive for key
-   information only. Needs: the search vendors' terms on storing excerpts
-   (Parallel, Perplexity), and the Atlas tier it implies.
-4. **Keith's "authority to build" `/admin`.** Proposed: Keith edits a
+## Decisions still to ask the owner
+
+Ask these at the start, in one message; do the unaffected work while
+waiting.
+
+1. **Keith's "authority to build" `/admin`.** Proposed: Keith edits a
    declarative panel layout over read-only data live; any new admin code is
    drafted as a change for a person to review. An agent never edits or
    deploys running code.
-5. **What "Cloudflare" must stay in sync with MongoDB.** Today R2 holds
+2. **What "Cloudflare" must stay in sync with MongoDB.** Today R2 holds
    episode audio and the episode rows live in the script cache
    (`scripts.db` / Postgres). Confirm which records must carry the same
    episode and node ids.
-6. **Source screen edge cases**: official blogs announcing their own news;
+3. **Source screen edge cases**: official blogs announcing their own news;
    questions that ask for opinions; pieces labelled "analysis".
-7. **Keith's notification channel** for urgent problems, and which fixes it
+4. **Keith's notification channel** for urgent problems, and which fixes it
    may make first.
+5. **Storing key sentences and quotes from the search vendors** (Parallel,
+   Perplexity): check their terms before Consuela stores any.
+6. **Demographic details** (from decided item 2): which fields, where they
+   are asked, the minimum group size and the age bands.
 
 ## The work, in order
 
@@ -126,7 +142,7 @@ settable in two places. Log each phase in `PROBLEMS.md` and keep
   evidence - ambiguous means both readings are asked, never a guess; plugin
   choices from the closed list with inputs and dates from `listener_clock`;
   the **archive request** for Sonic (node, what, period); the **title**
-  (subject to decision 1). Code rejects any input or title with a result
+  (decided item 1). Code rejects any input or title with a result
   pattern.
 - **Nando**: pin the request to one node at the request (EI already returns
   `category_path`; validate against the tree, `category_near` beneath it);
@@ -147,21 +163,33 @@ settable in two places. Log each phase in `PROBLEMS.md` and keep
   `(subject, metric, as_of)`; a time-series layout for live sports and
   market records (every sweep's score and price kept with its time - scores
   through a game are a series, never duplicates).
-- **Consuela's jobs** (background, batched, dry-run first): file each
-  screened packet under Nando's node at intake; digest into key sentences,
-  figures, quotes (sentence numbers only; figures parsed in code); itemise
-  by node, date and kind; nightly dedupe with the never-duplicates table;
-  **90-day consolidation** to key quotes, numbers, facts and sentences
-  (subject to decision 3); re-file on tree changes; double-check with Nando;
-  purge opinion and blog entries already stored; aggregate long-term signals
-  (subject to decision 2). Reversible marks, 30 days, logged.
+- **Consuela's jobs** (background, dry-run first) - decided item 3:
+  **consolidate at intake**: each screened packet, filed under Nando's node,
+  is reduced at once to key sentences, figures, quotes and facts (sentence
+  numbers only from the model; figures parsed in code), each with article
+  link, date and grade. Today `history_archive` keeps intake records with
+  passages until digested (§308); change that so passages wait only in a
+  short-lived queue until consolidation runs (minutes) and are never kept,
+  and consolidate and clear the intake already stored. Then itemise by
+  node, date and kind; nightly dedupe with the never-duplicates table; a
+  **second consolidation at 90 days** to important figures, quotes, trends
+  (the dated series themselves) and article links; re-file on tree changes;
+  double-check with Nando; purge opinion and blog entries already stored.
+  Reversible marks, 30 days, logged.
+- **Aggregate demographic signals** (decided item 2): a background job that
+  joins accounts' demographic fields (age bands from `birth_date`; any new
+  optional field only once consented) with what was searched and heard, in
+  place, and writes **only** totals and correlations by category, region,
+  time and band, above a minimum group size, never a per-person row, never
+  guests or private searches; it lives with the accounts data (Postgres),
+  not in MongoDB, and is registered with account deletion and wipes.
 - **Sonic**: a **read-only Atlas user** and connection; the closed lookups
   (by node and period, result between dates, value on a day or series, by
   meaning, corroboration) built in code; node → parent/children → vector →
   none; a **date-ordered, grouped `ArchivePacket`** for Diana and the writer;
   the existing 0.5 s grace window; today's `history_archive.look` as the
   fallback.
-- **Sync with Cloudflare** (subject to decision 5): a reconciliation job
+- **Sync with Cloudflare** (open decision 2): a reconciliation job
   that every episode id and node id agree between MongoDB, the script cache
   and R2's objects; Keith reports drift.
 
@@ -209,14 +237,14 @@ settable in two places. Log each phase in `PROBLEMS.md` and keep
   resets, ask Netenyahu to hold an agent), each verified by a real call,
   **observe-only until the owner switches each on**; a **fix report**
   answerable at any moment; escalations with a solution plan; the
-  notification channel per decision 7.
+  notification channel per open decision 4.
 - **Agent conformance checks** written from each rule book (Sonic never
   wrote; Consuela's deletions are within grace; Mclovin's verdicts are among
   its named failures; C3P0's inputs carry no results; Nando's nodes exist),
   run on samples.
 - **`/admin` as Keith's**: a declarative panel layout over read-only data
   sources Keith may arrange, add and retire; new code drafted for review
-  (decision 4).
+  (open decision 1).
 
 ## Done looks like
 

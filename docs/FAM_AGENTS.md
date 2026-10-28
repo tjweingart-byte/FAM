@@ -82,7 +82,7 @@ search
               (Mclovin screens each packet as it lands: no opinion, no blogs)
               └─ [ Diana + writer + Mclovin ]    summary and outline; writing; each sentence checked as written
                     └─ Nando confirms the node; the episode is kept
-background: Consuela - packets in, filed by node, deduplicated, 90-day consolidation
+background: Consuela - packets consolidated as they enter, filed by node, deduplicated; consolidated again at 90 days
 watching all of it: Keith Wong - errors, usage against limits, the agents, /admin
 over all of it: Netenyahu - who works when, typed hand-offs
 ```
@@ -240,7 +240,7 @@ call each other; Netenyahu hands each one the typed output of the last.
    against its schema; a missing or late hand-off means the step runs as it
    does today.
 4. **Schedule the background** - Consuela's intake, digest, dedupe and
-   90-day consolidation; tree changes from Nando to Consuela; never
+   consolidation on entry and again at 90 days; tree changes from Nando to Consuela; never
    competing with listeners for the shared key or rate limits, and not
    during the 05:00/17:00 ET edition writes.
 5. **Enforce the limits** - each agent's ceilings and a global one;
@@ -395,9 +395,11 @@ spread across EI's brief, code routes (`live_route`) and fixed defaults
 5. **Create the episode's title** - three to eight words naming the resolved
    subject and the angle, with Nando pinning the request to its topic in the
    tree, so the title, the category, the thumbnail and the myFAM category
-   page agree from the first moment. (This amends [title-from-content],
-   where the writer titles the episode after it is written; see open
-   questions. Mclovin checks the title still matches the finished script.)
+   page agree from the first moment. **Decided by the owner (2026-10-28):
+   C3P0's title is the episode's title.** This replaces
+   [title-from-content]'s writer-made title once built. Mclovin checks the
+   title still matches the finished script; if it does not, C3P0 retitles
+   from the finished script - the title stays C3P0's.
 6. **What an empty search means - not decided** (§316); every choice
    recorded with its reason ([candidate-reason]).
 
@@ -418,7 +420,7 @@ things with the same name; put a claim or a result in the title.
 | Ask-only-when-looking, cost ceilings | [sweep-on-demand] | **Code** |
 | Same-name things told apart, never guessed | The Eagles the bird and the Eagles the team need different plugins and pictures | **Shape:** an `entity` with its kind (team, airline, animal...) and `ambiguous: true` when unsure; **code:** an ambiguous entity asks the plugins for both readings |
 | The title names the subject and angle, never a result | A title written before research cannot know the outcome ([card-hook-startup]: tiles claim no results) | **Prompt; code:** a title with a score pattern or a result verb is replaced by the brief's derived title |
-| The title matches the finished episode | An episode can turn out to be about something else | **Code:** Mclovin compares; a mismatch is replaced by the writer's `<<TITLE:>>` |
+| The title matches the finished episode | An episode can turn out to be about something else | **Code:** Mclovin compares; on a mismatch C3P0 retitles from the finished script |
 | Ceiling and fallback | Rule 1 | **Code** |
 
 ### Prompting it, and breaking it
@@ -507,12 +509,10 @@ latency matters more here than for any other agent.
 | `CONTEXTUALIZER` | `0` / `1`, off by default |
 | `CONTEXTUALIZER_MODEL` | The model, or `rules` |
 | `ARCHIVE_ALONE`, `ARCHIVE_ALONE_TTL_SECONDS` | For when responsibility 6 is decided |
-| `CONTEXTUALIZER_TITLES` | `1`: C3P0's title is the episode's title (amends [title-from-content]; the owner's decision) |
+| `CONTEXTUALIZER_TITLES` | `1`: C3P0's title is the episode's title (decided by the owner, 2026-10-28; replaces [title-from-content]'s writer title once built) |
 
 Open: in tandem as part of EI's own call, or a separate call run alongside it?
-**C3P0 creating the title amends a settled rule** ([title-from-content]: the
-writer titles the episode by what it turned out to be about) - confirm, and
-the rule is rewritten with it. Which questions may the archive answer alone? How does an archive-only episode look on the sources panel?
+Which questions may the archive answer alone? How does an archive-only episode look on the sources panel?
 
 ## 3. Editor in chief (Diana Russini)
 
@@ -862,9 +862,14 @@ FAM over time.
 2. **Itemise within each category** - so every node holds its facts by
    date, subject and kind (key sentences, figures, quotes, live results),
    and Sonic can go straight to them.
-3. **Keep full packets for 90 days, then minimise them** - after 90 days a
-   packet is reduced to its key quotes, numbers, facts and sentences,
-   chosen (never rewritten), with the source and date kept.
+3. **Consolidate every packet the moment it enters - and again at 90
+   days** (the owner, 2026-10-28: no full packets are kept). On entry a
+   packet is reduced to its key sentences, figures, quotes and facts,
+   chosen (never rewritten), each with its source link, date and grade.
+   After 90 days it is consolidated again to the very key information only:
+   **important figures, quotes, trends and article links**. A trend is a
+   series of dated figures or events kept as the series (a team's results,
+   a price's path), never a sentence Consuela writes.
 4. **Find duplicates - and know what is not one** - the same claim about the
    same subject at the same moment is a duplicate; a price on two days, a
    revised count, a forecast and an outcome, two sources that disagree, and
@@ -878,9 +883,13 @@ FAM over time.
 6. **Follow the tree as it changes** - when Nando reports a node minted,
    moved or merged, re-file what it touches.
 7. **Think longer term** - keep the aggregate signals that will be valuable
-   over time: what is searched, by category, region and time, and how much.
-   **Aggregate and anonymous only** (counts, never a person); see
-   guardrails and open questions.
+   over time (the owner, 2026-10-28): what is searched and heard, by
+   category, region and time, how much, and **how it correlates with
+   demographics such as age and gender**. **Aggregate only**: age in bands,
+   counts in groups large enough that no one can be picked out, never a
+   name or anything that identifies a person, never guests or private
+   searches. FAM stores a birth date on accounts today but no gender; a
+   new field needs the Privacy Policy and consent first (open questions).
 
 | Never duplicates, however alike | Why both stay |
 |---|---|
@@ -897,8 +906,8 @@ FAM over time.
 **Never:** store its own summary as evidence; merge or drop a figure on a
 model's say; treat a forecast or preview as an outcome; store who asked or
 anything private; run paid on staging; put a hostname in a packet;
-hard-delete on a first pass; minimise a packet before 90 days; minimise away
-any sports or market record; file under a node Nando does not know; keep any
+hard-delete on a first pass; keep a full packet; minimise away any sports
+or market record; file under a node Nando does not know; keep any
 long-term signal that can point to a person.
 
 | Guardrail | Why | Held by |
@@ -911,11 +920,11 @@ long-term signal that can point to a person.
 | Live sports and market facts never dropped on a model's judgment | The owner (§313) | **Code:** `kind: "live"` never sent to the model |
 | Sentence numbers in range and used once | A bad answer must not store anything | **Code:** discard, retry once, then leave undigested and report |
 | Filed under Nando's node | Sonic finds history by node | **Code:** every packet carries the node id; an unknown node is held and Nando asked |
-| Full for 90 days, then key quotes, numbers, facts and sentences | The owner's consolidation rule; storage stays affordable | **Code:** a dated job; what is kept is chosen, never rewritten; source and date kept |
+| Consolidated on entry; again at 90 days | The owner's consolidation rule; no full packets; storage stays small | **Code:** consolidation is part of intake - no full packet is written to MongoDB; a dated job at 90 days keeps figures, quotes, trends and links; what is kept is chosen, never rewritten |
 | Scores through a game are a series, not duplicates | They tell the story (the owner) | **Code:** live records keyed by time; never sent to the dedupe model |
 | All sports and market data kept | History and trends (the owner) | **Code:** `kind: "live"` exempt from minimising and deletion |
 | Re-filed when the tree changes | MongoDB must never point at a dead node | **Code:** Nando's tree-change tasks |
-| Long-term signals are aggregate and anonymous | Rule 7, [private-search], [account-gates-kept], consent | **Code:** counts by category, region and time only - never a person, an account, a guest or a private search; a minimum group size before anything is shown |
+| Long-term signals are aggregate only, demographics included | Rule 7, [private-search], [account-gates-kept], consent | **Code:** computed from accounts that gave the field, in age bands; stored only as counts and correlations by category, region, time and demographic band - never a name, an account id or any row per person; a minimum group size; never guests or private searches |
 | Daily dollar and item ceilings | Rule 4 | **Code** |
 
 Dedupe order: code finds candidates (same subject + metric; close vectors +
@@ -1027,13 +1036,12 @@ languages). Every hole is closed by "uncertain = not compared".
 | `HOUSEKEEPER_DEDUPE_DRY_RUN` | `1` until a hand-checked sample says safe |
 | `HOUSEKEEPER_SUPERSEDED_DAYS` | 30 |
 
-Open: the search vendors' terms on storing excerpts (Parallel, Perplexity)
-for 90 days - check before storing anything; the Atlas tier that 90 days of
-full packets needs (§307's estimates assumed key information only);
-**"demographic information, who is searching"** (the owner) - FAM may keep
-aggregate, anonymous counts today, but anything about who a listener is
-needs the Privacy Policy, consent (`consent.py`) and the owner's decision
-first.
+Open: the search vendors' terms on storing key sentences and quotes
+(Parallel, Perplexity) - check before storing anything. Demographics: which
+fields (gender is not collected today), whether optional at sign-up or in
+Settings, the Privacy Policy wording and consent (`consent.py`), the minimum
+group size, and the age bands. Decided: consolidation on entry, again at 90
+days (2026-10-28); aggregate demographics only (2026-10-28).
 Answered: a repeating article is a link and a count, no text (2026-10-24).
 
 ## 6. Retriever (Sonic)
