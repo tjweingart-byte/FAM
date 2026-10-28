@@ -73,20 +73,22 @@
     padding:0.09in 0.18in 0.09in 0.1in; border-radius:999px; white-space:nowrap; }
   .sticker b{ display:grid; place-items:center; width:0.32in; height:0.32in; border-radius:50%; }
   .sticker b svg{ width:0.18in; height:0.18in; }
-  .s1{ left:6.55in; top:1.75in; transform:rotate(8deg); background:var(--paper); color:var(--ink); }
+  /* A zigzag down the phone - left, right, left - each a third onto it;
+     none covers the episode title or the play button. */
+  .s1{ left:4.2in; top:1.7in; transform:rotate(-6deg); background:var(--paper); color:var(--ink); }
   .s1 b{ background:var(--coral); color:#fff; }
-  .s2{ left:5.6in; top:3.85in; transform:rotate(-5deg); background:var(--ink); color:var(--cream);
+  .s3{ left:5.72in; top:3.1in; transform:rotate(5deg); background:var(--paper); color:var(--ink); }
+  .s3 b{ background:var(--sage); color:#fff; }
+  .s2{ left:3.7in; top:5.05in; transform:rotate(-4deg); background:var(--ink); color:var(--cream);
     border-radius:0.3in; padding:0.11in 0.2in 0.11in 0.12in; line-height:1.08; }
   .s2 b{ background:var(--yellow); color:var(--ink); }
-  .s3{ left:3.85in; top:4.95in; transform:rotate(-6deg); background:var(--paper); color:var(--ink); }
-  .s3 b{ background:var(--sage); color:#fff; }
 
   /* ---------- 2. the pitch ---------- */
   .pitch{ position:absolute; left:0.85in; top:6.5in; width:6.9in; margin:0;
     font-family:'Bricolage Grotesque', sans-serif; font-weight:800;
     font-size:34pt; line-height:1.04; letter-spacing:-0.02em; }
-  .pitch u{ text-decoration:none;
-    background:linear-gradient(transparent 55%, var(--yellow) 55%, var(--yellow) 92%, transparent 92%); }
+  .pitch u{ text-decoration:none; background:var(--yellow); padding:0 0.08in 0.02in; margin:0 -0.02in;
+    border-radius:0.05in; -webkit-box-decoration-break:clone; box-decoration-break:clone; }
 
   /* ---------- 3. the ink strip ---------- */
   .strip{ position:absolute; left:0.4in; right:0.4in; bottom:0.4in; height:2.85in;
