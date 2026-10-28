@@ -1,9 +1,9 @@
-"""Render the printed flyer to PDF and PNG, both colourways.
+"""Render the printed flyer to PDF and PNG.
 
     python marketing/flyer/render.py
 
-Writes flyer-dark.pdf / flyer-light.pdf (US Letter, no margins) and a PNG
-preview of each beside this file. Needs network for the Google Fonts.
+Writes flyer.pdf (US Letter, no margins) and a PNG preview, flyer.png,
+beside this file. Needs network for the Google Fonts.
 """
 
 from pathlib import Path
@@ -22,13 +22,12 @@ def main():
         # Print media for the PDF and the preview alike: on screen the sheet sits
         # on a grey desk with a margin, which would push it onto a second page.
         page.emulate_media(media="print")
-        for name, query in (("dark", ""), ("light", "?light")):
-            page.goto(PAGE + query, wait_until="networkidle")
-            page.evaluate("document.fonts.ready")
-            page.pdf(path=str(HERE / f"flyer-{name}.pdf"), width="8.5in", height="11in",
-                     print_background=True, prefer_css_page_size=True)
-            page.locator(".sheet").screenshot(path=str(HERE / f"flyer-{name}.png"))
-            print(f"wrote flyer-{name}.pdf and flyer-{name}.png")
+        page.goto(PAGE, wait_until="networkidle")
+        page.evaluate("document.fonts.ready")
+        page.pdf(path=str(HERE / "flyer.pdf"), width="8.5in", height="11in",
+                 print_background=True, prefer_css_page_size=True)
+        page.locator(".sheet").screenshot(path=str(HERE / "flyer.png"))
+        print("wrote flyer.pdf and flyer.png")
         browser.close()
 
 
