@@ -69,15 +69,13 @@
     display:grid; place-items:center; color:var(--gold); }
   .ic svg{ width:0.19in; height:0.19in; }
 
-  .phone{ flex:0 0 2.2in; align-self:stretch; transform:rotate(3deg); display:flex;
-    border-radius:0.34in; padding:0.08in; background:#0F0E12;
+  /* A whole phone at a phone's own proportions, showing the full player
+     screenshot uncropped; it rises beside the headline's short last line. */
+  .phone{ position:relative; flex:0 0 1.95in; align-self:flex-start; margin-top:-1.05in;
+    transform:rotate(3deg); border-radius:0.3in; padding:0.08in; background:#0F0E12;
     box-shadow:0 0 0 1.5px rgba(244,239,228,0.18), 0 18px 40px rgba(0,0,0,0.45); }
-  .phone{ position:relative; }
-  .phone::after{ content:""; position:absolute; left:0.08in; right:0.08in; bottom:0.08in; height:0.9in;
-    border-radius:0 0 0.27in 0.27in; background:linear-gradient(180deg, rgba(42,39,51,0), #2A2733 85%); }
   html.light .phone{ box-shadow:0 0 0 1.5px rgba(30,27,39,0.25), 0 10px 24px rgba(30,27,39,0.18); }
-  .phone img{ display:block; width:100%; border-radius:0.27in; height:100%;
-    object-fit:cover; object-position:top; }
+  .phone img{ display:block; width:100%; height:auto; aspect-ratio:780/1627; border-radius:0.23in; }
 
   /* Foot: the call to action and the QR box */
   .foot{ margin-top:0.3in; display:flex; align-items:center; gap:0.38in;
