@@ -22552,6 +22552,62 @@ sorts" is unchanged; the simulation screen is the precedent. Open: official
 blogs that announce their own news; questions that ask for opinions;
 labelled "analysis".
 
+**The owner's brainstorm: every agent named and redrawn, a rule book each,
+and a build plan** (the owner, 10.28, a PDF "FAM Agents"). The guide now
+follows it:
+
+- **Names** (internal only - never shown to a listener): Netenyahu
+  (overlord), C3P0 (contextualizer), Diana Russini (editor in chief),
+  Mclovin (script supervisor), Consuela (housekeeper, renamed from
+  housemaid), Sonic (retriever), Keith Wong (IT guy), Nando (categorizer).
+- **Nando moves to the request**: with EI and C3P0, complete responsibility
+  for one node, before research - to fix thumbnails that do not match
+  titles and myFAM categories holding unrelated episodes - confirmed after
+  the writer; it gives Consuela the node for every packet and tells Sonic
+  where to look; tree changes re-file MongoDB. Future work: keep MongoDB and
+  what Cloudflare holds in sync.
+- **Mclovin works while the writer writes**, each sentence checked as it is
+  written so a mistake costs one sentence, not a rewrite: quotes and who
+  said them, figures, facts and events, dates, and sentences that mix
+  stories; sources screened from **both** paths; only the two packets are
+  evidence (the reference look it was given earlier is withdrawn).
+- **Diana** summarises both packets (extractively), outlines the story and
+  where each packet belongs, and is trained as a journalist - a playbook,
+  `examples/`, the quality checker's measures; the writer writes.
+- **Sonic** works strictly in MongoDB, read-only, on C3P0's node and
+  instructions, and returns one date-ordered packet to Diana and the writer.
+- **Consuela** keeps full packets 90 days then key quotes, numbers, facts and
+  sentences; files by Nando's node; keeps every sports and market record
+  (scores through a game are a series); thinks long term - **aggregate,
+  anonymous counts only**, since keeping who a listener is would break rule
+  7 and the consent rules until the owner decides otherwise.
+- **C3P0** tells same-name things apart (United, Eagles), chooses plugins
+  and inputs, tells Sonic what to fetch, and **writes the title** - which
+  amends [title-from-content] and waits on the owner's confirmation.
+- **Keith** fixes within its list without notifying, keeping a fix report
+  the owner can ask for; brings a solution plan otherwise; watches every
+  plan's limits including Atlas, Render, RunPod and R2; checks the agents
+  against their rule books; owns `/admin`'s content (a declarative layout
+  it edits; new code drafted for review - an agent never edits running
+  code).
+- **Netenyahu** knows every agent's purpose, abilities and limits.
+
+**Rule books**: `docs/agent_rules/` - one plain-English file per agent plus
+`every-agent.md`, "must always" and "must never", shown as each tab's Rule
+book sub-tab. They are drafts: the owner holds the governing copies outside
+Claude, where no session or agent can change them.
+
+**The build plan**: `docs/AGENTS_BUILD_PROMPT.md`, a prompt for a new
+session - the framework (roster, typed hand-offs, task claims, rule books
+loaded read-only and fingerprinted, switches, `/admin` panel), then C3P0 and
+Nando at the request, MongoDB for Consuela and Sonic (node ids, time series,
+90-day consolidation, a read-only user, date-ordered packets, sync with
+Cloudflare), Diana and Mclovin in the writing (the screen in
+`screen_results`, per-sentence checks in `_ScriptReader`, a self-hosted
+grounding checker off the voice pod), and Keith (usage APIs, incidents, fix
+report, conformance checks, `/admin`), with seven owner decisions first.
+Nothing was built in this session.
+
 No agent is built; nothing here runs.
 
 Tests: `tests/test_fam_agents_doc.py` (the five agents in order and named; the tandem pairs drawn as one step; the five agents and the template carry

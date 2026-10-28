@@ -30,9 +30,9 @@ def _sections():
 def test_every_agent_has_the_same_subtabs():
     agents = [s for s in _sections() if not s.startswith(("Shared rules", "Template"))]
     assert {s.split("\n", 1)[0] for s in agents} == {
-        "1. Overlord", "2. Contextualizer", "3. Editor in chief",
-        "4. Script supervisor", "5. Housemaid (Consuela)", "6. Retriever",
-        "7. IT guy (Keith Wong)", "8. Categorizer"}
+        "1. Overlord (Netenyahu)", "2. Contextualizer (C3P0)", "3. Editor in chief (Diana Russini)",
+        "4. Script supervisor (Mclovin)", "5. Housekeeper (Consuela)", "6. Retriever (Sonic)",
+        "7. IT guy (Keith Wong)", "8. Categorizer (Nando)"}
     for section in agents + [s for s in _sections() if s.startswith("Template")]:
         subs = re.findall(r"^### (.*)$", section, flags=re.M)
         assert subs == SUBTABS, (section.split("\n", 1)[0], subs)
@@ -63,7 +63,7 @@ def test_tandem_pairs_are_drawn_as_one_step(tmp_path):
     page = builder.pipeline(([], []))
     steps = re.findall(r'<li class="step( tandem)?"[^>]*>(.*?)</li>', page)
     pairs = [re.findall(r'data-stage="(\w+)"', inner) for tandem, inner in steps if tandem]
-    assert pairs == [["ei", "context"], ["editor", "write"]]
+    assert pairs == [["ei", "context", "categorize"], ["editor", "write", "check"]]
     assert "<agent>" not in page
 
 
@@ -75,3 +75,19 @@ def test_plugin_choices_follow_from_what_each_agent_needs():
         assert "**What it must be best at**" in plugins, name
         assert "**The choice, driven by those needs:**" in plugins, name
         assert "**Recommendation:**" not in plugins, name
+
+
+def test_every_agent_has_a_rule_book(tmp_path):
+    rules = DOCS / "agent_rules"
+    for section in _sections():
+        if section.startswith("Template"):
+            continue
+        m = re.search(r"<!-- rules:\s*(\S+)\s*-->", section)
+        assert m, section.split("\n", 1)[0]
+        book = (rules / f"{m.group(1)}.md").read_text()
+        assert "## You must always" in book and "## You must never" in book, m.group(1)
+        assert "governing copy outside Claude" in book.split("\n", 4)[2], m.group(1)  # the draft notice
+    builder = _builder()
+    builder.OUT = tmp_path / "agents.html"
+    page = builder.build().read_text()
+    assert page.count(">Rule book<") == 2 * (len(_sections()) - 1)  # sub-tab and heading

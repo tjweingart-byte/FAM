@@ -6,13 +6,16 @@
 FAM_AGENTS.md is the source of truth. Each `## ` heading is a tab, the text
 before its first `### ` is the Overview sub-tab, and each `### ` is a sub-tab.
 A `<!-- stages: ... -->` line under the `## ` names the pipeline stages the
-agent works in; the diagram at the top of its tab lights those up.
+agent works in; the diagram at the top of its tab lights those up. A
+`<!-- rules: name -->` line adds a "Rule book" sub-tab from
+`docs/agent_rules/<name>.md` (drafts; the owner holds the governing copies).
 """
 import html, pathlib, re, sys
 import markdown
 
 ROOT = pathlib.Path(__file__).resolve().parent
 SRC = ROOT / "FAM_AGENTS.md"
+RULES = ROOT / "agent_rules"
 OUT = pathlib.Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / "build" / "fam-agents.html"
 
 # (id, label, lane), in the order of the owner's pipeline (§311). An agent's
@@ -20,19 +23,19 @@ OUT = pathlib.Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / "build" / "fam-
 # its work drives.
 STAGES = [
     ("ask", "Tap or search", "listener"), ("ei", "EI brief", "listener"),
-    ("context", "Contextualizer", "listener"), ("plugins", "Plugins: packet one", "listener"),
-    ("recall", "Archive: packet two", "listener"), ("editor", "Editor in chief", "listener"),
-    ("write", "Writer", "listener"), ("check", "Script supervisor", "listener"),
+    ("context", "C3P0 (contextualizer)", "listener"), ("categorize", "Nando (categorizer)", "listener"),
+    ("plugins", "Plugins: packet one", "listener"), ("recall", "MongoDB: packet two", "listener"),
+    ("editor", "Diana (editor in chief)", "listener"), ("write", "Writer", "listener"),
+    ("check", "Mclovin (script supervisor)", "listener"),
     ("voice", "Voice", "listener"), ("cache", "Episode kept", "listener"),
-    ("categorize", "Categorizer", "listener"),
-    ("orchestrate", "Overlord", "control"), ("monitor", "IT guy (Keith Wong)", "control"),
-    ("housemaid", "Housemaid (Consuela)", "background"), ("retrieve", "Retriever", "background"),
+    ("orchestrate", "Netenyahu (overlord)", "control"), ("monitor", "Keith Wong (IT guy)", "control"),
+    ("housemaid", "Consuela (housekeeper)", "background"), ("retrieve", "Sonic (retriever)", "background"),
 ]
 LANES = [("listener", "Listener path"), ("control", "Orchestration and operations"),
          ("background", "Background")]
-# Stages that work in tandem, drawn as one step (the owner, 2026-10-26): the
-# contextualizer with EI's brief, the editor in chief with the writer.
-TANDEM = [("ei", "context"), ("editor", "write")]
+# Stages that work together, drawn as one step (the owner, 2026-10-26 and
+# 2026-10-28): EI with C3P0 and Nando; Diana with the writer and Mclovin.
+TANDEM = [("ei", "context", "categorize"), ("editor", "write", "check")]
 
 
 def stages_of(text):
@@ -61,10 +64,14 @@ def split(src):
     for part in parts:
         title, _, rest = part.partition("\n")
         stages = stages_of(rest) or ([], [])
-        rest = re.sub(r"<!-- stages:.*?-->\n?", "", rest)
+        rules = re.search(r"<!-- rules:\s*(\S+)\s*-->", rest)
+        rest = re.sub(r"<!-- (stages|rules):.*?-->\n?", "", rest)
         overview, *subs = re.split(r"^### ", rest, flags=re.M)
         sections = [("Overview", overview)] if overview.strip() else []
         sections += [tuple(s.split("\n", 1)) for s in subs]
+        if rules:
+            book = (RULES / f"{rules.group(1)}.md").read_text()
+            sections.append(("Rule book", re.sub(r"\A# .*?\n", "", book)))
         tabs.append((title.strip(), stages, sections))
     return head, tabs
 
@@ -81,15 +88,17 @@ def pipeline(stages):
         names = [(sid, name) for sid, name, l in STAGES if l == lane]
         steps, i = [], 0
         while i < len(names):
-            if i + 1 < len(names) and (names[i][0], names[i + 1][0]) in TANDEM:
-                steps.append('<li class="step tandem" title="In tandem">'
-                             f'{chip(*names[i])}<span class="plus">+</span>{chip(*names[i + 1])}</li>')
-                i += 2
+            group = next((g for g in TANDEM
+                          if tuple(n for n, _ in names[i:i + len(g)]) == g), None)
+            if group:
+                inner = '<span class="plus">+</span>'.join(chip(*names[i + k]) for k in range(len(group)))
+                steps.append(f'<li class="step tandem" title="Together">{inner}</li>')
+                i += len(group)
             else:
                 steps.append(f'<li class="step">{chip(*names[i])}</li>')
                 i += 1
         rows.append(f'<div class="lane lane-{lane}"><span class="lane-label">{label}</span><ol>{"".join(steps)}</ol></div>')
-    note = "Paired boxes work in tandem."
+    note = "Grouped boxes work together."
     if feeds:
         note = "Filled: where it works. Dashed: what its work drives. " + note
     return (f'<figure class="pipe" aria-label="Where it works in the pipeline">{"".join(rows)}'
