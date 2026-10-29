@@ -23575,3 +23575,29 @@ The Dockerfile's `/data/*.db` paths are unchanged on purpose: they name no
 file any more, but each store's Postgres schema is named from its path, and
 a new path would be a new, empty schema. Staging keeps its disk until it
 runs on `fam-staging-db`.
+
+## 340. May FAM keep what its providers return? The terms could not be read (2026-10-29)
+
+The owner asked, per provider, whether FAM may store what it returns, for
+how long, reuse it for another listener's episode, speak it to the public,
+and what must be credited - quoting each provider's own pages. GDELT,
+Tiingo and BALLDONTLIE were settled and not reopened; Finnhub and
+API-Sports are being removed.
+
+**Every page of the four open providers was refused by this session's
+network policy** (parallel.ai, perplexity.ai, gnews.io, polymarket.com and
+their docs sites): no clause was quoted, and none was filled in from memory
+or search snippets. So Parallel, Perplexity, GNews and Polymarket stay
+**unclear** on every question and Consuela keeps none of their material.
+`docs/PROVIDER_TERMS.md` holds the table, the safest shape per provider
+(links, titles and dates, never passages, for the two search providers), the
+publishers' copyright kept apart from the providers' terms with a list for a
+lawyer, four unsent emails for the owner, and the domains to allow so a
+later session can quote the pages.
+
+Two findings for the owner: `history_archive` intake (§308) **already
+keeps** up to eight Parallel and Perplexity passages per article, and it
+**does not record which provider** supplied them, so build-prompt item 8's
+per-provider switch could not delete them per provider. Nothing in code
+changed here; the agents guide, its build prompt and the rule books carry
+the decision once the owner makes it.

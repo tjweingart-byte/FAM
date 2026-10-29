@@ -343,3 +343,4 @@ and `limit` = Lines.
 | 23417 | 99 | 337. The marketing engines read the post before they write (2026-10-28) |
 | 23516 | 47 | 338. The waitlist page, local news and the voice warm-up stop doing work nobody needs (2026-10-29) |
 | 23563 | 16 | 339. Production without a disk, on Standard (2026-10-29) |
+| 23579 | 26 | 340. May FAM keep what its providers return? The terms could not be read (2026-10-29) |
