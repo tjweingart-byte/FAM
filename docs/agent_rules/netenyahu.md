@@ -12,7 +12,7 @@ and know each one's purpose, abilities and limits.
    what FAM does when it fails.
 2. For each episode, start the right agents in the right order: C3P0 and
    Nando with Episode Intelligence; the plugins and Sonic side by side;
-   Mclovin screening each packet as it lands; Diana and the writer once both
+   Mclovin screening each packet as it lands; Shakespear and the writer once both
    packets are in, with Mclovin checking as the writer writes; Nando
    confirming at the end.
 3. Pass each agent's output to the next agent in the agreed shape, and check

@@ -13,7 +13,7 @@ by the names the owner gave them (2026-10-28):
 |---|---|---|
 | Overlord | **Netenyahu** | Directs every agent: when to work and what to do |
 | Contextualizer | **C3P0** | With EI: what is asked, which plugins, what Sonic fetches, the title |
-| Editor in chief | **Diana Russini** | With the writer: summarises both packets, outlines the story, tells it like a journalist |
+| Editor in chief | **Shakespear** | With the writer: summarises both packets, outlines the story, tells it like a journalist |
 | Script supervisor | **Mclovin** | While the writer writes: screens sources, checks quotes, figures, facts and dates |
 | Housekeeper | **Consuela** | Organises, deduplicates and keeps MongoDB |
 | Retriever | **Sonic** | Reads MongoDB only; brings back a date-ordered history packet |
@@ -31,7 +31,7 @@ governing copies outside Claude, unchangeable by any session or agent, and
 where a held copy and this guide disagree, the held copy wins and this guide
 is corrected.
 
-In a new session say *"read `docs/FAM_AGENTS.md` and work on Diana"* (or any
+In a new session say *"read `docs/FAM_AGENTS.md` and work on Shakespear"* (or any
 agent). Add one by copying the Template tab; when one is built, change its
 **Status** and log it in `PROBLEMS.md`.
 
@@ -86,7 +86,7 @@ search
         ├─ plugins ─────────────────────────► packet one: what is happening now
         └─ Sonic, from MongoDB ─────────────► packet two: what came before, by date
               (Mclovin screens each packet as it lands: no opinion, no blogs)
-              └─ [ Diana + writer + Mclovin ]    summary and outline; writing; each sentence checked as written
+              └─ [ Shakespear + writer + Mclovin ]    summary and outline; writing; each sentence checked as written
                     └─ Nando confirms the node; the episode is kept
 background: Consuela - packets consolidated as they enter, filed by node, deduplicated; consolidated again at 90 days
 watching all of it: Keith Wong - errors, usage against limits, the agents, /admin
@@ -163,6 +163,12 @@ the prompt lets through.
 
 ### Models and outside plugins
 
+**Proposals, not decisions** (the owner, 2026-10-28: "I will not be making
+decisions on what to run each agent here, that will happen later in another
+branch with a more complete decision-making method"). The prices and
+options below, each agent's plugin tab and the cost plan are the inputs to
+that decision; nothing here picks a model.
+
 Claude list prices per million tokens (cached 2026-10-06; check
 <https://platform.claude.com/docs/en/about-claude/pricing>):
 
@@ -221,7 +227,9 @@ closes the hole), partly, or no (a decision for the owner).
 
 **The owner's rule (2026-10-28):** the agents must be cheap enough to be
 available whenever they are needed; no financial cap decides whether one
-runs. Cost is designed out, and watched - not rationed.
+runs. Cost is designed out, and watched - not rationed. The models named
+below are the proposals the estimate assumes, not choices (see Models and
+outside plugins).
 
 **Assumptions** (estimates, not measured - there is no API key here; every
 figure is to be replaced by `metering`'s real numbers once agents run):
@@ -239,7 +247,7 @@ input price; the Batch API at half price for anything nobody waits on.
 | **C3P0** | ~1,000 more tokens in and ~200 out inside EI's existing call (disambiguation, plugins, Sonic's request, the title); public-figure check from the reference look | Haiku; its instructions cached | ~$1.50 | ~$0.0002 |
 | **Nando** | Code; a ~3k-token Haiku call on ~1 in 5 requests where candidates tie; confirmation after the writer in code | Haiku; cached | ~$0.50 | <$0.0001 |
 | **Sonic** | Code lookups in Atlas | - | $0 (inside the Atlas tier) | $0 |
-| **Diana** | One outline: ~10k in (~3k cached: instructions, rule book, playbook; ~7k the two packets), ~1k out | Search: Haiku. Ahead of the tap: Sonnet, batched and cached | ~$6 (search) + ~$62 (ahead) = **~$68** | ~$0.007 |
+| **Shakespear** | One outline: ~10k in (~3k cached: instructions, rule book, playbook; ~7k the two packets), ~1k out | Search: Haiku. Ahead of the tap: Sonnet, batched and cached | ~$6 (search) + ~$62 (ahead) = **~$68** | ~$0.007 |
 | **Mclovin** | Code: screen, quotes, figures, dates, episode rules; the self-hosted checker on every sentence; Haiku on ~3 unsure sentences (~1.5k in, ~50 out each); a small model on unsettled pages ahead only | Haiku; batched ahead | **~$5** + the checker's machine | ~$0.0005 |
 | **Consuela** | ~5 new articles digested (~1.2k in, ~150 out each); dedupe pairs and periodic combs (code first, Haiku on unsure pairs, Sonnet on the few still unsure); demographic totals in code | Haiku, batched and cached | **~$5-6** | ~$0.0006 |
 | **Keith** | Code watching; a Haiku write-up per incident (~300 a month, not per episode); usage APIs free; email through `mail.py` | Haiku | **<$1** | ~$0 |
@@ -248,11 +256,11 @@ input price; the Batch API at half price for anything nobody waits on.
 **Fixed machines** (a month, whatever the volume; estimates - check before
 buying): the grounding checker - Vectara's HHEM-2.1-Open is built to run on
 a CPU, ~$25-85 on a Render instance; a small GPU (~$150-300 always on) only
-if the CPU is too slow for searchFAM. The same machine can carry Diana's
+if the CPU is too slow for searchFAM. The same machine can carry Shakespear's
 reranker and Nando's offline picture check. MongoDB Atlas per §307 (Flex
 first, M10 at about 1,000 monthly listeners).
 
-**Where the money goes:** Diana on Sonnet ahead of the tap is ~80% of all
+**Where the money goes:** Shakespear on Sonnet ahead of the tap is ~80% of all
 agent spend - deliberately: it is the lever most likely to improve the
 writing, which is the product ([writing-is-the-problem]). Everything else
 together is ~$15 per 10,000 episodes.
@@ -265,15 +273,15 @@ together is ~$15 per 10,000 episodes.
 | All | **Batch** everything nobody waits on (editions, write-ahead, Consuela, Keith's write-ups) | 50% of those calls | None (results within the hour, which those jobs allow) |
 | All | **Code before models**; a model only where code cannot decide | Most calls | Better: code is exact |
 | C3P0, Nando | **Fold into EI's existing call** instead of new calls | A call each | None; no added wait |
-| Diana | **Trim the packets before she reads them**: the screened, de-duplicated packets with Sonic's date-ordered history, not raw search output | ~30% of her input (est.) | None if the trim is extractive; measure on the eval |
-| Diana | **Sonnet only where nobody waits**; Haiku on search | Keeps Sonnet off the busiest path | Search keeps today's model |
+| Shakespear | **Trim the packets before it reads them**: the screened, de-duplicated packets with Sonic's date-ordered history, not raw search output | ~30% of its input (est.) | None if the trim is extractive; measure on the eval |
+| Shakespear | **Sonnet only where nobody waits**; Haiku on search | Keeps Sonnet off the busiest path | Search keeps today's model |
 | Mclovin | **No whole-script model**; code and the self-hosted checker; Haiku only on unsure sentences | ~$120 per 10k vs a Sonnet whole-script check | None for the named checks; the checker is better at support than a general model |
 | Consuela | **Only new articles reach a model** (URL match first); figures in code | Most of her calls | None |
 | Consuela | GPT-5 nano or Gemini Flash-Lite for digests (FAM's material only) | ~30-40% of ~$5 | Only if the eval holds |
 | Everyone | **Shared work**: one cached episode or edition serves every listener who taps it | Falls per listener as FAM grows | None |
 | Everyone | **Anthropic volume discounts** once monthly volume is known | Negotiated | None |
 
-**Levers not to pull**, because they cost quality: Haiku for Diana on the
+**Levers not to pull**, because they cost quality: Haiku for Shakespear on the
 editions; dropping Mclovin's checker for a cheaper rule; skipping
 fact-checks on search; Opus anywhere per episode.
 
@@ -301,10 +309,10 @@ call each other; Netenyahu hands each one the typed output of the last.
 
 1. **Keep the roster** - each agent registers its purpose, its tasks, its
    surfaces, its triggers, its ceilings, its fallback, its rule book and its
-   pipeline stage: C3P0, Nando, Sonic, Diana, Mclovin, Consuela, Keith.
+   pipeline stage: C3P0, Nando, Sonic, Shakespear, Mclovin, Consuela, Keith.
 2. **Per episode, direct who works** - from settings and surface: C3P0 and
    Nando with EI at the request; the plugins and Sonic in parallel; Mclovin
-   screening each packet as it lands; Diana and the writer once both
+   screening each packet as it lands; Shakespear and the writer once both
    packets are in, with Mclovin checking as the writer writes; Nando
    confirming after.
 3. **Hand off, typed** - `Brief` → `ResearchPlan` (with Nando's node and
@@ -406,7 +414,7 @@ Each case is a test with a fake agent or planner returning the bad answer.
 | OpenRouter | ~5.5% on credits | ~25-100 ms | One key, many models | Sees every prompt, including listener words | No - consent change |
 | Langfuse | free (50k units) / $29 | async | Traces, prompt versions, evals | Traces hold material and listener words off-machine | Partly - FAM-material agents only |
 
-**The choice, driven by those needs:**
+**The choice, driven by those needs:** *(a proposal - which model or plugin each agent runs is decided later, in another branch, with a fuller decision method; the owner, 2026-10-28)*
 
 - **Needs 1 and 2 → code orchestration (way A), no planner.** Nothing a model
   decides can act, and nothing is added on the tap.
@@ -592,7 +600,7 @@ latency matters more here than for any other agent.
 | Open model on Groq / Cerebras | ~$3-30 | fastest generation | Writes queries quickly; quality unmeasured | Sees the listener's words | No - consent change |
 | GPT-5 nano / Gemini Flash-Lite | ~$3-5 | ~like Haiku | Comparable | Same | No - consent change |
 
-**The choice, driven by those needs:**
+**The choice, driven by those needs:** *(a proposal - which model or plugin each agent runs is decided later, in another branch, with a fuller decision method; the owner, 2026-10-28)*
 
 - **Needs 1, 3 and 4 → Haiku 5.5, folded into EI's search call.** It is one
   schema in a call that already happens, it writes queries, and it is
@@ -618,20 +626,21 @@ latency matters more here than for any other agent.
 Open: in tandem as part of EI's own call, or a separate call run alongside it?
 Which questions may the archive answer alone? How does an archive-only episode look on the sources panel?
 
-## 3. Editor in chief (Diana Russini)
+## 3. Editor in chief (Shakespear)
 
 <!-- stages: editor | feeds: write -->
-<!-- rules: diana -->
+<!-- rules: shakespear -->
 
-**Diana Russini, the editor in chief** (named by the owner, 2026-10-28).
+**Shakespear, the editor in chief** (named by the owner, 2026-10-28; first
+called Diana Russini, renamed by the owner the same day).
 **Works in:** **alongside the writer, after both packets are back** (the
 plugin packet and Sonic's MongoDB packet), with Mclovin checking as the
-writer writes. On searchFAM a listener waits through her work; on myFAM,
+writer writes. On searchFAM a listener waits through its work; on myFAM,
 DailyFAM, Trending and the write-ahead it runs before the tap. **Status:**
 planned (§312).
 
 **Purpose.** Be the journalist in the room. The writer today reads the
-packets raw and plans in its head; Diana decides what matters, what the
+packets raw and plans in its head; Shakespear decides what matters, what the
 story is and how it is told, and the writer writes from that. Most of what
 was wrong with the writing came from its inputs ([inputs-not-prompt]); this
 is where they are fixed - and where the writing learns to open, flow and
@@ -642,8 +651,8 @@ close like a professional's ([writing-is-the-problem]).
 1. **Summarise both packets into what the writer needs** - choose the facts
    and sentences that matter and leave out what does not. The summary is
    **extractive**: it names packet sentences by number ("[4], [7], [R2]");
-   code shows the writer those sentences in the publisher's words. Diana
-   never restates a fact in her own words (rule 2).
+   code shows the writer those sentences in the publisher's words. Shakespear
+   never restates a fact in its own words (rule 2).
 2. **Outline the episode and set its direction** - the answer first in
    substance ([satisfy-first], [never-withhold]); the beats in order within
    what the length buys, a beat with nothing behind it dropped
@@ -662,15 +671,18 @@ close like a professional's ([writing-is-the-problem]).
    (because / therefore / but, [story-not-decoration]); how to close (land
    on the most concrete thing; no tease, recap or forecast:
    [speak-from-inside], [endings-do-not-tease]). This is trained, not
-   assumed: from a journalism playbook (a short house guide written for
-   Diana), from `examples/` ([examples-lever]), and against the quality
-   checker's measures and the owner's own scores (§309).
+   assumed: from the journalism playbook
+   ([`docs/journalism_playbook.md`](journalism_playbook.md)), from
+   `examples/` ([examples-lever]), and measured automatically - the quality
+   checker's code measures (§309), Mclovin's verdicts and listening - never
+   by the owner scoring episodes by hand (the owner, 2026-10-28: "we would
+   rather not have it be so hands on to quality check episodes").
 6. **What is thin stays private** - named to the writer with its rule
    ([missed-not-absent]); never announced.
 
 ### Guardrails
 
-**Never:** put a fact in her own words; choose between conflicting sources
+**Never:** put a fact in its own words; choose between conflicting sources
 by judgment or supply a figure from memory; put a hostname or "the sources
 say" in front of the voice; tell the listener what was not found; plan a
 teasing ending; see an attachment or break a private-search rule; change
@@ -724,8 +736,8 @@ After the shared preamble, the journalism playbook (cached), then:
 |---|---|---|---|
 | 1 | **A journalist's judgment** | What matters, what the story is, how it opens, flows and closes - the writing is the product | In: the strongest model the time allows, trained on the playbook and `examples/`; Sonnet is the likeliest to improve the writing |
 | 2 | **Choosing the right sentences, never restating** | The writer must read the source's words | Shape and code guarantee no invention; a reranker sharpens selection |
-| 3 | **Speed on searchFAM** | She works before the writer's first word | On search: a fast model (Haiku); out: a slow outline in series |
-| 4 | **Keeping the listener's words with Anthropic** | On search she reads the question | Out on search: outside general models; in: self-hosted rerankers |
+| 3 | **Speed on searchFAM** | It works before the writer's first word | On search: a fast model (Haiku); out: a slow outline in series |
+| 4 | **Keeping the listener's words with Anthropic** | On search it reads the question | Out on search: outside general models; in: self-hosted rerankers |
 
 Per episode ~10k in / 1k out; costs at **10k episodes/month** (×10 for 100k).
 
@@ -737,20 +749,21 @@ Per episode ~10k in / 1k out; costs at **10k episodes/month** (×10 for 100k).
 | Reranker (self-hosted `bge-reranker`; Cohere / Voyage / Jina hosted) | ~$0 self-hosted | tens of ms | Cannot invent; safest "which sentences" | Does not outline; hosted sees the question | Partly - self-hosted avoids consent |
 | GPT-5 nano / Gemini Flash-Lite | ~$9-14 | ~like Haiku | Comparable (unmeasured) | Sees the question on search | No on search; yes on editions |
 | Open model on Groq / Cerebras | ~$10-90 | fastest generation | Buys latency back; quality unmeasured | Consent; terms | No on search |
-| Fine-tuning a model on FAM's best scripts | training cost (check) | as the base model | Bakes the house style in | Needs hundreds of owner-approved scripts; Claude models cannot be fine-tuned here | Partly - `examples/` first |
+| Fine-tuning a model on FAM's best scripts | training cost (check) | as the base model | Bakes the house style in | Needs hundreds of approved scripts; Claude models cannot be fine-tuned here | Partly - `examples/` first |
 
-**The choice, driven by those needs:**
+**The choice, driven by those needs:** *(a proposal - which model or plugin each agent runs is decided later, in another branch, with a fuller decision method; the owner, 2026-10-28)*
 
 - **Need 1 → Sonnet 5.5, batched, on the editions and the write-ahead,**
   with the journalism playbook and `examples/` in its cached prompt; Opus to
   write the playbook and the eval.
 - **Needs 3 and 4 → Haiku 5.5 on searchFAM,** with a self-hosted reranker
   (need 2) if the eval shows missed material.
-- **"Training" means:** the playbook, `examples/`, and the quality checker's
-  measures (§309) against the owner's scores - not a fine-tuned model, until
-  there are hundreds of approved scripts.
+- **"Training" means:** the playbook, `examples/`, and automatic
+  measures - the quality checker's code (§309), Mclovin's verdicts, and
+  listening (who leaves in the first twenty seconds, who hears 85%) - not
+  a fine-tuned model and not hand-scoring.
 - **First:** the outline format and the playbook; measure with `write.py`
-  with and without Diana, scored by Mclovin and the quality checker.
+  with and without Shakespear, scored by Mclovin and the quality checker.
 
 ### Settings and open questions
 
@@ -762,27 +775,31 @@ Per episode ~10k in / 1k out; costs at **10k episodes/month** (×10 for 100k).
 | `EDITOR_RERANKER` | Empty, or the reranker |
 | `EDITOR_PLAYBOOK` | The journalism playbook's file |
 
-**The journalism playbook - how it is built is the owner's choice** (the
-owner, 2026-10-28: "a very important step to the script writer, and we want
-to use a wide variety of sources"). Claude drafts, the owner edits. In every
-option the playbook is principles in FAM's own words with short quoted
-examples - never outlets' articles pasted in, which would be their
-copyright and would make Diana imitate rather than understand.
+**The journalism playbook - decided: A, B and C combined** (the owner,
+2026-10-28: "for training Diana, please combine A, B, and C right now").
+Claude has drafted it - [`docs/journalism_playbook.md`](journalism_playbook.md)
+- and the owner edits it. It is principles in FAM's own words, never
+outlets' articles pasted in (their copyright, and Shakespear would imitate
+rather than understand). Where it and FAM's rules differ, FAM's rules win -
+above all, no inverted pyramid ([no-inverted-pyramid]).
 
-| Option | Drawn from | Strength | Weakness |
-|---|---|---|---|
-| **A. Public style and ethics guides** | Published editorial handbooks - the BBC Editorial Guidelines, the NPR Ethics Handbook, the Reuters Handbook of Journalism, the AP Stylebook's principles | Accuracy, attribution, fairness and clarity from the outlets that set the standard | About rules more than storytelling |
-| **B. Audio craft** | Radio and podcast teaching - NPR Training, BBC Academy, the structure of narrative shows | FAM is heard, not read: openings for the ear, signposting, pacing, one idea a sentence | Few of these sources cover news at one minute |
-| **C. A shelf per facet** | Exemplary reporting chosen per FAM facet - sports (The Athletic, ESPN), money (Bloomberg, the FT, The Economist), tech, world (Reuters, AP, the BBC), culture, local news | Each kind of story is told the way its best reporters tell it, matched to the category tree | The most work to curate; needs the owner's picks per facet |
-| **D. FAM's own best episodes** | The episodes the owner scores highest in the quality checker (§309), per category | Learns the house voice from what listeners and the owner already like | Needs scored episodes first; grows over time |
-| **E. All of them, layered** (recommended) | A and B as the base every episode follows; C as a short section per facet; D added as scored episodes arrive | Wide variety, matched to FAM's categories, improving with use | A larger cached prompt per facet (cached, so cheap) |
+| Part | Drawn from | What it gives Shakespear |
+|---|---|---|
+| **A. Getting it right** | The principles of the BBC Editorial Guidelines, the NPR Ethics Handbook, the Reuters Handbook of Journalism and the AP Stylebook | Accuracy, attribution, quotes, fairness, opinion labelled, facts never advice |
+| **B. Writing for the ear** | Radio and podcast craft as NPR Training and the BBC Academy teach it | One idea a sentence, attribution first, numbers the ear can hold, logic for transitions |
+| **C. Each category** | The best reporting per facet - sports (The Athletic, ESPN, BBC Sport), money (Bloomberg, Reuters, the FT, The Economist), tech, science, health, world (Reuters, AP, BBC World Service), culture, local | Each kind of story told the way its best reporters tell it |
 
-Open: which option (A-E), and for C, which outlets per facet; what "in
-tandem" means in the call - the outline handed over beat by beat while the
-writer streams, or the outline first with the writer starting the moment
-the opening beat is decided; on searchFAM from the start, or editions first.
-Decided: facts, never advice, on medical, legal and money questions; Claude
-drafts the playbook and the owner edits it (2026-10-28).
+FAM's own episode shape (opening, beats, closing) sits between B and C.
+**Dropped:** option D (learning from episodes the owner scores by hand) -
+the owner would rather quality checks were not hands-on; the playbook is
+judged by automatic measures instead (responsibility 5). The outlets in C
+are Claude's first picks; the owner may change them in the playbook.
+
+Open: what "in tandem" means in the call - the outline handed over beat by
+beat while the writer streams, or the outline first with the writer starting
+the moment the opening beat is decided; on searchFAM from the start, or
+editions first. Decided: facts, never advice, on medical, legal and money
+questions; Claude drafts the playbook and the owner edits it (2026-10-28).
 
 ## 4. Script supervisor (Mclovin)
 
@@ -790,7 +807,7 @@ drafts the playbook and the owner edits it (2026-10-28).
 <!-- rules: mclovin -->
 
 **Mclovin, the script supervisor** (named by the owner, 2026-10-28).
-**Works in:** **alongside Diana and the writer, while the writer is
+**Works in:** **alongside Shakespear and the writer, while the writer is
 writing** - each sentence is checked as it is written, so an error is fixed
 in that sentence instead of costing a whole rewrite. **On searchFAM too,
 before speech** (the owner, 2026-10-28): every sentence is checked before it
@@ -810,11 +827,11 @@ what was gathered.
 1. **Screen sources as each packet comes back, from both paths** - drop
    opinion pieces (op-eds, editorials, columns, commentary, letters) and blog
    posts from the plugin packet and from Sonic's MongoDB packet, before
-   Diana or the writer reads them. **Unless the request explicitly asks for
+   Shakespear or the writer reads them. **Unless the request explicitly asks for
    a person's opinion or point of view on a topic** (the owner,
    2026-10-28): then C3P0 marks the plan `opinion_requested` with whose view
    is wanted, and that person's opinion pieces are kept - labelled as
-   opinion for Diana and the writer, so the episode tells them as that
+   opinion for Shakespear and the writer, so the episode tells them as that
    person's view, never as fact. **Official blogs** (a company's newsroom, a
    government agency's announcements) are **primary sources and kept**; all
    other blogs are dropped; pieces labelled **"analysis" are reporting and
@@ -864,7 +881,7 @@ what was gathered.
    final question mark, slurs only, names without a respelling.
 6. **Report** - every verdict counted on `/admin` by check, surface and
    category, fact-check failures first; failing scripts feed `examples/` and
-   Diana's training.
+   Shakespear's training.
 
 ### Guardrails
 
@@ -877,7 +894,7 @@ outside model without the consent change.
 | Guardrail | Why | Held by |
 |---|---|---|
 | Only the two packets are evidence | The owner's rule: check against what was gathered, nothing outside | **Code:** handed exactly the writer's material - the screened plugin packet and Sonic's packet |
-| No opinion piece or blog post reaches Diana or the writer, unless a person's view was asked for | Only reporting is evidence; an asked-for opinion is the subject | **Code:** the screen in `research.screen_results` and on Sonic's packet; it stands aside only for `opinion_requested`, only for that person's pieces, and labels them as opinion |
+| No opinion piece or blog post reaches Shakespear or the writer, unless a person's view was asked for | Only reporting is evidence; an asked-for opinion is the subject | **Code:** the screen in `research.screen_results` and on Sonic's packet; it stands aside only for `opinion_requested`, only for that person's pieces, and labels them as opinion |
 | Checked while the writer writes | An error caught late costs a whole rewrite | **Code:** a per-sentence hook in `_ScriptReader`, beside the existing guards |
 | Quotes exact, and by the right person | A quote is exact or it is not a quote | **Code:** quoted span found in the packets; speaker matched |
 | Figures by code, every one | A wrong number is the mistake a listener repeats | **Code:** `figure_guard`'s reader widened; subject and moment matched |
@@ -948,13 +965,13 @@ unsure sentence (~1.5k in / 50 out); costs at **10k episodes/month**
 | **Self-hosted grounding checker** (MiniCheck / Bespoke-MiniCheck, Vectara HHEM, AlignScore) | $0 + its own CPU/GPU | ~tens to hundreds of ms per sentence (est.) | Built for "does this source support this sentence"; can also return which sources support it (for the mixed-stories check) | A machine that is not the voice pod; 7B variants need a GPU | Yes - its own box |
 | DeBERTa NLI cross-encoder | $0 (CPU) | ms | Blunter "does this contradict" | Weak on numbers | Yes - code does numbers |
 | Story clusters (`news_clusters`, built) to tell two stories apart | $0 | ms | Says which story each source belongs to | Clusters can be coarse | Partly - subject and date also compared |
-| **Code episode-rule checks** (`episode_quality.measure`, built, §309) | $0 | ms | Opening, signposting, ending, length, title - the rules a pattern can see | Cannot judge "is this a good story" | Yes - that is Diana's and the owner's scoring, not Mclovin's |
+| **Code episode-rule checks** (`episode_quality.measure`, built, §309) | $0 | ms | Opening, signposting, ending, length, title - the rules a pattern can see | Cannot judge "is this a good story" | Yes - that is Shakespear's and the owner's scoring, not Mclovin's |
 | **Haiku 5.5 on unsure sentences only** (~3 an episode) | ~$5 | ~0.5-1 s, only on those sentences | Good at one narrow support question with the source beside it | Same family as the writer | Yes - it judges support against a quoted source, not its own style |
 | Sonnet 5.5 on unsure sentences | ~$90 | ~1-2 s | A little better on hard cases | 18x the price | Not needed unless the eval shows Haiku wrong |
 | Sonnet 5.5 whole-script check (dropped) | ~$125 (batch) | after the script | Judged the writing | Not what the owner wants checked; costly | - |
 | Gemini / GPT on unsure sentences | ~$2-5 | ~0.5-1 s | Different family | Sees the listener's question on search | No - consent change |
 
-**The choice, driven by those needs:**
+**The choice, driven by those needs:** *(a proposal - which model or plugin each agent runs is decided later, in another branch, with a fuller decision method; the owner, 2026-10-28)*
 
 - **Needs 1, 2 and 4 → code** for quotes, figures, dates and the source
   screen, run per sentence in `_ScriptReader` and on both packets.
@@ -1177,7 +1194,7 @@ languages). Every hole is closed by "uncertain = not compared".
 | **Haiku 5.5** yes/no | <$1 | batch | First look on leftover pairs | Says `same` too easily | Yes - unsure = keep; dry run |
 | **Sonnet 5.5** second opinion | ~$1 (few % of pairs) | seconds | Careful on edge cases | - | Yes - never drops alone |
 
-**The choice, driven by those needs:**
+**The choice, driven by those needs:** *(a proposal - which model or plugin each agent runs is decided later, in another branch, with a fuller decision method; the owner, 2026-10-28)*
 
 - **Needs 2 and 4 → Haiku 5.5 at low effort, batched,** for extraction and the
   first dedupe look. GPT-5 nano or Gemini Flash-Lite are a small saving with
@@ -1243,7 +1260,7 @@ window), which stays as its fallback.
 
 **Purpose.** Bring back **one consolidated packet** of history from MongoDB
 - the history this question needs, organised so the writer can use it - and
-deliver it to Diana and the writer.
+deliver it to Shakespear and the writer.
 
 **Responsibilities.**
 
@@ -1356,7 +1373,7 @@ shared preamble:
 | An MCP server in front of the archive (`facts_about`, `results_between`) | hosting | ~ms | The same lookups for agents and development | Needs a public server, not on staging | Yes - read-only tools |
 | Warm the lookup before the tap (prefetch) | $0 | none for the listener | Holds nothing personal, so prefetch may ([prefetch-same-key]) | Stale by a few hours | Yes - history does not change fast |
 
-**The choice, driven by those needs:**
+**The choice, driven by those needs:** *(a proposal - which model or plugin each agent runs is decided later, in another branch, with a fuller decision method; the owner, 2026-10-28)*
 
 - **Needs 1 and 4 → code:** the closed lookups, built over what Atlas already
   has.
@@ -1567,7 +1584,7 @@ pick from the list. After the shared preamble:
 | SMS (Twilio) | ~$0.01 per message (check) + number | seconds | High | Cost per alert; one-way | Yes - urgent only |
 | PagerDuty / Opsgenie | free small-team tier; paid per user (check) | seconds | Highest: phone calls, repeats until acknowledged, an "acknowledge / resolved" button | Another vendor | Yes - matches "we tell Keith when it is fixed": resolve there, Keith re-checks |
 
-**The choice, driven by those needs:**
+**The choice, driven by those needs:** *(a proposal - which model or plugin each agent runs is decided later, in another branch, with a fuller decision method; the owner, 2026-10-28)*
 
 - **Need 1 → FAM's own signals, plus UptimeRobot or Better Stack on
   `/api/health`,** and Healthchecks.io heartbeats from each loop.
@@ -1754,7 +1771,7 @@ disagree. After the shared preamble:
 | GPT-5 nano / Gemini Flash-Lite | ~$2 | 1-2 s | Comparable | Sees the listener's words | No - consent change |
 | Google Cloud NL `classifyText` | per call (check) | ~200 ms | A fixed web taxonomy | Not FAM's tree | No |
 
-**The choice, driven by those needs:**
+**The choice, driven by those needs:** *(a proposal - which model or plugin each agent runs is decided later, in another branch, with a fuller decision method; the owner, 2026-10-28)*
 
 - **Needs 1, 3 and 4 → code first, folded into EI's call** (EI already
   returns `category_path`), validated against the tree; Haiku in parallel

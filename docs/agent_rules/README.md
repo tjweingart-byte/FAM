@@ -15,7 +15,7 @@ never edits one.
 | Every agent | - | [every-agent.md](every-agent.md) |
 | Overlord | Netenyahu | [netenyahu.md](netenyahu.md) |
 | Contextualizer | C3P0 | [c3p0.md](c3p0.md) |
-| Editor in chief | Diana Russini | [diana.md](diana.md) |
+| Editor in chief | Shakespear | [shakespear.md](shakespear.md) |
 | Script supervisor | Mclovin | [mclovin.md](mclovin.md) |
 | Housekeeper | Consuela | [consuela.md](consuela.md) |
 | Retriever | Sonic | [sonic.md](sonic.md) |

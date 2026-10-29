@@ -22696,6 +22696,23 @@ Sonnet ahead of the tap, kept as the quality lever - with the levers that
 save money at no cost to quality, and those not to pull. Estimates from list
 prices and assumed token counts; `metering` replaces them once agents run.
 
+**The owner's fifth round (10.28):** the editor in chief is renamed
+**Shakespear** (was Diana Russini; rule book `docs/agent_rules/shakespear.md`;
+the entries above keep the old name as written). Which model or plugin each
+agent runs is **not decided here** - "that will happen later in another
+branch with a more complete decision-making method" - so every model choice
+and the cost plan are marked proposals, and the build prompt asks for each
+agent's model as a setting. The playbook **combines A, B and C** ("please
+combine A, B, and C right now"): Claude drafted
+`docs/journalism_playbook.md` - the public editorial guides' principles,
+writing for the ear, FAM's episode shape, and each category the way its best
+reporters tell it, in FAM's own words, FAM's rules winning where they
+differ. Option D is dropped and nothing waits on the owner scoring episodes
+("we would rather not have it be so hands on to quality check episodes"):
+Shakespear is judged by §309's code measures, Mclovin's verdicts and
+listening, with labelled sets built in code by injecting errors. §309's own
+grader calibration against the owner's scores is untouched here.
+
 No agent is built; nothing here runs.
 
 Tests: `tests/test_fam_agents_doc.py` (the five agents in order and named; the tandem pairs drawn as one step; the five agents and the template carry

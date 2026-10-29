@@ -140,9 +140,10 @@ sentences and figures from every packet, years of them, on **MongoDB Atlas**
 so the writer gets a second packet of dated historical context beside the
 fresh search. Agents will fill and tidy it and work beside the writer;
 their guidelines - eight, by the names the owner gave them: **Netenyahu**
-(overlord), **C3P0** (contextualizer), **Diana Russini** (editor in chief),
+(overlord), **C3P0** (contextualizer), **Shakespear** (editor in chief),
 **Mclovin** (script supervisor), **Consuela** (housekeeper), **Sonic**
 (retriever), **Keith Wong** (IT guy) and **Nando** (categorizer) (§312,
 §314, §318) - are in `docs/FAM_AGENTS.md`, their rule books in
 `docs/agent_rules/` (drafts; the owner holds the governing copies), and the
-build plan in `docs/AGENTS_BUILD_PROMPT.md`. Read both before building either.
+build plan in `docs/AGENTS_BUILD_PROMPT.md`; Shakespear's journalism
+playbook is `docs/journalism_playbook.md`. Read both before building either.

@@ -25,7 +25,7 @@ STAGES = [
     ("ask", "Tap or search", "listener"), ("ei", "EI brief", "listener"),
     ("context", "C3P0 (contextualizer)", "listener"), ("categorize", "Nando (categorizer)", "listener"),
     ("plugins", "Plugins: packet one", "listener"), ("recall", "MongoDB: packet two", "listener"),
-    ("editor", "Diana (editor in chief)", "listener"), ("write", "Writer", "listener"),
+    ("editor", "Shakespear (editor in chief)", "listener"), ("write", "Writer", "listener"),
     ("check", "Mclovin (script supervisor)", "listener"),
     ("voice", "Voice", "listener"), ("cache", "Episode kept", "listener"),
     ("orchestrate", "Netenyahu (overlord)", "control"), ("monitor", "Keith Wong (IT guy)", "control"),
@@ -34,7 +34,7 @@ STAGES = [
 LANES = [("listener", "Listener path"), ("control", "Orchestration and operations"),
          ("background", "Background")]
 # Stages that work together, drawn as one step (the owner, 2026-10-26 and
-# 2026-10-28): EI with C3P0 and Nando; Diana with the writer and Mclovin.
+# 2026-10-28): EI with C3P0 and Nando; Shakespear with the writer and Mclovin.
 TANDEM = [("ei", "context", "categorize"), ("editor", "write", "check")]
 
 

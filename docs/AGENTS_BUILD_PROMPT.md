@@ -46,7 +46,7 @@ changing what a listener hears until the owner turns something on.
 | Contextualizer | C3P0 | With EI: tells same-name things apart, picks plugins and their inputs, tells Sonic what to fetch, writes the title |
 | Categorizer | Nando | With EI and C3P0: pins each request to one tree node; confirms after writing; tells Consuela and Sonic |
 | Retriever | Sonic | Reads MongoDB only; returns one date-ordered history packet |
-| Editor in chief | Diana Russini | With the writer: extractive summary of both packets, outline, a journalist's open, flow and close |
+| Editor in chief | Shakespear | With the writer: extractive summary of both packets, outline, a journalist's open, flow and close |
 | Script supervisor | Mclovin | Screens opinion and blogs from both packets; checks each sentence while the writer writes - quotes, figures, facts, dates, mixed stories - against the two packets only |
 | Housekeeper | Consuela | MongoDB's only writer: consolidates each packet as it enters, files it by node, dedupes, consolidates again at 90 days, keeps all sports and market data, keeps aggregate demographic signals |
 | IT guy | Keith Wong | Watches errors, usage against every plan, and the agents; fixes what it may silently with a report; plans for the rest; owns `/admin`'s content |
@@ -149,8 +149,8 @@ Names are internal: never shown to a listener.
     emails when cost per episode runs well above the plan. The owner wants
     to look further into pricing options - keep a running cost-per-episode
     figure on `/admin`.
-22. **Diana's journalism playbook**: Claude drafts it from outlets the owner
-    names; the owner edits it.
+22. **Shakespear's journalism playbook**: Claude drafts it; the owner edits
+    it (see item 29).
 
 ## Decided in the owner's fourth round (2026-10-28)
 
@@ -167,19 +167,46 @@ Names are internal: never shown to a listener.
     claims, mixed stories, advice - in code and with the self-hosted
     grounding checker; the episode rules in code (§309's measures); Haiku
     only on sentences the checker scores unsure, with the source sentences
-    beside them. Target: ~$5 per 10,000 episodes plus the checker's machine.
+    beside them (a proposed model - item 28). Target: ~$5 per 10,000
+    episodes plus the checker's machine.
 27. **Cost target**: all eight agents ~0.8 cents an episode (estimated;
-    the Cost section of `docs/FAM_AGENTS.md`), ~80% of it Diana on Sonnet
+    the Cost section of `docs/FAM_AGENTS.md`), ~80% of it Shakespear on Sonnet
     ahead of the tap, kept as the quality lever. Keith shows the real
-    figure from `metering` on `/admin`.
+    figure from `metering` on `/admin`. The models in this estimate are
+    proposals (item 28).
+
+## Decided in the owner's fifth round (2026-10-28)
+
+28. **Which model or plugin each agent runs is not decided here.** The
+    owner: "I will not be making decisions on what to run each agent here,
+    that will happen later in another branch with a more complete
+    decision-making method." Every model and plugin named in
+    `docs/FAM_AGENTS.md` and below is a proposal. **Build every agent's
+    model as a setting** (`<AGENT>_MODEL`, priced in `metering.PRICES`) with
+    the proposal as its default, so the later decision is a change of
+    setting, not of code; no agent may hard-code a model or vendor.
+29. **The journalism playbook combines A, B and C** - the public editorial
+    guides' principles, audio craft, and the best reporting per category -
+    drafted by Claude in `docs/journalism_playbook.md` (`EDITOR_PLAYBOOK`
+    points at it). Option D (learning from episodes the owner scores) is
+    dropped.
+30. **Quality checks are not hands-on.** No step waits on the owner scoring
+    episodes. Shakespear and the playbook are judged automatically: the
+    quality checker's code measures (§309), Mclovin's verdicts, and
+    listening (who leaves in the first twenty seconds, who hears 85%). Where
+    an eval needs labelled examples, build them in code (e.g. inject a wrong
+    figure, a swapped quote, a preview stated as a result into a good script
+    and check Mclovin catches it) rather than asking the owner to label.
+31. **The editor in chief is named Shakespear** (first called Diana
+    Russini; renamed by the owner). Rule book `docs/agent_rules/shakespear.md`.
 
 ## Decisions still to ask the owner
 
 Check `PROBLEMS.md` §318 (the last entries) for answers first.
 
-- **How Diana's journalism playbook is built** - options A-E in the Editor
-  in chief tab (public style guides, audio craft, a shelf per facet, FAM's
-  own best episodes, or all layered), and the outlets per facet.
+- Whether the outlets Claude picked per category in
+  `docs/journalism_playbook.md` (Part 4) are the owner's - the owner may
+  edit them; do not wait on this to build.
 - Parallel, Perplexity, GNews and Polymarket: whether their material may be
   stored (allow their domains in the session's network settings to read
   their terms), and who asks them.
@@ -306,7 +333,7 @@ first.
 - **Sonic**: a **read-only Atlas user** and connection; the closed lookups
   (by node and period, result between dates, value on a day or series, by
   meaning, corroboration) built in code; node → parent/children → vector →
-  none; a **date-ordered, grouped `ArchivePacket`** for Diana and the writer;
+  none; a **date-ordered, grouped `ArchivePacket`** for Shakespear and the writer;
   the existing 0.5 s grace window; today's `history_archive.look` as the
   fallback.
 - **The category tag everywhere** (decided item 5): write Nando's node id
@@ -317,7 +344,7 @@ first.
   that every episode id and node id agree between MongoDB, the script cache
   and R2's objects; Keith reports drift.
 
-### Phase 3 - Diana and Mclovin in the writing
+### Phase 3 - Shakespear and Mclovin in the writing
 
 - **Mclovin's source screen** (decided item 6: stands aside only for
   `opinion_requested`, only for the named person's pieces) inside
@@ -327,12 +354,14 @@ first.
   unsettled pages ahead of the tap only; drops logged and counted. A packet
   left thin gets the existing retry; an empty one is a missed search, never
   a refusal.
-- **Diana**: an `Outline` (extractive summary by sentence number, beats,
+- **Shakespear**: an `Outline` (extractive summary by sentence number, beats,
   which packet carries each, opening and landing, `thin`) with numbers
   checked in code and the text shown to the writer from the sources; a
-  **journalism playbook** file and `examples/` in her cached prompt; Sonnet
-  batched on editions first, Haiku on search; measured with `write.py` and
-  the quality checker (§309) against the owner's scores.
+  `docs/journalism_playbook.md` (`EDITOR_PLAYBOOK`) and `examples/` in its
+  cached prompt; the model a setting (item 28; proposed: Sonnet batched on
+  editions first, Haiku on search); measured automatically with `write.py`,
+  the quality checker's code (§309) and Mclovin's verdicts, with and
+  without Shakespear - never by hand-scoring (item 30).
 - **Mclovin while the writer writes**: a per-sentence hook in
   `_ScriptReader` beside the existing guards - quotes (span found in the
   packets, speaker matched), figures (`figure_guard`'s reader widened from
@@ -342,9 +371,7 @@ first.
   (MiniCheck-class) on a machine that is **not** the voice pod, and the
   mixed-stories check (support spanning two `news_clusters` needs the link
   supported). A failing sentence goes back to the writer once; a second
-  failure drops it. The whole-script writing check runs on a different model
-  from the writer's (Sonnet), before caching ahead of the tap and right after
-  on search. Only the two packets are evidence.
+  failure drops it. Only the two packets are evidence.
 - **Before speech on searchFAM** (decided item 14): the per-sentence check
   runs on search too; measure the first chunk's added wait with
   `tools/stall_probe.py` and `tools/compare_search.py` (the spec is about a
@@ -352,7 +379,8 @@ first.
   expected.
 - **No whole-script model** (decided item 26): the episode rules in code
   (`episode_quality.measure`); the grounding checker returns a score per
-  sentence, and only the unsure band goes to Haiku with the source
+  sentence, and only the unsure band goes to a small model (proposed:
+  Haiku; item 28) with the source
   sentences beside it. Vectara's HHEM-2.1-Open is built to run on a CPU -
   try it first on a Render instance, a GPU only if searchFAM's first chunk
   is too slow.
