@@ -182,8 +182,8 @@ owner, 2026-10-29).*
 
 ### Science
 
-*Models: Nature's news team, Quanta Magazine, the science desks of the BBC
-and Reuters.*
+*Models: Quanta Magazine, Scientific American, New Scientist, Nature's news
+team (chosen by the owner, 2026-10-29).*
 
 - **What was found, how it was found, and how sure the researchers are** -
   sample size, whether it is peer-reviewed or a preprint, whether it was in
