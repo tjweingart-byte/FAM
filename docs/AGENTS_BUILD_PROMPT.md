@@ -187,7 +187,10 @@ Names are internal: never shown to a listener.
     `docs/FAM_AGENTS.md` and below is a proposal. **Build every agent's
     model as a setting** (`<AGENT>_MODEL`, priced in `metering.PRICES`) with
     the proposal as its default, so the later decision is a change of
-    setting, not of code; no agent may hard-code a model or vendor.
+    setting, not of code; no agent may hard-code a model or vendor. The
+    setting names the vendor and an exact model ID
+    (`anthropic:claude-haiku-5-5`) and reaches it through FAM's own model
+    layer (Phase 0, decided by the owner 2026-10-29).
 29. **The journalism playbook combines A, B and C** - the public editorial
     guides' principles, audio craft, and the best reporting per category -
     drafted by Claude in `docs/journalism_playbook.md` (`EDITOR_PLAYBOOK`
@@ -265,8 +268,27 @@ first.
   every agent call, with a test that fails on any rule book the signed
   manifest does not cover - `docs/FAM_AGENTS.md`, Shared rules, Locked rule
   books. Until the owner signs a first manifest every agent is held, and the
-  test checks that instead, so CI stays green before the owner signs. Never generate, hold or ask for the private key; a session that
+  test checks that instead, so CI stays green before the owner signs.
+  Never generate, hold or ask for the private key; a session that
   needs a rule book changed stops and asks the owner.
+- **FAM's own model layer** (decided by the owner, 2026-10-29;
+  `docs/FAM_AGENTS.md`, Shared rules, Models and outside plugins): no agent
+  framework, no gateway. One module that sends an agent's single typed
+  request - `episode_intelligence._ask` generalised: a Pydantic schema, a
+  time limit, refusal and token-ceiling handling, never raising, a fallback
+  to the pre-agent path - through one adapter per vendor on the vendor's
+  official SDK: `anthropic` first; `google-genai` and `openai` (which also
+  serves the OpenAI-compatible APIs of Groq, Cerebras, Together, xAI and
+  DeepSeek) as their own changes, each adding its package, its
+  `metering.PRICES` rows and its `spend_guard.PAID_CREDENTIALS` key. Each
+  agent's model is a `vendor:model-id` setting, pinned (never a moving alias
+  like `-latest`, never falling through to `MODEL`); the layer checks the
+  model each answer says it came from, never switches to another model on
+  its own, and records the agent, model, rule-book version and prompt
+  fingerprint on every call. A **consent check in code**: a request that
+  carries a listener's words is refused for any vendor `consent.py` does
+  not cover (today only Anthropic), and a test pins that. Tests use fake
+  clients - no key, no network ([tests-no-key]).
 - **Per-agent switches, time limits and call sizes** in `config.py` (names in each agent's
   Settings sub-tab), `metering` prices, `spend_guard.PAID_CREDENTIALS` for any
   new key, and an **Agents** panel on `/admin` (on/off, last run, spend,

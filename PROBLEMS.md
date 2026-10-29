@@ -23982,8 +23982,15 @@ https://claude.ai/artifact/UcGJyWypQXFMF8XZyctf1N), not in this guide.
 Merged onto Main after the guide's own merge (§318 became §340 there): the
 lock is now the signed form of the build prompt's Phase 0 fingerprint check
 (both documents say so), and a rule-book mismatch is urgent for Keith - the
-admin pop-up and email decided for him. Nothing is built: no manifest, key
-or check exists yet.
+admin pop-up and email decided for him. Then the owner chose the layer
+("lets get started on building the recommended option"): FAM's own thin
+model layer is now Phase 0 of the build prompt and is recorded in the
+guide (Models and outside plugins) - one typed request per agent through an
+adapter per vendor's official SDK, a pinned `vendor:model-id` setting per
+agent, the served model checked, and a consent check in code that refuses a
+listener's words to any vendor `consent.py` does not cover. Which model each
+agent runs is still the later decision. Nothing is built: no manifest, key,
+check or layer exists yet.
 
 No agent is built; nothing here runs.
 

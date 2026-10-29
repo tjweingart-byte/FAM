@@ -244,6 +244,24 @@ branch with a more complete decision-making method"). The prices and
 options below, each agent's plugin tab and the cost plan are the inputs to
 that decision; nothing here picks a model.
 
+**How agents reach their models is decided** (the owner, 2026-10-29: "lets
+get started on building the recommended option"): **FAM's own thin model
+layer**, not an agent framework or a gateway. Each agent's call is one typed
+request - way A below, `episode_intelligence._ask` generalised - through one
+adapter per vendor on that vendor's official SDK: `anthropic` (in use),
+`google-genai` (Gemini) and `openai` (OpenAI, and the OpenAI-compatible
+APIs of Groq, Cerebras, Together, xAI and DeepSeek). Every request has a
+Pydantic schema, a time limit, a fallback to the pre-agent path, a consent
+check (a listener's words go only to vendors the consent covers - today
+Anthropic) and a `metering` record priced by `metering.PRICES`. Each agent's
+model is its own setting naming vendor and exact model ID
+(`anthropic:claude-haiku-5-5`), pinned, never a moving alias and never
+falling through to a shared `MODEL`. Rejected after measurement and review:
+PydanticAI (about 5-6 ms more CPU per call in a one-process server, about
+two releases a week, built for tool loops FAM's agents do not run) and
+LiteLLM (two PyPI releases that stole credentials in 2026). Which model each
+agent runs stays the later decision above; this decides only the layer.
+
 Claude list prices per million tokens (cached 2026-10-06; check
 <https://platform.claude.com/docs/en/about-claude/pricing>):
 
