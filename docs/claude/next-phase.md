@@ -146,4 +146,5 @@ their guidelines - eight, by the names the owner gave them: **Netenyahu**
 §314, §340) - are in `docs/FAM_AGENTS.md`, their rule books in
 `docs/agent_rules/` (drafts; the owner holds the governing copies), and the
 build plan in `docs/AGENTS_BUILD_PROMPT.md`; Shakespeare's journalism
-playbook is `docs/journalism_playbook.md`. Read both before building either.
+playbook is `docs/journalism_playbook.md`. Read them before building any
+of it.

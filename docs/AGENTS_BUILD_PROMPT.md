@@ -71,14 +71,16 @@ Names are internal: never shown to a listener.
    the waitlist and into the app** (an activation step; accounts already
    store `birth_date` and a place, not gender). The Privacy Policy and
    consent (`consent.py`) must cover them first; App Store guideline 5.1.1
-   limits requiring data an app does not need - see the open questions.
+   limits requiring data an app does not need, which is why only date of
+   birth (the 13-and-over gate) is required (item 11).
 3. **No full packets in MongoDB.** Consuela consolidates every packet **the
    moment it enters**: key sentences, figures, quotes and facts, chosen
    (never rewritten), each with its article link, date and grade. **After
    90 days** it consolidates again to important figures, quotes, trends
    (kept as the dated series) and article links. Sports and market records
    are never consolidated away.
-4. **Keith and `/admin`.** Keith may **improve any existing admin page**; a
+4. **Keith and `/admin`.** Keith may **improve any existing admin page**,
+   once the owner says yes to the change (item 9); a
    **new page or feature is presented to the owner as a slideshow first**
    (what it looks like, what it does for them) and built only on a yes.
 5. **One category tag, everywhere, for the episode's whole life.** Nando's
@@ -206,8 +208,9 @@ Names are internal: never shown to a listener.
 Check `PROBLEMS.md` §340 (the last entries) for answers first.
 
 - Parallel, Perplexity, GNews and Polymarket: whether their material may be
-  stored (allow their domains in the session's network settings to read
-  their terms), and who asks them.
+  stored. This is being researched in its own branch (written up in
+  `docs/PROVIDER_TERMS.md` there); until the owner approves a provider,
+  Consuela does not store its material (item 8).
 
 ## The work, in order
 
@@ -338,9 +341,9 @@ first.
   on the script row, as R2 object metadata (a copy-in-place update when it
   changes), and on every MongoDB record; one function updates all of them
   together on a re-file or tree change, and app caches are invalidated.
-- **Sync with Cloudflare** (decided item 5): a reconciliation job
-  that every episode id and node id agree between MongoDB, the script cache
-  and R2's objects; Keith reports drift.
+- **Sync with Cloudflare** (decided item 5): a reconciliation job that
+  checks every episode id and node id agree between MongoDB, the script
+  cache and R2's objects; Keith reports drift.
 
 ### Phase 3 - Shakespeare and Mclovin in the writing
 

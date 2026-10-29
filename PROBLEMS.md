@@ -23951,6 +23951,8 @@ category's outlets are now the owner's.
 
 No agent is built; nothing here runs.
 
-Tests: `tests/test_fam_agents_doc.py` (the five agents in order and named; the tandem pairs drawn as one step; the five agents and the template carry
-the same sub-tabs; every stage named is one the page draws; a tab per
-section).
+Tests: `tests/test_fam_agents_doc.py` (the eight agents named; the tandem
+groups drawn as one step; every agent and the template carry the same
+sub-tabs; every stage named is one the page draws; a tab per section; every
+plugin tab starts from what the agent must be best at; every agent has a
+rule book with the draft notice).

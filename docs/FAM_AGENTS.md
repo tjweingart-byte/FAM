@@ -106,9 +106,10 @@ over all of it: Netenyahu - who works when, typed hand-offs
 
 **Still to do** (none built): one extractive cut across both packets; a
 `ResearchPlan` type (the contextualizer's contract); warm the recall before
-the tap (it holds nothing personal); and whether the archive may answer an
-empty search alone - **not decided** (§316): until the agents exist it stays
-beside web sources only, with no guardrail either way.
+the tap (it holds nothing personal); and the archive answering an empty
+search alone - **decided** (the owner, 2026-10-28, closing §316's question):
+past or settled things only (C3P0, responsibility 8). Until the agents
+exist it stays beside web sources only.
 
 **Five ways to run an agent** (per call of ~8k in / 1k out: Haiku ~$0.0013,
 Sonnet ~$0.026, Opus ~$0.052):
@@ -554,8 +555,9 @@ After the shared preamble:
 > subject and the angle - never a result, a score or a claim, since nothing
 > has been looked up yet.
 
-(The archive and an empty search are deliberately left out of the prompt
-until responsibility 6 is decided.)
+(When an empty search may be answered from the archive alone - past or
+settled things only, responsibility 8 - is decided in code from the plan's
+`archive_alone` mark, not left to this prompt.)
 
 | Try to break it with | Expected behaviour |
 |---|---|
@@ -620,11 +622,12 @@ latency matters more here than for any other agent.
 |---|---|
 | `CONTEXTUALIZER` | `0` / `1`, off by default |
 | `CONTEXTUALIZER_MODEL` | The model, or `rules` |
-| `ARCHIVE_ALONE`, `ARCHIVE_ALONE_TTL_SECONDS` | For when responsibility 6 is decided |
+| `ARCHIVE_ALONE`, `ARCHIVE_ALONE_TTL_SECONDS` | The archive answering an empty search alone, past or settled things only (responsibility 8, decided 2026-10-28) |
 | `CONTEXTUALIZER_TITLES` | `1`: C3P0's title is the episode's title (decided by the owner, 2026-10-28; replaces [title-from-content]'s writer title once built) |
 
 Open: in tandem as part of EI's own call, or a separate call run alongside it?
-Which questions may the archive answer alone? How does an archive-only episode look on the sources panel?
+How does an archive-only episode look on the sources panel? Decided
+(2026-10-28): the archive may answer alone for past or settled things only.
 
 ## 3. Editor in chief (Shakespeare)
 
@@ -966,7 +969,7 @@ unsure sentence (~1.5k in / 50 out); costs at **10k episodes/month**
 | **Self-hosted grounding checker** (MiniCheck / Bespoke-MiniCheck, Vectara HHEM, AlignScore) | $0 + its own CPU/GPU | ~tens to hundreds of ms per sentence (est.) | Built for "does this source support this sentence"; can also return which sources support it (for the mixed-stories check) | A machine that is not the voice pod; 7B variants need a GPU | Yes - its own box |
 | DeBERTa NLI cross-encoder | $0 (CPU) | ms | Blunter "does this contradict" | Weak on numbers | Yes - code does numbers |
 | Story clusters (`news_clusters`, built) to tell two stories apart | $0 | ms | Says which story each source belongs to | Clusters can be coarse | Partly - subject and date also compared |
-| **Code episode-rule checks** (`episode_quality.measure`, built, §309) | $0 | ms | Opening, signposting, ending, length, title - the rules a pattern can see | Cannot judge "is this a good story" | Yes - that is Shakespeare's and the owner's scoring, not Mclovin's |
+| **Code episode-rule checks** (`episode_quality.measure`, built, §309) | $0 | ms | Opening, signposting, ending, length, title - the rules a pattern can see | Cannot judge "is this a good story" | Yes - that is Shakespeare's job, measured automatically, not Mclovin's |
 | **Haiku 5.5 on unsure sentences only** (~3 an episode) | ~$5 | ~0.5-1 s, only on those sentences | Good at one narrow support question with the source beside it | Same family as the writer | Yes - it judges support against a quoted source, not its own style |
 | Sonnet 5.5 on unsure sentences | ~$90 | ~1-2 s | A little better on hard cases | 18x the price | Not needed unless the eval shows Haiku wrong |
 | Sonnet 5.5 whole-script check (dropped) | ~$125 (batch) | after the script | Judged the writing | Not what the owner wants checked; costly | - |
@@ -983,9 +986,11 @@ unsure sentence (~1.5k in / 50 out); costs at **10k episodes/month**
   scores unsure**, with the source sentences beside it. Mclovin costs about
   **$5 per 10,000 episodes plus the checker's machine**, down from ~$130
   with a Sonnet whole-script check.
-- **First:** an eval of ~100 real scripts hand-marked for every quote,
-  figure, date, fact and mixed sentence; and a latency measurement of the
-  per-sentence check on searchFAM (`tools/stall_probe.py`).
+- **First:** an eval built in code, not marked by hand (the owner,
+  2026-10-28): real scripts with known errors injected - a wrong figure, a
+  swapped quote or speaker, a wrong date, a preview told as a result, two
+  stories joined - and a measure of how many Mclovin catches; and a latency
+  measurement of the per-sentence check on searchFAM (`tools/stall_probe.py`).
 
 ### Settings and open questions
 
@@ -1395,9 +1400,9 @@ shared preamble:
 | `RETRIEVER` | `0` / `1` (proposed): off = today's `look` |
 | `RETRIEVER_MODEL` | Empty = code only (proposed) |
 
-Open: its name; whether the contextualizer names the lookup itself (one call)
-or the retriever decides; whether the archive may answer an empty search
-alone (§316).
+Open: whether the contextualizer names the lookup itself (one call) or the
+retriever decides. Decided (2026-10-28): its name is Sonic; the archive may
+answer an empty search alone for past or settled things only (closing §316).
 
 ## 7. IT guy (Keith Wong)
 
@@ -1574,7 +1579,7 @@ pick from the list. After the shared preamble:
 | GPT-5 nano / Gemini Flash-Lite | ~$0.10-0.20 | 1-3 s | Comparable | New key; error text to another vendor | Partly - redacted text only |
 | Claude Agent SDK / Managed Agents with read-only tools, to investigate | tokens + harness | minutes | Can dig through logs and stores | A tool loop could reach beyond reading | Partly - read-only tools only; fixes stay the closed list |
 
-**c) Telling you - "the most visible way possible" (to be decided):**
+**c) Telling you - "the most visible way possible"** (decided 2026-10-28: the pop-up on every admin page, and email for urgent alerts; the other rows are for later):
 
 | Option | Cost / mo | Delay | Visibility | Holes | Fixed by guardrail? |
 |---|---|---|---|---|---|
@@ -1610,7 +1615,7 @@ pick from the list. After the shared preamble:
 | `IT_WARN_SHARE`, `IT_URGENT_SHARE` | 0.80, 0.95 of a limit |
 | `IT_FIXES` | `0` observe-only; then a list of the fixes allowed |
 | `IT_MODEL` | Empty = code only |
-| `IT_NOTIFY_WARN`, `IT_NOTIFY_URGENT` | The channels, once decided |
+| `IT_NOTIFY_WARN`, `IT_NOTIFY_URGENT` | The channels: the pop-up for every alert, email too for urgent ones (decided 2026-10-28) |
 | `IT_ALERT_EMAIL` | `Admin@familiarize.net` (the owner, 2026-10-28) - set in the environment, never in code |
 | `RENDER_API_KEY`, `RUNPOD_API_KEY`, `ATLAS_ADMIN_KEY`, `CLOUDFLARE_ANALYTICS_TOKEN` | Read-only usage keys via `FAM_SECRETS` (proposed) |
 
