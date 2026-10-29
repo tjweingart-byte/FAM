@@ -818,7 +818,9 @@ before speech** (the owner, 2026-10-28): every sentence is checked before it
 is voiced as the script is written; after the first chunk the check runs
 while earlier sentences are playing, so only the first chunk waits on it.
 If it costs more than expected, that is raised with the owner, not
-switched off. Before that, the moment each packet comes back, it screens
+switched off. **A check that runs out of time does not hold the sentence**
+(the owner, 2026-10-29): it plays unchecked, and the miss is recorded and
+reported to Keith. Before that, the moment each packet comes back, it screens
 the sources. **Status:** planned (§312).
 
 **Purpose.** Make sure every episode is true to its sources and keeps the
@@ -1001,14 +1003,16 @@ unsure sentence (~1.5k in / 50 out); costs at **10k episodes/month**
 | `SUPERVISOR_MODEL`, `SUPERVISOR_GROUNDING` | The model asked about unsure sentences (Haiku); the grounding checker |
 | `SUPERVISOR_UNSURE_BAND` | The checker's score range sent to the model (proposed) |
 | `SUPERVISOR_REPAIRS` | `1` repair per sentence |
-| `SUPERVISOR_TIMEOUT_SECONDS` | Per-sentence ceiling; past it the sentence goes ahead and the miss is counted |
+| `SUPERVISOR_TIMEOUT_SECONDS` | Per-sentence ceiling; past it the sentence plays unchecked, and the miss is recorded and reported to Keith (decided 2026-10-29) |
 
 Decided: an opinion is kept only when the request explicitly asks for a
 person's view (2026-10-28). `FigureGuard` was kept narrow so a story survives it
 (§269): measure the widened check before it may drop sentences on search.
 Measure the first chunk's added wait on searchFAM (`tools/stall_probe.py`)
 and report it to the owner if it is more than expected. Decided
-(2026-10-28): checks run before speech on search; settled facts only with
+(2026-10-28): checks run before speech on search - a check that runs out
+of time lets its sentence play unchecked, recorded and reported to Keith
+(2026-10-29); settled facts only with
 no name, number or date; official blogs kept as primary sources, all other
 blogs dropped; "analysis" kept as reporting; no advice.
 
@@ -1104,7 +1108,7 @@ long-term signal that can point to a person.
 | Never merges or drops a figure | Matched exactly or not at all (rule 3) | **Code:** figures never reach the model |
 | A forecast is never an outcome | Corrupts every later episode | **Shape:** closed `status`; **code:** hedged wording ("expected", "set to", "could", "will") or disagreement stores forecast |
 | Unsure means keep both | A wrong merge loses information | **Shape:** `same` / `different` / `unsure`; **code:** unsure = different |
-| Nothing hard-deleted on a first pass | Rule 8 | **Code:** `superseded_by` + reason, 30 days, logged; dry run until hand-checked |
+| Nothing hard-deleted on a first pass | Rule 8 | **Code:** `superseded_by` + reason, 30 days, logged; dry run until the automated eval passes |
 | Live sports and market facts never dropped on a model's judgment | The owner (§313) | **Code:** `kind: "live"` never sent to the model |
 | Sentence numbers in range and used once | A bad answer must not store anything | **Code:** discard, retry once, then leave undigested and report |
 | Filed under Nando's node | Sonic finds history by node | **Code:** every packet carries the node id; an unknown node is held and Nando asked |
@@ -1212,7 +1216,13 @@ languages). Every hole is closed by "uncertain = not compared".
   find the candidates.
 - **Cost:** about **$5/month at 1,000 listeners, $30 at 10,000, $250 at
   100,000**.
-- **First:** an eval of ~200 real packets checked by hand.
+- **First:** an eval built in code, not checked by hand (the owner,
+  2026-10-29: automated like the episode checks): real packets with known
+  answers made in code - the same fact copied with new wording, and pairs
+  from the never-duplicates table (two days' prices, a forecast and its
+  result, a revised count, scores through one game) - and a measure of how
+  many Consuela gets right. Dedupe leaves its dry run only once it scores
+  no wrong merge on that set.
 
 ### Settings and open questions
 
@@ -1221,7 +1231,7 @@ languages). Every hole is closed by "uncertain = not compared".
 | `ARCHIVE_BACKEND`, `MONGODB_URI` | Built (§308); URI via `FAM_SECRETS` |
 | `HOUSEKEEPER_MODEL` / `HOUSEKEEPER_REVIEW_MODEL` | `claude-haiku-5-5` / `claude-sonnet-5-5` |
 | `HOUSEKEEPER_BATCH_ARTICLES`, `HOUSEKEEPER_COMB_DAYS` | Batch size; how often the full duplicate comb runs (proposed) |
-| `HOUSEKEEPER_DEDUPE_DRY_RUN` | `1` until a hand-checked sample says safe |
+| `HOUSEKEEPER_DEDUPE_DRY_RUN` | `1` until the automated eval shows no wrong merge (decided 2026-10-29: no hand-checked sample) |
 | `HOUSEKEEPER_SUPERSEDED_DAYS` | 30 |
 
 **May FAM keep what the providers return?** The owner's use (2026-10-28):
@@ -1433,7 +1443,8 @@ fixes what it may, and brings a plan for what it may not.
 3. **Check the agents work within their rules and domain** - sample each
    agent's work against its rule book: Sonic never wrote; Consuela deleted
    nothing outside a grace period; Mclovin's verdicts are within its named
-   failures; C3P0's inputs carry no guessed facts; Nando's nodes exist; the
+   failures and every sentence it let play unchecked for want of time is
+   counted; C3P0's inputs carry no guessed facts; Nando's nodes exist; the
    subsystems (editions, sweeps, archive, voice) run as they should; MongoDB
    and Cloudflare agree.
 4. **Own the admin page** - decide what the owner sees on `/admin` and make

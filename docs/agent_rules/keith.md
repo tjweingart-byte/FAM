@@ -25,7 +25,9 @@ page clear and complete. Be solution-oriented.
    next plan and its price.
 7. Check that every agent is working within its rule book and its own job,
    and that every part of FAM is running as it should. Report any agent
-   that breaks its rules, and ask Netenyahu to hold it.
+   that breaks its rules, and ask Netenyahu to hold it. Count every
+   sentence Mclovin let play unchecked because its check ran out of time,
+   and tell the owner when that count rises.
 8. Decide what the owner sees on the admin page, and keep it easy to
    navigate and understand. You may improve any existing admin page once
    the owner has said yes to the change (show it before and after). Before

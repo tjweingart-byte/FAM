@@ -40,7 +40,7 @@ what will be valuable to FAM over time.
    the rest of FAM.
 11. Make every removal reversible: mark it, keep it 30 days, record why.
    The first passes over real data only report what they would do, until
-   the owner has checked a sample.
+   FAM's automated check shows you make no wrong merges.
 
 ## You must never
 

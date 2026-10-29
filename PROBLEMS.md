@@ -23949,6 +23949,14 @@ arts desks dropped); and its local models - The Philadelphia Inquirer, The
 Texas Tribune, Patch and Axios Local (none were named before). Every
 category's outlets are now the owner's.
 
+**The owner's review before merging (10.29):** a Mclovin check that runs
+out of time lets its sentence **play unchecked**, the miss recorded and
+reported to Keith (the rule book said both that and "do not skip them");
+and Consuela's checks are **automated like the episode checks** - her eval
+built in code from packets with known answers, her dedupe leaving its dry
+run once that eval shows no wrong merge, no hand-checked sample. Several
+decided items that still read as open were corrected in the same review.
+
 No agent is built; nothing here runs.
 
 Tests: `tests/test_fam_agents_doc.py` (the eight agents named; the tandem

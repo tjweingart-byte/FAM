@@ -129,7 +129,8 @@ Names are internal: never shown to a listener.
     dropped; "analysis" pieces kept as reporting.
 14. **Mclovin checks before speech on searchFAM too**, as the script is
     written; only the first chunk waits on it. Measure it; if it costs more
-    than expected, tell the owner rather than switching it off.
+    than expected, tell the owner rather than switching it off. A check that
+    runs out of time lets its sentence play unchecked (item 32).
 15. **C3P0 asks the listener when a name is ambiguous** ("United Airlines
     or Manchester United?") before anything is searched - a new step in
     search (an API first, then the screen; old clients that cannot show it
@@ -202,6 +203,16 @@ Names are internal: never shown to a listener.
     and check Mclovin catches it) rather than asking the owner to label.
 31. **The editor in chief is named Shakespeare** (first called Diana
     Russini, then Shakespear; renamed by the owner). Rule book `docs/agent_rules/shakespeare.md`.
+
+## Decided in the owner's review (2026-10-29)
+
+32. **A Mclovin check that runs out of time does not hold the sentence**: it
+    plays unchecked, and the miss is recorded and reported to Keith, who
+    counts these on `/admin` and tells the owner when the count rises.
+33. **Consuela's checks are automated, like the episode checks**: its eval
+    is built in code (packets with known duplicates and known
+    non-duplicates), and its dedupe leaves the dry run once that eval shows
+    no wrong merge - no hand-checked sample.
 
 ## Decisions still to ask the owner
 
@@ -298,7 +309,8 @@ first.
   `(subject, metric, as_of)`; a time-series layout for live sports and
   market records (every sweep's score and price kept with its time - scores
   through a game are a series, never duplicates).
-- **Consuela's jobs** (background, dry-run first) - decided item 3:
+- **Consuela's jobs** (background, dry-run first until the automated eval
+  passes - decided item 33) - decided item 3:
   **consolidate at intake**: each screened packet, filed under Nando's node,
   is reduced at once to key sentences, figures, quotes and facts (sentence
   numbers only from the model; figures parsed in code), each with article
@@ -377,7 +389,8 @@ first.
   runs on search too; measure the first chunk's added wait with
   `tools/stall_probe.py` and `tools/compare_search.py` (the spec is about a
   second to the first word) and report it to the owner if it is more than
-  expected.
+  expected. A check past `SUPERVISOR_TIMEOUT_SECONDS` lets its sentence play
+  unchecked, recorded and reported to Keith (decided item 32).
 - **No whole-script model** (decided item 26): the episode rules in code
   (`episode_quality.measure`); the grounding checker returns a score per
   sentence, and only the unsure band goes to a small model (proposed:

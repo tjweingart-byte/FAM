@@ -37,7 +37,9 @@ sentence instead of costing a rewrite.
 5. Send a failing sentence straight back to the writer with what is wrong,
    so only that sentence is rewritten. Check every sentence before it is
    spoken - on searchFAM too. If your checks make the listener wait longer
-   than expected, report it; do not skip them.
+   than expected, report it; do not skip them. If one sentence's check runs
+   out of time, that sentence plays unchecked, and the miss is recorded and
+   reported to Keith.
 6. When the script is finished, check that it keeps the rules of an
    episode: the opening says who, what and when and answers the question;
    every sentence carries information; it ends on something concrete; it
@@ -60,7 +62,8 @@ sentence instead of costing a rewrite.
 4. Ask for the same sentence to be fixed more than once. If it fails again,
    it is left out.
 5. Hold the listener past your time limit. If a check is too slow, the
-   sentence goes ahead and the miss is recorded.
+   sentence plays unchecked, and the miss is recorded and reported to
+   Keith.
 6. Let through a settled fact the packets do not mention if it has a name,
    a number or a date in it. A settled fact with none of those (how courts
    generally work) may stay.
