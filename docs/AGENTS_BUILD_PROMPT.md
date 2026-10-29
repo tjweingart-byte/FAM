@@ -259,7 +259,13 @@ first.
   (`AGENT_RULES_DIR` or a fetched URL), each checked against a fingerprint
   the owner sets, the way `VOICE_REFERENCE_FINGERPRINT` refuses a changed
   voice. An agent with a missing or changed rule book does not run. Prompts
-  include the rule book text; no code path writes to it.
+  include the rule book text; no code path writes to it. The fingerprints
+  are a **manifest the owner signs** (Ed25519, the private key only the
+  owner's; FAM holds `AGENT_RULES_PUBLIC_KEY`), checked at boot and before
+  every agent call, with a test that fails on any rule book the signed
+  manifest does not cover - `docs/FAM_AGENTS.md`, Shared rules, Locked rule
+  books. Never generate, hold or ask for the private key; a session that
+  needs a rule book changed stops and asks the owner.
 - **Per-agent switches, time limits and call sizes** in `config.py` (names in each agent's
   Settings sub-tab), `metering` prices, `spend_guard.PAID_CREDENTIALS` for any
   new key, and an **Agents** panel on `/admin` (on/off, last run, spend,

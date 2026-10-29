@@ -23957,6 +23957,31 @@ built in code from packets with known answers, her dedupe leaving its dry
 run once that eval shows no wrong merge, no hand-checked sample. Several
 decided items that still read as open were corrected in the same review.
 
+Later (10.29): **the rule books are locked to the owner.** The owner: the
+set of rules for each agent is "untouchable and unchangeable unless we
+deliberately say to have them change ... not by an agent and not by a
+model". Holding the governing copies outside Claude says who wins a
+disagreement, but nothing stopped a changed copy from running. So the guide
+(Shared rules, Locked rule books; rule 10) now specifies the lock for when
+agents run: `docs/agent_rules/MANIFEST.json` lists each rule book's SHA-256
+and is signed with an Ed25519 key only the owner holds; FAM holds the public
+key (`AGENT_RULES_PUBLIC_KEY`) and checks at boot and before every call; an
+unmatched rule book holds its agent (the pipeline runs as before it), Keith
+alerts, and a test fails before it can ship; agents have no tool or action
+that writes a rule or setting; `CODEOWNERS` and branch protection are the
+owner's to set. What the lock cannot promise is obedience in every answer -
+that stays with the code checks after the answer. The model under each rule
+book is pinned the same way (an exact ID per agent, no shared `MODEL`, no
+automatic switch, the served model checked, a nightly fingerprint), with
+which model each agent runs still decided elsewhere. The platform decision
+behind this - FAM's own thin model layer over each vendor's SDK rather than
+PydanticAI or LiteLLM - is the owner's comparison page, not this guide.
+Merged onto Main after the guide's own merge (§318 became §340 there): the
+lock is now the signed form of the build prompt's Phase 0 fingerprint check
+(both documents say so), and a rule-book mismatch is urgent for Keith - the
+admin pop-up and email decided for him. Nothing is built: no manifest, key
+or check exists yet.
+
 No agent is built; nothing here runs.
 
 Tests: `tests/test_fam_agents_doc.py` (the eight agents named; the tandem
