@@ -101,8 +101,9 @@ Names are internal: never shown to a listener.
    far are in the Housekeeper tab of `docs/FAM_AGENTS.md`: GDELT is open
    (with a citation); Parallel's and Perplexity's terms are unclear for an
    archive reused across listeners; GNews's free plan is non-commercial;
-   Tiingo and Finnhub restrict showing data to app users; BALLDONTLIE,
-   API-Sports and Polymarket are unconfirmed. **Consuela stores a
+   Tiingo and BALLDONTLIE are approved (the owner has agreed redistribution
+   with both); Finnhub and API-Sports are being removed; Polymarket is
+   unconfirmed. **Consuela stores a
    provider's material only once the owner marks that provider approved**
    (a per-provider setting, all off except GDELT and FAM's own records
    until then).
@@ -151,18 +152,37 @@ Names are internal: never shown to a listener.
 22. **Diana's journalism playbook**: Claude drafts it from outlets the owner
     names; the owner edits it.
 
+## Decided in the owner's fourth round (2026-10-28)
+
+23. **Urgent alerts go to Admin@familiarize.net** (`IT_ALERT_EMAIL`, set in
+    the environment, never in code).
+24. **A name the reference look and the providers do not know is treated as
+    a private person** - no episode about them.
+25. **Finnhub and API-Sports are removed from FAM** - their data cannot be
+    published. **Tiingo** (prices) and **BALLDONTLIE** (scores) replace
+    them; the owner has agreed redistribution with both, so they are
+    approved for speaking and for Consuela's storage.
+26. **Mclovin has no whole-script model check.** It checks the named things
+    every time - the source screen, quotes, figures, dates, facts and
+    claims, mixed stories, advice - in code and with the self-hosted
+    grounding checker; the episode rules in code (§309's measures); Haiku
+    only on sentences the checker scores unsure, with the source sentences
+    beside them. Target: ~$5 per 10,000 episodes plus the checker's machine.
+27. **Cost target**: all eight agents ~0.8 cents an episode (estimated;
+    the Cost section of `docs/FAM_AGENTS.md`), ~80% of it Diana on Sonnet
+    ahead of the tap, kept as the quality lever. Keith shows the real
+    figure from `metering` on `/admin`.
+
 ## Decisions still to ask the owner
 
 Check `PROBLEMS.md` §318 (the last entries) for answers first.
 
-- Which outlets Diana's playbook is drafted from.
-- Which providers are approved for storage once their terms are confirmed
-  (allow their domains in the session's network settings to read the terms
-  directly), and who asks Parallel, Perplexity, Tiingo, Finnhub,
-  BALLDONTLIE, API-Sports and Polymarket.
-- Which email address receives Keith's urgent alerts.
-- How a "public figure" is decided when the reference look and the
-  providers do not know the name.
+- **How Diana's journalism playbook is built** - options A-E in the Editor
+  in chief tab (public style guides, audio craft, a shelf per facet, FAM's
+  own best episodes, or all layered), and the outlets per facet.
+- Parallel, Perplexity, GNews and Polymarket: whether their material may be
+  stored (allow their domains in the session's network settings to read
+  their terms), and who asks them.
 
 ## The work, in order
 
@@ -176,6 +196,17 @@ forget in `demo_data._forget_what_the_log_taught`, and copies every new
 setting into `config.py`, `.env.example` and `/api/health` where it is
 settable in two places. Log each phase in `PROBLEMS.md` and keep
 `docs/FAM_AGENTS.md`, `docs/BACKEND.md` and `docs/DATA.md` true to the code.
+
+### Before the phases - remove Finnhub and API-Sports (decided item 25)
+
+Take Finnhub (the story pool's market moves, `story_sources.FinnhubSignals`,
+`WATCHLIST`) and API-Sports (`api_sports.py`, its free-plan scores) out of
+FAM, with Tiingo and BALLDONTLIE covering what they did; remove their keys
+from `config.py`, `.env.example`, `spend_guard.PAID_CREDENTIALS`,
+`provider_usage` and `/api/health`; rewrite the `CLAUDE.md` rules that name
+them (`[sports-balldontlie]`, `[sweep-on-demand]`) and their topic-file text;
+keep old clients working ([old-clients]). This is its own change, shipped
+first.
 
 ### Phase 0 - the agent framework (no agent yet)
 
@@ -269,8 +300,9 @@ settable in two places. Log each phase in `PROBLEMS.md` and keep
   never guests or private searches; it lives with the accounts data
   (Postgres), not in MongoDB, and is registered with account deletion and
   wipes.
-- **Per-provider storage switch** (decided item 8): Consuela keeps a
-  provider's material only when that provider is marked approved.
+- **Per-provider storage switch** (decided items 8 and 25): Consuela keeps a
+  provider's material only when that provider is marked approved - GDELT
+  (with its citation), Tiingo and BALLDONTLIE so far.
 - **Sonic**: a **read-only Atlas user** and connection; the closed lookups
   (by node and period, result between dates, value on a day or series, by
   meaning, corroboration) built in code; node → parent/children → vector →
@@ -318,6 +350,12 @@ settable in two places. Log each phase in `PROBLEMS.md` and keep
   `tools/stall_probe.py` and `tools/compare_search.py` (the spec is about a
   second to the first word) and report it to the owner if it is more than
   expected.
+- **No whole-script model** (decided item 26): the episode rules in code
+  (`episode_quality.measure`); the grounding checker returns a score per
+  sentence, and only the unsure band goes to Haiku with the source
+  sentences beside it. Vectara's HHEM-2.1-Open is built to run on a CPU -
+  try it first on a Render instance, a GPU only if searchFAM's first chunk
+  is too slow.
 - **Settled facts and advice** (decided items 12 and 17): an unsupported
   settled fact fails if it has a name, number or date; an advising sentence
   fails. **Official blogs and "analysis"** kept (decided item 13).

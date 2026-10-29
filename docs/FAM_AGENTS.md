@@ -220,54 +220,68 @@ closes the hole), partly, or no (a decision for the owner).
 ### Cost
 
 **The owner's rule (2026-10-28):** the agents must be cheap enough to be
-available whenever they are needed, and no financial cap decides whether
-one runs. So cost is designed out, and watched - not rationed.
+available whenever they are needed; no financial cap decides whether one
+runs. Cost is designed out, and watched - not rationed.
 
-**What each agent costs**, estimated per **10,000 episodes** (Claude list
-prices above; token counts from each agent's Plugin options tab; not
-measured - no key here):
+**Assumptions** (estimates, not measured - there is no API key here; every
+figure is to be replaced by `metering`'s real numbers once agents run):
+per **10,000 episodes**, half written on a listener's search and half ahead
+of the tap (editions, write-ahead, prefetch); ~30 sentences and ~5 new
+articles an episode; Claude list prices (Haiku $0.10 / $0.50, Sonnet $2 /
+$10 per million tokens in / out); a cached prompt read at a tenth of the
+input price; the Batch API at half price for anything nobody waits on.
 
-| Agent | How it runs | Est. per 10k episodes | Per episode |
+**Per agent**
+
+| Agent | What it calls, per episode | Model and discounts | Per 10k episodes | Per episode |
+|---|---|---|---|---|
+| **Netenyahu** | Nothing - orchestration is code | - | $0 | $0 |
+| **C3P0** | ~1,000 more tokens in and ~200 out inside EI's existing call (disambiguation, plugins, Sonic's request, the title); public-figure check from the reference look | Haiku; its instructions cached | ~$1.50 | ~$0.0002 |
+| **Nando** | Code; a ~3k-token Haiku call on ~1 in 5 requests where candidates tie; confirmation after the writer in code | Haiku; cached | ~$0.50 | <$0.0001 |
+| **Sonic** | Code lookups in Atlas | - | $0 (inside the Atlas tier) | $0 |
+| **Diana** | One outline: ~10k in (~3k cached: instructions, rule book, playbook; ~7k the two packets), ~1k out | Search: Haiku. Ahead of the tap: Sonnet, batched and cached | ~$6 (search) + ~$62 (ahead) = **~$68** | ~$0.007 |
+| **Mclovin** | Code: screen, quotes, figures, dates, episode rules; the self-hosted checker on every sentence; Haiku on ~3 unsure sentences (~1.5k in, ~50 out each); a small model on unsettled pages ahead only | Haiku; batched ahead | **~$5** + the checker's machine | ~$0.0005 |
+| **Consuela** | ~5 new articles digested (~1.2k in, ~150 out each); dedupe pairs and periodic combs (code first, Haiku on unsure pairs, Sonnet on the few still unsure); demographic totals in code | Haiku, batched and cached | **~$5-6** | ~$0.0006 |
+| **Keith** | Code watching; a Haiku write-up per incident (~300 a month, not per episode); usage APIs free; email through `mail.py` | Haiku | **<$1** | ~$0 |
+| **All eight** | | | **~$80** | **~0.8¢** |
+
+**Fixed machines** (a month, whatever the volume; estimates - check before
+buying): the grounding checker - Vectara's HHEM-2.1-Open is built to run on
+a CPU, ~$25-85 on a Render instance; a small GPU (~$150-300 always on) only
+if the CPU is too slow for searchFAM. The same machine can carry Diana's
+reranker and Nando's offline picture check. MongoDB Atlas per §307 (Flex
+first, M10 at about 1,000 monthly listeners).
+
+**Where the money goes:** Diana on Sonnet ahead of the tap is ~80% of all
+agent spend - deliberately: it is the lever most likely to improve the
+writing, which is the product ([writing-is-the-problem]). Everything else
+together is ~$15 per 10,000 episodes.
+
+**How to keep it low without costing quality** - safe levers, per agent:
+
+| Agent | Lever | Saves | Effect on quality |
 |---|---|---|---|
-| Netenyahu | Code only | $0 | $0 |
-| C3P0 | Folded into EI's existing Haiku call (~1k more in, ~200 out) | ~$2 | ~$0.0002 |
-| Nando | Code first; Haiku only on ties (~1 in 5) | <$1 | <$0.0001 |
-| Sonic | Code lookups on Atlas | $0 (inside the Atlas tier) | $0 |
-| Diana | Haiku on search; Sonnet batched on editions and write-ahead | ~$15-60 | ~$0.002-0.006 |
-| Mclovin | Code and a self-hosted grounding checker per sentence; Sonnet batched for the whole-script check | ~$125 (Sonnet) + the checker's machine | ~$0.013 |
-| Consuela | Haiku batched (~5 articles per episode), periodic dedupe | ~$5 | ~$0.0005 |
-| Keith | Code; Haiku only to write up an incident | <$1 | ~$0 |
-| **All agents** | | **~$150-200 + machines** | **~1.5-2¢** |
+| All | **Prompt caching** of instructions, rule books, playbook, vocabulary | ~10-40% of input | None |
+| All | **Batch** everything nobody waits on (editions, write-ahead, Consuela, Keith's write-ups) | 50% of those calls | None (results within the hour, which those jobs allow) |
+| All | **Code before models**; a model only where code cannot decide | Most calls | Better: code is exact |
+| C3P0, Nando | **Fold into EI's existing call** instead of new calls | A call each | None; no added wait |
+| Diana | **Trim the packets before she reads them**: the screened, de-duplicated packets with Sonic's date-ordered history, not raw search output | ~30% of her input (est.) | None if the trim is extractive; measure on the eval |
+| Diana | **Sonnet only where nobody waits**; Haiku on search | Keeps Sonnet off the busiest path | Search keeps today's model |
+| Mclovin | **No whole-script model**; code and the self-hosted checker; Haiku only on unsure sentences | ~$120 per 10k vs a Sonnet whole-script check | None for the named checks; the checker is better at support than a general model |
+| Consuela | **Only new articles reach a model** (URL match first); figures in code | Most of her calls | None |
+| Consuela | GPT-5 nano or Gemini Flash-Lite for digests (FAM's material only) | ~30-40% of ~$5 | Only if the eval holds |
+| Everyone | **Shared work**: one cached episode or edition serves every listener who taps it | Falls per listener as FAM grows | None |
+| Everyone | **Anthropic volume discounts** once monthly volume is known | Negotiated | None |
 
-Fixed machines: the grounding checker on a CPU box (~$25-85/month, est.) or a
-small GPU (~$150-300/month always on, est.) - which one is decided by
-measuring its speed per sentence; the Atlas tier (§307).
+**Levers not to pull**, because they cost quality: Haiku for Diana on the
+editions; dropping Mclovin's checker for a cheaper rule; skipping
+fact-checks on search; Opus anywhere per episode.
 
-**How the cost stays low, in the order they save most:**
-
-1. **Code before models** - Netenyahu, Sonic and most of Nando and Mclovin
-   are code: free, instant, always available.
-2. **One call, not two** - C3P0 and Nando ride on EI's existing call.
-3. **Batch half price** for everything nobody waits on: editions,
-   write-ahead, Consuela, the whole-script checks after an episode.
-4. **Prompt caching** - each agent's fixed instructions, rule book and
-   playbook cost about a tenth after the first call.
-5. **Haiku by default**, Sonnet only where judgment or independence from
-   the writer needs it (Diana on editions, Mclovin's writing check).
-6. **Self-hosted specialised models** (grounding checker, reranker): a fixed
-   machine cost, nothing per episode.
-7. **Shared work** - one edition, one cached episode serves every listener
-   who taps it, so the cost per listener falls as FAM grows.
-8. **Cheaper outside models** for work on FAM's own material only
-   (Consuela, editions): GPT-5 nano or Gemini Flash-Lite, a small further
-   saving, if the eval holds.
-9. **Volume pricing** - Anthropic's committed-use discounts once volume is
-   known.
-
-**Instead of a cap:** every call has a size limit (tokens in and out), each
-agent makes at most one call per episode plus one retry or repair,
+**Instead of a cap:** every call has a size limit (tokens in and out); each
+agent makes at most one call per episode plus one retry or repair;
 Netenyahu stops a task that repeats with nothing new (a loop is a bug, not
-a budget), and Keith emails when cost per episode runs well above this plan.
+a budget); Keith shows cost per episode on `/admin` against this plan and
+emails `Admin@familiarize.net` when it runs well above it.
 
 ## 1. Overlord (Netenyahu)
 
@@ -499,7 +513,7 @@ things with the same name; put a claim or a result in the title.
 | Ask-only-when-looking, cost ceilings | [sweep-on-demand] | **Code** |
 | An opinion is wanted only when asked for, explicitly | Opinion pieces are screened out otherwise (the owner) | **Shape:** `opinion_requested` with a named person; **code:** absent unless the request names a person and asks for their view |
 | Same-name things told apart, never guessed | The Eagles the bird and the Eagles the team need different plugins and pictures | **Shape:** an `entity` with its kind (team, airline, animal...) and `ambiguous` with the readings when unsure; **code:** an ambiguous request asks the listener to choose before any plugin is called |
-| Public figures only | The owner's firm rule (2026-10-28): FAM never researches a private person | **Code:** a named person is researched only when they are a public figure - in the reference look (Wikipedia / Wikidata), a provider's catalogue, or named in reporting for a public role; otherwise no episode is made about them and the listener is told FAM covers public figures only |
+| Public figures only | The owner's firm rule (2026-10-28): FAM never researches a private person | **Code:** a named person is researched only when they are a public figure - in the reference look (Wikipedia / Wikidata), a provider's catalogue, or named in reporting for a public role; **a name none of these know is treated as private** (the owner, 2026-10-28); otherwise no episode is made about them and the listener is told FAM covers public figures only |
 | Facts, never advice | The owner (2026-10-28): medical, legal and money questions get the facts, never a recommendation | **Shape:** a request for advice ("should I buy...", "should I take...") is planned as the facts around it; **code:** Mclovin fails an advising sentence |
 | The title names the subject and angle, never a result | A title written before research cannot know the outcome ([card-hook-startup]: tiles claim no results) | **Prompt; code:** a title with a score pattern or a result verb is replaced by the brief's derived title |
 | The title matches the finished episode | An episode can turn out to be about something else | **Code:** Mclovin compares; on a mismatch C3P0 retitles from the finished script |
@@ -748,13 +762,27 @@ Per episode ~10k in / 1k out; costs at **10k episodes/month** (×10 for 100k).
 | `EDITOR_RERANKER` | Empty, or the reranker |
 | `EDITOR_PLAYBOOK` | The journalism playbook's file |
 
-Open: what "in tandem" means in the call - the outline handed over beat by
-beat while the writer streams, or the outline first with the writer
-starting the moment the opening beat is decided? Which outlets the
-journalism playbook is drafted from (decided: Claude drafts it from outlets
-the owner names, and the owner edits it, 2026-10-28)? On searchFAM from the
-start, or editions first? Decided: facts, never advice, on medical, legal
-and money questions (2026-10-28).
+**The journalism playbook - how it is built is the owner's choice** (the
+owner, 2026-10-28: "a very important step to the script writer, and we want
+to use a wide variety of sources"). Claude drafts, the owner edits. In every
+option the playbook is principles in FAM's own words with short quoted
+examples - never outlets' articles pasted in, which would be their
+copyright and would make Diana imitate rather than understand.
+
+| Option | Drawn from | Strength | Weakness |
+|---|---|---|---|
+| **A. Public style and ethics guides** | Published editorial handbooks - the BBC Editorial Guidelines, the NPR Ethics Handbook, the Reuters Handbook of Journalism, the AP Stylebook's principles | Accuracy, attribution, fairness and clarity from the outlets that set the standard | About rules more than storytelling |
+| **B. Audio craft** | Radio and podcast teaching - NPR Training, BBC Academy, the structure of narrative shows | FAM is heard, not read: openings for the ear, signposting, pacing, one idea a sentence | Few of these sources cover news at one minute |
+| **C. A shelf per facet** | Exemplary reporting chosen per FAM facet - sports (The Athletic, ESPN), money (Bloomberg, the FT, The Economist), tech, world (Reuters, AP, the BBC), culture, local news | Each kind of story is told the way its best reporters tell it, matched to the category tree | The most work to curate; needs the owner's picks per facet |
+| **D. FAM's own best episodes** | The episodes the owner scores highest in the quality checker (§309), per category | Learns the house voice from what listeners and the owner already like | Needs scored episodes first; grows over time |
+| **E. All of them, layered** (recommended) | A and B as the base every episode follows; C as a short section per facet; D added as scored episodes arrive | Wide variety, matched to FAM's categories, improving with use | A larger cached prompt per facet (cached, so cheap) |
+
+Open: which option (A-E), and for C, which outlets per facet; what "in
+tandem" means in the call - the outline handed over beat by beat while the
+writer streams, or the outline first with the writer starting the moment
+the opening beat is decided; on searchFAM from the start, or editions first.
+Decided: facts, never advice, on medical, legal and money questions; Claude
+drafts the playbook and the owner edits it (2026-10-28).
 
 ## 4. Script supervisor (Mclovin)
 
@@ -823,11 +851,15 @@ what was gathered.
    carries on. On searchFAM, where the sentence would be voiced next, a
    failing sentence that cannot be repaired in time is not spoken (as
    `ScoreGuard` and `FigureGuard` already drop sentences).
-4. **Check the episode keeps the rules** of what an episode is, on the whole
-   script once it is done: the opening situates and answers; no orienting or
-   "the sources say"; every sentence informs; a concrete ending, never a
-   tease, question, forecast or summary; it closes the question; it fits the
-   length; title and category match what it turned out to be about.
+4. **Check the episode keeps the rules** of what an episode is - **in code,
+   not with a model** (the owner, 2026-10-28: "it shouldn't be a whole
+   script check"): the opening names who, what and when and shares a word
+   with the question; no orienting, "the sources say", hostname or
+   announced gap; a concrete last line that is not a question, a tease, a
+   forecast or a summary; it fits the length; the title still matches.
+   These are the quality checker's code measures (`episode_quality.measure`,
+   §309), free on every episode; a miss is reported, not blocked, unless it
+   is one of the named hard failures.
 5. **Mechanical checks in code first** - hostnames and URLs in speech, a
    final question mark, slurs only, names without a respelling.
 6. **Report** - every verdict counted on `/admin` by check, surface and
@@ -853,13 +885,15 @@ outside model without the consent change.
 | No unchecked mixing of stories | Two true facts joined wrongly make a false sentence | **Code:** a sentence whose support spans two stories needs the link supported |
 | One repair per sentence | No loops | **Code:** a second failure drops the sentence |
 | Named hard failures only | Never block on taste | **Code:** figure not in the packets; quote not said or not by that person; unsupported volatile fact; contradicted fact; unsupported first or superlative; wrong date; unchecked mixed stories; outcome from a preview; hostname in speech |
-| Independent of the writer | A checker sharing the writer's blind spots passes its mistakes | **Code:** code and a grounding checker per sentence; the whole-script writing check on a different model from the writer's |
+| Independent of the writer | A checker sharing the writer's blind spots passes its mistakes | **Code:** code and a grounding checker that cannot write decide every check; a model is asked only the narrow question "does this source sentence support this claim?" on the few sentences the checker cannot settle |
+| No whole-script model check | The owner's rule: check the named things, every time, cheaply | **Code:** every check is code or the grounding checker; no model reads the whole script |
 
 ### Prompting it, and breaking it
 
-Quotes, figures and dates are code; facts go first to a grounding checker. A
-model judges what the checker cannot settle and runs the whole-script
-writing check. After the shared preamble:
+Quotes, figures, dates, the source screen and the episode rules are code;
+facts and claims go to the grounding checker. A model is asked only about a
+sentence the checker scores as unsure, with the candidate source sentences
+beside it. After the shared preamble:
 
 > You check an episode script, sentence by sentence as it is written,
 > against the two packets its writer was given - nothing else. You never
@@ -876,12 +910,6 @@ writing check. After the shared preamble:
 > or "only" needs explicit support. If a sentence joins facts from two
 > different stories, both facts and the link between them must be in the
 > packets. Do not use your own memory.
->
-> When the script is finished, check the episode rules: the first two
-> sentences say who, what and when and answer the question; no sentence
-> talks about sources or what was not found; every sentence carries
-> information; the last line is concrete, not a question, a tease or a
-> forecast.
 
 | Try to break it with | Expected behaviour |
 |---|---|
@@ -907,10 +935,12 @@ writing check. After the shared preamble:
 | 2 | **Exactness on quotes, figures and dates** | These are the errors a listener repeats | In: code - exact, free, cannot be argued with |
 | 3 | **Precision on "is this supported by the packets"** | Unsupported volatile facts and mixed stories are the failures that matter | In: grounding checkers built for this, which cannot invent |
 | 4 | **Screening sources instantly** | Every packet, both paths, before anyone reads it | In: code markers; a model only ahead of the tap |
-| 5 | **Independence from the writer** | It must not share the writer's blind spots | In: a different model for the writing check; out: Haiku judging Haiku's writing |
+| 5 | **Independence from the writer** | It must not share the writer's blind spots | In: code and a checker that cannot write decide; a model only for a narrow support question, never to grade the writing |
+| 6 | **Checking every time, cheaply** | The owner: the named checks on every episode, without a whole-script model | In: code and a self-hosted checker (nothing per episode); a model on unsure sentences only (~1 in 10, est.) |
 
-Per-sentence checks are code and a local model; the whole-script writing
-check ~10k in / 500 out; costs at **10k episodes/month**.
+Per-sentence checks are code and a local model; a model call only for an
+unsure sentence (~1.5k in / 50 out); costs at **10k episodes/month**
+(~30 sentences an episode, est.).
 
 | Option | Cost / mo | Latency added | Effectiveness | Holes | Fixed by guardrail? |
 |---|---|---|---|---|---|
@@ -918,9 +948,11 @@ check ~10k in / 500 out; costs at **10k episodes/month**.
 | **Self-hosted grounding checker** (MiniCheck / Bespoke-MiniCheck, Vectara HHEM, AlignScore) | $0 + its own CPU/GPU | ~tens to hundreds of ms per sentence (est.) | Built for "does this source support this sentence"; can also return which sources support it (for the mixed-stories check) | A machine that is not the voice pod; 7B variants need a GPU | Yes - its own box |
 | DeBERTa NLI cross-encoder | $0 (CPU) | ms | Blunter "does this contradict" | Weak on numbers | Yes - code does numbers |
 | Story clusters (`news_clusters`, built) to tell two stories apart | $0 | ms | Says which story each source belongs to | Clusters can be coarse | Partly - subject and date also compared |
-| **Sonnet 5.5** for the whole-script writing check | ~$125 (batch) / audit on search | none before the tap | Right size for judging writing; not the writer's model | Too slow to wait for on search | Yes - after the script on search |
-| Haiku 5.5 | ~$13 | 1-3 s | Rule checks | Self-preference | No - need 5 |
-| Gemini / GPT as a second judge | ~$7-250 | like Haiku to Sonnet | Least self-preference | Sees the listener's question on search | Partly - editions only until consent |
+| **Code episode-rule checks** (`episode_quality.measure`, built, §309) | $0 | ms | Opening, signposting, ending, length, title - the rules a pattern can see | Cannot judge "is this a good story" | Yes - that is Diana's and the owner's scoring, not Mclovin's |
+| **Haiku 5.5 on unsure sentences only** (~3 an episode) | ~$5 | ~0.5-1 s, only on those sentences | Good at one narrow support question with the source beside it | Same family as the writer | Yes - it judges support against a quoted source, not its own style |
+| Sonnet 5.5 on unsure sentences | ~$90 | ~1-2 s | A little better on hard cases | 18x the price | Not needed unless the eval shows Haiku wrong |
+| Sonnet 5.5 whole-script check (dropped) | ~$125 (batch) | after the script | Judged the writing | Not what the owner wants checked; costly | - |
+| Gemini / GPT on unsure sentences | ~$2-5 | ~0.5-1 s | Different family | Sees the listener's question on search | No - consent change |
 
 **The choice, driven by those needs:**
 
@@ -928,8 +960,11 @@ check ~10k in / 500 out; costs at **10k episodes/month**.
   screen, run per sentence in `_ScriptReader` and on both packets.
 - **Needs 1 and 3 → a self-hosted grounding checker per sentence,** with
   story clusters for the mixed-stories check.
-- **Need 5 → Sonnet 5.5 for the whole-script writing check** - before caching
-  ahead of the tap, right after the episode on search.
+- **Needs 5 and 6 → no whole-script model.** The episode rules are checked
+  in code (§309's measures); **Haiku 5.5 only on the sentences the checker
+  scores unsure**, with the source sentences beside it. Mclovin costs about
+  **$5 per 10,000 episodes plus the checker's machine**, down from ~$130
+  with a Sonnet whole-script check.
 - **First:** an eval of ~100 real scripts hand-marked for every quote,
   figure, date, fact and mixed sentence; and a latency measurement of the
   per-sentence check on searchFAM (`tools/stall_probe.py`).
@@ -940,7 +975,8 @@ check ~10k in / 500 out; costs at **10k episodes/month**.
 |---|---|
 | `SUPERVISOR` | `0` / `1`, off by default |
 | `SUPERVISOR_SCREEN` | On: opinion pieces and blog posts dropped from both packets |
-| `SUPERVISOR_MODEL`, `SUPERVISOR_GROUNDING` | Whole-script judge (never the writer's model); grounding checker |
+| `SUPERVISOR_MODEL`, `SUPERVISOR_GROUNDING` | The model asked about unsure sentences (Haiku); the grounding checker |
+| `SUPERVISOR_UNSURE_BAND` | The checker's score range sent to the model (proposed) |
 | `SUPERVISOR_REPAIRS` | `1` repair per sentence |
 | `SUPERVISOR_TIMEOUT_SECONDS` | Per-sentence ceiling; past it the sentence goes ahead and the miss is counted |
 
@@ -1177,9 +1213,9 @@ session could not open the providers' own pages; not legal advice):
 | **Parallel** (Search API) | Key sentences and links from its excerpts | Customer Terms (a cached copy, possibly outdated): Output is "primarily for the exclusive use of the Authorized User who submitted the corresponding query"; restrictions on copying, caching or storing Output for other end customers; no "AI and Data Selling Services"; the FAQ says the customer owns the output | **Unclear** - an archive reused for other listeners' episodes may be "storing Output for other End Customers". Ask Parallel in writing |
 | **Perplexity** (Search API, which FAM uses) | Key sentences and links | The Search Addendum says the customer does **not** own Search API Output (it is public web content); the display and storage clauses could not be read | **Unclear** - ask Perplexity in writing |
 | **GNews** (Trending) | Titles, links, dates | Free plan is non-commercial only; storage terms could not be read | **Needs a paid plan** before commercial launch; storage unconfirmed |
-| **Tiingo** (prices) | Daily prices for trends | Internal use only on standard plans; showing data to users of an app needs a **redistribution licence** | **Storing for internal history is likely fine; speaking prices to listeners may already need a licence** - ask Tiingo |
-| **Finnhub** (market moves) | Prices, quotes | Free plan is personal use; redistribution is an enterprise licence | **Same concern as Tiingo** - ask Finnhub |
-| **BALLDONTLIE**, **API-Sports** (scores) | Every final and in-game score | Terms could not be read | **Unconfirmed** - ask both |
+| **Tiingo** (prices) | Daily prices for trends | Standard plans are internal use; redistribution needs a licence | **Approved** - the owner has agreed redistribution with Tiingo (2026-10-28) |
+| **BALLDONTLIE** (scores) | Every final and in-game score | - | **Approved** - the owner has agreed redistribution with BALLDONTLIE (2026-10-28) |
+| ~~Finnhub~~, ~~API-Sports~~ | - | Their data cannot be published | **Being removed from FAM** (the owner, 2026-10-28); Tiingo and BALLDONTLIE replace them |
 | **Polymarket** (forecasts) | Odds over time | Public data, free; its Terms of Service and API Usage Policy could not be read | **Unconfirmed** |
 
 Separately from any provider's terms, the articles' words belong to their
@@ -1557,11 +1593,11 @@ pick from the list. After the shared preamble:
 | `IT_FIXES` | `0` observe-only; then a list of the fixes allowed |
 | `IT_MODEL` | Empty = code only |
 | `IT_NOTIFY_WARN`, `IT_NOTIFY_URGENT` | The channels, once decided |
-| `IT_ALERT_EMAIL` | Where urgent alerts are emailed (proposed) |
+| `IT_ALERT_EMAIL` | `Admin@familiarize.net` (the owner, 2026-10-28) - set in the environment, never in code |
 | `RENDER_API_KEY`, `RUNPOD_API_KEY`, `ATLAS_ADMIN_KEY`, `CLOUDFLARE_ANALYTICS_TOKEN` | Read-only usage keys via `FAM_SECRETS` (proposed) |
 
 Open: how you tell Keith something is fixed (a button in the pop-up is
-proposed); which email address receives urgent alerts. Decided (2026-10-28):
+proposed). Decided (2026-10-28): urgent alerts go to Admin@familiarize.net;
 improvements to existing pages and new pages or features both wait for the
 owner's yes (a before-and-after, or a slideshow); the pop-up on every admin
 page, and email for urgent alerts; first fixes in error and usage tracking;

@@ -34,7 +34,7 @@ page clear and complete. Be solution-oriented.
    they say yes.
 9. Whenever the owner opens an admin page, show a pop-up with all of your
    open alerts, until each one is resolved. Email every urgent alert as
-   well.
+   well, to Admin@familiarize.net.
 10. Watch what the agents cost per episode, and email the owner when it runs
     well above the plan. Never switch an agent off because of cost.
 11. When the owner says something is fixed, check it yourself. If it is

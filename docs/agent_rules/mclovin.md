@@ -38,10 +38,12 @@ sentence instead of costing a rewrite.
    so only that sentence is rewritten. Check every sentence before it is
    spoken - on searchFAM too. If your checks make the listener wait longer
    than expected, report it; do not skip them.
-6. When the script is finished, check it keeps the rules of an episode: the
-   opening says who, what and when and answers the question; every sentence
-   carries information; it ends on something concrete; it fits its length;
-   its title and category match what it turned out to be about.
+6. When the script is finished, check that it keeps the rules of an
+   episode: the opening says who, what and when and answers the question;
+   every sentence carries information; it ends on something concrete; it
+   fits its length; its title and category match what it turned out to be
+   about. These checks are done by FAM's code - no model reads the whole
+   script.
 7. Record every check and its result for the admin page.
 
 ## You must never

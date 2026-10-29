@@ -22676,6 +22676,26 @@ checker machine), the ways it is kept low, bounded calls with one retry,
 loops stopped as bugs, Keith emailing when cost per episode runs above
 plan. The rule books, guide and build prompt carry all of it.
 
+**The owner's fourth round (10.28):** Diana's playbook becomes its own
+question, with options (public style and ethics guides; audio craft; a shelf
+of outlets per facet; FAM's own best-scored episodes; or all layered,
+recommended) - "we want to use a wide variety of sources"; urgent alerts to
+Admin@familiarize.net; a name no reference or provider knows is a private
+person; **Finnhub and API-Sports are dropped** ("whose data we can not
+publish") for **Tiingo and BALLDONTLIE**, whose redistribution the owner has
+agreed, so both are approved for speaking and storage - the build prompt
+makes removing the two its own first change, with `[sports-balldontlie]` and
+`[sweep-on-demand]` rewritten then; and Mclovin has **no whole-script model
+check** ("it should be checking for the things that we mentioned before") -
+every named check is code or the self-hosted grounding checker, the episode
+rules are §309's code measures, and Haiku sees only the sentences the
+checker scores unsure. With that, the cost breakdown (Shared rules, Cost) is
+redone per agent: ~$80 per 10,000 episodes for all eight, ~0.8 cents an
+episode, plus the checker's machine and the Atlas tier - ~80% of it Diana on
+Sonnet ahead of the tap, kept as the quality lever - with the levers that
+save money at no cost to quality, and those not to pull. Estimates from list
+prices and assumed token counts; `metering` replaces them once agents run.
+
 No agent is built; nothing here runs.
 
 Tests: `tests/test_fam_agents_doc.py` (the five agents in order and named; the tandem pairs drawn as one step; the five agents and the template carry
