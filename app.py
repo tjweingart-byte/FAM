@@ -22,6 +22,7 @@ import logging
 import random
 import re
 import sqlite3
+import threading
 import time
 from contextlib import asynccontextmanager
 from urllib.parse import quote
@@ -8076,20 +8077,61 @@ WELCOME_SCAN = 10
 
 #: How long one ranking of the samples serves every request (§190): the
 #: waitlist gate asks for it on each sample's audio, and the samples turn
-#: over by the day, not by the second.
-WELCOME_MEMO_SECONDS = 60.0
+#: over by the day, not by the second. Ten minutes since §338: a ranking
+#: probes every episode heard today, and it ran on a visitor's request
+#: once a minute.
+WELCOME_MEMO_SECONDS = 600.0
 _WELCOME_MEMO: dict = {"at": 0.0, "episodes": []}
+#: One ranking at a time: visitors arriving together share it (§338).
+_WELCOME_LOCK = threading.Lock()
+_WELCOME_REFRESHING = threading.Event()
 
 
 def _welcome_episodes() -> list[dict]:
-    """The samples, ranked: see `welcome_samples`. Memoised briefly."""
-    now = time.monotonic()
+    """The samples, ranked: see `welcome_samples`. Memoised.
+
+    **A visitor never waits for a re-ranking** (§338). Inside
+    `WELCOME_MEMO_SECONDS` the memo answers; past it, the old samples still
+    answer at once and one background thread ranks again. Only a cold memo -
+    the first ask after a boot - ranks on the asker's thread, and under a
+    lock, so visitors arriving together share one ranking instead of each
+    probing every episode heard today."""
     # Keyed on the stores too, so a swapped log (a wipe, a test) is never
     # answered from the old one.
     stores = (id(EVENTS), id(SCRIPT_CACHE))
-    if (_WELCOME_MEMO["at"] and _WELCOME_MEMO.get("stores") == stores
-            and now - _WELCOME_MEMO["at"] < WELCOME_MEMO_SECONDS):
-        return _WELCOME_MEMO["episodes"]
+    memo = _WELCOME_MEMO
+    if memo["at"] and memo.get("stores") == stores:
+        if time.monotonic() - memo["at"] >= WELCOME_MEMO_SECONDS:
+            _refresh_welcome_later()
+        return memo["episodes"]
+    with _WELCOME_LOCK:
+        memo = _WELCOME_MEMO
+        if memo["at"] and memo.get("stores") == stores:
+            return memo["episodes"]
+        return _rank_welcome(stores)
+
+
+def _refresh_welcome_later() -> None:
+    """Rank the samples again on a thread of their own, once at a time."""
+    if _WELCOME_REFRESHING.is_set():
+        return
+    _WELCOME_REFRESHING.set()
+
+    def run() -> None:
+        try:
+            with _WELCOME_LOCK:
+                _rank_welcome((id(EVENTS), id(SCRIPT_CACHE)))
+        except Exception:  # noqa: BLE001 - the old samples keep answering
+            log.exception("could not refresh the welcome samples")
+        finally:
+            _WELCOME_REFRESHING.clear()
+
+    threading.Thread(target=run, name="welcome-samples", daemon=True).start()
+
+
+def _rank_welcome(stores: tuple) -> list[dict]:
+    """One ranking of the samples, stored in the memo. Under `_WELCOME_LOCK`."""
+    now = time.monotonic()
     minutes = BROWSE_MINUTES
     try:
         ranked = topics_mod.rank_most_played(
@@ -8131,8 +8173,11 @@ async def welcome_samples(request: Request) -> dict:
     landing page shows the same three (§190), so this is open past the gate.
     """
     _read_limit(request)
+    # Off the event loop (§338): a cold ranking reads the cache once per
+    # episode heard today, and every other request would wait behind it.
+    episodes = await asyncio.to_thread(_welcome_episodes)
     # A sample a reviewer took down is not offered on the front door (§226).
-    return {"episodes": [e for e in _welcome_episodes()
+    return {"episodes": [e for e in episodes
                          if not _episode_removed("", e.get("query") or "",
                                                  e.get("minutes") or BROWSE_MINUTES)]}
 
