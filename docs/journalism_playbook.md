@@ -205,7 +205,8 @@ team (chosen by the owner, 2026-10-29).*
 
 ### World news
 
-*Models: Reuters, the Associated Press, BBC World Service.*
+*Models: Reuters, the Associated Press, BBC World Service, Al Jazeera English
+(chosen by the owner, 2026-10-29).*
 
 - **Who, where, and what changed today** - then the context a listener needs
   to understand it.

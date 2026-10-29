@@ -22724,7 +22724,9 @@ models - The Verge, TechCrunch, Wired and Ars Technica (Reuters technology
 dropped); and its science models - Quanta Magazine, Scientific American, New
 Scientist and Nature's news team (the BBC and Reuters science desks
 dropped); and its health models - STAT, KFF Health News, The New York Times
-Well and MedPage Today (the BBC and Reuters health desks dropped).
+Well and MedPage Today (the BBC and Reuters health desks dropped); and its
+world models - Reuters, the Associated Press, BBC World Service and Al
+Jazeera English (added).
 
 No agent is built; nothing here runs.
 
