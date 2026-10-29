@@ -133,7 +133,7 @@ which is the go/no-go for all of it.
 **The archive is built (§308)**: `history_archive.py`, MongoDB Atlas in
 production once `ARCHIVE_BACKEND=atlas` (setup in `ARCHIVE.md`), its own
 SQLite file everywhere else; the storage amendment is at
-[storage-durability]. Its facts stay empty until the housemaid agent below
+[storage-durability]. Its facts stay empty until the housekeeper agent below
 is built. The owner wants a **history archive** - key
 sentences and figures from every packet, years of them, on **MongoDB Atlas**
 (a local SQLite backend behind the same interface for tests and staging) -

@@ -1,7 +1,7 @@
 # The history archive on MongoDB Atlas — setting it up
 
 PROBLEMS.md §308. The code is `history_archive.py`; the agent that will fill
-it is described in `docs/FAM_AGENTS.md` (Consuela, the housemaid).
+it is described in `docs/FAM_AGENTS.md` (Consuela, the housekeeper).
 
 ## What it does today
 
@@ -15,7 +15,7 @@ it is described in `docs/FAM_AGENTS.md` (Consuela, the housemaid).
   search's recency window is added to the writer's packet as dated **earlier
   reporting**, never as a current state. The search never waits for this for
   more than half a second.
-- **`facts` is empty until the housemaid agent (Consuela) is built.** That agent will
+- **`facts` is empty until the housekeeper agent (Consuela) is built.** That agent will
   digest `intake` into key sentences and figures. Until then the recall finds
   nothing, and the intake keeps every article so nothing is lost.
 

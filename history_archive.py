@@ -12,7 +12,7 @@ behind the same interface:
 * **intake** - one record per article URL that entered a packet: its title,
   outlet, grade, publish date and the passages the search returned, plus the
   subjects and categories of the episodes that used it. This is the raw
-  material **Consuela, the housemaid** agent (`docs/FAM_AGENTS.md`) will
+  material **Consuela, the housekeeper** agent (`docs/FAM_AGENTS.md`) will
   digest. That agent is not built yet, so intake is kept until it is:
   nothing is digested, and nothing is thrown away except past
   `ARCHIVE_INTAKE_MAX` records, oldest first.
@@ -885,7 +885,7 @@ def _write(findings: list, subject: str, category: str, episode: str,
 
 
 def add_fact(fact: Fact) -> str:
-    """Keep one fact, embedded here. For Consuela (the housemaid agent) and the tests.
+    """Keep one fact, embedded here. For Consuela (the housekeeper agent) and the tests.
     Raises when there is no archive or no embedder - it is never on a
     listener's path, and a fact without a vector cannot be recalled."""
     store = backend()

@@ -1076,7 +1076,7 @@ class Settings:
 
     # --- The history archive (§308, `history_archive.py`) -----------------
     # Every written episode's articles are kept (intake, for Consuela the
-    # housemaid to digest, docs/FAM_AGENTS.md) with the episode's
+    # housekeeper to digest, docs/FAM_AGENTS.md) with the episode's
     # source list; the facts it keeps are recalled beside the search as
     # dated earlier reporting. Never a private search or an attachment.
     archive: bool = field(
