@@ -22711,7 +22711,8 @@ differ. Option D is dropped and nothing waits on the owner scoring episodes
 ("we would rather not have it be so hands on to quality check episodes"):
 Shakespear is judged by §309's code measures, Mclovin's verdicts and
 listening, with labelled sets built in code by injecting errors. §309's own
-grader calibration against the owner's scores is untouched here.
+grader calibration against the owner's scores stays as it is (the owner:
+"keep the grader rule as it is").
 
 No agent is built; nothing here runs.
 
