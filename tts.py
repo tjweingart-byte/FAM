@@ -895,6 +895,17 @@ async def warm_up() -> None:
     Doing it at startup makes every request behave like the second one.
     """
     engine = build_engine()
+    if engine.name == "remote":
+        # Not for a remote voice (§338). The model lives on the worker, not
+        # here: a pinned pod runs continuously with it loaded, and the
+        # supervisor already verifies that worker by asking it. A synth from
+        # here went to the transport the environment names - the serverless
+        # endpoint, before the ladder had held the pod - so every boot
+        # cold-started a serverless GPU for a sentence nobody heard, and held
+        # the server's startup ~95 s while it did.
+        log.info("speech engine remote: no warm-up - the worker holds the "
+                 "model, and the voice supervisor verifies it")
+        return
     try:
         await engine.synth("Ready.", 150)
         log.info("speech engine %s warmed up", engine.name)

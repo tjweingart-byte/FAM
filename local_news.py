@@ -761,26 +761,67 @@ async def allowed(client: httpx.AsyncClient, url: str) -> bool:
     return held[1].can_fetch(places.user_agent(), url)
 
 
+#: What a site says when it does not want us: stop asking it anything (§338).
+REFUSED = (401, 403, 429)
+
+
+class Refused(Exception):
+    """The site refused a request while we looked for its feed - every guess
+    after it would be refused too, and each one is another knock."""
+
+    def __init__(self, status: int):
+        super().__init__(f"HTTP {status}")
+        self.status = status
+
+
+class Disallowed(Exception):
+    """robots.txt does not let us read the page we were about to ask for."""
+
+
 async def discover(client: httpx.AsyncClient, homepage: str) -> str:
-    """Find an outlet's feed from its homepage. "" when there is none."""
+    """Find an outlet's feed from its homepage. "" when there is none.
+
+    Raises `Refused` the first time the site answers 401/403/429 or a bot
+    challenge, and `Disallowed` when robots.txt forbids the homepage (§338):
+    the guesses at `FEED_PATHS` are eight requests, and production sent all
+    eight to a site that had already answered 429 to the first. A guess that
+    robots.txt forbids is skipped rather than asked."""
+    if not await allowed(client, homepage):
+        raise Disallowed(homepage)
     try:
         page = await _get(client, homepage)
-        if page.is_success:
-            for link in feed_links(page.text[:MAX_BYTES], str(page.url)):
-                if await _is_feed(client, link):
-                    return link
     except Exception as exc:  # noqa: BLE001
         log.info("local news: %s could not be read for a feed: %s", homepage, exc)
+        page = None
+    if page is not None:
+        _raise_if_refused(page)
+        if page.is_success:
+            for link in feed_links(page.text[:MAX_BYTES], str(page.url)):
+                if await allowed(client, link) and await _is_feed(client, link):
+                    return link
     for path in FEED_PATHS:
         candidate = urljoin(homepage, path)
+        if not await allowed(client, candidate):
+            continue
         if await _is_feed(client, candidate):
             return candidate
     return ""
 
 
+def _raise_if_refused(reply) -> None:
+    if reply.status_code in REFUSED or \
+            _CHALLENGE.search(reply.text[:4000] if reply.content else ""):
+        raise Refused(reply.status_code)
+
+
 async def _is_feed(client: httpx.AsyncClient, url: str) -> bool:
+    """Whether `url` serves a feed. Raises `Refused` if the site refuses."""
     try:
         reply = await _get(client, url)
+    except Exception:  # noqa: BLE001
+        return False
+    _raise_if_refused(reply)
+    try:
         return reply.is_success and bool(parse_feed(reply.content, url))
     except Exception:  # noqa: BLE001
         return False
@@ -806,8 +847,12 @@ def next_poll(outlet: Outlet, now: float) -> float:
         return now + min(max(floor, gap / 4), 6 * 3600.0)
     if outlet.state == STALE:
         return now + 6 * 3600.0
-    if outlet.state in (BROKEN, NO_FEED):
+    if outlet.state == BROKEN:
         return now + min(3600.0 * (2 ** max(0, outlet.failures - 1)), 86400.0)
+    if outlet.state == NO_FEED:
+        # A site seldom grows a feed, and each look is eight requests (§338):
+        # a day, then two, four, up to a week, until it retires at a month.
+        return now + min(86400.0 * (2 ** max(0, outlet.failures - 1)), 7 * 86400.0)
     if outlet.state == BLOCKED:
         return now + 86400.0
     return now + floor
@@ -842,7 +887,16 @@ async def poll(outlet: Outlet, client: httpx.AsyncClient,
     outlet.last_poll = now
     try:
         if not outlet.feed_url or outlet.state == BROKEN:
-            found = await discover(client, outlet.homepage)
+            try:
+                found = await discover(client, outlet.homepage)
+            except Refused as refused:
+                _trouble(outlet, BLOCKED, "the site refused us while we looked "
+                         f"for its feed (HTTP {refused.status})", now)
+                return _finish(outlet, target, now)
+            except Disallowed:
+                outlet.state = DISALLOWED
+                outlet.detail = "robots.txt does not allow reading the homepage"
+                return _finish(outlet, target, now)
             if not found:
                 if outlet.feed_url and outlet.state == BROKEN:
                     found = outlet.feed_url  # keep trying the one we had

@@ -566,6 +566,10 @@ class RemoteChatterboxEngine(TTSEngine):
                                      headers=self._headers(token))
         body = self._decode_json(response, "runsync")
         deadline = time.monotonic() + config.timeout
+        # Quick at first, then once a second (§338): a cold worker takes a
+        # minute or more, and four status requests a second for all of it
+        # bought nothing a listener could hear.
+        pause = 0.25
         while True:
             status = str(body.get("status", "")).upper()
             if status == "COMPLETED":
@@ -589,7 +593,8 @@ class RemoteChatterboxEngine(TTSEngine):
                     f"RunPod job {job_id} was still {status} after "
                     f"{config.timeout:.0f}s. A cold worker can exceed this - "
                     "raise REMOTE_VOICE_TIMEOUT, or keep a worker warm.")
-            await asyncio.sleep(0.25)
+            await asyncio.sleep(pause)
+            pause = min(1.0, pause * 1.5)
             polled = await client.get(f"{url}/status/{job_id}",
                                       headers=self._headers(token))
             body = self._decode_json(polled, f"status/{job_id}")

@@ -23512,3 +23512,50 @@ is `sqlite3.OperationalError` there too). Fixed from it, with tests:
 Left as it is: LinkedIn's engagement is read from the excerpt as well as the
 title, so a post saying "we hit 10K likes" reads as engaged. The search
 vendors' formats are unseen; look at the first live run before narrowing it.
+
+## 338. The waitlist page, local news and the voice warm-up stop doing work nobody needs (2026-10-29)
+
+From production's logs of 10.28, at the owner's direction.
+
+**The waitlist page's samples.** `/api/welcome` (the three samples on the
+sign-up and waitlist pages) ranked "most played today" again whenever its
+memo was over a minute old - on the visitor's own request, on the event
+loop, probing the cache for every episode heard today (a `SEARCH yes` line
+each, ~100 in a second) and picking a picture for each, which is what
+started the category rebuild of §335. Now:
+
+* the memo serves for ten minutes (`WELCOME_MEMO_SECONDS`);
+* past that, the old samples still answer at once and **one** background
+  thread ranks again (`_refresh_welcome_later`) - a visitor never waits;
+* a cold memo (the first ask after a boot) ranks under `_WELCOME_LOCK`, so
+  visitors arriving together share one ranking;
+* the handler ranks on a worker thread (`asyncio.to_thread`), never the loop.
+
+A sample a reviewer takes down still disappears at once: `_episode_removed`
+is applied per request, and the gate re-reads kept audio per play.
+
+**Local news.** `discover()` tried all seven `FEED_PATHS` after the site had
+already answered 429 to the homepage (`loudounnow.com`: eight refusals a
+look, twice, from two processes). Now the first 401/403/429 or bot challenge
+during discovery stops it (`Refused`) and files the outlet `BLOCKED` (asked
+again in a day); robots.txt is asked before the homepage (`Disallowed` ->
+`DISALLOWED`) and every guess it forbids is skipped rather than requested;
+and a site with no feed is looked at again after a day, doubling to a week,
+instead of after an hour - a site seldom grows a feed, and each look is
+eight requests.
+
+**The voice warm-up.** `tts.warm_up()` sent "Ready." through the remote
+engine at boot, before the voice supervisor had held the pinned pod, so it
+went to the transport the environment names - the serverless endpoint - and
+every boot cold-started a serverless GPU for a sentence nobody heard
+(twice, with two processes), polling its status four times a second for
+~95 s while the server's startup waited. A remote voice is no longer warmed:
+the model lives on the worker, a pinned pod keeps it loaded, and the
+supervisor verifies the worker by asking it. A local engine is still warmed.
+When an episode does wait on a cold serverless job, its status is asked
+every 0.25 s at first, slowing to once a second.
+
+**Not done: Google and Apple sign-in on the web.** The server verifies both
+(`oauth.py`) for the native app; the web has no button. Both need
+credentials only the owner can create (a Google OAuth client; an Apple
+Developer account), and the waitlist's sign-up is email only (§296).
