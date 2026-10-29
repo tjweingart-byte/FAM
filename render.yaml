@@ -1,7 +1,9 @@
 # One-command deploy: `render blueprint launch` (or point Render at this repo
-# and it reads this file). Chosen because it deploys from a Dockerfile, gives
-# a persistent disk on the paid tier, and redeploys on every push - which is
-# the part that matters for a fast loop.
+# and it reads this file). Chosen because it deploys from a Dockerfile and
+# redeploys on every push - which is the part that matters for a fast loop.
+# Production keeps nothing on Render's disk (§339): every store is in
+# Postgres (`DATABASE_URL`, POSTGRES.md), kept audio and pictures are in R2
+# (AUDIO_STORE.md), and the history archive is in MongoDB Atlas.
 #
 # Two services from one blueprint (STAGING.md, PROBLEMS.md §172):
 #
@@ -16,9 +18,11 @@
 #                 replayed from production with tools/replay_episodes.py.
 #
 # Both must be created *from this file* (Blueprints -> New, or `render
-# blueprint launch`): a service made by hand in the dashboard gets no disk, and
-# every deploy then erases its accounts (DEPLOY.md). Nothing is shared between
-# them - not a disk, not a key, not an admin token, not a voice worker.
+# blueprint launch`). Staging still has a disk until it runs on its own
+# Postgres (`fam-staging-db`); production has none, and a production service
+# without `DATABASE_URL` would erase its accounts on every deploy (DEPLOY.md,
+# `/api/health` -> `storage` says so). Nothing is shared between them - not a
+# database, not a key, not an admin token, not a voice worker.
 services:
   - type: web
     name: fam-staging
@@ -63,7 +67,10 @@ services:
     runtime: docker
     dockerfilePath: ./Dockerfile
     branch: Main
-    plan: starter          # free tier sleeps; starter stays warm
+    # 1 CPU, 2 GB (§339). Starter's 512 MB was exceeded and the service ran
+    # on 4 GB while the embedding model's memory was found and fixed (§335,
+    # §336); since then it holds ~400 MB, a fifth of this.
+    plan: standard
     # Every merge into `Main` redeploys. Turn this off once the app is in the
     # App Store and deploy production deliberately (STAGING.md).
     autoDeploy: true
@@ -373,7 +380,9 @@ services:
       # ANSWER_FIRST is not here because it no longer exists: the
       # from-knowledge cover it switched on was deleted in §108 (see DEPLOY.md
       # and Dockerfile.gpu). Setting it does nothing.
-    disk:
-      name: fam-data
-      mountPath: /data     # matches the Dockerfile's CACHE_PATH etc.
-      sizeGB: 1
+    # No disk (§339): it was deleted once every store was in Postgres. The
+    # Dockerfile's /data/*.db paths stay as they are - they no longer name
+    # files, but each store's Postgres schema is named from its path
+    # (`db.connect`, POSTGRES.md), so changing them would orphan the data.
+    # Without a disk, a deploy also starts the new instance before stopping
+    # the old one: no downtime.

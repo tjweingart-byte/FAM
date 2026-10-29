@@ -23559,3 +23559,19 @@ every 0.25 s at first, slowing to once a second.
 (`oauth.py`) for the native app; the web has no button. Both need
 credentials only the owner can create (a Google OAuth client; an Apple
 Developer account), and the waitlist's sign-up is email only (§296).
+
+## 339. Production without a disk, on Standard (2026-10-29)
+
+The owner (10.29): the plan moved from 2 CPU / 4 GB to 1 CPU / 2 GB
+(Render's "compute plan" `1c-2g`, formerly Standard), and the `fam-data`
+disk was deleted in the dashboard. Memory had held flat at ~400 MB for a
+night after §335 and §336 (a tenth of 4 GB, a fifth of 2 GB), and nothing
+read the disk: every store has been in Postgres since §243's switch-over,
+kept audio and pictures are in R2 (§237, §330), the archive is in Atlas.
+
+`render.yaml` now says so - `plan: standard` and no `disk:` on `fam` - so a
+Blueprint sync cannot recreate the disk or put the plan back to `starter`.
+The Dockerfile's `/data/*.db` paths are unchanged on purpose: they name no
+file any more, but each store's Postgres schema is named from its path, and
+a new path would be a new, empty schema. Staging keeps its disk until it
+runs on `fam-staging-db`.
