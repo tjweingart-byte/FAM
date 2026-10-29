@@ -22728,7 +22728,9 @@ Well and MedPage Today (the BBC and Reuters health desks dropped); and its
 world models - Reuters, the Associated Press, BBC World Service and Al
 Jazeera English (added); and its culture models - The Ringer, Variety,
 Rolling Stone and NPR's arts and culture desk (the BBC and New York Times
-arts desks dropped).
+arts desks dropped); and its local models - The Philadelphia Inquirer, The
+Texas Tribune, Patch and Axios Local (none were named before). Every
+category's outlets are now the owner's.
 
 No agent is built; nothing here runs.
 

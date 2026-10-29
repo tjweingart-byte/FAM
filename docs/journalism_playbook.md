@@ -227,8 +227,9 @@ team (chosen by the owner, 2026-10-29).*
 
 ### Local news
 
-*Models: the best local and regional newsrooms - reporting that names the
-place, the people and the decision.*
+*Models: The Philadelphia Inquirer, The Texas Tribune, Patch, Axios Local
+(chosen by the owner, 2026-10-29) - reporting that names the place, the
+people and the decision.*
 
 - Name the town, the body (council, school board) and the decision.
 - When a town has little reporting, say what is known plainly; never fill

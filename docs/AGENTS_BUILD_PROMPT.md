@@ -189,7 +189,8 @@ Names are internal: never shown to a listener.
     guides' principles, audio craft, and the best reporting per category -
     drafted by Claude in `docs/journalism_playbook.md` (`EDITOR_PLAYBOOK`
     points at it). Option D (learning from episodes the owner scores) is
-    dropped.
+    dropped. The outlets per category in its Part 4 are the owner's picks
+    (2026-10-29).
 30. **Quality checks are not hands-on.** No step waits on the owner scoring
     episodes. Shakespeare and the playbook are judged automatically: the
     quality checker's code measures (§309), Mclovin's verdicts, and
@@ -204,10 +205,6 @@ Names are internal: never shown to a listener.
 
 Check `PROBLEMS.md` §318 (the last entries) for answers first.
 
-- Whether the outlets Claude picked per category in
-  `docs/journalism_playbook.md` (Part 4; every category but local news is already the owner's)
-  are the owner's - the owner may
-  edit them; do not wait on this to build.
 - Parallel, Perplexity, GNews and Polymarket: whether their material may be
   stored (allow their domains in the session's network settings to read
   their terms), and who asks them.
