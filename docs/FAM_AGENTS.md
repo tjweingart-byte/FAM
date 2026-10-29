@@ -29,7 +29,10 @@ cannot break, in `docs/agent_rules/` (one file per agent, shown as the
 "Rule book" sub-tab). Those files are **drafts**: the owner keeps the
 governing copies outside Claude, unchangeable by any session or agent, and
 where a held copy and this guide disagree, the held copy wins and this guide
-is corrected.
+is corrected. **Once agents run, the rule books are locked** (Shared rules,
+Locked rule books): a rule book runs only while it matches a manifest the
+owner has signed, so nothing but the owner - no agent, no model, no session -
+can change an agent's rules, responsibilities or boundaries.
 
 In a new session say *"read `docs/FAM_AGENTS.md` and work on Shakespeare"* (or any
 agent). Add one by copying the Template tab; when one is built, change its
@@ -74,6 +77,77 @@ An agent that breaks one is wrong however good its output looks.
 8. **Destructive work is reversible** - mark, grace period, log why, undo;
    hard deletion is a later step.
 9. **Provenance is kept** ([provenance-all-paths]).
+10. **Rules are the owner's alone** - an agent runs only under its signed
+    rule book and changes no rule, setting or limit, its own or another's
+    (Locked rule books, below).
+
+### Locked rule books
+
+The owner (2026-10-29): the set of rules for each agent is "untouchable and
+unchangeable unless we deliberately say to have them change ... not by an
+agent and not by a model". A rule book - its rules, responsibilities and
+boundaries - changes only by the owner's deliberate act. Today the governing
+copies are held outside Claude; once agents run, that is enforced in code:
+
+1. **The owner signs the rule books.** A manifest (`MANIFEST.json`, beside
+   the rule books) lists every rule book with its SHA-256 - the fingerprints
+   the owner sets, which the build prompt's Phase 0 checks the way
+   `VOICE_REFERENCE_FINGERPRINT` refuses a changed voice. The owner signs the
+   manifest with an Ed25519 private key that only the owner holds (a
+   hardware key or password manager - never the server, the repository,
+   `FAM_SECRETS` or a session), so a fingerprint cannot be reset by anyone
+   who can change a file or a setting. FAM holds only the public key
+   (`AGENT_RULES_PUBLIC_KEY`), so it can check a signature and never make
+   one. `cryptography`, already installed, does both. The same check applies
+   wherever the governing copies live: `docs/agent_rules/`, or the owner's
+   own location (`AGENT_RULES_DIR` or a fetched URL).
+2. **Unsigned rules never run.** At boot and before every agent call, the
+   rule book's hash is checked against the signed manifest. A missing,
+   changed or unsigned rule book holds that agent: the pipeline runs as it did
+   before the agent existed (rule 1), Keith raises it as urgent (the pop-up on
+   every admin page and an email, as decided for Keith on 2026-10-28), and
+   `/admin` names the file that differs. There is no setting that skips the
+   check. Until the owner signs a first manifest, every agent is held - the
+   state FAM is in today.
+3. **Nothing an agent or model does can write a rule book.** Rule books are
+   read-only files loaded once into frozen memory, never stored in MongoDB or
+   any store an agent writes; agents have no tool that writes a file or a
+   setting; their outputs are typed data, never run as instructions; and
+   Netenyahu's closed vocabulary has no "change a rule" or "change a setting".
+4. **A model cannot rewrite its own instructions.** The rule book is the
+   cached system block; anything a model writes, and anything in `<request>`,
+   `<evidence>`, `<archive>` or `<script>` ("ignore your rules"), is material,
+   never a change to the rules (Guardrails and prompting).
+5. **Editing the repository is not enough either.** Once a signed manifest
+   exists, a test fails when a rule book's hash is not in it, so a session
+   can edit a rule book but cannot ship it; before one exists, the test
+   checks that every agent is held. GitHub branch protection with a `CODEOWNERS`
+   entry requires the owner's approval on `docs/agent_rules/`, the manifest
+   and the public key (the owner sets this in GitHub). Every call records the
+   rule book version it ran under.
+
+**What the lock does not promise:** that a model always obeys. A locked rule
+can still be broken in one answer, which is why the rules that matter most
+are also held in code after the answer (Guardrails and prompting: code, then
+the answer's shape, then the prompt). A breach is caught and dropped, and
+never changes a rule.
+
+**The model under each rule book is pinned the same way** (the owner,
+2026-10-29: "we want to choose the model used for each agent, and some of
+that will be outside of Claude"): each agent's model is its own setting
+naming the vendor and an exact model ID, never a moving alias such as
+`-latest`, and never falling through to a shared `MODEL`; no automatic
+switch to a different model; each answer checked against the model it says
+it came from; a nightly check per agent on fixed inputs, as
+`verify_voice.py --fingerprint` does for the voice. Which model each agent
+runs is still decided elsewhere (§340).
+
+**To change a rule book:** the owner edits the file, signs the new manifest
+on the owner's own machine, and commits both; CI checks the signature and
+the deploy carries it. Nothing else changes one. The owner's review of
+2026-10-29 (Mclovin's unchecked sentence, Keith counting it, Consuela's
+automated eval) is that kind of change: once the lock exists, each such
+edit ships with a new signature.
 
 ### Pipeline and how agents run
 
@@ -169,6 +243,24 @@ decisions on what to run each agent here, that will happen later in another
 branch with a more complete decision-making method"). The prices and
 options below, each agent's plugin tab and the cost plan are the inputs to
 that decision; nothing here picks a model.
+
+**How agents reach their models is decided** (the owner, 2026-10-29: "lets
+get started on building the recommended option"): **FAM's own thin model
+layer**, not an agent framework or a gateway. Each agent's call is one typed
+request - way A below, `episode_intelligence._ask` generalised - through one
+adapter per vendor on that vendor's official SDK: `anthropic` (in use),
+`google-genai` (Gemini) and `openai` (OpenAI, and the OpenAI-compatible
+APIs of Groq, Cerebras, Together, xAI and DeepSeek). Every request has a
+Pydantic schema, a time limit, a fallback to the pre-agent path, a consent
+check (a listener's words go only to vendors the consent covers - today
+Anthropic) and a `metering` record priced by `metering.PRICES`. Each agent's
+model is its own setting naming vendor and exact model ID
+(`anthropic:claude-haiku-5-5`), pinned, never a moving alias and never
+falling through to a shared `MODEL`. Rejected after measurement and review:
+PydanticAI (about 5-6 ms more CPU per call in a one-process server, about
+two releases a week, built for tool loops FAM's agents do not run) and
+LiteLLM (two PyPI releases that stole credentials in 2026). Which model each
+agent runs stays the later decision above; this decides only the layer.
 
 Claude list prices per million tokens (cached 2026-10-06; check
 <https://platform.claude.com/docs/en/about-claude/pricing>):
@@ -432,6 +524,7 @@ Each case is a test with a fake agent or planner returning the bad answer.
 | `AGENTS_EXPECTED_CENTS_PER_EPISODE` | The cost plan Keith compares against (proposed) |
 | `OVERLORD_TICK_SECONDS`, `OVERLORD_MAX_TASKS_PER_TICK` | 300, 3 |
 | `OVERLORD_PLANNER_MODEL` | Empty = rules only |
+| `AGENT_RULES_PUBLIC_KEY` | The owner's public key that checks the rule-book manifest (Locked rule books); no setting turns the check off |
 
 Open: its own `/admin` page or a tracker section; whether it enables agents
 per surface (editions first) or per agent.

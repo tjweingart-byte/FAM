@@ -10,6 +10,12 @@ them. When a held copy and anything in this repository disagree, the held
 copy wins and the repository is corrected. An agent reads its rule book; it
 never edits one.
 
+**Once agents run, these files are locked.** Each runs only while its hash
+matches `MANIFEST.json`, signed with a key only the owner holds; a changed
+or unsigned rule book holds its agent, and a test fails before it can ship.
+To change one, the owner edits it and signs a new manifest - nothing else
+can. How it works: `docs/FAM_AGENTS.md`, Shared rules, Locked rule books.
+
 | Agent | Name | Rule book |
 |---|---|---|
 | Every agent | - | [every-agent.md](every-agent.md) |
