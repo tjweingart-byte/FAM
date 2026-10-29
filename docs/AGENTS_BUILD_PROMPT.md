@@ -59,47 +59,72 @@ Names are internal: never shown to a listener.
    Mclovin compares it with the finished script; on a mismatch C3P0 retitles
    from the finished script. When this is built, rewrite the
    `[title-from-content]` rule in `docs/claude/product.md` and its
-   `CLAUDE.md` line (the `tests/test_claude_md.py` budget applies), and keep
-   the parts of it that still hold: a listener's or bank tile's own title
+   `CLAUDE.md` line (the `tests/test_claude_md.py` budget applies), keeping
+   what still holds: a listener's or bank tile's own title
    (`titleOverridden`) is never replaced; tiles claim no results.
-2. **Demographics are aggregate only.** Consuela keeps what is searched and
-   heard by category, region and time, and how it correlates with
-   demographics such as **age and gender** - but only as totals and
-   correlations for groups above a minimum size, ages in bands, never names,
-   account ids or any row per person, never guests or private searches.
-   Accounts store a `birth_date` today (`accounts.py`) and no gender. A new
-   field (gender, or anything else) must be **optional**, covered by the
-   Privacy Policy and asked for with consent (`consent.py`), before it is
-   collected or used. Ask the owner which fields, where they are asked
-   (sign-up or Settings), the minimum group size and the age bands.
+2. **Demographics are aggregate only, in groups of at least 100.**
+   Consuela keeps what is searched and heard by category, region and time,
+   and how it correlates with age (in bands), gender and location - only as
+   totals and correlations for groups of **100 or more**, never names,
+   account ids or a row per person, never guests or private searches.
+   **Date of birth, location and gender are asked when a listener is let off
+   the waitlist and into the app** (an activation step; accounts already
+   store `birth_date` and a place, not gender). The Privacy Policy and
+   consent (`consent.py`) must cover them first; App Store guideline 5.1.1
+   limits requiring data an app does not need - see the open questions.
 3. **No full packets in MongoDB.** Consuela consolidates every packet **the
    moment it enters**: key sentences, figures, quotes and facts, chosen
    (never rewritten), each with its article link, date and grade. **After
-   90 days** it consolidates again to the very key information: important
-   figures, quotes, trends (kept as the dated series itself) and article
-   links. Sports and market records are never consolidated away.
+   90 days** it consolidates again to important figures, quotes, trends
+   (kept as the dated series) and article links. Sports and market records
+   are never consolidated away.
+4. **Keith and `/admin`.** Keith may **improve any existing admin page**; a
+   **new page or feature is presented to the owner as a slideshow first**
+   (what it looks like, what it does for them) and built only on a yes.
+5. **One category tag, everywhere, for the episode's whole life.** Nando's
+   node id travels with the episode: its script row, its audio's metadata in
+   Cloudflare R2, every MongoDB record from it, every app surface (tile,
+   player, category pages and reels, Explore, share page, saved, history)
+   and its logged tags. A re-file or a tree change updates all of them
+   together; Keith checks for drift daily.
+6. **Opinion pieces are screened out unless the request explicitly asks
+   for a person's opinion or point of view**; then C3P0 marks
+   `opinion_requested` with whose, and only that person's pieces are kept,
+   labelled as opinion.
+7. **Keith's alerts appear as a pop-up whenever the owner opens any admin
+   page**, listing every open alert until resolved. **Keith's first fixes
+   are in the error and usage tracking** (`pipeline_errors`,
+   `provider_usage`, their flushes and stores, missing limits, spend in
+   `metering` not counted as usage).
+8. **Provider terms.** The owner's use is an internal chronological history
+   of what FAM searched with its own keys, never resold. The findings so
+   far are in the Housekeeper tab of `docs/FAM_AGENTS.md`: GDELT is open
+   (with a citation); Parallel's and Perplexity's terms are unclear for an
+   archive reused across listeners; GNews's free plan is non-commercial;
+   Tiingo and Finnhub restrict showing data to app users; BALLDONTLIE,
+   API-Sports and Polymarket are unconfirmed. **Consuela stores a
+   provider's material only once the owner marks that provider approved**
+   (a per-provider setting, all off except GDELT and FAM's own records
+   until then).
 
 ## Decisions still to ask the owner
 
-Ask these at the start, in one message; do the unaffected work while
-waiting.
+The owner was asked these in the session that wrote this prompt; check
+`PROBLEMS.md` §318 (the last entries) for answers before asking again, and
+ask only what is still open, in one message.
 
-1. **Keith's "authority to build" `/admin`.** Proposed: Keith edits a
-   declarative panel layout over read-only data live; any new admin code is
-   drafted as a change for a person to review. An agent never edits or
-   deploys running code.
-2. **What "Cloudflare" must stay in sync with MongoDB.** Today R2 holds
-   episode audio and the episode rows live in the script cache
-   (`scripts.db` / Postgres). Confirm which records must carry the same
-   episode and node ids.
-3. **Source screen edge cases**: official blogs announcing their own news;
-   questions that ask for opinions; pieces labelled "analysis".
-4. **Keith's notification channel** for urgent problems, and which fixes it
-   may make first.
-5. **Storing key sentences and quotes from the search vendors** (Parallel,
-   Perplexity): check their terms before Consuela stores any.
-6. **Demographic details** (from decided item 2): which fields, where they
-   are asked, the minimum group size and the age bands.
+- Whether Keith's changes to existing admin pages go live once the checks
+  pass, or wait for a person's yes.
+- Whether date of birth, location and gender are required or skippable at
+  activation, what happens to an under-13 or under-18 date of birth, and
+  how existing active listeners are asked.
+- Whether settled facts the packets do not support are allowed in an
+  episode at all (Mclovin notes them today) or must be removed.
+- Official blogs that announce their own news; pieces labelled
+  "analysis".
+- Whether the archive may answer an empty search alone (§316).
+- Whether episodes made before Nando are re-filed.
+- The age bands; how long consolidated records are kept.
 
 ## The work, in order
 
@@ -176,26 +201,39 @@ settable in two places. Log each phase in `PROBLEMS.md` and keep
   (the dated series themselves) and article links; re-file on tree changes;
   double-check with Nando; purge opinion and blog entries already stored.
   Reversible marks, 30 days, logged.
+- **Activation step** (decided item 2): when an account is let off the
+  waitlist (`status` flips to `active`), the app asks for date of birth,
+  location and gender before entering - an API before a screen
+  ([api-before-screen]), a contract for old clients ([old-clients]), the
+  Privacy Policy and consent updated first.
 - **Aggregate demographic signals** (decided item 2): a background job that
-  joins accounts' demographic fields (age bands from `birth_date`; any new
-  optional field only once consented) with what was searched and heard, in
+  joins accounts' demographic fields with what was searched and heard, in
   place, and writes **only** totals and correlations by category, region,
-  time and band, above a minimum group size, never a per-person row, never
-  guests or private searches; it lives with the accounts data (Postgres),
-  not in MongoDB, and is registered with account deletion and wipes.
+  time and band, for groups of **100 or more**, never a per-person row,
+  never guests or private searches; it lives with the accounts data
+  (Postgres), not in MongoDB, and is registered with account deletion and
+  wipes.
+- **Per-provider storage switch** (decided item 8): Consuela keeps a
+  provider's material only when that provider is marked approved.
 - **Sonic**: a **read-only Atlas user** and connection; the closed lookups
   (by node and period, result between dates, value on a day or series, by
   meaning, corroboration) built in code; node → parent/children → vector →
   none; a **date-ordered, grouped `ArchivePacket`** for Diana and the writer;
   the existing 0.5 s grace window; today's `history_archive.look` as the
   fallback.
-- **Sync with Cloudflare** (open decision 2): a reconciliation job
+- **The category tag everywhere** (decided item 5): write Nando's node id
+  on the script row, as R2 object metadata (a copy-in-place update when it
+  changes), and on every MongoDB record; one function updates all of them
+  together on a re-file or tree change, and app caches are invalidated.
+- **Sync with Cloudflare** (decided item 5): a reconciliation job
   that every episode id and node id agree between MongoDB, the script cache
   and R2's objects; Keith reports drift.
 
 ### Phase 3 - Diana and Mclovin in the writing
 
-- **Mclovin's source screen** inside `research.screen_results` (URL path,
+- **Mclovin's source screen** (decided item 6: stands aside only for
+  `opinion_requested`, only for the named person's pieces) inside
+  `research.screen_results` (URL path,
   title label, a provider's page type, blogging hosts) on every rung and the
   second look, and the same screen on Sonic's packet; a small model on
   unsettled pages ahead of the tap only; drops logged and counted. A packet
@@ -237,14 +275,18 @@ settable in two places. Log each phase in `PROBLEMS.md` and keep
   resets, ask Netenyahu to hold an agent), each verified by a real call,
   **observe-only until the owner switches each on**; a **fix report**
   answerable at any moment; escalations with a solution plan; the
-  notification channel per open decision 4.
+  **pop-up on every admin page** with all open alerts (decided item 7);
+  **first fixes in error and usage tracking**.
 - **Agent conformance checks** written from each rule book (Sonic never
   wrote; Consuela's deletions are within grace; Mclovin's verdicts are among
   its named failures; C3P0's inputs carry no results; Nando's nodes exist),
   run on samples.
-- **`/admin` as Keith's**: a declarative panel layout over read-only data
-  sources Keith may arrange, add and retire; new code drafted for review
-  (open decision 1).
+- **`/admin` as Keith's** (decided item 4): Keith improves existing admin
+  pages - reorganising, relabelling, adding or removing panels, charts and
+  explanations over data FAM already has - through FAM's normal checks,
+  staging first, each change reversible and logged in the fix report; a new
+  page or feature is first a slideshow for the owner (what it looks like,
+  what it does for them) and is built only on a yes.
 
 ## Done looks like
 

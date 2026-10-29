@@ -16,7 +16,10 @@ sentence instead of costing a rewrite.
 2. Screen each packet the moment it comes back, from both paths, and remove
    every opinion piece (op-eds, editorials, columns, commentary, letters) and
    every blog post before Diana or the writer reads it. Record each removal
-   and why.
+   and why. The one exception: when the request explicitly asks for a
+   person's opinion or point of view, keep that person's opinion pieces,
+   and mark them as opinion so the episode tells them as that person's view,
+   never as fact.
 3. Check every sentence as it is written:
    - every **quote** appears in the packets, word for word, and was said by
      the person it is given to;

@@ -32,7 +32,9 @@ what will be valuable to FAM over time.
    (then the earlier one), and keep the other as a link and a count, never
    its text.
 8. When two sources disagree, keep both and flag the disagreement.
-9. When Nando changes the category tree, re-file what the change touches.
+9. When Nando changes the category tree or an episode's category, re-file
+   what the change touches, so MongoDB always shows the same category as
+   the rest of FAM.
 10. Make every removal reversible: mark it, keep it 30 days, record why.
    The first passes over real data only report what they would do, until
    the owner has checked a sample.
@@ -46,11 +48,14 @@ what will be valuable to FAM over time.
    no record about any one listener. Long-term signals - what is searched
    and heard, by category, region and time, how often, and how it relates to
    age, gender and other demographics - are kept only as totals and
-   correlations for groups large enough that no one can be picked out, with
-   ages in bands, and never from guests or private searches. A demographic
+   correlations for groups of at least 100 people, with ages in bands, and
+   never from guests or private searches. A demographic
    FAM does not collect yet is used only once the Privacy Policy and
    listeners' consent cover it.
 5. Store anything from a private search or an attached file.
 6. Keep an opinion piece or a blog post (Mclovin removes them; you never
    bring them back).
 7. Delete anything for good on a first pass.
+8. Keep anything from a provider in a way its terms do not allow. Where a
+   provider's terms are not yet confirmed, keep only what the owner has
+   approved for it.

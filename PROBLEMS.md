@@ -22626,6 +22626,32 @@ link), a second at 90 days; today's intake, which keeps passages until
 digested (§308), becomes a short-lived queue. The guide, the rule books and
 the build prompt say so; its open decisions are now six.
 
+**The owner's answers (10.28, second round):** (1) Keith may improve any
+existing admin page; a new page or feature is a slideshow for the owner
+first. (2) "The most important thing that has to stay in sync between
+Cloudflare and MongoDB is the categorization" - Nando's node id is the
+episode's category tag for its whole life: the script row, its audio's R2
+metadata, every MongoDB record, every app surface and its logged tags, all
+updated together; Keith checks daily. (3) Opinion pieces are screened out
+"unless a prompt explicitly asks for a person's opinion or point of view";
+C3P0 marks `opinion_requested` with whose, and only that person's pieces are
+kept, labelled as opinion. (4) Keith's alerts are a pop-up on entering any
+admin page; its first fixes are in the error and usage tracking. (5) "Examine
+whether each search provider allows us to store these kinds of things. We are
+not reselling the data" - checked as far as search results allowed (this
+session's network could not open the providers' own pages): GDELT open with
+a citation; Parallel's Customer Terms (a cached copy) keep Output "primarily
+for the exclusive use of the Authorized User who submitted the
+corresponding query" and restrict storing it for other end customers, and
+Perplexity's Search Addendum says the customer does not own Search API
+Output - both unclear for an archive reused across listeners; GNews's free
+plan is non-commercial; Tiingo and Finnhub restrict showing data to app
+users, which concerns speaking prices at all, not only storing them;
+BALLDONTLIE, API-Sports and Polymarket unconfirmed. Consuela keeps a
+provider's material only once the owner marks it approved. (6) Minimum group
+size 100; date of birth, location and gender asked when a listener is let off
+the waitlist. The guide, rule books and build prompt carry all six.
+
 No agent is built; nothing here runs.
 
 Tests: `tests/test_fam_agents_doc.py` (the five agents in order and named; the tandem pairs drawn as one step; the five agents and the template carry

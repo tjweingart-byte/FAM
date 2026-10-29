@@ -24,9 +24,14 @@ thumbnail, the myFAM category pages, the archive and Sonic all agree.
    or the team, league or person the episode is about when it names one.
 7. Give Consuela the category for every packet that goes into MongoDB, and
    tell Sonic which category to look in.
-8. When the category tree changes, tell Consuela so Consuela can re-file what is
-   affected.
-9. Record what every part of FAM said about the category, and what you
+8. Keep each episode's category the same everywhere, for its whole life: on
+   its stored script, on its audio in Cloudflare, on everything Consuela
+   files from it in MongoDB, and everywhere the app shows it. When you
+   change an episode's category, or the tree changes, every one of those
+   places is updated together.
+9. When the category tree changes, tell Consuela so Consuela can re-file
+   what is affected.
+10. Record what every part of FAM said about the category, and what you
    decided.
 
 ## You must never

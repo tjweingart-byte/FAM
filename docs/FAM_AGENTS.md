@@ -400,7 +400,12 @@ spread across EI's brief, code routes (`live_route`) and fixed defaults
    [title-from-content]'s writer-made title once built. Mclovin checks the
    title still matches the finished script; if it does not, C3P0 retitles
    from the finished script - the title stays C3P0's.
-6. **What an empty search means - not decided** (§316); every choice
+6. **Say when an opinion is asked for** - only when the request explicitly
+   asks for a person's opinion or point of view ("what does Krugman think
+   of the tariffs"), mark the plan `opinion_requested` with whose view, so
+   Mclovin keeps that person's opinion pieces (the owner, 2026-10-28). A
+   request that merely touches a debated topic is not one.
+7. **What an empty search means - not decided** (§316); every choice
    recorded with its reason ([candidate-reason]).
 
 ### Guardrails
@@ -418,6 +423,7 @@ things with the same name; put a claim or a result in the title.
 | No ids or tickers | Resolution is the provider's catalogue's ([live-facts]) | **Shape:** names only; **code** resolves |
 | Nothing personal in any input | The search gets the subject, never the listener | **Code:** built from request and brief only |
 | Ask-only-when-looking, cost ceilings | [sweep-on-demand] | **Code** |
+| An opinion is wanted only when asked for, explicitly | Opinion pieces are screened out otherwise (the owner) | **Shape:** `opinion_requested` with a named person; **code:** absent unless the request names a person and asks for their view |
 | Same-name things told apart, never guessed | The Eagles the bird and the Eagles the team need different plugins and pictures | **Shape:** an `entity` with its kind (team, airline, animal...) and `ambiguous: true` when unsure; **code:** an ambiguous entity asks the plugins for both readings |
 | The title names the subject and angle, never a result | A title written before research cannot know the outcome ([card-hook-startup]: tiles claim no results) | **Prompt; code:** a title with a score pattern or a result verb is replaced by the brief's derived title |
 | The title matches the finished episode | An episode can turn out to be about something else | **Code:** Mclovin compares; on a mismatch C3P0 retitles from the finished script |
@@ -460,6 +466,8 @@ until responsibility 6 is decided.)
 | "United's new signing" | The football club, not the airline |
 | "Eagles migration this fall" | The bird: no sports plugins |
 | "How did United do?" with no other clue | Ambiguous: both readings asked; the title stays neutral |
+| "What does Paul Krugman think about the tariffs?" | `opinion_requested`: Krugman |
+| "Are the tariffs working?" | No opinion requested - reporting only |
 | A title like "Eagles Crush Giants 31-10" before research | Replaced: no result in a title |
 
 ### Plugin options
@@ -685,7 +693,12 @@ what was gathered.
 1. **Screen sources as each packet comes back, from both paths** - drop
    opinion pieces (op-eds, editorials, columns, commentary, letters) and blog
    posts from the plugin packet and from Sonic's MongoDB packet, before
-   Diana or the writer reads them. In code inside `research.screen_results`
+   Diana or the writer reads them. **Unless the request explicitly asks for
+   a person's opinion or point of view on a topic** (the owner,
+   2026-10-28): then C3P0 marks the plan `opinion_requested` with whose view
+   is wanted, and that person's opinion pieces are kept - labelled as
+   opinion for Diana and the writer, so the episode tells them as that
+   person's view, never as fact. In code inside `research.screen_results`
    (URL path, title label, a provider's page type, blogging hosts) and the
    same screen on Sonic's packet; a small model on unsettled pages ahead of
    the tap only. A packet left thin gets the one retry; an empty one is a
@@ -736,7 +749,7 @@ outside model without the consent change.
 | Guardrail | Why | Held by |
 |---|---|---|
 | Only the two packets are evidence | The owner's rule: check against what was gathered, nothing outside | **Code:** handed exactly the writer's material - the screened plugin packet and Sonic's packet |
-| No opinion piece or blog post reaches Diana or the writer | Only reporting is evidence | **Code:** the screen in `research.screen_results` and on Sonic's packet, before either reads them |
+| No opinion piece or blog post reaches Diana or the writer, unless a person's view was asked for | Only reporting is evidence; an asked-for opinion is the subject | **Code:** the screen in `research.screen_results` and on Sonic's packet; it stands aside only for `opinion_requested`, only for that person's pieces, and labels them as opinion |
 | Checked while the writer writes | An error caught late costs a whole rewrite | **Code:** a per-sentence hook in `_ScriptReader`, beside the existing guards |
 | Quotes exact, and by the right person | A quote is exact or it is not a quote | **Code:** quoted span found in the packets; speaker matched |
 | Figures by code, every one | A wrong number is the mistake a listener repeats | **Code:** `figure_guard`'s reader widened; subject and moment matched |
@@ -831,9 +844,9 @@ check ~10k in / 500 out; costs at **10k episodes/month**.
 | `SUPERVISOR_REPAIRS` | `1` repair per sentence |
 | `SUPERVISOR_TIMEOUT_SECONDS` | Per-sentence ceiling; past it the sentence goes ahead and the miss is counted |
 
-Open: an official blog announcing its own news - keep or drop? When a
-question asks for opinions, should the screen stand aside? Is labelled
-"analysis" reporting? `FigureGuard` was kept narrow so a story survives it
+Open: an official blog announcing its own news - keep or drop? Is labelled
+"analysis" reporting? Decided: an opinion is kept only when the request
+explicitly asks for a person's view (2026-10-28). `FigureGuard` was kept narrow so a story survives it
 (§269): measure the widened check before it may drop sentences on search.
 
 ## 5. Housekeeper (Consuela)
@@ -888,8 +901,12 @@ FAM over time.
    demographics such as age and gender**. **Aggregate only**: age in bands,
    counts in groups large enough that no one can be picked out, never a
    name or anything that identifies a person, never guests or private
-   searches. FAM stores a birth date on accounts today but no gender; a
-   new field needs the Privacy Policy and consent first (open questions).
+   searches. **The minimum group size is 100 people** (the owner,
+   2026-10-28): no total or correlation is kept or shown for a group
+   smaller. **Date of birth, location and gender are asked for when a
+   listener is let off the waitlist and into the app** (the owner,
+   2026-10-28); FAM stores a birth date and a place today, not gender, and
+   the Privacy Policy and consent must cover them first.
 
 | Never duplicates, however alike | Why both stay |
 |---|---|
@@ -924,7 +941,7 @@ long-term signal that can point to a person.
 | Scores through a game are a series, not duplicates | They tell the story (the owner) | **Code:** live records keyed by time; never sent to the dedupe model |
 | All sports and market data kept | History and trends (the owner) | **Code:** `kind: "live"` exempt from minimising and deletion |
 | Re-filed when the tree changes | MongoDB must never point at a dead node | **Code:** Nando's tree-change tasks |
-| Long-term signals are aggregate only, demographics included | Rule 7, [private-search], [account-gates-kept], consent | **Code:** computed from accounts that gave the field, in age bands; stored only as counts and correlations by category, region, time and demographic band - never a name, an account id or any row per person; a minimum group size; never guests or private searches |
+| Long-term signals are aggregate only, demographics included | Rule 7, [private-search], [account-gates-kept], consent | **Code:** computed beside the accounts data, in age bands; stored only as counts and correlations by category, region, time and demographic band - never a name, an account id or any row per person; **no group under 100 people**; never guests or private searches |
 | Daily dollar and item ceilings | Rule 4 | **Code** |
 
 Dedupe order: code finds candidates (same subject + metric; close vectors +
@@ -1036,12 +1053,30 @@ languages). Every hole is closed by "uncertain = not compared".
 | `HOUSEKEEPER_DEDUPE_DRY_RUN` | `1` until a hand-checked sample says safe |
 | `HOUSEKEEPER_SUPERSEDED_DAYS` | 30 |
 
-Open: the search vendors' terms on storing key sentences and quotes
-(Parallel, Perplexity) - check before storing anything. Demographics: which
-fields (gender is not collected today), whether optional at sign-up or in
-Settings, the Privacy Policy wording and consent (`consent.py`), the minimum
-group size, and the age bands. Decided: consolidation on entry, again at 90
-days (2026-10-28); aggregate demographics only (2026-10-28).
+**May FAM keep what the providers return?** The owner's use (2026-10-28):
+an internal, chronological history of what FAM searched with its own keys,
+never resold or redistributed. What each provider's published terms say,
+as far as they could be read in October 2026 (from search results - this
+session could not open the providers' own pages; not legal advice):
+
+| Provider | What Consuela would keep | What the terms say | Verdict |
+|---|---|---|---|
+| **GDELT** | Article titles, links, dates, themes | Open for any purpose, commercial included, rehost and republish allowed; **must cite GDELT and link to gdeltproject.org** | Yes, with the citation |
+| **Parallel** (Search API) | Key sentences and links from its excerpts | Customer Terms (a cached copy, possibly outdated): Output is "primarily for the exclusive use of the Authorized User who submitted the corresponding query"; restrictions on copying, caching or storing Output for other end customers; no "AI and Data Selling Services"; the FAQ says the customer owns the output | **Unclear** - an archive reused for other listeners' episodes may be "storing Output for other End Customers". Ask Parallel in writing |
+| **Perplexity** (Search API, which FAM uses) | Key sentences and links | The Search Addendum says the customer does **not** own Search API Output (it is public web content); the display and storage clauses could not be read | **Unclear** - ask Perplexity in writing |
+| **GNews** (Trending) | Titles, links, dates | Free plan is non-commercial only; storage terms could not be read | **Needs a paid plan** before commercial launch; storage unconfirmed |
+| **Tiingo** (prices) | Daily prices for trends | Internal use only on standard plans; showing data to users of an app needs a **redistribution licence** | **Storing for internal history is likely fine; speaking prices to listeners may already need a licence** - ask Tiingo |
+| **Finnhub** (market moves) | Prices, quotes | Free plan is personal use; redistribution is an enterprise licence | **Same concern as Tiingo** - ask Finnhub |
+| **BALLDONTLIE**, **API-Sports** (scores) | Every final and in-game score | Terms could not be read | **Unconfirmed** - ask both |
+| **Polymarket** (forecasts) | Odds over time | Public data, free; its Terms of Service and API Usage Policy could not be read | **Unconfirmed** |
+
+Separately from any provider's terms, the articles' words belong to their
+publishers: keeping short key sentences with a link for internal history
+is the lower-risk shape, and a lawyer should confirm it before launch.
+
+Open: the age bands. Decided: consolidation on entry and again at 90 days;
+aggregate demographics with a minimum group of 100; date of birth, location
+and gender asked at activation (all 2026-10-28).
 Answered: a repeating article is a link and a count, no text (2026-10-24).
 
 ## 6. Retriever (Sonic)
@@ -1228,13 +1263,26 @@ fixes what it may, and brings a plan for what it may not.
    subsystems (editions, sweeps, archive, voice) run as they should; MongoDB
    and Cloudflare agree.
 4. **Own the admin page** - decide what the owner sees on `/admin` and make
-   it navigable, comprehensive and easy to understand. Within the admin
-   page's panel framework Keith arranges, adds and retires panels itself;
-   a change that needs new code is drafted as a change for a person to
-   review and merge (see guardrails).
+   it navigable, comprehensive and easy to understand (the owner,
+   2026-10-28):
+   - **Existing pages: Keith may improve any of them** - reorganise, relabel,
+     add or remove panels, charts and explanations over data FAM already
+     has.
+   - **New pages or features: Keith presents a slideshow first** - what it
+     would look like and what it does for the owner - and builds it only
+     once the owner says yes.
+5. **Alert on arrival** - whenever the owner opens any admin page, a pop-up
+   presents **all** of Keith's open alerts (escalations with their solution
+   plans, usage warnings, agent breaches), each until it is resolved; the
+   fix report is one tap away.
 
-**Starts observe-only:** each fix on its list is switched on by the owner,
-one at a time, after watching what Keith would have done.
+**Starts observe-only, and starts with tracking:** each fix on its list is
+switched on by the owner, one at a time, after watching what Keith would
+have done. **The first fixes are in the error and usage tracking in the
+database** (the owner, 2026-10-28): counts that failed to write
+(`provider_usage` and `pipeline_errors` flushes), a tracking store that
+failed to open or fell behind, a provider whose limit is missing from the
+usage table, and gaps where usage was spent (`metering`) but not counted.
 
 **What it watches:**
 
@@ -1266,7 +1314,8 @@ model or a channel.
 | Beyond its list, a solution plan | Keith is solution-oriented | **Shape:** escalation = problem, listener impact, what was tried, recommended fix, cost and risk, what it needs from the owner |
 | Subscription changes are recommended, never made | Spending is the owner's | **Code:** a warning at 80% and urgent at 95% of any limit (data plugins, Claude, Gemini, Atlas, Render, RunPod, R2), with the next plan and its price |
 | Agents checked against their rule books | The owner's rule: agents stay within rules and domain | **Code:** samples each agent's work against checks written from its rule book; a breach is escalated, and Netenyahu asked to hold the agent |
-| Owns `/admin`'s content, not its code | An agent that edits running code can break the page it reports on | **Code:** panels are a declarative layout over read-only data sources; Keith arranges, adds and retires them; new code is a drafted change for review |
+| Improves existing admin pages; proposes new ones | The owner's rule: improve what exists, show a slideshow before building anything new | **Code:** changes to existing pages ship through the normal checks (tests, staging first) and can be rolled back; a new page or feature needs the owner's yes on its slideshow first |
+| Every open alert shown on arrival | The owner wants alerts impossible to miss | **Code:** a pop-up on every admin page lists all open alerts until each is resolved |
 | One attempt per fix, then escalate | No loops on a broken thing | **Code** |
 | Starts observe-only (`IT_FIXES=0`) | Every fix is watched before it is trusted, like Consuela's dry run | **Code**; a person turns fixes on, one at a time |
 | Nothing secret or personal leaves | Errors can carry a query or a key ([listener-id-server], §144) | **Code:** `log_redaction.redact`, and only `explain()` text and counts reach a model or a channel - never the query |
@@ -1395,11 +1444,13 @@ pick from the list. After the shared preamble:
 | `IT_DAILY_DOLLARS` | Ceiling |
 | `RENDER_API_KEY`, `RUNPOD_API_KEY`, `ATLAS_ADMIN_KEY`, `CLOUDFLARE_ANALYTICS_TOKEN` | Read-only usage keys via `FAM_SECRETS` (proposed) |
 
-Open: how far Keith's "authority to build" `/admin` goes - arranging panels
-over existing data (proposed: yes, live), or writing new admin code (proposed:
-drafted for a person to merge); the most visible channel, and who receives it; quiet hours or none;
-which fixes Keith may make first; how you tell Keith something is fixed (a
-button on `/admin`, a reply, or resolving in the alerting tool).
+Open: whether Keith's improvements to existing admin pages go live on
+their own once the checks pass, or wait for a person's yes; whether alerts
+also reach the owner away from the admin page (email, push, SMS) or only in
+the pop-up; how you tell Keith something is fixed (a button in the pop-up is
+proposed). Decided: improve existing pages, slideshow before anything new;
+the pop-up on every admin page; first fixes in error and usage tracking (all
+2026-10-28).
 
 ## 8. Categorizer (Nando)
 
@@ -1453,10 +1504,8 @@ which nodes have an approved picture; `category_audit`.
    node; Consuela double-checks with Nando when a packet looks misfiled.
 5. **Tell Sonic where to look** - the node, and its parent and children
    where history may sit, with C3P0's "what to look for".
-6. **Keep the tree and the archive in step** - when a node is minted, moved
-   or merged, Nando tells Consuela, who re-files what the change touches,
-   so MongoDB never points at a node that no longer exists (future work:
-   the same for what Cloudflare holds, below).
+6. **Keep the category the same everywhere, for the episode's whole life**
+   - see below.
 7. **Grow the tree only through its door** - words no node fits are proposed
    to `categories.writer_subjects` (minted after two different questions);
    an unpainted approved node goes on the painting list. It never mints or
@@ -1465,11 +1514,24 @@ which nodes have an approved picture; `category_audit`.
    keywords, the writer and Nando each said), so how often it was right is
    measurable.
 
-**Future work the owner flagged: keep both stores in sync.** Episodes live in
-the script cache with their audio in Cloudflare R2; history lives in MongoDB.
-Both must carry the same node ids and episode ids, and when the tree changes
-both must be re-filed. Consuela must always know the current tree. Who
-reconciles them, and how often, is open (Keith checks they agree).
+**One category tag, everywhere, for the episode's whole life** (the owner,
+2026-10-28: "the most important thing that has to stay in sync between
+Cloudflare and MongoDB is the categorization"). Nando's node id is the
+episode's **category tag**, and it travels with the episode wherever it
+goes:
+
+| Where the episode is | What carries the tag |
+|---|---|
+| The script cache (`scripts.db` / Postgres) | A node-id column beside the category words |
+| Cloudflare R2 (its audio, `recent/` and `kept/`) | The object's metadata |
+| MongoDB | Every fact and packet from that episode, filed under the node by Consuela |
+| The app | The tile, the player, the category pages and reels, Explore, the share page, saved and history - all read the one tag through `app._episode_category` |
+| Events and taste | The logged tags of every play (§209) |
+
+When Nando re-files an episode, or the tree moves, merges or renames a node,
+**every place is updated together** - the script row, the R2 metadata, the
+MongoDB records (Consuela) and the app's caches - so nowhere shows an old
+category. Keith compares them daily and reports any drift.
 
 ### Guardrails
 
@@ -1488,7 +1550,7 @@ or bank tile's own title.
 | `none` keeps today's answer | Rule 1 | **Code:** `resolve_category(near=True)` |
 | Approved pictures only; named subject first | Logos and faces until a person approves (§169); §282 | **Code:** `thumbnails.pick*` |
 | No wait in front of the first word | It runs at the request, on search too | **Code:** decided in the same stage as EI and C3P0, code-first; a model only in parallel |
-| A tree change reaches the archive | MongoDB must never point at a dead node | **Code:** tree changes published to Consuela as tasks |
+| One tag everywhere, for life | The owner's rule: categorization consistent across both databases and the app | **Code:** one node id written to the script row, R2 metadata and MongoDB together; a re-file or tree change updates all of them at once; Keith checks daily |
 
 ### Prompting it, and breaking it
 
@@ -1559,9 +1621,9 @@ disagree. After the shared preamble:
 | `CATEGORIZER_MODEL` | Empty = code only (proposed) |
 | `NEAR_COSINE`, `WRITER_MIN_EPISODES`, `SUBJECT_DEPTH`, `THUMBNAILS_REVIEW` | Built: 0.45, 2, 2, `flagged` |
 
-Open: what "Cloudflare" must hold in sync with MongoDB (today R2 holds
-audio; the episode rows are in the script cache) and who reconciles them;
-whether older episodes are re-filed when the tree grows.
+Open: whether episodes made before Nando existed are re-filed by Nando
+(their category pages and pictures may change). Decided: the category tag
+is the same everywhere for the episode's whole life (2026-10-28).
 
 ## Template
 
