@@ -216,8 +216,8 @@ team (chosen by the owner, 2026-10-29).*
 
 ### Culture
 
-*Models: the arts and culture desks of NPR, the BBC and The New York Times;
-The Ringer for popular culture.*
+*Models: The Ringer, Variety, Rolling Stone, NPR's arts and culture desk
+(chosen by the owner, 2026-10-29).*
 
 - **What it is, and why people care about it now** - the release, the
   record, the controversy, the number.

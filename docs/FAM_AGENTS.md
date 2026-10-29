@@ -787,14 +787,14 @@ above all, no inverted pyramid ([no-inverted-pyramid]).
 |---|---|---|
 | **A. Getting it right** | The principles of the BBC Editorial Guidelines, the NPR Ethics Handbook, the Reuters Handbook of Journalism and the AP Stylebook | Accuracy, attribution, quotes, fairness, opinion labelled, facts never advice |
 | **B. Writing for the ear** | Radio and podcast craft as NPR Training and the BBC Academy teach it | One idea a sentence, attribution first, numbers the ear can hold, logic for transitions |
-| **C. Each category** | The best reporting per facet - sports (The Athletic, ESPN, Sports Illustrated, AP sports - the owner's picks), money (Bloomberg, the WSJ, CNBC, Reuters - the owner's picks), tech (The Verge, TechCrunch, Wired, Ars Technica - the owner's picks), science (Quanta, Scientific American, New Scientist, Nature's news team - the owner's picks), health (STAT, KFF Health News, NYT Well, MedPage Today - the owner's picks), world (Reuters, AP, BBC World Service, Al Jazeera English - the owner's picks), culture, local | Each kind of story told the way its best reporters tell it |
+| **C. Each category** | The best reporting per facet - sports (The Athletic, ESPN, Sports Illustrated, AP sports - the owner's picks), money (Bloomberg, the WSJ, CNBC, Reuters - the owner's picks), tech (The Verge, TechCrunch, Wired, Ars Technica - the owner's picks), science (Quanta, Scientific American, New Scientist, Nature's news team - the owner's picks), health (STAT, KFF Health News, NYT Well, MedPage Today - the owner's picks), world (Reuters, AP, BBC World Service, Al Jazeera English - the owner's picks), culture (The Ringer, Variety, Rolling Stone, NPR arts - the owner's picks), local | Each kind of story told the way its best reporters tell it |
 
 FAM's own episode shape (opening, beats, closing) sits between B and C.
 **Dropped:** option D (learning from episodes the owner scores by hand) -
 the owner would rather quality checks were not hands-on; the playbook is
 judged by automatic measures instead (responsibility 5). The outlets in C
-are Claude's first picks, except sports, money, tech, science,
-health and world, which the owner chose (2026-10-29); the owner may change any of them in the playbook.
+are the owner's picks (2026-10-29) for every category but local news,
+which is still Claude's; the owner may change any of them in the playbook.
 
 Open: what "in tandem" means in the call - the outline handed over beat by
 beat while the writer streams, or the outline first with the writer starting

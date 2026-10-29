@@ -22726,7 +22726,9 @@ Scientist and Nature's news team (the BBC and Reuters science desks
 dropped); and its health models - STAT, KFF Health News, The New York Times
 Well and MedPage Today (the BBC and Reuters health desks dropped); and its
 world models - Reuters, the Associated Press, BBC World Service and Al
-Jazeera English (added).
+Jazeera English (added); and its culture models - The Ringer, Variety,
+Rolling Stone and NPR's arts and culture desk (the BBC and New York Times
+arts desks dropped).
 
 No agent is built; nothing here runs.
 
