@@ -59,8 +59,14 @@ An agent that breaks one is wrong however good its output looks.
    writes under every writer rule.
 3. **Figures are code's** - parsed, normalised and compared in code, never
    judged by a model ([score-guard]).
-4. **Every dollar has a ceiling** - daily dollar and item caps in `config.py`,
-   spend in `metering`, `None` not `0` when not run ([metering]).
+4. **Cheap by design, never switched off by a budget** (the owner,
+   2026-10-28: "I don't want their availability to be determined by a
+   financial cap"). Cost is kept low by how each agent is built - code
+   first, the cheapest adequate model, batching, caching, a bounded size
+   for every call and at most one retry - not by a daily dollar cap that
+   could leave FAM without an agent. Every call's spend is recorded in
+   `metering` (`None` not `0` when not run, [metering]); Keith watches cost
+   per episode against the plan below. See **Cost** below.
 5. **Failures are visible** on `/admin` ([failures-visible]).
 6. **Staging spends nothing** - code-only parts or nothing ([zero-spend-staging]).
 7. **Nothing personal** - no asker stored; attachments and private searches
@@ -211,6 +217,58 @@ model earns it as an independent second judge, or as speed bought back on a
 listener's path. **Fixed by guardrail?** in each table: yes (a rule here
 closes the hole), partly, or no (a decision for the owner).
 
+### Cost
+
+**The owner's rule (2026-10-28):** the agents must be cheap enough to be
+available whenever they are needed, and no financial cap decides whether
+one runs. So cost is designed out, and watched - not rationed.
+
+**What each agent costs**, estimated per **10,000 episodes** (Claude list
+prices above; token counts from each agent's Plugin options tab; not
+measured - no key here):
+
+| Agent | How it runs | Est. per 10k episodes | Per episode |
+|---|---|---|---|
+| Netenyahu | Code only | $0 | $0 |
+| C3P0 | Folded into EI's existing Haiku call (~1k more in, ~200 out) | ~$2 | ~$0.0002 |
+| Nando | Code first; Haiku only on ties (~1 in 5) | <$1 | <$0.0001 |
+| Sonic | Code lookups on Atlas | $0 (inside the Atlas tier) | $0 |
+| Diana | Haiku on search; Sonnet batched on editions and write-ahead | ~$15-60 | ~$0.002-0.006 |
+| Mclovin | Code and a self-hosted grounding checker per sentence; Sonnet batched for the whole-script check | ~$125 (Sonnet) + the checker's machine | ~$0.013 |
+| Consuela | Haiku batched (~5 articles per episode), periodic dedupe | ~$5 | ~$0.0005 |
+| Keith | Code; Haiku only to write up an incident | <$1 | ~$0 |
+| **All agents** | | **~$150-200 + machines** | **~1.5-2¢** |
+
+Fixed machines: the grounding checker on a CPU box (~$25-85/month, est.) or a
+small GPU (~$150-300/month always on, est.) - which one is decided by
+measuring its speed per sentence; the Atlas tier (§307).
+
+**How the cost stays low, in the order they save most:**
+
+1. **Code before models** - Netenyahu, Sonic and most of Nando and Mclovin
+   are code: free, instant, always available.
+2. **One call, not two** - C3P0 and Nando ride on EI's existing call.
+3. **Batch half price** for everything nobody waits on: editions,
+   write-ahead, Consuela, the whole-script checks after an episode.
+4. **Prompt caching** - each agent's fixed instructions, rule book and
+   playbook cost about a tenth after the first call.
+5. **Haiku by default**, Sonnet only where judgment or independence from
+   the writer needs it (Diana on editions, Mclovin's writing check).
+6. **Self-hosted specialised models** (grounding checker, reranker): a fixed
+   machine cost, nothing per episode.
+7. **Shared work** - one edition, one cached episode serves every listener
+   who taps it, so the cost per listener falls as FAM grows.
+8. **Cheaper outside models** for work on FAM's own material only
+   (Consuela, editions): GPT-5 nano or Gemini Flash-Lite, a small further
+   saving, if the eval holds.
+9. **Volume pricing** - Anthropic's committed-use discounts once volume is
+   known.
+
+**Instead of a cap:** every call has a size limit (tokens in and out), each
+agent makes at most one call per episode plus one retry or repair,
+Netenyahu stops a task that repeats with nothing new (a loop is a bug, not
+a budget), and Keith emails when cost per episode runs well above this plan.
+
 ## 1. Overlord (Netenyahu)
 
 <!-- stages: orchestrate | feeds: context categorize editor check housemaid retrieve monitor -->
@@ -243,9 +301,11 @@ call each other; Netenyahu hands each one the typed output of the last.
    consolidation on entry and again at 90 days; tree changes from Nando to Consuela; never
    competing with listeners for the shared key or rate limits, and not
    during the 05:00/17:00 ET edition writes.
-5. **Enforce the limits** - each agent's ceilings and a global one;
-   Mclovin's one repair per sentence; holds an agent after repeated
-   failures, a spent ceiling or an eval regression, and tells Keith.
+5. **Enforce the bounds, not a budget** - each call's size, one call per
+   agent per episode plus one retry, Mclovin's one repair per sentence;
+   stops a task that repeats with nothing new; holds an agent after repeated
+   failures or an eval regression (never for having spent money), and tells
+   Keith.
 
 ### Guardrails
 
@@ -281,7 +341,7 @@ due and safe now?", never "what should FAM do?".
 | The editor's plan arrives after its ceiling | The writer reads the packets as today; the miss is counted |
 | A plan pointing at sentence numbers that do not exist | Rejected at the hand-off; writer falls back |
 | A sentence fails Mclovin's check twice | Dropped; the script carries on |
-| Spend at 99% of a ceiling | No task that could cross it |
+| A task re-run over and over by a bug, spending each time | Stopped as a loop; Keith emails; the agent stays available for other work |
 | Two workers start the nightly pass | One wins the claim |
 | A background agent hangs | Timeout, released once, then held |
 | An agent reports success with 0 items and a backlog | Recorded as 0 done, not healthy |
@@ -346,7 +406,7 @@ Each case is a test with a fake agent or planner returning the bad answer.
 | Setting (proposed) | What it is |
 |---|---|
 | `AGENTS` | `0` (default) / `1` |
-| `AGENTS_DAILY_DOLLARS` | Ceiling above every agent's |
+| `AGENTS_EXPECTED_CENTS_PER_EPISODE` | The cost plan Keith compares against (proposed) |
 | `OVERLORD_TICK_SECONDS`, `OVERLORD_MAX_TASKS_PER_TICK` | 300, 3 |
 | `OVERLORD_PLANNER_MODEL` | Empty = rules only |
 
@@ -377,8 +437,14 @@ spread across EI's brief, code routes (`live_route`) and fixed defaults
    football club, the Eagles the bird or the team, Apple the company or the
    fruit - from the words around the name, the request's context (a Go
    Deeper, a tile's angle, an edition) and what the live providers'
-   catalogues hold. Never from the listener's history or identity. When it
-   cannot tell, it says so and asks the plugins for both rather than guess.
+   catalogues hold. Never from the listener's history or identity. **When it
+   cannot tell, it asks the listener** (the owner, 2026-10-28: it puts the
+   listener in control and makes the episode less of a guess): "Did you
+   mean United Airlines or Manchester United?", the readings offered as
+   choices before anything is searched. Where nobody can be asked (myFAM
+   tiles, editions, the write-ahead), it uses the tile's or edition's own
+   context, and failing that leaves the request unwritten until a listener
+   taps it.
 2. **Decide which plugins to call** from the closed list: the search ladder
    (always, [always-researched]; GDELT only as the export copy); live facts;
    player and team reports; the forecast (beside every outcome-dependent
@@ -405,8 +471,16 @@ spread across EI's brief, code routes (`live_route`) and fixed defaults
    of the tariffs"), mark the plan `opinion_requested` with whose view, so
    Mclovin keeps that person's opinion pieces (the owner, 2026-10-28). A
    request that merely touches a debated topic is not one.
-7. **What an empty search means - not decided** (§316); every choice
-   recorded with its reason ([candidate-reason]).
+7. **Public figures only; facts, never advice** (the owner, 2026-10-28) -
+   a request about a private person is not researched; a request for
+   medical, legal or financial advice is answered with the facts, never a
+   recommendation.
+8. **When the web search finds nothing, the archive may answer alone - for
+   past or settled things only** (the owner, 2026-10-28, closing §316's open
+   question): C3P0 marks the plan `archive_alone` when the question is about
+   something finished or settled (a game already played, a close on a named
+   day); never for anything about now. Every choice recorded with its
+   reason ([candidate-reason]).
 
 ### Guardrails
 
@@ -424,7 +498,9 @@ things with the same name; put a claim or a result in the title.
 | Nothing personal in any input | The search gets the subject, never the listener | **Code:** built from request and brief only |
 | Ask-only-when-looking, cost ceilings | [sweep-on-demand] | **Code** |
 | An opinion is wanted only when asked for, explicitly | Opinion pieces are screened out otherwise (the owner) | **Shape:** `opinion_requested` with a named person; **code:** absent unless the request names a person and asks for their view |
-| Same-name things told apart, never guessed | The Eagles the bird and the Eagles the team need different plugins and pictures | **Shape:** an `entity` with its kind (team, airline, animal...) and `ambiguous: true` when unsure; **code:** an ambiguous entity asks the plugins for both readings |
+| Same-name things told apart, never guessed | The Eagles the bird and the Eagles the team need different plugins and pictures | **Shape:** an `entity` with its kind (team, airline, animal...) and `ambiguous` with the readings when unsure; **code:** an ambiguous request asks the listener to choose before any plugin is called |
+| Public figures only | The owner's firm rule (2026-10-28): FAM never researches a private person | **Code:** a named person is researched only when they are a public figure - in the reference look (Wikipedia / Wikidata), a provider's catalogue, or named in reporting for a public role; otherwise no episode is made about them and the listener is told FAM covers public figures only |
+| Facts, never advice | The owner (2026-10-28): medical, legal and money questions get the facts, never a recommendation | **Shape:** a request for advice ("should I buy...", "should I take...") is planned as the facts around it; **code:** Mclovin fails an advising sentence |
 | The title names the subject and angle, never a result | A title written before research cannot know the outcome ([card-hook-startup]: tiles claim no results) | **Prompt; code:** a title with a score pattern or a result verb is replaced by the brief's derived title |
 | The title matches the finished episode | An episode can turn out to be about something else | **Code:** Mclovin compares; on a mismatch C3P0 retitles from the finished script |
 | Ceiling and fallback | Rule 1 | **Code** |
@@ -447,7 +523,11 @@ After the shared preamble:
 > First work out exactly what the request is about. Names are often shared:
 > United is an airline and a football club; the Eagles are a bird and a
 > team. Decide from the words around the name and the request's context.
-> If you cannot tell, say `ambiguous` and name both readings; never guess.
+> If you cannot tell, say `ambiguous` and name the readings, so FAM can ask
+> the listener; never guess. If the request is about a person who is not a
+> public figure, say `private_person`; FAM does not research private people.
+> If it asks for medical, legal or financial advice, plan the facts around
+> it, never a recommendation.
 > Then give the episode a title of three to eight words that names the
 > subject and the angle - never a result, a score or a claim, since nothing
 > has been looked up yet.
@@ -465,7 +545,9 @@ until responsibility 6 is decided.)
 | "What's the weather like in politics" | No weather source |
 | "United's new signing" | The football club, not the airline |
 | "Eagles migration this fall" | The bird: no sports plugins |
-| "How did United do?" with no other clue | Ambiguous: both readings asked; the title stays neutral |
+| "How did United do?" with no other clue | Ambiguous: the listener is asked "United Airlines or Manchester United?" |
+| "What's my neighbour Dave Smith up to?" | Private person: no episode; told FAM covers public figures |
+| "Should I buy NVIDIA now?" | Planned as the facts: price, recent news, what analysts reported - no recommendation |
 | "What does Paul Krugman think about the tariffs?" | `opinion_requested`: Krugman |
 | "Are the tariffs working?" | No opinion requested - reporting only |
 | A title like "Eagles Crush Giants 31-10" before research | Replaced: no result in a title |
@@ -668,9 +750,11 @@ Per episode ~10k in / 1k out; costs at **10k episodes/month** (×10 for 100k).
 
 Open: what "in tandem" means in the call - the outline handed over beat by
 beat while the writer streams, or the outline first with the writer
-starting the moment the opening beat is decided? Who writes the journalism
-playbook, and from which journalists' practice? On searchFAM from the start,
-or editions first?
+starting the moment the opening beat is decided? Which outlets the
+journalism playbook is drafted from (decided: Claude drafts it from outlets
+the owner names, and the owner edits it, 2026-10-28)? On searchFAM from the
+start, or editions first? Decided: facts, never advice, on medical, legal
+and money questions (2026-10-28).
 
 ## 4. Script supervisor (Mclovin)
 
@@ -680,8 +764,13 @@ or editions first?
 **Mclovin, the script supervisor** (named by the owner, 2026-10-28).
 **Works in:** **alongside Diana and the writer, while the writer is
 writing** - each sentence is checked as it is written, so an error is fixed
-in that sentence instead of costing a whole rewrite. Before that, the moment
-each packet comes back, it screens the sources. **Status:** planned (§312).
+in that sentence instead of costing a whole rewrite. **On searchFAM too,
+before speech** (the owner, 2026-10-28): every sentence is checked before it
+is voiced as the script is written; after the first chunk the check runs
+while earlier sentences are playing, so only the first chunk waits on it.
+If it costs more than expected, that is raised with the owner, not
+switched off. Before that, the moment each packet comes back, it screens
+the sources. **Status:** planned (§312).
 
 **Purpose.** Make sure every episode is true to its sources and keeps the
 rules of what an episode is - **checking only against the two packets**
@@ -698,7 +787,10 @@ what was gathered.
    2026-10-28): then C3P0 marks the plan `opinion_requested` with whose view
    is wanted, and that person's opinion pieces are kept - labelled as
    opinion for Diana and the writer, so the episode tells them as that
-   person's view, never as fact. In code inside `research.screen_results`
+   person's view, never as fact. **Official blogs** (a company's newsroom, a
+   government agency's announcements) are **primary sources and kept**; all
+   other blogs are dropped; pieces labelled **"analysis" are reporting and
+   kept** (the owner, 2026-10-28). In code inside `research.screen_results`
    (URL path, title label, a provider's page type, blogging hosts) and the
    same screen on Sonic's packet; a small model on unsettled pages ahead of
    the tap only. A packet left thin gets the one retry; an empty one is a
@@ -711,8 +803,12 @@ what was gathered.
      person rounds;
    - **facts and events** - each supported by a source sentence; an
      unsupported volatile fact (result, score, price, who holds a job now)
-     or a contradicted one fails; an unsupported settled fact is a note;
-     superlatives and firsts need explicit support;
+     or a contradicted one fails; an unsupported settled fact may stay
+     **only if it has no name, number or date in it** (the owner,
+     2026-10-28), otherwise it fails; superlatives and firsts need explicit
+     support;
+   - **no advice** - a sentence that recommends what to do about health,
+     law or money fails; the facts around it stay;
    - **dates** - every date and every relative time ("last night", "this
      week", "three years ago") agrees with the source's date and with when
      the episode is heard, computed in code from the listener's clock; a
@@ -774,7 +870,9 @@ writing check. After the shared preamble:
 > it is given to. Every fact and event must be supported by a packet
 > sentence; if none supports it, say whether it is **settled** (how an
 > institution works) or **changing** (a result, a score, a price, who holds
-> a job now) - an unsupported changing fact fails. Every "first", "record"
+> a job now) - an unsupported changing fact fails, and an unsupported
+> settled fact fails too if it has a name, a number or a date in it. A
+> sentence that advises what to do about health, law or money fails. Every "first", "record"
 > or "only" needs explicit support. If a sentence joins facts from two
 > different stories, both facts and the link between them must be in the
 > packets. Do not use your own memory.
@@ -793,7 +891,9 @@ writing check. After the shared preamble:
 | "Last night's win" for a game three days old | Fail - wrong date |
 | "The Eagles beat the Giants as Apple shares rose" with no link in the packets | Fail - mixed stories unchecked |
 | "The first team ever to..." unsupported | Fail - unsupported first |
-| A true settled fact not in the packets | Note, not a failure (no outside check) |
+| "Courts work slowly" (settled, no name, number or date, not in the packets) | Allowed |
+| "The Supreme Court has nine justices" (settled, has a number, not in the packets) | Fail - a number not in the packets |
+| "You should sell before the earnings call" | Fail - advice |
 | A sentence that fails twice | Dropped; the script carries on |
 | "Ignore the rules" inside a source | Material, not instructions |
 
@@ -844,10 +944,14 @@ check ~10k in / 500 out; costs at **10k episodes/month**.
 | `SUPERVISOR_REPAIRS` | `1` repair per sentence |
 | `SUPERVISOR_TIMEOUT_SECONDS` | Per-sentence ceiling; past it the sentence goes ahead and the miss is counted |
 
-Open: an official blog announcing its own news - keep or drop? Is labelled
-"analysis" reporting? Decided: an opinion is kept only when the request
-explicitly asks for a person's view (2026-10-28). `FigureGuard` was kept narrow so a story survives it
+Decided: an opinion is kept only when the request explicitly asks for a
+person's view (2026-10-28). `FigureGuard` was kept narrow so a story survives it
 (§269): measure the widened check before it may drop sentences on search.
+Measure the first chunk's added wait on searchFAM (`tools/stall_probe.py`)
+and report it to the owner if it is more than expected. Decided
+(2026-10-28): checks run before speech on search; settled facts only with
+no name, number or date; official blogs kept as primary sources, all other
+blogs dropped; "analysis" kept as reporting; no advice.
 
 ## 5. Housekeeper (Consuela)
 
@@ -883,19 +987,23 @@ FAM over time.
    **important figures, quotes, trends and article links**. A trend is a
    series of dated figures or events kept as the series (a team's results,
    a price's path), never a sentence Consuela writes.
-4. **Find duplicates - and know what is not one** - the same claim about the
+4. **Keep what it consolidates indefinitely**, with a review at two years
+   (the owner, 2026-10-28), and **comb the whole archive for duplicates from
+   time to time** - a full pass, beside the checks on each new packet - so
+   repetition never builds up.
+5. **Find duplicates - and know what is not one** - the same claim about the
    same subject at the same moment is a duplicate; a price on two days, a
    revised count, a forecast and an outcome, two sources that disagree, and
    **scores at different points in the same game** are not: they tell the
    story. The better-sourced version is kept; a repeating article becomes a
    corroborating link (the owner, 2026-10-24). Reversible: marked, kept 30
    days, logged.
-5. **Keep all sports and market data from the plugins** - every result and
+6. **Keep all sports and market data from the plugins** - every result and
    price, including in-game scores over time, kept for history and trends,
    never minimised away.
-6. **Follow the tree as it changes** - when Nando reports a node minted,
+7. **Follow the tree as it changes** - when Nando reports a node minted,
    moved or merged, re-file what it touches.
-7. **Think longer term** - keep the aggregate signals that will be valuable
+8. **Think longer term** - keep the aggregate signals that will be valuable
    over time (the owner, 2026-10-28): what is searched and heard, by
    category, region and time, how much, and **how it correlates with
    demographics such as age and gender**. **Aggregate only**: age in bands,
@@ -905,8 +1013,12 @@ FAM over time.
    2026-10-28): no total or correlation is kept or shown for a group
    smaller. **Date of birth, location and gender are asked for when a
    listener is let off the waitlist and into the app** (the owner,
-   2026-10-28); FAM stores a birth date and a place today, not gender, and
-   the Privacy Policy and consent must cover them first.
+   2026-10-28): **date of birth required, 13 and over only**; location and
+   gender optional. Gender is one of man, woman, non-binary, self-describe,
+   prefer not to say. Location keeps the city; the aggregates use the
+   region. Listeners already let in are asked the next time they open the
+   app. Age bands: 13-17, 18-24, 25-34, 35-44, 45-54, 55-64, 65+. The
+   Privacy Policy and consent must cover them first.
 
 | Never duplicates, however alike | Why both stay |
 |---|---|
@@ -942,7 +1054,7 @@ long-term signal that can point to a person.
 | All sports and market data kept | History and trends (the owner) | **Code:** `kind: "live"` exempt from minimising and deletion |
 | Re-filed when the tree changes | MongoDB must never point at a dead node | **Code:** Nando's tree-change tasks |
 | Long-term signals are aggregate only, demographics included | Rule 7, [private-search], [account-gates-kept], consent | **Code:** computed beside the accounts data, in age bands; stored only as counts and correlations by category, region, time and demographic band - never a name, an account id or any row per person; **no group under 100 people**; never guests or private searches |
-| Daily dollar and item ceilings | Rule 4 | **Code** |
+| Bounded batches, not a budget | Rule 4 | **Code:** each batch and each comb has a size; nothing stops it for having spent |
 
 Dedupe order: code finds candidates (same subject + metric; close vectors +
 shared names) → figures by code alone → sentences to a model as a yes/no →
@@ -1049,7 +1161,7 @@ languages). Every hole is closed by "uncertain = not compared".
 |---|---|
 | `ARCHIVE_BACKEND`, `MONGODB_URI` | Built (§308); URI via `FAM_SECRETS` |
 | `HOUSEKEEPER_MODEL` / `HOUSEKEEPER_REVIEW_MODEL` | `claude-haiku-5-5` / `claude-sonnet-5-5` |
-| `HOUSEKEEPER_DAILY_DOLLARS`, `HOUSEKEEPER_DAILY_ARTICLES` | Ceilings |
+| `HOUSEKEEPER_BATCH_ARTICLES`, `HOUSEKEEPER_COMB_DAYS` | Batch size; how often the full duplicate comb runs (proposed) |
 | `HOUSEKEEPER_DEDUPE_DRY_RUN` | `1` until a hand-checked sample says safe |
 | `HOUSEKEEPER_SUPERSEDED_DAYS` | 30 |
 
@@ -1074,9 +1186,12 @@ Separately from any provider's terms, the articles' words belong to their
 publishers: keeping short key sentences with a link for internal history
 is the lower-risk shape, and a lawyer should confirm it before launch.
 
-Open: the age bands. Decided: consolidation on entry and again at 90 days;
-aggregate demographics with a minimum group of 100; date of birth, location
-and gender asked at activation (all 2026-10-28).
+Decided (2026-10-28): consolidation on entry and again at 90 days;
+consolidated records kept indefinitely, reviewed at two years, the archive
+combed for duplicates from time to time; aggregate demographics with a
+minimum group of 100; date of birth (required, 13+), location and gender
+(optional) asked at activation; the age bands above. Open: which providers
+the owner approves for storage (above).
 Answered: a repeating article is a link and a count, no text (2026-10-24).
 
 ## 6. Retriever (Sonic)
@@ -1265,9 +1380,9 @@ fixes what it may, and brings a plan for what it may not.
 4. **Own the admin page** - decide what the owner sees on `/admin` and make
    it navigable, comprehensive and easy to understand (the owner,
    2026-10-28):
-   - **Existing pages: Keith may improve any of them** - reorganise, relabel,
-     add or remove panels, charts and explanations over data FAM already
-     has.
+   - **Existing pages: Keith may improve any of them - after the owner's
+     yes** (the owner, 2026-10-28): Keith shows the change (before and
+     after) and makes it only once the owner approves.
    - **New pages or features: Keith presents a slideshow first** - what it
      would look like and what it does for the owner - and builds it only
      once the owner says yes.
@@ -1314,14 +1429,16 @@ model or a channel.
 | Beyond its list, a solution plan | Keith is solution-oriented | **Shape:** escalation = problem, listener impact, what was tried, recommended fix, cost and risk, what it needs from the owner |
 | Subscription changes are recommended, never made | Spending is the owner's | **Code:** a warning at 80% and urgent at 95% of any limit (data plugins, Claude, Gemini, Atlas, Render, RunPod, R2), with the next plan and its price |
 | Agents checked against their rule books | The owner's rule: agents stay within rules and domain | **Code:** samples each agent's work against checks written from its rule book; a breach is escalated, and Netenyahu asked to hold the agent |
-| Improves existing admin pages; proposes new ones | The owner's rule: improve what exists, show a slideshow before building anything new | **Code:** changes to existing pages ship through the normal checks (tests, staging first) and can be rolled back; a new page or feature needs the owner's yes on its slideshow first |
+| Every admin change waits for the owner's yes | The owner's rule (2026-10-28) | **Code:** an improvement to an existing page is shown before and after; a new page or feature is a slideshow; nothing ships without the owner's approval, then through the normal checks, reversible |
+| Urgent alerts by email too | The pop-up only works when the owner is on the admin page | **Code:** an urgent alert is emailed (`mail.py`) as well as shown in the pop-up |
 | Every open alert shown on arrival | The owner wants alerts impossible to miss | **Code:** a pop-up on every admin page lists all open alerts until each is resolved |
 | One attempt per fix, then escalate | No loops on a broken thing | **Code** |
 | Starts observe-only (`IT_FIXES=0`) | Every fix is watched before it is trusted, like Consuela's dry run | **Code**; a person turns fixes on, one at a time |
 | Nothing secret or personal leaves | Errors can carry a query or a key ([listener-id-server], §144) | **Code:** `log_redaction.redact`, and only `explain()` text and counts reach a model or a channel - never the query |
 | "Fixed" from a person is checked, not believed | A wrong "fixed" hides an outage | **Code:** re-check, reopen if still failing |
 | Netenyahu decides about agents | One owner per decision | **Shape:** Keith asks Netenyahu; it cannot hold an agent itself |
-| No model on a quiet tick; a ceiling on incidents summarised per day | Rule 4 | **Code** |
+| No model on a quiet tick; one write-up per incident | Rule 4 | **Code** |
+| Cost watched, not capped | Rule 4: no budget decides availability | **Code:** cost per episode compared with the plan; an email when it runs well above it |
 | Staging: watches, never notifies outward, no model | [zero-spend-staging] | **Code:** `/admin` only |
 
 ### Prompting it, and breaking it
@@ -1420,9 +1537,8 @@ pick from the list. After the shared preamble:
   `/api/health`,** and Healthchecks.io heartbeats from each loop.
 - **Needs 2 and 5 → code watching,** with Haiku 5.5 only to write up an open
   incident. Start observe-only.
-- **Need 3 → `/admin` as the record, email for warnings, and for urgent a
-  repeat-until-acknowledged channel** (PagerDuty-class, or SMS) - the
-  owner's decision.
+- **Need 3 → the pop-up on every admin page, and email for urgent alerts**
+  (`mail.py`, already built; the owner, 2026-10-28).
 - **Need 4 → grouping in code.** Sentry is optional, with redaction.
 - **Need 6 → each provider's own read-only usage API,** polled hourly, with
   the plan limits copied beside them as `provider_usage` already does.
@@ -1441,16 +1557,15 @@ pick from the list. After the shared preamble:
 | `IT_FIXES` | `0` observe-only; then a list of the fixes allowed |
 | `IT_MODEL` | Empty = code only |
 | `IT_NOTIFY_WARN`, `IT_NOTIFY_URGENT` | The channels, once decided |
-| `IT_DAILY_DOLLARS` | Ceiling |
+| `IT_ALERT_EMAIL` | Where urgent alerts are emailed (proposed) |
 | `RENDER_API_KEY`, `RUNPOD_API_KEY`, `ATLAS_ADMIN_KEY`, `CLOUDFLARE_ANALYTICS_TOKEN` | Read-only usage keys via `FAM_SECRETS` (proposed) |
 
-Open: whether Keith's improvements to existing admin pages go live on
-their own once the checks pass, or wait for a person's yes; whether alerts
-also reach the owner away from the admin page (email, push, SMS) or only in
-the pop-up; how you tell Keith something is fixed (a button in the pop-up is
-proposed). Decided: improve existing pages, slideshow before anything new;
-the pop-up on every admin page; first fixes in error and usage tracking (all
-2026-10-28).
+Open: how you tell Keith something is fixed (a button in the pop-up is
+proposed); which email address receives urgent alerts. Decided (2026-10-28):
+improvements to existing pages and new pages or features both wait for the
+owner's yes (a before-and-after, or a slideshow); the pop-up on every admin
+page, and email for urgent alerts; first fixes in error and usage tracking;
+no budget cap - Keith watches cost per episode instead.
 
 ## 8. Categorizer (Nando)
 
@@ -1621,9 +1736,11 @@ disagree. After the shared preamble:
 | `CATEGORIZER_MODEL` | Empty = code only (proposed) |
 | `NEAR_COSINE`, `WRITER_MIN_EPISODES`, `SUBJECT_DEPTH`, `THUMBNAILS_REVIEW` | Built: 0.45, 2, 2, `flagged` |
 
-Open: whether episodes made before Nando existed are re-filed by Nando
-(their category pages and pictures may change). Decided: the category tag
-is the same everywhere for the episode's whole life (2026-10-28).
+Decided (2026-10-28): the category tag is the same everywhere for the
+episode's whole life; episodes made before Nando existed are re-filed
+**once, as a trial run the owner reviews first** - Nando lists every change
+it would make (old category, new category, the picture that would change)
+and applies them only after the owner's yes.
 
 ## Template
 

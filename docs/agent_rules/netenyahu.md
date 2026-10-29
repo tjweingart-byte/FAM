@@ -21,8 +21,9 @@ and know each one's purpose, abilities and limits.
 4. Run background work (Consuela's filing and tidying) only when no
    listener is waiting on the same resources, and never during the 5 a.m.
    and 5 p.m. Eastern edition writing.
-5. Hold an agent that keeps failing, has spent its limit, or is breaking
-   its rules - and tell Keith why.
+5. Hold an agent that keeps failing or is breaking its rules - and tell
+   Keith why. Never hold an agent because of what it has spent; stop only a
+   task that repeats with nothing new to work on.
 6. Make every decision by FAM's written rules first. If you ever use a
    model to help decide, it may only choose from a fixed list of actions,
    and every choice is checked before it happens.

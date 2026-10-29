@@ -107,30 +107,69 @@ Names are internal: never shown to a listener.
    (a per-provider setting, all off except GDELT and FAM's own records
    until then).
 
+## Decided in the owner's third round (2026-10-28)
+
+9. **Keith's admin changes wait for the owner's yes** - an improvement to an
+   existing page is shown before and after; a new page or feature is a
+   slideshow; nothing ships without approval.
+10. **Urgent alerts are also emailed** (`mail.py`), beside the pop-up.
+11. **Activation details**: date of birth **required**, **13 and over only**
+    (an under-13 date of birth cannot enter); location and gender
+    **optional**; gender is man, woman, non-binary, self-describe, prefer
+    not to say; location keeps the city, aggregates use the region;
+    listeners already active are asked the next time they open the app;
+    age bands 13-17, 18-24, 25-34, 35-44, 45-54, 55-64, 65+.
+12. **Settled facts the packets do not support** may stay only if they have
+    no name, number or date in them; otherwise Mclovin fails them.
+13. **Source screen**: official blogs (a company's newsroom, a government
+    agency's announcements) are primary sources and kept; all other blogs
+    dropped; "analysis" pieces kept as reporting.
+14. **Mclovin checks before speech on searchFAM too**, as the script is
+    written; only the first chunk waits on it. Measure it; if it costs more
+    than expected, tell the owner rather than switching it off.
+15. **C3P0 asks the listener when a name is ambiguous** ("United Airlines
+    or Manchester United?") before anything is searched - a new step in
+    search (an API first, then the screen; old clients that cannot show it
+    get the most likely reading from context). Where no listener can be
+    asked (tiles, editions), use the context, else leave it unwritten.
+16. **Public figures only** - a firm rule: FAM never researches a private
+    person; such a request gets no episode and a plain explanation.
+17. **Medical, legal and money questions get facts, never advice.**
+18. **Consolidated records are kept indefinitely**, reviewed at two years;
+    Consuela also combs the whole archive for duplicates from time to time.
+19. **The archive may answer an empty search alone - past or settled things
+    only** (closes §316's open question).
+20. **Episodes made before Nando are re-filed once**, as a trial run the
+    owner reviews first.
+21. **No budget cap decides whether an agent runs.** Cost is designed low
+    (the Cost section of the Shared rules tab in `docs/FAM_AGENTS.md`): code
+    first, folded calls, batch, caching, Haiku by default, self-hosted
+    checkers, bounded calls with one retry. Loops are stopped as bugs; Keith
+    emails when cost per episode runs well above the plan. The owner wants
+    to look further into pricing options - keep a running cost-per-episode
+    figure on `/admin`.
+22. **Diana's journalism playbook**: Claude drafts it from outlets the owner
+    names; the owner edits it.
+
 ## Decisions still to ask the owner
 
-The owner was asked these in the session that wrote this prompt; check
-`PROBLEMS.md` §318 (the last entries) for answers before asking again, and
-ask only what is still open, in one message.
+Check `PROBLEMS.md` §318 (the last entries) for answers first.
 
-- Whether Keith's changes to existing admin pages go live once the checks
-  pass, or wait for a person's yes.
-- Whether date of birth, location and gender are required or skippable at
-  activation, what happens to an under-13 or under-18 date of birth, and
-  how existing active listeners are asked.
-- Whether settled facts the packets do not support are allowed in an
-  episode at all (Mclovin notes them today) or must be removed.
-- Official blogs that announce their own news; pieces labelled
-  "analysis".
-- Whether the archive may answer an empty search alone (§316).
-- Whether episodes made before Nando are re-filed.
-- The age bands; how long consolidated records are kept.
+- Which outlets Diana's playbook is drafted from.
+- Which providers are approved for storage once their terms are confirmed
+  (allow their domains in the session's network settings to read the terms
+  directly), and who asks Parallel, Perplexity, Tiingo, Finnhub,
+  BALLDONTLIE, API-Sports and Polymarket.
+- Which email address receives Keith's urgent alerts.
+- How a "public figure" is decided when the reference look and the
+  providers do not know the name.
 
 ## The work, in order
 
 Ship each phase as its own change, following the ship loop in `CLAUDE.md`
 (`./dev.sh check`, rebuild and republish the preview, short summary).
-Everything new is **off by default**, has a ceiling and a fallback, records
+Everything new is **off by default**, has a time limit, a bounded call size
+and a fallback (no budget cap - decided item 21), records
 spend in `metering`, is scrubbed on staging by `spend_guard`, opens any new
 store through `paths.data_path` and `db.connect`, registers what a wipe must
 forget in `demo_data._forget_what_the_log_taught`, and copies every new
@@ -151,7 +190,7 @@ settable in two places. Log each phase in `PROBLEMS.md` and keep
   the owner sets, the way `VOICE_REFERENCE_FINGERPRINT` refuses a changed
   voice. An agent with a missing or changed rule book does not run. Prompts
   include the rule book text; no code path writes to it.
-- **Per-agent switches and ceilings** in `config.py` (names in each agent's
+- **Per-agent switches, time limits and call sizes** in `config.py` (names in each agent's
   Settings sub-tab), `metering` prices, `spend_guard.PAID_CREDENTIALS` for any
   new key, and an **Agents** panel on `/admin` (on/off, last run, spend,
   fallbacks taken, holds).
@@ -180,6 +219,18 @@ settable in two places. Log each phase in `PROBLEMS.md` and keep
   - before and after (`tools/categories_report.py --audit`).
 - **Tree-change events**: when `categories` mints, moves or merges a node,
   write a task for Consuela.
+- **Ask the listener when a name is ambiguous** (decided item 15): an
+  `ambiguous` brief returns the readings to the client before any plugin is
+  called (`/api` first, then the search and voice-search screens); the
+  chosen reading resumes the request; old clients get the likeliest reading
+  from context. On tiles and editions: context, else unwritten.
+- **Public figures only** (decided item 16): a named person is researched
+  only when the reference look, a provider's catalogue or reporting shows a
+  public role; otherwise no episode and a plain explanation, logged.
+- **Facts, never advice** (decided item 17): an advice request is planned as
+  the facts around it.
+- **Re-file old episodes** (decided item 20): a dry run listing every change
+  for the owner's review, applied only after a yes.
 
 ### Phase 2 - MongoDB: Consuela and Sonic
 
@@ -199,13 +250,18 @@ settable in two places. Log each phase in `PROBLEMS.md` and keep
   node, date and kind; nightly dedupe with the never-duplicates table; a
   **second consolidation at 90 days** to important figures, quotes, trends
   (the dated series themselves) and article links; re-file on tree changes;
-  double-check with Nando; purge opinion and blog entries already stored.
+  double-check with Nando; purge opinion and blog entries already stored;
+  keep consolidated records indefinitely (review at two years) and run a
+  periodic full-archive duplicate comb (decided item 18).
   Reversible marks, 30 days, logged.
-- **Activation step** (decided item 2): when an account is let off the
-  waitlist (`status` flips to `active`), the app asks for date of birth,
-  location and gender before entering - an API before a screen
-  ([api-before-screen]), a contract for old clients ([old-clients]), the
-  Privacy Policy and consent updated first.
+- **Activation step** (decided items 2 and 11): when an account is let off
+  the waitlist (`status` flips to `active`), and for active accounts the
+  next time they open the app, the app asks for date of birth (required;
+  under 13 cannot enter), location (optional; the city kept) and gender
+  (optional; man, woman, non-binary, self-describe, prefer not to say) -
+  an API before a screen ([api-before-screen]), a contract for old clients
+  ([old-clients]), the Privacy Policy and consent updated first, account
+  deletion removing them ([ios-pressures]).
 - **Aggregate demographic signals** (decided item 2): a background job that
   joins accounts' demographic fields with what was searched and heard, in
   place, and writes **only** totals and correlations by category, region,
@@ -257,9 +313,14 @@ settable in two places. Log each phase in `PROBLEMS.md` and keep
   failure drops it. The whole-script writing check runs on a different model
   from the writer's (Sonnet), before caching ahead of the tap and right after
   on search. Only the two packets are evidence.
-- **Latency**: measure the per-sentence cost on searchFAM with
-  `tools/stall_probe.py` and `tools/compare_search.py` before switching it on
-  there; the spec is about a second to the first word.
+- **Before speech on searchFAM** (decided item 14): the per-sentence check
+  runs on search too; measure the first chunk's added wait with
+  `tools/stall_probe.py` and `tools/compare_search.py` (the spec is about a
+  second to the first word) and report it to the owner if it is more than
+  expected.
+- **Settled facts and advice** (decided items 12 and 17): an unsupported
+  settled fact fails if it has a name, number or date; an advising sentence
+  fails. **Official blogs and "analysis"** kept (decided item 13).
 
 ### Phase 4 - Keith Wong and `/admin`
 
@@ -281,12 +342,15 @@ settable in two places. Log each phase in `PROBLEMS.md` and keep
   wrote; Consuela's deletions are within grace; Mclovin's verdicts are among
   its named failures; C3P0's inputs carry no results; Nando's nodes exist),
   run on samples.
-- **`/admin` as Keith's** (decided item 4): Keith improves existing admin
-  pages - reorganising, relabelling, adding or removing panels, charts and
-  explanations over data FAM already has - through FAM's normal checks,
-  staging first, each change reversible and logged in the fix report; a new
-  page or feature is first a slideshow for the owner (what it looks like,
-  what it does for them) and is built only on a yes.
+- **`/admin` as Keith's** (decided items 4 and 9): Keith proposes
+  improvements to existing admin pages as a before-and-after and new pages
+  or features as a slideshow; **nothing ships without the owner's yes**,
+  then through FAM's normal checks, staging first, reversible, logged.
+- **Email for urgent alerts** (decided item 10) via `mail.py`, beside the
+  pop-up.
+- **Cost per episode on `/admin`** (decided item 21): what the agents cost
+  per episode against the plan, with an email when it runs well above it;
+  no cap stops an agent.
 
 ## Done looks like
 

@@ -31,7 +31,9 @@ thumbnail, the myFAM category pages, the archive and Sonic all agree.
    places is updated together.
 9. When the category tree changes, tell Consuela so Consuela can re-file
    what is affected.
-10. Record what every part of FAM said about the category, and what you
+10. Re-file episodes made before you existed only once, and only after the
+    owner has reviewed a list of every change you would make.
+11. Record what every part of FAM said about the category, and what you
    decided.
 
 ## You must never

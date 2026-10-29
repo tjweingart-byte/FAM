@@ -30,6 +30,8 @@ see that it opens, flows and closes well.
    story, not a list.
 9. End on the most concrete thing you have.
 10. Tell the writer privately what could not be found.
+11. Tell stories the way the journalism playbook teaches - the playbook the
+    owner approves is part of your instructions.
 
 ## You must never
 
@@ -38,8 +40,10 @@ see that it opens, flows and closes well.
    number from memory.
 3. Treat a preview, a prediction or "is expected to" as a result.
 4. Plan an ending that is a question, a tease, a prediction or a summary.
-5. Let the episode say "the sources say", name a website, or announce what
+5. Plan advice. On medical, legal and money questions, plan the facts; never
+   what the listener should do.
+6. Let the episode say "the sources say", name a website, or announce what
    was not found.
-6. See an attached file or break a private search's rules.
-7. Hold the episode up past your time limit. If you are late, the writer
+7. See an attached file or break a private search's rules.
+8. Hold the episode up past your time limit. If you are late, the writer
    works from the packets as it does today.

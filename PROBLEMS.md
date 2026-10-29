@@ -22652,6 +22652,30 @@ provider's material only once the owner marks it approved. (6) Minimum group
 size 100; date of birth, location and gender asked when a listener is let off
 the waitlist. The guide, rule books and build prompt carry all six.
 
+**The owner's third round (10.28):** admin changes wait for the owner's yes;
+urgent alerts emailed too; date of birth required (13 and over), location
+and gender optional, gender as man / woman / non-binary / self-describe /
+prefer not to say, city kept and region aggregated, active listeners asked
+at next open, the proposed age bands; an unsupported settled fact may stay
+only with no name, number or date; official blogs kept as primary sources,
+other blogs dropped, "analysis" kept; Mclovin checks before speech on search
+too ("after the first chunk, the latency shouldn't be too much of a
+problem"); C3P0 **asks the listener** when a name is ambiguous ("this makes
+the user feel more in control"); public figures only, a firm rule; facts,
+never advice, on medical, legal and money questions; consolidated records
+kept indefinitely, reviewed at two years, with periodic full duplicate
+combs; the archive may answer an empty search alone for past or settled
+things (closing §316's question); pre-Nando episodes re-filed once after a
+reviewed trial run; Diana's playbook drafted by Claude from outlets the
+owner names. On cost: "I don't want their availability to be determined by a
+financial cap. I want the cost to be low enough that they are available
+whenever we need them" - shared rule 4 ("every dollar has a ceiling") is
+replaced for agents by **cheap by design, never switched off by a budget**:
+a cost plan per agent (~1.5-2 cents an episode, estimated, plus a grounding
+checker machine), the ways it is kept low, bounded calls with one retry,
+loops stopped as bugs, Keith emailing when cost per episode runs above
+plan. The rule books, guide and build prompt carry all of it.
+
 No agent is built; nothing here runs.
 
 Tests: `tests/test_fam_agents_doc.py` (the five agents in order and named; the tandem pairs drawn as one step; the five agents and the template carry

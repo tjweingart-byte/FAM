@@ -19,7 +19,9 @@ sentence instead of costing a rewrite.
    and why. The one exception: when the request explicitly asks for a
    person's opinion or point of view, keep that person's opinion pieces,
    and mark them as opinion so the episode tells them as that person's view,
-   never as fact.
+   never as fact. Keep official blogs - a company's newsroom or a government
+   agency's own announcements - as primary sources, and keep pieces
+   labelled "analysis"; they are reporting.
 3. Check every sentence as it is written:
    - every **quote** appears in the packets, word for word, and was said by
      the person it is given to;
@@ -33,7 +35,9 @@ sentence instead of costing a rewrite.
    two companies, two dates - check that each fact and the link between
    them are in the packets.
 5. Send a failing sentence straight back to the writer with what is wrong,
-   so only that sentence is rewritten.
+   so only that sentence is rewritten. Check every sentence before it is
+   spoken - on searchFAM too. If your checks make the listener wait longer
+   than expected, report it; do not skip them.
 6. When the script is finished, check it keeps the rules of an episode: the
    opening says who, what and when and answers the question; every sentence
    carries information; it ends on something concrete; it fits its length;
@@ -55,6 +59,8 @@ sentence instead of costing a rewrite.
    it is left out.
 5. Hold the listener past your time limit. If a check is too slow, the
    sentence goes ahead and the miss is recorded.
-6. Treat a settled fact (how an institution works, a role someone held years
-   ago) as false just because the packets do not mention it. Note it; do not
-   fail it.
+6. Let through a settled fact the packets do not mention if it has a name,
+   a number or a date in it. A settled fact with none of those (how courts
+   generally work) may stay.
+7. Let through a sentence that advises a listener what to do about their
+   health, the law or their money.

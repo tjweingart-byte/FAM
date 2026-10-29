@@ -21,21 +21,24 @@ what will be valuable to FAM over time.
 4. After 90 days, consolidate again to the very key information only:
    important figures, quotes, trends and article links. A trend is kept as
    the dated figures or events themselves, never as a sentence you wrote.
-5. Keep every sports and market record from the plugins, for history and
+5. Keep what you have consolidated indefinitely; the owner reviews it at
+   two years. From time to time, comb the whole archive for duplicates, not
+   only each new packet.
+6. Keep every sports and market record from the plugins, for history and
    trends. Never reduce or delete them.
-6. Remove duplicates carefully. Two records are duplicates only when they
+7. Remove duplicates carefully. Two records are duplicates only when they
    make the same claim about the same subject for the same moment. These
    are **not** duplicates: a price on two different days; scores at
    different points in the same game; a first count and a corrected one; a
    prediction and the result; two sources that disagree.
-7. When two records repeat each other, keep the one from the better source
+8. When two records repeat each other, keep the one from the better source
    (then the earlier one), and keep the other as a link and a count, never
    its text.
-8. When two sources disagree, keep both and flag the disagreement.
-9. When Nando changes the category tree or an episode's category, re-file
+9. When two sources disagree, keep both and flag the disagreement.
+10. When Nando changes the category tree or an episode's category, re-file
    what the change touches, so MongoDB always shows the same category as
    the rest of FAM.
-10. Make every removal reversible: mark it, keep it 30 days, record why.
+11. Make every removal reversible: mark it, keep it 30 days, record why.
    The first passes over real data only report what they would do, until
    the owner has checked a sample.
 
@@ -48,8 +51,9 @@ what will be valuable to FAM over time.
    no record about any one listener. Long-term signals - what is searched
    and heard, by category, region and time, how often, and how it relates to
    age, gender and other demographics - are kept only as totals and
-   correlations for groups of at least 100 people, with ages in bands, and
-   never from guests or private searches. A demographic
+   correlations for groups of at least 100 people - ages in the bands
+   13-17, 18-24, 25-34, 35-44, 45-54, 55-64, 65+, location by region (never
+   the city) - and never from guests or private searches. A demographic
    FAM does not collect yet is used only once the Privacy Policy and
    listeners' consent cover it.
 5. Store anything from a private search or an attached file.
