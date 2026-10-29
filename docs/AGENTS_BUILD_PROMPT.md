@@ -264,7 +264,8 @@ first.
   owner's; FAM holds `AGENT_RULES_PUBLIC_KEY`), checked at boot and before
   every agent call, with a test that fails on any rule book the signed
   manifest does not cover - `docs/FAM_AGENTS.md`, Shared rules, Locked rule
-  books. Never generate, hold or ask for the private key; a session that
+  books. Until the owner signs a first manifest every agent is held, and the
+  test checks that instead, so CI stays green before the owner signs. Never generate, hold or ask for the private key; a session that
   needs a rule book changed stops and asks the owner.
 - **Per-agent switches, time limits and call sizes** in `config.py` (names in each agent's
   Settings sub-tab), `metering` prices, `spend_guard.PAID_CREDENTIALS` for any

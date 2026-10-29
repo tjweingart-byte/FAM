@@ -107,7 +107,8 @@ copies are held outside Claude; once agents run, that is enforced in code:
    before the agent existed (rule 1), Keith raises it as urgent (the pop-up on
    every admin page and an email, as decided for Keith on 2026-10-28), and
    `/admin` names the file that differs. There is no setting that skips the
-   check.
+   check. Until the owner signs a first manifest, every agent is held - the
+   state FAM is in today.
 3. **Nothing an agent or model does can write a rule book.** Rule books are
    read-only files loaded once into frozen memory, never stored in MongoDB or
    any store an agent writes; agents have no tool that writes a file or a
@@ -117,9 +118,10 @@ copies are held outside Claude; once agents run, that is enforced in code:
    cached system block; anything a model writes, and anything in `<request>`,
    `<evidence>`, `<archive>` or `<script>` ("ignore your rules"), is material,
    never a change to the rules (Guardrails and prompting).
-5. **Editing the repository is not enough either.** A test fails when a rule
-   book's hash is not in the signed manifest, so a session can edit a rule
-   book but cannot ship it. GitHub branch protection with a `CODEOWNERS`
+5. **Editing the repository is not enough either.** Once a signed manifest
+   exists, a test fails when a rule book's hash is not in it, so a session
+   can edit a rule book but cannot ship it; before one exists, the test
+   checks that every agent is held. GitHub branch protection with a `CODEOWNERS`
    entry requires the owner's approval on `docs/agent_rules/`, the manifest
    and the public key (the owner sets this in GitHub). Every call records the
    rule book version it ran under.

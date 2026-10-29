@@ -23963,11 +23963,12 @@ deliberately say to have them change ... not by an agent and not by a
 model". Holding the governing copies outside Claude says who wins a
 disagreement, but nothing stopped a changed copy from running. So the guide
 (Shared rules, Locked rule books; rule 10) now specifies the lock for when
-agents run: `docs/agent_rules/MANIFEST.json` lists each rule book's SHA-256
+agents run: a manifest beside the rule books lists each rule book's SHA-256
 and is signed with an Ed25519 key only the owner holds; FAM holds the public
 key (`AGENT_RULES_PUBLIC_KEY`) and checks at boot and before every call; an
 unmatched rule book holds its agent (the pipeline runs as before it), Keith
-alerts, and a test fails before it can ship; agents have no tool or action
+alerts, and a test fails before it can ship - and until the owner signs a
+first manifest every agent is held, which the test checks instead; agents have no tool or action
 that writes a rule or setting; `CODEOWNERS` and branch protection are the
 owner's to set. What the lock cannot promise is obedience in every answer -
 that stays with the code checks after the answer. The model under each rule
@@ -23975,7 +23976,9 @@ book is pinned the same way (an exact ID per agent, no shared `MODEL`, no
 automatic switch, the served model checked, a nightly fingerprint), with
 which model each agent runs still decided elsewhere. The platform decision
 behind this - FAM's own thin model layer over each vendor's SDK rather than
-PydanticAI or LiteLLM - is the owner's comparison page, not this guide.
+PydanticAI or LiteLLM - is on the owner's comparison pages
+(https://claude.ai/artifact/PN1GUf1ME6mxn1Ana9s6aP and, for PydanticAI,
+https://claude.ai/artifact/UcGJyWypQXFMF8XZyctf1N), not in this guide.
 Merged onto Main after the guide's own merge (§318 became §340 there): the
 lock is now the signed form of the build prompt's Phase 0 fingerprint check
 (both documents say so), and a rule-book mismatch is urgent for Keith - the
