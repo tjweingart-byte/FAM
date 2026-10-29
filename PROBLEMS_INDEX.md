@@ -345,3 +345,4 @@ and `limit` = Lines.
 | 23563 | 16 | 339. Production without a disk, on Standard (2026-10-29) |
 | 23579 | 389 | 340. The agents guide: condensed into tabs, outside plugins per agent, and the Overlord (2026-10-26) |
 | 23968 | 26 | 341. May FAM keep what its providers return? The terms could not be read (2026-10-29) |
+| 23994 | 35 | 342. Provider terms, read: Parallel forbids reuse across listeners; Perplexity and GNews allow storage (2026-10-29) |

@@ -23990,3 +23990,38 @@ keeps** up to eight Parallel and Perplexity passages per article, and it
 per-provider switch could not delete them per provider. Nothing in code
 changed here; the agents guide, its build prompt and the rule books carry
 the decision once the owner makes it.
+
+## 342. Provider terms, read: Parallel forbids reuse across listeners; Perplexity and GNews allow storage (2026-10-29)
+
+§341 could not open a single provider page. With the network now allowing
+them, `docs/PROVIDER_TERMS.md` quotes the deciding clauses word for word from
+Parallel's Customer Terms (effective 2026-10-17), Perplexity's API Terms and
+Search addendum, GNews's Terms of Service (2026-10-18) and Polymarket's Terms
+of Use (2026-08-11), all read on 2026-10-29, and re-marks the table.
+
+- **Parallel:** output "shall not be copied, cached, stored, or made available
+  to other End Customers" (§2(b)(i)), nor made available "from previous
+  queries for future uses" (§2(c)(xi)). So intake's Parallel passages, kept to
+  write other listeners' episodes, are outside the standard terms. Whether
+  FAM's cached script (a derivative work FAM wrote) may be replayed to the next
+  listener is unclear; email 1 asks, and asks the price of an agreement.
+- **Perplexity:** no restriction on storing or reusing Search API results (its
+  docs say "filter, store, or hand to a model"), no credit; but FAM "does not
+  own" them and gets no IP indemnity, so the publishers' copyright is the only
+  limit. No personal data may be sent without written permission (addendum
+  §2.3) - email 2 asks about queries naming public figures.
+- **GNews:** storage allowed and kept after a plan ends; no credit required;
+  **only a paid plan may be used commercially**, and production counts. The
+  Free plan also runs 12 hours late. No email - a subscription (Essential,
+  €49.99 a month).
+- **Polymarket:** the Terms bind API use, grant a "personal" licence and bar
+  only capital-markets firms and market data distributors; nothing on storing
+  or quoting odds. Email 3 to hello@polymarket.com.
+
+The first pass's leads were checked: five confirmed, one corrected, two
+struck (a Google Cloud Marketplace agreement for Parallel; an "API Usage
+Policy" for Polymarket). Contact addresses come from each provider's own
+pages. The provider-terms note was numbered §340 on its branch, beside the
+agents guide's §340; merged here it is §341. Nothing in code changed; the
+agents guide, build prompt and rule books are left to the branch that owns
+them.
