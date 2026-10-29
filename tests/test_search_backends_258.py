@@ -51,6 +51,16 @@ PERPLEXITY_REPLY = {
 }
 
 
+@pytest.fixture(autouse=True)
+def _fixed_dates_stay_inside_the_window(monkeypatch):
+    """The replies above carry fixed October 2026 dates; the window is checked
+    in code since §320 against today's clock. That check is pinned in
+    `test_recency_in_code_320.py`; here it must not age the fixtures out."""
+    real = research.within_window
+    monkeypatch.setattr(research, "within_window",
+                        lambda results, days, now=None: real(results, 0))
+
+
 @pytest.fixture
 def wire(monkeypatch):
     """Every request either backend makes, answered from `replies`."""
@@ -190,14 +200,15 @@ def test_one_long_snippet_becomes_several_passages():
 # --------------------------------------------------------------------------
 # the second look and the ladder
 # --------------------------------------------------------------------------
-def test_the_second_look_goes_to_perplexity_without_the_window(wire, monkeypatch):
+def test_the_second_look_goes_to_perplexity_with_a_wider_window(wire, monkeypatch):
     sent, replies = wire
     replies[research.PARALLEL_URL] = [{"results": []}]
     use(monkeypatch, research_backend="parallel")
     packet = asyncio.run(research.retrieve("Eagles Giants score", brief=brief()))
     assert [r["url"] for r in sent] == [research.PARALLEL_URL,
                                         research.PERPLEXITY_URL]
-    assert "search_after_date_filter" not in sent[1]["body"]
+    # §320: wider, never dropped.
+    assert "search_after_date_filter" in sent[1]["body"]
     assert sent[1]["body"]["query"] == "Eagles season", "the second look asks the broader query"
     assert packet.retried and packet.backend == "perplexity"
     assert packet.tried == ["parallel", "perplexity"]

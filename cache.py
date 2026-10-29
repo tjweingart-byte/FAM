@@ -57,7 +57,7 @@ import audio_codec
 import audio_store
 import content_filter
 import embeddings
-from config import settings
+from config import as_minutes, settings
 from paths import data_path
 
 log = logging.getLogger(__name__)
@@ -345,7 +345,7 @@ def cache_key(
     payload = json.dumps(
         {
             "q": canonical or normalize_query(query),
-            "m": int(minutes),
+            "m": as_minutes(minutes),
             # A follow-up is a different episode from the same words asked cold.
             "ctx": canonical_context or "",
             # A researched episode is a different thing from an instant one.
@@ -377,7 +377,7 @@ def key_bucket(
     """
     payload = json.dumps(
         {
-            "m": int(minutes),
+            "m": as_minutes(minutes),
             "ctx": canonical_context or "",
             "search": bool(searched),
             "model": settings.model,
@@ -660,6 +660,10 @@ class ScriptCache(Protocol):
     #: Optional on a backend: callers read it with `getattr`, so a cache that
     #: predates it answers "" rather than raising.
     def summary(self, key: str) -> str: ...
+    #: The kept script's sentences, or [] - read without counting a hit, for
+    #: callers that quote an episode rather than replay it (the outreach
+    #: engines, §337). Optional on a backend, like `summary`.
+    def script(self, key: str) -> list[str]: ...
     #: What kind of thing the episode is about, as the writer worded it on
     #: its `<<CATEGORY:>>` line (§189) - raw words, resolved against the
     #: category tree where it is read. Optional on a backend, like `summary`.
@@ -707,6 +711,9 @@ ARCHIVE_ORIGIN = "archive"
 #: feed, no rail, no A to Z and no trending search, and it is written with
 #: no author, so no friends rail can name whose it was.
 PRIVATE_ORIGIN = "private"
+#: Origins whose voice a listener chose rather than drew (§333): a search,
+#: private or not. `redeal_voices` never touches them.
+CHOSEN_VOICE_ORIGINS = ("search", PRIVATE_ORIGIN)
 
 _EPISODE_ID = re.compile(r"^([0-9a-f]{64})(?:\.(\d{1,12}))?$")
 
@@ -881,6 +888,11 @@ class MemoryScriptCache:
         self.hits += 1
         return list(entry[1])
 
+    def script(self, key: str) -> list[str]:
+        """`get(key, current=False)` without counting a hit (§337)."""
+        entry = self._data.get(key)
+        return list(entry[1]) if entry and entry[0] >= time.time() else []
+
     def put(
         self, key: str, sentences: list[str], ttl: int, query: str = "",
         thread: str = "", minutes: int = 0, bucket: str = "", sources: str = "",
@@ -901,7 +913,7 @@ class MemoryScriptCache:
                 and list(before[1]) != list(sentences)):
             self._archive(key, self.sourced_at(key) or 0.0)
         sourced, fresh_until, expires = _clocks(ttl, sourced_at, now)
-        self._data[key] = (expires, list(sentences), thread, query, int(minutes))
+        self._data[key] = (expires, list(sentences), thread, query, as_minutes(minutes))
         self._created[key] = now
         self._clocks[key] = (sourced, fresh_until)
         # New words, so any audio kept for the old ones no longer matches -
@@ -992,6 +1004,15 @@ class MemoryScriptCache:
         if not self._voices[key]:
             self._voices[key] = voice
         return self._voices[key]
+
+    def redeal_voices(self) -> int:
+        """See `SqliteScriptCache.redeal_voices`."""
+        heard = {k for k, _v in self._audio}
+        unheard = [k for k, v in self._voices.items() if v and k not in heard
+                   and self._origins.get(k, "") not in CHOSEN_VOICE_ORIGINS]
+        for key in unheard:
+            self._voices[key] = ""
+        return len(unheard)
 
     def origin_of(self, key: str) -> str:
         return self._origins.get(key, "") if key in self._data else ""
@@ -1639,7 +1660,7 @@ class SqliteScriptCache:
                 "  voice = CASE WHEN scripts.voice != '' THEN scripts.voice"
                 "               ELSE excluded.voice END",
                 (key, expires, now, query[:500], json.dumps(sentences),
-                 thread[:200], int(minutes), bucket, vector, sources or "",
+                 thread[:200], as_minutes(minutes), bucket, vector, sources or "",
                  (author or "")[:64], (title or "")[:120], (summary or "")[:240],
                  int(ttl) if slide else 0, sourced, fresh_until,
                  (origin or "")[:16], (voice or "")[:80], (category or "")[:60]),
@@ -2244,6 +2265,21 @@ class SqliteScriptCache:
             log.exception("script cache summary read failed")
             return ""
 
+    def script(self, key: str) -> list[str]:
+        """The kept script's sentences, scrubbed, or [] - `get(key,
+        current=False)` without counting a hit: the outreach engines quote
+        an episode to a drafting call (§337), and a quote is not a replay."""
+        try:
+            row = self._conn().execute(
+                "SELECT sentences, expires FROM scripts WHERE key = ?", (key,)
+            ).fetchone()
+            if not row or row[1] < time.time():
+                return []
+            return content_filter.scrub_all(json.loads(row[0]))
+        except Exception:
+            log.exception("script cache script read failed")
+            return []
+
     def explicit(self, key: str) -> bool:
         """Whether the kept episode swears (§171) - the E on its title.
 
@@ -2286,6 +2322,29 @@ class SqliteScriptCache:
         except Exception:
             log.exception("script cache voice write failed")
         return self.voice_of(key)
+
+    def redeal_voices(self) -> int:
+        """Forget the voice of every episode with no audio kept in any voice,
+        so its next play draws one from the bank as it is now (§333).
+
+        A voice is drawn when an episode is written, from the bank as it was
+        then: everything written while the bank held only the default kept
+        the default for its whole week after new voices arrived. Only an
+        episode nobody has heard is re-dealt - one with kept audio keeps its
+        voice, which is what replays it without the GPU. Every unheard one
+        is cleared, whatever it held, so the new draw is as fair as the old.
+        A search's voice is its searcher's choice, not a draw, and stays.
+        """
+        try:
+            cur = self._conn().execute(
+                "UPDATE scripts SET voice = '' WHERE voice != ''"
+                " AND origin NOT IN (?, ?)"
+                " AND key NOT IN (SELECT key FROM episode_audio)",
+                CHOSEN_VOICE_ORIGINS)
+            return cur.rowcount or 0
+        except Exception:
+            log.exception("script cache voice re-deal failed")
+            return 0
 
     def origin_of(self, key: str) -> str:
         try:

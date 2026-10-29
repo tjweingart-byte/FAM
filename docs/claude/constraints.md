@@ -317,6 +317,7 @@
   `Brief.degraded`, the log and `/api/health`. An EI that had quietly stopped
   running would look identical from outside to one that was working.
 <!-- rule:recency-credibility -->
+> **Current (PROBLEMS.md §320):** the window is checked in code as well as asked of the vendor: `research.within_window` drops a dated result older than the window (a day's grace; undated kept), and the thin-packet retry **widens** the window (`retry_window`: 3x, at least a week) instead of dropping it. A window longer than a week on a question about no particular moment is removed (`episode_intelligence.time_bound`, in the gate); a week or less is EI's own "a moment" and is never removed. Parallel's objective names EI's `source_kind`; Perplexity reads it as `search_mode`.
 > **Current (PROBLEMS.md §178):** before anything is graded, `research.screen_results` drops a simulated or video-game league's page (a Madden league's "result" for a game not yet played) unless the question is about one, and on a sports question (`live_domain == "sports"`) drops unknown outlets once two known ones answered. The writer never argues a factual disagreement aloud: it says the better-supported reading and nothing about the sources.
 
 - **Recency filters; credibility sorts.** *(§82.)* Two mechanisms doing two
@@ -707,6 +708,7 @@
   (`live_facts.budget_seconds`): the first word never waits longer than before.
 
 <!-- rule:local-news-ladder -->
+> **Current (PROBLEMS.md §320):** a rung whose stories name the place but cover none of what the brief asked for counts as empty (`local_news.relevant`, on the question's own words, two of them as GDELT asks), and the gap line then says "about this" rather than that the town had no reports; the web rung searches vetted outlets only, never `learned` ones; one specific happening in a town (an airshow, a game) is a news question on the general ladder.
 > **Current (PROBLEMS.md §258):** the third rung searches the town's known outlets on the configured search backend (Parallel), not Exa; the record names the backend that searched.
 - **A town's news comes from the town's own outlets, and its gap is said in
   words composed in code.** *(PROBLEMS.md §194, at the owner's direction;
@@ -1118,6 +1120,7 @@
   `AUDIO_CACHE_MAX_MB`; past it a heard episode replays its same script in
   its same voice, synthesised once more.
 <!-- rule:ttl-from-evidence -->
+> **Current (PROBLEMS.md §320):** the one place question words touch the window: EI's gate removes a window **longer than a week** from a question nothing marks as a moment (`time_bound`), so such an episode is kept as long as any evergreen one. A window of a week or less - EI saying "a moment" - is never removed, so the volatile TTL is never lost to a word list.
 - **How long a script stays current comes from what it was built on, never
   from the words of the question.** *(§89, `cache.ttl_for`.)* It used to be a keyword
   match, and `"Chiefs game"` — the reported case — contained no volatile word,
@@ -1517,7 +1520,11 @@
   > when `APP_STORE_URL` is set and otherwise to this server's own front door
   > (`sharing.JOIN_PATH`), which opens on sign-up for a newcomer - a real page
   > on the host that served the link, so still never a control with nothing
-  > behind it. Every other door still needs the App Store link. The payload carries no `user_id`: this is the one
+  > behind it. Every other door still needs the App Store link.
+  > **Current:** the note reads "Want to hear more? Be a part of the
+  > conversation with FAM" and always links to the waitlist page
+  > (`sharing.JOIN_PATH` = `/waitlist`), App Store or not *(§319, at the
+  > owner's direction)*. The payload carries no `user_id`: this is the one
   response in the app handed to people who are not listeners.
   **The link names a host now, and nobody has to set one** *(§114).* It read
   `PUBLIC_BASE_URL` and nothing anywhere prompts for it, so no deployment had
@@ -1552,6 +1559,70 @@
   Instagram and Snapchat, which cannot carry a link as text - the story card.
   This is the correct shape rather than a stage: no OAuth to maintain, no
   tokens to leak, and nothing that can post while somebody is asleep.
+  > **Current:** since §321 FAM holds one read-only X search credential
+  > (`X_BEARER_TOKEN`) for its own account's outreach, and still nothing
+  > that can post - see [x-threads].
+<!-- rule:x-threads -->
+- **FAM on X is found by code and posted by a person** (§321, `x_threads.py`,
+  `/admin/x`). A search starts from episodes FAM already has (the Trending
+  edition, then the most played kept episodes) and looks for the threads
+  they answer, so the episode exists before the thread is found. Code
+  screens (age, replies, author size, organisations, grief and flame-war
+  subjects, one author a week) and scores (episode match, engagement per
+  hour, a question, room in the thread, author fit); each card carries its
+  reason in words ([candidate-reason]). A reply links an episode only when
+  the episode is the thread's subject; otherwise it asks a better question.
+  **Every card is about the post it answers** (§326): a one-word name is
+  searched only beside the episode's own subject words; code drops a post
+  that shares a name and nothing else (`on_subject`); the drafting call
+  judges first - not the same subject drops the card, an episode that does
+  not answer this post loses its link - and the reply answers the post.
+  **Approve opens X's own reply box with the words in it and copies them**
+  (`x.com/intent/post?in_reply_to=`); the person presses Post. Nothing here
+  can write to X, and nothing runs on a timer: a search is a button
+  ([sweep-on-demand]), capped per search and per day because X bills per
+  post read; staging scrubs the token ([zero-spend-staging]). With no model
+  key the reply is drafted in code and the card says so. Cards are kept a
+  week.
+  > **Current:** since §337 (`outreach_intelligence.py`) a post needs
+  > `X_THREADS_MIN_ENGAGEMENT` (25) likes, replies, reposts and quotes; it is
+  > matched against every kept episode, not only the one whose search found
+  > it; and the drafting call **reads before it writes** - subject, intent,
+  > which of three offered episodes answers it (from each one's summary and
+  > script opening, not its title), the angle - stored and shown on the
+  > card, then writes in X's voice (curiosity, part of the conversation). A
+  > figure neither the post nor the episode states sends the words back to
+  > the code's. LinkedIn shares the read in its own voice (context, Go
+  > Deeper) and `LINKEDIN_MIN_ENGAGEMENT` (20) where the search shows counts.
+<!-- rule:linkedin -->
+- **Go Deeper on LinkedIn is found and posted by a person** (§322,
+  `linkedin_posts.py`, `/admin/linkedin`). A LinkedIn post meant to teach or
+  inform gets a comment linking the kept episode that goes deeper.
+  > **Current:** since §327 code finds them: **Find posts** asks the search
+  > vendor FAM's research already uses (Parallel, else Perplexity),
+  > restricted to linkedin.com, for last week's public posts about the
+  > episodes `/admin/x` seeds from - still never a request to linkedin.com,
+  > never a LinkedIn credential. A button, never a timer; capped per press
+  > (`LINKEDIN_SEEDS`) and per day (`LINKEDIN_DAILY_SEARCHES`); staging has
+  > no search key. Only a post an episode is the subject of becomes a card:
+  > X's §326 checks hold here too - the episode's subject words in the
+  > search, `x_threads.on_subject` on every episode a post is ranked
+  > against, and the drafting call judging first (an off-subject found post
+  > is set aside, unseen and not re-read; a pasted one loses its link).
+  > Pasting stays for the ones a person finds. LinkedIn
+  has no API that reads others' posts and forbids scraping and automated
+  comments, so **nothing here reads LinkedIn and FAM holds no LinkedIn
+  credential**: the page builds LinkedIn search links from the same episodes
+  `/admin/x` seeds from, and a person pastes the post (address and words).
+  Code screens out announcements, hiring, promotion, grief and posts that do
+  not teach (a person may add one anyway; the card says so), keeps one
+  author a week (by profile or typed name; an approved card outlives
+  pruning for that week), refuses a post already on the page, and matches every kept non-explicit episode (`/admin/x`'s
+  embeddings and names). Below `LINK_FLOOR` there is no comment, only the Go
+  Deeper question to search in FAM, then "Match again". Approve copies the
+  comment - the person's words, then `Go Deeper: "<title>" (n min) <link>` -
+  and opens the post; the person pastes and posts. Only an approval writes
+  what was posted. Each card counts its drafting cost. Cards are kept a week.
 <!-- rule:app-review-safety -->
 - **Report anything, block both ways, and ask before a listener's words go to
   the AI** (App Store 1.2 and 5.1.2(i), §222). Every comment, message, vibe,

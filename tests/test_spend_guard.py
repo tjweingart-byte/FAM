@@ -253,8 +253,12 @@ def test_the_staging_blueprint_is_zero_spend_and_shares_nothing_with_production(
     handed_money = keys & (set(spend_guard.PAID_CREDENTIALS) | set(spend_guard.FORCED)
                            | {"FAM_SECRETS"})
     assert not handed_money, f"fam-staging is given {sorted(handed_money)}"
-    disk = re.search(r"disk:\n\s+name: (\S+)", staging).group(1)
-    assert disk != re.search(r"disk:\n\s+name: (\S+)", production).group(1)
+    # Never the same disk. Production has none since §339 (every store in
+    # Postgres); if one comes back it must still be its own.
+    staging_disk = re.search(r"disk:\n\s+name: (\S+)", staging)
+    production_disk = re.search(r"disk:\n\s+name: (\S+)", production)
+    if staging_disk and production_disk:
+        assert staging_disk.group(1) != production_disk.group(1)
 
 
 def test_loopback_in_every_spelling_is_local():

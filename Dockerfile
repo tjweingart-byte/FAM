@@ -7,6 +7,11 @@ FROM python:3.12-slim
 # "Running pip as the 'root' user" warning is noise - and Render highlights it
 # on every build, where it hides a warning that matters.
 ENV PIP_ROOT_USER_ACTION=ignore
+# Two glibc arenas, not eight per core (§334). The server runs ~80 threads
+# (the request pool, psycopg's pool, background jobs); each could get an
+# arena of its own, and memory freed in one after a large Postgres result
+# stays there. Set MALLOC_ARENA_MAX on the service to override.
+ENV MALLOC_ARENA_MAX=2
 
 # espeak-ng is a development engine only, reachable through TTS_ENGINE and
 # never selected by production - nothing falls back to it. It is installed so
@@ -103,6 +108,8 @@ ENV CACHE_PATH=/data/scripts.db \
     LIVE_ROUTING_DB=/data/live_routing.db \
     PIPELINE_ERRORS_DB=/data/pipeline_errors.db \
     EPISODE_QUALITY_DB=/data/episode_quality.db \
+    X_THREADS_DB=/data/x_threads.db \
+    LINKEDIN_POSTS_DB=/data/linkedin_posts.db \
     LOCAL_NEWS_DB=/data/local_news.db \
     GDELT_EXPORT_DB=/data/gdelt_export.db \
     STORY_POOL_DB=/data/story_pool.db \
@@ -112,4 +119,9 @@ ENV CACHE_PATH=/data/scripts.db \
 RUN mkdir -p /data
 
 EXPOSE 8000
-CMD ["sh", "-c", "python -m uvicorn app:app --host 0.0.0.0 --port ${PORT:-8000}"]
+# One process, always (§336). uvicorn takes its worker count from
+# WEB_CONCURRENCY when --workers is not given, and production ran two: every
+# background job twice (editions, GDELT, the voice warm-up - paid calls
+# included), two embedding models, two sets of in-process state. FAM keeps
+# state in its process (POSTGRES.md) and must run as one.
+CMD ["sh", "-c", "python -m uvicorn app:app --host 0.0.0.0 --port ${PORT:-8000} --workers 1"]

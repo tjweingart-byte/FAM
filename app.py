@@ -22,11 +22,12 @@ import logging
 import random
 import re
 import sqlite3
+import threading
 import time
 from contextlib import asynccontextmanager
 from urllib.parse import quote
 from collections import defaultdict, deque
-from typing import Optional, Union
+from typing import Annotated, Optional, Union
 
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi import Response
@@ -34,12 +35,13 @@ from fastapi.responses import (
     HTMLResponse, JSONResponse, RedirectResponse, StreamingResponse)
 from fastapi.staticfiles import StaticFiles
 from starlette.datastructures import Headers, MutableHeaders
-from pydantic import BaseModel, Field, field_validator
+from pydantic import AfterValidator, BaseModel, Field, field_validator
 
 from anthropic_client import build_async_client, describe_http_version, http2_enabled
 import audio_codec as audio_codec_mod
 import db as db_mod
 import audio_store as audio_store_mod
+import image_store
 import cache as cache_mod
 from cache import (MemoryScriptCache, SqliteScriptCache, build_cache, cache_key,
                    is_shareable, normalize_query, parse_episode_id, research_words)
@@ -66,8 +68,8 @@ import image_check
 import moderation as moderation_mod
 import saved as saved_mod
 import sharing
-from config import (BROWSE_MINUTES, DEFAULT_MINUTES, DEFAULT_PIPELINE, describe_key,
-                    key_source, settings)
+from config import (BROWSE_MINUTES, DEFAULT_MINUTES, DEFAULT_PIPELINE, as_minutes,
+                    describe_key, key_source, settings)
 import prefetch
 import prefetch_sources
 from episode_intelligence import report as ei_report
@@ -93,6 +95,8 @@ import autocorrect as autocorrect_mod
 import categories as categories_mod
 import topics as topics_mod
 import thumbnails as thumbnails_mod
+import x_threads
+import linkedin_posts
 import accounts as accounts_mod
 import viral_loops as viral_loops_mod
 import waitlist as waitlist_mod
@@ -124,6 +128,11 @@ log = logging.getLogger("podcast")
 # first run of a new version this adopts voices an older project folder already
 # downloaded; every run after, it is a no-op.
 VOICE_STORE = voice_store.ensure_ready()
+
+#: An episode length on the wire (§332): any number, held to the nearest half
+#: minute by `as_minutes`, so the standard minute and a half is accepted and a
+#: whole length is the `int` every key written before it was built from.
+Minutes = Annotated[float, AfterValidator(as_minutes)]
 if VOICE_STORE["adopted"]:
     log.info(
         "reused %d voice(s) from a previous version of the app: %s",
@@ -758,9 +767,16 @@ async def lifespan(_: FastAPI):
     # read and a delete, never by looking at the settings.
     if hasattr(SCRIPT_CACHE, "sweep_audio"):
         _BACKGROUND.add(asyncio.create_task(_sweep_audio_forever()))
+    # Unheard episodes drawn from an older bank draw again (§333).
+    _BACKGROUND.add(asyncio.create_task(asyncio.to_thread(_redeal_voices)))
+    # The server's own size once a minute, and a full report in the log the
+    # first time each boot it crosses each watch line (§334).
+    _BACKGROUND.add(asyncio.create_task(_watch_memory_forever()))
     if audio_store_mod.get_store() is not None:
         # Not awaited: a bucket that is slow to answer must not hold up boot.
         _BACKGROUND.add(asyncio.create_task(_check_audio_store()))
+        # Pictures still inside the databases move to the bucket (§330).
+        _BACKGROUND.add(asyncio.create_task(_move_images_to_bucket()))
     elif audio_store_mod.status().get("error"):
         log.error("audio store: %s", audio_store_mod.status()["error"])
     yield
@@ -1062,6 +1078,19 @@ def _database_report() -> list[dict]:
         try:
             stores.append(("thumbnails", "THUMBNAILS_DB",
                            thumbnails_mod.store().path))
+        except Exception:  # pragma: no cover - a report is never load-bearing
+            pass
+    # Conversations on X (§321): created by the first search on /admin/x.
+    if x_threads._exists():
+        try:
+            stores.append(("x threads", "X_THREADS_DB", x_threads.store().path))
+        except Exception:  # pragma: no cover - a report is never load-bearing
+            pass
+    # Go Deeper on LinkedIn (§322): created by the first post pasted.
+    if linkedin_posts._exists():
+        try:
+            stores.append(("linkedin posts", "LINKEDIN_POSTS_DB",
+                           linkedin_posts.store().path))
         except Exception:  # pragma: no cover - a report is never load-bearing
             pass
     # Requests per outside service per day (§179). Created by the first
@@ -1737,7 +1766,7 @@ def _validated_plan(q: str, minutes: int, context: str = "", search: bool | None
 
 class ScriptRequest(BaseModel):
     query: str = Field(..., max_length=500)
-    minutes: int = Field(..., ge=1, le=10)
+    minutes: Minutes = Field(..., ge=1, le=10)
     #: Omitted means "let the question decide" - see /api/audio.
     search: bool | None = None
 
@@ -2089,6 +2118,8 @@ async def health(request: Request) -> dict:
                      "viral_loops": VIRAL_LOOPS.configured,
                      "outbox_pending": WAITLIST.outbox_summary()["pending"]},
         "voice_store": VOICE_STORE["dir"],
+        # Where pictures live (§330): the bucket, or inline in their rows.
+        "images": {**image_store.describe(), "moved": dict(_IMAGE_MOVE)},
         # Where kept audio lives and how it is packed (§237): the bucket, the
         # boot check's real write/read/delete, the codec, and the last sweep.
         "audio": {**audio_store_mod.status(), **audio_codec_mod.describe(),
@@ -2251,8 +2282,40 @@ async def auth_me(request: Request) -> dict:
     if listener is None:
         return {"user_id": "", "email": "", "authenticated": False,
                 "waitlist": settings.waitlist, "home": settings.app_home_url}
+    # The app asks this first on every open, so it is the earliest moment a
+    # listener is known to be here: ask for a GPU now rather than at the tap
+    # (§329). `/api/voice/wake` is the same for a return to the foreground.
+    _wake_for(listener)
     return {**listener.as_dict(), "waitlist": settings.waitlist,
             "home": settings.app_home_url}
+
+
+def _wake_for(listener) -> bool:
+    """Wake the remote voice for a listener who has just arrived, if they may play.
+
+    myFAM and DailyFAM tiles are written before the tap, so a wake sent with
+    the audio request has nothing to hide behind there and the listener waits
+    out the whole cold start (§329). Only for an account that may play - a
+    guest hears kept audio only (§154), and a waitlisted account is sent away.
+    """
+    if listener is None or not listener.is_authenticated or listener.status == "waitlisted":
+        return False
+    _wake_remote_voice()
+    return True
+
+
+@app.post("/api/voice/wake")
+async def voice_wake(request: Request) -> dict:
+    """The app came back to the foreground: start a GPU booting now (§329).
+
+    A phone that leaves the app open in the background never reloads it, so
+    `/api/auth/me` is not asked again; this is the open for that case. Costs
+    no model call, never blocks, and `REMOTE_VOICE_WAKE_INTERVAL` keeps
+    repeats from queueing jobs. `woke` says whether a wake was asked for, not
+    whether a worker was cold.
+    """
+    _read_limit(request)
+    return {"woke": _wake_for(getattr(request.state, "listener", None))}
 
 
 def _one_identifier(req: CredentialsRequest) -> str:
@@ -2695,7 +2758,7 @@ class SendMessageRequest(BaseModel):
     #: script cache's key - so the recipient's play is a cache hit and the
     #: share cost one row.
     query: str = Field("", max_length=messages_mod.MAX_QUERY)
-    minutes: int = Field(0, ge=0, le=60)
+    minutes: Minutes = Field(0, ge=0, le=60)
     title: str = Field("", max_length=messages_mod.MAX_TITLE)
     #: A reply to, or a like on, a friend's vibe (§282): the episode rides
     #: along so the message names the vibe it answers, but nothing was
@@ -2709,7 +2772,7 @@ class SendMessageRequest(BaseModel):
 
 class SaveRequest(BaseModel):
     query: str = Field(..., max_length=saved_mod.MAX_QUERY)
-    minutes: int = Field(DEFAULT_MINUTES, ge=0, le=60)
+    minutes: Minutes = Field(DEFAULT_MINUTES, ge=0, le=60)
     title: str = Field("", max_length=saved_mod.MAX_TITLE)
     source: str = Field("", max_length=40)
     folder_id: str = Field("", max_length=64)
@@ -2727,7 +2790,7 @@ class MoveRequest(BaseModel):
 
 class ShareRequest(BaseModel):
     query: str = Field(..., max_length=sharing.MAX_QUERY)
-    minutes: int = Field(DEFAULT_MINUTES, ge=0, le=60)
+    minutes: Minutes = Field(DEFAULT_MINUTES, ge=0, le=60)
     title: str = Field("", max_length=sharing.MAX_TITLE)
 
 
@@ -2781,7 +2844,7 @@ def _episode_target(query: str, minutes) -> str:
     """The moderation key for an episode, from the question as the cache
     matches it (`normalize_query`), so a report filed with what the listener
     typed and a cache row stored lower-cased name the same episode (§226)."""
-    return moderation_mod.episode_target(normalize_query(query or ""), int(minutes or 0))
+    return moderation_mod.episode_target(normalize_query(query or ""), as_minutes(minutes))
 
 
 def _episode_removed(viewer: str, query: str, minutes) -> bool:
@@ -2800,7 +2863,7 @@ def _episode_author(query: str, minutes: int) -> str:
     try:
         for entry in store.recent(TRENDING_SEARCHES_SCAN, origin="search"):
             if (normalize_query(entry.get("query") or "") == norm
-                    and int(entry.get("minutes") or 0) == int(minutes)):
+                    and as_minutes(entry.get("minutes") or 0) == as_minutes(minutes)):
                 return entry.get("author") or ""
     except Exception:  # noqa: BLE001 - a report is kept without an author
         log.exception("could not read an episode's author for a report")
@@ -3467,7 +3530,7 @@ def _shared_episode(query: str, minutes: int, episode: str = "") -> str:
     if SCRIPT_CACHE is None or not query or not is_shareable(query):
         return ""
     try:
-        length = max(1, min(10, int(minutes or DEFAULT_MINUTES)))
+        length = max(1, min(10, as_minutes(minutes or DEFAULT_MINUTES)))
         keys = [cache_key(query, length, None, "", searched)
                 for searched in (True, False)]
         found = ""
@@ -3642,7 +3705,7 @@ async def messages_leave_group(gid: str, request: Request) -> dict:
 async def saved_read(request: Request,
                      folder_id: Optional[str] = Query(None, max_length=64),
                      q: str = Query("", max_length=saved_mod.MAX_QUERY),
-                     minutes: int = Query(0, ge=0, le=60)) -> dict:
+                     minutes: Minutes = Query(0, ge=0, le=60)) -> dict:
     """The shelf, or - with `q` - whether one episode is on it.
 
     The second form is what draws the save control's state. It is the same
@@ -3687,7 +3750,7 @@ async def saved_save(req: SaveRequest, request: Request) -> dict:
 @app.delete("/api/saved")
 async def saved_unsave(request: Request,
                        q: str = Query(..., max_length=saved_mod.MAX_QUERY),
-                       minutes: int = Query(0, ge=0, le=60)) -> dict:
+                       minutes: Minutes = Query(0, ge=0, le=60)) -> dict:
     """Un-press the save control, which knows the episode and not a row id."""
     _read_limit(request)
     user = _require_account(request)
@@ -4208,16 +4271,23 @@ async def admin_voices(request: Request) -> dict:
 
 @app.post("/api/admin/voices")
 async def admin_add_voice(req: BankVoiceRequest, request: Request) -> dict:
-    """Add a voice to the bank (§147). `tools/voice_bank.py add` calls this."""
+    """Add a voice to the bank (§147). `tools/voice_bank.py add` calls this.
+
+    A recording that opens in silence or is quiet is trimmed and levelled
+    first (§328) and `mastered` says by how much; one that passes as it is
+    is kept byte for byte and `mastered` is None.
+    """
     _require_admin(request)
     try:
         audio = base64.b64decode(req.audio, validate=True)
+        audio, mastered = voice_bank.prepare_upload(audio)
         added = voice_bank.bank().add(req.slug, req.label, audio, req.rights,
                                       description=req.description,
                                       replace=req.replace)
     except (ValueError, voice_bank.VoiceBankError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return {"ok": True, "voice": added.as_dict()}
+    _redeal_voices()
+    return {"ok": True, "voice": added.as_dict(), "mastered": mastered}
 
 
 @app.delete("/api/admin/voices/{slug}")
@@ -4225,12 +4295,40 @@ async def admin_remove_voice(slug: str, request: Request) -> dict:
     """Take a voice out of the bank. Episodes already given it keep their
     kept audio; a play that needs it voiced again draws another (§147)."""
     _require_admin(request)
-    return {"ok": voice_bank.bank().remove(slug)}
+    removed = voice_bank.bank().remove(slug)
+    _redeal_voices()
+    return {"ok": removed}
+
+
+def _redeal_voices() -> int:
+    """When the bank's voices differ from the ones unheard episodes were
+    dealt from, deal them again (§333): myFAM and DailyFAM episodes written
+    before a voice was added would otherwise keep the old bank's draw - the
+    default, for a bank that held nothing else - for their whole week.
+    At boot and after every change on /admin. Never raises."""
+    try:
+        bank = voice_bank.bank()
+        signature = voice_bank.redeal_signature()
+        if bank.dealt(signature):
+            return 0
+        cleared = (SCRIPT_CACHE.redeal_voices()
+                   if hasattr(SCRIPT_CACHE, "redeal_voices") else 0)
+        bank.mark_dealt(signature)
+        log.info("voice bank is now %s: %d unheard episodes will draw a voice "
+                 "from it", signature, cleared)
+        return cleared
+    except Exception:  # noqa: BLE001 - an old draw still plays
+        log.exception("could not re-deal episode voices")
+        return 0
 
 
 class PronunciationRequest(BaseModel):
     name: str = Field(..., max_length=60)
     say: str = Field(..., max_length=120)
+
+
+class HearRequest(BaseModel):
+    name: str = Field(..., min_length=1, max_length=60)
 
 
 class LocalOutletRequest(BaseModel):
@@ -4302,9 +4400,112 @@ async def admin_pronunciations(request: Request) -> dict:
     for row in rows:
         if row["name"] in checks:
             row["wikipedia"] = checks[row["name"]]
+    _attach_voice_checks(bank, rows, "name")
+    import voice_check
+
     return {"pronunciations": rows,
             "wikipedia": {"enabled": wiki_pronounce.enabled(),
-                          **dict(wiki_pronounce.STATE)}}
+                          **dict(wiki_pronounce.STATE)},
+            "hearing": dict(voice_check.STATE)}
+
+
+def _attach_voice_checks(bank, rows: list, field: str) -> None:
+    """What the voice was last heard to say for each row (§325), beside it."""
+    try:
+        heard = {c["word"]: c for c in bank.voice_checks()}
+    except Exception:  # noqa: BLE001 - advice, never the list itself
+        return
+    for row in rows:
+        if row[field] in heard:
+            row["voice"] = heard[row[field]]
+
+
+async def _hear(name: str) -> dict:
+    import voice_check
+
+    try:
+        return await voice_check.check(name.strip(), with_audio=True)
+    except voice_check.VoiceCheckUnavailable as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001 - the voice's own words
+        raise HTTPException(status_code=502, detail=(
+            f"The voice could not be heard: {exc}")[:400]) from exc
+
+
+@app.post("/api/admin/pronunciations/hear")
+async def admin_hear_pronunciation(req: HearRequest, request: Request) -> dict:
+    """Say one word with the production voice, hear it back with a phoneme
+    recogniser, and compare (§325, `voice_check.py`). Returns the audio too,
+    so a person can judge what the comparison only estimates. Changes
+    nothing in the lexicon."""
+    _require_admin(request)
+    return await _hear(req.name)
+
+
+@app.post("/api/admin/pronunciations/hear-all")
+async def admin_hear_all_pronunciations(request: Request) -> dict:
+    """Hear every name on file in the background (§325), the ones never
+    heard first; at most `voice_check.MAX_PER_RUN` a run."""
+    _require_admin(request)
+    import voice_check
+
+    bank = voice_bank.bank()
+    heard = {c["word"]: c["at"] for c in bank.voice_checks()}
+    names = sorted((r["name"] for r in bank.pronunciations()),
+                   key=lambda n: heard.get(n, 0))
+    return {"queued": voice_check.run_in_background(names),
+            "state": dict(voice_check.STATE)}
+
+
+@app.get("/api/admin/hard-words")
+async def admin_hard_words(request: Request) -> dict:
+    """Words in recent episodes the voice may not know (§325,
+    `hard_words.py`): not in the CMU pronouncing dictionary and not
+    respelled, most used first, with what the voice was heard to say."""
+    _require_admin(request)
+    import hard_words
+    import voice_check
+
+    bank = voice_bank.bank()
+    # A word respelled since the scan is no longer the voice's guess.
+    respelled = {w.lower() for n in pronunciation.lexicon().entries() for w in n.split()}
+    rows = [r for r in bank.hard_words() if r["word"].lower() not in respelled]
+    _attach_voice_checks(bank, rows, "word")
+    return {"words": rows, "scan": dict(hard_words.STATE),
+            "dictionary": hard_words.available(),
+            "hearing": dict(voice_check.STATE)}
+
+
+@app.post("/api/admin/hard-words/scan")
+async def admin_scan_hard_words(request: Request) -> dict:
+    """Read recent episodes for words the voice may not know, in the
+    background. Never on an episode's path."""
+    _require_admin(request)
+    import hard_words
+
+    return {"started": hard_words.scan_in_background(SCRIPT_CACHE),
+            "scan": dict(hard_words.STATE)}
+
+
+@app.post("/api/admin/hard-words/ok")
+async def admin_hard_word_ok(req: HearRequest, request: Request) -> dict:
+    """An admin heard this word and it is fine: never listed again."""
+    _require_admin(request)
+    voice_bank.bank().hard_word_ok(req.name.strip())
+    return {"ok": True}
+
+
+@app.post("/api/admin/hard-words/hear-all")
+async def admin_hear_hard_words(request: Request) -> dict:
+    """Hear the most-used listed words in the background (§325)."""
+    _require_admin(request)
+    import voice_check
+
+    bank = voice_bank.bank()
+    heard = {c["word"] for c in bank.voice_checks()}
+    words = [r["word"] for r in bank.hard_words() if r["word"] not in heard]
+    return {"queued": voice_check.run_in_background(words),
+            "state": dict(voice_check.STATE)}
 
 
 @app.post("/api/admin/pronunciations/wikipedia")
@@ -4380,7 +4581,7 @@ class FeedbackEpisode(BaseModel):
     thumbnails (`feedback.thumb_path`); without it the server picks the
     player's picture itself (`_player_picture`)."""
     q: str = ""
-    minutes: int = 0
+    minutes: Minutes = 0
     context: str = ""
     title: str = ""
     thumb: str = ""
@@ -4779,7 +4980,7 @@ class ReportRequest(BaseModel):
     #: named by `query` and `minutes` instead.
     target: str = Field("", max_length=120)
     query: str = Field("", max_length=300)
-    minutes: int = Field(0, ge=0, le=10)
+    minutes: Minutes = Field(0, ge=0, le=10)
     reason: str = Field(..., max_length=24)
     note: str = Field("", max_length=moderation_mod.MAX_NOTE)
 
@@ -5317,15 +5518,39 @@ def carry_the_session(app):
 app.add_middleware(carry_the_session)
 
 
+def _track_memory(app):
+    """Every HTTP request's own change in resident size, kept for the memory
+    watch to name when the server jumps (§335). Two reads of
+    /proc/self/status per request; nothing is logged here."""
+    import memory_report
+
+    async def asgi(scope, receive, send):
+        if scope.get("type") != "http":
+            await app(scope, receive, send)
+            return
+        key = id(scope)
+        memory_report.request_started(
+            key, f"{scope.get('method', '')} {scope.get('path', '')}")
+        try:
+            await app(scope, receive, send)
+        finally:
+            memory_report.request_ended(key)
+    return asgi
+
+
+app.add_middleware(_track_memory)
+
+
 #: While `WAITLIST` is on, the API a listener who is not active may still reach:
 #: signing up and in, the waitlist's own endpoints, and the profile fields the
 #: status page edits (`/api/me`: name, handle, photo; `/api/preferences`:
 #: topics). Everything else - listening included - answers 403. The admin
 #: endpoints check their own credential and are passed through for it.
 #: `/api/thumb/` is a category's picture - nobody's data - which the landing
-#: page's samples draw (§190).
+#: page's samples draw (§190). `/api/image/` is a photo the status page shows
+#: its owner, named by its own hash (§330).
 WAITLIST_OPEN_PREFIXES = ("/api/auth/", "/api/waitlist/", "/api/admin/",
-                          "/api/thumb/")
+                          "/api/thumb/", "/api/image/")
 WAITLIST_OPEN_PATHS = frozenset({
     "/api/health", "/api/voice/register", "/api/client-status",
     "/api/me", "/api/preferences",
@@ -7029,7 +7254,7 @@ def _seen_ids(seen: str) -> set:
 @app.get("/api/myfam/section")
 async def myfam_section(request: Request,
                         key: str = Query(..., max_length=32),
-                        minutes: int = Query(DEFAULT_MINUTES, ge=1, le=10),
+                        minutes: Minutes = Query(DEFAULT_MINUTES, ge=1, le=10),
                         interests: str = Query("", max_length=200),
                         page_size: int = Query(0, ge=0, le=40),
                         seen: str = Query("", max_length=6000),
@@ -7260,7 +7485,7 @@ def _topic_is_written(query: str, minutes: int) -> bool:
 async def episode_card(request: Request,
                        q: str = Query("", max_length=300),
                        title: str = Query("", max_length=300),
-                       minutes: int = Query(0, ge=0, le=10),
+                       minutes: Minutes = Query(0, ge=0, le=10),
                        episode: str = Query("", max_length=80),
                        context: str = Query("", max_length=300)) -> dict:
     """What the player draws around an episode (§190): its picture, and who
@@ -7852,20 +8077,61 @@ WELCOME_SCAN = 10
 
 #: How long one ranking of the samples serves every request (§190): the
 #: waitlist gate asks for it on each sample's audio, and the samples turn
-#: over by the day, not by the second.
-WELCOME_MEMO_SECONDS = 60.0
+#: over by the day, not by the second. Ten minutes since §338: a ranking
+#: probes every episode heard today, and it ran on a visitor's request
+#: once a minute.
+WELCOME_MEMO_SECONDS = 600.0
 _WELCOME_MEMO: dict = {"at": 0.0, "episodes": []}
+#: One ranking at a time: visitors arriving together share it (§338).
+_WELCOME_LOCK = threading.Lock()
+_WELCOME_REFRESHING = threading.Event()
 
 
 def _welcome_episodes() -> list[dict]:
-    """The samples, ranked: see `welcome_samples`. Memoised briefly."""
-    now = time.monotonic()
+    """The samples, ranked: see `welcome_samples`. Memoised.
+
+    **A visitor never waits for a re-ranking** (§338). Inside
+    `WELCOME_MEMO_SECONDS` the memo answers; past it, the old samples still
+    answer at once and one background thread ranks again. Only a cold memo -
+    the first ask after a boot - ranks on the asker's thread, and under a
+    lock, so visitors arriving together share one ranking instead of each
+    probing every episode heard today."""
     # Keyed on the stores too, so a swapped log (a wipe, a test) is never
     # answered from the old one.
     stores = (id(EVENTS), id(SCRIPT_CACHE))
-    if (_WELCOME_MEMO["at"] and _WELCOME_MEMO.get("stores") == stores
-            and now - _WELCOME_MEMO["at"] < WELCOME_MEMO_SECONDS):
-        return _WELCOME_MEMO["episodes"]
+    memo = _WELCOME_MEMO
+    if memo["at"] and memo.get("stores") == stores:
+        if time.monotonic() - memo["at"] >= WELCOME_MEMO_SECONDS:
+            _refresh_welcome_later()
+        return memo["episodes"]
+    with _WELCOME_LOCK:
+        memo = _WELCOME_MEMO
+        if memo["at"] and memo.get("stores") == stores:
+            return memo["episodes"]
+        return _rank_welcome(stores)
+
+
+def _refresh_welcome_later() -> None:
+    """Rank the samples again on a thread of their own, once at a time."""
+    if _WELCOME_REFRESHING.is_set():
+        return
+    _WELCOME_REFRESHING.set()
+
+    def run() -> None:
+        try:
+            with _WELCOME_LOCK:
+                _rank_welcome((id(EVENTS), id(SCRIPT_CACHE)))
+        except Exception:  # noqa: BLE001 - the old samples keep answering
+            log.exception("could not refresh the welcome samples")
+        finally:
+            _WELCOME_REFRESHING.clear()
+
+    threading.Thread(target=run, name="welcome-samples", daemon=True).start()
+
+
+def _rank_welcome(stores: tuple) -> list[dict]:
+    """One ranking of the samples, stored in the memo. Under `_WELCOME_LOCK`."""
+    now = time.monotonic()
     minutes = BROWSE_MINUTES
     try:
         ranked = topics_mod.rank_most_played(
@@ -7907,8 +8173,11 @@ async def welcome_samples(request: Request) -> dict:
     landing page shows the same three (§190), so this is open past the gate.
     """
     _read_limit(request)
+    # Off the event loop (§338): a cold ranking reads the cache once per
+    # episode heard today, and every other request would wait behind it.
+    episodes = await asyncio.to_thread(_welcome_episodes)
     # A sample a reviewer took down is not offered on the front door (§226).
-    return {"episodes": [e for e in _welcome_episodes()
+    return {"episodes": [e for e in episodes
                          if not _episode_removed("", e.get("query") or "",
                                                  e.get("minutes") or BROWSE_MINUTES)]}
 
@@ -7944,13 +8213,13 @@ class EventRequest(BaseModel):
     #: is filed under the category of the episode that was actually heard
     #: (§209). Both optional: an older client sends neither, and its events
     #: are looked up at the browse length as they always were.
-    minutes: int = Field(0, ge=0, le=10)
+    minutes: Minutes = Field(0, ge=0, le=10)
     episode: str = Field("", max_length=80)
 
 
 @app.get("/api/myfam")
 async def myfam(request: Request, interests: str = Query("", max_length=200),
-                minutes: int = Query(DEFAULT_MINUTES, ge=1, le=10)):
+                minutes: Minutes = Query(DEFAULT_MINUTES, ge=1, le=10)):
     """The four myFAM rails, ranked for this listener.
 
     **Costs no model call and cannot cause one.** Both inventories are already
@@ -8108,7 +8377,7 @@ class PersonRequest(BaseModel):
 class EchoRequest(BaseModel):
     query: str = Field(..., max_length=300)
     title: str = Field("", max_length=200)
-    minutes: int = Field(DEFAULT_MINUTES, ge=1, le=10)
+    minutes: Minutes = Field(DEFAULT_MINUTES, ge=1, le=10)
     thread: str = Field("", max_length=200)
     #: What the person vibing it says about it (10.5 packet #9), shown with
     #: the episode when it plays as a story. Optional; cut to
@@ -8354,7 +8623,7 @@ async def set_close_friend(req: CloseFriendRequest, request: Request) -> dict:
 
 @app.delete("/api/echo")
 async def delete_echo(request: Request, q: str = Query("", max_length=300),
-                      minutes: int = Query(DEFAULT_MINUTES, ge=1, le=10)):
+                      minutes: Minutes = Query(DEFAULT_MINUTES, ge=1, le=10)):
     _read_limit(request)
     user = _listener(request)
     ok = SOCIAL.unecho(user, q, minutes)
@@ -8386,7 +8655,7 @@ async def post_vibe(req: EchoRequest, request: Request):
 
 @app.delete("/api/vibe")
 async def delete_vibe(request: Request, q: str = Query("", max_length=300),
-                      minutes: int = Query(DEFAULT_MINUTES, ge=1, le=10)):
+                      minutes: Minutes = Query(DEFAULT_MINUTES, ge=1, le=10)):
     """Take a vibe back. The same act as `DELETE /api/echo`."""
     return await delete_echo(request, q, minutes)
 
@@ -8400,7 +8669,7 @@ async def delete_vibe(request: Request, q: str = Query("", max_length=300),
 # (`account-gates-kept`), and the 401 is what opens the sign-up screen.
 class CommentRequest(BaseModel):
     query: str = Field(..., max_length=300)
-    minutes: int = Field(DEFAULT_MINUTES, ge=1, le=10)
+    minutes: Minutes = Field(DEFAULT_MINUTES, ge=1, le=10)
     #: Cut to `social.MAX_COMMENT` rather than refused.
     text: str = Field(..., max_length=2000)
     #: The comment this answers, or 0 for a new one.
@@ -8413,7 +8682,7 @@ class CommentLikeRequest(BaseModel):
 
 @app.get("/api/comments")
 async def episode_comments(request: Request, q: str = Query("", max_length=300),
-                           minutes: int = Query(DEFAULT_MINUTES, ge=1, le=10)) -> dict:
+                           minutes: Minutes = Query(DEFAULT_MINUTES, ge=1, le=10)) -> dict:
     """An episode's comments, most liked first, each with its replies."""
     _read_limit(request)
     viewer = _listener(request)
@@ -8473,7 +8742,7 @@ async def my_vibes(request: Request, limit: int = Query(40, ge=1, le=200)):
     # A guest has neither: folders are kept on an account.
     filed = SAVED.vibe_files(user) if _has_account(request) else {}
     return {"vibes": [dict(v.as_dict(person["name"], person["handle"]),
-                           folder_id=filed.get((v.query, int(v.minutes)), ""))
+                           folder_id=filed.get((v.query, as_minutes(v.minutes)), ""))
                       for v in vibes],
             "folders": SAVED.folders(user, "vibe") if _has_account(request) else [],
             "count": len(SOCIAL.echoes_by(user, limit=200))}
@@ -8481,7 +8750,7 @@ async def my_vibes(request: Request, limit: int = Query(40, ge=1, le=200)):
 
 class VibeFileRequest(BaseModel):
     query: str = Field(..., max_length=300)
-    minutes: int = Field(DEFAULT_MINUTES, ge=0, le=60)
+    minutes: Minutes = Field(DEFAULT_MINUTES, ge=0, le=60)
     #: A vibe folder's id, or "" to take the vibe out of any folder.
     folder_id: str = Field("", max_length=64)
 
@@ -8670,7 +8939,7 @@ async def circle(request: Request, notes: int = Query(0, ge=0, le=1)) -> dict:
 
 class ProgressRequest(BaseModel):
     query: str = Field(..., max_length=saved_mod.MAX_QUERY)
-    minutes: int = Field(..., ge=1, le=10)
+    minutes: Minutes = Field(..., ge=1, le=10)
     seconds: float = Field(..., ge=0, le=3600)
     title: str = Field("", max_length=saved_mod.MAX_TITLE)
     #: The topic a follow-up was asked from. Part of the episode's cache key,
@@ -8713,7 +8982,7 @@ async def progress_write(req: ProgressRequest, request: Request) -> dict:
 
 class HistoryRequest(BaseModel):
     query: str = Field(..., max_length=saved_mod.MAX_QUERY)
-    minutes: int = Field(..., ge=1, le=10)
+    minutes: Minutes = Field(..., ge=1, le=10)
     surface: str = Field(..., max_length=16)
     title: str = Field("", max_length=saved_mod.MAX_TITLE)
     context: str = Field("", max_length=300)
@@ -8733,7 +9002,7 @@ def _kept_under_question(item: dict) -> str:
     if SCRIPT_CACHE is None:
         return ""
     try:
-        key = _episode_key(_validated_plan(item["query"], int(item["minutes"]),
+        key = _episode_key(_validated_plan(item["query"], as_minutes(item["minutes"]),
                                            item.get("context") or ""))
         # Pinned as a new row would be, so it stays kept while it is shown.
         return _pin_heard(key) if key else ""
@@ -8923,7 +9192,7 @@ async def dismiss_go_deeper(req: DismissRequest, request: Request):
 
 class RateRequest(BaseModel):
     query: str = Field(..., max_length=300)
-    minutes: int = Field(DEFAULT_MINUTES, ge=1, le=10)
+    minutes: Minutes = Field(DEFAULT_MINUTES, ge=1, le=10)
     #: 1 like, -1 dislike, 0 take it back.
     value: int = Field(..., ge=-1, le=1)
     #: The card's cache key, so the counts that come back include its play
@@ -8964,7 +9233,7 @@ async def rate_episode(req: RateRequest, request: Request):
 @app.get("/api/episode/stats")
 async def episode_stats(request: Request,
                         q: str = Query(..., max_length=300),
-                        minutes: int = Query(DEFAULT_MINUTES, ge=1, le=10),
+                        minutes: Minutes = Query(DEFAULT_MINUTES, ge=1, le=10),
                         key: str = Query("", max_length=128)):
     """Plays, vibes, likes and dislikes for one episode, right now (§134).
 
@@ -9043,7 +9312,7 @@ async def trending_searches(request: Request) -> dict:
         # the opposite of what a trending search is for. With the semantic
         # key on (`CACHE_SEMANTIC_KEY`, off by default) the key needs a model
         # call to compute, and the row is offered on trust.
-        minutes = int(entry.get("minutes") or 0)
+        minutes = as_minutes(entry.get("minutes") or 0)
         if not settings.cache_semantic_key and entry.get("key") not in (
                 cache_key(query, minutes, None, "", True),
                 cache_key(query, minutes, None, "", False)):
@@ -9368,7 +9637,7 @@ async def interest_episodes(request: Request,
             return
         seen.add(q.lower())
         card = {"query": q, "title": title or (q[:1].upper() + q[1:]),
-                "minutes": int(minutes or 0), "source": source,
+                "minutes": as_minutes(minutes), "source": source,
                 "age_seconds": max(0.0, now - at) if at else None}
         card.update(extra)
         cards.append(card)
@@ -9414,7 +9683,7 @@ async def interest_episodes(request: Request,
 async def episode_sources(
     request: Request,
     q: str = Query(..., description="What the listener asked"),
-    minutes: int = Query(DEFAULT_MINUTES, ge=1, le=10),
+    minutes: Minutes = Query(DEFAULT_MINUTES, ge=1, le=10),
     context: str = Query("", description="Topic the listener just heard"),
     # As /api/audio's (§288): `SEARCH_MODE` decides when the client says
     # nothing, so this reads the key the episode was written under.
@@ -9453,7 +9722,7 @@ async def episode_sources(
 async def episode_transcript(
     request: Request,
     q: str = Query(..., description="What the listener asked"),
-    minutes: int = Query(DEFAULT_MINUTES, ge=1, le=10),
+    minutes: Minutes = Query(DEFAULT_MINUTES, ge=1, le=10),
     context: str = Query("", description="Topic the listener just heard"),
     # As /api/audio's (§288): `SEARCH_MODE` decides when the client says
     # nothing, so this reads the key the episode was written under.
@@ -9512,7 +9781,7 @@ async def episode_transcript(
 async def progress(
     request: Request,
     q: str = Query(..., description="What the listener asked"),
-    minutes: int = Query(DEFAULT_MINUTES, ge=1, le=10),
+    minutes: Minutes = Query(DEFAULT_MINUTES, ge=1, le=10),
     context: str = Query("", description="Topic the listener just heard"),
     # Same reason as /api/audio: the answer is keyed on the episode, and the
     # key has to be built the way the audio request built it.
@@ -9555,7 +9824,7 @@ async def progress(
 async def next_thread(
     request: Request,
     q: str = Query(..., description="What the listener asked"),
-    minutes: int = Query(DEFAULT_MINUTES, ge=1, le=10),
+    minutes: Minutes = Query(DEFAULT_MINUTES, ge=1, le=10),
     context: str = Query("", description="Topic the listener just heard"),
     # Same reason as /api/audio: this looks up a cache entry, and the entry it
     # looks for has to be keyed the same way the audio request keyed it.
@@ -9605,7 +9874,7 @@ async def next_thread(
 async def audio(
     request: Request,
     q: str = Query(..., description="What the listener asked"),
-    minutes: int = Query(DEFAULT_MINUTES, ge=1, le=10),
+    minutes: Minutes = Query(DEFAULT_MINUTES, ge=1, le=10),
     fmt: str = Query("wav", pattern="^(wav|pcm|opus)$"),
     context: str = Query("", description="Topic the listener just heard, for a follow-up"),
     voice: str = Query("", description="Voice id from /api/voices"),
@@ -10225,6 +10494,21 @@ def _require_admin(request: Request) -> None:
         raise HTTPException(status_code=404, detail="Not found")
 
 
+@app.get("/api/admin/memory")
+async def admin_memory(request: Request, census: bool = False,
+                       trim: bool = True) -> dict:
+    """Where the resident memory is (§331, `memory_report.py`): glibc's
+    count of bytes in use and held free, then a `malloc_trim` and what it
+    gave back; with `?census=1`, this project's largest globals. Asked of
+    the running process, by an admin, never on a timer."""
+    _require_admin(request)
+    import memory_report
+    out = await asyncio.to_thread(memory_report.report, trim, census)
+    # What the server saw of itself while nobody was looking (§334).
+    out["watch"] = memory_report.watch_state()
+    return out
+
+
 @app.get("/api/usage")
 async def usage(
     request: Request,
@@ -10523,6 +10807,24 @@ async def admin_wipe(req: WipeRequest, request: Request) -> dict:
 # judges a picture is behind `_require_admin`.
 
 
+@app.get("/api/image/{name:path}", include_in_schema=False)
+async def stored_image(name: str) -> Response:
+    """A profile photo, group photo or mix cover kept in the bucket (§330),
+    by the path its row holds. The name is the picture's own hash, so it is
+    only known to whoever was shown it - the same people who saw it when it
+    was a `data:` URL inside a response. Cached for a year: a changed
+    picture is a different name."""
+    found = None
+    object_name = image_store.name_from_url(image_store.URL_PREFIX + name)
+    if object_name:
+        found = await asyncio.to_thread(image_store.read, object_name)
+    if not found:
+        raise HTTPException(status_code=404, detail="Not found")
+    data, mime = found
+    return Response(content=data, media_type=mime, headers={
+        "Cache-Control": "public, max-age=31536000, immutable"})
+
+
 @app.get("/api/thumb/{node_id:path}", include_in_schema=False)
 async def thumb_image(node_id: str) -> Response:
     """An approved tile picture. 404 for anything else, including a picture
@@ -10758,6 +11060,355 @@ async def admin_thumbnail_run(req: ThumbnailRun, request: Request) -> dict:
             "room_today": room}
 
 
+# --- Conversations on X (§321, x_threads.py) ---------------------------------
+# Threads on X one of FAM's episodes could add to, found from the episodes
+# FAM already has. A person approves each reply and posts it in X; FAM holds
+# a read-only search credential and never posts ([no-social-posting]).
+
+#: One search at a time: a second press while one runs would spend X's
+#: per-read billing twice on the same threads.
+_X_RUNNING: list = []
+
+
+@app.get("/admin/x", include_in_schema=False)
+async def admin_x_page(request: Request):
+    """The review page. A shell, like `/admin/thumbnails`; every card on it
+    is fetched from the endpoints below, which are what check who is asking."""
+    if not _admin_configured():
+        raise HTTPException(status_code=404, detail="Not found")
+    page = PROJECT_ROOT / "admin_ui" / "x.html"
+    return HTMLResponse(page.read_text(encoding="utf-8"),
+                        headers={"Cache-Control": "no-store",
+                                 "X-Robots-Tag": "noindex"})
+
+
+@app.get("/api/admin/x")
+async def admin_x(request: Request, status: str = "") -> dict:
+    """Every card (newest run first, waiting before decided), whether X can
+    be asked, what today's reads have used, and what the last run did."""
+    _require_admin(request)
+    if status and status not in x_threads.STATUSES:
+        raise HTTPException(status_code=422, detail="Unknown status.")
+    cards = []
+    if x_threads._exists():
+        cards = await asyncio.to_thread(x_threads.store().all, status)
+    return {"health": x_threads.health(), "running": bool(_X_RUNNING),
+            "cards": cards, "kinds": x_threads.KINDS}
+
+
+@app.post("/api/admin/x/run")
+async def admin_x_run(request: Request) -> dict:
+    """Look for threads now, in the background, inside the read ceilings.
+    Returns at once; the page polls the list to watch the cards arrive."""
+    _require_admin(request)
+    ok, why = x_threads.available()
+    if not ok:
+        raise HTTPException(status_code=409, detail=f"Cannot search X: {why}.")
+    if _X_RUNNING:
+        raise HTTPException(status_code=409, detail="A search is already running.")
+
+    async def _run() -> None:
+        try:
+            report = await x_threads.run(SCRIPT_CACHE)
+            log.info("x threads (admin run): %s",
+                     {k: v for k, v in report.items() if k != "seeds"})
+        except Exception:  # noqa: BLE001 - recorded, never raised into nothing
+            log.exception("x threads: the run failed")
+        finally:
+            _X_RUNNING.clear()
+
+    _X_RUNNING.append(time.time())
+    _BACKGROUND.add(asyncio.create_task(_run()))
+    return {"started": True}
+
+
+class XCard(BaseModel):
+    post_id: str = Field(..., min_length=1, max_length=40, pattern=r"^[0-9]+$")
+
+
+def _x_episode_link(card: dict, request: Request) -> str:
+    """The card's episode as a share link FAM owns, or "" when the card has
+    no episode. One link per episode however many threads it is offered on
+    (`ShareStore.create` is once per sharer, question and length)."""
+    episode = card.get("episode") or {}
+    if not episode.get("query"):
+        return ""
+    try:
+        share = SHARES.create(x_threads.SHARER, episode["query"],
+                              as_minutes(episode.get("minutes") or 1),
+                              episode.get("title") or "")
+    except sharing.ShareError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    link, public = _share_url(share["id"], request)
+    if not public:
+        raise HTTPException(status_code=409, detail=(
+            "This server does not know its public address, so the episode "
+            "link would not open on X. Set PUBLIC_BASE_URL."))
+    return link
+
+
+@app.post("/api/admin/x/listen")
+async def admin_x_listen(req: XCard, request: Request) -> dict:
+    """The episode's link, to hear it before approving - the playbook's
+    "add a checked episode": nobody vouches for audio they have not heard."""
+    _require_admin(request)
+    if not x_threads._exists():
+        raise HTTPException(status_code=404, detail="No cards yet")
+    card = await asyncio.to_thread(x_threads.store().get, req.post_id)
+    if card is None:
+        raise HTTPException(status_code=404, detail="No card for that post")
+    link = _x_episode_link(card, request)
+    if not link:
+        raise HTTPException(status_code=404, detail="This card has no episode.")
+    return {"url": link}
+
+
+class XDecision(BaseModel):
+    post_id: str = Field(..., min_length=1, max_length=40, pattern=r"^[0-9]+$")
+    action: str = Field(..., pattern="^(approve|skip|reopen)$")
+    #: The reply as the person edited it on the card; the stored draft if empty.
+    text: str = Field("", max_length=1000)
+    #: Leave the episode's link off this reply even when it has one.
+    no_link: bool = False
+
+
+@app.post("/api/admin/x/decide")
+async def admin_x_decide(req: XDecision, request: Request) -> dict:
+    """A person's verdict on one card. Approve makes the episode's share link
+    (owned by FAM, never a listener), puts the reply together, and hands back
+    X's compose screen with the words in it - the page opens it and copies
+    the words. Nothing is posted from here."""
+    _require_admin(request)
+    if not x_threads._exists():
+        raise HTTPException(status_code=404, detail="No cards yet")
+    held = x_threads.store()
+    card = await asyncio.to_thread(held.get, req.post_id)
+    if card is None:
+        raise HTTPException(status_code=404, detail="No card for that post")
+    now = time.time()
+    if req.action != "approve":
+        status = x_threads.SKIPPED if req.action == "skip" else x_threads.WAITING
+        await asyncio.to_thread(held.decide, req.post_id, status, now)
+        return {"post_id": req.post_id, "status": status}
+    words = " ".join((req.text or card["draft"] or "").split())
+    if not words:
+        raise HTTPException(status_code=422, detail="There is no reply to post.")
+    link = ""
+    if not req.no_link and card["kind"] != x_threads.QUESTION_ONLY:
+        link = _x_episode_link(card, request)
+    try:
+        text = x_threads.compose(words, link)
+    except x_threads.TooLong as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    await asyncio.to_thread(held.decide, req.post_id, x_threads.APPROVED, now,
+                            posted=text, share_url=link)
+    return {"post_id": req.post_id, "status": x_threads.APPROVED, "text": text,
+            "share_url": link,
+            "intent_url": x_threads.intent_url(req.post_id, text),
+            "post_url": card["post"]["url"]}
+
+
+# --- Go Deeper on LinkedIn (§322, linkedin_posts.py) ---------------------------
+# LinkedIn posts that teach something, and the kept episode that goes deeper.
+# Nothing here reads LinkedIn: the page builds search links a person opens,
+# and a person pastes the posts worth commenting on. A person approves each
+# comment and posts it in LinkedIn ([no-social-posting]).
+
+
+@app.get("/admin/linkedin", include_in_schema=False)
+async def admin_linkedin_page(request: Request):
+    """The review page, `/admin/x`'s shape."""
+    if not _admin_configured():
+        raise HTTPException(status_code=404, detail="Not found")
+    page = PROJECT_ROOT / "admin_ui" / "linkedin.html"
+    return HTMLResponse(page.read_text(encoding="utf-8"),
+                        headers={"Cache-Control": "no-store",
+                                 "X-Robots-Tag": "noindex"})
+
+
+@app.get("/api/admin/linkedin")
+async def admin_linkedin(request: Request, status: str = "") -> dict:
+    """Every card, and the LinkedIn searches built from today's episodes."""
+    _require_admin(request)
+    if status and status not in linkedin_posts.STATUSES:
+        raise HTTPException(status_code=422, detail="Unknown status.")
+    cards = []
+    if linkedin_posts._exists():
+        cards = await asyncio.to_thread(lambda: linkedin_posts.store().all(status))
+    # The Trending edition and the cache are read off the loop.
+    searches = await asyncio.to_thread(lambda: linkedin_posts.search_links(
+        SCRIPT_CACHE, trending=x_threads.trending_now(),
+        limit=settings.x_threads_seeds))
+    health = await asyncio.to_thread(linkedin_posts.health)
+    return {"health": health, "cards": cards, "searches": searches,
+            "running": bool(_LINKEDIN_RUNNING),
+            "comment_chars": linkedin_posts.COMMENT_CHARS}
+
+
+#: One "Find posts" at a time: a second press while one runs would pay for
+#: the same searches twice.
+_LINKEDIN_RUNNING: list = []
+
+
+@app.post("/api/admin/linkedin/run")
+async def admin_linkedin_run(request: Request) -> dict:
+    """Find posts now (§327), in the background, inside the search ceilings:
+    public LinkedIn posts about FAM's kept episodes, through the research
+    vendor FAM already uses. Returns at once; the page polls while it runs."""
+    _require_admin(request)
+    ok, why = linkedin_posts.available()
+    if not ok:
+        raise HTTPException(status_code=409, detail=f"Cannot search for posts: {why}.")
+    if _LINKEDIN_RUNNING:
+        raise HTTPException(status_code=409, detail="A search is already running.")
+
+    async def _run() -> None:
+        try:
+            report = await linkedin_posts.run(SCRIPT_CACHE)
+            log.info("linkedin (admin run): %s",
+                     {k: v for k, v in report.items() if k != "seeds"})
+        except Exception:  # noqa: BLE001 - recorded, never raised into nothing
+            log.exception("linkedin: the run failed")
+        finally:
+            _LINKEDIN_RUNNING.clear()
+
+    _LINKEDIN_RUNNING.append(time.time())
+    _BACKGROUND.add(asyncio.create_task(_run()))
+    return {"started": True}
+
+
+class LinkedInPaste(BaseModel):
+    url: str = Field(..., min_length=1, max_length=600)
+    text: str = Field(..., min_length=1, max_length=6000)
+    author_name: str = Field("", max_length=120)
+    #: Add it although the screen turned it away; the card says why.
+    anyway: bool = False
+
+
+@app.post("/api/admin/linkedin/add")
+async def admin_linkedin_add(req: LinkedInPaste, request: Request) -> dict:
+    """A post a person found and pasted: screened, matched against every
+    kept episode, its comment drafted. A refusal says why, and the page
+    offers to add it anyway."""
+    _require_admin(request)
+    try:
+        card = await linkedin_posts.add(SCRIPT_CACHE, url=req.url, text=req.text,
+                                        author_name=req.author_name, anyway=req.anyway)
+    except linkedin_posts.NotAPost as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except linkedin_posts.Refused as exc:
+        # The page offers "Add it anyway" only for a refusal that may be
+        # overruled - never for a post that already has a card.
+        raise HTTPException(status_code=409, detail=str(exc),
+                            headers={"X-FAM-Overrule": "anyway"}) from exc
+    except linkedin_posts.OnThePage as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return {"card": card}
+
+
+class LinkedInCard(BaseModel):
+    post_id: str = Field(..., min_length=1, max_length=40,
+                         pattern=r"^(activity|share|ugcPost):[0-9]+$")
+
+
+@app.post("/api/admin/linkedin/match")
+async def admin_linkedin_match(req: LinkedInCard, request: Request) -> dict:
+    """Match a card again: after the Go Deeper episode it needed was made."""
+    _require_admin(request)
+    if not linkedin_posts._exists():
+        raise HTTPException(status_code=404, detail="No cards yet")
+    try:
+        card = await linkedin_posts.rematch(SCRIPT_CACHE, req.post_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="No card for that post") from exc
+    return {"card": card}
+
+
+def _linkedin_episode(card: dict, chosen: Optional[int]) -> dict:
+    """The offered episode the person chose, only one that is the post's
+    subject: no episode, no link."""
+    episodes = card.get("episodes") or []
+    index = card.get("chosen", 0) if chosen is None else chosen
+    if not 0 <= index < len(episodes) or not linkedin_posts.linked(episodes[index]):
+        raise HTTPException(status_code=409, detail=(
+            "No kept episode is this post's subject. Make one: search its Go "
+            "Deeper question in FAM, then press Match again."))
+    return episodes[index]
+
+
+def _linkedin_link(episode: dict, request: Request) -> str:
+    """The episode as a share link FAM owns: one per episode, like `/admin/x`'s."""
+    try:
+        share = SHARES.create(linkedin_posts.SHARER, episode["query"],
+                              as_minutes(episode.get("minutes") or 1),
+                              episode.get("title") or "")
+    except sharing.ShareError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    link, public = _share_url(share["id"], request)
+    if not public:
+        raise HTTPException(status_code=409, detail=(
+            "This server does not know its public address, so the episode "
+            "link would not open on LinkedIn. Set PUBLIC_BASE_URL."))
+    return link
+
+
+class LinkedInListen(LinkedInCard):
+    chosen: Optional[int] = Field(None, ge=0, le=linkedin_posts.OFFERED - 1)
+
+
+@app.post("/api/admin/linkedin/listen")
+async def admin_linkedin_listen(req: LinkedInListen, request: Request) -> dict:
+    """The episode's link, to hear it before vouching for it."""
+    _require_admin(request)
+    if not linkedin_posts._exists():
+        raise HTTPException(status_code=404, detail="No cards yet")
+    card = await asyncio.to_thread(lambda: linkedin_posts.store().get(req.post_id))
+    if card is None:
+        raise HTTPException(status_code=404, detail="No card for that post")
+    episode = _linkedin_episode(card, req.chosen)
+    return {"url": await asyncio.to_thread(_linkedin_link, episode, request)}
+
+
+class LinkedInDecision(LinkedInCard):
+    action: str = Field(..., pattern="^(approve|skip|reopen)$")
+    #: The comment as the person edited it on the card; the draft if empty.
+    text: str = Field("", max_length=2000)
+    #: Which offered episode goes in the Go Deeper line.
+    chosen: Optional[int] = Field(None, ge=0, le=linkedin_posts.OFFERED - 1)
+
+
+@app.post("/api/admin/linkedin/decide")
+async def admin_linkedin_decide(req: LinkedInDecision, request: Request) -> dict:
+    """A person's verdict on one card. Approve makes the episode's share
+    link, puts the comment together and hands it back with the post's
+    address; the page copies the words and opens the post. LinkedIn has no
+    prefilled comment box, so the person pastes. Nothing is posted here."""
+    _require_admin(request)
+    if not linkedin_posts._exists():
+        raise HTTPException(status_code=404, detail="No cards yet")
+    held = await asyncio.to_thread(linkedin_posts.store)
+    card = await asyncio.to_thread(held.get, req.post_id)
+    if card is None:
+        raise HTTPException(status_code=404, detail="No card for that post")
+    now = time.time()
+    if req.action != "approve":
+        status = (linkedin_posts.SKIPPED if req.action == "skip"
+                  else linkedin_posts.WAITING)
+        await asyncio.to_thread(held.decide, req.post_id, status, now)
+        return {"post_id": req.post_id, "status": status}
+    episode = _linkedin_episode(card, req.chosen)
+    link = await asyncio.to_thread(_linkedin_link, episode, request)
+    try:
+        text = linkedin_posts.compose(req.text or card["draft"], episode, link)
+    except linkedin_posts.TooLong as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    chosen = card["chosen"] if req.chosen is None else req.chosen
+    await asyncio.to_thread(held.decide, req.post_id, linkedin_posts.APPROVED, now,
+                            posted=text, share_url=link, chosen=chosen)
+    return {"post_id": req.post_id, "status": linkedin_posts.APPROVED,
+            "text": text, "share_url": link, "post_url": card["url"]}
+
+
 @app.exception_handler(HTTPException)
 async def http_error(_: Request, exc: HTTPException):
     # Headers are forwarded, not dropped. A 429 from the quota carries the
@@ -10901,7 +11552,7 @@ def _held_episode_keys() -> set:
     # the exact episode the message names.
     try:
         for query, minutes, episode in MESSAGES.episodes():
-            pairs.add((query, int(minutes or 0)))
+            pairs.add((query, as_minutes(minutes)))
             parsed = parse_episode_id(episode) if episode else None
             if parsed is not None:
                 keys.add(parsed[0])
@@ -10933,6 +11584,72 @@ async def _check_audio_store() -> None:
         log.error("audio store: the R2 bucket did not answer (%s); new audio"
                   " stays in scripts.db until it does",
                   _AUDIO_STORE_CHECK.get("why"))
+
+
+async def _watch_memory_forever(every: float = 15.0) -> None:
+    """§334: Render restarts the server when it runs out of memory, and the
+    state worth seeing is the one just before - so the server records its
+    own size and logs a full report (`memory_report.watch_step`) as it grows.
+    §335: every 15 seconds, and a rise of `JUMP_MB` between two samples is
+    logged with what was running (`memory_report.jump_step`)."""
+    import memory_report
+    previous = None
+    since = time.time()
+    while True:
+        try:
+            # What the event loop is running, named by coroutine (§335).
+            tasks: dict = {}
+            for task in asyncio.all_tasks():
+                coro = task.get_coro()
+                name = getattr(coro, "__qualname__", None) or task.get_name()
+                tasks[name] = tasks.get(name, 0) + 1
+            running = [{"task": k, "count": v} for k, v in
+                       sorted(tasks.items(), key=lambda kv: -kv[1])[:25]]
+            rss = memory_report.rss_mb()
+            jump = memory_report.jump_step(previous, rss, since, running)
+            if jump:
+                log.warning("memory jump: %s -> %s MB - %s", jump["from_mb"],
+                            jump["to_mb"], json.dumps(jump, default=str))
+            previous, since = rss, time.time()
+            snap = await asyncio.to_thread(memory_report.watch_step, None, rss)
+            if snap:
+                log.warning("memory watch: passed %s MB - %s", snap["crossed_mb"],
+                            json.dumps(snap, default=str))
+        except Exception:  # noqa: BLE001 - a watch that dies watches nothing
+            log.exception("memory watch failed; trying again")
+        await asyncio.sleep(every)
+
+
+#: What the boot's move of inline pictures did (§330) - `/api/health` says.
+_IMAGE_MOVE: dict = {}
+
+
+async def _move_images_to_bucket(batch: int = 200) -> None:
+    """Move every picture still held inline into the bucket, a batch per
+    store at a time so no more than one batch is in memory, until a pass
+    moves nothing. Once per boot; new pictures go to the bucket as they are
+    saved, so after the first deploy this finds nothing."""
+    stores = {"profiles": SOCIAL, "groups": MESSAGES, "mixes": MIXES}
+    if thumbnails_mod._exists():
+        stores["thumbnails"] = thumbnails_mod.store()
+    total: dict = {}
+    try:
+        while True:
+            moved = await asyncio.to_thread(image_store.migrate, batch, stores)
+            counts = {k: v for k, v in moved.items() if isinstance(v, int)}
+            for label, n in counts.items():
+                total[label] = total.get(label, 0) + n
+            failed = {k: v for k, v in moved.items() if not isinstance(v, int)}
+            if failed or not any(counts.values()):
+                if failed:
+                    total["failed"] = failed
+                break
+    except Exception:  # noqa: BLE001 - what stays inline still draws
+        log.exception("could not move pictures to the bucket")
+        total["error"] = "move failed"
+    _IMAGE_MOVE.update({"at": time.time(), **total})
+    if any(isinstance(v, int) and v for v in total.values()):
+        log.info("image store: moved %s picture(s) to the bucket", total)
 
 
 async def _sweep_audio_forever(every: float = 3600.0) -> None:

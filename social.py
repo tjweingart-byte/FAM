@@ -37,12 +37,14 @@ import re
 import sqlite3
 
 import db as store_db
+import image_store
 import threading
 import time
 from dataclasses import dataclass
 from typing import Optional
 
 from paths import data_path
+from config import as_minutes
 
 log = logging.getLogger(__name__)
 
@@ -50,9 +52,9 @@ MAX_NAME = 40
 MAX_HANDLE = 24
 #: How big a profile picture may be, as a `data:` URL.
 #:
-#: Stored inline rather than as a file, because a file means a writable media
-#: directory, a URL that serves it, a cache header and a deletion path - four
-#: new things to get wrong for one small square. At 256x256 JPEG a picture is
+#: Arrives inline; kept in the bucket when there is one (`image_store`, §330),
+#: which is the media store, URL, cache header and deletion path this once
+#: avoided by keeping it in the row. At 256x256 JPEG a picture is
 #: comfortably under this; a client that sends the original off a phone camera
 #: is refused with a sentence telling it to downscale, rather than quietly
 #: filling the database.
@@ -106,6 +108,10 @@ def clean_avatar(avatar: str) -> str:
     avatar = str(avatar or "").strip()
     if not avatar:
         return ""
+    # A picture already in the bucket (§330) is our own address, not a
+    # remote URL; `_check_photo` still refuses one that is not this row's.
+    if image_store.is_url(avatar):
+        return avatar
     if not avatar.startswith(_AVATAR_PREFIX):
         raise SocialError("A profile picture has to be an image from your device.")
     if len(avatar) > MAX_AVATAR:
@@ -588,6 +594,8 @@ class SocialStore:
         if taken:
             raise SocialError(f"@{handle} is taken.")
         existing = self.person(user_id)
+        if picture:
+            picture = image_store.keep("avatar", picture)
         now = time.time()
         # Only name and handle are overwritten. `joined` and `last_seen` are
         # observations the server made and naming yourself is not new evidence
@@ -601,7 +609,31 @@ class SocialStore:
              existing["last_seen"] or now,
              existing["avatar"] if picture is None else picture),
         )
+        if picture is not None and existing["avatar"] != picture:
+            self._release_avatar(existing["avatar"])
         return self.person(user_id)
+
+    def _release_avatar(self, avatar: str) -> None:
+        """Delete a replaced picture from the bucket once no profile names it."""
+        image_store.release(avatar, lambda: self._conn().execute(
+            "SELECT 1 FROM people WHERE avatar = ? LIMIT 1", (avatar,)
+        ).fetchone() is not None)
+
+    def move_pictures_to_bucket(self, limit: int = 500) -> int:
+        """Inline profile pictures into the bucket (§330). Compare-and-set, so
+        a picture changed meanwhile is left to its new value."""
+        rows = self._conn().execute(
+            "SELECT user_id, avatar FROM people WHERE avatar LIKE 'data:%' LIMIT ?",
+            (int(limit),)).fetchall()
+        moved = 0
+        for user_id, avatar in rows:
+            kept = image_store.keep("avatar", avatar)
+            if kept != avatar:
+                cur = self._conn().execute(
+                    "UPDATE people SET avatar = ? WHERE user_id = ? AND avatar = ?",
+                    (kept, user_id, avatar))
+                moved += cur.rowcount or 0
+        return moved
 
     # --- echoes -----------------------------------------------------------
 
@@ -636,7 +668,7 @@ class SocialStore:
             " caption = excluded.caption, style = COALESCE(?, echoes.style),"
             " tags = COALESCE(?, echoes.tags), audience = COALESCE(?, echoes.audience),"
             " unstoried = 0",
-            (user_id, query, str(title)[:200], int(minutes), str(thread)[:200], now,
+            (user_id, query, str(title)[:200], as_minutes(minutes), str(thread)[:200], now,
              clean_caption(caption), json.dumps(layout) if layout else "",
              json.dumps(tagged) if tagged else "", audience or "",
              None if layout is None else (json.dumps(layout) if layout else ""),
@@ -646,7 +678,7 @@ class SocialStore:
         row = conn.execute(
             "SELECT id, user_id, query, title, minutes, thread, at FROM echoes"
             " WHERE user_id = ? AND query = ? AND minutes = ?",
-            (user_id, query, int(minutes)),
+            (user_id, query, as_minutes(minutes)),
         ).fetchone()
         return Echo(*row)
 
@@ -656,7 +688,7 @@ class SocialStore:
         try:
             row = self._conn().execute(
                 "SELECT tags FROM echoes WHERE user_id = ? AND query = ? AND minutes = ?",
-                (user_id, " ".join(str(query).split())[:300], int(minutes))).fetchone()
+                (user_id, " ".join(str(query).split())[:300], as_minutes(minutes))).fetchone()
             return {t.get("user_id") for t in json.loads(row[0])} if row and row[0] else set()
         except Exception:
             return set()
@@ -788,7 +820,7 @@ class SocialStore:
     def unecho(self, user_id: str, query: str, minutes: int) -> bool:
         cur = self._conn().execute(
             "DELETE FROM echoes WHERE user_id = ? AND query = ? AND minutes = ?",
-            (user_id, " ".join(str(query).split())[:300], int(minutes)),
+            (user_id, " ".join(str(query).split())[:300], as_minutes(minutes)),
         )
         return bool(cur.rowcount)
 
@@ -809,14 +841,14 @@ class SocialStore:
         conn = self._conn()
         if not value:
             conn.execute("DELETE FROM ratings WHERE user_id = ? AND query = ?"
-                         " AND minutes = ?", (user_id, query, int(minutes)))
+                         " AND minutes = ?", (user_id, query, as_minutes(minutes)))
             return 0
         conn.execute(
             "INSERT INTO ratings (user_id, query, minutes, value, at)"
             " VALUES (?, ?, ?, ?, ?)"
             " ON CONFLICT(user_id, query, minutes) DO UPDATE SET"
             " value = excluded.value, at = excluded.at",
-            (user_id, query, int(minutes), value, time.time()))
+            (user_id, query, as_minutes(minutes), value, time.time()))
         return value
 
     def episode_counts_many(self, pairs, user_id: str = "") -> dict:
@@ -880,15 +912,15 @@ class SocialStore:
             out["vibes"] = int(conn.execute(
                 "SELECT COUNT(*) FROM echoes WHERE query = ? AND minutes = ?"
                 " AND (audience = '' OR user_id = ?)",
-                (query, int(minutes), user_id or "")).fetchone()[0])
+                (query, as_minutes(minutes), user_id or "")).fetchone()[0])
             for value, n in conn.execute(
                     "SELECT value, COUNT(*) FROM ratings WHERE query = ?"
-                    " AND minutes = ? GROUP BY value", (query, int(minutes))):
+                    " AND minutes = ? GROUP BY value", (query, as_minutes(minutes))):
                 out["likes" if value > 0 else "dislikes"] = int(n)
             if user_id:
                 row = conn.execute(
                     "SELECT value FROM ratings WHERE user_id = ? AND query = ?"
-                    " AND minutes = ?", (user_id, query, int(minutes))).fetchone()
+                    " AND minutes = ?", (user_id, query, as_minutes(minutes))).fetchone()
                 out["rating"] = int(row[0]) if row else 0
                 out["vibed"] = self.has_echoed(user_id, query, minutes)
         except Exception:
@@ -917,7 +949,7 @@ class SocialStore:
         try:
             return bool(self._conn().execute(
                 "SELECT 1 FROM echoes WHERE user_id = ? AND query = ? AND minutes = ?",
-                (user_id, " ".join(str(query).split())[:300], int(minutes)),
+                (user_id, " ".join(str(query).split())[:300], as_minutes(minutes)),
             ).fetchone())
         except Exception:
             return False
@@ -1062,7 +1094,7 @@ class SocialStore:
                                    "x": tag.get("x", 0.5), "y": tag.get("y", 0.3)})
             out.setdefault(user_id, []).append(
                 {"id": int(eid), "query": query, "title": title or "",
-                 "minutes": int(minutes or 0),
+                 "minutes": as_minutes(minutes),
                  "thread": thread or "", "at": float(at),
                  # What they said about it, drawn with the story (10.5 #9).
                  "caption": caption or "",
@@ -1103,14 +1135,14 @@ class SocialStore:
             row = conn.execute(
                 "SELECT id, parent_id, query, minutes FROM comments WHERE id = ?",
                 (int(parent_id),)).fetchone()
-            if not row or row[2] != query or int(row[3]) != int(minutes):
+            if not row or row[2] != query or as_minutes(row[3]) != as_minutes(minutes):
                 raise SocialError("That comment is not here any more.")
             parent = int(row[1]) or int(row[0])
         now = time.time()
         cur = conn.execute(
             "INSERT INTO comments (user_id, query, minutes, parent_id, text, at)"
             " VALUES (?, ?, ?, ?, ?, ?)",
-            (user_id, query, int(minutes), parent, text, now))
+            (user_id, query, as_minutes(minutes), parent, text, now))
         person = self.person(user_id)
         return self._comment_dict(cur.lastrowid, user_id, parent, text, now,
                                   person, 0, False, user_id)
@@ -1143,7 +1175,7 @@ class SocialStore:
                 " (SELECT COUNT(*) FROM comment_likes l WHERE l.comment_id = c.id)"
                 " FROM comments c WHERE c.query = ? AND c.minutes = ?"
                 " ORDER BY c.at DESC LIMIT ?",
-                (query, int(minutes), int(limit) * 4)).fetchall()
+                (query, as_minutes(minutes), int(limit) * 4)).fetchall()
         except Exception:
             log.exception("could not read an episode's comments")
             return []
@@ -1197,7 +1229,7 @@ class SocialStore:
             log.exception("could not count comments")
             return out
         for query, minutes, n in rows:
-            orig = wanted.get((query, int(minutes)))
+            orig = wanted.get((query, as_minutes(minutes)))
             if orig is not None:
                 out[orig] = int(n)
         return out
@@ -1596,6 +1628,11 @@ class SocialStore:
                              (json.dumps(kept) if kept else "", eid))
         except Exception:
             log.exception("could not untag %r", user_id)
+        avatar = ""
+        try:
+            avatar = self.person(user_id).get("avatar") or ""
+        except Exception:
+            log.exception("could not read the picture of %r", user_id)
         for table in ('echoes', 'notes', 'ratings', 'people'):
             try:
                 cur = self._conn().execute(
@@ -1603,4 +1640,7 @@ class SocialStore:
                 removed += cur.rowcount or 0
             except Exception:
                 log.exception("could not erase %s for %r", table, user_id)
+        # The photo in the bucket goes with the row (§330).
+        if avatar:
+            self._release_avatar(avatar)
         return removed

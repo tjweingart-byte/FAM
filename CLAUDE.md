@@ -57,7 +57,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
 - **Trending searches**: under the search bubbles, the five questions most
   searched in the last 2h whose episodes are still current; cache only (§190, §192). [trending-searches]
 - **Search is Google's shape** (§190): mic and attach inside the bar's right;
-  Length (1-5 min, §219) and Voice bubbles never print the choice; back to 1 min on
+  Length (1-5 min, §219) and Voice bubbles never print the choice; back to 1.5 on
   every return to the app; **Private** is a third bubble (§282). [search-bar]
 - **Private search** (§282/§285): charcoal; on till off (bubble=Settings)
   search, Go Deeper; no play, history, author. [private-search]
@@ -205,7 +205,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
 - **Scoring** (§114, §155): subtag-aware `_affinity`, `RELEVANCE_FLOOR`; a live
   story reaches Made for you **only when it names something followed** - the
   floor tops up from evergreen tiles, **never the live pool**. Non-search
-  episodes are `BROWSE_MINUTES` (1) but a Go Deeper's 1-5 (§170); View more /
+  episodes are `BROWSE_MINUTES` (1.5) but a Go Deeper's 1-5 (§170); View more /
   Refresh deal eight (§165); no wheel, no language picker, no interest cap;
   impressions only damp (`FATIGUE_WEIGHT`); skip `UNSHELVED` in `FILL_ORDER`.
   One bank - personalise the order, not the inventory. [op-taste-scoring]
@@ -434,11 +434,11 @@ Accounts, tiers, sharing
   the listener's own (§162), never made for them. [save-pointer]
 - **A shared link lands on one episode** (`/s/<id>`): other controls are
   `data-door`s; the key equals the sharer's; head rendered server-side; opens
-  counted by the page; "Join FAM for free" always drawn - App Store, else the
-  front door (§175) - other doors need `APP_STORE_URL`; no `user_id`; host from the request (`_public_base`,
+  counted by the page; its join note always goes to `/waitlist` (§319) -
+  other doors need `APP_STORE_URL`; no `user_id`; host from the request (`_public_base`,
   `X-Forwarded-Proto`, loopback refused); story cards are PNG files to the share
   sheet. [share-link]
-- FAM posts nothing to anyone's social account and holds no token. [no-social-posting]
+- FAM never posts, holds no posting token; /admin/x, /linkedin draft. [no-social-posting] [x-threads] [linkedin]
 - **App review** (§222): Report everywhere, block both ways (`moderation.py`, `/admin`);
   a listener's words reach Anthropic only after a yes (`consent.py`); photos checked (§224); Terms ticked at sign-up (§228). [app-review-safety]
 - **Authorship is provenance, never identity**: `PodcastPipeline.author`, never

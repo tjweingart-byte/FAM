@@ -540,3 +540,77 @@ def test_the_heard_id_wins_over_a_newer_episode(client, monkeypatch):
           .json()["reports"] if r["id"] == rid][0]["episode"]
     assert ep["transcript"] == ["The Eagles won.", "It was close."]
     assert ep["title"] == "Eagles edge the Giants"
+
+
+def test_a_forced_check_asks_the_longest_unasked_first(lexicon):
+    """10.27: "Check every name again" goes on where the last run stopped
+    when the list is longer than one run."""
+    for name in ("Mbappe", "Giannis"):
+        lexicon.keep_pronunciation_check({"name": name, "status": wiki_pronounce.NONE})
+        time.sleep(0.01)
+    assert wiki_pronounce._due(["Mbappe", "Giannis", "Jokic"]) == ["Jokic"]
+    assert wiki_pronounce._due(["Giannis", "Jokic", "Mbappe"], force=True) == [
+        "Jokic", "Mbappe", "Giannis"]
+
+
+def test_the_admin_page_can_force_a_full_recheck():
+    page = (pathlib.Path(__file__).resolve().parent.parent / "admin_ui" / "tracker.html").read_text()
+    assert 'id="wikiAgain"' in page and "?force=true" in page
+
+
+# --- 10.27: a reading belongs to the name it follows, and says all of it ---
+
+def test_a_template_after_another_name_is_not_this_names():
+    lead = ("'''Count Dooku''', also known by his Sith name '''Darth Tyranus''' "
+            "({{IPAc-en|t|ɪ|ˈ|r|æ|n|ə|s}}), is a fictional character")
+    assert wiki_pronounce.from_wikitext(lead, "Dooku") is None
+    assert wiki_pronounce.from_wikitext(lead, "Tyranus")["say"].lower().startswith("ti")
+    # An alias's article says another word: "Arcosa" is not "Arkose".
+    rock = "'''Arkose''' ({{IPAc-en|ˈ|ɑːr|k|oʊ|s}}) is a sandstone"
+    assert wiki_pronounce.from_wikitext(rock, "Arcosa") is None
+    # The subject's own reading, even after other templates, still counts.
+    mbappe = ("'''Kylian Mbappé''' ({{IPAc-en|əm|ˈ|b|æ|p|eɪ}}, "
+              "{{respell|əm|BAP|ay}}; {{IPA|fr|kiljɑ̃ mbape}})")
+    assert wiki_pronounce.from_wikitext(mbappe, "Mbappe")["say"] == "uhm-BAP-ay"
+
+
+def test_a_reading_must_say_the_whole_name_and_only_it():
+    for name, lead in (
+            ("A'ja Wilson", "'''A'ja Wilson''' ({{IPAc-en|ˈ|eɪ|ʒ|ə}}; born 1996)"),
+            ("Anya Taylor-Joy", "'''Anya Taylor-Joy''' ({{IPAc-en|ˈ|æ|n|j|ə}})"),
+            ("Anton Du Beke", "'''Anton Du Beke''' ({{IPAc-en|d|uː|_|ˈ|b|ɛ|k}})"),
+            ("Catherine Zeta-Jones", "'''Catherine Zeta-Jones''' ({{IPAc-en|ˈ|z|iː|t|ə}})"),
+            ("Andoni Iraola", "'''Andoni Iraola Sagarna''' "
+                              "({{IPA|es|anˈdoni iɾaˈola saˈɣarna}})")):
+        assert wiki_pronounce.from_wikitext(lead, name) is None, name
+    assert wiki_pronounce.fits("Antonio Banderas", "ahn-TOHN-yoh bahn-DEH-rahs")
+
+
+def test_spanish_beta_is_said_as_b():
+    assert wiki_pronounce.ipa_to_respelling("βanˈdeɾas").startswith("bahn")
+
+
+def test_a_reading_like_neither_name_nor_guess_is_only_shown(lexicon, monkeypatch):
+    lexicon.learn_pronunciation("Dooku", "DOO-koo", "brief")
+    _wikipedia_says(monkeypatch, "tih-RA-nuhs")
+    result = wiki_pronounce.check("Dooku")
+    assert result["status"] == wiki_pronounce.DIFFERS and not result.get("applied")
+    assert lexicon.pronunciations()[0]["source"] == "brief"
+    # Far from the spelling but near the guess still replaces it.
+    lexicon.learn_pronunciation("Caoimhe", "KEE-vah", "writer")
+    _wikipedia_says(monkeypatch, "KEE-vuh")
+    assert wiki_pronounce.check("Caoimhe")["status"] == wiki_pronounce.AGREES
+
+
+def test_readings_kept_before_the_guards_are_withdrawn(lexicon, monkeypatch):
+    lexicon.learn_pronunciation("A'ja Wilson", "AY-zhuh", "wikipedia")
+    lexicon.learn_pronunciation("Antonio Banderas", "ahn-TOHN-yoh bahn-DEH-rahs",
+                                "wikipedia")
+    assert wiki_pronounce.prune() == ["A'ja Wilson"]
+    assert [r["name"] for r in lexicon.pronunciations()] == ["Antonio Banderas"]
+    # A re-check Wikipedia no longer answers withdraws its old reading.
+    monkeypatch.setattr(wiki_pronounce, "lookup", lambda name: {
+        "name": name, "status": wiki_pronounce.NONE, "say": "", "ipa": "",
+        "how": "", "title": "", "url": ""})
+    assert wiki_pronounce.check("Antonio Banderas").get("withdrawn")
+    assert lexicon.pronunciations() == []

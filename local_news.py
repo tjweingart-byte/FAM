@@ -761,26 +761,67 @@ async def allowed(client: httpx.AsyncClient, url: str) -> bool:
     return held[1].can_fetch(places.user_agent(), url)
 
 
+#: What a site says when it does not want us: stop asking it anything (§338).
+REFUSED = (401, 403, 429)
+
+
+class Refused(Exception):
+    """The site refused a request while we looked for its feed - every guess
+    after it would be refused too, and each one is another knock."""
+
+    def __init__(self, status: int):
+        super().__init__(f"HTTP {status}")
+        self.status = status
+
+
+class Disallowed(Exception):
+    """robots.txt does not let us read the page we were about to ask for."""
+
+
 async def discover(client: httpx.AsyncClient, homepage: str) -> str:
-    """Find an outlet's feed from its homepage. "" when there is none."""
+    """Find an outlet's feed from its homepage. "" when there is none.
+
+    Raises `Refused` the first time the site answers 401/403/429 or a bot
+    challenge, and `Disallowed` when robots.txt forbids the homepage (§338):
+    the guesses at `FEED_PATHS` are eight requests, and production sent all
+    eight to a site that had already answered 429 to the first. A guess that
+    robots.txt forbids is skipped rather than asked."""
+    if not await allowed(client, homepage):
+        raise Disallowed(homepage)
     try:
         page = await _get(client, homepage)
-        if page.is_success:
-            for link in feed_links(page.text[:MAX_BYTES], str(page.url)):
-                if await _is_feed(client, link):
-                    return link
     except Exception as exc:  # noqa: BLE001
         log.info("local news: %s could not be read for a feed: %s", homepage, exc)
+        page = None
+    if page is not None:
+        _raise_if_refused(page)
+        if page.is_success:
+            for link in feed_links(page.text[:MAX_BYTES], str(page.url)):
+                if await allowed(client, link) and await _is_feed(client, link):
+                    return link
     for path in FEED_PATHS:
         candidate = urljoin(homepage, path)
+        if not await allowed(client, candidate):
+            continue
         if await _is_feed(client, candidate):
             return candidate
     return ""
 
 
+def _raise_if_refused(reply) -> None:
+    if reply.status_code in REFUSED or \
+            _CHALLENGE.search(reply.text[:4000] if reply.content else ""):
+        raise Refused(reply.status_code)
+
+
 async def _is_feed(client: httpx.AsyncClient, url: str) -> bool:
+    """Whether `url` serves a feed. Raises `Refused` if the site refuses."""
     try:
         reply = await _get(client, url)
+    except Exception:  # noqa: BLE001
+        return False
+    _raise_if_refused(reply)
+    try:
         return reply.is_success and bool(parse_feed(reply.content, url))
     except Exception:  # noqa: BLE001
         return False
@@ -806,8 +847,12 @@ def next_poll(outlet: Outlet, now: float) -> float:
         return now + min(max(floor, gap / 4), 6 * 3600.0)
     if outlet.state == STALE:
         return now + 6 * 3600.0
-    if outlet.state in (BROKEN, NO_FEED):
+    if outlet.state == BROKEN:
         return now + min(3600.0 * (2 ** max(0, outlet.failures - 1)), 86400.0)
+    if outlet.state == NO_FEED:
+        # A site seldom grows a feed, and each look is eight requests (§338):
+        # a day, then two, four, up to a week, until it retires at a month.
+        return now + min(86400.0 * (2 ** max(0, outlet.failures - 1)), 7 * 86400.0)
     if outlet.state == BLOCKED:
         return now + 86400.0
     return now + floor
@@ -842,7 +887,16 @@ async def poll(outlet: Outlet, client: httpx.AsyncClient,
     outlet.last_poll = now
     try:
         if not outlet.feed_url or outlet.state == BROKEN:
-            found = await discover(client, outlet.homepage)
+            try:
+                found = await discover(client, outlet.homepage)
+            except Refused as refused:
+                _trouble(outlet, BLOCKED, "the site refused us while we looked "
+                         f"for its feed (HTTP {refused.status})", now)
+                return _finish(outlet, target, now)
+            except Disallowed:
+                outlet.state = DISALLOWED
+                outlet.detail = "robots.txt does not allow reading the homepage"
+                return _finish(outlet, target, now)
             if not found:
                 if outlet.feed_url and outlet.state == BROKEN:
                     found = outlet.feed_url  # keep trying the one we had
@@ -1124,6 +1178,9 @@ class LocalResult:
     packet: object = None
     #: True when the town itself had nothing - the gap sentence is said.
     gap: bool = False
+    #: True when the town had stories but none about the question (§320):
+    #: the gap sentence then says "about this", never that there was no news.
+    unrelated: bool = False
     #: The weather there, when the town had nothing (or it was asked for).
     weather: object = None
     attempts: list = field(default_factory=list)
@@ -1131,11 +1188,13 @@ class LocalResult:
     def as_dict(self) -> dict:
         return {"place": self.place.as_dict() if self.place else None,
                 "scope": self.scope, "gap": self.gap,
+                "unrelated": self.unrelated,
                 "weather": bool(self.weather),
                 "attempts": list(self.attempts)}
 
 
-def gap_line(place, weather: bool = True, county_news: bool = True) -> str:
+def gap_line(place, weather: bool = True, county_news: bool = True,
+             unrelated: bool = False) -> str:
     """The sentence an episode opens with when the town had nothing (§194).
 
     **Composed here, never by the writer**, at the owner's direction: it is
@@ -1144,7 +1203,9 @@ def gap_line(place, weather: bool = True, county_news: bool = True) -> str:
     search - "we couldn't find" - never about the world ("nothing is
     happening"), which is the line [missed-not-absent] exists to hold. And
     it promises only what follows it: the weather when there is a forecast,
-    the county's news when there is some.
+    the county's news when there is some. `unrelated` (§320): the town had
+    stories, none about the question, so the line says "about this" rather
+    than that there were no reports at all.
     """
     town = place.name
     county = place.county_label or "the surrounding area"
@@ -1157,7 +1218,61 @@ def gap_line(place, weather: bool = True, county_news: bool = True) -> str:
         tail = f" Here's the closest news we have, from across {county}."
     else:
         tail = ""
-    return f"We couldn't find any recent news reports out of {town}.{tail}"
+    about = " about this" if unrelated else ""
+    return f"We couldn't find any recent news reports out of {town}{about}.{tail}"
+
+
+#: Words that say "the news there" without saying what about. A question
+#: made only of these asks for whatever the town has, and every story naming
+#: the town answers it.
+_GENERAL_WORDS = frozenset({
+    "news", "local", "today", "tonight", "week", "weekend", "happening",
+    "going", "event", "events", "latest", "town", "city", "area", "recent",
+    "stories", "story", "headlines", "update", "updates", "anything", "there",
+    "what's", "whats", "on", "community", "residents", "county", "what",
+    "new", "doing", "near", "around", "tell", "about", "this", "here",
+    "lately", "now", "right", "currently", "morning", "evening", "yesterday",
+})
+
+
+def _asked_about(brief, place) -> list:
+    """The words of the listener's question that are not the place and not
+    "the news there" - what the question is *about*, if anything.
+
+    **The question's own words, never EI's `must_establish`** (review,
+    §320): for a general "what's going on in San Anselmo" the brief still
+    lists things like "recent local government decisions", which a town's
+    stories rarely say in those words, so a test on them threw away real
+    town news. Empty for a general question, which any town story answers.
+    """
+    import research
+
+    place_words = research._terms(" ".join(filter(None, [
+        getattr(place, "name", ""), getattr(place, "county", ""),
+        getattr(place, "region", ""), getattr(place, "country", "")])))
+    return sorted(w for w in research._terms(str(getattr(brief, "query", "") or ""))
+                  if w not in place_words and w not in _GENERAL_WORDS)
+
+
+def relevant(packet, brief, place) -> bool:
+    """Does this rung's packet answer the question, not only name the place?
+
+    **Naming the town was the only test** (§320), so a question about an
+    airshow over San Francisco Bay was answered by a Valkyries fan story that
+    said "Chase Center in San Francisco", and the writer was told it was the
+    town's news. When the question names something beyond the town, a rung
+    whose stories carry fewer than two of those words (one, when it names
+    one) counts as empty and the ladder goes on - GDELT's own two-word rule
+    (`gdelt.ExportStore.search`), so one shared word ("bay") is not enough.
+    A general question is answered by any town story. Never a model call.
+    """
+    wanted = _asked_about(brief, place)
+    if not wanted:
+        return True
+    import research
+
+    have = research._terms(getattr(packet, "context", "") or "")
+    return len(set(wanted) & have) >= min(2, len(wanted))
 
 
 def _packet(items: list, scope: str, place, backend: str):
@@ -1191,14 +1306,22 @@ async def research_local(place, brief=None, search=None) -> LocalResult:
 
     town = town_items(place) if target else []
     if town:
-        result.scope = TOWN
-        result.packet = _packet(town, TOWN, place, "local-town")
-        result.attempts.append(("town", len(town)))
-        return result
+        packet = _packet(town, TOWN, place, "local-town")
+        if relevant(packet, brief, place):
+            result.scope = TOWN
+            result.packet = packet
+            result.attempts.append(("town", len(town)))
+            return result
+        log.info("local news: %d town item(s) for %s, none about the question",
+                 len(town), place.label)
+        result.unrelated = True
     result.attempts.append(("town", 0))
     result.gap = True
 
     county = county_items(place) if target else []
+    if county and not relevant(_packet(county, COUNTY, place, "local-county"),
+                               brief, place):
+        county = []
     result.attempts.append(("county", len(county)))
     if county:
         result.scope = COUNTY
@@ -1206,11 +1329,21 @@ async def research_local(place, brief=None, search=None) -> LocalResult:
         return result
 
     if search is not None:
+        # **Only outlets somebody vetted** (§320): seeded and registry ones.
+        # A learned outlet (`_learn`) is any non-national site an earlier
+        # search happened to find, and restricting the search to those
+        # collapsed it to one site - hoodline.com - for every later San
+        # Francisco question. With none vetted the search is open, and
+        # still keeps only what names the place.
         known = sorted({o.host for o in (target.for_place(
             place.name, place.county, place.region) if target else [])
-            if o.host and o.state != EXCLUDED})
-        query = " ".join(filter(None, [
-            getattr(brief, "retrieval", "") or "", place.name, place.region]))
+            if o.host and o.state != EXCLUDED and o.source != "learned"})
+        # The town and region once (§320): a retrieval that already names
+        # them is not sent "San Francisco ... San Francisco California".
+        retrieval = getattr(brief, "retrieval", "") or ""
+        query = " ".join(filter(None, [retrieval] + [
+            w for w in (place.name, place.region)
+            if w and w.lower() not in retrieval.lower()]))
         try:
             # Only results that name the place survive inside the search
             # (`research.names_place`) - the fix that stops invention.
@@ -1223,9 +1356,13 @@ async def research_local(place, brief=None, search=None) -> LocalResult:
         label = str(getattr(packet, "backend", "") or "web")
         result.attempts.append((label, len(getattr(packet, "sources", []) or [])
                                 if packet else 0))
+        if packet and not relevant(packet, brief, place):
+            log.info("local news: the web rung named %s but not the question",
+                     place.label)
+            packet = None
         if packet:
-            # Every result here names the town, so this *is* town news and
-            # there is no gap to announce.
+            # Every result here names the town and answers the question, so
+            # this *is* town news and there is no gap to announce.
             result.scope = label
             result.gap = False
             result.packet = packet

@@ -24,7 +24,7 @@ changing what a listener hears until the owner turns something on.
    **drafts**; the owner keeps the governing copies outside Claude. Never
    edit the meaning of a rule book; if code cannot honour a rule, stop and
    say so.
-4. `PROBLEMS.md` §307-§318 (use `PROBLEMS_INDEX.md` for line numbers): the
+4. `PROBLEMS.md` §307-§317 and §340 (use `PROBLEMS_INDEX.md` for line numbers): the
    history archive, its agents, and the owner's directions.
 5. The code the agents sit on: `pipeline.py`, `episode_intelligence.py`
    (the brief, `category_path`, `title`), `research.py`
@@ -203,7 +203,7 @@ Names are internal: never shown to a listener.
 
 ## Decisions still to ask the owner
 
-Check `PROBLEMS.md` §318 (the last entries) for answers first.
+Check `PROBLEMS.md` §340 (the last entries) for answers first.
 
 - Parallel, Perplexity, GNews and Polymarket: whether their material may be
   stored (allow their domains in the session's network settings to read

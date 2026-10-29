@@ -159,7 +159,7 @@ def main() -> int:
     ap.add_argument("--live", nargs="?", const="http://127.0.0.1:8000",
                     default="", metavar="URL",
                     help="read the hit rate from a running server instead")
-    ap.add_argument("--minutes", type=int, default=0,
+    ap.add_argument("--minutes", type=float, default=0,
                     help="the browse length to plan at, as myFAM would pass it")
     args = ap.parse_args()
     return (show_live(args.live) if args.live

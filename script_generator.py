@@ -41,7 +41,7 @@ import prefetch
 from anthropic_client import build_async_client
 from cache import is_shareable, research_reason
 import live_captions
-from config import settings
+from config import as_minutes, settings
 
 import research as research_mod
 
@@ -83,7 +83,7 @@ def load_style_examples() -> list[tuple[str, str]]:
             found.append((query, script))
             minutes = path.name.split("-", 1)[0]
             if minutes.isdigit():
-                EXAMPLE_MINUTES[query] = int(minutes)
+                EXAMPLE_MINUTES[query] = as_minutes(minutes)
         else:
             log.warning("skipping style example %s: expected a query, a blank line, then the script",
                         path.name)
@@ -950,8 +950,8 @@ def plan_episode(
     cached_only: bool = False, attachments: tuple = (),
 ) -> EpisodePlan:
     """Map a duration in minutes onto a concrete writing brief."""
-    minutes = max(settings.min_minutes, min(settings.max_minutes, int(minutes)))
-    target_seconds = minutes * 60
+    minutes = max(settings.min_minutes, min(settings.max_minutes, as_minutes(minutes)))
+    target_seconds = int(round(minutes * 60))
     word_budget = int(round(minutes * settings.target_wpm))
 
     # How much story this much time can hold. Not a template to fill - a note
@@ -1032,21 +1032,26 @@ def build_local_block(plan: EpisodePlan) -> str:
     if not local.gap:
         return f"""
 This is a question about {town}. The evidence below comes from outlets that
-cover {town}, or from stories that name it, and is about {town} itself. Stay
-on {town}. It is fine for the episode to be shorter than the time allows:
-end when the material ends rather than padding it.
+cover {town}, or from stories that name it. It is what was found, not all
+that is happening there: never say something is not happening in {town}
+because it is not below (§320). Stay on {town}. It is fine for the episode
+to be shorter than the time allows: end when the material ends rather than
+padding it.
 """
     has_weather = getattr(local, "weather", None) is not None
     county_news = local.scope == "county" and bool(plan.evidence)
+    unrelated = bool(getattr(local, "unrelated", False))
     said = local_news.gap_line(place, weather=has_weather,
-                               county_news=county_news)
+                               county_news=county_news, unrelated=unrelated)
+    # What the search did not find, said the way the gap line says it (§320).
+    missed = (f"no recent news reports out of {town} about this" if unrelated
+              else f"no recent news reports out of {town} itself")
     weather_step = (f"first the weather in {town} from the weather block "
                     "below, then " if has_weather else "")
     if county_news:
         return f"""
-This is a question about {town}, and our search found no recent news reports
-out of {town} itself. The listener has ALREADY HEARD this sentence, spoken
-before your first word:
+This is a question about {town}, and our search found {missed}.
+The listener has ALREADY HEARD this sentence, spoken before your first word:
 
 "{said}"
 
@@ -1058,8 +1063,8 @@ material ends.
 """
     return f"""
 This is a question about {town}, and our search found no recent news reports
-out of {town} or {county}. The listener has ALREADY HEARD this sentence,
-spoken before your first word:
+out of {town} or {county}{" about this" if unrelated else ""}. The listener
+has ALREADY HEARD this sentence, spoken before your first word:
 
 "{said}"
 
@@ -1130,7 +1135,10 @@ and do not claim anything about a document beyond what is in it.
                 "supply it from memory: what you remember is months old and "
                 "arrives in the same confident voice as the researched half, "
                 "and a listener cannot tell the two apart. Say the short true "
-                "thing in passing and keep going.\n"
+                "thing in passing and keep going. **Whether something is "
+                "happening or exists at all** - an event, a show, a closure - "
+                "is never established by a search that missed it: never say "
+                "it is not happening (§320).\n"
                 "- If it is something **already settled** - a scheduled date, a "
                 "fixture, a rule, a figure that was fixed some time ago - then "
                 "the search missing it proves nothing, because nobody has "
@@ -1281,6 +1289,13 @@ Time, and this is where these go wrong most often:
   a score, a figure or an outcome for anything still to come, however
   confidently you could guess it. Talk about it in the future tense.
 - An undated source cannot date anything. Do not use it to decide when.
+- **An article cannot speak for a day it was written before** (§320). When
+  the listener names a day and something on it - a move, a result, a
+  decision - a source published before that day says nothing about it. Never
+  move their date to the day an older article describes, and never tell them
+  their figure "belongs to a different day" on the strength of one. Say what
+  is established about their day; give an older figure only with its own
+  date, as the background it is.
 """
 
     follow_up = ""
@@ -1533,7 +1548,8 @@ class _ScriptReader:
 
         line = local_news.gap_line(
             local.place, weather=getattr(local, "weather", None) is not None,
-            county_news=getattr(local, "scope", "") == "county")
+            county_news=getattr(local, "scope", "") == "county",
+            unrelated=bool(getattr(local, "unrelated", False)))
         self.emitted_words += count_words(line)
         return [line]
 
@@ -2051,9 +2067,14 @@ class ScriptGenerator:
                 if backend in tried:
                     continue
                 try:
+                    # The town's country from the catalogue (§320):
+                    # Parallel's `location`, Perplexity's `country`. A place
+                    # only as typed is the model's, and is not sent.
                     packet = await research_mod.retrieve(
                         query, backend=backend, brief=plan.brief,
-                        include_domains=domains, must_name=must_name)
+                        include_domains=domains, must_name=must_name,
+                        country="" if place.source == "as typed"
+                        else (getattr(place, "country", "") or ""))
                 except Exception:  # noqa: BLE001 - see `_retrieve`
                     log.warning("the local %s rung failed for %r", backend,
                                 query, exc_info=True)

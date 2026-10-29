@@ -64,6 +64,7 @@ from typing import Optional
 from urllib.parse import quote
 
 from paths import data_path
+from config import as_minutes
 
 log = logging.getLogger(__name__)
 
@@ -207,7 +208,7 @@ def render(target_key: str, *, title: str, question: str, minutes: int,
     values = {
         "title": (title or "A FAM episode").strip()[:MAX_TITLE],
         "question": (question or "").strip()[:MAX_QUERY],
-        "minutes": max(1, int(minutes or 0)),
+        "minutes": max(1, as_minutes(minutes)),
         "url": url or "",
     }
     return _rendered(chosen, chosen.template, chosen.subject, values)
@@ -377,7 +378,7 @@ def story_card(title: str, question: str, minutes: int, handle: str = "",
     """
     lines = _wrap(title or "A FAM episode", per_line=18, max_lines=4)
     ask = _wrap(question or "", per_line=34, max_lines=2)
-    minutes = max(1, int(minutes or 0))
+    minutes = max(1, as_minutes(minutes))
     esc = html.escape
 
     title_svg = "".join(
@@ -467,7 +468,7 @@ class ShareStore:
         query = " ".join(str(query or "").split())[:MAX_QUERY]
         if not query:
             raise ShareError("There is no episode to share.")
-        minutes = max(0, int(minutes or 0))
+        minutes = max(0, as_minutes(minutes))
         title = " ".join(str(title or "").split())[:MAX_TITLE]
         now = at or time.time()
 
@@ -509,7 +510,7 @@ class ShareStore:
         """
         query = " ".join(str(query or "").split())[:MAX_QUERY]
         try:
-            minutes = int(minutes)
+            minutes = as_minutes(minutes)
         except (TypeError, ValueError):
             return False
         if not query:
@@ -590,11 +591,12 @@ HEAD_MARKER = "<!--FAM_SHARE_HEAD-->"
 DATA_MARKER = "<!--FAM_SHARE_DATA-->"
 
 
-#: Where "Join FAM for free" goes when there is no App Store link: the web
-#: app's front door, which opens on sign-up for a newcomer (`bootToFirstScreen`).
-#: Relative, so it names the host that served the landing page and nothing
-#: else - the same reason `_public_base` reads the request.
-JOIN_PATH = "/"
+#: Where "Want to hear more? Be a part of the conversation with FAM" goes,
+#: App Store or not (PROBLEMS.md §319, at the owner's direction): the waitlist
+#: page, which is where the app's own Sign Up goes too (§192). Relative, so it
+#: names the host that served the landing page and nothing else - the same
+#: reason `_public_base` reads the request.
+JOIN_PATH = "/waitlist"
 
 
 def landing_payload(share: dict, *, url: str, card_url: str = "",
@@ -615,20 +617,19 @@ def landing_payload(share: dict, *, url: str, card_url: str = "",
         "id": str(share.get("id") or ""),
         "title": (share.get("title") or "A FAM episode").strip()[:MAX_TITLE],
         "question": (share.get("query") or "").strip()[:MAX_QUERY],
-        "minutes": max(1, int(share.get("minutes") or 0)),
+        "minutes": max(1, as_minutes(share.get("minutes") or 0)),
         "url": url or "",
         "card": card_url or "",
         "app_store": app_store or "",
         # Whether the App Store is where the doors go. False means there is
         # no app to send anybody to - see `join` for where they go instead.
         "has_app": bool(app_store),
-        # "Want to hear more? Join FAM for free" (9.29 packet, at the owner's
-        # direction): the one door drawn whether or not the app is out. With
-        # an App Store link it goes there; without one it goes to this
-        # server's own front door, which opens on sign-up for anybody not
-        # signed in - a real page on the host that served this one, so it is
-        # never a control with nothing behind it.
-        "join": app_store or JOIN_PATH,
+        # "Want to hear more? Be a part of the conversation with FAM" (§319,
+        # at the owner's direction; §175 drew it first): the one door drawn
+        # whether or not the app is out, and it always goes to this server's
+        # waitlist page - a real page on the host that served this one, so it
+        # is never a control with nothing behind it.
+        "join": JOIN_PATH,
     }
 
 

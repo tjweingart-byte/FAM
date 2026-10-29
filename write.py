@@ -48,7 +48,7 @@ from script_generator import ScriptGenerator, ScriptNotes, count_words, plan_epi
 async def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("query")
-    ap.add_argument("--minutes", type=int, default=DEFAULT_MINUTES)
+    ap.add_argument("--minutes", type=float, default=DEFAULT_MINUTES)
     ap.add_argument("--model", default=None)
     ap.add_argument("--no-search", action="store_true")
     ap.add_argument("--prompt", action="store_true", help="print the prompt that was sent")
@@ -146,6 +146,10 @@ async def main() -> int:
             print(f"    must answer {'; '.join(brief.must_establish)}")
         if brief.cautions:
             print(f"    careful of  {'; '.join(brief.cautions)}")
+        if getattr(brief, "forecast_query", ""):
+            print(f"    market      {brief.forecast_query!r}")
+        if getattr(brief, "source_kind", "general") != "general":
+            print(f"    sources     {brief.source_kind}")
         if brief.pronounce:
             print("    say as      " + "; ".join(
                 f"{p['name']} = {p['say']}" for p in brief.pronounce))

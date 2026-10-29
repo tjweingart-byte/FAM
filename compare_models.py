@@ -72,7 +72,7 @@ async def run_one(client, model: str, plan, use_search: bool) -> dict:
 async def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("query")
-    ap.add_argument("--minutes", type=int, default=3)
+    ap.add_argument("--minutes", type=float, default=3)
     ap.add_argument("--models", default="claude-sonnet-5,claude-sonnet-5-5,claude-opus-5-5")
     ap.add_argument("--no-search", action="store_true", help="skip live web search")
     ap.add_argument("--full", action="store_true", help="print whole scripts, not excerpts")

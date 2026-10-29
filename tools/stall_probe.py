@@ -149,7 +149,7 @@ def run(minutes: int, seconds_to_watch: float) -> int:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--minutes", type=int, default=3)
+    ap.add_argument("--minutes", type=float, default=3)
     ap.add_argument("--watch", type=float, default=25.0,
                     help="seconds to observe before reporting")
     args = ap.parse_args()

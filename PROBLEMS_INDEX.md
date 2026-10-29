@@ -321,4 +321,26 @@ and `limit` = Lines.
 | 22286 | 33 | 315. The sweeps' scores and prices are kept in the archive (2026-10-26) |
 | 22319 | 22 | 316. An empty search still gets no archive - for now, and not as a rule (2026-10-26) |
 | 22341 | 25 | 317. Review before merging: a recalled provider fact is credited by name (2026-10-26) |
-| 22366 | 375 | 318. The agents guide: condensed into tabs, outside plugins per agent, and the Overlord (2026-10-26) |
+| 22366 | 79 | 318. The voice was up for three days and the app could not find it (2026-10-26) |
+| 22445 | 18 | 319. A shared episode invites the listener into the conversation, via the waitlist (2026-10-26) |
+| 22463 | 112 | 320. What the trusting-fermat branch fixed, brought to Main (2026-10-26) |
+| 22575 | 78 | 321. FAM on X: threads found from our own episodes, posted by a person (2026-10-26) |
+| 22653 | 88 | 322. Go Deeper on LinkedIn: a person finds the post, FAM brings the episode (2026-10-27) |
+| 22741 | 30 | 323. Asking Wikipedia about every name again (2026-10-27) |
+| 22771 | 47 | 324. Wikipedia's reading belongs to the name it follows (2026-10-27) |
+| 22818 | 80 | 325. Checking every word: the dictionary and the voice round trip (2026-10-27) |
+| 22898 | 75 | 326. Every X card is about the post it answers (2026-10-27) |
+| 22973 | 83 | 327. Go Deeper on LinkedIn finds its own posts (2026-10-27) |
+| 23056 | 24 | 328. The voice bank trims an upload instead of refusing it (2026-10-27) |
+| 23080 | 43 | 329. The voice is woken when the app opens, not at the tap (2026-10-27) |
+| 23123 | 53 | 330. Pictures move to the bucket; everything else to Postgres (2026-10-28) |
+| 23176 | 26 | 331. Where 2 GB goes: a memory report asked of the running process (2026-10-28) |
+| 23202 | 45 | 332. The standard episode is a minute and a half (2026-10-28) |
+| 23247 | 62 | 333. Every voice was heard as the default (2026-10-28) |
+| 23309 | 25 | 334. Two arenas, and a watch that reports before the restart (2026-10-28) |
+| 23334 | 60 | 335. The embedding model's pool: one pass at a time (2026-10-28) |
+| 23394 | 23 | 336. One process, always (2026-10-28) |
+| 23417 | 99 | 337. The marketing engines read the post before they write (2026-10-28) |
+| 23516 | 47 | 338. The waitlist page, local news and the voice warm-up stop doing work nobody needs (2026-10-29) |
+| 23563 | 16 | 339. Production without a disk, on Standard (2026-10-29) |
+| 23579 | 379 | 340. The agents guide: condensed into tabs, outside plugins per agent, and the Overlord (2026-10-26) |

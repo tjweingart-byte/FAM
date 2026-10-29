@@ -37,16 +37,17 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 INDEX = (ROOT / "static" / "index.html").read_text(encoding="utf-8")
 
 
-def _default_minutes() -> int:
-    m = re.search(r"var DEFAULT_LENGTH_MINUTES = (\d+);", INDEX)
+def _default_minutes() -> float:
+    m = re.search(r"var DEFAULT_LENGTH_MINUTES = ([\d.]+);", INDEX)
     assert m, "DEFAULT_LENGTH_MINUTES is no longer declared as a literal"
     assert "var selectedLengthMinutes = DEFAULT_LENGTH_MINUTES;" in INDEX
-    return int(m.group(1))
+    return float(m.group(1))
 
 
 def test_the_search_page_opens_on_the_length_it_will_generate():
-    """One minute (§305; two since the packet that asked for it by name)."""
-    assert _default_minutes() == 1
+    """A minute and a half (§332; one since §305, two since the packet that
+    asked for it by name)."""
+    assert _default_minutes() == 1.5
 
 
 def test_every_length_placeholder_agrees_with_the_variable():
@@ -57,9 +58,9 @@ def test_every_length_placeholder_agrees_with_the_variable():
     interface saying two different things about one setting, and this is the
     check that fails when somebody edits one of the five.
     """
-    want = "%d min" % _default_minutes()
+    want = "%g min" % _default_minutes()
     for element_id in ("lengthModalVal",):
-        m = re.search(r'id="%s"[^>]*>(\d+ min)' % element_id, INDEX)
+        m = re.search(r'id="%s"[^>]*>([\d.]+ min)' % element_id, INDEX)
         assert m, "no length placeholder found for #%s" % element_id
         assert m.group(1) == want, "#%s says %r, the variable says %r" % (
             element_id, m.group(1), want)
@@ -131,10 +132,11 @@ def test_the_new_mix_button_starts_hidden_and_is_shown_by_the_mix_list():
 
 
 def test_a_search_offers_one_to_five_minutes():
-    """10.7 packet: the length menu is 1, 2, 3, 4 and 5 minutes, and a
+    """10.7 packet: the length menu is 1, 2, 3, 4 and 5 minutes, and the
+    standard 1.5 since §332; a
     search's request carries what was picked (`episodeMinutes` answers the
     chosen length for search and BROWSE_MINUTES only for myFAM/DailyFAM)."""
-    assert "var SEARCH_LENGTHS = [1, 2, 3, 4, 5];" in INDEX
+    assert "var SEARCH_LENGTHS = [1, 1.5, 2, 3, 4, 5];" in INDEX
     menu = INDEX[INDEX.index("function openLengthMenu()"):]
     menu = menu[:menu.index("function ", 10)]
     assert "SEARCH_LENGTHS" in menu and "m <= 10" not in menu

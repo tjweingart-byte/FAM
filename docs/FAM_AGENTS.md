@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | **Status** | Planning. No agent is built |
-| **History** | Started 2026-10-24 (§307); editor in chief and script supervisor (§312); pipeline and how agents run (§313); contextualizer and guardrails (§314); condensed into tabs, outside plugins per agent, the overlord, housekeeper, retriever, IT guy and categorizer (§318); the owner's brainstorm of 2026-10-28 - every agent named, roles redrawn, a rule book each (§318) |
+| **History** | Started 2026-10-24 (§307); editor in chief and script supervisor (§312); pipeline and how agents run (§313); contextualizer and guardrails (§314); condensed into tabs, outside plugins per agent, the overlord, housekeeper, retriever, IT guy and categorizer (§340); the owner's brainstorm of 2026-10-28 - every agent named, roles redrawn, a rule book each (§340) |
 | **Page** | `python docs/build_agents_html.py` builds the tabbed page from this file: one tab per `##`, one sub-tab per `###` |
 
 An **agent** is a worker that uses a model for one named job. FAM's eight,
@@ -298,7 +298,7 @@ emails `Admin@familiarize.net` when it runs well above it.
 
 **Netenyahu, the overlord** (named by the owner, 2026-10-28). **Works in:**
 above every agent - like a boss, it directs each one: when to work and what
-to do. **Status:** planned, not built (§318).
+to do. **Status:** planned, not built (§340).
 
 **Purpose.** One place that knows **every agent's limits, capabilities and
 purpose**: whether it is on for this surface, its ceiling, its fallback,
@@ -1255,7 +1255,7 @@ Answered: a repeating article is a link and a count, no text (2026-10-24).
 
 **Sonic, the retriever** (named by the owner, 2026-10-28). **Works in:**
 **strictly within MongoDB** - the background, called from the listener's
-path. It **only reads, never writes**. **Status:** planned (§318). Today its
+path. It **only reads, never writes**. **Status:** planned (§340). Today its
 job is `history_archive.look` (nearest facts by meaning before the search's
 window), which stays as its fallback.
 
@@ -1406,7 +1406,7 @@ alone (§316).
 
 **Keith Wong, the IT guy** (named by the owner, 2026-10-26). **Works in:**
 operations, beside Netenyahu - it watches every box and touches none of an
-episode's content. **Status:** planned (§318). **Solution-oriented:** it
+episode's content. **Status:** planned (§340). **Solution-oriented:** it
 fixes what it may, and brings a plan for what it may not.
 
 **Responsibilities.**
@@ -1629,7 +1629,7 @@ no budget cap - Keith watches cost per episode instead.
 **Nando, the categorizer** (named by the owner, 2026-10-28). **Works in:**
 at the request, **in tandem with Episode Intelligence and C3P0** - before
 anything is researched - and once more after the writer, to confirm.
-**Status:** planned (§318).
+**Status:** planned (§340).
 
 **Purpose.** Nando has **complete responsibility for pinpointing the
 category** a request falls into, within FAM's category tree. One decision,

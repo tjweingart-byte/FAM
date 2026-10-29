@@ -444,7 +444,7 @@ The guard: every sentence must carry information. Atmosphere alone is cut. The
 point should be arriving continuously, from the first line, inside the story.
 
 <!-- rule:title-from-content -->
-> **Decided, not yet built (PROBLEMS.md §318, the owner 2026-10-28):** the contextualizer agent (C3P0) will write the episode's title at the request; the script supervisor checks it against the finished script and C3P0 retitles on a mismatch. Until that is built, the rule below stands as written; when it is built, rewrite it here and in `CLAUDE.md`.
+> **Decided, not yet built (PROBLEMS.md §340, the owner 2026-10-28):** the contextualizer agent (C3P0) will write the episode's title at the request; the script supervisor checks it against the finished script and C3P0 retitles on a mismatch. Until that is built, the rule below stands as written; when it is built, rewrite it here and in `CLAUDE.md`.
 > **Current (PROBLEMS.md §189):** a *live story* tile (Trending or the pool) is not protected the way a bank tile is: once its episode is cached and current, every later listener sees the writer's title and summary on the card and in the player, and its picture, facet word and logged tags come from the writer's `<<CATEGORY:>>` line (`app._name_written_tiles`). The first listener of an unwritten story still hears it under the composer's title.
 
 **An episode is titled by what it turned out to be about.** *(§104.)* It used
@@ -727,6 +727,8 @@ to the writer is judged.
 
 <!-- rule:search-bar -->
 > **Current (PROBLEMS.md §305, the owner 10.23):** the length a search opens on, and returns to every time somebody comes back into the app, is **one minute**, not two (`DEFAULT_LENGTH_MINUTES`); the Length bubble still offers 1-5, and the Voice bubble is unchanged. Where the text below says two minutes, read one.
+
+> **Current (PROBLEMS.md §332, the owner 10.28):** the standard length is **a minute and a half** (`DEFAULT_LENGTH_MINUTES` and `DEFAULT_MINUTES` 1.5): "2 minutes feels too long and 1 minute feels too short". The Length bubble and Go Deeper offer 1, 1.5, 2, 3, 4 and 5. Where the text says one or two minutes, read 1.5.
 > **Current (PROBLEMS.md §282, the owner 10.15):** a third bubble, **Private**, is searchFAM's incognito for one search (`private-search`); while it is on the search page is charcoal in either theme.
 > **Current (PROBLEMS.md §219):** the Length menu offers **1, 2, 3, 4 and 5 minutes** (`SEARCH_LENGTHS`); the server still accepts up to ten, so no installed client is refused.
 - **The search page is Google's shape** *(PROBLEMS.md §190, the owner's 10.1

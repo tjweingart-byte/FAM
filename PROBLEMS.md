@@ -22363,7 +22363,1224 @@ same neighbours); Atlas replaces the whole document. And an episode's own
 market lookups (§313) are kept per `as_of`, beside the sweep's one price a
 day (§315) - the inventory agent's duplicate pass is where the two meet.
 
-## 318. The agents guide: condensed into tabs, outside plugins per agent, and the Overlord (2026-10-26)
+## 318. The voice was up for three days and the app could not find it (2026-10-26)
+
+**What the owner saw:** from 10.23 every new episode ended in the apology,
+"down for days", and the question was whether RunPod is reliable enough.
+It was not RunPod. The pod (`ilx5zutqvcjw3d`) was RUNNING, its worker
+answered `/health` with `"ready":true` on the GPU, and a Render boot at 6:38
+on 10.26 reached it and voiced a word. What failed was the app *finding* it,
+through two broken rungs at once, with no alarm but the listener's apology:
+
+1. **The pod never registered.** §306 read 10.23 as a heartbeat that
+   stopped; on 10.26 the pod itself answered otherwise: `from voice_worker
+   import register` raises ImportError in its image, which predates
+   registration altogether (its `/health` has no `registering` or
+   `sample_rate` field). The app had been finding it through RunPod's API -
+   until that answer lost its ports. From the pod the app answers `401` to an
+   unauthenticated POST, so `FAM_APP_URL` and the network were never the
+   problem. Registration starts working only when the pod runs a current
+   image.
+2. **The RunPod-API rung built an address that does not exist.** RunPod's v2
+   answer (§179, never verified against RunPod) named the pod with no
+   `runtime` and no `portMappings`, so `_pods_from` fell back to the
+   configured port behind the proxy - `https://<pod>-8002.proxy.runpod.net` -
+   while the pod exposes 8002 only over TCP (`213.173.105.20:30248`) and its
+   one http port is 8001. `_runpod_pods` returned that guess as soon as v2
+   answered, so v1 and GraphQL, which carry the ports, were never asked.
+3. **Render ran out of memory** six times between 10.21 and 10.26 ("used
+   over 4GB"); each restart drops every episode in flight. Separate from the
+   voice and still open.
+
+What changed:
+
+- `voice_control._runpod_pods`: an answer that names the pod but carries no
+  ports (`_without_ports`) is kept as a fallback and the next API is asked;
+  a note says so on `/api/health`. An answer with ports this deployment
+  declines (plain HTTP off) is complete and ends the walk, as before.
+- `voice_control.supervise_once` (the supervisor's beat): "no worker can
+  speak" is an **error** on /admin's error page under a new `voice` stage,
+  once an hour while it lasts (a return within ten minutes of clearing is
+  the same incident); a worker that used to register and has not inside the
+  TTL (within a week) is a **notice**, "registration lapsed" - even while a
+  pinned address still speaks, because it is the day the pod moves that it
+  costs - unless a Serverless endpoint is configured, which has no pod to
+  lose. `registration_lapsed` is also on `/api/health`.
+- **The owner is emailed** (SUPPORT_EMAIL, else MODERATION_EMAIL, through
+  `mail.py`) when either fault starts, once a day while it lasts, and when it
+  clears; a fault back within the hour is not a new email, so a flapping
+  worker is at most two an hour. The owner's direction: nothing about the
+  voice should need checking by hand.
+- `voice_worker/register.announce`: a 3xx is not a registration. It was
+  counted as landed (only >= 400 failed), so a `FAM_APP_URL` that redirects
+  would fail silently forever; it now warns with the address it was sent to.
+
+
+**Then Serverless, built from GitHub** (same day, the owner's decision after
+the hosting comparison: "we do not want to have to check anything manually,
+or change anything manually when something changes with RunPod"). A pod's
+address changes on every restart and its image is rebuilt by hand; a
+Serverless endpoint's id is permanent and RunPod's GitHub integration builds
+`Dockerfile.voice` itself. The setup is the new first section of
+`REMOTE_VOICE.md`. Two things changed here for it:
+
+- RunPod rebuilds the endpoint from `Main` on **every push** (10.27: the
+  endpoint's first build was #180, and merging #181 started a second). A
+  `release` job in `.github/workflows/voice-worker.yml`, written first on
+  RunPod's documentation that a GitHub release is what triggers a rebuild,
+  was removed the same day: it would have been a second build of every
+  voice change. The workflow keeps its contract job and gains, in its
+  paths, what the worker imports (`voice_store.py`, `voice_bank.py`,
+  `audio_utils.py`, `requirements.txt`).
+- `REMOTE_VOICE.md` says where Serverless mounts a volume (`/runpod-volume`,
+  not `/state`), so the endpoint sets `HF_HOME` and `FAM_VOICES_DIR`.
+
+Operational, done by hand on 10.26: `REMOTE_VOICE_URL=http://213.173.105.20:30248`
+on Render (plain HTTP was already allowed) so the pinned rung speaks while
+registration is fixed. It goes stale the day the pod restarts on a new
+port; delete it once `/api/health` shows a `registered` worker held.
+
+Tests: `tests/test_voice_alerts_318.py`.
+
+## 319. A shared episode invites the listener into the conversation, via the waitlist (2026-10-26)
+
+At the owner's direction, the note under a shared episode (`/s/<id>`,
+`static/listen.html`) now reads "Want to hear more? Be a part of the
+conversation with FAM →" and links to the waitlist page. It replaces §175's
+"Join FAM for free", which went to the App Store when there was one and
+otherwise to the front door.
+
+- `sharing.JOIN_PATH` is `/waitlist`, and `landing_payload`'s `join` is that
+  path whether or not `APP_STORE_URL` is set; the page's one delegated door
+  handler sends the join door to `share.join` and the other doors to the App
+  Store as before.
+- The door is a real `<a href="/waitlist">`, so the page still works as a
+  link with scripts off, and the arrow is part of the link.
+- The no-app footnote lost "Joining is free and opens FAM in your browser",
+  which was no longer what the link did.
+- Pinned in `tests/test_packet_175.py` and `tools/smoke_landing.py`.
+
+## 320. What the trusting-fermat branch fixed, brought to Main (2026-10-26)
+
+`claude/trusting-fermat-o26y4h` (10.14, §262-§267 on that branch, numbers
+Main later used for other work) was never merged. The owner went through it
+item by item; this is what was still needed, ported onto today's Main.
+
+**A playlist goes past an episode that fails to play** (`mixItemFailed`,
+index.html). A failed playlist episode - an error from `/api/audio` or the
+45-second give-up in `generate` - toasted and left `mixPlay` where it was,
+so the playlist silently stopped (reported 10.13: a playlist of eight
+played two). It now names the failure and starts the next one; two
+failures in a row, or no connection, end the playlist and say so; a quota
+or account refusal ends the queue before its screen. Smoke: "A playlist
+goes past an episode that fails".
+
+**Recency, in code.** The window was only a hint to the search vendor and
+nothing checked what came back, so a March 2025 article reached a "last 24
+hours" packet. `research.within_window` drops dated results older than the
+window (a whole calendar day's grace, since a published date has no time of
+day; undated kept, still "date not stated") on the main
+search and the story look; GDELT already filters on its own export times.
+The thin-packet retry **widens** the window (`retry_window`: 3x, at least 7
+days) instead of dropping it. The archive (§308/§313) does not answer this:
+it adds dated earlier reporting beside the search, and never removed an old
+article from it. Tests that pinned "the retry drops the window" now pin
+"wider, never none".
+
+**No window on a question about no particular moment**
+(`episode_intelligence.time_bound`, in the gate). With the window now a
+filter in code, a window on "who was Abraham Lincoln" would drop every good
+biography, and a `causal` question used to default to 14 days on its own
+("why did Rome fall"). A window longer than a week survives only when something says the
+question is about a moment: a live domain, an outcome to wait for, a
+recap/update/preview, a recent development EI is at least fairly sure of
+(`why_now_confidence` medium or high), or the question naming a time
+(today, latest, this week, a weekday, this year or last). A window of a
+week or less (`SHORT_WINDOW_DAYS`) is never removed: that is EI itself
+saying "a moment", and since `ttl_for` reads the window a word list must
+not take it away ([ttl-from-evidence]). The word list decides only whether a
+window may apply, never its size; an episode left with no window is kept as
+long as any evergreen episode, because `ttl_for` reads the window. The
+`why_now` test is what keeps a news question with no time word ("what did
+the mayor say about the budget") inside its window; one EI has no reason
+for is searched with none. `tests/test_evergreen_window_320.py`.
+
+**The local ladder asks what the question is about**
+(`local_news.relevant`). Naming the town was the only test, so "airshow
+over San Francisco Bay" was answered by a Valkyries fan story that said
+"Chase Center in San Francisco". When the listener's question names
+something beyond the town, a rung whose stories carry fewer than two of
+those words (one, when it names one) counts as empty - GDELT's own two-word
+rule; the place's words and "news"-type words do not count. A plain "what's
+on in X" still takes any X story. Tested on the question's words, never on
+EI's `must_establish`: a review found that a general question's brief lists
+phrases like "recent local government decisions", which a town's stories
+rarely use, so a test on them threw away real town news. The web rung searches vetted outlets only, never `learned` ones
+(one learned site, hoodline.com, had narrowed every later San Francisco
+search to itself). EI's `place` excludes one specific happening in a town -
+a news question on the general ladder. The writer: an older article cannot
+speak for a day it was written before, a missed search never says something
+is not happening, and the local block no longer calls what was found all
+there is. When the town had stories but none about the question
+(`LocalResult.unrelated`), the gap line says "We couldn't find any recent
+news reports out of {town} about this" - never that there were no reports
+- and the writer is told the same. `tests/test_local_relevance_320.py`.
+
+**Each provider's input in its own terms.** The names the catalogues
+resolve were already EI's `live_entity` (§265), so the branch's `entities`
+field is not ported. The search half of the brief (`PARTS["search"]`) now
+also writes:
+- `forecast_query`: two to five words as a prediction market would title
+  the outcome. Polymarket searches it first (`live_sources.market_words`),
+  then `live_entity`. A three-letter word is kept only when written as a
+  short form ("Fed", "GOP", "NYC"): a review found that a lowercase "win"
+  let "New Jersey Governor Election Winner" match an NYC mayoral question
+  on two shared words.
+- `source_kind` (general, news, official, filings, academic, local):
+  Perplexity's `search_mode` (`sec`, `academic`) and a source-preference
+  line in Parallel's objective.
+In code: a town's ISO country from the place catalogue is
+Parallel's `location` and Perplexity's `country` (never a place only as
+typed); the local web query no longer repeats a town the retrieval already
+names; `place` is asked for with the full state name and a two-letter
+country code. Both SDKs were checked for the field names (perplexityai
+0.46.1 `search_mode`/`country`, parallel-web 1.3.7 `location`). A degraded
+brief has neither field and every reader falls back as before. The two
+fields add a few output tokens to the search half; watch `since_boot`.
+`tests/test_provider_inputs_320.py`.
+
+The branch also searched GDELT with the names first. Not ported, after a
+review: it rested on GDELT keeping only a query's first words, which Main's
+export copy does not do (`ExportStore.search` counts every word and needs
+two), so a team's city prepended to the query only let in namesakes
+("Kansas City" for a Chiefs question).
+
+**A stale credential memo.** `credentials.pool` kept a memo built while a
+key was absent once the same key was set again, because the value matched
+one it had published before the rebuild and read as its own failover - an
+empty pool with the key in the environment. A rebuild now forgets a publish
+it no longer sees. `tests/test_credential_memo_320.py` fails without it.
+
+**Not ported, by the owner's decision:** the kept market readings
+(`quote_book.py`) and the kept scores and 30-minute final watch - the
+archive keeps sweeps' finals and closes (§315); and the market-data vendor
+ranking, which is decided.
+
+Unverified here (no key): the writing and the brief's new fields. Listening
+checks: `python write.py "airshow in San Francisco bay today" --minutes 2`,
+`python write.py "why did the roman empire fall" --minutes 3` (the brief
+should say no window), `python write.py "will the Fed cut rates in
+December" --minutes 2` (the brief prints `market`).
+
+## 321. FAM on X: threads found from our own episodes, posted by a person (2026-10-26)
+
+The owner (10.26), with the "FAM x X" playbook (Find -> Add -> Explore ->
+Connect; 3-5 discussions found and 1-2 joined a day): "is there a way we can
+simplify and streamline the whole process? Figure out an algorithm or system
+that can save time by finding trending/relevant conversation threads", then:
+"a new page under something like familiarize.net/admin/x ... behave similarly
+to the /admin/thumbnails page where it gives the option to approve. If i press
+approve, then it redirects me automatically to the X thread with the
+suggested post already pasted in or at least copied ready for me to paste".
+
+**The search is turned around.** Done by hand, Find is an hour of scrolling
+and the playbook's "add a checked episode" means making one per thread.
+`x_threads.py` starts from episodes FAM already has - the current Trending
+edition's stories (their `anchors`), then the most played kept episodes (the
+names in their title and question, `names_for`) - and asks X's recent search
+for posts naming them. So the episode exists, written and checked, before the
+thread is found.
+
+**Choosing is code.** `screen` drops replies, posts older than
+`X_THREADS_WINDOW_HOURS` (6), accounts under 500 or over 200k followers,
+threads past 50 replies, organisations, grief and flame-war subjects (`AVOID`),
+slurs, a post that neither asks nor takes a side, and an author approved in
+the last week. `score` weighs episode match (the cache's embeddings plus the
+names) 0.35, engagement per hour 0.30, a question 0.15, room in the thread
+0.10 and author size 0.10. The match picks the playbook's reply type: under
+`LINK_FLOOR` the reply carries no link and asks a better question (example
+02); a question with an episode is example 03, a stance example 01, and two
+people taking sides on one episode's subject become one card (example 04).
+Every card says why in words. One Haiku call drafts each reply; with no key
+it is drafted in code and the card says so.
+
+**A person posts.** `/admin/x` is the thumbnails page's shape: Find threads,
+cards, Approve / Skip, an editable reply with X's count (a link is 23).
+Approve makes the episode's share link (owned by `fam-x`, one per episode),
+opens `x.com/intent/post?in_reply_to=<id>&text=...` - X's own reply box on
+that post with the words in it - and copies the words as well. The window is
+opened inside the click so it is not a blocked popup. "Listen first" opens
+the same link before approving. Nothing in the module can write to X: it
+holds a read-only bearer token, which is what [no-social-posting] meant by
+"nothing that can post while somebody is asleep" (that rule's note says so).
+X's automation rules restrict automated replies; this is not one.
+
+**Spend.** X's API is pay-per-use since February 2026 (reported ~$0.005 a post
+read). A search is a button, never a timer ([sweep-on-demand]), capped at
+`X_THREADS_MAX_READS` (300) and `X_THREADS_DAILY_READS` (600), counted in the
+store and on the Outside service requests page as "X". `X_BEARER_TOKEN` is in
+`spend_guard.PAID_CREDENTIALS`. Posting through the reply box costs nothing,
+where an API post with a link is reported at ~$0.20.
+
+**Kept a week.** `X_THREADS_DB` holds the cards and runs; a post's text is
+pruned after `KEEP_DAYS` (7). Lazily created, so health and the page never
+make it on a machine that never searched.
+
+**Unverified here:** no X token in this container, so no live search has run;
+the scoring weights are a first guess, to be reweighed after the playbook's
+one-week trial on replies, `/s/` opens and waitlist signups.
+
+**Review before merging (2026-10-27).** An independent read of the whole
+diff found nothing blocking (no XSS, no admin gap, nothing that posts) and
+these, all fixed: scoring embedded every post on the event loop that streams
+listeners' audio, and re-embedded the episode once per post - it now runs in
+a thread and embeds each episode once; the day's reads were written only at
+the end of a run, so a run that died after X had billed them left them
+uncounted - the run's row is now written before the first search and after
+each; `_exists()` checked for a file, so on Postgres the cards vanished after
+a redeploy - it asks `db.has_tables`, as the other lazy stores do; an
+approved reply too long for X was cut with an ellipsis, so what reached X was
+not what was approved - it is refused with a 422 and counted the way X counts
+(CJK and emoji weigh two), in Python and on the page alike, and `trim` no
+longer overruns by one when there is no space; the opened X tab kept a handle
+on the admin page (`opener` is cleared); an author with a card still waiting
+could be carded again by the next run; `X_THREADS_WINDOW_HOURS` is clamped
+to X's seven days. Left as they are, deliberately: the one-search-at-a-time
+flag and the daily ceiling hold within one server process, which is what
+production runs; and the drafting calls (at most eight a search) are in each
+run's report rather than `metering.db`, whose rows are listeners' episodes.
+
+## 322. Go Deeper on LinkedIn: a person finds the post, FAM brings the episode (2026-10-27)
+
+The owner (10.27), from a flip chart titled "LinkedIn: Go Deeper": "When
+someone makes a post on LinkedIn meant to educate or inform, FAM adds a link
+to an episode to 'Go Deeper' on the topic. FAM systematically adds depth to
+people already teaching something." The how: "similar to the X admin
+algorithm, automatically scrape LinkedIn for the posts and recommend
+comments/episodes on an approval basis", with somebody watching over the X
+and LinkedIn pages, approving and rejecting.
+
+**The one part not built as written: scraping.** LinkedIn's API reads only
+an organisation's own posts, its User Agreement forbids scraping and
+automated commenting (it won *hiQ* on that clause), and accounts that
+comment by automation are restricted - the first one at risk would be FAM's.
+So nothing in `linkedin_posts.py` fetches LinkedIn and FAM holds no LinkedIn
+credential. The systematic part is kept where it is allowed: the page builds
+**LinkedIn search links** (its own content search, newest first) from the
+same episodes `/admin/x` seeds from (`x_threads.seeds`: the Trending
+edition, then the most played kept episodes), and a person opens them in
+their own browser and **pastes** a post worth adding to - its address and
+its words. Finding a post from an episode means the episode exists first,
+the X page's turn-around.
+
+**Choosing is code.** `parse_url` takes the two shapes a post's address has
+(`/posts/<author>_...-activity-<id>` and `/feed/update/urn:li:activity:<id>`),
+refuses `lnkd.in` (following it would be FAM fetching LinkedIn) and anything
+not on linkedin.com, and keeps the author's profile slug for one author a
+week. `screen_post` turns away posts under 120 characters, `x_threads.AVOID`
+subjects, slurs, announcements, hiring and promotion (`_PROMO`), and posts
+that do not read as teaching (`_TEACH`, or three list lines). The chart also
+allows a post the episode "simply gives more context" to, so a refusal is a
+409 in words and the page offers **Add it anyway**; the card then says
+"added anyway: <why>". `episodes_for` scores every kept, non-explicit
+episode the way `x_threads.match` does (embeddings 0.6, names 0.4) and offers
+the best three; only those over `x_threads.LINK_FLOOR` can be linked.
+
+**No episode, no link.** Under the floor the card has no comment: it shows
+the Go Deeper question the drafting call wrote ("search this in FAM"), and
+**Match again** re-reads the cache once that search has made the episode.
+Nothing here generates an episode; searching does, on the path that already
+researches and checks one.
+
+**A person posts.** LinkedIn has no prefilled comment link like X's
+`intent/post`, so Approve makes the episode's share link (owned by
+`fam-linkedin`, one per episode), composes the comment - the person's words,
+a blank line, `Go Deeper: "<title>" (n min) <link>` - copies it, and opens the
+post in a window opened inside the click; the person pastes and presses
+Comment. A comment over LinkedIn's 1,250 characters is refused, never cut.
+The Approved tab keeps "Copy and open the post again" for a browser that
+refused the clipboard. One Haiku call (`LINKEDIN_MODEL`) drafts the comment
+and the question; with no key the comment is a plain sentence in code and
+the card says "drafted in code".
+
+**Kept a week**, in `LINKEDIN_POSTS_DB` (lazily created, like `/admin/x`'s).
+No spend beyond the drafting call: no LinkedIn API exists to pay for.
+
+**Unverified here:** no model key, so no drafted comment has been read; the
+`_TEACH`/`_PROMO` patterns are a first guess to be tuned against the posts
+people actually paste. CLAUDE.md's core is now at its 40,000-byte budget.
+
+**Review before merging (10.27).** An independent read of the branch found
+holes, confirmed by running them, all fixed with tests:
+- *One author a week was shorter than a week.* Pruning went by `added_at`,
+  the check by `decided_at`, so a post approved on day 6 freed its author
+  on day 7. An approved card is now kept until a week after its approval.
+- *A `/feed/update/` address skipped it.* That shape names no author; the
+  check now falls back to the typed name (and matches names across both
+  shapes), and with neither it refuses in words ("type their name").
+- *Re-pasting a post rewrote its card under its old verdict.* A post
+  already on the page - by id, or by identical words under another id kind
+  (`activity:` vs `ugcPost:`) - is refused, even "anyway"; the page offers
+  "Add it anyway" only when the server marks a refusal `X-FAM-Overrule`.
+- *Skip or Back to waiting after Approve erased what was posted.* Only an
+  approval writes `posted`/`share_url` now.
+- *Store calls ran on the event loop* (and `SHARES.create`, `health`,
+  `trending_now`); all go through `asyncio.to_thread`.
+- *Drafting spend went only to a log line*; each card now carries what its
+  matches cost, summed on the page ([failures-visible]).
+- *Percent-encoded URNs were refused*; the path is decoded first, and a
+  `/posts/` slug outside `[A-Za-z0-9_%-]` is refused.
+- *Names matched as substrings* ("Fed" in "federal") across posts of
+  thousands of characters; they match as whole words now.
+- The page no longer polls: only it changes the cards, and each load reads
+  the cache. The model path of `draft` is tested with a stand-in client.
+
+`/admin/x` has the first and fourth holes too (`x_threads.Store.prune` and
+`decide`); left for its own change, since that page is merged and in use.
+
+## 323. Asking Wikipedia about every name again (2026-10-27)
+
+The owner (10.27): "I typed in the wrong thing for the wikipedia password and
+key, and wikipedia probably wasn't able to check all of the pronunciations in
+the admin page. Please run wikimedia by all of these pronunciations again,
+because the episodes still have significant pronunciation problems."
+
+**The Enterprise login does not reach the name check.** `wiki_pronounce`
+asks the keyless Wikidata search and Wikipedia's `action=parse`; only the
+reference look's summaries use `WIKIMEDIA_ENTERPRISE_USERNAME`/`_PASSWORD`.
+A wrong login cost the summaries their Enterprise reply (the public one
+served instead), never a pronunciation. A check that failed outright -
+network, 429, Wikipedia down - was already never kept, so a plain "Check all"
+asks it again.
+
+**What did stop a re-run:** every answer that came back - "not on Wikipedia",
+"more than one", "agrees" - stands for `RECHECK_DAYS` (30), and the admin
+page's button never passed `force`, so a second click inside the month said
+"nothing to ask". The page now has **Check every name again**
+(`POST /api/admin/pronunciations/wikipedia?force=true`). `_due` orders names
+never asked first, then the longest since, so a forced run over more than
+`MAX_PER_RUN` (400) names goes on where the last one stopped with each click.
+
+**Not run from here:** this container cannot reach en.wikipedia.org,
+wikidata.org or the production server, so the re-check is the owner's click
+on /admin → How names are said. Unchanged by it: an admin's respelling is
+never replaced, and a name Wikidata cannot match to exactly one item still
+gets no answer - which is the likelier cause of the remaining problems
+(surnames alone, nicknames), alongside names that never reached the lexicon.
+
+## 324. Wikipedia's reading belongs to the name it follows (2026-10-27)
+
+The owner (10.27), with screenshots of /admin → How names are said: "Does
+wikipedia need more guard rails? the actual word and wikipedia word are
+completely different" - Dooku = "DOO-koo" (an admin's) beside "Wikipedia
+says tih-RA-nuhs"; A'ja Wilson = "AY-zhuh", Anya Taylor-Joy = "AN-yuh",
+Catherine Zeta-Jones = "ZEE-tuh", Anton Du Beke = "doo BEK", Andoni Iraola =
+"ahn-doh-nee ee-rah-oh-lah sah-gahr-nah", Arcosa = "AR-kohs", all applied
+"from Wikipedia"; Antonio Banderas = "ahn-TOHN-yoh vahn-DEH-rahs".
+
+**Three faults, one cause each.**
+
+1. **The first template in the lead was taken, whoever it was about.**
+   Count Dooku's article reads "also known as Darth Tyranus (/tɪˈrænəs/)";
+   Wikidata's exact match on "Dooku" was right, the article was right, the
+   template was another name's. Arcosa matched an item whose article says
+   "Arkose" (/ˈɑːrkoʊs/, the rock). `from_wikitext(wikitext, name)` now takes
+   a template only when the last clause before it (templates, references and
+   links stripped; a comma, semicolon or full stop starts a clause) holds a
+   word of the name (`says_name`).
+2. **A reading for part of a name, or more than the name, was kept for the
+   whole name.** Wikipedia often gives IPA for only the hard part ("Anya",
+   "Zeta", "Du Beke", "A'ja") or for the full legal name ("Andoni Iraola
+   Sagarna"). The lexicon swaps the whole name for the reading, so the voice
+   would have said "AY-zhuh" for "A'ja Wilson" - dropping "Wilson". A
+   reading must now have one word per word of the name (`fits`), from the
+   article and from Wikidata's P898 alike.
+3. **Spanish β was respelled "v".** An English voice says Banderas with a
+   b; the table now maps β to "b".
+
+**A backstop on replacing.** A model's guess is replaced unasked only when
+Wikipedia's reading is near the name's spelling or near that guess
+(`resembles`, `RESEMBLES` = 0.25 by letters); Irish spellings far from their
+sounds stay replaceable because the model's guess is near Wikipedia's. One
+near neither is kept as "differs" and shown on /admin to take or leave.
+
+**What was already applied.** `prune()` (run at the start of every "Check
+all") withdraws Wikipedia's readings that fail `fits` - no request needed -
+and a re-check that no longer finds a reading for a Wikipedia-sourced entry
+withdraws it, so the next model to meet the name says it again. Dooku's
+admin entry was never changed (an admin's never is); its stale "Wikipedia
+says" note clears on the next forced check.
+
+**Not run from here:** this container cannot reach Wikipedia; the lead
+shapes in `tests/test_admin_page_289.py` are written from the screenshots.
+The owner's step: /admin → How names are said → **Check every name again**.
+
+## 325. Checking every word: the dictionary and the voice round trip (2026-10-27)
+
+The owner (10.27): "we want a way to check the pronunciation on these that
+can apply to all words within, not only ones that wikipedia can cross-check
+... build the dictionary + voice round-trip check, and investigate more
+checks to use."
+
+**What every earlier check had in common:** text compared with text - a
+model's respelling with Wikipedia's. None looked at a word nobody listed,
+and none heard Chatterbox, which is the only thing a listener hears.
+
+**1. The dictionary (`hard_words.py`).** The CMU Pronouncing Dictionary -
+134,000 English words and common names - is vendored as its data file
+(`pronounce_data/cmudict.dict.gz`, 0.9 MB, BSD-2-Clause, licence beside it).
+Not the `cmudict` pip package: that wrapper is GPL-3.0, and FAM ships closed.
+A scan (/admin → How names are said → **Scan recent episodes**, in the
+background) reads the 600 most recent cached episodes - `recent` never lists
+a private search, and an attached episode is never cached, so nothing
+personal is read - and keeps the 300 words most used that the dictionary
+lacks (plain forms count: "kickoffs", "re-signed", "Eagles'"), the lexicon
+does not respell, and are not initialisms (spoken as letters). Each comes
+with its count, how many episodes, and the first sentence that used it.
+**Sounds fine** hides a word for good; **Respell** puts it in the form. The
+dictionary also says how a common word *should* sound (`expected`), which
+the round trip uses for words nobody respelled.
+
+**2. The round trip (`voice_check.py`, `voice_worker/hearing.py`).** **Hear**
+sends a word through exactly what an episode's words go through
+(`pronunciation.respell`, `spoken_text.speakable`), the production voice says
+it, and a phoneme recogniser on the same card - wav2vec2 trained to write
+sounds in IPA, not words, so it cannot round a name to the nearest word it
+knows - writes down what it heard. That IPA becomes a respelling
+(`wiki_pronounce.ipa_to_respelling`) and is compared, by sound class
+(`sound_key`: "ah"/"a", "ee"/"i", "oo"/"u" are one sound), with the lexicon's
+respelling or the dictionary's. ≥ 70 % alike reads "said as meant", 50-70 %
+"a little differently", under 50 % "differently". The audio comes back with
+every check, because **the thresholds are a guess until they have been
+checked against a person's ears**, and nothing here changes the lexicon by
+itself. **Hear every name** / **Hear the unheard** run up to 150 words in the
+background, one at a time, as a task on the app's own loop (a thread with
+its own loop would share the voice's connection pool across loops).
+
+Wire: a request with `"hear": true` gets `heard` (or `heard_error`) beside
+its audio; an episode's chunks never ask, so nothing on the listening path
+changed. A worker built before this ignores the field, and the app says
+"rebuild" instead of guessing. `transformers` already comes with
+Chatterbox; the recogniser's ~1.2 GB downloads into `HF_HOME` on first use.
+On the placeholder tone there is nothing to hear, and the check says so (409).
+
+**Not verified here:** this container reaches neither Hugging Face nor a
+GPU. The recogniser, the 16 kHz resampling and the thresholds are untested
+against the real voice; `tests/test_voice_round_trip_325.py` pins the logic
+with the model stubbed.
+
+**More checks, investigated** (none built; in rough order of value):
+
+- **Whole sentences through a word recogniser (Whisper).** Synthesize a real
+  chunk, transcribe it, align to the script: catches the voice skipping,
+  repeating or mumbling words - failures no single-word check can see, and
+  the ones Chatterbox is known for. The same worker, the same `hear` seam.
+- **Listeners tell us.** A "said a word wrong" reason on the player's Report,
+  carrying the caption sentence being heard. The cheapest signal there is.
+- **Numbers, symbols and units.** A text-only pass over `speakable` output
+  for digits, "$", "%", "vs.", scores and dates it left unconverted - no GPU.
+- **Heteronyms.** Words the dictionary lists two ways (lead, read, live,
+  close, bass, wind) and place names that are also words (Reading, Nice,
+  Polish): flag sentences using them and hear the sentence, not the word.
+- **Acronym or initialism.** NATO and NASA are words, NFL and CFB letters;
+  a short list beats a rule. The scan skips all-capitals words today.
+- **Wiktionary.** Same Wikimedia API as the Wikipedia check; IPA for many
+  surnames and places that have no article of their own.
+- **A native-language guess.** espeak-ng or Epitran say a name the Spanish,
+  Polish or Irish way when told the language (Wikidata's citizenship or
+  native language); a second opinion to compare with the model's.
+- **Official guides.** The leagues publish phonetic guides for their players
+  each season; the VOA guide covers names in the news; NameShouts and Forvo
+  sell recordings by API. Best for sports names, which dominate the list.
+- **Two models.** Ask a second model for each respelling and flag
+  disagreement. Cheap, but their mistakes are correlated.
+
+## 326. Every X card is about the post it answers (2026-10-27)
+
+The owner (10.27), after the first live searches on `/admin/x`: "Some of the
+X posts that it was generating are not relevant to the tweet. Make sure all
+the recommended posts, comments, and episodes are relevant to the tweet that
+it is responding to."
+
+**Why they were not.** Three causes, each a place §321 trusted a name too
+far. The search asked X for any post naming the episode's names, so a
+one-word name ("Eagles") brought back birds as readily as the team. Nothing
+after the search required the post to be *about* the episode: a post below
+`LINK_FLOOR` was still carded, as "a better question", whatever it was
+about. And the drafting call was handed the episode and wrote to it, with no
+step that asked whether the post and the episode were the same subject.
+Production also scores with the hashing embedder (no ONNX model is
+installed), which is lexical, so "match" was mostly the names again.
+
+**Now, three gates, cheapest first.**
+
+- *The search.* A name of two or more words ("Jalen Hurts") is asked for on
+  its own; a one-word name only beside one of the episode's own subject
+  words (`context_words`: the longest content words of its question and
+  title that are not a name) - `("Jalen Hurts" OR (Eagles (defence OR
+  starters ...)))`. Fewer posts come back, and every one costs a read.
+- *Code* (`on_subject`, before anything is drafted). The post must name
+  what the episode names; a one-word name must come with one of the
+  episode's subject words besides. A post that fails gets no card at all -
+  "Would you trade a car for a walkable city?" under an Eagles episode is
+  no longer a question-only card.
+- *The model* (`judge_and_draft`, the same single drafting call). It now
+  answers `same_subject` (the same team, person, company, event or question,
+  not a shared word; unsure is no), `episode_fits` (would someone reading
+  this exact post want this exact episode), `other_same_subject` for a
+  both-sides pair, and a one-sentence `why`, before the reply - which is
+  told to answer what the post says, not the episode's angle. Not the same
+  subject: the card is dropped and named in the run's report ("set aside as
+  not about the episode" on the page). Same subject but the episode does not
+  answer it: the card stays as a question with no link. The `why` is shown
+  on every card ("Checked: ..."). Since the gate drops cards, a run drafts
+  down a ranking of twice `SHORTLIST` until it has eight that pass, so a
+  search costs at most sixteen short calls.
+
+With no model key only the code gates run, and the card says it was checked
+in code. `linkedin_posts.py` uses `x_threads.match`, `LINK_FLOOR`, `seeds`,
+`names_for` and `AVOID`; none of them changed.
+
+**Unverified here:** no X token or Claude key in this container, so the
+judgement has been exercised only through test stand-ins; the first live
+search after the deploy is the check. The ONNX embedder would make the
+match score semantic rather than lexical (`tools/install_embed.sh`).
+
+**The owner's cards (10.27), and the review before merging.** The two cards
+sent back - Manchester United posts under a Trending episode on a diverted
+*United* flight - are tests now: X is never asked for "United" alone, and a
+post sharing only that word is dropped before anything is drafted. The
+review of this branch added: a post the model sets aside is kept as
+`set_aside` (never on the page) so the next search neither bills nor judges
+it again; words that name no subject (`GENERIC`: "happened", "today",
+"latest" ...) count neither as context in the search nor as overlap in
+`on_subject`; a one-word name with no subject words left is not searched at
+all; and a card checked only in code no longer reads "Checked: checked in
+code".
+A second independent review found nothing blocking; fixed from it: a failed
+relevance call (an error, unreadable JSON) no longer leaves every card
+linked - the episode is not linked on the code's word alone, and a parsed
+judgement stands when only the words are missing; a Trending story's two
+one-word anchors together ("Trump", "Zelensky") count as on subject and are
+searched as a pair; names match as whole words ("Ford" is not in "afford");
+a long post is read whole (`note_tweet`); a set-aside post cannot be
+approved or reopened by its id; a reply written to connect two posts is
+replaced by the code's when the second post is judged off subject; an
+episode with nothing specific to search is listed under `unsearchable`,
+takes no reads and is not a failed search; and a word the check ignores is
+never asked of X.
+
+## 327. Go Deeper on LinkedIn finds its own posts (2026-10-27)
+
+The owner (10.27), after §322: "It is not clear how to use this LinkedIn
+tool. I want it to be more automated in the sense that the X tool goes out
+and scrapes the platform then comes up with recommended posts."
+
+**What X has that LinkedIn does not** is a search API: `/admin/x` reads X's
+own recent search with a bearer token. LinkedIn sells nothing like it, and
+its User Agreement forbids scraping (the vendors that scraped it - Proxycurl
+the best known - were sued off the market). So the automation goes through
+the one door FAM already has: the **web search its research pays for**.
+Parallel and Perplexity both index public LinkedIn posts, and both take a
+domain filter. **Find posts** (`linkedin_posts.run`) does, per press:
+
+1. The same seeds as X (`x_threads.seeds`: the Trending edition, then the
+   most played kept episodes), up to `LINKEDIN_SEEDS` (10).
+2. One search each through Parallel, else Perplexity (`research._search_*`),
+   `include_domains=("linkedin.com",)`, after-date `LINKEDIN_WINDOW_DAYS` (7),
+   counted on the Outside service requests page under the vendor's name.
+3. `posts_from` keeps results that are posts (`parse_url`: profiles, pages,
+   jobs and articles drop out), the author from how the vendor titled it
+   ("Jane Doe on LinkedIn: ...", "...'s Post", "| Jane Doe | 12 comments").
+4. `_shortlist`: the §322 screen (teaching, not announcing), one author a
+   week, nothing already on the page; every post ranked against every kept
+   episode (`catalogue` embeds each episode once a run, `rank` per post);
+   **a found post that no episode is the subject of is not a card**, since
+   nothing could be linked. Best match first, one per author, eight at most.
+5. One drafting call per card, as before; the card says "found searching
+   LinkedIn for <episode>" and that its words may be the search's excerpt.
+
+Capped per press and per day (`LINKEDIN_DAILY_SEARCHES`, 40, counted in a
+new `runs` table written before the first search and after each, as X's
+is); a button, never a timer ([sweep-on-demand]); staging has no search key,
+so the page says it cannot search ([zero-spend-staging]). Searching costs
+about $0.001-0.005 a search plus the drafting, shown together on the page.
+
+**The page says how to use it**: three numbered steps at the top, Find posts
+as the one button, and pasting (with the search links) folded under "Found a
+post yourself? Paste it". It polls only while a search runs.
+
+**Still true:** nothing here requests linkedin.com, FAM holds no LinkedIn
+credential, and a person pastes and posts every comment. **Unverified here:**
+no search key in this container, so no live run has been read - how much of
+a post the vendors' excerpts carry, and how many of a week's posts they have
+indexed, are the first things to look at after the first press. If the
+excerpts prove too thin to draft from, the card already says to open the
+post first.
+
+**§326's lessons, brought here before merging.** Main took §326 while this
+branch was open: X cards were going under posts that only shared a name with
+their episode (United Airlines under Manchester United). LinkedIn's ranking
+had the same hole, so the same three checks: the search carries the
+episode's subject words (`x_threads.context_words`) beside its names;
+`off_subject` runs `x_threads.on_subject` on every episode a post is ranked
+against, and an off-subject episode is never linked; and the drafting call
+(`judge_and_draft`) judges `fits` before it writes - a found post it judges
+off-subject is stored as `set_aside` (never shown, never read or judged
+again), and a pasted one keeps its card without a link, the reason on it.
+A person may still paste a set-aside post. This entry was §326 on the
+branch and is §327 after the merge.
+
+**Second review before merging (10.27)**, fixed with tests:
+- *A post could be found again after its card was pruned* - with a window
+  wider than the week, or a vendor date off by a day, a post FAM had already
+  commented on came back as a fresh card. Pruned ids now go to `seen`, kept
+  45 days (past the widest window), and `known()` reads both.
+- *A run could rewrite a card a person pasted or decided while it ran.* A
+  run now writes only with `insert_new` (`INSERT OR IGNORE`, the status in
+  the same statement, so a set-aside card is never briefly "waiting").
+- *A failed search did not count toward the day's ceiling*, though a timeout
+  may have been billed. A search is counted before it is asked; only a
+  configuration refusal (`ResearchUnavailable`, nothing sent) is not.
+- *Perplexity was asked without the subject words* - `objective` carries them
+  now, so both vendors get §326's query.
+- *Match again on a set-aside post* billed a model call for a hidden card; it
+  is refused. *Re-pasting one* kept its card but dropped what judging it had
+  cost; the cost is carried over.
+- *Spend summed 30 days of searching with a week of drafting*; both are the
+  last seven days now, and the page says so.
+- Twice the shortlist is ranked and drafting stops at eight cards, so a
+  set-aside post is replaced from further down, as on X; `screened_out`
+  counts only posts not already known; `LINKEDIN_SEEDS=0` says so.
+
+## 328. The voice bank trims an upload instead of refusing it (2026-10-27)
+
+The owner (10.27): adding a new voice on /admin was refused with "the
+recording starts with 0.8s of silence"; asked whether that was a problem on
+our end, then "yes, make the admin page auto-trim on upload".
+
+**It was the §176 check working as written**: Chatterbox learns the accent
+from the first six seconds, so `check_recording` refuses more than
+`MAX_LEAD_SILENCE` (0.5 s) before the first word, and speech under
+`MIN_LOUDNESS_DBFS`. The fix was `tools/master_reference.py`, which an admin
+on the page cannot run.
+
+**Now:** `POST /api/admin/voices` (the page, and `tools/voice_bank.py add
+--url`) passes the upload through `voice_bank.prepare_upload` first. Only a
+recording the check would refuse for silence or loudness is changed - trimmed
+to `KEEP_LEAD` (0.1 s) before the first word and levelled to `TARGET_DBFS`
+under the peak ceiling, by `voice_bank.master_recording`, which the tool now
+calls too, so the two make the same file. The reply carries `mastered`
+(`trimmed_seconds`, `gain_db`, or null) and the page prints it, because the
+voice kept differs from the file uploaded and the listening test is of the
+kept one. A recording that passes is stored byte for byte; anything but
+16-bit PCM is unchanged and judged by the check as before. The local CLI path
+(`tools/voice_bank.py add` without `--url`) still refuses, pointing at the tool.
+
+## 329. The voice is woken when the app opens, not at the tap (2026-10-27)
+
+The owner (10.27): "the delay from runpod on the serverless is too high for
+the first episode, is there a way that we can wake up the runpod server when
+the first person opens the app to limit that delay?"
+
+**Why the existing wake hid nothing on browse.** `remote_voice.wake()` was
+sent from `/api/audio`, alongside script generation. On search that is
+seconds of cover (EI, retrieval, the writer). A myFAM or DailyFAM tile is
+written before the tap, so its tap goes straight to the voice and the wake
+lands at the same moment as the first chunk: the listener waited out the
+whole cold start (73 s measured on 10.27, REMOTE_VOICE.md).
+
+**Now:** `/api/auth/me`, the first thing the app asks on every open
+(`refreshAuth()` before `bootToFirstScreen`), sends the same wake for an
+account that may play. Never for a guest (kept audio only, §154) or a
+waitlisted account. It is still the hint it was: never raises, never
+blocks, throttled by `REMOTE_VOICE_WAKE_INTERVAL`, a no-op unless
+`VOICE_BACKEND=remote` with the `runpod` transport. Server-side only, so the
+iOS client gets it by asking the same endpoint.
+
+**What it does not cover:** the endpoint's idle timeout (60 s). A listener
+who browses longer than that before tapping meets a cold worker again;
+raising the idle timeout in the RunPod console is the cheapest answer.
+Each open now bills a boot and an idle timeout of GPU even when nothing is
+played.
+
+**And on returning to the foreground** (the owner, same day). A phone that
+kept the app in the background never reloads it, so `/api/auth/me` is not
+asked again. The page now sends `POST /api/voice/wake` on `visibilitychange`
+to visible, signed-in only; the server holds the same rule through
+`_wake_for` (guests and waitlisted get `{"woke": false}`, and under
+`WAITLIST=1` the path is closed to anyone not active).
+
+**And the idle timeout to 180 s** (the owner, same day). It is the RunPod
+endpoint's setting, not FAM's, so it is changed in the console (Serverless →
+the endpoint → Edit → Idle timeout); REMOTE_VOICE.md and FINANCIAL.md now say
+180 s. Every worker that boots now bills up to three idle minutes after its
+last job instead of one, the price of a listener who browses before tapping
+finding the worker the open woke still up. `REMOTE_VOICE_WAKE_INTERVAL`
+stays at 60 s: under the timeout, so a wake from a returning listener is
+sent while the worker is still up.
+
+## 330. Pictures move to the bucket; everything else to Postgres (2026-10-28)
+
+The owner (10.28), after Render's "exceeded its memory limit" emails: "all
+storage should have been removed from render and into cloudflare and
+MongoDB. Where is this problem coming from" - then "move everything to
+Postgres and images to R2".
+
+**Two different limits.** The emails are RAM, not disk: the Starter plan's
+512 MB, of which the process holds ~310 MB before a listener (measured
+here: ~180 MB app, ~130 MB embedding model; §131 measured 215 MB with the
+bank embedded), and a first play holds its whole PCM (~6 MB a minute at its
+end, with the copy `_keep_audio` takes). No unbounded in-process cache was
+found and `MALLOC_ARENA_MAX=2` changed nothing under a 3,000-request run. A
+bigger plan is the fix for that; nothing in this section saves RAM.
+
+**The disk** still held all 31 SQLite stores. Only kept audio (R2, §237,
+with `AUDIO_STORE=r2`) and the history archive (Atlas, §308, with
+`ARCHIVE_BACKEND=atlas`) had left. The largest thing a listener adds is the
+`events` log's impressions (~205 bytes a row measured with its indexes,
+kept 30 days), and the largest single values were pictures held in rows:
+profile photos and group photos as `data:` URLs up to 96 KB, mix covers up
+to 200 KB, category pictures as BLOBs.
+
+**Pictures now go to the audio bucket** (`image_store.py`), under
+`images/<kind>/<sha256>.<ext>`, which no lifecycle rule touches. The row
+keeps `/api/image/<kind>/<sha256>.<ext>`, which a client puts in `<img src>`
+exactly where it put the `data:` URL - no client change, old clients
+included. A thumbnail row keeps a pointer (`r2:` + name) in its BLOB so
+"has a picture" is still `image IS NOT NULL`. No bucket, or a failed write,
+and the `data:` URL is stored as before.
+
+* **Deleted when nothing names it**, never by age: a replaced or removed
+  photo, a reviewer's takedown, a deleted mix, account deletion. Names are
+  per kind, so "still used" is one table's question (a mix copy shares its
+  original's cover and keeps it).
+* **The photo check is unchanged**: a client sends a `data:` URL when it
+  changes a picture; a path is accepted back only as the row's own value
+  (`_check_photo` refuses any other as unreadable).
+* **What is already inline moves at boot** (`_move_images_to_bucket`, 200 a
+  store per pass, compare-and-set), reported under `/api/health` →
+  `images`. `tools/images_to_r2.py` counts what is left and moves it by hand.
+* `/api/image/` is open on the waitlist like `/api/thumb/`: the status page
+  shows its owner's photo, and the name is the picture's own hash.
+* **Known gap:** `/admin/thumbnails` shows a moved picture's `bytes` as its
+  pointer's length (`length(image)`), not the picture's; finding the real
+  size would cost a bucket request per row on a page that lists them all.
+
+**Postgres needed no code**: every store already opens through
+`db.connect` (§243), and `tools/sqlite_to_postgres.py` copies the disk.
+Moving the pictures first makes that copy smaller. The switch-over is
+`POSTGRES.md`'s, and one instance remains the rule until the in-process
+state it lists is shared.
+
+## 331. Where 2 GB goes: a memory report asked of the running process (2026-10-28)
+
+The owner's `/api/health` (10.28) after §330: `memory.rss_mb` 2,086.6,
+`peak_mb` 2,091.1 - on Postgres (every store `persistence: database`), with
+R2 audio on. The same code measured ~310 MB here with the embedding model
+loaded and stayed flat under 3,000 requests, so the difference is
+production's: its data, its traffic, its background jobs.
+
+Two explanations fit and the code alone cannot pick between them:
+
+* **Held, not used.** On Postgres a query's whole result is read before its
+  first row is returned (`db.Cursor` - so a connection can go back to the
+  pool), where SQLite streamed. A scan that was a row at a time is now the
+  whole result at once, and glibc keeps the freed memory rather than giving
+  it back. The scripts schema is 169 MB for 560 entries, GDELT's copy
+  109 MB, local news 36 MB.
+* **Used.** Something keeps growing with the data.
+
+`/api/admin/memory` (admin only, `memory_report.py`) answers it from the
+process: glibc's bytes in use and held free, then a `malloc_trim(0)` and the
+resident size before and after (a large drop is "held"; the trim itself is
+harmless), and with `?census=1` this project's largest globals by reachable
+size, deduplicated and bounded (`complete: false` when the bound is hit).
+Native memory - the embedding model's runtime, psycopg's buffers - is in
+`rss` and the allocator's numbers but never in the census.
+
+## 332. The standard episode is a minute and a half (2026-10-28)
+
+At the owner's direction: "2 minutes feels too long and 1 minute feels too
+short". `DEFAULT_MINUTES` and `BROWSE_MINUTES` are 1.5 (both 1 since §305),
+and so are the client's `DEFAULT_LENGTH_MINUTES` and `BROWSE_MINUTES`. The
+Length bubble offers 1, 1.5, 2, 3, 4 and 5 and goes back to 1.5 on every
+return to the app; Go Deeper has a sixth pill, 1.5, and opens on the length
+of the episode it follows, held to the half minute (`offeredMinutes`). Six
+pills reading "N min" ran past the modal at 320px and "1.5 min" wrapped, so
+the pills say the number alone and the label says "Length (minutes)".
+
+Minutes were whole numbers everywhere, so this is more than two constants:
+- `config.as_minutes` holds a length to the nearest half minute and keeps a
+  whole length an `int`. It replaces every `int(minutes)` that named an
+  episode - `cache.cache_key`/`key_bucket` (where `int(1.5)` would have
+  filed a minute-and-a-half episode under one minute's key), saved, shares,
+  social (vibes, likes, comments), messages, moderation targets, metering,
+  episode quality, feedback, prefetch's dedupe key, the Trending bank, the
+  X and LinkedIn drafts, and `plan_episode`. Because `1` stays `1`, every
+  key and row written before this still matches.
+- Endpoints take `Minutes` (`app.py`: a float through `as_minutes`) instead
+  of `int`, so `minutes=1.5` is accepted rather than a 422; `minutes=1` from
+  an installed client is still `1`.
+- SQLite needed nothing: an INTEGER column keeps 1.5 as written. Postgres
+  would have rounded it into a BIGINT, so `db.translate` declares a
+  `minutes` column DOUBLE PRECISION and `Connection._float_minutes` upgrades
+  a table made before, once per table per process, the first time its store
+  says CREATE TABLE IF NOT EXISTS. Tested against a real Postgres
+  (`test_a_table_made_before_half_minutes_keeps_them`).
+- `plan_episode`'s `target_seconds` is a whole number of seconds (90).
+- Arithmetic that floors is left as it is: `research.packet_size` and
+  `episode_intelligence.max_beats` treat 1.5 as 1, so a browse episode keeps
+  the packet and the beats it had; `DEPTH_BANDS` puts it in `orientation`,
+  written for up to two.
+
+What this costs, as §305 did: every one-minute episode - the Trending and
+DailyFAM editions, the startup write-ahead, the guest bank, the sign-up and
+landing samples, kept audio - is no longer what a browse tap asks for. Each
+is rewritten at its next slot or first tap; until then a guest tap on a bank
+tile has no kept audio (403 → sign-up) and `ready_first` has less ready.
+Saved and offline tiles keyed `query|1` no longer show as saved/offline on
+their cards; the Saved list still plays them. History, shares and vibes
+carry their own minutes and replay as before. Writing quality at 1.5 is
+unheard: `python write.py "<query>" --minutes 1.5` is the loop.
+
+## 333. Every voice was heard as the default (2026-10-28)
+
+The owner (10.28): "We have added new voices to the app, but when I select
+them when generating an episode, it always does the default voice. The
+batched episodes in myfam and dailyfam should be randomized on the voice, and
+a newly searched/generated episode should be in the voice the user selects."
+
+**What the code does, measured here.** Both rules were already the code
+(§147): a search is spoken in the listener's choice, anything else in a
+voice drawn from the bank and kept beside the script. With
+`VOICE_BACKEND=remote` and a stand-in worker, on SQLite and on Postgres, a
+search after choosing a voice sent `voice: nova` with its fingerprint and
+the myFAM taps drew from the default and both bank voices. Production
+could not be reached from here, so what follows is the two ways the owner's
+report comes true with that code, and neither could be seen.
+
+1. **myFAM and DailyFAM were dealt from the old bank.** A browse episode's
+   voice is drawn when it is written - the editions stamp
+   `voice_bank.random_slug()` - and kept for its week, first one wins. Drawn
+   from a bank that held only the default, the draw is the default, and every
+   episode written before the voices were added stays in it for a week.
+   **Now:** when the bank's voices are not the ones unheard episodes were
+   dealt from (`voice_bank.redeal_signature`, kept in its `deals` table),
+   every episode with **no audio kept in any voice** has its voice
+   forgotten (`redeal_voices`, both caches), so its next play draws from the
+   bank as it is. At boot and after every add or remove on /admin
+   (`app._redeal_voices`). An episode with kept audio keeps its voice: that
+   is what replays it without the GPU. Every unheard episode is cleared
+   whatever it held, so the new draw is as fair as the old one; a default
+   draw is still one of the bank's voices. A searched episode is
+   never re-dealt (`CHOSEN_VOICE_ORIGINS`: search, private): its voice was
+   the searcher's choice, and Explore replays it in that voice.
+2. **Nothing said which voice the worker spoke.** The worker clones what it
+   is sent, but an image older than the bank (§147) ignores `voice` and
+   `voice_sha` and speaks its default - and §318 found the pod still serving
+   from an image older than registration, on rungs (`REMOTE_VOICE_URL`,
+   `RUNPOD_POD`) the ladder asks before Serverless. Its audio was then kept
+   under the chosen voice's name, so it replayed as "Nova" in the default
+   voice for a week. **Now:** a worker's reply names the recording it
+   cloned (`voice_sha`, `voice_worker/synth.py`). For a bank voice,
+   `RemoteChatterboxEngine._refuse_other_voice`:
+   * a different recording is a failure like any other - the next worker is
+     tried (`_after_failure`), and with none the chunk fails rather than
+     speaking another voice, as every remote failure already does;
+   * no recording named is a worker built before it said. Its audio plays -
+     refusing every worker that predates a field would be this check
+     subtracting availability, and the Serverless image is a rebuild behind
+     every push - but `_keep_audio` does not keep it under the voice's name
+     (`voice_unconfirmed`), and /admin shows the worker once per address
+     ("voice not confirmed", a notice, `voice` stage) naming what to do.
+
+**For the owner to check** (it cannot be seen from here): /admin's errors
+page, `voice` stage, after the next search in a bank voice. "voice not
+confirmed" naming a `pinned` or `runpod-pod` worker is the old pod: delete
+`REMOTE_VOICE_URL` / `RUNPOD_POD` on Render (or stop the pod) so the
+Serverless endpoint answers. Naming `serverless` right after a deploy is the
+RunPod rebuild not yet finished; it clears when the new image serves.
+Episodes already kept in a bank voice's name by such a worker still replay
+as it spoke them until their week ends.
+
+Tests: `tests/test_voice_redeal_333.py`.
+
+## 334. Two arenas, and a watch that reports before the restart (2026-10-28)
+
+`/api/admin/memory?census=1` (§331) on production, read at 445 MB soon after
+a restart: 125 MB in use on the main heap, the largest of this project's
+globals 4.6 MB (the spell checker), nothing growing - and **82 threads**.
+The report saw only glibc's main arena. Each thread may get an arena of its
+own (up to eight per core), memory freed in one stays in it, and on
+Postgres a large result is read whole (`db.Cursor`, §331) - often on a
+worker thread (`asyncio.to_thread`). That is the classic shape of a Python
+server reaching gigabytes with little live data.
+
+* **`MALLOC_ARENA_MAX=2`** in the Dockerfile: two arenas whatever the thread
+  count. Set on the service to override. A local run showed no cost.
+* **The report counts every arena** (`all_arenas`, from `malloc_info`) and
+  names the threads by pool (`thread_names`).
+* **The watch** (`_watch_memory_forever`): the server samples its own size
+  every minute (six hours kept) and, the first time each boot it crosses
+  800, 1,200 and 1,600 MB, logs a full report with the census at WARNING
+  (`memory watch: passed ...`). The state worth reading is the one before
+  Render restarts it, which nobody is there to ask for. `/api/admin/memory`
+  carries the samples and this boot's reports under `watch`.
+
+If memory now stays flat, the arenas were the cause. If it still climbs,
+the watch's report says where.
+
+## 335. The embedding model's pool: one pass at a time (2026-10-28)
+
+Production's memory graph with only the owner using the app (10.28, the
+plan now 4 GB): resident size rose in **steps of ~1.5 GB, each in under a
+minute and each with a CPU spike**, then stayed flat for hours; a second
+step reached the limit and Render restarted it. `/api/admin/memory` at
+2,043 MB (§334's watch had caught the step: 416.8 -> 2,014.5 MB in one
+sample) showed Python's own data at ~127 MB and **`mmapped_mb` 2,150**:
+large blocks held live by native code, which no number of glibc arenas
+could release.
+
+**onnxruntime's working-memory pool.** It never shrinks, and every forward
+pass running *at once* takes its own share. Measured here: one batch of 16
+texts at the 128-token limit holds ~105 MB; 24 such batches at once held
+1,090 MB; one batch of 200, 1,040 MB. Opening DailyFAM ranks several rails
+concurrently, each embedding its listener's history and its tiles
+(`taste_vectors`, ≤6 inline and the rest in batches of 16), so one person
+could run a dozen passes at once. onnxruntime also starts a thread per core
+it can see - 32 on Render's hosts, on a plan that may use 2 - the CPU spike.
+
+Fixed in `embeddings._OnnxEmbedder`:
+
+* **One pass at a time** (`_run_lock`). Passes take milliseconds; taking
+  turns is not visible to a listener.
+* **At most `MAX_BATCH` (16) texts a pass**, whatever the caller sends
+  (`tools/learn_rank.py --settled` sent everything at once).
+* **`FAM_EMBED_THREADS` threads a pass, 2 by default**, and one inter-op.
+* **No fixed padding.** The model's `tokenizer.json` padded every text to
+  128 tokens; the batch was already padded to its longest member, and the
+  mask excludes padding, so the vectors are identical (max difference 0.0)
+  while six titles take 27 ms instead of 191 ms and far less memory.
+
+Measured after: 24 concurrent batches of tile texts hold 197 MB resident
+(was ~1.1 GB); 24 at the 128-token limit, 342 MB.
+
+**The log named the trigger** (production, 02:47-02:57 PDT, nobody signed
+in): a visitor opened `/waitlist` from a Facebook link at 02:50:41; its
+`/api/welcome` at 02:50:43 prepared ~100 cached episodes at once (a
+`SEARCH yes` line each, in one second); at 02:50:48 the watch logged
+1,356 MB with a **`category-near`** thread running, and 2,101 MB a minute
+later. `category_near._build` embeds every node of the category tree in
+**one** call (`encoder(ids)`) whenever the tree's generation changes - after
+a restart, or once a written episode mints a category, which is what the
+night editions do. Every node name was padded to 128 tokens, so the whole
+tree was one batch of hundreds of 128-token rows. Now `encode_many` splits
+it into passes of 16 under the lock, unpadded: 2,000 node names in one call
+add 13 MB and take 3.5 s on a background thread. The same chain is in the logs
+at 12:12 UTC (waitlist visit, `/api/welcome`, restart a minute later) and
+12:50 (waitlist visit, `/api/welcome`, 2,016 MB at 12:51 with
+`category-near` running).
+
+The watch from §334 stays, and now names what runs when memory jumps: it
+samples every 15 seconds, every HTTP request records its own change in
+resident size (`_track_memory`), and a rise of `JUMP_MB` (150) between two
+samples is logged at WARNING as `memory jump: <from> -> <to> MB` with the
+requests in flight, those finished since the last sample (largest rise
+first), the event loop's tasks and the threads (`memory_report.jump_step`;
+`/api/admin/memory` keeps them under `watch.jumps`). If anything else ever
+steps up like this, the log says what.
+
+## 336. One process, always (2026-10-28)
+
+Production's restart log (12:12 UTC, 10.28):
+
+    INFO:     Started parent process [7]
+    INFO:     Started server process [10]
+    INFO:     Started server process [9]
+
+Two uvicorn workers in one instance. Nothing in FAM asks for them: uvicorn
+takes its worker count from `WEB_CONCURRENCY` when `--workers` is not given,
+and the service had it set (by hand or by the platform). Every log line of
+a background job had been appearing twice - the story sweep, local news,
+GDELT's download, the voice health check - and so had everything they do:
+both processes ran the Trending and DailyFAM editions and their boot
+catch-ups (paid model and search calls), both warmed the serverless voice,
+both loaded the embedding model and rebuilt the category vectors (§335).
+FAM keeps state in its process (`POSTGRES.md`: the story pool, the sweep
+clocks, prefetch's ledgers, the spend limiter, live captions) and is built
+to run as one.
+
+The Dockerfile's `CMD`, `start.sh` and `run.sh` now say `--workers 1`, so no
+variable can make it two again; a test reads all three.
+
+## 337. The marketing engines read the post before they write (2026-10-28)
+
+The owner (10.28), with a flip chart, "X & LinkedIn Automated Marketing
+Engines": "Target: Tweets/LinkedIn posts that have ___ amount of
+comments/likes [posts with HIGH ENGAGEMENT] -> go through (cross reference
+FAM's cached episodes) -> find a match - the post & cached episode ->
+creatively curate a post that is best fit for the post it is replying to &
+platform that it's on". X: "curiosity, being a part of the conversation".
+LinkedIn: "informative, context giving, allowing people to Go Deeper or have
+more context". Circled: "The engines need some kind of awareness/intelligence
+(like Episode Intelligence)".
+
+**What §321-§327 already did, and what was missing.** Both engines start from
+kept episodes and find posts about them; a person approves and posts. Three
+gaps against the chart:
+
+1. *No engagement floor.* X weighed engagement per hour (0.30) but carded a
+   post nobody had touched; LinkedIn ignored engagement.
+2. *X matched a post only to the episode whose search found it.* LinkedIn
+   already ranked every post against every kept episode; X did not, so a post
+   one search found and another episode answered was dropped as off-subject.
+3. *The drafting call knew the episode's title and nothing else*, so it could
+   not say anything the title did not - and was told never to. Both platforms
+   were written in nearly one voice.
+
+**Now.**
+
+- *High engagement.* `X_THREADS_MIN_ENGAGEMENT` (25 likes, replies, reposts
+  and quotes together) screens X posts. The chart left the number blank, so
+  25 is a first guess and a setting. LinkedIn has no API: `engagement_from`
+  reads "12 comments" / "1.2K reactions" off the search result's title and
+  excerpt; under `LINKEDIN_MIN_ENGAGEMENT` (20) a found post is not a card,
+  an unknown count refuses nothing (a layer must not subtract availability),
+  and engagement orders posts that match about as well (0.15 of the sort).
+- *Every kept episode.* `catalogue`, `rank` and `off_subject` moved from
+  `linkedin_posts` to `outreach_intelligence` (LinkedIn keeps the names), and
+  `x_threads.shortlist(episodes=...)` ranks each post against them all. The
+  card keeps its three best on-subject episodes; one with no names to check
+  is not offered on X. The found-by episode stays an option; the card says
+  when another one is closer.
+- *Outreach Intelligence* (`outreach_intelligence.py`), EI's lesson: decide
+  before writing, write only from material. The one drafting call per card
+  now answers the read's fields first - `subject`, `intent` (asking, arguing,
+  teaching, news, reacting), `wants`, `same_subject`, `choice` (which of the
+  offered episodes answers this post, -1 none), `why`, `angle`, `detail` -
+  then the words. Each offered episode is shown with what it says: its
+  summary line and the opening of its script (`material`, ~900 characters,
+  read from the cache only, through a new `cache.script(key)` - never `get`,
+  which counts a hit, and hit rates are what [dec-prefetch] waits on). The read is stored (a `reading` column; both
+  stores are widened in place) and shown on every card ("Read: Asking about
+  ...; adds: ..."; "Read in code" without a model). A read choosing another
+  offered episode switches the card's episode, never to one under
+  `LINK_FLOOR`; a read choosing none leaves X a question with no link and
+  LinkedIn no comment, every offered episode marked off-subject.
+- *The platforms' voices* (`OI.VOICE`). X: one more person in the thread,
+  curious about the same thing; answer this post in its register; spark
+  curiosity with the specific the thread has not said, stated plainly, never
+  teased; may end with one genuine question. LinkedIn: build on somebody
+  teaching with the context behind their point; two to four plain sentences;
+  end with what the episode goes deeper on that a post could not hold.
+- *Nothing is stated that FAM has not got.* With material in the prompt the
+  old "never a number unless in the title" became "unless in the post or the
+  episode's title, one line or opening" - and code checks it:
+  `unsupported_figures` sends a reply naming a figure none of those states
+  back to the code's words, and the card says "Rewritten in code".
+
+Same as ever: a button, never a timer; nothing posts; no LinkedIn request or
+credential; one model call per card (the read and the words together, the
+schema ordered so the call decides first), so the spend is as before plus a
+longer prompt.
+
+**Unverified here:** no X token, search key or Claude key in this container,
+so no live read has been seen. `tests/test_outreach_intelligence_337.py`
+pins the logic with stand-ins. The floors are guesses - after a week, compare
+approved cards' engagement with the floor. A read of the thread's replies
+(X's `conversation_id` search) would give the engine the conversation, not
+only its first post; it costs reads, so it waits for this to prove itself.
+
+**Review before merging (10.28).** An independent read of the branch found
+no XSS, no posting path, and migrations safe on Postgres (a duplicate column
+is `sqlite3.OperationalError` there too). Fixed from it, with tests:
+- *X could link one episode under words written from another.* A read
+  choosing an offered episode under `LINK_FLOOR` left the first one linked;
+  now the card links none (a question).
+- *The code's X reply named the episode the read had moved away from*; it
+  is written after the read now, about the episode the card links.
+- *LinkedIn's `choice` counts only linkable episodes*, and was applied only
+  above 0 - with the closest episode off-subject, the card pointed at it
+  and Approve refused. It maps every choice now; the code's comment is
+  about the first linkable episode, not the closest.
+- *The figure guard threw away good replies over shorthand* ("24/7", "5G",
+  "Q3", "2nd", "3x", "COVID-19", "49ers"): digits joined to letters or
+  slashes are not figures.
+- An episode's script is quoted through `cache.script`, never `get`, so the
+  engines count no cache hits.
+Left as it is: LinkedIn's engagement is read from the excerpt as well as the
+title, so a post saying "we hit 10K likes" reads as engaged. The search
+vendors' formats are unseen; look at the first live run before narrowing it.
+
+## 338. The waitlist page, local news and the voice warm-up stop doing work nobody needs (2026-10-29)
+
+From production's logs of 10.28, at the owner's direction.
+
+**The waitlist page's samples.** `/api/welcome` (the three samples on the
+sign-up and waitlist pages) ranked "most played today" again whenever its
+memo was over a minute old - on the visitor's own request, on the event
+loop, probing the cache for every episode heard today (a `SEARCH yes` line
+each, ~100 in a second) and picking a picture for each, which is what
+started the category rebuild of §335. Now:
+
+* the memo serves for ten minutes (`WELCOME_MEMO_SECONDS`);
+* past that, the old samples still answer at once and **one** background
+  thread ranks again (`_refresh_welcome_later`) - a visitor never waits;
+* a cold memo (the first ask after a boot) ranks under `_WELCOME_LOCK`, so
+  visitors arriving together share one ranking;
+* the handler ranks on a worker thread (`asyncio.to_thread`), never the loop.
+
+A sample a reviewer takes down still disappears at once: `_episode_removed`
+is applied per request, and the gate re-reads kept audio per play.
+
+**Local news.** `discover()` tried all seven `FEED_PATHS` after the site had
+already answered 429 to the homepage (`loudounnow.com`: eight refusals a
+look, twice, from two processes). Now the first 401/403/429 or bot challenge
+during discovery stops it (`Refused`) and files the outlet `BLOCKED` (asked
+again in a day); robots.txt is asked before the homepage (`Disallowed` ->
+`DISALLOWED`) and every guess it forbids is skipped rather than requested;
+and a site with no feed is looked at again after a day, doubling to a week,
+instead of after an hour - a site seldom grows a feed, and each look is
+eight requests.
+
+**The voice warm-up.** `tts.warm_up()` sent "Ready." through the remote
+engine at boot, before the voice supervisor had held the pinned pod, so it
+went to the transport the environment names - the serverless endpoint - and
+every boot cold-started a serverless GPU for a sentence nobody heard
+(twice, with two processes), polling its status four times a second for
+~95 s while the server's startup waited. A remote voice is no longer warmed:
+the model lives on the worker, a pinned pod keeps it loaded, and the
+supervisor verifies the worker by asking it. A local engine is still warmed.
+When an episode does wait on a cold serverless job, its status is asked
+every 0.25 s at first, slowing to once a second.
+
+**Not done: Google and Apple sign-in on the web.** The server verifies both
+(`oauth.py`) for the native app; the web has no button. Both need
+credentials only the owner can create (a Google OAuth client; an Apple
+Developer account), and the waitlist's sign-up is email only (§296).
+
+## 339. Production without a disk, on Standard (2026-10-29)
+
+The owner (10.29): the plan moved from 2 CPU / 4 GB to 1 CPU / 2 GB
+(Render's "compute plan" `1c-2g`, formerly Standard), and the `fam-data`
+disk was deleted in the dashboard. Memory had held flat at ~400 MB for a
+night after §335 and §336 (a tenth of 4 GB, a fifth of 2 GB), and nothing
+read the disk: every store has been in Postgres since §243's switch-over,
+kept audio and pictures are in R2 (§237, §330), the archive is in Atlas.
+
+`render.yaml` now says so - `plan: standard` and no `disk:` on `fam` - so a
+Blueprint sync cannot recreate the disk or put the plan back to `starter`.
+The Dockerfile's `/data/*.db` paths are unchanged on purpose: they name no
+file any more, but each store's Postgres schema is named from its path, and
+a new path would be a new, empty schema. Staging keeps its disk until it
+runs on `fam-staging-db`.
+
+## 340. The agents guide: condensed into tabs, outside plugins per agent, and the Overlord (2026-10-26)
+
+*Written as §318 on its branch; renumbered §340 when Main, which had
+already used §318-§339, was merged in (2026-10-29). Commit messages on that
+branch say §318.*
 
 The owner (10.26): `docs/FAM_AGENTS.md` was "way too long"; each agent
 should be "its own tab at the top", highlighting "which part of the pipeline

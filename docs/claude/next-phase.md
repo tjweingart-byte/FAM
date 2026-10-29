@@ -143,7 +143,7 @@ their guidelines - eight, by the names the owner gave them: **Netenyahu**
 (overlord), **C3P0** (contextualizer), **Shakespeare** (editor in chief),
 **Mclovin** (script supervisor), **Consuela** (housekeeper), **Sonic**
 (retriever), **Keith Wong** (IT guy) and **Nando** (categorizer) (§312,
-§314, §318) - are in `docs/FAM_AGENTS.md`, their rule books in
+§314, §340) - are in `docs/FAM_AGENTS.md`, their rule books in
 `docs/agent_rules/` (drafts; the owner holds the governing copies), and the
 build plan in `docs/AGENTS_BUILD_PROMPT.md`; Shakespeare's journalism
 playbook is `docs/journalism_playbook.md`. Read both before building either.

@@ -55,6 +55,7 @@ import math
 import os
 import re
 import struct
+import threading
 from pathlib import Path
 from typing import Optional
 
@@ -176,6 +177,24 @@ def model_dir() -> Path:
     return Path.home() / ".fam" / "embed"
 
 
+#: Texts per forward pass (§335). Every pass pads to the model's 128 tokens,
+#: and onnxruntime keeps the largest working memory it ever needed for the
+#: life of the process: one batch of 200 held ~1 GB.
+MAX_BATCH = 16
+
+
+def embed_threads() -> int:
+    """Threads per forward pass: `FAM_EMBED_THREADS`, else 2. onnxruntime's
+    default is one per core it can see - 32 on Render's hosts, on a plan
+    that may use 2 - and each thread is working memory and CPU it cannot
+    have (§335)."""
+    try:
+        wanted = int(os.environ.get("FAM_EMBED_THREADS", "") or 2)
+    except ValueError:
+        wanted = 2
+    return max(1, wanted)
+
+
 class _OnnxEmbedder:
     """A sentence-transformers-style ONNX encoder: tokenise, run, mean-pool.
 
@@ -198,9 +217,24 @@ class _OnnxEmbedder:
                     "model.onnx and tokenizer.json in " + str(directory) + "."
                 )
         self.tokenizer = Tokenizer.from_file(str(vocab))
+        # The model's tokenizer.json pads every text to 128 tokens; a batch
+        # is padded to its own longest member below, which gives identical
+        # vectors (the mask excludes padding) at a fraction of the work and
+        # working memory - 191 ms -> 27 ms for six titles (§335).
+        self.tokenizer.no_padding()
+        options = onnxruntime.SessionOptions()
+        options.intra_op_num_threads = embed_threads()
+        options.inter_op_num_threads = 1
         self.session = onnxruntime.InferenceSession(
-            str(model), providers=["CPUExecutionProvider"]
+            str(model), options, providers=["CPUExecutionProvider"]
         )
+        # One forward pass at a time (§335). Concurrent passes each take
+        # their own working memory from onnxruntime's pool, which never
+        # shrinks: one listener opening DailyFAM ran a pass per rail at
+        # once, and production stepped up 1.5 GB at a time. A pass of 16
+        # short texts takes milliseconds, so taking turns costs nothing a
+        # listener can see.
+        self._run_lock = threading.Lock()
         self.inputs = {i.name for i in self.session.get_inputs()}
         self.dims = int(self.session.get_outputs()[0].shape[-1])
 
@@ -219,6 +253,11 @@ class _OnnxEmbedder:
 
         if not texts:
             return []
+        if len(texts) > MAX_BATCH:
+            out: list[list[float]] = []
+            for start in range(0, len(texts), MAX_BATCH):
+                out.extend(self.encode_many(texts[start:start + MAX_BATCH]))
+            return out
         encoded = [self.tokenizer.encode(t) for t in texts]
         width = max(len(e.ids) for e in encoded) or 1
         ids = np.zeros((len(encoded), width), dtype=np.int64)
@@ -229,9 +268,10 @@ class _OnnxEmbedder:
         feed = {"input_ids": ids, "attention_mask": mask}
         if "token_type_ids" in self.inputs:
             feed["token_type_ids"] = np.zeros_like(ids)
-        out = self.session.run(
-            None, {k: v for k, v in feed.items() if k in self.inputs}
-        )[0]
+        with self._run_lock:
+            out = self.session.run(
+                None, {k: v for k, v in feed.items() if k in self.inputs}
+            )[0]
         weights = mask[..., None].astype(out.dtype)
         pooled = (out * weights).sum(axis=1) / np.clip(weights.sum(axis=1), 1e-9, None)
         norms = np.linalg.norm(pooled, axis=1, keepdims=True)

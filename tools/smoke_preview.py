@@ -1531,8 +1531,8 @@ def main() -> int:
                 "the Topic screen still offers an episode length"
             badges = page.eval_on_selector_all(
                 "#screen-topic .yf-card-len", "e => e.map(x => x.textContent.trim())")
-            assert all(b.lower() == "1 min" for b in badges), \
-                f"card lengths {badges} are not the one-minute browse length"
+            assert all(b.lower() == "1.5 min" for b in badges), \
+                f"card lengths {badges} are not the minute-and-a-half browse length"
             page.evaluate("setTopicFilter('friends')")
             page.wait_for_timeout(700)
             assert page.query_selector("#screen-topic .yf-filter.on:nth-child(2)"), \
@@ -1994,6 +1994,51 @@ def main() -> int:
             page.evaluate("closeMixDone(true)")
             page.wait_for_timeout(300)
 
+        def a_playlist_goes_past_an_episode_that_fails():
+            """An episode of a playlist that would not play - an error from the
+            server, or the 45-second give-up - used to toast and leave the
+            queue where it was, so the playlist stopped there. It now names
+            the failure and plays the next one; two failures in a row end it.
+            """
+            ensure_account()
+            page.evaluate("openPlayFAM()")
+            page.wait_for_selector(".mix-card", timeout=10000, state="attached")
+            page.evaluate("() => openMix(mixes[0].id)")
+            page.wait_for_timeout(400)
+            count = page.evaluate("() => mixById(currentMixId).items.length")
+            assert count >= 2, f"the fixture mix has {count} episode(s); need two"
+            page.evaluate("""() => {
+                window.__play = FamAudio.play;
+                FamAudio.play = function(q, m, h){
+                  setTimeout(function(){ h.onError(new Error("The voice did not answer.")); }, 50);
+                };
+            }""")
+            try:
+                page.evaluate("playMix()")
+                page.wait_for_timeout(800)
+                assert page.evaluate("() => mixPlay === null"), \
+                    "two failures in a row did not end the playlist"
+                said = page.text_content("#toast") or ""
+                assert "playlist stopped" in said, f"the end was not said: {said!r}"
+                # One failure, then an episode that plays: the queue goes on.
+                page.evaluate("""() => {
+                    var n = 0;
+                    FamAudio.play = function(q, m, h){
+                      n += 1;
+                      if(n === 1){ setTimeout(function(){ h.onError(new Error("boom")); }, 50); return; }
+                      return window.__play.apply(FamAudio, arguments);
+                    };
+                }""")
+                page.evaluate("playMix()")
+                page.wait_for_timeout(800)
+                assert page.evaluate("() => mixPlay && mixPlay.pos") == 1, \
+                    "a failed episode did not move the playlist on"
+                said = page.text_content("#toast") or ""
+                assert "playing the next one" in said, f"the skip was not said: {said!r}"
+            finally:
+                page.evaluate("() => { FamAudio.play = window.__play; cancelGeneration(); endMixQueue(); }")
+                page.wait_for_timeout(300)
+
         def the_new_mix_button_waits_for_an_account():
             """A mix is one of the things an account is *for*, so the "+" is
             not offered to somebody who cannot keep one.
@@ -2208,7 +2253,7 @@ def main() -> int:
                 document.dispatchEvent(new Event('visibilitychange'));
                 delete document.visibilityState;
             }""")
-            assert page.evaluate("selectedLengthMinutes") == 1, \
+            assert page.evaluate("selectedLengthMinutes") == 1.5, \
                 "coming back into the app kept the old length"
 
         def the_player_menu_and_the_queue():
@@ -2637,10 +2682,10 @@ def main() -> int:
             # §190: the bubble says "Length" and no number; the menu ticks it.
             chip = page.text_content("#lengthBubble").strip()
             assert chip == "Length", f"the length bubble reads {chip!r}"
-            assert want == 1, f"the search page opened on {want} min, not 1"
+            assert want == 1.5, f"the search page opened on {want} min, not 1.5"
             for element_id in ("lengthModalVal",):
                 shown = page.text_content("#" + element_id).strip()
-                assert shown == "%d min" % want, \
+                assert shown == "%g min" % want, \
                     f"#{element_id} reads {shown!r}, the setting is {want} min"
             # And the menu ticks the one the chip names, which is the pair
             # that disagreed.
@@ -2658,7 +2703,7 @@ def main() -> int:
                 }""")
             page.evaluate("closeSheet()")
             page.wait_for_timeout(200)
-            assert ticked.strip().startswith("%d min" % want), \
+            assert ticked.strip().startswith("%g min" % want), \
                 f"the menu ticks {ticked!r}, the chip says {chip!r}"
 
         def picker():
@@ -3897,7 +3942,7 @@ def main() -> int:
             assert page.is_visible("#goDeeperInput"), "no box to type a follow-up"
             lengths = page.eval_on_selector_all(
                 "#goDeeperLengths .deeper-len", "e => e.map(b => b.textContent.trim())")
-            assert lengths == [f"{m} min" for m in range(1, 6)], lengths
+            assert lengths == ["1", "1.5", "2", "3", "4", "5"], lengths  # §332
             page.click('#goDeeperLengths .deeper-len[data-min="4"]')
             page.fill("#goDeeperInput", "what happens next")
             # An earlier check may already have made a follow-up (§285's
@@ -4222,6 +4267,7 @@ def main() -> int:
               edit_profile_chooses_up_to_five_interests)
         check("DailyFAM lists mixes", dailyfam)
         check("A playlist plays through, then stops", a_playlist_plays_through_and_then_stops)
+        check("A playlist goes past an episode that fails", a_playlist_goes_past_an_episode_that_fails)
         check("The new-mix + waits for an account",
               the_new_mix_button_waits_for_an_account)
         check("A locked mix list keeps the topic bank",

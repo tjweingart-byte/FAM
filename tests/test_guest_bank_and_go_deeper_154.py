@@ -219,3 +219,49 @@ def test_a_dismissed_tile_is_replaced_only_by_one_that_qualifies(client):
     body = client.get("/api/godeeper").json()
     assert [r["query"] for r in body["resume"]] == ["first half listen"]
     assert body["threads"] == [] and body["similar"] == []
+
+
+# --- opening the app wakes the voice, for an account that may play -------
+
+def test_opening_the_app_wakes_the_voice_for_an_account_only(client, monkeypatch):
+    """A tile on myFAM or DailyFAM is written before the tap, so a wake sent
+    with the audio request hides nothing: it is sent from `/api/auth/me`,
+    which the app asks first on every open. A guest plays kept audio only."""
+    woke: list = []
+    monkeypatch.setattr(appmod, "_wake_remote_voice", lambda: woke.append(1))
+    client.get("/api/auth/me")
+    assert woke == [], "a guest's open woke the GPU"
+    signed_in(client, "wake-on-open@example.com")
+    woke.clear()
+    client.get("/api/auth/me")
+    assert woke == [1]
+
+
+def test_returning_to_the_app_wakes_the_voice_for_an_account_only(client, monkeypatch):
+    """A phone that kept the app in the background never asks `/api/auth/me`
+    again, so a return to the foreground asks `/api/voice/wake`."""
+    woke: list = []
+    monkeypatch.setattr(appmod, "_wake_remote_voice", lambda: woke.append(1))
+    r = client.post("/api/voice/wake")
+    assert r.status_code == 200 and r.json() == {"woke": False}
+    assert woke == []
+    signed_in(client, "wake-on-return@example.com")
+    woke.clear()
+    assert client.post("/api/voice/wake").json() == {"woke": True}
+    assert woke == [1]
+
+
+def test_a_waitlisted_account_never_wakes_the_voice(monkeypatch):
+    """Sent away from the app (`/waitlist/me`), so a GPU booted for it is a
+    bill for nothing - whether or not `WAITLIST` is on to refuse the path."""
+    import accounts
+
+    woke: list = []
+    monkeypatch.setattr(appmod, "_wake_remote_voice", lambda: woke.append(1))
+    waiting = accounts.Listener(user_id="u1", email="w@example.com",
+                                has_account=True, status="waitlisted")
+    active = accounts.Listener(user_id="u2", email="a@example.com",
+                               has_account=True, status="active")
+    assert appmod._wake_for(waiting) is False and woke == []
+    assert appmod._wake_for(None) is False and woke == []
+    assert appmod._wake_for(active) is True and woke == [1]

@@ -215,8 +215,9 @@ WEB_RESEARCH_BACKENDS = ("parallel", "perplexity")
 #: literal, for the same reason as DEFAULT_PIPELINE.
 DEFAULT_RESEARCH_BACKEND = "parallel"
 
-#: How long an episode is when nobody has said. One minute (§305, the
-#: owner's; it was two since §147, three before that).
+#: How long an episode is when nobody has said. A minute and a half (§332,
+#: the owner's: "2 minutes feels too long and 1 minute feels too short"); it
+#: was one since §305, two since §147, three before that.
 #:
 #: Named here because it was a literal `3` in about twenty places - every
 #: endpoint's `Query` default, the client's two length controls, prefetch,
@@ -224,7 +225,7 @@ DEFAULT_RESEARCH_BACKEND = "parallel"
 #: change it without missing one. `DEPTH_BANDS` says what each band of minutes
 #: is *for*; this says which one somebody who has expressed no preference
 #: lands in.
-DEFAULT_MINUTES = 1
+DEFAULT_MINUTES = 1.5
 #: The cheapest current model: the profile-photo check (§225) and, since
 #: §261, the brief. §227 moved the brief, composer, placer and thumbnails
 #: onto it; §249 moved them back to `MODEL` at the owner's direction; §261
@@ -233,11 +234,28 @@ SMALL_MODEL = "claude-haiku-5-5"
 
 #: How long every episode is that searchFAM did not ask for (§147, at the
 #: owner's direction): myFAM, DailyFAM, the Trending bank and prefetch. Only
-#: search offers a length; everything else is one minute (§305; two before
-#: it), fixed in code and never in the environment, because minutes are in
-#: the cache key and a background edition written at one length and tapped
-#: at another is a whole edition nobody finds.
-BROWSE_MINUTES = 1
+#: search offers a length; everything else is a minute and a half (§332; one
+#: since §305, two before it), fixed in code and never in the environment,
+#: because minutes are in the cache key and a background edition written at
+#: one length and tapped at another is a whole edition nobody finds.
+BROWSE_MINUTES = 1.5
+
+
+def as_minutes(value, default=0):
+    """A length in minutes, to the nearest half minute (§332).
+
+    Minutes were whole numbers until the standard episode became a minute and
+    a half, and they are in the cache key, the saved/shared/social rows and
+    every endpoint. Every place that used to say `int(minutes)` says this
+    instead: a whole length stays an `int`, so `1` and `1.0` are one key and
+    every key written before §332 still matches; only a half minute is a
+    float. Anything that is not a number is `default`.
+    """
+    try:
+        halves = round(float(value) * 2)
+    except (TypeError, ValueError, OverflowError):
+        return default
+    return halves // 2 if halves % 2 == 0 else halves / 2
 
 #: The length at and under which an episode gets the configured evidence
 #: packet unchanged (`research.packet_size`). Two, as it was when the browse
@@ -1222,6 +1240,41 @@ class Settings:
     # trending. 36 hours is three missed builds.
     trending_bank_max_age_hours: float = _env_float(
         "TRENDING_BANK_MAX_AGE_HOURS", 36.0)
+
+    # --- Conversations on X (`/admin/x`, x_threads.py, §321) ---------------
+    # A read-only X API bearer token (X_BEARER_TOKEN, read through
+    # `credentials`) is the statement of intent; unset, the page says so.
+    # X bills per post read, so a run and a day are both capped.
+    x_threads_max_reads: int = _env_int("X_THREADS_MAX_READS", 300)
+    x_threads_daily_reads: int = _env_int("X_THREADS_DAILY_READS", 600)
+    # Only posts younger than this: a reply is read while a thread is moving.
+    # X's recent search reaches back seven days and refuses anything older.
+    x_threads_window_hours: float = max(
+        1.0, min(_env_float("X_THREADS_WINDOW_HOURS", 6.0), 168.0))
+    # How many episodes one run looks for conversations about.
+    x_threads_seeds: int = _env_int("X_THREADS_SEEDS", 10)
+    # High engagement is the target (§337): a post with fewer interactions
+    # (likes, replies, reposts and quotes together) is not a card.
+    x_threads_min_engagement: int = max(0, _env_int("X_THREADS_MIN_ENGAGEMENT", 25))
+    # Drafts the replies a person approves. A short call; the small model.
+    x_threads_model: str = field(
+        default_factory=lambda: os.environ.get("X_THREADS_MODEL") or SMALL_MODEL)
+
+    # --- Go Deeper on LinkedIn (`/admin/linkedin`, linkedin_posts.py, §322) -
+    # Nothing reads LinkedIn: a person pastes a post. This drafts the comment
+    # a person approves and posts. A short call; the small model.
+    linkedin_model: str = field(
+        default_factory=lambda: os.environ.get("LINKEDIN_MODEL") or SMALL_MODEL)
+    # "Find posts" (§327): one search a kept episode, through the research
+    # vendors FAM already pays for, restricted to linkedin.com. A run and a
+    # day are both capped; only posts this recent are looked for.
+    linkedin_seeds: int = _env_int("LINKEDIN_SEEDS", 10)
+    linkedin_daily_searches: int = _env_int("LINKEDIN_DAILY_SEARCHES", 40)
+    linkedin_window_days: int = max(1, min(_env_int("LINKEDIN_WINDOW_DAYS", 7), 30))
+    # High engagement is the target (§337): a found post whose reactions and
+    # comments the search shows, and number fewer than this, is not a card.
+    # A post whose counts the search does not show is not refused for it.
+    linkedin_min_engagement: int = max(0, _env_int("LINKEDIN_MIN_ENGAGEMENT", 20))
 
     # --- GNews (gnews.io), the bank's source -------------------------------
     # The key is the statement of intent: unset, Trending is empty and says so.

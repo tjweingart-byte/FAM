@@ -44,6 +44,11 @@
    > silence or is quiet (`tools/master_reference.py` fixes one), and
    > `python verify_voice.py --fingerprint` measures whether every chunk
    > sounds like the recording and like each other.
+   > **Current (PROBLEMS.md §328, at the owner's direction):** the admin
+   > page's upload no longer refuses a recording for opening in silence or
+   > being quiet - `voice_bank.prepare_upload` trims and levels it with the
+   > same function as `tools/master_reference.py` and the page says by how
+   > much. A recording that passes as it is is kept byte for byte.
    **Hard names are respelled for the voice** *(§165, `pronunciation.py`)*:
    EI's brief and the writer's `<<SAY: Name = respelling>>` lines (written
    *before* the script) feed one lexicon in the voice bank's database, an
@@ -60,7 +65,27 @@
    > an admin and over the writer and the brief (`pronunciation.SOURCES`):
    > a model's guess it disagrees with is replaced; an admin's is only shown
    > beside it on /admin, which also checks the whole list on request.
+   > **Current (PROBLEMS.md §324):** a template counts only when it
+   > follows the name in the lead (`says_name` - "Count Dooku, also known
+   > as Darth Tyranus (/tɪˈrænəs/)" is Tyranus's), and only when it says
+   > the whole name, one word per word (`fits`); a reading near neither the
+   > name's spelling nor the guess it would replace is only shown
+   > (`resembles`); Wikipedia's own readings that fail these are withdrawn.
+   > **Current (PROBLEMS.md §325):** every word is checked, not only
+   > names: `hard_words.py` lists words in recent episodes outside the CMU
+   > Pronouncing Dictionary (vendored data, BSD) and the lexicon, and
+   > `voice_check.py` has the production voice say a word while a phoneme
+   > recogniser on the same card hears it back (`"hear": true` on the wire,
+   > never on an episode's chunks). Its verdict is a hint with the audio
+   > beside it; nothing changes the lexicon by itself.
 <!-- rule:op-voice-bank -->
+> **Current (PROBLEMS.md §333):** when the bank's voices change, every
+> episode with no audio kept in any voice forgets its drawn voice and draws
+> again from the new bank (`redeal_voices`, at boot and after /admin adds or
+> removes one); a search's voice is a choice and is never re-dealt. A worker's reply names the recording it cloned
+> (`voice_sha`): another recording is a failure, none named plays but is
+> never kept under the voice's name and is put on /admin once.
+>
 > **Current (PROBLEMS.md §294, at the owner's direction):** a search by a
 > listener who has **never picked a voice** is spoken in the voice the
 > episode's audio is already kept in (`cache.audio_voices`, last played
@@ -401,6 +426,8 @@
 
 <!-- rule:op-taste-scoring -->
 > **Current (PROBLEMS.md §305, the owner 10.23):** `BROWSE_MINUTES` is **one** - myFAM, DailyFAM, the Trending and DailyFAM editions, the startup write-ahead and prefetch all write and play one-minute episodes. Search and Go Deeper still offer 1-5. Where the text below says two, read one.
+
+> **Current (PROBLEMS.md §332, the owner 10.28):** `BROWSE_MINUTES` is **a minute and a half** (1.5) - one felt too short, two too long. Every surface above writes and plays 1.5-minute episodes; lengths are held to the half minute (`config.as_minutes`). Where the text above or below says one or two, read 1.5.
 > **Current (PROBLEMS.md §286, the owner 10.16):** Made for you's View more opens on the rail's own tiles (the client holds them), and everything it deals after them - the rest of the first page and every Refresh - is an episode already written (`cycle=cached`); when none is left it says "You're all caught up" with a way back to the top, never the first eight again. Every other rail still deals eight and wraps (§165).
 5b. **The taste model is crude, and less crude than it was.**
    *(§114 sharpened the scoring itself, which nothing before it had touched.

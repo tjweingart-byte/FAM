@@ -75,6 +75,7 @@ from typing import Iterable, Optional
 
 import entitlements
 from paths import data_path
+from config import as_minutes
 
 log = logging.getLogger("metering")
 
@@ -483,7 +484,7 @@ class MeterStore:
         claude_usd = cost.claude
         row = (
             at or time.time(), user_id or "", entitlements.normalise(plan),
-            surface, usage.model, int(minutes or 0), usage.model_calls,
+            surface, usage.model, as_minutes(minutes), usage.model_calls,
             usage.input_tokens, usage.output_tokens, usage.cache_read_tokens,
             usage.cache_write_tokens, usage.web_searches,
             round(usage.web_search_cost, 6),
