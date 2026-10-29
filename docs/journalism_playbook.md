@@ -193,7 +193,8 @@ team (chosen by the owner, 2026-10-29).*
 
 ### Health
 
-*Models: STAT, KFF Health News, the health desks of the BBC and Reuters.*
+*Models: STAT, KFF Health News, The New York Times Well, MedPage Today
+(chosen by the owner, 2026-10-29).*
 
 - **Facts, never advice.** What was found or decided, by whom, and for
   whom.

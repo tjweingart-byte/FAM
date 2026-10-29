@@ -22723,7 +22723,8 @@ and Reuters (the Financial Times and The Economist dropped); and its tech
 models - The Verge, TechCrunch, Wired and Ars Technica (Reuters technology
 dropped); and its science models - Quanta Magazine, Scientific American, New
 Scientist and Nature's news team (the BBC and Reuters science desks
-dropped).
+dropped); and its health models - STAT, KFF Health News, The New York Times
+Well and MedPage Today (the BBC and Reuters health desks dropped).
 
 No agent is built; nothing here runs.
 
