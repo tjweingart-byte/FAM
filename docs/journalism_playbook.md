@@ -1,7 +1,7 @@
 # The FAM journalism playbook
 
-Draft v1, 2026-10-28, for **Shakespear** (the editor in chief). Written by
-Claude for the owner to edit. It is cached in Shakespear's prompt
+Draft v1, 2026-10-28, for **Shakespeare** (the editor in chief). Written by
+Claude for the owner to edit. It is cached in Shakespeare's prompt
 (`EDITOR_PLAYBOOK`) and also guides the writer it works with.
 
 It combines three sources, in FAM's own words:
@@ -142,7 +142,8 @@ tell stories, never as text to copy.
 
 ### Sports
 
-*Models: The Athletic, ESPN, BBC Sport.*
+*Models: The Athletic, ESPN, Sports Illustrated, the Associated Press
+sports desk (chosen by the owner, 2026-10-29).*
 
 - Lead with the **result and the moment that decided it** - the play, the
   goal, the drive - not the final score alone.
@@ -156,7 +157,8 @@ tell stories, never as text to copy.
 
 ### Money and business
 
-*Models: Bloomberg, Reuters, the Financial Times, The Economist.*
+*Models: Bloomberg, The Wall Street Journal, CNBC, Reuters (chosen by the
+owner, 2026-10-29).*
 
 - **What moved, by how much, from what, and the reason reporters gave.** A
   move without a reported reason is said without one - never invent "on
@@ -229,7 +231,7 @@ place, the people and the decision.*
 - When a town has little reporting, say what is known plainly; never fill
   with a region's news as if it were the town's.
 
-## Part 5 - How Shakespear uses this
+## Part 5 - How Shakespeare uses this
 
 - The outline names, for each beat, the packet sentences that carry it (by
   number), and which part of this playbook the beat follows: the opening

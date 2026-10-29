@@ -13,7 +13,7 @@ by the names the owner gave them (2026-10-28):
 |---|---|---|
 | Overlord | **Netenyahu** | Directs every agent: when to work and what to do |
 | Contextualizer | **C3P0** | With EI: what is asked, which plugins, what Sonic fetches, the title |
-| Editor in chief | **Shakespear** | With the writer: summarises both packets, outlines the story, tells it like a journalist |
+| Editor in chief | **Shakespeare** | With the writer: summarises both packets, outlines the story, tells it like a journalist |
 | Script supervisor | **Mclovin** | While the writer writes: screens sources, checks quotes, figures, facts and dates |
 | Housekeeper | **Consuela** | Organises, deduplicates and keeps MongoDB |
 | Retriever | **Sonic** | Reads MongoDB only; brings back a date-ordered history packet |
@@ -31,7 +31,7 @@ governing copies outside Claude, unchangeable by any session or agent, and
 where a held copy and this guide disagree, the held copy wins and this guide
 is corrected.
 
-In a new session say *"read `docs/FAM_AGENTS.md` and work on Shakespear"* (or any
+In a new session say *"read `docs/FAM_AGENTS.md` and work on Shakespeare"* (or any
 agent). Add one by copying the Template tab; when one is built, change its
 **Status** and log it in `PROBLEMS.md`.
 
@@ -86,7 +86,7 @@ search
         ├─ plugins ─────────────────────────► packet one: what is happening now
         └─ Sonic, from MongoDB ─────────────► packet two: what came before, by date
               (Mclovin screens each packet as it lands: no opinion, no blogs)
-              └─ [ Shakespear + writer + Mclovin ]    summary and outline; writing; each sentence checked as written
+              └─ [ Shakespeare + writer + Mclovin ]    summary and outline; writing; each sentence checked as written
                     └─ Nando confirms the node; the episode is kept
 background: Consuela - packets consolidated as they enter, filed by node, deduplicated; consolidated again at 90 days
 watching all of it: Keith Wong - errors, usage against limits, the agents, /admin
@@ -247,7 +247,7 @@ input price; the Batch API at half price for anything nobody waits on.
 | **C3P0** | ~1,000 more tokens in and ~200 out inside EI's existing call (disambiguation, plugins, Sonic's request, the title); public-figure check from the reference look | Haiku; its instructions cached | ~$1.50 | ~$0.0002 |
 | **Nando** | Code; a ~3k-token Haiku call on ~1 in 5 requests where candidates tie; confirmation after the writer in code | Haiku; cached | ~$0.50 | <$0.0001 |
 | **Sonic** | Code lookups in Atlas | - | $0 (inside the Atlas tier) | $0 |
-| **Shakespear** | One outline: ~10k in (~3k cached: instructions, rule book, playbook; ~7k the two packets), ~1k out | Search: Haiku. Ahead of the tap: Sonnet, batched and cached | ~$6 (search) + ~$62 (ahead) = **~$68** | ~$0.007 |
+| **Shakespeare** | One outline: ~10k in (~3k cached: instructions, rule book, playbook; ~7k the two packets), ~1k out | Search: Haiku. Ahead of the tap: Sonnet, batched and cached | ~$6 (search) + ~$62 (ahead) = **~$68** | ~$0.007 |
 | **Mclovin** | Code: screen, quotes, figures, dates, episode rules; the self-hosted checker on every sentence; Haiku on ~3 unsure sentences (~1.5k in, ~50 out each); a small model on unsettled pages ahead only | Haiku; batched ahead | **~$5** + the checker's machine | ~$0.0005 |
 | **Consuela** | ~5 new articles digested (~1.2k in, ~150 out each); dedupe pairs and periodic combs (code first, Haiku on unsure pairs, Sonnet on the few still unsure); demographic totals in code | Haiku, batched and cached | **~$5-6** | ~$0.0006 |
 | **Keith** | Code watching; a Haiku write-up per incident (~300 a month, not per episode); usage APIs free; email through `mail.py` | Haiku | **<$1** | ~$0 |
@@ -256,11 +256,11 @@ input price; the Batch API at half price for anything nobody waits on.
 **Fixed machines** (a month, whatever the volume; estimates - check before
 buying): the grounding checker - Vectara's HHEM-2.1-Open is built to run on
 a CPU, ~$25-85 on a Render instance; a small GPU (~$150-300 always on) only
-if the CPU is too slow for searchFAM. The same machine can carry Shakespear's
+if the CPU is too slow for searchFAM. The same machine can carry Shakespeare's
 reranker and Nando's offline picture check. MongoDB Atlas per §307 (Flex
 first, M10 at about 1,000 monthly listeners).
 
-**Where the money goes:** Shakespear on Sonnet ahead of the tap is ~80% of all
+**Where the money goes:** Shakespeare on Sonnet ahead of the tap is ~80% of all
 agent spend - deliberately: it is the lever most likely to improve the
 writing, which is the product ([writing-is-the-problem]). Everything else
 together is ~$15 per 10,000 episodes.
@@ -273,15 +273,15 @@ together is ~$15 per 10,000 episodes.
 | All | **Batch** everything nobody waits on (editions, write-ahead, Consuela, Keith's write-ups) | 50% of those calls | None (results within the hour, which those jobs allow) |
 | All | **Code before models**; a model only where code cannot decide | Most calls | Better: code is exact |
 | C3P0, Nando | **Fold into EI's existing call** instead of new calls | A call each | None; no added wait |
-| Shakespear | **Trim the packets before it reads them**: the screened, de-duplicated packets with Sonic's date-ordered history, not raw search output | ~30% of its input (est.) | None if the trim is extractive; measure on the eval |
-| Shakespear | **Sonnet only where nobody waits**; Haiku on search | Keeps Sonnet off the busiest path | Search keeps today's model |
+| Shakespeare | **Trim the packets before it reads them**: the screened, de-duplicated packets with Sonic's date-ordered history, not raw search output | ~30% of its input (est.) | None if the trim is extractive; measure on the eval |
+| Shakespeare | **Sonnet only where nobody waits**; Haiku on search | Keeps Sonnet off the busiest path | Search keeps today's model |
 | Mclovin | **No whole-script model**; code and the self-hosted checker; Haiku only on unsure sentences | ~$120 per 10k vs a Sonnet whole-script check | None for the named checks; the checker is better at support than a general model |
 | Consuela | **Only new articles reach a model** (URL match first); figures in code | Most of her calls | None |
 | Consuela | GPT-5 nano or Gemini Flash-Lite for digests (FAM's material only) | ~30-40% of ~$5 | Only if the eval holds |
 | Everyone | **Shared work**: one cached episode or edition serves every listener who taps it | Falls per listener as FAM grows | None |
 | Everyone | **Anthropic volume discounts** once monthly volume is known | Negotiated | None |
 
-**Levers not to pull**, because they cost quality: Haiku for Shakespear on the
+**Levers not to pull**, because they cost quality: Haiku for Shakespeare on the
 editions; dropping Mclovin's checker for a cheaper rule; skipping
 fact-checks on search; Opus anywhere per episode.
 
@@ -309,10 +309,10 @@ call each other; Netenyahu hands each one the typed output of the last.
 
 1. **Keep the roster** - each agent registers its purpose, its tasks, its
    surfaces, its triggers, its ceilings, its fallback, its rule book and its
-   pipeline stage: C3P0, Nando, Sonic, Shakespear, Mclovin, Consuela, Keith.
+   pipeline stage: C3P0, Nando, Sonic, Shakespeare, Mclovin, Consuela, Keith.
 2. **Per episode, direct who works** - from settings and surface: C3P0 and
    Nando with EI at the request; the plugins and Sonic in parallel; Mclovin
-   screening each packet as it lands; Shakespear and the writer once both
+   screening each packet as it lands; Shakespeare and the writer once both
    packets are in, with Mclovin checking as the writer writes; Nando
    confirming after.
 3. **Hand off, typed** - `Brief` → `ResearchPlan` (with Nando's node and
@@ -626,13 +626,13 @@ latency matters more here than for any other agent.
 Open: in tandem as part of EI's own call, or a separate call run alongside it?
 Which questions may the archive answer alone? How does an archive-only episode look on the sources panel?
 
-## 3. Editor in chief (Shakespear)
+## 3. Editor in chief (Shakespeare)
 
 <!-- stages: editor | feeds: write -->
-<!-- rules: shakespear -->
+<!-- rules: shakespeare -->
 
-**Shakespear, the editor in chief** (named by the owner, 2026-10-28; first
-called Diana Russini, renamed by the owner the same day).
+**Shakespeare, the editor in chief** (named by the owner, 2026-10-28; first
+called Diana Russini, then Shakespear; renamed Shakespeare by the owner).
 **Works in:** **alongside the writer, after both packets are back** (the
 plugin packet and Sonic's MongoDB packet), with Mclovin checking as the
 writer writes. On searchFAM a listener waits through its work; on myFAM,
@@ -640,7 +640,7 @@ DailyFAM, Trending and the write-ahead it runs before the tap. **Status:**
 planned (§312).
 
 **Purpose.** Be the journalist in the room. The writer today reads the
-packets raw and plans in its head; Shakespear decides what matters, what the
+packets raw and plans in its head; Shakespeare decides what matters, what the
 story is and how it is told, and the writer writes from that. Most of what
 was wrong with the writing came from its inputs ([inputs-not-prompt]); this
 is where they are fixed - and where the writing learns to open, flow and
@@ -651,7 +651,7 @@ close like a professional's ([writing-is-the-problem]).
 1. **Summarise both packets into what the writer needs** - choose the facts
    and sentences that matter and leave out what does not. The summary is
    **extractive**: it names packet sentences by number ("[4], [7], [R2]");
-   code shows the writer those sentences in the publisher's words. Shakespear
+   code shows the writer those sentences in the publisher's words. Shakespeare
    never restates a fact in its own words (rule 2).
 2. **Outline the episode and set its direction** - the answer first in
    substance ([satisfy-first], [never-withhold]); the beats in order within
@@ -763,7 +763,7 @@ Per episode ~10k in / 1k out; costs at **10k episodes/month** (×10 for 100k).
   listening (who leaves in the first twenty seconds, who hears 85%) - not
   a fine-tuned model and not hand-scoring.
 - **First:** the outline format and the playbook; measure with `write.py`
-  with and without Shakespear, scored by Mclovin and the quality checker.
+  with and without Shakespeare, scored by Mclovin and the quality checker.
 
 ### Settings and open questions
 
@@ -779,21 +779,22 @@ Per episode ~10k in / 1k out; costs at **10k episodes/month** (×10 for 100k).
 2026-10-28: "for training Diana, please combine A, B, and C right now").
 Claude has drafted it - [`docs/journalism_playbook.md`](journalism_playbook.md)
 - and the owner edits it. It is principles in FAM's own words, never
-outlets' articles pasted in (their copyright, and Shakespear would imitate
+outlets' articles pasted in (their copyright, and Shakespeare would imitate
 rather than understand). Where it and FAM's rules differ, FAM's rules win -
 above all, no inverted pyramid ([no-inverted-pyramid]).
 
-| Part | Drawn from | What it gives Shakespear |
+| Part | Drawn from | What it gives Shakespeare |
 |---|---|---|
 | **A. Getting it right** | The principles of the BBC Editorial Guidelines, the NPR Ethics Handbook, the Reuters Handbook of Journalism and the AP Stylebook | Accuracy, attribution, quotes, fairness, opinion labelled, facts never advice |
 | **B. Writing for the ear** | Radio and podcast craft as NPR Training and the BBC Academy teach it | One idea a sentence, attribution first, numbers the ear can hold, logic for transitions |
-| **C. Each category** | The best reporting per facet - sports (The Athletic, ESPN, BBC Sport), money (Bloomberg, Reuters, the FT, The Economist), tech, science, health, world (Reuters, AP, BBC World Service), culture, local | Each kind of story told the way its best reporters tell it |
+| **C. Each category** | The best reporting per facet - sports (The Athletic, ESPN, Sports Illustrated, AP sports - the owner's picks), money (Bloomberg, the WSJ, CNBC, Reuters - the owner's picks), tech, science, health, world (Reuters, AP, BBC World Service), culture, local | Each kind of story told the way its best reporters tell it |
 
 FAM's own episode shape (opening, beats, closing) sits between B and C.
 **Dropped:** option D (learning from episodes the owner scores by hand) -
 the owner would rather quality checks were not hands-on; the playbook is
 judged by automatic measures instead (responsibility 5). The outlets in C
-are Claude's first picks; the owner may change them in the playbook.
+are Claude's first picks, except sports and money, which the owner
+chose (2026-10-29); the owner may change any of them in the playbook.
 
 Open: what "in tandem" means in the call - the outline handed over beat by
 beat while the writer streams, or the outline first with the writer starting
@@ -807,7 +808,7 @@ questions; Claude drafts the playbook and the owner edits it (2026-10-28).
 <!-- rules: mclovin -->
 
 **Mclovin, the script supervisor** (named by the owner, 2026-10-28).
-**Works in:** **alongside Shakespear and the writer, while the writer is
+**Works in:** **alongside Shakespeare and the writer, while the writer is
 writing** - each sentence is checked as it is written, so an error is fixed
 in that sentence instead of costing a whole rewrite. **On searchFAM too,
 before speech** (the owner, 2026-10-28): every sentence is checked before it
@@ -827,11 +828,11 @@ what was gathered.
 1. **Screen sources as each packet comes back, from both paths** - drop
    opinion pieces (op-eds, editorials, columns, commentary, letters) and blog
    posts from the plugin packet and from Sonic's MongoDB packet, before
-   Shakespear or the writer reads them. **Unless the request explicitly asks for
+   Shakespeare or the writer reads them. **Unless the request explicitly asks for
    a person's opinion or point of view on a topic** (the owner,
    2026-10-28): then C3P0 marks the plan `opinion_requested` with whose view
    is wanted, and that person's opinion pieces are kept - labelled as
-   opinion for Shakespear and the writer, so the episode tells them as that
+   opinion for Shakespeare and the writer, so the episode tells them as that
    person's view, never as fact. **Official blogs** (a company's newsroom, a
    government agency's announcements) are **primary sources and kept**; all
    other blogs are dropped; pieces labelled **"analysis" are reporting and
@@ -881,7 +882,7 @@ what was gathered.
    final question mark, slurs only, names without a respelling.
 6. **Report** - every verdict counted on `/admin` by check, surface and
    category, fact-check failures first; failing scripts feed `examples/` and
-   Shakespear's training.
+   Shakespeare's training.
 
 ### Guardrails
 
@@ -894,7 +895,7 @@ outside model without the consent change.
 | Guardrail | Why | Held by |
 |---|---|---|
 | Only the two packets are evidence | The owner's rule: check against what was gathered, nothing outside | **Code:** handed exactly the writer's material - the screened plugin packet and Sonic's packet |
-| No opinion piece or blog post reaches Shakespear or the writer, unless a person's view was asked for | Only reporting is evidence; an asked-for opinion is the subject | **Code:** the screen in `research.screen_results` and on Sonic's packet; it stands aside only for `opinion_requested`, only for that person's pieces, and labels them as opinion |
+| No opinion piece or blog post reaches Shakespeare or the writer, unless a person's view was asked for | Only reporting is evidence; an asked-for opinion is the subject | **Code:** the screen in `research.screen_results` and on Sonic's packet; it stands aside only for `opinion_requested`, only for that person's pieces, and labels them as opinion |
 | Checked while the writer writes | An error caught late costs a whole rewrite | **Code:** a per-sentence hook in `_ScriptReader`, beside the existing guards |
 | Quotes exact, and by the right person | A quote is exact or it is not a quote | **Code:** quoted span found in the packets; speaker matched |
 | Figures by code, every one | A wrong number is the mistake a listener repeats | **Code:** `figure_guard`'s reader widened; subject and moment matched |
@@ -965,7 +966,7 @@ unsure sentence (~1.5k in / 50 out); costs at **10k episodes/month**
 | **Self-hosted grounding checker** (MiniCheck / Bespoke-MiniCheck, Vectara HHEM, AlignScore) | $0 + its own CPU/GPU | ~tens to hundreds of ms per sentence (est.) | Built for "does this source support this sentence"; can also return which sources support it (for the mixed-stories check) | A machine that is not the voice pod; 7B variants need a GPU | Yes - its own box |
 | DeBERTa NLI cross-encoder | $0 (CPU) | ms | Blunter "does this contradict" | Weak on numbers | Yes - code does numbers |
 | Story clusters (`news_clusters`, built) to tell two stories apart | $0 | ms | Says which story each source belongs to | Clusters can be coarse | Partly - subject and date also compared |
-| **Code episode-rule checks** (`episode_quality.measure`, built, §309) | $0 | ms | Opening, signposting, ending, length, title - the rules a pattern can see | Cannot judge "is this a good story" | Yes - that is Shakespear's and the owner's scoring, not Mclovin's |
+| **Code episode-rule checks** (`episode_quality.measure`, built, §309) | $0 | ms | Opening, signposting, ending, length, title - the rules a pattern can see | Cannot judge "is this a good story" | Yes - that is Shakespeare's and the owner's scoring, not Mclovin's |
 | **Haiku 5.5 on unsure sentences only** (~3 an episode) | ~$5 | ~0.5-1 s, only on those sentences | Good at one narrow support question with the source beside it | Same family as the writer | Yes - it judges support against a quoted source, not its own style |
 | Sonnet 5.5 on unsure sentences | ~$90 | ~1-2 s | A little better on hard cases | 18x the price | Not needed unless the eval shows Haiku wrong |
 | Sonnet 5.5 whole-script check (dropped) | ~$125 (batch) | after the script | Judged the writing | Not what the owner wants checked; costly | - |
@@ -1260,7 +1261,7 @@ window), which stays as its fallback.
 
 **Purpose.** Bring back **one consolidated packet** of history from MongoDB
 - the history this question needs, organised so the writer can use it - and
-deliver it to Shakespear and the writer.
+deliver it to Shakespeare and the writer.
 
 **Responsibilities.**
 

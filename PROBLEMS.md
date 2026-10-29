@@ -22697,7 +22697,7 @@ save money at no cost to quality, and those not to pull. Estimates from list
 prices and assumed token counts; `metering` replaces them once agents run.
 
 **The owner's fifth round (10.28):** the editor in chief is renamed
-**Shakespear** (was Diana Russini; rule book `docs/agent_rules/shakespear.md`;
+**Shakespeare** (was Diana Russini; rule book `docs/agent_rules/shakespeare.md`;
 the entries above keep the old name as written). Which model or plugin each
 agent runs is **not decided here** - "that will happen later in another
 branch with a more complete decision-making method" - so every model choice
@@ -22709,10 +22709,17 @@ writing for the ear, FAM's episode shape, and each category the way its best
 reporters tell it, in FAM's own words, FAM's rules winning where they
 differ. Option D is dropped and nothing waits on the owner scoring episodes
 ("we would rather not have it be so hands on to quality check episodes"):
-Shakespear is judged by §309's code measures, Mclovin's verdicts and
+Shakespeare is judged by §309's code measures, Mclovin's verdicts and
 listening, with labelled sets built in code by injecting errors. §309's own
 grader calibration against the owner's scores stays as it is (the owner:
 "keep the grader rule as it is").
+
+Then (10.29): the name is spelled **Shakespeare** (the rule book
+`docs/agent_rules/shakespeare.md`; the entries above were updated with it),
+and the playbook's sports models are the owner's picks - The Athletic,
+ESPN, Sports Illustrated and the Associated Press sports desk (BBC Sport
+dropped); its money models too - Bloomberg, The Wall Street Journal, CNBC
+and Reuters (the Financial Times and The Economist dropped).
 
 No agent is built; nothing here runs.
 

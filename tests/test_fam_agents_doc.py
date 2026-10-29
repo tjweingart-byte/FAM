@@ -30,7 +30,7 @@ def _sections():
 def test_every_agent_has_the_same_subtabs():
     agents = [s for s in _sections() if not s.startswith(("Shared rules", "Template"))]
     assert {s.split("\n", 1)[0] for s in agents} == {
-        "1. Overlord (Netenyahu)", "2. Contextualizer (C3P0)", "3. Editor in chief (Shakespear)",
+        "1. Overlord (Netenyahu)", "2. Contextualizer (C3P0)", "3. Editor in chief (Shakespeare)",
         "4. Script supervisor (Mclovin)", "5. Housekeeper (Consuela)", "6. Retriever (Sonic)",
         "7. IT guy (Keith Wong)", "8. Categorizer (Nando)"}
     for section in agents + [s for s in _sections() if s.startswith("Template")]:

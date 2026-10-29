@@ -15,7 +15,7 @@ never edits one.
 | Every agent | - | [every-agent.md](every-agent.md) |
 | Overlord | Netenyahu | [netenyahu.md](netenyahu.md) |
 | Contextualizer | C3P0 | [c3p0.md](c3p0.md) |
-| Editor in chief | Shakespear | [shakespear.md](shakespear.md) |
+| Editor in chief | Shakespeare | [shakespeare.md](shakespeare.md) |
 | Script supervisor | Mclovin | [mclovin.md](mclovin.md) |
 | Housekeeper | Consuela | [consuela.md](consuela.md) |
 | Retriever | Sonic | [sonic.md](sonic.md) |

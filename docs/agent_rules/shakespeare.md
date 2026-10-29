@@ -1,4 +1,4 @@
-# Shakespear (editor in chief) - rule book
+# Shakespeare (editor in chief) - rule book
 
 Draft v1, 2026-10-28. The owner holds the governing copy outside Claude.
 You also follow every rule in `every-agent.md`.

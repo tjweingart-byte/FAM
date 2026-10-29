@@ -46,7 +46,7 @@ changing what a listener hears until the owner turns something on.
 | Contextualizer | C3P0 | With EI: tells same-name things apart, picks plugins and their inputs, tells Sonic what to fetch, writes the title |
 | Categorizer | Nando | With EI and C3P0: pins each request to one tree node; confirms after writing; tells Consuela and Sonic |
 | Retriever | Sonic | Reads MongoDB only; returns one date-ordered history packet |
-| Editor in chief | Shakespear | With the writer: extractive summary of both packets, outline, a journalist's open, flow and close |
+| Editor in chief | Shakespeare | With the writer: extractive summary of both packets, outline, a journalist's open, flow and close |
 | Script supervisor | Mclovin | Screens opinion and blogs from both packets; checks each sentence while the writer writes - quotes, figures, facts, dates, mixed stories - against the two packets only |
 | Housekeeper | Consuela | MongoDB's only writer: consolidates each packet as it enters, files it by node, dedupes, consolidates again at 90 days, keeps all sports and market data, keeps aggregate demographic signals |
 | IT guy | Keith Wong | Watches errors, usage against every plan, and the agents; fixes what it may silently with a report; plans for the rest; owns `/admin`'s content |
@@ -149,7 +149,7 @@ Names are internal: never shown to a listener.
     emails when cost per episode runs well above the plan. The owner wants
     to look further into pricing options - keep a running cost-per-episode
     figure on `/admin`.
-22. **Shakespear's journalism playbook**: Claude drafts it; the owner edits
+22. **Shakespeare's journalism playbook**: Claude drafts it; the owner edits
     it (see item 29).
 
 ## Decided in the owner's fourth round (2026-10-28)
@@ -170,7 +170,7 @@ Names are internal: never shown to a listener.
     beside them (a proposed model - item 28). Target: ~$5 per 10,000
     episodes plus the checker's machine.
 27. **Cost target**: all eight agents ~0.8 cents an episode (estimated;
-    the Cost section of `docs/FAM_AGENTS.md`), ~80% of it Shakespear on Sonnet
+    the Cost section of `docs/FAM_AGENTS.md`), ~80% of it Shakespeare on Sonnet
     ahead of the tap, kept as the quality lever. Keith shows the real
     figure from `metering` on `/admin`. The models in this estimate are
     proposals (item 28).
@@ -191,21 +191,22 @@ Names are internal: never shown to a listener.
     points at it). Option D (learning from episodes the owner scores) is
     dropped.
 30. **Quality checks are not hands-on.** No step waits on the owner scoring
-    episodes. Shakespear and the playbook are judged automatically: the
+    episodes. Shakespeare and the playbook are judged automatically: the
     quality checker's code measures (§309), Mclovin's verdicts, and
     listening (who leaves in the first twenty seconds, who hears 85%). Where
     an eval needs labelled examples, build them in code (e.g. inject a wrong
     figure, a swapped quote, a preview stated as a result into a good script
     and check Mclovin catches it) rather than asking the owner to label.
-31. **The editor in chief is named Shakespear** (first called Diana
-    Russini; renamed by the owner). Rule book `docs/agent_rules/shakespear.md`.
+31. **The editor in chief is named Shakespeare** (first called Diana
+    Russini, then Shakespear; renamed by the owner). Rule book `docs/agent_rules/shakespeare.md`.
 
 ## Decisions still to ask the owner
 
 Check `PROBLEMS.md` §318 (the last entries) for answers first.
 
 - Whether the outlets Claude picked per category in
-  `docs/journalism_playbook.md` (Part 4) are the owner's - the owner may
+  `docs/journalism_playbook.md` (Part 4; sports and money are already the owner's)
+  are the owner's - the owner may
   edit them; do not wait on this to build.
 - Parallel, Perplexity, GNews and Polymarket: whether their material may be
   stored (allow their domains in the session's network settings to read
@@ -333,7 +334,7 @@ first.
 - **Sonic**: a **read-only Atlas user** and connection; the closed lookups
   (by node and period, result between dates, value on a day or series, by
   meaning, corroboration) built in code; node → parent/children → vector →
-  none; a **date-ordered, grouped `ArchivePacket`** for Shakespear and the writer;
+  none; a **date-ordered, grouped `ArchivePacket`** for Shakespeare and the writer;
   the existing 0.5 s grace window; today's `history_archive.look` as the
   fallback.
 - **The category tag everywhere** (decided item 5): write Nando's node id
@@ -344,7 +345,7 @@ first.
   that every episode id and node id agree between MongoDB, the script cache
   and R2's objects; Keith reports drift.
 
-### Phase 3 - Shakespear and Mclovin in the writing
+### Phase 3 - Shakespeare and Mclovin in the writing
 
 - **Mclovin's source screen** (decided item 6: stands aside only for
   `opinion_requested`, only for the named person's pieces) inside
@@ -354,14 +355,14 @@ first.
   unsettled pages ahead of the tap only; drops logged and counted. A packet
   left thin gets the existing retry; an empty one is a missed search, never
   a refusal.
-- **Shakespear**: an `Outline` (extractive summary by sentence number, beats,
+- **Shakespeare**: an `Outline` (extractive summary by sentence number, beats,
   which packet carries each, opening and landing, `thin`) with numbers
   checked in code and the text shown to the writer from the sources; a
   `docs/journalism_playbook.md` (`EDITOR_PLAYBOOK`) and `examples/` in its
   cached prompt; the model a setting (item 28; proposed: Sonnet batched on
   editions first, Haiku on search); measured automatically with `write.py`,
   the quality checker's code (§309) and Mclovin's verdicts, with and
-  without Shakespear - never by hand-scoring (item 30).
+  without Shakespeare - never by hand-scoring (item 30).
 - **Mclovin while the writer writes**: a per-sentence hook in
   `_ScriptReader` beside the existing guards - quotes (span found in the
   packets, speaker matched), figures (`figure_guard`'s reader widened from
