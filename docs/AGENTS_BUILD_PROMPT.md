@@ -205,7 +205,7 @@ Names are internal: never shown to a listener.
 Check `PROBLEMS.md` §318 (the last entries) for answers first.
 
 - Whether the outlets Claude picked per category in
-  `docs/journalism_playbook.md` (Part 4; sports and money are already the owner's)
+  `docs/journalism_playbook.md` (Part 4; sports, money and tech are already the owner's)
   are the owner's - the owner may
   edit them; do not wait on this to build.
 - Parallel, Perplexity, GNews and Polymarket: whether their material may be

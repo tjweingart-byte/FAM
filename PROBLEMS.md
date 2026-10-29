@@ -22719,7 +22719,9 @@ Then (10.29): the name is spelled **Shakespeare** (the rule book
 and the playbook's sports models are the owner's picks - The Athletic,
 ESPN, Sports Illustrated and the Associated Press sports desk (BBC Sport
 dropped); its money models too - Bloomberg, The Wall Street Journal, CNBC
-and Reuters (the Financial Times and The Economist dropped).
+and Reuters (the Financial Times and The Economist dropped); and its tech
+models - The Verge, TechCrunch, Wired and Ars Technica (Reuters technology
+dropped).
 
 No agent is built; nothing here runs.
 

@@ -171,7 +171,8 @@ owner, 2026-10-29).*
 
 ### Tech
 
-*Models: The Verge, Wired, Ars Technica, Reuters technology.*
+*Models: The Verge, TechCrunch, Wired, Ars Technica (chosen by the owner,
+2026-10-29).*
 
 - **What it does for a person**, before how it works or its specifications.
 - Separate what was announced from what has shipped and what reviewers
