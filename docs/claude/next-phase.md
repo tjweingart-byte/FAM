@@ -133,11 +133,18 @@ which is the go/no-go for all of it.
 **The archive is built (§308)**: `history_archive.py`, MongoDB Atlas in
 production once `ARCHIVE_BACKEND=atlas` (setup in `ARCHIVE.md`), its own
 SQLite file everywhere else; the storage amendment is at
-[storage-durability]. Its facts stay empty until the inventory agent below
+[storage-durability]. Its facts stay empty until the housekeeper agent below
 is built. The owner wants a **history archive** - key
 sentences and figures from every packet, years of them, on **MongoDB Atlas**
 (a local SQLite backend behind the same interface for tests and staging) -
 so the writer gets a second packet of dated historical context beside the
-fresh search. Background agents will fill and tidy it; their guidelines,
-starting with the **Database inventory specialist**, and the model chosen
-for each are in `docs/FAM_AGENTS.md`. Read both before building either.
+fresh search. Agents will fill and tidy it and work beside the writer;
+their guidelines - eight, by the names the owner gave them: **Netenyahu**
+(overlord), **C3P0** (contextualizer), **Shakespeare** (editor in chief),
+**Mclovin** (script supervisor), **Consuela** (housekeeper), **Sonic**
+(retriever), **Keith Wong** (IT guy) and **Nando** (categorizer) (§312,
+§314, §340) - are in `docs/FAM_AGENTS.md`, their rule books in
+`docs/agent_rules/` (drafts; the owner holds the governing copies), and the
+build plan in `docs/AGENTS_BUILD_PROMPT.md`; Shakespeare's journalism
+playbook is `docs/journalism_playbook.md`. Read them before building any
+of it.

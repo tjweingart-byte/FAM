@@ -23575,3 +23575,392 @@ The Dockerfile's `/data/*.db` paths are unchanged on purpose: they name no
 file any more, but each store's Postgres schema is named from its path, and
 a new path would be a new, empty schema. Staging keeps its disk until it
 runs on `fam-staging-db`.
+
+## 340. The agents guide: condensed into tabs, outside plugins per agent, and the Overlord (2026-10-26)
+
+*Written as §318 on its branch; renumbered §340 when Main, which had
+already used §318-§339, was merged in (2026-10-29). Commit messages on that
+branch say §318.*
+
+The owner (10.26): `docs/FAM_AGENTS.md` was "way too long"; each agent
+should be "its own tab at the top", highlighting "which part of the pipeline
+it is working in"; add an "overlord" agent "responsible for communicating
+with the other agents and telling them when they should be called and what
+to do"; and under each agent, sub-tabs for the guardrails, how to prompt it
+"(and how to try to break it)", and plugin options beyond Claude "with
+expected cost, latency addition, effectiveness, and potential holes (and
+whether or not they can be solved by proper guardrails)".
+
+A first pass on a branch cut from Main condensed the one-agent version of
+the guide; the owner asked where the other agents had gone. They are on
+this branch (§312, §314), so this branch was merged in and the work redone
+over all of them. Nothing in that merge was changed but the guide and its
+pointers.
+
+**The guide** stays the source (sessions and code comments cite it): one `##`
+per tab - Shared rules, Overlord, the four numbered agents, Template - and
+the same `###` sub-tabs under every agent: Guardrails, Prompting it and
+breaking it, Plugin options, Settings and open questions (what comes before
+the first `###` is the Overview). 73 KB became 53 KB with the Overlord and
+the wider plugin tables added. Kept: every rule, decision, owner's answer,
+open question, prompt text and cost estimate; the "nobody waits on an agent"
+rule stays withdrawn (2026-10-25). Shared guardrail and prompting rules and
+the shared preamble are in the Shared rules tab; each agent's guardrail
+table and prompt moved under its own tab.
+
+**The page:** `docs/build_agents_html.py` writes `docs/build/fam-agents.html`
+(not committed; published as an artifact). Each tab draws the pipeline -
+listener path, orchestration, background - from a `<!-- stages: a | feeds:
+b -->` line under its heading: filled where the agent works, dashed what its
+work drives.
+
+**The Overlord** (planned): the orchestrator the guide's "how agents talk"
+already assumed, made an agent. It keeps the roster, decides per episode and
+surface which agents run, carries the typed hand-offs (checking each against
+its schema; a late or bad one means the step runs as today), schedules the
+background passes away from listeners and the edition writes, and enforces
+ceilings and the supervisor's one rewrite. Code decides; an optional planner,
+off by default, may only pick from a closed vocabulary code validates. It
+never changes a setting, turns a dry run off, raises a ceiling, deletes, or
+calls a provider, and adds no model call in front of the first word.
+
+**Outside plugins** are priced from third-party summaries (Aug-Oct 2026),
+labelled as such and not checked against vendor pages. The finding that
+matters: on the listener-path agents (contextualizer, editor on searchFAM,
+supervisor on searchFAM) every outside general model sees the listener's
+words, so the hole is the consent change, which no guardrail closes - only
+the owner can. Background and edition work sees only FAM's material, where
+GPT-5 nano or Gemini Flash-Lite would cost a little less than Haiku
+(extraction ~$3-4 against ~$5 a month at 1,000 listeners, unmeasured on
+quality). Self-hosted specialised models (grounding checkers, rerankers, NLI)
+avoid both holes but need a machine that is not the voice pod. Every
+recommendation is unchanged from §307-§314.
+
+**Two pairs in tandem** (the owner, 10.26, after seeing the page: "the
+writer should be working in tandem with the editor in chief" and "the
+contextualizer should be working in tandem with the EI brief"). Each pair is
+now one stage, drawn as one step with both boxes inside it, and the guide
+says so at the pipeline, the Overlord's hand-offs, and both agents'
+overviews. For the contextualizer this matches the standing recommendation
+(fold it into EI's own call). For the editor it is new, and it changes what
+the writer is: the editor no longer hands a finished plan to a writer
+waiting behind it. How the two share the work while the script streams -
+the plan beat by beat, one call that plans then writes, or the writer
+starting once the opening beat is decided - is left as an open question,
+because each costs a different amount in front of the first word.
+
+**Consuela, the housemaid** (the owner, 10.26: the inventory box "should be
+renamed the housemaid (with the name 'Consuela'); this is the fifth agent
+that works within the backend database to manage the inventory"). The
+Database inventory specialist is renamed everywhere it is named (the guide,
+`ARCHIVE.md`, `docs/DATA.md`, `next-phase.md`, the comments in `config.py`
+and `history_archive.py`); its proposed settings become `HOUSEMAID_*`. The
+agents are numbered in pipeline order so Consuela is the fifth: 1 Overlord,
+2 Contextualizer, 3 Editor in chief, 4 Script supervisor, 5 Housemaid.
+Earlier sections (§307-§317) keep the old name and numbers as history.
+
+**Keith Wong, the IT guy** (the owner, 10.26): a sixth agent that "will
+constantly monitor the backend ... all of our plugins, errors, usage rates on
+plugins (to see when we are nearing our limits), and connection issues"; it
+fixes what it can "within the limits of the agent" and tells the owner, and
+otherwise notifies "in the most visible way possible (to be decided upon
+later)", and the owner tells it when a fix is done. Written up as agent 6,
+built on signals FAM already keeps - `provider_usage` (limits and the next
+plan), `pipeline_errors` and its `explain()` wording, `/api/health`, the
+voice supervisor, `metering`, each background loop's last run. The watching
+is code on a one-minute tick; a model only writes up an open incident.
+Fixes are a closed list of reversible actions that already exist as
+functions (re-verify the voice ladder, re-run a failed job once, hold a
+background sweep until a limit resets, ask the Overlord to hold an agent),
+each verified by a real call; it starts observe-only. It never changes a
+setting, spends, restarts or stops anything (nothing starts or stops a
+pod), or deletes. A "fixed" from the owner is re-checked, not believed. The
+notification channel is left to the owner, with the options priced.
+
+**The background lane, redrawn** (the owner, 10.26): "the archive intake and
+housemaid are doing similar things ... This should be consolidated into one,
+housemaid (Consuela), that is responsible for both organizing the packets of
+information that come in, and maintaining the database"; and "the second
+agent within the background should be solely responsible for retrieving the
+information from the request that comes from the contextualizer + EI brief
+... the agent should know what information is needed and where to get the
+information from". Consuela now owns the intake (code today:
+`after_episode`, `keep_swept`) as its first responsibility and is the
+archive's only writer. The new **retriever** (agent 6, name to be chosen)
+is the only reader: it turns the plan's archive entry into one of a closed
+list of lookups - by meaning (`facts_vector`, today's `look`), a result
+between dates, a value on a day, corroboration - builds the query in code,
+never reads `intake`, and keeps the 0.5 s grace window; today's `look` is
+its fallback. Keith moves to 7. Whether the archive may answer an empty
+search alone stays undecided (§316).
+
+**The categorizer** (the owner, 10.28: "one that works within FAM to help
+categorize episodes to match them to a thumbnail and categories /
+subcategories. This agent should have all important information available
+to it"). Agent 8, name to be chosen. It files each written episode under
+one tree node and matches the picture, after the writer and beside the
+cache write - never in front of the first word (the player already swaps
+its picture when the category lands, §247). It is shown everything FAM
+already has: the script and title, the writer's `<<CATEGORY:>>` words,
+EI's `category_path`, the composer's category and a game's provider tags,
+the keyword tags, the candidate nodes by phrase and by meaning with their
+paths, which nodes have approved pictures, and `category_audit`. It keeps
+every settled rule: one category read by `_episode_category` (§209), phrases
+in order and `LEFT_TO_GROW`, the nearest node by meaning beneath them
+(§235), a named subject's picture outranking the category's (§282),
+borrowed pictures in the settled order (§193/§214), approved pictures only,
+the tree grown only through `writer_subjects` after two episodes, games and
+markets keeping their provider's filing (§187), and no listener event
+written by the agent (a play's row is re-filed by the existing code, §209). Code decides most episodes; a model only when the
+categorisers disagree or nothing places. Painting stays with `thumbnails`,
+behind the checker and a person.
+
+**Plugin choices driven by need** (the owner, 10.28: "explain what the agent
+needs to be most capable at, and have that drive the decision making for what
+plugin to use for each agent"). Each agent's Plugin options tab now opens
+with what it must be best at - its needs ranked, each with why it matters for
+that agent and what it rules in or out - and ends with the choice, each pick
+traced to the need that decided it. The tables are unchanged, and so is
+every pick: the needs make explicit why, e.g. the contextualizer's speed and
+the listener's words rule out outside models on search; Consuela's volume and
+having no one waiting make batched Haiku right; the supervisor's
+independence from the writer rules out Haiku as its only judge.
+
+**The script supervisor stays, and fact-checks every script** (the owner,
+10.28: first "remove the script supervisor ... the editor in chief should be
+able to do everything the script supervisor is currently able to do", then,
+before that was committed, "add the script supervisor in like before. We
+also want it to fact check information in the script on top of checking the
+quality of the writing. It should check figures, quotes, important facts,
+and claims every time"). The removal was never committed; the supervisor is
+agent 4 as before, kept separate from the editor, and now fact-checks
+**every script on every surface**: ahead of the tap before caching; on
+searchFAM per sentence before it is voiced (figures and quotes in code, the
+grounding checker on facts and claims, a failing sentence not spoken, as
+`ScoreGuard` and `FigureGuard` already drop sentences) and as a whole-script
+audit right after. **Figures** - every number, not only sports and markets
+- must match the material for the same subject and moment (`figure_guard`'s
+reader widened); **quotes** must appear as said and by the same speaker;
+**important facts** are matched to a source sentence (unsupported settled
+facts are notes, checked against the reference look on ahead and audit
+runs; unsupported volatile or contradicted ones fail); **claims** - causes,
+comparisons, superlatives and firsts - need explicit support, an
+unsupported first or superlative failing. The hard failures are named in
+code; taste never holds an episode. Its plugin needs now lead with
+exactness on figures and quotes (code) and precision on claims (a grounding
+checker, with Sonnet listing the claims off the listener's path).
+
+**The supervisor screens sources first** (the owner, 10.28: "check sources to
+eliminate certain sources as soon as the packet comes back to eliminate all
+opinion pieces and blog posts from the collected sources"). A source screen
+now opens the supervisor's work: on every packet, every surface, before the
+writer reads it, opinion pieces (op-eds, editorials, columns, commentary,
+letters) and blog posts are dropped. It belongs inside the screen research
+already has - `research.screen_results`, which drops simulated-league pages
+and, on sports, unknown outlets, on every rung and the second look - so a
+dropped page never reaches the packet, the writer, the sources panel or the
+archive's intake. Code decides on search (URL path, title label, a
+provider's page type, blogging hosts: microseconds, so nothing is added in
+front of the first word); a small model judges unsettled pages only ahead of
+the tap. A packet the screen leaves thin gets the existing one retry; an
+empty one is a missed search, never a refusal (§256). This filters by kind
+of writing, not by credibility, so [recency-credibility]'s "credibility
+sorts" is unchanged; the simulation screen is the precedent. Open: official
+blogs that announce their own news; questions that ask for opinions;
+labelled "analysis".
+
+**The owner's brainstorm: every agent named and redrawn, a rule book each,
+and a build plan** (the owner, 10.28, a PDF "FAM Agents"). The guide now
+follows it:
+
+- **Names** (internal only - never shown to a listener): Netenyahu
+  (overlord), C3P0 (contextualizer), Diana Russini (editor in chief),
+  Mclovin (script supervisor), Consuela (housekeeper, renamed from
+  housemaid), Sonic (retriever), Keith Wong (IT guy), Nando (categorizer).
+- **Nando moves to the request**: with EI and C3P0, complete responsibility
+  for one node, before research - to fix thumbnails that do not match
+  titles and myFAM categories holding unrelated episodes - confirmed after
+  the writer; it gives Consuela the node for every packet and tells Sonic
+  where to look; tree changes re-file MongoDB. Future work: keep MongoDB and
+  what Cloudflare holds in sync.
+- **Mclovin works while the writer writes**, each sentence checked as it is
+  written so a mistake costs one sentence, not a rewrite: quotes and who
+  said them, figures, facts and events, dates, and sentences that mix
+  stories; sources screened from **both** paths; only the two packets are
+  evidence (the reference look it was given earlier is withdrawn).
+- **Diana** summarises both packets (extractively), outlines the story and
+  where each packet belongs, and is trained as a journalist - a playbook,
+  `examples/`, the quality checker's measures; the writer writes.
+- **Sonic** works strictly in MongoDB, read-only, on C3P0's node and
+  instructions, and returns one date-ordered packet to Diana and the writer.
+- **Consuela** keeps full packets 90 days then key quotes, numbers, facts and
+  sentences; files by Nando's node; keeps every sports and market record
+  (scores through a game are a series); thinks long term - **aggregate,
+  anonymous counts only**, since keeping who a listener is would break rule
+  7 and the consent rules until the owner decides otherwise.
+- **C3P0** tells same-name things apart (United, Eagles), chooses plugins
+  and inputs, tells Sonic what to fetch, and **writes the title** - which
+  amends [title-from-content] and waits on the owner's confirmation.
+- **Keith** fixes within its list without notifying, keeping a fix report
+  the owner can ask for; brings a solution plan otherwise; watches every
+  plan's limits including Atlas, Render, RunPod and R2; checks the agents
+  against their rule books; owns `/admin`'s content (a declarative layout
+  it edits; new code drafted for review - an agent never edits running
+  code).
+- **Netenyahu** knows every agent's purpose, abilities and limits.
+
+**Rule books**: `docs/agent_rules/` - one plain-English file per agent plus
+`every-agent.md`, "must always" and "must never", shown as each tab's Rule
+book sub-tab. They are drafts: the owner holds the governing copies outside
+Claude, where no session or agent can change them.
+
+**The build plan**: `docs/AGENTS_BUILD_PROMPT.md`, a prompt for a new
+session - the framework (roster, typed hand-offs, task claims, rule books
+loaded read-only and fingerprinted, switches, `/admin` panel), then C3P0 and
+Nando at the request, MongoDB for Consuela and Sonic (node ids, time series,
+90-day consolidation, a read-only user, date-ordered packets, sync with
+Cloudflare), Diana and Mclovin in the writing (the screen in
+`screen_results`, per-sentence checks in `_ScriptReader`, a self-hosted
+grounding checker off the voice pod), and Keith (usage APIs, incidents, fix
+report, conformance checks, `/admin`), with seven owner decisions first.
+Nothing was built in this session.
+
+**The owner's answers (10.28):** "C3P0 writes the title" - recorded as decided,
+not yet built, beside [title-from-content] in `docs/claude/product.md`
+(rewritten when built); a mismatch with the finished script is retitled by
+C3P0, so the title stays its. "Aggregate only for demographics (but have
+data on age, gender, etc. and how they correlate with things. Do not keep
+names or personal information about people)" - Consuela keeps totals and
+correlations by category, region, time and demographic band above a minimum
+group size, never a per-person row; accounts store a birth date today and no
+gender, so any new field is optional and needs the Privacy Policy and consent
+first; computed beside the accounts data, not in MongoDB. "There should not be
+full packets kept for 90 days, they should be consolidated by Consuela as
+soon as they enter the database. They should be further consolidated after
+90 days to show important figures, quotes, trends, and article links" -
+consolidation on entry (key sentences, figures, quotes, facts, each with its
+link), a second at 90 days; today's intake, which keeps passages until
+digested (§308), becomes a short-lived queue. The guide, the rule books and
+the build prompt say so; its open decisions are now six.
+
+**The owner's answers (10.28, second round):** (1) Keith may improve any
+existing admin page; a new page or feature is a slideshow for the owner
+first. (2) "The most important thing that has to stay in sync between
+Cloudflare and MongoDB is the categorization" - Nando's node id is the
+episode's category tag for its whole life: the script row, its audio's R2
+metadata, every MongoDB record, every app surface and its logged tags, all
+updated together; Keith checks daily. (3) Opinion pieces are screened out
+"unless a prompt explicitly asks for a person's opinion or point of view";
+C3P0 marks `opinion_requested` with whose, and only that person's pieces are
+kept, labelled as opinion. (4) Keith's alerts are a pop-up on entering any
+admin page; its first fixes are in the error and usage tracking. (5) "Examine
+whether each search provider allows us to store these kinds of things. We are
+not reselling the data" - checked as far as search results allowed (this
+session's network could not open the providers' own pages): GDELT open with
+a citation; Parallel's Customer Terms (a cached copy) keep Output "primarily
+for the exclusive use of the Authorized User who submitted the
+corresponding query" and restrict storing it for other end customers, and
+Perplexity's Search Addendum says the customer does not own Search API
+Output - both unclear for an archive reused across listeners; GNews's free
+plan is non-commercial; Tiingo and Finnhub restrict showing data to app
+users, which concerns speaking prices at all, not only storing them;
+BALLDONTLIE, API-Sports and Polymarket unconfirmed. Consuela keeps a
+provider's material only once the owner marks it approved. (6) Minimum group
+size 100; date of birth, location and gender asked when a listener is let off
+the waitlist. The guide, rule books and build prompt carry all six.
+
+**The owner's third round (10.28):** admin changes wait for the owner's yes;
+urgent alerts emailed too; date of birth required (13 and over), location
+and gender optional, gender as man / woman / non-binary / self-describe /
+prefer not to say, city kept and region aggregated, active listeners asked
+at next open, the proposed age bands; an unsupported settled fact may stay
+only with no name, number or date; official blogs kept as primary sources,
+other blogs dropped, "analysis" kept; Mclovin checks before speech on search
+too ("after the first chunk, the latency shouldn't be too much of a
+problem"); C3P0 **asks the listener** when a name is ambiguous ("this makes
+the user feel more in control"); public figures only, a firm rule; facts,
+never advice, on medical, legal and money questions; consolidated records
+kept indefinitely, reviewed at two years, with periodic full duplicate
+combs; the archive may answer an empty search alone for past or settled
+things (closing §316's question); pre-Nando episodes re-filed once after a
+reviewed trial run; Diana's playbook drafted by Claude from outlets the
+owner names. On cost: "I don't want their availability to be determined by a
+financial cap. I want the cost to be low enough that they are available
+whenever we need them" - shared rule 4 ("every dollar has a ceiling") is
+replaced for agents by **cheap by design, never switched off by a budget**:
+a cost plan per agent (~1.5-2 cents an episode, estimated, plus a grounding
+checker machine), the ways it is kept low, bounded calls with one retry,
+loops stopped as bugs, Keith emailing when cost per episode runs above
+plan. The rule books, guide and build prompt carry all of it.
+
+**The owner's fourth round (10.28):** Diana's playbook becomes its own
+question, with options (public style and ethics guides; audio craft; a shelf
+of outlets per facet; FAM's own best-scored episodes; or all layered,
+recommended) - "we want to use a wide variety of sources"; urgent alerts to
+Admin@familiarize.net; a name no reference or provider knows is a private
+person; **Finnhub and API-Sports are dropped** ("whose data we can not
+publish") for **Tiingo and BALLDONTLIE**, whose redistribution the owner has
+agreed, so both are approved for speaking and storage - the build prompt
+makes removing the two its own first change, with `[sports-balldontlie]` and
+`[sweep-on-demand]` rewritten then; and Mclovin has **no whole-script model
+check** ("it should be checking for the things that we mentioned before") -
+every named check is code or the self-hosted grounding checker, the episode
+rules are §309's code measures, and Haiku sees only the sentences the
+checker scores unsure. With that, the cost breakdown (Shared rules, Cost) is
+redone per agent: ~$80 per 10,000 episodes for all eight, ~0.8 cents an
+episode, plus the checker's machine and the Atlas tier - ~80% of it Diana on
+Sonnet ahead of the tap, kept as the quality lever - with the levers that
+save money at no cost to quality, and those not to pull. Estimates from list
+prices and assumed token counts; `metering` replaces them once agents run.
+
+**The owner's fifth round (10.28):** the editor in chief is renamed
+**Shakespeare** (was Diana Russini; rule book `docs/agent_rules/shakespeare.md`;
+the entries above keep the old name as written). Which model or plugin each
+agent runs is **not decided here** - "that will happen later in another
+branch with a more complete decision-making method" - so every model choice
+and the cost plan are marked proposals, and the build prompt asks for each
+agent's model as a setting. The playbook **combines A, B and C** ("please
+combine A, B, and C right now"): Claude drafted
+`docs/journalism_playbook.md` - the public editorial guides' principles,
+writing for the ear, FAM's episode shape, and each category the way its best
+reporters tell it, in FAM's own words, FAM's rules winning where they
+differ. Option D is dropped and nothing waits on the owner scoring episodes
+("we would rather not have it be so hands on to quality check episodes"):
+Shakespeare is judged by §309's code measures, Mclovin's verdicts and
+listening, with labelled sets built in code by injecting errors. §309's own
+grader calibration against the owner's scores stays as it is (the owner:
+"keep the grader rule as it is").
+
+Then (10.29): the name is spelled **Shakespeare** (the rule book
+`docs/agent_rules/shakespeare.md`; the entries above were updated with it),
+and the playbook's sports models are the owner's picks - The Athletic,
+ESPN, Sports Illustrated and the Associated Press sports desk (BBC Sport
+dropped); its money models too - Bloomberg, The Wall Street Journal, CNBC
+and Reuters (the Financial Times and The Economist dropped); and its tech
+models - The Verge, TechCrunch, Wired and Ars Technica (Reuters technology
+dropped); and its science models - Quanta Magazine, Scientific American, New
+Scientist and Nature's news team (the BBC and Reuters science desks
+dropped); and its health models - STAT, KFF Health News, The New York Times
+Well and MedPage Today (the BBC and Reuters health desks dropped); and its
+world models - Reuters, the Associated Press, BBC World Service and Al
+Jazeera English (added); and its culture models - The Ringer, Variety,
+Rolling Stone and NPR's arts and culture desk (the BBC and New York Times
+arts desks dropped); and its local models - The Philadelphia Inquirer, The
+Texas Tribune, Patch and Axios Local (none were named before). Every
+category's outlets are now the owner's.
+
+**The owner's review before merging (10.29):** a Mclovin check that runs
+out of time lets its sentence **play unchecked**, the miss recorded and
+reported to Keith (the rule book said both that and "do not skip them");
+and Consuela's checks are **automated like the episode checks** - her eval
+built in code from packets with known answers, her dedupe leaving its dry
+run once that eval shows no wrong merge, no hand-checked sample. Several
+decided items that still read as open were corrected in the same review.
+
+No agent is built; nothing here runs.
+
+Tests: `tests/test_fam_agents_doc.py` (the eight agents named; the tandem
+groups drawn as one step; every agent and the template carry the same
+sub-tabs; every stage named is one the page draws; a tab per section; every
+plugin tab starts from what the agent must be best at; every agent has a
+rule book with the draft notice).

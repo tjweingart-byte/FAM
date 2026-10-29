@@ -316,7 +316,7 @@ MongoDB Atlas in production once `ARCHIVE_BACKEND=atlas`, else
 `intake`, one record per article URL that entered a written episode's packet
 (title, outlet, grade, publish date, up to 8 passages, the subjects and
 categories of the episodes that used it, first and last seen, how often) -
-the raw material the Database inventory specialist will digest
+the raw material Consuela, the housekeeper agent, will digest
 (`docs/FAM_AGENTS.md`), kept until then, at most `ARCHIVE_INTAKE_MAX`;
 `episode_sources`, each written episode's article links keyed by its
 `cache.episode_id`, for a sources view on the episode screen; `facts`, the

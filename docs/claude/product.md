@@ -444,6 +444,7 @@ The guard: every sentence must carry information. Atmosphere alone is cut. The
 point should be arriving continuously, from the first line, inside the story.
 
 <!-- rule:title-from-content -->
+> **Decided, not yet built (PROBLEMS.md §340, the owner 2026-10-28):** the contextualizer agent (C3P0) will write the episode's title at the request; the script supervisor checks it against the finished script and C3P0 retitles on a mismatch. Until that is built, the rule below stands as written; when it is built, rewrite it here and in `CLAUDE.md`.
 > **Current (PROBLEMS.md §189):** a *live story* tile (Trending or the pool) is not protected the way a bank tile is: once its episode is cached and current, every later listener sees the writer's title and summary on the card and in the player, and its picture, facet word and logged tags come from the writer's `<<CATEGORY:>>` line (`app._name_written_tiles`). The first listener of an unwritten story still hears it under the composer's title.
 
 **An episode is titled by what it turned out to be about.** *(§104.)* It used
