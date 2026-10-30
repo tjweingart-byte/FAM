@@ -86,7 +86,7 @@ def test_somebody_blocked_is_not_among_their_friends(people):
 
 
 def test_the_profile_draws_the_shelf_and_the_friends():
-    # The shelf is the YourFAM grid since §342; the friends list keeps View
+    # The shelf is the YourFAM grid since §345; the friends list keeps View
     # more at its foot, never beside its label.
     assert 'id="personGrid"' in INDEX
     assert "function personMoreHTML(" in INDEX

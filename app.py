@@ -3048,7 +3048,7 @@ async def person_profile(request: Request,
         # With the (+) state each needs: whether this listener has already
         # added it to their own DailyFAM, and whether it is theirs.
         # Each mix and vibe wears the picture the player would draw, so a
-        # friend's page is the same grid of tiles as your own (§341).
+        # friend's page is the same grid of tiles as your own (§345).
         "mixes": [dict(_public_mix(m, me, added_mixes), thumb=_mix_picture(m))
                   for m in MIXES.public_for_user(target)],
         # Each vibe carries its subject, read off its own words - the same

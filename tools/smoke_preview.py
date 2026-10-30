@@ -988,7 +988,7 @@ def main() -> int:
                 page.evaluate("openMyFamTab()")
                 page.wait_for_timeout(400)
                 return
-            # The same hero and grid as your own YourFAM (§342).
+            # The same hero and grid as your own YourFAM (§345).
             assert page.query_selector("#personBody .yf-hero"), "no hero on a friend's profile"
             assert page.eval_on_selector_all("#personBody .yf-stat", "e => e.length") == 3, \
                 "a friend's profile lost its three numbers"

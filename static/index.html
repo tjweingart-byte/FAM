@@ -17037,6 +17037,7 @@
     var graph = (friendsData.friends || [])
       .concat(friendsData.following || [], friendsData.followers || [])
       .filter(function(p){ return p.handle === handle; })[0];
+    personShelf = "vibes";
     viewingProfile = graph || (known && known.user_id ? {
       user_id: known.user_id, handle: handle, name: known.name || "",
       avatar: known.avatar || "" } : null) || { handle: handle, name: "", user_id: "" };
@@ -17233,6 +17234,9 @@
       t.classList.toggle("on", on);
       t.setAttribute("aria-selected", on ? "true" : "false");
     });
+    // Nothing is said about their shelves until `/api/person` has answered:
+    // "Nothing vibed yet" before it would be a claim nobody had checked.
+    if(!personPublished){ grid.innerHTML = ""; return; }
     var html;
     if(personShelf === "vibes"){
       html = personVibes.length
@@ -17252,12 +17256,6 @@
     }
     grid.innerHTML = html;
     if(scroll) grid.scrollIntoView({ block: "nearest", behavior: "smooth" });
-  }
-
-  // The subject of a vibe, which `/api/person` reads off its words the same
-  // way the chat labels a shared episode.
-  function topicOfEpisode(ep){
-    return (ep && ep.topic) || "";
   }
 
   var personVibes = [];

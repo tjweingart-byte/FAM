@@ -1,4 +1,4 @@
-"""A friend's profile takes YourFAM's layout (§342): hero, three numbers,
+"""A friend's profile takes YourFAM's layout (§345): hero, three numbers,
 centred buttons, interests, then Vibes / Mixes tabs over a grid of tiles."""
 from __future__ import annotations
 
@@ -66,3 +66,11 @@ def test_the_grid_uses_yourfams_tiles_and_keeps_the_add_button():
     assert "m.cover || m.thumb" in shelf
     assert 'mixAddButtonHTML(m, "person", i)' in shelf
     assert "#screen-person .scroll" in INDEX
+
+
+def test_the_grid_says_nothing_before_the_profile_has_answered():
+    shelf = _fn("showPersonShelf")
+    assert shelf.index("if(!personPublished)") < shelf.index("'<div class=\"pf-empty\">Nothing vibed yet")
+    # Each profile opens on Vibes, set before its first draw.
+    opener = _fn("openPersonProfile")
+    assert opener.index('personShelf = "vibes"') < opener.index("renderFriendProfile(")

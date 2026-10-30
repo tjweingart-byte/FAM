@@ -253,7 +253,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   X, button label and return target; a settings row is an editor, never the
   first run again; interests are **one sideways-scrolling line** under Edit
   profile / Saved for Later on yours and a friend's page (§178) - Edit profile
-  holds the five, ranked by `taste`; hero + Vibes/Mixes tiles, friends' too (§341/§342); showing ≠ liking;
+  holds the five, ranked by `taste`; hero + Vibes/Mixes tiles, friends' too (§341/§345); showing ≠ liking;
   `/api/person` shows pinned or declared-minus-hidden, never history. [op-profile-hub]
 - Attachments: extracted at attach time, never on the generation path; failures
   are actionable sentences; an attached episode is **never cached**. [op-attachments]

@@ -24056,7 +24056,7 @@ hub's Messages-card painter (`paintHubMessages`, with `hubInboxLoading` and
 now only refreshes the inbox and the Messages tab's unread badge. YourFAM's
 grid and My Vibe play a vibe through one function (`playOwnVibe`).
 
-## 342. A friend's profile takes YourFAM's layout (2026-10-30)
+## 345. A friend's profile takes YourFAM's layout (2026-10-30)
 
 The owner, after §341: "When I click on a friend's profile, I want it to
 have the same new layout." `renderFriendProfile` now draws what
@@ -24085,6 +24085,18 @@ View more, and the mix row's play button (`playPersonMix`) - a friend's mix
 opens, and its own page plays it as a queue. The CSS only those rows used
 went with them.
 
-Tests: `tests/test_friend_profile_342.py`; `test_implementations_1016` and
+Tests: `tests/test_friend_profile_345.py`; `test_implementations_1016` and
 `_134` follow the rows' removal; the smoke run checks the hero, the three
 numbers and the grid on a friend's page, and the (+) on a mix tile.
+
+Review before merge: the grid stays empty until `/api/person` answers
+(it used to say "Nothing vibed yet" on the first draw, before anything had
+been checked), and each newly opened profile starts on Vibes before that
+first draw rather than after it. `topicOfEpisode` lost its last caller with
+the vibe rows and went; `/api/person` still sends each vibe's `topic` for
+clients that draw it. Opening a friend's mix and pressing play starts it as
+a queue (`playPublicMix`), as it already did from the mix's own page - the
+row's one-episode play (`playPersonMix`, §134) had no other door.
+
+Numbered 345, not 342: `claude/funny-shannon-ekxiz8` (unmerged when this
+was written) already holds §342-§344.
