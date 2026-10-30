@@ -1,4 +1,4 @@
-"""The typed hand-offs between agents (§344).
+"""The typed hand-offs between agents (§349).
 
 Agents never call each other: Netenyahu hands each one the typed output of
 the last (docs/FAM_AGENTS.md, Pipeline and how agents run) - `Brief` (built,

@@ -487,7 +487,7 @@ Operations and honesty
 - Metering records cost at spend time per listener; never one blended cost. [metering]
 - A credential is never typed by a human (precedence env > `FAM_SECRETS` >
   .env > ~/.fam/env). [credentials-fetched]
-- **Agents call models only via `agents/models.py`** (§342-3): pinned
+- **Agents call models only via `agents/models.py`** (§347-8): pinned
   `vendor:model-id`, not `MODEL`; listener words to consented vendors only;
   owner-signed rules; off by default. [agent-model-layer]
 

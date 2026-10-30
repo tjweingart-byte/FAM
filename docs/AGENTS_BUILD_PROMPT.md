@@ -217,7 +217,7 @@ Names are internal: never shown to a listener.
     non-duplicates), and its dedupe leaves the dry run once that eval shows
     no wrong merge - no hand-checked sample.
 
-## Decided in the owner's model rounds (2026-10-30, §341)
+## Decided in the owner's model rounds (2026-10-30, §346)
 
 34. **Each agent's model**, chosen on two decision pages built from the
     guide's plugin tabs (`docs/FAM_AGENTS.md`, Shared rules, Models decided,
@@ -270,7 +270,7 @@ Names are internal: never shown to a listener.
 
 ## Decisions still to ask the owner
 
-Check `PROBLEMS.md` §340 and §341 (the last entries) for answers first.
+Check `PROBLEMS.md` §340 and §346 (the last entries) for answers first.
 
 - Mclovin's grounding checker (item 34).
 - Shakespeare's model ahead of the tap, on the comparison's result (item 37).

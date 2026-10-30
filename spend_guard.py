@@ -106,7 +106,7 @@ NOT_SPEND = {
     # Push services charge nothing, and staging sends none (`push.status`).
     "VAPID_PRIVATE_KEY": "free: signs Web Push; push services do not bill",
     "VAPID_PUBLIC_KEY": "free: the public half of the Web Push key",
-    # §343: it can check the owner's signature on the rule books and can
+    # §348: it can check the owner's signature on the rule books and can
     # never make one.
     "AGENT_RULES_PUBLIC_KEY": "a public key: checks a signature, buys nothing",
 }

@@ -1,4 +1,4 @@
-"""The task table: background agent work, claimed so it runs once (§344).
+"""The task table: background agent work, claimed so it runs once (§349).
 
 Netenyahu's background work (Consuela's consolidation, dedupe and re-filing;
 later Keith's sweeps) must never run twice at once across two servers, never
@@ -29,6 +29,7 @@ import logging
 import sqlite3
 import threading
 import time
+import uuid
 from typing import Optional
 
 import db as store_db
@@ -62,7 +63,12 @@ class TaskStore:
                 key TEXT NOT NULL, status TEXT NOT NULL, input_hash TEXT NOT NULL,
                 done_hash TEXT NOT NULL DEFAULT '', attempts INTEGER NOT NULL DEFAULT 0,
                 created_at REAL NOT NULL, claimed_at REAL NOT NULL DEFAULT 0,
-                finished_at REAL NOT NULL DEFAULT 0, detail TEXT NOT NULL DEFAULT '')""")
+                finished_at REAL NOT NULL DEFAULT 0, detail TEXT NOT NULL DEFAULT '',
+                claim TEXT NOT NULL DEFAULT '')""")
+            try:   # a store made before claims carried a token (§353)
+                db.execute("ALTER TABLE tasks ADD COLUMN claim TEXT NOT NULL DEFAULT ''")
+            except Exception:  # noqa: BLE001 - the column is already there
+                pass
             db.execute("CREATE INDEX IF NOT EXISTS tasks_status ON tasks(status, created_at)")
             db.execute("""CREATE TABLE IF NOT EXISTS holds (
                 id INTEGER PRIMARY KEY AUTOINCREMENT, agent TEXT NOT NULL,
@@ -108,8 +114,12 @@ class TaskStore:
                 db.execute("ROLLBACK")
                 raise
 
-    def claim(self, task: str, now: float = 0.0) -> bool:
-        """Take the right to run `task`. True for exactly one caller."""
+    def claim(self, task: str, now: float = 0.0) -> str:
+        """Take the right to run `task`: a claim token for exactly one
+        caller, `""` for everyone else. Only that token can then touch,
+        finish or fail the task, so a slow worker whose claim was taken over
+        cannot overwrite the run that took it (§353). A crashed claim is
+        taken over only while a retry is left; after that the task is held."""
         now = now or time.time()
         with self._lock, self._connect() as db:
             db.execute("BEGIN IMMEDIATE")
@@ -121,50 +131,85 @@ class TaskStore:
                     return False
                 status, claimed_at, attempts = row
                 quiet = now - float(claimed_at or 0.0)
+                stale = status == RUNNING and quiet >= STALE_SECONDS
+                if stale and attempts >= MAX_ATTEMPTS:
+                    db.execute("UPDATE tasks SET status = ?, finished_at = ?, claim = '',"
+                               " detail = ? WHERE id = ?",
+                               (HELD, now, "its worker stopped answering on every try", task))
+                    db.execute("COMMIT")
+                    return ""
                 allowed = ((status == QUEUED)
                            or (status == FAILED and attempts < MAX_ATTEMPTS)
-                           or (status == RUNNING and quiet >= STALE_SECONDS))
+                           or stale)
                 if not allowed:
                     db.execute("ROLLBACK")
-                    return False
-                db.execute("UPDATE tasks SET status = ?, claimed_at = ?,"
-                           " attempts = attempts + 1 WHERE id = ?", (RUNNING, now, task))
+                    return ""
+                token = uuid.uuid4().hex
+                db.execute("UPDATE tasks SET status = ?, claimed_at = ?, claim = ?,"
+                           " attempts = attempts + 1 WHERE id = ?", (RUNNING, now, token, task))
                 db.execute("COMMIT")
-                return True
+                return token
             except Exception:
                 db.execute("ROLLBACK")
                 raise
 
-    def touch(self, task: str, now: float = 0.0) -> None:
-        """A worker saying it is still alive, so a long run is not taken over."""
-        with self._lock, self._connect() as db:
-            db.execute("UPDATE tasks SET claimed_at = ? WHERE id = ? AND status = ?",
-                       (now or time.time(), task, RUNNING))
+    @staticmethod
+    def _mine(token: str) -> tuple:
+        """The WHERE clause that keeps a write to the claim it came from."""
+        return (" AND status = ? AND claim = ?", (RUNNING, token)) if token else ("", ())
 
-    def finish(self, task: str, detail: str = "", now: float = 0.0) -> None:
+    def touch(self, task: str, now: float = 0.0, token: str = "") -> bool:
+        """A worker saying it is still alive, so a long run is not taken over.
+        False when the claim is no longer this worker's."""
+        where, args = self._mine(token) if token else (" AND status = ?", (RUNNING,))
         with self._lock, self._connect() as db:
-            db.execute("UPDATE tasks SET status = ?, done_hash = input_hash,"
-                       " finished_at = ?, detail = ? WHERE id = ?",
-                       (DONE, now or time.time(), str(detail)[:500], task))
+            cur = db.execute("UPDATE tasks SET claimed_at = ? WHERE id = ?" + where,
+                             (now or time.time(), task, *args))
+            return bool(cur.rowcount)
 
-    def fail(self, task: str, detail: str = "", now: float = 0.0) -> str:
-        """Record a failure: `FAILED` (one retry left) or `HELD` (no more)."""
+    def finish(self, task: str, detail: str = "", now: float = 0.0, token: str = "") -> bool:
+        """Mark it done. False, and nothing written, when `token` is given and
+        the claim was taken over."""
+        where, args = self._mine(token)
         with self._lock, self._connect() as db:
-            row = db.execute("SELECT attempts FROM tasks WHERE id = ?", (task,)).fetchone()
+            cur = db.execute("UPDATE tasks SET status = ?, done_hash = input_hash,"
+                             " finished_at = ?, detail = ?, claim = '' WHERE id = ?" + where,
+                             (DONE, now or time.time(), str(detail)[:500], task, *args))
+            return bool(cur.rowcount)
+
+    def fail(self, task: str, detail: str = "", now: float = 0.0, token: str = "") -> str:
+        """Record a failure: `FAILED` (one retry left) or `HELD` (no more);
+        `""` when `token` is given and the claim was taken over."""
+        where, args = self._mine(token)
+        with self._lock, self._connect() as db:
+            row = db.execute("SELECT attempts FROM tasks WHERE id = ?" + where,
+                             (task, *args)).fetchone()
+            if row is None and token:
+                return ""
             status = HELD if row is not None and row[0] >= MAX_ATTEMPTS else FAILED
-            db.execute("UPDATE tasks SET status = ?, finished_at = ?, detail = ?"
-                       " WHERE id = ?", (status, now or time.time(), str(detail)[:500], task))
+            db.execute("UPDATE tasks SET status = ?, finished_at = ?, detail = ?, claim = ''"
+                       " WHERE id = ?" + where,
+                       (status, now or time.time(), str(detail)[:500], task, *args))
             return status
 
-    def due(self, limit: int, now: float = 0.0) -> list:
-        """Tasks a worker may claim now, oldest first."""
+    def due(self, limit: int, now: float = 0.0, kinds=None) -> list:
+        """Tasks a worker may claim now, oldest first. `kinds`, when given,
+        is the `agent:kind` pairs a worker can run: anything else is left
+        out here rather than skipped later, so tasks nobody can run never
+        fill a tick's share and starve the rest (§353)."""
         now = now or time.time()
+        sql = ("SELECT id FROM tasks WHERE (status = ? OR (status = ? AND attempts < ?)"
+               " OR (status = ? AND ? - claimed_at >= ?))")
+        args = [QUEUED, FAILED, MAX_ATTEMPTS, RUNNING, now, STALE_SECONDS]
+        if kinds is not None:
+            kinds = sorted(kinds)
+            if not kinds:
+                return []
+            sql += f" AND agent || ':' || kind IN ({', '.join('?' for _ in kinds)})"
+            args += kinds
         with self._connect() as db:
-            rows = db.execute(
-                "SELECT id FROM tasks WHERE status = ? OR (status = ? AND attempts < ?)"
-                " OR (status = ? AND ? - claimed_at >= ?) ORDER BY created_at LIMIT ?",
-                (QUEUED, FAILED, MAX_ATTEMPTS, RUNNING, now, STALE_SECONDS,
-                 int(limit))).fetchall()
+            rows = db.execute(sql + " ORDER BY created_at LIMIT ?",
+                              (*args, int(limit))).fetchall()
         return [r[0] for r in rows]
 
     def get(self, task: str) -> Optional[dict]:
@@ -181,7 +226,7 @@ class TaskStore:
                 "SELECT status, COUNT(*) FROM tasks GROUP BY status")}
 
     def forget_tasks(self) -> int:
-        """A wipe: the queue is derived from what the wipe empties (§344)."""
+        """A wipe: the queue is derived from what the wipe empties (§349)."""
         with self._lock, self._connect() as db:
             cur = db.execute("DELETE FROM tasks")
             return cur.rowcount or 0
@@ -224,7 +269,8 @@ def reset(task_store: Optional[TaskStore] = None) -> None:
 
 def exists() -> bool:
     """Whether the store has been created - by the first task. A health
-    report must not be what creates it (the trending bank's rule, §139)."""
-    import os
-
-    return _STORE[0] is not None or os.path.exists(data_path("AGENTS_DB", "agents.db"))
+    report must not be what creates it (the trending bank's rule, §139).
+    Asked of the database, not the disk: under Postgres there is no file, and
+    a file check said "no store" after every restart, so holds were forgotten
+    on deploy (§353)."""
+    return _STORE[0] is not None or store_db.has_tables(data_path("AGENTS_DB", "agents.db"))

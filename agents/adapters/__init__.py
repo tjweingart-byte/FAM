@@ -7,7 +7,7 @@ metering) is `agents.models`', so it is written once.
 
 Only `anthropic` exists. `google-genai` and the OpenAI-compatible adapter
 come as their own changes, each with its package, its `metering.PRICES`
-rows and its `spend_guard.PAID_CREDENTIALS` key (§342).
+rows and its `spend_guard.PAID_CREDENTIALS` key (§347).
 """
 from __future__ import annotations
 

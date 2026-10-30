@@ -1,8 +1,8 @@
-"""Netenyahu, the overlord - as code, never a model (§345).
+"""Netenyahu, the overlord - as code, never a model (§350).
 
 docs/agent_rules/netenyahu.md: direct every other agent - when it works and
 what it does - and know each one's purpose, abilities and limits. The
-owner's choice (§341): no planner model; the rules in code.
+owner's choice (§346): no planner model; the rules in code.
 
 * **Per episode** (`for_episode`), called by the pipeline as an episode
   starts: which agents may work on it. Code in microseconds, no I/O while
@@ -10,7 +10,8 @@ owner's choice (§341): no planner model; the rules in code.
   search or an attached file gets no agent at all (every-agent.md, "never"
   4). An agent works only if it is switched on, its rule books pass the
   lock, it serves this surface, and it is not held. Today nothing passes:
-  every switch is off and every agent is held until the owner signs.
+  every switch is off (the owner signed the rule books, §352, and no agent
+  is built yet).
 * **The closed vocabulary** (`validate`): the only actions anything may
   ask of Netenyahu are `run(agent, task)`, `hold(agent, reason)` and
   `note(text)`, checked against the roster. There is no "change a rule",
@@ -214,10 +215,25 @@ def in_edition_window(now: Optional[datetime.datetime] = None) -> bool:
                for hour in EDITION_HOURS)
 
 
+#: The loop's pace is clamped: a setting of 0 would spin on the event loop,
+#: and NaN or infinity would stop it (§353).
+TICK_FLOOR_SECONDS, TICK_CEILING_SECONDS = 5.0, 3600.0
+
+
 async def tick(now: Optional[datetime.datetime] = None,
                handlers: Optional[dict] = None) -> dict:
     """One round: claim and run at most `OVERLORD_MAX_TASKS_PER_TICK` due
-    tasks. Returns what it did. Never raises."""
+    tasks. Returns what it did. Never raises: a round that fails anywhere,
+    the store's own reads included, is logged and the next round tries
+    again (§353)."""
+    try:
+        return await _tick(now, handlers)
+    except Exception:  # noqa: BLE001 - the loop outlives any one round
+        log.exception("netenyahu's tick failed")
+        return {"ran": 0, "why": "the round failed; the next one tries again"}
+
+
+async def _tick(now, handlers) -> dict:
     if not settings.agents:
         return {"ran": 0, "why": "AGENTS=0"}
     if in_edition_window(now):
@@ -226,31 +242,41 @@ async def tick(now: Optional[datetime.datetime] = None,
 
     handlers = HANDLERS if handlers is None else handlers
     held = _held()
-    ran, skipped = 0, []
+    # Only tasks something here can run: a task for an agent not built yet,
+    # or held, stays queued without taking a place in this round (§353).
+    kinds = [f"{agent}:{kind}" for agent, kind in handlers if agent not in held]
+    ran = 0
+    for task in tasks.store().due(int(settings.overlord_max_tasks_per_tick), kinds=kinds):
+        parts = task.split(":", 2)
+        if len(parts) != 3:
+            log.warning("netenyahu skipped a task id it cannot read: %r", task)
+            continue
+        agent, kind, _key = parts
+        handler: Optional[Callable] = handlers.get((agent, kind))
+        token = tasks.store().claim(task) if handler is not None else ""
+        if not token:
+            continue
+        try:
+            await handler(task)
+            tasks.store().finish(task, token=token)
+            report(agent, "ok")
+        except Exception as exc:  # noqa: BLE001 - one task never stops the loop
+            tasks.store().fail(task, f"{type(exc).__name__}: {exc}", token=token)
+            report(agent, "failed")
+        ran += 1
+    return {"ran": ran}
+
+
+def tick_seconds() -> float:
     try:
-        for task in tasks.store().due(int(settings.overlord_max_tasks_per_tick)):
-            agent, kind, _key = task.split(":", 2)
-            handler: Optional[Callable] = handlers.get((agent, kind))
-            if handler is None or agent in held:
-                skipped.append(task)
-                continue
-            if not tasks.store().claim(task):
-                continue
-            try:
-                await handler(task)
-                tasks.store().finish(task)
-                report(agent, "ok")
-            except Exception as exc:  # noqa: BLE001 - one task never stops the loop
-                tasks.store().fail(task, f"{type(exc).__name__}: {exc}")
-                report(agent, "failed")
-            ran += 1
-    except Exception:  # noqa: BLE001
-        log.exception("netenyahu's tick failed")
-    return {"ran": ran, "skipped": skipped}
+        seconds = float(settings.overlord_tick_seconds)
+    except (TypeError, ValueError):
+        seconds = TICK_FLOOR_SECONDS
+    return min(TICK_CEILING_SECONDS, max(TICK_FLOOR_SECONDS, seconds))
 
 
 async def run_forever() -> None:
     """The background loop, started only when `AGENTS=1`."""
     while True:
         await tick()
-        await asyncio.sleep(float(settings.overlord_tick_seconds))
+        await asyncio.sleep(tick_seconds())

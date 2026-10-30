@@ -1559,7 +1559,7 @@ class PodcastPipeline:
         # episode as it goes - which is the difference between an episode that
         # dies after the search has already billed being recorded and being free.
         stats.usage = notes.usage
-        # Which agents work on this episode (§345): Netenyahu, as code - no
+        # Which agents work on this episode (§350): Netenyahu, as code - no
         # model, no wait in front of the first word. With `AGENTS=0` it is
         # `netenyahu.OFF`, decided before anything is read, and nothing below
         # changes. A listener is waiting on every episode streamed here, so

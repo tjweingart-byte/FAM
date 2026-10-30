@@ -1,4 +1,4 @@
-"""The roster: every agent, what it is for, and its limits (§344).
+"""The roster: every agent, what it is for, and its limits (§349).
 
 Netenyahu's first responsibility (docs/agent_rules/netenyahu.md, "know
 every agent"): each agent's purpose, tasks, surfaces, pipeline stage,
@@ -9,7 +9,7 @@ settings, and nothing here can raise a ceiling.
 
 The ceilings name `config.py` settings rather than holding numbers, so a
 ceiling is set in one place. C3P0 and Nando work inside the brief's call
-(§341), so theirs are the brief's own (`EI_*`).
+(§346), so theirs are the brief's own (`EI_*`).
 """
 from __future__ import annotations
 

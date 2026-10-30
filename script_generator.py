@@ -641,7 +641,7 @@ class ScriptNotes:
     #: panel appearing while the episode plays instead of after it ends.
     caption_key: str = ""
     #: Which agents may work on this episode (`agents.netenyahu.EpisodeRun`),
-    #: set by the pipeline as the episode starts (§345). None outside it;
+    #: set by the pipeline as the episode starts (§350). None outside it;
     #: `netenyahu.OFF` while `AGENTS=0`. No agent reads it yet.
     agents: object = None
     #: The episode's own title, off the model's trailing marker line. Empty

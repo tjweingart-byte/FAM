@@ -7,7 +7,7 @@ what the code calls them; the names the owner gave them (Netenyahu, C3P0,
 
 `switch` is the agent's own on/off setting (the overlord has none: it is
 `AGENTS` itself). `models` are its model settings, each a `vendor:model-id`
-or empty for code only (§341).
+or empty for code only (§346).
 """
 from __future__ import annotations
 

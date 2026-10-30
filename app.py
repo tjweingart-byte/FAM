@@ -649,10 +649,10 @@ async def lifespan(_: FastAPI):
     # Before the first listener signs up into a database that is about to be
     # replaced by the next push.
     _announce_storage()
-    # The rule-book lock, read and verified at boot (§343) and again before
+    # The rule-book lock, read and verified at boot (§348) and again before
     # every agent call. Says in the log which agents it holds and why.
     agent_rulebooks.load()
-    # Netenyahu's background loop (§345), only when the agents are on: with
+    # Netenyahu's background loop (§350), only when the agents are on: with
     # `AGENTS=0` no task is ever claimed, so there is nothing to run.
     if settings.agents:
         _BACKGROUND.add(asyncio.create_task(netenyahu.run_forever()))
@@ -1081,7 +1081,7 @@ def _database_report() -> list[dict]:
     held_bank = voice_bank.opened()
     if held_bank is not None:
         stores.append(("voice bank", "VOICE_BANK_DB", held_bank.path))
-    # The agents' task table (§344). Reported once the first task creates
+    # The agents' task table (§349). Reported once the first task creates
     # it, like the trending bank: a health page must not create it.
     try:
         from agents import tasks as agent_tasks
@@ -1924,7 +1924,7 @@ async def health(request: Request) -> dict:
         # Which deployment this is and whether it can spend (§172). The web
         # client draws the STAGING banner from this.
         "environment": spend_guard.report(),
-        # The agents (§342): `AGENTS` and each agent's switch and pinned
+        # The agents (§347): `AGENTS` and each agent's switch and pinned
         # model, where every value came from, and the rule-book lock - all
         # settable in two places, so said here. Off by default.
         "agents": agent_models.health(),
@@ -10742,7 +10742,7 @@ async def admin_tracker_snapshot(request: Request) -> dict:
 
 @app.get("/api/admin/agents")
 async def admin_agents(request: Request) -> dict:
-    """The Agents panel (§346): every agent's switch, model, lock, last run,
+    """The Agents panel (§351): every agent's switch, model, lock, last run,
     spend and fallbacks over a week, holds and the task queue. Read-only -
     switches stay settings, and nothing here changes one."""
     _require_admin(request)

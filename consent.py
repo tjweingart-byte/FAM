@@ -65,7 +65,7 @@ PROVIDER = "Anthropic"
 #: The model vendors `AI_NOTICE` names, as `agents/models.py` spells a
 #: vendor (`vendor:model-id`). An agent request that carries a listener's
 #: words is refused for any vendor not here, in code, before it is sent
-#: (§342). Adding one is a new wording, a new `VERSION` and everybody asked
+#: (§347). Adding one is a new wording, a new `VERSION` and everybody asked
 #: again - never a line here alone. The search vendors are not model
 #: vendors: they receive a search, never the words.
 MODEL_VENDORS = ("anthropic",)

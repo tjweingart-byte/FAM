@@ -24000,7 +24000,7 @@ sub-tabs; every stage named is one the page draws; a tab per section; every
 plugin tab starts from what the agent must be best at; every agent has a
 rule book with the draft notice).
 
-## 341. Each agent's model, decided - and the cheap outside models going away (2026-10-30)
+## 346. Each agent's model, decided - and the cheap outside models going away (2026-10-30)
 
 The guide left every agent's model a proposal, "decided later, in another
 branch, with a fuller decision method" (§340). The owner asked, before
@@ -24071,7 +24071,7 @@ In this container the pre-installed Playwright is the one to keep.
 
 Nothing is built here; the agents stay unbuilt and off.
 
-## 342. Phase 0, piece 1: FAM's own model layer, the consent check in code, and every agent call metered (2026-10-30)
+## 347. Phase 0, piece 1: FAM's own model layer, the consent check in code, and every agent call metered (2026-10-30)
 
 The first of Phase 0's five pieces (`docs/AGENTS_BUILD_PROMPT.md`): how an
 agent reaches its model, built before any agent exists so that none can be
@@ -24112,7 +24112,7 @@ cleaner leaves the names in `properties` and `$defs` alone, and a test pins
 it.
 
 **One adapter, `anthropic`** (`agents/adapters/anthropic_adapter.py`, through
-`anthropic_client.build_async_client`). Every model the owner decided (§341)
+`anthropic_client.build_async_client`). Every model the owner decided (§346)
 is a Claude model, so `google-genai` and `openai` wait until an agent is
 moved to one, each its own change with its package, its `metering.PRICES`
 rows and its `spend_guard.PAID_CREDENTIALS` key.
@@ -24122,7 +24122,7 @@ rows and its `spend_guard.PAID_CREDENTIALS` key.
 before its adapter is touched, for any vendor not listed. The notice's
 wording and `VERSION` are unchanged - adding a vendor is new wording and
 everyone asked again, never a line alone, and a test pins that every listed
-vendor is one the notice names. Since §341, a typed DailyFAM topic counts as
+vendor is one the notice names. Since §346, a typed DailyFAM topic counts as
 a listener's words.
 
 **Metered.** Every request past its switches is a row in `metering.db`'s new
@@ -24137,7 +24137,7 @@ Prices are `metering.PRICES`; a model without one is not called.
 block with where each value came from): `AGENTS` and each agent's switch -
 `CONTEXTUALIZER`, `CATEGORIZER`, `RETRIEVER`, `EDITOR_AGENT`, `SUPERVISOR`,
 `HOUSEKEEPER`, `IT_AGENT` - all off; each agent's model at the owner's
-decision (§341): `OVERLORD_PLANNER_MODEL` and `RETRIEVER_MODEL` empty,
+decision (§346): `OVERLORD_PLANNER_MODEL` and `RETRIEVER_MODEL` empty,
 Sonnet for `EDITOR_MODEL` (until the comparison), `HOUSEKEEPER_REVIEW_MODEL`
 and `IT_SUMMARY_MODEL`, Haiku for the rest. `agents/names.py` is the one
 table of which agent owns which setting.
@@ -24178,7 +24178,7 @@ nothing on the listener path imports it) and `tests/test_agents_consent.py`
 before sending, FAM's material allowed to it, a covered vendor allowed; the
 notice names every covered vendor).
 
-## 343. Phase 0, piece 2: the rule-book lock - agents run only under rule books the owner signed (2026-10-30)
+## 348. Phase 0, piece 2: the rule-book lock - agents run only under rule books the owner signed (2026-10-30)
 
 The owner (2026-10-29): each agent's rules are "untouchable and unchangeable
 unless we deliberately say to have them change ... not by an agent and not
@@ -24189,11 +24189,11 @@ that the owner did not sign.
 **How it works** (`agents/rulebooks.py`). The books are every `.md` in
 `docs/agent_rules/` but its README, plus `docs/journalism_playbook.md`, which
 Shakespeare's rule book makes part of his instructions (locked at the
-owner's direction, §341). `MANIFEST.json` beside them lists each book's
+owner's direction, §346). `MANIFEST.json` beside them lists each book's
 SHA-256; `MANIFEST.json.sig` is the owner's Ed25519 signature of the
 manifest's exact bytes, base64. FAM holds only the public key: the committed
 `docs/agent_rules/owner.pub`, which `AGENT_RULES_PUBLIC_KEY` defaults to and
-must equal when set (§341) - a dashboard cannot swap in another key. `load`
+must equal when set (§346) - a dashboard cannot swap in another key. `load`
 reads and verifies once, at boot (`app.py`'s lifespan) and on first use, into
 frozen memory; `check`, which `agents.models.ask` calls before every call,
 lets an agent run only while the signature verifies, the manifest covers
@@ -24218,10 +24218,10 @@ commands (`--commands`); it never makes, reads or asks for a private key.
 A test runs those same OpenSSL commands end to end with a throwaway key made
 inside the test, so the commands the owner is given are known to produce a
 manifest the lock accepts. Tests make their keys with `cryptography` and
-never save them (the owner's permission, §341).
+never save them (the owner's permission, §346).
 
 **Also in this change.** `cryptography>=42` is listed in `requirements.txt`
-(it arrived only through `pdfminer.six`; the owner's yes, §341).
+(it arrived only through `pdfminer.six`; the owner's yes, §346).
 `.gitattributes` pins the books' and the playbook's line endings (`-text
 eol=lf`), because a checkout that rewrote them would change every hash and
 hold every agent. `AGENT_RULES_PUBLIC_KEY` is in `spend_guard.NOT_SPEND` (a
@@ -24253,7 +24253,7 @@ key file holds without raising; no setting turns it off; nothing under
 `agents/` writes; the owner's OpenSSL commands end to end; the model layer
 runs under the signed books and records their version).
 
-## 344. Phase 0, piece 3: the roster, the typed hand-offs, and the task table (2026-10-30)
+## 349. Phase 0, piece 3: the roster, the typed hand-offs, and the task table (2026-10-30)
 
 Netenyahu's first responsibility is to know every agent (netenyahu.md,
 "always" 1); agents never call each other, so what passes between them has a
@@ -24323,9 +24323,9 @@ one retry then held; nothing new refused; due tasks oldest first; a restart
 keeps the queue; holds recorded once and released only by asking; no
 listener in the store; a wipe forgets the queue).
 
-## 345. Phase 0, piece 4: Netenyahu as code, and the proof that off changes nothing (2026-10-30)
+## 350. Phase 0, piece 4: Netenyahu as code, and the proof that off changes nothing (2026-10-30)
 
-The owner's choice (§341): no planner model - Netenyahu is rules in code.
+The owner's choice (§346): no planner model - Netenyahu is rules in code.
 `agents/netenyahu.py`:
 
 * **Per episode.** `PodcastPipeline` asks `for_episode(surface, private,
@@ -24373,7 +24373,7 @@ a tick does nothing off or during an edition; each round its share and each
 task once across two servers; no handler, left alone; a failing task retried
 once then held; the loop only when on).
 
-## 346. Phase 0, piece 5: the Agents panel on /admin - and Phase 0 done (2026-10-30)
+## 351. Phase 0, piece 5: the Agents panel on /admin - and Phase 0 done (2026-10-30)
 
 The tracker gains an **Agents** page (`/admin#agents`, in the menu under
 Tracker), read from a new `/api/admin/agents` (admins only, a 404 to anyone
@@ -24387,16 +24387,16 @@ and the background queue; below it, the last 25 agent requests - the model
 asked and the one that answered, the rule-book version, the cost, why it
 fell back. `metering.MeterStore.agent_summary` reads it from `agent_calls`.
 
-**Display only**, at the owner's direction (§341): an agent is switched in
+**Display only**, at the owner's direction (§346): an agent is switched in
 the deployment's settings and the page has no control. A test pins that the
 page posts nothing about agents and that `/api/admin/agents` is the server's
 only agent route, a GET. Keith's slideshow rule (keith.md, "always" 8) is
 Keith's to follow once he exists; this panel was asked for by the owner
 directly, in the Phase 0 build prompt.
 
-**Phase 0 is done.** The framework stands - the model layer (§342), the
-rule-book lock (§343), the roster, hand-offs and task table (§344), Netenyahu
-as code (§345) and this panel - with every agent off, unbuilt and held, and
+**Phase 0 is done.** The framework stands - the model layer (§347), the
+rule-book lock (§348), the roster, hand-offs and task table (§349), Netenyahu
+as code (§350) and this panel - with every agent off, unbuilt and held, and
 listeners hearing exactly what they heard before. What waits on the owner:
 signing the rule books (`python tools/rulebook_manifest.py --commands`),
 `CODEOWNERS` and branch protection on `docs/agent_rules/`, the decision on
@@ -24407,7 +24407,7 @@ Tests: `tests/test_admin_agents.py` (admins only; every agent shown off and
 held with nothing spent; requests, spend, fallbacks and the latest requests
 read from the ledger, nothing sent shown as None; the panel changes nothing).
 
-**CI after piece 2.** Listing `cryptography` in `requirements.txt` (§343)
+**CI after piece 2.** Listing `cryptography` in `requirements.txt` (§348)
 woke four Sign in with Apple tests in CI, which had skipped there because
 their fixture asked only for `cryptography`; they also need PyJWT, which is
 in `requirements-oauth.txt` and not installed by CI. This container has both,
@@ -24416,7 +24416,7 @@ also asks for `jwt`, so CI is back where it was before piece 2. Installing
 the OAuth requirements in CI, so those tests run there, is a dependency
 decision for the owner.
 
-## 347. The owner signed the rule books (2026-10-30)
+## 352. The owner signed the rule books (2026-10-30)
 
 The owner signed the first rule-book manifest: `docs/agent_rules/MANIFEST.json`,
 its `.sig` and `owner.pub`, uploaded through GitHub's web page in one commit
@@ -24425,7 +24425,7 @@ run, and the signed file is byte-for-byte the one the session prepared. Every
 agent is still off: `AGENTS=0` and each agent's switch are the second lock,
 and no agent is built.
 
-**A manifest waits under another name.** The repository test (§343) fails on
+**A manifest waits under another name.** The repository test (§348) fails on
 a `MANIFEST.json` without a valid signature - nothing unsigned may ship - so
 pushing the manifest for the owner to download would have turned CI red until
 the signature arrived. The session instead pushes `--write`'s output as
@@ -24433,10 +24433,10 @@ the signature arrived. The session instead pushes `--write`'s output as
 renames it while signing, uploads all three files together, and the session
 deletes the pending file. `docs/agent_rules/README.md` says so.
 
-**The owner's guide** is a Claude doc, *How to sign FAM's rule books*: Part 0
-sets up Bitwarden (the `FAM by Apali` organization, Families plan, a
-`Signing` collection holding the key, owned by `admin@familiarize.net`),
-Part A makes the key, Part B signs. Two things it learnt the hard way: an
+**The owner's guide** is a Claude doc, *How to sign FAM's rule books*, kept
+outside this repository with where the key is stored - a map to the one
+secret the lock depends on does not belong here. Part 0 sets up a password
+manager, Part A makes the key, Part B signs. Two things it learnt the hard way: an
 Intel Mac cannot use Homebrew any more, so OpenSSL 3 comes from a conda
 environment (`famsign`); and the key travels by clipboard, so the command
 that reads it goes into Terminal before the key is copied, and is run with
@@ -24448,3 +24448,72 @@ key is its replacement.
 about the repository that signing changed; it now compares with the lock's
 own report. What the test is for - every agent off, nothing spent - is
 unchanged.
+
+## 353. Phase 0 reviewed before merge: the lock's key, a test that skipped itself, and the queue (2026-10-30)
+
+At the owner's request, before any merge, two independent reviewers read the
+branch's whole change (one the `agents/` code, one everything around it).
+What they found, and what was done:
+
+**Fixed.**
+- **A setting could replace the owner's key.** `AGENT_RULES_DIR` chose the
+  folder `owner.pub` was read from, so a folder of edited books signed with
+  a key of its own passed the lock, and with no committed file
+  `AGENT_RULES_PUBLIC_KEY` was a key by itself. Reproduced by both reviewers.
+  The key is now always `rulebooks.TRUSTED_KEY`, the committed
+  `docs/agent_rules/owner.pub`; the setting may only match it. Tests trust a
+  throwaway key by patching that constant, never a setting.
+- **The proof that listeners hear the same thing skipped itself** once the
+  owner signed (§352): it checked for `MANIFEST.json` and called
+  `pytest.skip`, so CI stayed green with the Phase 0 promise untested. One
+  model-layer test did the same. Both now set up the state they test; the
+  golden test streams an episode four ways - hook out, off, on and held, on
+  under signed books - and never skips.
+- **Under Postgres the task store looked absent after every restart**
+  (`exists()` asked the disk), so holds were forgotten on deploy and a wipe
+  skipped the queue. It asks `db.has_tables`, like `pipeline_errors`.
+- **A NaN time limit crashed the event loop**, not just the call; infinity
+  waited forever. Limits and call sizes must be finite and positive.
+- **The consent check was opt-in** and a request named its own switch, model
+  setting and rule book - one naming `ANTHROPIC_API_KEY` as its model wrote
+  the key into the ledger's reason. A request must now use its own agent's
+  settings from `agents.names`, and material tagged `request` always gets the
+  consent check. Per request, as decided: FAM's own material from the same
+  agent may still go to another vendor.
+- **Netenyahu's loop could die on one database error, and tasks nobody could
+  run filled every round.** The whole round is guarded, the pace is clamped
+  to 5 s - 1 h, an unreadable task id is skipped, and `due` lists only tasks
+  a handler can run for an agent not held.
+- **A claim had no owner**: a slow worker whose claim was taken over could
+  mark the new run done. `claim` returns a token that `touch`, `finish` and
+  `fail` must carry, and a task that crashes its worker on every try is held
+  rather than re-claimed every 15 minutes forever.
+- **A call that timed out after sending counted as unsent.** `agent_calls`
+  has a `sent` column; spend stays None when no cost is known.
+- **Schemas the API would have changed** (a `dict` field closed to `{}`, a
+  tuple as `prefixItems`) are refused, and material cannot close its tag in
+  any case or spacing.
+- **`--write` would have overwritten the signed manifest**; it writes
+  `MANIFEST.pending.json`, and `--commands` says to rename it while signing.
+- Stale "until the owner signs" lines, a wrong note on where `cryptography`
+  comes from, and where the signing key is kept (now only in the owner's own
+  guide, not here, §352).
+
+**Not changed, with the reason.**
+- **Blocking reads on the request path once `AGENTS=1`** (the holds query
+  and the per-call re-hash of rule books): nothing is on that path until an
+  agent is built. Phase 1's first agent on the path caches the holds and
+  the on-disk check off the request.
+- **An older signed manifest stays valid** (no rollback floor). Restoring one
+  needs write access to `docs/agent_rules/`, which CODEOWNERS and branch
+  protection now give only the owner; a version floor in code is the
+  owner's call if wanted.
+- **Whether the API reports the served model as the exact pinned id** cannot
+  be checked without a key. If it reports a dated id, every call comes back
+  `wrong_model` and falls back - safe, and seen on the first real call.
+- **Every episode the pipeline streams counts as `search`**: in the agents'
+  terms `search` is "a listener is waiting", which every streamed episode,
+  myFAM and DailyFAM taps included, is.
+
+**Numbering.** Main merged its own §341 and §345 while this branch was open;
+this branch's sections moved to §346-§352, and every reference with them.

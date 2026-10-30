@@ -1,4 +1,4 @@
-"""FAM's own thin model layer: how every agent reaches its model (§342).
+"""FAM's own thin model layer: how every agent reaches its model (§347).
 
 Decided by the owner (2026-10-29, docs/FAM_AGENTS.md, Shared rules, Models
 and outside plugins): no agent framework and no gateway. Each agent call is
@@ -42,6 +42,8 @@ import asyncio
 import hashlib
 import json
 import logging
+import math
+import re
 import time
 from dataclasses import dataclass, field
 from typing import Optional, Type
@@ -51,7 +53,7 @@ from pydantic import BaseModel, ValidationError
 import consent
 import metering
 import spend_guard
-from agents import adapters, rulebooks
+from agents import adapters, names, rulebooks
 from config import settings
 
 log = logging.getLogger("fam.agents")
@@ -135,7 +137,9 @@ class AgentRequest:
     #: `(tag, text)` pairs; every tag one of `MATERIAL_TAGS`.
     material: tuple = ()
     #: True when any material is a listener's own words (a search, Go
-    #: Deeper text, a typed DailyFAM topic): the consent check applies.
+    #: Deeper text, a typed DailyFAM topic): the consent check applies. The
+    #: layer also treats a request as carrying them when any material is
+    #: tagged `request`, so leaving this unset never skips the check (§353).
     carries_listener_words: bool = False
     #: The time limit and the call size. Neither has a default: a request
     #: that does not say how long it may take is not sent.
@@ -162,9 +166,12 @@ class AgentResult:
     rulebook_sha: str = ""
     prompt_fingerprint: str = ""
     seconds: float = 0.0
-    #: What the call cost, or None when nothing was sent (never 0 for
+    #: What the call cost, or None when it is not known (never 0 for
     #: "not run", [metering]).
     cost_usd: Optional[float] = None
+    #: Whether the request left the machine: a timed-out or failed call was
+    #: sent and has no known cost (§353).
+    sent: bool = False
     priced: bool = True
     usage: dict = field(default_factory=dict)
 
@@ -232,13 +239,14 @@ def wire_schema(model: Type[BaseModel]) -> dict:
     return clean(model.model_json_schema())
 
 
+#: Any opening or closing material tag, in any case, spacing or with
+#: attributes: `</Request >` closes a tag as surely as `</request>` (§353).
+_TAG = re.compile(r"<(\s*/?\s*)(" + "|".join(MATERIAL_TAGS) + r")\b([^>]*)>", re.IGNORECASE)
+
+
 def _escape(text: str) -> str:
     """Material cannot close its own tag and write outside it."""
-    text = str(text or "")
-    for tag in MATERIAL_TAGS:
-        text = text.replace(f"</{tag}>", f"&lt;/{tag}&gt;").replace(
-            f"<{tag}>", f"&lt;{tag}&gt;")
-    return text
+    return _TAG.sub(lambda m: f"&lt;{m[1]}{m[2]}{m[3]}&gt;", str(text or ""))
 
 
 def build_user_turn(material: tuple) -> str:
@@ -262,6 +270,60 @@ def fingerprint(system: str, schema: dict) -> str:
     return hashlib.sha256(blob.encode("utf-8")).hexdigest()[:16]
 
 
+def _positive(value) -> bool:
+    """A real, finite, positive number: NaN and infinity pass `> 0` checks,
+    and a NaN time limit crashes the event loop itself (§353)."""
+    try:
+        return math.isfinite(float(value)) and float(value) > 0
+    except (TypeError, ValueError):
+        return False
+
+
+def _own_settings(request: AgentRequest) -> str:
+    """The request's switch, model setting and rule book must be its own
+    agent's, from `agents.names` - a request cannot name another agent's
+    switch to skip its own, nor read some other setting as a model (§353)."""
+    entry = names.AGENTS.get(request.agent)
+    if entry is None:
+        return f"{request.agent!r} is not an agent in agents.names"
+    _name, book, switch, models = entry
+    if request.switch_setting != switch:
+        return f"{request.agent}'s switch is {switch.upper()}, not {request.switch_setting!r}"
+    if request.model_setting not in models:
+        return f"{request.model_setting!r} is not one of {request.agent}'s model settings"
+    if request.rule_book != book:
+        return f"{request.agent}'s rule book is {book}, not {request.rule_book!r}"
+    return ""
+
+
+def _unsendable_schema(schema: dict) -> str:
+    """Shapes `wire_schema` would change rather than send: a `dict` field
+    (its open `additionalProperties` would be closed, so only `{}` could
+    come back) and a fixed-length tuple (`prefixItems`). Refused, not
+    rewritten (§353)."""
+    def walk(node) -> str:
+        if isinstance(node, dict):
+            if isinstance(node.get("additionalProperties"), dict) or \
+                    node.get("additionalProperties") is True:
+                return "a dict field (an open object) cannot be sent as a closed schema"
+            if "prefixItems" in node:
+                return "a fixed-length tuple field cannot be sent as a schema"
+            return next((w for w in map(walk, node.values()) if w), "")
+        if isinstance(node, list):
+            return next((w for w in map(walk, node) if w), "")
+        return ""
+    return walk(schema)
+
+
+def _carries_listener_words(request: AgentRequest) -> bool:
+    """Whether the consent check applies: the request says so, or any
+    material is tagged `request` - where a listener's words always travel.
+    Never left to the flag alone (§353). Per request, as decided: FAM's own
+    material from the same agent may still go to another vendor."""
+    return bool(request.carries_listener_words) or any(
+        tag == "request" for tag, _text in request.material)
+
+
 def _malformed(request: AgentRequest) -> str:
     if not isinstance(request, AgentRequest):
         return "not an AgentRequest"
@@ -271,10 +333,13 @@ def _malformed(request: AgentRequest) -> str:
         return "the request has no Pydantic schema"
     if request.schema.model_config.get("extra") != "forbid":
         return "the request's schema allows extra fields"
-    if not request.timeout or request.timeout <= 0:
+    if not _positive(request.timeout):
         return "the request has no time limit"
-    if not request.max_tokens or request.max_tokens <= 0:
+    if not _positive(request.max_tokens):
         return "the request has no call size"
+    why = _own_settings(request) or _unsendable_schema(request.schema.model_json_schema())
+    if why:
+        return why
     for item in request.material:
         if not (isinstance(item, tuple) and len(item) == 2 and item[0] in MATERIAL_TAGS):
             return f"material outside the tags {', '.join(MATERIAL_TAGS)}"
@@ -327,7 +392,7 @@ async def _ask(request, notes, client, started) -> AgentResult:
     adapter = adapters.adapter_for(spec.vendor)
     if adapter is None:
         return done(MISCONFIGURED, f"no adapter is built for {spec.vendor}", **kw)
-    if request.carries_listener_words and not consent.covers(spec.vendor):
+    if _carries_listener_words(request) and not consent.covers(spec.vendor):
         return done(CONSENT, (f"a listener's words may not go to {spec.vendor}: "
                               "the consent listeners give covers "
                               f"{', '.join(consent.MODEL_VENDORS)} only"), **kw)
@@ -347,16 +412,17 @@ async def _ask(request, notes, client, started) -> AgentResult:
                          client=client),
             timeout=float(request.timeout))
     except asyncio.TimeoutError:
-        return done(TIMEOUT, f"no answer within {request.timeout:g}s", **kw)
+        return done(TIMEOUT, f"no answer within {request.timeout:g}s", sent=True, **kw)
     except Exception as exc:  # noqa: BLE001 - availability outranks diagnosis
-        return done(FAILED, f"{spec.vendor} call failed: {type(exc).__name__}: {exc}"[:300], **kw)
+        return done(FAILED, f"{spec.vendor} call failed: {type(exc).__name__}: {exc}"[:300],
+                    sent=True, **kw)
 
     call = metering.Usage()
     call.add_model_call(spec.price_key, answer.usage)
     if notes is not None and getattr(notes, "usage", None) is not None:
         notes.usage.add_model_call(spec.price_key, answer.usage)
     cost = metering.price_of(call)
-    kw.update(served_model=answer.served_model, cost_usd=round(cost.claude, 8),
+    kw.update(served_model=answer.served_model, cost_usd=round(cost.claude, 8), sent=True,
               priced=cost.priced,
               usage={"input_tokens": call.input_tokens,
                      "output_tokens": call.output_tokens,
@@ -413,6 +479,7 @@ def _record(request: AgentRequest, result: AgentResult) -> None:
             rulebook_sha=result.rulebook_sha,
             prompt_fingerprint=result.prompt_fingerprint,
             usage=result.usage, cost_usd=result.cost_usd, priced=result.priced,
+            sent=result.sent,
             seconds=result.seconds, reason=result.reason)
     except Exception:  # noqa: BLE001
         log.exception("could not record an agent call")

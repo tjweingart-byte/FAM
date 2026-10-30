@@ -2,8 +2,8 @@
 
 | | |
 |---|---|
-| **Status** | Phase 0, the framework, being built (§342-§343): the model layer, the rule-book lock, the roster, the typed hand-offs, the task table, Netenyahu as code and the `/admin` Agents panel exist; no agent is built, everything is off, and the owner signed the rule books on 2026-10-30 (§347) |
-| **History** | Started 2026-10-24 (§307); editor in chief and script supervisor (§312); pipeline and how agents run (§313); contextualizer and guardrails (§314); condensed into tabs, outside plugins per agent, the overlord, housekeeper, retriever, IT guy and categorizer (§340); the owner's brainstorm of 2026-10-28 - every agent named, roles redrawn, a rule book each (§340); each agent's model decided, but Mclovin's checker and Shakespeare ahead of the tap (§341) |
+| **Status** | Phase 0, the framework, being built (§347-§348): the model layer, the rule-book lock, the roster, the typed hand-offs, the task table, Netenyahu as code and the `/admin` Agents panel exist; no agent is built, everything is off, and the owner signed the rule books on 2026-10-30 (§352) |
+| **History** | Started 2026-10-24 (§307); editor in chief and script supervisor (§312); pipeline and how agents run (§313); contextualizer and guardrails (§314); condensed into tabs, outside plugins per agent, the overlord, housekeeper, retriever, IT guy and categorizer (§340); the owner's brainstorm of 2026-10-28 - every agent named, roles redrawn, a rule book each (§340); each agent's model decided, but Mclovin's checker and Shakespeare ahead of the tap (§346) |
 | **Page** | `python docs/build_agents_html.py` builds the tabbed page from this file: one tab per `##`, one sub-tab per `###` |
 
 An **agent** is a worker that uses a model for one named job. FAM's eight,
@@ -107,7 +107,7 @@ copies are held outside Claude; once agents run, that is enforced in code:
    before the agent existed (rule 1), Keith raises it as urgent (the pop-up on
    every admin page and an email, as decided for Keith on 2026-10-28), and
    `/admin` names the file that differs. There is no setting that skips the
-   check. Until the owner signed the first manifest (2026-10-30, §347)
+   check. Until the owner signed the first manifest (2026-10-30, §352)
    every agent was held.
 3. **Nothing an agent or model does can write a rule book.** Rule books are
    read-only files loaded once into frozen memory, never stored in MongoDB or
@@ -126,7 +126,7 @@ copies are held outside Claude; once agents run, that is enforced in code:
    and the public key (the owner sets this in GitHub). Every call records the
    rule book version it ran under.
 
-**Built (§343):** `agents/rulebooks.py` and `tools/rulebook_manifest.py`. The
+**Built (§348):** `agents/rulebooks.py` and `tools/rulebook_manifest.py`. The
 books are every `.md` in `docs/agent_rules/` but its README, and the
 journalism playbook (the owner, 2026-10-30); the manifest is
 `docs/agent_rules/MANIFEST.json` with `MANIFEST.json.sig` beside it, the
@@ -155,7 +155,7 @@ switch to a different model; each answer checked against the model it says
 it came from; a nightly check per agent on fixed inputs, as
 `verify_voice.py --fingerprint` does for the voice. Which model each agent
 runs was decided by the owner on 2026-10-30 (Models and outside plugins,
-Models decided; §341).
+Models decided; §346).
 
 **To change a rule book:** the owner edits the file, signs the new manifest
 on the owner's own machine, and commits both; CI checks the signature and
@@ -210,7 +210,7 @@ Sonnet ~$0.026, Opus ~$0.052):
 | **Ease in FAM** | Exists (`episode_intelligence._ask`), metered | Moderate | Easy to prototype, hard to meter | Config + `ant apply` | Exists (`claude_batch.py`) |
 | **Best use** | Anything a listener waits on | Consuela; one capped turn on the tap | Audits, evals | Nightly jobs | Editions, write-ahead, audits |
 
-**Built (§344):** `agents/roster.py` (each agent's purpose, tasks, surfaces,
+**Built (§349):** `agents/roster.py` (each agent's purpose, tasks, surfaces,
 stage, rule book, switch, models, ceilings and fallback), `agents/handoffs.py`
 (`ResearchPlan`, `PluginPacket`, `ArchivePacket`, `Outline`, `ScriptSentence`,
 `Verdict` and their parts - Pydantic models that forbid extra fields, with
@@ -283,7 +283,7 @@ model is its own setting naming vendor and exact model ID
 falling through to a shared `MODEL`. Rejected after measurement and review:
 PydanticAI (about 5-6 ms more CPU per call in a one-process server, about
 two releases a week, built for tool loops FAM's agents do not run) and
-LiteLLM (two PyPI releases that stole credentials in 2026). **Built (§342):**
+LiteLLM (two PyPI releases that stole credentials in 2026). **Built (§347):**
 `agents/models.py` (`ask`, `AgentRequest`, the statuses), `agents/adapters/`
 (`anthropic` only) and the `agent_calls` ledger in `metering.db`; the consent
 check is `consent.MODEL_VENDORS`. Which model each
@@ -291,7 +291,7 @@ agent runs was decided afterwards (Models decided, below); this decided
 only the layer.
 
 **Models decided** (the owner, 2026-10-30, in two rounds on decision pages
-built from this guide's plugin tabs, with deep dives on four of them; §341).
+built from this guide's plugin tabs, with deep dives on four of them; §346).
 Every pick is a Claude model, so the layer needs only its `anthropic`
 adapter for the decided agents; the `google-genai` and `openai` adapters
 wait until an agent is moved to one. The outside models this guide priced
@@ -441,7 +441,7 @@ emails `Admin@familiarize.net` when it runs well above it.
 
 **Netenyahu, the overlord** (named by the owner, 2026-10-28). **Works in:**
 above every agent - like a boss, it directs each one: when to work and what
-to do. **Status:** built as code, with no planner model (§345): `agents/netenyahu.py`
+to do. **Status:** built as code, with no planner model (§350): `agents/netenyahu.py`
 routes each episode (`for_episode`, the pipeline's one hook), checks the
 closed vocabulary (`validate`), holds an agent after `HOLD_AFTER` failures
 in a row (never for spend), and runs the background loop (`tick`), only

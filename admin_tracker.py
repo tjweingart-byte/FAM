@@ -100,7 +100,7 @@ def discover_stores(root: Path = PROJECT_ROOT) -> list[Store]:
     it - the tracker cannot end up reading a different file from the app.
     """
     found: dict[str, tuple[str, str]] = {}
-    # The agents' package too (§344), where the task table opens its store.
+    # The agents' package too (§349), where the task table opens its store.
     for module in sorted(root.glob("*.py")) + sorted((root / "agents").rglob("*.py")):
         try:
             text = module.read_text(encoding="utf-8")

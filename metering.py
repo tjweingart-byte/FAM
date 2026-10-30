@@ -84,7 +84,7 @@ log = logging.getLogger("metering")
 #: `record` marks the row unpriced and `report` says how many there were.
 #: Claude models are keyed by their bare id; another vendor's, when an agent
 #: adapter for it is built, as `vendor:model-id` (`agents.models.ModelSpec`) -
-#: an agent whose model has no row here is not called at all (§342).
+#: an agent whose model has no row here is not called at all (§347).
 PRICES: dict[str, tuple[float, float]] = {
     "claude-fable-5-1": (10.00, 50.00),
     "claude-fable-5": (10.00, 50.00),
@@ -462,7 +462,7 @@ class MeterStore:
                     conn.execute(ddl)
             conn.execute("CREATE INDEX IF NOT EXISTS usage_at ON usage(at)")
             conn.execute("CREATE INDEX IF NOT EXISTS usage_user ON usage(user_id, at)")
-            # **Every agent call** (§342), one row each, append-only like the
+            # **Every agent call** (§347), one row each, append-only like the
             # episodes beside it: which agent, which model it asked and which
             # answered, the rule-book version and the prompt's fingerprint it
             # ran under, and what it cost. No listener id and none of the
@@ -490,8 +490,16 @@ class MeterStore:
                        cost_usd           REAL,
                        priced             INTEGER NOT NULL DEFAULT 1,
                        seconds            REAL NOT NULL DEFAULT 0,
-                       reason             TEXT NOT NULL DEFAULT ''
+                       reason             TEXT NOT NULL DEFAULT '',
+                       sent               INTEGER NOT NULL DEFAULT 0
                    )""")
+            # `sent` (§353): whether the request left the machine. A call
+            # that timed out or failed after sending has no known cost but
+            # was sent (and may be billed), which a NULL cost alone could
+            # not say.
+            if "sent" not in {row["name"] for row in
+                              conn.execute("PRAGMA table_info(agent_calls)")}:
+                conn.execute("ALTER TABLE agent_calls ADD COLUMN sent INTEGER NOT NULL DEFAULT 0")
             conn.execute("CREATE INDEX IF NOT EXISTS agent_calls_agent "
                          "ON agent_calls(agent, at)")
 
@@ -567,9 +575,13 @@ class MeterStore:
                           usage: Optional[dict] = None,
                           cost_usd: Optional[float] = None, priced: bool = True,
                           seconds: float = 0.0, reason: str = "",
-                          at: float = 0.0) -> int:
-        """Append one agent call (`agents.models.ask`). Never raises."""
+                          at: float = 0.0, sent: Optional[bool] = None) -> int:
+        """Append one agent call (`agents.models.ask`). Never raises.
+        `sent` defaults to "it has a cost": the caller says so for a call
+        that left but came back with none (a timeout, a failure)."""
         usage = usage or {}
+        if sent is None:
+            sent = cost_usd is not None
         try:
             with self._conn() as conn:
                 cur = conn.execute(
@@ -577,8 +589,8 @@ class MeterStore:
                            vendor, model, served_model, rulebook_version,
                            rulebook_sha, prompt_fingerprint, input_tokens,
                            output_tokens, cache_read_tokens, cache_write_tokens,
-                           cost_usd, priced, seconds, reason)
-                       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                           cost_usd, priced, seconds, reason, sent)
+                       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                     (at or time.time(), agent[:40], task[:60], surface[:20],
                      status[:20], vendor[:20], model[:80], served_model[:80],
                      str(rulebook_version)[:40], rulebook_sha[:64],
@@ -588,7 +600,7 @@ class MeterStore:
                      int(usage.get("cache_write_tokens") or 0),
                      None if cost_usd is None else round(float(cost_usd), 8),
                      1 if priced else 0, round(float(seconds or 0.0), 3),
-                     str(reason or "")[:300]))
+                     str(reason or "")[:300], 1 if sent else 0))
         except sqlite3.Error:
             log.exception("could not record an agent call for %r", agent)
             return 0
@@ -597,16 +609,17 @@ class MeterStore:
     def agent_summary(self, since: float = 0.0) -> dict:
         """Per agent since `since`: requests, calls sent, what they cost,
         fallbacks taken, and the last one's time and status. Spend is None
-        for an agent that sent nothing ([metering])."""
+        when no call has a known cost ([metering]); `sent` counts calls that
+        left the machine, a timed-out one included (§353)."""
         out: dict = {}
-        for agent, requests, sent, cost, fallbacks, last in self._conn().execute(
-                """SELECT agent, COUNT(*),
+        for agent, requests, sent, costed, cost, fallbacks, last in self._conn().execute(
+                """SELECT agent, COUNT(*), SUM(sent),
                           SUM(CASE WHEN cost_usd IS NULL THEN 0 ELSE 1 END),
                           SUM(cost_usd),
                           SUM(CASE WHEN status = 'ok' THEN 0 ELSE 1 END), MAX(at)
                    FROM agent_calls WHERE at >= ? GROUP BY agent""", (since,)):
             out[agent] = {"requests": int(requests or 0), "sent": int(sent or 0),
-                          "cost_usd": None if not sent else round(float(cost or 0.0), 6),
+                          "cost_usd": None if not costed else round(float(cost or 0.0), 6),
                           "fallbacks": int(fallbacks or 0), "last_at": last}
         for agent, entry in out.items():
             row = self._conn().execute(

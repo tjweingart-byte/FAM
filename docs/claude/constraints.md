@@ -2110,7 +2110,7 @@
   (manifest files only, no service worker). iOS binaries are not kept in git.
 
 <!-- rule:agent-model-layer -->
-- **An agent reaches a model only through `agents/models.py`** *(§342, the
+- **An agent reaches a model only through `agents/models.py`** *(§347, the
   owner's decision of 2026-10-29).* FAM's own thin layer - no agent
   framework (not PydanticAI or LangGraph) and no gateway (not LiteLLM):
   `ask` sends one typed `AgentRequest` (a Pydantic schema that forbids extra
@@ -2131,14 +2131,18 @@
   is written to `metering`'s `agent_calls` with the agent, the model, the
   rule-book version and the prompt's fingerprint, never who asked or what
   they said. `AGENTS=0` (the default) and each agent's switch keep all of
-  it off. **And only under rule books the owner signed** *(§343)*:
+  it off. **And only under rule books the owner signed** *(§348)*:
   `agents/rulebooks.py` checks the owner's Ed25519 signature on
   `docs/agent_rules/MANIFEST.json` at boot and before every call, against
-  the committed `owner.pub` (which `AGENT_RULES_PUBLIC_KEY` must match), and
+  the committed `owner.pub` - always the repository's, whatever
+  `AGENT_RULES_DIR` names, and `AGENT_RULES_PUBLIC_KEY` may only match it,
+  never replace it (§353) - and
   holds any agent whose book, `every-agent.md` or (Shakespeare) the
   journalism playbook does not hash as signed, or any book the manifest
   does not cover; no setting skips it, nothing writes a book, and until the
-  owner signs a first manifest every agent is held. The private key is
+  owner signed the first manifest (2026-10-30, §352) every agent was held.
+  A session writes the next manifest as `MANIFEST.pending.json` for the
+  owner to sign, never over the signed one. The private key is
   never generated, held or asked for by a session or a server; tests make
   throwaway keys of their own.
 

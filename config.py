@@ -1987,7 +1987,7 @@ class Settings:
         default_factory=lambda: os.environ.get("VIRAL_LOOPS_API_TOKEN", "").strip())
     viral_loops_campaign_id: str = field(
         default_factory=lambda: os.environ.get("VIRAL_LOOPS_CAMPAIGN_ID", "").strip())
-    # **The agents** (docs/FAM_AGENTS.md, PROBLEMS.md §340-§342). `AGENTS`
+    # **The agents** (docs/FAM_AGENTS.md, PROBLEMS.md §340-§347). `AGENTS`
     # is the one switch over all of them and is off: with it off no agent
     # runs and listeners hear exactly what they heard before the agents
     # existed. Each agent then has its own switch, also off.
@@ -2017,12 +2017,12 @@ class Settings:
     it_agent: bool = field(
         default_factory=lambda: os.environ.get("IT_AGENT", "0")
         not in ("0", "false", "False", ""))
-    # **Each agent's model, its own setting** (§341, the owner's decisions of
+    # **Each agent's model, its own setting** (§346, the owner's decisions of
     # 2026-10-30): `vendor:model-id`, an exact model and never a moving
     # alias, and never `MODEL` - an empty value means the agent makes no
     # model call (code only). `agents/models.py` refuses anything else. The
     # editor's ahead-of-the-tap model is Sonnet until the owner decides on
-    # the comparison (§341); the grounding checker is not a model setting.
+    # the comparison (§346); the grounding checker is not a model setting.
     overlord_planner_model: str = field(
         default_factory=lambda: os.environ.get("OVERLORD_PLANNER_MODEL", "").strip())
     contextualizer_model: str = field(
@@ -2057,10 +2057,11 @@ class Settings:
     it_summary_model: str = field(
         default_factory=lambda: os.environ.get(
             "IT_SUMMARY_MODEL", "anthropic:claude-sonnet-5-5").strip())
-    # **The rule-book lock** (§343, `agents/rulebooks.py`). Where the rule
+    # **The rule-book lock** (§348, `agents/rulebooks.py`). Where the rule
     # books are read from (empty: `docs/agent_rules/`), the owner's public
-    # key (empty: the committed `docs/agent_rules/owner.pub`; when set it
-    # must be that same key), and Shakespeare's journalism playbook, which
+    # key (always the committed `docs/agent_rules/owner.pub`, whatever
+    # `AGENT_RULES_DIR` names; when set it must be that same key and never
+    # replaces it), and Shakespeare's journalism playbook, which
     # the signed manifest covers too (empty: `docs/journalism_playbook.md`).
     # There is no setting that skips the check.
     agent_rules_dir: str = field(
@@ -2069,7 +2070,7 @@ class Settings:
         default_factory=lambda: os.environ.get("AGENT_RULES_PUBLIC_KEY", "").strip())
     editor_playbook: str = field(
         default_factory=lambda: os.environ.get("EDITOR_PLAYBOOK", "").strip())
-    # **Each agent's ceilings** (§344, `agents/roster.py`): the time limit
+    # **Each agent's ceilings** (§349, `agents/roster.py`): the time limit
     # and the call size of one model call, read by the roster. Placeholders
     # until each agent's own phase measures them - nothing calls a model
     # yet. C3P0 and Nando's main work rides inside the brief's call, so the
@@ -2087,7 +2088,7 @@ class Settings:
     housekeeper_max_tokens: int = _env_int("HOUSEKEEPER_MAX_TOKENS", 1500)
     it_timeout_seconds: float = _env_float("IT_TIMEOUT_SECONDS", 60.0)
     it_max_tokens: int = _env_int("IT_MAX_TOKENS", 1000)
-    # **Netenyahu's background loop** (§345): how often it claims due agent
+    # **Netenyahu's background loop** (§350): how often it claims due agent
     # tasks, and at most how many per round. Started only when `AGENTS=1`.
     overlord_tick_seconds: float = _env_float("OVERLORD_TICK_SECONDS", 300.0)
     overlord_max_tasks_per_tick: int = _env_int("OVERLORD_MAX_TASKS_PER_TICK", 3)

@@ -1,5 +1,5 @@
 """The lock on each agent's rule book (docs/FAM_AGENTS.md, Shared rules,
-Locked rule books; PROBLEMS.md §343).
+Locked rule books; PROBLEMS.md §348).
 
 The owner (2026-10-29): each agent's rules are "untouchable and unchangeable
 unless we deliberately say to have them change ... not by an agent and not
@@ -52,6 +52,14 @@ DEFAULT_PLAYBOOK = ROOT / "docs" / "journalism_playbook.md"
 MANIFEST = "MANIFEST.json"
 SIGNATURE = "MANIFEST.json.sig"
 PUBLIC_KEY_FILE = "owner.pub"
+#: What a session writes for the owner to sign: a name the lock never reads,
+#: so the repository stays green while it waits (§352).
+PENDING = "MANIFEST.pending.json"
+#: The one key FAM trusts: the owner's public key as committed here, whatever
+#: folder `AGENT_RULES_DIR` names. A folder that brings its own `owner.pub`
+#: brings nothing; `AGENT_RULES_PUBLIC_KEY` may confirm this key, never
+#: stand in for it (§353).
+TRUSTED_KEY = DEFAULT_DIR / PUBLIC_KEY_FILE
 EVERY_AGENT = "every-agent.md"
 #: The playbook's name in the manifest, wherever the file lives.
 PLAYBOOK = "journalism_playbook.md"
@@ -133,9 +141,10 @@ def manifest_for(paths: dict, version: int) -> bytes:
     return (json.dumps(body, indent=2, sort_keys=True) + "\n").encode("utf-8")
 
 
-def _public_key(folder: pathlib.Path):
-    """`(key, source, problem)`. The committed file is the key; the setting,
-    when set, must be the same key."""
+def _public_key():
+    """`(key, source, problem)`. The committed file is the key, read from
+    `TRUSTED_KEY` and never from the configurable folder; the setting, when
+    set, must be the same key and is never a key on its own."""
     from cryptography.hazmat.primitives import serialization
     from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 
@@ -152,7 +161,7 @@ def _public_key(folder: pathlib.Path):
     def raw(key) -> bytes:
         return key.public_bytes(serialization.Encoding.Raw, serialization.PublicFormat.Raw)
 
-    path = folder / PUBLIC_KEY_FILE
+    path = TRUSTED_KEY
     configured = str(getattr(settings, "agent_rules_public_key", "") or "").strip()
     file_key = None
     if path.exists():
@@ -160,19 +169,19 @@ def _public_key(folder: pathlib.Path):
             file_key = parse(path.read_text(encoding="ascii"))
         except Exception as exc:  # noqa: BLE001
             return None, "", f"{PUBLIC_KEY_FILE} is not an Ed25519 public key: {exc}"
+    if file_key is None:
+        return None, "", (f"no public key: {PUBLIC_KEY_FILE} is not committed in "
+                          "docs/agent_rules (AGENT_RULES_PUBLIC_KEY cannot replace it)")
     if configured:
         try:
             set_key = parse(configured)
         except Exception as exc:  # noqa: BLE001
             return None, "", f"AGENT_RULES_PUBLIC_KEY is not an Ed25519 public key: {exc}"
-        if file_key is not None and raw(file_key) != raw(set_key):
+        if raw(file_key) != raw(set_key):
             return None, "", (f"AGENT_RULES_PUBLIC_KEY is not the key in {PUBLIC_KEY_FILE}: "
                               "the two must be the same")
-        return set_key, ("AGENT_RULES_PUBLIC_KEY and " + PUBLIC_KEY_FILE
-                         if file_key is not None else "AGENT_RULES_PUBLIC_KEY"), ""
-    if file_key is not None:
-        return file_key, PUBLIC_KEY_FILE, ""
-    return None, "", f"no public key: neither {PUBLIC_KEY_FILE} nor AGENT_RULES_PUBLIC_KEY"
+        return file_key, "AGENT_RULES_PUBLIC_KEY and " + PUBLIC_KEY_FILE, ""
+    return file_key, PUBLIC_KEY_FILE, ""
 
 
 def _load() -> State:
@@ -193,7 +202,7 @@ def _load() -> State:
     manifest_path, sig_path = folder / MANIFEST, folder / SIGNATURE
     if not manifest_path.exists() or not sig_path.exists():
         return State(signed=False, reason=UNSIGNED, **frozen)
-    key, source, problem = _public_key(folder)
+    key, source, problem = _public_key()
     if key is None:
         return State(signed=False, reason=problem, **frozen)
     manifest_bytes = manifest_path.read_bytes()

@@ -9,7 +9,7 @@ This tool never makes, reads or asks for a private key: it hashes the rule
 books and checks a signature with the public key. Signing is the owner's,
 on the owner's own machine, with OpenSSL (`--commands`), so the key never
 touches the repository, a server, `FAM_SECRETS` or a session
-(docs/FAM_AGENTS.md, Shared rules, Locked rule books; PROBLEMS.md §343).
+(docs/FAM_AGENTS.md, Shared rules, Locked rule books; PROBLEMS.md §348).
 """
 from __future__ import annotations
 
@@ -30,18 +30,22 @@ Sign the rule books (once to start, then after every change to one):
        openssl genpkey -algorithm ed25519 -out ~/fam-rules-signing.pem
        openssl pkey -in ~/fam-rules-signing.pem -pubout -out docs/agent_rules/owner.pub
 
-  2. Write the manifest of fingerprints (this tool, no key involved):
+  2. Write the manifest of fingerprints (this tool, no key involved). It is
+     written as MANIFEST.pending.json, a name the lock never reads, so a
+     signed MANIFEST.json is never overwritten and the repository stays
+     green until the signature arrives:
 
        python tools/rulebook_manifest.py --write
 
-  3. Sign it with your private key:
+  3. Rename it and sign it with your private key:
 
+       mv docs/agent_rules/MANIFEST.pending.json docs/agent_rules/MANIFEST.json
        openssl pkeyutl -sign -rawin -inkey ~/fam-rules-signing.pem \\
          -in docs/agent_rules/MANIFEST.json | base64 | tr -d '\\n' \\
          > docs/agent_rules/MANIFEST.json.sig
 
   4. Check it, then commit owner.pub (the first time), MANIFEST.json and
-     MANIFEST.json.sig:
+     MANIFEST.json.sig together, in one commit:
 
        python tools/rulebook_manifest.py --verify
 
@@ -67,17 +71,22 @@ def status() -> int:
 
 
 def write() -> int:
+    """Write the next manifest as MANIFEST.pending.json, never over the
+    signed MANIFEST.json: replacing that would hold every agent and fail the
+    repository's test until the owner re-signed."""
     folder = rulebooks.rules_dir()
-    path = folder / rulebooks.MANIFEST
+    signed = folder / rulebooks.MANIFEST
     version = 0
-    if path.exists():
+    if signed.exists():
         try:
-            version = int(json.loads(path.read_text())["version"])
+            version = int(json.loads(signed.read_text())["version"])
         except Exception:  # noqa: BLE001
             version = 0
+    path = folder / rulebooks.PENDING
     data = rulebooks.manifest_for(rulebooks.book_paths(folder), version + 1)
     path.write_bytes(data)
-    print(f"wrote {path} (version {version + 1}). Sign it before it counts:")
+    print(f"wrote {path} (version {version + 1}). The owner renames it to "
+          f"{rulebooks.MANIFEST} and signs it before it counts:")
     print("  python tools/rulebook_manifest.py --commands")
     return 0
 

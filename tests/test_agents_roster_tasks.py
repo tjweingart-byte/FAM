@@ -1,4 +1,4 @@
-"""The roster, the typed hand-offs and the task table (§344).
+"""The roster, the typed hand-offs and the task table (§349).
 
 The roster is what Netenyahu knows about every agent; the hand-offs are the
 only shapes agents pass along; the task table is how background work runs
@@ -48,7 +48,7 @@ def test_every_ceiling_names_a_real_setting_with_a_positive_value():
 
 
 def test_the_brief_partners_share_the_briefs_own_ceilings():
-    """C3P0 and Nando work inside the brief's call (§341): C3P0's ceiling is
+    """C3P0 and Nando work inside the brief's call (§346): C3P0's ceiling is
     the brief's, never a second clock beside it."""
     c3p0 = roster.get("contextualizer")
     assert c3p0.ceiling("search") == (settings.ei_timeout_seconds, settings.ei_max_tokens)
@@ -160,7 +160,7 @@ def test_a_task_is_claimed_by_exactly_one_of_two_servers(tmp_path):
         t.start()
     for t in threads:
         t.join()
-    assert won.count(True) == 1
+    assert sum(bool(token) for token in won) == 1
 
 
 def test_a_live_claim_is_never_taken_a_crashed_one_is(store):
@@ -171,6 +171,40 @@ def test_a_live_claim_is_never_taken_a_crashed_one_is(store):
     store.touch(task, now=1000.0 + tasks.STALE_SECONDS - 1)
     assert not store.claim(task, now=1000.0 + tasks.STALE_SECONDS + 5)
     assert store.claim(task, now=1000.0 + 2 * tasks.STALE_SECONDS + 5)
+
+
+def test_a_worker_whose_claim_was_taken_over_cannot_overwrite_the_new_run(store):
+    """§353: finish/fail/touch keep to the claim they came from."""
+    store.add("housekeeper", "dedupe", "slow", "x")
+    task = "housekeeper:dedupe:slow"
+    slow = store.claim(task, now=1000.0)
+    fresh = store.claim(task, now=1000.0 + tasks.STALE_SECONDS + 1)   # slow looked crashed
+    assert slow and fresh and slow != fresh
+    assert store.finish(task, "late", token=slow) is False
+    assert store.fail(task, "late", token=slow) == ""
+    assert store.touch(task, token=slow) is False
+    assert store.get(task)["status"] == tasks.RUNNING
+    assert store.finish(task, "done", token=fresh) is True
+    assert store.get(task)["status"] == tasks.DONE
+
+
+def test_a_task_that_crashes_its_worker_every_time_is_held(store):
+    store.add("housekeeper", "dedupe", "crash", "x")
+    task = "housekeeper:dedupe:crash"
+    assert store.claim(task, now=1.0)
+    assert store.claim(task, now=tasks.STALE_SECONDS + 2)              # the one retry
+    assert not store.claim(task, now=2 * tasks.STALE_SECONDS + 3)      # no third
+    assert store.get(task)["status"] == tasks.HELD
+
+
+def test_exists_asks_the_database_not_the_disk(monkeypatch):
+    """Under Postgres there is no file; a file check forgot every hold on
+    each restart (§353)."""
+    tasks.reset()
+    monkeypatch.setattr(tasks.store_db, "has_tables", lambda path: True)
+    assert tasks.exists()
+    monkeypatch.setattr(tasks.store_db, "has_tables", lambda path: False)
+    assert not tasks.exists()
 
 
 def test_one_retry_then_held(store):

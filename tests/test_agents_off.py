@@ -1,13 +1,14 @@
 """Netenyahu as code, and the proof that with the agents off nothing changes
-(§345).
+(§350).
 
 The owner's condition for Phase 0: with `AGENTS=0` listeners hear exactly
 what they hear today. The pipeline's one new line asks Netenyahu which
 agents work on the episode; this file shows that, off, the answer is decided
 before anything is read, and that an episode streamed through the real
 pipeline is byte-for-byte the same with the hook taken out, with the agents
-off, and with the agents switched on but held - today's real state, since
-the owner has not signed the rule books.
+off, with the agents switched on but held, and with them switched on under
+the owner's signed rule books (the repository's state since §352) - where
+every agent may run and none is built yet.
 """
 from __future__ import annotations
 
@@ -63,7 +64,7 @@ def test_off_is_decided_before_anything_is_read(monkeypatch):
             assert netenyahu.for_episode(surface, private=private) is netenyahu.OFF
 
 
-# ------------------------------------------------------------------ the same episode, three ways
+# ------------------------------------------------------------------ the same episode, four ways
 class Recording(FakeGenerator):
     """The test pipeline's own writer, remembering what Netenyahu said."""
 
@@ -93,7 +94,10 @@ def stream(minutes: int = 2):
     return audio, list(stats.script), stats.words, generator.runs
 
 
-def test_an_episode_is_the_same_hook_out_agents_off_and_agents_on_but_held(monkeypatch):
+def test_an_episode_is_the_same_hook_out_off_held_and_signed(monkeypatch, tmp_path):
+    """Never skipped, whatever the repository's signature: each leg sets up
+    the state it tests (a review found the old three-way test skipping itself
+    once the owner signed, §353)."""
     import pipeline as pipeline_mod
 
     # 1. The hook taken out: Netenyahu never asked.
@@ -102,20 +106,51 @@ def test_an_episode_is_the_same_hook_out_agents_off_and_agents_on_but_held(monke
         without = stream()
     # 2. Today's default: AGENTS=0.
     off = stream()
-    # 3. Every agent switched on - and held, because nothing is signed.
-    if (rulebooks.DEFAULT_DIR / rulebooks.MANIFEST).exists():
-        pytest.skip("the owner has signed; held is no longer the repository's state")
-    use(monkeypatch, **ALL_ON)
-    held = stream()
+    # 3. Every agent switched on and held: rule books from a folder nobody signed.
+    with monkeypatch.context() as m:
+        m.setattr(rulebooks, "settings",
+                  dataclasses.replace(rulebooks.settings, agent_rules_dir=str(tmp_path)))
+        rulebooks.reset()
+        use(m, **ALL_ON)
+        held = stream()
+    rulebooks.reset()
+    # 4. Every agent switched on under signed rule books (a throwaway key the
+    #    test trusts): all may run, none is built, the audio is the same.
+    books = tmp_path / "signed"
+    books.mkdir()
+    for path in rulebooks.DEFAULT_DIR.glob("*.md"):
+        (books / path.name).write_bytes(path.read_bytes())
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+    key = Ed25519PrivateKey.generate()
+    (books / rulebooks.PUBLIC_KEY_FILE).write_bytes(key.public_key().public_bytes(
+        serialization.Encoding.PEM, serialization.PublicFormat.SubjectPublicKeyInfo))
+    with monkeypatch.context() as m:
+        m.setattr(rulebooks, "settings",
+                  dataclasses.replace(rulebooks.settings, agent_rules_dir=str(books)))
+        m.setattr(rulebooks, "TRUSTED_KEY", books / rulebooks.PUBLIC_KEY_FILE)
+        manifest = rulebooks.manifest_for(rulebooks.book_paths(books), 1)
+        (books / rulebooks.MANIFEST).write_bytes(manifest)
+        import base64
+        (books / rulebooks.SIGNATURE).write_text(base64.b64encode(key.sign(manifest)).decode())
+        rulebooks.reset()
+        assert rulebooks.load().signed
+        use(m, **ALL_ON)
+        signed = stream()
+    rulebooks.reset()
 
-    assert without[0] == off[0] == held[0] and len(off[0]) > 0      # the audio, byte for byte
-    assert without[1] == off[1] == held[1]                           # every sentence
-    assert without[2] == off[2] == held[2]                           # the words
+    legs = (without, off, held, signed)
+    assert len(off[0]) > 0
+    assert len({leg[0] for leg in legs}) == 1                        # the audio, byte for byte
+    assert all(leg[1] == off[1] for leg in legs)                     # every sentence
+    assert all(leg[2] == off[2] for leg in legs)                     # the words
     assert off[3] == [netenyahu.OFF]
     [run] = held[3]
     assert run.agents == ()
     assert set(run.why_not) == set(netenyahu.EPISODE_AGENTS)
     assert all(why == rulebooks.UNSIGNED for why in run.why_not.values())
+    [run] = signed[3]
+    assert set(run.why_not) | set(run.agents) == set(netenyahu.EPISODE_AGENTS)
 
 
 def test_only_the_pipeline_asks_netenyahu_about_an_episode():
@@ -246,8 +281,43 @@ def test_a_task_with_no_agent_built_is_left_alone(monkeypatch):
     use(monkeypatch, agents=True)
     tasks.store().add("housekeeper", "consolidate", "x", "x")
     result = asyncio.run(netenyahu.tick(at(12, 0), {}))
-    assert result["ran"] == 0 and result["skipped"] == ["housekeeper:consolidate:x"]
+    assert result["ran"] == 0
     assert tasks.store().get("housekeeper:consolidate:x")["status"] == tasks.QUEUED
+
+
+def test_tasks_nobody_can_run_never_starve_the_rest(monkeypatch):
+    """Older tasks with no handler, or for a held agent, used to fill each
+    round's share and stay first in line forever (§353)."""
+    use(monkeypatch, agents=True, overlord_max_tasks_per_tick=1)
+    for key in ("a", "b", "c"):
+        tasks.store().add("it", "summarise", key, key, now=1.0)       # no handler
+        tasks.store().add("retriever", "sweep", key, key, now=2.0)    # held agent
+    tasks.store().add("housekeeper", "consolidate", "late", "late", now=3.0)
+    tasks.store().hold("retriever", "failed three times")
+    done = []
+
+    async def handler(task):
+        done.append(task)
+
+    async def never(task):
+        raise AssertionError("a held agent's task ran")
+
+    handlers = {("housekeeper", "consolidate"): handler, ("retriever", "sweep"): never}
+    assert asyncio.run(netenyahu.tick(at(12, 0), handlers))["ran"] == 1
+    assert done == ["housekeeper:consolidate:late"]
+
+
+def test_a_round_that_fails_is_logged_and_never_ends_the_loop(monkeypatch):
+    use(monkeypatch, agents=True)
+
+    def broken():
+        raise RuntimeError("database is locked")
+    monkeypatch.setattr(netenyahu, "_held", broken)
+    result = asyncio.run(netenyahu.tick(at(12, 0), {}))
+    assert result["ran"] == 0 and "next one" in result["why"]
+    for value, seconds in ((0, 5.0), (float("nan"), 5.0), (float("inf"), 3600.0), (60, 60.0)):
+        use(monkeypatch, overlord_tick_seconds=value)
+        assert netenyahu.tick_seconds() == seconds
 
 
 def test_a_failing_task_is_retried_once_then_held(monkeypatch):

@@ -237,7 +237,7 @@ FAM_ENVIRONMENT = (
     # §179: the writer's prompt cache and the editions' batching.
     "PROMPT_CACHE", "PROMPT_CACHE_TTL",
     "EDITION_BATCH", "EDITION_BATCH_WAIT_SECONDS", "EDITION_BATCH_POLL_SECONDS",
-    # §342: the agents. A developer who switched one on, or pointed one at
+    # §347: the agents. A developer who switched one on, or pointed one at
     # another model, must not run a suite whose agents are on.
     "AGENTS", "CONTEXTUALIZER", "CATEGORIZER", "RETRIEVER", "EDITOR_AGENT",
     "SUPERVISOR", "HOUSEKEEPER", "IT_AGENT",
@@ -245,15 +245,15 @@ FAM_ENVIRONMENT = (
     "RETRIEVER_MODEL", "EDITOR_MODEL", "EDITOR_SEARCH_MODEL", "SUPERVISOR_MODEL",
     "SUPERVISOR_SCREEN_MODEL", "HOUSEKEEPER_MODEL", "HOUSEKEEPER_REVIEW_MODEL",
     "IT_MODEL", "IT_SUMMARY_MODEL",
-    # §343: where the rule books, the owner's key and the playbook are read
+    # §348: where the rule books, the owner's key and the playbook are read
     # from - a developer's own location must not decide what the lock checks.
     "AGENT_RULES_DIR", "AGENT_RULES_PUBLIC_KEY", "EDITOR_PLAYBOOK",
-    # §344: each agent's ceilings.
+    # §349: each agent's ceilings.
     "CATEGORIZER_TIMEOUT_SECONDS", "CATEGORIZER_MAX_TOKENS", "EDITOR_TIMEOUT_SECONDS",
     "EDITOR_AHEAD_TIMEOUT_SECONDS", "EDITOR_MAX_TOKENS", "SUPERVISOR_TIMEOUT_SECONDS",
     "SUPERVISOR_MAX_TOKENS", "HOUSEKEEPER_TIMEOUT_SECONDS", "HOUSEKEEPER_MAX_TOKENS",
     "IT_TIMEOUT_SECONDS", "IT_MAX_TOKENS",
-    # §345: Netenyahu's loop.
+    # §350: Netenyahu's loop.
     "OVERLORD_TICK_SECONDS", "OVERLORD_MAX_TASKS_PER_TICK",
 )
 
@@ -609,7 +609,7 @@ def isolated_pipeline_errors(tmp_path, monkeypatch):
 
 @pytest.fixture(autouse=True)
 def isolated_agent_tasks(tmp_path, monkeypatch):
-    """The agents' task table (§344), per test, never the project root."""
+    """The agents' task table (§349), per test, never the project root."""
     from agents import tasks as agent_tasks
 
     monkeypatch.setenv("AGENTS_DB", str(tmp_path / "stores" / "agents.db"))

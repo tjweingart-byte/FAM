@@ -17,7 +17,8 @@ uvicorn[standard]>=0.27
 # a dependency that is only there by luck is one nobody notices losing.
 pydantic>=2.0
 # The rule-book lock checks the owner's Ed25519 signature (agents/rulebooks.py,
-# §343). Already installed through pdfminer.six; listed so the lock never
+# §348). Nothing else in this file brings it (the server image gets it again
+# through PyJWT[crypto] in requirements-oauth.txt); listed so the lock never
 # depends on another package keeping it.
 cryptography>=42
 # The same, for starlette: app.py edits response headers directly in its

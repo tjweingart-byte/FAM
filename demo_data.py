@@ -254,7 +254,7 @@ def _forget_what_the_log_taught() -> dict:
         log.exception("could not clear what the event log taught")
         out.setdefault("categories_dropped", 0)
         out.setdefault("categories_seeded", 0)
-    # The agents' queue (§344): every task is work on an episode or a packet
+    # The agents' queue (§349): every task is work on an episode or a packet
     # the wipe has just emptied. Holds are not derived from the log and stay.
     try:
         from agents import tasks as agent_tasks

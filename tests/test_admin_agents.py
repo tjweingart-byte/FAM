@@ -1,4 +1,4 @@
-"""The Agents panel on /admin (§346): read-only, admins only, true to the ledger."""
+"""The Agents panel on /admin (§351): read-only, admins only, true to the ledger."""
 from __future__ import annotations
 
 import pathlib
@@ -66,7 +66,7 @@ def test_spend_and_fallbacks_come_from_the_ledger(admin):
 
 
 def test_the_panel_changes_nothing():
-    """Read-only (the owner's choice, §341): the page posts nothing about
+    """Read-only (the owner's choice, §346): the page posts nothing about
     agents and the server has no route that changes one."""
     page = (ROOT / "admin_ui" / "tracker.html").read_text(encoding="utf-8")
     assert 'data-page="agents"' in page and 'data-nav="agents"' in page

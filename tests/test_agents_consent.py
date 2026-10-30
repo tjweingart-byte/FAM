@@ -1,4 +1,4 @@
-"""A listener's words go only to a vendor the consent covers (§342).
+"""A listener's words go only to a vendor the consent covers (§347).
 
 `consent.py`'s notice names Anthropic as the company that receives what a
 listener types, says or attaches (App Store guideline 5.1.2(i)). An agent
@@ -55,7 +55,11 @@ def google(monkeypatch, tmp_path):
 def housekeeper(words: bool):
     return request(agent="housekeeper", task="consolidate", switch_setting="housekeeper",
                    model_setting="housekeeper_model", rule_book="consuela.md",
-                   carries_listener_words=words, surface="background")
+                   carries_listener_words=words, surface="background",
+                   # FAM's own material is archive, never the `request` tag a
+                   # listener's words travel in (§353).
+                   material=((("request", "the Eagles game"),) if words
+                             else (("archive", "Eagles 24, Giants 17 (AP, Oct 26)"),)))
 
 
 def test_only_anthropic_is_covered_today():
@@ -70,6 +74,17 @@ def test_a_listeners_words_are_refused_to_an_uncovered_vendor_before_sending(goo
     assert result.status == models.CONSENT and result.fell_back
     assert "google" in result.reason and google.sent == []
     assert result.cost_usd is None  # nothing was sent, so nothing was spent
+
+
+def test_a_request_tagged_material_needs_consent_even_unflagged(google):
+    """The flag left at its default no longer skips the check: material
+    tagged `request` is a listener's words (§353)."""
+    unflagged = request(agent="housekeeper", task="consolidate", switch_setting="housekeeper",
+                        model_setting="housekeeper_model", rule_book="consuela.md",
+                        surface="background", material=(("request", "my own question"),))
+    assert unflagged.carries_listener_words is False
+    result = asyncio.run(models.ask(unflagged))
+    assert result.status == models.CONSENT and google.sent == []
 
 
 def test_fams_own_material_may_go_to_another_vendor(google):
