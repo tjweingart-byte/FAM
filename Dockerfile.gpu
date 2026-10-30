@@ -92,6 +92,7 @@ ENV FAM_STATE=/state \
     LIVE_ROUTING_DB=/state/data/live_routing.db \
     PIPELINE_ERRORS_DB=/state/data/pipeline_errors.db \
     EPISODE_QUALITY_DB=/state/data/episode_quality.db \
+    AGENTS_DB=/state/data/agents.db \
     X_THREADS_DB=/state/data/x_threads.db \
     LINKEDIN_POSTS_DB=/state/data/linkedin_posts.db \
     LOCAL_NEWS_DB=/state/data/local_news.db \

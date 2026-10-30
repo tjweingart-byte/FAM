@@ -349,8 +349,13 @@ def test_nothing_on_the_listener_path_imports_the_model_layer():
     layer is reachable from the health report only."""
     users = sorted(p.name for p in ROOT.glob("*.py")
                    if re.search(r"^\s*(from agents|import agents)", p.read_text(encoding="utf-8"), re.M))
-    assert users in ([], ["app.py"]), users
+    # `demo_data.py` is the wipe, emptying the agents' queue (§344).
+    assert set(users) <= {"app.py", "demo_data.py"}, users
     source = (ROOT / "app.py").read_text(encoding="utf-8")
     uses = re.findall(r"agent_models\.(\w+)", source)
     assert set(uses) <= {"health"}, uses
     assert set(re.findall(r"agent_rulebooks\.(\w+)", source)) <= {"load"}
+    # The health page's store list reads the task table's path, once it exists.
+    assert set(re.findall(r"agent_tasks\.(\w+)", source)) <= {"exists", "store"}
+    wipe = (ROOT / "demo_data.py").read_text(encoding="utf-8")
+    assert set(re.findall(r"agent_tasks\.(\w+)", wipe)) <= {"exists", "store"}

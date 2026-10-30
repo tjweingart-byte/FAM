@@ -453,5 +453,19 @@ def health() -> dict:
                 "value": value, "source": source(attr),
                 "valid": spec is not None or not value,
                 "problem": why}
+        try:
+            from agents import roster
+
+            entry["ceilings"] = {surface: dict(zip(("seconds", "max_tokens"),
+                                                   roster.get(role).ceiling(surface)))
+                                 for surface in roster.get(role).surfaces}
+        except Exception:  # noqa: BLE001 - a report is never load-bearing
+            pass
         out["agents"][role] = entry
+    try:
+        from agents import tasks
+
+        out["tasks"] = tasks.store().counts() if tasks.exists() else None
+    except Exception:  # noqa: BLE001
+        out["tasks"] = None
     return out

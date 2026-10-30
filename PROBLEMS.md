@@ -24252,3 +24252,73 @@ key; the setting must be the committed key, in PEM or raw base64; a broken
 key file holds without raising; no setting turns it off; nothing under
 `agents/` writes; the owner's OpenSSL commands end to end; the model layer
 runs under the signed books and records their version).
+
+## 344. Phase 0, piece 3: the roster, the typed hand-offs, and the task table (2026-10-30)
+
+Netenyahu's first responsibility is to know every agent (netenyahu.md,
+"always" 1); agents never call each other, so what passes between them has a
+shape; and background work must run once across two servers, survive a
+restart and stop when it repeats with nothing new. Three modules, nothing
+calling them yet.
+
+**`agents/roster.py`.** Each agent's role and internal name, purpose, tasks,
+surfaces (`search`, `ahead`, `background`), its stage on the guide's
+pipeline drawing, rule book, switch, model settings, ceilings, fallback in
+words, whether its material can be a listener's words, and one call per task
+with one retry. A ceiling names a `config.py` setting rather than holding a
+number, so it is set in one place; C3P0's are the brief's own (`EI_*`),
+since it works inside the brief's call, and Sonic and Netenyahu make no call.
+`status(role)` says whether an agent may run now and why not - its
+switches, then its lock. New ceiling settings, placeholders until each
+agent's phase measures them: `CATEGORIZER_TIMEOUT_SECONDS` 8 /
+`_MAX_TOKENS` 300 (the tie call), `EDITOR_TIMEOUT_SECONDS` 8,
+`EDITOR_AHEAD_TIMEOUT_SECONDS` 60, `EDITOR_MAX_TOKENS` 4000,
+`SUPERVISOR_TIMEOUT_SECONDS` 1 per unsure sentence / `_MAX_TOKENS` 300,
+`HOUSEKEEPER_*` 60 / 1500, `IT_*` 60 / 1000.
+
+**`agents/handoffs.py`.** `ResearchPlan` (with `ArchiveRequest` and
+`PluginCall`), `PluginPacket` and `ArchivePacket` (with `Source` and
+`ArchiveItem`), `Outline` (with `SentenceRef` and `Beat`), `ScriptSentence`
+and `Verdict` - Pydantic models, frozen, extra fields forbidden, each with
+`schema_version`. Only fields the guide, the build prompt and the rule books
+settle: C3P0's entity, kind, `ambiguous` and both readings, plugins and
+their queries, Nando's node, Sonic's request from the closed list of six
+lookups, the title, `opinion_requested`, `private_person`, `advice_request`;
+evidence only as a pointer to a source's own sentence; an archive packet in
+date order, refused otherwise; Mclovin's verdict one of pass / fail / unsure
+/ unchecked, a fail naming exactly one of his twelve named failures.
+`validate(kind, data)` never raises: a hand-off that is not whole is refused
+and that step runs as today. Each agent's phase adds its own fields.
+
+**`agents/tasks.py` and `agents.db`.** `trending_bank`'s claim, generalised:
+a task is `agent:kind:key` with a hash of its input; `claim` gives it to one
+caller in one `BEGIN IMMEDIATE`; a claim quiet for 15 minutes is a crashed
+worker, a live one is never taken; a failure is retried once, then the task
+is held; re-queueing a task whose last finished run had the same input is
+refused as nothing new - the loop rule. Holds of a whole agent are kept with
+why and when, released only by asking (the owner's act, when `/admin` has
+it). Ids and hashes only, no listener and no material. A wipe empties the
+queue (`demo_data._forget_what_the_log_taught`); holds stay.
+
+**The store guards had a blind spot.** Every guard that finds the app's
+stores - the Dockerfile disk pins, the hand-written constructor list, the
+health page's store list, the admin tracker, the derived credential scan -
+read only the root's `*.py`. A store opened in `agents/` would have passed
+all of them, which is the rule ("a guard whose subject is enumerated by hand
+is decorative") with a folder in place of a list. They now read `agents/`
+too, `AGENTS_DB` is pinned in both Dockerfiles, listed lazily like the
+trending bank (created by the first task, reported once it exists), in
+`.env.example` and in the suite's isolated paths.
+
+Tests: `tests/test_agents_roster_tasks.py` (the eight agents the guide
+names, each with its rule book; every stage one the guide draws; every
+ceiling a real positive setting, one call and one retry; C3P0 shares the
+brief's ceilings; code-only agents make no call; agents that never see a
+listener are background only; every agent off today; no agent's name in
+anything a listener sees; every hand-off frozen, closed and versioned; eight
+malformed hand-offs refused; an archive packet out of date order refused;
+evidence only as a pointer; Mclovin's twelve failures; Sonic's six lookups;
+one claim between two servers racing; a live claim kept, a crashed one taken;
+one retry then held; nothing new refused; due tasks oldest first; a restart
+keeps the queue; holds recorded once and released only by asking; no
+listener in the store; a wipe forgets the queue).

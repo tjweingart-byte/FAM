@@ -51,6 +51,7 @@ import history_archive as HA  # noqa: E402
 import episode_quality as EQ  # noqa: E402
 import x_threads as XT  # noqa: E402
 import linkedin_posts as LP  # noqa: E402
+from agents import tasks as AT  # noqa: E402
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 
@@ -88,6 +89,7 @@ STORES = [
     ("EPISODE_QUALITY_DB", "episode_quality.db", EQ.QualityStore),
     ("X_THREADS_DB", "x_threads.db", XT.Store),
     ("LINKEDIN_POSTS_DB", "linkedin_posts.db", LP.Store),
+    ("AGENTS_DB", "agents.db", AT.TaskStore),
 ]
 
 #: Every `data_path(...)` call in the app, read out of the source.
@@ -107,7 +109,8 @@ _CALL = re.compile(r'data_path\(\s*"([A-Z_]+)"\s*,\s*"([^"]+)"')
 
 def _declared() -> dict:
     found = {}
-    for module in sorted(ROOT.glob("*.py")):
+    # The agents' package too (§344): a store opened there is a store.
+    for module in sorted(ROOT.glob("*.py")) + sorted((ROOT / "agents").rglob("*.py")):
         for var, filename in _CALL.findall(module.read_text()):
             found[var] = filename
     return found
@@ -151,7 +154,9 @@ ALL_VARS = sorted(DECLARED)
 #: routing rows' case. `X_THREADS_DB` (§321) is created by the first
 #: search on `/admin/x`, and reported once it exists. `LINKEDIN_POSTS_DB`
 #: (§322) is created by the first post pasted on `/admin/linkedin`.
-LAZY_STORES = {"LINKEDIN_POSTS_DB", "X_THREADS_DB", "ARCHIVE_DB", "VOICE_REGISTRY_DB", "TRENDING_BANK_DB", "VOICE_BANK_DB",
+#: `AGENTS_DB` (§344) is created by the first agent task, and reported once
+#: it exists - the trending bank's case.
+LAZY_STORES = {"AGENTS_DB", "LINKEDIN_POSTS_DB", "X_THREADS_DB", "ARCHIVE_DB", "VOICE_REGISTRY_DB", "TRENDING_BANK_DB", "VOICE_BANK_DB",
                "THUMBNAILS_DB", "PROVIDER_USAGE_DB", "LOCAL_NEWS_DB",
                "GDELT_EXPORT_DB", "LIVE_ROUTING_DB", "STORY_POOL_DB",
                "PIPELINE_ERRORS_DB", "WIKIMEDIA_DB", "EPISODE_QUALITY_DB"}

@@ -2069,6 +2069,24 @@ class Settings:
         default_factory=lambda: os.environ.get("AGENT_RULES_PUBLIC_KEY", "").strip())
     editor_playbook: str = field(
         default_factory=lambda: os.environ.get("EDITOR_PLAYBOOK", "").strip())
+    # **Each agent's ceilings** (§344, `agents/roster.py`): the time limit
+    # and the call size of one model call, read by the roster. Placeholders
+    # until each agent's own phase measures them - nothing calls a model
+    # yet. C3P0 and Nando's main work rides inside the brief's call, so the
+    # brief's `EI_*` ceilings are theirs; these are for Nando's tie call,
+    # Shakespeare's outline (on search, and ahead of the tap), Mclovin's
+    # check of one unsure sentence, and the background agents' calls.
+    categorizer_timeout_seconds: float = _env_float("CATEGORIZER_TIMEOUT_SECONDS", 8.0)
+    categorizer_max_tokens: int = _env_int("CATEGORIZER_MAX_TOKENS", 300)
+    editor_timeout_seconds: float = _env_float("EDITOR_TIMEOUT_SECONDS", 8.0)
+    editor_ahead_timeout_seconds: float = _env_float("EDITOR_AHEAD_TIMEOUT_SECONDS", 60.0)
+    editor_max_tokens: int = _env_int("EDITOR_MAX_TOKENS", 4000)
+    supervisor_timeout_seconds: float = _env_float("SUPERVISOR_TIMEOUT_SECONDS", 1.0)
+    supervisor_max_tokens: int = _env_int("SUPERVISOR_MAX_TOKENS", 300)
+    housekeeper_timeout_seconds: float = _env_float("HOUSEKEEPER_TIMEOUT_SECONDS", 60.0)
+    housekeeper_max_tokens: int = _env_int("HOUSEKEEPER_MAX_TOKENS", 1500)
+    it_timeout_seconds: float = _env_float("IT_TIMEOUT_SECONDS", 60.0)
+    it_max_tokens: int = _env_int("IT_MAX_TOKENS", 1000)
     # How much *audio* must exist before the response starts. A quantity, not
     # a delay: at TARGET_WPM this is 3.75 words, so any ordinary opening
     # sentence satisfies it on the first chunk and it costs nothing. It exists

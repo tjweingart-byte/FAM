@@ -1076,6 +1076,15 @@ def _database_report() -> list[dict]:
     held_bank = voice_bank.opened()
     if held_bank is not None:
         stores.append(("voice bank", "VOICE_BANK_DB", held_bank.path))
+    # The agents' task table (§344). Reported once the first task creates
+    # it, like the trending bank: a health page must not create it.
+    try:
+        from agents import tasks as agent_tasks
+
+        if agent_tasks.exists():
+            stores.append(("agent tasks", "AGENTS_DB", agent_tasks.store().path))
+    except Exception:  # pragma: no cover - a report is never load-bearing
+        pass
     # Tile pictures (§160). Reported once the first picture has been painted,
     # like the trending bank: a health page must not be what creates the
     # database on a machine that never made one.

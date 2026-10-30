@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | Phase 0, the framework, being built (§342-§343): the model layer and the rule-book lock exist; no agent is built, everything is off, and every agent is held until the owner signs |
+| **Status** | Phase 0, the framework, being built (§342-§343): the model layer, the rule-book lock, the roster, the typed hand-offs and the task table exist; no agent is built, everything is off, and every agent is held until the owner signs |
 | **History** | Started 2026-10-24 (§307); editor in chief and script supervisor (§312); pipeline and how agents run (§313); contextualizer and guardrails (§314); condensed into tabs, outside plugins per agent, the overlord, housekeeper, retriever, IT guy and categorizer (§340); the owner's brainstorm of 2026-10-28 - every agent named, roles redrawn, a rule book each (§340); each agent's model decided, but Mclovin's checker and Shakespeare ahead of the tap (§341) |
 | **Page** | `python docs/build_agents_html.py` builds the tabbed page from this file: one tab per `##`, one sub-tab per `###` |
 
@@ -209,6 +209,14 @@ Sonnet ~$0.026, Opus ~$0.052):
 | **Latency** | One round trip per role, in parallel | N in series | Start-up + loop | Start-up + loop, background | Minutes to an hour |
 | **Ease in FAM** | Exists (`episode_intelligence._ask`), metered | Moderate | Easy to prototype, hard to meter | Config + `ant apply` | Exists (`claude_batch.py`) |
 | **Best use** | Anything a listener waits on | Consuela; one capped turn on the tap | Audits, evals | Nightly jobs | Editions, write-ahead, audits |
+
+**Built (§344):** `agents/roster.py` (each agent's purpose, tasks, surfaces,
+stage, rule book, switch, models, ceilings and fallback), `agents/handoffs.py`
+(`ResearchPlan`, `PluginPacket`, `ArchivePacket`, `Outline`, `ScriptSentence`,
+`Verdict` and their parts - Pydantic models that forbid extra fields, with
+only the fields already settled) and `agents/tasks.py` (the task table in
+`agents.db`: one claim per task across servers, one retry then held, and a
+re-run with nothing new refused).
 
 **How agents talk:** typed hand-offs (dataclasses with JSON schemas) through
 the orchestrator - Netenyahu - which tests and `/admin` can see; agents that

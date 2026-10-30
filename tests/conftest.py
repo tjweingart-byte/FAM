@@ -248,6 +248,11 @@ FAM_ENVIRONMENT = (
     # §343: where the rule books, the owner's key and the playbook are read
     # from - a developer's own location must not decide what the lock checks.
     "AGENT_RULES_DIR", "AGENT_RULES_PUBLIC_KEY", "EDITOR_PLAYBOOK",
+    # §344: each agent's ceilings.
+    "CATEGORIZER_TIMEOUT_SECONDS", "CATEGORIZER_MAX_TOKENS", "EDITOR_TIMEOUT_SECONDS",
+    "EDITOR_AHEAD_TIMEOUT_SECONDS", "EDITOR_MAX_TOKENS", "SUPERVISOR_TIMEOUT_SECONDS",
+    "SUPERVISOR_MAX_TOKENS", "HOUSEKEEPER_TIMEOUT_SECONDS", "HOUSEKEEPER_MAX_TOKENS",
+    "IT_TIMEOUT_SECONDS", "IT_MAX_TOKENS",
 )
 
 #: Where each database lives is per-machine state too. These reach config.py
@@ -261,7 +266,7 @@ DATA_ENVIRONMENT = (
     "VOICE_REGISTRY_DB", "TRENDING_BANK_DB", "FEEDBACK_DB", "PROVIDER_USAGE_DB",
     "LOCAL_NEWS_DB", "GDELT_EXPORT_DB", "CONSENT_DB", "MODERATION_DB",
     "LIVE_ROUTING_DB", "STORY_POOL_DB", "PIPELINE_ERRORS_DB", "WIKIMEDIA_DB",
-    "EPISODE_QUALITY_DB",
+    "EPISODE_QUALITY_DB", "AGENTS_DB",
 )
 
 #: Tier limits. Read by `entitlements.py` rather than `config.py`, so the
@@ -598,6 +603,17 @@ def isolated_pipeline_errors(tmp_path, monkeypatch):
     pipeline_errors.reset()
     yield
     pipeline_errors.reset()
+
+
+@pytest.fixture(autouse=True)
+def isolated_agent_tasks(tmp_path, monkeypatch):
+    """The agents' task table (§344), per test, never the project root."""
+    from agents import tasks as agent_tasks
+
+    monkeypatch.setenv("AGENTS_DB", str(tmp_path / "stores" / "agents.db"))
+    agent_tasks.reset()
+    yield
+    agent_tasks.reset()
 
 
 @pytest.fixture(autouse=True)
