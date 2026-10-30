@@ -15642,8 +15642,8 @@
   var profileShelf = "vibes";
   var profileVibes = [];
   var profileMixes = [];
-  // One tile: the episode's picture where the server found one, the
-  // category drawing under it otherwise, the words at the foot.
+  // One tile: the episode's picture where the server found one, a plain
+  // gradient otherwise, the words at the foot.
   function profileTileHTML(onclick, picture, title){
     return '<button class="yf-pic" onclick="' + onclick + '">'
       + (picture ? '<span class="yf-pic-img" style="background-image:url(&quot;'
@@ -15682,14 +15682,7 @@
     return (profileNow && profileNow.echo_count) || profileVibes.length;
   }
   function playProfileVibe(i){
-    var v = profileVibes[i];
-    if(!v) return;
-    var key = "vibe_" + i + "_" + Date.now();
-    TOPICS[key] = { title: v.title || v.query, source: "From your vibes", surface: "other",
-                    caption: "Live captions will appear here as this plays—",
-                    prompt: v.query, exploreMinutes: v.minutes,
-                    titleOverridden: true };
-    generate(key);
+    playOwnVibe(profileVibes[i], i);
   }
   // Your own mix opens as you edit it; one the list has not loaded yet
   // opens as anybody sees it.
@@ -15794,54 +15787,18 @@
       + '<div class="yf-chips yf-chips-line">' + pills + '</div></div>';
   }
 
-  // "1 new from TJ", off the same inbox the Messages screen reads.
-  var hubInboxLoading = false;
-  var hubInboxUnread = -1;
+  // The inbox, asked for when YourFAM is drawn so the Messages tab's unread
+  // badge is current (the hub's Messages card it also filled went in §341).
   function loadHubMessages(){
     if(!AUTH.authenticated) return;
-    hubInboxLoading = true;
     fetch("/api/messages")
       .then(function(r){ return r.ok ? r.json() : null; })
       .then(function(d){
-        hubInboxLoading = false;
         if(!d) return;
         inboxThreads = d.threads || [];
-        hubInboxUnread = d.unread || 0;
-        paintHubMessages(d.unread || 0);
         setUnreadDot(d.unread || 0);
       })
-      .catch(function(){ hubInboxLoading = false; });
-  }
-
-  function paintHubMessages(unread){
-    var sub = document.getElementById("yfMsgSub");
-    var count = document.getElementById("yfMsgCount");
-    if(!sub) return;
-    if(count){
-      count.hidden = !(unread > 0);
-      count.textContent = unread > 9 ? "9+" : String(unread || "");
-    }
-    var from = inboxThreads.filter(function(t){ return t.unread > 0; });
-    var fromCount = from.reduce(function(n, t){ return n + t.unread; }, 0);
-    // The poll's count can be newer than the inbox this page holds. Naming a
-    // sender off a stale list would name the wrong one (or "0 people"), so a
-    // count the list does not account for says the number and fetches.
-    if(unread > 0 && fromCount !== unread){
-      sub.textContent = unread + " new " + plural(unread, "message");
-      // Fetched only when the count moved since the inbox was last read, so
-      // an inbox that honestly disagrees with the total (it is capped at 50
-      // threads) cannot refetch itself in a loop.
-      if(!hubInboxLoading && unread !== hubInboxUnread) loadHubMessages();
-    } else if(unread > 0 && from.length === 1){
-      sub.textContent = unread + " new from " + firstName(from[0]);
-    } else if(unread > 0){
-      sub.textContent = unread + " new, from " + from.length + " people";
-    } else if(inboxThreads.length){
-      sub.textContent = "Nothing new · " + inboxThreads.length + " "
-        + plural(inboxThreads.length, "conversation");
-    } else {
-      sub.textContent = "Share an episode, or say hello";
-    }
+      .catch(function(){});
   }
 
   // ---- vibes as stories (27/09 packet) ----
@@ -16795,7 +16752,11 @@
   }
 
   function playMyVibe(i){
-    var v = myVibes[i];
+    playOwnVibe(myVibes[i], i);
+  }
+  // One of your own vibes, played as it was vibed: My Vibe's list and
+  // YourFAM's grid (§341) both start it here.
+  function playOwnVibe(v, i){
     if(!v) return;
     var key = "vibe_" + i + "_" + Date.now();
     TOPICS[key] = { title: v.title || v.query, source: "From your vibes", surface: "other",
@@ -17961,7 +17922,6 @@
       .then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
       .then(function(d){
         inboxThreads = d.threads || [];
-        hubInboxUnread = d.unread || 0;
         paintMessageBadges(d.unread || 0);
         renderThreadRows();
       })
@@ -23104,12 +23064,11 @@
     }
   }
 
-  // The dot on the profile's Messages control. Drawn from the same poll that
+  // The unread badge on the Messages tab. Drawn from the same poll that
   // raises the banners, so an unread count and a notification cannot be two
   // different claims about the same inbox.
   function setUnreadDot(unread){
     paintMessageBadges(unread);
-    if(document.getElementById("yfMsgSub")) paintHubMessages(unread);
   }
   // The unread count on the Messages tab, on every copy of the tab bar
   // (§181). It was on YourFAM's tab while messages lived behind the profile.

@@ -24047,3 +24047,11 @@ interests in that order; the hub cards are gone; two tabs over one grid,
 cover before thumb, honest empty lines). `test_packet_1011`, `_1002_second`
 and `_929` follow the pill's removal; the smoke run's `profile()` checks the
 hero, the three numbers, the two tabs and the three-across grid.
+
+Review before merge: the grid is `.yf-pics` of `.yf-pic` tiles, because
+`.yf-grid` already belonged to the Topic screen (declared later, two across,
+so it silently won) and an older smoke check pins `.yf-tile` absent. The
+hub's Messages-card painter (`paintHubMessages`, with `hubInboxLoading` and
+`hubInboxUnread`, which only it read) went with the card; `loadHubMessages`
+now only refreshes the inbox and the Messages tab's unread badge. YourFAM's
+grid and My Vibe play a vibe through one function (`playOwnVibe`).
