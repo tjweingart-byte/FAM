@@ -301,5 +301,6 @@ def test_the_place_they_gave_is_shown_under_their_name(client):
         client.post("/api/preferences", json={"country": ""})
         assert viewer.get("/api/person", params={"handle": "lou"}).json()["location"] == ""
     page = _interface()
-    assert "(p.location ? '<div class=\"yf-place\">'" in page
+    # Beside the handle in YourFAM's hero since §341; absent when not given.
+    assert "'<div class=\"yf-place\">' + (p.location ? escapeHtml(p.location) + ' · ' : '')" in page
     assert "(pub.location ? '<div class=\"yf-place\">'" in page

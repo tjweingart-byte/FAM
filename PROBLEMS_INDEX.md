@@ -344,3 +344,4 @@ and `limit` = Lines.
 | 23516 | 47 | 338. The waitlist page, local news and the voice warm-up stop doing work nobody needs (2026-10-29) |
 | 23563 | 16 | 339. Production without a disk, on Standard (2026-10-29) |
 | 23579 | 424 | 340. The agents guide: condensed into tabs, outside plugins per agent, and the Overlord (2026-10-26) |
+| 24003 | 56 | 341. YourFAM becomes a hero over a grid of vibes and mixes (2026-10-30) |
