@@ -371,6 +371,9 @@ def parallel(monkeypatch):
         return list(state["results"]), 0.001
 
     monkeypatch.setattr(research, "_search_parallel", search)
+    # The generator reads its own `settings`, whose default is Perplexity
+    # since §344; the same stand-in answers for both indexes.
+    monkeypatch.setattr(research, "_search_perplexity", search)
     monkeypatch.setattr(research, "settings", dataclasses.replace(
         research.settings, research_backend="parallel", gdelt_cross_check=False,
         research_retry=False, wikipedia_grace_seconds=0.3))
