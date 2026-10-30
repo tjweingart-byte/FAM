@@ -301,7 +301,7 @@ def test_a_long_question_is_cut_for_parallel(wire, monkeypatch):
 
 
 def test_perplexity_first_takes_its_second_look_on_parallel(wire, monkeypatch):
-    """The default since §344: Perplexity primary, Parallel the second look."""
+    """The default since §357: Perplexity primary, Parallel the second look."""
     sent, replies = wire
     replies[research.PERPLEXITY_URL] = [{"results": []}]
     use(monkeypatch, research_backend="perplexity", research_second_look="parallel")

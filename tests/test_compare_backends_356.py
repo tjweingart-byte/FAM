@@ -1,4 +1,4 @@
-"""tools/compare_backends.py (§343): Parallel against Perplexity, one brief.
+"""tools/compare_backends.py (§356): Parallel against Perplexity, one brief.
 
 No key and no network: the generator is a stand-in that records which
 backend the shared settings named while it searched, so what is tested is the

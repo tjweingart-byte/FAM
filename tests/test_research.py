@@ -560,7 +560,7 @@ def test_what_retrieval_cost_is_recorded_for_a_person_to_read(web, monkeypatch):
 # configuration
 # --------------------------------------------------------------------------
 def test_a_fresh_deployment_researches_with_perplexity():
-    """The production default since §344, at the owner's direction (Parallel
+    """The production default since §357, at the owner's direction (Parallel
     from §258): it needs a credential. Parallel is the second look and the
     next rung, and the keyless alternative is GDELT (§135)."""
     assert config.DEFAULT_RESEARCH_BACKEND == "perplexity"
@@ -571,7 +571,7 @@ def test_a_fresh_deployment_researches_with_perplexity():
 
 def test_the_ladder_tries_the_other_index_then_gdelt(monkeypatch):
     """Whichever web backend is primary, the other comes next, then GDELT
-    (§344) - and the primary is never asked twice."""
+    (§357) - and the primary is never asked twice."""
     monkeypatch.setattr(research, "_rung_available", lambda rung: True)
     assert research.ladder("perplexity") == ["perplexity", "parallel", "gdelt"]
     assert research.ladder("parallel") == ["parallel", "perplexity", "gdelt"]

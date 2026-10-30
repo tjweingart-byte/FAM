@@ -1,0 +1,5 @@
+# The rule books and the playbook are hashed byte for byte against the
+# owner's signed manifest (§348): a checkout must never change their line
+# endings, or every agent is held.
+docs/agent_rules/** -text eol=lf
+docs/journalism_playbook.md -text eol=lf

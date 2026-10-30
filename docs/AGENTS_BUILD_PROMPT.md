@@ -187,7 +187,10 @@ Names are internal: never shown to a listener.
     `docs/FAM_AGENTS.md` and below is a proposal. **Build every agent's
     model as a setting** (`<AGENT>_MODEL`, priced in `metering.PRICES`) with
     the proposal as its default, so the later decision is a change of
-    setting, not of code; no agent may hard-code a model or vendor.
+    setting, not of code; no agent may hard-code a model or vendor. The
+    setting names the vendor and an exact model ID
+    (`anthropic:claude-haiku-5-5`) and reaches it through FAM's own model
+    layer (Phase 0, decided by the owner 2026-10-29).
 29. **The journalism playbook combines A, B and C** - the public editorial
     guides' principles, audio craft, and the best reporting per category -
     drafted by Claude in `docs/journalism_playbook.md` (`EDITOR_PLAYBOOK`
@@ -214,9 +217,63 @@ Names are internal: never shown to a listener.
     non-duplicates), and its dedupe leaves the dry run once that eval shows
     no wrong merge - no hand-checked sample.
 
+## Decided in the owner's model rounds (2026-10-30, §346)
+
+34. **Each agent's model**, chosen on two decision pages built from the
+    guide's plugin tabs (`docs/FAM_AGENTS.md`, Shared rules, Models decided,
+    holds the table). Every pick is a Claude model, so Phase 0 builds only
+    the `anthropic` adapter for them. Still open: **Mclovin's grounding
+    checker** (analysed on its own: can it run without a new machine, and
+    how does a rejected sentence avoid delaying the writer) and
+    **Shakespeare ahead of the tap** (measured first, item 37).
+35. **GPT-5 nano is withdrawn** for Consuela (OpenAI shuts it down on 11
+    December 2026); Consuela consolidates on Haiku 5.5 at low effort,
+    batched.
+36. **C3P0 runs inside the brief's call**: at the brief's own effort
+    (`EI_EFFORT`, medium) on the tap, and at high effort ahead of the tap
+    (editions, write-ahead, prefetch) through a new `EI_AHEAD_EFFORT`. An
+    on-demand episode keeps the on-tap settings and the 8 s ceiling. This
+    narrows [small-calls-haiku] for the ahead path once built; with agents
+    off nothing changes.
+37. **Shakespeare ahead of the tap is measured, then the owner decides**:
+    about 50 fixed edition questions (Trending-style news, DailyFAM subjects
+    across the categories, evergreen), researched once and frozen, written
+    three ways - no editor, Shakespeare on Haiku 5.5 high, Shakespeare on
+    Sonnet 5.5 - with the same writer; scored on `episode_quality`'s six
+    code measures, Mclovin's error counts once he exists, a blind grader's
+    1-5 (Opus, so Sonnet never grades itself), and cost and time per
+    episode; then two weeks of editions written each way, judged by
+    listening. Sonnet is the default until then. On searchFAM Shakespeare
+    is Haiku 5.5, in tandem with the writer and never a step after it.
+    Opus 5.5 drafts the playbook and builds the eval.
+38. **Nando attaches every request to the closest node it is truly about**:
+    a broader node rather than none, never a nearby wrong one.
+39. **Build choices**: `cryptography` listed in `requirements.txt`; the
+    owner's public key committed at `docs/agent_rules/owner.pub`, which
+    `AGENT_RULES_PUBLIC_KEY` defaults to and must match if set; the
+    journalism playbook locked in the signed manifest with the rule books;
+    the lock's tests may make a throwaway key inside a test, never the
+    owner's and never saved; `CLAUDE.md`'s new rule line fitted by
+    tightening other lines without changing their meaning; the `/admin`
+    Agents panel is display only; the switches for Shakespeare and Consuela
+    are `EDITOR_AGENT` and `HOUSEKEEPER` in code.
+40. **A DailyFAM topic a listener typed is that listener's words**: it goes
+    only to a vendor `consent.py` covers (today Anthropic).
+41. **Finnhub and API-Sports are removed in their own change, not in the
+    agents' branch**, once the owner's subscriptions are bought. Until
+    then: Phase 0's edits to `spend_guard.PAID_CREDENTIALS`,
+    `provider_usage` and `/api/health` touch the same lists that change
+    will, so whichever lands second merges with the other; both stay
+    watched and counted; Consuela must treat both as not approved; their
+    data is still spoken to listeners until removed; `[sports-balldontlie]`
+    and `[sweep-on-demand]` stay as written.
+
 ## Decisions still to ask the owner
 
-Check `PROBLEMS.md` §340 (the last entries) for answers first.
+Check `PROBLEMS.md` §340 and §346 (the last entries) for answers first.
+
+- Mclovin's grounding checker (item 34).
+- Shakespeare's model ahead of the tap, on the comparison's result (item 37).
 
 - Parallel, Perplexity, GNews and Polymarket: whether their material may be
   stored. This is being researched in its own branch (written up in
@@ -236,7 +293,7 @@ setting into `config.py`, `.env.example` and `/api/health` where it is
 settable in two places. Log each phase in `PROBLEMS.md` and keep
 `docs/FAM_AGENTS.md`, `docs/BACKEND.md` and `docs/DATA.md` true to the code.
 
-### Before the phases - remove Finnhub and API-Sports (decided item 25)
+### Separately - remove Finnhub and API-Sports (decided items 25 and 41)
 
 Take Finnhub (the story pool's market moves, `story_sources.FinnhubSignals`,
 `WATCHLIST`) and API-Sports (`api_sports.py`, its free-plan scores) out of
@@ -244,8 +301,9 @@ FAM, with Tiingo and BALLDONTLIE covering what they did; remove their keys
 from `config.py`, `.env.example`, `spend_guard.PAID_CREDENTIALS`,
 `provider_usage` and `/api/health`; rewrite the `CLAUDE.md` rules that name
 them (`[sports-balldontlie]`, `[sweep-on-demand]`) and their topic-file text;
-keep old clients working ([old-clients]). This is its own change, shipped
-first.
+keep old clients working ([old-clients]). This is its own change, **not in
+the agents' branch and not before the phases**: the owner makes it once the
+subscriptions are bought (item 41, 2026-10-30).
 
 ### Phase 0 - the agent framework (no agent yet)
 
@@ -259,7 +317,33 @@ first.
   (`AGENT_RULES_DIR` or a fetched URL), each checked against a fingerprint
   the owner sets, the way `VOICE_REFERENCE_FINGERPRINT` refuses a changed
   voice. An agent with a missing or changed rule book does not run. Prompts
-  include the rule book text; no code path writes to it.
+  include the rule book text; no code path writes to it. The fingerprints
+  are a **manifest the owner signs** (Ed25519, the private key only the
+  owner's; FAM holds `AGENT_RULES_PUBLIC_KEY`), checked at boot and before
+  every agent call, with a test that fails on any rule book the signed
+  manifest does not cover - `docs/FAM_AGENTS.md`, Shared rules, Locked rule
+  books. Until the owner signs a first manifest every agent is held, and the
+  test checks that instead, so CI stays green before the owner signs.
+  Never generate, hold or ask for the private key; a session that
+  needs a rule book changed stops and asks the owner.
+- **FAM's own model layer** (decided by the owner, 2026-10-29;
+  `docs/FAM_AGENTS.md`, Shared rules, Models and outside plugins): no agent
+  framework, no gateway. One module that sends an agent's single typed
+  request - `episode_intelligence._ask` generalised: a Pydantic schema, a
+  time limit, refusal and token-ceiling handling, never raising, a fallback
+  to the pre-agent path - through one adapter per vendor on the vendor's
+  official SDK: `anthropic` first; `google-genai` and `openai` (which also
+  serves the OpenAI-compatible APIs of Groq, Cerebras, Together, xAI and
+  DeepSeek) as their own changes, each adding its package, its
+  `metering.PRICES` rows and its `spend_guard.PAID_CREDENTIALS` key. Each
+  agent's model is a `vendor:model-id` setting, pinned (never a moving alias
+  like `-latest`, never falling through to `MODEL`); the layer checks the
+  model each answer says it came from, never switches to another model on
+  its own, and records the agent, model, rule-book version and prompt
+  fingerprint on every call. A **consent check in code**: a request that
+  carries a listener's words is refused for any vendor `consent.py` does
+  not cover (today only Anthropic), and a test pins that. Tests use fake
+  clients - no key, no network ([tests-no-key]).
 - **Per-agent switches, time limits and call sizes** in `config.py` (names in each agent's
   Settings sub-tab), `metering` prices, `spend_guard.PAID_CREDENTIALS` for any
   new key, and an **Agents** panel on `/admin` (on/off, last run, spend,

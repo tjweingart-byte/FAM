@@ -2,7 +2,7 @@
 
 The retrievers, and **all of them finish before the first word is written**:
 
-* **perplexity** - the default since §344 (Parallel was, from §258):
+* **perplexity** - the default since §357 (Parallel was, from §258):
   Perplexity's Search API retrieves, this module builds an evidence packet,
   and the packet goes into the prompt as context.
 * **parallel** - Parallel's Search API, a second, independent index. It is
@@ -1330,7 +1330,7 @@ def _findings(results, packet_sources: int, highlights_per_source: int,
               provider: str = "") -> list:
     """`history_archive.findings_from`, never raising: an archive that cannot
     read a result never costs the packet. `provider` is the search that
-    returned `results` (§345)."""
+    returned `results` (§358)."""
     try:
         import history_archive
 
@@ -1916,7 +1916,7 @@ async def retrieve_with_gdelt(query: str, brief=None, recency_days: int = 0
 #:
 #: Whichever web index is not the configured one comes first (`ladder` skips
 #: the configured backend), so the order holds whichever is primary - Perplexity
-#: since §344, Parallel before.
+#: since §357, Parallel before.
 FALLBACK_RUNGS = ("perplexity", "parallel", "gdelt")
 
 

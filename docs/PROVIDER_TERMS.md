@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | Research note for the owner (PROBLEMS.md §341, finished in §342; email 3 sharpened in §343). Nothing here changes code or a rule book |
+| **Status** | Research note for the owner (PROBLEMS.md §354, finished in §355; email 3 sharpened in §356). Nothing here changes code or a rule book |
 | **Written** | 2026-10-29 (first pass: no page could be opened); **finished 2026-10-29** from the providers' own pages, every quote below read that day |
 | **Asked** | May FAM store what Parallel, Perplexity, GNews and Polymarket return, for how long, reuse it for another listener's episode, and speak it to the public - and what must be credited |
 | **Settled, not reopened** | GDELT is open for any use with a citation and a link to gdeltproject.org; Tiingo (prices) and BALLDONTLIE (scores) are approved - the owner has agreed redistribution with both; Finnhub and API-Sports are being removed from FAM |
@@ -89,7 +89,7 @@ Read from the code on this branch, 2026-10-29.
    Perplexity, nothing in its terms forbids it. Whether to stop intake keeping
    Parallel's words now and delete what is held, or hold them pending email 1,
    is the owner's call.
-2. **Intake does not record the provider.** *Fixed in §345: intake now
+2. **Intake does not record the provider.** *Fixed in §358: intake now
    records the provider of every passage it keeps (`by_provider`), from the
    day that change deploys; passages kept before it stay unattributed and
    are counted as "unknown".* Build-prompt item 8 switches
@@ -471,7 +471,7 @@ names; `https://gnews.io/terms` returns 404), "Last Updated: October 18,
 
 ### The first pass's leads, checked
 
-The first pass (§341) listed leads from search results and the agents guide's
+The first pass (§354) listed leads from search results and the agents guide's
 cached copy. Each against the live page:
 
 - Parallel, "Customer Output" defined as what the Services return to
@@ -750,7 +750,7 @@ Nothing is left to read: every page the request named was opened on
 2026-10-29 or is listed above with its error. What remains is the owner's:
 
 1. Decide on intake's Parallel passages (keep pending email 1, or stop and
-   delete). Intake records the provider since §345, so from its deploy on
+   delete). Intake records the provider since §358, so from its deploy on
    Parallel's passages can be dropped alone; those kept before it cannot.
 2. Send emails 1, 2 and 3. A provider's written reply outranks its page, and
    goes here quoted the same way, with the table re-marked.

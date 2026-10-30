@@ -173,7 +173,7 @@ def _env_float(name: str, default: float) -> float:
 
 #: How a researched episode gets its facts.
 #:
-#: **`perplexity` is the default since §344**, at the owner's direction
+#: **`perplexity` is the default since §357**, at the owner's direction
 #: (`parallel` was, from §258): Perplexity's Search API retrieves first and
 #: hands the writer an evidence packet to read, with `parallel` - a second,
 #: independent index - as the second look and the first rung below it, and
@@ -214,7 +214,7 @@ WEB_RESEARCH_BACKENDS = ("parallel", "perplexity")
 
 #: What a deployment gets when it says nothing. Named rather than repeated as a
 #: literal, for the same reason as DEFAULT_PIPELINE.
-#: Perplexity since §344, at the owner's direction: on the §343 comparison it
+#: Perplexity since §357, at the owner's direction: on the §356 comparison it
 #: matched Parallel's evidence and grades at half the search time, and its
 #: terms let FAM keep what it returns (docs/PROVIDER_TERMS.md); Parallel's do
 #: not. Parallel is now the second look.
@@ -1992,6 +1992,111 @@ class Settings:
         default_factory=lambda: os.environ.get("VIRAL_LOOPS_API_TOKEN", "").strip())
     viral_loops_campaign_id: str = field(
         default_factory=lambda: os.environ.get("VIRAL_LOOPS_CAMPAIGN_ID", "").strip())
+    # **The agents** (docs/FAM_AGENTS.md, PROBLEMS.md §340-§347). `AGENTS`
+    # is the one switch over all of them and is off: with it off no agent
+    # runs and listeners hear exactly what they heard before the agents
+    # existed. Each agent then has its own switch, also off.
+    agents: bool = field(
+        default_factory=lambda: os.environ.get("AGENTS", "0")
+        not in ("0", "false", "False", ""))
+    contextualizer: bool = field(
+        default_factory=lambda: os.environ.get("CONTEXTUALIZER", "0")
+        not in ("0", "false", "False", ""))
+    categorizer: bool = field(
+        default_factory=lambda: os.environ.get("CATEGORIZER", "0")
+        not in ("0", "false", "False", ""))
+    retriever: bool = field(
+        default_factory=lambda: os.environ.get("RETRIEVER", "0")
+        not in ("0", "false", "False", ""))
+    # Not `EDITOR`: most machines already set that for a text editor, and
+    # `EDITOR=vim` would read as on (the owner, 2026-10-30).
+    editor_agent: bool = field(
+        default_factory=lambda: os.environ.get("EDITOR_AGENT", "0")
+        not in ("0", "false", "False", ""))
+    supervisor: bool = field(
+        default_factory=lambda: os.environ.get("SUPERVISOR", "0")
+        not in ("0", "false", "False", ""))
+    housekeeper: bool = field(
+        default_factory=lambda: os.environ.get("HOUSEKEEPER", "0")
+        not in ("0", "false", "False", ""))
+    it_agent: bool = field(
+        default_factory=lambda: os.environ.get("IT_AGENT", "0")
+        not in ("0", "false", "False", ""))
+    # **Each agent's model, its own setting** (§346, the owner's decisions of
+    # 2026-10-30): `vendor:model-id`, an exact model and never a moving
+    # alias, and never `MODEL` - an empty value means the agent makes no
+    # model call (code only). `agents/models.py` refuses anything else. The
+    # editor's ahead-of-the-tap model is Sonnet until the owner decides on
+    # the comparison (§346); the grounding checker is not a model setting.
+    overlord_planner_model: str = field(
+        default_factory=lambda: os.environ.get("OVERLORD_PLANNER_MODEL", "").strip())
+    contextualizer_model: str = field(
+        default_factory=lambda: os.environ.get(
+            "CONTEXTUALIZER_MODEL", "anthropic:claude-haiku-5-5").strip())
+    categorizer_model: str = field(
+        default_factory=lambda: os.environ.get(
+            "CATEGORIZER_MODEL", "anthropic:claude-haiku-5-5").strip())
+    retriever_model: str = field(
+        default_factory=lambda: os.environ.get("RETRIEVER_MODEL", "").strip())
+    editor_model: str = field(
+        default_factory=lambda: os.environ.get(
+            "EDITOR_MODEL", "anthropic:claude-sonnet-5-5").strip())
+    editor_search_model: str = field(
+        default_factory=lambda: os.environ.get(
+            "EDITOR_SEARCH_MODEL", "anthropic:claude-haiku-5-5").strip())
+    supervisor_model: str = field(
+        default_factory=lambda: os.environ.get(
+            "SUPERVISOR_MODEL", "anthropic:claude-haiku-5-5").strip())
+    supervisor_screen_model: str = field(
+        default_factory=lambda: os.environ.get(
+            "SUPERVISOR_SCREEN_MODEL", "anthropic:claude-haiku-5-5").strip())
+    housekeeper_model: str = field(
+        default_factory=lambda: os.environ.get(
+            "HOUSEKEEPER_MODEL", "anthropic:claude-haiku-5-5").strip())
+    housekeeper_review_model: str = field(
+        default_factory=lambda: os.environ.get(
+            "HOUSEKEEPER_REVIEW_MODEL", "anthropic:claude-sonnet-5-5").strip())
+    it_model: str = field(
+        default_factory=lambda: os.environ.get(
+            "IT_MODEL", "anthropic:claude-haiku-5-5").strip())
+    it_summary_model: str = field(
+        default_factory=lambda: os.environ.get(
+            "IT_SUMMARY_MODEL", "anthropic:claude-sonnet-5-5").strip())
+    # **The rule-book lock** (§348, `agents/rulebooks.py`). Where the rule
+    # books are read from (empty: `docs/agent_rules/`), the owner's public
+    # key (always the committed `docs/agent_rules/owner.pub`, whatever
+    # `AGENT_RULES_DIR` names; when set it must be that same key and never
+    # replaces it), and Shakespeare's journalism playbook, which
+    # the signed manifest covers too (empty: `docs/journalism_playbook.md`).
+    # There is no setting that skips the check.
+    agent_rules_dir: str = field(
+        default_factory=lambda: os.environ.get("AGENT_RULES_DIR", "").strip())
+    agent_rules_public_key: str = field(
+        default_factory=lambda: os.environ.get("AGENT_RULES_PUBLIC_KEY", "").strip())
+    editor_playbook: str = field(
+        default_factory=lambda: os.environ.get("EDITOR_PLAYBOOK", "").strip())
+    # **Each agent's ceilings** (§349, `agents/roster.py`): the time limit
+    # and the call size of one model call, read by the roster. Placeholders
+    # until each agent's own phase measures them - nothing calls a model
+    # yet. C3P0 and Nando's main work rides inside the brief's call, so the
+    # brief's `EI_*` ceilings are theirs; these are for Nando's tie call,
+    # Shakespeare's outline (on search, and ahead of the tap), Mclovin's
+    # check of one unsure sentence, and the background agents' calls.
+    categorizer_timeout_seconds: float = _env_float("CATEGORIZER_TIMEOUT_SECONDS", 8.0)
+    categorizer_max_tokens: int = _env_int("CATEGORIZER_MAX_TOKENS", 300)
+    editor_timeout_seconds: float = _env_float("EDITOR_TIMEOUT_SECONDS", 8.0)
+    editor_ahead_timeout_seconds: float = _env_float("EDITOR_AHEAD_TIMEOUT_SECONDS", 60.0)
+    editor_max_tokens: int = _env_int("EDITOR_MAX_TOKENS", 4000)
+    supervisor_timeout_seconds: float = _env_float("SUPERVISOR_TIMEOUT_SECONDS", 1.0)
+    supervisor_max_tokens: int = _env_int("SUPERVISOR_MAX_TOKENS", 300)
+    housekeeper_timeout_seconds: float = _env_float("HOUSEKEEPER_TIMEOUT_SECONDS", 60.0)
+    housekeeper_max_tokens: int = _env_int("HOUSEKEEPER_MAX_TOKENS", 1500)
+    it_timeout_seconds: float = _env_float("IT_TIMEOUT_SECONDS", 60.0)
+    it_max_tokens: int = _env_int("IT_MAX_TOKENS", 1000)
+    # **Netenyahu's background loop** (§350): how often it claims due agent
+    # tasks, and at most how many per round. Started only when `AGENTS=1`.
+    overlord_tick_seconds: float = _env_float("OVERLORD_TICK_SECONDS", 300.0)
+    overlord_max_tasks_per_tick: int = _env_int("OVERLORD_MAX_TASKS_PER_TICK", 3)
     # How much *audio* must exist before the response starts. A quantity, not
     # a delay: at TARGET_WPM this is 3.75 words, so any ordinary opening
     # sentence satisfies it on the first chunk and it costs nothing. It exists

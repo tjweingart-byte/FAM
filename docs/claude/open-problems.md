@@ -717,6 +717,8 @@
    against their own allowances. Mixes are private by default and appear on the
    profile once made public.
 <!-- rule:op-profile-hub -->
+> **Current (PROBLEMS.md §345):** a friend's page (`screen-person`) takes the same layout - hero over the gold wash with how you stand under the handle, three numbers (friends scrolls to their friends list only when you may see it), Message and Follow centred, the interests line, and Vibes / Mixes tabs over the same grid of picture tiles (`showPersonShelf`; `/api/person` gives each vibe and mix a `thumb`); a mix tile carries the (+). Their friends list and the "only what they chose to share" note stay below.
+> **Current (PROBLEMS.md §341, the owner's pick from the ten-layout deck):** your own YourFAM page is a hero - your picture large and centred over a gold wash, name, then place · handle - then three numbers (friends, vibes, mixes; friends opens the Friends page, the other two turn the grid), Edit profile and Saved for Later, the interests line, and **Vibes / Mixes** tabs over a three-across grid of picture tiles (`showProfileShelf`; each vibe and mix carries the player's picture as `thumb` from `/api/profile`, a mix's own cover first). The Messages card, the "Your shelf" count tiles, the "View Your FAM" pill and YourFAM's "Find new friends" pill are gone: Messages is a tab, and the friends number opens the Friends page, which carries Invite new users. myFAM's friends rail keeps its Find new friends pill.
 > **Current (PROBLEMS.md §214):** the identity step runs for an account let in off the waitlist too, and is skipped only when name, handle and a place are all set (`identitySetUp`).
 > **Current (PROBLEMS.md §178, reversing §174's first item):** your own page draws its interests again - as one line under Edit profile and Saved for Later, labelled "Interests", pills in a row that scrolls sideways (`interestLineHTML`); a friend's page draws theirs the same way. They are still changed in Edit profile.
 
@@ -869,6 +871,9 @@
   link, fetched before the tap), and YourFAM's header has no (+) - Messages already
   starts a chat.
 
+> **Current (PROBLEMS.md §341):** the View Your FAM pill went with YourFAM's
+> hero layout; its friends number opens the Friends page instead.
+>
 > **Current (PROBLEMS.md §251):** the faces row is drawn only at the top of
 > DailyFAM (10.2 #1). YourFAM has, under "Your FAM friends" and its Find new
 > friends pill, one large **View Your FAM** pill to the Friends page,

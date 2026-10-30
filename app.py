@@ -59,6 +59,9 @@ import spend_guard
 import messages as messages_mod
 import typing_indicator as typing_mod
 import metering
+from agents import models as agent_models
+from agents import rulebooks as agent_rulebooks
+from agents import netenyahu
 import oauth
 import apple_tokens
 import quotas
@@ -289,7 +292,7 @@ def _say_where_a_key_could_come_from() -> None:
 def _announce_research() -> None:
     """Say at startup whether the configured research backend can actually run.
 
-    `perplexity` is the default since §344 and needs a
+    `perplexity` is the default since §357 and needs a
     second credential. Without it a researched
     episode fails - it does not quietly search another way - and finding that
     out on a listener's first researched question is the shape of failure this
@@ -646,6 +649,13 @@ async def lifespan(_: FastAPI):
     # Before the first listener signs up into a database that is about to be
     # replaced by the next push.
     _announce_storage()
+    # The rule-book lock, read and verified at boot (§348) and again before
+    # every agent call. Says in the log which agents it holds and why.
+    agent_rulebooks.load()
+    # Netenyahu's background loop (§350), only when the agents are on: with
+    # `AGENTS=0` no task is ever claimed, so there is nothing to run.
+    if settings.agents:
+        _BACKGROUND.add(asyncio.create_task(netenyahu.run_forever()))
     # Expired scripts are already filtered out on read, so nothing ever deleted
     # them and the file grew for the life of the deployment. One DELETE at
     # startup is enough: entries expire on a timescale of days, not minutes.
@@ -1071,6 +1081,15 @@ def _database_report() -> list[dict]:
     held_bank = voice_bank.opened()
     if held_bank is not None:
         stores.append(("voice bank", "VOICE_BANK_DB", held_bank.path))
+    # The agents' task table (§349). Reported once the first task creates
+    # it, like the trending bank: a health page must not create it.
+    try:
+        from agents import tasks as agent_tasks
+
+        if agent_tasks.exists():
+            stores.append(("agent tasks", "AGENTS_DB", agent_tasks.store().path))
+    except Exception:  # pragma: no cover - a report is never load-bearing
+        pass
     # Tile pictures (§160). Reported once the first picture has been painted,
     # like the trending bank: a health page must not be what creates the
     # database on a machine that never made one.
@@ -1905,6 +1924,10 @@ async def health(request: Request) -> dict:
         # Which deployment this is and whether it can spend (§172). The web
         # client draws the STAGING banner from this.
         "environment": spend_guard.report(),
+        # The agents (§347): `AGENTS` and each agent's switch and pinned
+        # model, where every value came from, and the rule-book lock - all
+        # settable in two places, so said here. Off by default.
+        "agents": agent_models.health(),
         # The client releases this server still serves, and which versions
         # have called it since boot (`client_versions.py`).
         "clients": client_versions.report(),
@@ -3047,7 +3070,9 @@ async def person_profile(request: Request,
         "joined": person["joined"],
         # With the (+) state each needs: whether this listener has already
         # added it to their own DailyFAM, and whether it is theirs.
-        "mixes": [_public_mix(m, me, added_mixes)
+        # Each mix and vibe wears the picture the player would draw, so a
+        # friend's page is the same grid of tiles as your own (§345).
+        "mixes": [dict(_public_mix(m, me, added_mixes), thumb=_mix_picture(m))
                   for m in MIXES.public_for_user(target)],
         # Each vibe carries its subject, read off its own words - the same
         # label a shared episode's chat preview uses.
@@ -3055,7 +3080,8 @@ async def person_profile(request: Request,
         # hours are how long a vibe is a *story* on somebody's face, never
         # how long it stays on their profile.
         "vibes": [dict(e.as_dict(person["name"], person["handle"]),
-                       topic=_topic_label(e.query, e.title))
+                       topic=_topic_label(e.query, e.title),
+                       thumb=_picture_url(e.query, e.title, e.minutes))
                   for e in SOCIAL.echoes_by(target, limit=12, viewer=me)],
         "vibe_count": len(SOCIAL.echoes_by(target, limit=200, viewer=me)),
         "interests": interests,
@@ -7546,6 +7572,26 @@ async def episode_card(request: Request,
             "searcher": searcher}
 
 
+def _picture_url(asked: str, title: str = "", minutes: int = 0) -> str:
+    """`_player_picture`'s url alone, "" when there is none or it fails: a
+    tile's picture is never worth a failed profile."""
+    try:
+        return _player_picture(asked or "", title or "", minutes or 0).get("url", "") or ""
+    except Exception:  # noqa: BLE001
+        log.exception("could not pick a picture for a profile tile")
+        return ""
+
+
+def _mix_picture(mix) -> str:
+    """A public mix's tile picture on YourFAM (§341): the first subject's,
+    as the player would draw it. The owner's own cover, when there is one,
+    is drawn over it by the page."""
+    first = next(iter(mix.items), None)
+    if first is None:
+        return _picture_url(mix.name)
+    return _picture_url(first.query or first.title, first.title)
+
+
 def _player_picture(asked: str, title: str = "", minutes: int = 0,
                     episode: str = "", context: str = "") -> dict:
     """The player's picture for an episode, as `/api/episode/card` draws it
@@ -8785,8 +8831,12 @@ async def profile(request: Request, notes: int = Query(0, ge=0, le=1)):
     # which the page could not tell apart while a row meant "chose a name".
     body["last_seen"] = person["last_seen"]
     body["known"] = person["known"]
-    body["mixes"] = [m.public_dict() for m in MIXES.public_for_user(user)]
-    body["echoes"] = [e.as_dict(person["name"], person["handle"])
+    body["mixes"] = [dict(m.public_dict(), thumb=_mix_picture(m))
+                     for m in MIXES.public_for_user(user)]
+    # Each vibe wears the picture the player would draw behind it, so the
+    # profile's Vibes grid is a wall of episodes rather than a count (§341).
+    body["echoes"] = [dict(e.as_dict(person["name"], person["handle"]),
+                           thumb=_picture_url(e.query, e.title, e.minutes))
                       for e in SOCIAL.echoes_by(user, limit=12)]
     body["echo_count"] = len(SOCIAL.echoes_by(user, limit=200))
     # The picture, and the follow graph the page has been describing without
@@ -10715,6 +10765,42 @@ async def admin_tracker_snapshot(request: Request) -> dict:
     snap["suggestions"] = admin_tracker.suggestions()
     snap["via"] = "account" if _is_admin_account(request) else "token"
     return snap
+
+
+@app.get("/api/admin/agents")
+async def admin_agents(request: Request) -> dict:
+    """The Agents panel (§351): every agent's switch, model, lock, last run,
+    spend and fallbacks over a week, holds and the task queue. Read-only -
+    switches stay settings, and nothing here changes one."""
+    _require_admin(request)
+    return await asyncio.to_thread(_agents_panel)
+
+
+def _agents_panel(now: float = 0.0) -> dict:
+    from agents import roster
+
+    now = now or time.time()
+    health = agent_models.health()
+    week = METER.agent_summary(now - 7 * 86400)
+    rows = []
+    for role, agent in roster.ROSTER.items():
+        state = roster.status(role)
+        entry = health["agents"].get(role, {})
+        rows.append({
+            "role": role, "name": agent.name, "purpose": agent.purpose,
+            "surfaces": list(agent.surfaces), "switch": entry.get("switch", ""),
+            "on": state["on"], "may_run": state["may_run"], "why_not": state["why_not"],
+            "held_file": state["held_file"], "rulebook_version": state["rulebook_version"],
+            "models": entry.get("models", {}), "ceilings": entry.get("ceilings", {}),
+            "held": (health.get("held") or {}).get(role, ""),
+            "week": week.get(role, {"requests": 0, "sent": 0, "cost_usd": None,
+                                    "fallbacks": 0, "last_at": None, "last_status": "",
+                                    "last_reason": ""}),
+        })
+    return {"at": now, "enabled": health["enabled"], "lock": health["lock"],
+            "adapters": health["adapters"], "consent_covers": health["consent_covers"],
+            "overlord": health["overlord"], "tasks": health.get("tasks"),
+            "agents": rows, "recent": METER.agent_calls(limit=25)}
 
 
 @app.get("/api/admin/schema")

@@ -6,7 +6,7 @@
     python tools/compare_backends.py --write --grade           # and the grader's 1-5
     python tools/compare_backends.py --queries real.txt --write
 
-Asked by the owner (§343): Parallel is the primary search and Perplexity the
+Asked by the owner (§356): Parallel is the primary search and Perplexity the
 second look, and Perplexity's terms let FAM keep what it returns while
 Parallel's do not (docs/PROVIDER_TERMS.md). Whether Perplexity could be the
 primary turns on how much worse it is, and nobody had measured it: §258 chose

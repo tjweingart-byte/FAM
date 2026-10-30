@@ -217,7 +217,7 @@
   goes in `EXCEPTIONS`. Mild words (damn, hell, crap, ass) carry no E. Add to
   the lists with a test of an innocent sentence beside each addition.
 <!-- rule:always-researched -->
-> **Current (PROBLEMS.md §344, at the owner's direction):** the configured backend is **Perplexity** (`RESEARCH_BACKEND=perplexity`), and **Parallel** is the second look and the first rung below it (`RESEARCH_SECOND_LOOK=parallel`); GDELT stays the floor. `FALLBACK_RUNGS` lists both web backends and `ladder()` skips the configured one, so the other index always comes next. Chosen on the §343 comparison (equal evidence and grades, half the search time) and because Perplexity's terms let FAM keep what it returns and Parallel's do not (`docs/PROVIDER_TERMS.md`). A retired `RESEARCH_BACKEND` (`claude`, `exa`) now runs as `perplexity`. Wherever the notes below name Parallel as the configured backend and Perplexity as the second look, read them the other way round.
+> **Current (PROBLEMS.md §357, at the owner's direction):** the configured backend is **Perplexity** (`RESEARCH_BACKEND=perplexity`), and **Parallel** is the second look and the first rung below it (`RESEARCH_SECOND_LOOK=parallel`); GDELT stays the floor. `FALLBACK_RUNGS` lists both web backends and `ladder()` skips the configured one, so the other index always comes next. Chosen on the §356 comparison (equal evidence and grades, half the search time) and because Perplexity's terms let FAM keep what it returns and Parallel's do not (`docs/PROVIDER_TERMS.md`). A retired `RESEARCH_BACKEND` (`claude`, `exa`) now runs as `perplexity`. Wherever the notes below name Parallel as the configured backend and Perplexity as the second look, read them the other way round.
 > **Current (PROBLEMS.md §280, at the owner's direction):** API-Sports is removed from the code entirely; BALLDONTLIE (`balldontlie_scores`, `balldontlie`) is the only sports source. Wherever the text below lists API-Sports among an episode's sources, read BALLDONTLIE.
 > **Current (PROBLEMS.md §279, §281):** `RESEARCH_BACKEND=exa` still runs as `parallel` and says so (`research.backend_replaced`), and `RESEARCH_SECOND_LOOK=exa` runs as `same`, so a dashboard that still names the vendor boots; nothing reads or warns about `EXA_*` names. Remove them from any environment that still sets them.
 > **Current (PROBLEMS.md §274, at the owner's direction):** Exa is deleted, not kept selectable: its backend, fallback rung, `exa_py` requirement, `setup_key.py --exa` and `EXA_API_KEY` are gone. `RESEARCH_BACKEND=exa` runs as `parallel` and says so, as `claude` does (§135); the packet sizes are `SEARCH_NUM_RESULTS`, `SEARCH_PACKET_SOURCES`, `SEARCH_HIGHLIGHTS_PER_SOURCE` and `SEARCH_DATED_PACKET` (the old `EXA_*` names are no longer read and say so at startup). Wherever the text below says Exa, read Parallel, then Perplexity.
@@ -2109,3 +2109,41 @@
   `/api/v2`), **never by editing the contract**. Web releases are kept whole
   and checksummed in `releases/web/<version>/` and served at `/v/<version>/`
   (manifest files only, no service worker). iOS binaries are not kept in git.
+
+<!-- rule:agent-model-layer -->
+- **An agent reaches a model only through `agents/models.py`** *(§347, the
+  owner's decision of 2026-10-29).* FAM's own thin layer - no agent
+  framework (not PydanticAI or LangGraph) and no gateway (not LiteLLM):
+  `ask` sends one typed `AgentRequest` (a Pydantic schema that forbids extra
+  fields, a time limit, a call size, material only inside `<request>`,
+  `<evidence>`, `<archive>` or `<script>`) through one adapter per vendor on
+  that vendor's official SDK - `anthropic` only so far; `google-genai` and
+  `openai` each come as their own change with its package, its
+  `metering.PRICES` rows and its `spend_guard.PAID_CREDENTIALS` key, asked
+  of the owner first. It never raises: every way a call goes wrong is a
+  status (`agents.models.STATUSES`) and anything but `ok` runs the step as
+  FAM ran it before the agent. Each agent's model is its own setting
+  (`agents/names.py`), a pinned `vendor:model-id` - never a moving alias,
+  never `MODEL`, empty for code only - and must have a price; the layer
+  checks the model each answer says it came from and never switches to
+  another. **A request carrying a listener's words is refused for any
+  vendor `consent.MODEL_VENDORS` does not list** (today Anthropic), and
+  adding one there is new consent wording, never a line alone. Every call
+  is written to `metering`'s `agent_calls` with the agent, the model, the
+  rule-book version and the prompt's fingerprint, never who asked or what
+  they said. `AGENTS=0` (the default) and each agent's switch keep all of
+  it off. **And only under rule books the owner signed** *(§348)*:
+  `agents/rulebooks.py` checks the owner's Ed25519 signature on
+  `docs/agent_rules/MANIFEST.json` at boot and before every call, against
+  the committed `owner.pub` - always the repository's, whatever
+  `AGENT_RULES_DIR` names, and `AGENT_RULES_PUBLIC_KEY` may only match it,
+  never replace it (§353) - and
+  holds any agent whose book, `every-agent.md` or (Shakespeare) the
+  journalism playbook does not hash as signed, or any book the manifest
+  does not cover; no setting skips it, nothing writes a book, and until the
+  owner signed the first manifest (2026-10-30, §352) every agent was held.
+  A session writes the next manifest as `MANIFEST.pending.json` for the
+  owner to sign, never over the signed one. The private key is
+  never generated, held or asked for by a session or a server; tests make
+  throwaway keys of their own.
+

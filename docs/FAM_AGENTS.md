@@ -2,8 +2,8 @@
 
 | | |
 |---|---|
-| **Status** | Planning. No agent is built |
-| **History** | Started 2026-10-24 (§307); editor in chief and script supervisor (§312); pipeline and how agents run (§313); contextualizer and guardrails (§314); condensed into tabs, outside plugins per agent, the overlord, housekeeper, retriever, IT guy and categorizer (§340); the owner's brainstorm of 2026-10-28 - every agent named, roles redrawn, a rule book each (§340) |
+| **Status** | Phase 0, the framework, being built (§347-§348): the model layer, the rule-book lock, the roster, the typed hand-offs, the task table, Netenyahu as code and the `/admin` Agents panel exist; no agent is built, everything is off, and the owner signed the rule books on 2026-10-30 (§352) |
+| **History** | Started 2026-10-24 (§307); editor in chief and script supervisor (§312); pipeline and how agents run (§313); contextualizer and guardrails (§314); condensed into tabs, outside plugins per agent, the overlord, housekeeper, retriever, IT guy and categorizer (§340); the owner's brainstorm of 2026-10-28 - every agent named, roles redrawn, a rule book each (§340); each agent's model decided, but Mclovin's checker and Shakespeare ahead of the tap (§346) |
 | **Page** | `python docs/build_agents_html.py` builds the tabbed page from this file: one tab per `##`, one sub-tab per `###` |
 
 An **agent** is a worker that uses a model for one named job. FAM's eight,
@@ -29,7 +29,10 @@ cannot break, in `docs/agent_rules/` (one file per agent, shown as the
 "Rule book" sub-tab). Those files are **drafts**: the owner keeps the
 governing copies outside Claude, unchangeable by any session or agent, and
 where a held copy and this guide disagree, the held copy wins and this guide
-is corrected.
+is corrected. **Once agents run, the rule books are locked** (Shared rules,
+Locked rule books): a rule book runs only while it matches a manifest the
+owner has signed, so nothing but the owner - no agent, no model, no session -
+can change an agent's rules, responsibilities or boundaries.
 
 In a new session say *"read `docs/FAM_AGENTS.md` and work on Shakespeare"* (or any
 agent). Add one by copying the Template tab; when one is built, change its
@@ -74,6 +77,92 @@ An agent that breaks one is wrong however good its output looks.
 8. **Destructive work is reversible** - mark, grace period, log why, undo;
    hard deletion is a later step.
 9. **Provenance is kept** ([provenance-all-paths]).
+10. **Rules are the owner's alone** - an agent runs only under its signed
+    rule book and changes no rule, setting or limit, its own or another's
+    (Locked rule books, below).
+
+### Locked rule books
+
+The owner (2026-10-29): the set of rules for each agent is "untouchable and
+unchangeable unless we deliberately say to have them change ... not by an
+agent and not by a model". A rule book - its rules, responsibilities and
+boundaries - changes only by the owner's deliberate act. Today the governing
+copies are held outside Claude; once agents run, that is enforced in code:
+
+1. **The owner signs the rule books.** A manifest (`MANIFEST.json`, beside
+   the rule books) lists every rule book with its SHA-256 - the fingerprints
+   the owner sets, which the build prompt's Phase 0 checks the way
+   `VOICE_REFERENCE_FINGERPRINT` refuses a changed voice. The owner signs the
+   manifest with an Ed25519 private key that only the owner holds (a
+   hardware key or password manager - never the server, the repository,
+   `FAM_SECRETS` or a session), so a fingerprint cannot be reset by anyone
+   who can change a file or a setting. FAM holds only the public key
+   (`AGENT_RULES_PUBLIC_KEY`), so it can check a signature and never make
+   one. `cryptography`, already installed, does both. The same check applies
+   wherever the governing copies live: `docs/agent_rules/`, or the owner's
+   own location (`AGENT_RULES_DIR` or a fetched URL).
+2. **Unsigned rules never run.** At boot and before every agent call, the
+   rule book's hash is checked against the signed manifest. A missing,
+   changed or unsigned rule book holds that agent: the pipeline runs as it did
+   before the agent existed (rule 1), Keith raises it as urgent (the pop-up on
+   every admin page and an email, as decided for Keith on 2026-10-28), and
+   `/admin` names the file that differs. There is no setting that skips the
+   check. Until the owner signed the first manifest (2026-10-30, §352)
+   every agent was held.
+3. **Nothing an agent or model does can write a rule book.** Rule books are
+   read-only files loaded once into frozen memory, never stored in MongoDB or
+   any store an agent writes; agents have no tool that writes a file or a
+   setting; their outputs are typed data, never run as instructions; and
+   Netenyahu's closed vocabulary has no "change a rule" or "change a setting".
+4. **A model cannot rewrite its own instructions.** The rule book is the
+   cached system block; anything a model writes, and anything in `<request>`,
+   `<evidence>`, `<archive>` or `<script>` ("ignore your rules"), is material,
+   never a change to the rules (Guardrails and prompting).
+5. **Editing the repository is not enough either.** Once a signed manifest
+   exists, a test fails when a rule book's hash is not in it, so a session
+   can edit a rule book but cannot ship it; before one exists, the test
+   checks that every agent is held. GitHub branch protection with a `CODEOWNERS`
+   entry requires the owner's approval on `docs/agent_rules/`, the manifest
+   and the public key (the owner sets this in GitHub). Every call records the
+   rule book version it ran under.
+
+**Built (§348):** `agents/rulebooks.py` and `tools/rulebook_manifest.py`. The
+books are every `.md` in `docs/agent_rules/` but its README, and the
+journalism playbook (the owner, 2026-10-30); the manifest is
+`docs/agent_rules/MANIFEST.json` with `MANIFEST.json.sig` beside it, the
+signature base64; the public key is the committed `docs/agent_rules/owner.pub`,
+which `AGENT_RULES_PUBLIC_KEY` must match when it is set. An agent runs only
+while the signature verifies, the manifest covers every book, and its own
+book, `every-agent.md` and (Shakespeare) the playbook hash as signed - as
+loaded and on disk now; anything else holds it and names the file. The owner
+signs with OpenSSL on their own machine (`python tools/rulebook_manifest.py
+--commands`). Not built: a fetched URL as the owner's location (the folder
+setting covers a location on disk); Keith's urgent alert, which waits for
+Keith - until then the log and `/api/health` name what is held.
+
+**What the lock does not promise:** that a model always obeys. A locked rule
+can still be broken in one answer, which is why the rules that matter most
+are also held in code after the answer (Guardrails and prompting: code, then
+the answer's shape, then the prompt). A breach is caught and dropped, and
+never changes a rule.
+
+**The model under each rule book is pinned the same way** (the owner,
+2026-10-29: "we want to choose the model used for each agent, and some of
+that will be outside of Claude"): each agent's model is its own setting
+naming the vendor and an exact model ID, never a moving alias such as
+`-latest`, and never falling through to a shared `MODEL`; no automatic
+switch to a different model; each answer checked against the model it says
+it came from; a nightly check per agent on fixed inputs, as
+`verify_voice.py --fingerprint` does for the voice. Which model each agent
+runs was decided by the owner on 2026-10-30 (Models and outside plugins,
+Models decided; §346).
+
+**To change a rule book:** the owner edits the file, signs the new manifest
+on the owner's own machine, and commits both; CI checks the signature and
+the deploy carries it. Nothing else changes one. The owner's review of
+2026-10-29 (Mclovin's unchecked sentence, Keith counting it, Consuela's
+automated eval) is that kind of change: once the lock exists, each such
+edit ships with a new signature.
 
 ### Pipeline and how agents run
 
@@ -121,6 +210,14 @@ Sonnet ~$0.026, Opus ~$0.052):
 | **Ease in FAM** | Exists (`episode_intelligence._ask`), metered | Moderate | Easy to prototype, hard to meter | Config + `ant apply` | Exists (`claude_batch.py`) |
 | **Best use** | Anything a listener waits on | Consuela; one capped turn on the tap | Audits, evals | Nightly jobs | Editions, write-ahead, audits |
 
+**Built (§349):** `agents/roster.py` (each agent's purpose, tasks, surfaces,
+stage, rule book, switch, models, ceilings and fallback), `agents/handoffs.py`
+(`ResearchPlan`, `PluginPacket`, `ArchivePacket`, `Outline`, `ScriptSentence`,
+`Verdict` and their parts - Pydantic models that forbid extra fields, with
+only the fields already settled) and `agents/tasks.py` (the task table in
+`agents.db`: one claim per task across servers, one retry then held, and a
+re-run with nothing new refused).
+
 **How agents talk:** typed hand-offs (dataclasses with JSON schemas) through
 the orchestrator - Netenyahu - which tests and `/admin` can see; agents that
 run at different times meet in the archive, keyed by subject, category and
@@ -164,11 +261,56 @@ the prompt lets through.
 
 ### Models and outside plugins
 
-**Proposals, not decisions** (the owner, 2026-10-28: "I will not be making
-decisions on what to run each agent here, that will happen later in another
-branch with a more complete decision-making method"). The prices and
+**Proposals until 2026-10-30, now decided** (below, Models decided; the
+owner, 2026-10-28: "I will not be making decisions on what to run each agent
+here, that will happen later in another branch with a more complete
+decision-making method"). The prices and
 options below, each agent's plugin tab and the cost plan are the inputs to
-that decision; nothing here picks a model.
+that decision, which the owner made on 2026-10-30 (Models decided, below).
+
+**How agents reach their models is decided** (the owner, 2026-10-29: "lets
+get started on building the recommended option"): **FAM's own thin model
+layer**, not an agent framework or a gateway. Each agent's call is one typed
+request - way A below, `episode_intelligence._ask` generalised - through one
+adapter per vendor on that vendor's official SDK: `anthropic` (in use),
+`google-genai` (Gemini) and `openai` (OpenAI, and the OpenAI-compatible
+APIs of Groq, Cerebras, Together, xAI and DeepSeek). Every request has a
+Pydantic schema, a time limit, a fallback to the pre-agent path, a consent
+check (a listener's words go only to vendors the consent covers - today
+Anthropic) and a `metering` record priced by `metering.PRICES`. Each agent's
+model is its own setting naming vendor and exact model ID
+(`anthropic:claude-haiku-5-5`), pinned, never a moving alias and never
+falling through to a shared `MODEL`. Rejected after measurement and review:
+PydanticAI (about 5-6 ms more CPU per call in a one-process server, about
+two releases a week, built for tool loops FAM's agents do not run) and
+LiteLLM (two PyPI releases that stole credentials in 2026). **Built (§347):**
+`agents/models.py` (`ask`, `AgentRequest`, the statuses), `agents/adapters/`
+(`anthropic` only) and the `agent_calls` ledger in `metering.db`; the consent
+check is `consent.MODEL_VENDORS`. Which model each
+agent runs was decided afterwards (Models decided, below); this decided
+only the layer.
+
+**Models decided** (the owner, 2026-10-30, in two rounds on decision pages
+built from this guide's plugin tabs, with deep dives on four of them; §346).
+Every pick is a Claude model, so the layer needs only its `anthropic`
+adapter for the decided agents; the `google-genai` and `openai` adapters
+wait until an agent is moved to one. The outside models this guide priced
+lowest are being retired - GPT-5 nano on 11 December 2026 (OpenAI's
+deprecations page), Gemini 2.5 Flash-Lite with a retirement date on Google
+Cloud - and their replacements (gpt-5.6-luna, Gemini 3.1 and 3.5
+Flash-Lite, $0.20-0.30 in and $1.20-2.50 out per million, third-party
+prices) cost more than Haiku 5.5.
+
+| Agent | Decided |
+|---|---|
+| Netenyahu | No planner model; the rules in code |
+| C3P0 | Haiku 5.5 folded into the brief's call: at the brief's effort (medium) on the tap, at high effort ahead of the tap (`EI_AHEAD_EFFORT`) |
+| Nando | Code first, folded into the brief's call, Haiku 5.5 on ties; always the closest node it is truly about |
+| Sonic | An embedding router chooses the lookup; the code mapping is its fallback |
+| Shakespeare | Haiku 5.5 on searchFAM, in tandem with the writer; ahead of the tap measured first (no editor / Haiku 5.5 high / Sonnet 5.5), the owner decides, Sonnet the default until then; Opus 5.5 for the playbook and the eval |
+| Mclovin | Haiku 5.5 on unsure sentences and unsettled pages; **the grounding checker not decided** (its own analysis) |
+| Consuela | Haiku 5.5 low, batched, for consolidation; Haiku 5.5 then Sonnet 5.5 on duplicate pairs |
+| Keith | Haiku 5.5 for incidents; Sonnet 5.5 for `/admin`'s summaries |
 
 Claude list prices per million tokens (cached 2026-10-06; check
 <https://platform.claude.com/docs/en/about-claude/pricing>):
@@ -299,7 +441,11 @@ emails `Admin@familiarize.net` when it runs well above it.
 
 **Netenyahu, the overlord** (named by the owner, 2026-10-28). **Works in:**
 above every agent - like a boss, it directs each one: when to work and what
-to do. **Status:** planned, not built (§340).
+to do. **Status:** built as code, with no planner model (§350): `agents/netenyahu.py`
+routes each episode (`for_episode`, the pipeline's one hook), checks the
+closed vocabulary (`validate`), holds an agent after `HOLD_AFTER` failures
+in a row (never for spend), and runs the background loop (`tick`), only
+when `AGENTS=1`. No agent is built, so it routes no work yet.
 
 **Purpose.** One place that knows **every agent's limits, capabilities and
 purpose**: whether it is on for this surface, its ceiling, its fallback,
@@ -415,7 +561,7 @@ Each case is a test with a fake agent or planner returning the bad answer.
 | OpenRouter | ~5.5% on credits | ~25-100 ms | One key, many models | Sees every prompt, including listener words | No - consent change |
 | Langfuse | free (50k units) / $29 | async | Traces, prompt versions, evals | Traces hold material and listener words off-machine | Partly - FAM-material agents only |
 
-**The choice, driven by those needs:** *(a proposal - which model or plugin each agent runs is decided later, in another branch, with a fuller decision method; the owner, 2026-10-28)*
+**The choice, driven by those needs:** *(decided by the owner, 2026-10-30: no planner model - the rules in code. Shared rules, Models decided.)*
 
 - **Needs 1 and 2 → code orchestration (way A), no planner.** Nothing a model
   decides can act, and nothing is added on the tap.
@@ -432,6 +578,7 @@ Each case is a test with a fake agent or planner returning the bad answer.
 | `AGENTS_EXPECTED_CENTS_PER_EPISODE` | The cost plan Keith compares against (proposed) |
 | `OVERLORD_TICK_SECONDS`, `OVERLORD_MAX_TASKS_PER_TICK` | 300, 3 |
 | `OVERLORD_PLANNER_MODEL` | Empty = rules only |
+| `AGENT_RULES_PUBLIC_KEY` | The owner's public key that checks the rule-book manifest (Locked rule books); no setting turns the check off |
 
 Open: its own `/admin` page or a tracker section; whether it enables agents
 per surface (editions first) or per agent.
@@ -602,7 +749,7 @@ latency matters more here than for any other agent.
 | Open model on Groq / Cerebras | ~$3-30 | fastest generation | Writes queries quickly; quality unmeasured | Sees the listener's words | No - consent change |
 | GPT-5 nano / Gemini Flash-Lite | ~$3-5 | ~like Haiku | Comparable | Same | No - consent change |
 
-**The choice, driven by those needs:** *(a proposal - which model or plugin each agent runs is decided later, in another branch, with a fuller decision method; the owner, 2026-10-28)*
+**The choice, driven by those needs:** *(decided by the owner, 2026-10-30: on searchFAM, Haiku 5.5 folded into the brief's call at the brief's own effort (medium); ahead of the tap - editions, write-ahead, prefetch - Haiku 5.5 at high effort in the same call (a new `EI_AHEAD_EFFORT`); an on-demand episode keeps the on-tap settings. Sonnet on the write-ahead is not chosen. Shared rules, Models decided.)*
 
 - **Needs 1, 3 and 4 → Haiku 5.5, folded into EI's search call.** It is one
   schema in a call that already happens, it writes queries, and it is
@@ -621,7 +768,8 @@ latency matters more here than for any other agent.
 | Setting (proposed) | What it is |
 |---|---|
 | `CONTEXTUALIZER` | `0` / `1`, off by default |
-| `CONTEXTUALIZER_MODEL` | The model, or `rules` |
+| `CONTEXTUALIZER_MODEL` | `anthropic:claude-haiku-5-5`, inside the brief's call (decided 2026-10-30); empty = code rules |
+| `EI_AHEAD_EFFORT` | `high` ahead of the tap with C3P0 on (decided 2026-10-30); the search path keeps `EI_EFFORT` |
 | `ARCHIVE_ALONE`, `ARCHIVE_ALONE_TTL_SECONDS` | The archive answering an empty search alone, past or settled things only (responsibility 8, decided 2026-10-28) |
 | `CONTEXTUALIZER_TITLES` | `1`: C3P0's title is the episode's title (decided by the owner, 2026-10-28; replaces [title-from-content]'s writer title once built) |
 
@@ -754,7 +902,7 @@ Per episode ~10k in / 1k out; costs at **10k episodes/month** (×10 for 100k).
 | Open model on Groq / Cerebras | ~$10-90 | fastest generation | Buys latency back; quality unmeasured | Consent; terms | No on search |
 | Fine-tuning a model on FAM's best scripts | training cost (check) | as the base model | Bakes the house style in | Needs hundreds of approved scripts; Claude models cannot be fine-tuned here | Partly - `examples/` first |
 
-**The choice, driven by those needs:** *(a proposal - which model or plugin each agent runs is decided later, in another branch, with a fuller decision method; the owner, 2026-10-28)*
+**The choice, driven by those needs:** *(decided by the owner, 2026-10-30: on searchFAM, Haiku 5.5, in tandem with the writer and never a step after it; ahead of the tap, measured first - no editor, Haiku 5.5 at high effort and Sonnet 5.5 on the same frozen packets - and decided by the owner on the result, Sonnet the default until then; Opus 5.5 drafts the playbook and builds the eval. Shared rules, Models decided.)*
 
 - **Need 1 → Sonnet 5.5, batched, on the editions and the write-ahead,**
   with the journalism playbook and `examples/` in its cached prompt; Opus to
@@ -772,8 +920,8 @@ Per episode ~10k in / 1k out; costs at **10k episodes/month** (×10 for 100k).
 
 | Setting (proposed) | What it is |
 |---|---|
-| `EDITOR` | `0` / `1`, off until the eval says it helps |
-| `EDITOR_MODEL`, `EDITOR_SEARCH_MODEL` | Editions and write-ahead; searchFAM |
+| `EDITOR_AGENT` | `0` / `1`, off until the eval says it helps (not `EDITOR`, which most machines already set for a text editor; the owner, 2026-10-30) |
+| `EDITOR_MODEL`, `EDITOR_SEARCH_MODEL` | Editions and write-ahead (`anthropic:claude-sonnet-5-5` until the comparison decides); searchFAM (`anthropic:claude-haiku-5-5`, decided 2026-10-30) |
 | `EDITOR_TIMEOUT_SECONDS`, `EDITOR_AHEAD_TIMEOUT_SECONDS` | Ceilings; past them the writer reads the packets |
 | `EDITOR_RERANKER` | Empty, or the reranker |
 | `EDITOR_PLAYBOOK` | The journalism playbook's file |
@@ -977,7 +1125,7 @@ unsure sentence (~1.5k in / 50 out); costs at **10k episodes/month**
 | Sonnet 5.5 whole-script check (dropped) | ~$125 (batch) | after the script | Judged the writing | Not what the owner wants checked; costly | - |
 | Gemini / GPT on unsure sentences | ~$2-5 | ~0.5-1 s | Different family | Sees the listener's question on search | No - consent change |
 
-**The choice, driven by those needs:** *(a proposal - which model or plugin each agent runs is decided later, in another branch, with a fuller decision method; the owner, 2026-10-28)*
+**The choice, driven by those needs:** *(decided by the owner, 2026-10-30: Haiku 5.5 on the unsure sentences and on the source screen's unsettled pages. The grounding checker is not decided: it is analysed on its own, the owner asking whether it can run without a new machine and how a rejected sentence avoids delaying the writer. Shared rules, Models decided.)*
 
 - **Needs 1, 2 and 4 → code** for quotes, figures, dates and the source
   screen, run per sentence in `_ScriptReader` and on both packets.
@@ -1000,7 +1148,7 @@ unsure sentence (~1.5k in / 50 out); costs at **10k episodes/month**
 |---|---|
 | `SUPERVISOR` | `0` / `1`, off by default |
 | `SUPERVISOR_SCREEN` | On: opinion pieces and blog posts dropped from both packets |
-| `SUPERVISOR_MODEL`, `SUPERVISOR_GROUNDING` | The model asked about unsure sentences (Haiku); the grounding checker |
+| `SUPERVISOR_MODEL`, `SUPERVISOR_GROUNDING` | `anthropic:claude-haiku-5-5` on unsure sentences (decided 2026-10-30); the grounding checker (not decided) |
 | `SUPERVISOR_UNSURE_BAND` | The checker's score range sent to the model (proposed) |
 | `SUPERVISOR_REPAIRS` | `1` repair per sentence |
 | `SUPERVISOR_TIMEOUT_SECONDS` | Per-sentence ceiling; past it the sentence plays unchecked, and the miss is recorded and reported to Keith (decided 2026-10-29) |
@@ -1204,7 +1352,7 @@ languages). Every hole is closed by "uncertain = not compared".
 | **Haiku 5.5** yes/no | <$1 | batch | First look on leftover pairs | Says `same` too easily | Yes - unsure = keep; dry run |
 | **Sonnet 5.5** second opinion | ~$1 (few % of pairs) | seconds | Careful on edge cases | - | Yes - never drops alone |
 
-**The choice, driven by those needs:** *(a proposal - which model or plugin each agent runs is decided later, in another branch, with a fuller decision method; the owner, 2026-10-28)*
+**The choice, driven by those needs:** *(decided by the owner, 2026-10-30: consolidation on Haiku 5.5 at low effort, batched - GPT-5 nano was chosen first and withdrawn, OpenAI shutting it down on 11 December 2026; the first look at a pair Haiku 5.5, the second opinion Sonnet 5.5. Shared rules, Models decided.)*
 
 - **Needs 2 and 4 → Haiku 5.5 at low effort, batched,** for extraction and the
   first dedupe look. GPT-5 nano or Gemini Flash-Lite are a small saving with
@@ -1229,7 +1377,8 @@ languages). Every hole is closed by "uncertain = not compared".
 | Setting | What it is |
 |---|---|
 | `ARCHIVE_BACKEND`, `MONGODB_URI` | Built (§308); URI via `FAM_SECRETS` |
-| `HOUSEKEEPER_MODEL` / `HOUSEKEEPER_REVIEW_MODEL` | `claude-haiku-5-5` / `claude-sonnet-5-5` |
+| `HOUSEKEEPER` | `0` / `1`, off by default (the owner, 2026-10-30) |
+| `HOUSEKEEPER_MODEL` / `HOUSEKEEPER_REVIEW_MODEL` | `anthropic:claude-haiku-5-5` / `anthropic:claude-sonnet-5-5` (decided 2026-10-30) |
 | `HOUSEKEEPER_BATCH_ARTICLES`, `HOUSEKEEPER_COMB_DAYS` | Batch size; how often the full duplicate comb runs (proposed) |
 | `HOUSEKEEPER_DEDUPE_DRY_RUN` | `1` until the automated eval shows no wrong merge (decided 2026-10-29: no hand-checked sample) |
 | `HOUSEKEEPER_SUPERSEDED_DAYS` | 30 |
@@ -1389,7 +1538,7 @@ shared preamble:
 | An MCP server in front of the archive (`facts_about`, `results_between`) | hosting | ~ms | The same lookups for agents and development | Needs a public server, not on staging | Yes - read-only tools |
 | Warm the lookup before the tap (prefetch) | $0 | none for the listener | Holds nothing personal, so prefetch may ([prefetch-same-key]) | Stale by a few hours | Yes - history does not change fast |
 
-**The choice, driven by those needs:** *(a proposal - which model or plugin each agent runs is decided later, in another branch, with a fuller decision method; the owner, 2026-10-28)*
+**The choice, driven by those needs:** *(decided by the owner, 2026-10-30: an embedding router - the installed model and labelled examples - chooses the lookup, the code mapping its fallback. Shared rules, Models decided.)*
 
 - **Needs 1 and 4 → code:** the closed lookups, built over what Atlas already
   has.
@@ -1408,7 +1557,7 @@ shared preamble:
 |---|---|
 | `ARCHIVE_RECALL`, `ARCHIVE_RECALL_LIMIT`, `ARCHIVE_MIN_SIMILARITY`, `ARCHIVE_GRACE_SECONDS` | Built (§308): on, 6, 0.45, 0.5 s |
 | `RETRIEVER` | `0` / `1` (proposed): off = today's `look` |
-| `RETRIEVER_MODEL` | Empty = code only (proposed) |
+| `RETRIEVER_MODEL` | Empty: the embedding router, no model (decided 2026-10-30) |
 
 Open: whether the contextualizer names the lookup itself (one call) or the
 retriever decides. Decided (2026-10-28): its name is Sonic; the archive may
@@ -1601,7 +1750,7 @@ pick from the list. After the shared preamble:
 | SMS (Twilio) | ~$0.01 per message (check) + number | seconds | High | Cost per alert; one-way | Yes - urgent only |
 | PagerDuty / Opsgenie | free small-team tier; paid per user (check) | seconds | Highest: phone calls, repeats until acknowledged, an "acknowledge / resolved" button | Another vendor | Yes - matches "we tell Keith when it is fixed": resolve there, Keith re-checks |
 
-**The choice, driven by those needs:** *(a proposal - which model or plugin each agent runs is decided later, in another branch, with a fuller decision method; the owner, 2026-10-28)*
+**The choice, driven by those needs:** *(decided by the owner, 2026-10-30: Haiku 5.5 writes up incidents; Sonnet 5.5 writes `/admin`'s plain-English summaries. Shared rules, Models decided.)*
 
 - **Need 1 → FAM's own signals, plus UptimeRobot or Better Stack on
   `/api/health`,** and Healthchecks.io heartbeats from each loop.
@@ -1625,7 +1774,7 @@ pick from the list. After the shared preamble:
 | `IT_TICK_SECONDS` | 60 |
 | `IT_WARN_SHARE`, `IT_URGENT_SHARE` | 0.80, 0.95 of a limit |
 | `IT_FIXES` | `0` observe-only; then a list of the fixes allowed |
-| `IT_MODEL` | Empty = code only |
+| `IT_MODEL`, `IT_SUMMARY_MODEL` | `anthropic:claude-haiku-5-5` for incidents, `anthropic:claude-sonnet-5-5` for `/admin` summaries (decided 2026-10-30) |
 | `IT_NOTIFY_WARN`, `IT_NOTIFY_URGENT` | The channels: the pop-up for every alert, email too for urgent ones (decided 2026-10-28) |
 | `IT_ALERT_EMAIL` | `Admin@familiarize.net` (the owner, 2026-10-28) - set in the environment, never in code |
 | `RENDER_API_KEY`, `RUNPOD_API_KEY`, `ATLAS_ADMIN_KEY`, `CLOUDFLARE_ANALYTICS_TOKEN` | Read-only usage keys via `FAM_SECRETS` (proposed) |
@@ -1788,7 +1937,7 @@ disagree. After the shared preamble:
 | GPT-5 nano / Gemini Flash-Lite | ~$2 | 1-2 s | Comparable | Sees the listener's words | No - consent change |
 | Google Cloud NL `classifyText` | per call (check) | ~200 ms | A fixed web taxonomy | Not FAM's tree | No |
 
-**The choice, driven by those needs:** *(a proposal - which model or plugin each agent runs is decided later, in another branch, with a fuller decision method; the owner, 2026-10-28)*
+**The choice, driven by those needs:** *(decided by the owner, 2026-10-30: code first, folded into the brief's call, Haiku 5.5 in parallel only on ties; every request is attached to the closest node it is truly about - a broader node rather than none, never a nearby wrong one. Shared rules, Models decided.)*
 
 - **Needs 1, 3 and 4 → code first, folded into EI's call** (EI already
   returns `category_path`), validated against the tree; Haiku in parallel
@@ -1803,7 +1952,7 @@ disagree. After the shared preamble:
 | Setting | What it is |
 |---|---|
 | `CATEGORIZER` | `0` / `1` (proposed): off = today's code |
-| `CATEGORIZER_MODEL` | Empty = code only (proposed) |
+| `CATEGORIZER_MODEL` | `anthropic:claude-haiku-5-5`, asked only on ties (decided 2026-10-30) |
 | `NEAR_COSINE`, `WRITER_MIN_EPISODES`, `SUBJECT_DEPTH`, `THUMBNAILS_REVIEW` | Built: 0.45, 2, 2, `flagged` |
 
 Decided (2026-10-28): the category tag is the same everywhere for the

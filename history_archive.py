@@ -127,7 +127,7 @@ class Finding:
     #: `YYYY-MM-DD`, or "" when the search did not know it.
     published: str = ""
     passages: tuple = ()
-    #: Which search supplied it - "perplexity", "parallel" or "gdelt" (§345).
+    #: Which search supplied it - "perplexity", "parallel" or "gdelt" (§358).
     #: Their terms differ on keeping what they return (docs/PROVIDER_TERMS.md),
     #: so the archive keeps each provider's passages apart and can drop one
     #: provider's words without the other's. "" for a caller that does not say.
@@ -138,7 +138,7 @@ class Finding:
                 "grade": self.grade, "published": self.published}
 
 
-#: The searches whose passages the archive keeps apart (§345).
+#: The searches whose passages the archive keeps apart (§358).
 PROVIDERS = ("perplexity", "parallel", "gdelt")
 
 
@@ -175,7 +175,7 @@ def findings_from(results, packet_sources: int, highlights_per_source: int,
 
     Called wherever `research.build_packet` is, with the same arguments, so
     only what the writer actually read is archived. `provider` is the search
-    that returned `results` (§345)."""
+    that returned `results` (§358)."""
     import research
 
     found = []
@@ -224,7 +224,7 @@ class SQLiteBackend:
                        " digested INTEGER NOT NULL DEFAULT 0)")
             db.execute("CREATE INDEX IF NOT EXISTS intake_first_seen"
                        " ON intake(first_seen)")
-            # Each provider's passages apart (§345): {"perplexity": [...]}.
+            # Each provider's passages apart (§358): {"perplexity": [...]}.
             # `passages` stays the union every reader already reads. Rows
             # written before this have `{}` - their provider was never known.
             try:
@@ -378,7 +378,7 @@ class SQLiteBackend:
                                        "episode_sources").fetchone()[0],
                 "facts": db.execute("SELECT COUNT(*) FROM facts "
                                     "WHERE active = 1").fetchone()[0],
-                # Articles holding each provider's passages (§345); "unknown"
+                # Articles holding each provider's passages (§358); "unknown"
                 # is what was written before the provider was recorded.
                 "intake_by_provider": {
                     **{p: db.execute("SELECT COUNT(*) FROM intake WHERE "
@@ -390,7 +390,7 @@ class SQLiteBackend:
 
 
 def _by_provider(held: dict, finding: "Finding") -> dict:
-    """`held` with `finding`'s passages added under its provider (§345)."""
+    """`held` with `finding`'s passages added under its provider (§358)."""
     held = dict(held or {})
     if finding.provider and finding.passages:
         held[finding.provider] = _union(held.get(finding.provider, []),
@@ -482,7 +482,7 @@ class AtlasBackend:
             if f.passages:
                 add["passages"] = {"$each": list(f.passages)[:MAX_PASSAGES]}
                 if f.provider:
-                    # Each provider's passages apart (§345); see SQLite's.
+                    # Each provider's passages apart (§358); see SQLite's.
                     add[f"by_provider.{f.provider}"] = {
                         "$each": list(f.passages)[:MAX_PASSAGES]}
             if subject:
@@ -578,7 +578,7 @@ class AtlasBackend:
             "undigested": self.intake_c.count_documents({"digested": False}),
             "episodes": self.episodes_c.estimated_document_count(),
             "facts": self.facts_c.count_documents({"active": True}),
-            # As SQLite's (§345).
+            # As SQLite's (§358).
             "intake_by_provider": {
                 **{p: self.intake_c.count_documents(
                     {f"by_provider.{p}": {"$exists": True}}) for p in PROVIDERS},

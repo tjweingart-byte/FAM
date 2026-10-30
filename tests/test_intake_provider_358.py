@@ -1,4 +1,4 @@
-"""The archive's intake records which search supplied each passage (§345).
+"""The archive's intake records which search supplied each passage (§358).
 
 Perplexity's terms let FAM keep what it returns; Parallel's forbid reusing it
 for another listener (docs/PROVIDER_TERMS.md). A record that does not say

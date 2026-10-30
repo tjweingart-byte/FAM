@@ -7,7 +7,7 @@ are load-bearing, and which settled decisions not to re-litigate.
 
 This is the **core**: every rule, one or two lines each, loaded every session.
 The reasoning, history and exact wording behind each rule live in
-`docs/claude/*.md`, moved there verbatim (PROBLEMS.md §168); a sentence newer
+`docs/claude/*.md` (PROBLEMS.md §168); a sentence newer
 rules supersede has a `> **Current:**` note at its rule. Every line below
 ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
 
@@ -36,7 +36,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   keeping up takes work, so people miss the conversation; FAM turns what they
   care about into audio stories so they can be part of it. [social-information]
 - Three surfaces over generated audio: **searchFAM** (ask; voice search via
-  mic since §151; "hey FAM"/"what's up FAM" wake word, opt-in, since §158;
+  mic, §151; "hey FAM"/"what's up FAM" wake word, opt-in, §158;
   stopping speech shows a five-second **Search now** with an X, never a silent
   search, §159; the heard words are editable in place and Search now
   sends the corrected words, §165), **myFAM** (four rails over the evergreen bank and a shared live
@@ -51,7 +51,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   and briefs for likely taps; synthesise on tap. Cached episodes keep their
   audio beside the script (§132); prefetch warms text, never audio. [decouple-script-audio]
 - Matching happens at write time too: `CACHE_VECTOR` embeds once at store,
-  **on by default** since §107 (`=0` restores the old cache). [match-at-write-time]
+  **on by default** (§107; `=0` restores the old cache). [match-at-write-time]
 - **Latency is answered by starting earlier, never by filling the gap**; nor
   does motion fill one (§292). [latency-start-earlier] [motion]
 - **Trending searches**: under the search bubbles, the five questions most
@@ -119,7 +119,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   storytelling as decoration ("picture this", atmosphere). [story-not-decoration]
 - **Speak from inside** (no orienting, no justifying) and **land it and stop**
   (last line most concrete; no summary, recap or "to sum up"). [speak-from-inside]
-- **Endings do not tease** (reversed): no dangling hook, no rhetorical question,
+- **Endings do not tease**: no dangling hook, no rhetorical question,
   no forecasting; say anything unresolved inside the piece. [endings-do-not-tease]
 - Every sentence carries information; atmosphere alone is cut. [every-sentence-informs]
 - **Titled by what it turned out to be about**: a `<<TITLE: ...>>` line, stripped,
@@ -166,7 +166,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
 
 ## Open problems (`open-problems.md`)
 
-- **Voice**: Chatterbox is the only voice; Piper deleted. Two honest states -
+- **Voice**: Chatterbox is the only voice. Two honest states -
   Chatterbox speaks, or a placeholder **tone** and everything says so. No hosted
   per-character voices. Nobody has heard an episode in it; that listening test
   is the next move (`RUNPOD_PRODUCTION.md`, `verify_voice.py`). Hard names are
@@ -217,9 +217,9 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
 - A mix's **listen time** is when its "ready" push is sent (own zone, only once
   the edition is written), never when it is written; kept even where push is
   off; never shown to others. No suggested mix names. [mix-listen-time]
-- Faces on DailyFAM only, Instagram's, yours first (§297); YourFAM a pill
-  (§251); vibes first; a swipe goes to the next friend's, the picture to the
-  profile; Friends has "Invite new users +"; no (+) in YourFAM's header. [friends-vibes-first]
+- Faces on DailyFAM only, Instagram's, yours first (§297); vibes first; a
+  swipe goes to the next friend's, the picture to the profile; Friends has
+  "Invite new users +"; no (+) in YourFAM's header. [friends-vibes-first]
 - **Made for you** (§187): subjects and familiar words vouch only in their own
   field; variety never gives way (≤2 per heading, capped top-up); no
   minor-league game from another continent unless followed; market moves on
@@ -253,7 +253,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   X, button label and return target; a settings row is an editor, never the
   first run again; interests are **one sideways-scrolling line** under Edit
   profile / Saved for Later on yours and a friend's page (§178) - Edit profile
-  holds the five, ranked by `taste`; "Find new friends" is a pill; showing ≠ liking;
+  holds the five, ranked by `taste`; hero + Vibes/Mixes tiles, friends' too (§341/§345); showing ≠ liking;
   `/api/person` shows pinned or declared-minus-hidden, never history. [op-profile-hub]
 - Attachments: extracted at attach time, never on the generation path; failures
   are actionable sentences; an attached episode is **never cached**. [op-attachments]
@@ -291,8 +291,8 @@ Audio and the opening
 
 Research and truth
 - **Every episode is researched** (`SEARCH_MODE=always`). Empty search is a
-  ladder - Perplexity, Parallel (also the second look), GDELT (§344) - defined once in
-  `research.ladder()`; **no model web search** (deleted §135); no rung raises;
+  ladder - Perplexity, Parallel (also the second look), GDELT (§357) - defined once in
+  `research.ladder()`; **no model web search** (§135); no rung raises;
   every fallback recorded; sim-league pages and (on sports) unknown outlets
   are screened out (§178); nothing is refused for want of evidence (§256);
   EI writes `Brief.broader`. [always-researched]
@@ -307,7 +307,7 @@ Research and truth
   are evidence of no outcome; take the smaller true reading on contradiction. [started-not-finished]
 - **A missed search establishes nothing about the world**: volatile things are
   never supplied from memory; settled things may be or are omitted; the gap is
-  unannounced (§245's "that's all we found" reversed, §256); never
+  unannounced (§256); never
   "doesn't exist". [missed-not-absent]
 - **Live facts** (`live_facts.py`): **never confidently invent a current fact
   without authoritative, fresh evidence; never infer one from absence.** Closed
@@ -397,11 +397,11 @@ Browse surfaces
   under **Start here**, written ahead at every Trending slot so a card names
   its subject (`STARTUP_WRITE_AHEAD`, §174); `cold` is derived; startup plays never feed
   `popular_facets`; tiles claim no results or digits. [card-hook-startup]
-- **What you missed last week** is a rail, not a popup (now: cached episodes
+- **What you missed last week** is a rail, not a popup (cached episodes
   others played 3-7 days ago that this listener never heard, no live-feed, no
   top-up, §141). [missed-rail]
 - Trending is chosen before any personal rail, from its own edition, so it never
-  competes with Made for you for tiles (the §114 `WORLD_FLOOR` reservation is history). [trending-floor]
+  competes with Made for you for tiles. [trending-floor]
 - **Two crowd rows, not blended**: `most_played` is FAM's plays; Trending is the
   world. Trending feeds the bank, live facts feed the evidence; one fetch serves
   everyone; `why_now` is never evidence; ids hash the subject; an empty row is
@@ -487,6 +487,9 @@ Operations and honesty
 - Metering records cost at spend time per listener; never one blended cost. [metering]
 - A credential is never typed by a human (precedence env > `FAM_SECRETS` >
   .env > ~/.fam/env). [credentials-fetched]
+- **Agents call models only via `agents/models.py`** (§347-8): pinned
+  `vendor:model-id`, not `MODEL`; listener words to consented vendors only;
+  owner-signed rules; off by default. [agent-model-layer]
 
 ## iOS and the next phase (`next-phase.md`)
 
@@ -511,9 +514,8 @@ Every change ends the same way, without being asked [ship-loop]:
 2. Rebuild and **republish the preview to the same URL**:
    `https://claude.ai/code/artifact/c8bd86aa-e61e-4262-a1c8-b9c8d8d6645e`.
    It serves `preview/fam-live-artifact.html` (`python preview/build_live_preview.py`),
-   published with `capabilities: {"db": {}, "downloads": true}` - both, since
-   passing `db` alone revokes `downloads`. From a new
-   conversation, read that URL first, then publish with it as `url`.
+   published with `capabilities: {"db": {}, "downloads": true}` (`db` alone
+   revokes `downloads`); from a new conversation read that URL, then publish to it.
 3. Reply with a short summary and the preview URL.
 4. If something cannot be automated, give the exact command.
 
