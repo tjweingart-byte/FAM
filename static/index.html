@@ -28,7 +28,7 @@
   /* Light mode: the default since §250 (the 10.10 packet); dark is the
      listener's choice in Settings ("Dark mode"), kept on the device under
      `fam.theme`. Set on <html> before the first paint by the script at the
-     top of <body>. Only the chrome changes. Everything
+     top of the body. Only the chrome changes. Everything
      drawn over a picture - the Explore reel, a story, the VIBE! editor, the
      player's artwork and the captions panel - stays dark in both, the way a
      photo viewer does, so their colours are deliberately not variables. */
@@ -3062,6 +3062,11 @@
   #screen-profile .scroll, #screen-person .scroll{ background:linear-gradient(180deg,
       color-mix(in srgb, var(--copper) 24%, transparent), transparent 290px) no-repeat;
     background-attachment:local; }
+  /* The wash reaches the top of the screen: the status bar above both
+     pages, and a friend's back-arrow bar, take its first colour, so the
+     gradient starts at the frame's edge rather than under a dark band. */
+  .frame:has(#screen-profile.active, #screen-person.active) .statusbar,
+  #screen-person .yf-bar{ background:color-mix(in srgb, var(--copper) 24%, transparent); }
   .yf-hero{ display:flex; flex-direction:column; align-items:center; text-align:center;
     margin-top:8px; }
   .yf-hero .yf-photo{ width:92px; height:92px; font-size:28px; }
