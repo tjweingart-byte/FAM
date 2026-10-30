@@ -8,7 +8,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 import metering
-from agents import names
+from agents import names, rulebooks
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 
@@ -33,7 +33,10 @@ def test_only_an_admin_sees_it(admin):
 def test_every_agent_is_shown_off_and_held_with_nothing_spent(admin):
     _appmod, client, _store = admin
     body = client.get("/api/admin/agents", headers={"X-Admin-Token": "sekrit"}).json()
-    assert body["enabled"] is False and body["lock"]["signed"] is False
+    # Off by AGENTS=0 whether or not the owner has signed: the panel reports
+    # the repository's real signature, which signing does not make "on".
+    assert body["enabled"] is False
+    assert body["lock"]["signed"] is rulebooks.report()["signed"]
     assert [r["role"] for r in body["agents"]] == list(names.AGENTS)
     for row in body["agents"]:
         assert row["on"] is False and row["may_run"] is False and row["why_not"] == "AGENTS=0"

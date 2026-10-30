@@ -16,6 +16,12 @@ or unsigned rule book holds its agent, and a test fails before it can ship.
 To change one, the owner edits it and signs a new manifest - nothing else
 can. How it works: `docs/FAM_AGENTS.md`, Shared rules, Locked rule books.
 
+A session preparing a signing writes the manifest as `MANIFEST.pending.json`,
+which the lock ignores, so the repository stays green while it waits; the
+owner signs it as `MANIFEST.json` and uploads that, its `.sig` and (for a new
+key) `owner.pub` in one commit, and the session then deletes the pending
+file (PROBLEMS.md §347).
+
 | Agent | Name | Rule book |
 |---|---|---|
 | Every agent | - | [every-agent.md](every-agent.md) |

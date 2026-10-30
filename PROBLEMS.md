@@ -24415,3 +24415,36 @@ so `./dev.sh check` passed while CI failed on pieces 3 and 4. The fixture now
 also asks for `jwt`, so CI is back where it was before piece 2. Installing
 the OAuth requirements in CI, so those tests run there, is a dependency
 decision for the owner.
+
+## 347. The owner signed the rule books (2026-10-30)
+
+The owner signed the first rule-book manifest: `docs/agent_rules/MANIFEST.json`,
+its `.sig` and `owner.pub`, uploaded through GitHub's web page in one commit
+(b37ccfc). `python tools/rulebook_manifest.py --verify` says every agent may
+run, and the signed file is byte-for-byte the one the session prepared. Every
+agent is still off: `AGENTS=0` and each agent's switch are the second lock,
+and no agent is built.
+
+**A manifest waits under another name.** The repository test (§343) fails on
+a `MANIFEST.json` without a valid signature - nothing unsigned may ship - so
+pushing the manifest for the owner to download would have turned CI red until
+the signature arrived. The session instead pushes `--write`'s output as
+`MANIFEST.pending.json`, which the lock does not read; the owner downloads it,
+renames it while signing, uploads all three files together, and the session
+deletes the pending file. `docs/agent_rules/README.md` says so.
+
+**The owner's guide** is a Claude doc, *How to sign FAM's rule books*: Part 0
+sets up Bitwarden (the `FAM by Apali` organization, Families plan, a
+`Signing` collection holding the key, owned by `admin@familiarize.net`),
+Part A makes the key, Part B signs. Two things it learnt the hard way: an
+Intel Mac cannot use Homebrew any more, so OpenSSL 3 comes from a conda
+environment (`famsign`); and the key travels by clipboard, so the command
+that reads it goes into Terminal before the key is copied, and is run with
+Return, never a second paste. A first key reached a shell command line that
+way and was discarded before its public half was ever uploaded; the signed
+key is its replacement.
+
+`tests/test_admin_agents.py` had pinned the panel's `signed` to False, a fact
+about the repository that signing changed; it now compares with the lock's
+own report. What the test is for - every agent off, nothing spent - is
+unchanged.

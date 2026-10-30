@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | Phase 0, the framework, being built (§342-§343): the model layer, the rule-book lock, the roster, the typed hand-offs, the task table, Netenyahu as code and the `/admin` Agents panel exist; no agent is built, everything is off, and every agent is held until the owner signs |
+| **Status** | Phase 0, the framework, being built (§342-§343): the model layer, the rule-book lock, the roster, the typed hand-offs, the task table, Netenyahu as code and the `/admin` Agents panel exist; no agent is built, everything is off, and the owner signed the rule books on 2026-10-30 (§347) |
 | **History** | Started 2026-10-24 (§307); editor in chief and script supervisor (§312); pipeline and how agents run (§313); contextualizer and guardrails (§314); condensed into tabs, outside plugins per agent, the overlord, housekeeper, retriever, IT guy and categorizer (§340); the owner's brainstorm of 2026-10-28 - every agent named, roles redrawn, a rule book each (§340); each agent's model decided, but Mclovin's checker and Shakespeare ahead of the tap (§341) |
 | **Page** | `python docs/build_agents_html.py` builds the tabbed page from this file: one tab per `##`, one sub-tab per `###` |
 
@@ -107,8 +107,8 @@ copies are held outside Claude; once agents run, that is enforced in code:
    before the agent existed (rule 1), Keith raises it as urgent (the pop-up on
    every admin page and an email, as decided for Keith on 2026-10-28), and
    `/admin` names the file that differs. There is no setting that skips the
-   check. Until the owner signs a first manifest, every agent is held - the
-   state FAM is in today.
+   check. Until the owner signed the first manifest (2026-10-30, §347)
+   every agent was held.
 3. **Nothing an agent or model does can write a rule book.** Rule books are
    read-only files loaded once into frozen memory, never stored in MongoDB or
    any store an agent writes; agents have no tool that writes a file or a
