@@ -654,8 +654,9 @@ def test_a_thumb_does_not_zero_the_play_count(client):
 
 
 def test_a_friends_mix_does_not_take_over_a_running_playlist():
-    body = re.search(r"function playPersonMix\(i\)\{(.*?)\n  \}", INDEX, re.S).group(1)
-    assert "endMixQueue()" in body and "playMixItem(items[0], false)" in body
+    # A friend's mix is a tile that opens it since §342; the row's own play
+    # button (`playPersonMix`) went with the row.
+    assert "function playPersonMix(" not in INDEX
     body = re.search(r"function playMixItem\(item, inQueue\)\{(.*?)\n  \}",
                      INDEX, re.S).group(1)
     assert "inQueue === false" in body

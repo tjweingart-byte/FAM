@@ -988,13 +988,17 @@ def main() -> int:
                 page.evaluate("openMyFamTab()")
                 page.wait_for_timeout(400)
                 return
-            assert page.eval_on_selector_all("#personBody .yf-vrow",
+            # The same hero and grid as your own YourFAM (§342).
+            assert page.query_selector("#personBody .yf-hero"), "no hero on a friend's profile"
+            assert page.eval_on_selector_all("#personBody .yf-stat", "e => e.length") == 3, \
+                "a friend's profile lost its three numbers"
+            assert page.eval_on_selector_all("#personGrid .yf-pic",
                                              "e => e.length") >= 1, \
-                "their vibes are not listed"
+                "their vibes are not on the grid"
             assert page.eval_on_selector_all("#personBody .yf-interests .yf-chips-line .yf-chip",
                                              "e => e.length") >= 1, \
                 "no interest line on a friend's profile"
-            assert "public mixes" in body.lower(), "no public mixes on their profile"
+            assert "mixes" in body.lower(), "no mixes tab on their profile"
             # Message is the primary action and opens the chat with them.
             page.evaluate("document.querySelector('#personBody .yf-btn.gold').click()")
             page.wait_for_selector("#screen-thread.active", timeout=8000)
@@ -2900,7 +2904,9 @@ def main() -> int:
             assert "morning brief" in listed and "from @mike" in listed, listed[:400]
             # And on somebody's profile, the same (+).
             page.evaluate("openPersonProfile('beth', {name: 'Beth Solomon'})")
-            page.wait_for_selector("#screen-person.active .yf-mix .mix-add",
+            page.wait_for_function("personMixes.length > 0", timeout=5000)
+            page.evaluate("showPersonShelf('mixes')")
+            page.wait_for_selector("#screen-person.active .yf-pic-wrap .mix-add",
                                    timeout=5000, state="attached")
             page.evaluate("openPlayFAM()")
             page.wait_for_timeout(300)
