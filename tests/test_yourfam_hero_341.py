@@ -81,5 +81,5 @@ def test_vibes_and_mixes_are_tabs_over_one_grid_of_tiles():
     assert "m.cover || m.thumb" in shelf
     # Empty shelves say so rather than draw placeholders.
     assert shelf.count('class="pf-empty"') == 2
-    rule = re.search(r"\.yf-grid\{[^}]*\}", INDEX).group(0)
+    rule = re.search(r"\.yf-pics\{[^}]*\}", INDEX).group(0)
     assert "repeat(3, 1fr)" in rule

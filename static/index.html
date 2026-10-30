@@ -3083,19 +3083,19 @@
     margin-bottom:-1px; padding:9px 0; font-family:'Geist Mono', monospace; font-size:10.5px;
     letter-spacing:.18em; text-transform:uppercase; color:var(--text-faint); cursor:pointer; }
   .yf-tab.on{ color:var(--text); border-bottom-color:var(--copper); }
-  .yf-grid{ display:grid; grid-template-columns:repeat(3, 1fr); gap:3px; margin-top:3px; }
-  .yf-grid .pf-empty{ grid-column:1 / -1; margin-top:8px; }
-  .yf-tile{ position:relative; aspect-ratio:3/4; border:none; padding:0; overflow:hidden;
+  .yf-pics{ display:grid; grid-template-columns:repeat(3, 1fr); gap:3px; margin-top:3px; }
+  .yf-pics .pf-empty{ grid-column:1 / -1; margin-top:8px; }
+  .yf-pic{ position:relative; aspect-ratio:3/4; border:none; padding:0; overflow:hidden;
     cursor:pointer; background:linear-gradient(160deg, var(--surface-2), var(--surface));
     display:flex; align-items:flex-end; text-align:left; font-family:inherit; }
-  .yf-tile-pic{ position:absolute; inset:0; background-size:cover; background-position:center; }
-  .yf-tile::after{ content:""; position:absolute; inset:0;
+  .yf-pic-img{ position:absolute; inset:0; background-size:cover; background-position:center; }
+  .yf-pic::after{ content:""; position:absolute; inset:0;
     background:linear-gradient(180deg, transparent 45%, rgba(15,14,18,.82)); }
-  .yf-tile-t{ position:relative; z-index:1; padding:7px; font-size:10.5px; font-weight:600;
+  .yf-pic-t{ position:relative; z-index:1; padding:7px; font-size:10.5px; font-weight:600;
     line-height:1.2; color:#F4EFE4; display:-webkit-box; -webkit-line-clamp:3;
     -webkit-box-orient:vertical; overflow:hidden; }
-  .yf-tile.more{ align-items:center; justify-content:center; color:var(--text); font-size:12px; }
-  .yf-tile.more::after{ display:none; }
+  .yf-pic.more{ align-items:center; justify-content:center; color:var(--text); font-size:12px; }
+  .yf-pic.more::after{ display:none; }
   .yf-shelf{ display:grid; grid-template-columns:1fr 1fr; gap:7px; margin-top:9px; }
 
   /* A back-arrow screen header: Messages, a friend's profile, a topic. */
@@ -5606,7 +5606,7 @@
     // replaced them all, named too in case one is ever drawn without onclick.
     var PRESSABLE = 'button, a[href], [role="button"], [onclick], .tab, .seed-card, .seed-act, '
       + '.mix-card, .gd-card, .nextup-tile, .xn-card, .reel-act, .story-act, .yf-round, '
-      + '.yf-btn, .yf-stat, .yf-tile, .topic-row, .deeper-chip, .share-contact, .sh-target, .trend-chip';
+      + '.yf-btn, .yf-stat, .yf-pic, .topic-row, .deeper-chip, .share-contact, .sh-target, .trend-chip';
     document.addEventListener("pointerdown", function(e){
       if(!on() || e.button > 0) return;
       var el = e.target && e.target.closest ? e.target.closest(PRESSABLE) : null;
@@ -15630,7 +15630,7 @@
     html += '<div class="yf-tabs" role="tablist">'
       + '<button class="yf-tab" role="tab" data-shelf="vibes" onclick="showProfileShelf(\'vibes\')">Vibes</button>'
       + '<button class="yf-tab" role="tab" data-shelf="mixes" onclick="showProfileShelf(\'mixes\')">Mixes</button>'
-      + '</div><div class="yf-grid" id="yfGrid"></div>';
+      + '</div><div class="yf-pics" id="yfGrid"></div>';
 
     document.getElementById("profileBody").innerHTML = html;
     showProfileShelf(profileShelf);
@@ -15645,10 +15645,10 @@
   // One tile: the episode's picture where the server found one, the
   // category drawing under it otherwise, the words at the foot.
   function profileTileHTML(onclick, picture, title){
-    return '<button class="yf-tile" onclick="' + onclick + '">'
-      + (picture ? '<span class="yf-tile-pic" style="background-image:url(&quot;'
+    return '<button class="yf-pic" onclick="' + onclick + '">'
+      + (picture ? '<span class="yf-pic-img" style="background-image:url(&quot;'
           + escapeHtml(picture) + '&quot;)"></span>' : '')
-      + '<span class="yf-tile-t">' + escapeHtml(title) + '</span></button>';
+      + '<span class="yf-pic-t">' + escapeHtml(title) + '</span></button>';
   }
   function showProfileShelf(which, scroll){
     profileShelf = which === "mixes" ? "mixes" : "vibes";
@@ -15666,7 +15666,7 @@
             return profileTileHTML("playProfileVibe(" + i + ")", v.thumb, v.title || v.query);
           }).join("")
           + (vibesCount() > profileVibes.length
-              ? '<button class="yf-tile more" onclick="openMyVibe()">See all</button>' : '')
+              ? '<button class="yf-pic more" onclick="openMyVibe()">See all</button>' : '')
         : '<div class="pf-empty">Nothing vibed yet. Tap VIBE! on any episode and it shows here.</div>';
     } else {
       html = profileMixes.length

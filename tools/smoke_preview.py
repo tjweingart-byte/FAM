@@ -3049,11 +3049,11 @@ def main() -> int:
                 == ["Vibes", "Mixes"], "the shelf tabs are not Vibes and Mixes"
             assert page.query_selector("#screen-profile .yf-tab.on[data-shelf='vibes']"), \
                 "the grid does not open on Vibes"
-            assert page.query_selector("#yfGrid .yf-tile, #yfGrid .pf-empty"), \
+            assert page.query_selector("#yfGrid .yf-pic, #yfGrid .pf-empty"), \
                 "the vibes grid drew nothing, not even its empty line"
             page.evaluate("showProfileShelf('mixes')")
             assert page.query_selector("#screen-profile .yf-tab.on[data-shelf='mixes']")
-            assert page.query_selector("#yfGrid .yf-tile, #yfGrid .pf-empty"), \
+            assert page.query_selector("#yfGrid .yf-pic, #yfGrid .pf-empty"), \
                 "the mixes grid drew nothing, not even its empty line"
             page.evaluate("showProfileShelf('vibes')")
             assert page.eval_on_selector(
