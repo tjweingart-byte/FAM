@@ -20,8 +20,11 @@ signed:
   call. An agent runs only while the signature verifies, the manifest
   covers every book in the folder, and its own book and `every-agent.md`
   (and, for the editor, the playbook) hash to what the manifest says - both
-  as loaded and as they are on disk now. Anything else holds the agent and
-  names the file. **No setting skips the check.**
+  as loaded and as they were on disk at the last background read, at most
+  `DISK_REFRESH_SECONDS` old (§354: `check` itself reads no file, so an
+  agent working while a listener waits adds no disk read in front of the
+  first word). Anything else holds the agent and names the file. **No
+  setting skips the check.**
 * The texts are read once into frozen memory and nothing here writes a
   file. A changed file on disk is not reloaded: it holds the agent until the
   owner signs it and the server restarts.
@@ -38,6 +41,7 @@ import logging
 import pathlib
 import threading
 import types
+import time
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -235,6 +239,49 @@ def _load() -> State:
 _STATE: list = [None]
 _LOCK = threading.Lock()
 
+#: **The on-disk check, kept off the request path** (§353's carry-over,
+#: §354). Every book's hash as it is on disk now, re-read in a background
+#: thread at most this often, never by `check` itself: an agent working
+#: while a listener waits must not read a file in front of the first word.
+#: A book changed on disk after boot is still caught - within this many
+#: seconds rather than at once - and holds its agent until it is signed and
+#: the server restarts, exactly as before.
+DISK_REFRESH_SECONDS = 30.0
+#: name -> the SHA-256 on disk at the last refresh, or None when it could
+#: not be read; when that was; whether a refresh is running.
+_DISK: dict = {"hashes": {}, "at": 0.0, "running": False}
+_DISK_LOCK = threading.Lock()
+
+
+def refresh_disk() -> dict:
+    """Re-read every loaded book's bytes and keep their hashes. Off the
+    request path: the background thread `check` starts, boot, and tests.
+    Never raises; returns the new snapshot."""
+    state = _STATE[0]
+    hashes: dict = {}
+    for name, path in (state.paths.items() if state is not None else ()):
+        try:
+            hashes[name] = sha256(pathlib.Path(path).read_bytes())
+        except OSError:
+            hashes[name] = None
+    with _DISK_LOCK:
+        _DISK["hashes"], _DISK["at"], _DISK["running"] = hashes, time.monotonic(), False
+    return dict(hashes)
+
+
+def _refresh_soon() -> None:
+    """Start one background refresh when the snapshot is stale. Never
+    waits and never raises."""
+    with _DISK_LOCK:
+        if _DISK["running"] or time.monotonic() - _DISK["at"] < DISK_REFRESH_SECONDS:
+            return
+        _DISK["running"] = True
+    try:
+        threading.Thread(target=refresh_disk, name="rulebooks-disk", daemon=True).start()
+    except Exception:  # noqa: BLE001 - the last snapshot stands
+        with _DISK_LOCK:
+            _DISK["running"] = False
+
 
 def load() -> State:
     """Read and verify once (boot, or first use). Never raises."""
@@ -248,6 +295,10 @@ def load() -> State:
             state = _STATE[0]
             if not state.signed:
                 log.warning("agents held: %s", state.reason)
+            # What was just read is what is on disk now.
+            with _DISK_LOCK:
+                _DISK["hashes"] = dict(state.hashes)
+                _DISK["at"], _DISK["running"] = time.monotonic(), False
         return _STATE[0]
 
 
@@ -255,6 +306,8 @@ def reset() -> None:
     """Tests: forget the snapshot, so the next call loads again."""
     with _LOCK:
         _STATE[0] = None
+    with _DISK_LOCK:
+        _DISK.update(hashes={}, at=0.0, running=False)
 
 
 def books_for(book: str) -> tuple:
@@ -265,6 +318,7 @@ def check(book: str) -> Lock:
     """The lock for an agent whose rule book is `book`. Never raises."""
     try:
         state = load()
+        _refresh_soon()
         if not state.signed:
             return Lock(ok=False, reason=state.reason)
         if state.uncovered:
@@ -284,9 +338,9 @@ def check(book: str) -> Lock:
             if sha256(text.encode("utf-8")) != loaded:
                 return Lock(ok=False, version=state.version, file=name,
                             reason=f"{name} changed in memory")
-            try:
-                on_disk = sha256(pathlib.Path(state.paths[name]).read_bytes())
-            except OSError:
+            # The last background read, never a read here (§354).
+            on_disk = _DISK["hashes"].get(name, loaded)
+            if on_disk is None:
                 return Lock(ok=False, version=state.version, file=name,
                             reason=f"{name} can no longer be read")
             if on_disk != loaded:

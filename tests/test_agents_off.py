@@ -112,6 +112,7 @@ def test_an_episode_is_the_same_hook_out_off_held_and_signed(monkeypatch, tmp_pa
                   dataclasses.replace(rulebooks.settings, agent_rules_dir=str(tmp_path)))
         rulebooks.reset()
         use(m, **ALL_ON)
+        netenyahu.prime()   # what boot does when AGENTS=1 (§354)
         held = stream()
     rulebooks.reset()
     # 4. Every agent switched on under signed rule books (a throwaway key the
@@ -136,6 +137,7 @@ def test_an_episode_is_the_same_hook_out_off_held_and_signed(monkeypatch, tmp_pa
         rulebooks.reset()
         assert rulebooks.load().signed
         use(m, **ALL_ON)
+        netenyahu.prime()
         signed = stream()
     rulebooks.reset()
 
@@ -153,12 +155,19 @@ def test_an_episode_is_the_same_hook_out_off_held_and_signed(monkeypatch, tmp_pa
     assert set(run.why_not) | set(run.agents) == set(netenyahu.EPISODE_AGENTS)
 
 
-def test_only_the_pipeline_asks_netenyahu_about_an_episode():
+def test_netenyahu_is_asked_about_an_episode_in_two_places_one_per_surface():
+    """The pipeline for an episode a listener waits on (`search`), and the
+    brief for one written ahead of the tap that never passes through the
+    pipeline - prefetch and the editions (`ahead`, §354). Each once."""
     users = sorted(p.name for p in ROOT.glob("*.py")
                    if re.search(r"netenyahu\.for_episode", p.read_text(encoding="utf-8")))
-    assert users == ["pipeline.py"]
-    source = (ROOT / "pipeline.py").read_text(encoding="utf-8")
-    assert source.count("netenyahu.for_episode(") == 1
+    assert users == ["pipeline.py", "script_generator.py"]
+    pipeline_src = (ROOT / "pipeline.py").read_text(encoding="utf-8")
+    assert pipeline_src.count("netenyahu.for_episode(") == 1
+    assert 'netenyahu.for_episode(\n            "search"' in pipeline_src
+    writer_src = (ROOT / "script_generator.py").read_text(encoding="utf-8")
+    assert writer_src.count("netenyahu.for_episode(") == 1
+    assert 'netenyahu.for_episode("ahead"' in writer_src
 
 
 # ------------------------------------------------------------------ routing, when the agents are on
@@ -167,6 +176,7 @@ def signed(monkeypatch):
     """A lock that passes, so routing can be tested on its own."""
     monkeypatch.setattr(rulebooks, "check", lambda book: rulebooks.Lock(ok=True, version="1"))
     use(monkeypatch, **ALL_ON)
+    netenyahu.refresh_held()   # boot's read of the holds (§354)
 
 
 def test_on_and_signed_every_episode_agent_may_work(signed):
@@ -312,7 +322,7 @@ def test_a_round_that_fails_is_logged_and_never_ends_the_loop(monkeypatch):
 
     def broken():
         raise RuntimeError("database is locked")
-    monkeypatch.setattr(netenyahu, "_held", broken)
+    monkeypatch.setattr(netenyahu, "refresh_held", broken)
     result = asyncio.run(netenyahu.tick(at(12, 0), {}))
     assert result["ran"] == 0 and "next one" in result["why"]
     for value, seconds in ((0, 5.0), (float("nan"), 5.0), (float("inf"), 3600.0), (60, 60.0)):

@@ -655,6 +655,9 @@ async def lifespan(_: FastAPI):
     # Netenyahu's background loop (§350), only when the agents are on: with
     # `AGENTS=0` no task is ever claimed, so there is nothing to run.
     if settings.agents:
+        # The holds and the rule books' disk check read once here, so the
+        # first episode decides from copies, never the database (§354).
+        await asyncio.to_thread(netenyahu.prime)
         _BACKGROUND.add(asyncio.create_task(netenyahu.run_forever()))
     # Expired scripts are already filtered out on read, so nothing ever deleted
     # them and the file grew for the life of the deployment. One DELETE at

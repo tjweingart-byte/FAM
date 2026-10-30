@@ -134,7 +134,9 @@ signature base64; the public key is the committed `docs/agent_rules/owner.pub`,
 which `AGENT_RULES_PUBLIC_KEY` must match when it is set. An agent runs only
 while the signature verifies, the manifest covers every book, and its own
 book, `every-agent.md` and (Shakespeare) the playbook hash as signed - as
-loaded and on disk now; anything else holds it and names the file. The owner
+loaded and as on disk at the last background read, at most 30 seconds old
+(§354: the check itself reads no file, so nothing waits on it in front of
+the first word); anything else holds it and names the file. The owner
 signs with OpenSSL on their own machine (`python tools/rulebook_manifest.py
 --commands`). Not built: a fetched URL as the owner's location (the folder
 setting covers a location on disk); Keith's urgent alert, which waits for

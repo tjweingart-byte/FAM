@@ -354,3 +354,4 @@ and `limit` = Lines.
 | 24477 | 43 | 351. Phase 0, piece 5: the Agents panel on /admin - and Phase 0 done (2026-10-30) |
 | 24520 | 33 | 352. The owner signed the rule books (2026-10-30) |
 | 24553 | 69 | 353. Phase 0 reviewed before merge: the lock's key, a test that skipped itself, and the queue (2026-10-30) |
+| 24622 | 67 | 354. Phase 1, piece 1: nothing of the agents' bookkeeping in front of the first word, and the ahead surface asked (2026-10-30) |

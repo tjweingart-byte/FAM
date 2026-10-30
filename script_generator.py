@@ -641,8 +641,9 @@ class ScriptNotes:
     #: panel appearing while the episode plays instead of after it ends.
     caption_key: str = ""
     #: Which agents may work on this episode (`agents.netenyahu.EpisodeRun`),
-    #: set by the pipeline as the episode starts (§350). None outside it;
-    #: `netenyahu.OFF` while `AGENTS=0`. No agent reads it yet.
+    #: set by the pipeline as the episode starts (§350), or by `understand`
+    #: for an episode written ahead of the tap (§354). `netenyahu.OFF` while
+    #: `AGENTS=0`. No agent reads it yet.
     agents: object = None
     #: The episode's own title, off the model's trailing marker line. Empty
     #: when it did not write one, and every caller falls back to the question -
@@ -2183,6 +2184,16 @@ class ScriptGenerator:
         worth a second of silence to get") and it is the trade this change
         reverses: the framing is what the opening is made of.
         """
+        # Which agents work on an episode written ahead of the tap (§354):
+        # prefetch and the editions never pass through the pipeline, which
+        # asks for the search surface, so the ahead surface is asked here,
+        # once. `netenyahu.OFF` while `AGENTS=0`, decided before anything is
+        # read; no agent reads the answer yet.
+        if (notes is not None and notes.agents is None
+                and (getattr(notes, "ahead", False) or getattr(notes, "prefetch", False))):
+            from agents import netenyahu
+
+            notes.agents = netenyahu.for_episode("ahead", attached=bool(plan.attachments))
         if plan.brief is not None:
             return plan
         if not settings.episode_intelligence:

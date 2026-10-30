@@ -24618,3 +24618,70 @@ What they found, and what was done:
 
 **Numbering.** Main merged its own §341 and §345 while this branch was open;
 this branch's sections moved to §346-§352, and every reference with them.
+
+## 354. Phase 1, piece 1: nothing of the agents' bookkeeping in front of the first word, and the ahead surface asked (2026-10-30)
+
+Phase 1 (C3P0 and Nando at the request) was planned with the owner first,
+in eight pieces, and the owner answered the five questions the docs left
+open: C3P0 rides in one of the brief's existing calls, sent through
+`agents.models.ask` so it is metered and locked like any agent call (the
+`[agent-model-layer]` rule and "folded into the brief's call" read together);
+that call is the brief's search half, which already writes the queries and
+the title; an ambiguous name is asked through `/api/progress` and a resumed
+request with `reading=`, never by a call in front of every search; Nando's
+tie call runs beside the brief; and a named person neither Wikipedia/Wikidata
+nor a provider's catalogue knows gets no episode (4a). This piece is the
+groundwork: no agent yet, nothing a listener hears changes.
+
+**The two reads §353 left on the request path.** Once an agent works while a
+listener waits, every episode would have read Netenyahu's holds from the
+task store and re-hashed each rule book on disk before deciding. Both are
+now copies refreshed in a background thread:
+
+- `netenyahu._held` reads an in-memory copy of the holds; a stale copy (30 s)
+  starts one background read, a hold made here is written into the copy at
+  once, a failed read keeps the last copy, and boot reads it once
+  (`netenyahu.prime`, only when `AGENTS=1`). Before the first read nobody
+  knows what is held, so no agent works that episode - a missed agent costs
+  quality, a held one that ran would break the hold. The background loop
+  still reads the store itself.
+- `rulebooks.check` compares against the books' hashes as they were on disk
+  at the last background read (`DISK_REFRESH_SECONDS`, 30), never a read of
+  its own. A book changed on disk after boot is still caught and still holds
+  its agent until signed and restarted - within 30 seconds rather than at
+  the next call. `test_a_file_changed_after_boot...` now reads the disk
+  (`refresh_disk`) between the change and the check, which is what the
+  background does.
+
+**The ahead surface.** Prefetch and the DailyFAM and Trending editions call
+`ScriptGenerator.understand` without the pipeline, which only ever asked
+for `search`. `understand` now asks Netenyahu for `ahead` once when the
+notes are an ahead or prefetch episode and nobody asked yet - so C3P0 can
+run at `EI_AHEAD_EFFORT` there in piece 4. `tests/test_agents_off.py`'s
+"only the pipeline asks" became "two places, one per surface, each once";
+`netenyahu.OFF` while `AGENTS=0`, decided before anything is read.
+
+**Whether the API reports the exact pinned id.** Still unknowable without a
+key. `tools/agent_probe.py` makes one ~30-token call per distinct agent
+model through the same adapter `ask` uses (not through `ask`, so no switch
+needs to be on and no ledger row is written), prints asked and served, and
+exits 1 when any would come back `wrong_model`. Refuses on staging and with
+no key. To run where there is a key:
+
+    python tools/agent_probe.py
+
+If it says a dated id is served, the comparison in `agents.models._ask` is
+what changes, recorded here.
+
+**Latency.** None while `AGENTS=0` (the default): `for_episode` returns
+`OFF` before anything is read, as before. With agents on, deciding an
+episode now costs no database read and no file read.
+
+Tests: `tests/test_agents_request_path.py` (primed, deciding reads no
+database; unprimed, no agent and a read started; a hold in the copy at once;
+a stale copy re-read once in the background; a failed read keeps the copy;
+prime does nothing off; boot primes only when on; the lock reads no file
+when it checks; a stale disk snapshot re-read in the background catches a
+change; an unreadable book holds; the ahead surface asked for prefetch and
+editions, off while off, a tap's answer kept; the probe's model list, its
+verdict on an exact, dated or missing id, and nothing sent on staging).

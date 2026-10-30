@@ -9,7 +9,9 @@ owner's choice (§346): no planner model; the rules in code.
   `AGENTS=0`, and never anything in front of the first word. A private
   search or an attached file gets no agent at all (every-agent.md, "never"
   4). An agent works only if it is switched on, its rule books pass the
-  lock, it serves this surface, and it is not held. Today nothing passes:
+  lock, it serves this surface, and it is not held. Both the holds and the
+  lock's disk check are copies refreshed in the background (§354), so
+  deciding reads no database and no file while a listener waits. Today nothing passes:
   every switch is off (the owner signed the rule books, §352, and no agent
   is built yet).
 * **The closed vocabulary** (`validate`): the only actions anything may
@@ -32,6 +34,7 @@ import asyncio
 import datetime
 import logging
 import threading
+import time
 from dataclasses import dataclass, field
 from typing import Callable, Optional
 
@@ -87,6 +90,8 @@ def for_episode(surface: str, *, private: bool = False, attached: bool = False) 
         from agents import roster
 
         held = _held()
+        if held is UNKNOWN:
+            return EpisodeRun((), {"all": "the holds are not read yet"})
         runs, why = [], {}
         for role in EPISODE_AGENTS:
             agent = roster.get(role)
@@ -175,6 +180,9 @@ def hold(role: str, reason: str) -> None:
     from agents import tasks
 
     tasks.store().hold(role, reason)
+    with _HELD_LOCK:
+        if _HELD["roles"] is not UNKNOWN:
+            _HELD["roles"] = dict(_HELD["roles"], **{role: reason})
     log.warning("netenyahu held %s: %s", role, reason)
     try:
         import pipeline_errors
@@ -184,7 +192,9 @@ def hold(role: str, reason: str) -> None:
         pass
 
 
-def _held() -> dict:
+def _read_held() -> dict:
+    """The holds as the task store has them. Reads the database: never on
+    the request path (`_held` is)."""
     from agents import tasks
 
     if not tasks.exists():
@@ -192,10 +202,73 @@ def _held() -> dict:
     return {role: reason for role, (reason, _at) in tasks.store().held().items()}
 
 
+#: **The holds, kept off the request path** (§353's carry-over, §354).
+#: `for_episode` runs as an episode starts, so it reads this copy and never
+#: the database; a background thread re-reads it at most every
+#: `HELD_REFRESH_SECONDS`, boot primes it (`prime`), and a hold made here is
+#: written into it at once. Until it has been read once nobody knows what is
+#: held, so no agent works (`UNKNOWN`): a missed agent costs one episode some
+#: quality, a held agent that ran would break the hold.
+HELD_REFRESH_SECONDS = 30.0
+UNKNOWN = None
+_HELD: dict = {"roles": UNKNOWN, "at": 0.0, "running": False}
+_HELD_LOCK = threading.Lock()
+
+
+def refresh_held() -> Optional[dict]:
+    """Re-read the holds into the copy. Off the request path; never raises.
+    A failed read keeps the last copy."""
+    try:
+        roles = _read_held()
+    except Exception:  # noqa: BLE001
+        log.exception("netenyahu could not read the holds")
+        with _HELD_LOCK:
+            _HELD["running"] = False
+        return _HELD["roles"]
+    with _HELD_LOCK:
+        _HELD.update(roles=dict(roles), at=time.monotonic(), running=False)
+    return dict(roles)
+
+
+def prime() -> None:
+    """Boot: read the holds (and the rule books' disk check) once, before
+    any listener, so the first episode has an answer. Only when `AGENTS=1`."""
+    if not settings.agents:
+        return
+    refresh_held()
+    from agents import rulebooks
+
+    rulebooks.load()
+    rulebooks.refresh_disk()
+
+
+def _refresh_held_soon() -> None:
+    with _HELD_LOCK:
+        if _HELD["running"] or (_HELD["roles"] is not UNKNOWN and
+                                time.monotonic() - _HELD["at"] < HELD_REFRESH_SECONDS):
+            return
+        _HELD["running"] = True
+    try:
+        threading.Thread(target=refresh_held, name="netenyahu-holds", daemon=True).start()
+    except Exception:  # noqa: BLE001
+        with _HELD_LOCK:
+            _HELD["running"] = False
+
+
+def _held() -> Optional[dict]:
+    """The holds from the copy - no database read - or `UNKNOWN` before the
+    first read, which starts one in the background."""
+    _refresh_held_soon()
+    roles = _HELD["roles"]
+    return None if roles is UNKNOWN else dict(roles)
+
+
 def reset() -> None:
-    """Tests: forget the failure counts."""
+    """Tests: forget the failure counts and the copy of the holds."""
     with _LOCK:
         _FAILURES.clear()
+    with _HELD_LOCK:
+        _HELD.update(roles=UNKNOWN, at=0.0, running=False)
 
 
 # ------------------------------------------------------------------ the background
@@ -241,7 +314,9 @@ async def _tick(now, handlers) -> dict:
     from agents import tasks
 
     handlers = HANDLERS if handlers is None else handlers
-    held = _held()
+    held = refresh_held()
+    if held is UNKNOWN:
+        return {"ran": 0, "why": "the holds could not be read"}
     # Only tasks something here can run: a task for an agent not built yet,
     # or held, stays queued without taking a place in this round (§353).
     kinds = [f"{agent}:{kind}" for agent, kind in handlers if agent not in held]
