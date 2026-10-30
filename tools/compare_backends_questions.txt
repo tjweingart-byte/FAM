@@ -1,0 +1,46 @@
+# The default questions for tools/compare_backends.py, one per line.
+# Real listeners' searches beat these: copy recent ones from /admin into a
+# file and pass --queries. These spread over what FAM is asked - fast news,
+# sports, markets, politics, tech, niche and local subjects, and explainers
+# that turn on something recent - so one index's blind spot shows.
+
+# Fast-moving news
+what happened in the news today
+what is the latest on the war in Ukraine
+what did the Federal Reserve decide at its last meeting
+what is going on with tariffs this week
+
+# Sports
+how did the Eagles do last weekend
+who won the World Series
+what is the latest NBA trade news
+how is the Premier League title race shaping up
+what happened at the last Formula 1 race
+
+# Markets and business
+why did Nvidia stock move this week
+what is happening with bitcoin
+what were the biggest earnings surprises this quarter
+what is the latest on mortgage rates
+
+# Politics and policy
+what is Congress working on this week
+what are the big Supreme Court cases this term
+what is happening in the UK government
+
+# Technology and science
+what are the newest AI model releases
+what is the latest on SpaceX Starship
+what did Apple announce most recently
+
+# Niche and long-tail
+what is the latest on the Boeing 737 MAX
+what is happening with the Great Salt Lake water levels
+who is winning the race for the Tour de France next year
+
+# Local
+what is going on in Philadelphia this week
+
+# Explainers that turn on something recent
+why are egg prices changing
+how is the housing market doing right now

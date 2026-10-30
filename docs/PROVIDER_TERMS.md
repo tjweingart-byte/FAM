@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | Research note for the owner (PROBLEMS.md §341, finished in §342). Nothing here changes code or a rule book |
+| **Status** | Research note for the owner (PROBLEMS.md §341, finished in §342; email 3 sharpened in §343). Nothing here changes code or a rule book |
 | **Written** | 2026-10-29 (first pass: no page could be opened); **finished 2026-10-29** from the providers' own pages, every quote below read that day |
 | **Asked** | May FAM store what Parallel, Perplexity, GNews and Polymarket return, for how long, reuse it for another listener's episode, and speak it to the public - and what must be credited |
 | **Settled, not reopened** | GDELT is open for any use with a citation and a link to gdeltproject.org; Tiingo (prices) and BALLDONTLIE (scores) are approved - the owner has agreed redistribution with both; Finnhub and API-Sports are being removed from FAM |
@@ -664,8 +664,11 @@ subscription, not a question.
 
 ### 3. Polymarket
 
-> **To:** hello@polymarket.com (the address in Polymarket's Terms of Use)
-> **Subject:** Quoting public market odds in a news app - is it within your Terms?
+> **To:** hello@polymarket.com (the address Polymarket's Terms of Use give
+> for "questions, complaints, or claims concerning the Features", and in its
+> site footer; `builder@polymarket.com` in its docs is for trading-builder API
+> keys and rate limits, not data licences; `press@polymarket.com` is press)
+> **Subject:** Written permission to quote and store Polymarket odds in a news app
 >
 > Hello,
 >
@@ -688,7 +691,9 @@ subscription, not a question.
 >    listeners how a forecast changed over time? For how long?
 > 3. Is there a credit or link you want, beyond naming Polymarket?
 >
-> If this needs an agreement or a data licence, what would it be?
+> We would like the answer in writing: your Terms reserve anything beyond
+> them for what is "otherwise agreed to in writing by us". If this needs an
+> agreement or a data licence, what would it be, and who should we speak to?
 >
 > Thank you,
 > [Owner's name], FAM - Admin@familiarize.net

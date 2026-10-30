@@ -24025,3 +24025,44 @@ pages. The provider-terms note was numbered §340 on its branch, beside the
 agents guide's §340; merged here it is §341. Nothing in code changed; the
 agents guide, build prompt and rule books are left to the branch that owns
 them.
+
+## 343. Parallel against Perplexity, measured on one brief (2026-10-30)
+
+The owner asked how much worse Perplexity is than Parallel: Perplexity's
+terms let FAM keep what it returns and Parallel's do not (§342), so making
+it the primary search would let the archive keep its passages. Nobody had
+measured it - §258 chose both on price, and `tools/compare_search.py`
+measures the deleted model web search, not these two.
+
+`tools/compare_backends.py` runs both on the same questions. **One brief per
+question**, written once by EI and handed to both, so the two searches ask
+the same thing with the same window and the same `must_establish`; the second
+look is pinned to the same index (`RESEARCH_SECOND_LOOK=same`) so neither run
+is rescued by the other; the archive's recall is off so earlier passages
+reach neither packet. Settings are set on the one shared `settings` object
+and put back after each run. A backend that fails outright still falls back
+so an episode can be written, and the row says `fell_back`.
+
+Per question and backend it records sources, distinct outlets, dated sources
+and their age, source types, evidence size, which `must_establish` items the
+packet missed (the pipeline's own token test), search time and cost; with
+`--write`, the script and the six code proxies (§309); with `--grade`, the
+grader's 1-5. **It does not decide which is better**: `--write` saves both
+scripts as A and B in a random order with the key apart (`key.json`), to be
+read or heard blind. Output goes to `backend_comparison/<time>/` (ignored):
+`report.md`, `results.csv`, `packets/`, `blind/`.
+
+The default 26 questions (`tools/compare_backends_questions.txt`) spread over
+news, sports, markets, politics, tech, niche and local subjects; real
+listeners' searches from `/admin`, passed with `--queries`, are better.
+Not run here: this environment has neither search key. Next: run it with
+both keys, `--write`, on 20-30 real searches; about $1.
+
+Also: email 3 in `docs/PROVIDER_TERMS.md` now asks Polymarket
+(hello@polymarket.com, the address its Terms give) for written permission,
+since its Terms reserve anything beyond them for what is "otherwise agreed to
+in writing by us".
+
+Tests: `tests/test_compare_backends_343.py` (one brief for both, each index
+pinned and the settings restored, the blind files and the report; the packet
+reader; the dry run spends nothing).

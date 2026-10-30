@@ -346,3 +346,4 @@ and `limit` = Lines.
 | 23579 | 389 | 340. The agents guide: condensed into tabs, outside plugins per agent, and the Overlord (2026-10-26) |
 | 23968 | 26 | 341. May FAM keep what its providers return? The terms could not be read (2026-10-29) |
 | 23994 | 35 | 342. Provider terms, read: Parallel forbids reuse across listeners; Perplexity and GNews allow storage (2026-10-29) |
+| 24029 | 41 | 343. Parallel against Perplexity, measured on one brief (2026-10-30) |
