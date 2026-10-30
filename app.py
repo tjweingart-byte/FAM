@@ -289,7 +289,7 @@ def _say_where_a_key_could_come_from() -> None:
 def _announce_research() -> None:
     """Say at startup whether the configured research backend can actually run.
 
-    `parallel` is the default since §258 and needs a
+    `perplexity` is the default since §344 and needs a
     second credential. Without it a researched
     episode fails - it does not quietly search another way - and finding that
     out on a listener's first researched question is the shape of failure this

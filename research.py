@@ -2,10 +2,10 @@
 
 The retrievers, and **all of them finish before the first word is written**:
 
-* **parallel** - the default since §258: Parallel's Search API
-  retrieves, this module builds an evidence packet, and the packet goes into
-  the prompt as context.
-* **perplexity** - Perplexity's Search API, a second, independent index. It is
+* **perplexity** - the default since §344 (Parallel was, from §258):
+  Perplexity's Search API retrieves, this module builds an evidence packet,
+  and the packet goes into the prompt as context.
+* **parallel** - Parallel's Search API, a second, independent index. It is
   the second look on a thin packet and the first rung below the configured
   backend, so one vendor's blind spot is not the episode's.
 * **gdelt** - a keyless article index. Thinner than the others - titles,
@@ -1909,7 +1909,10 @@ async def retrieve_with_gdelt(query: str, brief=None, recency_days: int = 0
 #: Polymarket), and nowhere else. A question that finds nothing on any index
 #: is still written (§256 deleted the §109 refusal).
 #:
-FALLBACK_RUNGS = ("perplexity", "gdelt")
+#: Whichever web index is not the configured one comes first (`ladder` skips
+#: the configured backend), so the order holds whichever is primary - Perplexity
+#: since §344, Parallel before.
+FALLBACK_RUNGS = ("perplexity", "parallel", "gdelt")
 
 
 def second_look_backend(primary: str) -> str:

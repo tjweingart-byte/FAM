@@ -311,9 +311,10 @@ services:
       # (§191) - every other league is looked up on demand; with FINNHUB_KEY
       # set, markets are swept every 2h. Neither needs a second line naming
       # its provider.
-      # Search (§258): Parallel first, Perplexity as the second look and the
+      # Search (§344): Perplexity first, Parallel as the second look and the
       # backup, GDELT below both; with RESEARCH_BACKEND unset the default is
-      # parallel.
+      # perplexity. A RESEARCH_BACKEND=parallel set in the dashboard overrides
+      # this - remove it there.
       - key: PARALLEL_API_KEY
         sync: false
       - key: PERPLEXITY_API_KEY

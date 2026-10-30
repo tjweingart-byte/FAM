@@ -24066,3 +24066,40 @@ in writing by us".
 Tests: `tests/test_compare_backends_343.py` (one brief for both, each index
 pinned and the settings restored, the blind files and the report; the packet
 reader; the dry run spends nothing).
+
+## 344. Perplexity is the primary search; Parallel the second look (2026-10-30)
+
+The owner, after the §343 comparison: switch the primary search to
+Perplexity. On 25 questions, one brief each, Perplexity missed 20
+must-establish items to Parallel's 22, every source it returned was dated,
+the grader scored it within 0.1 of Parallel on all six measures, and it
+searched in 0.69 s to Parallel's 1.39 s; Parallel's sources were about two
+days fresher (median 4.1 days against 6.1). And Perplexity's terms let FAM
+keep what it returns, where Parallel's forbid reusing it for another
+listener (§342).
+
+**What changed.**
+
+* `DEFAULT_RESEARCH_BACKEND` is `perplexity`; `RESEARCH_SECOND_LOOK`
+  defaults to `parallel`. A retired `RESEARCH_BACKEND` (`claude`, `exa`)
+  now runs as `perplexity`.
+* `FALLBACK_RUNGS` is `("perplexity", "parallel", "gdelt")` and `ladder()`
+  skips the configured backend, so the other web index always comes next
+  whichever is primary (`test_the_ladder_tries_the_other_index_then_gdelt`).
+* `.env.example`, `render.yaml`'s comment, the startup and health wording,
+  the cost table, the "no sources" explanation and the local-news docs say
+  Perplexity, then Parallel. CLAUDE.md's `[always-researched]` line and a
+  `Current` note in `docs/claude/constraints.md` record it.
+
+**For the owner.** `render.yaml` does not set `RESEARCH_BACKEND`, so
+production follows the new default on deploy - **unless the Render
+dashboard sets `RESEARCH_BACKEND=parallel` (or `RESEARCH_SECOND_LOOK`)
+itself**; a dashboard value wins, so remove it there. `/api/health` reports
+which backend runs. Parallel still runs as the second look and the backup,
+so `history_archive` intake can still receive Parallel passages, and it
+still does not record which provider a passage came from (§342's findings
+1 and 2) - storing Perplexity's passages only needs that recorded first.
+
+Tests: `tests/test_research.py` (the new default, the ladder either way
+round), `tests/test_search_backends_258.py` (Perplexity's second look on
+Parallel; the §258 tests pin their Parallel-first shape).

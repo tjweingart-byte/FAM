@@ -201,8 +201,8 @@ def catalogue() -> list[dict]:
              "Usage-billed" if thumbnails_on else "Off (THUMBNAILS=0)",
              None, "usage", "",
              "Recorded per picture in thumbnails.db (spend)", ledger="images"),
-        _row(DATA, "Parallel and Perplexity", "Search APIs (§258)",
-             "Research every new episode: Parallel first, Perplexity the "
+        _row(DATA, "Perplexity and Parallel", "Search APIs (§258, §344)",
+             "Research every new episode: Perplexity first, Parallel the "
              "second look and backup", "Pay as you go, ~$0.001/search each",
              "Usage-billed", None, "usage",
              "Parallel: $5 free credit a month; Enterprise for zero retention",

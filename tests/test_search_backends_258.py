@@ -203,7 +203,8 @@ def test_one_long_snippet_becomes_several_passages():
 def test_the_second_look_goes_to_perplexity_with_a_wider_window(wire, monkeypatch):
     sent, replies = wire
     replies[research.PARALLEL_URL] = [{"results": []}]
-    use(monkeypatch, research_backend="parallel")
+    # The §258 shape, pinned: Parallel primary, Perplexity the second look.
+    use(monkeypatch, research_backend="parallel", research_second_look="perplexity")
     packet = asyncio.run(research.retrieve("Eagles Giants score", brief=brief()))
     assert [r["url"] for r in sent] == [research.PARALLEL_URL,
                                         research.PERPLEXITY_URL]
@@ -299,6 +300,17 @@ def test_a_long_question_is_cut_for_parallel(wire, monkeypatch):
     assert len(sent[0]["body"]["search_queries"][0]) <= research.PARALLEL_MAX_QUERY_CHARS + 3
 
 
+def test_perplexity_first_takes_its_second_look_on_parallel(wire, monkeypatch):
+    """The default since §344: Perplexity primary, Parallel the second look."""
+    sent, replies = wire
+    replies[research.PERPLEXITY_URL] = [{"results": []}]
+    use(monkeypatch, research_backend="perplexity", research_second_look="parallel")
+    packet = asyncio.run(research.retrieve("Eagles Giants score", brief=brief()))
+    assert [r["url"] for r in sent] == [research.PERPLEXITY_URL,
+                                        research.PARALLEL_URL]
+    assert packet.retried and packet.tried == ["perplexity", "parallel"]
+
+
 def test_a_parallel_outage_falls_to_perplexity_and_says_so(wire, monkeypatch):
     sent, replies = wire
     replies[research.PARALLEL_URL] = [RuntimeError("502 from parallel")]
@@ -332,7 +344,8 @@ def test_a_rung_that_ran_as_the_second_look_is_not_asked_again(wire, monkeypatch
 def test_every_paid_search_is_metered(wire, monkeypatch):
     sent, replies = wire
     replies[research.PARALLEL_URL] = [{"results": []}]
-    use(monkeypatch, research_backend="parallel")
+    use(monkeypatch, research_backend="parallel",
+        research_second_look="perplexity")
     notes = ScriptNotes()
     generator = sg.ScriptGenerator.__new__(sg.ScriptGenerator)
     plan = dataclasses.replace(plan_episode("eagles score", 2, search=True),
@@ -355,7 +368,7 @@ def test_a_value_that_is_not_a_choice_is_refused(field_name, value):
 
 
 @pytest.mark.parametrize("name, attr, default", [
-    ("RESEARCH_SECOND_LOOK", "research_second_look", "perplexity"),
+    ("RESEARCH_SECOND_LOOK", "research_second_look", "parallel"),
     ("PARALLEL_MODE", "parallel_mode", "fast"),
     ("PERPLEXITY_SEARCH_TYPE", "perplexity_search_type", "fast"),
 ])

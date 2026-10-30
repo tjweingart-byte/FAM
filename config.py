@@ -173,14 +173,15 @@ def _env_float(name: str, default: float) -> float:
 
 #: How a researched episode gets its facts.
 #:
-#: **`parallel` is the default since §258**, at the owner's direction:
-#: Parallel's Search API retrieves first and hands the writer an evidence
-#: packet to read, with `perplexity` - a second, independent index - as the
-#: second look and the first rung below it, and GDELT as the free floor. The
-#: retrieval is a bounded, timed step this codebase can measure.
+#: **`perplexity` is the default since §344**, at the owner's direction
+#: (`parallel` was, from §258): Perplexity's Search API retrieves first and
+#: hands the writer an evidence packet to read, with `parallel` - a second,
+#: independent index - as the second look and the first rung below it, and
+#: GDELT as the free floor. The retrieval is a bounded, timed step this
+#: codebase can measure.
 #:
-#: The default needs a credential (PARALLEL_API_KEY), and a deployment
-#: without one falls to Perplexity, then GDELT (when `GDELT=1`). The app says
+#: The default needs a credential (PERPLEXITY_API_KEY), and a deployment
+#: without one falls to Parallel, then GDELT (when `GDELT=1`). The app says
 #: so at startup and on every /api/health, because a missing credential
 #: discovered on a listener's first researched question is the shape of
 #: failure this project has paid for most.
@@ -213,7 +214,11 @@ WEB_RESEARCH_BACKENDS = ("parallel", "perplexity")
 
 #: What a deployment gets when it says nothing. Named rather than repeated as a
 #: literal, for the same reason as DEFAULT_PIPELINE.
-DEFAULT_RESEARCH_BACKEND = "parallel"
+#: Perplexity since §344, at the owner's direction: on the §343 comparison it
+#: matched Parallel's evidence and grades at half the search time, and its
+#: terms let FAM keep what it returns (docs/PROVIDER_TERMS.md); Parallel's do
+#: not. Parallel is now the second look.
+DEFAULT_RESEARCH_BACKEND = "perplexity"
 
 #: How long an episode is when nobody has said. A minute and a half (§332,
 #: the owner's: "2 minutes feels too long and 1 minute feels too short"); it
@@ -494,7 +499,7 @@ class Settings:
     # way, so a deployment with only one search key loses nothing.
     research_second_look: str = field(
         default_factory=lambda: os.environ.get(
-            "RESEARCH_SECOND_LOOK", "").strip().lower() or "perplexity")
+            "RESEARCH_SECOND_LOOK", "").strip().lower() or "parallel")
     # How long one search request may take before it counts as failed and
     # the ladder moves on. A search sits in front of the first word.
     search_timeout_seconds: float = _env_float("SEARCH_TIMEOUT_SECONDS", 8.0)

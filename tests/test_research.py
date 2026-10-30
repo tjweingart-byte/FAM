@@ -282,7 +282,7 @@ def test_the_claude_backend_is_gone_and_says_so():
     rather than being refused as though it had made a typo."""
     assert "claude" not in RESEARCH_BACKENDS
     # Perplexity is a search vendor's index, not a model searching (§258).
-    assert research.FALLBACK_RUNGS == ("perplexity", "gdelt")
+    assert research.FALLBACK_RUNGS == ("perplexity", "parallel", "gdelt")
     for name in ("retrieve_with_claude", "shape_claude_packet",
                  "research_client", "CLAUDE_RESEARCH_SYSTEM"):
         assert not hasattr(research, name), f"research.{name} is still here"
@@ -559,15 +559,22 @@ def test_what_retrieval_cost_is_recorded_for_a_person_to_read(web, monkeypatch):
 # --------------------------------------------------------------------------
 # configuration
 # --------------------------------------------------------------------------
-def test_a_fresh_deployment_researches_with_parallel():
-    """The production default since §258, at the owner's direction, with a
-    real cost attached: it needs a credential. Perplexity is the second look
-    and the next rung, and the keyless alternative is GDELT.
-    (§135)."""
-    assert config.DEFAULT_RESEARCH_BACKEND == "parallel"
-    assert settings.research_backend == "parallel"
+def test_a_fresh_deployment_researches_with_perplexity():
+    """The production default since §344, at the owner's direction (Parallel
+    from §258): it needs a credential. Parallel is the second look and the
+    next rung, and the keyless alternative is GDELT (§135)."""
+    assert config.DEFAULT_RESEARCH_BACKEND == "perplexity"
+    assert settings.research_backend == "perplexity"
     assert RESEARCH_BACKENDS == ("parallel", "perplexity", "gdelt")
-    assert settings.research_second_look == "perplexity"
+    assert settings.research_second_look == "parallel"
+
+
+def test_the_ladder_tries_the_other_index_then_gdelt(monkeypatch):
+    """Whichever web backend is primary, the other comes next, then GDELT
+    (§344) - and the primary is never asked twice."""
+    monkeypatch.setattr(research, "_rung_available", lambda rung: True)
+    assert research.ladder("perplexity") == ["perplexity", "parallel", "gdelt"]
+    assert research.ladder("parallel") == ["parallel", "perplexity", "gdelt"]
 
 
 def test_the_default_is_one_fact_in_one_place():
@@ -641,19 +648,19 @@ def test_the_packet_cannot_ask_for_more_sources_than_were_fetched():
 
 def test_health_says_which_backend_and_whether_it_can_run():
     report = research.report()
-    assert report["backend"] == "parallel"
+    assert report["backend"] == "perplexity"
     assert "backend_detail" in report
     assert set(report["web_backends"]) == {"parallel", "perplexity"}
-    # In this container there is no PARALLEL_API_KEY, and the default is
-    # parallel - so `unavailable` is true, and that is the honest answer
+    # In this container there is no PERPLEXITY_API_KEY, and the default is
+    # perplexity - so `unavailable` is true, and that is the honest answer
     # rather than a test failure. What must never happen is it reading false
     # while research cannot run.
-    ok, _ = research.backend_diagnose("parallel")
+    ok, _ = research.backend_diagnose("perplexity")
     assert report["unavailable"] is (not ok)
 
 
 def test_a_deployment_that_cannot_research_says_so_at_startup(caplog):
-    """Not on a listener's first researched question. `parallel` is the default and
+    """Not on a listener's first researched question. `perplexity` is the default and
     needs a credential; a missing one discovered mid-episode is the shape of
     failure this project has paid for most."""
     import logging
