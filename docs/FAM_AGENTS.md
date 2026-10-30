@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | Planning. No agent is built |
+| **Status** | Phase 0, the framework, being built (§342): the model layer exists; no agent is built, and everything is off |
 | **History** | Started 2026-10-24 (§307); editor in chief and script supervisor (§312); pipeline and how agents run (§313); contextualizer and guardrails (§314); condensed into tabs, outside plugins per agent, the overlord, housekeeper, retriever, IT guy and categorizer (§340); the owner's brainstorm of 2026-10-28 - every agent named, roles redrawn, a rule book each (§340); each agent's model decided, but Mclovin's checker and Shakespeare ahead of the tap (§341) |
 | **Page** | `python docs/build_agents_html.py` builds the tabbed page from this file: one tab per `##`, one sub-tab per `###` |
 
@@ -261,7 +261,10 @@ model is its own setting naming vendor and exact model ID
 falling through to a shared `MODEL`. Rejected after measurement and review:
 PydanticAI (about 5-6 ms more CPU per call in a one-process server, about
 two releases a week, built for tool loops FAM's agents do not run) and
-LiteLLM (two PyPI releases that stole credentials in 2026). Which model each
+LiteLLM (two PyPI releases that stole credentials in 2026). **Built (§342):**
+`agents/models.py` (`ask`, `AgentRequest`, the statuses), `agents/adapters/`
+(`anthropic` only) and the `agent_calls` ledger in `metering.db`; the consent
+check is `consent.MODEL_VENDORS`. Which model each
 agent runs was decided afterwards (Models decided, below); this decided
 only the layer.
 

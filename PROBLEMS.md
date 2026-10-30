@@ -24070,3 +24070,110 @@ tests, 97 smoke behaviours twice, 15 landing behaviours, the Opus checks.
 In this container the pre-installed Playwright is the one to keep.
 
 Nothing is built here; the agents stay unbuilt and off.
+
+## 342. Phase 0, piece 1: FAM's own model layer, the consent check in code, and every agent call metered (2026-10-30)
+
+The first of Phase 0's five pieces (`docs/AGENTS_BUILD_PROMPT.md`): how an
+agent reaches its model, built before any agent exists so that none can be
+built any other way. The owner's decision of 2026-10-29 (§340): FAM's own
+thin layer, no agent framework and no gateway. Nothing calls it yet; with
+`AGENTS=0` (the default) nothing in it runs.
+
+**`agents/models.py`.** `ask(AgentRequest) -> AgentResult` is the only way an
+agent reaches a model - `episode_intelligence._ask` generalised - and it
+never raises. A request names its agent and task, the settings for its
+switch and its model (never a model id), its rule book, a Pydantic schema
+that forbids extra fields, its fixed instructions, its material as
+`(tag, text)` pairs inside `<request>`, `<evidence>`, `<archive>` or
+`<script>`, whether that material holds a listener's words, a time limit and
+a call size - neither defaulted, so a request that does not say how long it
+may take is not sent. `ask` checks, in order: the request is whole; `AGENTS`
+and the agent's switch are on; the rule-book lock passes (before every call);
+the model setting is a pinned `vendor:model-id` - no moving alias, never
+`MODEL`, empty for code only; an adapter exists; the consent check; the
+model has a price; the deployment may spend; then the call, inside the time
+limit; then that the answer came from the model asked, never switching to
+another; then refusal and the token ceiling; then JSON the schema accepts.
+Each failure is a status (`STATUSES`, sixteen) and anything but `ok` runs the
+step as FAM ran it before the agent. The SDK's own retries are off for these
+calls (`with_options(max_retries=0)`): one retry per task is Netenyahu's to
+make, not two hidden ones inside the time limit.
+
+The prompt is the guide's shared preamble, then the rule books, then the
+task's instructions, as one cacheable system block; the material follows a
+line saying it is material, and a tag inside it cannot close itself
+(`</request>` in the text is escaped). The schema sent is cleaned for the
+structured-output API - every object closed and fully required, and the
+keywords the API refuses (`minLength`, `maximum`, ...) taken out - while the
+answer is still validated against the whole Pydantic model, so those limits
+hold. One trap caught writing it: the keywords are removed by name, which
+would also have removed a *field* named `title` (C3P0's answer has one); the
+cleaner leaves the names in `properties` and `$defs` alone, and a test pins
+it.
+
+**One adapter, `anthropic`** (`agents/adapters/anthropic_adapter.py`, through
+`anthropic_client.build_async_client`). Every model the owner decided (§341)
+is a Claude model, so `google-genai` and `openai` wait until an agent is
+moved to one, each its own change with its package, its `metering.PRICES`
+rows and its `spend_guard.PAID_CREDENTIALS` key.
+
+**Consent, in code.** `consent.MODEL_VENDORS = ("anthropic",)` and
+`consent.covers(vendor)`: a request carrying a listener's words is refused,
+before its adapter is touched, for any vendor not listed. The notice's
+wording and `VERSION` are unchanged - adding a vendor is new wording and
+everyone asked again, never a line alone, and a test pins that every listed
+vendor is one the notice names. Since §341, a typed DailyFAM topic counts as
+a listener's words.
+
+**Metered.** Every request past its switches is a row in `metering.db`'s new
+`agent_calls`: agent, task, surface, status, vendor, the model asked and the
+one that answered, rule-book version and SHA-256, the prompt's fingerprint
+(the fixed block and the schema, never the material), tokens, `cost_usd`
+(NULL when nothing was sent) and the reason - no listener id and none of the
+material. A call that was sent is also folded into its episode's usage.
+Prices are `metering.PRICES`; a model without one is not called.
+
+**Settings** (`config.py`, `.env.example`, `/api/health`'s new `agents`
+block with where each value came from): `AGENTS` and each agent's switch -
+`CONTEXTUALIZER`, `CATEGORIZER`, `RETRIEVER`, `EDITOR_AGENT`, `SUPERVISOR`,
+`HOUSEKEEPER`, `IT_AGENT` - all off; each agent's model at the owner's
+decision (§341): `OVERLORD_PLANNER_MODEL` and `RETRIEVER_MODEL` empty,
+Sonnet for `EDITOR_MODEL` (until the comparison), `HOUSEKEEPER_REVIEW_MODEL`
+and `IT_SUMMARY_MODEL`, Haiku for the rest. `agents/names.py` is the one
+table of which agent owns which setting.
+
+**The rule-book lock** is the next piece; until it is built `agents.rulebooks`
+answers the one safe thing - every agent held - so an agent switched on today
+still sends nothing.
+
+**Nothing a listener hears changes**: no module on the listener path imports
+the layer (a test reads the source for it; `app.py` uses only its health
+report), and the full suite, both smoke runs, the landing smoke and the
+client contracts pass unedited.
+
+**Found on the way: the suite's environment list is by hand.** The first full
+run failed one test, `test_hermetic`: `tests/conftest.py`'s `FAM_ENVIRONMENT`
+clears every setting `config.py` reads, so a developer's `AGENTS=1` cannot
+turn the suite's agents on - and the twenty new names were not in it. The
+test is what caught it (it reads `config.py`); the names are added.
+
+**`CLAUDE.md` at its budget.** The new rule line (`[agent-model-layer]`,
+full text in `constraints.md`) was paid for, at the owner's direction, by
+taking history out of rule lines - the file's own rule is that history lives
+in the topic files: "moved there verbatim", "(reversed)", §245's reversal,
+§114's `WORLD_FLOOR`, three "since §N", and a shorter ship-loop sentence.
+Each is still in its topic file.
+
+Tests: `tests/test_agents_model_layer.py` (an answer typed, priced and
+recorded; the ledger holds nothing about who asked; the prompt's order and
+cache marker; the material cannot close its tag; no SDK retry; the schema
+sent is accepted and keeps a `title` field; removed limits still hold; each
+of eight failures a status with one call and no second model; a failure
+inside the layer; off by default and per switch; held while the lock is not
+built; staging; four malformed requests; six bad model settings; never
+`MODEL`; every default pinned, priced, Claude, and every switch off; the
+preamble the guide's word for word; the health block and `/api/health`;
+nothing on the listener path imports it) and `tests/test_agents_consent.py`
+(only Anthropic covered; a listener's words refused to a faked second vendor
+before sending, FAM's material allowed to it, a covered vendor allowed; the
+notice names every covered vendor).

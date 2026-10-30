@@ -1987,6 +1987,76 @@ class Settings:
         default_factory=lambda: os.environ.get("VIRAL_LOOPS_API_TOKEN", "").strip())
     viral_loops_campaign_id: str = field(
         default_factory=lambda: os.environ.get("VIRAL_LOOPS_CAMPAIGN_ID", "").strip())
+    # **The agents** (docs/FAM_AGENTS.md, PROBLEMS.md §340-§342). `AGENTS`
+    # is the one switch over all of them and is off: with it off no agent
+    # runs and listeners hear exactly what they heard before the agents
+    # existed. Each agent then has its own switch, also off.
+    agents: bool = field(
+        default_factory=lambda: os.environ.get("AGENTS", "0")
+        not in ("0", "false", "False", ""))
+    contextualizer: bool = field(
+        default_factory=lambda: os.environ.get("CONTEXTUALIZER", "0")
+        not in ("0", "false", "False", ""))
+    categorizer: bool = field(
+        default_factory=lambda: os.environ.get("CATEGORIZER", "0")
+        not in ("0", "false", "False", ""))
+    retriever: bool = field(
+        default_factory=lambda: os.environ.get("RETRIEVER", "0")
+        not in ("0", "false", "False", ""))
+    # Not `EDITOR`: most machines already set that for a text editor, and
+    # `EDITOR=vim` would read as on (the owner, 2026-10-30).
+    editor_agent: bool = field(
+        default_factory=lambda: os.environ.get("EDITOR_AGENT", "0")
+        not in ("0", "false", "False", ""))
+    supervisor: bool = field(
+        default_factory=lambda: os.environ.get("SUPERVISOR", "0")
+        not in ("0", "false", "False", ""))
+    housekeeper: bool = field(
+        default_factory=lambda: os.environ.get("HOUSEKEEPER", "0")
+        not in ("0", "false", "False", ""))
+    it_agent: bool = field(
+        default_factory=lambda: os.environ.get("IT_AGENT", "0")
+        not in ("0", "false", "False", ""))
+    # **Each agent's model, its own setting** (§341, the owner's decisions of
+    # 2026-10-30): `vendor:model-id`, an exact model and never a moving
+    # alias, and never `MODEL` - an empty value means the agent makes no
+    # model call (code only). `agents/models.py` refuses anything else. The
+    # editor's ahead-of-the-tap model is Sonnet until the owner decides on
+    # the comparison (§341); the grounding checker is not a model setting.
+    overlord_planner_model: str = field(
+        default_factory=lambda: os.environ.get("OVERLORD_PLANNER_MODEL", "").strip())
+    contextualizer_model: str = field(
+        default_factory=lambda: os.environ.get(
+            "CONTEXTUALIZER_MODEL", "anthropic:claude-haiku-5-5").strip())
+    categorizer_model: str = field(
+        default_factory=lambda: os.environ.get(
+            "CATEGORIZER_MODEL", "anthropic:claude-haiku-5-5").strip())
+    retriever_model: str = field(
+        default_factory=lambda: os.environ.get("RETRIEVER_MODEL", "").strip())
+    editor_model: str = field(
+        default_factory=lambda: os.environ.get(
+            "EDITOR_MODEL", "anthropic:claude-sonnet-5-5").strip())
+    editor_search_model: str = field(
+        default_factory=lambda: os.environ.get(
+            "EDITOR_SEARCH_MODEL", "anthropic:claude-haiku-5-5").strip())
+    supervisor_model: str = field(
+        default_factory=lambda: os.environ.get(
+            "SUPERVISOR_MODEL", "anthropic:claude-haiku-5-5").strip())
+    supervisor_screen_model: str = field(
+        default_factory=lambda: os.environ.get(
+            "SUPERVISOR_SCREEN_MODEL", "anthropic:claude-haiku-5-5").strip())
+    housekeeper_model: str = field(
+        default_factory=lambda: os.environ.get(
+            "HOUSEKEEPER_MODEL", "anthropic:claude-haiku-5-5").strip())
+    housekeeper_review_model: str = field(
+        default_factory=lambda: os.environ.get(
+            "HOUSEKEEPER_REVIEW_MODEL", "anthropic:claude-sonnet-5-5").strip())
+    it_model: str = field(
+        default_factory=lambda: os.environ.get(
+            "IT_MODEL", "anthropic:claude-haiku-5-5").strip())
+    it_summary_model: str = field(
+        default_factory=lambda: os.environ.get(
+            "IT_SUMMARY_MODEL", "anthropic:claude-sonnet-5-5").strip())
     # How much *audio* must exist before the response starts. A quantity, not
     # a delay: at TARGET_WPM this is 3.75 words, so any ordinary opening
     # sentence satisfies it on the first chunk and it costs nothing. It exists

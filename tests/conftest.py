@@ -237,6 +237,14 @@ FAM_ENVIRONMENT = (
     # §179: the writer's prompt cache and the editions' batching.
     "PROMPT_CACHE", "PROMPT_CACHE_TTL",
     "EDITION_BATCH", "EDITION_BATCH_WAIT_SECONDS", "EDITION_BATCH_POLL_SECONDS",
+    # §342: the agents. A developer who switched one on, or pointed one at
+    # another model, must not run a suite whose agents are on.
+    "AGENTS", "CONTEXTUALIZER", "CATEGORIZER", "RETRIEVER", "EDITOR_AGENT",
+    "SUPERVISOR", "HOUSEKEEPER", "IT_AGENT",
+    "OVERLORD_PLANNER_MODEL", "CONTEXTUALIZER_MODEL", "CATEGORIZER_MODEL",
+    "RETRIEVER_MODEL", "EDITOR_MODEL", "EDITOR_SEARCH_MODEL", "SUPERVISOR_MODEL",
+    "SUPERVISOR_SCREEN_MODEL", "HOUSEKEEPER_MODEL", "HOUSEKEEPER_REVIEW_MODEL",
+    "IT_MODEL", "IT_SUMMARY_MODEL",
 )
 
 #: Where each database lives is per-machine state too. These reach config.py

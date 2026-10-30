@@ -2108,3 +2108,28 @@
   `/api/v2`), **never by editing the contract**. Web releases are kept whole
   and checksummed in `releases/web/<version>/` and served at `/v/<version>/`
   (manifest files only, no service worker). iOS binaries are not kept in git.
+
+<!-- rule:agent-model-layer -->
+- **An agent reaches a model only through `agents/models.py`** *(§342, the
+  owner's decision of 2026-10-29).* FAM's own thin layer - no agent
+  framework (not PydanticAI or LangGraph) and no gateway (not LiteLLM):
+  `ask` sends one typed `AgentRequest` (a Pydantic schema that forbids extra
+  fields, a time limit, a call size, material only inside `<request>`,
+  `<evidence>`, `<archive>` or `<script>`) through one adapter per vendor on
+  that vendor's official SDK - `anthropic` only so far; `google-genai` and
+  `openai` each come as their own change with its package, its
+  `metering.PRICES` rows and its `spend_guard.PAID_CREDENTIALS` key, asked
+  of the owner first. It never raises: every way a call goes wrong is a
+  status (`agents.models.STATUSES`) and anything but `ok` runs the step as
+  FAM ran it before the agent. Each agent's model is its own setting
+  (`agents/names.py`), a pinned `vendor:model-id` - never a moving alias,
+  never `MODEL`, empty for code only - and must have a price; the layer
+  checks the model each answer says it came from and never switches to
+  another. **A request carrying a listener's words is refused for any
+  vendor `consent.MODEL_VENDORS` does not list** (today Anthropic), and
+  adding one there is new consent wording, never a line alone. Every call
+  is written to `metering`'s `agent_calls` with the agent, the model, the
+  rule-book version and the prompt's fingerprint, never who asked or what
+  they said. `AGENTS=0` (the default) and each agent's switch keep all of
+  it off.
+

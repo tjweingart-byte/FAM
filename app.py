@@ -59,6 +59,7 @@ import spend_guard
 import messages as messages_mod
 import typing_indicator as typing_mod
 import metering
+from agents import models as agent_models
 import oauth
 import apple_tokens
 import quotas
@@ -1905,6 +1906,10 @@ async def health(request: Request) -> dict:
         # Which deployment this is and whether it can spend (§172). The web
         # client draws the STAGING banner from this.
         "environment": spend_guard.report(),
+        # The agents (§342): `AGENTS` and each agent's switch and pinned
+        # model, where every value came from, and the rule-book lock - all
+        # settable in two places, so said here. Off by default.
+        "agents": agent_models.health(),
         # The client releases this server still serves, and which versions
         # have called it since boot (`client_versions.py`).
         "clients": client_versions.report(),

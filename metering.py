@@ -82,6 +82,9 @@ log = logging.getLogger("metering")
 #: USD per million tokens, input and output, as published. Checked against the
 #: rate card on 2026-10-08 (§227). A model missing from here is not costed at zero -
 #: `record` marks the row unpriced and `report` says how many there were.
+#: Claude models are keyed by their bare id; another vendor's, when an agent
+#: adapter for it is built, as `vendor:model-id` (`agents.models.ModelSpec`) -
+#: an agent whose model has no row here is not called at all (§342).
 PRICES: dict[str, tuple[float, float]] = {
     "claude-fable-5-1": (10.00, 50.00),
     "claude-fable-5": (10.00, 50.00),
@@ -459,6 +462,38 @@ class MeterStore:
                     conn.execute(ddl)
             conn.execute("CREATE INDEX IF NOT EXISTS usage_at ON usage(at)")
             conn.execute("CREATE INDEX IF NOT EXISTS usage_user ON usage(user_id, at)")
+            # **Every agent call** (§342), one row each, append-only like the
+            # episodes beside it: which agent, which model it asked and which
+            # answered, the rule-book version and the prompt's fingerprint it
+            # ran under, and what it cost. No listener id and none of the
+            # material - an agent keeps nothing about who a listener is
+            # (every-agent.md). `cost_usd` is NULL when nothing was sent
+            # (a held, refused or switched-off call), never 0 ([metering]).
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS agent_calls (
+                       id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+                       at                 REAL NOT NULL,
+                       agent              TEXT NOT NULL,
+                       task               TEXT NOT NULL DEFAULT '',
+                       surface            TEXT NOT NULL DEFAULT '',
+                       status             TEXT NOT NULL,
+                       vendor             TEXT NOT NULL DEFAULT '',
+                       model              TEXT NOT NULL DEFAULT '',
+                       served_model       TEXT NOT NULL DEFAULT '',
+                       rulebook_version   TEXT NOT NULL DEFAULT '',
+                       rulebook_sha       TEXT NOT NULL DEFAULT '',
+                       prompt_fingerprint TEXT NOT NULL DEFAULT '',
+                       input_tokens       INTEGER NOT NULL DEFAULT 0,
+                       output_tokens      INTEGER NOT NULL DEFAULT 0,
+                       cache_read_tokens  INTEGER NOT NULL DEFAULT 0,
+                       cache_write_tokens INTEGER NOT NULL DEFAULT 0,
+                       cost_usd           REAL,
+                       priced             INTEGER NOT NULL DEFAULT 1,
+                       seconds            REAL NOT NULL DEFAULT 0,
+                       reason             TEXT NOT NULL DEFAULT ''
+                   )""")
+            conn.execute("CREATE INDEX IF NOT EXISTS agent_calls_agent "
+                         "ON agent_calls(agent, at)")
 
     def _conn(self) -> sqlite3.Connection:
         conn = getattr(self._local, "conn", None)
@@ -524,6 +559,46 @@ class MeterStore:
 
     def count(self) -> int:
         return int(self._conn().execute("SELECT COUNT(*) FROM usage").fetchone()[0])
+
+    def record_agent_call(self, *, agent: str, task: str = "", surface: str = "",
+                          status: str, vendor: str = "", model: str = "",
+                          served_model: str = "", rulebook_version: str = "",
+                          rulebook_sha: str = "", prompt_fingerprint: str = "",
+                          usage: Optional[dict] = None,
+                          cost_usd: Optional[float] = None, priced: bool = True,
+                          seconds: float = 0.0, reason: str = "",
+                          at: float = 0.0) -> int:
+        """Append one agent call (`agents.models.ask`). Never raises."""
+        usage = usage or {}
+        try:
+            with self._conn() as conn:
+                cur = conn.execute(
+                    """INSERT INTO agent_calls (at, agent, task, surface, status,
+                           vendor, model, served_model, rulebook_version,
+                           rulebook_sha, prompt_fingerprint, input_tokens,
+                           output_tokens, cache_read_tokens, cache_write_tokens,
+                           cost_usd, priced, seconds, reason)
+                       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                    (at or time.time(), agent[:40], task[:60], surface[:20],
+                     status[:20], vendor[:20], model[:80], served_model[:80],
+                     str(rulebook_version)[:40], rulebook_sha[:64],
+                     prompt_fingerprint[:32], int(usage.get("input_tokens") or 0),
+                     int(usage.get("output_tokens") or 0),
+                     int(usage.get("cache_read_tokens") or 0),
+                     int(usage.get("cache_write_tokens") or 0),
+                     None if cost_usd is None else round(float(cost_usd), 8),
+                     1 if priced else 0, round(float(seconds or 0.0), 3),
+                     str(reason or "")[:300]))
+        except sqlite3.Error:
+            log.exception("could not record an agent call for %r", agent)
+            return 0
+        return int(cur.lastrowid or 0)
+
+    def agent_calls(self, since: float = 0.0, limit: int = 500) -> list:
+        """The latest agent calls, newest first (the /admin Agents panel)."""
+        return [dict(r) for r in self._conn().execute(
+            "SELECT * FROM agent_calls WHERE at >= ? ORDER BY at DESC LIMIT ?",
+            (since, int(limit)))]
 
     # --- reporting ---------------------------------------------------------
     #

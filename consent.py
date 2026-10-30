@@ -62,6 +62,21 @@ VERSION = 2
 #: Perplexity since §258.
 PROVIDER = "Anthropic"
 
+#: The model vendors `AI_NOTICE` names, as `agents/models.py` spells a
+#: vendor (`vendor:model-id`). An agent request that carries a listener's
+#: words is refused for any vendor not here, in code, before it is sent
+#: (§342). Adding one is a new wording, a new `VERSION` and everybody asked
+#: again - never a line here alone. The search vendors are not model
+#: vendors: they receive a search, never the words.
+MODEL_VENDORS = ("anthropic",)
+
+
+def covers(vendor: str) -> bool:
+    """Whether the consent listeners give names `vendor` as a receiver of
+    their words."""
+    return (vendor or "").strip().lower() in MODEL_VENDORS
+
+
 #: What the listener is shown, in one place, so every client says the same
 #: thing and the stored version always refers to these words.
 AI_NOTICE = {
