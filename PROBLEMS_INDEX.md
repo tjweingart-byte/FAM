@@ -349,4 +349,4 @@ and `limit` = Lines.
 | 24181 | 75 | 343. Phase 0, piece 2: the rule-book lock - agents run only under rule books the owner signed (2026-10-30) |
 | 24256 | 70 | 344. Phase 0, piece 3: the roster, the typed hand-offs, and the task table (2026-10-30) |
 | 24326 | 50 | 345. Phase 0, piece 4: Netenyahu as code, and the proof that off changes nothing (2026-10-30) |
-| 24376 | 34 | 346. Phase 0, piece 5: the Agents panel on /admin - and Phase 0 done (2026-10-30) |
+| 24376 | 43 | 346. Phase 0, piece 5: the Agents panel on /admin - and Phase 0 done (2026-10-30) |

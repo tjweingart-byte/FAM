@@ -24406,3 +24406,12 @@ Phase 1 (C3P0 and Nando at the request) is next.
 Tests: `tests/test_admin_agents.py` (admins only; every agent shown off and
 held with nothing spent; requests, spend, fallbacks and the latest requests
 read from the ledger, nothing sent shown as None; the panel changes nothing).
+
+**CI after piece 2.** Listing `cryptography` in `requirements.txt` (§343)
+woke four Sign in with Apple tests in CI, which had skipped there because
+their fixture asked only for `cryptography`; they also need PyJWT, which is
+in `requirements-oauth.txt` and not installed by CI. This container has both,
+so `./dev.sh check` passed while CI failed on pieces 3 and 4. The fixture now
+also asks for `jwt`, so CI is back where it was before piece 2. Installing
+the OAuth requirements in CI, so those tests run there, is a dependency
+decision for the owner.
