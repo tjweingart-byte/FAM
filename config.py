@@ -2057,6 +2057,18 @@ class Settings:
     it_summary_model: str = field(
         default_factory=lambda: os.environ.get(
             "IT_SUMMARY_MODEL", "anthropic:claude-sonnet-5-5").strip())
+    # **The rule-book lock** (§343, `agents/rulebooks.py`). Where the rule
+    # books are read from (empty: `docs/agent_rules/`), the owner's public
+    # key (empty: the committed `docs/agent_rules/owner.pub`; when set it
+    # must be that same key), and Shakespeare's journalism playbook, which
+    # the signed manifest covers too (empty: `docs/journalism_playbook.md`).
+    # There is no setting that skips the check.
+    agent_rules_dir: str = field(
+        default_factory=lambda: os.environ.get("AGENT_RULES_DIR", "").strip())
+    agent_rules_public_key: str = field(
+        default_factory=lambda: os.environ.get("AGENT_RULES_PUBLIC_KEY", "").strip())
+    editor_playbook: str = field(
+        default_factory=lambda: os.environ.get("EDITOR_PLAYBOOK", "").strip())
     # How much *audio* must exist before the response starts. A quantity, not
     # a delay: at TARGET_WPM this is 3.75 words, so any ordinary opening
     # sentence satisfies it on the first chunk and it costs nothing. It exists

@@ -24177,3 +24177,78 @@ nothing on the listener path imports it) and `tests/test_agents_consent.py`
 (only Anthropic covered; a listener's words refused to a faked second vendor
 before sending, FAM's material allowed to it, a covered vendor allowed; the
 notice names every covered vendor).
+
+## 343. Phase 0, piece 2: the rule-book lock - agents run only under rule books the owner signed (2026-10-30)
+
+The owner (2026-10-29): each agent's rules are "untouchable and unchangeable
+unless we deliberately say to have them change ... not by an agent and not
+by a model". Holding the governing copies outside Claude said who wins a
+disagreement; nothing stopped a changed copy from running. Now nothing runs
+that the owner did not sign.
+
+**How it works** (`agents/rulebooks.py`). The books are every `.md` in
+`docs/agent_rules/` but its README, plus `docs/journalism_playbook.md`, which
+Shakespeare's rule book makes part of his instructions (locked at the
+owner's direction, §341). `MANIFEST.json` beside them lists each book's
+SHA-256; `MANIFEST.json.sig` is the owner's Ed25519 signature of the
+manifest's exact bytes, base64. FAM holds only the public key: the committed
+`docs/agent_rules/owner.pub`, which `AGENT_RULES_PUBLIC_KEY` defaults to and
+must equal when set (§341) - a dashboard cannot swap in another key. `load`
+reads and verifies once, at boot (`app.py`'s lifespan) and on first use, into
+frozen memory; `check`, which `agents.models.ask` calls before every call,
+lets an agent run only while the signature verifies, the manifest covers
+every book in the folder, and the agent's own book, `every-agent.md` and
+(for Shakespeare) the playbook hash as signed - as loaded, and on disk now.
+Anything else holds the agent and names the file; a book changed after boot
+holds its agent until it is signed and the server restarts. The prompt's
+cached block carries the books as `<rule_book name="...">`. No setting skips
+the check (a test reads `config.py` for one), the module reads no
+environment variable directly, and nothing under `agents/` writes a file.
+
+**Until the owner signs, every agent is held** - the state today, which
+`/api/health`'s `agents.lock` and the boot log both say. The test that
+checks the repository asserts exactly that while no manifest exists; once
+one is committed, the same test fails on any book the manifest does not
+cover or whose hash differs, so a changed rule book cannot ship unsigned.
+
+**Signing is the owner's, on the owner's machine.** `tools/rulebook_manifest.py`
+hashes the books (`--write`), checks a signature (`--verify`, exit 1 unless
+every agent may run), shows each book (`--status`) and prints the OpenSSL
+commands (`--commands`); it never makes, reads or asks for a private key.
+A test runs those same OpenSSL commands end to end with a throwaway key made
+inside the test, so the commands the owner is given are known to produce a
+manifest the lock accepts. Tests make their keys with `cryptography` and
+never save them (the owner's permission, §341).
+
+**Also in this change.** `cryptography>=42` is listed in `requirements.txt`
+(it arrived only through `pdfminer.six`; the owner's yes, §341).
+`.gitattributes` pins the books' and the playbook's line endings (`-text
+eol=lf`), because a checkout that rewrote them would change every hash and
+hold every agent. `AGENT_RULES_PUBLIC_KEY` is in `spend_guard.NOT_SPEND` (a
+public key buys nothing), and the derived test that finds credentials the
+code reads now scans `agents/` too, where the next vendor's key will be
+read. Settings: `AGENT_RULES_DIR`, `AGENT_RULES_PUBLIC_KEY`, `EDITOR_PLAYBOOK`
+(all empty: the repository's own), in `config.py`, `.env.example` and
+`/api/health`.
+
+**Not built.** A fetched URL as the owner's location (the folder setting
+covers one on disk). Keith's urgent pop-up and email when an agent is held:
+Keith is Phase 4, and until then the boot log and `/api/health` name what is
+held. `CODEOWNERS` and branch protection on `docs/agent_rules/`, the
+manifest and the key are the owner's to set in GitHub.
+
+`CLAUDE.md`'s `[agent-model-layer]` line now says owner-signed rules too; its
+bytes came from two more history notes ("Piper deleted", "deleted §135"),
+both still in their topic files.
+
+Tests: `tests/test_agent_rulebooks.py` (the repository signed or every agent
+held; every agent's book exists and the README is not a book; line endings
+pinned; a signed manifest lets every agent run, the playbook only in
+Shakespeare's; one changed byte holds that agent and names the file; a
+changed `every-agent.md` holds all; a changed playbook holds Shakespeare
+only; a change after boot holds; an uncovered book holds all; a missing book;
+another key's signature; a manifest edited after signing; no signature or no
+key; the setting must be the committed key, in PEM or raw base64; a broken
+key file holds without raising; no setting turns it off; nothing under
+`agents/` writes; the owner's OpenSSL commands end to end; the model layer
+runs under the signed books and records their version).

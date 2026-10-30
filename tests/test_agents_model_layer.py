@@ -239,13 +239,16 @@ def test_the_agents_own_switch_is_its_own(on, monkeypatch):
     assert client.calls == []
 
 
-def test_until_the_lock_exists_every_agent_is_held(monkeypatch, ledger):
-    """The repository's own state: no lock built, so nothing is sent."""
+def test_until_the_owner_signs_every_agent_is_held(monkeypatch, ledger):
+    """The repository's own state: nothing signed, so nothing is sent."""
+    if (rulebooks.DEFAULT_DIR / rulebooks.MANIFEST).exists():
+        pytest.skip("the owner has signed; test_agent_rulebooks checks the manifest")
+    rulebooks.reset()
     use(monkeypatch, agents=True)
     use(monkeypatch, contextualizer=True)
     client = FakeClient()
     result = run(models.ask(request(), client=client))
-    assert result.status == models.HELD and result.reason == rulebooks.NOT_BUILT
+    assert result.status == models.HELD and result.reason == rulebooks.UNSIGNED
     assert client.calls == []
     assert rows(ledger)[-1]["status"] == "held"
 
@@ -323,7 +326,7 @@ def test_the_health_block_names_every_agent_setting():
     block = models.health()
     assert block["enabled"] is False and block["adapters"] == ["anthropic"]
     assert block["consent_covers"] == ["anthropic"]
-    assert block["lock"]["built"] is False
+    assert block["lock"]["built"] is True
     named = {block["agents"][role]["switch"] for role in block["agents"]}
     for role in block["agents"]:
         named |= set(block["agents"][role]["models"])
@@ -350,3 +353,4 @@ def test_nothing_on_the_listener_path_imports_the_model_layer():
     source = (ROOT / "app.py").read_text(encoding="utf-8")
     uses = re.findall(r"agent_models\.(\w+)", source)
     assert set(uses) <= {"health"}, uses
+    assert set(re.findall(r"agent_rulebooks\.(\w+)", source)) <= {"load"}

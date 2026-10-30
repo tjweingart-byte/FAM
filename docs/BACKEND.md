@@ -771,7 +771,7 @@ a subsystem cannot. Its keys, in order:
 | `status`, `build` | `ok`; commit, branch and where they came from (`RENDER_GIT_COMMIT`, `FAM_COMMIT`, git) |
 | `environment` | `spend_guard.report()`: production or staging, zero spend, what was scrubbed, `network_guard` |
 | `clients` | Releases served and versions seen since boot |
-| `agents` | `AGENTS` and each agent's switch and pinned model with where each came from, the adapters built, the vendors consent covers, the rule-book lock (§342) |
+| `agents` | `AGENTS` and each agent's switch and pinned model with where each came from, the adapters built, the vendors consent covers, and the rule-book lock: signed or not, manifest version, the key's source, which agents are held and the file that holds each (§342-§343) |
 | `mode`, `model`, `api_key_configured`, `credentials` | live or demo; the writer model; whether the Claude key was accepted and where it came from |
 | `http`, `sample_rate`, `min_minutes`, `max_minutes` | Transport and episode bounds |
 | `tts` | The voice engine, ladder, fingerprint (`unpinned` when not set), `interim: true` for a tone |

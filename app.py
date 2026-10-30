@@ -60,6 +60,7 @@ import messages as messages_mod
 import typing_indicator as typing_mod
 import metering
 from agents import models as agent_models
+from agents import rulebooks as agent_rulebooks
 import oauth
 import apple_tokens
 import quotas
@@ -647,6 +648,9 @@ async def lifespan(_: FastAPI):
     # Before the first listener signs up into a database that is about to be
     # replaced by the next push.
     _announce_storage()
+    # The rule-book lock, read and verified at boot (§343) and again before
+    # every agent call. Says in the log which agents it holds and why.
+    agent_rulebooks.load()
     # Expired scripts are already filtered out on read, so nothing ever deleted
     # them and the file grew for the life of the deployment. One DELETE at
     # startup is enough: entries expire on a timescale of days, not minutes.

@@ -155,7 +155,9 @@ _CREDENTIAL = re.compile(r'environ(?:\.get)?[\(\[]\s*"([A-Z0-9_]+(?:_KEY|_KEYS|_
 
 def _credential_names_in_code() -> set:
     names = set()
-    for path in list(ROOT.glob("*.py")) + list((ROOT / "voice_worker").glob("*.py")):
+    # The agents' adapters too (§343): each new vendor's key is read there.
+    for path in (list(ROOT.glob("*.py")) + list((ROOT / "voice_worker").glob("*.py"))
+                 + list((ROOT / "agents").rglob("*.py"))):
         names.update(_CREDENTIAL.findall(path.read_text(encoding="utf-8")))
     # `config.py` also reads keys through `_env`-style helpers by name.
     names.update(re.findall(r'"([A-Z0-9_]+_API_KEY)"',

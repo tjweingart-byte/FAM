@@ -346,3 +346,4 @@ and `limit` = Lines.
 | 23579 | 424 | 340. The agents guide: condensed into tabs, outside plugins per agent, and the Overlord (2026-10-26) |
 | 24003 | 71 | 341. Each agent's model, decided - and the cheap outside models going away (2026-10-30) |
 | 24074 | 107 | 342. Phase 0, piece 1: FAM's own model layer, the consent check in code, and every agent call metered (2026-10-30) |
+| 24181 | 75 | 343. Phase 0, piece 2: the rule-book lock - agents run only under rule books the owner signed (2026-10-30) |

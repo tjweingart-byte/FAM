@@ -166,7 +166,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
 
 ## Open problems (`open-problems.md`)
 
-- **Voice**: Chatterbox is the only voice; Piper deleted. Two honest states -
+- **Voice**: Chatterbox is the only voice. Two honest states -
   Chatterbox speaks, or a placeholder **tone** and everything says so. No hosted
   per-character voices. Nobody has heard an episode in it; that listening test
   is the next move (`RUNPOD_PRODUCTION.md`, `verify_voice.py`). Hard names are
@@ -292,7 +292,7 @@ Audio and the opening
 Research and truth
 - **Every episode is researched** (`SEARCH_MODE=always`). Empty search is a
   ladder - Parallel, Perplexity (also the second look), GDELT (§258) - defined once in
-  `research.ladder()`; **no model web search** (deleted §135); no rung raises;
+  `research.ladder()`; **no model web search** (§135); no rung raises;
   every fallback recorded; sim-league pages and (on sports) unknown outlets
   are screened out (§178); nothing is refused for want of evidence (§256);
   EI writes `Brief.broader`. [always-researched]
@@ -487,9 +487,9 @@ Operations and honesty
 - Metering records cost at spend time per listener; never one blended cost. [metering]
 - A credential is never typed by a human (precedence env > `FAM_SECRETS` >
   .env > ~/.fam/env). [credentials-fetched]
-- **Agents call models only via `agents/models.py`** (§342): pinned
+- **Agents call models only via `agents/models.py`** (§342-3): pinned
   `vendor:model-id`, not `MODEL`; listener words to consented vendors only;
-  off by default. [agent-model-layer]
+  owner-signed rules; off by default. [agent-model-layer]
 
 ## iOS and the next phase (`next-phase.md`)
 

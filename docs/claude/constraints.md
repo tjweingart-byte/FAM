@@ -2131,5 +2131,14 @@
   is written to `metering`'s `agent_calls` with the agent, the model, the
   rule-book version and the prompt's fingerprint, never who asked or what
   they said. `AGENTS=0` (the default) and each agent's switch keep all of
-  it off.
+  it off. **And only under rule books the owner signed** *(§343)*:
+  `agents/rulebooks.py` checks the owner's Ed25519 signature on
+  `docs/agent_rules/MANIFEST.json` at boot and before every call, against
+  the committed `owner.pub` (which `AGENT_RULES_PUBLIC_KEY` must match), and
+  holds any agent whose book, `every-agent.md` or (Shakespeare) the
+  journalism playbook does not hash as signed, or any book the manifest
+  does not cover; no setting skips it, nothing writes a book, and until the
+  owner signs a first manifest every agent is held. The private key is
+  never generated, held or asked for by a session or a server; tests make
+  throwaway keys of their own.
 

@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | Phase 0, the framework, being built (§342): the model layer exists; no agent is built, and everything is off |
+| **Status** | Phase 0, the framework, being built (§342-§343): the model layer and the rule-book lock exist; no agent is built, everything is off, and every agent is held until the owner signs |
 | **History** | Started 2026-10-24 (§307); editor in chief and script supervisor (§312); pipeline and how agents run (§313); contextualizer and guardrails (§314); condensed into tabs, outside plugins per agent, the overlord, housekeeper, retriever, IT guy and categorizer (§340); the owner's brainstorm of 2026-10-28 - every agent named, roles redrawn, a rule book each (§340); each agent's model decided, but Mclovin's checker and Shakespeare ahead of the tap (§341) |
 | **Page** | `python docs/build_agents_html.py` builds the tabbed page from this file: one tab per `##`, one sub-tab per `###` |
 
@@ -125,6 +125,20 @@ copies are held outside Claude; once agents run, that is enforced in code:
    entry requires the owner's approval on `docs/agent_rules/`, the manifest
    and the public key (the owner sets this in GitHub). Every call records the
    rule book version it ran under.
+
+**Built (§343):** `agents/rulebooks.py` and `tools/rulebook_manifest.py`. The
+books are every `.md` in `docs/agent_rules/` but its README, and the
+journalism playbook (the owner, 2026-10-30); the manifest is
+`docs/agent_rules/MANIFEST.json` with `MANIFEST.json.sig` beside it, the
+signature base64; the public key is the committed `docs/agent_rules/owner.pub`,
+which `AGENT_RULES_PUBLIC_KEY` must match when it is set. An agent runs only
+while the signature verifies, the manifest covers every book, and its own
+book, `every-agent.md` and (Shakespeare) the playbook hash as signed - as
+loaded and on disk now; anything else holds it and names the file. The owner
+signs with OpenSSL on their own machine (`python tools/rulebook_manifest.py
+--commands`). Not built: a fetched URL as the owner's location (the folder
+setting covers a location on disk); Keith's urgent alert, which waits for
+Keith - until then the log and `/api/health` name what is held.
 
 **What the lock does not promise:** that a model always obeys. A locked rule
 can still be broken in one answer, which is why the rules that matter most

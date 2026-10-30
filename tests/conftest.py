@@ -245,6 +245,9 @@ FAM_ENVIRONMENT = (
     "RETRIEVER_MODEL", "EDITOR_MODEL", "EDITOR_SEARCH_MODEL", "SUPERVISOR_MODEL",
     "SUPERVISOR_SCREEN_MODEL", "HOUSEKEEPER_MODEL", "HOUSEKEEPER_REVIEW_MODEL",
     "IT_MODEL", "IT_SUMMARY_MODEL",
+    # §343: where the rule books, the owner's key and the playbook are read
+    # from - a developer's own location must not decide what the lock checks.
+    "AGENT_RULES_DIR", "AGENT_RULES_PUBLIC_KEY", "EDITOR_PLAYBOOK",
 )
 
 #: Where each database lives is per-machine state too. These reach config.py
