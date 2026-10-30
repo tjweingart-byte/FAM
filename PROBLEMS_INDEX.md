@@ -348,3 +348,4 @@ and `limit` = Lines.
 | 23994 | 35 | 342. Provider terms, read: Parallel forbids reuse across listeners; Perplexity and GNews allow storage (2026-10-29) |
 | 24029 | 41 | 343. Parallel against Perplexity, measured on one brief (2026-10-30) |
 | 24070 | 37 | 344. Perplexity is the primary search; Parallel the second look (2026-10-30) |
+| 24107 | 32 | 345. The archive records which search supplied each passage (2026-10-30) |

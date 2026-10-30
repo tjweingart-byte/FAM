@@ -89,7 +89,10 @@ Read from the code on this branch, 2026-10-29.
    Perplexity, nothing in its terms forbids it. Whether to stop intake keeping
    Parallel's words now and delete what is held, or hold them pending email 1,
    is the owner's call.
-2. **Intake does not record the provider.** Build-prompt item 8 switches
+2. **Intake does not record the provider.** *Fixed in §345: intake now
+   records the provider of every passage it keeps (`by_provider`), from the
+   day that change deploys; passages kept before it stay unattributed and
+   are counted as "unknown".* Build-prompt item 8 switches
    storage on per provider; a record that does not say which provider it came
    from cannot be switched off or deleted per provider - and the answers now
    differ by provider. Intake should record `parallel`, `perplexity` or
@@ -747,7 +750,8 @@ Nothing is left to read: every page the request named was opened on
 2026-10-29 or is listed above with its error. What remains is the owner's:
 
 1. Decide on intake's Parallel passages (keep pending email 1, or stop and
-   delete) - and have intake record the provider first (*Findings* 2).
+   delete). Intake records the provider since §345, so from its deploy on
+   Parallel's passages can be dropped alone; those kept before it cannot.
 2. Send emails 1, 2 and 3. A provider's written reply outranks its page, and
    goes here quoted the same way, with the table re-marked.
 3. Check which GNews plan the production key is on; if it is Free, subscribe

@@ -24103,3 +24103,35 @@ still does not record which provider a passage came from (§342's findings
 Tests: `tests/test_research.py` (the new default, the ladder either way
 round), `tests/test_search_backends_258.py` (Perplexity's second look on
 Parallel; the §258 tests pin their Parallel-first shape).
+
+## 345. The archive records which search supplied each passage (2026-10-30)
+
+The owner: make intake record which provider each passage came from. §342
+found that `history_archive` intake kept search passages with no provider on
+them, so Parallel's - which its terms forbid reusing for another listener -
+could not be told from Perplexity's, which its terms let FAM keep.
+
+**What changed.**
+
+* `Finding.provider` - "perplexity", "parallel" or "gdelt" - set where the
+  search ran: `research._retrieve_blocking` (the configured backend, the
+  second look and every fallback rung), the tapped story's outlets
+  (`_merge_story_look`, the configured backend), and both GDELT paths.
+* Intake keeps each provider's passages apart in `by_provider`
+  (`{"perplexity": [...], "parallel": [...]}`); `passages` stays the union
+  every reader already reads, so nothing downstream changes. One article
+  seen through both searches holds both lists.
+* SQLite (and Postgres through `db.connect`) widens an existing `intake`
+  table with `by_provider TEXT NOT NULL DEFAULT '{}'`; Atlas adds
+  `by_provider.<name>` with `$addToSet`, no migration.
+* `counts()` reports `intake_by_provider`: articles holding each provider's
+  passages, and `unknown` - what was kept before this deployed.
+
+**Not done here.** Nothing is deleted or dropped: the owner decides what
+happens to Parallel's passages (§342, finding 1). Passages kept before this
+deploys stay `unknown` for good - the provider was never recorded, and it
+cannot be recovered from the text.
+
+Tests: `tests/test_intake_provider_345.py` (each web search names itself;
+one article from both keeps them apart; an old table is widened and its rows
+read as unknown; Atlas adds per provider).
