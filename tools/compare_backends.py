@@ -213,7 +213,7 @@ def summary(results: list, write: bool) -> str:
     row("fell back to another index", lambda rs: sum(1 for r in rs if r.get("fell_back")))
     row("needed its second look", lambda rs: sum(1 for r in rs if r.get("retried")))
     row("sources per packet (mean)", lambda rs: _mean(r.get("sources") for r in rs))
-    row("distinct outlets (mean)", lambda rs: _mean(r.get("outlets") for r in rs))
+    row("distinct outlets in all results returned (mean)", lambda rs: _mean(r.get("outlets") for r in rs))
     row("dated sources (mean)", lambda rs: _mean(r.get("dated") for r in rs))
     row("median age, days (mean)", lambda rs: _mean(r.get("median_age_days") for r in rs))
     row("evidence characters (mean)", lambda rs: _mean(r.get("evidence_chars") for r in rs))
