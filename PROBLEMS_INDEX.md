@@ -346,3 +346,4 @@ and `limit` = Lines.
 | 23579 | 424 | 340. The agents guide: condensed into tabs, outside plugins per agent, and the Overlord (2026-10-26) |
 | 24003 | 56 | 341. YourFAM becomes a hero over a grid of vibes and mixes (2026-10-30) |
 | 24059 | 45 | 345. A friend's profile takes YourFAM's layout (2026-10-30) |
+| 24104 | 29 | 346. TestFlight's text, and the App Store page's, in one checked file (2026-10-30) |

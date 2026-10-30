@@ -290,6 +290,11 @@ The common reasons a first submission stalls, as they apply to FAM:
 
 ### Listing (drafts)
 
+The final text for every field, TestFlight's included, is
+`appstore/listing.json` (§346), held to Apple's limits by
+`tests/test_app_store_listing.py`. Paste from there; the bullets below are
+the reasoning.
+
 * **Name** (30 characters): `FAM: Audio Stories`. Alternates:
   `FAM - Keep Up in Audio`, `FAM Audio`.
 * **Subtitle** (30): `Keep up, in short audio`
@@ -474,7 +479,7 @@ is the audio spike (`IOS_APP.md` stage 2), not the app.
   a day; later builds of the same version are often not reviewed again).
   It applies the same guidelines, more lightly - so Part B's 1.2 and
   5.1.2(i) items must be in, and a demo account given.
-* Fill in **Test Information**: beta description, feedback email, privacy
+* Fill in **Test Information** (text ready in `appstore/listing.json` > `testflight`): beta description, feedback email, privacy
   policy URL (`/privacy`), and the sign-in details for the reviewer (the
   demo account, `active` and `unlimited`).
 * Invite by email or by a **public link** (up to 10,000, with an optional

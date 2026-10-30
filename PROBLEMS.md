@@ -24100,3 +24100,32 @@ row's one-episode play (`playPersonMix`, §134) had no other door.
 
 Numbered 345, not 342: `claude/funny-shannon-ekxiz8` (unmerged when this
 was written) already holds §342-§344.
+
+## 346. TestFlight's text, and the App Store page's, in one checked file (2026-10-30)
+
+The owner is filling in App Store Connect to apply for external TestFlight.
+`APP_STORE.md` Part C had drafts for some listing fields only, and none of
+what TestFlight itself asks for. `appstore/listing.json` now has every field,
+ready to paste:
+
+* `testflight` covers the beta app description, feedback email, marketing
+  and privacy URLs, the Beta App Review sign-in and notes, and What to Test.
+  These are what external testing needs. The notes are Part C's review-notes
+  template, filled in (AI, consent, Report/Block, Settings > Delete account).
+  The demo account, contact and feedback address stay `<placeholders>`
+  because a credential never goes in source (`credentials-fetched`).
+* The App Store version page (name, subtitle, promotional text, description,
+  keywords, support/marketing/privacy URLs, version, copyright) is needed only
+  at App Store submission. TestFlight does not need screenshots, keywords
+  or promotional text. Routing App Coverage File stays empty because FAM is
+  not a routing app.
+
+`tests/test_app_store_listing.py` checks each field against Apple's
+character limit. It also fails on wording Part B rules out (beta, prices,
+"hey FAM", live scores, pushes, phone sign-up), on keywords the name already
+indexes, on links the server does not route, on a real credential, and on
+review notes that point at screens which do not exist.
+
+Not verified from here: whether `https://familiarize.net/support` and
+`/privacy` answer on the public host (the proxy refuses it). Open both before
+pasting them.
