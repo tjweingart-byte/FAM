@@ -290,6 +290,7 @@
     <a href="#errors" data-nav="errors">Pipeline errors <span class="badge" id="navErrors"></span></a>
     <a href="#ask" data-nav="ask">Ask the database</a>
     <a href="#accounts" data-nav="accounts">Newest accounts</a>
+    <a href="#agents" data-nav="agents">Agents</a>
     <div class="group">Inbox</div>
     <a href="#reports" data-nav="reports">Reported content <span class="badge" id="navReports"></span></a>
     <a href="#feedback" data-nav="feedback">Feedback <span class="badge" id="navFeedback"></span></a>
@@ -498,6 +499,20 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
       <div id="routing"></div>
     </section>
 
+    </div>
+
+    <div class="page" data-page="agents" data-title="Agents" hidden>
+    <section class="card section" id="agentsCard">
+      <h2>Agents</h2>
+      <p class="sub">FAM's eight agents (docs/FAM_AGENTS.md): whether each is on, the model it is set to, whether its rule book is signed, and what it did and spent over the last 7 days. Read-only: an agent is switched in the deployment's settings (<b>AGENTS</b>, then its own switch), and runs only under rule books the owner signed (<b>python tools/rulebook_manifest.py --commands</b>). A fallback is any request that did not come back as an answer - the episode ran as it did before the agent.</p>
+      <div id="agentsLock"></div>
+      <div id="agents"></div>
+    </section>
+    <section class="card section">
+      <h2>Latest agent requests</h2>
+      <p class="sub">The last 25, newest first: the model asked and the one that answered, the rule-book version it ran under, and why it fell back when it did. No listener and none of what was said is ever recorded.</p>
+      <div id="agentCalls"></div>
+    </section>
     </div>
 
     <div class="page" data-page="accounts" data-title="Newest accounts" hidden>
@@ -718,6 +733,56 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
               rows: res.rows, truncated: res.truncated };
     }
     $("recent").innerHTML = table(res);
+  }
+
+  // --------------------------------------------------------------- agents
+  function loadAgents() {
+    return api("/api/admin/agents").then(drawAgents).catch(function () {
+      $("agents").innerHTML = '<p class="sub">The agents could not be read.</p>';
+    });
+  }
+  function drawAgents(a) {
+    var lock = a.lock || {};
+    $("agentsLock").innerHTML = '<p class="sub"><b>AGENTS</b> is ' + (a.enabled ? 'on' : 'off') +
+      ' · rule books ' + (lock.signed ? 'signed (version ' + esc(lock.version) + ')' :
+        '<span style="color:var(--bad, #c0392b)">not signed - every agent is held: ' + esc(lock.reason || '') + '</span>') +
+      ' · models from ' + esc((a.adapters || []).join(", ")) +
+      ' · a listener\'s words go only to ' + esc((a.consent_covers || []).join(", ")) +
+      (a.tasks ? ' · background tasks ' + esc(JSON.stringify(a.tasks)) : '') + '</p>';
+    var rows = (a.agents || []).map(function (r) {
+      var models = Object.keys(r.models || {}).map(function (k) {
+        var m = r.models[k];
+        return esc(k) + ' = ' + (m.value ? esc(m.value) : '<i>code only</i>') +
+          (m.valid ? '' : ' <span style="color:var(--bad, #c0392b)">(' + esc(m.problem) + ')</span>');
+      }).join('<br>');
+      var w = r.week || {};
+      var state = r.may_run ? 'runs' : (r.on ? 'held' : 'off');
+      return '<tr><td><b>' + esc(r.name) + '</b><br><small style="color:var(--muted)">' + esc(r.role) +
+        '</small></td><td>' + esc(state) + (r.why_not ? '<br><small style="color:var(--muted)">' +
+        esc(r.why_not) + '</small>' : '') + (r.held ? '<br><small style="color:var(--bad, #c0392b)">held: ' +
+        esc(r.held) + '</small>' : '') + '</td><td>' + models + '</td><td class="n">' +
+        Number(w.requests || 0).toLocaleString() + '</td><td class="n">' +
+        (w.cost_usd === null || w.cost_usd === undefined ? '-' : '$' + Number(w.cost_usd).toFixed(4)) +
+        '</td><td class="n">' + Number(w.fallbacks || 0).toLocaleString() + '</td><td>' +
+        (w.last_at ? esc(new Date(w.last_at * 1000).toLocaleString()) + '<br><small>' + esc(w.last_status) +
+          '</small>' : '<small style="color:var(--muted)">never</small>') + '</td></tr>';
+    }).join("");
+    $("agents").innerHTML = '<div class="tbl"><table><thead><tr><th>Agent</th><th>State</th>' +
+      '<th>Model</th><th class="n">Requests (7d)</th><th class="n">Spend (7d)</th>' +
+      '<th class="n">Fallbacks (7d)</th><th>Last run</th></tr></thead><tbody>' + rows +
+      '</tbody></table></div>';
+    var calls = a.recent || [];
+    $("agentCalls").innerHTML = calls.length ? '<div class="tbl"><table><thead><tr><th>When</th>' +
+      '<th>Agent</th><th>Task</th><th>Status</th><th>Model / answered by</th><th>Rule book</th>' +
+      '<th class="n">Cost</th><th>Why</th></tr></thead><tbody>' + calls.map(function (c) {
+        return '<tr><td>' + esc(new Date(c.at * 1000).toLocaleString()) + '</td><td>' + esc(c.agent) +
+          '</td><td>' + esc(c.task) + '</td><td>' + esc(c.status) + '</td><td>' + esc(c.model) +
+          (c.served_model && c.served_model !== c.model ? ' / ' + esc(c.served_model) : '') + '</td><td>' +
+          esc(c.rulebook_version || '-') + '</td><td class="n">' +
+          (c.cost_usd === null ? '-' : '$' + Number(c.cost_usd).toFixed(5)) + '</td><td>' +
+          esc(c.reason || '') + '</td></tr>';
+      }).join("") + '</tbody></table></div>' :
+      '<p class="sub">No agent has been asked anything yet.</p>';
   }
 
   // ------------------------------------------------------ outside services
@@ -1164,6 +1229,7 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
       loadInbox();
       loadReports();
       loadVoices();
+      loadAgents();
       loadSay(); loadHard();
       return api("/api/admin/schema").then(function (x) { drawStores(x.stores || []); });
     }).catch(function (e) {

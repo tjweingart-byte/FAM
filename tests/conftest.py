@@ -237,6 +237,24 @@ FAM_ENVIRONMENT = (
     # §179: the writer's prompt cache and the editions' batching.
     "PROMPT_CACHE", "PROMPT_CACHE_TTL",
     "EDITION_BATCH", "EDITION_BATCH_WAIT_SECONDS", "EDITION_BATCH_POLL_SECONDS",
+    # §347: the agents. A developer who switched one on, or pointed one at
+    # another model, must not run a suite whose agents are on.
+    "AGENTS", "CONTEXTUALIZER", "CATEGORIZER", "RETRIEVER", "EDITOR_AGENT",
+    "SUPERVISOR", "HOUSEKEEPER", "IT_AGENT",
+    "OVERLORD_PLANNER_MODEL", "CONTEXTUALIZER_MODEL", "CATEGORIZER_MODEL",
+    "RETRIEVER_MODEL", "EDITOR_MODEL", "EDITOR_SEARCH_MODEL", "SUPERVISOR_MODEL",
+    "SUPERVISOR_SCREEN_MODEL", "HOUSEKEEPER_MODEL", "HOUSEKEEPER_REVIEW_MODEL",
+    "IT_MODEL", "IT_SUMMARY_MODEL",
+    # §348: where the rule books, the owner's key and the playbook are read
+    # from - a developer's own location must not decide what the lock checks.
+    "AGENT_RULES_DIR", "AGENT_RULES_PUBLIC_KEY", "EDITOR_PLAYBOOK",
+    # §349: each agent's ceilings.
+    "CATEGORIZER_TIMEOUT_SECONDS", "CATEGORIZER_MAX_TOKENS", "EDITOR_TIMEOUT_SECONDS",
+    "EDITOR_AHEAD_TIMEOUT_SECONDS", "EDITOR_MAX_TOKENS", "SUPERVISOR_TIMEOUT_SECONDS",
+    "SUPERVISOR_MAX_TOKENS", "HOUSEKEEPER_TIMEOUT_SECONDS", "HOUSEKEEPER_MAX_TOKENS",
+    "IT_TIMEOUT_SECONDS", "IT_MAX_TOKENS",
+    # §350: Netenyahu's loop.
+    "OVERLORD_TICK_SECONDS", "OVERLORD_MAX_TASKS_PER_TICK",
 )
 
 #: Where each database lives is per-machine state too. These reach config.py
@@ -250,7 +268,7 @@ DATA_ENVIRONMENT = (
     "VOICE_REGISTRY_DB", "TRENDING_BANK_DB", "FEEDBACK_DB", "PROVIDER_USAGE_DB",
     "LOCAL_NEWS_DB", "GDELT_EXPORT_DB", "CONSENT_DB", "MODERATION_DB",
     "LIVE_ROUTING_DB", "STORY_POOL_DB", "PIPELINE_ERRORS_DB", "WIKIMEDIA_DB",
-    "EPISODE_QUALITY_DB",
+    "EPISODE_QUALITY_DB", "AGENTS_DB",
 )
 
 #: Tier limits. Read by `entitlements.py` rather than `config.py`, so the
@@ -587,6 +605,17 @@ def isolated_pipeline_errors(tmp_path, monkeypatch):
     pipeline_errors.reset()
     yield
     pipeline_errors.reset()
+
+
+@pytest.fixture(autouse=True)
+def isolated_agent_tasks(tmp_path, monkeypatch):
+    """The agents' task table (§349), per test, never the project root."""
+    from agents import tasks as agent_tasks
+
+    monkeypatch.setenv("AGENTS_DB", str(tmp_path / "stores" / "agents.db"))
+    agent_tasks.reset()
+    yield
+    agent_tasks.reset()
 
 
 @pytest.fixture(autouse=True)

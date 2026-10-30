@@ -27,7 +27,9 @@ import time
 from audio_utils import PaceController, pcm_duration, silence, streaming_wav_header
 import pipeline_errors
 import prefetch
-from cache import (ScriptCache, build_cache, cache_key, canonical_key, episode_id,
+from agents import netenyahu
+from cache import (PRIVATE_ORIGIN, ScriptCache, build_cache, cache_key, canonical_key,
+                   episode_id,
                    is_shareable, parse_episode_id,
                    key_bucket, ttl_for)
 import metering
@@ -1557,6 +1559,15 @@ class PodcastPipeline:
         # episode as it goes - which is the difference between an episode that
         # dies after the search has already billed being recorded and being free.
         stats.usage = notes.usage
+        # Which agents work on this episode (§350): Netenyahu, as code - no
+        # model, no wait in front of the first word. With `AGENTS=0` it is
+        # `netenyahu.OFF`, decided before anything is read, and nothing below
+        # changes. A listener is waiting on every episode streamed here, so
+        # it is the search surface; a private search or an attached file
+        # gets no agent at all.
+        notes.agents = netenyahu.for_episode(
+            "search", private=self.origin == PRIVATE_ORIGIN,
+            attached=bool(getattr(plan, "attachments", ())))
 
         # One call, one stream, and it does not start until the writer has
         # everything: the brief, the live state and the evidence are all

@@ -456,6 +456,7 @@ flowchart LR
 | | `admin_tracker.py` | An admin asks a question | One read-only SELECT | Built-in recipes, then the error |
 | | `cache.py` canonical key | `CACHE_SEMANTIC_KEY=1` (off) | A canonical cache key | Exact key |
 | | `app.py:_verify_credentials` | Boot | `models.retrieve` (free) | `credentials.state` on `/api/health` |
+| | `agents.models.ask` → `agents/adapters/anthropic_adapter.py` (§347) | `AGENTS=1` and the agent's own switch (all off); the rule-book lock passes (the owner signed the rule books, §352) | Every agent call - none built yet | The step runs as before the agent; the status is written to `metering.db`'s `agent_calls` |
 | **Parallel / Perplexity** | `research._retrieve_blocking`, `_second_look` | `PARALLEL_API_KEY`, `PERPLEXITY_API_KEY`; `RESEARCH_BACKEND=parallel` (default) | Rung 1 of every researched episode, and the second look | Perplexity, then the GDELT rung |
 | | `ScriptGenerator._research_local` (`include_domains`, `must_name`) | A one-town question | Rung 3 of the local ladder; files new outlets as `mention` | Gap line |
 | **GDELT** | `gdelt.run_forever` → `gdelt.sync` | `GDELT=1`, every `GDELT_EXPORT_POLL_SECONDS` = 900 s | The only job that downloads from GDELT: the newest 15-minute GKG export file (named by `lastupdate.txt`), ≤ 8 behind it when behind, ~200 requests/day; 24 h kept in `gdelt_export.db` (§211) | Failures counted on `/api/health`; readers report the copy stale |
@@ -706,6 +707,12 @@ means the handler refuses a guest (`_require_account`, 401); "admin" means
 
 ## 8. Admin surfaces
 
+The tracker's **Agents** page (`#agents`, §351) reads `/api/admin/agents`:
+each agent's switch, model, rule-book lock and why it is not running, its
+requests, spend and fallbacks over 7 days from `metering.db`'s
+`agent_calls`, holds and the task queue, and the last 25 requests.
+Read-only: switches stay deployment settings.
+
 All of them answer **404** to anyone who is not an admin, so an unconfigured
 deployment does not advertise them. Admins are named by
 `FAM_ADMIN_ACCOUNTS` (email, phone or id; checked against the admin session
@@ -770,6 +777,7 @@ a subsystem cannot. Its keys, in order:
 | `status`, `build` | `ok`; commit, branch and where they came from (`RENDER_GIT_COMMIT`, `FAM_COMMIT`, git) |
 | `environment` | `spend_guard.report()`: production or staging, zero spend, what was scrubbed, `network_guard` |
 | `clients` | Releases served and versions seen since boot |
+| `agents` | `AGENTS` and each agent's switch and pinned model with where each came from, the adapters built, the vendors consent covers, and the rule-book lock: signed or not, manifest version, the key's source, which agents are held and the file that holds each (§347-§348) |
 | `mode`, `model`, `api_key_configured`, `credentials` | live or demo; the writer model; whether the Claude key was accepted and where it came from |
 | `http`, `sample_rate`, `min_minutes`, `max_minutes` | Transport and episode bounds |
 | `tts` | The voice engine, ladder, fingerprint (`unpinned` when not set), `interim: true` for a tone |

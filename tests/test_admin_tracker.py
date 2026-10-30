@@ -163,7 +163,7 @@ def test_every_store_the_app_opens_is_tracked():
     """The tracker's store list is read out of the code, so it cannot fall
     behind - which is what the old tracker did."""
     declared = set()
-    for module in ROOT.glob("*.py"):
+    for module in list(ROOT.glob("*.py")) + list((ROOT / "agents").rglob("*.py")):
         for _, filename in re.findall(r'data_path\(\s*"([A-Z_]+)"\s*,\s*"([^"]+)"',
                                       module.read_text()):
             declared.add(filename)

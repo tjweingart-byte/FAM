@@ -59,6 +59,9 @@ import spend_guard
 import messages as messages_mod
 import typing_indicator as typing_mod
 import metering
+from agents import models as agent_models
+from agents import rulebooks as agent_rulebooks
+from agents import netenyahu
 import oauth
 import apple_tokens
 import quotas
@@ -646,6 +649,13 @@ async def lifespan(_: FastAPI):
     # Before the first listener signs up into a database that is about to be
     # replaced by the next push.
     _announce_storage()
+    # The rule-book lock, read and verified at boot (§348) and again before
+    # every agent call. Says in the log which agents it holds and why.
+    agent_rulebooks.load()
+    # Netenyahu's background loop (§350), only when the agents are on: with
+    # `AGENTS=0` no task is ever claimed, so there is nothing to run.
+    if settings.agents:
+        _BACKGROUND.add(asyncio.create_task(netenyahu.run_forever()))
     # Expired scripts are already filtered out on read, so nothing ever deleted
     # them and the file grew for the life of the deployment. One DELETE at
     # startup is enough: entries expire on a timescale of days, not minutes.
@@ -1071,6 +1081,15 @@ def _database_report() -> list[dict]:
     held_bank = voice_bank.opened()
     if held_bank is not None:
         stores.append(("voice bank", "VOICE_BANK_DB", held_bank.path))
+    # The agents' task table (§349). Reported once the first task creates
+    # it, like the trending bank: a health page must not create it.
+    try:
+        from agents import tasks as agent_tasks
+
+        if agent_tasks.exists():
+            stores.append(("agent tasks", "AGENTS_DB", agent_tasks.store().path))
+    except Exception:  # pragma: no cover - a report is never load-bearing
+        pass
     # Tile pictures (§160). Reported once the first picture has been painted,
     # like the trending bank: a health page must not be what creates the
     # database on a machine that never made one.
@@ -1905,6 +1924,10 @@ async def health(request: Request) -> dict:
         # Which deployment this is and whether it can spend (§172). The web
         # client draws the STAGING banner from this.
         "environment": spend_guard.report(),
+        # The agents (§347): `AGENTS` and each agent's switch and pinned
+        # model, where every value came from, and the rule-book lock - all
+        # settable in two places, so said here. Off by default.
+        "agents": agent_models.health(),
         # The client releases this server still serves, and which versions
         # have called it since boot (`client_versions.py`).
         "clients": client_versions.report(),
@@ -10742,6 +10765,42 @@ async def admin_tracker_snapshot(request: Request) -> dict:
     snap["suggestions"] = admin_tracker.suggestions()
     snap["via"] = "account" if _is_admin_account(request) else "token"
     return snap
+
+
+@app.get("/api/admin/agents")
+async def admin_agents(request: Request) -> dict:
+    """The Agents panel (§351): every agent's switch, model, lock, last run,
+    spend and fallbacks over a week, holds and the task queue. Read-only -
+    switches stay settings, and nothing here changes one."""
+    _require_admin(request)
+    return await asyncio.to_thread(_agents_panel)
+
+
+def _agents_panel(now: float = 0.0) -> dict:
+    from agents import roster
+
+    now = now or time.time()
+    health = agent_models.health()
+    week = METER.agent_summary(now - 7 * 86400)
+    rows = []
+    for role, agent in roster.ROSTER.items():
+        state = roster.status(role)
+        entry = health["agents"].get(role, {})
+        rows.append({
+            "role": role, "name": agent.name, "purpose": agent.purpose,
+            "surfaces": list(agent.surfaces), "switch": entry.get("switch", ""),
+            "on": state["on"], "may_run": state["may_run"], "why_not": state["why_not"],
+            "held_file": state["held_file"], "rulebook_version": state["rulebook_version"],
+            "models": entry.get("models", {}), "ceilings": entry.get("ceilings", {}),
+            "held": (health.get("held") or {}).get(role, ""),
+            "week": week.get(role, {"requests": 0, "sent": 0, "cost_usd": None,
+                                    "fallbacks": 0, "last_at": None, "last_status": "",
+                                    "last_reason": ""}),
+        })
+    return {"at": now, "enabled": health["enabled"], "lock": health["lock"],
+            "adapters": health["adapters"], "consent_covers": health["consent_covers"],
+            "overlord": health["overlord"], "tasks": health.get("tasks"),
+            "agents": rows, "recent": METER.agent_calls(limit=25)}
 
 
 @app.get("/api/admin/schema")

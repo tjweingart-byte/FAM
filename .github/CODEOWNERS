@@ -1,0 +1,25 @@
+# Who must approve a change, before it can merge, to the files that decide
+# what FAM's agents may do (docs/FAM_AGENTS.md, Shared rules, Locked rule
+# books; PROBLEMS.md §343, §347). GitHub enforces this only when branch
+# protection on Main (and staging) has "Require review from Code Owners" on.
+#
+# The rule books are signed by the owner, so a changed book already holds its
+# agent until it is re-signed. This adds the step before that: nobody merges a
+# change to a book, or to the code that checks the signature, without the
+# owner's review.
+
+# The rule books, the signed manifest, its signature and the owner's public key.
+/docs/agent_rules/                @tjweingart-byte
+
+# Shakespeare's playbook, signed with the rule books.
+/docs/journalism_playbook.md      @tjweingart-byte
+
+# The lock that checks the signature, the tool that writes the manifest, and
+# the test that keeps unsigned books from shipping.
+/agents/rulebooks.py              @tjweingart-byte
+/tools/rulebook_manifest.py       @tjweingart-byte
+/tests/test_agent_rulebooks.py    @tjweingart-byte
+
+# The byte-for-byte pin the signed hashes depend on, and this file itself.
+/.gitattributes                   @tjweingart-byte
+/.github/CODEOWNERS               @tjweingart-byte

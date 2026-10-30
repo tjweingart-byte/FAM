@@ -24100,3 +24100,521 @@ row's one-episode play (`playPersonMix`, §134) had no other door.
 
 Numbered 345, not 342: `claude/funny-shannon-ekxiz8` (unmerged when this
 was written) already holds §342-§344.
+
+## 346. Each agent's model, decided - and the cheap outside models going away (2026-10-30)
+
+The guide left every agent's model a proposal, "decided later, in another
+branch, with a fuller decision method" (§340). The owner asked, before
+Phase 0 started, to see one document of which model each agent could use
+and to decide them. There was none: the options sat in each agent's
+"Plugin options" tab. They were gathered onto a decision page
+(https://claude.ai/artifact/7kM5Xu5FJftJAaoAGYHVfj), the owner picked or
+asked for a deeper look on each, four were analysed with real figures
+(https://claude.ai/artifact/A3TQcaC521YeKX12ivaZZ6), and a second page held
+what was left (https://claude.ai/artifact/KFyF7NxYLSAJYxmNSNH2ji). The
+decisions are in `docs/FAM_AGENTS.md` (Shared rules, Models decided, and
+each plugin tab's choice) and the build prompt's items 34-41.
+
+**Decided.** Netenyahu: no planner model. C3P0: Haiku 5.5 inside the
+brief's call - at the brief's effort (medium) on the tap, at high effort
+ahead of the tap through a new `EI_AHEAD_EFFORT`, never on an on-demand
+episode. Nando: code first, folded into the brief, Haiku 5.5 on ties,
+always the closest node the request is truly about. Sonic: an embedding
+router. Shakespeare: Haiku 5.5 on searchFAM, in tandem with the writer and
+never after it. Mclovin: Haiku 5.5 on unsure sentences and unsettled pages.
+Consuela: Haiku 5.5 low, batched, for consolidation; Haiku 5.5 then Sonnet
+5.5 on duplicate pairs. Keith: Haiku 5.5 for incidents, Sonnet 5.5 for
+`/admin`'s summaries. Every pick is a Claude model.
+
+**Still open.** Mclovin's grounding checker - the owner asked whether it can
+run inside the current pipeline without a new machine, and how a rejected
+sentence avoids delaying the writer, and wants it analysed on its own.
+Shakespeare ahead of the tap - measured first (about 50 frozen edition
+questions written with no editor, Haiku 5.5 high and Sonnet 5.5, scored on
+`episode_quality`'s six measures, Mclovin's error counts, a blind Opus
+grader, cost and time, then two weeks of editions each way), decided by the
+owner; Sonnet the default until then.
+
+**The finding that changed a pick: the cheap outside models are being
+retired.** The guide priced GPT-5 nano ($0.05 / $0.40) and Gemini 2.5
+Flash-Lite ($0.10 / $0.40) below Haiku 5.5 ($0.10 / $0.50). OpenAI's
+deprecations page shuts gpt-5-nano down on 11 December 2026, before
+Consuela is built - and the owner had picked it for Consuela - naming
+gpt-5.6-luna (reported $0.20 / $1.20) as its replacement; Google Cloud lists
+a retirement for 2.5 Flash-Lite, whose successors are reported at $0.25 /
+$1.50 (3.1) and $0.30 / $2.50 (3.5). So every surviving outside option costs
+more than Haiku, and Consuela moved to Haiku. Outside prices are third-party
+and unverified, as before; the Claude prices match the current list.
+
+**Nando, measured in code.** Forty questions with one clearly right node in
+the seeded tree (303 nodes), labelled by hand in this session and not yet
+an evaluation set: `stories.resolve_category` got 17 right, 1 wrong ("high
+school football scores in my town" -> `football`) and could not place 22 -
+shared names (Manchester United, Apple), colliding words (Miami heat wave,
+the Carolina coast's hurricanes), subjects the tree lacks (Taylor Swift,
+James Webb) and plain wordings that differ from the tree's ("why rents keep
+rising" against `rental market`). 0.01 ms a question on phrases, up to
+1.7 ms with the nearest node by meaning, which placed one more: it cannot
+answer a text the first time it sees one (`inline=0` queues it), and its
+`NEAR_COSINE` (0.45) was set on short category words, not questions. The
+code is rarely wrong and does not know the majority, and the unplaced fall
+to a facet - the two problems Nando is for. Measuring a model on it needs a
+key; a few-hundred-question set from `categories_report.py --audit` is the
+next step.
+
+**A setup trap.** The first baseline of this session failed all four browser
+runs: `pip install playwright`, from `workflow.md`'s setup, upgraded the
+container's pre-installed Playwright (1.63.0, matched to
+`/opt/pw-browsers/chromium-1243`) to 1.64.1, which looks for revision 1248.
+`pip install playwright==1.63.0` restored it, and the rerun passed: 5,292
+tests, 97 smoke behaviours twice, 15 landing behaviours, the Opus checks.
+In this container the pre-installed Playwright is the one to keep.
+
+Nothing is built here; the agents stay unbuilt and off.
+
+## 347. Phase 0, piece 1: FAM's own model layer, the consent check in code, and every agent call metered (2026-10-30)
+
+The first of Phase 0's five pieces (`docs/AGENTS_BUILD_PROMPT.md`): how an
+agent reaches its model, built before any agent exists so that none can be
+built any other way. The owner's decision of 2026-10-29 (§340): FAM's own
+thin layer, no agent framework and no gateway. Nothing calls it yet; with
+`AGENTS=0` (the default) nothing in it runs.
+
+**`agents/models.py`.** `ask(AgentRequest) -> AgentResult` is the only way an
+agent reaches a model - `episode_intelligence._ask` generalised - and it
+never raises. A request names its agent and task, the settings for its
+switch and its model (never a model id), its rule book, a Pydantic schema
+that forbids extra fields, its fixed instructions, its material as
+`(tag, text)` pairs inside `<request>`, `<evidence>`, `<archive>` or
+`<script>`, whether that material holds a listener's words, a time limit and
+a call size - neither defaulted, so a request that does not say how long it
+may take is not sent. `ask` checks, in order: the request is whole; `AGENTS`
+and the agent's switch are on; the rule-book lock passes (before every call);
+the model setting is a pinned `vendor:model-id` - no moving alias, never
+`MODEL`, empty for code only; an adapter exists; the consent check; the
+model has a price; the deployment may spend; then the call, inside the time
+limit; then that the answer came from the model asked, never switching to
+another; then refusal and the token ceiling; then JSON the schema accepts.
+Each failure is a status (`STATUSES`, sixteen) and anything but `ok` runs the
+step as FAM ran it before the agent. The SDK's own retries are off for these
+calls (`with_options(max_retries=0)`): one retry per task is Netenyahu's to
+make, not two hidden ones inside the time limit.
+
+The prompt is the guide's shared preamble, then the rule books, then the
+task's instructions, as one cacheable system block; the material follows a
+line saying it is material, and a tag inside it cannot close itself
+(`</request>` in the text is escaped). The schema sent is cleaned for the
+structured-output API - every object closed and fully required, and the
+keywords the API refuses (`minLength`, `maximum`, ...) taken out - while the
+answer is still validated against the whole Pydantic model, so those limits
+hold. One trap caught writing it: the keywords are removed by name, which
+would also have removed a *field* named `title` (C3P0's answer has one); the
+cleaner leaves the names in `properties` and `$defs` alone, and a test pins
+it.
+
+**One adapter, `anthropic`** (`agents/adapters/anthropic_adapter.py`, through
+`anthropic_client.build_async_client`). Every model the owner decided (§346)
+is a Claude model, so `google-genai` and `openai` wait until an agent is
+moved to one, each its own change with its package, its `metering.PRICES`
+rows and its `spend_guard.PAID_CREDENTIALS` key.
+
+**Consent, in code.** `consent.MODEL_VENDORS = ("anthropic",)` and
+`consent.covers(vendor)`: a request carrying a listener's words is refused,
+before its adapter is touched, for any vendor not listed. The notice's
+wording and `VERSION` are unchanged - adding a vendor is new wording and
+everyone asked again, never a line alone, and a test pins that every listed
+vendor is one the notice names. Since §346, a typed DailyFAM topic counts as
+a listener's words.
+
+**Metered.** Every request past its switches is a row in `metering.db`'s new
+`agent_calls`: agent, task, surface, status, vendor, the model asked and the
+one that answered, rule-book version and SHA-256, the prompt's fingerprint
+(the fixed block and the schema, never the material), tokens, `cost_usd`
+(NULL when nothing was sent) and the reason - no listener id and none of the
+material. A call that was sent is also folded into its episode's usage.
+Prices are `metering.PRICES`; a model without one is not called.
+
+**Settings** (`config.py`, `.env.example`, `/api/health`'s new `agents`
+block with where each value came from): `AGENTS` and each agent's switch -
+`CONTEXTUALIZER`, `CATEGORIZER`, `RETRIEVER`, `EDITOR_AGENT`, `SUPERVISOR`,
+`HOUSEKEEPER`, `IT_AGENT` - all off; each agent's model at the owner's
+decision (§346): `OVERLORD_PLANNER_MODEL` and `RETRIEVER_MODEL` empty,
+Sonnet for `EDITOR_MODEL` (until the comparison), `HOUSEKEEPER_REVIEW_MODEL`
+and `IT_SUMMARY_MODEL`, Haiku for the rest. `agents/names.py` is the one
+table of which agent owns which setting.
+
+**The rule-book lock** is the next piece; until it is built `agents.rulebooks`
+answers the one safe thing - every agent held - so an agent switched on today
+still sends nothing.
+
+**Nothing a listener hears changes**: no module on the listener path imports
+the layer (a test reads the source for it; `app.py` uses only its health
+report), and the full suite, both smoke runs, the landing smoke and the
+client contracts pass unedited.
+
+**Found on the way: the suite's environment list is by hand.** The first full
+run failed one test, `test_hermetic`: `tests/conftest.py`'s `FAM_ENVIRONMENT`
+clears every setting `config.py` reads, so a developer's `AGENTS=1` cannot
+turn the suite's agents on - and the twenty new names were not in it. The
+test is what caught it (it reads `config.py`); the names are added.
+
+**`CLAUDE.md` at its budget.** The new rule line (`[agent-model-layer]`,
+full text in `constraints.md`) was paid for, at the owner's direction, by
+taking history out of rule lines - the file's own rule is that history lives
+in the topic files: "moved there verbatim", "(reversed)", §245's reversal,
+§114's `WORLD_FLOOR`, three "since §N", and a shorter ship-loop sentence.
+Each is still in its topic file.
+
+Tests: `tests/test_agents_model_layer.py` (an answer typed, priced and
+recorded; the ledger holds nothing about who asked; the prompt's order and
+cache marker; the material cannot close its tag; no SDK retry; the schema
+sent is accepted and keeps a `title` field; removed limits still hold; each
+of eight failures a status with one call and no second model; a failure
+inside the layer; off by default and per switch; held while the lock is not
+built; staging; four malformed requests; six bad model settings; never
+`MODEL`; every default pinned, priced, Claude, and every switch off; the
+preamble the guide's word for word; the health block and `/api/health`;
+nothing on the listener path imports it) and `tests/test_agents_consent.py`
+(only Anthropic covered; a listener's words refused to a faked second vendor
+before sending, FAM's material allowed to it, a covered vendor allowed; the
+notice names every covered vendor).
+
+## 348. Phase 0, piece 2: the rule-book lock - agents run only under rule books the owner signed (2026-10-30)
+
+The owner (2026-10-29): each agent's rules are "untouchable and unchangeable
+unless we deliberately say to have them change ... not by an agent and not
+by a model". Holding the governing copies outside Claude said who wins a
+disagreement; nothing stopped a changed copy from running. Now nothing runs
+that the owner did not sign.
+
+**How it works** (`agents/rulebooks.py`). The books are every `.md` in
+`docs/agent_rules/` but its README, plus `docs/journalism_playbook.md`, which
+Shakespeare's rule book makes part of his instructions (locked at the
+owner's direction, §346). `MANIFEST.json` beside them lists each book's
+SHA-256; `MANIFEST.json.sig` is the owner's Ed25519 signature of the
+manifest's exact bytes, base64. FAM holds only the public key: the committed
+`docs/agent_rules/owner.pub`, which `AGENT_RULES_PUBLIC_KEY` defaults to and
+must equal when set (§346) - a dashboard cannot swap in another key. `load`
+reads and verifies once, at boot (`app.py`'s lifespan) and on first use, into
+frozen memory; `check`, which `agents.models.ask` calls before every call,
+lets an agent run only while the signature verifies, the manifest covers
+every book in the folder, and the agent's own book, `every-agent.md` and
+(for Shakespeare) the playbook hash as signed - as loaded, and on disk now.
+Anything else holds the agent and names the file; a book changed after boot
+holds its agent until it is signed and the server restarts. The prompt's
+cached block carries the books as `<rule_book name="...">`. No setting skips
+the check (a test reads `config.py` for one), the module reads no
+environment variable directly, and nothing under `agents/` writes a file.
+
+**Until the owner signs, every agent is held** - the state today, which
+`/api/health`'s `agents.lock` and the boot log both say. The test that
+checks the repository asserts exactly that while no manifest exists; once
+one is committed, the same test fails on any book the manifest does not
+cover or whose hash differs, so a changed rule book cannot ship unsigned.
+
+**Signing is the owner's, on the owner's machine.** `tools/rulebook_manifest.py`
+hashes the books (`--write`), checks a signature (`--verify`, exit 1 unless
+every agent may run), shows each book (`--status`) and prints the OpenSSL
+commands (`--commands`); it never makes, reads or asks for a private key.
+A test runs those same OpenSSL commands end to end with a throwaway key made
+inside the test, so the commands the owner is given are known to produce a
+manifest the lock accepts. Tests make their keys with `cryptography` and
+never save them (the owner's permission, §346).
+
+**Also in this change.** `cryptography>=42` is listed in `requirements.txt`
+(it arrived only through `pdfminer.six`; the owner's yes, §346).
+`.gitattributes` pins the books' and the playbook's line endings (`-text
+eol=lf`), because a checkout that rewrote them would change every hash and
+hold every agent. `AGENT_RULES_PUBLIC_KEY` is in `spend_guard.NOT_SPEND` (a
+public key buys nothing), and the derived test that finds credentials the
+code reads now scans `agents/` too, where the next vendor's key will be
+read. Settings: `AGENT_RULES_DIR`, `AGENT_RULES_PUBLIC_KEY`, `EDITOR_PLAYBOOK`
+(all empty: the repository's own), in `config.py`, `.env.example` and
+`/api/health`.
+
+**Not built.** A fetched URL as the owner's location (the folder setting
+covers one on disk). Keith's urgent pop-up and email when an agent is held:
+Keith is Phase 4, and until then the boot log and `/api/health` name what is
+held. `CODEOWNERS` and branch protection on `docs/agent_rules/`, the
+manifest and the key are the owner's to set in GitHub.
+
+`CLAUDE.md`'s `[agent-model-layer]` line now says owner-signed rules too; its
+bytes came from two more history notes ("Piper deleted", "deleted §135"),
+both still in their topic files.
+
+Tests: `tests/test_agent_rulebooks.py` (the repository signed or every agent
+held; every agent's book exists and the README is not a book; line endings
+pinned; a signed manifest lets every agent run, the playbook only in
+Shakespeare's; one changed byte holds that agent and names the file; a
+changed `every-agent.md` holds all; a changed playbook holds Shakespeare
+only; a change after boot holds; an uncovered book holds all; a missing book;
+another key's signature; a manifest edited after signing; no signature or no
+key; the setting must be the committed key, in PEM or raw base64; a broken
+key file holds without raising; no setting turns it off; nothing under
+`agents/` writes; the owner's OpenSSL commands end to end; the model layer
+runs under the signed books and records their version).
+
+## 349. Phase 0, piece 3: the roster, the typed hand-offs, and the task table (2026-10-30)
+
+Netenyahu's first responsibility is to know every agent (netenyahu.md,
+"always" 1); agents never call each other, so what passes between them has a
+shape; and background work must run once across two servers, survive a
+restart and stop when it repeats with nothing new. Three modules, nothing
+calling them yet.
+
+**`agents/roster.py`.** Each agent's role and internal name, purpose, tasks,
+surfaces (`search`, `ahead`, `background`), its stage on the guide's
+pipeline drawing, rule book, switch, model settings, ceilings, fallback in
+words, whether its material can be a listener's words, and one call per task
+with one retry. A ceiling names a `config.py` setting rather than holding a
+number, so it is set in one place; C3P0's are the brief's own (`EI_*`),
+since it works inside the brief's call, and Sonic and Netenyahu make no call.
+`status(role)` says whether an agent may run now and why not - its
+switches, then its lock. New ceiling settings, placeholders until each
+agent's phase measures them: `CATEGORIZER_TIMEOUT_SECONDS` 8 /
+`_MAX_TOKENS` 300 (the tie call), `EDITOR_TIMEOUT_SECONDS` 8,
+`EDITOR_AHEAD_TIMEOUT_SECONDS` 60, `EDITOR_MAX_TOKENS` 4000,
+`SUPERVISOR_TIMEOUT_SECONDS` 1 per unsure sentence / `_MAX_TOKENS` 300,
+`HOUSEKEEPER_*` 60 / 1500, `IT_*` 60 / 1000.
+
+**`agents/handoffs.py`.** `ResearchPlan` (with `ArchiveRequest` and
+`PluginCall`), `PluginPacket` and `ArchivePacket` (with `Source` and
+`ArchiveItem`), `Outline` (with `SentenceRef` and `Beat`), `ScriptSentence`
+and `Verdict` - Pydantic models, frozen, extra fields forbidden, each with
+`schema_version`. Only fields the guide, the build prompt and the rule books
+settle: C3P0's entity, kind, `ambiguous` and both readings, plugins and
+their queries, Nando's node, Sonic's request from the closed list of six
+lookups, the title, `opinion_requested`, `private_person`, `advice_request`;
+evidence only as a pointer to a source's own sentence; an archive packet in
+date order, refused otherwise; Mclovin's verdict one of pass / fail / unsure
+/ unchecked, a fail naming exactly one of his twelve named failures.
+`validate(kind, data)` never raises: a hand-off that is not whole is refused
+and that step runs as today. Each agent's phase adds its own fields.
+
+**`agents/tasks.py` and `agents.db`.** `trending_bank`'s claim, generalised:
+a task is `agent:kind:key` with a hash of its input; `claim` gives it to one
+caller in one `BEGIN IMMEDIATE`; a claim quiet for 15 minutes is a crashed
+worker, a live one is never taken; a failure is retried once, then the task
+is held; re-queueing a task whose last finished run had the same input is
+refused as nothing new - the loop rule. Holds of a whole agent are kept with
+why and when, released only by asking (the owner's act, when `/admin` has
+it). Ids and hashes only, no listener and no material. A wipe empties the
+queue (`demo_data._forget_what_the_log_taught`); holds stay.
+
+**The store guards had a blind spot.** Every guard that finds the app's
+stores - the Dockerfile disk pins, the hand-written constructor list, the
+health page's store list, the admin tracker, the derived credential scan -
+read only the root's `*.py`. A store opened in `agents/` would have passed
+all of them, which is the rule ("a guard whose subject is enumerated by hand
+is decorative") with a folder in place of a list. They now read `agents/`
+too, `AGENTS_DB` is pinned in both Dockerfiles, listed lazily like the
+trending bank (created by the first task, reported once it exists), in
+`.env.example` and in the suite's isolated paths.
+
+Tests: `tests/test_agents_roster_tasks.py` (the eight agents the guide
+names, each with its rule book; every stage one the guide draws; every
+ceiling a real positive setting, one call and one retry; C3P0 shares the
+brief's ceilings; code-only agents make no call; agents that never see a
+listener are background only; every agent off today; no agent's name in
+anything a listener sees; every hand-off frozen, closed and versioned; eight
+malformed hand-offs refused; an archive packet out of date order refused;
+evidence only as a pointer; Mclovin's twelve failures; Sonic's six lookups;
+one claim between two servers racing; a live claim kept, a crashed one taken;
+one retry then held; nothing new refused; due tasks oldest first; a restart
+keeps the queue; holds recorded once and released only by asking; no
+listener in the store; a wipe forgets the queue).
+
+## 350. Phase 0, piece 4: Netenyahu as code, and the proof that off changes nothing (2026-10-30)
+
+The owner's choice (§346): no planner model - Netenyahu is rules in code.
+`agents/netenyahu.py`:
+
+* **Per episode.** `PodcastPipeline` asks `for_episode(surface, private,
+  attached)` once, as an episode starts, and keeps the answer on
+  `ScriptNotes.agents`. With `AGENTS=0` it returns `OFF` before anything is
+  read - no file, store, lock or socket - and nothing after it changes. With
+  the agents on, a private search or an attached file gets no agent at all
+  (every-agent.md); otherwise an agent works only if switched on, its rule
+  books pass the lock, it serves the surface, and it is not held. Every
+  episode streamed through the pipeline is the search surface, since a
+  listener is waiting on it; the ahead paths are wired in each agent's phase.
+  No agent reads the answer yet.
+* **The closed vocabulary.** `validate` allows exactly `run(agent, task)`,
+  `hold(agent, reason)` and `note(text)`, checked against the roster; "set
+  HOUSEKEEPER_DEDUPE_DRY_RUN=0", a ceiling, a rule, a delete, an extra field
+  are refused.
+* **Holding.** `report(role, status)` holds an agent after `HOLD_AFTER` (3)
+  failures in a row - a timeout, a failure, an unreadable or invalid answer,
+  the wrong model, the token ceiling - and tells Keith through the log and
+  `pipeline_errors` until Keith exists. A cost, a consent refusal, staging
+  or a missing price never counts: no agent is held for having spent.
+* **The background.** `tick` claims at most `OVERLORD_MAX_TASKS_PER_TICK`
+  (3) due tasks every `OVERLORD_TICK_SECONDS` (300), never in the hour after
+  05:00 and 17:00 Eastern when the editions are written, never for a held
+  agent, and hands a task with no handler back untouched - none is built.
+  The loop starts only when `AGENTS=1`.
+
+**The proof.** `tests/test_agents_off.py` streams one episode through the
+real `PodcastPipeline` (the test writer, the placeholder voice) three ways -
+with the hook taken out, with `AGENTS=0`, and with every agent switched on
+but held, which is today's real state - and asserts the audio is the same
+byte for byte, with the same sentences and words; off, the writer was handed
+`OFF`; on, every episode agent was held for the unsigned rule books. Beside
+it: off touches nothing (the lock, the store, the roster and sockets raise if
+asked), and only the pipeline asks Netenyahu about an episode, once. The
+whole existing suite, both smoke runs, the landing smoke and the client
+contracts pass unedited.
+
+Tests: `tests/test_agents_off.py` (off decided before anything is read; the
+same episode three ways; one hook; on and signed, every episode agent works;
+private and attached get none; switched off or held does not work; routing
+that fails gives none; run, hold and note allowed; nine other actions
+refused; three failures hold, spending never; the edition hours kept clear;
+a tick does nothing off or during an edition; each round its share and each
+task once across two servers; no handler, left alone; a failing task retried
+once then held; the loop only when on).
+
+## 351. Phase 0, piece 5: the Agents panel on /admin - and Phase 0 done (2026-10-30)
+
+The tracker gains an **Agents** page (`/admin#agents`, in the menu under
+Tracker), read from a new `/api/admin/agents` (admins only, a 404 to anyone
+else, as every admin route). For each agent: its internal name and role,
+whether it runs, is held or is off and why (`AGENTS=0`, its own switch, the
+unsigned rule books, a hold), each model setting and whether it is valid,
+and over the last 7 days its requests, its spend (None when it sent nothing,
+never $0), its fallbacks and its last run. Above it, `AGENTS`, whether the
+rule books are signed and why not, the adapters, the vendors consent covers
+and the background queue; below it, the last 25 agent requests - the model
+asked and the one that answered, the rule-book version, the cost, why it
+fell back. `metering.MeterStore.agent_summary` reads it from `agent_calls`.
+
+**Display only**, at the owner's direction (§346): an agent is switched in
+the deployment's settings and the page has no control. A test pins that the
+page posts nothing about agents and that `/api/admin/agents` is the server's
+only agent route, a GET. Keith's slideshow rule (keith.md, "always" 8) is
+Keith's to follow once he exists; this panel was asked for by the owner
+directly, in the Phase 0 build prompt.
+
+**Phase 0 is done.** The framework stands - the model layer (§347), the
+rule-book lock (§348), the roster, hand-offs and task table (§349), Netenyahu
+as code (§350) and this panel - with every agent off, unbuilt and held, and
+listeners hearing exactly what they heard before. What waits on the owner:
+signing the rule books (`python tools/rulebook_manifest.py --commands`),
+`CODEOWNERS` and branch protection on `docs/agent_rules/`, the decision on
+Mclovin's grounding checker, and Shakespeare's comparison once he is built.
+Phase 1 (C3P0 and Nando at the request) is next.
+
+Tests: `tests/test_admin_agents.py` (admins only; every agent shown off and
+held with nothing spent; requests, spend, fallbacks and the latest requests
+read from the ledger, nothing sent shown as None; the panel changes nothing).
+
+**CI after piece 2.** Listing `cryptography` in `requirements.txt` (§348)
+woke four Sign in with Apple tests in CI, which had skipped there because
+their fixture asked only for `cryptography`; they also need PyJWT, which is
+in `requirements-oauth.txt` and not installed by CI. This container has both,
+so `./dev.sh check` passed while CI failed on pieces 3 and 4. The fixture now
+also asks for `jwt`, so CI is back where it was before piece 2. Installing
+the OAuth requirements in CI, so those tests run there, is a dependency
+decision for the owner.
+
+## 352. The owner signed the rule books (2026-10-30)
+
+The owner signed the first rule-book manifest: `docs/agent_rules/MANIFEST.json`,
+its `.sig` and `owner.pub`, uploaded through GitHub's web page in one commit
+(b37ccfc). `python tools/rulebook_manifest.py --verify` says every agent may
+run, and the signed file is byte-for-byte the one the session prepared. Every
+agent is still off: `AGENTS=0` and each agent's switch are the second lock,
+and no agent is built.
+
+**A manifest waits under another name.** The repository test (§348) fails on
+a `MANIFEST.json` without a valid signature - nothing unsigned may ship - so
+pushing the manifest for the owner to download would have turned CI red until
+the signature arrived. The session instead pushes `--write`'s output as
+`MANIFEST.pending.json`, which the lock does not read; the owner downloads it,
+renames it while signing, uploads all three files together, and the session
+deletes the pending file. `docs/agent_rules/README.md` says so.
+
+**The owner's guide** is a Claude doc, *How to sign FAM's rule books*, kept
+outside this repository with where the key is stored - a map to the one
+secret the lock depends on does not belong here. Part 0 sets up a password
+manager, Part A makes the key, Part B signs. Two things it learnt the hard way: an
+Intel Mac cannot use Homebrew any more, so OpenSSL 3 comes from a conda
+environment (`famsign`); and the key travels by clipboard, so the command
+that reads it goes into Terminal before the key is copied, and is run with
+Return, never a second paste. A first key reached a shell command line that
+way and was discarded before its public half was ever uploaded; the signed
+key is its replacement.
+
+`tests/test_admin_agents.py` had pinned the panel's `signed` to False, a fact
+about the repository that signing changed; it now compares with the lock's
+own report. What the test is for - every agent off, nothing spent - is
+unchanged.
+
+## 353. Phase 0 reviewed before merge: the lock's key, a test that skipped itself, and the queue (2026-10-30)
+
+At the owner's request, before any merge, two independent reviewers read the
+branch's whole change (one the `agents/` code, one everything around it).
+What they found, and what was done:
+
+**Fixed.**
+- **A setting could replace the owner's key.** `AGENT_RULES_DIR` chose the
+  folder `owner.pub` was read from, so a folder of edited books signed with
+  a key of its own passed the lock, and with no committed file
+  `AGENT_RULES_PUBLIC_KEY` was a key by itself. Reproduced by both reviewers.
+  The key is now always `rulebooks.TRUSTED_KEY`, the committed
+  `docs/agent_rules/owner.pub`; the setting may only match it. Tests trust a
+  throwaway key by patching that constant, never a setting.
+- **The proof that listeners hear the same thing skipped itself** once the
+  owner signed (§352): it checked for `MANIFEST.json` and called
+  `pytest.skip`, so CI stayed green with the Phase 0 promise untested. One
+  model-layer test did the same. Both now set up the state they test; the
+  golden test streams an episode four ways - hook out, off, on and held, on
+  under signed books - and never skips.
+- **Under Postgres the task store looked absent after every restart**
+  (`exists()` asked the disk), so holds were forgotten on deploy and a wipe
+  skipped the queue. It asks `db.has_tables`, like `pipeline_errors`.
+- **A NaN time limit crashed the event loop**, not just the call; infinity
+  waited forever. Limits and call sizes must be finite and positive.
+- **The consent check was opt-in** and a request named its own switch, model
+  setting and rule book - one naming `ANTHROPIC_API_KEY` as its model wrote
+  the key into the ledger's reason. A request must now use its own agent's
+  settings from `agents.names`, and material tagged `request` always gets the
+  consent check. Per request, as decided: FAM's own material from the same
+  agent may still go to another vendor.
+- **Netenyahu's loop could die on one database error, and tasks nobody could
+  run filled every round.** The whole round is guarded, the pace is clamped
+  to 5 s - 1 h, an unreadable task id is skipped, and `due` lists only tasks
+  a handler can run for an agent not held.
+- **A claim had no owner**: a slow worker whose claim was taken over could
+  mark the new run done. `claim` returns a token that `touch`, `finish` and
+  `fail` must carry, and a task that crashes its worker on every try is held
+  rather than re-claimed every 15 minutes forever.
+- **A call that timed out after sending counted as unsent.** `agent_calls`
+  has a `sent` column; spend stays None when no cost is known.
+- **Schemas the API would have changed** (a `dict` field closed to `{}`, a
+  tuple as `prefixItems`) are refused, and material cannot close its tag in
+  any case or spacing.
+- **`--write` would have overwritten the signed manifest**; it writes
+  `MANIFEST.pending.json`, and `--commands` says to rename it while signing.
+- Stale "until the owner signs" lines, a wrong note on where `cryptography`
+  comes from, and where the signing key is kept (now only in the owner's own
+  guide, not here, §352).
+
+**Not changed, with the reason.**
+- **Blocking reads on the request path once `AGENTS=1`** (the holds query
+  and the per-call re-hash of rule books): nothing is on that path until an
+  agent is built. Phase 1's first agent on the path caches the holds and
+  the on-disk check off the request.
+- **An older signed manifest stays valid** (no rollback floor). Restoring one
+  needs write access to `docs/agent_rules/`, which CODEOWNERS and branch
+  protection now give only the owner; a version floor in code is the
+  owner's call if wanted.
+- **Whether the API reports the served model as the exact pinned id** cannot
+  be checked without a key. If it reports a dated id, every call comes back
+  `wrong_model` and falls back - safe, and seen on the first real call.
+- **Every episode the pipeline streams counts as `search`**: in the agents'
+  terms `search` is "a listener is waiting", which every streamed episode,
+  myFAM and DailyFAM taps included, is.
+
+**Numbering.** Main merged its own §341 and §345 while this branch was open;
+this branch's sections moved to §346-§352, and every reference with them.

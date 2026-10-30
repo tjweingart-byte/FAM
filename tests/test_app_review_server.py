@@ -48,6 +48,9 @@ def _no_pacing(monkeypatch):
 def apple_key(monkeypatch):
     """A real P-256 key, so the client secret is a real ES256 JWT."""
     ec = pytest.importorskip("cryptography.hazmat.primitives.asymmetric.ec")
+    # The secret is signed with PyJWT (requirements-oauth.txt), not with
+    # cryptography alone, which requirements.txt now carries for the agents.
+    pytest.importorskip("jwt")
     from cryptography.hazmat.primitives import serialization
     key = ec.generate_private_key(ec.SECP256R1())
     pem = key.private_bytes(serialization.Encoding.PEM,
