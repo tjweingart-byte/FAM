@@ -664,39 +664,82 @@ subscription, not a question.
 
 ### 3. Polymarket
 
-> **To:** hello@polymarket.com (the address Polymarket's Terms of Use give
-> for "questions, complaints, or claims concerning the Features", and in its
-> site footer; `builder@polymarket.com` in its docs is for trading-builder API
-> keys and rate limits, not data licences; `press@polymarket.com` is press)
-> **Subject:** Written permission to quote and store Polymarket odds in a news app
+The address: hello@polymarket.com, the one Polymarket's Terms of Use give for
+"questions, complaints, or claims concerning the Features", and in its site
+footer. `builder@polymarket.com` in its docs is for trading-builder API keys
+and rate limits, not data licences; `press@polymarket.com` is press.
+
+> **To:** hello@polymarket.com
+> **From:** Admin@familiarize.net
+> **Subject:** Request for written permission to quote and store Polymarket odds in a news app
 >
 > Hello,
 >
-> We run FAM, a consumer app that turns news questions into short spoken
-> episodes. When a question turns on an outcome (an election, a ruling, a
-> final), we look up the subject on the public Gamma API (`/public-search`)
-> and may say, for example, "Polymarket traders give this a 60% chance - a
-> forecast, not a result". We do not trade, are not a broker or a financial
-> firm, and our users do not place bets through us.
+> I run FAM (familiarize.net), a consumer app that turns news questions into
+> short spoken audio episodes. I'm writing to ask for written permission to
+> use Polymarket market data in FAM as described below. If you'd rather this
+> went through a licence or agreement, please tell me who to speak to.
 >
-> Your Terms of Use (effective August 11, 2026) bind API use, grant "a
-> personal, limited, revocable ... license", and bar access by a "Capital
-> Market Client" or "a market data distributor". They do not say whether a
-> news product may quote the odds. So:
+> **How we use Polymarket today**
 >
-> 1. May a commercial news app read the public Gamma API and say the odds
->    aloud to its listeners, credited to Polymarket? Is that a "market data
->    distributor" in your sense?
-> 2. May we store the odds we read (market, outcome, price, time) to tell
->    listeners how a forecast changed over time? For how long?
-> 3. Is there a credit or link you want, beyond naming Polymarket?
+> We read your public Gamma API (`gamma-api.polymarket.com`) with no account
+> or key. We use it three ways:
 >
-> We would like the answer in writing: your Terms reserve anything beyond
-> them for what is "otherwise agreed to in writing by us". If this needs an
-> agreement or a data licence, what would it be, and who should we speak to?
+> 1. **Beside an episode.** When a listener asks about something with an open
+>    outcome, such as an election, a court ruling or a championship, we look
+>    the subject up with `/public-search`. The episode may then say something
+>    like: "Polymarket traders give this a 60% chance. That's a forecast, not a
+>    result." Polymarket is always named as the source, and the odds are never
+>    presented as an outcome.
+> 2. **To spot stories.** About every two hours we read the most-traded open
+>    markets (`/markets`, ordered by 24-hour volume). That helps us notice
+>    which questions people are following. Those stories are then researched
+>    from news reporting, not from Polymarket.
+> 3. **Not stored today.** We don't keep the odds we read. An episode that
+>    quoted them is cached and replayed to other listeners who ask the same
+>    question.
+>
+> We don't trade, route orders, take bets or resell data. We aren't a broker,
+> an exchange, an investment adviser or any other capital-markets business.
+> Our listeners can't trade through FAM.
+>
+> **Why I'm asking**
+>
+> Your Terms of Use (effective August 11, 2026) cover API use. They grant "a
+> personal, limited, revocable, non-exclusive, non-sublicensable,
+> non-transferable license", and they bar access by a "Capital Market Client"
+> or "a market data distributor" "unless otherwise agreed to in writing by
+> us". They don't say whether a commercial news product may quote your odds to
+> its audience. I'd like that settled in writing rather than assumed.
+>
+> **What I'm asking permission for**
+>
+> 1. To read the public Gamma API in a commercial app, and to say current
+>    odds aloud in episodes heard by the public, credited to Polymarket. This
+>    includes episodes we cache and replay to other listeners.
+> 2. To use your most-traded markets as a signal for which stories to cover.
+> 3. To store the odds we read (market, outcome, price and time), so an
+>    episode can say how a forecast changed over time. If there's a limit on
+>    how long we may keep them, please tell me.
+> 4. Your preferred credit wording, and whether you'd like a link to the
+>    market wherever we can show one, for example in an episode's source list.
+>
+> Please also confirm that this use doesn't make FAM a "market data
+> distributor" under your Terms. If any of it needs a data licence or a fee,
+> I'd be glad to hear the terms.
 >
 > Thank you,
-> [Owner's name], FAM - Admin@familiarize.net
+>
+> [Your name]
+> FAM: Admin@familiarize.net
+> [Phone, optional]
+
+Before sending: their Terms open this only "in writing", so a reply that
+just says "go ahead" may not be enough - if that is what comes back, ask for
+points 1-4 confirmed in an email from a named person. If they want usage
+figures, give the real counts from `/admin`; the draft states none. Whether
+Polymarket shows in the player's visible source list today was not checked,
+which is why point 4 says "wherever we can show one".
 
 ## To finish this
 
