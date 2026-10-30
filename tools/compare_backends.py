@@ -58,6 +58,12 @@ from datetime import datetime, timezone
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+# The cloud environment the owner runs this in names the key
+# `FAM_ANTHROPIC_KEY`; `config` reads `ANTHROPIC_API_KEY` at import, so the
+# one is copied to the other first. A set `ANTHROPIC_API_KEY` wins.
+if not os.environ.get("ANTHROPIC_API_KEY") and os.environ.get("FAM_ANTHROPIC_KEY"):
+    os.environ["ANTHROPIC_API_KEY"] = os.environ["FAM_ANTHROPIC_KEY"]
+
 import research
 from config import settings
 from script_generator import ScriptGenerator, ScriptNotes, plan_episode
