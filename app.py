@@ -3047,7 +3047,9 @@ async def person_profile(request: Request,
         "joined": person["joined"],
         # With the (+) state each needs: whether this listener has already
         # added it to their own DailyFAM, and whether it is theirs.
-        "mixes": [_public_mix(m, me, added_mixes)
+        # Each mix and vibe wears the picture the player would draw, so a
+        # friend's page is the same grid of tiles as your own (§345).
+        "mixes": [dict(_public_mix(m, me, added_mixes), thumb=_mix_picture(m))
                   for m in MIXES.public_for_user(target)],
         # Each vibe carries its subject, read off its own words - the same
         # label a shared episode's chat preview uses.
@@ -3055,7 +3057,8 @@ async def person_profile(request: Request,
         # hours are how long a vibe is a *story* on somebody's face, never
         # how long it stays on their profile.
         "vibes": [dict(e.as_dict(person["name"], person["handle"]),
-                       topic=_topic_label(e.query, e.title))
+                       topic=_topic_label(e.query, e.title),
+                       thumb=_picture_url(e.query, e.title, e.minutes))
                   for e in SOCIAL.echoes_by(target, limit=12, viewer=me)],
         "vibe_count": len(SOCIAL.echoes_by(target, limit=200, viewer=me)),
         "interests": interests,

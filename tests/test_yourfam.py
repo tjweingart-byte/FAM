@@ -303,4 +303,5 @@ def test_the_place_they_gave_is_shown_under_their_name(client):
     page = _interface()
     # Beside the handle in YourFAM's hero since §341; absent when not given.
     assert "'<div class=\"yf-place\">' + (p.location ? escapeHtml(p.location) + ' · ' : '')" in page
-    assert "(pub.location ? '<div class=\"yf-place\">'" in page
+    # And beside the handle in a friend's hero since §345.
+    assert "'<div class=\"yf-place\">' + (pub.location ? escapeHtml(pub.location) + ' · ' : '')" in page

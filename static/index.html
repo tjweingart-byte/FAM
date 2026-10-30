@@ -3059,13 +3059,15 @@
   /* YourFAM's hero (§341, the owner's pick from the layout deck): the
      picture large and centred over a gold wash that scrolls with the page,
      the name, place and handle under it, then three numbers. */
-  #screen-profile .scroll{ background:linear-gradient(180deg,
+  #screen-profile .scroll, #screen-person .scroll{ background:linear-gradient(180deg,
       color-mix(in srgb, var(--copper) 24%, transparent), transparent 290px) no-repeat;
     background-attachment:local; }
   .yf-hero{ display:flex; flex-direction:column; align-items:center; text-align:center;
     margin-top:8px; }
   .yf-hero .yf-photo{ width:92px; height:92px; font-size:28px; }
   .yf-hero .yf-photo-btn.ring .yf-photo{ width:86px; height:86px; }
+  .yf-hero span.yf-photo-btn{ display:block; cursor:default; }
+  .yf-hero .yf-meta{ margin-top:4px; }
   .yf-hero .yf-photo-wrap .yf-add{ width:24px; height:24px; right:0; bottom:0; }
   .yf-hero .yf-name{ font-size:24px; font-weight:600; margin-top:12px; max-width:100%; }
   .yf-hero .yf-place{ margin-top:5px; max-width:100%; }
@@ -3076,7 +3078,7 @@
   .yf-stat b{ font-family:'Bricolage Grotesque', sans-serif; font-size:21px; font-weight:600;
     color:var(--text); }
   .yf-acts.yf-acts-centre{ justify-content:center; }
-  .yf-acts-centre .yf-btn.cream{ flex:none; }
+  .yf-acts-centre .yf-btn.cream, .yf-acts-centre .yf-btn.gold{ flex:none; }
   /* Vibes and Mixes: two tabs over one grid of picture tiles. */
   .yf-tabs{ display:flex; margin-top:20px; border-bottom:1px solid var(--border); }
   .yf-tab{ flex:1; background:none; border:none; border-bottom:2px solid transparent;
@@ -3094,9 +3096,14 @@
   .yf-pic-t{ position:relative; z-index:1; padding:7px; font-size:10.5px; font-weight:600;
     line-height:1.2; color:#F4EFE4; display:-webkit-box; -webkit-line-clamp:3;
     -webkit-box-orient:vertical; overflow:hidden; }
+  /* A friend's mix tile carries the (+) that adds it to your own. */
+  .yf-pic-wrap{ position:relative; display:flex; }
+  .yf-pic-wrap .yf-pic{ flex:1; }
+  .yf-pic-wrap .mix-add{ position:absolute; top:6px; right:6px; z-index:2; width:28px; height:28px;
+    background:rgba(15,14,18,.55); }
+  .yf-pic-wrap .mix-add.on{ background:var(--copper); }
   .yf-pic.more{ align-items:center; justify-content:center; color:var(--text); font-size:12px; }
   .yf-pic.more::after{ display:none; }
-  .yf-shelf{ display:grid; grid-template-columns:1fr 1fr; gap:7px; margin-top:9px; }
 
   /* A back-arrow screen header: Messages, a friend's profile, a topic. */
   .yf-bar{ display:flex; align-items:center; gap:6px; padding:12px 16px 4px; flex:none; }
@@ -3178,32 +3185,10 @@
 
   /* A friend's profile. */
   .yf-person{ padding:0 0 24px; }
-  .yf-person-id{ display:flex; align-items:center; gap:13px; margin-top:8px; }
-  .yf-person-id .yf-ring{ width:60px; height:60px; border-width:2px; padding:3px; flex:none; }
-  .yf-person-id .yf-ring .av{ width:50px; height:50px; font-size:17px; }
-  .yf-person-name{ font-family:'Bricolage Grotesque', sans-serif; font-size:23px; font-weight:500;
-    line-height:1.05; color:var(--text); }
-  .yf-mix{ display:flex; align-items:center; gap:10px; padding:10px; margin-top:8px;
-    border-radius:13px; background:var(--surface); }
-  .yf-mix-art{ width:38px; height:38px; border-radius:8px; background:var(--surface-2);
-    color:var(--copper); display:flex; align-items:center; justify-content:center; flex:none; }
-  .yf-mix-body{ flex:1; min-width:0; }
-  .yf-mix-name{ font-family:'Bricolage Grotesque', sans-serif; font-size:14px; font-weight:500;
-    overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .yf-mix-meta{ font-family:'Geist Mono', monospace; font-size:9px;
-    color:var(--text-muted); margin-top:2px; letter-spacing:0.04em; }
-  .yf-vrow{ display:flex; align-items:center; gap:10px; padding:8px 0;
-    border-bottom:1px solid var(--border); cursor:pointer; }
-  .yf-vrow .yf-round{ width:30px; height:30px; }
-  .yf-vrow-title{ font-size:12px; font-weight:500; line-height:1.3; }
   .yf-vrow-meta{ font-family:'Geist Mono', monospace; font-size:8.5px;
     color:var(--text-muted); margin-top:2px; letter-spacing:0.04em; text-transform:uppercase; }
   .yf-person .pf-empty, .yf-topic .pf-empty{ margin-top:8px; }
-  /* "Ian's Shelf" on its own line, a size up from the labels (§285), and
-     View more at the foot of each list. */
-  .yf-shelf{ font-family:'Bricolage Grotesque', sans-serif; font-size:20px; font-weight:500;
-    line-height:1.15; color:var(--text); margin-top:22px; }
-  .yf-row.yf-row-tight{ margin-top:6px; }
+  /* View more at the foot of a friend's friends (§285). */
   .yf-link.yf-more{ display:block; margin:4px auto 0; padding:8px 12px; }
   /* A friend's friends (§285). */
   .yf-frow{ display:flex; align-items:center; gap:10px; padding:8px 0;
@@ -17052,6 +17037,7 @@
     var graph = (friendsData.friends || [])
       .concat(friendsData.following || [], friendsData.followers || [])
       .filter(function(p){ return p.handle === handle; })[0];
+    personShelf = "vibes";
     viewingProfile = graph || (known && known.user_id ? {
       user_id: known.user_id, handle: handle, name: known.name || "",
       avatar: known.avatar || "" } : null) || { handle: handle, name: "", user_id: "" };
@@ -17081,12 +17067,13 @@
   //: What `/api/person` last answered for the profile on screen.
   var personPublished = null;
   var personInterests = [];
-  var personShowAll = { mixes: false, vibes: false, friends: false };
+  var personShowAll = { friends: false };
 
   function loadPersonProfile(person){
     var handle = person.handle || "";
     personPublished = null;
-    personShowAll = { mixes: false, vibes: false, friends: false };
+    personShowAll = { friends: false };
+    personShelf = "vibes";
     var query = handle ? "handle=" + encodeURIComponent(handle)
                        : "user_id=" + encodeURIComponent(person.user_id || "");
     fetch("/api/person?" + query)
@@ -17145,24 +17132,39 @@
             + yfIcon("more", 17) + '</button>'
           : '');
 
-    var html = '<div class="yf-person-id"><span class="yf-ring' + (fresh ? " fresh" : "") + '">'
-      + yfFace(face) + '</span><div style="min-width:0;">'
-      + '<div class="yf-person-name' + ((pub.explicit || person.explicit) ? ' is-explicit' : '') + '">'
+    // The same page as your own YourFAM (§341, extended to a friend's at
+    // the owner's direction): their picture large and centred over the gold
+    // wash, name, place and handle, how you stand, then three numbers.
+    var html = '<div class="yf-hero"><div class="yf-photo-wrap">'
+      + (fresh ? '<span class="yf-photo-btn ring">' : '')
+      + '<div class="yf-photo">' + yfFace(face) + '</div>'
+      + (fresh ? '</span>' : '') + '</div>'
+      + '<div class="yf-name' + ((pub.explicit || person.explicit) ? ' is-explicit' : '') + '">'
       + escapeHtml(face.name || ("@" + (person.handle || ""))) + '</div>'
-      + (pub.location ? '<div class="yf-place">' + escapeHtml(pub.location) + '</div>' : '')
-      + '<div class="yf-meta">@' + escapeHtml(person.handle || "")
-      + (standing ? ' · ' + escapeHtml(standing) : '') + '</div>'
-      // How many friends they have, for anybody who opens them (10.16
-      // packet, §285); tapping it goes to the list when you may see it.
-      + (published ? '<div class="yf-meta">'
-          + (theirFriends ? '<b onclick="scrollToPersonFriends()">' : '<span>')
-          + friendCount + ' ' + plural(friendCount, "friend")
-          + (theirFriends ? '</b>' : '</span>')
-          + ' · ' + vibes + ' ' + plural(vibes, "vibe") + '</div>' : '')
-      + '</div></div>';
+      + '<div class="yf-place">' + (pub.location ? escapeHtml(pub.location) + ' · ' : '')
+      + '@' + escapeHtml(person.handle || "") + '</div>'
+      + (standing ? '<div class="yf-meta">' + escapeHtml(standing) + '</div>' : '')
+      + '</div>';
+
+    // Three numbers once `/api/person` has answered. Friends goes to the
+    // list below when you may see it (§285) and is a plain number when you
+    // may not; vibes and mixes turn the grid.
+    var mixes = pub.mixes || [];
+    if(published){
+      html += '<div class="yf-stats">'
+        + (theirFriends ? '<button class="yf-stat" onclick="scrollToPersonFriends()">'
+                        : '<div class="yf-stat">')
+        + '<b>' + friendCount + '</b>' + plural(friendCount, "friend")
+        + (theirFriends ? '</button>' : '</div>')
+        + '<button class="yf-stat" onclick="showPersonShelf(\'vibes\', true)"><b>' + vibes + '</b>'
+        + plural(vibes, "vibe") + '</button>'
+        + '<button class="yf-stat" onclick="showPersonShelf(\'mixes\', true)"><b>' + mixes.length + '</b>'
+        + (mixes.length === 1 ? "mix" : "mixes") + '</button>'
+        + '</div>';
+    }
 
     if(person.user_id){
-      html += '<div class="yf-acts">'
+      html += '<div class="yf-acts yf-acts-centre">'
         + '<button class="yf-btn gold" onclick="messagePerson(\'' + person.user_id + '\')">'
         + yfIcon("chat", 15) + 'Message</button>'
         + '<button class="yf-btn" onclick="'
@@ -17174,58 +17176,21 @@
     } else if(person.handle && AUTH.authenticated){
       // Opened from a friend's friends (§285): not in your graph yet, so
       // there is no id here - Follow goes by the handle.
-      html += '<div class="yf-acts">'
+      html += '<div class="yf-acts yf-acts-centre">'
         + '<button class="yf-btn gold" onclick="followHandle(\'' + escapeHtml(person.handle) + '\')">'
         + 'Follow</button></div>';
     }
 
-    // Their interests, as chips that open the Topic screen, and how many of
-    // them are yours too.
+    // Their interests, as chips that open the Topic screen.
     personInterests = interestRows(pub);
     html += interestLineHTML(interestChipsHTML(personInterests, "openPersonInterest"));
 
-    // Their public DailyFAM mixes - a new mix is public unless its owner
-    // switched it off.
-    // "Ian's Shelf" on a line of its own, bigger, and "Public mixes" under
-    // it; View more at the foot of each list, not beside its label (10.16
-    // packet, §285).
-    var mixes = pub.mixes || [];
-    html += '<div class="yf-shelf">' + escapeHtml(firstName(face)) + '’s Shelf</div>'
-      + '<div class="yf-row yf-row-tight"><span class="yf-label">Public mixes</span></div>';
-    if(mixes.length){
-      html += (personShowAll.mixes ? mixes : mixes.slice(0, 2)).map(function(m, i){
-        var n = (m.items || m.topics || []).length;
-        // Tapping the row opens the mix; (+) adds it to your own DailyFAM.
-        return '<div class="yf-mix" onclick="openPersonMix(' + i + ')" style="cursor:pointer;">'
-          + '<span class="yf-mix-art">' + yfIcon("mix", 18) + '</span>'
-          + '<div class="yf-mix-body"><div class="yf-mix-name">' + escapeHtml(m.name) + '</div>'
-          + '<div class="yf-mix-meta">' + n + ' ' + (n === 1 ? "EPISODE" : "EPISODES")
-          + ' · DAILY</div></div>'
-          + mixAddButtonHTML(m, "person", i)
-          + '<button class="yf-round gold" onclick="event.stopPropagation(); playPersonMix(' + i + ')" aria-label="Play '
-          + escapeHtml(m.name) + '">' + yfPlaySVG(12) + '</button></div>';
-      }).join("");
-      html += personMoreHTML("mixes", mixes.length > 2);
-    } else {
-      html += '<div class="pf-empty">No public mixes yet.</div>';
-    }
-
-    // And their vibes, which are by definition public: a vibe *is* the act of
-    // showing somebody an episode.
-    html += '<div class="yf-row"><span class="yf-label">Vibes \u00b7 ' + vibes + '</span></div>';
-    if(theirVibes.length){
-      html += (personShowAll.vibes ? theirVibes : theirVibes.slice(0, 3)).map(function(v, i){
-        var topic = topicOfEpisode(v);
-        return '<div class="yf-vrow" onclick="playPersonVibe(' + i + ')">'
-          + '<span class="yf-round">' + yfPlaySVG(11) + '</span>'
-          + '<div style="min-width:0;"><div class="yf-vrow-title">' + escapeHtml(v.title || v.query) + '</div>'
-          + '<div class="yf-vrow-meta">' + (topic ? escapeHtml(topic) + ' · ' : '')
-          + (v.minutes || BROWSE_MINUTES) + ' min</div></div></div>';
-      }).join("");
-      html += personMoreHTML("vibes", theirVibes.length > 3);
-    } else {
-      html += '<div class="pf-empty">Nothing vibed yet.</div>';
-    }
+    // Their vibes and public mixes - the only two things of theirs that are
+    // published - as the same two tabs over one grid of picture tiles.
+    html += '<div class="yf-tabs" role="tablist">'
+      + '<button class="yf-tab" role="tab" data-shelf="vibes" onclick="showPersonShelf(\'vibes\')">Vibes</button>'
+      + '<button class="yf-tab" role="tab" data-shelf="mixes" onclick="showPersonShelf(\'mixes\')">Mixes</button>'
+      + '</div><div class="yf-pics" id="personGrid"></div>';
     personVibes = theirVibes;
     personMixes = mixes;
 
@@ -17255,12 +17220,42 @@
 
     html += '<div class="pf-note">Only what they chose to share. What someone listens to stays private.</div>';
     document.getElementById("personBody").innerHTML = html;
+    showPersonShelf(personShelf);
   }
 
-  // The subject of a vibe, which `/api/person` reads off its words the same
-  // way the chat labels a shared episode.
-  function topicOfEpisode(ep){
-    return (ep && ep.topic) || "";
+  //: Which shelf a friend's grid shows; back to Vibes for each new profile.
+  var personShelf = "vibes";
+  function showPersonShelf(which, scroll){
+    personShelf = which === "mixes" ? "mixes" : "vibes";
+    var grid = document.getElementById("personGrid");
+    if(!grid) return;
+    Array.prototype.forEach.call(document.querySelectorAll("#screen-person .yf-tab"), function(t){
+      var on = t.getAttribute("data-shelf") === personShelf;
+      t.classList.toggle("on", on);
+      t.setAttribute("aria-selected", on ? "true" : "false");
+    });
+    // Nothing is said about their shelves until `/api/person` has answered:
+    // "Nothing vibed yet" before it would be a claim nobody had checked.
+    if(!personPublished){ grid.innerHTML = ""; return; }
+    var html;
+    if(personShelf === "vibes"){
+      html = personVibes.length
+        ? personVibes.map(function(v, i){
+            return profileTileHTML("playPersonVibe(" + i + ")", v.thumb, v.title || v.query);
+          }).join("")
+        : '<div class="pf-empty">Nothing vibed yet.</div>';
+    } else {
+      // A mix tile opens it; the (+) on its corner adds it to your own.
+      html = personMixes.length
+        ? personMixes.map(function(m, i){
+            return '<div class="yf-pic-wrap">'
+              + profileTileHTML("openPersonMix(" + i + ")", m.cover || m.thumb, m.name)
+              + mixAddButtonHTML(m, "person", i) + '</div>';
+          }).join("")
+        : '<div class="pf-empty">No public mixes yet.</div>';
+    }
+    grid.innerHTML = html;
+    if(scroll) grid.scrollIntoView({ block: "nearest", behavior: "smooth" });
   }
 
   var personVibes = [];
@@ -17353,16 +17348,6 @@
                   avatar: viewingProfile.avatar || "" };
     }
     openPublicMix(m);
-  }
-
-  function playPersonMix(i){
-    var m = personMixes[i];
-    var items = (m && (m.items || m.topics)) || [];
-    if(!items.length){ toast("That mix is empty"); return; }
-    // Somebody else's mix plays one episode and is not a queue of this
-    // listener's own: it must not take over a playlist they have running.
-    endMixQueue();
-    playMixItem(items[0], false);
   }
 
   function playPersonVibe(i){
