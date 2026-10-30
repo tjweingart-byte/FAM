@@ -224,15 +224,6 @@ class SQLiteBackend:
                        " digested INTEGER NOT NULL DEFAULT 0)")
             db.execute("CREATE INDEX IF NOT EXISTS intake_first_seen"
                        " ON intake(first_seen)")
-            # Each provider's passages apart (§358): {"perplexity": [...]}.
-            # `passages` stays the union every reader already reads. Rows
-            # written before this have `{}` - their provider was never known.
-            try:
-                with closing(self._connect()) as alter, alter:
-                    alter.execute("ALTER TABLE intake ADD COLUMN by_provider "
-                                  "TEXT NOT NULL DEFAULT '{}'")
-            except Exception:  # noqa: BLE001 - already there
-                pass
             db.execute("CREATE TABLE IF NOT EXISTS episode_sources ("
                        " episode TEXT PRIMARY KEY, key TEXT NOT NULL,"
                        " sourced_at REAL NOT NULL, links TEXT NOT NULL,"
@@ -251,6 +242,18 @@ class SQLiteBackend:
                        " created REAL NOT NULL)")
             db.execute("CREATE INDEX IF NOT EXISTS facts_active"
                        " ON facts(active, published_ts)")
+        # Each provider's passages apart (§358): {"perplexity": [...]}.
+        # `passages` stays the union every reader already reads. Rows written
+        # before this have `{}` - their provider was never known. Its own
+        # connection, after the tables above are committed: on Postgres a
+        # failed statement spoils the transaction it is in, and a second
+        # connection cannot see a table the first has not committed yet.
+        try:
+            with closing(self._connect()) as alter, alter:
+                alter.execute("ALTER TABLE intake ADD COLUMN by_provider "
+                              "TEXT NOT NULL DEFAULT '{}'")
+        except Exception:  # noqa: BLE001 - already there
+            pass
 
     def _connect(self) -> sqlite3.Connection:
         return store_db.connect(self.path, timeout=10)
@@ -379,7 +382,8 @@ class SQLiteBackend:
                 "facts": db.execute("SELECT COUNT(*) FROM facts "
                                     "WHERE active = 1").fetchone()[0],
                 # Articles holding each provider's passages (§358); "unknown"
-                # is what was written before the provider was recorded.
+                # holds no attributed passage - written before the provider
+                # was recorded, or kept with no passages at all.
                 "intake_by_provider": {
                     **{p: db.execute("SELECT COUNT(*) FROM intake WHERE "
                                      "by_provider LIKE ?", (f'%"{p}"%',)).fetchone()[0]

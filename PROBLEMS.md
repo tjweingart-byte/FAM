@@ -24706,7 +24706,7 @@ scripts as A and B in a random order with the key apart (`key.json`), to be
 read or heard blind. Output goes to `backend_comparison/<time>/` (ignored):
 `report.md`, `results.csv`, `packets/`, `blind/`.
 
-The default 26 questions (`tools/compare_backends_questions.txt`) spread over
+The default 25 questions (`tools/compare_backends_questions.txt`) spread over
 news, sports, markets, politics, tech, niche and local subjects; real
 listeners' searches from `/admin`, passed with `--queries`, are better.
 Not run here: this environment has neither search key. Next: run it with
@@ -24779,7 +24779,8 @@ could not be told from Perplexity's, which its terms let FAM keep.
   table with `by_provider TEXT NOT NULL DEFAULT '{}'`; Atlas adds
   `by_provider.<name>` with `$addToSet`, no migration.
 * `counts()` reports `intake_by_provider`: articles holding each provider's
-  passages, and `unknown` - what was kept before this deployed.
+  passages, and `unknown` - articles with no attributed passage (kept before
+  this deployed, or kept with no passages).
 
 **Not done here.** Nothing is deleted or dropped: the owner decides what
 happens to Parallel's passages (§355, finding 1). Passages kept before this
