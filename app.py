@@ -3070,7 +3070,9 @@ async def person_profile(request: Request,
         "joined": person["joined"],
         # With the (+) state each needs: whether this listener has already
         # added it to their own DailyFAM, and whether it is theirs.
-        "mixes": [_public_mix(m, me, added_mixes)
+        # Each mix and vibe wears the picture the player would draw, so a
+        # friend's page is the same grid of tiles as your own (§345).
+        "mixes": [dict(_public_mix(m, me, added_mixes), thumb=_mix_picture(m))
                   for m in MIXES.public_for_user(target)],
         # Each vibe carries its subject, read off its own words - the same
         # label a shared episode's chat preview uses.
@@ -3078,7 +3080,8 @@ async def person_profile(request: Request,
         # hours are how long a vibe is a *story* on somebody's face, never
         # how long it stays on their profile.
         "vibes": [dict(e.as_dict(person["name"], person["handle"]),
-                       topic=_topic_label(e.query, e.title))
+                       topic=_topic_label(e.query, e.title),
+                       thumb=_picture_url(e.query, e.title, e.minutes))
                   for e in SOCIAL.echoes_by(target, limit=12, viewer=me)],
         "vibe_count": len(SOCIAL.echoes_by(target, limit=200, viewer=me)),
         "interests": interests,
@@ -7569,6 +7572,26 @@ async def episode_card(request: Request,
             "searcher": searcher}
 
 
+def _picture_url(asked: str, title: str = "", minutes: int = 0) -> str:
+    """`_player_picture`'s url alone, "" when there is none or it fails: a
+    tile's picture is never worth a failed profile."""
+    try:
+        return _player_picture(asked or "", title or "", minutes or 0).get("url", "") or ""
+    except Exception:  # noqa: BLE001
+        log.exception("could not pick a picture for a profile tile")
+        return ""
+
+
+def _mix_picture(mix) -> str:
+    """A public mix's tile picture on YourFAM (§341): the first subject's,
+    as the player would draw it. The owner's own cover, when there is one,
+    is drawn over it by the page."""
+    first = next(iter(mix.items), None)
+    if first is None:
+        return _picture_url(mix.name)
+    return _picture_url(first.query or first.title, first.title)
+
+
 def _player_picture(asked: str, title: str = "", minutes: int = 0,
                     episode: str = "", context: str = "") -> dict:
     """The player's picture for an episode, as `/api/episode/card` draws it
@@ -8808,8 +8831,12 @@ async def profile(request: Request, notes: int = Query(0, ge=0, le=1)):
     # which the page could not tell apart while a row meant "chose a name".
     body["last_seen"] = person["last_seen"]
     body["known"] = person["known"]
-    body["mixes"] = [m.public_dict() for m in MIXES.public_for_user(user)]
-    body["echoes"] = [e.as_dict(person["name"], person["handle"])
+    body["mixes"] = [dict(m.public_dict(), thumb=_mix_picture(m))
+                     for m in MIXES.public_for_user(user)]
+    # Each vibe wears the picture the player would draw behind it, so the
+    # profile's Vibes grid is a wall of episodes rather than a count (§341).
+    body["echoes"] = [dict(e.as_dict(person["name"], person["handle"]),
+                           thumb=_picture_url(e.query, e.title, e.minutes))
                       for e in SOCIAL.echoes_by(user, limit=12)]
     body["echo_count"] = len(SOCIAL.echoes_by(user, limit=200))
     # The picture, and the follow graph the page has been describing without

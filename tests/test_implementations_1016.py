@@ -86,12 +86,11 @@ def test_somebody_blocked_is_not_among_their_friends(people):
 
 
 def test_the_profile_draws_the_shelf_and_the_friends():
-    assert "’s Shelf</div>" in INDEX and "Public mixes</span>" in INDEX
-    assert ".yf-shelf{" in INDEX
-    # View more at the foot of each list, never beside its label.
+    # The shelf is the YourFAM grid since §345; the friends list keeps View
+    # more at its foot, never beside its label.
+    assert 'id="personGrid"' in INDEX
     assert "function personMoreHTML(" in INDEX
-    for which in ("mixes", "vibes", "friends"):
-        assert f'personMoreHTML("{which}"' in INDEX
+    assert 'personMoreHTML("friends"' in INDEX
     assert "followHandle(" in INDEX and "openPersonFriend(" in INDEX
     assert 'plural(friendCount, "friend")' in INDEX
 

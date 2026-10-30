@@ -24000,6 +24000,107 @@ sub-tabs; every stage named is one the page draws; a tab per section; every
 plugin tab starts from what the agent must be best at; every agent has a
 rule book with the draft notice).
 
+## 341. YourFAM becomes a hero over a grid of vibes and mixes (2026-10-30)
+
+The owner asked for the profile tab to be rethought and was shown ten
+layouts side by side (a slide deck: today's page, what every option keeps,
+ten phone mockups each with gains, costs and the rules it touches, and a
+comparison table). The pick combined three of them: option 4's hero header,
+option 2's row of three numbers in place of the mono counts line, and
+option 2's Vibes / Mixes tabs over a grid of picture tiles.
+
+What changed on your own page (`renderProfile`):
+
+- **Hero.** The picture large (92px) and centred over a gold wash that
+  scrolls with the page (`#screen-profile .scroll`, `background-attachment:
+  local`), the name, then place · handle on one line. The story ring and
+  the (+) to your story are the same controls as before, larger; the gold
+  ring is still drawn only while a story is up (§297), never as decoration.
+- **Three numbers** (`.yf-stats`): friends, vibes, mixes, each worded for
+  the number it holds. Friends opens the Friends page; vibes and mixes turn
+  the grid below to that shelf and scroll to it.
+- Edit profile and Saved for Later, centred; the interests line under them
+  unchanged (§178).
+- **Vibes / Mixes tabs over one grid** (`showProfileShelf`): three tiles
+  across, 3:4, the picture behind and the title at the foot. A vibe tile
+  plays it (`playProfileVibe`, the same topic `playMyVibe` builds); a mix
+  tile opens it as you edit it, or as anybody sees it if the mix list has
+  not loaded. Twelve vibes at most (what `/api/profile` already returned)
+  and a See all tile to My Vibe when there are more. Each empty shelf says
+  so in a sentence.
+- **Pictures are the server's.** `/api/profile` now gives every vibe and
+  public mix a `thumb`: `_player_picture` over its words, the picture the
+  player would draw behind it (`_picture_url`, "" on any failure). A mix's
+  is its first subject's (`_mix_picture`), and the page draws the owner's
+  own cover over it. No model call, no network.
+
+Gone from YourFAM, at the owner's direction: the Messages card (Messages is
+a tab; the unread badge still updates from `loadHubMessages`), the "Your
+shelf · what friends see" count tiles, the View Your FAM pill (§251) and
+YourFAM's Find new friends pill (§174) - the friends number opens the same
+Friends page, which carries Invite new users. myFAM's friends rail keeps its
+Find new friends pill. A friend's page (`screen-person`) is unchanged.
+
+Tests: `tests/test_yourfam_hero_341.py` (every vibe and mix on the profile
+carries `thumb`; a failing picker gives ""; hero, numbers, buttons,
+interests in that order; the hub cards are gone; two tabs over one grid,
+cover before thumb, honest empty lines). `test_packet_1011`, `_1002_second`
+and `_929` follow the pill's removal; the smoke run's `profile()` checks the
+hero, the three numbers, the two tabs and the three-across grid.
+
+Review before merge: the grid is `.yf-pics` of `.yf-pic` tiles, because
+`.yf-grid` already belonged to the Topic screen (declared later, two across,
+so it silently won) and an older smoke check pins `.yf-tile` absent. The
+hub's Messages-card painter (`paintHubMessages`, with `hubInboxLoading` and
+`hubInboxUnread`, which only it read) went with the card; `loadHubMessages`
+now only refreshes the inbox and the Messages tab's unread badge. YourFAM's
+grid and My Vibe play a vibe through one function (`playOwnVibe`).
+
+## 345. A friend's profile takes YourFAM's layout (2026-10-30)
+
+The owner, after §341: "When I click on a friend's profile, I want it to
+have the same new layout." `renderFriendProfile` now draws what
+`renderProfile` draws, with the friend's data and the friend's buttons:
+
+- **Hero** over the same gold wash (`#screen-person .scroll`): their picture
+  large and centred (the gold ring while a vibe of theirs is under two days
+  old, as before), the name, place · @handle, and how you stand ("friends",
+  "you follow them", "follows you") under it.
+- **Three numbers** once `/api/person` answers: friends, vibes, mixes. Friends
+  scrolls to their friends list when you may see it (§285) and is a plain
+  number when you may not - a control with nothing behind it is worse than
+  none. Vibes and mixes turn the grid (`showPersonShelf`).
+- Message and Follow/Following, centred; the interests line unchanged.
+- **Vibes / Mixes tabs over one grid** of the same `.yf-pic` tiles
+  (`profileTileHTML`). A vibe tile plays it (`playPersonVibe`); a mix tile
+  opens it (`openPersonMix`) and carries the (+) that adds it to your own
+  myFAM on its corner (`.yf-pic-wrap`). Each empty shelf says so.
+- Their friends list (§285) stays below the grid, with its View more; the
+  "Only what they chose to share" note stays last.
+
+`/api/person` now gives each vibe and mix a `thumb`, the same
+`_picture_url` / `_mix_picture` YourFAM's grid uses (no model call, no
+network, "" on failure). Gone: "Ian's Shelf", the mix and vibe rows, their
+View more, and the mix row's play button (`playPersonMix`) - a friend's mix
+opens, and its own page plays it as a queue. The CSS only those rows used
+went with them.
+
+Tests: `tests/test_friend_profile_345.py`; `test_implementations_1016` and
+`_134` follow the rows' removal; the smoke run checks the hero, the three
+numbers and the grid on a friend's page, and the (+) on a mix tile.
+
+Review before merge: the grid stays empty until `/api/person` answers
+(it used to say "Nothing vibed yet" on the first draw, before anything had
+been checked), and each newly opened profile starts on Vibes before that
+first draw rather than after it. `topicOfEpisode` lost its last caller with
+the vibe rows and went; `/api/person` still sends each vibe's `topic` for
+clients that draw it. Opening a friend's mix and pressing play starts it as
+a queue (`playPublicMix`), as it already did from the mix's own page - the
+row's one-episode play (`playPersonMix`, §134) had no other door.
+
+Numbered 345, not 342: `claude/funny-shannon-ekxiz8` (unmerged when this
+was written) already holds §342-§344.
+
 ## 346. Each agent's model, decided - and the cheap outside models going away (2026-10-30)
 
 The guide left every agent's model a proposal, "decided later, in another

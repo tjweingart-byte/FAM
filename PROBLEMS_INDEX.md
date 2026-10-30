@@ -344,11 +344,13 @@ and `limit` = Lines.
 | 23516 | 47 | 338. The waitlist page, local news and the voice warm-up stop doing work nobody needs (2026-10-29) |
 | 23563 | 16 | 339. Production without a disk, on Standard (2026-10-29) |
 | 23579 | 424 | 340. The agents guide: condensed into tabs, outside plugins per agent, and the Overlord (2026-10-26) |
-| 24003 | 71 | 346. Each agent's model, decided - and the cheap outside models going away (2026-10-30) |
-| 24074 | 107 | 347. Phase 0, piece 1: FAM's own model layer, the consent check in code, and every agent call metered (2026-10-30) |
-| 24181 | 75 | 348. Phase 0, piece 2: the rule-book lock - agents run only under rule books the owner signed (2026-10-30) |
-| 24256 | 70 | 349. Phase 0, piece 3: the roster, the typed hand-offs, and the task table (2026-10-30) |
-| 24326 | 50 | 350. Phase 0, piece 4: Netenyahu as code, and the proof that off changes nothing (2026-10-30) |
-| 24376 | 43 | 351. Phase 0, piece 5: the Agents panel on /admin - and Phase 0 done (2026-10-30) |
-| 24419 | 33 | 352. The owner signed the rule books (2026-10-30) |
-| 24452 | 69 | 353. Phase 0 reviewed before merge: the lock's key, a test that skipped itself, and the queue (2026-10-30) |
+| 24003 | 56 | 341. YourFAM becomes a hero over a grid of vibes and mixes (2026-10-30) |
+| 24059 | 45 | 345. A friend's profile takes YourFAM's layout (2026-10-30) |
+| 24104 | 71 | 346. Each agent's model, decided - and the cheap outside models going away (2026-10-30) |
+| 24175 | 107 | 347. Phase 0, piece 1: FAM's own model layer, the consent check in code, and every agent call metered (2026-10-30) |
+| 24282 | 75 | 348. Phase 0, piece 2: the rule-book lock - agents run only under rule books the owner signed (2026-10-30) |
+| 24357 | 70 | 349. Phase 0, piece 3: the roster, the typed hand-offs, and the task table (2026-10-30) |
+| 24427 | 50 | 350. Phase 0, piece 4: Netenyahu as code, and the proof that off changes nothing (2026-10-30) |
+| 24477 | 43 | 351. Phase 0, piece 5: the Agents panel on /admin - and Phase 0 done (2026-10-30) |
+| 24520 | 33 | 352. The owner signed the rule books (2026-10-30) |
+| 24553 | 69 | 353. Phase 0 reviewed before merge: the lock's key, a test that skipped itself, and the queue (2026-10-30) |

@@ -927,7 +927,7 @@ def main() -> int:
             screen now."""
             ensure_account()
             page.evaluate("openProfile()")
-            page.wait_for_selector("#screen-profile.active .yf-msgcard",
+            page.wait_for_selector("#screen-profile.active .yf-stats",
                                    timeout=10000, state="attached")
             page.wait_for_timeout(600)
             mine = page.text_content("#profileBody")
@@ -988,13 +988,17 @@ def main() -> int:
                 page.evaluate("openMyFamTab()")
                 page.wait_for_timeout(400)
                 return
-            assert page.eval_on_selector_all("#personBody .yf-vrow",
+            # The same hero and grid as your own YourFAM (§345).
+            assert page.query_selector("#personBody .yf-hero"), "no hero on a friend's profile"
+            assert page.eval_on_selector_all("#personBody .yf-stat", "e => e.length") == 3, \
+                "a friend's profile lost its three numbers"
+            assert page.eval_on_selector_all("#personGrid .yf-pic",
                                              "e => e.length") >= 1, \
-                "their vibes are not listed"
+                "their vibes are not on the grid"
             assert page.eval_on_selector_all("#personBody .yf-interests .yf-chips-line .yf-chip",
                                              "e => e.length") >= 1, \
                 "no interest line on a friend's profile"
-            assert "public mixes" in body.lower(), "no public mixes on their profile"
+            assert "mixes" in body.lower(), "no mixes tab on their profile"
             # Message is the primary action and opens the chat with them.
             page.evaluate("document.querySelector('#personBody .yf-btn.gold').click()")
             page.wait_for_selector("#screen-thread.active", timeout=8000)
@@ -1492,7 +1496,7 @@ def main() -> int:
             generates nothing to fill itself."""
             ensure_account()
             page.evaluate("openProfile()")
-            page.wait_for_selector("#screen-profile.active .yf-fam-pill", timeout=10000)
+            page.wait_for_selector("#screen-profile.active .yf-stats", timeout=10000)
             page.wait_for_timeout(600)
             line = page.query_selector("#screen-profile .yf-interests")
             assert line, "your interests are not on your own page"
@@ -1507,11 +1511,8 @@ def main() -> int:
                 "the interests are not under Edit profile and Saved for Later"
             assert not page.query_selector("#screen-profile .pf-tags-edit"), \
                 "the inline interests Edit came back"
-            find = page.query_selector("#screen-profile .yf-find")
-            assert find and "Find new friends" in find.text_content(), \
-                "Find new friends is not a button"
-            assert find.query_selector("svg"), "Find new friends lost its plus"
-            page.evaluate("document.querySelector('#screen-profile .yf-find').click()")
+            # The friends number is the door to the Friends page (§341).
+            page.evaluate("document.querySelector('#screen-profile .yf-stat').click()")
             page.wait_for_selector("#screen-friends.active", timeout=8000)
             page.evaluate("goBack()")
             page.wait_for_selector("#screen-profile.active", timeout=8000)
@@ -1781,7 +1782,7 @@ def main() -> int:
                                      handle: 'smoketester' }) })""")
             page.wait_for_timeout(500)
             page.evaluate("openProfile()")
-            page.wait_for_selector("#screen-profile.active .yf-fam-pill", timeout=10000)
+            page.wait_for_selector("#screen-profile.active .yf-stats", timeout=10000)
             page.wait_for_timeout(500)
             shown = page.evaluate("(profileNow.interests_shown || []).length")
             assert shown <= 5, f"the profile shares {shown} interests"
@@ -1813,7 +1814,7 @@ def main() -> int:
                 "e => e.map(x => x.textContent.trim())")
             assert "Surfing" in typed, f"a typed topic was not chosen: {typed}"
             page.evaluate("saveIdentity()")
-            page.wait_for_selector("#screen-profile.active .yf-fam-pill", timeout=10000)
+            page.wait_for_selector("#screen-profile.active .yf-stats", timeout=10000)
             page.wait_for_timeout(900)
             # Not drawn on your own page (9.29 packet), but it is what the
             # profile shares - what a friend's view of it shows.
@@ -2903,7 +2904,9 @@ def main() -> int:
             assert "morning brief" in listed and "from @mike" in listed, listed[:400]
             # And on somebody's profile, the same (+).
             page.evaluate("openPersonProfile('beth', {name: 'Beth Solomon'})")
-            page.wait_for_selector("#screen-person.active .yf-mix .mix-add",
+            page.wait_for_function("personMixes.length > 0", timeout=5000)
+            page.evaluate("showPersonShelf('mixes')")
+            page.wait_for_selector("#screen-person.active .yf-pic-wrap .mix-add",
                                    timeout=5000, state="attached")
             page.evaluate("openPlayFAM()")
             page.wait_for_timeout(300)
@@ -3040,21 +3043,34 @@ def main() -> int:
             page.wait_for_timeout(1200)
             assert page.eval_on_selector(".screen.active", "e => e.id") == "screen-profile"
             assert page.query_selector("#screen-profile .yf-name"), "no identity block"
-            assert page.eval_on_selector_all("#screen-profile .yf-shelf-tile",
-                                             "e => e.length") == 2, \
-                "the shelf is not public mixes and vibes"
-            # The faces moved to DailyFAM's top (10.11 packet); YourFAM has
-            # one "View Your FAM" pill to the Friends page instead.
-            pill = page.query_selector("#screen-profile .yf-fam-pill")
-            assert pill and "View Your FAM" in pill.text_content(), \
-                "YourFAM has no View Your FAM pill"
+            # The hero, three numbers, then Vibes and Mixes as tiles (§341).
+            assert page.query_selector("#screen-profile .yf-hero .yf-photo"), "no hero picture"
+            labels = page.eval_on_selector_all(
+                "#screen-profile .yf-stat", "e => e.map(x => x.textContent.replace(/[0-9]/g, '').trim())")
+            assert len(labels) == 3 and labels[0].startswith("friend") \
+                and labels[1].startswith("vibe") and labels[2].startswith("mix"), \
+                f"the numbers are not friends, vibes and mixes: {labels}"
+            assert page.eval_on_selector_all("#screen-profile .yf-tab",
+                                             "e => e.map(x => x.textContent.trim())") \
+                == ["Vibes", "Mixes"], "the shelf tabs are not Vibes and Mixes"
+            assert page.query_selector("#screen-profile .yf-tab.on[data-shelf='vibes']"), \
+                "the grid does not open on Vibes"
+            assert page.query_selector("#yfGrid .yf-pic, #yfGrid .pf-empty"), \
+                "the vibes grid drew nothing, not even its empty line"
+            page.evaluate("showProfileShelf('mixes')")
+            assert page.query_selector("#screen-profile .yf-tab.on[data-shelf='mixes']")
+            assert page.query_selector("#yfGrid .yf-pic, #yfGrid .pf-empty"), \
+                "the mixes grid drew nothing, not even its empty line"
+            page.evaluate("showProfileShelf('vibes')")
+            assert page.eval_on_selector(
+                "#yfGrid", "e => getComputedStyle(e).gridTemplateColumns.split(' ').length") == 3, \
+                "the tiles are not three across"
+            # The faces stay at DailyFAM's top (10.11 packet).
             assert not page.query_selector("#screen-profile .yf-friends"), \
                 "the faces row is still on YourFAM"
-            assert page.eval_on_selector_all("#screen-profile .yf-fam-faces .av",
-                                             "e => e.length") <= 3, \
-                "the pill shows more than three faces"
-            assert page.query_selector("#screen-profile .yf-msgcard"), \
-                "Messages is not one entry point on the hub"
+            for gone in (".yf-fam-pill", ".yf-msgcard", ".yf-shelf-tile"):
+                assert not page.query_selector("#screen-profile " + gone), \
+                    f"{gone} is still on YourFAM"
             assert page.text_content(
                 "#screen-profile .tabbar .tab.active .lbl").strip() == "YourFAM", \
                 "the last tab is not YourFAM"
@@ -4014,8 +4030,8 @@ def main() -> int:
             """27/09 packet: a face with the VIBE badge plays that friend's
             vibes of the last day as stories - bars, tap to advance, X."""
             ensure_account()
-            # The faces are at the top of DailyFAM (10.2 #1); YourFAM has
-            # only the View Your FAM pill since the 10.11 packet.
+            # The faces are at the top of DailyFAM (10.2 #1), not on
+            # YourFAM since the 10.11 packet.
             page.evaluate("openMyFamTab()")
             page.wait_for_selector("#screen-myfam.active", timeout=10000)
             page.wait_for_timeout(1200)

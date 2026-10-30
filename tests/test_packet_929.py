@@ -48,8 +48,10 @@ def _function(name: str) -> str:
 # --- 1 and 2: YourFAM -------------------------------------------------------
 
 def test_find_new_friends_is_a_pill_with_a_plus():
-    body = _function("renderProfile")
-    assert 'class="yf-find" onclick="openFriends()">\' + yfIcon("plus"' in body
+    # YourFAM's copy went with the §341 hero (its friends number opens the
+    # same page); myFAM's friends rail keeps the pill.
+    body = _function("renderMyFamFeed")
+    assert re.search(r'class="yf-find" onclick="openFriends\(\)">\'\s*\+ yfIcon\("plus"', body)
     assert "Find new friends" in body
     rule = re.search(r"\.yf-find\{[^}]*\}", INDEX).group(0)
     assert "border-radius" in rule and "background" in rule
