@@ -24322,3 +24322,53 @@ one claim between two servers racing; a live claim kept, a crashed one taken;
 one retry then held; nothing new refused; due tasks oldest first; a restart
 keeps the queue; holds recorded once and released only by asking; no
 listener in the store; a wipe forgets the queue).
+
+## 345. Phase 0, piece 4: Netenyahu as code, and the proof that off changes nothing (2026-10-30)
+
+The owner's choice (§341): no planner model - Netenyahu is rules in code.
+`agents/netenyahu.py`:
+
+* **Per episode.** `PodcastPipeline` asks `for_episode(surface, private,
+  attached)` once, as an episode starts, and keeps the answer on
+  `ScriptNotes.agents`. With `AGENTS=0` it returns `OFF` before anything is
+  read - no file, store, lock or socket - and nothing after it changes. With
+  the agents on, a private search or an attached file gets no agent at all
+  (every-agent.md); otherwise an agent works only if switched on, its rule
+  books pass the lock, it serves the surface, and it is not held. Every
+  episode streamed through the pipeline is the search surface, since a
+  listener is waiting on it; the ahead paths are wired in each agent's phase.
+  No agent reads the answer yet.
+* **The closed vocabulary.** `validate` allows exactly `run(agent, task)`,
+  `hold(agent, reason)` and `note(text)`, checked against the roster; "set
+  HOUSEKEEPER_DEDUPE_DRY_RUN=0", a ceiling, a rule, a delete, an extra field
+  are refused.
+* **Holding.** `report(role, status)` holds an agent after `HOLD_AFTER` (3)
+  failures in a row - a timeout, a failure, an unreadable or invalid answer,
+  the wrong model, the token ceiling - and tells Keith through the log and
+  `pipeline_errors` until Keith exists. A cost, a consent refusal, staging
+  or a missing price never counts: no agent is held for having spent.
+* **The background.** `tick` claims at most `OVERLORD_MAX_TASKS_PER_TICK`
+  (3) due tasks every `OVERLORD_TICK_SECONDS` (300), never in the hour after
+  05:00 and 17:00 Eastern when the editions are written, never for a held
+  agent, and hands a task with no handler back untouched - none is built.
+  The loop starts only when `AGENTS=1`.
+
+**The proof.** `tests/test_agents_off.py` streams one episode through the
+real `PodcastPipeline` (the test writer, the placeholder voice) three ways -
+with the hook taken out, with `AGENTS=0`, and with every agent switched on
+but held, which is today's real state - and asserts the audio is the same
+byte for byte, with the same sentences and words; off, the writer was handed
+`OFF`; on, every episode agent was held for the unsigned rule books. Beside
+it: off touches nothing (the lock, the store, the roster and sockets raise if
+asked), and only the pipeline asks Netenyahu about an episode, once. The
+whole existing suite, both smoke runs, the landing smoke and the client
+contracts pass unedited.
+
+Tests: `tests/test_agents_off.py` (off decided before anything is read; the
+same episode three ways; one hook; on and signed, every episode agent works;
+private and attached get none; switched off or held does not work; routing
+that fails gives none; run, hold and note allowed; nine other actions
+refused; three failures hold, spending never; the edition hours kept clear;
+a tick does nothing off or during an edition; each round its share and each
+task once across two servers; no handler, left alone; a failing task retried
+once then held; the loop only when on).

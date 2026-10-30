@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | Phase 0, the framework, being built (§342-§343): the model layer, the rule-book lock, the roster, the typed hand-offs and the task table exist; no agent is built, everything is off, and every agent is held until the owner signs |
+| **Status** | Phase 0, the framework, being built (§342-§343): the model layer, the rule-book lock, the roster, the typed hand-offs, the task table and Netenyahu as code exist; no agent is built, everything is off, and every agent is held until the owner signs |
 | **History** | Started 2026-10-24 (§307); editor in chief and script supervisor (§312); pipeline and how agents run (§313); contextualizer and guardrails (§314); condensed into tabs, outside plugins per agent, the overlord, housekeeper, retriever, IT guy and categorizer (§340); the owner's brainstorm of 2026-10-28 - every agent named, roles redrawn, a rule book each (§340); each agent's model decided, but Mclovin's checker and Shakespeare ahead of the tap (§341) |
 | **Page** | `python docs/build_agents_html.py` builds the tabbed page from this file: one tab per `##`, one sub-tab per `###` |
 
@@ -441,7 +441,11 @@ emails `Admin@familiarize.net` when it runs well above it.
 
 **Netenyahu, the overlord** (named by the owner, 2026-10-28). **Works in:**
 above every agent - like a boss, it directs each one: when to work and what
-to do. **Status:** planned, not built (§340).
+to do. **Status:** built as code, with no planner model (§345): `agents/netenyahu.py`
+routes each episode (`for_episode`, the pipeline's one hook), checks the
+closed vocabulary (`validate`), holds an agent after `HOLD_AFTER` failures
+in a row (never for spend), and runs the background loop (`tick`), only
+when `AGENTS=1`. No agent is built, so it routes no work yet.
 
 **Purpose.** One place that knows **every agent's limits, capabilities and
 purpose**: whether it is on for this surface, its ceiling, its fallback,

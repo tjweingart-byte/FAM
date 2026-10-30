@@ -61,6 +61,7 @@ import typing_indicator as typing_mod
 import metering
 from agents import models as agent_models
 from agents import rulebooks as agent_rulebooks
+from agents import netenyahu
 import oauth
 import apple_tokens
 import quotas
@@ -651,6 +652,10 @@ async def lifespan(_: FastAPI):
     # The rule-book lock, read and verified at boot (§343) and again before
     # every agent call. Says in the log which agents it holds and why.
     agent_rulebooks.load()
+    # Netenyahu's background loop (§345), only when the agents are on: with
+    # `AGENTS=0` no task is ever claimed, so there is nothing to run.
+    if settings.agents:
+        _BACKGROUND.add(asyncio.create_task(netenyahu.run_forever()))
     # Expired scripts are already filtered out on read, so nothing ever deleted
     # them and the file grew for the life of the deployment. One DELETE at
     # startup is enough: entries expire on a timescale of days, not minutes.

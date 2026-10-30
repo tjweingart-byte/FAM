@@ -2087,6 +2087,10 @@ class Settings:
     housekeeper_max_tokens: int = _env_int("HOUSEKEEPER_MAX_TOKENS", 1500)
     it_timeout_seconds: float = _env_float("IT_TIMEOUT_SECONDS", 60.0)
     it_max_tokens: int = _env_int("IT_MAX_TOKENS", 1000)
+    # **Netenyahu's background loop** (§345): how often it claims due agent
+    # tasks, and at most how many per round. Started only when `AGENTS=1`.
+    overlord_tick_seconds: float = _env_float("OVERLORD_TICK_SECONDS", 300.0)
+    overlord_max_tasks_per_tick: int = _env_int("OVERLORD_MAX_TASKS_PER_TICK", 3)
     # How much *audio* must exist before the response starts. A quantity, not
     # a delay: at TARGET_WPM this is 3.75 words, so any ordinary opening
     # sentence satisfies it on the first chunk and it costs nothing. It exists

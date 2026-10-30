@@ -466,6 +466,11 @@ def health() -> dict:
         from agents import tasks
 
         out["tasks"] = tasks.store().counts() if tasks.exists() else None
+        out["held"] = ({role: reason for role, (reason, _at) in tasks.store().held().items()}
+                       if tasks.exists() else {})
     except Exception:  # noqa: BLE001
-        out["tasks"] = None
+        out["tasks"], out["held"] = None, {}
+    out["overlord"] = {"loop": bool(settings.agents),
+                       "tick_seconds": settings.overlord_tick_seconds,
+                       "max_tasks_per_tick": settings.overlord_max_tasks_per_tick}
     return out
