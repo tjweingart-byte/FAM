@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | **Status** | Planning. No agent is built |
-| **History** | Started 2026-10-24 (§307); editor in chief and script supervisor (§312); pipeline and how agents run (§313); contextualizer and guardrails (§314); condensed into tabs, outside plugins per agent, the overlord, housekeeper, retriever, IT guy and categorizer (§340); the owner's brainstorm of 2026-10-28 - every agent named, roles redrawn, a rule book each (§340) |
+| **History** | Started 2026-10-24 (§307); editor in chief and script supervisor (§312); pipeline and how agents run (§313); contextualizer and guardrails (§314); condensed into tabs, outside plugins per agent, the overlord, housekeeper, retriever, IT guy and categorizer (§340); the owner's brainstorm of 2026-10-28 - every agent named, roles redrawn, a rule book each (§340); each agent's model decided, but Mclovin's checker and Shakespeare ahead of the tap (§341) |
 | **Page** | `python docs/build_agents_html.py` builds the tabbed page from this file: one tab per `##`, one sub-tab per `###` |
 
 An **agent** is a worker that uses a model for one named job. FAM's eight,
@@ -140,7 +140,8 @@ naming the vendor and an exact model ID, never a moving alias such as
 switch to a different model; each answer checked against the model it says
 it came from; a nightly check per agent on fixed inputs, as
 `verify_voice.py --fingerprint` does for the voice. Which model each agent
-runs is still decided elsewhere (§340).
+runs was decided by the owner on 2026-10-30 (Models and outside plugins,
+Models decided; §341).
 
 **To change a rule book:** the owner edits the file, signs the new manifest
 on the owner's own machine, and commits both; CI checks the signature and
@@ -238,11 +239,12 @@ the prompt lets through.
 
 ### Models and outside plugins
 
-**Proposals, not decisions** (the owner, 2026-10-28: "I will not be making
-decisions on what to run each agent here, that will happen later in another
-branch with a more complete decision-making method"). The prices and
+**Proposals until 2026-10-30, now decided** (below, Models decided; the
+owner, 2026-10-28: "I will not be making decisions on what to run each agent
+here, that will happen later in another branch with a more complete
+decision-making method"). The prices and
 options below, each agent's plugin tab and the cost plan are the inputs to
-that decision; nothing here picks a model.
+that decision, which the owner made on 2026-10-30 (Models decided, below).
 
 **How agents reach their models is decided** (the owner, 2026-10-29: "lets
 get started on building the recommended option"): **FAM's own thin model
@@ -260,7 +262,30 @@ falling through to a shared `MODEL`. Rejected after measurement and review:
 PydanticAI (about 5-6 ms more CPU per call in a one-process server, about
 two releases a week, built for tool loops FAM's agents do not run) and
 LiteLLM (two PyPI releases that stole credentials in 2026). Which model each
-agent runs stays the later decision above; this decides only the layer.
+agent runs was decided afterwards (Models decided, below); this decided
+only the layer.
+
+**Models decided** (the owner, 2026-10-30, in two rounds on decision pages
+built from this guide's plugin tabs, with deep dives on four of them; §341).
+Every pick is a Claude model, so the layer needs only its `anthropic`
+adapter for the decided agents; the `google-genai` and `openai` adapters
+wait until an agent is moved to one. The outside models this guide priced
+lowest are being retired - GPT-5 nano on 11 December 2026 (OpenAI's
+deprecations page), Gemini 2.5 Flash-Lite with a retirement date on Google
+Cloud - and their replacements (gpt-5.6-luna, Gemini 3.1 and 3.5
+Flash-Lite, $0.20-0.30 in and $1.20-2.50 out per million, third-party
+prices) cost more than Haiku 5.5.
+
+| Agent | Decided |
+|---|---|
+| Netenyahu | No planner model; the rules in code |
+| C3P0 | Haiku 5.5 folded into the brief's call: at the brief's effort (medium) on the tap, at high effort ahead of the tap (`EI_AHEAD_EFFORT`) |
+| Nando | Code first, folded into the brief's call, Haiku 5.5 on ties; always the closest node it is truly about |
+| Sonic | An embedding router chooses the lookup; the code mapping is its fallback |
+| Shakespeare | Haiku 5.5 on searchFAM, in tandem with the writer; ahead of the tap measured first (no editor / Haiku 5.5 high / Sonnet 5.5), the owner decides, Sonnet the default until then; Opus 5.5 for the playbook and the eval |
+| Mclovin | Haiku 5.5 on unsure sentences and unsettled pages; **the grounding checker not decided** (its own analysis) |
+| Consuela | Haiku 5.5 low, batched, for consolidation; Haiku 5.5 then Sonnet 5.5 on duplicate pairs |
+| Keith | Haiku 5.5 for incidents; Sonnet 5.5 for `/admin`'s summaries |
 
 Claude list prices per million tokens (cached 2026-10-06; check
 <https://platform.claude.com/docs/en/about-claude/pricing>):
@@ -507,7 +532,7 @@ Each case is a test with a fake agent or planner returning the bad answer.
 | OpenRouter | ~5.5% on credits | ~25-100 ms | One key, many models | Sees every prompt, including listener words | No - consent change |
 | Langfuse | free (50k units) / $29 | async | Traces, prompt versions, evals | Traces hold material and listener words off-machine | Partly - FAM-material agents only |
 
-**The choice, driven by those needs:** *(a proposal - which model or plugin each agent runs is decided later, in another branch, with a fuller decision method; the owner, 2026-10-28)*
+**The choice, driven by those needs:** *(decided by the owner, 2026-10-30: no planner model - the rules in code. Shared rules, Models decided.)*
 
 - **Needs 1 and 2 → code orchestration (way A), no planner.** Nothing a model
   decides can act, and nothing is added on the tap.
@@ -695,7 +720,7 @@ latency matters more here than for any other agent.
 | Open model on Groq / Cerebras | ~$3-30 | fastest generation | Writes queries quickly; quality unmeasured | Sees the listener's words | No - consent change |
 | GPT-5 nano / Gemini Flash-Lite | ~$3-5 | ~like Haiku | Comparable | Same | No - consent change |
 
-**The choice, driven by those needs:** *(a proposal - which model or plugin each agent runs is decided later, in another branch, with a fuller decision method; the owner, 2026-10-28)*
+**The choice, driven by those needs:** *(decided by the owner, 2026-10-30: on searchFAM, Haiku 5.5 folded into the brief's call at the brief's own effort (medium); ahead of the tap - editions, write-ahead, prefetch - Haiku 5.5 at high effort in the same call (a new `EI_AHEAD_EFFORT`); an on-demand episode keeps the on-tap settings. Sonnet on the write-ahead is not chosen. Shared rules, Models decided.)*
 
 - **Needs 1, 3 and 4 → Haiku 5.5, folded into EI's search call.** It is one
   schema in a call that already happens, it writes queries, and it is
@@ -714,7 +739,8 @@ latency matters more here than for any other agent.
 | Setting (proposed) | What it is |
 |---|---|
 | `CONTEXTUALIZER` | `0` / `1`, off by default |
-| `CONTEXTUALIZER_MODEL` | The model, or `rules` |
+| `CONTEXTUALIZER_MODEL` | `anthropic:claude-haiku-5-5`, inside the brief's call (decided 2026-10-30); empty = code rules |
+| `EI_AHEAD_EFFORT` | `high` ahead of the tap with C3P0 on (decided 2026-10-30); the search path keeps `EI_EFFORT` |
 | `ARCHIVE_ALONE`, `ARCHIVE_ALONE_TTL_SECONDS` | The archive answering an empty search alone, past or settled things only (responsibility 8, decided 2026-10-28) |
 | `CONTEXTUALIZER_TITLES` | `1`: C3P0's title is the episode's title (decided by the owner, 2026-10-28; replaces [title-from-content]'s writer title once built) |
 
@@ -847,7 +873,7 @@ Per episode ~10k in / 1k out; costs at **10k episodes/month** (×10 for 100k).
 | Open model on Groq / Cerebras | ~$10-90 | fastest generation | Buys latency back; quality unmeasured | Consent; terms | No on search |
 | Fine-tuning a model on FAM's best scripts | training cost (check) | as the base model | Bakes the house style in | Needs hundreds of approved scripts; Claude models cannot be fine-tuned here | Partly - `examples/` first |
 
-**The choice, driven by those needs:** *(a proposal - which model or plugin each agent runs is decided later, in another branch, with a fuller decision method; the owner, 2026-10-28)*
+**The choice, driven by those needs:** *(decided by the owner, 2026-10-30: on searchFAM, Haiku 5.5, in tandem with the writer and never a step after it; ahead of the tap, measured first - no editor, Haiku 5.5 at high effort and Sonnet 5.5 on the same frozen packets - and decided by the owner on the result, Sonnet the default until then; Opus 5.5 drafts the playbook and builds the eval. Shared rules, Models decided.)*
 
 - **Need 1 → Sonnet 5.5, batched, on the editions and the write-ahead,**
   with the journalism playbook and `examples/` in its cached prompt; Opus to
@@ -865,8 +891,8 @@ Per episode ~10k in / 1k out; costs at **10k episodes/month** (×10 for 100k).
 
 | Setting (proposed) | What it is |
 |---|---|
-| `EDITOR` | `0` / `1`, off until the eval says it helps |
-| `EDITOR_MODEL`, `EDITOR_SEARCH_MODEL` | Editions and write-ahead; searchFAM |
+| `EDITOR_AGENT` | `0` / `1`, off until the eval says it helps (not `EDITOR`, which most machines already set for a text editor; the owner, 2026-10-30) |
+| `EDITOR_MODEL`, `EDITOR_SEARCH_MODEL` | Editions and write-ahead (`anthropic:claude-sonnet-5-5` until the comparison decides); searchFAM (`anthropic:claude-haiku-5-5`, decided 2026-10-30) |
 | `EDITOR_TIMEOUT_SECONDS`, `EDITOR_AHEAD_TIMEOUT_SECONDS` | Ceilings; past them the writer reads the packets |
 | `EDITOR_RERANKER` | Empty, or the reranker |
 | `EDITOR_PLAYBOOK` | The journalism playbook's file |
@@ -1070,7 +1096,7 @@ unsure sentence (~1.5k in / 50 out); costs at **10k episodes/month**
 | Sonnet 5.5 whole-script check (dropped) | ~$125 (batch) | after the script | Judged the writing | Not what the owner wants checked; costly | - |
 | Gemini / GPT on unsure sentences | ~$2-5 | ~0.5-1 s | Different family | Sees the listener's question on search | No - consent change |
 
-**The choice, driven by those needs:** *(a proposal - which model or plugin each agent runs is decided later, in another branch, with a fuller decision method; the owner, 2026-10-28)*
+**The choice, driven by those needs:** *(decided by the owner, 2026-10-30: Haiku 5.5 on the unsure sentences and on the source screen's unsettled pages. The grounding checker is not decided: it is analysed on its own, the owner asking whether it can run without a new machine and how a rejected sentence avoids delaying the writer. Shared rules, Models decided.)*
 
 - **Needs 1, 2 and 4 → code** for quotes, figures, dates and the source
   screen, run per sentence in `_ScriptReader` and on both packets.
@@ -1093,7 +1119,7 @@ unsure sentence (~1.5k in / 50 out); costs at **10k episodes/month**
 |---|---|
 | `SUPERVISOR` | `0` / `1`, off by default |
 | `SUPERVISOR_SCREEN` | On: opinion pieces and blog posts dropped from both packets |
-| `SUPERVISOR_MODEL`, `SUPERVISOR_GROUNDING` | The model asked about unsure sentences (Haiku); the grounding checker |
+| `SUPERVISOR_MODEL`, `SUPERVISOR_GROUNDING` | `anthropic:claude-haiku-5-5` on unsure sentences (decided 2026-10-30); the grounding checker (not decided) |
 | `SUPERVISOR_UNSURE_BAND` | The checker's score range sent to the model (proposed) |
 | `SUPERVISOR_REPAIRS` | `1` repair per sentence |
 | `SUPERVISOR_TIMEOUT_SECONDS` | Per-sentence ceiling; past it the sentence plays unchecked, and the miss is recorded and reported to Keith (decided 2026-10-29) |
@@ -1297,7 +1323,7 @@ languages). Every hole is closed by "uncertain = not compared".
 | **Haiku 5.5** yes/no | <$1 | batch | First look on leftover pairs | Says `same` too easily | Yes - unsure = keep; dry run |
 | **Sonnet 5.5** second opinion | ~$1 (few % of pairs) | seconds | Careful on edge cases | - | Yes - never drops alone |
 
-**The choice, driven by those needs:** *(a proposal - which model or plugin each agent runs is decided later, in another branch, with a fuller decision method; the owner, 2026-10-28)*
+**The choice, driven by those needs:** *(decided by the owner, 2026-10-30: consolidation on Haiku 5.5 at low effort, batched - GPT-5 nano was chosen first and withdrawn, OpenAI shutting it down on 11 December 2026; the first look at a pair Haiku 5.5, the second opinion Sonnet 5.5. Shared rules, Models decided.)*
 
 - **Needs 2 and 4 → Haiku 5.5 at low effort, batched,** for extraction and the
   first dedupe look. GPT-5 nano or Gemini Flash-Lite are a small saving with
@@ -1322,7 +1348,8 @@ languages). Every hole is closed by "uncertain = not compared".
 | Setting | What it is |
 |---|---|
 | `ARCHIVE_BACKEND`, `MONGODB_URI` | Built (§308); URI via `FAM_SECRETS` |
-| `HOUSEKEEPER_MODEL` / `HOUSEKEEPER_REVIEW_MODEL` | `claude-haiku-5-5` / `claude-sonnet-5-5` |
+| `HOUSEKEEPER` | `0` / `1`, off by default (the owner, 2026-10-30) |
+| `HOUSEKEEPER_MODEL` / `HOUSEKEEPER_REVIEW_MODEL` | `anthropic:claude-haiku-5-5` / `anthropic:claude-sonnet-5-5` (decided 2026-10-30) |
 | `HOUSEKEEPER_BATCH_ARTICLES`, `HOUSEKEEPER_COMB_DAYS` | Batch size; how often the full duplicate comb runs (proposed) |
 | `HOUSEKEEPER_DEDUPE_DRY_RUN` | `1` until the automated eval shows no wrong merge (decided 2026-10-29: no hand-checked sample) |
 | `HOUSEKEEPER_SUPERSEDED_DAYS` | 30 |
@@ -1482,7 +1509,7 @@ shared preamble:
 | An MCP server in front of the archive (`facts_about`, `results_between`) | hosting | ~ms | The same lookups for agents and development | Needs a public server, not on staging | Yes - read-only tools |
 | Warm the lookup before the tap (prefetch) | $0 | none for the listener | Holds nothing personal, so prefetch may ([prefetch-same-key]) | Stale by a few hours | Yes - history does not change fast |
 
-**The choice, driven by those needs:** *(a proposal - which model or plugin each agent runs is decided later, in another branch, with a fuller decision method; the owner, 2026-10-28)*
+**The choice, driven by those needs:** *(decided by the owner, 2026-10-30: an embedding router - the installed model and labelled examples - chooses the lookup, the code mapping its fallback. Shared rules, Models decided.)*
 
 - **Needs 1 and 4 → code:** the closed lookups, built over what Atlas already
   has.
@@ -1501,7 +1528,7 @@ shared preamble:
 |---|---|
 | `ARCHIVE_RECALL`, `ARCHIVE_RECALL_LIMIT`, `ARCHIVE_MIN_SIMILARITY`, `ARCHIVE_GRACE_SECONDS` | Built (§308): on, 6, 0.45, 0.5 s |
 | `RETRIEVER` | `0` / `1` (proposed): off = today's `look` |
-| `RETRIEVER_MODEL` | Empty = code only (proposed) |
+| `RETRIEVER_MODEL` | Empty: the embedding router, no model (decided 2026-10-30) |
 
 Open: whether the contextualizer names the lookup itself (one call) or the
 retriever decides. Decided (2026-10-28): its name is Sonic; the archive may
@@ -1694,7 +1721,7 @@ pick from the list. After the shared preamble:
 | SMS (Twilio) | ~$0.01 per message (check) + number | seconds | High | Cost per alert; one-way | Yes - urgent only |
 | PagerDuty / Opsgenie | free small-team tier; paid per user (check) | seconds | Highest: phone calls, repeats until acknowledged, an "acknowledge / resolved" button | Another vendor | Yes - matches "we tell Keith when it is fixed": resolve there, Keith re-checks |
 
-**The choice, driven by those needs:** *(a proposal - which model or plugin each agent runs is decided later, in another branch, with a fuller decision method; the owner, 2026-10-28)*
+**The choice, driven by those needs:** *(decided by the owner, 2026-10-30: Haiku 5.5 writes up incidents; Sonnet 5.5 writes `/admin`'s plain-English summaries. Shared rules, Models decided.)*
 
 - **Need 1 → FAM's own signals, plus UptimeRobot or Better Stack on
   `/api/health`,** and Healthchecks.io heartbeats from each loop.
@@ -1718,7 +1745,7 @@ pick from the list. After the shared preamble:
 | `IT_TICK_SECONDS` | 60 |
 | `IT_WARN_SHARE`, `IT_URGENT_SHARE` | 0.80, 0.95 of a limit |
 | `IT_FIXES` | `0` observe-only; then a list of the fixes allowed |
-| `IT_MODEL` | Empty = code only |
+| `IT_MODEL`, `IT_SUMMARY_MODEL` | `anthropic:claude-haiku-5-5` for incidents, `anthropic:claude-sonnet-5-5` for `/admin` summaries (decided 2026-10-30) |
 | `IT_NOTIFY_WARN`, `IT_NOTIFY_URGENT` | The channels: the pop-up for every alert, email too for urgent ones (decided 2026-10-28) |
 | `IT_ALERT_EMAIL` | `Admin@familiarize.net` (the owner, 2026-10-28) - set in the environment, never in code |
 | `RENDER_API_KEY`, `RUNPOD_API_KEY`, `ATLAS_ADMIN_KEY`, `CLOUDFLARE_ANALYTICS_TOKEN` | Read-only usage keys via `FAM_SECRETS` (proposed) |
@@ -1881,7 +1908,7 @@ disagree. After the shared preamble:
 | GPT-5 nano / Gemini Flash-Lite | ~$2 | 1-2 s | Comparable | Sees the listener's words | No - consent change |
 | Google Cloud NL `classifyText` | per call (check) | ~200 ms | A fixed web taxonomy | Not FAM's tree | No |
 
-**The choice, driven by those needs:** *(a proposal - which model or plugin each agent runs is decided later, in another branch, with a fuller decision method; the owner, 2026-10-28)*
+**The choice, driven by those needs:** *(decided by the owner, 2026-10-30: code first, folded into the brief's call, Haiku 5.5 in parallel only on ties; every request is attached to the closest node it is truly about - a broader node rather than none, never a nearby wrong one. Shared rules, Models decided.)*
 
 - **Needs 1, 3 and 4 → code first, folded into EI's call** (EI already
   returns `category_path`), validated against the tree; Haiku in parallel
@@ -1896,7 +1923,7 @@ disagree. After the shared preamble:
 | Setting | What it is |
 |---|---|
 | `CATEGORIZER` | `0` / `1` (proposed): off = today's code |
-| `CATEGORIZER_MODEL` | Empty = code only (proposed) |
+| `CATEGORIZER_MODEL` | `anthropic:claude-haiku-5-5`, asked only on ties (decided 2026-10-30) |
 | `NEAR_COSINE`, `WRITER_MIN_EPISODES`, `SUBJECT_DEPTH`, `THUMBNAILS_REVIEW` | Built: 0.45, 2, 2, `flagged` |
 
 Decided (2026-10-28): the category tag is the same everywhere for the

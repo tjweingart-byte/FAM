@@ -23999,3 +23999,74 @@ groups drawn as one step; every agent and the template carry the same
 sub-tabs; every stage named is one the page draws; a tab per section; every
 plugin tab starts from what the agent must be best at; every agent has a
 rule book with the draft notice).
+
+## 341. Each agent's model, decided - and the cheap outside models going away (2026-10-30)
+
+The guide left every agent's model a proposal, "decided later, in another
+branch, with a fuller decision method" (§340). The owner asked, before
+Phase 0 started, to see one document of which model each agent could use
+and to decide them. There was none: the options sat in each agent's
+"Plugin options" tab. They were gathered onto a decision page
+(https://claude.ai/artifact/7kM5Xu5FJftJAaoAGYHVfj), the owner picked or
+asked for a deeper look on each, four were analysed with real figures
+(https://claude.ai/artifact/A3TQcaC521YeKX12ivaZZ6), and a second page held
+what was left (https://claude.ai/artifact/KFyF7NxYLSAJYxmNSNH2ji). The
+decisions are in `docs/FAM_AGENTS.md` (Shared rules, Models decided, and
+each plugin tab's choice) and the build prompt's items 34-41.
+
+**Decided.** Netenyahu: no planner model. C3P0: Haiku 5.5 inside the
+brief's call - at the brief's effort (medium) on the tap, at high effort
+ahead of the tap through a new `EI_AHEAD_EFFORT`, never on an on-demand
+episode. Nando: code first, folded into the brief, Haiku 5.5 on ties,
+always the closest node the request is truly about. Sonic: an embedding
+router. Shakespeare: Haiku 5.5 on searchFAM, in tandem with the writer and
+never after it. Mclovin: Haiku 5.5 on unsure sentences and unsettled pages.
+Consuela: Haiku 5.5 low, batched, for consolidation; Haiku 5.5 then Sonnet
+5.5 on duplicate pairs. Keith: Haiku 5.5 for incidents, Sonnet 5.5 for
+`/admin`'s summaries. Every pick is a Claude model.
+
+**Still open.** Mclovin's grounding checker - the owner asked whether it can
+run inside the current pipeline without a new machine, and how a rejected
+sentence avoids delaying the writer, and wants it analysed on its own.
+Shakespeare ahead of the tap - measured first (about 50 frozen edition
+questions written with no editor, Haiku 5.5 high and Sonnet 5.5, scored on
+`episode_quality`'s six measures, Mclovin's error counts, a blind Opus
+grader, cost and time, then two weeks of editions each way), decided by the
+owner; Sonnet the default until then.
+
+**The finding that changed a pick: the cheap outside models are being
+retired.** The guide priced GPT-5 nano ($0.05 / $0.40) and Gemini 2.5
+Flash-Lite ($0.10 / $0.40) below Haiku 5.5 ($0.10 / $0.50). OpenAI's
+deprecations page shuts gpt-5-nano down on 11 December 2026, before
+Consuela is built - and the owner had picked it for Consuela - naming
+gpt-5.6-luna (reported $0.20 / $1.20) as its replacement; Google Cloud lists
+a retirement for 2.5 Flash-Lite, whose successors are reported at $0.25 /
+$1.50 (3.1) and $0.30 / $2.50 (3.5). So every surviving outside option costs
+more than Haiku, and Consuela moved to Haiku. Outside prices are third-party
+and unverified, as before; the Claude prices match the current list.
+
+**Nando, measured in code.** Forty questions with one clearly right node in
+the seeded tree (303 nodes), labelled by hand in this session and not yet
+an evaluation set: `stories.resolve_category` got 17 right, 1 wrong ("high
+school football scores in my town" -> `football`) and could not place 22 -
+shared names (Manchester United, Apple), colliding words (Miami heat wave,
+the Carolina coast's hurricanes), subjects the tree lacks (Taylor Swift,
+James Webb) and plain wordings that differ from the tree's ("why rents keep
+rising" against `rental market`). 0.01 ms a question on phrases, up to
+1.7 ms with the nearest node by meaning, which placed one more: it cannot
+answer a text the first time it sees one (`inline=0` queues it), and its
+`NEAR_COSINE` (0.45) was set on short category words, not questions. The
+code is rarely wrong and does not know the majority, and the unplaced fall
+to a facet - the two problems Nando is for. Measuring a model on it needs a
+key; a few-hundred-question set from `categories_report.py --audit` is the
+next step.
+
+**A setup trap.** The first baseline of this session failed all four browser
+runs: `pip install playwright`, from `workflow.md`'s setup, upgraded the
+container's pre-installed Playwright (1.63.0, matched to
+`/opt/pw-browsers/chromium-1243`) to 1.64.1, which looks for revision 1248.
+`pip install playwright==1.63.0` restored it, and the rerun passed: 5,292
+tests, 97 smoke behaviours twice, 15 landing behaviours, the Opus checks.
+In this container the pre-installed Playwright is the one to keep.
+
+Nothing is built here; the agents stay unbuilt and off.
