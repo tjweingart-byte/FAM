@@ -10740,6 +10740,42 @@ async def admin_tracker_snapshot(request: Request) -> dict:
     return snap
 
 
+@app.get("/api/admin/agents")
+async def admin_agents(request: Request) -> dict:
+    """The Agents panel (§346): every agent's switch, model, lock, last run,
+    spend and fallbacks over a week, holds and the task queue. Read-only -
+    switches stay settings, and nothing here changes one."""
+    _require_admin(request)
+    return await asyncio.to_thread(_agents_panel)
+
+
+def _agents_panel(now: float = 0.0) -> dict:
+    from agents import roster
+
+    now = now or time.time()
+    health = agent_models.health()
+    week = METER.agent_summary(now - 7 * 86400)
+    rows = []
+    for role, agent in roster.ROSTER.items():
+        state = roster.status(role)
+        entry = health["agents"].get(role, {})
+        rows.append({
+            "role": role, "name": agent.name, "purpose": agent.purpose,
+            "surfaces": list(agent.surfaces), "switch": entry.get("switch", ""),
+            "on": state["on"], "may_run": state["may_run"], "why_not": state["why_not"],
+            "held_file": state["held_file"], "rulebook_version": state["rulebook_version"],
+            "models": entry.get("models", {}), "ceilings": entry.get("ceilings", {}),
+            "held": (health.get("held") or {}).get(role, ""),
+            "week": week.get(role, {"requests": 0, "sent": 0, "cost_usd": None,
+                                    "fallbacks": 0, "last_at": None, "last_status": "",
+                                    "last_reason": ""}),
+        })
+    return {"at": now, "enabled": health["enabled"], "lock": health["lock"],
+            "adapters": health["adapters"], "consent_covers": health["consent_covers"],
+            "overlord": health["overlord"], "tasks": health.get("tasks"),
+            "agents": rows, "recent": METER.agent_calls(limit=25)}
+
+
 @app.get("/api/admin/schema")
 async def admin_tracker_schema(request: Request) -> dict:
     """Every store, table, column and live row count."""

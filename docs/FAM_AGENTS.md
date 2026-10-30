@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | Phase 0, the framework, being built (§342-§343): the model layer, the rule-book lock, the roster, the typed hand-offs, the task table and Netenyahu as code exist; no agent is built, everything is off, and every agent is held until the owner signs |
+| **Status** | Phase 0, the framework, being built (§342-§343): the model layer, the rule-book lock, the roster, the typed hand-offs, the task table, Netenyahu as code and the `/admin` Agents panel exist; no agent is built, everything is off, and every agent is held until the owner signs |
 | **History** | Started 2026-10-24 (§307); editor in chief and script supervisor (§312); pipeline and how agents run (§313); contextualizer and guardrails (§314); condensed into tabs, outside plugins per agent, the overlord, housekeeper, retriever, IT guy and categorizer (§340); the owner's brainstorm of 2026-10-28 - every agent named, roles redrawn, a rule book each (§340); each agent's model decided, but Mclovin's checker and Shakespeare ahead of the tap (§341) |
 | **Page** | `python docs/build_agents_html.py` builds the tabbed page from this file: one tab per `##`, one sub-tab per `###` |
 

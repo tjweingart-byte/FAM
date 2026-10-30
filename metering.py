@@ -594,6 +594,27 @@ class MeterStore:
             return 0
         return int(cur.lastrowid or 0)
 
+    def agent_summary(self, since: float = 0.0) -> dict:
+        """Per agent since `since`: requests, calls sent, what they cost,
+        fallbacks taken, and the last one's time and status. Spend is None
+        for an agent that sent nothing ([metering])."""
+        out: dict = {}
+        for agent, requests, sent, cost, fallbacks, last in self._conn().execute(
+                """SELECT agent, COUNT(*),
+                          SUM(CASE WHEN cost_usd IS NULL THEN 0 ELSE 1 END),
+                          SUM(cost_usd),
+                          SUM(CASE WHEN status = 'ok' THEN 0 ELSE 1 END), MAX(at)
+                   FROM agent_calls WHERE at >= ? GROUP BY agent""", (since,)):
+            out[agent] = {"requests": int(requests or 0), "sent": int(sent or 0),
+                          "cost_usd": None if not sent else round(float(cost or 0.0), 6),
+                          "fallbacks": int(fallbacks or 0), "last_at": last}
+        for agent, entry in out.items():
+            row = self._conn().execute(
+                "SELECT status, reason FROM agent_calls WHERE agent = ? AND at = ?"
+                " ORDER BY id DESC LIMIT 1", (agent, entry["last_at"])).fetchone()
+            entry["last_status"], entry["last_reason"] = (row[0], row[1]) if row else ("", "")
+        return out
+
     def agent_calls(self, since: float = 0.0, limit: int = 500) -> list:
         """The latest agent calls, newest first (the /admin Agents panel)."""
         return [dict(r) for r in self._conn().execute(

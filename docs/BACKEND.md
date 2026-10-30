@@ -707,6 +707,12 @@ means the handler refuses a guest (`_require_account`, 401); "admin" means
 
 ## 8. Admin surfaces
 
+The tracker's **Agents** page (`#agents`, §346) reads `/api/admin/agents`:
+each agent's switch, model, rule-book lock and why it is not running, its
+requests, spend and fallbacks over 7 days from `metering.db`'s
+`agent_calls`, holds and the task queue, and the last 25 requests.
+Read-only: switches stay deployment settings.
+
 All of them answer **404** to anyone who is not an admin, so an unconfigured
 deployment does not advertise them. Admins are named by
 `FAM_ADMIN_ACCOUNTS` (email, phone or id; checked against the admin session

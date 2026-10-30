@@ -24372,3 +24372,37 @@ refused; three failures hold, spending never; the edition hours kept clear;
 a tick does nothing off or during an edition; each round its share and each
 task once across two servers; no handler, left alone; a failing task retried
 once then held; the loop only when on).
+
+## 346. Phase 0, piece 5: the Agents panel on /admin - and Phase 0 done (2026-10-30)
+
+The tracker gains an **Agents** page (`/admin#agents`, in the menu under
+Tracker), read from a new `/api/admin/agents` (admins only, a 404 to anyone
+else, as every admin route). For each agent: its internal name and role,
+whether it runs, is held or is off and why (`AGENTS=0`, its own switch, the
+unsigned rule books, a hold), each model setting and whether it is valid,
+and over the last 7 days its requests, its spend (None when it sent nothing,
+never $0), its fallbacks and its last run. Above it, `AGENTS`, whether the
+rule books are signed and why not, the adapters, the vendors consent covers
+and the background queue; below it, the last 25 agent requests - the model
+asked and the one that answered, the rule-book version, the cost, why it
+fell back. `metering.MeterStore.agent_summary` reads it from `agent_calls`.
+
+**Display only**, at the owner's direction (§341): an agent is switched in
+the deployment's settings and the page has no control. A test pins that the
+page posts nothing about agents and that `/api/admin/agents` is the server's
+only agent route, a GET. Keith's slideshow rule (keith.md, "always" 8) is
+Keith's to follow once he exists; this panel was asked for by the owner
+directly, in the Phase 0 build prompt.
+
+**Phase 0 is done.** The framework stands - the model layer (§342), the
+rule-book lock (§343), the roster, hand-offs and task table (§344), Netenyahu
+as code (§345) and this panel - with every agent off, unbuilt and held, and
+listeners hearing exactly what they heard before. What waits on the owner:
+signing the rule books (`python tools/rulebook_manifest.py --commands`),
+`CODEOWNERS` and branch protection on `docs/agent_rules/`, the decision on
+Mclovin's grounding checker, and Shakespeare's comparison once he is built.
+Phase 1 (C3P0 and Nando at the request) is next.
+
+Tests: `tests/test_admin_agents.py` (admins only; every agent shown off and
+held with nothing spent; requests, spend, fallbacks and the latest requests
+read from the ledger, nothing sent shown as None; the panel changes nothing).
