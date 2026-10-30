@@ -3056,41 +3056,47 @@
   .yf-friend.invite .yf-ring{ border:1.5px dashed var(--text-faint);
     display:flex; align-items:center; justify-content:center; color:var(--text-muted); }
   .yf-friend.invite .yf-friend-name{ color:var(--text-muted); }
-  /* "View Your FAM" (10.11 packet): one large pill to the Friends page, up
-     to three faces overlapping on its right. */
-  .yf-fam-pill{ width:100%; display:flex; align-items:center; gap:10px;
-    margin-top:10px; padding:10px 12px 10px 20px; border-radius:999px;
-    background:var(--surface); border:1px solid var(--border-strong);
-    color:var(--text); font-family:inherit; cursor:pointer; text-align:left; }
-  .yf-fam-pill-t{ flex:1; min-width:0; font-family:'Bricolage Grotesque', sans-serif;
-    font-size:17px; font-weight:500; }
-  .yf-fam-faces{ display:flex; flex:none; }
-  .yf-fam-faces .av{ width:30px; height:30px; border-radius:50%; overflow:hidden;
-    display:flex; align-items:center; justify-content:center; color:var(--ink);
-    font-weight:700; font-size:11px; border:2px solid var(--surface); }
-  .yf-fam-faces .av + .av{ margin-left:-10px; }
-  .yf-fam-pill-go{ flex:none; display:flex; color:var(--text-muted); }
-  .yf-msgcard{ width:100%; display:flex; align-items:center; gap:12px;
-    margin-top:18px; padding:12px 13px; border-radius:15px; background:var(--surface);
-    border:none; color:var(--text); font-family:inherit; text-align:left; cursor:pointer; }
-  .yf-msg-ic{ position:relative; width:36px; height:36px; border-radius:50%; flex:none;
-    background:var(--surface-2); color:var(--copper); display:flex;
-    align-items:center; justify-content:center; }
-  .yf-count{ position:absolute; top:-3px; right:-4px; min-width:15px; height:15px;
-    padding:0 4px; border-radius:8px; background:var(--coral); color:#fff;
-    font-family:'Geist Mono', monospace; font-size:8.5px; display:flex;
-    align-items:center; justify-content:center; }
-  .yf-count[hidden]{ display:none; }
-  .yf-msg-body{ flex:1; min-width:0; }
-  .yf-msg-title{ display:block; font-size:13.5px; font-weight:600; }
-  .yf-msg-sub{ display:block; font-size:11px; color:var(--text-muted); margin-top:2px;
-    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  /* YourFAM's hero (§341, the owner's pick from the layout deck): the
+     picture large and centred over a gold wash that scrolls with the page,
+     the name, place and handle under it, then three numbers. */
+  #screen-profile .scroll{ background:linear-gradient(180deg,
+      color-mix(in srgb, var(--copper) 24%, transparent), transparent 290px) no-repeat;
+    background-attachment:local; }
+  .yf-hero{ display:flex; flex-direction:column; align-items:center; text-align:center;
+    margin-top:8px; }
+  .yf-hero .yf-photo{ width:92px; height:92px; font-size:28px; }
+  .yf-hero .yf-photo-btn.ring .yf-photo{ width:86px; height:86px; }
+  .yf-hero .yf-photo-wrap .yf-add{ width:24px; height:24px; right:0; bottom:0; }
+  .yf-hero .yf-name{ font-size:24px; font-weight:600; margin-top:12px; max-width:100%; }
+  .yf-hero .yf-place{ margin-top:5px; max-width:100%; }
+  .yf-stats{ display:flex; margin-top:16px; }
+  .yf-stat{ flex:1; display:flex; flex-direction:column; align-items:center; gap:2px;
+    background:none; border:none; padding:4px 0; cursor:pointer; color:var(--text-muted);
+    font-family:inherit; font-size:11px; }
+  .yf-stat b{ font-family:'Bricolage Grotesque', sans-serif; font-size:21px; font-weight:600;
+    color:var(--text); }
+  .yf-acts.yf-acts-centre{ justify-content:center; }
+  .yf-acts-centre .yf-btn.cream{ flex:none; }
+  /* Vibes and Mixes: two tabs over one grid of picture tiles. */
+  .yf-tabs{ display:flex; margin-top:20px; border-bottom:1px solid var(--border); }
+  .yf-tab{ flex:1; background:none; border:none; border-bottom:2px solid transparent;
+    margin-bottom:-1px; padding:9px 0; font-family:'Geist Mono', monospace; font-size:10.5px;
+    letter-spacing:.18em; text-transform:uppercase; color:var(--text-faint); cursor:pointer; }
+  .yf-tab.on{ color:var(--text); border-bottom-color:var(--copper); }
+  .yf-grid{ display:grid; grid-template-columns:repeat(3, 1fr); gap:3px; margin-top:3px; }
+  .yf-grid .pf-empty{ grid-column:1 / -1; margin-top:8px; }
+  .yf-tile{ position:relative; aspect-ratio:3/4; border:none; padding:0; overflow:hidden;
+    cursor:pointer; background:linear-gradient(160deg, var(--surface-2), var(--surface));
+    display:flex; align-items:flex-end; text-align:left; font-family:inherit; }
+  .yf-tile-pic{ position:absolute; inset:0; background-size:cover; background-position:center; }
+  .yf-tile::after{ content:""; position:absolute; inset:0;
+    background:linear-gradient(180deg, transparent 45%, rgba(15,14,18,.82)); }
+  .yf-tile-t{ position:relative; z-index:1; padding:7px; font-size:10.5px; font-weight:600;
+    line-height:1.2; color:#F4EFE4; display:-webkit-box; -webkit-line-clamp:3;
+    -webkit-box-orient:vertical; overflow:hidden; }
+  .yf-tile.more{ align-items:center; justify-content:center; color:var(--text); font-size:12px; }
+  .yf-tile.more::after{ display:none; }
   .yf-shelf{ display:grid; grid-template-columns:1fr 1fr; gap:7px; margin-top:9px; }
-  .yf-shelf-tile{ display:flex; align-items:center; gap:9px; padding:8px 12px;
-    border-radius:12px; background:var(--surface); border:none; color:var(--text);
-    font-family:inherit; font-size:11px; text-align:left; cursor:pointer; }
-  .yf-shelf-tile b{ font-family:'Bricolage Grotesque', sans-serif; font-size:19px; font-weight:400;
-    color:var(--copper); }
 
   /* A back-arrow screen header: Messages, a friend's profile, a topic. */
   .yf-bar{ display:flex; align-items:center; gap:6px; padding:12px 16px 4px; flex:none; }
@@ -5600,7 +5606,7 @@
     // replaced them all, named too in case one is ever drawn without onclick.
     var PRESSABLE = 'button, a[href], [role="button"], [onclick], .tab, .seed-card, .seed-act, '
       + '.mix-card, .gd-card, .nextup-tile, .xn-card, .reel-act, .story-act, .yf-round, '
-      + '.yf-btn, .yf-msgcard, .topic-row, .deeper-chip, .share-contact, .sh-target, .trend-chip';
+      + '.yf-btn, .yf-stat, .yf-tile, .topic-row, .deeper-chip, .share-contact, .sh-target, .trend-chip';
     document.addEventListener("pointerdown", function(e){
       if(!on() || e.button > 0) return;
       var el = e.target && e.target.closest ? e.target.closest(PRESSABLE) : null;
@@ -13903,7 +13909,7 @@
       }
 
       // The friends rail always ends in the way to find some: the same pill
-      // as YourFAM's "Find new friends", under the episodes when there are
+      // YourFAM's used to, under the episodes when there are
       // any, and in place of the sentence when they follow nobody (10.1 #2).
       var findFriends = sec.key === "followers"
         ? '<div class="feed-find"><button class="yf-find" onclick="openFriends()">'
@@ -15463,9 +15469,9 @@
   // "myFAM is YourFAM": one tab for everything social - who you are, your
   // friends, your messages, and what you show. It replaced the Profile page,
   // and three things came off with it on purpose and should not come back:
-  // the "This month" card, the inline list of conversations (Messages is one
-  // card now, because a whole inbox was crowding the hub), and the feed of
-  // what the circle had vibed.
+  // the "This month" card, the inline list of conversations (Messages is a
+  // tab, and since §341 not a card here too), and the feed of what the
+  // circle had vibed.
   //
   // Everything on it is read from the server, never from a fixture. The
   // handoff asked for a mock social module because the prototype it was drawn
@@ -15538,7 +15544,7 @@
       '<div class="yf-head">' + yfWordmark()
       + '<div class="yf-head-acts">'
       // No (+) here (10.1 packet, third set): it started a new message, which
-      // the Messages tab and card already do, so it was the same door twice.
+      // the Messages tab already does, so it was the same door twice.
       // A gear. The spokes-around-a-circle it replaced was the sun, which is
       // brightness on every phone this will run on.
       + '<button class="yf-round" onclick="openSettings()" aria-label="Settings">'
@@ -15559,7 +15565,10 @@
     var addBadge = AUTH.authenticated
       ? '<button class="yf-add" onclick="openNoteComposer()" aria-label="Add to your story">'
         + yfIcon("plus", 11) + '</button>' : '';
-    var html = '<div class="yf-id"><div class="yf-photo-wrap">'
+    // The hero (§341, the owner's pick from the layout deck: option 4's
+    // header, option 2's numbers and grid): your picture large and centred,
+    // your name, where you are and your handle, over a gold wash.
+    var html = '<div class="yf-hero"><div class="yf-photo-wrap">'
       + (myStoryPerson
           ? '<button class="yf-photo-btn ring' + (storiesUnseen(myStoryPerson) ? "" : " seen")
             + '" id="yfMyStory" onclick="openMyStory()" aria-label="Your story">'
@@ -15567,18 +15576,28 @@
           : '<div class="yf-photo"' + (AUTH.authenticated ? ' onclick="openNoteComposer()"' : '')
             + '>' + yfFace(p) + '</div>')
       + addBadge + '</div>'
-      + '<div class="yf-id-text">'
       + '<div class="yf-name">' + escapeHtml(p.name || "Set up your profile") + '</div>'
-      // Where they are, as they wrote it, right under the name (10.7).
-      + (p.location ? '<div class="yf-place">' + escapeHtml(p.location) + '</div>' : '')
-      + '<div class="yf-meta">' + (p.handle ? "@" + escapeHtml(p.handle) : "no handle yet")
-      + ' · <b onclick="openFriends()">' + friends + ' ' + plural(friends, "friend") + '</b>'
-      + ' · ' + vibes + ' ' + plural(vibes, "vibe") + '</div>'
-      + '</div></div>';
+      // Where they are, as they wrote it, beside the handle (10.7).
+      + '<div class="yf-place">' + (p.location ? escapeHtml(p.location) + ' · ' : '')
+      + (p.handle ? "@" + escapeHtml(p.handle) : "no handle yet") + '</div>'
+      + '</div>';
+
+    // Three numbers, each a door, each worded for the number it holds - "1
+    // vibes" is the tell that a count was printed rather than read. Friends
+    // opens the Friends page, which is also where new friends are found;
+    // vibes and mixes turn the grid below to that shelf.
+    html += '<div class="yf-stats">'
+      + '<button class="yf-stat" onclick="openFriends()"><b>' + friends + '</b>'
+      + plural(friends, "friend") + '</button>'
+      + '<button class="yf-stat" onclick="showProfileShelf(\'vibes\', true)"><b>' + vibes + '</b>'
+      + plural(vibes, "vibe") + '</button>'
+      + '<button class="yf-stat" onclick="showProfileShelf(\'mixes\', true)"><b>' + mixCount + '</b>'
+      + (mixCount === 1 ? "mix" : "mixes") + '</button>'
+      + '</div>';
 
     // Saved for Later is the strongest button because it is the most-used
     // personal shortcut; Edit profile is where every change is made.
-    html += '<div class="yf-acts">'
+    html += '<div class="yf-acts yf-acts-centre">'
       + '<button class="yf-btn" onclick="editIdentity()">'
       + (p.name ? "Edit profile" : "Set up profile") + '</button>'
       + '<button class="yf-btn cream" onclick="openSavedAll()">'
@@ -15598,62 +15617,87 @@
         }).join("")
       : '<button class="yf-chip muted" onclick="editIdentity()">Add interests in Edit profile</button>');
 
-    // Friends as stories. A gold ring is something new from them - a vibe in
-    // the last two days or a message you have not read - and the VIBE badge
-    // is a vibe this week. Tapping a face opens their profile, not the chat.
+    // The faces row is DailyFAM's (§251); the list stays for the story
+    // viewer, which indexes into it.
     yfCircle = p.circle || [];
     paintMyFamCircle();
-    html += '<div class="yf-row"><span class="yf-label">Your FAM friends</span>'
-      // A pill with a plus, so it reads as the way to add somebody rather
-      // than as a caption beside the heading (9.29 packet).
-      + '<button class="yf-find" onclick="openFriends()">' + yfIcon("plus", 12)
-      + 'Find new friends</button></div>'
-      + famPillHTML();
 
-    // Messages is one entry point. The line under it is filled once the
-    // inbox answers, which is its own request so the hub never waits on it.
-    html += '<button class="yf-msgcard" onclick="openMessages()">'
-      + '<span class="yf-msg-ic">' + yfIcon("chat", 17)
-      + '<span class="yf-count" id="yfMsgCount" hidden></span></span>'
-      + '<span class="yf-msg-body"><span class="yf-msg-title">Messages</span>'
-      + '<span class="yf-msg-sub" id="yfMsgSub">&nbsp;</span></span>'
-      + '<span style="color:var(--text-muted);display:flex;">' + yfIcon("chevron", 16) + '</span>'
-      + '</button>';
-
-    // What your public side looks like. Saved episodes are private, so they
-    // are not on it.
-    html += '<div class="yf-row" style="margin-top:18px;"><span class="yf-label">'
-      + 'Your shelf · what friends see</span></div>'
-      + '<div class="yf-shelf">'
-      + '<button class="yf-shelf-tile" onclick="openPlayFAM()"><b>' + mixCount + '</b>'
-      + (mixCount === 1 ? "Public mix" : "Public mixes") + '</button>'
-      + '<button class="yf-shelf-tile" onclick="openMyVibe()"><b>' + vibes + '</b>'
-      + (vibes === 1 ? "Vibe" : "Vibes") + '</button>'
-      + '</div>';
+    // What friends see, as pictures (§341): your vibes and your public
+    // mixes, two tabs over one grid of tiles. Saved episodes are private,
+    // so they are not on it.
+    profileVibes = p.echoes || [];
+    profileMixes = p.mixes || [];
+    html += '<div class="yf-tabs" role="tablist">'
+      + '<button class="yf-tab" role="tab" data-shelf="vibes" onclick="showProfileShelf(\'vibes\')">Vibes</button>'
+      + '<button class="yf-tab" role="tab" data-shelf="mixes" onclick="showProfileShelf(\'mixes\')">Mixes</button>'
+      + '</div><div class="yf-grid" id="yfGrid"></div>';
 
     document.getElementById("profileBody").innerHTML = html;
+    showProfileShelf(profileShelf);
     loadHubMessages();
   }
 
-  // "View Your FAM" (10.11 packet): the faces row left YourFAM for the top
-  // of DailyFAM, so the profile keeps one large pill to the Friends page,
-  // carrying up to three faces - friends first, a picture before initials.
-  var FAM_PILL_FACES = 3;
-  function famPillHTML(){
-    var faces = yfCircle.map(function(person, i){ return { p: person, i: i }; })
-      .sort(function(a, b){
-        return ((b.p.friend ? 2 : 0) + (b.p.avatar ? 1 : 0))
-             - ((a.p.friend ? 2 : 0) + (a.p.avatar ? 1 : 0)) || a.i - b.i;
-      })
-      .slice(0, FAM_PILL_FACES);
-    return '<button class="yf-fam-pill" onclick="openFriends()">'
-      + '<span class="yf-fam-pill-t">View Your FAM</span>'
-      + (faces.length
-          ? '<span class="yf-fam-faces">' + faces.map(function(f){
-              return yfFace(f.p); }).join("") + '</span>'
-          : '')
-      + '<span class="yf-fam-pill-go">' + yfIcon("chevron", 16) + '</span>'
-      + '</button>';
+  //: Which shelf YourFAM's grid shows, and the rows it was drawn from, so a
+  //: tap plays or opens the right one without free text in an onclick.
+  var profileShelf = "vibes";
+  var profileVibes = [];
+  var profileMixes = [];
+  // One tile: the episode's picture where the server found one, the
+  // category drawing under it otherwise, the words at the foot.
+  function profileTileHTML(onclick, picture, title){
+    return '<button class="yf-tile" onclick="' + onclick + '">'
+      + (picture ? '<span class="yf-tile-pic" style="background-image:url(&quot;'
+          + escapeHtml(picture) + '&quot;)"></span>' : '')
+      + '<span class="yf-tile-t">' + escapeHtml(title) + '</span></button>';
+  }
+  function showProfileShelf(which, scroll){
+    profileShelf = which === "mixes" ? "mixes" : "vibes";
+    var grid = document.getElementById("yfGrid");
+    if(!grid) return;
+    Array.prototype.forEach.call(document.querySelectorAll("#screen-profile .yf-tab"), function(t){
+      var on = t.getAttribute("data-shelf") === profileShelf;
+      t.classList.toggle("on", on);
+      t.setAttribute("aria-selected", on ? "true" : "false");
+    });
+    var html;
+    if(profileShelf === "vibes"){
+      html = profileVibes.length
+        ? profileVibes.map(function(v, i){
+            return profileTileHTML("playProfileVibe(" + i + ")", v.thumb, v.title || v.query);
+          }).join("")
+          + (vibesCount() > profileVibes.length
+              ? '<button class="yf-tile more" onclick="openMyVibe()">See all</button>' : '')
+        : '<div class="pf-empty">Nothing vibed yet. Tap VIBE! on any episode and it shows here.</div>';
+    } else {
+      html = profileMixes.length
+        ? profileMixes.map(function(m, i){
+            return profileTileHTML("openProfileMix(" + i + ")", m.cover || m.thumb, m.name);
+          }).join("")
+        : '<div class="pf-empty">No public mixes yet. A new DailyFAM mix is public unless you switch it off.</div>';
+    }
+    grid.innerHTML = html;
+    if(scroll) grid.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }
+  function vibesCount(){
+    return (profileNow && profileNow.echo_count) || profileVibes.length;
+  }
+  function playProfileVibe(i){
+    var v = profileVibes[i];
+    if(!v) return;
+    var key = "vibe_" + i + "_" + Date.now();
+    TOPICS[key] = { title: v.title || v.query, source: "From your vibes", surface: "other",
+                    caption: "Live captions will appear here as this plays—",
+                    prompt: v.query, exploreMinutes: v.minutes,
+                    titleOverridden: true };
+    generate(key);
+  }
+  // Your own mix opens as you edit it; one the list has not loaded yet
+  // opens as anybody sees it.
+  function openProfileMix(i){
+    var m = profileMixes[i];
+    if(!m) return;
+    if(mixById(m.id)){ openMix(m.id); return; }
+    openPublicMix(m);
   }
 
   // The faces, one sideways-scrolling row: the rails screen (shown as

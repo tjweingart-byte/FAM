@@ -48,14 +48,13 @@ def test_light_mode_is_a_white_page_with_cream_tiles():
 
 # --- YourFAM -------------------------------------------------------------------
 
-def test_yourfam_has_the_pill_not_the_faces():
+def test_yourfam_has_no_faces_row():
+    # The pill went with the §341 hero: the friends number opens the same
+    # Friends page, and the faces row stays DailyFAM's.
     body = _fn("renderProfile")
-    assert "Your FAM friends" in body and "Find new friends" in body
-    assert "famPillHTML()" in body and "circleRowHTML()" not in body
-    pill = _fn("famPillHTML")
-    assert "View Your FAM" in pill and 'onclick="openFriends()"' in pill
-    assert "FAM_PILL_FACES" in pill
-    assert re.search(r"var FAM_PILL_FACES = 3;", INDEX)
+    assert "circleRowHTML()" not in body
+    assert 'class="yf-stat" onclick="openFriends()"' in body
+    assert "famPillHTML" not in INDEX
 
 
 # --- a group's photo -----------------------------------------------------------

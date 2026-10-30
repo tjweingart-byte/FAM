@@ -23999,3 +23999,51 @@ groups drawn as one step; every agent and the template carry the same
 sub-tabs; every stage named is one the page draws; a tab per section; every
 plugin tab starts from what the agent must be best at; every agent has a
 rule book with the draft notice).
+
+## 341. YourFAM becomes a hero over a grid of vibes and mixes (2026-10-30)
+
+The owner asked for the profile tab to be rethought and was shown ten
+layouts side by side (a slide deck: today's page, what every option keeps,
+ten phone mockups each with gains, costs and the rules it touches, and a
+comparison table). The pick combined three of them: option 4's hero header,
+option 2's row of three numbers in place of the mono counts line, and
+option 2's Vibes / Mixes tabs over a grid of picture tiles.
+
+What changed on your own page (`renderProfile`):
+
+- **Hero.** The picture large (92px) and centred over a gold wash that
+  scrolls with the page (`#screen-profile .scroll`, `background-attachment:
+  local`), the name, then place · handle on one line. The story ring and
+  the (+) to your story are the same controls as before, larger; the gold
+  ring is still drawn only while a story is up (§297), never as decoration.
+- **Three numbers** (`.yf-stats`): friends, vibes, mixes, each worded for
+  the number it holds. Friends opens the Friends page; vibes and mixes turn
+  the grid below to that shelf and scroll to it.
+- Edit profile and Saved for Later, centred; the interests line under them
+  unchanged (§178).
+- **Vibes / Mixes tabs over one grid** (`showProfileShelf`): three tiles
+  across, 3:4, the picture behind and the title at the foot. A vibe tile
+  plays it (`playProfileVibe`, the same topic `playMyVibe` builds); a mix
+  tile opens it as you edit it, or as anybody sees it if the mix list has
+  not loaded. Twelve vibes at most (what `/api/profile` already returned)
+  and a See all tile to My Vibe when there are more. Each empty shelf says
+  so in a sentence.
+- **Pictures are the server's.** `/api/profile` now gives every vibe and
+  public mix a `thumb`: `_player_picture` over its words, the picture the
+  player would draw behind it (`_picture_url`, "" on any failure). A mix's
+  is its first subject's (`_mix_picture`), and the page draws the owner's
+  own cover over it. No model call, no network.
+
+Gone from YourFAM, at the owner's direction: the Messages card (Messages is
+a tab; the unread badge still updates from `loadHubMessages`), the "Your
+shelf · what friends see" count tiles, the View Your FAM pill (§251) and
+YourFAM's Find new friends pill (§174) - the friends number opens the same
+Friends page, which carries Invite new users. myFAM's friends rail keeps its
+Find new friends pill. A friend's page (`screen-person`) is unchanged.
+
+Tests: `tests/test_yourfam_hero_341.py` (every vibe and mix on the profile
+carries `thumb`; a failing picker gives ""; hero, numbers, buttons,
+interests in that order; the hub cards are gone; two tabs over one grid,
+cover before thumb, honest empty lines). `test_packet_1011`, `_1002_second`
+and `_929` follow the pill's removal; the smoke run's `profile()` checks the
+hero, the three numbers, the two tabs and the three-across grid.
