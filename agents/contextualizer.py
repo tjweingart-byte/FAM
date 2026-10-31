@@ -491,7 +491,10 @@ async def search_half(query: str, minutes: int, context: str, now: str, covered:
             material.append(("evidence", "Candidate nodes (id | path):\n"
                              + candidate_block(candidates)))
             # Nando's teaching: worked examples and code's hints (§365).
-            material.extend(categorizer.teaching(query, candidates))
+            # Ahead of the tap his memory may embed the request; on a
+            # search only a vector already made is read (§367).
+            material.extend(categorizer.teaching(query, candidates,
+                                                 inline=1 if ahead else 0))
         request = models.AgentRequest(
             agent="contextualizer", task="contextualise", switch_setting="contextualizer",
             model_setting="contextualizer_model", rule_book="c3p0.md", schema=SearchPlan,

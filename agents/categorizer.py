@@ -43,6 +43,8 @@ brief's call and the tie call are shown and what `category_audit` logs.
 """
 from __future__ import annotations
 
+import asyncio
+
 import logging
 import re
 from dataclasses import dataclass
@@ -803,6 +805,12 @@ def candidates_for(query: str, context: str = "", notes=None) -> tuple:
 
         prior = prior_for(query, context, notes)
         add(prior.node)
+        # What past requests like this one were truly about (§367): only a
+        # vector already made - nothing is embedded here.
+        from agents import memory
+
+        for row in memory.recall(query, inline=0):
+            add(row["node"])
         for _name, decided, readings, cued in clashes(query):
             if decided is not None:
                 add(decided.node)
@@ -858,15 +866,26 @@ def hint_block(query: str) -> str:
         return ""
 
 
-def teaching(query: str, candidates: tuple) -> tuple:
+def teaching(query: str, candidates: tuple, inline: int = 0) -> tuple:
     """The material that teaches Nando on every call (§365): the worked
-    examples for this request and code's hints, as `(tag, text)` pairs."""
+    examples for this request, the graded past requests most like it
+    (§367), and code's hints, as `(tag, text)` pairs. `inline=1` may embed
+    the request for his memory - only off the listener's path."""
     import category_examples
+
+    from agents import memory
 
     out = []
     examples = category_examples.block(query, candidates)
     if examples:
         out.append(("evidence", examples))
+    shown = {line.split(" -> ")[0] for line in examples.splitlines()[1:]}
+    recalled = [r for r in memory.recall(query, inline=inline) if r["question"] not in shown]
+    if recalled:
+        out.append(("evidence", "Past requests like this one, and the node each was "
+                    "truly about (graded after it was written; \"none\" means no node "
+                    "fits):\n" + "\n".join(f"{r['question']} -> {r['node'] or 'none'}"
+                                           for r in recalled)))
     hints = hint_block(query)
     if hints:
         out.append(("evidence", hints))
@@ -891,10 +910,20 @@ async def ask_tie(query: str, candidates: tuple, notes=None) -> str:
     brief and never waited for (the owner's answer 5, §354): a node from
     `candidates`, or "". Never raises."""
     try:
-        from agents import models, netenyahu
+        from agents import memory, models, netenyahu
         from agents.contextualizer import candidate_block
         from config import settings
 
+        # His memory may embed the request here: this call is beside the
+        # brief and never waited for (§367). What it recalls joins the list.
+        recalled = await asyncio.to_thread(memory.recall, query, memory.PER_REQUEST, 1)
+        import topics
+
+        tree = topics.category_tree()
+        candidates = tuple(candidates) + tuple(
+            r["node"] for r in recalled
+            if r["node"] and r["node"] not in candidates
+            and (r["node"] in topics.FACETS or tree.get(r["node"]) is not None))
         request = models.AgentRequest(
             agent="categorizer", task="place", switch_setting="categorizer",
             model_setting="categorizer_model", rule_book="nando.md", schema=TiePick,

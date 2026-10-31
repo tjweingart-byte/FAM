@@ -280,6 +280,9 @@ def prime() -> None:
 
     category_vocabulary.index()
     category_examples.examples()     # read once here, not on a request (§365)
+    from agents import memory
+
+    memory.warm()                    # his memory, built in the background (§367)
 
 
 def _refresh_held_soon() -> None:

@@ -619,11 +619,15 @@ def isolated_agent_tasks(tmp_path, monkeypatch):
     from agents import training as agent_training
 
     monkeypatch.setenv("AGENTS_DB", str(tmp_path / "stores" / "agents.db"))
+    from agents import memory as agent_memory
+
     agent_tasks.reset()
     agent_training.reset()
+    agent_memory.reset()
     yield
     agent_tasks.reset()
     agent_training.reset()
+    agent_memory.reset()
 
 
 @pytest.fixture(autouse=True)

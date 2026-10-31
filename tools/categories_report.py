@@ -131,6 +131,18 @@ def audit(days: int, as_json: bool) -> int:
               f" filed nothing {key['filed_nothing']}")
         for pair in key["confusions"]:
             print(f"    filed {pair['filed']:24} truly {pair['truth']:24} {pair['episodes']}")
+    try:
+        from agents import memory
+
+        memory.build()
+        mem = memory.describe()
+        print()
+        print(f"  Nando's memory (§367): {mem['remembered'] or 0} graded requests and"
+              f" examples remembered"
+              + ("" if mem["semantic"] else " - no sentence model installed, so none"
+                 " is recalled"))
+    except Exception:  # noqa: BLE001 - a report line, never the report
+        pass
     if found["composer_to_writer"]:
         print()
         print("  composer -> writer, where they disagree:")

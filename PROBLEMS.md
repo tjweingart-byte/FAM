@@ -25688,3 +25688,50 @@ the tree lacks; "none" is an answer; a failed call labels nothing; a batch
 grades each episode once, never a private one, skips a missing script; the
 report's four counts and confusions; `None` before grading; queued once a
 night only when Nando is on and has a handler).
+
+## 367. Training Nando, piece N4: a memory of graded answers, recalled by meaning (2026-10-31)
+
+**The problem.** Worked examples (§365) are chosen by shared words, from a
+fixed file. The answer key (§366) now grades episodes every night, but
+nothing showed those grades to Nando when a new request looked like an old
+one.
+
+**His memory** (`agents/memory.py`). The answer key's grades it was sure of
+(`high`, `medium`; a grade of "none" too, so the model learns that answer
+exists) and the reviewed examples, embedded with the same local sentence
+model `category_near` and the ranker use (`taste_vectors`). For each
+request, up to five past requests at cosine 0.55 or more, each with the
+node it was truly about, are
+
+* **shown to the model** on every call he teaches (`categorizer.teaching`:
+  his own call, and C3P0's when Nando works too), skipping any already
+  shown as a worked example; and
+* **on his list** (`candidates_for`, right after the tap's own node): a
+  remembered node can be chosen even when the words never pointed at it.
+
+A node the tree has lost is never recalled (N7 re-files grades when the
+tree moves).
+
+**Latency.** The matrix is built on a background thread, at most every five
+minutes, and primed at boot with `AGENTS=1`. On a search nothing is
+embedded on the listener's path: C3P0's call (the brief's search half)
+reads memory only for a request whose vector is already made. Nando's own
+call - beside the brief, never waited for - embeds the request in a thread
+first (one short sentence through the local model) and so always reads
+his memory; so does C3P0's call ahead of the tap.
+
+**Availability.** No sentence model installed (true here, and on every
+deployment until someone runs the installer), a model that throws, vectors
+still building: each is an empty memory, exactly the answer before. The
+audit report says which (`tools/categories_report.py --audit`).
+
+**Not measured here.** No key and no graded episodes in this container;
+the tests use a stand-in encoder. Memory starts to matter after the answer
+key's first nights.
+
+Tests: `tests/test_nando_memory_367.py` (no model, no memory; a graded
+request recalled by meaning and not by an unrelated one; only sure grades
+remembered, "none" among them; a lost node never recalled; nothing embedded
+on a search; recalled nodes join the list and the teaching; his own call
+embeds and may choose a remembered node; grades and examples both
+remembered).
