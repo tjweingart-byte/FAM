@@ -111,7 +111,9 @@ def test_its_reading_is_taught_and_listed(tree):
     query = nodes[2].replace(" ", "") + "word0 " + nodes[2].replace(" ", "") + "word5"
     text = "\n".join(t for _tag, t in categorizer.teaching(query, ()))
     assert "trained model" in text and nodes[2] in text and "guess" in text
-    assert nodes[2] in categorizer.candidates_for(query)[0]
+    found = categorizer.candidates_for(query)[0]
+    # Among code's own matches, before the facets and the tree (§385).
+    assert found.index(nodes[2]) < found.index("business")
 
 
 def test_no_model_no_reading(tree):

@@ -103,7 +103,8 @@ def test_recalled_nodes_join_the_candidates_and_the_teaching(tree, meaning):
     _grade("Eagles touchdown last night", node)
     memory.recall("Eagles touchdown", inline=1)             # vector made
     nodes, _tie = categorizer.candidates_for("Eagles touchdown")
-    assert node in nodes
+    # Among code's own matches, before the facets and the tree (§385).
+    assert nodes.index(node) < nodes.index("business")
     text = "\n".join(t for _tag, t in categorizer.teaching("Eagles touchdown", nodes))
     assert f"Eagles touchdown last night -> {node}" in text
 
