@@ -1,4 +1,4 @@
-"""Names that mean two things, and the words that tell them apart (§358).
+"""Names that mean two things, and the words that tell them apart (§369).
 
 Data beside the category seed (`category_seed.py`), read by Nando's code
 (`agents.categorizer`), reviewed like any change to the seed, and never a
@@ -17,7 +17,7 @@ reading itself ("storm", "puck"), never to words both readings use
 ("season", "record", "win" for weather records). A reading's own node name
 ("new york rangers") in the text decides it outright.
 
-**No cue is no evidence** (review, §361): a name with nothing around it
+**No cue is no evidence** (review, §372): a name with nothing around it
 that points to any reading tells Nando nothing - "tech giants", "kings and
 queens of England" are neither league - so it is not filed under what the
 readings share; only a draw between readings that each have a cue is.
@@ -67,7 +67,7 @@ NOT_THE_NAME: dict[str, tuple[str, ...]] = {
 }
 
 #: Words that make a seeded team's name an everyday phrase again: the team
-#: reading must then win on its cues like any clash (§363).
+#: reading must then win on its cues like any clash (§374).
 _MUSIC = ("festival", "festivals", "music", "album", "band", "concert", "concerts",
           "brunch", "club", "musician", "musicians", "records", "saxophone", "playlist")
 

@@ -1,4 +1,4 @@
-"""Nando's adversarial corpus (§363): every question three reviews used to
+"""Nando's adversarial corpus (§374): every question three reviews used to
 break him, with what is acceptable for each.
 
 Each case is `(question, acceptable)`: the nodes Nando may file it under -
@@ -9,7 +9,7 @@ against all of them at once - the reason it exists: three rounds of fixes
 each moved a few cases from wrong to right and a few others from right to
 wrong, and only a fixed corpus shows both.
 
-Written from the reviews' own examples (§361, §362, §363), labelled once.
+Written from the reviews' own examples (§372, §373, §374), labelled once.
 Not an estimate of how often Nando is right in production - that is piece
 9's judged set - but a floor no change may fall below.
 """
@@ -107,7 +107,7 @@ PARENTS = (
 )
 
 #: (text, is a result) for C3P0's checks. **Missing a guessed result is
-#: the worse mistake** (the owner, §364), so every result form must be
+#: the worse mistake** (the owner, §375), so every result form must be
 #: caught; `ACCEPTED_FLAGS` are innocent texts flagged by design - each
 #: only sends that search back to the question itself.
 RESULTS = (
@@ -134,7 +134,7 @@ RESULTS = (
     ("the Eagles have won four straight", False),
     ("Eagles Giants preview, Sunday 1pm", False), ("what to watch in Eagles Giants", False),
 )
-#: Innocent texts the check flags by design (§364).
+#: Innocent texts the check flags by design (§375).
 ACCEPTED_FLAGS = (
     "Lost in Translation review", "I lost my job", "lose weight fast",
     "swept away by the flood", "eliminated tariffs on steel",

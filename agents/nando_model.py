@@ -1,7 +1,7 @@
-"""Nando's small trained model (§370, training piece N6).
+"""Nando's small trained model (§381, training piece N6).
 
-The answer key (§366) grades episodes every night; his memory (§367) and
-his mistakes (§368) show those grades to the model he asks. This is the
+The answer key (§377) grades episodes every night; his memory (§378) and
+his mistakes (§379) show those grades to the model he asks. This is the
 third use of them: a classifier of his own, trained on every grade and
 reviewed example, that reads a request in a fraction of a millisecond with
 no call at all.
@@ -25,7 +25,7 @@ with at least `MIN_PER_CLASS` training rows, plus "none".
   Even then it files only a node already on Nando's shortlist, and only
   when nothing solid decided - it never overrides a tap's own filing, a
   provider, the brief's category words or a model's pick. The owner's
-  answer was that a missed guess is worse than a miss (§364): this is a
+  answer was that a missed guess is worse than a miss (§375): this is a
   guess only when the numbers say it is almost never wrong.
 
 **Availability.** No model yet, a model that will not load, a stale one -
@@ -304,7 +304,7 @@ def read(text: str) -> tuple:
 # ------------------------------------------------------------------ nightly
 def training_rows() -> list:
     """Everything worth learning from: the key's grades it was sure of and
-    the reviewed examples (his memory's rows, §367)."""
+    the reviewed examples (his memory's rows, §378)."""
     from agents import memory
 
     return [{"question": r["question"], "node": r["node"]} for r in memory.rows()]

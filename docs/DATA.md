@@ -147,7 +147,7 @@ Render deployment; since §208 it pins every store there (21 since §211), as th
   `query`, `sentences`, `minutes`, `title`, `summary`, `category` (the
   writer's `<<CATEGORY:>>`), `category_node` (Nando's one tree node, placed at
   the request and confirmed after the writer, read first by
-  `app._episode_category`; '' when he did not file it, §356), `thread` (the `<<NEXT:>>` prediction),
+  `app._episode_category`; '' when he did not file it, §367), `thread` (the `<<NEXT:>>` prediction),
   `sources`, `bucket` and `vector` (float32 blob, the near-match index),
   `author` (the first writer's listener id, provenance only), `origin`
   (`search`, a browse surface, or `archive`), `voice`, `sourced_at`,
@@ -267,7 +267,7 @@ none of the material. Append-only and never wiped, like `usage`.
 finished run (so a re-run with nothing new is refused), attempts and claim
 times - and `holds`, an agent held with why and when until the owner
 releases it. Ids and hashes only: no listener and no material. Created by
-the first task. `nando_labels` (§366): the answer key's grade of each
+the first task. `nando_labels` (§377): the answer key's grade of each
 written episode - its cache key, question, node, confidence, reason and the
 judge's model; never a listener id, never a private search's episode.
 

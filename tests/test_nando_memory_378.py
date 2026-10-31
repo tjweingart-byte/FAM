@@ -1,4 +1,4 @@
-"""Nando's memory of graded answers (§367, training piece N4): past
+"""Nando's memory of graded answers (§378, training piece N4): past
 requests like this one, chosen by meaning, with the node each was truly
 about - shown to the model, and on his list."""
 from __future__ import annotations

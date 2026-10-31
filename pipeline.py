@@ -1677,7 +1677,7 @@ class PodcastPipeline:
                 import voice_bank
 
                 extra["voice"] = voice_bank.slug_of(self._audio_voice())
-            # Nando's node, confirmed after the writer (§356), only when he
+            # Nando's node, confirmed after the writer (§367), only when he
             # filed it - so a cache written before it existed is called as
             # it always was.
             from agents import categorizer

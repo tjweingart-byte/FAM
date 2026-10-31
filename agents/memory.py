@@ -1,10 +1,10 @@
-"""Nando's memory of graded answers (§367, training piece N4).
+"""Nando's memory of graded answers (§378, training piece N4).
 
-The answer key (§366) grades written episodes every night. Each grade is a
+The answer key (§377) grades written episodes every night. Each grade is a
 question with the node it was truly about - exactly what Nando needs when a
 new request looks like an old one: "Detroit lions at the zoo" was graded
 `animals` last week, so the next "lions at the Detroit zoo" is shown that
-answer. Worked examples (§365) are chosen by shared words; memory is chosen
+answer. Worked examples (§376) are chosen by shared words; memory is chosen
 by **meaning**, with the same local sentence model `category_near` and the
 ranker use (`taste_vectors`), and it grows on its own as the key grades.
 

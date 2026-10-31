@@ -50,7 +50,7 @@ class ArchiveRequest(_Handoff):
 #: FAM's closed list of plugins (c3p0.md, "always" 3; docs/FAM_AGENTS.md,
 #: C3P0 responsibility 2): the search ladder, a live provider, a player's or
 #: team's report, the forecast, a town's own news, the weather, and the
-#: archive through Sonic. There are no others (§355).
+#: archive through Sonic. There are no others (§366).
 PLUGINS = ("search", "live_facts", "players", "forecast", "local_news", "weather",
            "archive")
 

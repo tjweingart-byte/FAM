@@ -1,5 +1,5 @@
 """What each category node is called, and the named things filed under it
-(§359).
+(§370).
 
 Data beside the category seed (`category_seed.py`), at the owner's
 direction: reviewed like the seed, never a signed rule book. The tree's own
@@ -26,7 +26,7 @@ Two sources, read together:
 `match(text, facet)` is a dictionary walk over the question's words - no
 model, never on a socket, and no file on the request path: the index is
 built once and rebuilt in the background when the tree or the file changes
-(§361). A wording that
+(§372). A wording that
 names two nodes is a tie and is returned as both; Nando never picks
 between them (c3p0.md, "always" 2).
 """
@@ -50,7 +50,7 @@ TWO_WORD_NICKNAMES = ("trail blazers", "red sox", "white sox", "blue jays",
 #: Words that say a question is about sport, so a team's nickname may be
 #: read as the team. Only words that are about sport and little else: not
 #: "season", "lineup", "win" or "trade", which a festival, a menu, an
-#: election and a tariff all have (review, §361 - "jazz festival lineup" was
+#: election and a tariff all have (review, §372 - "jazz festival lineup" was
 #: filed under the Utah Jazz).
 SPORT_WORDS = ("game", "games", "score", "scores", "roster", "coach", "playoff",
                "playoffs", "standings", "stadium", "arena", "injury", "injured",
@@ -58,7 +58,7 @@ SPORT_WORDS = ("game", "games", "score", "scores", "roster", "coach", "playoff",
                "point guard", "touchdown", "home run", "overtime", "free agent",
                "head coach", "box score")
 #: How often a running server looks at the file for a new draft: never per
-#: request (§361).
+#: request (§372).
 CHECK_SECONDS = 60.0
 
 _LOCK = threading.Lock()
@@ -142,7 +142,7 @@ def index(tree=None) -> dict:
     wording is also an everyday word and may be read only in a question
     about its own field.
 
-    **Never rebuilt on the request path** (§361): built once, then checked
+    **Never rebuilt on the request path** (§372): built once, then checked
     against the tree and the file at most every `CHECK_SECONDS`, and a
     stale index is rebuilt in a background thread while the old one keeps
     answering."""
@@ -165,8 +165,8 @@ def index(tree=None) -> dict:
         if have is not None:
             # A new tree object (a wipe, a reload in another module): the
             # copy we have answers while the new one is built beside it
-            # (review, §361) - its nodes are checked against the tree by
-            # every reader anyway. At most once an interval (§363).
+            # (review, §372) - its nodes are checked against the tree by
+            # every reader anyway. At most once an interval (§374).
             if (not _CACHE["building"]
                     and time.monotonic() - _CACHE["checked"] >= CHECK_SECONDS / 6):
                 _CACHE["building"] = True
@@ -174,7 +174,7 @@ def index(tree=None) -> dict:
                 threading.Thread(target=_refresh, args=(tree,),
                                  name="category-vocabulary", daemon=True).start()
             return have
-    # First use only: built here (boot primes it when the agents are on, §361).
+    # First use only: built here (boot primes it when the agents are on, §372).
     built = _build(tree, _stamp(tree))
     with _LOCK:
         _CACHE["checked"] = time.monotonic()
@@ -232,7 +232,7 @@ def _built(tree) -> dict:
             continue
         # A one-word name ("Bills", "Lions", "Mercedes") is also an everyday
         # word, and keeps any context a derived nickname already asked for
-        # (review, §361): it is read only in a question about its field.
+        # (review, §372): it is read only in a question about its field.
         nodes, needs, _kind = built.get(key, ((), False, "entity"))
         needs = needs or len(key.split()) == 1
         if node not in nodes:
@@ -299,7 +299,7 @@ def match(text: str, facet: str = "", tree=None) -> tuple:
 
 def definition(node: str) -> dict:
     """A node's drafted definition and exclusions, or {}, from the copy the
-    index holds - never a read of the file per call (review, §361). The
+    index holds - never a read of the file per call (review, §372). The
     candidate list carries these to the brief."""
     index()
     entry = ((_CACHE["data"] or {}).get("nodes") or {}).get(node) or {}

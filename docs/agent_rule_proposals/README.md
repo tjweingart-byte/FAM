@@ -8,7 +8,7 @@ file, until the owner signs it. Nothing reads this folder at run time.
 ## Waiting now
 
 **`nando.md` - always 12, the answer key** (agreed by the owner
-2026-10-31, PROBLEMS.md §369). Adds one rule and changes nothing else:
+2026-10-31, PROBLEMS.md §380). Adds one rule and changes nothing else:
 
 > 12. Let your answer key - a stronger model chosen by the owner - read each
 >     finished episode once, in the background, to grade your filing. Its

@@ -1,4 +1,4 @@
-"""Nando decides (§364): code files a node only from a solid source - the
+"""Nando decides (§375): code files a node only from a solid source - the
 tap's own filing, a provider's field, the brief's own category words, the
 model's pick - and everything it reads off the raw words is a suggestion
 and a candidate for the model. His own call runs whenever nothing solid

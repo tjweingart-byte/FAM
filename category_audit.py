@@ -61,9 +61,9 @@ def note(query: str, words: str, origin: str = "",
          nando: Optional[dict] = None, key: str = "") -> dict:
     """Log what each categoriser said about one written episode, and return
     the row. `composer` is looked up when not given. `nando` is
-    `ScriptNotes.category_settled` when Nando filed the episode (§356): his
+    `ScriptNotes.category_settled` when Nando filed the episode (§367): his
     node at the request and after the writer, and how each was found.
-    `key` is the episode's cache key, for the answer key (§366). Never
+    `key` is the episode's cache key, for the answer key (§377). Never
     raises."""
     row: dict = {}
     try:
@@ -99,7 +99,7 @@ def note(query: str, words: str, origin: str = "",
 
 
 def _nando_summary(rows: list, examples: int) -> dict:
-    """Nando's numbers (§356): how many episodes he filed, how often the
+    """Nando's numbers (§367): how many episodes he filed, how often the
     writer confirmed his request node, narrowed it or made him re-file, how
     each request node was found, and the re-files themselves."""
     filed = [r for r in rows if r.get("nando") or r.get("nando_request")]
@@ -121,7 +121,7 @@ def _nando_summary(rows: list, examples: int) -> dict:
     return {
         "filed": len(filed),
         "differs_from_writer_words": len(moved),
-        # Filed under the parent because the placement was unsure (§358).
+        # Filed under the parent because the placement was unsure (§369).
         "broader_when_unsure": len(unsure),
         # Names that meant two things and nothing decided, most common first.
         "undecided_names": dict(sorted(names.items(), key=lambda kv: -kv[1])),
@@ -194,7 +194,7 @@ def summary(days: float = 7.0, now: Optional[float] = None,
         "with_keywords": len(with_keys),
         "writer_vs_keywords": _rate(len(keyword_agrees), len(with_keys)),
         "nando": _nando_summary(rows, examples),
-        # How his filings agree with the answer key (§366), once it has
+        # How his filings agree with the answer key (§377), once it has
         # graded anything; never creates the agents' store.
         "answer_key": _answer_key(days, examples),
         "composer_to_writer": [

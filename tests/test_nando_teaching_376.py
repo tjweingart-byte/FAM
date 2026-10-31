@@ -1,4 +1,4 @@
-"""Nando is taught on every call (§365, training piece N2): worked examples
+"""Nando is taught on every call (§376, training piece N2): worked examples
 chosen for the request, code's hints said to be hints, the definitions of
 the candidates, and every facet on the list so a broader true answer is
 always there."""

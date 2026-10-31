@@ -1,4 +1,4 @@
-"""Nando, the categorizer - one node of the category tree per episode (§356).
+"""Nando, the categorizer - one node of the category tree per episode (§367).
 
 docs/agent_rules/nando.md: pin every request to the single most specific
 category it is truly about, before anything is researched; only nodes that
@@ -10,8 +10,8 @@ item 38) the closest node the request is truly about - a broader node
 rather than none, never a nearby wrong one.
 
 This module is the code. Before any words: the node the brief's call
-picked from the candidate list (§360), and what the tap already says
-(`prior_for`, §357), which the words may only narrow. Then it reads what the
+picked from the candidate list (§371), and what the tap already says
+(`prior_for`, §368), which the words may only narrow. Then it reads what the
 brief worked out - EI's category words, the resolved subject - before the
 question's raw words, because the brief has already told "Miami heat wave"
 from the basketball team and the raw words have not. The facet is chosen
@@ -19,13 +19,13 @@ first and every step stays inside it:
 
 1. the brief's category words, by the tree's phrases (`resolve_category`);
 2. a name that means two things, decided by the words around it
-   (`category_collisions`, §358);
+   (`category_collisions`, §369);
 3. the brief's subject, by phrases;
 4. the question, by phrases - never on a reading a decided name ruled out
    (a phrase in the question is how "hurricanes hitting the Carolina coast"
    became a hockey team, §209);
 5. the vocabulary - a named thing, or another way of saying a node
-   (`category_vocabulary`, §359);
+   (`category_vocabulary`, §370);
 6. the brief's category words by meaning (`category_near`, under the facet;
    words not embedded yet are queued, never embedded here);
 7. the keyword map's deepest tree node for the question;
@@ -33,10 +33,10 @@ first and every step stays inside it:
 9. the facet - broader, never wrong.
 
 A node that lands on one reading of a name nothing decided is filed under
-what the readings share instead (§361), and a placement below
+what the readings share instead (§372), and a placement below
 `MIN_CONFIDENCE` under its parent. Every step reads memory: no file, store
 or socket on the listener's path (the vocabulary and the Trending edition
-are copies kept in memory, §361), and it never raises. A placement says
+are copies kept in memory, §372), and it never raises. A placement says
 which step decided it (`how`), how sure it is, every node the steps found
 (`candidates`) and any name left undecided (`ambiguous`), which is what the
 brief's call and the tie call are shown and what `category_audit` logs.
@@ -64,7 +64,7 @@ class Placement:
     how: str = ""
     #: Every node the steps found, in the order found.
     candidates: tuple = ()
-    #: How sure, 0 to 1 (§358): which step decided, lowered when a name
+    #: How sure, 0 to 1 (§369): which step decided, lowered when a name
     #: that means two things was left undecided. Below `MIN_CONFIDENCE` the
     #: node is filed under its parent - still true, just broader.
     confidence: float = 0.0
@@ -72,13 +72,13 @@ class Placement:
     #: them decided (`category_collisions`), for C3P0 to ask about.
     ambiguous: tuple = ()
     #: What code read off the words when it was not solid enough to file
-    #: (§364): shown to the model and logged, never filed by itself.
+    #: (§375): shown to the model and logged, never filed by itself.
     suggestion: str = ""
 
 
 NOWHERE = Placement()
 
-#: How far each step is trusted (§358, §361). The tap's own filing and a
+#: How far each step is trusted (§369, §372). The tap's own filing and a
 #: provider's are near certain; a phrase in the brief's words is the brief
 #: understanding the question; a phrase in the raw question is the old
 #: failure (§209); meaning and the keyword map are weakest and sit below the
@@ -99,7 +99,7 @@ MIN_CONFIDENCE = 0.5
 @dataclass(frozen=True)
 class Prior:
     """What the tap already says the episode is about, before any words are
-    read (§357): its node and where that came from."""
+    read (§368): its node and where that came from."""
 
     node: str = ""
     #: tile, bank, dailyfam, edition, parent
@@ -132,7 +132,7 @@ def path_for(node: str) -> tuple:
         return (node,)
 
 
-#: The steps solid enough to file a node on their own (§364, the owner:
+#: The steps solid enough to file a node on their own (§375, the owner:
 #: "at the end of the day, we want Nando to decide"). The tap's own filing,
 #: a provider's field, the brief's own category words and the model's pick
 #: from the candidate list. Everything code reads off the raw words - the
@@ -145,7 +145,7 @@ SOLID = frozenset({"picked", "provider", "category", "tile", "bank", "dailyfam",
 
 def place(brief, query: str = "", field: tuple = (),
           prior: Prior = NO_PRIOR, picked: str = "", unsure: bool = False) -> Placement:
-    """What Nando files at the request (§364): `suggest`'s node only when a
+    """What Nando files at the request (§375): `suggest`'s node only when a
     solid source decided it (`SOLID`) - or the tap's own filing narrowed
     by the words on its branch, or the facet the brief's own words name.
     Otherwise nothing, with the candidates and the suggestion kept for the
@@ -167,7 +167,7 @@ def place(brief, query: str = "", field: tuple = (),
             solid = bool(named) and _facet(named) == found.node
         if solid:
             return found
-        # His own trained model (§370): only when the numbers say it is
+        # His own trained model (§381): only when the numbers say it is
         # almost never wrong this sure, only a node already on his list,
         # never over a name that means two things and nothing decided,
         # never when the brief said it was unsure.
@@ -192,7 +192,7 @@ def place(brief, query: str = "", field: tuple = (),
 def suggest(brief, query: str = "", field: tuple = (),
             prior: Prior = NO_PRIOR, picked: str = "", unsure: bool = False) -> Placement:
     """Every step's reading, in order: the node code would file, how and how
-    sure (§356-§363). `place` files it only from a solid source; otherwise
+    sure (§367-§374). `place` files it only from a solid source; otherwise
     it is the suggestion and candidates the model is shown. Never raises.
 
     `field` is the facets a live game's or market's provider filed the
@@ -200,23 +200,23 @@ def suggest(brief, query: str = "", field: tuple = (),
     (nando.md, "never" 4) - a node outside them is passed over, and the
     provider's own deepest tag stands in.
 
-    `prior` is what the tap already says (`prior_for`, §357): the words may
+    `prior` is what the tap already says (`prior_for`, §368): the words may
     narrow it - a node on its branch, below it - and never move it.
 
     `picked` is the node the brief's call chose from the candidate list
-    (C3P0's call, or Nando's tie call, §360), checked here against the tree:
+    (C3P0's call, or Nando's tie call, §371), checked here against the tree:
     it outranks every code step but the tap's own filing. `unsure` is C3P0
     saying the request is ambiguous: then his pick is a guess between the
-    readings and is not taken (review, §361).
+    readings and is not taken (review, §372).
 
     A Go Deeper's parent (`Prior(..., "parent")`) is weaker than a tap's own
     filing: it is a title, placed by this module, and it stands only when
-    the request itself places nothing more than a facet (review, §361)."""
+    the request itself places nothing more than a facet (review, §372)."""
     try:
         if unsure:
             picked = ""
         if picked and prior.source == "parent":
-            prior = NO_PRIOR             # a hint: the brief's call outranks it (§363)
+            prior = NO_PRIOR             # a hint: the brief's call outranks it (§374)
         if prior.source == "parent":
             placed = _place(brief, query)
             if placed.node and placed.node not in _facets():
@@ -374,7 +374,7 @@ def _deepest_tag(tags) -> str:
 
 
 def prior_for(query: str, context: str = "", notes=None) -> Prior:
-    """What the tap already says the episode is about (§357), or `NO_PRIOR`.
+    """What the tap already says the episode is about (§368), or `NO_PRIOR`.
     Memory reads only - the pool, the bank, the catalogue and, as
     `stories.context_for` already does on a tap, the Trending edition.
     Never raises. In order:
@@ -416,7 +416,7 @@ def _prior_for(query: str, context: str, notes) -> Prior:
         import trending_bank
 
         # The edition already in memory - never a read of its store on the
-        # listener's path (review, §361).
+        # listener's path (review, §372).
         held += list(trending_bank.stories_in_memory())
     except Exception:  # noqa: BLE001
         pass
@@ -442,7 +442,7 @@ def _prior_for(query: str, context: str, notes) -> Prior:
             narrowed = _resolved(shown)
             if not narrowed and shown and node:
                 # "Eagles" under NFL: the vocabulary, on the subject's facet,
-                # with the subject's own label as the sport context (§359).
+                # with the subject's own label as the sport context (§370).
                 import category_vocabulary
 
                 found, _kind, _w = category_vocabulary.match(
@@ -455,13 +455,13 @@ def _prior_for(query: str, context: str, notes) -> Prior:
                 return Prior(node, "dailyfam")
     # The episode a Go Deeper follows, by its title - placed by this module's
     # own steps (clashes, the vocabulary, the sport gate), never by a raw
-    # phrase match (review, §361: "Utah's jazz festival lineup").
+    # phrase match (review, §372: "Utah's jazz festival lineup").
     title = " ".join((context or "").split())
     if title:
         parent = _place(None, title)
         if parent.node and parent.confidence >= MIN_CONFIDENCE:
             # Read off the parent's title words: a hint for the model, not a
-            # filing (§364) - `place` never files a "parent" prior alone.
+            # filing (§375) - `place` never files a "parent" prior alone.
             return Prior(parent.node, "parent")
     return NO_PRIOR
 
@@ -476,7 +476,7 @@ def clashes(text: str) -> list:
     around the name point to, or None when none or several do - a tie,
     never guessed, and then `readings` are only those tied on cues; `cued`
     says whether any reading had a word for it at all
-    (no cue is no evidence, review §361). A reading's own node name in the
+    (no cue is no evidence, review §372). A reading's own node name in the
     text ("new york rangers") decides it. A word inside another name
     (`NOT_THE_NAME`: "United States") is not the clash. Never raises."""
     try:
@@ -490,7 +490,7 @@ def clashes(text: str) -> list:
                 continue
             rest = re.sub(r"(?<![a-z0-9])" + re.escape(name) + r"(?![a-z0-9])", " ", here)
             # A cue that holds the name itself ("new york jets") is read in
-            # the whole text; the others without the name (review, §361).
+            # the whole text; the others without the name (review, §372).
             hits = [sum(1 for cue in r.cues
                         if _cue_in(cue, here if _cue_in(name, cue) else rest))
                     + (1 if r.node and _cue_in(name, r.node) and _cue_in(r.node, here) else 0)
@@ -520,7 +520,7 @@ def _without_other_names(low: str, only: str = "") -> str:
     taken out ("power rangers", "united states") - unless a cue that holds
     the word itself is there ("manchester united states tour": the club).
     For one name, or every name. Read by the clash check and, so a stripped
-    word cannot come back as a nickname, by the vocabulary step (§363)."""
+    word cannot come back as a nickname, by the vocabulary step (§374)."""
     import category_collisions
 
     names = (only,) if only else tuple(category_collisions.NOT_THE_NAME)
@@ -562,14 +562,14 @@ def _place(brief, query: str, prior_facet: str = "") -> Placement:
             found.append(node)
         return node
 
-    # Names that mean two things (§358), read across the question and the
+    # Names that mean two things (§369), read across the question and the
     # brief's own words. A decided one points at a reading; the others are
     # the readings it is not.
     named = clashes(" ".join((query or "", subject, words)))
     decided_named = [(n, d, rs) for n, d, rs, _c in named if d is not None]
     # A losing reading on the winner's own branch (consumer hardware above
     # smartphones) is not ruled out: it is the same truth, said less exactly.
-    # Losing readings stay ruled out whatever else happens (§363).
+    # Losing readings stay ruled out whatever else happens (§374).
     losing = [r.node for _n, d, rs in decided_named for r in rs
               if r is not d and r.node and not (
                   d.node and (r.node in _branch(d.node) or d.node in _branch(r.node)))]
@@ -577,14 +577,14 @@ def _place(brief, query: str, prior_facet: str = "") -> Placement:
     # each other ("Eagles fans brave the heat wave": the Eagles and the
     # Heat's basketball both claim "fans"), and no table order settles it:
     # the contradicting readings become a tie between themselves. A reading
-    # with no node (the bird) files nothing and contradicts nothing (§363).
+    # with no node (the bird) files nothing and contradicts nothing (§374).
     filed = [(n, d) for n, d, _rs in decided_named if d.node]
     conflict = any(not (a.node == b.node or a.node in _branch(b.node)
                         or b.node in _branch(a.node))
                    for i, (_x, a) in enumerate(filed) for _y, b in filed[i + 1:])
     decided = [] if conflict else [d for _n, d, _rs in decided_named]
     # Only a draw between readings that each had a cue is a tie; a name with
-    # no cue at all is no evidence for any reading (review, §361).
+    # no cue at all is no evidence for any reading (review, §372).
     undecided = [(n, rs) for n, d, rs, cued in named if d is None and cued]
     if conflict:
         undecided.append(("+".join(n for n, _d in filed), tuple(d for _n, d in filed)))
@@ -599,7 +599,7 @@ def _place(brief, query: str, prior_facet: str = "") -> Placement:
         sure = CONFIDENCE.get(how, 0.5)
         if node and how not in ("facet", "shared"):
             # A node on one reading of a name nothing decided is a guess
-            # between the readings (review, §361: "Rangers season preview"
+            # between the readings (review, §372: "Rangers season preview"
             # was filed under the NHL). It is filed under what all of that
             # name's readings share - or nothing - never one of them.
             for _name, readings in undecided:
@@ -612,7 +612,7 @@ def _place(brief, query: str, prior_facet: str = "") -> Placement:
                          candidates=tuple(found), confidence=round(sure, 3),
                          ambiguous=ambiguous)
 
-    # Facet first (§357): the tap's, else the brief's words', else a decided
+    # Facet first (§368): the tap's, else the brief's words', else a decided
     # name's, else the subject's. Every later step stays inside it, which is
     # where the cross-facet mistakes (the heat wave and the Heat) are stopped.
     by_words = seen(stories.resolve_category(words)) if words else ""
@@ -652,16 +652,16 @@ def _place(brief, query: str, prior_facet: str = "") -> Placement:
         # A seeded team's full name means the team (the seed leaves out the
         # names that are everyday phrases, `LEFT_TO_GROW`); where one is
         # still both ("Utah jazz festival") it is a clash, decided above
-        # (§363 - a gate here unplaced twenty right teams).
+        # (§374 - a gate here unplaced twenty right teams).
         return done(by_question, "question")
-    # 5: the vocabulary (§359) - a named thing, or another way of saying a
+    # 5: the vocabulary (§370) - a named thing, or another way of saying a
     # node, in the brief's words, its subject, then the question. A wording
     # that names two nodes is a tie: what they share, never one of them.
     import category_vocabulary
 
     for text in (words, subject, query):
         # Without the phrases where a clash word is another name's ("power
-        # rangers"), so it cannot come back as a team's nickname (§363).
+        # rangers"), so it cannot come back as a team's nickname (§374).
         nodes, kind, _wording = category_vocabulary.match(
             _without_other_names(" ".join((text or "").lower().split())), facet, tree)
         nodes = tuple(n for n in nodes if agrees(n) and (
@@ -678,7 +678,7 @@ def _place(brief, query: str, prior_facet: str = "") -> Placement:
     if words:
         import category_near
 
-        # Never embedded while a listener waits (review, §361): words not
+        # Never embedded while a listener waits (review, §372): words not
         # embedded yet are queued and placed next time, as the readers do.
         near = seen(category_near.nearest(words, facet=facet, inline=0))
         if near and agrees(near):
@@ -688,7 +688,7 @@ def _place(brief, query: str, prior_facet: str = "") -> Placement:
     tagged = [t for t in topics.tags_for_text(query or "")
               if t not in topics.FACETS and tree.get(t) is not None and agrees(t)
               # The keyword map reads team names into league tags, so in a
-              # question with no sport in it no sports tag is taken (§361).
+              # question with no sport in it no sports tag is taken (§372).
               and (sporty or _facet(t) != "sports")]
     if tagged:
         tagged.sort(key=lambda n: (-tree.depth_of(n), n))
@@ -739,7 +739,7 @@ def confirm(request: str, words: str, field: tuple = ()) -> tuple:
         if not written and words:
             import category_near
 
-            # Queued, never embedded on the event loop (review, §361).
+            # Queued, never embedded on the event loop (review, §372).
             written = category_near.nearest(words, inline=0)
         if field and written and _facet(written) not in field:
             written = ""
@@ -788,7 +788,7 @@ def settle(notes, query: str = "") -> str:
         return ""
 
 
-# ------------------------------------------------------------------ the candidate list and the tie call (§360)
+# ------------------------------------------------------------------ the candidate list and the tie call (§371)
 #: How many candidate nodes the brief's call is shown: enough to hold every
 #: reading and their parents, few enough to read in a glance.
 MAX_CANDIDATES = 20
@@ -799,7 +799,7 @@ def candidates_for(query: str, context: str = "", notes=None) -> tuple:
     code before it is asked - the tap's own, every reading of a name that
     means two things, the tree's phrases, the vocabulary's matches and the
     keyword map's nodes, each with its parent so a broader true node is
-    always on offer, then every facet (§365) - and whether the request holds
+    always on offer, then every facet (§376) - and whether the request holds
     a tie code could not settle. Memory only; never raises."""
     try:
         import category_vocabulary
@@ -817,13 +817,13 @@ def candidates_for(query: str, context: str = "", notes=None) -> tuple:
 
         prior = prior_for(query, context, notes)
         add(prior.node)
-        # What past requests like this one were truly about (§367): only a
+        # What past requests like this one were truly about (§378): only a
         # vector already made - nothing is embedded here.
         from agents import memory
 
         for row in memory.recall(query, inline=0):
             add(row["node"])
-        # His trained model's reading, when it is at least even odds (§370).
+        # His trained model's reading, when it is at least even odds (§381).
         from agents import nando_model
 
         node, p, _trusted = nando_model.read(query)
@@ -845,14 +845,14 @@ def candidates_for(query: str, context: str = "", notes=None) -> tuple:
             if tag not in topics.FACETS:
                 add(tag)
         # Each node's parent right after it, so cutting the list to its size
-        # never drops the broader true node first (review, §361).
+        # never drops the broader true node first (review, §372).
         ordered: list = []
         for node in found:
             path = path_for(node)
             for n in (node, path[-2] if len(path) > 1 else ""):
                 if n and n not in ordered:
                     ordered.append(n)
-        # Then every facet, always (§365): what the words pointed at may be
+        # Then every facet, always (§376): what the words pointed at may be
         # wrong ("Detroit lions at the zoo"), and a broader true node must
         # always be on offer beside it.
         facets = [f for f in sorted(topics.FACETS) if f not in ordered]
@@ -864,7 +864,7 @@ def candidates_for(query: str, context: str = "", notes=None) -> tuple:
 
 
 def hint_block(query: str) -> str:
-    """What code read off the words, for the model to weigh (§365): its
+    """What code read off the words, for the model to weigh (§376): its
     suggestion, said to be one, and every name in the request that means
     two things with its readings. Memory only; "" when there is nothing."""
     try:
@@ -885,9 +885,9 @@ def hint_block(query: str) -> str:
 
 
 def teaching(query: str, candidates: tuple, inline: int = 0) -> tuple:
-    """The material that teaches Nando on every call (§365): the worked
+    """The material that teaches Nando on every call (§376): the worked
     examples for this request, the graded past requests most like it
-    (§367), and code's hints, as `(tag, text)` pairs. `inline=1` may embed
+    (§378), and code's hints, as `(tag, text)` pairs. `inline=1` may embed
     the request for his memory - only off the listener's path."""
     import category_examples
 
@@ -934,7 +934,7 @@ hockey team. A broader true node is better than a specific wrong one."""
 
 async def ask_tie(query: str, candidates: tuple, notes=None) -> str:
     """Nando's own call, only on a tie code could not settle, run beside the
-    brief and never waited for (the owner's answer 5, §354): a node from
+    brief and never waited for (the owner's answer 5, §365): a node from
     `candidates`, or "". Never raises."""
     try:
         from agents import memory, models, netenyahu
@@ -942,7 +942,7 @@ async def ask_tie(query: str, candidates: tuple, notes=None) -> str:
         from config import settings
 
         # His memory may embed the request here: this call is beside the
-        # brief and never waited for (§367). What it recalls joins the list.
+        # brief and never waited for (§378). What it recalls joins the list.
         recalled = await asyncio.to_thread(memory.recall, query, memory.PER_REQUEST, 1)
         import topics
 

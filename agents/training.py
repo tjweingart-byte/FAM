@@ -1,6 +1,6 @@
-"""Training Nando: the answer key and what it teaches (§366, piece N3).
+"""Training Nando: the answer key and what it teaches (§377, piece N3).
 
-The owner wants Nando to decide (§364) and to keep getting better as the
+The owner wants Nando to decide (§375) and to keep getting better as the
 tree grows, without anyone hand-scoring episodes (decided item 30). The
 answer key is how: a stronger model - `CATEGORIZER_JUDGE_MODEL`, Opus 5.5
 (the owner's choice) - reads finished episodes in the background and says
@@ -202,7 +202,7 @@ def _newest_per_key(rows) -> list:
     return out
 
 
-#: The words of the owner's rule (nando.md, always 12, §369) that lets the
+#: The words of the owner's rule (nando.md, always 12, §380) that lets the
 #: answer key read a finished episode. Until the signed rule book Nando
 #: runs under carries them, the key grades nothing: one call per episode
 #: plus a retry is every agent's bound (every-agent.md, always 3), and only
@@ -221,7 +221,7 @@ def allowed() -> tuple:
             return False, f"nando's rule books are not signed: {lock.reason}"
         if ANSWER_KEY_RULE not in lock.text:
             return False, ("nando's signed rule book has no answer-key rule yet "
-                           "(nando.md, always 12, §369): nothing is graded")
+                           "(nando.md, always 12, §380): nothing is graded")
         return True, ""
     except Exception as exc:  # noqa: BLE001
         return False, f"{type(exc).__name__}: {exc}"
@@ -275,7 +275,7 @@ async def judge_batch(script_for: Callable[[str], list], limit: int = 0,
 
 def handler(script_for: Callable[[str], list]):
     """The background task `categorizer:judge`, bound to the script cache.
-    (`register` also gives Netenyahu his model's nightly training, §370.)"""
+    (`register` also gives Netenyahu his model's nightly training, §381.)"""
     async def run(_task: str) -> None:
         result = await judge_batch(script_for)
         log.info("nando's answer key: %s", result)
@@ -331,14 +331,14 @@ def compared(days: float = 30.0) -> list:
     return out
 
 
-#: How many corrected mistakes become worked examples at most (§368), and
+#: How many corrected mistakes become worked examples at most (§379), and
 #: from how far back.
 MISTAKES_KEPT = 200
 MISTAKE_DAYS = 60.0
 
 
 def mistakes(limit: int = MISTAKES_KEPT, days: float = MISTAKE_DAYS) -> list:
-    """Nando's corrected mistakes as worked examples (§368, piece N5): each
+    """Nando's corrected mistakes as worked examples (§379, piece N5): each
     graded episode he filed under a wrong node - or under nothing - that the
     key was sure about, as `{"question", "node", "source": "mistake"}`, the
     key's node the answer. Newest first, one per question. A filing on the
@@ -363,7 +363,7 @@ def mistakes(limit: int = MISTAKES_KEPT, days: float = MISTAKE_DAYS) -> list:
 
 
 def report(days: float = 30.0, examples: int = 10) -> dict:
-    """How Nando's filings agree with the answer key (§366). Agreement is
+    """How Nando's filings agree with the answer key (§377). Agreement is
     "same node" (exact), "on one branch" (one is the other's ancestor: true
     but more or less specific), else a disagreement. A filing of nothing is
     counted apart: it is never wrong, only unhelpful. Never raises."""

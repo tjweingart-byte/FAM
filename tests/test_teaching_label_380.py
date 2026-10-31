@@ -1,4 +1,4 @@
-"""The owner's rule for the answer key, and the teaching label (§369)."""
+"""The owner's rule for the answer key, and the teaching label (§380)."""
 from __future__ import annotations
 
 import asyncio

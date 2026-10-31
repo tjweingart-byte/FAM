@@ -1,4 +1,4 @@
-"""The category vocabulary (§359): other ways of saying each node, and the
+"""The category vocabulary (§370): other ways of saying each node, and the
 named things filed under one - derived from data FAM has, or drafted by
 Nando's offline task and checked by a person - read by Nando's code.
 """
@@ -93,7 +93,7 @@ def test_the_longest_wording_wins_and_an_entity_outranks_a_wording(tree, drafted
 
 
 def test_a_one_word_entity_is_read_only_in_its_field(tree, drafted):
-    # Review, §361: "Bills", "Lions" are also everyday words.
+    # Review, §372: "Bills", "Lions" are also everyday words.
     drafted(entities={"bills": {"node": "nfl", "kind": "team"},
                       "lions": {"node": "nfl", "kind": "team"},
                       "mercedes": {"node": "formula one", "kind": "team"}})

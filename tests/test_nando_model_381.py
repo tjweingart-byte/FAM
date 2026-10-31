@@ -1,4 +1,4 @@
-"""Nando's small trained model (§370, training piece N6)."""
+"""Nando's small trained model (§381, training piece N6)."""
 from __future__ import annotations
 
 import dataclasses

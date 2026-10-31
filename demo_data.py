@@ -264,14 +264,14 @@ def _forget_what_the_log_taught() -> dict:
     except Exception:  # noqa: BLE001 - see the docstring
         log.exception("could not clear the agents' task queue")
         out.setdefault("agent_tasks_dropped", 0)
-    # Nando's training material (§366): the answer key's labels were read
+    # Nando's training material (§377): the answer key's labels were read
     # off episodes the wipe has just emptied.
     try:
         from agents import training as agent_training
 
         out["nando_labels_dropped"] = (agent_training.store().forget()
                                        if agent_training.exists() else 0)
-        # His trained model was learnt from them (§370).
+        # His trained model was learnt from them (§381).
         from agents import nando_model
 
         out["nando_model_dropped"] = (nando_model.forget()

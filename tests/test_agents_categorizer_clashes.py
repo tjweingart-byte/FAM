@@ -1,4 +1,4 @@
-"""Names that mean two things, and broader when unsure (§358): the clash
+"""Names that mean two things, and broader when unsure (§369): the clash
 table beside the category seed, read by Nando's code; a tie is never
 guessed; every placement has a confidence, and an unsure one is filed under
 its parent.
@@ -115,7 +115,7 @@ def test_every_placement_has_a_confidence(tree):
     "tech giants earnings", "kings and queens of England", "cardinals gather to elect a new pope",
     "Power Rangers movie", "Texas Rangers arrest suspect"])
 def test_a_name_with_nothing_deciding_it_files_nothing(tree, question):
-    # Review, §361: no cue is no evidence - these were filed under a league,
+    # Review, §372: no cue is no evidence - these were filed under a league,
     # then under `sports`; a third meaning (a pope, a monarch) was never
     # in the table.
     assert node(question).node == ""
@@ -130,14 +130,14 @@ def test_a_draw_between_cued_readings_is_what_they_share(tree, question):
 
 def test_two_decided_names_that_disagree_are_a_tie_between_themselves(tree):
     # "fans" and "game" claimed the Heat for the NBA beside the Eagles: the
-    # two decided readings tie (§363) - what they share, never the NBA.
+    # two decided readings tie (§374) - what they share, never the NBA.
     placed = node("Eagles fans brave the heat wave at the game")
     assert placed.node in ("sports", "") and set(placed.ambiguous) == {"heat", "eagles"}
     assert node("Apple shares fall as heat wave hits").node == ""
 
 
 def test_a_reading_with_no_node_contradicts_nothing(tree):
-    # The birds file nothing; the heat wave still decides the weather (§363).
+    # The birds file nothing; the heat wave still decides the weather (§374).
     assert node("bald eagles nest survives heat wave").node == "extreme weather"
 
 

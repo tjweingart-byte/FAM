@@ -1,4 +1,4 @@
-"""C3P0 and Nando in the brief's call (§360): the brief's search half, sent
+"""C3P0 and Nando in the brief's call (§371): the brief's search half, sent
 through the agent layer as C3P0's one call when he works on the episode,
 carrying Nando's candidate list; the answer held to the rules in code; a
 request never sent runs the brief's own search half; with the agents off the

@@ -1,5 +1,5 @@
 """Nothing in front of the first word: the agents' bookkeeping off the
-request path (§354, the carry-overs §353 left for Phase 1).
+request path (§365, the carry-overs §353 left for Phase 1).
 
 Once an agent works while a listener waits, two reads that Phase 0 made on
 every episode would sit in front of the first word: Netenyahu's holds from

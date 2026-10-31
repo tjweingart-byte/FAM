@@ -1,4 +1,4 @@
-"""What the review of Phase 1 found (§361), each pinned: nothing of the
+"""What the review of Phase 1 found (§372), each pinned: nothing of the
 agents' bookkeeping on the listener's path, a tie never guessed, C3P0's
 answer held to the rules it claimed, and no second request for one site.
 """
@@ -67,7 +67,7 @@ def test_the_ledger_row_is_written_off_the_loop_and_flush_waits_for_it(monkeypat
 
 def test_a_failure_after_sending_is_marked_sent(monkeypatch):
     """A layer failure after the request left must say so, so its caller
-    never sends a second one (review, §361)."""
+    never sends a second one (review, §372)."""
     async def boom(request, notes, client, started, sent):
         sent[0] = True
         raise RuntimeError("metering broke after the answer")
@@ -204,7 +204,7 @@ def test_each_candidates_parent_comes_right_after_it(tree):
     nodes, _tie = categorizer.candidates_for("United flights after the match")
     for i, node in enumerate(nodes):
         path = categorizer.path_for(node)
-        # Facets close the list on purpose (§365); a deeper parent sits by
+        # Facets close the list on purpose (§376); a deeper parent sits by
         # its child.
         if len(path) > 1 and path[-2] in nodes and path[-2] not in topics.FACETS:
             assert nodes.index(path[-2]) <= i + 1 or nodes.index(path[-2]) < i

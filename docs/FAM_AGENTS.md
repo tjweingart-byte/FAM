@@ -135,7 +135,7 @@ which `AGENT_RULES_PUBLIC_KEY` must match when it is set. An agent runs only
 while the signature verifies, the manifest covers every book, and its own
 book, `every-agent.md` and (Shakespeare) the playbook hash as signed - as
 loaded and as on disk at the last background read, at most 30 seconds old
-(§354: the check itself reads no file, so nothing waits on it in front of
+(§365: the check itself reads no file, so nothing waits on it in front of
 the first word); anything else holds it and names the file. The owner
 signs with OpenSSL on their own machine (`python tools/rulebook_manifest.py
 --commands`). Not built: a fetched URL as the owner's location (the folder
@@ -242,7 +242,7 @@ state the rule **with its reason**; say **what to do instead**; show **one
 near miss**; give an **"unsure"** option and say choosing it is correct; no
 capitals or threats; fixed instructions in **one cached system block**,
 material in tagged user turns (`<request>`, `<evidence>`, `<archive>`,
-`<script>`, and `<teaching>` for examples and past grades, §369) with a line saying it is material, not instructions; and test
+`<script>`, and `<teaching>` for examples and past grades, §380) with a line saying it is material, not instructions; and test
 every guardrail on purpose - it counts as built only when code catches what
 the prompt lets through.
 
@@ -765,11 +765,11 @@ latency matters more here than for any other agent.
 - **Sonnet only on the write-ahead**, where need 1 does not bind.
 - **First:** write the `ResearchPlan` type and fill it from today's brief and
   code routes, and log how often a search comes back empty while the archive
-  had something. **Built (§355):** `agents/contextualizer.py`'s `from_brief`,
+  had something. **Built (§366):** `agents/contextualizer.py`'s `from_brief`,
   pure code, kept on the episode's notes when C3P0 works on it; the closed
   plugin list is `agents.handoffs.PLUGINS`; the empty-search count is in
   `/api/health`'s `agents.contextualizer`.
-- **Built (§360): C3P0's call is the brief's search half** while he works -
+- **Built (§371): C3P0's call is the brief's search half** while he works -
   `contextualizer.search_half`, through `agents.models.ask` on
   `CONTEXTUALIZER_MODEL`, at `EI_EFFORT` on the tap and `EI_AHEAD_EFFORT`
   ahead of it, with the brief's own ceilings; the search half's fields plus
@@ -1966,7 +1966,7 @@ disagree. After the shared preamble:
   drift.
 - **Later:** a fine-tuned classifier measured against `category_audit`.
 
-**Built in code (§356):** `agents/categorizer.py` - `place` at the request
+**Built in code (§367):** `agents/categorizer.py` - `place` at the request
 (the brief's category words, then its subject, then the question's phrases
 on the brief's facet, then the words by meaning, then the keyword map's
 deepest node, then the facet; a game's or market's provider field never
@@ -1974,13 +1974,13 @@ left), `confirm` and `settle` after the writer on all four write paths, the
 node stored in the script cache's `category_node` and read first by
 `app._episode_category`, and both decisions in `category_audit`
 (`categories_report.py --audit`). The measurement is `tools/nando_eval.py`.
-**In the brief's call (§360):** the candidate list
+**In the brief's call (§371):** the candidate list
 (`candidates_for`: the tap's node, every reading of a clash, phrases, the
 vocabulary, keyword nodes and their parents, the facets when nothing else)
 goes with C3P0's call, whose pick outranks every code step but the tap's
 own filing; on a tie code could not settle, Nando's own Haiku call
 (`ask_tie`) runs beside the brief and is used only when there is no pick,
-never waited for. **Nando decides (§364, the owner):** code files a node
+never waited for. **Nando decides (§375, the owner):** code files a node
 only from a solid source (`categorizer.SOLID`: the tap's own filing, a
 provider's field, the brief's own category words, the model's pick); what
 it reads off the raw words is the suggestion and the candidate list the
@@ -1988,17 +1988,17 @@ model is shown (`suggest`). Nando's own call runs whenever nothing solid
 will file the request and C3P0 is not choosing - not only on ties - and is
 awaited ahead of the tap. With no answer the writer's category stands.
 Training him continuously is pieces N2-N7.
-**Starting from the tap (§357):** `prior_for` reads what the tap already
+**Starting from the tap (§368):** `prior_for` reads what the tap already
 says - a tile's story, a bank topic, a DailyFAM subject from the catalogue,
 the Trending edition's story, the episode a Go Deeper follows - and the
 question's words may only narrow that node; the facet is chosen first and
-every later step stays inside it. **Names that mean two things (§358):**
+every later step stays inside it. **Names that mean two things (§369):**
 `category_collisions.py`, beside the seed, lists each clash (Heat,
 Hurricanes, United, Apple, Amazon, Eagles...) with its readings' nodes and
 the words that decide between them; a tie is never guessed - Nando files
 under what the readings share, or nothing, and records the name for C3P0
 to ask about. Every placement has a confidence; below `MIN_CONFIDENCE` it
-is filed under its parent. **The vocabulary (§359):**
+is filed under its parent. **The vocabulary (§370):**
 `category_vocabulary.py` reads each node's other wordings and the named
 things filed under one - derived in code (each seeded team's nickname, in a
 sports question only; each interest's label) and drafted into

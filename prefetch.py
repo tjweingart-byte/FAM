@@ -790,7 +790,7 @@ class Prefetcher:
                 if getattr(notes, name, ""):
                     stamp[name] = getattr(notes, name)
             stamp["voice"] = voice_bank.random_slug()
-            # Nando's node, confirmed after the writer (§356), only when he
+            # Nando's node, confirmed after the writer (§367), only when he
             # filed it.
             from agents import categorizer
 

@@ -473,7 +473,7 @@ def stories_now(now: Optional[float] = None) -> list:
 def stories_in_memory(now: Optional[float] = None) -> list:
     """The edition this process already holds, unexpired - never a read of
     the store, for code on a listener's path that must not wait on one
-    (Nando, §361). `[]` when nothing is held yet; `stories_now` reloads."""
+    (Nando, §372). `[]` when nothing is held yet; `stories_now` reloads."""
     edition = _CURRENT
     now = time.time() if now is None else now
     if edition is None or edition.expired(now):
@@ -853,7 +853,7 @@ async def _start(story, generator, cache, minutes: int, rewrite: bool = False):
     notes = ScriptNotes()
     # Written ahead of every tap: the brief may take its time (§268).
     notes.ahead = True
-    # What the story is already filed under, for Nando to start from (§357).
+    # What the story is already filed under, for Nando to start from (§368).
     if getattr(story, "category", ""):
         from agents import categorizer
 
@@ -895,7 +895,7 @@ def _finish(story, plan, key: str, notes, sentences: list, cache, minutes: int,
 
     extra["origin"] = origin
     extra["voice"] = voice_bank.random_slug()
-    # Nando's node, confirmed after the writer (§356), only when he filed it.
+    # Nando's node, confirmed after the writer (§367), only when he filed it.
     from agents import categorizer
 
     node = categorizer.settle(notes, story.query)

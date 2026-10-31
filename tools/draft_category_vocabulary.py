@@ -1,11 +1,11 @@
 """Draft each category node's definition, exclusions, other wordings and
-Wikidata id, and the entity table - for a person to check (§359).
+Wikidata id, and the entity table - for a person to check (§370).
 
     AGENTS=1 CATEGORIZER=1 python tools/draft_category_vocabulary.py
     AGENTS=1 CATEGORIZER=1 python tools/draft_category_vocabulary.py --limit 40
     python tools/draft_category_vocabulary.py --dry-run     # what it would ask, sending nothing
 
-Nando's offline task (`docs/FAM_AGENTS.md`, Nando; PROBLEMS.md §359): one
+Nando's offline task (`docs/FAM_AGENTS.md`, Nando; PROBLEMS.md §370): one
 call per batch of nodes through `agents.models.ask` - the only way an agent
 reaches a model ([agent-model-layer]) - on `CATEGORIZER_MODEL` (Haiku 5.5,
 the owner's choice for this draft), under Nando's signed rule book, metered
@@ -220,7 +220,7 @@ def main() -> int:
 
     tree = topics.category_tree()
     if not tree.nodes():
-        # Drafting never writes the deployment's tree (review, §361): an
+        # Drafting never writes the deployment's tree (review, §372): an
         # empty one is drafted against the seed in a throwaway copy.
         import tempfile
 

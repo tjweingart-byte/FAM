@@ -1,4 +1,4 @@
-"""C3P0, the contextualizer: the `ResearchPlan` (§355) and his call (§360).
+"""C3P0, the contextualizer: the `ResearchPlan` (§366) and his call (§371).
 
 docs/agent_rules/c3p0.md: work out what a request is about, which plugins
 to ask and what to ask them, what Sonic should fetch, and the title. Phase 1
@@ -14,11 +14,11 @@ ladder always ([always-researched]), `live_route.domain_of` for a provider,
 `live_facts.wants_forecast`, `history_archive.recall_wanted`, the brief's
 town - so the plan describes what the episode will ask, never a second
 opinion that could drift from it; when C3P0's call answered, the plan is
-his (§360). It is pure: no file, store, socket or model, microseconds after
+his (§371). It is pure: no file, store, socket or model, microseconds after
 the brief. The pipeline does not route on the plan yet; it is kept on the
 episode's notes and counted.
 
-`search_half` is C3P0's call (§360): the brief's search half, sent through
+`search_half` is C3P0's call (§371): the brief's search half, sent through
 the agent layer, with his and Nando's fields after it, each held in code
 (`checked`).
 """
@@ -85,7 +85,7 @@ def from_brief(brief, query: str = "") -> Optional[ResearchPlan]:
                                      what=_text(getattr(brief, "subject", ""), 200))
         said = getattr(brief, "contextualized", None) or {}
         if said:
-            # C3P0's call answered (§360): his reading and his plan, and how
+            # C3P0's call answered (§371): his reading and his plan, and how
             # far his plugin choices agree with the routes code took - which
             # is what decides whether the pipeline should follow them.
             mine = tuple(PluginCall(plugin=c["plugin"], query=_text(c["query"], 300))
@@ -156,7 +156,7 @@ def report() -> dict:
     empty = counts.get("empty_search", 0)
     had = counts.get("empty_search_archive_had", 0)
     return {"since_boot": counts,
-            # Whether his title is the episode's while he works (§360).
+            # Whether his title is the episode's while he works (§371).
             "titles": bool(settings.contextualizer_titles),
             # None, not 0, before any empty search ([metering]'s rule).
             "empty_search_archive_had_rate": round(had / empty, 3) if empty else None}
@@ -167,10 +167,10 @@ def reset() -> None:
         SINCE_BOOT.clear()
 
 
-# ------------------------------------------------------------------ C3P0's call (§360)
+# ------------------------------------------------------------------ C3P0's call (§371)
 # C3P0 rides in one of the brief's existing calls - the search half, which
 # already writes the searches and the title (the owner's answers 1 and 2,
-# §354) - sent through `agents.models.ask`, so it is metered, locked under
+# §365) - sent through `agents.models.ask`, so it is metered, locked under
 # his signed rule book and checked like any agent call. One call, at the
 # moment the brief's search half was always asked: nothing new in series.
 # With Nando working too, the same call picks his node from a candidate list
@@ -276,7 +276,7 @@ contains: "hurricanes hitting the Carolina coast" is weather, not the \
 hockey team. A broader true node is better than a specific wrong one."""
 
 #: A result where a search input or a title must not have one: a score, or
-#: a verb saying how something ended. Not a result (review, §361): a date
+#: a verb saying how something ended. Not a result (review, §372): a date
 #: or a date range ("2026-10-11", "October 10-11"), a range of ages, days,
 #: stars or players ("ages 18-25", "5-7 day forecast", "top 10-15"), a
 #: named thing with a number in it ("9-11", "737-800", "4-3 defense",
@@ -295,7 +295,7 @@ _NOT_A_SCORE_AFTER = re.compile(
     r"defen[cs]e|formation|job|jobs|chance|split|attacks?|memorial|" + _MONTH + r")\b",
     re.I)
 #: Verbs that say how a contest ended. **Missing a guessed result is the
-#: worse mistake** (the owner, §364): a guess in a search becomes its
+#: worse mistake** (the owner, §375): a guess in a search becomes its
 #: premise, while an innocent search flagged here only falls back to the
 #: question itself. So the bare forms are read too ("lost", "swept",
 #: "eliminated", "win"), and "I lost my job" is flagged - by design.
@@ -315,7 +315,7 @@ _HOW_MANY = re.compile(r"\b(how many|how often)\s+(\w+\s+){0,5}$", re.I)
 _STREAK = re.compile(
     r"^\s*(\w+\s+)?(\d+|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)"
     r"\s+(straight|in a row|consecutive)\b", re.I)
-#: "Eagles 24, Giants 17" - two names each with a number (§364: flagging
+#: "Eagles 24, Giants 17" - two names each with a number (§375: flagging
 #: "Windows 11, Office 365" too is the accepted cost).
 _NAMED_SCORE = re.compile(r"\b[A-Z][\w.'&]*(?: [A-Z][\w.'&]*)* (\d{1,3}), "
                           r"(?:[A-Z][\w.'&]*(?: [A-Z][\w.'&]*)*) (\d{1,3})\b")
@@ -352,7 +352,7 @@ def asks_for_view(person: str, query: str) -> bool:
     with what it is on ("Krugman's take on"), or after "the opinion of". A
     word inside another word is not the name ("Byron" is not "Ron"); a
     reporting verb without "about" asks for a fact ("Biden said GDP grew");
-    "feels" is a mood (§363). Curly apostrophes count as straight ones."""
+    "feels" is a mood (§374). Curly apostrophes count as straight ones."""
     name = " ".join((person or "").split())
     text = (query or "").replace("\u2019", "'").replace("\u2018", "'")
     if not name:
@@ -433,7 +433,7 @@ def checked(answer: "SearchPlan", query: str, candidates: tuple) -> tuple:
 
 def candidate_block(candidates: tuple) -> str:
     """The candidate nodes as the call reads them: id, path, and the
-    vocabulary's definition and exclusions when drafted (§359)."""
+    vocabulary's definition and exclusions when drafted (§370)."""
     import category_vocabulary
     from agents import categorizer
 
@@ -490,9 +490,9 @@ async def search_half(query: str, minutes: int, context: str, now: str, covered:
 
             material.append(("evidence", "Candidate nodes (id | path):\n"
                              + candidate_block(candidates)))
-            # Nando's teaching: worked examples and code's hints (§365).
+            # Nando's teaching: worked examples and code's hints (§376).
             # Ahead of the tap his memory may embed the request; on a
-            # search only a vector already made is read (§367).
+            # search only a vector already made is read (§378).
             material.extend(categorizer.teaching(query, candidates,
                                                  inline=1 if ahead else 0))
         request = models.AgentRequest(
@@ -517,7 +517,7 @@ async def search_half(query: str, minutes: int, context: str, now: str, covered:
         if not result.ok:
             # Only a request that never left (`sent` is set the moment it
             # does): one sent and then failed is never sent again (review,
-            # §361 - a second request for one site).
+            # §372 - a second request for one site).
             if not result.sent:
                 _count("call_fell_back_to_brief")
                 return await fallback()

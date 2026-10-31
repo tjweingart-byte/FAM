@@ -1,4 +1,4 @@
-"""Nando in code (§356): one node of the category tree per episode, placed
+"""Nando in code (§367): one node of the category tree per episode, placed
 at the request from what the brief worked out, confirmed after the writer,
 stored with the episode and read by the one reader - and a provider's
 filing never left.
@@ -47,7 +47,7 @@ def test_the_briefs_category_words_outrank_a_word_in_the_question(tree):
 
 def test_the_subject_places_when_the_words_do_not(tree):
     placed = categorizer.suggest(brief(category="", subject="Philadelphia Eagles"), "eagles score")
-    # "Eagles" is a name that means two things (§358); "score" decides it,
+    # "Eagles" is a name that means two things (§369); "score" decides it,
     # and the subject names the team in full.
     assert placed.node == "philadelphia eagles" and placed.how in ("subject", "clash")
 
@@ -298,5 +298,5 @@ def test_nando_in_code_is_never_wronger_than_today():
     suggests, files = result["nando suggests, no brief"], result["nando files, no brief"]
     assert sum(suggests["totals"].values()) == 40
     assert suggests["totals"]["wrong"] <= today["totals"]["wrong"]
-    # What Nando files without a model or a brief (§364): never wrong.
+    # What Nando files without a model or a brief (§375): never wrong.
     assert files["totals"]["wrong"] == 0

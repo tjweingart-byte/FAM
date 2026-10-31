@@ -1,4 +1,4 @@
-"""Nando's answer key (§366, training piece N3): a stronger model grades
+"""Nando's answer key (§377, training piece N3): a stronger model grades
 his filings in the background, nightly, and the agreement is a number."""
 from __future__ import annotations
 
