@@ -364,4 +364,5 @@ and `limit` = Lines.
 | 24931 | 25 | 361. Main's Postgres job was red from §358's intake tests (2026-10-31) |
 | 24956 | 17 | 362. A §359 edition test failed by the clock, half of every day (2026-10-31) |
 | 24973 | 49 | 363. The 10.31 notebook: lower-case headings, more on View more, friends listened, the best picture, All (2026-10-31) |
-| 25022 | 13 | 364. The player's source circles show the publishers' logos (2026-10-31) |
+| 25022 | 34 | 364. Explore names the wait in front of a card's first word (2026-10-31) |
+| 25056 | 13 | 365. The player's source circles show the publishers' logos (2026-10-31) |

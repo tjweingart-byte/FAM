@@ -773,7 +773,7 @@ def main() -> int:
 
             marks = page.eval_on_selector_all("#srcMarks .src-mark", "e => e.length")
             assert marks == 3, f"the corner showed {marks} publisher marks, not three"
-            # Each mark carries the publisher's logo over its initials (§364),
+            # Each mark carries the publisher's logo over its initials (§365),
             # asked for with no referrer, as the Sources popup does.
             logos = page.eval_on_selector_all(
                 "#srcMarks .src-mark img",
