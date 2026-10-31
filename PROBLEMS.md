@@ -24969,3 +24969,99 @@ passing window.
 The story is now 7.5 hours old: its own shelf ends within half an hour and
 `until` is always at least the grace hour away, so the hold applies at any
 hour. The same sweep passes at all 48 points.
+
+## 363. The 10.31 notebook: lower-case headings, more on View more, friends listened, the best picture, All (2026-10-31)
+
+A page of the owner's notebook, photographed. Six items; one crossed out
+("FAM" before Messages) and one boxed - a new loading screen for exploreFAM's
+episodes - which the owner said not to do. The other five:
+
+- **"Make the Daily, my, Your all the same font (make them all look like
+  my); make D and Y lower case. Centring those at the top of the pages? ✓"**
+  The headings read `daily`, `my`, `your` beside the drawn FAM. They were not
+  one style: `.myfam-header h2` (500, 28px) outranked `.wordmark`'s 400 on
+  DailyFAM and myFAM, while YourFAM's sat in `.yf-head` at 400, 23px. One rule
+  now sets all three as "my" was drawn (`.myfam-header h2, .yf-head
+  .wordmark`), and the word is centred over the page with the header's
+  buttons kept at the right. `aria-label`s follow the words. The §250 note
+  that called these 400 described `.wordmark`, not what the headers drew;
+  `rule:typefaces` has a Current note. exploreFAM's word was already centred.
+- **"When you click on view more, can more be displayed?"** Sixteen a page
+  (`SECTION_PAGE`, `topics.VIEW_MORE_PAGE`), and Refresh deals the next
+  sixteen. Made for you's first page is still the rail's own tiles then
+  written episodes (§286). The server already allowed 40.
+- **"On DailyFAM, do we display how many friends listened to the episode
+  (social proof)?"** We did not. Now `topics.friends_listened` counts, per
+  tile, the friends (mutual follows) who played it in `FRIENDS_WINDOW`, by
+  person and by question as well as tile id; `/api/myfam` and
+  `/api/myfam/section` put `friends_listened` on the tiles that have any, and
+  the card draws "7 friends listened" bottom-right of the picture, as
+  sketched. A count only - no name, no id - and no field rather than a 0.
+  `rule:friends-listened` (new).
+- **"NEED Nando to be good at assigning THE BEST available thumbnail."**
+  Nando's rule book (rule 6) already says the picture is the category's or
+  the named subject's. Where it fell short is the borrow: when the deepest
+  subject the words name was unpainted, `pick_for_player` walked up *that
+  subject's* branch and stopped, even when another subject the words name
+  had its own picture - "Seahawks fans at a Lakers game" wore the NBA's
+  picture while the Seahawks' was painted. Without a category it now takes
+  the most specific painted picture any named node reaches (ties to the
+  deeper-named one); with a category, the category's branch still goes first
+  (§209). Tiles borrow through the same function, so they agree.
+- **"For filter choices at the top of exploreFAM, add an All or shuffle
+  option to get a mix of everything."** **All**, first in the dropdown:
+  `/api/explore?feed=all` (`_explore_all_entries`) takes an equal share of
+  `limit` from Made for you, Trending, What people are searching and Most
+  recent, tops up from the catalogue, one card per episode, shuffled; the
+  client shuffles it again and goes round like the catalogue. Shared cache
+  only, never the listener's own, moderation applied.
+
+Tests: `tests/test_notebook_1031.py`; the old pins on "Daily"/"Your", eight
+a page and the five dropdown labels were updated.
+
+## 364. Explore names the wait in front of a card's first word (2026-10-31)
+
+**The problem.** An Explore card opened, sat silent for a few seconds while
+its kept audio was asked for, downloaded and decoded, and then started with
+no warning (the owner's 10.31 notebook page). Nothing said anything was
+happening.
+
+**The choice.** Five options were mocked side by side on one simulated wait
+(start the next card earlier, a ring on the play button, named steps, a
+buffer bar with a seconds count, the opening line as a caption). The owner
+picked **C, named steps**. This is the boxed item of the 10.31 notebook
+page that §363 left out: it was done on its own branch, at the owner's
+direction, after the options were compared.
+
+**What it does.** Under the reel's title, three lines: *Finding the episode*,
+*Downloading audio*, *Starting*. Each is ticked from a real event, never a
+timer: `fam-audio.js` now calls `handlers.onStage("found")` when the server
+answers with the episode and `onStage("arriving")` when its first audio
+bytes reach the device - on the PCM and Opus streams, the R2 link read as it
+arrives, and the whole-file link once it has downloaded. `onFirstAudio`
+clears them. Each stage is said once per play, and only for the play that
+is current.
+
+**What it does not do.** Search's steps (§148) hold the audio until the
+fifth and give each two seconds; these hold nothing and have no minimum, so
+`latency-start-earlier` and `motion` stand. The only clock is
+`REEL_STEPS_AFTER_MS` (250 ms): a card that starts sooner never shows them,
+so a fast start does not flash three lines. A stopped card, a new card, or
+another play taking the audio clears them; reopening Explore on a card
+still loading redraws the card and keeps its steps.
+
+**Pinned by** `tests/test_explore_loading_364.py`. Heard on no device yet:
+the stages' real proportions on a phone network are unmeasured.
+
+## 365. The player's source circles show the publishers' logos (2026-10-31)
+
+The three overlapped circles beside the title drew initials ("CN", "BB",
+"BB") and made no network request, so a listener saw abbreviations where the
+Sources popup showed CNBC's and the BBC's own marks. At the owner's direction
+the circles now carry the logo too: `srcMark(item, size, withLogo)` lays the
+publisher's `/favicon.ico` over the drawn initials, transparent until it
+loads, `referrerpolicy="no-referrer"` as in the popup, and removed on error so
+a missing icon leaves the initials rather than a blank circle. Only the three
+shown are asked for. This reverses the strip's "no network request" note
+(the popup's reason - no referrer, nothing about the episode - is what now
+holds for both); the popup is unchanged.

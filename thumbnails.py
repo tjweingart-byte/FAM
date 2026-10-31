@@ -880,7 +880,9 @@ def pick_for_player(text: str, key: str = "",
     time, so 9.30 #7's reason for never borrowing - one picture on every tile
     under a branch - does not arise here, and it borrows in this order:
 
-    1. the nearest approved ancestor of the deepest node the words name;
+    1. the most specific approved picture any node the words name reaches,
+       itself or its nearest painted ancestor (10.31 notebook; a category
+       walks its own branch first);
     2. the approved facet the words fall under (`topics.tags_for_text`);
     3. one approved facet picture, chosen by a hash of the words, so the
        same episode always wears the same one; any approved node when no
@@ -949,12 +951,25 @@ def pick_for_player(text: str, key: str = "",
                 waiting = True
             elif near:
                 candidates.append(near)
-        for node in candidates:
+        # A category keeps its own branch first: the composer read the whole
+        # episode, and a word match on another branch is how a hurricane
+        # wore the hockey team (§209). Without one, every node the words name
+        # is a reading of the episode, so the best picture is the most
+        # specific one any of them reaches - a painted team named beside an
+        # unpainted player beats the league above the player (10.31
+        # notebook: "the best available thumbnail").
+        anchored = bool(category) and bool(candidates) and candidates[0] == category
+        best = (-2, 0)
+        for rank, node in enumerate(candidates):
             for up in [node] + list(tree.ancestors(node)):
                 if up in approved:
-                    chosen = up
+                    if anchored:
+                        chosen = up
+                    elif (_depth(tree, up, facets), -rank) > best:
+                        best = (_depth(tree, up, facets), -rank)
+                        chosen = up
                     break
-            if chosen:
+            if chosen and anchored:
                 break
         if not chosen:
             chosen = next((f for f in declared if f in approved), "")
