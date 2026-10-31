@@ -149,14 +149,18 @@ async def build(generator=None, cache=None, now: Optional[float] = None,
                 "subjects": len(subjects(now)), "episodes": {},
                 "skipped_for_ceiling": 0, "detail": NO_WRITER}
     until = current_until(now)
-    _BUILDING = True
+
+    def claimed() -> None:
+        global _BUILDING
+        _BUILDING = True
+
     try:
         report = await daily_edition.run_slot(
             sid, slot, now, lambda: subjects(now), generator, cache,
             until=until, length=config.BROWSE_MINUTES, origin="myfam",
             max_episodes=s.rails_edition_max_episodes,
             max_dollars=s.rails_edition_max_dollars, force=force,
-            label="rails edition", on_written=_hold(until),
+            label="rails edition", on_written=_hold(until), on_claimed=claimed,
             failures=_LAST_ATTEMPT)
         if report is not None:
             _LAST_ATTEMPT.clear()

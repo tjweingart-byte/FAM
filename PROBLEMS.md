@@ -24868,6 +24868,27 @@ The edition's report counts `dormant_mixes`.
 **The ceilings are lifted**: `DAILY_EDITION_MAX_EPISODES` / `_MAX_DOLLARS`
 default to 0 (none), and the rails' are 0. Both remain settable.
 
+**Reviewed before the pull request**, by an independent read of the diff;
+four findings, all fixed:
+- *A live game's thirty minutes could become a day.* A second edition
+  writer in the same slot - a dormant mix opened, a forced re-run, the other
+  edition on the same words - found the in-progress episode current and
+  extended it to the edition's window. Keys written in progress are now held
+  in `_IN_PROGRESS` until their window ends and never extended.
+- *A dormant mix still got "your mix is ready"* (`push.py` asks only whether
+  the slot is built). A mix with a listen time is now never dormant: its
+  owner asked to be told daily, and going quiet would be the same broken
+  promise.
+- *A hold could be lost to a refresh composing at the same moment*, which
+  installs the copies it took before; and a held subject pushed out of the
+  store and reported again was retired on the domain's clock. Holds are kept
+  apart (`stories._HELD`), re-applied by every refresh and read by
+  `_admissible`.
+- *A hold made a story louder*: `push` halves on `shelf_life / 2`. It now uses
+  the domain's half-life.
+And two small ones: a story the other edition was writing (`in_flight`) is
+still held, and `_BUILDING` is set only once the claim is won, as before.
+
 Rules: `rails-edition` (new, `product.md`), `mix-dormancy` (new,
 `open-problems.md`); Current notes on `myfam-warms-briefs`, `dec-prefetch`
 and `ttl-from-evidence`. Tests: `tests/test_editions_359.py`;

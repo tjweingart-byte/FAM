@@ -402,10 +402,14 @@ before anybody taps, so a rail tap pays only for the voice:
 - **A sports story it wrote stays on the shelf** until the next rails
   edition plus the grace hour (`stories.hold_until`, `HELD_FOR_EDITION`):
   eight hours ended before the next edition with its episode still current.
-  Other domains already outlive the gap and are untouched.
+  Other domains already outlive the gap and are untouched. Holds are kept
+  apart (`_HELD`) and re-applied by every refresh; a held story fades on its
+  domain's half-life, so it stays offered without getting louder.
 - **A game in progress** is written, keeps its title, hook and category on
   the tile, and is current `EDITION_IN_PROGRESS_SECONDS` (30 min); a tap
-  after that writes a new one (rule `ttl-from-evidence`).
+  after that writes a new one (rule `ttl-from-evidence`). Nothing stretches
+  that window: an edition writer that finds it current leaves it alone
+  (`daily_edition._IN_PROGRESS`).
 - Not written ahead: a heard story's "what's new" follow-up (its words are
   the listener's history) and a story that arrives between editions - the
   tap writes those until the next edition. `RAILS_EDITION=0` turns it off.

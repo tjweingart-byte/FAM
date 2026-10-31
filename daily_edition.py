@@ -368,6 +368,20 @@ _EXTRA: dict = {}
 _TRIED: dict = {}
 #: What the last attempt in this process said, for the health page.
 _LAST_ATTEMPT: dict = {}
+#: Keys an edition wrote about a game in progress, with when their window
+#: ends (§359). Such an episode is current for `EDITION_IN_PROGRESS_SECONDS`
+#: only, so nothing may stretch it to the edition's window: a second edition
+#: writer finding it current (a forced re-run, an opened or saved mix, the
+#: other edition) leaves it alone.
+_IN_PROGRESS: dict = {}
+
+
+def _short_lived(key: str, now: Optional[float] = None) -> bool:
+    """Whether `key` is an edition's in-progress episode still in its window."""
+    now = time.time() if now is None else now
+    for old in [k for k, until in _IN_PROGRESS.items() if until <= now]:
+        _IN_PROGRESS.pop(old, None)
+    return key in _IN_PROGRESS
 
 
 def store() -> EditionStore:
@@ -383,6 +397,7 @@ def reset(edition_store: Optional[EditionStore] = None) -> None:
     _STORE = edition_store
     _BUILDING = False
     _IN_FLIGHT.clear()
+    _IN_PROGRESS.clear()
     _EXTRA.clear()
     _TRIED.clear()
     _LAST_ATTEMPT.clear()
@@ -492,9 +507,10 @@ async def _start(query: str, generator, cache, length: int,
                 # This edition's already - or a tap got there first, sourced
                 # just as recently but current for only `ttl_for`'s fifteen
                 # minutes. Give it the edition's window rather than pay for
-                # the same episode twice.
+                # the same episode twice - unless it is a game in progress,
+                # whose window is its own (§359).
                 extend = getattr(cache, "extend_current", None)
-                if extend is not None:
+                if extend is not None and not _short_lived(key):
                     extend(key, current_until)
                 _IN_FLIGHT.discard(query)
                 return {"status": "cached", "key": key}
@@ -537,6 +553,8 @@ def _finish(pending: "_Pending", sentences: list, cache, length: int,
         # after it was written (§359, at the owner's direction - 0 restores
         # "never current"). A tap after that window writes a new episode.
         ttl = max(0, int(_settings().edition_in_progress_seconds or 0))
+        if ttl:
+            _IN_PROGRESS[key] = now + ttl
     else:
         ttl = max(ttl_for(query, live_status=notes.live_status,
                           outcome_dependent=notes.outcome_dependent,
@@ -735,7 +753,7 @@ def _tapped_meanwhile(item: "_Pending", cache, current_until: float) -> bool:
         if sourced < item.since:
             return False
         extend = getattr(cache, "extend_current", None)
-        if extend is not None:
+        if extend is not None and not _short_lived(item.key):
             extend(item.key, current_until)
         return True
     except Exception:  # noqa: BLE001 - a failed check writes, as before
@@ -780,7 +798,10 @@ async def build(mix_store, generator=None, cache=None,
                 "minutes": minutes(), "subjects": len(subjects(mix_store, now)),
                 "episodes": {}, "skipped_for_ceiling": 0,
                 "detail": NO_WRITER}
-    _BUILDING = True
+    def claimed() -> None:
+        global _BUILDING
+        _BUILDING = True
+
     try:
         def wanted() -> list:
             return subjects(mix_store, now)
@@ -794,7 +815,7 @@ async def build(mix_store, generator=None, cache=None,
             until=_current_until(now), length=minutes(), origin="dailyfam",
             max_episodes=s.daily_edition_max_episodes,
             max_dollars=s.daily_edition_max_dollars, force=force,
-            label="daily edition", extra=extra)
+            label="daily edition", extra=extra, on_claimed=claimed)
         if report is not None:
             _LAST_ATTEMPT.clear()
         return report
@@ -815,14 +836,15 @@ async def run_slot(sid: str, slot: datetime, now: float, wanted, generator,
                    cache, until: float, length, origin: str,
                    max_episodes: int = 0, max_dollars: float = 0.0,
                    force: bool = False, label: str = "edition",
-                   extra=None, on_written=None,
+                   extra=None, on_written=None, on_claimed=None,
                    failures: Optional[dict] = None) -> Optional[dict]:
     """Claim `sid` and write every subject `wanted()` returns into the cache.
 
     The one edition loop, shared by the mixes' edition and the rails' (§359):
     the claim, the ceilings (0 means none), the batch, the report. `wanted`
     is called after the claim so a losing caller reads nothing. `on_written`
-    is called with each subject whose episode was written or is current.
+    is called with each subject whose episode was written or is current;
+    `on_claimed` once the claim is won, before anything is spent.
     Returns the report, or None when another builder has the slot (or the
     build failed - `failures`, when given, then holds why). Never raises.
     """
@@ -834,6 +856,8 @@ async def run_slot(sid: str, slot: datetime, now: float, wanted, generator,
     except Exception as exc:  # noqa: BLE001
         log.error("%s: could not claim %s: %s", label, sid, exc)
         return None
+    if on_claimed is not None:
+        on_claimed()
 
     started = time.monotonic()
     report: dict = {"slot": sid, "minutes": length, "subjects": 0,
@@ -906,7 +930,9 @@ async def run_slot(sid: str, slot: datetime, now: float, wanted, generator,
                                report, spent, alive)
         if on_written is not None:
             for query, result in report["episodes"].items():
-                if result.get("status") in ("written", "volatile", "cached") \
+                # `in_flight`: the other edition is writing the same words.
+                if result.get("status") in ("written", "volatile", "cached",
+                                            "in_flight") \
                         and query in by_query:
                     try:
                         on_written(by_query[query], result)

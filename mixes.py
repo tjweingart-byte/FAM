@@ -418,8 +418,12 @@ class Mix:
 
     def is_active(self, now: float, hours: float) -> bool:
         """Whether the edition writes this mix ahead (§359). `hours` <= 0
-        means every mix is active, as before dormancy existed."""
-        if hours <= 0:
+        means every mix is active, as before dormancy existed.
+
+        **A mix with a listen time is never dormant**: its owner asked to be
+        told every day that it is ready (`push.py`), and a push for a mix
+        nobody wrote would be a broken promise - as would going quiet."""
+        if hours <= 0 or self.listen_at:
             return True
         return now - self.last_active() < hours * 3600.0
 

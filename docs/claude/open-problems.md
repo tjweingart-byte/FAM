@@ -851,7 +851,8 @@
   `DAILY_EDITION_ACTIVE_HOURS` (48) is skipped by the edition
   (`daily_edition.subjects`, `Mix.is_active`; plays are stamped in their own
   column, `played_at`, never `updated_at`). Made and edited count so a new
-  mix is not dormant before it could be played. A subject an active mix also
+  mix is not dormant before it could be played, and **a mix with a listen
+  time is never dormant** - its owner is told every day it is ready. A subject an active mix also
   follows is written all the same - the edition deduplicates by the words -
   but a dormant mix never pulls in the rest of itself. **Opening** a dormant
   mix (`POST /api/mixes/{id}/open`, the client's `noteMixOpen`) writes all of

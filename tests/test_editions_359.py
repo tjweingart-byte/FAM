@@ -275,3 +275,77 @@ def test_health_reports_the_rails_edition():
     report = app_mod._rails_edition_report()
     assert report["schedule"]["hours"] == [5, 17]
     assert "ceilings" in report
+
+
+# --------------------------------------------------------------------------
+# What the review of §359 found
+# --------------------------------------------------------------------------
+def test_a_live_game_is_never_stretched_to_the_editions_window(on):
+    """A second edition writer in the same slot (an opened mix, a forced
+    re-run, the other edition) finds the in-progress episode current and
+    must leave its thirty minutes alone."""
+    on.create("a", "Morning", ["f:nfl~Eagles"])
+    cache = MemoryScriptCache()
+    asyncio.run(daily_edition.build(on, Writer(live=("Eagles",)), cache))
+    [key] = list(cache._clocks)
+    sourced, until = cache._clocks[key]
+    query = daily_edition.prompt_for(M.followed_item("f:nfl~Eagles"))
+    result = asyncio.run(daily_edition.write_episode(
+        query, Writer(), cache, daily_edition.minutes(),
+        daily_edition._current_until(time.time()),
+        since=daily_edition.last_slot().timestamp()))
+    assert result["status"] == "cached"
+    assert cache._clocks[key][1] == pytest.approx(until), "not extended"
+
+
+def test_a_mix_with_a_listen_time_is_never_dormant(on):
+    mix = on.create("a", "Morning", ["fed-next-move"])
+    on.update("a", mix.id, listen_at="07:30", listen_tz="America/New_York")
+    _age(on, mix.id, 72)
+    assert daily_edition.is_active(on.get("a", mix.id)), (
+        "its owner is told every day it is ready, so it is written every day")
+
+
+def test_a_hold_survives_a_refresh_that_was_composing(on):
+    story = _story("eagles", S.SPORTS, "q")
+    _pool(story)
+    before = list(S.pool().stories)        # what a refresh copied
+    assert S.hold_until(story.id, story.first_seen + 20 * HOUR)
+    again = S._apply_holds(before, time.time())
+    assert again[0].shelf_life == 20 * HOUR
+
+
+def test_a_held_subject_is_not_retired_on_the_domains_clock():
+    S.reset()
+    story = _story("eagles", S.SPORTS, "q", age_hours=10)
+    _pool(story)
+    S._FIRST_SEEN[story.id] = story.first_seen
+    assert S.hold_until(story.id, time.time() + 5 * HOUR)
+    assert S._admissible(story.id, S.SPORTS, time.time())
+    assert story.id not in S._RETIRED
+    S.reset()
+
+
+def test_a_hold_does_not_make_a_story_louder():
+    story = _story("eagles", S.SPORTS, "q", age_hours=4)
+    held = dataclasses.replace(story, shelf_life=20 * HOUR)
+    assert held.push() == pytest.approx(story.push())
+
+
+def test_building_is_not_reported_by_a_caller_that_lost_the_claim(on):
+    on.create("a", "Morning", ["fed-next-move"])
+    asyncio.run(daily_edition.build(on, Writer(), MemoryScriptCache()))
+    seen = []
+    real = daily_edition.run_slot
+
+    async def spy(*a, **kw):
+        seen.append(daily_edition._BUILDING)
+        return await real(*a, **kw)
+
+    daily_edition.run_slot = spy
+    try:
+        assert asyncio.run(daily_edition.build(
+            on, Writer(), MemoryScriptCache())) is None
+    finally:
+        daily_edition.run_slot = real
+    assert seen == [False] and daily_edition._BUILDING is False
