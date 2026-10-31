@@ -366,3 +366,8 @@ and `limit` = Lines.
 | 25427 | 87 | 363. Phase 1 reviewed a third time: the second round's fixes broke things, and a corpus that stops that happening again (2026-10-31) |
 | 25514 | 62 | 364. Nando decides: code builds the shortlist, the model chooses, and the result check catches every guess (2026-10-31) |
 | 25576 | 56 | 365. Training Nando, piece N2: worked examples, code's hints and every facet on the list (2026-10-31) |
+| 25632 | 60 | 366. Training Nando, piece N3: the answer key - Opus grades his filings nightly (2026-10-31) |
+| 25692 | 47 | 367. Training Nando, piece N4: a memory of graded answers, recalled by meaning (2026-10-31) |
+| 25739 | 27 | 368. Training Nando, piece N5: his corrected mistakes become worked examples (2026-10-31) |
+| 25766 | 39 | 369. The owner's rule for the answer key, and a `<teaching>` label (2026-10-31) |
+| 25805 | 47 | 370. Training Nando, piece N6: a small model of his own, trusted only when its numbers say so (2026-10-31) |
