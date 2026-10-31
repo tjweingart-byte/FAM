@@ -785,9 +785,8 @@ def candidates_for(query: str, context: str = "", notes=None) -> tuple:
     code before it is asked - the tap's own, every reading of a name that
     means two things, the tree's phrases, the vocabulary's matches and the
     keyword map's nodes, each with its parent so a broader true node is
-    always on offer - and whether the request holds a tie code could not
-    settle. The facets when nothing else is found. Memory only; never
-    raises."""
+    always on offer, then every facet (§365) - and whether the request holds
+    a tie code could not settle. Memory only; never raises."""
     try:
         import category_vocabulary
         import stories
@@ -827,14 +826,51 @@ def candidates_for(query: str, context: str = "", notes=None) -> tuple:
             for n in (node, path[-2] if len(path) > 1 else ""):
                 if n and n not in ordered:
                     ordered.append(n)
-        found = ordered
-        if not found:
-            for facet in sorted(topics.FACETS):
-                add(facet)
-        return tuple(found[:MAX_CANDIDATES]), tie
+        # Then every facet, always (§365): what the words pointed at may be
+        # wrong ("Detroit lions at the zoo"), and a broader true node must
+        # always be on offer beside it.
+        facets = [f for f in sorted(topics.FACETS) if f not in ordered]
+        found = ordered[:MAX_CANDIDATES] + facets
+        return tuple(found), tie
     except Exception as exc:  # noqa: BLE001
         log.warning("nando could not list candidates for %r: %s", query, exc)
         return (), False
+
+
+def hint_block(query: str) -> str:
+    """What code read off the words, for the model to weigh (§365): its
+    suggestion, said to be one, and every name in the request that means
+    two things with its readings. Memory only; "" when there is nothing."""
+    try:
+        lines = []
+        found = suggest(None, query)
+        if found.node:
+            lines.append(f"Code's reading of the words alone (often wrong; check it): "
+                         f"{found.node}")
+        for name, decided, readings, _cued in clashes(query):
+            options = ", ".join(r.node or "something the tree has no node for"
+                                for r in readings)
+            state = (f"the words point to {decided.node or 'no node'}" if decided
+                     else "nothing in the request decides it")
+            lines.append(f'"{name}" can mean: {options} ({state})')
+        return ("Hints:\n" + "\n".join(lines)) if lines else ""
+    except Exception:  # noqa: BLE001 - hints never cost a request
+        return ""
+
+
+def teaching(query: str, candidates: tuple) -> tuple:
+    """The material that teaches Nando on every call (§365): the worked
+    examples for this request and code's hints, as `(tag, text)` pairs."""
+    import category_examples
+
+    out = []
+    examples = category_examples.block(query, candidates)
+    if examples:
+        out.append(("evidence", examples))
+    hints = hint_block(query)
+    if hints:
+        out.append(("evidence", hints))
+    return tuple(out)
 
 
 class TiePick(BaseModel):
@@ -865,7 +901,7 @@ async def ask_tie(query: str, candidates: tuple, notes=None) -> str:
             instructions=TIE_INSTRUCTIONS,
             material=(("request", query),
                       ("evidence", "Candidate nodes (id | path):\n"
-                       + candidate_block(candidates))),
+                       + candidate_block(candidates))) + teaching(query, candidates),
             timeout=float(settings.categorizer_timeout_seconds),
             max_tokens=int(settings.categorizer_max_tokens), effort="low",
             surface="search")

@@ -365,3 +365,4 @@ and `limit` = Lines.
 | 25322 | 105 | 362. Phase 1 reviewed a second time: names that were never what the table thought, and the paths the first fixes missed (2026-10-31) |
 | 25427 | 87 | 363. Phase 1 reviewed a third time: the second round's fixes broke things, and a corpus that stops that happening again (2026-10-31) |
 | 25514 | 62 | 364. Nando decides: code builds the shortlist, the model chooses, and the result check catches every guess (2026-10-31) |
+| 25576 | 56 | 365. Training Nando, piece N2: worked examples, code's hints and every facet on the list (2026-10-31) |

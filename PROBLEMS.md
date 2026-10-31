@@ -25572,3 +25572,59 @@ narrowed; a Go Deeper parent alone a suggestion; the model's pick solid;
 his own call when nothing solid will file, none when C3P0 chooses or the
 tap files it; awaited ahead of the tap), the corpus split into what is
 filed and what is suggested, and the accepted result flags.
+
+## 365. Training Nando, piece N2: worked examples, code's hints and every facet on the list (2026-10-31)
+
+The owner asked for comprehensive training for Nando that keeps going as
+the tree grows (all six levers proposed after §364). The first is the one
+FAM's writer already proves ([examples-lever]): teach the model with worked
+cases chosen for the request in front of it, rather than with rules.
+
+**`category_examples.json`**, beside the category seed and reviewed like it:
+sixty questions from the three reviews' adversarial corpus, each labelled
+with the node it is truly about, or "none" where no node fits ("kings and
+queens of England", "cardinals gather to elect a new pope") - so the model
+learns that "none" is a right answer. Relabelled by hand where the
+corpus's first acceptable answer was "none" but a node truly fits ("Kings
+of Leon tour" -> `live touring`, "Power Rangers movie" -> `film`). Every
+question also measured by `tools/nando_eval.py` (the forty, the clash set)
+is kept out, so the examples cannot flatter the measurement - a test holds
+that (and caught seven overlaps while it was being written).
+
+**`category_examples.py`** picks up to twelve for each request: examples
+whose node is a candidate or on a candidate's branch, then those sharing
+the most content words, at most two "none" examples, never the request's
+own answer. The file is read once (boot primes it when `AGENTS=1`);
+learned examples - the answer key's and Nando's corrected mistakes, pieces
+N3 and N5 - join through `add_source`, read in a background thread every
+five minutes, never on a request.
+
+**Every call Nando makes is taught** (`categorizer.teaching`): his own call
+and C3P0's (when Nando works too) now carry, beside the candidate list and
+each candidate's drafted definition (§359), the chosen examples and
+**code's hints** - what code read off the words, said to be often wrong,
+and every name in the request that means two things with its readings and
+whether anything decided it. The rules' knowledge reaches the model as
+evidence, never as a filing.
+
+**Every facet is always a candidate.** The list held only what the words
+pointed at, so for "Detroit lions at the zoo" the model could choose only
+football nodes - or none. Every facet now closes the list, so a broader
+true answer (science, culture) is always on offer.
+
+**Latency.** On the tap: none in front of the first word for Nando's own
+call (beside the brief, never waited for). C3P0's call - the brief's search
+half - reads about 300-600 more tokens of examples and hints in its
+material; the brief takes as long as its slower half, so whether this
+shows is measurable only with a key (§360's command).
+
+**Measured.** Nothing here can measure the model; the examples change what
+the model reads, not what code files. With a key:
+
+    AGENTS=1 CONTEXTUALIZER=1 CATEGORIZER=1 python tools/nando_eval.py --with-brief
+
+Tests: `tests/test_nando_teaching_365.py` (every example a seeded node or
+none; no example a measured question; chosen for the request, never its
+own answer, at most two "none"; learned examples join in the background;
+hints say they are hints; every facet always a candidate; Nando's own call
+and C3P0's carry the teaching; teaching never raises).

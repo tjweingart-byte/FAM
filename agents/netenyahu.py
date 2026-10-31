@@ -275,9 +275,11 @@ def prime() -> None:
     rulebooks.refresh_disk()
     # Nando's vocabulary, built once here rather than on the first request
     # (§361).
+    import category_examples
     import category_vocabulary
 
     category_vocabulary.index()
+    category_examples.examples()     # read once here, not on a request (§365)
 
 
 def _refresh_held_soon() -> None:

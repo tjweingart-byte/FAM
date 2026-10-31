@@ -370,6 +370,8 @@ def test_nothing_on_the_listener_path_imports_the_model_layer():
         "trending_bank.py": {"categorizer"},
         # C3P0 rides in the brief's search half (§360).
         "episode_intelligence.py": {"contextualizer", "categorizer"},
+        # Nando's worked examples read his paths (§365).
+        "category_examples.py": {"categorizer"},
     }
     found = {}
     for p in ROOT.glob("*.py"):

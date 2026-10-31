@@ -486,8 +486,12 @@ async def search_half(query: str, minutes: int, context: str, now: str, covered:
         material = [("request", query), ("evidence", _moment(query, minutes, context, now,
                                                              covered))]
         if candidates:
+            from agents import categorizer
+
             material.append(("evidence", "Candidate nodes (id | path):\n"
                              + candidate_block(candidates)))
+            # Nando's teaching: worked examples and code's hints (§365).
+            material.extend(categorizer.teaching(query, candidates))
         request = models.AgentRequest(
             agent="contextualizer", task="contextualise", switch_setting="contextualizer",
             model_setting="contextualizer_model", rule_book="c3p0.md", schema=SearchPlan,

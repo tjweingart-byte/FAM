@@ -201,10 +201,12 @@ def test_meaning_is_never_embedded_on_the_listeners_path(tree, monkeypatch):
 
 
 def test_each_candidates_parent_comes_right_after_it(tree):
-    nodes, _tie = categorizer.candidates_for("how did United do")
+    nodes, _tie = categorizer.candidates_for("United flights after the match")
     for i, node in enumerate(nodes):
         path = categorizer.path_for(node)
-        if len(path) > 1 and path[-2] in nodes:
+        # Facets close the list on purpose (§365); a deeper parent sits by
+        # its child.
+        if len(path) > 1 and path[-2] in nodes and path[-2] not in topics.FACETS:
             assert nodes.index(path[-2]) <= i + 1 or nodes.index(path[-2]) < i
 
 
