@@ -7139,20 +7139,24 @@ def _episode_category(key: str) -> str:
     # Nando's node first (§356): one id, placed at the request and confirmed
     # after the writer, read as stored - while the tree still holds it. A
     # node merged away since, or an episode Nando never filed, falls back to
-    # the writer's words below, as before.
+    # the writer's words below, as before. Both in one read (§361), so the
+    # store is asked once, as it was before the node existed.
+    node = ""
     try:
-        node = getattr(SCRIPT_CACHE, "category_node", lambda _k: "")(key)
-    except Exception:  # noqa: BLE001
-        node = ""
+        pair = getattr(SCRIPT_CACHE, "category_pair", None)
+        if callable(pair):
+            words, node = pair(key)
+        else:
+            # A store without the one read (a test double, an older one).
+            node = getattr(SCRIPT_CACHE, "category_node", lambda _k: "")(key)
+            words = getattr(SCRIPT_CACHE, "category", lambda _k: "")(key)
+    except Exception:  # noqa: BLE001 - a category is never worth a failure
+        return ""
     if node:
         import topics
 
         if node in topics.FACETS or topics.category_tree().get(node) is not None:
             return node
-    try:
-        words = getattr(SCRIPT_CACHE, "category", lambda _k: "")(key)
-    except Exception:  # noqa: BLE001 - a category is never worth a failure
-        return ""
     if not words:
         return ""
     import stories as stories_mod

@@ -820,3 +820,16 @@ def kept_only_while_current(monkeypatch):
     life_zero = dataclasses.replace(cache_mod.settings, cache_life_seconds=0)
     monkeypatch.setattr(cache_mod, "settings", life_zero)
     monkeypatch.setattr(pipeline_mod, "settings", life_zero)
+
+
+@pytest.fixture(autouse=True)
+def _agent_writes_inline(monkeypatch):
+    """The agents' bookkeeping is written off the event loop in a running
+    server (§361); tests write it inline, so a ledger row or a hold can be
+    read the moment the call returns. The tests of the off-loop path turn
+    it back on themselves."""
+    from agents import models as agent_models
+    from agents import netenyahu as agent_netenyahu
+
+    monkeypatch.setattr(agent_models, "RECORD_OFF_LOOP", False)
+    monkeypatch.setattr(agent_netenyahu, "HOLD_OFF_LOOP", False)

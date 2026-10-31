@@ -1,4 +1,4 @@
-"""C3P0, the contextualizer - the `ResearchPlan`, built in code first (§355).
+"""C3P0, the contextualizer: the `ResearchPlan` (§355) and his call (§360).
 
 docs/agent_rules/c3p0.md: work out what a request is about, which plugins
 to ask and what to ask them, what Sonic should fetch, and the title. Phase 1
@@ -13,9 +13,14 @@ archive is allowed to answer alone (responsibility 8).
 ladder always ([always-researched]), `live_route.domain_of` for a provider,
 `live_facts.wants_forecast`, `history_archive.recall_wanted`, the brief's
 town - so the plan describes what the episode will ask, never a second
-opinion that could drift from it. It is pure: no file, store, socket or
-model, microseconds after the brief. Nothing reads the plan yet; it is kept
-on the episode's notes and counted.
+opinion that could drift from it; when C3P0's call answered, the plan is
+his (§360). It is pure: no file, store, socket or model, microseconds after
+the brief. The pipeline does not route on the plan yet; it is kept on the
+episode's notes and counted.
+
+`search_half` is C3P0's call (§360): the brief's search half, sent through
+the agent layer, with his and Nando's fields after it, each held in code
+(`checked`).
 """
 from __future__ import annotations
 
@@ -271,35 +276,78 @@ contains: "hurricanes hitting the Carolina coast" is weather, not the \
 hockey team. A broader true node is better than a specific wrong one."""
 
 #: A result where a search input or a title must not have one: a score, or
-#: a verb saying how something ended. "who won" and "did they win" are
-#: questions, not results.
-_SCORE = re.compile(r"(?<![\w.:])\d{1,3}\s*[-–—]\s*\d{1,3}(?![\w%]|[.:]\d)")
+#: a verb saying how something ended. A date ("2026-10-11"), a range of
+#: ages, days or years ("ages 18-25", "5-7 day forecast") is not a score, and
+#: "who won", "did they win", "can they beat" are questions (review, §361).
+_SCORE = re.compile(r"(?<![\w.:\-–—])(\d{1,3})\s*[-–—]\s*(\d{1,3})(?![\w%\-–—]|[.:]\d)")
+_NOT_A_SCORE_BEFORE = re.compile(
+    r"\b(ages?|aged|between|from|week|weeks|day|days|years?|grades?|sizes?|rooms?|"
+    r"chapters?|pages?|steps?|levels?|hours?)\s*$", re.I)
+_NOT_A_SCORE_AFTER = re.compile(
+    r"^\s*(-?\s*)?(day|days|week|weeks|month|months|year|years|hour|hours|minute|"
+    r"minutes|percent|per cent|%|degrees|inch|inches|mph|km)\b", re.I)
 _RESULT_VERB = re.compile(
-    r"(?<!\bwho )(?<!\bdid )(?<!\bwhether )(?<!\bif )\b(won|wins|beat|beats|defeated|"
-    r"defeats|crush|crushed|crushes|rout|routed|routs|edged|topped|lost to|loses to|fell to|"
-    r"victory over|cruised past)\b", re.I)
-_OPINION_WORDS = re.compile(
-    r"\b(think|thinks|opinion|view|views|take on|position on|say about|says about|"
-    r"argue|argues|believe|believes|point of view)\b", re.I)
+    r"\b(won|wins|beat|beats|defeated|defeats|crush|crushed|crushes|rout|routed|routs|"
+    r"edged|topped|lost to|loses to|fell to|victory over|cruised past)\b", re.I)
+#: Words in front of a result verb that make it a question or a prospect.
+_ASKING = re.compile(
+    r"\b(who|did|does|do|whether|if|can|could|will|would|should|might|may|to|"
+    r"chance|chances|odds)\s+(\w+\s+){0,3}$", re.I)
 
 
 def has_result(text: str) -> bool:
-    return bool(_SCORE.search(text or "") or _RESULT_VERB.search(text or ""))
+    text = text or ""
+    for m in _SCORE.finditer(text):
+        if _NOT_A_SCORE_BEFORE.search(text[:m.start()]) or \
+                _NOT_A_SCORE_AFTER.search(text[m.end():]):
+            continue
+        return True
+    for m in _RESULT_VERB.finditer(text):
+        if not _ASKING.search(text[:m.start()]):
+            return True
+    return False
+
+
+def asks_for_view(person: str, query: str) -> bool:
+    """Whether `query` names `person` and asks for that person's view: the
+    name right before a view verb ("Krugman think", "Krugman's take") or
+    right after a view noun ("the opinion of Krugman"). "How many views did
+    Taylor Swift's video get" and "Do people think Biden is too old" are not
+    (review, §361)."""
+    name = re.escape(" ".join((person or "").split()))
+    if not name:
+        return False
+    after = (r"(?:'s?\s+(?:view|views|opinion|opinions|take|position|stance|thoughts)\b"
+             r"|\s+(?:\w+\s+){0,2}(?:think|thinks|thought|believe|believes|say|says|said|"
+             r"argue|argues|argued|feel|feels)\b)")
+    before = r"\b(?:opinion|opinions|view|views|take|position|stance|thoughts)\s+of\s+"
+    return bool(re.search(name + after, query or "", re.I)
+                or re.search(before + name, query or "", re.I))
+
+
+#: C3P0's title: three to eight words (c3p0.md, "always" 7), held in code.
+TITLE_WORDS = (3, 8)
 
 
 def checked(answer: "SearchPlan", query: str, candidates: tuple) -> tuple:
     """`(search_fields, extras, notes)`: the answer held to the rules in
     code (c3p0.md "never" 1-2; the guide's Guardrails). Never raises."""
+    import episode_intelligence as ei
+
     data = answer.model_dump()
     why: list = []
     search = {k: data[k] for k in ("search_query", "search_fallback", "search_angles",
                                    "search_objective", "title", "category",
                                    "forecast_query", "source_kind", "pronounce")}
-    title_ok = bool(search["title"]) and not has_result(search["title"])
-    if search["title"] and not title_ok:
-        why.append(f"title with a result replaced: {search['title']!r}")
-        search["title"] = ""
-    for name in ("search_query", "search_fallback"):
+    # The title: no result, the brief's own cleaning (not the question handed
+    # back, no trailing "?", at most 80 characters), three to eight words.
+    raw_title = search["title"]
+    title = ei.clean_title(raw_title, query) if not has_result(raw_title) else ""
+    title_ok = bool(title) and TITLE_WORDS[0] <= len(title.split()) <= TITLE_WORDS[1]
+    if raw_title and not title_ok:
+        why.append(f"title refused: {raw_title!r}")
+    search["title"] = title if title_ok else ""
+    for name in ("search_query", "search_fallback", "forecast_query"):
         if has_result(search[name]):
             why.append(f"{name} with a result dropped: {search[name]!r}")
             search[name] = ""
@@ -312,9 +360,12 @@ def checked(answer: "SearchPlan", query: str, candidates: tuple) -> tuple:
         plugins.append(call)
     readings = [r.strip() for r in data["readings"] if r.strip()]
     ambiguous = bool(data["ambiguous"]) and len(readings) >= 2
+    archive = dict(data["archive"])
+    if has_result(archive.get("what", "")):
+        why.append("archive request with a result dropped")
+        archive = {"lookup": "none", "what": ""}
     opinion = data["opinion_requested"].strip()
-    if opinion and not (opinion.lower() in (query or "").lower()
-                        and _OPINION_WORDS.search(query or "")):
+    if opinion and not asks_for_view(opinion, query):
         why.append(f"opinion_requested {opinion!r} dropped: not asked for by name")
         opinion = ""
     node = data["node"].strip()
@@ -325,7 +376,7 @@ def checked(answer: "SearchPlan", query: str, candidates: tuple) -> tuple:
         "entity": data["entity"].strip(), "entity_kind": data["entity_kind"].strip(),
         "ambiguous": ambiguous, "readings": readings if ambiguous else [],
         "likeliest": data["likeliest"].strip() if ambiguous else "",
-        "plugins": plugins, "archive": data["archive"],
+        "plugins": plugins, "archive": archive,
         "opinion_requested": opinion, "private_person": bool(data["private_person"]),
         "advice_request": bool(data["advice_request"]),
         "node": "" if node == "none" else node, "title": search["title"] if title_ok else "",
@@ -368,8 +419,10 @@ def _moment(query: str, minutes: int, context: str, now: str, covered: tuple) ->
 
     text = ei.build_ei_prompt(query, minutes, context, now, covered, ())
     # The request goes in its own tag; what remains is the moment, the
-    # length and any follow-up - the brief's own wording of them.
-    return text.replace(f"<request>{query}</request>", "(the request above)")
+    # length and any follow-up - the brief's own wording of them. What to
+    # work out is in the instructions, so the empty heading goes.
+    text = text.replace(f"<request>{query}</request>", "(the request above)")
+    return text.rstrip().removesuffix("Work out:").rstrip()
 
 
 async def search_half(query: str, minutes: int, context: str, now: str, covered: tuple,
@@ -383,15 +436,22 @@ async def search_half(query: str, minutes: int, context: str, now: str, covered:
     from agents import models, netenyahu
     from config import settings
 
-    material = [("request", query), ("evidence", _moment(query, minutes, context, now,
-                                                         covered))]
-    if candidates:
-        material.append(("evidence", "Candidate nodes (id | path):\n"
-                         + candidate_block(candidates)))
+    try:
+        material = [("request", query), ("evidence", _moment(query, minutes, context, now,
+                                                             covered))]
+        if candidates:
+            material.append(("evidence", "Candidate nodes (id | path):\n"
+                             + candidate_block(candidates)))
+        system = instructions()
+    except Exception as exc:  # noqa: BLE001 - nothing was sent: the brief's own half
+        log.warning("c3p0's request could not be built (%s); the brief's own search half",
+                    exc)
+        _count("call_fell_back_to_brief")
+        return await fallback()
     request = models.AgentRequest(
         agent="contextualizer", task="contextualise", switch_setting="contextualizer",
         model_setting="contextualizer_model", rule_book="c3p0.md", schema=SearchPlan,
-        instructions=instructions(), material=tuple(material),
+        instructions=system, material=tuple(material),
         carries_listener_words=True,
         timeout=float(settings.ei_ahead_timeout_seconds if ahead
                       else settings.ei_timeout_seconds),
@@ -402,7 +462,9 @@ async def search_half(query: str, minutes: int, context: str, now: str, covered:
     netenyahu.report("contextualizer", result.status)
     _count(f"call_{result.status}")
     if not result.ok:
-        if not result.sent:
+        # Only a request that never left: one sent and then failed is never
+        # sent again (review, §361 - a second request for one site).
+        if not result.sent and result.status in models.UNSENT:
             _count("call_fell_back_to_brief")
             return await fallback()
         kind = "timeout" if result.status == models.TIMEOUT else "failed"

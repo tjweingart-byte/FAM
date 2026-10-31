@@ -24,7 +24,9 @@ Two sources, read together:
   reads before renaming it. Empty until then.
 
 `match(text, facet)` is a dictionary walk over the question's words - no
-model, no file after the first load, never on a socket. A wording that
+model, never on a socket, and no file on the request path: the index is
+built once and rebuilt in the background when the tree or the file changes
+(§361). A wording that
 names two nodes is a tie and is returned as both; Nando never picks
 between them (c3p0.md, "always" 2).
 """
@@ -34,6 +36,7 @@ import json
 import logging
 import pathlib
 import threading
+import time
 from typing import Optional
 
 log = logging.getLogger("fam.categories")
@@ -43,19 +46,24 @@ PENDING = PATH.with_name("category_vocabulary.pending.json")
 
 #: Two-word nicknames, where the last word alone is someone else's too.
 TWO_WORD_NICKNAMES = ("trail blazers", "red sox", "white sox", "blue jays",
-                      "maple leafs", "red wings", "golden knights", "blue jackets",
-                      "golden state")
+                      "maple leafs", "red wings", "golden knights", "blue jackets")
 #: Words that say a question is about sport, so a team's nickname may be
-#: read as the team (`category_collisions`' sports cues, plus the leagues).
-SPORT_WORDS = ("game", "games", "score", "scores", "trade", "trades", "roster",
-               "coach", "playoff", "playoffs", "draft", "season", "lineup", "beat",
-               "lost", "win", "won", "standings", "fans", "stadium", "arena",
-               "signing", "injury", "injured", "rumors", "rumours", "nfl", "nba",
-               "mlb", "nhl", "quarterback", "pitcher", "goalie", "point guard",
-               "touchdown", "home run", "overtime", "series", "finals")
+#: read as the team. Only words that are about sport and little else: not
+#: "season", "lineup", "win" or "trade", which a festival, a menu, an
+#: election and a tariff all have (review, §361 - "jazz festival lineup" was
+#: filed under the Utah Jazz).
+SPORT_WORDS = ("game", "games", "score", "scores", "roster", "coach", "playoff",
+               "playoffs", "standings", "stadium", "arena", "injury", "injured",
+               "nfl", "nba", "mlb", "nhl", "wnba", "quarterback", "pitcher", "goalie",
+               "point guard", "touchdown", "home run", "overtime", "free agent",
+               "head coach", "box score")
+#: How often a running server looks at the file for a new draft: never per
+#: request (§361).
+CHECK_SECONDS = 60.0
 
 _LOCK = threading.Lock()
-_CACHE: dict = {"key": None, "index": None}
+_CACHE: dict = {"key": None, "index": None, "data": None, "checked": 0.0,
+                "building": False}
 
 
 def _empty() -> dict:
@@ -120,21 +128,77 @@ def derived(tree) -> dict:
     return out
 
 
+def _stamp(tree) -> tuple:
+    try:
+        mtime = PATH.stat().st_mtime if PATH.exists() else 0.0
+    except OSError:
+        mtime = 0.0
+    return (id(tree), getattr(tree, "_loaded_at", 0.0), str(PATH), mtime)
+
+
 def index(tree=None) -> dict:
-    """`{wording: (nodes, needs_sport, kind)}` over both sources, built once
-    per tree and vocabulary file. `kind` is `entity` for a named thing,
-    else `wording`."""
+    """`{wording: (nodes, needs_context, kind)}` over both sources. `kind`
+    is `entity` for a named thing, else `wording`; `needs_context` says the
+    wording is also an everyday word and may be read only in a question
+    about its own field.
+
+    **Never rebuilt on the request path** (§361): built once, then checked
+    against the tree and the file at most every `CHECK_SECONDS`, and a
+    stale index is rebuilt in a background thread while the old one keeps
+    answering."""
     import topics
 
     tree = tree or topics.category_tree()
-    try:
-        stamp = (id(tree), getattr(tree, "_loaded_at", 0.0),
-                 PATH.stat().st_mtime if PATH.exists() else 0.0)
-    except OSError:
-        stamp = (id(tree), getattr(tree, "_loaded_at", 0.0), 0.0)
     with _LOCK:
-        if _CACHE["key"] == stamp and _CACHE["index"] is not None:
-            return _CACHE["index"]
+        have = _CACHE["index"]
+        same_tree = have is not None and bool(_CACHE["key"]) and _CACHE["key"][0] == id(tree)
+        if same_tree:
+            stale = time.monotonic() - _CACHE["checked"] >= CHECK_SECONDS
+            if stale and not _CACHE["building"]:
+                # Whether the tree or the file changed is asked in the
+                # background; the copy we have answers meanwhile.
+                _CACHE["checked"] = time.monotonic()
+                _CACHE["building"] = True
+                threading.Thread(target=_refresh, args=(tree,),
+                                 name="category-vocabulary", daemon=True).start()
+            return have
+    # First use, or a different tree: built here (boot primes it, §361).
+    built = _build(tree, _stamp(tree))
+    with _LOCK:
+        _CACHE["checked"] = time.monotonic()
+    return built
+
+
+def _refresh(tree) -> None:
+    stamp = _stamp(tree)
+    with _LOCK:
+        unchanged = _CACHE["key"] == stamp
+        if unchanged:
+            _CACHE["building"] = False
+    if not unchanged:
+        _build(tree, stamp)
+
+
+def _build(tree, stamp) -> dict:
+    """Build the index (first use, a new tree, or the background)."""
+    import topics
+
+    try:
+        built = _built(tree)
+        data = load()
+    except Exception:  # noqa: BLE001 - keep what answered before
+        log.exception("category vocabulary could not be built")
+        with _LOCK:
+            _CACHE["building"] = False
+            return _CACHE["index"] or {}
+    with _LOCK:
+        _CACHE.update(key=stamp, index=built, data=data, building=False)
+    return built
+
+
+def _built(tree) -> dict:
+    import topics
+
     built: dict = {}
     for wording, (nodes, sport) in derived(tree).items():
         built[wording] = (nodes, sport, "wording")
@@ -154,17 +218,20 @@ def index(tree=None) -> dict:
         key = _norm(name)
         if not key or (tree.get(node) is None and node not in topics.FACETS):
             continue
-        nodes, _sport, _kind = built.get(key, ((), False, "entity"))
+        # A one-word name ("Bills", "Lions", "Mercedes") is also an everyday
+        # word, and keeps any context a derived nickname already asked for
+        # (review, §361): it is read only in a question about its field.
+        nodes, needs, _kind = built.get(key, ((), False, "entity"))
+        needs = needs or len(key.split()) == 1
         if node not in nodes:
-            built[key] = (nodes + (node,), False, "entity")
-    with _LOCK:
-        _CACHE.update(key=stamp, index=built)
+            nodes = nodes + (node,)
+        built[key] = (nodes, needs, "entity")
     return built
 
 
 def reset() -> None:
     with _LOCK:
-        _CACHE.update(key=None, index=None)
+        _CACHE.update(key=None, index=None, data=None, checked=0.0, building=False)
 
 
 def _sporty(text: str) -> bool:
@@ -187,14 +254,21 @@ def match(text: str, facet: str = "", tree=None) -> tuple:
         padded = f" {words} "
         sporty = None
         best = None
-        for wording, (nodes, needs_sport, kind) in built.items():
+        for wording, (nodes, needs_context, kind) in built.items():
             if f" {wording} " not in padded:
                 continue
-            if needs_sport:
+            if needs_context:
+                # An everyday word too: read only inside its own field - a
+                # sports question for a team, else the facet already known.
                 if sporty is None:
                     sporty = _sporty(words) or facet == "sports"
-                if not sporty:
+                in_field = tuple(n for n in nodes if (
+                    (n if n in topics.FACETS else stories.facet_for(n)) == "sports"
+                    and sporty) or (facet and (n if n in topics.FACETS
+                                               else stories.facet_for(n)) == facet))
+                if not in_field:
                     continue
+                nodes = in_field
             if facet:
                 nodes = tuple(n for n in nodes if (n if n in topics.FACETS
                                                    else stories.facet_for(n)) == facet)
@@ -212,7 +286,9 @@ def match(text: str, facet: str = "", tree=None) -> tuple:
 
 
 def definition(node: str) -> dict:
-    """A node's drafted definition and exclusions, or {}. Piece 7's
+    """A node's drafted definition and exclusions, or {}, from the copy the
+    index holds - never a read of the file per call (review, §361). The
     candidate list carries these to the brief."""
-    entry = (load().get("nodes") or {}).get(node) or {}
+    index()
+    entry = ((_CACHE["data"] or {}).get("nodes") or {}).get(node) or {}
     return {k: entry[k] for k in ("definition", "excludes", "wikidata") if entry.get(k)}

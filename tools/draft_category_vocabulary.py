@@ -220,6 +220,11 @@ def main() -> int:
 
     tree = topics.category_tree()
     if not tree.nodes():
+        # Drafting never writes the deployment's tree (review, §361): an
+        # empty one is drafted against the seed in a throwaway copy.
+        import tempfile
+
+        tree = categories.CategoryStore(tempfile.mktemp(suffix=".db"))
         categories.apply_seed(tree)
     lines = tree_lines(tree)[: args.limit or None]
     if args.dry_run:

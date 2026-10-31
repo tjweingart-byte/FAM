@@ -470,6 +470,17 @@ def stories_now(now: Optional[float] = None) -> list:
     return [s for s in edition.stories if not s.expired(now)]
 
 
+def stories_in_memory(now: Optional[float] = None) -> list:
+    """The edition this process already holds, unexpired - never a read of
+    the store, for code on a listener's path that must not wait on one
+    (Nando, §361). `[]` when nothing is held yet; `stories_now` reloads."""
+    edition = _CURRENT
+    now = time.time() if now is None else now
+    if edition is None or edition.expired(now):
+        return []
+    return [s for s in edition.stories if not s.expired(now)]
+
+
 def empty_reason(now: Optional[float] = None) -> str:
     """What Trending says when it has nothing to show. One sentence per cause.
 

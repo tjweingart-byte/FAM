@@ -11,9 +11,9 @@ owner's choice (§346): no planner model; the rules in code.
   4). An agent works only if it is switched on, its rule books pass the
   lock, it serves this surface, and it is not held. Both the holds and the
   lock's disk check are copies refreshed in the background (§354), so
-  deciding reads no database and no file while a listener waits. Today nothing passes:
-  every switch is off (the owner signed the rule books, §352, and no agent
-  is built yet).
+  deciding reads no database and no file while a listener waits. With the
+  switches at their defaults nothing passes: every switch is off (the owner
+  signed the rule books, §352; C3P0 and Nando are built, §354-§361).
 * **The closed vocabulary** (`validate`): the only actions anything may
   ask of Netenyahu are `run(agent, task)`, `hold(agent, reason)` and
   `note(text)`, checked against the roster. There is no "change a rule",
@@ -25,8 +25,8 @@ owner's choice (§346): no planner model; the rules in code.
 * **The background** (`run_forever`, `tick`): every `OVERLORD_TICK_SECONDS`,
   at most `OVERLORD_MAX_TASKS_PER_TICK` claimed tasks, never during the
   05:00 and 17:00 Eastern edition writes, never for a held agent. Started
-  only when `AGENTS=1`; with no agent built there is no handler, so a
-  claimed task is handed back untouched.
+  only when `AGENTS=1`; no background agent is built yet, so there is no
+  handler and a claimed task is handed back untouched.
 """
 from __future__ import annotations
 
@@ -167,7 +167,15 @@ def report(role: str, status: str) -> Optional[str]:
         if count < HOLD_AFTER:
             return None
         reason = f"{count} failures in a row (last: {status})"
-        hold(role, reason)
+        if HOLD_OFF_LOOP:
+            # `report` is called on the listener's path (§361): the copy
+            # holds the agent at once, the store is written in the
+            # background.
+            _remember_hold(role, reason)
+            threading.Thread(target=hold, args=(role, reason),
+                             name="netenyahu-hold", daemon=True).start()
+        else:
+            hold(role, reason)
         return reason
     except Exception:  # noqa: BLE001
         log.exception("netenyahu could not count a result")
@@ -179,10 +187,11 @@ def hold(role: str, reason: str) -> None:
     exists). Releasing it is the owner's act, never an agent's."""
     from agents import tasks
 
-    tasks.store().hold(role, reason)
-    with _HELD_LOCK:
-        if _HELD["roles"] is not UNKNOWN:
-            _HELD["roles"] = dict(_HELD["roles"], **{role: reason})
+    _remember_hold(role, reason)
+    try:
+        tasks.store().hold(role, reason)
+    except Exception:  # noqa: BLE001 - the copy still holds it
+        log.exception("netenyahu could not write the hold of %s", role)
     log.warning("netenyahu held %s: %s", role, reason)
     try:
         import pipeline_errors
@@ -213,20 +222,40 @@ HELD_REFRESH_SECONDS = 30.0
 UNKNOWN = None
 _HELD: dict = {"roles": UNKNOWN, "at": 0.0, "running": False}
 _HELD_LOCK = threading.Lock()
+#: Holds made in this process, with when (§361): merged into every read of
+#: the store that began before they were written, so a refresh racing a hold
+#: can never drop it from the copy.
+_MADE: dict = {}
+#: Write a hold to the store off the listener's path (§361). Tests write it
+#: inline (`tests/conftest.py`).
+HOLD_OFF_LOOP = True
+
+
+def _remember_hold(role: str, reason: str) -> None:
+    with _HELD_LOCK:
+        _MADE[role] = (reason, time.monotonic())
+        if _HELD["roles"] is not UNKNOWN:
+            _HELD["roles"] = dict(_HELD["roles"], **{role: reason})
 
 
 def refresh_held() -> Optional[dict]:
     """Re-read the holds into the copy. Off the request path; never raises.
-    A failed read keeps the last copy."""
+    A failed read keeps the last copy and waits a full interval before the
+    next try, so a store that is down is not asked once per episode."""
+    started = time.monotonic()
     try:
-        roles = _read_held()
+        roles = dict(_read_held())
     except Exception:  # noqa: BLE001
         log.exception("netenyahu could not read the holds")
         with _HELD_LOCK:
             _HELD["running"] = False
+            _HELD["at"] = time.monotonic()
         return _HELD["roles"]
     with _HELD_LOCK:
-        _HELD.update(roles=dict(roles), at=time.monotonic(), running=False)
+        for role, (reason, made) in _MADE.items():
+            if made >= started:
+                roles.setdefault(role, reason)
+        _HELD.update(roles=roles, at=time.monotonic(), running=False)
     return dict(roles)
 
 
@@ -240,6 +269,11 @@ def prime() -> None:
 
     rulebooks.load()
     rulebooks.refresh_disk()
+    # Nando's vocabulary, built once here rather than on the first request
+    # (§361).
+    import category_vocabulary
+
+    category_vocabulary.index()
 
 
 def _refresh_held_soon() -> None:
@@ -269,6 +303,7 @@ def reset() -> None:
         _FAILURES.clear()
     with _HELD_LOCK:
         _HELD.update(roles=UNKNOWN, at=0.0, running=False)
+        _MADE.clear()
 
 
 # ------------------------------------------------------------------ the background

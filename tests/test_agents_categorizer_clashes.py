@@ -110,12 +110,22 @@ def test_every_placement_has_a_confidence(tree):
     assert node("x", Brief(query="x", category="sports")).confidence == 1.0
 
 
-def test_an_undecided_name_lowers_the_confidence_of_a_node_it_touches(tree, monkeypatch):
-    # A phrase lands on one of a tie's readings: half as sure, and filed
-    # under the parent.
-    monkeypatch.setattr(categorizer, "CONFIDENCE", dict(categorizer.CONFIDENCE, question=0.6))
-    placed = node("los angeles kings or sacramento kings")
-    assert placed.how.endswith("~broader") or placed.confidence >= categorizer.MIN_CONFIDENCE
+@pytest.mark.parametrize("question", [
+    "Rangers season preview", "Panthers season preview", "Cardinals win",
+    "Rangers game preview"])
+def test_an_undecided_name_is_filed_under_what_its_readings_share(tree, question):
+    # Review, §361: these were filed under one reading's league. "Rangers
+    # game preview" reaches the New York Rangers through a nickname, and
+    # "game" is a cue of both readings: still a tie, never the NHL.
+    placed = node(question)
+    assert placed.node == "sports" and placed.how in ("shared", "tie")
+    assert placed.ambiguous
+
+
+def test_the_weakest_steps_sit_below_the_floor():
+    assert categorizer.CONFIDENCE["near"] < categorizer.MIN_CONFIDENCE
+    assert categorizer.CONFIDENCE["tags"] < categorizer.MIN_CONFIDENCE
+    assert categorizer.CONFIDENCE["question"] >= categorizer.MIN_CONFIDENCE
 
 
 def test_below_the_floor_the_parent_is_filed(tree, monkeypatch):

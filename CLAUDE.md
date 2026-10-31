@@ -122,10 +122,10 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
 - **Endings do not tease**: no dangling hook, no rhetorical question,
   no forecasting; say anything unresolved inside the piece. [endings-do-not-tease]
 - Every sentence carries information; atmosphere alone is cut. [every-sentence-informs]
-- **Titled by C3P0 when he works** (§360): his title from the brief's call,
-  never a result; else the writer's stripped `<<TITLE:>>`; the player opens on a
-  derived title and swaps; a listener's or bank tile's (`titleOverridden`) is
-  never replaced; own column; a written live-story tile's card follows (§189). [title-from-content]
+- **Titled by what it turned out to be about**: C3P0's title while he works
+  (§360), else the writer's stripped `<<TITLE:>>`; no extra call, never a result;
+  derived title first, then swapped; `titleOverridden` never replaced; own column;
+  a written live-story tile takes the writer's title, summary, `<<CATEGORY:>>` (§189). [title-from-content]
 - `<<NEXT: ...>>` is a *prediction* of the likeliest follow-up, stored beside the
   script, served free by `/api/next`, offered by Go Deeper; the script never
   gestures at it. Every Go Deeper (Explore included) shows a suggestion - that

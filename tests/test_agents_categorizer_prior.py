@@ -66,7 +66,10 @@ def test_a_trending_story_counts_as_a_tile(tree, pool, monkeypatch):
 
     story = stories.Story(subject="s", title="t", angle="", query="why the oil price jumped",
                           category="oil price", first_seen=time.time())
-    monkeypatch.setattr(trending_bank, "stories_now", lambda *a: [story])
+    monkeypatch.setattr(trending_bank, "stories_in_memory", lambda *a: [story])
+    # Never the store on a listener's path (review, §361).
+    monkeypatch.setattr(trending_bank, "stories_now",
+                        lambda *a: (_ for _ in ()).throw(AssertionError("store read")))
     assert categorizer.prior_for("why the oil price jumped") == Prior("oil price", "tile")
 
 

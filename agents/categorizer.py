@@ -9,27 +9,37 @@ first, folded into the brief's call, Haiku 5.5 only on ties; and (decided
 item 38) the closest node the request is truly about - a broader node
 rather than none, never a nearby wrong one.
 
-This module is the code. It reads what the brief already worked out - EI's
-category words, the resolved subject - before the question's raw words,
-because the brief has already told "Miami heat wave" from the basketball
-team and the raw words have not:
+This module is the code. Before any words: the node the brief's call
+picked from the candidate list (§360), and what the tap already says
+(`prior_for`, §357), which the words may only narrow. Then it reads what the
+brief worked out - EI's category words, the resolved subject - before the
+question's raw words, because the brief has already told "Miami heat wave"
+from the basketball team and the raw words have not. The facet is chosen
+first and every step stays inside it:
 
 1. the brief's category words, by the tree's phrases (`resolve_category`);
-2. the brief's subject, by phrases;
-3. the question, by phrases - kept only when it agrees with the facet the
-   brief named (a phrase in the question is how "hurricanes hitting the
-   Carolina coast" became a hockey team, §209);
-4. the brief's category words by meaning (`category_near`, the rung §235
-   built for short category words, under the brief's facet);
-5. the deepest tree node among the keyword map's tags for the question, on
-   the same facet terms;
-6. the facet the brief's category names - broader, never wrong.
+2. a name that means two things, decided by the words around it
+   (`category_collisions`, §358);
+3. the brief's subject, by phrases;
+4. the question, by phrases - never on a reading a decided name ruled out
+   (a phrase in the question is how "hurricanes hitting the Carolina coast"
+   became a hockey team, §209);
+5. the vocabulary - a named thing, or another way of saying a node
+   (`category_vocabulary`, §359);
+6. the brief's category words by meaning (`category_near`, under the facet;
+   words not embedded yet are queued, never embedded here);
+7. the keyword map's deepest tree node for the question;
+8. a name nothing decided: what all its readings share, or nothing;
+9. the facet - broader, never wrong.
 
-Each step is a dictionary lookup or, at step 4, one embedding of a few
-words; nothing here reads a file or the network, and it never raises. A
-placement says which step decided it (`how`) and every node the steps
-found (`candidates`), which is what a tie hands the model (piece 4) and
-what `category_audit` logs.
+A node that lands on one reading of a name nothing decided is filed under
+what the readings share instead (§361), and a placement below
+`MIN_CONFIDENCE` under its parent. Every step reads memory: no file, store
+or socket on the listener's path (the vocabulary and the Trending edition
+are copies kept in memory, §361), and it never raises. A placement says
+which step decided it (`how`), how sure it is, every node the steps found
+(`candidates`) and any name left undecided (`ambiguous`), which is what the
+brief's call and the tie call are shown and what `category_audit` logs.
 """
 from __future__ import annotations
 
@@ -63,23 +73,22 @@ class Placement:
 
 NOWHERE = Placement()
 
-#: How far each step is trusted (§358). The tap's own filing and a
+#: How far each step is trusted (§358, §361). The tap's own filing and a
 #: provider's are near certain; a phrase in the brief's words is the brief
 #: understanding the question; a phrase in the raw question is the old
-#: failure (§209); meaning and keywords are weakest. A facet is always true.
+#: failure (§209); meaning and the keyword map are weakest and sit below the
+#: floor, so what they find is filed under its parent. A facet, and what the
+#: readings of an undecided name share, are always true.
 CONFIDENCE = {
     "edition": 0.9, "tile": 0.9, "bank": 0.9, "dailyfam": 0.9, "provider": 0.9,
     "picked": 0.85,
     "parent": 0.7, "category": 0.8, "clash": 0.75, "entity": 0.8, "subject": 0.7,
-    "wording": 0.65, "question": 0.6, "near": 0.5, "tags": 0.5, "shared": 1.0,
-    "facet": 1.0,
+    "wording": 0.65, "question": 0.6, "near": 0.45, "tags": 0.45, "shared": 1.0,
+    "tie": 1.0, "facet": 1.0,
 }
 #: Below this a placement is filed under its parent node (decided item 38:
 #: a broader node rather than a nearby wrong one).
 MIN_CONFIDENCE = 0.5
-#: What an undecided name that touches the chosen node does to its
-#: confidence.
-UNDECIDED_PENALTY = 0.5
 
 
 @dataclass(frozen=True)
@@ -311,7 +320,9 @@ def _prior_for(query: str, context: str, notes) -> Prior:
     try:
         import trending_bank
 
-        held += list(trending_bank.stories_now())
+        # The edition already in memory - never a read of its store on the
+        # listener's path (review, §361).
+        held += list(trending_bank.stories_in_memory())
     except Exception:  # noqa: BLE001
         pass
     for story in held:
@@ -371,7 +382,11 @@ def clashes(text: str) -> list:
             if not _cue_in(name, low):
                 continue
             rest = re.sub(r"(?<![a-z0-9])" + re.escape(name) + r"(?![a-z0-9])", " ", low)
-            hits = [sum(1 for cue in r.cues if _cue_in(cue, rest)) for r in readings]
+            # A cue that holds the name itself ("new york jets") is read in
+            # the whole text; the others without the name (review, §361).
+            hits = [sum(1 for cue in r.cues
+                        if _cue_in(cue, low if _cue_in(name, cue) else rest))
+                    for r in readings]
             best = max(hits)
             decided = (readings[hits.index(best)]
                        if best and hits.count(best) == 1 else None)
@@ -429,8 +444,17 @@ def _place(brief, query: str, prior_facet: str = "") -> Placement:
 
     def done(node: str, how: str) -> Placement:
         sure = CONFIDENCE.get(how, 0.5)
-        if node and how not in ("facet", "shared") and touches(node, tied):
-            sure *= UNDECIDED_PENALTY
+        if node and how not in ("facet", "shared"):
+            # A node on one reading of a name nothing decided is a guess
+            # between the readings (review, §361: "Rangers season preview"
+            # was filed under the NHL). It is filed under what all of that
+            # name's readings share - or nothing - never one of them.
+            for _name, readings in undecided:
+                nodes = [r.node for r in readings]
+                if touches(node, [n for n in nodes if n]):
+                    node, how = _shared(nodes), "tie"
+                    sure = 1.0 if node else 0.0
+                    break
         return Placement(node=node, path=path_for(node), how=how,
                          candidates=tuple(found), confidence=round(sure, 3),
                          ambiguous=ambiguous)
@@ -492,7 +516,9 @@ def _place(brief, query: str, prior_facet: str = "") -> Placement:
     if words:
         import category_near
 
-        near = seen(category_near.nearest(words, facet=facet, inline=1))
+        # Never embedded while a listener waits (review, §361): words not
+        # embedded yet are queued and placed next time, as the readers do.
+        near = seen(category_near.nearest(words, facet=facet, inline=0))
         if near and agrees(near):
             return done(near, "near")
     # 7: the keyword map's deepest tree node for the question.
@@ -639,10 +665,15 @@ def candidates_for(query: str, context: str = "", notes=None) -> tuple:
         for tag in topics.tags_for_text(query or ""):
             if tag not in topics.FACETS:
                 add(tag)
-        for node in list(found):
+        # Each node's parent right after it, so cutting the list to its size
+        # never drops the broader true node first (review, §361).
+        ordered: list = []
+        for node in found:
             path = path_for(node)
-            if len(path) > 1:
-                add(path[-2])
+            for n in (node, path[-2] if len(path) > 1 else ""):
+                if n and n not in ordered:
+                    ordered.append(n)
+        found = ordered
         if not found:
             for facet in sorted(topics.FACETS):
                 add(facet)

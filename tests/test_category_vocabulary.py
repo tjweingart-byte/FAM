@@ -46,7 +46,7 @@ def drafted(tmp_path, monkeypatch):
 
 # ------------------------------------------------------------------ derived from data FAM has
 def test_a_teams_nickname_names_the_team_in_a_sports_question(tree, drafted):
-    assert V.match("Lakers trade rumors")[0] == ("los angeles lakers",)
+    assert V.match("Lakers game tonight")[0] == ("los angeles lakers",)
 
 
 def test_a_nickname_alone_is_not_read_as_a_team_outside_sport(tree, drafted):
@@ -54,8 +54,15 @@ def test_a_nickname_alone_is_not_read_as_a_team_outside_sport(tree, drafted):
     assert V.match("Jazz win in overtime")[0] == ("utah jazz",)
 
 
+@pytest.mark.parametrize("question", [
+    "jazz festival lineup", "jazz brunch near me this season",
+    "Lakers trade rumors"])          # "trade", "season", "lineup" are not sport words
+def test_words_a_festival_or_a_menu_also_use_are_not_sport_words(tree, drafted, question):
+    assert V.match(question)[0] == ()
+
+
 def test_a_two_word_nickname(tree, drafted):
-    assert V.match("Red Sox lineup tonight")[0] == ("boston red sox",)
+    assert V.match("Red Sox roster moves")[0] == ("boston red sox",)
 
 
 def test_an_interests_label_names_its_node(tree, drafted):
@@ -80,9 +87,25 @@ def test_a_wording_two_nodes_share_is_a_tie(tree, drafted):
 def test_the_longest_wording_wins_and_an_entity_outranks_a_wording(tree, drafted):
     drafted(nodes={"rental market": {"wordings": ["rents"]},
                    "urban housing": {"wordings": ["rents in cities"]}},
-            entities={"zillow": {"node": "house prices", "kind": "company"}})
+            entities={"zillow group": {"node": "house prices", "kind": "company"}})
     assert V.match("rents in cities")[0] == ("urban housing",)
-    assert V.match("Zillow says rents in cities fell")[0] == ("house prices",)
+    assert V.match("Zillow Group says rents in cities fell")[0] == ("house prices",)
+
+
+def test_a_one_word_entity_is_read_only_in_its_field(tree, drafted):
+    # Review, §361: "Bills", "Lions" are also everyday words.
+    drafted(entities={"bills": {"node": "nfl", "kind": "team"},
+                      "lions": {"node": "nfl", "kind": "team"},
+                      "mercedes": {"node": "formula one", "kind": "team"}})
+    assert V.match("the spending bills in congress")[0] == ()
+    assert V.match("lions at the zoo")[0] == ()
+    assert V.match("Bills game tonight")[0] == ("nfl",)
+    assert V.match("mercedes", facet="sports")[0] == ("formula one",)
+
+
+def test_an_entity_keeps_the_context_a_nickname_asked_for(tree, drafted):
+    drafted(entities={"jazz": {"node": "utah jazz", "kind": "team"}})
+    assert V.match("the best jazz festivals this summer")[0] == ()
 
 
 def test_a_facet_keeps_the_match_inside_it(tree, drafted):
@@ -102,7 +125,7 @@ def test_an_unreadable_file_is_no_vocabulary_and_never_raises(tree, tmp_path, mo
     monkeypatch.setattr(V, "PATH", bad)
     V.reset()
     assert V.load(bad) == {"version": 1, "nodes": {}, "entities": {}}
-    assert V.match("Lakers trade rumors")[0] == ("los angeles lakers",)
+    assert V.match("Lakers game tonight")[0] == ("los angeles lakers",)
 
 
 def test_the_pending_draft_is_never_read(tree, drafted, monkeypatch):

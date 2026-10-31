@@ -7,8 +7,17 @@ agents work on the episode; this file shows that, off, the answer is decided
 before anything is read, and that an episode streamed through the real
 pipeline is byte-for-byte the same with the hook taken out, with the agents
 off, with the agents switched on but held, and with them switched on under
-the owner's signed rule books (the repository's state since §352) - where
-every agent may run and none is built yet.
+the owner's signed rule books (the repository's state since §352).
+
+**What it does not cover** (review, §361): it streams through the pipeline
+with a fake generator, so the code C3P0 and Nando are built into - the real
+brief (`episode_intelligence.understand`), `ScriptGenerator.understand` and
+`prepare`, the writer's reader and the four cache writes - is not reached
+here. That code's "off changes nothing" is pinned beside it:
+`tests/test_review_fixes_361.py::test_off_the_brief_and_every_call_are_what_they_were`,
+`tests/test_agents_research_plan.py`, `tests/test_agents_categorizer.py`
+(nothing placed, settled or stored while Nando is off) and
+`tests/test_agents_c3p0_call.py`.
 """
 from __future__ import annotations
 
@@ -116,7 +125,8 @@ def test_an_episode_is_the_same_hook_out_off_held_and_signed(monkeypatch, tmp_pa
         held = stream()
     rulebooks.reset()
     # 4. Every agent switched on under signed rule books (a throwaway key the
-    #    test trusts): all may run, none is built, the audio is the same.
+    #    test trusts): all may run; the fake generator reaches none of the
+    #    agents built so far (see the docstring), and the audio is the same.
     books = tmp_path / "signed"
     books.mkdir()
     for path in rulebooks.DEFAULT_DIR.glob("*.md"):

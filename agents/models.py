@@ -346,23 +346,65 @@ def _malformed(request: AgentRequest) -> str:
     return ""
 
 
+#: Statuses that mean the request never left this machine: a caller may
+#: run the pre-agent step instead without having spent anything.
+UNSENT = frozenset({OFF, MALFORMED, HELD, NO_MODEL, MISCONFIGURED, CONSENT, UNPRICED,
+                    STAGING})
+
+#: Write the ledger row off the event loop (§361): an agent working while a
+#: listener waits must not hold the loop on a database commit - on Postgres a
+#: network round trip. Rows are written in order by one worker thread. Tests
+#: turn it off (`tests/conftest.py`) so a row can be read the moment `ask`
+#: returns; `flush` waits for any written in the background.
+RECORD_OFF_LOOP = True
+_WRITER: list = [None]
+
+
+def _writer():
+    if _WRITER[0] is None:
+        import concurrent.futures
+
+        _WRITER[0] = concurrent.futures.ThreadPoolExecutor(
+            max_workers=1, thread_name_prefix="agent-ledger")
+    return _WRITER[0]
+
+
+def flush(timeout: float = 5.0) -> None:
+    """Wait for ledger rows written in the background. Never raises."""
+    if _WRITER[0] is None:
+        return
+    try:
+        _writer().submit(lambda: None).result(timeout=timeout)
+    except Exception:  # noqa: BLE001
+        pass
+
+
 async def ask(request: AgentRequest, *, notes=None, client=None) -> AgentResult:
     """Send one agent request. Never raises; anything but `ok` is a fallback."""
     started = time.monotonic()
+    sent: list = [False]
     try:
-        result = await _ask(request, notes, client, started)
+        result = await _ask(request, notes, client, started, sent)
     except Exception as exc:  # noqa: BLE001 - an agent never costs an episode
         log.exception("agent layer failed for %r", getattr(request, "agent", "?"))
+        # `sent` says whether it left the machine before the failure, so a
+        # caller never sends a second request for one it already made (§361).
         result = AgentResult(FAILED, getattr(request, "agent", ""),
                              getattr(request, "task", ""),
                              f"the agent layer failed: {type(exc).__name__}",
-                             seconds=time.monotonic() - started)
+                             seconds=time.monotonic() - started, sent=sent[0])
     if result.status not in (OFF, MALFORMED):
-        _record(request, result)
+        if RECORD_OFF_LOOP:
+            try:
+                _writer().submit(_record, request, result)
+            except Exception:  # noqa: BLE001 - a record never costs an episode
+                log.exception("could not queue an agent record")
+        else:
+            _record(request, result)
     return result
 
 
-async def _ask(request, notes, client, started) -> AgentResult:
+async def _ask(request, notes, client, started, sent=None) -> AgentResult:
     def done(status, reason="", **kw):
         return AgentResult(status, getattr(request, "agent", ""),
                            getattr(request, "task", ""), reason,
@@ -404,6 +446,8 @@ async def _ask(request, notes, client, started) -> AgentResult:
     schema = wire_schema(request.schema)
     system = build_system(lock.text, request.instructions)
     kw["prompt_fingerprint"] = fingerprint(system, schema)
+    if sent is not None:
+        sent[0] = True
     try:
         answer = await asyncio.wait_for(
             adapter.send(model=spec.model, system=system,

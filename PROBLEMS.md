@@ -25179,3 +25179,140 @@ nothing; the tie call only from candidates, cancelled if late; the pick
 outranks code but not the tap; prepare files the pick, or the tie call's;
 C3P0's title kept while he works, and its switch; the plan is his and
 counts agreement with the code routes).
+
+## 361. Phase 1 reviewed: the bookkeeping that was still on the listener's path, ties that were guessed, and claims that were not true (2026-10-31)
+
+At the owner's request ("carefully double check all changes made to this
+point"), two independent reviewers read everything from §354 to §360 cold -
+one the `agents/` code and tools, one everything around it - and I read it
+again myself. They found real defects, several in exactly the places the
+earlier sections said were safe. All are fixed here; what each earlier
+section claimed that was not true is listed at the end, because this log
+is the record.
+
+**On the listener's path after all** (the rule since §354: nothing of the
+agents' bookkeeping in front of the first word):
+
+- **The ledger row** (`agents.models._record`) was a synchronous insert
+  inside `ask`, so C3P0's call - now the brief's search half - waited on a
+  database commit, on Postgres a network round trip. It is written by one
+  background thread, in order (`RECORD_OFF_LOOP`); `models.flush()` waits
+  for it. Tests write inline (`tests/conftest.py`).
+- **A hold** (`netenyahu.report` on the third failure) wrote the task store
+  and `pipeline_errors` on the same path. The copy holds the agent at once;
+  the store is written in a thread (`HOLD_OFF_LOOP`).
+- **The vocabulary** read `category_vocabulary.json` once per candidate
+  (`definition`, up to twenty times a brief) and checked the file's time on
+  every match, and rebuilt itself on the request path after any tree
+  change. It is built once (boot primes it when `AGENTS=1`), definitions
+  come from the copy, and staleness is checked and rebuilt in a background
+  thread while the old copy answers.
+- **The Trending edition** was read through `stories_now`, which reloads
+  from its store every minute. Nando now reads only the edition in memory
+  (`trending_bank.stories_in_memory`).
+- **The meaning step** embedded the brief's words inline. It queues them
+  (`inline=0`), as the readers always have.
+- **With the agents off**, `app._episode_category` asked the store twice
+  (node, then words). One read now returns both (`category_pair`), as the
+  store was asked before the node existed.
+
+**Ties were guessed.** When a name was left undecided ("Rangers", "Panthers",
+"Cardinals"), a later step could land on one reading, be marked unsure and
+be filed under that reading's parent - still inside the guess: "Rangers
+season preview" was filed under the NHL. Now a node that touches one
+reading of an undecided name is filed under what all its readings share
+(`sports`), or nothing. The confidence penalty that did this badly is gone;
+the two weakest steps (meaning and the keyword map, 0.45) now sit below the
+floor, so what they find is filed under its parent.
+
+**Everyday words read as teams.** `SPORT_WORDS` held "season", "lineup",
+"trade", "win", "series", "draft": "jazz festival lineup" was filed under
+the Utah Jazz. Only words about sport and little else remain; "Lakers trade
+rumors" is now unplaced (the brief and C3P0 place it - the honest cost). A
+drafted one-word entity ("Bills", "Lions", "Mercedes") is read only inside
+its own field, and an entity no longer removes the context a nickname asked
+for. "golden state" was a dead entry (the code looks at the last two words).
+Cues holding the name itself ("new york jets", "private jets", "united
+airlines") could never match, because the name was removed before cues were
+read; they are read in the whole text now.
+
+**C3P0's answer.** The title skipped the brief's `clean_title` (a re-cased
+question could become the episode's title for good) and nothing enforced
+the three-to-eight words `product.md` said code held; both are enforced.
+The forecast input and Sonic's request were never checked for results; they
+are. Dates and ranges ("2026-10-11", "ages 18-25", "5-7 day forecast") were
+read as scores, and "Can the Chiefs beat the Bills?" as a result; they are
+not. `opinion_requested` passed on any "think" or "views" anywhere ("how
+many views did Taylor Swift's video get"); it now needs the name next to a
+view word.
+
+**A second request for one site.** If the layer failed after sending, `ask`
+reported `sent=False` and C3P0's call ran the brief's own search half - a
+second request, the first one's cost unrecorded. `ask` now marks a request
+sent the moment it leaves, and C3P0 falls back only on the statuses that
+mean nothing left (`models.UNSENT`). A failure building the request (before
+anything is sent) also falls back, where it used to fail the brief.
+
+**The tie call ran on.** When C3P0 picked, Nando's tie call was neither
+read nor cancelled (`or` short-circuited), and ran to completion, paid for
+and thrown away. It is read or cancelled at every placement.
+
+**Smaller.** Netenyahu's refresh could overwrite a hold made while it was
+reading (holds made since a read began are now merged in) and, with the
+store down, started a refresh per episode (it now waits an interval).
+Candidates are listed each with its parent beside it, so cutting the list
+never drops the broader node first. The drafting tool wrote the seed into
+an empty live tree; it drafts against a throwaway copy. Stale docstrings
+(Netenyahu's "no agent is built", the categorizer's six steps and "no file",
+the contextualizer's "no model") are rewritten.
+
+**The measurement, said honestly.** "Narrower" also catches a wrong team
+under a broad label, so every narrower result is printed for a person to
+read and never counted as right. The tile taps are circular (the story's
+category is the label). The "held-out" clash set was written by the same
+session, in the same commit, with the table's own cue words: it shows the
+table works on the words it lists, not that it covers what listeners say.
+The independent set is piece 9's. Numbers after the fixes - the forty:
+today 11 / 28 unplaced / 1 wrong, Nando **20 right, 1 broader, 18
+unplaced, 1 wrong** (one fewer than §359: "Lakers trade rumors"); the
+clash set 18 right, 1 narrower, 1 unplaced; taps 12 of 12.
+
+**Tests that tested nothing.** A clash test asserted "broadened, or
+confident" - true of anything; it now pins the three cases above to
+`sports`. The agents-off brief test only checked that C3P0 was not asked;
+it now compares the whole brief and every model call with C3P0's and
+Nando's code made unable to run. `tests/test_agents_off.py`'s golden
+episode never reaches the code C3P0 and Nando are built into (it streams a
+fake generator); its docstring now says so and names the tests that cover
+it.
+
+**Left as designed, and why.** Nando's confirmation after the writer may
+re-file away from a tile's filing: his signed rule book says "if the
+episode turned out to be about something else, change it", and the prior
+binds the request's words, not the finished episode. C3P0's stricter answer
+(a closed schema, more output under the same `EI_MAX_TOKENS`) can fail more
+often than EI's search half did; a sent call that fails is the search half
+failing, never a second call in series. Both are for the owner to see in
+`/api/health` once C3P0 runs.
+
+**What earlier sections claimed that was not true until now:** §356 "no
+file, store or network" and "at most one embedding"; §357 that the
+Trending read was harmless; §358's confidence "broader when unsure" (it
+kept ties inside a guess) and "held-out" (not independent); §359 "the file
+is read once per change" and "a dictionary walk"; §360 "lists, in memory",
+"cancelled if it has not answered", and product.md's "three to eight words
+in code".
+
+Tests: `tests/test_review_fixes_361.py` (the ledger written off the loop
+and flushed; a failure after sending marked sent; C3P0 never sends twice;
+a request that cannot be built falls back; a refresh racing a hold keeps
+it; a failed refresh waits; a hold from the listener's path written in the
+background; the vocabulary never rebuilt or stat'ed on the path, a stale
+one checked in the background, definitions from memory; cues holding the
+name read; meaning queued, never embedded; each candidate's parent beside
+it; the tie call cancelled when C3P0 picked; Trending in memory only; the
+reader asks the store once; dates, ranges and questions not results;
+opinion only by name; forecast and archive inputs checked; the title
+cleaned and three to eight words; drafting never writes the live tree; off,
+the brief and every call are what they were) and the tie cases in
+`tests/test_agents_categorizer_clashes.py`.

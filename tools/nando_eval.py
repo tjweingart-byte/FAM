@@ -99,7 +99,10 @@ QUESTIONS = (
 #: context, the node it is truly about). `tile` is a live story in the pool
 #: with that category; `bank` and `dailyfam` are FAM's own questions,
 #: recognised from their words; `deeper` is a Go Deeper with the title of
-#: the episode it follows. Labelled by hand, like the forty.
+#: the episode it follows. Labelled by hand, like the forty. **The tile taps
+#: are circular** (review, §361): the story's category is the label, so they
+#: show the episode keeps its tile's filing - not that the composer's
+#: category was right.
 DATE = "Saturday, October 31, 2026"
 CONTEXT_TAPS = (
     ("what happened in the Eagles game", "tile", "philadelphia eagles", "philadelphia eagles"),
@@ -121,11 +124,13 @@ CONTEXT_TAPS = (
 
 
 #: Twenty questions about names that mean two things, written and labelled
-#: *after* the clash table (§358) and never used to tune it - a held-out
-#: check on the forty, which the table was written beside. "" is a label
-#: for a reading the tree has no node for (the bird): placing nothing is
-#: right there, and any node is wrong. Ties a listener would be asked about
-#: are labelled with what the readings share, or "".
+#: after the clash table (§358) and not used to tune it. **Not independent**
+#: (review, §361): the same session wrote both, in the same commit, and the
+#: questions use the table's own cue words ("landfall", "power play"), so
+#: they show the table works on the words it lists, not that it covers what
+#: listeners say. The independent set is piece 9's, labelled by a judge over
+#: real episodes. "" is a label for a reading the tree has no node for (the
+#: bird): placing nothing is right there, and any node is wrong.
 HELD_OUT = (
     ("Heat advisory issued as temperatures soar in Phoenix", "extreme weather"),
     ("Heat beat the Knicks in overtime", "nba"),
@@ -175,9 +180,11 @@ def score(tree, label: str, placed: str) -> str:
     facet = stories.facet_for(label)
     if placed in ancestry or (placed in topics.FACETS and placed == facet):
         return "broader"
-    # Under the label: more specific than the hand label, and true when the
-    # label was ("United cancels flights" filed under `flights`, which sits
-    # under `airlines`). Counted on its own, never as right.
+    # Under the label: more specific than the hand label - true when the
+    # label was ("United cancels flights" filed under `flights`, under
+    # `airlines`), but a wrong team under a broad label (`nfl`) lands here
+    # too (review, §361). Counted on its own, never as right, and every one
+    # is printed for a person to read.
     if label in set(tree.ancestors(placed)):
         return "narrower"
     return "wrong"
@@ -311,9 +318,10 @@ def main() -> int:
         print(f"{name:<28} right {t['right']:>2}  narrower {t['narrower']:>2}  broader {t['broader']:>2}  "
               f"unplaced {t['unplaced']:>2}  wrong {t['wrong']:>2}   (of {len(QUESTIONS)})")
     for name, found in result.items():
-        wrong = [r for r in found["rows"] if r["verdict"] == "wrong"]
-        for r in wrong:
-            print(f"  wrong, {name}: {r['question']!r} -> {r['placed']} (is {r['label']})")
+        for r in found["rows"]:
+            if r["verdict"] in ("wrong", "narrower"):
+                print(f"  {r['verdict']}, {name}: {r['question']!r} -> {r['placed']}"
+                      f" (is {r['label']})")
     held = run_held_out()
     print()
     print(f"Held-out name clashes ({len(HELD_OUT)}, never used to tune the table):")
@@ -323,7 +331,8 @@ def main() -> int:
               f"unplaced {t['unplaced']:>2}  wrong {t['wrong']:>2}")
     for name, found in held.items():
         for r in found["rows"]:
-            if r["verdict"] in ("wrong",) or (name.startswith("nando") and r["verdict"] != "right"):
+            if r["verdict"] in ("wrong", "narrower") or (
+                    name.startswith("nando") and r["verdict"] != "right"):
                 print(f"  {r['verdict']}, {name}: {r['question'][:50]!r}"
                       f" -> {r['placed'] or '-'} (is {r['label'] or 'nothing'})")
     print()

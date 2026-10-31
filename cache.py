@@ -675,6 +675,10 @@ class ScriptCache(Protocol):
     #: episode written before him), and the reader falls back to `category`'s
     #: words. Optional on a backend, like `summary`.
     def category_node(self, key: str) -> str: ...
+    #: `(category words, category node)` in one read (§361), so the one
+    #: reader asks the store once, as it did before the node existed.
+    #: Optional on a backend, like `summary`.
+    def category_pair(self, key: str) -> tuple: ...
     #: Who the cached episode's facts came from, as stored JSON. Kept beside
     #: the script for the same reason `thread` is: a cache hit replays
     #: sentences and has no `notes`, so without this a shared or Explore
@@ -1111,6 +1115,12 @@ class MemoryScriptCache:
         if not entry or entry[0] < time.time():
             return ""
         return self._category_nodes.get(key, "")
+
+    def category_pair(self, key: str) -> tuple:
+        entry = self._data.get(key)
+        if not entry or entry[0] < time.time():
+            return "", ""
+        return self._categories.get(key, ""), self._category_nodes.get(key, "")
 
     # -- audio (§132) -------------------------------------------------------
 
@@ -2296,6 +2306,19 @@ class SqliteScriptCache:
         except Exception:
             log.exception("script cache category node read failed")
             return ""
+
+    def category_pair(self, key: str) -> tuple:
+        """`(words, node)` in one read (§361), or ("", "")."""
+        try:
+            row = self._conn().execute(
+                "SELECT category, category_node, expires FROM scripts WHERE key = ?",
+                (key,)).fetchone()
+            if not row or row[2] < time.time():
+                return "", ""
+            return row[0] or "", row[1] or ""
+        except Exception:
+            log.exception("script cache category read failed")
+            return "", ""
 
     def summary(self, key: str) -> str:
         """The episode's one-sentence summary, or "" when it has none."""

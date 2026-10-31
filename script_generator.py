@@ -2381,8 +2381,13 @@ class ScriptGenerator:
         if _agent_runs(notes, "categorizer"):
             from agents import categorizer
 
+            # The tie call is read - or cancelled if still running - every
+            # time, whether or not C3P0 picked (review, §361): never left
+            # running for an answer nobody will read.
+            tie = categorizer.tie_answer(notes.category_tie_task)
+            notes.category_tie_task = None
             picked = ((getattr(plan.brief, "contextualized", None) or {}).get("node", "")
-                      or categorizer.tie_answer(notes.category_tie_task))
+                      or tie)
             placed = categorizer.place(
                 plan.brief, plan.query, categorizer.provider_field(plan.query),
                 categorizer.prior_for(plan.query, plan.context, notes), picked)
