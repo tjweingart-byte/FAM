@@ -2830,6 +2830,13 @@
   /* The same row at the top of the rails screen (10.2 packet #1). */
   .myfam-circle{ margin:2px 0 16px; }
   .myfam-circle[hidden]{ display:none; }
+  /* The first rail sits close under the faces (the owner, after the
+     Saturday screenshot): the row's margin, the section's and the
+     heading's own stacked into a ~48px gap. Only when nothing (Go deeper)
+     sits between them. */
+  .myfam-circle:not([hidden]){ margin-bottom:0; }
+  .myfam-circle:not([hidden]) + #goDeeperBlock:empty ~ #myfamFeed > .feed-section:first-child{ margin-top:0; }
+  .myfam-circle:not([hidden]) + #goDeeperBlock:empty ~ #myfamFeed > .feed-section:first-child .feed-title{ margin-top:8px; }
   .myfam-circle .yf-friends{ margin-top:4px; gap:14px; }
   /* Instagram's row (§297, the Birthday packet): big round pictures, a
      gradient ring round anybody with a story you have not watched, a thin
