@@ -1104,7 +1104,8 @@ __MIX_ITEMS__
       if (held && held.plays >= (s.hits || 0)) return;
       best[title.toLowerCase()] = {
         query: s.query, title: title, minutes: s.minutes, plays: s.hits || 0,
-        sourced_age_seconds: Math.max(0, now() - s.created), explicit: false
+        sourced_age_seconds: Math.max(0, now() - s.created), explicit: false,
+        thumb: previewPicture(s.query)
       };
     });
     var eps = Object.keys(best).map(function (k) { return best[k]; });

@@ -7741,7 +7741,19 @@ async def myfam_search(request: Request,
                 0.0, now - (entry.get("sourced_at") or entry.get("created") or now)),
             "explicit": bool(entry.get("explicit")),
         })
+    await asyncio.to_thread(_picture_episodes, episodes)
     return {"episodes": episodes}
+
+
+def _picture_episodes(episodes: list[dict]) -> None:
+    """Give each Search DailyFAM row the picture the player would draw for
+    it (`thumb`), so the list shows what each episode is about rather than a
+    column of identical play buttons. Local reads only; "" when nothing is
+    approved, and the row keeps its play glyph."""
+    for episode in episodes:
+        episode["thumb"] = _picture_url(episode.get("query", ""),
+                                        episode.get("title", ""),
+                                        episode.get("minutes", 0))
 
 
 #: How far back the A to Z catalogue reads (10.2 feedback): every row kept
@@ -7806,6 +7818,7 @@ async def myfam_catalog(request: Request) -> dict:
     for episode in ordered:
         letter = _catalog_sort_key(episode["title"])[0]
         episode["letter"] = "#" if letter == "~" else letter
+    await asyncio.to_thread(_picture_episodes, ordered)
     return {"episodes": ordered}
 
 
