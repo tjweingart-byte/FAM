@@ -206,9 +206,9 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   story reaches Made for you **only when it names something followed** - the
   floor tops up from evergreen tiles, **never the live pool**. Non-search
   episodes are `BROWSE_MINUTES` (1.5) but a Go Deeper's 1-5 (§170); View more /
-  Refresh deal eight (§165); no wheel, no language picker, no interest cap;
-  impressions only damp (`FATIGUE_WEIGHT`); skip `UNSHELVED` in `FILL_ORDER`.
-  One bank - personalise the order, not the inventory. [op-taste-scoring]
+  Refresh deal 16 (§363); no wheel, language picker, interest cap;
+  impressions only damp (`FATIGUE_WEIGHT`); `FILL_ORDER` skips `UNSHELVED`.
+  One bank: personalise order, not inventory. [op-taste-scoring]
 - **DailyFAM mixes**: hold subjects/topic ids, never audio; the picker is ranked
   (`rank_bank`, a sort not a filter, does not exclude played); new mixes are
   **public by default**, copies start private; `loadMixes` takes the bank
@@ -238,7 +238,8 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
 - **Pick up where you left off** (§174): episodes under **60% heard** (the real
   length once the player has it, else the minutes) and finished episodes'
   Go Deeper prompts, from the **last 24 hours** only; fewer than four is honest. [pick-up-rail]
-- Follows are asymmetric; a friend is the mutual case, derived never stored. [op-follow-graph]
+- Follows asymmetric; friend = mutual, derived; cards say "N friends
+  listened" (§363). [op-follow-graph] [friends-listened]
 - A friend's profile is its own screen (`screen-person`); `/api/person` returns
   only what they published: place (§219), friend count, friends to friends (§285) (a handle resolves for anyone, a bare id only within
   the asker's follows; the response carries no id); new followers announced once (`social.announced`),
@@ -444,7 +445,7 @@ Accounts, tiers, sharing
 - **Authorship is provenance, never identity**: `PodcastPipeline.author`, never
   on `EpisodePlan` or in `key_for`; first writer keeps it; prefetch writes none. [authorship-provenance]
 - **Type: Bricolage Grotesque (headings), Geist (body), Geist Mono (labels)**
-  (§204), one font link; wordmark words at 400; light theme by default (§250). [typefaces]
+  (§204); daily/my/your one rule, centred (§363); light (§250). [typefaces]
 - **A speed change must not change the voice** (WSOLA; bypassed at 1x; default 1x). [speed-pitch]
 - **A control with nothing behind it is worse than no control**; never fabricate people. [no-dead-controls]
 - **The intro screen is not on the navigation stack**; screens opened over it
