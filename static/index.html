@@ -3116,10 +3116,10 @@
     display:flex; align-items:flex-end; text-align:left; font-family:inherit; }
   .yf-pic-img{ position:absolute; inset:0; background-size:cover; background-position:center; }
   .yf-pic::after{ content:""; position:absolute; inset:0;
-    background:linear-gradient(180deg, transparent 45%, rgba(15,14,18,.82)); }
+    background:linear-gradient(180deg, transparent 25%, rgba(15,14,18,.88)); }
+  /* The whole title, never clamped: a vibe tile is read by its words. */
   .yf-pic-t{ position:relative; z-index:1; padding:7px; font-size:10.5px; font-weight:600;
-    line-height:1.2; color:#F4EFE4; display:-webkit-box; -webkit-line-clamp:3;
-    -webkit-box-orient:vertical; overflow:hidden; }
+    line-height:1.2; color:#F4EFE4; overflow-wrap:break-word; hyphens:auto; }
   /* A friend's mix tile carries the (+) that adds it to your own. */
   .yf-pic-wrap{ position:relative; display:flex; }
   .yf-pic-wrap .yf-pic{ flex:1; }
