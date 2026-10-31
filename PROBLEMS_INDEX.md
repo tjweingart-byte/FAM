@@ -367,3 +367,4 @@ and `limit` = Lines.
 | 25022 | 34 | 364. Explore names the wait in front of a card's first word (2026-10-31) |
 | 25056 | 13 | 365. The player's source circles show the publishers' logos (2026-10-31) |
 | 25069 | 26 | 366. The archive keeps nothing Parallel returns (2026-10-31) |
+| 25095 | 18 | 367. Go Deeper on LinkedIn is removed (2026-10-31) |

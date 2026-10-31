@@ -25091,3 +25091,21 @@ never reach intake or the episode's links, and are counted; an episode from
 Parallel alone keeps nothing). Reviewed before the PR: `reset()` now zeroes
 `never_kept` with the other counters, and email 1 says the archive (not FAM)
 keeps nothing and asks again about episodes written ahead for everyone.
+
+## 367. Go Deeper on LinkedIn is removed (2026-10-31)
+
+At the owner's direction the LinkedIn outreach engine is gone: `/admin/linkedin`
+and its four `/api/admin/linkedin/*` routes, `linkedin_posts.py`, its page
+(`admin_ui/linkedin.html`), its link in the tracker's "Other admin pages",
+`LINKEDIN_POSTS_DB` and the `LINKEDIN_*` settings (`config.py`,
+`.env.example`, both Dockerfiles), and its tests. `outreach_intelligence.py`
+(§337) keeps the read and X's voice; LinkedIn's voice and the `LINKEDIN`
+platform are deleted, so `/admin/x` is the one engine it serves. The
+`linkedin` rule in `docs/claude/constraints.md` is removed and its line in
+`CLAUDE.md` folded into `no-social-posting`.
+
+**What stays.** The listener's LinkedIn share target (`sharing.py`, the share
+sheet, the landing page's preview card) is a separate feature and is
+untouched. A deployment that already has `linkedin_posts.db` on its disk keeps
+the file; nothing opens or reports it any more, and it can be deleted by hand.
+§322 and §327 above are history.
