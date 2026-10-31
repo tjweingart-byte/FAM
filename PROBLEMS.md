@@ -25052,3 +25052,16 @@ still loading redraws the card and keeps its steps.
 
 **Pinned by** `tests/test_explore_loading_364.py`. Heard on no device yet:
 the stages' real proportions on a phone network are unmeasured.
+
+## 365. The player's source circles show the publishers' logos (2026-10-31)
+
+The three overlapped circles beside the title drew initials ("CN", "BB",
+"BB") and made no network request, so a listener saw abbreviations where the
+Sources popup showed CNBC's and the BBC's own marks. At the owner's direction
+the circles now carry the logo too: `srcMark(item, size, withLogo)` lays the
+publisher's `/favicon.ico` over the drawn initials, transparent until it
+loads, `referrerpolicy="no-referrer"` as in the popup, and removed on error so
+a missing icon leaves the initials rather than a blank circle. Only the three
+shown are asked for. This reverses the strip's "no network request" note
+(the popup's reason - no referrer, nothing about the episode - is what now
+holds for both); the popup is unchanged.
