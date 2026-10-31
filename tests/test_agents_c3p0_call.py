@@ -223,9 +223,17 @@ def test_candidates_hold_every_reading_and_their_parents(tree):
     assert len(nodes) <= categorizer.MAX_CANDIDATES
 
 
-def test_with_nothing_found_the_facets_are_offered(tree):
+def test_with_nothing_found_the_facets_then_the_tree_are_offered(tree, monkeypatch):
+    """Measured (§384): the facets alone left the model eight broad answers;
+    with the whole tree on the list, 36 of 40 were right instead of 20."""
     nodes, tie = categorizer.candidates_for("zqxv blorp")
-    assert set(nodes) == set(topics.FACETS) and not tie
+    facets = sorted(topics.FACETS)
+    assert list(nodes[:len(facets)]) == facets and not tie
+    assert set(nodes) == set(facets) | set(tree.nodes())
+    # A tree too big to read cheaply: only the level under the facets.
+    monkeypatch.setattr(categorizer, "WHOLE_TREE_NODES", 10)
+    nodes, _tie = categorizer.candidates_for("zqxv blorp")
+    assert set(nodes) == set(facets) | {n for n, x in tree.nodes().items() if x.depth == 1}
 
 
 def test_the_tie_call_answers_only_from_the_candidates(tree, monkeypatch):

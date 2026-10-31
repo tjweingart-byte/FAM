@@ -25898,3 +25898,68 @@ lost; the model is retrained every night on the corrected rows. The first
 look only remembers the tree. A wipe forgets the last look with the grades.
 
 Tests: `tests/test_nando_follows_the_tree_383.py`.
+
+## 384. Measured with a key at last: the probe's lost Opus, and the whole tree on Nando's list (2026-10-31)
+
+**A key was there all along.** The environment holds an Anthropic key as
+`FAM_ANTHROPIC_KEY`; FAM reads `ANTHROPIC_API_KEY`, so every earlier
+"no key here" was true for FAM and wrong for the container. The commands
+below pass it under FAM's name for one process; nothing writes it down.
+
+**The served model ids** (`tools/agent_probe.py`, §353's carry-over): Haiku
+5.5, Sonnet 5.5 and Opus 5.5 each come back as exactly the pinned id, so no
+agent call is refused as `wrong_model`. Opus first failed with a connection
+error - not Opus: the probe ran each model in its own `asyncio.run`, the
+adapter's client is shared, and a connection opened on one loop and reused
+after that loop closed fails on the next model. `tools/nando_eval.py
+--with-brief` (one loop per question) and `tools/draft_category_vocabulary.py`
+(two) had the same fault, which would have failed every other measured
+brief and silently measured EI alone. Each now runs one loop
+(`tests/test_one_event_loop_384.py`). Production runs one loop and never
+had it.
+
+**Nando through the real brief** (`AGENTS=1 CONTEXTUALIZER=1 CATEGORIZER=1
+python tools/nando_eval.py --with-brief`, the forty questions, C3P0's call
+carrying Nando's list; 38 of 40 calls ran, one timed out, one not sent):
+
+| | right | narrower | broader | unplaced | wrong |
+|---|---|---|---|---|---|
+| today's code (`resolve_category`) | 11 | 0 | 0 | 28 | 1 |
+| Nando through the brief, as built | 20 | 1 | 12 | 1 | 6 |
+| + the level under the facets | 23-24 | 1 | 10-12 | 1-2 | 2-4 |
+| **+ the whole tree when nothing was found** (kept) | **36, 36** | 1-2 | 0-1 | 0 | **2, 2** |
+
+The cause of the first row's misses: when code read nothing specific in the
+words ("is bitcoin going up", "SpaceX Starship launch"), Nando's list was
+the eight facets alone (§376), so the model could only answer `money` or
+`science` - five of the six wrong answers. Now, when the words point at
+nothing below a facet, the whole tree goes on the list after the facets
+while it is at most `WHOLE_TREE_NODES` (400; 303 today), else the level
+under the facets. What is still wrong: "high school football scores in my
+town" -> `football` (is `high school sports`), and one of "fusion of two
+big banks" or "tech companies cutting jobs" per run.
+
+**Latency, on a search** (the real brief, 24 questions, one run each; the
+brief is waited on in front of the first word):
+
+| | median | p90 | max |
+|---|---|---|---|
+| agents off (EI's own search half) | 5.59-5.73 s | 6.57-7.10 s | 7.99-8.10 s |
+| agents on, as built | 6.13 s | 7.34 s | 7.91 s |
+| agents on, whole tree on the list | 6.32 s | 7.39 s | 7.67 s |
+
+C3P0's own call: median 4.4-4.9 s as built, 5.1 s with the tree (82 calls,
+all ok). So with the agents on, a search's brief takes about 0.6 s longer
+at the median and 0.3 s at p90. That is the owner's to weigh against 36
+right instead of 11 (today's code) or 20; the agents stay off by default.
+
+**Cost.** C3P0's forty calls: about $0.02 (`agent_calls`); the brief's own
+calls are metered as before.
+
+**Found, not changed:** `category_vocabulary.json` holds no drafted node or
+entity - the drafting tool (§370) needed a key. Drafting writes
+`category_vocabulary.pending.json` for a person to review; it has not been
+run.
+
+Tests: `tests/test_one_event_loop_384.py`;
+`tests/test_agents_c3p0_call.py::test_with_nothing_found_the_facets_then_the_tree_are_offered`.

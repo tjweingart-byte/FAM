@@ -283,10 +283,15 @@ def brief_places() -> dict:
     import script_generator
     from agents import categorizer, netenyahu
 
+    # One event loop for every question: the model clients are shared, and a
+    # connection reused after `asyncio.run` closed its loop fails (§384).
+    loop = asyncio.new_event_loop()
+
     def with_brief(question: str) -> str:
         notes = script_generator.ScriptNotes()
         notes.agents = netenyahu.for_episode("search")
-        brief = asyncio.run(episode_intelligence.understand(question, 2, notes=notes))
+        brief = loop.run_until_complete(
+            episode_intelligence.understand(question, 2, notes=notes))
         picked = (brief.contextualized or {}).get("node", "")
         return categorizer.place(brief, question, prior=categorizer.prior_for(question),
                                  picked=picked).node

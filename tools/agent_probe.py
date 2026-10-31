@@ -99,7 +99,13 @@ def main() -> int:
     if not credentials.active("ANTHROPIC_API_KEY"):
         print("No ANTHROPIC_API_KEY here: nothing can be asked.")
         return 2
-    results = [asyncio.run(probe(v, m)) for v, m in models_to_probe()]
+    # One event loop for every probe: the adapter's client is shared, and a
+    # connection opened on one loop and reused after `asyncio.run` closed it
+    # fails as a connection error on the next model (§384).
+    async def all_probes() -> list:
+        return [await probe(v, m) for v, m in models_to_probe()]
+
+    results = asyncio.run(all_probes())
     if args.json:
         print(json.dumps(results, indent=2))
     else:

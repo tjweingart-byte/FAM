@@ -232,10 +232,12 @@ def main() -> int:
               f"and {len(entity_names())} named things, on CATEGORIZER_MODEL")
         return 0
 
-    nodes, problems = asyncio.run(draft_nodes(tree, args.limit))
+    # One event loop for both drafts: the adapter's client is shared (§384).
+    loop = asyncio.new_event_loop()
+    nodes, problems = loop.run_until_complete(draft_nodes(tree, args.limit))
     entities = {}
     if not args.no_entities:
-        entities, more = asyncio.run(draft_entities(tree))
+        entities, more = loop.run_until_complete(draft_entities(tree))
         problems += more
     if not args.no_wikidata:
         for node, entry in nodes.items():

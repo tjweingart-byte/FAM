@@ -794,6 +794,13 @@ def settle(notes, query: str = "") -> str:
 MAX_CANDIDATES = 20
 
 
+#: When the words point at nothing below a facet (§384): the whole tree
+#: goes on the list while it is small enough to read cheaply, else the
+#: level under the facets.
+WHOLE_TREE_NODES = 400
+WHOLE_TREE_DEPTH = 99
+
+
 def candidates_for(query: str, context: str = "", notes=None) -> tuple:
     """`(nodes, tie)`: the nodes the brief's call may choose from, found in
     code before it is asked - the tap's own, every reading of a name that
@@ -857,6 +864,15 @@ def candidates_for(query: str, context: str = "", notes=None) -> tuple:
         # always be on offer beside it.
         facets = [f for f in sorted(topics.FACETS) if f not in ordered]
         found = ordered[:MAX_CANDIDATES] + facets
+        # When the words pointed at nothing below a facet, the facets alone
+        # left the model a choice of eight broad answers for "is bitcoin
+        # going up" (§384, measured): the level under the facets goes on the
+        # list too, so the true node - or its parent - is there to choose.
+        if not ordered:
+            nodes = tree.nodes()
+            depth = WHOLE_TREE_DEPTH if len(nodes) <= WHOLE_TREE_NODES else 1
+            found += sorted(n for n, node in nodes.items()
+                            if node.depth <= depth and n not in found)
         return tuple(found), tie
     except Exception as exc:  # noqa: BLE001
         log.warning("nando could not list candidates for %r: %s", query, exc)
