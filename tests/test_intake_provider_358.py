@@ -11,6 +11,8 @@ import json
 import sqlite3
 from contextlib import closing
 
+import pytest
+
 import history_archive as ha
 import research
 
@@ -31,6 +33,7 @@ def test_each_web_search_names_itself_on_its_findings(monkeypatch):
         assert [f.provider for f in packet.findings] == [backend]
 
 
+@pytest.mark.sqlite_file
 def test_one_article_from_two_providers_keeps_their_passages_apart(tmp_path):
     store = ha.SQLiteBackend(str(tmp_path / "archive.db"))
     url = "https://www.reuters.com/a"
@@ -50,6 +53,7 @@ def test_one_article_from_two_providers_keeps_their_passages_apart(tmp_path):
     assert counts["unknown"] == 0
 
 
+@pytest.mark.sqlite_file
 def test_an_archive_from_before_is_widened_and_its_rows_read_as_unknown(tmp_path):
     path = str(tmp_path / "archive.db")
     with closing(sqlite3.connect(path)) as db, db:
