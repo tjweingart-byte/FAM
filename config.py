@@ -1293,22 +1293,6 @@ class Settings:
     x_threads_model: str = field(
         default_factory=lambda: os.environ.get("X_THREADS_MODEL") or SMALL_MODEL)
 
-    # --- Go Deeper on LinkedIn (`/admin/linkedin`, linkedin_posts.py, §322) -
-    # Nothing reads LinkedIn: a person pastes a post. This drafts the comment
-    # a person approves and posts. A short call; the small model.
-    linkedin_model: str = field(
-        default_factory=lambda: os.environ.get("LINKEDIN_MODEL") or SMALL_MODEL)
-    # "Find posts" (§327): one search a kept episode, through the research
-    # vendors FAM already pays for, restricted to linkedin.com. A run and a
-    # day are both capped; only posts this recent are looked for.
-    linkedin_seeds: int = _env_int("LINKEDIN_SEEDS", 10)
-    linkedin_daily_searches: int = _env_int("LINKEDIN_DAILY_SEARCHES", 40)
-    linkedin_window_days: int = max(1, min(_env_int("LINKEDIN_WINDOW_DAYS", 7), 30))
-    # High engagement is the target (§337): a found post whose reactions and
-    # comments the search shows, and number fewer than this, is not a card.
-    # A post whose counts the search does not show is not refused for it.
-    linkedin_min_engagement: int = max(0, _env_int("LINKEDIN_MIN_ENGAGEMENT", 20))
-
     # --- GNews (gnews.io), the bank's source -------------------------------
     # The key is the statement of intent: unset, Trending is empty and says so.
     gnews_key: str = field(

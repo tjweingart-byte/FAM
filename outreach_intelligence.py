@@ -1,5 +1,5 @@
-"""Outreach Intelligence: what `/admin/x` and `/admin/linkedin` understand
-about a post before they write a word under it (§337).
+"""Outreach Intelligence: what `/admin/x` understands about a post before
+it writes a word under it (§337).
 
 ## What this is
 
@@ -9,7 +9,8 @@ find a match, and "creatively curate a post that is best fit for the post
 it is replying to & platform that it's on" - on X, curiosity and being part
 of the conversation; on LinkedIn, informative and context-giving, a way to
 Go Deeper. Circled: "the engines need some kind of awareness/intelligence
-(like Episode Intelligence)".
+(like Episode Intelligence)". The LinkedIn engine (`/admin/linkedin`, §322)
+was removed at the owner's direction; X is the one engine left.
 
 Episode Intelligence's lesson, carried over: **decide before writing, and
 write only from material.** Before §337 the drafting call was handed a post
@@ -55,15 +56,14 @@ from config import as_minutes
 
 log = logging.getLogger("fam.outreach_intelligence")
 
-X, LINKEDIN = "x", "linkedin"
+X = "x"
 
 #: How many kept episodes the read chooses among: the best, and two more.
 OFFERED = 3
 #: How much of an episode's script the read is shown, per episode.
 MATERIAL_CHARS = 900
 
-#: What a post is doing. `teaching` is LinkedIn's case; `asking` and
-#: `arguing` are X's.
+#: What a post is doing.
 INTENTS = ("asking", "arguing", "teaching", "news", "reacting", "other")
 
 
@@ -251,7 +251,7 @@ the poster.
 exclamation marks, no flattery ("great question", "great post", "love \
 this")."""
 
-#: How FAM sounds on each platform - the flip chart's two columns.
+#: How FAM sounds on each platform - the flip chart's X column.
 VOICE = {
     X: """How FAM sounds on X - curiosity, and being part of the conversation:
 - FAM is one more person in this thread, there because it is curious about \
@@ -265,15 +265,6 @@ back to the poster or the thread.
 - Only when an episode was chosen may you say once, plainly, that FAM \
 explored this in a short episode; otherwise never mention FAM or an \
 episode.""",
-    LINKEDIN: """How FAM sounds on LinkedIn - informative, context-giving, a way to Go \
-Deeper:
-- FAM adds to somebody already teaching. Build on their point with the \
-context behind it - why it is happening, what came before, what it means \
-for the people reading - carried by the detail.
-- Informative and professional: two to four plain sentences, no praise.
-- End by saying plainly what the episode goes deeper on that a post could \
-not hold - the reason to Go Deeper. Do not include a link or the episode's \
-title: a line "Go Deeper: <title> <link>" is added after your words.""",
 }
 
 READ_PROPERTIES = {
@@ -291,8 +282,7 @@ READ_PROPERTIES = {
 def system(platform: str, rules: str, chars: int) -> str:
     """The drafting call's instructions: who FAM is, the read, the
     platform's voice, then `rules` - what this engine's card needs besides."""
-    where = "a reply on X" if platform == X else "a LinkedIn comment"
-    return (f"You draft {where} for FAM, an app that turns what people care "
+    return ("You draft a reply on X for FAM, an app that turns what people care "
             "about into short audio stories. It goes under somebody else's "
             "post. A person at FAM reads it and posts it themselves.\n\n"
             f"{READ_RULES}\n\n{VOICE[platform]}\n\n{rules}\n"
