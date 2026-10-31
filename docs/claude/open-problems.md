@@ -623,13 +623,13 @@
 <!-- rule:friends-listened -->
 **Friends' faces on a card** (PROBLEMS.md §363, the owner's 10.31
 notebook: social proof makes somebody "more inclined, more comfortable
-listening to an episode"; §366, faces in place of the count at the owner's
+listening to an episode"; §367, faces in place of the count at the owner's
 direction). Every DailyFAM rail card and View more card whose episode a
 **friend** played in `FRIENDS_WINDOW` shows who, bottom-right of the picture,
 opposite the subject: drawn the way the player's sources are - up to three
 overlapped faces (picture, else initials on `personHue`), newest listen
 first, then "+N"; tapping them opens who listened - every friend, each row
-their profile (§367) - and never plays the card. Friends are the mutual case
+their profile (§368) - and never plays the card. Friends are the mutual case
 (`social.friends`), never `circle_of`. People, not plays; by question as well
 as tile id (`topics.friends_who_listened`). Each face is name, handle and
 picture only - what a friend's profile already shows a friend - listed once

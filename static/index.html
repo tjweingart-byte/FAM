@@ -4930,7 +4930,7 @@
         </div>
       </div>
 
-      <!-- Who listened (§367): tapping a card's faces. -->
+      <!-- Who listened (§368): tapping a card's faces. -->
       <div class="modal-overlay" id="friendsListenedOverlay"
            onclick="if(event.target===this) closeFriendsListened()">
         <div class="modal-card src-card">
@@ -9535,7 +9535,18 @@
   // (faded, apart from the ones on this device). A per-device convenience,
   // emptied on log-out with the shelf.
   function rememberFeed(data){
-    try { localStorage.setItem("famLastFeed", JSON.stringify(data)); } catch(e){}
+    // Friends' pictures (§368) are left out of the copy: each is up to
+    // 96 KB, a page can carry dozens, and a copy over the storage quota is
+    // no copy at all. Offline, a face falls back to its initials.
+    try {
+      var copy = data;
+      if(data && data.friend_faces && data.friend_faces.length){
+        copy = Object.assign({}, data, { friend_faces: data.friend_faces.map(function(f){
+          return Object.assign({}, f, { avatar: "" });
+        }) });
+      }
+      localStorage.setItem("famLastFeed", JSON.stringify(copy));
+    } catch(e){}
   }
   function rememberedFeed(){
     try { return JSON.parse(localStorage.getItem("famLastFeed") || "null"); } catch(e){ return null; }
@@ -13765,8 +13776,11 @@
   var FRIEND_FACE_BOOK = {};
   function attachFriendFaces(data){
     var faces = (data && data.friend_faces) || [];
-    var keys = faces.map(function(f){
-      var k = "@" + (f.handle || f.name || "");
+    var keys = faces.map(function(f, i){
+      // A handle names one person; without one, the name and picture do,
+      // so two handle-less friends of one name keep their own faces.
+      var k = f.handle ? "@" + f.handle
+        : "~" + (f.name || "") + "~" + String(f.avatar || "").slice(-32) + "~" + i;
       FRIEND_FACE_BOOK[k] = f;
       return k;
     });
@@ -13804,16 +13818,18 @@
     }
     var label = n === 1 ? (faces[0].name || faces[0].handle || "A friend") + " listened"
                         : n + " friends listened";
-    // Tapping the faces lists everyone who listened (§367), and never
+    // Tapping the faces lists everyone who listened (§368), and never
     // plays the card underneath.
     return '<span class="seed-friends has-faces" role="button" tabindex="0"'
       + ' aria-label="' + escapeHtml(label) + '" data-topic="' + escapeHtml(t.id || "") + '"'
-      + ' onclick="event.stopPropagation(); openFriendsListened(this.dataset.topic)">'
+      + ' onclick="event.stopPropagation(); openFriendsListened(this.dataset.topic)"'
+      + ' onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();'
+      + ' event.stopPropagation(); openFriendsListened(this.dataset.topic);}">'
       + '<span class="src-marks">' + faces.map(friendFaceHtml).join("") + '</span>'
       + (n > faces.length ? '<span class="src-count">+' + (n - faces.length) + '</span>' : '')
       + '</span>';
   }
-  // **Who listened** (§367): the faces' own sheet, the Sources popup's
+  // **Who listened** (§368): the faces' own sheet, the Sources popup's
   // shape - every friend who listened, newest first, each row their profile.
   function openFriendsListened(topicId){
     var t = myFamTopics[topicId];
@@ -13828,7 +13844,8 @@
           + ' data-handle="' + escapeHtml(f.handle) + '"' : '') + '>'
         + '<span class="src-logo">' + friendFaceHtml(f) + '</span>'
         + '<span class="src-body">'
-        + '<span class="src-name">' + escapeHtml(f.name || f.handle || "A friend") + '</span>'
+        + '<span class="src-name' + (f.explicit ? ' is-explicit' : '') + '">'
+        + escapeHtml(f.name || f.handle || "A friend") + '</span>'
         + (f.handle ? '<span class="src-meta">@' + escapeHtml(f.handle) + '</span>' : '')
         + '</span>'
         + (f.handle ? '<svg class="src-go" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>' : '')

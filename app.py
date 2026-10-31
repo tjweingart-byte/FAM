@@ -7446,14 +7446,14 @@ def _mark_friends_listened(user: str, tiles: list[dict]) -> list[dict]:
     notebook; faces in place of "N friends listened" at the owner's
     direction): `friends_listened` (the count, kept for installed clients)
     and `friends_faces` - indexes into the returned list, newest listen first,
-    every friend, because tapping the faces lists who listened (§367); the
+    every friend, because tapping the faces lists who listened (§368); the
     card draws three and "+N" - on each tile at least one friend (a mutual
     follow, `topics.friends_who_listened`) played in the last fortnight.
 
     The faces are listed once per response rather than per tile, because a
     picture is up to `social.MAX_AVATAR` and one friend may be on a dozen
-    cards. Name, handle and picture only - what a friend's own profile
-    already shows a friend - and never an id. A tile nobody listened to
+    cards. Name, handle, picture and the E mark (`explicit`, §224) only -
+    what a friend's own profile already shows a friend - and never an id. A tile nobody listened to
     carries no field. Never raises: social proof is never worth a page."""
     if not user or not tiles:
         return []
@@ -7477,7 +7477,8 @@ def _mark_friends_listened(user: str, tiles: list[dict]) -> list[dict]:
                 index[uid] = len(faces)
                 faces.append({"name": person.get("name") or "",
                               "handle": person.get("handle") or "",
-                              "avatar": person.get("avatar") or ""})
+                              "avatar": person.get("avatar") or "",
+                              "explicit": bool(person.get("explicit"))})
             shown.append(index[uid])
         tile["friends_faces"] = shown
     return faces

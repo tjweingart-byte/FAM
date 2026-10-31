@@ -2469,7 +2469,7 @@ def main() -> int:
                 " text: x.textContent.trim()}))")
             if marked is not None:
                 assert len(chips) == marked, f"{len(chips)} chips for {marked} marked cards"
-            # Faces like the sources pill (§366): at most three, then "+N";
+            # Faces like the sources pill (§367): at most three, then "+N";
             # the words only for a response that sent no faces.
             for chip in chips:
                 if chip["faces"]:
