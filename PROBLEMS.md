@@ -24893,3 +24893,34 @@ Rules: `rails-edition` (new, `product.md`), `mix-dormancy` (new,
 `open-problems.md`); Current notes on `myfam-warms-briefs`, `dec-prefetch`
 and `ttl-from-evidence`. Tests: `tests/test_editions_359.py`;
 `tests/test_daily_edition_143.py`'s in-progress test now pins the window.
+
+## 360. Explore names the wait in front of a card's first word (2026-10-31)
+
+**The problem.** An Explore card opened, sat silent for a few seconds while
+its kept audio was asked for, downloaded and decoded, and then started with
+no warning (the owner's 10.31 notebook page). Nothing said anything was
+happening.
+
+**The choice.** Five options were mocked side by side on one simulated wait
+(start the next card earlier, a ring on the play button, named steps, a
+buffer bar with a seconds count, the opening line as a caption). The owner
+picked **C, named steps**.
+
+**What it does.** Under the reel's title, three lines: *Finding the episode*,
+*Downloading audio*, *Starting*. Each is ticked from a real event, never a
+timer: `fam-audio.js` now calls `handlers.onStage("found")` when the server
+answers with the episode and `onStage("arriving")` when its first audio
+bytes reach the device - on the PCM and Opus streams, the R2 link read as it
+arrives, and the whole-file link once it has downloaded. `onFirstAudio`
+clears them. Each stage is said once per play, and only for the play that
+is current.
+
+**What it does not do.** Search's steps (§148) hold the audio until the
+fifth and give each two seconds; these hold nothing and have no minimum, so
+`latency-start-earlier` and `motion` stand. The only clock is
+`REEL_STEPS_AFTER_MS` (250 ms): a card that starts sooner never shows them,
+so a fast start does not flash three lines. A stopped card, a new card, or
+another play taking the audio clears them.
+
+**Pinned by** `tests/test_explore_loading_360.py`. Heard on no device yet:
+the stages' real proportions on a phone network are unmeasured.
