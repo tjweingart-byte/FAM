@@ -86,9 +86,11 @@ Read from the code on this branch, 2026-10-29.
    (§339; `ARCHIVE_BACKEND` is set in the dashboard). For Parallel that is
    output "copied, cached, stored, or made available to other End Customers"
    and output "from previous queries for future uses" (P1, P2). For
-   Perplexity, nothing in its terms forbids it. Whether to stop intake keeping
-   Parallel's words now and delete what is held, or hold them pending email 1,
-   is the owner's call.
+   Perplexity, nothing in its terms forbids it. *Done in §366, at the owner's
+   direction: Parallel is the backup search only, and the archive keeps
+   nothing it returns - no passages, links or titles (`NEVER_KEPT`).
+   Passages kept before §358 cannot be told apart; what happens to them is
+   still the owner's call.*
 2. **Intake does not record the provider.** *Fixed in §358: intake now
    records the provider of every passage it keeps (`by_provider`), from the
    day that change deploys; passages kept before it stay unattributed and
@@ -600,43 +602,55 @@ subscription, not a question.
 
 ### 1. Parallel
 
-> **To:** partnerships@parallel.ai (the address Parallel's FAQ gives for
-> enterprise customers)
-> **Subject:** Customer Terms §2(b)(i) - cached episodes, and an enterprise agreement
+Rewritten 2026-10-31 for backup-only use (§366): FAM stores nothing Parallel
+returns, so the email asks only what the terms leave open after that.
+
+> **To:** partnerships@parallel.ai
+> **Subject:** Using the Search API as a backup, storing nothing: one question on cached episodes
 >
 > Hello,
 >
-> We run FAM, a consumer app that turns news questions into short spoken
-> episodes. We use the Search API (`/v1/search`) with our own API key: for a
-> listener's question we search, read the results, and write an episode in
-> our own words that credits the outlets.
+> I run FAM (familiarize.net), a consumer app that turns a listener's news
+> question into a short spoken episode. We use Parallel's Search API
+> (`/v1/search`, fast mode) as our backup search: it runs when our main search
+> comes back thin or fails. For that listener's question we search, read the
+> results, and write the episode in our own words, crediting the outlets.
 >
-> Your Customer Terms (effective October 17, 2026) say in §2(b) that we "may
-> modify, adapt, or create derivative works based on Customer Output and
-> incorporate Customer Output (and such derivative works) into materials that
-> Customer provides to its End Customers, provided that (i) Customer Output
-> generated from one query shall be primarily for the use of one End Customer
-> only, and shall not be copied, cached, stored, or made available to other
-> End Customers". We read that as ruling out keeping your excerpts to write a
-> different listener's episode, and we will stop doing that. Two things it
-> does not settle for us:
+> We have read your Customer Terms (effective October 17, 2026) and are
+> setting up our use to match them. Our research archive keeps nothing the
+> Search API returns: no excerpts, titles or links are stored there or reused
+> to write another listener's episode. What we do keep is the finished
+> episode, with the outlets it drew on listed beside it, and that raises the
+> questions below.
 >
-> 1. When two listeners ask the same question, we write the episode once and
->    play the same script (our own words, not your excerpts) to both. Is a
->    script we wrote from Customer Output - a derivative work - covered by
->    the proviso in §2(b)(i), or only the Customer Output itself? And does
->    "primarily" allow a script written for one listener to be replayed to
->    others who ask the same thing?
-> 2. Twice a day we write about ten trending stories ahead for all our
->    listeners. Is a search made before any listener has asked within the
->    terms at all?
+> The terms leave this open for us. Section 2(b) lets us "create
+> derivative works based on Customer Output and incorporate Customer Output
+> (and such derivative works) into materials that Customer provides to its End
+> Customers, provided that (i) Customer Output generated from one query shall
+> be primarily for the use of one End Customer only, and shall not be copied,
+> cached, stored, or made available to other End Customers".
 >
-> If either is outside the standard terms, what agreement or plan would allow
-> (a) replaying our scripts to other listeners and (b) keeping short excerpts
-> with their links for later episodes - and what would it cost?
+> The episode we write is our own words, a derivative work. When a second
+> listener asks the same question shortly afterwards, we play them the same
+> episode rather than writing it again. Could you confirm:
+>
+> 1. That this is within Section 2(b): the derivative work (our script) is
+>    replayed to another listener, while none of the Search API's own output is
+>    stored or reused.
+> 2. That listing the outlets the episode drew on (the outlet's name and
+>    article link) beside that episode is acceptable, given the same episode
+>    may be replayed.
+> 3. Twice a day we write some episodes ahead for all our listeners (the day's
+>    trending stories, and listeners' daily mixes). If our main search comes
+>    back thin there, Parallel is the backup. Is a search made before any
+>    listener has asked within the terms?
+>
+> If any of this needs a different plan or a written agreement, what would it
+> be, and what would it cost?
 >
 > Thank you,
-> [Owner's name], FAM - Admin@familiarize.net
+> [Your name]
+> FAM: Admin@familiarize.net
 
 ### 2. Perplexity
 
@@ -647,7 +661,7 @@ subscription, not a question.
 > Hello,
 >
 > We run FAM, a consumer app that turns news questions into short spoken
-> episodes, and use the Search API (`/search`) as a second search. We have
+> episodes, and use the Search API (`/search`) as our main search. We have
 > read the API Terms (January 23, 2026) and the Search addendum (September
 > 22, 2025); two points are not clear to us:
 >
