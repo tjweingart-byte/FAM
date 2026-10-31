@@ -115,6 +115,8 @@ myFAM and dailyFAM are **personalised**, driven by a per-user model that updates
 as they interact with the app.
 
 <!-- rule:explore-reel -->
+> **Current (PROBLEMS.md §363, the owner 10.31):** the feed dropdown's first choice is **All** - every other feed (Made for you, Trending, What people are searching, Most recent, the catalogue) in one shuffled deal, an equal share of each, one card per episode (`app._explore_all_entries`); still the shared cache only.
+
 > **Current (PROBLEMS.md §255):** the back arrow top left is the Home logo (DailyFAM's house), and the feed dropdown sits under the wordmark (see `three-surfaces`).
 **Explore is a reel, with comments (§203, the 10.5 packet), at the owner's
 direction.** The episode's picture fills the page (`/api/episode/card`,
@@ -773,6 +775,8 @@ to the writer is judged.
   `visibilitychange`); a length is chosen for one search, not kept.
 
 <!-- rule:player-layout -->
+> **Current (PROBLEMS.md §363, the owner 10.31):** when the words name several subjects and the deepest is unpainted, the borrowed picture is the **most specific** painted one any of them reaches (a painted team beats another subject's league); an episode's category still walks its own branch first (§209).
+
 > **Current (PROBLEMS.md §282, the owner 10.15):** a picture follows the category **unless the words name a specific subject on another branch** - a league, team or person at `thumbnails.SUBJECT_DEPTH` or deeper (`_named_subject`): a Seahawks odds episode filed under sports betting wore the betting node's poker chips. Then the subject's picture (or its branch's, borrowed) is drawn, on the tile, the player and the vibe alike; the category is still the episode's for everything else (`one-category`). Words naming only a facet or a sport never outrank it (§209's boxing case).
 > **Current (PROBLEMS.md §255, the owner 10.12):** the down arrow top left is the **Home logo** - DailyFAM's tab glyph, the house - doing exactly what the arrow did: it minimises and never stops.
 > **Current (PROBLEMS.md §247, the owner 10.10):** a searched or Go Deeper episode's picture **follows its category, not the typed words**: EI's brief names a `category` before the first word, put on the live track beside its title (`live_captions.publish_category`), and the writer's replaces it; `/api/episode/card` draws from the written category, else the track's (`app._playing_category`), and says `placed`. The player asks again as each title lands and lets a placed picture replace a word match - never the picture of the tile that opened it.

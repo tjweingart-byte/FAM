@@ -61,7 +61,7 @@ def test_the_dropdown_sits_under_the_wordmark_with_five_choices():
     assert head.index('class="reel-brand"') < head.index('id="reelFeedBtn"')
     feeds = HTML.split("var EXPLORE_FEEDS = [", 1)[1].split("];", 1)[0]
     labels = re.findall(r'label: "([^"]+)"', feeds)
-    assert labels == ["Made for you", "Trending", "Most recent",
+    assert labels == ["All", "Made for you", "Trending", "Most recent",
                       "What people are searching", "Explore"]
     runs_out = re.findall(r'id: "(\w+)"[^}]*runsOut: true', feeds)
     assert runs_out == ["made_for_you", "trending", "recent"]

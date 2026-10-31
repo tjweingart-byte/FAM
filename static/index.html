@@ -381,7 +381,7 @@
      side padding plus its own that keeps it where it was, and a background of
      its own so rails scrolling under its edge do not show through. */
   .myfam-header-fixed{ flex:none; padding:8px 38px 6px; background:var(--bg);
-    position:relative; z-index:2; }
+    position:relative; z-index:2; justify-content:flex-end; min-height:48px; }
   .myfam-head-actions{ display:flex; align-items:center; gap:10px; }
   /* DailyFAM's header without its bookshelf (moved to search, 10.12 #3)
      keeps the height the circle gave it, so the rails do not jump. */
@@ -391,7 +391,12 @@
     border:none; font-size:20px; font-weight:600; display:flex; align-items:center; justify-content:center;
     cursor:pointer; line-height:1; padding:0 0 2px;
   }
-  .myfam-header h2{ font-family:'Bricolage Grotesque', sans-serif; font-weight:500; font-size:28px; margin:0; }
+  /* daily / my / your, one rule (the owner's 10.31 notebook: "make them all
+     look like my"): YourFAM's heading had a smaller size of its own. */
+  .myfam-header h2, .yf-head .wordmark{ font-family:'Bricolage Grotesque', sans-serif; font-weight:500; font-size:28px; margin:0; }
+  /* Centred over the page (10.31 notebook); the header's buttons keep the
+     right-hand edge. */
+  .myfam-header-fixed .wordmark, .yf-head .wordmark{ position:absolute; left:50%; transform:translateX(-50%); }
   .search-bar{ margin:12px 18px 0; background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:11px 14px; display:flex; align-items:center; gap:9px; color:var(--text-muted); font-size:13px; }
   .search-bar input{ flex:1; min-width:0; background:none; border:none; outline:none;
     color:var(--text); font-family:'Geist',sans-serif; font-size:13px; }
@@ -1810,6 +1815,15 @@
     background:rgba(237,230,214,0.92); color:#2A2530; padding:3px 6px 2px;
     border-radius:4px; }
   .seed-thumb .sec-ready{ z-index:1; }
+  /* "7 friends listened" (10.31 notebook): the subject chip's twin, bottom
+     right, so the picture keeps its subject on the left. */
+  .seed-card .seed-friends{ position:absolute; right:8px; bottom:8px; z-index:1;
+    font-family:'Geist', sans-serif; font-size:9px; line-height:1.2;
+    white-space:nowrap; background:var(--copper); color:var(--ink);
+    padding:2px 6px; border-radius:4px; font-weight:600; }
+  /* Room for both on a narrow card: the subject gives way, never the count. */
+  .seed-thumb.has-friends .seed-tag{ max-width:calc(100% - 112px); overflow:hidden;
+    text-overflow:ellipsis; white-space:nowrap; }
   /* Two lines, clamped, so a rail's cards are one height whatever their
      hooks are. `startup.MAX_HOOK` is the other half of this: a clamp is the
      one failure that hides itself, so the budget is asserted on the strings
@@ -2728,9 +2742,8 @@
      messages, and what you show. Drawn with the app's own tokens and
      type - Bricolage Grotesque, Geist, Geist Mono - at the frame's scale,
      which is about four-fifths of the 390px the designs were drawn at. */
-  .yf-head{ flex:1; display:flex; align-items:center; justify-content:space-between;
-    padding:6px 0 2px; }
-  .yf-head .wordmark{ font-size:23px; margin:0; }
+  .yf-head{ flex:1; display:flex; align-items:center; justify-content:flex-end;
+    padding:6px 0 2px; position:relative; min-height:40px; }
   .yf-head-acts{ display:flex; gap:8px; }
   .yf-round{ width:36px; height:36px; border-radius:50%; flex:none;
     border:1px solid var(--border-strong); background:none; color:var(--text);
@@ -4011,7 +4024,7 @@
              off" heading, which is not drawn at all until there is
              something to pick up. -->
         <div class="myfam-header myfam-header-fixed">
-            <h2 class="wordmark" aria-label="DailyFAM">Daily<span class="wm-glyph f" aria-hidden="true"><svg viewBox="4.55 4.55 12.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 20V9.2A3.2 3.2 0 0 1 9.2 6H16"/><path d="M6 13h8"/></svg></span><span class="wm-a" aria-hidden="true"><svg viewBox="3.55 4.55 16.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l7-7 7 7"/><path d="M5 20l7-7 7 7"/></svg></span><span class="wm-glyph m" aria-hidden="true"><svg viewBox="4.55 4.55 14.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 20V6l6 9 6-9v14"/></svg></span></h2>
+            <h2 class="wordmark" aria-label="dailyFAM">daily<span class="wm-glyph f" aria-hidden="true"><svg viewBox="4.55 4.55 12.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 20V9.2A3.2 3.2 0 0 1 9.2 6H16"/><path d="M6 13h8"/></svg></span><span class="wm-a" aria-hidden="true"><svg viewBox="3.55 4.55 16.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l7-7 7 7"/><path d="M5 20l7-7 7 7"/></svg></span><span class="wm-glyph m" aria-hidden="true"><svg viewBox="4.55 4.55 14.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 20V6l6 9 6-9v14"/></svg></span></h2>
         </div>
         <div class="scroll">
           <!-- The friends row from YourFAM, first thing on the page (10.2
@@ -13636,8 +13649,18 @@
       ? '<img class="seed-img" src="' + escapeHtml(t.thumb) + '" alt="" loading="lazy"'
         + ' decoding="async" data-drawn="' + Date.now() + '" onerror="seedImgFailed(this)">'
       : '';
-    return '<div class="seed-thumb' + (img ? ' has-img' : '') + '">'
+    return '<div class="seed-thumb' + (img ? ' has-img' : '')
+      + (t && t.friends_listened > 0 ? ' has-friends' : '') + '">'
       + seedThumbSVG(t && t.icon) + img;
+  }
+  // "7 friends listened" (the owner's 10.31 notebook): social proof, bottom
+  // right of the picture, opposite the subject. The server counts mutual
+  // follows only and sends nothing for none, so a card never says "0".
+  function seedFriendsHtml(t){
+    var n = t && t.friends_listened;
+    if(!n || n < 1) return '';
+    return '<span class="seed-friends">' + n + (n === 1 ? ' friend' : ' friends')
+      + ' listened</span>';
   }
   function seedImgFailed(el){
     var box = el.parentNode;
@@ -13948,6 +13971,7 @@
           + seedThumbOpen(t)
           + seedActsHtml(t)
           + (tag ? '<span class="seed-tag">' + escapeHtml(tag) + '</span>' : '')
+          + seedFriendsHtml(t)
           // Already written, so it starts instantly and costs nothing to
           // serve. The same marker the "view more" screen uses, and the same
           // class - two spellings of "ready" is how one of them stops being
@@ -14026,12 +14050,14 @@
   // fill this screen - the rail was showing six of something that already had
   // twenty-eight.
   var sectionTopics = {};
-  // The "View more" screen shows eight of the rail's ranking at a time, and
-  // Refresh deals the next eight (§165). `seen` is every tile this screen has
+  // The "View more" screen shows sixteen of the rail's ranking at a time, and
+  // Refresh deals the next sixteen (§165, doubled 10.31). `seen` is every tile this screen has
   // shown since it opened, which is what "new" means - the server returns the
   // first eight of the same ranking not in it, and starts again from the top
   // once there are none.
-  var SECTION_PAGE = 8;
+  // Sixteen since the owner's 10.31 notebook ("when you click on view more,
+  // can more be displayed?"); it was eight.
+  var SECTION_PAGE = 16;
   var sectionState = { key: "", seen: [], busy: false, req: 0, head: [] };
   // Each rail's tiles as the page drew them, so Made for you's View more
   // opens on exactly the episodes the rail showed (§286): the rail and the
@@ -14177,6 +14203,7 @@
       return '<div class="seed-card has-acts" data-topic="' + escapeHtml(t.id) + '" onclick="startSectionTopic(\'' + t.id + '\')">'
         + seedThumbOpen(t) + seedActsHtml(t)
         + (tag ? '<span class="seed-tag">' + escapeHtml(tag) + '</span>' : '')
+        + seedFriendsHtml(t)
         + (t.cached ? '<span class="sec-ready">ready</span>' : '')
         + '</div>'
         + '<div class="seed-card-body">'
@@ -15515,9 +15542,9 @@
     return '<svg width="' + sz + '" height="' + sz + '" viewBox="0 0 24 24" '
       + 'fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>';
   }
-  // The "Your" + FAM mark, the same three glyphs every other tab heading sets.
+  // The "your" + FAM mark, the same three glyphs every other tab heading sets.
   function yfWordmark(){
-    return '<h2 class="wordmark" aria-label="YourFAM">Your'
+    return '<h2 class="wordmark" aria-label="yourFAM">your'
       + '<span class="wm-glyph f" aria-hidden="true"><svg viewBox="4.55 4.55 12.9 16.9" '
       + 'fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" '
       + 'stroke-linejoin="round"><path d="M6 20V9.2A3.2 3.2 0 0 1 9.2 6H16"/>'
@@ -20149,7 +20176,10 @@
   // out, and then the reel shuffles the whole cached catalogue by itself;
   // What people are searching and Explore go round again. Every one is the
   // shared cache only (`/api/explore?feed=`), so none can write an episode.
+  // All (the owner's 10.31 notebook) is a mix of every other feed in one
+  // shuffled deal, and goes round again like the catalogue.
   var EXPLORE_FEEDS = [
+    { id: "all", label: "All", shuffled: true },
     { id: "made_for_you", label: "Made for you", runsOut: true },
     { id: "trending", label: "Trending", runsOut: true },
     { id: "recent", label: "Most recent", runsOut: true },

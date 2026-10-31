@@ -7354,7 +7354,7 @@ async def myfam_section(request: Request,
     and `caught_up`, never the first eight again. An installed client that
     sends no `cycle` gets what it always got.
 
-    With `page_size` (the app sends `topics.VIEW_MORE_PAGE`, eight) it is one
+    With `page_size` (the app sends `topics.VIEW_MORE_PAGE`, sixteen) it is one
     page of that length: the first tiles of the ranking not in `seen`, which
     is how the screen's refresh deals eight new ones (§165). Without it, the
     whole list, as before.
@@ -7433,11 +7433,33 @@ async def myfam_section(request: Request,
     # impression below: a tile nobody was shown was not passed over.
     topics_mod.page_section(body, _seen_ids(seen), page_size,
                             wrap=not cycling)
+    _mark_friends_listened(user, body["topics"])
     if user and _remembers(request):
         EVENTS.record_impressions(
             user, [(f"section:{key}", t["id"]) for t in body["topics"]])
     body["algo"] = EVENTS.algo_stamp()
     return body
+
+
+def _mark_friends_listened(user: str, tiles: list[dict]) -> None:
+    """"7 friends listened" on a DailyFAM card (the owner's 10.31 notebook):
+    `friends_listened` on each tile at least one friend - a mutual follow,
+    `topics.friends_listened` - played in the last fortnight. A count and
+    never a name or an id, so it says nothing a friend's own profile would
+    not; a tile nobody listened to carries no field rather than a 0. Never
+    raises: social proof is never worth a page."""
+    if not user or not tiles:
+        return
+    try:
+        friends = [p["user_id"] for p in SOCIAL.friends(user)]
+        counts = topics_mod.friends_listened(EVENTS, friends, tiles)
+    except Exception:  # noqa: BLE001 - the cards draw without it
+        log.exception("could not count friends' listens")
+        return
+    for tile in tiles:
+        n = counts.get(tile.get("id") or "")
+        if n:
+            tile["friends_listened"] = n
 
 
 def _cycles_cached(key: str, cycle: str) -> bool:
@@ -8428,6 +8450,8 @@ async def myfam(request: Request, interests: str = Query("", max_length=200),
         for topic in section["topics"]:
             topic["cached"] = written(topic.get("query", ""))
         _name_written_tiles(section["topics"], minutes)
+    _mark_friends_listened(
+        user, [t for sec in feed["sections"] for t in sec["topics"]])
     feed["minutes"] = minutes
     # Logged here rather than inside build_feed, which stays a pure function of
     # the log - the whole ranking design is "computed on read, never stored",
@@ -9467,7 +9491,8 @@ async def trending_searches(request: Request) -> dict:
 
 #: What exploreFAM's dropdown can deal (10.12 packet #2), the first the
 #: default an installed client that sends no `feed` still gets.
-EXPLORE_FEEDS = ("searching", "made_for_you", "trending", "recent", "catalog")
+EXPLORE_FEEDS = ("searching", "made_for_you", "trending", "recent", "catalog",
+                 "all")
 #: How far back "Explore" (the whole cached catalogue) is read; `limit` of
 #: it, chosen at random, is sent.
 EXPLORE_CATALOG_SCAN = 400
@@ -9531,6 +9556,48 @@ def _explore_rail_entries(request: Request, listener: str, feed: str,
     return out
 
 
+def _explore_all_entries(request: Request, listener: str, store,
+                         limit: int) -> list[dict]:
+    """exploreFAM's **All**: Made for you, Trending, What people are
+    searching, Most recent and the catalogue, one deal (10.31 notebook).
+
+    An equal share of `limit` from each, so no one feed crowds the others
+    out, then whatever is left topped up from the catalogue; one card per
+    episode (by cache key), shuffled. Never raises - a source that fails
+    adds nothing and the rest still deal."""
+    share = max(1, limit // 5)
+    sources = []
+    for rail in _EXPLORE_RAILS:
+        sources.append(_explore_rail_entries(request, listener, rail, store))
+    try:
+        sources.append(store.recent(share, exclude_author=listener,
+                                    origin="search"))
+        sources.append(store.recent(share, exclude_author=listener))
+        catalog = store.recent(EXPLORE_CATALOG_SCAN, exclude_author=listener)
+    except Exception:  # noqa: BLE001 - the rails alone still deal
+        log.exception("could not read the cache for exploreFAM's All")
+        catalog = []
+    catalog = random.sample(catalog, len(catalog))
+    out: list[dict] = []
+    keys: set[str] = set()
+
+    def take(entries, room):
+        for entry in _visible_episodes(listener, entries):
+            if room <= 0 or len(out) >= limit:
+                return
+            if entry["key"] in keys:
+                continue
+            keys.add(entry["key"])
+            out.append(entry)
+            room -= 1
+
+    for entries in sources:
+        take(entries, share)
+    take(catalog, limit)
+    random.shuffle(out)
+    return out
+
+
 @app.get("/api/explore")
 async def explore(request: Request, limit: int = Query(30, ge=1, le=60),
                   feed: str = Query("searching", max_length=16)):
@@ -9557,7 +9624,9 @@ async def explore(request: Request, limit: int = Query(30, ge=1, le=60),
     `recent` (every surface's cached episodes, newest first) and `catalog`
     (Explore: the whole cached catalogue, which the client shuffles). Every
     feed is the shared cache and nothing else - none can cause an episode
-    to be written - and none holds the listener's own.
+    to be written - and none holds the listener's own. `all` (10.31
+    notebook) is every one of them in one shuffled deal
+    (`_explore_all_entries`).
 
     **And searched episodes only** (§147). Every surface writes into the one
     shared cache, and Explore is what other listeners *searched* - never a
@@ -9603,6 +9672,12 @@ async def explore(request: Request, limit: int = Query(30, ge=1, le=60),
         entries = await asyncio.to_thread(
             _explore_rail_entries, request, listener, feed, store)
         entries = _visible_episodes(listener, entries)[:limit]
+    elif feed == "all":
+        # **All** (the owner's 10.31 notebook): a mix of everything - every
+        # other feed's cards in one deal, each episode once, shuffled. Each
+        # source is the shared cache only, so the mix is too.
+        entries = await asyncio.to_thread(
+            _explore_all_entries, request, listener, store, limit)
     else:
         # The catalogue: a random `limit` of everything kept (the client
         # shuffles it again), so a card is never built for rows not sent.

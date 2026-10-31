@@ -24893,3 +24893,52 @@ Rules: `rails-edition` (new, `product.md`), `mix-dormancy` (new,
 `open-problems.md`); Current notes on `myfam-warms-briefs`, `dec-prefetch`
 and `ttl-from-evidence`. Tests: `tests/test_editions_359.py`;
 `tests/test_daily_edition_143.py`'s in-progress test now pins the window.
+
+## 363. The 10.31 notebook: lower-case headings, more on View more, friends listened, the best picture, All (2026-10-31)
+
+A page of the owner's notebook, photographed. Six items; one crossed out
+("FAM" before Messages) and one boxed - a new loading screen for exploreFAM's
+episodes - which the owner said not to do. The other five:
+
+- **"Make the Daily, my, Your all the same font (make them all look like
+  my); make D and Y lower case. Centring those at the top of the pages? ✓"**
+  The headings read `daily`, `my`, `your` beside the drawn FAM. They were not
+  one style: `.myfam-header h2` (500, 28px) outranked `.wordmark`'s 400 on
+  DailyFAM and myFAM, while YourFAM's sat in `.yf-head` at 400, 23px. One rule
+  now sets all three as "my" was drawn (`.myfam-header h2, .yf-head
+  .wordmark`), and the word is centred over the page with the header's
+  buttons kept at the right. `aria-label`s follow the words. The §250 note
+  that called these 400 described `.wordmark`, not what the headers drew;
+  `rule:typefaces` has a Current note. exploreFAM's word was already centred.
+- **"When you click on view more, can more be displayed?"** Sixteen a page
+  (`SECTION_PAGE`, `topics.VIEW_MORE_PAGE`), and Refresh deals the next
+  sixteen. Made for you's first page is still the rail's own tiles then
+  written episodes (§286). The server already allowed 40.
+- **"On DailyFAM, do we display how many friends listened to the episode
+  (social proof)?"** We did not. Now `topics.friends_listened` counts, per
+  tile, the friends (mutual follows) who played it in `FRIENDS_WINDOW`, by
+  person and by question as well as tile id; `/api/myfam` and
+  `/api/myfam/section` put `friends_listened` on the tiles that have any, and
+  the card draws "7 friends listened" bottom-right of the picture, as
+  sketched. A count only - no name, no id - and no field rather than a 0.
+  `rule:friends-listened` (new).
+- **"NEED Nando to be good at assigning THE BEST available thumbnail."**
+  Nando's rule book (rule 6) already says the picture is the category's or
+  the named subject's. Where it fell short is the borrow: when the deepest
+  subject the words name was unpainted, `pick_for_player` walked up *that
+  subject's* branch and stopped, even when another subject the words name
+  had its own picture - "Seahawks fans at a Lakers game" wore the NBA's
+  picture while the Seahawks' was painted. Without a category it now takes
+  the most specific painted picture any named node reaches (ties to the
+  deeper-named one); with a category, the category's branch still goes first
+  (§209). Tiles borrow through the same function, so they agree.
+- **"For filter choices at the top of exploreFAM, add an All or shuffle
+  option to get a mix of everything."** **All**, first in the dropdown:
+  `/api/explore?feed=all` (`_explore_all_entries`) takes an equal share of
+  `limit` from Made for you, Trending, What people are searching and Most
+  recent, tops up from the catalogue, one card per episode, shuffled; the
+  client shuffles it again and goes round like the catalogue. Shared cache
+  only, never the listener's own, moderation applied.
+
+Tests: `tests/test_notebook_1031.py`; the old pins on "Daily"/"Your", eight
+a page and the five dropdown labels were updated.

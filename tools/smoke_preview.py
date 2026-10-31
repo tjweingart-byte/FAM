@@ -600,14 +600,15 @@ def main() -> int:
             page.evaluate("openProfile()")
             page.wait_for_selector("#screen-profile.active .yf-head .wordmark",
                                    timeout=10000)
-            # "Your" in type, "FAM" as the mark - the same three glyphs
-            # myFAM, DailyFAM and exploreFAM all set.
+            # "your" in type (lower case since the 10.31 notebook), "FAM" as
+            # the mark - the same three glyphs myFAM, DailyFAM and exploreFAM
+            # all set.
             glyphs = page.eval_on_selector_all(
                 "#screen-profile .yf-head .wordmark .wm-glyph,"
                 " #screen-profile .yf-head .wordmark .wm-a",
                 "e => e.length")
             assert glyphs == 3, f"the FAM mark drew {glyphs} glyphs, not three"
-            assert page.text_content("#screen-profile .yf-head .wordmark").strip() == "Your", \
+            assert page.text_content("#screen-profile .yf-head .wordmark").strip() == "your", \
                 "the heading still spells FAM out in type"
             # And what came off the hub on purpose stays off it.
             assert not page.query_selector("#screen-profile .pf-time"), \
@@ -2392,17 +2393,17 @@ def main() -> int:
             assert "Harassment or bullying" in reasons, f"the reasons sheet: {reasons}"
             page.evaluate("closeSheet(); viewingProfile = null")
 
-        def view_more_shows_eight_and_refreshes():
-            """"View more" shows eight of the rail and Refresh replaces them
-            with eight the screen has not shown (§165, the 28/09 packet)."""
+        def view_more_shows_sixteen_and_refreshes():
+            """"View more" shows sixteen of the rail and Refresh replaces them
+            with ones the screen has not shown (§165; sixteen since §363)."""
             page.evaluate("setTab('myfam'); openSection('from_history')")
             page.wait_for_timeout(700)
             first = page.evaluate(
                 "Array.from(document.querySelectorAll('#sectionGrid .seed-card[data-topic]'))"
                 ".map(function(e){ return e.getAttribute('data-topic'); })")
-            assert 0 < len(first) <= 8, f"View more showed {len(first)} tiles, not eight"
-            assert page.evaluate("sectionState.seen.length") == 8, \
-                f"the screen asked for {page.evaluate('sectionState.seen.length')}, not eight"
+            assert 8 < len(first) <= 16, f"View more showed {len(first)} tiles, not sixteen"
+            assert page.evaluate("sectionState.seen.length") == 16, \
+                f"the screen asked for {page.evaluate('sectionState.seen.length')}, not sixteen"
             assert page.is_visible("#sectionRefresh"), "no Refresh on View more"
             page.click("#sectionRefresh")
             page.wait_for_timeout(700)
@@ -2414,6 +2415,49 @@ def main() -> int:
                 f"Refresh dealt tiles already shown: {sorted(set(first) & set(second))}"
             page.evaluate("goBack()")
             page.wait_for_timeout(200)
+
+        def headings_centred_and_friends_listened():
+            """The 10.31 notebook (§363): the three tab headings in lower case,
+            drawn alike and centred, and "N friends listened" on a card."""
+            ensure_account()
+            seen = {}
+            for opener, screen in (("setTab('myfam')", "myfam"),
+                                   ("openPlayFAM()", "playfam"),
+                                   ("openProfile()", "profile")):
+                page.evaluate(opener)
+                page.wait_for_selector(f"#screen-{screen}.active .wordmark",
+                                       timeout=10000)
+                page.wait_for_timeout(200)
+                seen[screen] = page.evaluate(f"""() => {{
+                    var w = document.querySelector('#screen-{screen} .wordmark');
+                    var s = document.querySelector('#screen-{screen}');
+                    var cs = getComputedStyle(w), r = w.getBoundingClientRect(),
+                        p = s.getBoundingClientRect();
+                    return {{ text: w.firstChild.textContent, size: cs.fontSize,
+                             weight: cs.fontWeight,
+                             off: Math.abs((r.left + r.right) / 2 - (p.left + p.right) / 2) }};
+                }}""")
+            words = [seen[k]["text"] for k in ("myfam", "playfam", "profile")]
+            assert words == ["daily", "my", "your"], words
+            faces = {(v["size"], v["weight"]) for v in seen.values()}
+            assert len(faces) == 1, f"the headings are not one face: {seen}"
+            for k, v in seen.items():
+                assert v["off"] <= 2, f"{k}'s heading is {v['off']}px off centre"
+            page.evaluate("setTab('myfam')")
+            page.wait_for_timeout(500)
+            # One chip per card the feed marked, and only those: the fixture
+            # marks some; a live database with no friends' plays marks none.
+            marked = page.evaluate(
+                "(typeof FIXTURES === 'undefined' || !FIXTURES['/api/myfam']) ? null"
+                " : FIXTURES['/api/myfam'].sections.reduce(function(n, sec){"
+                " return n + sec.topics.filter(function(t){"
+                " return t.friends_listened > 0; }).length; }, 0)")
+            chips = page.eval_on_selector_all(
+                "#myfamFeed .seed-friends", "e => e.map(x => x.textContent.trim())")
+            if marked is not None:
+                assert len(chips) == marked, f"{len(chips)} chips for {marked} marked cards"
+            for chip in chips:
+                assert re.fullmatch(r"[1-9]\d* friends? listened", chip), chip
 
         def voice_search_counts_down_to_search_now():
             # Whatever happens, leave no overlay over the checks after this.
@@ -4356,8 +4400,10 @@ def main() -> int:
               episodes_are_filed_in_folders_on_both_shelves)
         check("Voice search's words can be corrected before searching",
               voice_search_words_can_be_corrected)
-        check("View more shows eight and refreshes to eight new ones",
-              view_more_shows_eight_and_refreshes)
+        check("View more shows sixteen and refreshes to new ones",
+              view_more_shows_sixteen_and_refreshes)
+        check("daily, my and your are one face, centred; friends listened shows",
+              headings_centred_and_friends_listened)
         check("The search bar is one line with its buttons on the right",
               the_search_bar_is_one_line_with_its_buttons_on_the_right)
         check("The player's menu and the queue", the_player_menu_and_the_queue)
