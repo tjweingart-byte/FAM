@@ -25065,3 +25065,73 @@ a missing icon leaves the initials rather than a blank circle. Only the three
 shown are asked for. This reverses the strip's "no network request" note
 (the popup's reason - no referrer, nothing about the episode - is what now
 holds for both); the popup is unchanged.
+
+## 366. The X agent adds to conversations instead of distributing episodes (2026-10-31)
+
+The owner's brief, *FAM / X Marketing Agent: Updated Instructions &
+Guardrails*: "FAM doesn't interrupt the conversation. FAM adds to it." The
+agent's question is not "where can I share an episode?" but "where is an
+interesting conversation FAM could make more interesting?" Measured against
+it, `/admin/x` (§321, §326, §337) already did a lot: it read original posts
+only (`-is:reply`), screened grief and flame wars, checked subject in code
+(`on_subject`) and in the read, dropped an episode that did not answer the
+post, never posted, and opened X's own compose box for a person. Kept, all of
+it. What it lacked, rule by rule:
+
+- **Original post anchors; replies are context** (rules 1-2). Replies were
+  not read at all, so the read could not tell what the thread debates.
+  Now up to `X_THREADS_REPLY_READS` (10, X's least) replies are read under a
+  card about to be drafted - only when the post has replies, inside the
+  per-run and daily ceilings, billed and counted like any read, a failure
+  reported never fatal - and shown to the read under "secondary context
+  only; they never set the subject". The five most engaged are kept on the
+  card and shown collapsed.
+- **The original-author test and a 1-5 score with hard gates** (rules 1, 6).
+  The read now answers, before the reply: `central` (what the author means),
+  `author_would_see_it`, `relevance` 1-5 on the brief's scale, `relevance_why`
+  and `recommendation`. `apply_verdict` enforces it in code: author test false
+  or relevance 1-2 or "skip" sets the post aside with the reason; 3, or a
+  read that recommends a comment, is a comment only - no link, no proposal;
+  only 4-5 may link. A read in code (no key, or the call failed) is worth
+  `CODE_RELEVANCE` = 3: code cannot apply the author test, so code never puts
+  an episode under a stranger's post on its own word. That changes the no-key
+  path, which used to link the best match with "We explored this in a short
+  episode".
+- **Specific episodes, and proposing one** (rules 3, 8). Only kept episodes
+  could be offered; a post whose question no kept episode answered got a
+  question at best. Now at 4-5 with no kept episode chosen, the read may
+  propose a specific one (title on the author's actual point, scope, the
+  question to type into FAM). The card shows it, never claims it (the reply
+  is told not to mention it), offers "Copy the question" and "Match again":
+  `find_written` matches the proposal's question exactly, else - because a
+  search is corrected at send - the closest kept episode at
+  `WRITTEN_MATCH` 0.6 that is on the post's subject. The attached episode
+  starts unheard.
+- **Conversational comments** (rule 4). The prompt carries the brief's weak
+  and better examples and its asks (acknowledge something concrete, useful
+  with no click). In code: `promotional` catches pitch phrases, generic
+  praise, urgency, hashtags, emoji and exclamation - a model reply that has
+  any goes back to the code's words, said on the card; `anchored` flags a
+  reply that shares no content word with the post ("talks past the post").
+- **Human approval at both gates** (rules 7, 9). Approve now refuses without
+  `verified` (a person ticked that every claim was checked) and, for a
+  linked card, until `listened_at` - set by Listen first, which opens the
+  very share link the reply will carry, so hearing it also tests the link.
+  "No link" still lets the comment go alone.
+- **Required output** (rule 8): every card shows original post (author, text,
+  link), central message, opportunity (the read's angle), episode (kept,
+  proposed or none), comment, relevance with why, recommendation, and
+  "pending human review". Waiting cards sort 5 before 4 before 3 within a run.
+  Rejections are a tab ("Rejected by the agent"), read-only, for audit.
+- **Before deployment** (rule 10): `tools/x_agent_eval.py` runs the same
+  read and gates over posts a person supplies (`--posts`, no X reads) or ones
+  X's search finds (`--from-x 10`), writing one side-by-side page - post,
+  central message / opportunity, episode, comment, relevance /
+  recommendation, and an empty reviewer column. Nothing stored or posted.
+
+Not done here, and why: this container has no ANTHROPIC_API_KEY and no
+X_BEARER_TOKEN, so the 10-real-post comparison the brief asks for has not
+been run; the tool ran in code mode on the brief's own example post only.
+LinkedIn shares `outreach_intelligence` but not these fields: the brief is
+about X, and the shared `READ_RULES` are unchanged.
+

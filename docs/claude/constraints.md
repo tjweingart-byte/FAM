@@ -1596,6 +1596,24 @@
   > figure neither the post nor the episode states sends the words back to
   > the code's. LinkedIn shares the read in its own voice (context, Go
   > Deeper) and `LINKEDIN_MIN_ENGAGEMENT` (20) where the search shows counts.
+  > **Current:** since §366 (the owner's guardrails brief) **the original
+  > post anchors everything**: replies under a card are read as context
+  > (`X_THREADS_REPLY_READS`, inside the ceilings) and never set its
+  > subject. Before the reply the read states the author's central message
+  > and a **relevance score 1-5** against the original post, with why, and
+  > answers the **original-author test** (would they see at once why this
+  > relates to what they posted?) - false rejects the card whatever the
+  > score; 1-2 rejects; 3 is a comment only; only 4-5 may link a kept
+  > episode or **propose** a specific one (title, scope, question), which is
+  > never mentioned until written and matched ("Match again"). Outcomes are
+  > episode + comment / comment only / skip; an episode is never required.
+  > A code read is worth 3 (code cannot apply the author test). A reply that
+  > sounds like an ad (`promotional`) goes back to the code's words; one
+  > sharing no word with the post is flagged. Approve needs a person's tick
+  > that every claim was checked, and a link needs the episode heard through
+  > that link first (`listened_at`). Rejections are listed for audit, never
+  > actionable. `tools/x_agent_eval.py` is the before-deployment review:
+  > real posts beside FAM's episode and comment.
 <!-- rule:linkedin -->
 - **Go Deeper on LinkedIn is found and posted by a person** (§322,
   `linkedin_posts.py`, `/admin/linkedin`). A LinkedIn post meant to teach or

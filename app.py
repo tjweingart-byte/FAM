@@ -11324,11 +11324,15 @@ async def admin_x(request: Request, status: str = "") -> dict:
     _require_admin(request)
     if status and status not in x_threads.STATUSES:
         raise HTTPException(status_code=422, detail="Unknown status.")
-    cards = []
+    cards, rejected = [], []
     if x_threads._exists():
         cards = await asyncio.to_thread(x_threads.store().all, status)
+        # What the agent turned away and why (§366), for a person to audit:
+        # never actionable, never shown as a card.
+        rejected = await asyncio.to_thread(x_threads.store().all,
+                                           x_threads.SET_ASIDE, "", 40)
     return {"health": x_threads.health(), "running": bool(_X_RUNNING),
-            "cards": cards, "kinds": x_threads.KINDS}
+            "cards": cards, "rejected": rejected, "kinds": x_threads.KINDS}
 
 
 @app.post("/api/admin/x/run")
@@ -11395,7 +11399,27 @@ async def admin_x_listen(req: XCard, request: Request) -> dict:
     link = _x_episode_link(card, request)
     if not link:
         raise HTTPException(status_code=404, detail="This card has no episode.")
+    # Heard through the very link the reply will carry: listening is also
+    # testing the link (§366). Approve with a link waits for this.
+    await asyncio.to_thread(x_threads.store().listened, req.post_id, time.time())
     return {"url": link}
+
+
+@app.post("/api/admin/x/match")
+async def admin_x_match(req: XCard, request: Request) -> dict:
+    """A card's proposed episode, once a person has written it in FAM: the
+    kept episode that answers the proposal goes on the card, unheard (§366)."""
+    _require_admin(request)
+    if not x_threads._exists():
+        raise HTTPException(status_code=404, detail="No cards yet")
+    try:
+        card = await asyncio.to_thread(x_threads.attach_written, SCRIPT_CACHE,
+                                       req.post_id)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="No card for that post")
+    except LookupError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return {"card": card}
 
 
 class XDecision(BaseModel):
@@ -11405,6 +11429,8 @@ class XDecision(BaseModel):
     text: str = Field("", max_length=1000)
     #: Leave the episode's link off this reply even when it has one.
     no_link: bool = False
+    #: The person checked every claim in the words (§366): no approval without.
+    verified: bool = False
 
 
 @app.post("/api/admin/x/decide")
@@ -11428,8 +11454,16 @@ async def admin_x_decide(req: XDecision, request: Request) -> dict:
     words = " ".join((req.text or card["draft"] or "").split())
     if not words:
         raise HTTPException(status_code=422, detail="There is no reply to post.")
+    if not req.verified:
+        raise HTTPException(status_code=422, detail=(
+            "Check every claim in the reply first, then tick that you did."))
     link = ""
     if not req.no_link and card["kind"] != x_threads.QUESTION_ONLY:
+        if not card.get("listened_at"):
+            # Nobody vouches for audio they have not heard (§366).
+            raise HTTPException(status_code=409, detail=(
+                "Listen to the episode through its link before linking it "
+                "(Listen first), or untick the link."))
         link = _x_episode_link(card, request)
     try:
         text = x_threads.compose(words, link)
