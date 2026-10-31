@@ -363,7 +363,7 @@ def test_nothing_on_the_listener_path_imports_the_model_layer():
     allowed = {
         "app.py": {"models", "rulebooks", "netenyahu", "tasks", "roster", "training"},
         # The wipe also forgets Nando's answer-key labels (§366).
-        "demo_data.py": {"tasks", "training"},
+        "demo_data.py": {"tasks", "training", "nando_model"},
         "pipeline.py": {"netenyahu", "categorizer"},
         "script_generator.py": {"netenyahu", "contextualizer", "categorizer"},
         "prefetch.py": {"categorizer"},

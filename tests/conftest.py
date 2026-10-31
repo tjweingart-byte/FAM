@@ -621,10 +621,14 @@ def isolated_agent_tasks(tmp_path, monkeypatch):
     monkeypatch.setenv("AGENTS_DB", str(tmp_path / "stores" / "agents.db"))
     from agents import memory as agent_memory
 
+    from agents import nando_model as agent_nando_model
+
     agent_tasks.reset()
     agent_training.reset()
     agent_memory.reset()
+    agent_nando_model.reset()
     yield
+    agent_nando_model.reset()
     agent_tasks.reset()
     agent_training.reset()
     agent_memory.reset()

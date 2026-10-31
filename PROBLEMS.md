@@ -25801,3 +25801,50 @@ category; N7 will mark grades whose node moved rather than delete them
 (always 8).
 
 Tests: `tests/test_teaching_label_369.py`.
+
+## 370. Training Nando, piece N6: a small model of his own, trusted only when its numbers say so (2026-10-31)
+
+**The problem.** Examples (§365), memory (§367) and mistakes (§368) all
+teach the model Nando asks; none of them makes him better when no model is
+asked, and none learns a pattern across hundreds of grades.
+
+**His model** (`agents/nando_model.py`). Multinomial logistic regression
+(softmax) over signed-hashed features of the request's words (words, word
+pairs, character trigrams; 2,048 slots), trained in numpy - already a
+dependency - on everything his memory holds: the answer key's sure grades
+and the reviewed examples. Classes are nodes with three or more rows, plus
+"none". Netenyahu retrains it at 04:00 Eastern (`categorizer:train`), an
+hour after the answer key; no model call, so no rule book is touched.
+Measured here: 5,000 rows over 300 nodes trains in about 32 s in a
+background thread; a reading takes about 0.3 ms; the saved model is about
+2 MB, one row in the agents' store, loaded in the background.
+
+**Trusted only when its own numbers say so.** Before the real training, a
+fixed fifth of the questions is held out: the model is *trusted* at 90%
+only if, of at least 30 held-out requests it was that sure about, 95% or
+more were right. The owner's answer (§364) was that a missed guess is worse
+than a miss; this is the guess allowed when the record says it is almost
+never one.
+
+**How it is used.**
+
+* Its reading, how sure it is and that it is a guess reach the model Nando
+  asks, as `<teaching>` (§369); a reading at even odds or better joins his
+  list.
+* It **files on its own** (`how="model"`) only when trusted at that
+  probability, only a node already on his list, never over a name that
+  means two things and nothing decided, never when the brief said unsure,
+  and never over a solid source - a tap's own filing, a provider, the
+  brief's category words or a model's pick all come first.
+
+**Availability.** No model yet (every deployment until the grades build
+up: too few rows trains nothing), one that will not load, a node the tree
+has lost: each is no reading. A wipe forgets it.
+
+**Not measured here.** Real accuracy needs real grades; the tests use
+separable synthetic requests to show it learns and noisy ones to show it
+is never trusted on them. `tools/categories_report.py --audit` will say how
+filings with `how="model"` fare against the answer key (§366 counts them
+like any filing).
+
+Tests: `tests/test_nando_model_370.py`.

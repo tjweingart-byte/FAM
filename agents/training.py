@@ -274,7 +274,8 @@ async def judge_batch(script_for: Callable[[str], list], limit: int = 0,
 
 
 def handler(script_for: Callable[[str], list]):
-    """The background task `categorizer:judge`, bound to the script cache."""
+    """The background task `categorizer:judge`, bound to the script cache.
+    (`register` also gives Netenyahu his model's nightly training, §370.)"""
     async def run(_task: str) -> None:
         result = await judge_batch(script_for)
         log.info("nando's answer key: %s", result)
@@ -285,7 +286,10 @@ def register(script_for: Callable[[str], list]) -> None:
     """Give Netenyahu the task's handler (the app, at boot, with AGENTS=1)."""
     from agents import netenyahu
 
+    from agents import nando_model
+
     netenyahu.HANDLERS[("categorizer", "judge")] = handler(script_for)
+    netenyahu.HANDLERS[("categorizer", "train")] = nando_model.handler()
 
 
 # ------------------------------------------------------------------ the measurement

@@ -167,6 +167,18 @@ def place(brief, query: str = "", field: tuple = (),
             solid = bool(named) and _facet(named) == found.node
         if solid:
             return found
+        # His own trained model (§370): only when the numbers say it is
+        # almost never wrong this sure, only a node already on his list,
+        # never over a name that means two things and nothing decided,
+        # never when the brief said it was unsure.
+        from agents import nando_model
+
+        node, p, trusted = nando_model.read(query)
+        listed = ((found.node,) if found.node else ()) + tuple(found.candidates)
+        if trusted and node and node in listed and not found.ambiguous and not unsure:
+            return Placement(node=node, path=path_for(node), how="model",
+                             candidates=tuple(dict.fromkeys(listed)),
+                             confidence=round(p, 3), ambiguous=(), suggestion=found.node)
         return Placement(node="", path=(), how="suggested" if found.node else "",
                          candidates=tuple(dict.fromkeys(
                              ((found.node,) if found.node else ()) + found.candidates)),
@@ -811,6 +823,12 @@ def candidates_for(query: str, context: str = "", notes=None) -> tuple:
 
         for row in memory.recall(query, inline=0):
             add(row["node"])
+        # His trained model's reading, when it is at least even odds (§370).
+        from agents import nando_model
+
+        node, p, _trusted = nando_model.read(query)
+        if p >= nando_model.CANDIDATE_P:
+            add(node)
         for _name, decided, readings, cued in clashes(query):
             if decided is not None:
                 add(decided.node)
@@ -887,6 +905,15 @@ def teaching(query: str, candidates: tuple, inline: int = 0) -> tuple:
                     "fits):\n" + "\n".join(f"{r['question']} -> {r['node'] or 'none'}"
                                            for r in recalled)))
     hints = hint_block(query)
+    from agents import nando_model
+
+    node, p, _trusted = nando_model.read(query)
+    if p:
+        model = nando_model.describe()
+        line = (f"Nando's trained model, learned from {model.get('rows', 0)} graded "
+                f"requests, reads: {node or 'none'} ({round(p * 100)}% sure; it is a "
+                "guess, check it)")
+        hints = (hints + "\n" + line) if hints else ("Hints:\n" + line)
     if hints:
         out.append(("teaching", hints))
     return tuple(out)

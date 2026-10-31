@@ -288,6 +288,9 @@ def prime() -> None:
     from agents import memory
 
     memory.warm()                    # his memory, built in the background (§367)
+    from agents import nando_model
+
+    nando_model.current()            # his trained model, loaded in the background (§370)
 
 
 def _refresh_held_soon() -> None:
@@ -345,7 +348,9 @@ def in_edition_window(now: Optional[datetime.datetime] = None) -> bool:
 #: keyed by the Eastern date - so a restart never runs it twice, and a day
 #: the loop was down is not made up. Nando's answer key runs at 03:00,
 #: clear of both editions.
-SCHEDULE: tuple = (("categorizer", "judge", 3, "categorizer"),)
+SCHEDULE: tuple = (("categorizer", "judge", 3, "categorizer"),
+                   # His small model, retrained on the night's grades (§370).
+                   ("categorizer", "train", 4, "categorizer"))
 _QUEUED_DAYS: set = set()
 
 
