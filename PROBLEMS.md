@@ -25065,3 +25065,29 @@ a missing icon leaves the initials rather than a blank circle. Only the three
 shown are asked for. This reverses the strip's "no network request" note
 (the popup's reason - no referrer, nothing about the episode - is what now
 holds for both); the popup is unchanged.
+
+## 366. The archive keeps nothing Parallel returns (2026-10-31)
+
+The owner: Parallel stays as the backup search, but nothing it returns is
+stored. Its Customer Terms say output "shall not be copied, cached, stored,
+or made available to other End Customers" (§2(b); `docs/PROVIDER_TERMS.md`),
+and the archive exists to reuse what one episode found for later ones.
+
+`history_archive.NEVER_KEPT = ("parallel",)`, and `_write` - the one path
+into intake and the episode's links - drops those findings first, so no store
+sees them. An article both searches found keeps only Perplexity's passages;
+an episode written from Parallel alone adds nothing. The count is
+`never_kept` in the archive's stats on `/api/health`. This rests on §358,
+which tagged every finding with its provider.
+
+Not changed: the episode Parallel helped write is still cached and replayed
+to listeners asking the same thing, with its sources on the player - the
+open question in email 1 of `docs/PROVIDER_TERMS.md`, rewritten here for
+backup-only use. Passages kept before §358 carry no provider and stay; what
+happens to them is the owner's call.
+
+Tests: `tests/test_intake_provider_358.py` (Parallel's passages and links
+never reach intake or the episode's links, and are counted; an episode from
+Parallel alone keeps nothing). Reviewed before the PR: `reset()` now zeroes
+`never_kept` with the other counters, and email 1 says the archive (not FAM)
+keeps nothing and asks again about episodes written ahead for everyone.
