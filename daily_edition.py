@@ -31,6 +31,12 @@ So DailyFAM is an **edition** now, the way Trending is (`trending_bank.py`):
 * **A subject added between editions is written at once**, in the
   background, when its mix is saved (`schedule_mix`). "All of DailyFAM" has
   to include the subject somebody added at lunchtime.
+* **Only active mixes** (§359). A mix nobody has played, made or edited in
+  `DAILY_EDITION_ACTIVE_HOURS` is dormant: skipped here, and written in the
+  background when it is next opened (`schedule_open`). A subject an active
+  mix follows is written whatever else follows it. No ceiling by default.
+* **The rails edition shares this loop** (`run_slot`, `rails_edition.py`),
+  with its own hours and slots, origin `"myfam"`.
 
 **Episode intelligence runs on every one.** Each episode goes through
 `ScriptGenerator.understand` before anything is retrieved - the same call a
@@ -143,27 +149,28 @@ def hours() -> list:
     return sorted(out) or [5]
 
 
-def _slots_around(now: float) -> list:
+def _slots_around(now: float, hrs=None) -> list:
     tz = zone()
     local = datetime.fromtimestamp(now, tz)
     out = []
     for offset in (-1, 0, 1):
         day = (local + timedelta(days=offset)).date()
-        for hour in hours():
+        for hour in (hrs or hours()):
             out.append(datetime(day.year, day.month, day.day, hour, tzinfo=tz))
     return sorted(out, key=lambda d: d.timestamp())
 
 
-def last_slot(now: Optional[float] = None) -> datetime:
-    """The most recent edition time at or before `now`."""
+def last_slot(now: Optional[float] = None, hrs=None) -> datetime:
+    """The most recent edition time at or before `now`. `hrs` is another
+    edition's hours on the same zone (the rails edition's, §359)."""
     now = time.time() if now is None else now
-    return [s for s in _slots_around(now) if s.timestamp() <= now][-1]
+    return [s for s in _slots_around(now, hrs) if s.timestamp() <= now][-1]
 
 
-def next_slot(now: Optional[float] = None) -> datetime:
+def next_slot(now: Optional[float] = None, hrs=None) -> datetime:
     """The next edition time after `now`."""
     now = time.time() if now is None else now
-    return [s for s in _slots_around(now) if s.timestamp() > now][0]
+    return [s for s in _slots_around(now, hrs) if s.timestamp() > now][0]
 
 
 def slot_id(slot: datetime) -> str:
@@ -197,20 +204,42 @@ def prompt_for(item, now: Optional[float] = None) -> str:
 # --------------------------------------------------------------------------
 # What to write
 # --------------------------------------------------------------------------
+def active_hours() -> float:
+    """How recently a mix must have been played (or made, or edited) for the
+    edition to write it (§359). 0 writes every mix, as before."""
+    return max(0.0, float(_settings().daily_edition_active_hours or 0.0))
+
+
+def is_active(mix, now: Optional[float] = None) -> bool:
+    """Whether the edition writes this mix ahead, or leaves it dormant."""
+    now = time.time() if now is None else now
+    check = getattr(mix, "is_active", None)
+    return True if check is None else bool(check(now, active_hours()))
+
+
 def subjects(mix_store, now: Optional[float] = None) -> list:
-    """Every distinct thing a DailyFAM tap could send today, most-followed
-    first. `[{"query", "mixes", "title"}]`.
+    """Every distinct thing a DailyFAM tap could send today from an **active**
+    mix, most-followed first. `[{"query", "mixes", "title"}]`.
 
     Deduplicated by the words, because the words are the key: two mixes
     following the same subject share one episode. A question that is nobody
     else's business (`cache.is_shareable`) is left out - the cache would not
     keep it for the tap either, so writing it ahead is money for nothing.
+
+    **A dormant mix is skipped** (§359): one nobody has played, made or
+    edited in `DAILY_EDITION_ACTIVE_HOURS` (48) is written when it is next
+    opened (`schedule_open`), not every morning. Its subjects still get
+    written when any active mix follows them - that is the dedup above -
+    but it never pulls in the rest of itself.
     """
     from cache import is_shareable
 
+    now = time.time() if now is None else now
     counts: dict = {}
     titles: dict = {}
     for mix in mix_store.all_mixes():
+        if not is_active(mix, now):
+            continue
         seen_here: set = set()
         for item in getattr(mix, "items", []) or []:
             query = (prompt_for(item, now) or "").strip()
@@ -415,8 +444,12 @@ class _Pending:
     send the writers together, and finish each one from its answer.
     """
 
-    def __init__(self, query: str, plan, key: str, notes) -> None:
+    def __init__(self, query: str, plan, key: str, notes,
+                 origin: str = "dailyfam") -> None:
         self.query = query
+        #: Which edition wrote it (§359): "dailyfam" for the mixes', "myfam"
+        #: for the rails'. Stamped on the episode and on every audit row.
+        self.origin = origin
         self.plan = plan
         self.key = key
         self.notes = notes
@@ -433,7 +466,7 @@ class _Pending:
 
 
 async def _start(query: str, generator, cache, length: int,
-                 current_until: float, since: float):
+                 current_until: float, since: float, origin: str = "dailyfam"):
     """Everything before the writer: a `_Pending`, or a finished result.
 
     Leaves `query` in `_IN_FLIGHT` when it returns a `_Pending`; the caller
@@ -475,7 +508,7 @@ async def _start(query: str, generator, cache, length: int,
         # retrieval query, the recency window and the story shape all come
         # from this brief. A brief prefetch already warmed is taken instead.
         plan = await generator.understand(plan, notes)
-        pending = _Pending(query, plan, key, notes)
+        pending = _Pending(query, plan, key, notes, origin)
         pending.since = since
         return pending
     except BaseException:
@@ -497,9 +530,11 @@ def _finish(pending: "_Pending", sentences: list, cache, length: int,
                 "detail": "the writer returned nothing"}
     now = time.time()
     if (notes.live_status or "") == "in_progress":
-        # Kept, like every episode (§143), and never current: a score taken
-        # mid-game is not what a tap later should be handed.
-        ttl = 0
+        # Kept, like every episode (§143), with its title, hook and category
+        # held on the tile; current only for `EDITION_IN_PROGRESS_SECONDS`
+        # after it was written (§359, at the owner's direction - 0 restores
+        # "never current"). A tap after that window writes a new episode.
+        ttl = max(0, int(_settings().edition_in_progress_seconds or 0))
     else:
         ttl = max(ttl_for(query, live_status=notes.live_status,
                           outcome_dependent=notes.outcome_dependent,
@@ -517,24 +552,27 @@ def _finish(pending: "_Pending", sentences: list, cache, length: int,
     # the tap plays the episode in the voice kept here.
     import voice_bank
 
-    extra["origin"] = "dailyfam"
+    origin = getattr(pending, "origin", "") or "dailyfam"
+    extra["origin"] = origin
     extra["voice"] = voice_bank.random_slug()
     cache.put(key, sentences, ttl, query, notes.thread, length,
               bucket_for(pending.plan), sources, "", notes.title, **extra)
     # What each categoriser said about it (§209), for the audit.
     import category_audit
 
-    category_audit.note(query, getattr(notes, "category", ""), "dailyfam")
+    category_audit.note(query, getattr(notes, "category", ""), origin)
     # Its articles, for the history archive (§308). Never awaited.
     import history_archive
 
-    history_archive.after_episode(notes, key, notes.sourced_at, "dailyfam")
+    history_archive.after_episode(notes, key, notes.sourced_at, origin)
     # And how well it was written (§309), kept beside it.
     import episode_quality
 
-    episode_quality.note(key, notes.sourced_at or now, query, length, "dailyfam",
+    episode_quality.note(key, notes.sourced_at or now, query, length, origin,
                          sentences, notes)
-    return {"status": "written" if ttl else "volatile", "key": key,
+    in_progress = (notes.live_status or "") == "in_progress"
+    return {"status": "volatile" if (in_progress or not ttl) else "written",
+            "key": key,
             "dollars": dollars, "ei": ei, "title": notes.title,
             "sourced_at": notes.sourced_at or now}
 
@@ -562,7 +600,8 @@ def _failure(query: str, exc: BaseException, pending=None) -> dict:
 
 
 async def write_episode(query: str, generator, cache, length: int,
-                        current_until: float, since: float = 0.0) -> dict:
+                        current_until: float, since: float = 0.0,
+                        origin: str = "dailyfam") -> dict:
     """Write one subject's episode into the shared cache. Never raises.
 
     `since` is the start of the edition being built: a current episode
@@ -573,7 +612,7 @@ async def write_episode(query: str, generator, cache, length: int,
     """
     try:
         pending = await _start(query, generator, cache, length,
-                               current_until, since)
+                               current_until, since, origin)
     except Exception as exc:  # noqa: BLE001 - one episode is not the edition
         return _failure(query, exc)
     if isinstance(pending, dict):
@@ -595,11 +634,12 @@ def _dollars_so_far(pending: "_Pending") -> float:
 
 
 async def _prepare_for_batch(query: str, generator, cache, length: int,
-                             current_until: float, since: float):
+                             current_until: float, since: float,
+                             origin: str = "dailyfam"):
     """`_start`, then everything the writer needs: a `_Pending` or a result."""
     try:
         pending = await _start(query, generator, cache, length,
-                               current_until, since)
+                               current_until, since, origin)
     except Exception as exc:  # noqa: BLE001 - one episode is not the edition
         return _failure(query, exc)
     if isinstance(pending, dict):
@@ -632,7 +672,7 @@ async def _write_batch(pending: list, generator, cache, length: int,
             generator.client, {cid: item.params for cid, item in ids.items()},
             wait_seconds=s.edition_batch_wait_seconds,
             poll_seconds=s.edition_batch_poll_seconds, alive=alive)
-        gate = asyncio.Semaphore(CONCURRENCY)
+        gate = asyncio.Semaphore(concurrency())
 
         async def finish(cid: str, item: "_Pending") -> None:
             before = _dollars_so_far(item)
@@ -709,8 +749,8 @@ def _batches(generator) -> bool:
                 and hasattr(generator, "stream_prepared"))
 
 
-def _current_until(now: float) -> float:
-    return next_slot(now).timestamp() + EPISODE_GRACE_SECONDS
+def _current_until(now: float, hrs=None) -> float:
+    return next_slot(now, hrs).timestamp() + EPISODE_GRACE_SECONDS
 
 
 # --------------------------------------------------------------------------
@@ -738,38 +778,86 @@ async def build(mix_store, generator=None, cache=None,
                 "minutes": minutes(), "subjects": len(subjects(mix_store, now)),
                 "episodes": {}, "skipped_for_ceiling": 0,
                 "detail": NO_WRITER}
+    _BUILDING = True
+    try:
+        def wanted() -> list:
+            return subjects(mix_store, now)
+
+        def extra(report: dict) -> None:
+            report["day"] = edition_day(now).isoformat()
+            report["dormant_mixes"] = dormant_count(mix_store, now)
+
+        report = await run_slot(
+            sid, slot, now, wanted, generator, cache,
+            until=_current_until(now), length=minutes(), origin="dailyfam",
+            max_episodes=s.daily_edition_max_episodes,
+            max_dollars=s.daily_edition_max_dollars, force=force,
+            label="daily edition", extra=extra)
+        if report is not None:
+            _LAST_ATTEMPT.clear()
+        return report
+    finally:
+        _BUILDING = False
+
+
+def dormant_count(mix_store, now: Optional[float] = None) -> int:
+    """How many mixes the edition left dormant (§359), for its report."""
+    now = time.time() if now is None else now
+    try:
+        return sum(1 for m in mix_store.all_mixes() if not is_active(m, now))
+    except Exception:  # noqa: BLE001 - a count never fails an edition
+        return 0
+
+
+async def run_slot(sid: str, slot: datetime, now: float, wanted, generator,
+                   cache, until: float, length, origin: str,
+                   max_episodes: int = 0, max_dollars: float = 0.0,
+                   force: bool = False, label: str = "edition",
+                   extra=None, on_written=None,
+                   failures: Optional[dict] = None) -> Optional[dict]:
+    """Claim `sid` and write every subject `wanted()` returns into the cache.
+
+    The one edition loop, shared by the mixes' edition and the rails' (§359):
+    the claim, the ceilings (0 means none), the batch, the report. `wanted`
+    is called after the claim so a losing caller reads nothing. `on_written`
+    is called with each subject whose episode was written or is current.
+    Returns the report, or None when another builder has the slot (or the
+    build failed - `failures`, when given, then holds why). Never raises.
+    """
+    failures = _LAST_ATTEMPT if failures is None else failures
+    s = _settings()
     try:
         if not store().claim(sid, now, force=force):
             return None
     except Exception as exc:  # noqa: BLE001
-        log.error("daily edition: could not claim %s: %s", sid, exc)
+        log.error("%s: could not claim %s: %s", label, sid, exc)
         return None
 
-    _BUILDING = True
     started = time.monotonic()
-    report: dict = {"slot": sid, "day": edition_day(now).isoformat(),
-                    "minutes": minutes(), "subjects": 0, "episodes": {},
-                    "skipped_for_ceiling": 0, "detail": ""}
+    report: dict = {"slot": sid, "minutes": length, "subjects": 0,
+                    "episodes": {}, "skipped_for_ceiling": 0, "detail": ""}
     try:
-        wanted = subjects(mix_store, now)
-        report["subjects"] = len(wanted)
+        subjects_now = list(wanted())
+        report["subjects"] = len(subjects_now)
+        if extra is not None:
+            extra(report)
 
-        ceiling_n = max(0, int(s.daily_edition_max_episodes or 0))
-        ceiling_usd = max(0.0, float(s.daily_edition_max_dollars or 0.0))
+        ceiling_n = max(0, int(max_episodes or 0))
+        ceiling_usd = max(0.0, float(max_dollars or 0.0))
         # Episodes are reserved before each write; dollars are only known
         # after one, so the dollar ceiling can be passed by at most the
-        # episodes already in flight (`CONCURRENCY`). Batched (§179), the
+        # episodes already in flight (`concurrency()`). Batched (§179), the
         # writer is not paid until the batch returns, so each prepared
         # episode reserves `BATCH_WRITER_RESERVE_USD` for it up front and the
         # reservation is swapped for the real figure when its answer lands.
         spent = {"n": 0, "usd": 0.0}
-        until = _current_until(now)
-        gate = asyncio.Semaphore(CONCURRENCY)
+        gate = asyncio.Semaphore(concurrency())
         # Batched (§179): each episode is prepared here as it always was,
         # under the same gate and ceilings, and its writer waits in
         # `pending` to go out with the rest as one batch.
         batching = _batches(generator)
         pending: list = []
+        by_query = {subject["query"]: subject for subject in subjects_now}
 
         def alive() -> None:
             store().touch(sid, now + (time.monotonic() - started))
@@ -789,37 +877,46 @@ async def build(mix_store, generator=None, cache=None,
                 alive()
                 if batching:
                     result = await _prepare_for_batch(
-                        query, generator, cache, minutes(), until,
-                        since=slot.timestamp())
+                        query, generator, cache, length, until,
+                        since=slot.timestamp(), origin=origin)
                     if isinstance(result, _Pending):
                         # The brief and the evidence are spent already; the
                         # writer is added when its answer comes back.
-                        result.mixes = subject["mixes"]
+                        result.mixes = subject.get("mixes", 0)
                         spent["usd"] += (_dollars_so_far(result)
                                          + BATCH_WRITER_RESERVE_USD)
                         pending.append(result)
                         return
                 else:
                     result = await write_episode(query, generator, cache,
-                                                 minutes(), until,
-                                                 since=slot.timestamp())
+                                                 length, until,
+                                                 since=slot.timestamp(),
+                                                 origin=origin)
                 if result.get("status") not in ("written", "volatile"):
                     spent["n"] -= 1
                 spent["usd"] += float(result.get("dollars") or 0.0)
-                result["mixes"] = subject["mixes"]
+                result["mixes"] = subject.get("mixes", 0)
                 report["episodes"][query] = result
 
-        await asyncio.gather(*(one(subject) for subject in wanted))
+        await asyncio.gather(*(one(subject) for subject in subjects_now))
         if pending:
-            await _write_batch(pending, generator, cache, minutes(), until,
+            await _write_batch(pending, generator, cache, length, until,
                                report, spent, alive)
+        if on_written is not None:
+            for query, result in report["episodes"].items():
+                if result.get("status") in ("written", "volatile", "cached") \
+                        and query in by_query:
+                    try:
+                        on_written(by_query[query], result)
+                    except Exception:  # noqa: BLE001 - a hook never fails a build
+                        log.exception("%s: after-write hook failed for %r",
+                                      label, query)
         report.update(_summarise(report["episodes"]))
         report["dollars"] = round(spent["usd"], 4)
         store().finish(sid, now, report)
-        _LAST_ATTEMPT.clear()
-        log.info("daily edition %s: %d subjects, %d written, %d already cached, "
-                 "%d past the ceiling, EI ok on %d, $%.4f", sid, len(wanted),
-                 report["written"], report["cached"],
+        log.info("%s %s: %d subjects, %d written, %d already cached, "
+                 "%d past the ceiling, EI ok on %d, $%.4f", label, sid,
+                 len(subjects_now), report["written"], report["cached"],
                  report["skipped_for_ceiling"], report["ei_ok"],
                  report["dollars"])
         return report
@@ -830,15 +927,21 @@ async def build(mix_store, generator=None, cache=None,
             pass
         raise
     except Exception as exc:  # noqa: BLE001 - a build never takes the server down
-        log.exception("daily edition: the build for %s failed", sid)
+        log.exception("%s: the build for %s failed", label, sid)
         try:
             store().fail(sid, f"{type(exc).__name__}: {exc}")
         except Exception:  # noqa: BLE001
             pass
-        _LAST_ATTEMPT.update(slot=sid, detail=str(exc), at=now)
+        failures.update(slot=sid, detail=str(exc), at=now)
         return None
-    finally:
-        _BUILDING = False
+
+
+def concurrency() -> int:
+    """Episodes written at once by an edition: `EDITION_CONCURRENCY` (§359).
+
+    With the ceilings lifted an edition can be thousands of episodes, and
+    three at a time would still be writing the 05:00 edition at noon."""
+    return max(1, int(_settings().edition_concurrency or CONCURRENCY))
 
 
 def _summarise(episodes: dict) -> dict:
@@ -1000,6 +1103,17 @@ def schedule_mix(mix, generator=None, cache=None,
     return True
 
 
+def schedule_open(mix, generator=None, cache=None,
+                  now: Optional[float] = None) -> bool:
+    """A dormant mix was opened (§359): write all of it for the current
+    edition, in the background. Never awaited and never raises.
+
+    The same path a saved mix takes (`schedule_mix`) with nothing "before",
+    so every subject is asked for once per edition and anything already
+    current - another mix follows it, or a tap wrote it - costs a lookup."""
+    return schedule_mix(mix, generator=generator, cache=cache, now=now)
+
+
 # --------------------------------------------------------------------------
 # What a person needs to see
 # --------------------------------------------------------------------------
@@ -1016,6 +1130,9 @@ def report(now: Optional[float] = None) -> dict:
         "minutes": minutes(),
         "ceilings": {"episodes": s.daily_edition_max_episodes,
                      "dollars": s.daily_edition_max_dollars},
+        "active_hours": active_hours(),
+        "concurrency": concurrency(),
+        "in_progress_seconds": s.edition_in_progress_seconds,
         "building": _BUILDING,
         "written_since_edition": _EXTRA.get(slot_id(last_slot(now)), 0),
         "last_failure": dict(_LAST_ATTEMPT) or None,

@@ -745,6 +745,35 @@ def pool() -> Pool:
     return _POOL
 
 
+#: The domains whose stories a rails edition holds on the shelf until the next
+#: edition once it has written them (§359). Sports alone, at the owner's
+#: direction: its eight hours end before the next twice-daily edition, so a
+#: fixture written at 05:00 would leave the rails at 13:00 with its episode
+#: still current. The others already outlive the gap.
+HELD_FOR_EDITION = (SPORTS,)
+
+
+def hold_until(story_id: str, until: float) -> bool:
+    """Keep a written story on the shelf until `until` (§359). True if held.
+
+    Only lengthens, never shortens; only a story the pool holds, in a domain
+    in `HELD_FOR_EDITION`. Its `first_seen` is untouched, so its age is the
+    truth, and the cooldown starts when the longer shelf life ends. Kept on
+    the disk by the next `save`.
+    """
+    for i, story in enumerate(_POOL.stories):
+        if story.id != story_id:
+            continue
+        if story.domain not in HELD_FOR_EDITION:
+            return False
+        wanted = float(until) - float(story.first_seen or 0.0)
+        if wanted > story.shelf_life:
+            _POOL.stories[i] = replace(story, shelf_life=wanted)
+            return True
+        return False
+    return False
+
+
 def reset() -> None:
     """Drop everything. For tests, and for a forced refresh.
 

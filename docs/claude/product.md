@@ -373,6 +373,7 @@ and where a speculative script is far more likely to be used than one triggered
 by a keystroke pause. That is where to spend it.
 
 <!-- rule:myfam-warms-briefs -->
+> **Current (PROBLEMS.md §359):** the rails no longer wait for a tap to be written. The rails edition (`rails_edition.py`, rule `rails-edition` below) writes every story the pool holds, whole, at 05:00 and 17:00 Eastern; the draw-scheduled cycle below still warms briefs, and finds a written story already cached.
 **The framework for spending it there is now built, and myFAM now drives it**
 *(PROBLEMS.md §83 for the framework, §105 for the driving).* Drawing the page
 schedules a cycle - never awaited - and what it warms is the **brief**: the one
@@ -382,6 +383,32 @@ above is honoured where it said it would be: search pays EI, myFAM does not.
 Warming whole *scripts* is a separate level and stays opt-in, because a
 speculative brief costs a fraction of a cent and a speculative episode costs an
 episode. See the settled constraint below.
+
+<!-- rule:rails-edition -->
+**The rails edition** *(PROBLEMS.md §359, at the owner's direction).* The
+rails (myFAM in code, "DailyFAM" on the listener's screen) are written whole
+before anybody taps, so a rail tap pays only for the voice:
+
+- **Twice a day**, at `RAILS_EDITION_HOURS` (05:00 and 17:00) on
+  `DAILY_EDITION_TIMEZONE`'s clock, one episode per story the live pool
+  **holds** (`stories.Pool.held` - what Made for you ranks, not just the
+  forty it offers), at `BROWSE_MINUTES`, into the shared cache under the
+  key a tap computes. The loop is the mixes' edition's
+  (`daily_edition.run_slot`): the claim, EI, the live lookup, the batch.
+- **Per story, never per listener**: the key holds no listener, so the bill
+  is bounded by the pool (`stories.POOL_STORE`), whatever the audience.
+- **No ceiling** by default (`RAILS_EDITION_MAX_EPISODES` /
+  `_MAX_DOLLARS` = 0, settable). `EDITION_CONCURRENCY` (6) writes at once.
+- **A sports story it wrote stays on the shelf** until the next rails
+  edition plus the grace hour (`stories.hold_until`, `HELD_FOR_EDITION`):
+  eight hours ended before the next edition with its episode still current.
+  Other domains already outlive the gap and are untouched.
+- **A game in progress** is written, keeps its title, hook and category on
+  the tile, and is current `EDITION_IN_PROGRESS_SECONDS` (30 min); a tap
+  after that writes a new one (rule `ttl-from-evidence`).
+- Not written ahead: a heard story's "what's new" follow-up (its words are
+  the listener's history) and a story that arrives between editions - the
+  tap writes those until the next edition. `RAILS_EDITION=0` turns it off.
 
 ## What makes a FAM episode different
 

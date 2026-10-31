@@ -2131,6 +2131,10 @@ __WRITING_SIM__
         return json(shapeMix(rows("mixes").filter(function (m) { return m.id === cid; })[0]));
       });
     }
+    // Opening or playing a mix (§359): the preview writes nothing ahead.
+    if (path.indexOf("/api/mixes/") === 0 && /\/open$/.test(path) && method === "POST") {
+      return json({ ok: true, dormant: false, writing: false });
+    }
     if (path.indexOf("/api/mixes/") === 0) {
       var mixId = path.split("/").pop();
       var cur = rows("mixes").filter(function (m) { return m.id === mixId && m.user_id === UID; })[0];

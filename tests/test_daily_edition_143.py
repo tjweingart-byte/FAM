@@ -256,12 +256,30 @@ def test_an_edition_episode_stays_current_until_the_next_edition(edition, monkey
     assert until >= daily_edition.next_slot().timestamp()
 
 
-def test_a_game_in_progress_is_kept_but_left_for_the_tap(edition):
+def test_a_game_in_progress_is_current_for_its_window_then_left_for_the_tap(
+        edition, monkeypatch):
+    # §359, at the owner's direction: kept with its title, current for
+    # `EDITION_IN_PROGRESS_SECONDS`, and a tap after that writes a new one.
     edition.create("a", "Morning", ["f:nfl~Eagles"])
     store = MemoryScriptCache()
     report = asyncio.run(daily_edition.build(
         edition, EditionWriter(live=("Eagles",)), store))
     assert report["volatile"] == 1
+    [key] = list(store._clocks)
+    sourced, until = store._clocks[key]
+    window = config.settings.edition_in_progress_seconds
+    assert window == 1800.0
+    assert until - sourced == pytest.approx(window, abs=1)
+    assert until < daily_edition.next_slot().timestamp()
+
+
+def test_in_progress_window_zero_restores_never_current(edition, monkeypatch):
+    monkeypatch.setattr(config, "settings", dataclasses.replace(
+        config.settings, edition_in_progress_seconds=0))
+    edition.create("a", "Morning", ["f:nfl~Eagles"])
+    store = MemoryScriptCache()
+    asyncio.run(daily_edition.build(
+        edition, EditionWriter(live=("Eagles",)), store))
     [key] = list(store._clocks)
     assert store.get(key) is None and store.get(key, current=False)
 

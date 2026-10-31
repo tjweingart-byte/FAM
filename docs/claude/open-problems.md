@@ -845,6 +845,20 @@
    so before anyone relies on it; the provider sign-ins have no such gap, which
    is a real argument for making them the prominent buttons in the app.
 
+<!-- rule:mix-dormancy -->
+- **A dormant mix is not written every morning** *(PROBLEMS.md §359, at the
+  owner's direction).* A mix nobody has played, made or edited in
+  `DAILY_EDITION_ACTIVE_HOURS` (48) is skipped by the edition
+  (`daily_edition.subjects`, `Mix.is_active`; plays are stamped in their own
+  column, `played_at`, never `updated_at`). Made and edited count so a new
+  mix is not dormant before it could be played. A subject an active mix also
+  follows is written all the same - the edition deduplicates by the words -
+  but a dormant mix never pulls in the rest of itself. **Opening** a dormant
+  mix (`POST /api/mixes/{id}/open`, the client's `noteMixOpen`) writes all of
+  it in the background through `schedule_mix`'s path, so the seconds spent
+  reading the list are the writer's; a play (`{"played": true}`) makes it
+  active again. The edition's ceilings are lifted (0, settable), and its
+  report counts `dormant_mixes`. `0` hours writes every mix, as before.
 <!-- rule:mix-listen-time -->
 - **A mix's listen time is when the phone is told, never when episodes are
   written** *(§184, the 10.1 packet's third set, at the owner's direction)*.

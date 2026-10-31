@@ -359,3 +359,4 @@ and `limit` = Lines.
 | 24683 | 41 | 356. Parallel against Perplexity, measured on one brief (2026-10-30) |
 | 24724 | 37 | 357. Perplexity is the primary search; Parallel the second look (2026-10-30) |
 | 24761 | 33 | 358. The archive records which search supplied each passage (2026-10-30) |
+| 24794 | 82 | 359. The whole script before the tap: the rails edition, dormant mixes, no ceilings (2026-10-31) |
