@@ -398,11 +398,34 @@ class Mix:
     source_id: str = ""
     source_user: str = ""
     #: When the listener means to hear this mix, "HH:MM" in `listen_tz`, or
-    #: "". It never moves the edition (05:00 Eastern writes every mix); it is
+    #: "". It never moves the edition (05:00 Eastern writes every active mix); it is
     #: when `push.py` tells their phone the mix is ready.
     listen_at: str = ""
     #: The listener's IANA zone for `listen_at`; "" reads as the edition's.
     listen_tz: str = ""
+    #: When an episode of this mix was last played (§359), 0 for never. What
+    #: decides whether the edition writes it: a mix nobody has played, made
+    #: or edited in `DAILY_EDITION_ACTIVE_HOURS` is dormant (`is_active`).
+    played_at: float = 0.0
+
+    def last_active(self) -> float:
+        """The latest of made, edited and played - what dormancy is timed from.
+
+        Made and edited count so a new mix is not dormant before anybody could
+        have played it; the rule itself is about plays."""
+        return max(float(self.created_at or 0.0), float(self.updated_at or 0.0),
+                   float(self.played_at or 0.0))
+
+    def is_active(self, now: float, hours: float) -> bool:
+        """Whether the edition writes this mix ahead (§359). `hours` <= 0
+        means every mix is active, as before dormancy existed.
+
+        **A mix with a listen time is never dormant**: its owner asked to be
+        told every day that it is ready (`push.py`), and a push for a mix
+        nobody wrote would be a broken promise - as would going quiet."""
+        if hours <= 0 or self.listen_at:
+            return True
+        return now - self.last_active() < hours * 3600.0
 
     @property
     def topic_ids(self) -> list[str]:
@@ -483,7 +506,7 @@ def clean_items(raw: Sequence) -> list[MixItem]:
 
 #: Every column `_row_to_mix` reads, in its order.
 _COLUMNS = ("id, user_id, name, topic_ids, created_at, updated_at, items, public,"
-            " cover, source_id, source_user, listen_at, listen_tz")
+            " cover, source_id, source_user, listen_at, listen_tz, played_at")
 
 #: How many public mixes one search returns. Covers are inline data URLs, so
 #: this is also what bounds the size of the response.
@@ -582,6 +605,12 @@ class MixStore:
                     conn.execute(f"ALTER TABLE mixes ADD COLUMN {column} TEXT NOT NULL DEFAULT ''")
                 except sqlite3.OperationalError:
                     pass
+            # When it was last played (§359): what the edition's dormancy
+            # rule reads. 0 for a row older than the column.
+            try:
+                conn.execute("ALTER TABLE mixes ADD COLUMN played_at REAL NOT NULL DEFAULT 0")
+            except sqlite3.OperationalError:
+                pass
             conn.execute("CREATE INDEX IF NOT EXISTS mixes_public ON mixes(public, updated_at)")
 
     def _conn(self) -> sqlite3.Connection:
@@ -608,7 +637,8 @@ class MixStore:
                    (row[9] or "") if len(row) > 9 else "",
                    (row[10] or "") if len(row) > 10 else "",
                    (row[11] or "") if len(row) > 11 else "",
-                   (row[12] or "") if len(row) > 12 else "")
+                   (row[12] or "") if len(row) > 12 else "",
+                   float(row[13] or 0.0) if len(row) > 13 else 0.0)
 
     def public_for_user(self, user_id: str) -> list[Mix]:
         """What this listener has chosen to show on their profile."""
@@ -664,6 +694,22 @@ class MixStore:
             log.exception("could not read mix")
             return None
         return self._row_to_mix(row) if row else None
+
+    def note_played(self, user_id: str, mix_id: str,
+                    now: Optional[float] = None) -> bool:
+        """Stamp this mix as played now (§359). True if it was this listener's.
+
+        Its own column, never `updated_at`: a play is not an edit, and the
+        public list is ordered by edits."""
+        now = time.time() if now is None else now
+        try:
+            cur = self._conn().execute(
+                "UPDATE mixes SET played_at = ? WHERE id = ? AND user_id = ?",
+                (float(now), mix_id, user_id))
+        except Exception:
+            log.exception("could not note a mix play")
+            return False
+        return bool(getattr(cur, "rowcount", 0))
 
     def create(self, user_id: str, name: str, topic_ids: Sequence = (),
                cover: str = "", public: bool = True) -> Mix:

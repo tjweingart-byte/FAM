@@ -1104,7 +1104,8 @@ __MIX_ITEMS__
       if (held && held.plays >= (s.hits || 0)) return;
       best[title.toLowerCase()] = {
         query: s.query, title: title, minutes: s.minutes, plays: s.hits || 0,
-        sourced_age_seconds: Math.max(0, now() - s.created), explicit: false
+        sourced_age_seconds: Math.max(0, now() - s.created), explicit: false,
+        thumb: previewPicture(s.query)
       };
     });
     var eps = Object.keys(best).map(function (k) { return best[k]; });
@@ -2130,6 +2131,10 @@ __WRITING_SIM__
         paint();
         return json(shapeMix(rows("mixes").filter(function (m) { return m.id === cid; })[0]));
       });
+    }
+    // Opening or playing a mix (§359): the preview writes nothing ahead.
+    if (path.indexOf("/api/mixes/") === 0 && /\/open$/.test(path) && method === "POST") {
+      return json({ ok: true, dormant: false, writing: false });
     }
     if (path.indexOf("/api/mixes/") === 0) {
       var mixId = path.split("/").pop();

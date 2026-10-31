@@ -41,8 +41,8 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   search, §159; the heard words are editable in place and Search now
   sends the corrected words, §165), **myFAM** (four rails over the evergreen bank and a shared live
   story pool, plus **What you missed last week**), **DailyFAM** (named mixes of
-  followed subjects `f:nfl` / `f:nfl~Eagles`, never audio; a 05:00 Eastern
-  edition writes every episode ahead with EI; public mixes searchable, (+)
+  followed subjects `f:nfl` / `f:nfl~Eagles`, never audio; a 05:00 ET
+  edition writes active mixes with EI; public mixes searchable, (+)
   copies one; the server owns the date and length a tap sends), and **Explore**
   (not a tab; its pill (`explore-reel`) or search's swipe, §203; a dropdown
   picks its feed, §255; the cache only, `cached_only`, never generates, never
@@ -75,9 +75,9 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   restores old latency. No preamble to disguise a wait; no text before its
   material. [spec-amended-for-search]
 - A slow answer is a scheduling choice (starting earlier: 18.30s → 0.12s). [slow-is-scheduling]
-- Prefetch-on-typing-pause was removed at the user's request; do not re-add. [no-typing-prefetch]
-- myFAM drives prefetch (§83, §105): drawing the page schedules a cycle, never
-  awaited, warming **briefs**; warming whole scripts stays opt-in. [myfam-warms-briefs]
+- Prefetch-on-typing-pause was removed at the user's request; never re-add. [no-typing-prefetch]
+- **Rails written whole** 05:00/17:00 ET (§359): every held story, sports
+  kept to the next; draws warm briefs. [myfam-warms-briefs] [rails-edition]
 - **9.30 interface packet** (§181): sign-up rotates today's top three kept
   episodes; myFAM's header button (a bookshelf, §203) opens the A-Z of others'
   cached episodes; Messages is a tab where Explore was; the player's (+) adds
@@ -212,8 +212,8 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
 - **DailyFAM mixes**: hold subjects/topic ids, never audio; the picker is ranked
   (`rank_bank`, a sort not a filter, does not exclude played); new mixes are
   **public by default**, copies start private; `loadMixes` takes the bank
-  before the 401 branch;
-  the new-mix (+) is hidden until `/api/mixes` answers. [op-dailyfam-mixes]
+  before the 401 branch; the new-mix (+) is hidden until `/api/mixes` answers;
+  unplayed 48h, a mix is dormant till opened (§359). [op-dailyfam-mixes] [mix-dormancy]
 - A mix's **listen time** is when its "ready" push is sent (own zone, only once
   the edition is written), never when it is written; kept even where push is
   off; never shown to others. No suggested mix names. [mix-listen-time]
@@ -354,11 +354,11 @@ Caching and prefetch
   sourced, `X-FAM-Episode`) and replays it with `?episode=`, never writing; a
   re-written key archives the old row and audio; history pins for two weeks;
   the volatile/scheduled window is 2h so a repeat search is one episode. [heard-is-kept]
-- **TTL comes from what the script was built on, never from the question's
-  words** - live status → `outcome_dependent` → window → keyword floor;
-  `in_progress` = never current, nor a sports score or update (`recap`/`update`) short of `final` (§182). Do not fix by adding keywords. Prefetch never
-  calls `live_lookup` and never warms an outcome-dependent script (DailyFAM
-  edition is the stated exception). [ttl-from-evidence]
+- **TTL comes from what the script was built on, not the question's words**
+  - live status → `outcome_dependent` → window → keyword floor; `in_progress`
+  and a sports `recap`/`update` short of `final` never current (§182; an
+  edition's live game 30 min, §359). No keyword fixes. Prefetch
+  never calls `live_lookup` nor warms outcome-dependent scripts, editions excepted. [ttl-from-evidence]
 - **Duration buys depth, not words** (`DEPTH_BANDS`; evidence grows with minutes, §219); shapes, never boxes; a beat
   with nothing behind it is dropped - a test pins that wording. [depth-not-words]
 - **Prefetch writes the same cache under the same key**: `pipeline.key_for` /

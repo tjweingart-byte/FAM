@@ -2645,6 +2645,14 @@
   .sv-art{ width:38px; height:38px; flex:0 0 38px; border-radius:10px;
     background:var(--surface-2); color:var(--copper);
     display:flex; align-items:center; justify-content:center; }
+  /* Search DailyFAM's rows wear the episode's picture (the owner, 10.31):
+     the play glyph stays underneath, shown only if there is none or it
+     fails to load. */
+  #mfsBody .sv-art{ width:56px; height:42px; flex:0 0 56px; position:relative;
+    overflow:hidden; }
+  #mfsBody .sv-art img{ position:absolute; inset:0; width:100%; height:100%;
+    object-fit:cover; }
+  #mfsBody .sv-art.has-img svg{ display:none; }
   .sv-main{ flex:1; min-width:0; }
   .sv-title{ font-family:'Bricolage Grotesque', sans-serif; font-weight:500; font-size:12.5px;
     color:var(--text); margin-bottom:3px; overflow:hidden; text-overflow:ellipsis;
@@ -11730,6 +11738,7 @@
     }
     renderMixBody(m);
     navigate("mixdetail");
+    noteMixOpen(m.id, false);
     if(!pushState) loadPushState(repaintMixWhen);
     // The recommendations are drawn from the catalogue; if it has not
     // arrived yet, draw them when it does rather than leaving the space empty.
@@ -11737,6 +11746,20 @@
       var again = mixById(currentMixId);
       if(again && again.id === id) rerenderMixKeepScroll(again);
     });
+  }
+
+  // Tells the server the mix was opened, or one of its episodes started
+  // (§359). Opening a mix nobody has played for 48 hours writes its episodes
+  // while the list is read; a play keeps it in the morning edition. Never
+  // waited on: the screen and the player go on whatever it answers.
+  function noteMixOpen(id, played){
+    if(!id) return;
+    try {
+      fetch("/api/mixes/" + encodeURIComponent(id) + "/open", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ played: !!played })
+      }).catch(function(){});
+    } catch(e) {}
   }
 
   function renderMixBody(m){
@@ -12347,6 +12370,7 @@
       endMixQueue();
     } else if(mixPlay){
       mixPlay.key = key;
+      noteMixOpen(mixPlay.id, true);
     }
     generate(key);
   }
@@ -13618,7 +13642,10 @@
   }
   function myFamSearchRow(ep, i){
     return '<div class="sv-row" onclick="playMyFamSearch(' + i + ')">'
-      + '<div class="sv-art"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.5v15l12.5-7.5z"/></svg></div>'
+      + '<div class="sv-art' + (ep.thumb ? ' has-img' : '') + '"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.5v15l12.5-7.5z"/></svg>'
+      + (ep.thumb ? '<img src="' + escapeHtml(ep.thumb) + '" alt="" loading="lazy" decoding="async"'
+        + ' onerror="this.parentNode.classList.remove(\'has-img\'); this.remove()">' : '')
+      + '</div>'
       + '<div class="sv-main"><div class="sv-title' + (ep.explicit ? ' is-explicit' : '') + '">'
       + escapeHtml(ep.title || ep.query) + '</div>'
       + '<div class="sv-meta">' + (ep.minutes || BROWSE_MINUTES) + ' MIN'

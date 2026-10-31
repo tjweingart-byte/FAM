@@ -141,6 +141,10 @@ FAM_ENVIRONMENT = (
     "SMTP_HOST", "SMTP_PORT", "SMTP_USERNAME", "MAIL_FROM",
     "DAILY_EDITION_MAX_EPISODES",
     "DAILY_EDITION_MAX_DOLLARS", "DAILY_EDITION_RETRY_SECONDS",
+    # Dormancy, concurrency, the in-progress window and the rails edition (§359).
+    "DAILY_EDITION_ACTIVE_HOURS", "EDITION_CONCURRENCY",
+    "EDITION_IN_PROGRESS_SECONDS", "RAILS_EDITION", "RAILS_EDITION_HOURS",
+    "RAILS_EDITION_MAX_EPISODES", "RAILS_EDITION_MAX_DOLLARS",
     "GNEWS_KEY", "GNEWS_LANG", "GNEWS_CATEGORIES", "GNEWS_COUNTRIES",
     "GNEWS_MAX_ARTICLES", "GNEWS_CORROBORATE", "GNEWS_TIMEOUT_SECONDS",
     "GNEWS_REQUEST_GAP_SECONDS", "GNEWS_DAILY_REQUESTS",
@@ -458,8 +462,9 @@ def isolated_trending_bank(tmp_path, monkeypatch):
     # The DailyFAM edition (§143) likewise: off, so a TestClient's startup
     # does not begin writing every mix's episodes in the background. Its own
     # tests turn it on.
+    # The rails edition (§359) the same way.
     off = dataclasses.replace(config.settings, trending_bank=False,
-                              daily_edition=False)
+                              daily_edition=False, rails_edition=False)
     monkeypatch.setattr(config, "settings", off)
     monkeypatch.setattr(trending_bank, "settings", off)
     trending_bank.reset()

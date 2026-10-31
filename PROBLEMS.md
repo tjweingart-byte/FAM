@@ -24791,7 +24791,110 @@ Tests: `tests/test_intake_provider_358.py` (each web search names itself;
 one article from both keeps them apart; an old table is widened and its rows
 read as unknown; Atlas adds per provider).
 
-## 359. The status bar belongs to the screen, and the profile's wash reaches the top (2026-10-31)
+## 359. The whole script before the tap: the rails edition, dormant mixes, no ceilings (2026-10-31)
+
+The owner: write the whole script for myFAM and DailyFAM episodes before
+anybody taps, at the batched times, so a tap pays only for the voice. In the
+owner's words "myFAM" is the mixes screen and "dailyFAM" the rails (the
+listener's names, §185); the code keeps the old ones, so below the *mixes'*
+edition is `daily_edition.py` and the *rails'* is `rails_edition.py`. The
+owner's contingencies: the mixes once a day, the rails at 05:00 and 17:00
+Eastern; a mix not played in 48 hours is not written ahead, and is written
+when its owner goes back into it (the owner chose: **on opening it**); an
+episode a dormant mix shares with an active one is written because of the
+shared cache, without waking the rest of the dormant mix; **lift the cap**.
+Then, mid-build: sports stories last longer once written for the rails, and
+a game in progress keeps its title and direction, with a new episode once
+it is outside the old window.
+
+**What it costs, estimated before building** (no key here; every figure an
+estimate from the code's prices and prompt sizes). An episode is now about
+30k tokens (brief ~12.6k in / 3.6k out over three Haiku parts; writer
+~12.2k in / 2k out, its instructions measured at 32.9k characters) - about
+**$0.005 written on a tap, $0.0044 ahead** with the writer batched, plus the
+same ~$0.0037 of GPU on first play either way. `docs/FINANCIAL.md`'s $0.06 is
+the Sonnet writer's and Exa's. Because the key has no listener in it, the
+rails' bill is the pool's (≤ 96 stories), not the audience's: ~$20/month at
+any size. Net against the old code, at 100 / 1k / 10k / 100k monthly
+listeners: about +$11 / ±$0 / +$65 / +$267 a month, the large-scale rise all
+from lifting the mixes' 300-a-day ceiling (the long tail used to be written
+on the tap). Latency, estimated: a first tap on a Made for you story goes
+from ~10-26 s (brief, retrieval, the Haiku writer's first sentence) to the
+voice's ~1-2 s on a warm card. Two costs that are not tokens: once nothing
+is left to write, a cold GPU worker is the whole wait (the wake on app open,
+§329, is what hides it now; one active worker is ~$343/month); and an
+uncapped 05:00 edition at scale is thousands of episodes, so the editions
+now write `EDITION_CONCURRENCY` (6) at once rather than 3.
+
+**The rails edition** (`rails_edition.py`). At `RAILS_EDITION_HOURS` (5,17)
+on `DAILY_EDITION_TIMEZONE`, one episode for every story the pool *holds*
+(`Pool.held` - Made for you ranks every held story, §187, not only the forty
+offered), at `BROWSE_MINUTES`, under the key a tap computes, origin
+`"myfam"`. It is the mixes' edition's loop, not a copy: `daily_edition.build`
+was split into `run_slot` (the claim, ceilings, batch and report) and the
+rails call it with their own subjects, hours, slots (`rails@<time>` in the
+same table) and origin. Its boot catch-up waits for the story pool's first
+sweep. `/api/health` → `rails_edition`. A story that arrives between
+editions, and a heard story's "what's new" follow-up, are still the tap's.
+
+**Sports stories last longer once written** (`stories.hold_until`,
+`HELD_FOR_EDITION`). A sports story's shelf is eight hours; written at 05:00
+it would leave the rails at 13:00 with its episode current until 18:00. After
+the rails edition writes one, its shelf life is lengthened to the next rails
+edition plus the grace hour. Only lengthened, sports only, `first_seen`
+untouched, saved with the pool.
+
+**A game in progress** (`daily_edition._finish`, both editions). It was
+written, kept and never current, so the tile's next tap wrote it again. Now it
+is current for `EDITION_IN_PROGRESS_SECONDS` (1800) and its title, hook and
+category stay on the tile (the cache's title reads by how long a row is
+kept, not how long it is current); a tap after the window writes a new
+episode. `ttl_for` is untouched, so an episode a tap writes of a live game is
+still never current. `0` restores the old behaviour. Rule `ttl-from-evidence`
+carries the note.
+
+**Dormant mixes** (`Mix.played_at`, `Mix.is_active`,
+`daily_edition.subjects`). A mix not played, made or edited in
+`DAILY_EDITION_ACTIVE_HOURS` (48) is skipped by the edition; made and edited
+count so a new mix is never dormant before it could be played. Plays are
+stamped in a column of their own, never `updated_at` (the public list is
+ordered by edits). `POST /api/mixes/{id}/open` is sent when a mix's screen
+opens (`noteMixOpen`) and again with `{"played": true}` when an episode of it
+starts: opening a dormant mix writes all of it in the background
+(`schedule_open`, `schedule_mix`'s path, so each subject once per edition and
+anything current for the price of a lookup); a play makes it active again.
+The edition's report counts `dormant_mixes`.
+
+**The ceilings are lifted**: `DAILY_EDITION_MAX_EPISODES` / `_MAX_DOLLARS`
+default to 0 (none), and the rails' are 0. Both remain settable.
+
+**Reviewed before the pull request**, by an independent read of the diff;
+four findings, all fixed:
+- *A live game's thirty minutes could become a day.* A second edition
+  writer in the same slot - a dormant mix opened, a forced re-run, the other
+  edition on the same words - found the in-progress episode current and
+  extended it to the edition's window. Keys written in progress are now held
+  in `_IN_PROGRESS` until their window ends and never extended.
+- *A dormant mix still got "your mix is ready"* (`push.py` asks only whether
+  the slot is built). A mix with a listen time is now never dormant: its
+  owner asked to be told daily, and going quiet would be the same broken
+  promise.
+- *A hold could be lost to a refresh composing at the same moment*, which
+  installs the copies it took before; and a held subject pushed out of the
+  store and reported again was retired on the domain's clock. Holds are kept
+  apart (`stories._HELD`), re-applied by every refresh and read by
+  `_admissible`.
+- *A hold made a story louder*: `push` halves on `shelf_life / 2`. It now uses
+  the domain's half-life.
+And two small ones: a story the other edition was writing (`in_flight`) is
+still held, and `_BUILDING` is set only once the claim is won, as before.
+
+Rules: `rails-edition` (new, `product.md`), `mix-dormancy` (new,
+`open-problems.md`); Current notes on `myfam-warms-briefs`, `dec-prefetch`
+and `ttl-from-evidence`. Tests: `tests/test_editions_359.py`;
+`tests/test_daily_edition_143.py`'s in-progress test now pins the window.
+
+## 360. The status bar belongs to the screen, and the profile's wash reaches the top (2026-10-31)
 
 The owner, from screenshots: on YourFAM and a friend's profile the gold
 wash started under a dark band - the status bar - and should extend to the
@@ -24825,7 +24928,7 @@ still sliding or fading the page under it - the bar visibly detached.
 without its strip. Checked in a browser mid-animation (push, pop, tab) at
 phone and framed widths.
 
-## 360. Main's Postgres job was red from §358's intake tests (2026-10-31)
+## 361. Main's Postgres job was red from §358's intake tests (2026-10-31)
 
 After PR #202 merged, CI's `postgres` job failed on `Main` (and on every PR
 from it) in `tests/test_intake_provider_358.py`: two tests wrote through
@@ -24843,6 +24946,9 @@ job, with no `DATABASE_URL`, passed.
   an old SQLite file by hand - a test of the SQLite file itself - so it takes
   `@pytest.mark.sqlite_file` and is skipped in the Postgres job, like the
   others of its kind.
+- Main fixed the same failure while this branch was open (#204) by marking
+  both tests `sqlite_file`. The merge keeps this version: skipping both left
+  `by_provider` untested under Postgres, the backend production runs on.
 
 Reproduced and checked against a local Postgres 16: before, 2 failed; after,
 3 passed and 1 skipped, the same on repeated runs over the same database.
