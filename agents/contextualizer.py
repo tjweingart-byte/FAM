@@ -294,22 +294,31 @@ _NOT_A_SCORE_AFTER = re.compile(
     r"minutes|percent|per cent|%|degrees|inch|inches|mph|km|stars?|players?|"
     r"defen[cs]e|formation|job|jobs|chance|split|attacks?|memorial|" + _MONTH + r")\b",
     re.I)
-#: Verbs that say how a contest ended. Not bare "lost", "lose", "swept" or
-#: "eliminated": a film, a job, a territory and a tariff have them too
-#: (§363) - only the forms that name the other side.
+#: Verbs that say how a contest ended. **Missing a guessed result is the
+#: worse mistake** (the owner, §364): a guess in a search becomes its
+#: premise, while an innocent search flagged here only falls back to the
+#: question itself. So the bare forms are read too ("lost", "swept",
+#: "eliminated", "win"), and "I lost my job" is flagged - by design.
 _RESULT_VERB = re.compile(
-    r"\b(won(?!')|wins|beat|beats|defeated|defeats|crush|crushed|crushes|rout|routed|"
-    r"routs|edged|topped|lost to|loses to|lost by|clinched|clinches|"
-    r"fell to|victory over|cruised past)\b", re.I)
-#: Words in front of a result verb that make it a question or a prospect.
-#: Not "has" or "have": "Spain has won Euro 2024" is a result (§363).
+    r"\b(won(?!')|win|wins|beat|beats|defeated|defeats|defeat|crush|crushed|crushes|"
+    r"rout|routed|routs|edged|topped|lost|loses|lose|clinched|clinches|clinch|"
+    r"eliminated|swept|sweeps|sweep|advanced|upset|fell to|victory over|cruised past)\b",
+    re.I)
+#: Words right in front of a result verb that make it a question or a
+#: prospect, within three words ("who won", "can the Chiefs beat"); "how
+#: many" may sit further back ("how many games have the Eagles won").
 _ASKING = re.compile(
     r"\b(who|did|does|do|whether|if|can|could|will|would|should|might|may|to|"
-    r"chance|chances|odds|how many|how often)\s+(\w+\s+){0,5}$", re.I)
+    r"chance|chances|odds)\s+(\w+\s+){0,3}$", re.I)
+_HOW_MANY = re.compile(r"\b(how many|how often)\s+(\w+\s+){0,5}$", re.I)
 #: A streak after the verb: "have won four straight", "won 3 in a row".
 _STREAK = re.compile(
     r"^\s*(\w+\s+)?(\d+|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)"
-    r"\s+(straight|in a row|consecutive|games|matches|of|out of)\b", re.I)
+    r"\s+(straight|in a row|consecutive)\b", re.I)
+#: "Eagles 24, Giants 17" - two names each with a number (§364: flagging
+#: "Windows 11, Office 365" too is the accepted cost).
+_NAMED_SCORE = re.compile(r"\b[A-Z][\w.'&]*(?: [A-Z][\w.'&]*)* (\d{1,3}), "
+                          r"(?:[A-Z][\w.'&]*(?: [A-Z][\w.'&]*)*) (\d{1,3})\b")
 
 
 def _is_score(text: str, m) -> bool:
@@ -324,9 +333,15 @@ def has_result(text: str) -> bool:
     text = text or ""
     if any(_is_score(text, m) for m in _SCORE.finditer(text)):
         return True
+    if _NAMED_SCORE.search(text):
+        return True
     for m in _RESULT_VERB.finditer(text):
-        if not _ASKING.search(text[:m.start()]) and not _STREAK.search(text[m.end():]):
-            return True
+        before = text[:m.start()]
+        if _ASKING.search(before) or _HOW_MANY.search(before):
+            continue
+        if _STREAK.search(text[m.end():]):
+            continue
+        return True
     return False
 
 

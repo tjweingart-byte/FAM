@@ -215,7 +215,7 @@ def run_held_out() -> dict:
     tree = seeded_tree()
     result = {}
     for name, place in (("today (resolve_category)", stories.resolve_category),
-                        ("nando, code, no brief", lambda q: categorizer.place(None, q).node)):
+                        ("nando suggests, no brief", lambda q: categorizer.suggest(None, q).node)):
         totals, rows = {"right": 0, "narrower": 0, "broader": 0, "unplaced": 0, "wrong": 0}, []
         for question, label in HELD_OUT:
             node = place(question) or ""
@@ -248,7 +248,7 @@ def run_context() -> dict:
         try:
             today = stories.resolve_category(question)
             prior = categorizer.prior_for(question, context if how == "deeper" else "")
-            nando = categorizer.place(None, question, prior=prior).node
+            nando = categorizer.place(None, question, prior=prior).node   # files (§364)
         finally:
             if added is not None:
                 stories.pool().stories.remove(added)
@@ -270,7 +270,8 @@ def code_places() -> dict:
 
     return {
         "today (resolve_category)": lambda q: stories.resolve_category(q),
-        "nando, code, no brief": lambda q: categorizer.place(None, q).node,
+        "nando suggests, no brief": lambda q: categorizer.suggest(None, q).node,
+        "nando files, no brief": lambda q: categorizer.place(None, q).node,
     }
 
 

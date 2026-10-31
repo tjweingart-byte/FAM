@@ -125,19 +125,19 @@ def test_reading_the_prior_never_raises(tree, monkeypatch):
 
 # ------------------------------------------------------------------ the words may narrow, never move
 def test_the_words_narrow_a_prior_on_its_branch(tree):
-    placed = categorizer.place(Brief(query="q", category="philadelphia eagles"), "q",
+    placed = categorizer.suggest(Brief(query="q", category="philadelphia eagles"), "q",
                                prior=Prior("nfl", "dailyfam"))
     assert placed.node == "philadelphia eagles" and placed.how == "category"
 
 
 def test_the_words_never_move_a_prior_to_another_branch(tree):
-    placed = categorizer.place(Brief(query="q", category="miami heat"),
+    placed = categorizer.suggest(Brief(query="q", category="miami heat"),
                                "Heat grips Miami", prior=Prior("extreme weather", "tile"))
     assert placed.node == "extreme weather" and placed.how == "tile"
 
 
 def test_a_prior_with_no_words_is_the_node(tree):
-    placed = categorizer.place(None, "what about their defense",
+    placed = categorizer.suggest(None, "what about their defense",
                                prior=Prior("philadelphia eagles", "parent"))
     assert placed.node == "philadelphia eagles" and placed.how == "parent"
     assert "philadelphia eagles" in placed.candidates
@@ -145,7 +145,7 @@ def test_a_prior_with_no_words_is_the_node(tree):
 
 def test_the_prior_chooses_the_facet_first(tree):
     # A question phrase on another facet is not even a candidate answer.
-    placed = categorizer.place(None, "Stanley Cup odds", prior=Prior("stock market", "tile"))
+    placed = categorizer.suggest(None, "Stanley Cup odds", prior=Prior("stock market", "tile"))
     assert placed.node == "stock market"
 
 

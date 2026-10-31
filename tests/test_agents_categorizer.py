@@ -40,13 +40,13 @@ def brief(**kw):
 
 # ------------------------------------------------------------------ at the request
 def test_the_briefs_category_words_outrank_a_word_in_the_question(tree):
-    placed = categorizer.place(brief(category="extreme weather", subject="Miami heat wave"),
+    placed = categorizer.suggest(brief(category="extreme weather", subject="Miami heat wave"),
                                "Miami heat wave this week")
     assert placed.node == "extreme weather" and placed.how == "category"
 
 
 def test_the_subject_places_when_the_words_do_not(tree):
-    placed = categorizer.place(brief(category="", subject="Philadelphia Eagles"), "eagles score")
+    placed = categorizer.suggest(brief(category="", subject="Philadelphia Eagles"), "eagles score")
     # "Eagles" is a name that means two things (§358); "score" decides it,
     # and the subject names the team in full.
     assert placed.node == "philadelphia eagles" and placed.how in ("subject", "clash")
@@ -54,35 +54,35 @@ def test_the_subject_places_when_the_words_do_not(tree):
 
 def test_a_question_phrase_on_another_facet_than_the_brief_is_passed_over(tree):
     # The brief says weather; "carolina hurricanes" would be the hockey team.
-    placed = categorizer.place(brief(category="weather"), "hurricanes hitting the Carolina coast")
+    placed = categorizer.suggest(brief(category="weather"), "hurricanes hitting the Carolina coast")
     assert placed.node == "extreme weather"
 
 
 def test_with_no_brief_the_question_places_as_today(tree):
     for question in ("Stanley Cup odds", "why rents keep rising", "tariffs on Chinese steel"):
-        assert categorizer.place(None, question).node == stories.resolve_category(question)
+        assert categorizer.suggest(None, question).node == stories.resolve_category(question)
 
 
 def test_a_facet_from_the_brief_is_broader_never_wrong(tree):
     facet = stories.resolve_category("sports")
-    placed = categorizer.place(brief(category="sports"), "something the tree has no word for")
+    placed = categorizer.suggest(brief(category="sports"), "something the tree has no word for")
     assert placed.node == facet and placed.how == "facet"
 
 
 def test_nothing_true_is_nothing(tree):
-    placed = categorizer.place(brief(), "zxqv blorp")
+    placed = categorizer.suggest(brief(), "zxqv blorp")
     assert placed.node == "" and placed.path == ()
 
 
 def test_the_path_runs_from_the_facet_down(tree):
-    path = categorizer.place(brief(category="philadelphia eagles"), "eagles").path
+    path = categorizer.suggest(brief(category="philadelphia eagles"), "eagles").path
     assert path[-1] == "philadelphia eagles" and path[0] in topics.FACETS
 
 
 def test_placing_never_raises(monkeypatch, tree):
     monkeypatch.setattr(stories, "resolve_category",
                         lambda *a, **k: (_ for _ in ()).throw(RuntimeError("tree gone")))
-    assert categorizer.place(brief(category="x"), "y") == categorizer.NOWHERE
+    assert categorizer.suggest(brief(category="x"), "y") == categorizer.NOWHERE
 
 
 # ------------------------------------------------------------------ a provider's filing
@@ -102,7 +102,7 @@ def game(monkeypatch):
 def test_a_games_provider_filing_is_never_left(tree, game):
     field = categorizer.provider_field(game.query)
     assert field == ("sports",)
-    placed = categorizer.place(brief(category="extreme weather"), game.query, field)
+    placed = categorizer.suggest(brief(category="extreme weather"), game.query, field)
     assert placed.node == "ice hockey" and placed.how == "provider"
     node, how = categorizer.confirm(placed.node, "extreme weather", field)
     assert node == "ice hockey" and how == "kept"
@@ -148,7 +148,7 @@ def test_settle_records_both_decisions_and_moves_the_players_picture(tree, monke
     notes = sg.ScriptNotes()
     notes.caption_key = "k1"
     notes.category = "philadelphia eagles"
-    notes.category_placement = categorizer.place(brief(category="stock market"), "q")
+    notes.category_placement = categorizer.suggest(brief(category="stock market"), "q")
     assert categorizer.settle(notes, "q") == "philadelphia eagles"
     settled = notes.category_settled
     assert {k: settled[k] for k in ("request", "request_how", "node", "how")} == {
@@ -294,6 +294,9 @@ def test_nando_in_code_is_never_wronger_than_today():
     import nando_eval
 
     result = nando_eval.run(nando_eval.code_places())
-    today, nando = result.values()
-    assert sum(nando["totals"].values()) == 40
-    assert nando["totals"]["wrong"] <= today["totals"]["wrong"]
+    today = result["today (resolve_category)"]
+    suggests, files = result["nando suggests, no brief"], result["nando files, no brief"]
+    assert sum(suggests["totals"].values()) == 40
+    assert suggests["totals"]["wrong"] <= today["totals"]["wrong"]
+    # What Nando files without a model or a brief (§364): never wrong.
+    assert files["totals"]["wrong"] == 0

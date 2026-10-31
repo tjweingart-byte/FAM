@@ -69,6 +69,9 @@ class Placement:
     #: Names in the request that mean two things and that nothing around
     #: them decided (`category_collisions`), for C3P0 to ask about.
     ambiguous: tuple = ()
+    #: What code read off the words when it was not solid enough to file
+    #: (§364): shown to the model and logged, never filed by itself.
+    suggestion: str = ""
 
 
 NOWHERE = Placement()
@@ -127,9 +130,56 @@ def path_for(node: str) -> tuple:
         return (node,)
 
 
+#: The steps solid enough to file a node on their own (§364, the owner:
+#: "at the end of the day, we want Nando to decide"). The tap's own filing,
+#: a provider's field, the brief's own category words and the model's pick
+#: from the candidate list. Everything code reads off the raw words - the
+#: tree's phrases, the clash table, the vocabulary, the keyword map,
+#: meaning - only builds the candidate list and the suggestion the model
+#: is shown: three reviews found rules on raw words filing specific wrong
+#: nodes ("boxing day sales" -> boxing) faster than they could be fixed.
+SOLID = frozenset({"picked", "provider", "category", "tile", "bank", "dailyfam", "edition"})
+
+
 def place(brief, query: str = "", field: tuple = (),
           prior: Prior = NO_PRIOR, picked: str = "", unsure: bool = False) -> Placement:
-    """The node this request is truly about, in code. Never raises.
+    """What Nando files at the request (§364): `suggest`'s node only when a
+    solid source decided it (`SOLID`) - or the tap's own filing narrowed
+    by the words on its branch, or the facet the brief's own words name.
+    Otherwise nothing, with the candidates and the suggestion kept for the
+    model and the audit; the writer's category then stands after the
+    episode, as it did before Nando. Never raises."""
+    try:
+        found = suggest(brief, query, field, prior, picked, unsure)
+        how = found.how.split("~")[0]
+        solid = how in SOLID
+        if not solid and found.node and prior.node and prior.source in SOLID:
+            # On the tap's own branch, at or below its node: a narrowing of
+            # a solid filing, which `_narrow` already enforced.
+            solid = found.node == prior.node or prior.node in _branch(found.node)
+        if not solid and how == "facet" and found.node:
+            import stories
+
+            words = " ".join(str(getattr(brief, "category", "") or "").split())
+            named = stories.resolve_category(words) if words else ""
+            solid = bool(named) and _facet(named) == found.node
+        if solid:
+            return found
+        return Placement(node="", path=(), how="suggested" if found.node else "",
+                         candidates=tuple(dict.fromkeys(
+                             ((found.node,) if found.node else ()) + found.candidates)),
+                         confidence=found.confidence, ambiguous=found.ambiguous,
+                         suggestion=found.node)
+    except Exception as exc:  # noqa: BLE001 - a category never costs an episode
+        log.warning("nando could not place %r: %s", query, exc)
+        return NOWHERE
+
+
+def suggest(brief, query: str = "", field: tuple = (),
+            prior: Prior = NO_PRIOR, picked: str = "", unsure: bool = False) -> Placement:
+    """Every step's reading, in order: the node code would file, how and how
+    sure (§356-§363). `place` files it only from a solid source; otherwise
+    it is the suggestion and candidates the model is shown. Never raises.
 
     `field` is the facets a live game's or market's provider filed the
     story under (`provider_field`): Nando never files it anywhere else
@@ -396,6 +446,8 @@ def _prior_for(query: str, context: str, notes) -> Prior:
     if title:
         parent = _place(None, title)
         if parent.node and parent.confidence >= MIN_CONFIDENCE:
+            # Read off the parent's title words: a hint for the model, not a
+            # filing (§364) - `place` never files a "parent" prior alone.
             return Prior(parent.node, "parent")
     return NO_PRIOR
 

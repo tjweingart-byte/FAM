@@ -38,19 +38,19 @@ def test_a_team_whose_name_is_an_everyday_phrase_is_a_clash(tree):
     # §363 reverted the team gate (it unplaced twenty right teams): a seeded
     # full name means the team, and where one is also an everyday phrase it
     # is in the clash table and must win on its cues.
-    assert categorizer.place(None, "Utah jazz festival lineup").node == ""
-    assert categorizer.place(None, "Dallas Cowboys news").node == "dallas cowboys"
+    assert categorizer.suggest(None, "Utah jazz festival lineup").node == ""
+    assert categorizer.suggest(None, "Dallas Cowboys news").node == "dallas cowboys"
 
 
 def test_an_unambiguous_sports_phrase_needs_no_sport_word(tree):
-    assert categorizer.place(None, "Stanley Cup odds").node == "stanley cup"
-    assert categorizer.place(None, "Utah Jazz game tonight").node == "utah jazz"
+    assert categorizer.suggest(None, "Stanley Cup odds").node == "stanley cup"
+    assert categorizer.suggest(None, "Utah Jazz game tonight").node == "utah jazz"
 
 
 def test_c3p0s_pick_is_not_taken_when_he_said_ambiguous(tree):
-    assert categorizer.place(None, "Rangers season preview", picked="new york rangers",
+    assert categorizer.suggest(None, "Rangers season preview", picked="new york rangers",
                              unsure=True).node == ""
-    assert categorizer.place(None, "Rangers season preview",
+    assert categorizer.suggest(None, "Rangers season preview",
                              picked="new york rangers").node == "new york rangers"
 
 
@@ -69,7 +69,7 @@ def test_a_parent_title_is_placed_by_nando_not_by_a_raw_phrase(tree):
 
 
 def test_a_parent_is_overridden_by_the_request_itself(tree):
-    placed = categorizer.place(ei.Brief(query="q", category="extreme weather"), "what next",
+    placed = categorizer.suggest(ei.Brief(query="q", category="extreme weather"), "what next",
                                prior=Prior("philadelphia eagles", "parent"))
     assert placed.node == "extreme weather"
 
@@ -213,9 +213,9 @@ def test_a_store_down_since_boot_is_asked_once_an_interval(signed, monkeypatch):
 
 # ------------------------------------------------------------------ C3P0's answer
 @pytest.mark.parametrize("text, result", [
-    # §363: the comma form and a bare "lost" were dropped as too noisy
-    # ("Windows 11, Office 365", "I lost my job") - known misses.
-    ("Eagles 24, Giants 17", False), ("Eagles lost on Sunday", False),
+    # §364: caught again - missing a guessed result is the worse mistake,
+    # and "Windows 11, Office 365" being flagged is the accepted cost.
+    ("Eagles 24, Giants 17", True), ("Eagles lost on Sunday", True),
     ("Chiefs clinched the division", True), ("October 10-11", False),
     ("Oct 10-12 schedule", False), ("top 10-15 players", False), ("9-11 attacks", False),
     ("a 50-50 chance", False), ("the 4-3 defense", False), ("Boeing 737-800", False),

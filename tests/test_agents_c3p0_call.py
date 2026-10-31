@@ -252,17 +252,17 @@ def test_a_tie_call_still_running_is_cancelled_never_waited_for():
 
 
 def test_the_pick_outranks_the_code_but_never_the_taps_filing(tree):
-    picked = categorizer.place(None, "Heat beat the Celtics", picked="extreme weather")
+    picked = categorizer.suggest(None, "Heat beat the Celtics", picked="extreme weather")
     assert picked.node == "extreme weather" and picked.how == "picked"
-    held = categorizer.place(None, "x", prior=Prior("nfl", "dailyfam"), picked="nba")
+    held = categorizer.suggest(None, "x", prior=Prior("nfl", "dailyfam"), picked="nba")
     assert held.node == "nfl"
-    narrowed = categorizer.place(None, "x", prior=Prior("nfl", "dailyfam"),
+    narrowed = categorizer.suggest(None, "x", prior=Prior("nfl", "dailyfam"),
                                  picked="philadelphia eagles")
     assert narrowed.node == "philadelphia eagles"
 
 
 def test_a_pick_the_tree_lacks_is_ignored(tree):
-    assert categorizer.place(None, "Stanley Cup odds", picked="made up").how != "picked"
+    assert categorizer.suggest(None, "Stanley Cup odds", picked="made up").how != "picked"
 
 
 def _prepare(monkeypatch, brief, notes):

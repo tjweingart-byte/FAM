@@ -1978,7 +1978,14 @@ vocabulary, keyword nodes and their parents, the facets when nothing else)
 goes with C3P0's call, whose pick outranks every code step but the tap's
 own filing; on a tie code could not settle, Nando's own Haiku call
 (`ask_tie`) runs beside the brief and is used only when there is no pick,
-never waited for.
+never waited for. **Nando decides (§364, the owner):** code files a node
+only from a solid source (`categorizer.SOLID`: the tap's own filing, a
+provider's field, the brief's own category words, the model's pick); what
+it reads off the raw words is the suggestion and the candidate list the
+model is shown (`suggest`). Nando's own call runs whenever nothing solid
+will file the request and C3P0 is not choosing - not only on ties - and is
+awaited ahead of the tap. With no answer the writer's category stands.
+Training him continuously is pieces N2-N7.
 **Starting from the tap (§357):** `prior_for` reads what the tap already
 says - a tile's story, a bank topic, a DailyFAM subject from the catalogue,
 the Trending edition's story, the episode a Go Deeper follows - and the

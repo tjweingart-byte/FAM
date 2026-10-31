@@ -24,7 +24,14 @@ def tree():
 
 @pytest.mark.parametrize("question, acceptable", N.CASES)
 def test_never_a_specific_wrong_node(tree, question, acceptable):
-    assert categorizer.place(None, question).node in acceptable
+    # What Nando files (§364) and what code suggests to the model: neither
+    # may ever be a specific wrong node on the corpus.
+    # Filing nothing is always acceptable for `place`: the writer's
+    # category then stands, as before Nando. The suggestion keeps the
+    # corpus's own lists, so a regression in the evidence still shows.
+    filed = categorizer.place(None, question).node
+    assert filed == "" or filed in acceptable
+    assert categorizer.suggest(None, question).node in acceptable
 
 
 @pytest.mark.parametrize("title, acceptable", N.PARENTS)
@@ -46,8 +53,8 @@ def test_views_and_non_views(person, query, asked):
 def test_a_go_deeper_takes_the_briefs_pick_over_its_parent(tree):
     from agents.categorizer import Prior
 
-    placed = categorizer.place(None, "what about their defense",
-                               prior=Prior("philadelphia eagles", "parent"), picked="nfl")
+    placed = categorizer.suggest(None, "what about their defense",
+                                 prior=Prior("philadelphia eagles", "parent"), picked="nfl")
     assert placed.node == "nfl" and placed.how == "picked"
 
 
@@ -93,3 +100,9 @@ def test_a_tie_call_goes_with_a_prepare_that_raises(tree, monkeypatch):
     with pytest.raises(ZeroDivisionError):
         asyncio.run(go())
     assert box["task"].cancelled()
+
+
+@pytest.mark.parametrize("text", N.ACCEPTED_FLAGS)
+def test_innocent_texts_are_flagged_by_design(text):
+    # Missing a guessed result is the worse mistake (the owner, §364).
+    assert contextualizer.has_result(text) is True

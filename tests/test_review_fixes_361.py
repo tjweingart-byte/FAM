@@ -186,8 +186,8 @@ def test_definitions_come_from_memory(tree, monkeypatch):
 
 # ------------------------------------------------------------------ Nando
 def test_a_cue_that_holds_the_name_is_read(tree):
-    assert categorizer.place(None, "New York Giants roster").node == "nfl"
-    assert categorizer.place(None, "Private jets for billionaires").node == "air travel"
+    assert categorizer.suggest(None, "New York Giants roster").node == "nfl"
+    assert categorizer.suggest(None, "Private jets for billionaires").node == "air travel"
 
 
 def test_meaning_is_never_embedded_on_the_listeners_path(tree, monkeypatch):
@@ -196,7 +196,7 @@ def test_meaning_is_never_embedded_on_the_listeners_path(tree, monkeypatch):
     seen = []
     monkeypatch.setattr(category_near, "nearest",
                         lambda text, facet="", inline=1: seen.append(inline) or "")
-    categorizer.place(ei.Brief(query="q", category="zqxv blorp"), "q")
+    categorizer.suggest(ei.Brief(query="q", category="zqxv blorp"), "q")
     assert seen == [0]
 
 

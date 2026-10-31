@@ -160,20 +160,20 @@ def test_the_vocabulary_is_data_not_a_rule_book():
 # ------------------------------------------------------------------ Nando reads it
 def test_nando_places_by_a_wording_after_the_trees_own_phrases(tree, drafted):
     drafted(nodes={"rental market": {"wordings": ["rents"]}})
-    placed = categorizer.place(None, "why rents keep rising")
+    placed = categorizer.suggest(None, "why rents keep rising")
     assert placed.node == "rental market" and placed.how == "wording"
     assert placed.confidence == categorizer.CONFIDENCE["wording"]
 
 
 def test_nando_files_a_tie_under_what_its_nodes_share(tree, drafted):
     drafted(nodes={"nba": {"wordings": ["hoops"]}, "wnba": {"wordings": ["hoops"]}})
-    placed = categorizer.place(None, "hoops tonight")
+    placed = categorizer.suggest(None, "hoops tonight")
     assert placed.how == "shared" and placed.node in ("basketball", "sports")
 
 
 def test_a_named_thing_places_its_node(tree, drafted):
     drafted(entities={"taylor swift": {"node": "live touring", "kind": "person"}})
-    placed = categorizer.place(None, "Taylor Swift tour dates")
+    placed = categorizer.suggest(None, "Taylor Swift tour dates")
     assert placed.node == "live touring" and placed.how == "entity"
 
 

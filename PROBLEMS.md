@@ -25510,3 +25510,65 @@ Tests: `tests/test_nando_corpus_363.py` (the 124 cases; a Go Deeper takes
 the brief's pick over its parent; an unconfirmed hold not kept for ever; a
 tie call cancelled with a prepare that raises), and the §362 tests updated
 where this round reverses them.
+
+## 364. Nando decides: code builds the shortlist, the model chooses, and the result check catches every guess (2026-10-31)
+
+A fourth reviewer wrote 369 questions of their own and found 86 specific
+wrong nodes - 22 from §363's changes, 64 older, all of them hand-written
+rules on raw words ("boxing day sales" -> boxing, "Detroit lions at the
+zoo" -> the NFL team, "Tottenham Spurs game" -> the San Antonio Spurs,
+"tennis elbow" -> tennis). Three rounds had shown the rules do not
+converge. The owner, asked how Nando should decide: "at the end of the day,
+we want Nando to decide" - and asked for comprehensive training that keeps
+going as the tree grows (pieces N1-N7, starting here).
+
+**What Nando files** (`categorizer.place`) now comes only from a solid
+source (`SOLID`): the tap's own filing (a tile's story, a bank topic, a
+DailyFAM subject, an edition's story - which the words may narrow on its
+branch), a provider's field, the brief's own category words (or the facet
+they name), and the model's pick from the candidate list (C3P0's call, or
+Nando's own). Everything code reads off the raw words - the tree's
+phrases, the clash table, the vocabulary, the keyword map, meaning - is
+`suggest`: the suggestion and the candidates the model is shown, logged,
+never filed by itself. A Go Deeper's parent title is a suggestion too.
+With no solid source and no pick, Nando files nothing and the writer's
+category stands after the episode, as before Nando.
+
+**Nando's own call** (`ask_tie`, Haiku 5.5, his ceilings) now runs whenever
+nothing solid will file the request and C3P0 is not choosing for him - not
+only on ties. This widens the owner's §346 decision ("Haiku on ties"),
+because the owner now wants Nando to decide; about 0.01 cents a call. On
+the tap it runs beside the brief and is never waited for; ahead of the tap
+(prefetch, the editions) nobody waits, so it is awaited in `prepare`.
+
+**The result check** (the owner's other answer: missing a guessed result is
+the worse mistake). The bare forms are read again ("lost", "swept",
+"eliminated", "win", "defeat"), the comma score ("Eagles 24, Giants 17"),
+"have/has won" unless a streak ("four straight") follows, and the asking
+window is three words again ("how many" five). So innocent texts are
+flagged by design - "I lost my job", "Has Spain ever won the World Cup",
+"Windows 11, Office 365" - and each only sends that search back to the
+question itself. The corpus lists both: every result form that must be
+caught, and the accepted flags.
+
+**Measured, here, with no model and no key.** On the forty typed
+questions what Nando *files* is now nothing: 0 right, 0 wrong, 40 unplaced
+- correctly, since without a model he has no solid source. What code
+*suggests* is unchanged (20 right, 1 broader, 18 unplaced, 1 wrong). The
+taps: 10 of 12 filed right, the two Go Deepers now suggestions. The corpus
+(both what is filed and what is suggested) 0 failures. How well Nando
+decides with his model is measurable only with a key:
+
+    AGENTS=1 CONTEXTUALIZER=1 CATEGORIZER=1 python tools/nando_eval.py --with-brief
+
+and, once N3 exists, against the answer key.
+
+**Latency.** None in front of the first word: his call runs beside the
+brief, never waited for; ahead of the tap it is awaited where nobody waits.
+
+Tests: `tests/test_nando_decides_364.py` (raw words a suggestion, never a
+filing; the brief's words and their facet solid; the tap's filing solid and
+narrowed; a Go Deeper parent alone a suggestion; the model's pick solid;
+his own call when nothing solid will file, none when C3P0 chooses or the
+tap files it; awaited ahead of the tap), the corpus split into what is
+filed and what is suggested, and the accepted result flags.

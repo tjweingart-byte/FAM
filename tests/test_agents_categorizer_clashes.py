@@ -29,7 +29,7 @@ def tree():
 
 
 def node(question, brief=None, **kw):
-    return categorizer.place(brief, question, **kw)
+    return categorizer.suggest(brief, question, **kw)
 
 
 # ------------------------------------------------------------------ the table
@@ -184,7 +184,7 @@ def test_the_held_out_clashes_place_better_than_today_and_never_wrong():
     import nando_eval
 
     result = nando_eval.run_held_out()
-    today, nando = result["today (resolve_category)"], result["nando, code, no brief"]
+    today, nando = result["today (resolve_category)"], result["nando suggests, no brief"]
     assert len(nando_eval.HELD_OUT) == 20
     assert nando["totals"]["wrong"] == 0
     assert nando["totals"]["right"] > today["totals"]["right"]
