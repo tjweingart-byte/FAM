@@ -379,3 +379,25 @@ def test_the_before_deployment_review_puts_post_episode_and_comment_side_by_side
     for column in ("Original post", "Episode", "Proposed comment", "Relevance", "Reviewer"):
         assert column in html
     assert "x.com/drjane/status/42" in html
+
+
+def test_a_read_in_code_never_claims_the_author_test_passed(monkeypatch):
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv("ANTHROPIC_API_KEYS", raising=False)
+
+    async def searcher(query, *, max_results, since):
+        return [_post("1")]
+    asyncio.run(X.run(FakeCache([EPISODE]), now=NOW, searcher=searcher))
+    [card] = X.store().all()
+    assert card["author_test"] is None
+
+
+def test_match_again_never_changes_an_approved_reply(client, monkeypatch):
+    import app as appmod
+
+    _card(X.QUESTION_ONLY, proposed={"title": "T", "scope": "", "query": EPISODE["query"]})
+    assert client.post("/api/admin/x/decide", headers=ADMIN, json={
+        "post_id": "1", "action": "approve", "verified": True}).status_code == 200
+    monkeypatch.setattr(appmod, "SCRIPT_CACHE", FakeCache([EPISODE]))
+    r = client.post("/api/admin/x/match", headers=ADMIN, json={"post_id": "1"})
+    assert r.status_code == 409 and "approved" in _detail(r)

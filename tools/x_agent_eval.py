@@ -89,26 +89,40 @@ async def judge(cache, cand: X.Candidate) -> dict:
 
 async def from_x(cache, n: int, max_reads: int) -> list:
     """`n` posts X's search finds for the kept episodes, screened the way a
-    run screens them - one per author, no reply, no grief, no flame war."""
+    run screens them - its window and engagement floor, one per author, no
+    reply, no grief, no flame war - each with the replies a run would read."""
+    import config
+
     ok, why = X.available()
     if not ok:
         raise SystemExit(f"Cannot search X: {why}.")
     now = time.time()
+    window = config.settings.x_threads_window_hours
+    floor = config.settings.x_threads_min_engagement
     seeds = [s for s in X.seeds(cache, trending=X.trending_now()) if s.search()]
     found, reads = [], 0
     for seed in seeds:
         if reads + 10 > max_reads:
             break
-        posts = await X.search(seed.search(), max_results=10, since=now - 24 * 3600)
+        posts = await X.search(seed.search(), max_results=10, since=now - window * 3600)
         reads += len(posts)
-        found.extend(p for p in posts if not X.screen(p, now, window_hours=24, min_engagement=0))
+        found.extend(p for p in posts
+                     if not X.screen(p, now, window_hours=window, min_engagement=floor))
     out, authors = [], set()
     for p in found:
-        if p.author not in authors:
-            authors.add(p.author)
-            out.append((p, []))
+        if p.author in authors:
+            continue
+        authors.add(p.author)
+        replies = []
+        if p.replies and config.settings.x_threads_reply_reads and reads + 10 <= max_reads:
+            under = await X.search(X.replies_query(p), max_results=10,
+                                   since=max(p.created_at - 60, now - window * 3600))
+            reads += len(under)
+            replies = X.thread_replies(p, under)
+        out.append((p, replies))
         if len(out) >= n:
             break
+    print(f"{reads} X reads")
     return out
 
 
@@ -139,7 +153,7 @@ def page(rows: list) -> str:
 <td>{ep}</td>
 <td>{e(r['reply']) if r['reply'] else '<i>none</i>'}{''.join(f'<div class=flag>{e(f)}</div>' for f in flags)}</td>
 <td><b>{e(r['relevance'])}/5</b> {e(X.RELEVANCE.get(r['relevance'] or 0, ''))}<p>{e(r['why'])}</p>
-{'' if r['author_test'] else '<div class=flag>fails the original-author test</div>'}
+{'<div class=flag>fails the original-author test</div>' if r['author_test'] is False else '<div class=flag>author test not run (read in code)</div>' if r['author_test'] is None else ''}
 <p><b>{e(X.RECOMMENDATIONS.get(r['recommendation'], r['recommendation']))}</b></p>
 {f'<small>{e(r["dropped"])}</small>' if r['dropped'] else ''}</td>
 <td class=rev>Agree / disagree:<br><br>Better comment:<br><br></td>

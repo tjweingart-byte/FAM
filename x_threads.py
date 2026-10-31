@@ -1011,7 +1011,9 @@ class Verdict:
     #: `relevance=CODE_RELEVANCE`, so code never links on its own word.
     relevance: int = EPISODE_RELEVANCE
     relevance_why: str = ""
-    author_test: bool = True
+    #: The original-author test: True passed, False failed (a hard gate),
+    #: None not run - a read in code cannot ask it.
+    author_test: Optional[bool] = True
     central: str = ""
     recommendation: str = ""
     #: `{title, scope, query}` of an episode that should exist, or None.
@@ -1032,7 +1034,7 @@ def _code_verdict(options, text: str, why: str, *, episode_fits: bool = True) ->
                    read=OI.code_read(text, options, why=why).as_dict(),
                    relevance=CODE_RELEVANCE, recommendation=RECOMMEND_COMMENT,
                    relevance_why="not judged by a model, so a comment at most",
-                   author_test=True)
+                   author_test=None)
 
 
 def _proposal(body: dict) -> Optional[dict]:
@@ -1139,7 +1141,7 @@ def apply_verdict(cand: Candidate, verdict: Verdict) -> str:
     if not verdict.same_subject:
         return verdict.why or "the post is about something else"
     # The guardrails' hard gates (§366), whatever the score.
-    if not verdict.author_test:
+    if verdict.author_test is False:
         return ("the original author would not see why this relates to their post"
                 + (f": {verdict.relevance_why or verdict.why}"
                    if (verdict.relevance_why or verdict.why) else ""))
@@ -1422,7 +1424,10 @@ def _assessed(assess: dict, kind: str) -> dict:
     return {"relevance": relevance,
             "relevance_label": RELEVANCE.get(relevance, "Not scored"),
             "relevance_why": assess.get("relevance_why") or "",
-            "author_test": assess.get("author_test", True) is not False,
+            # True passed, None not run (read in code); a failed one is never
+            # a card, only a rejection.
+            # A card from before §366 was never asked: not run, never "passed".
+            "author_test": assess.get("author_test"),
             "central": assess.get("central") or "",
             "recommendation": recommendation,
             "recommendation_label": RECOMMENDATIONS.get(recommendation, recommendation),
@@ -1704,6 +1709,9 @@ def attach_written(cache, post_id: str, held: Optional[Store] = None) -> dict:
     card = held.get(post_id)
     if card is None:
         raise KeyError(post_id)
+    if card.get("status") == APPROVED:
+        # What was handed to X is what was approved; it never changes under it.
+        raise LookupError("This reply is approved. Put it back to waiting first.")
     if not card.get("proposed"):
         raise LookupError("This card proposes no episode.")
     seed = find_written(cache, card)

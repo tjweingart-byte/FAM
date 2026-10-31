@@ -216,6 +216,9 @@
     var angle = k.read && k.read.angle, rows = [];
     if (k.central) rows.push(["Central message", k.central]);
     if (angle) rows.push(["Opportunity", angle]);
+    rows.push(["Author test", k.author_test === false ? "Fails: the author would not see why this relates"
+      : k.author_test == null ? "Not run (read in code): judge it yourself"
+      : "Passes: the author would see at once why this relates"]);
     rows.push(["Relevance", (k.relevance ? k.relevance + "/5 · " + k.relevance_label : "Not scored")
       + (k.relevance_why ? " - " + k.relevance_why : "")]);
     return '<dl class="judge">' + rows.map(function (r) {
