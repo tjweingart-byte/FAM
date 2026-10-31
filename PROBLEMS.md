@@ -26020,6 +26020,24 @@ What to try next, one at a time, each measured: the vocabulary's matches as
 plain candidates without the "code's reading" hint; definitions only, no
 wordings; wordings only for named things.
 
+**The three experiments, measured** (two runs each, right / unplaced /
+wrong of 40; no vocabulary is 35-36 / 0-1 / 2-3):
+
+| | right | unplaced | wrong |
+|---|---|---|---|
+| A: cleaned draft, code's reading not shown as a hint | 31, 31 | 5, 5 | 2, 1 |
+| B: definitions and exclusions only, no wordings | 32, 33 | 2, 3 | 3, 1 |
+| C: named things, definitions and exclusions | 32, 33 | 3, 2 | 3, 2 |
+
+None helps; even B, which matches nothing in the words, costs three or
+four. The likely cause is in `contextualizer.candidate_block`: with the
+whole tree on the list (§384), every one of its 303 lines carries its
+drafted definition and its exclusion - about 12,000 more words for C3P0's
+search call to read - and the exclusions ("not about ...") make "none" the
+easier answer (unplaced rises from 0-1 to 2-5). The draft stays pending
+and is not recommended. Worth trying only if wanted: definitions on code's
+own matches alone, with no exclusions.
+
 **Found on the way:** `tools/` holds its own `trending_bank.py`, so a test
 that puts `tools/` first on the import path shadows the real module; the
 new test loads the tool from its file instead.
