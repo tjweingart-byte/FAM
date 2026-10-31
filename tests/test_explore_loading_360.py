@@ -56,4 +56,5 @@ def test_steps_have_no_clock_but_the_show_threshold():
 
 def test_a_stopped_card_clears_its_steps():
     assert "reelStepsRun.done()" in _body(PAGE, "stopReelProgress")
-    assert "reelStepsRun.done()" in _body(PAGE, "renderReel")
+    # A redraw clears another card's steps, never its own still loading.
+    assert "reelStepsRun.ep !== ep) reelStepsRun.done()" in _body(PAGE, "renderReel")

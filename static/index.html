@@ -20478,7 +20478,9 @@
     drawReelStats();
     paintReelAsk();
     drawReelPicture(ep);
-    if(reelStepsRun) reelStepsRun.done();
+    // Another card's steps go; this card's stay, since coming back to
+    // Explore redraws a card whose audio may still be on its way.
+    if(reelStepsRun && reelStepsRun.ep !== ep) reelStepsRun.done();
     resetReelCaptions();
     document.getElementById("reelHint").style.visibility = "visible";
   }
@@ -20776,6 +20778,7 @@
       draw();
     }, REEL_STEPS_AFTER_MS);
     var run = {
+      ep: ep,
       mark: function(stage){
         if(audioOwner !== "reel"){ run.done(); return; }
         var i = stage === "found" ? 1 : stage === "arriving" ? 2 : at;
