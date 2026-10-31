@@ -1847,6 +1847,16 @@
     font-family:'Geist', sans-serif; font-size:9px; line-height:1.2;
     white-space:nowrap; background:var(--copper); color:var(--ink);
     padding:2px 6px; border-radius:4px; font-weight:600; }
+  /* Faces, the sources pill in miniature: the same dark pill, overlapped
+     marks and a copper "+N". */
+  .seed-card .seed-friends.has-faces{ display:flex; align-items:center; gap:5px;
+    background:rgba(42,37,48,0.88); color:var(--copper); padding:3px 7px 3px 3px;
+    border-radius:999px; font-family:'Geist Mono', monospace; font-size:10px;
+    border:1px solid rgba(237,230,214,0.18); }
+  .seed-friends.has-faces .friend-face{ width:22px; height:22px; font-size:9px; }
+  .seed-friends.has-faces .src-marks .src-mark{ border-color:rgba(42,37,48,0.88); }
+  .seed-friends.has-faces .src-mark img{ opacity:0; }
+  .seed-friends.has-faces:not(:has(.src-count)){ padding-right:3px; }
   /* Room for both on a narrow card: the subject gives way, never the count. */
   .seed-thumb.has-friends .seed-tag{ max-width:calc(100% - 112px); overflow:hidden;
     text-overflow:ellipsis; white-space:nowrap; }
@@ -13727,14 +13737,60 @@
       + (t && t.friends_listened > 0 ? ' has-friends' : '') + '">'
       + seedThumbSVG(t && t.icon) + img;
   }
-  // "7 friends listened" (the owner's 10.31 notebook): social proof, bottom
-  // right of the picture, opposite the subject. The server counts mutual
-  // follows only and sends nothing for none, so a card never says "0".
+  // **Who of your friends listened** (the owner's 10.31 notebook; faces in
+  // place of "N friends listened" at the owner's direction): social proof,
+  // bottom right of the picture, opposite the subject, drawn the way the
+  // player's sources are - three overlapped faces, then "+N". The server
+  // lists each friend's face once per response (`friend_faces`) and a tile
+  // carries indexes into it; they are resolved into `FRIEND_FACE_BOOK` here so
+  // a picture rides once however many cards it is on. Mutual follows only,
+  // and nothing for none, so a card never shows an empty row.
+  var FRIEND_FACE_BOOK = {};
+  function attachFriendFaces(data){
+    var faces = (data && data.friend_faces) || [];
+    var keys = faces.map(function(f){
+      var k = "@" + (f.handle || f.name || "");
+      FRIEND_FACE_BOOK[k] = f;
+      return k;
+    });
+    function mark(t){
+      if(!t || !Array.isArray(t.friends_faces)) return;
+      t.friendKeys = t.friends_faces.map(function(i){ return keys[i]; })
+        .filter(function(k){ return k && FRIEND_FACE_BOOK[k]; });
+    }
+    ((data && data.sections) || []).forEach(function(sec){
+      (sec.topics || []).forEach(mark);
+    });
+    ((data && data.topics) || []).forEach(mark);
+    ((data && data.groups) || []).forEach(function(g){ (g.topics || []).forEach(mark); });
+  }
+  function friendFaceHtml(f){
+    var label = (f.name || f.handle || "a friend") + " listened";
+    return '<span class="src-mark friend-face" title="' + escapeHtml(label) + '"'
+      + ' style="background:' + personHue(f.handle || f.name) + ';">'
+      + escapeHtml(deriveInitials(f.name || f.handle || "?"))
+      + (f.avatar ? '<img src="' + escapeHtml(f.avatar) + '" alt=""'
+          + ' onload="this.style.opacity=1" onerror="this.remove()">' : '')
+      + '</span>';
+  }
   function seedFriendsHtml(t){
     var n = Math.floor(Number(t && t.friends_listened)) || 0;
     if(!n || n < 1) return '';
-    return '<span class="seed-friends">' + n + (n === 1 ? ' friend' : ' friends')
-      + ' listened</span>';
+    var faces = ((t && t.friendKeys) || []).map(function(k){
+      return FRIEND_FACE_BOOK[k];
+    }).filter(Boolean).slice(0, 3);
+    // An installed copy of a response without faces (an older server, a
+    // remembered page) keeps the words rather than drawing nothing.
+    if(!faces.length){
+      return '<span class="seed-friends">' + n + (n === 1 ? ' friend' : ' friends')
+        + ' listened</span>';
+    }
+    var label = n === 1 ? (faces[0].name || faces[0].handle || "A friend") + " listened"
+                        : n + " friends listened";
+    return '<span class="seed-friends has-faces" aria-label="' + escapeHtml(label) + '">'
+      + '<span class="src-marks">' + faces.map(friendFaceHtml).join("") + '</span>'
+      + (n > faces.length ? '<span class="src-count">+' + (n - faces.length) + '</span>' : '')
+      + '</span>';
   }
   function seedImgFailed(el){
     var box = el.parentNode;
@@ -14199,6 +14255,7 @@
           if(sectionState.seen.indexOf(t.id) < 0) sectionState.seen.push(t.id);
         });
         d.cycles = cycles;
+        attachFriendFaces(d);
         renderSection(d);
         document.getElementById("sectionScroll").scrollTop = 0;
       })
@@ -14786,6 +14843,7 @@
         myfamTasteSource = data.taste_source || "taste";
         myfamSampleNote = data.sample ? (data.sample_note || "") : "";
         if(famOffline) setOffline(false);
+        attachFriendFaces(data);
         renderMyFamFeed(data.sections);
         // Remembered only once it has drawn, so a page that fails to draw
         // is never the one an offline open falls back to.
@@ -14800,6 +14858,7 @@
           setOffline(true);
           myfamTasteSource = last.taste_source || "taste";
           myfamSampleNote = "";
+          attachFriendFaces(last);
           renderMyFamFeed(last.sections);
           return;
         }

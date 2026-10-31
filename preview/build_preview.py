@@ -227,11 +227,19 @@ def load_fixtures() -> dict:
         if row["key"] == "most_played":
             for index, tile in enumerate(row["topics"]):
                 tile["cached"] = index < 3
-        # "N friends listened" (§363) on a few cards, as `/api/myfam` marks
-        # them: a count on the tiles a friend played, no field on the rest.
+        # Friends' faces (§363, §366) on a few cards, as `/api/myfam` marks
+        # them: a count and up to three face indexes on the tiles a friend
+        # played, no field on the rest.
         if row["key"] in ("from_history", "followers"):
             for index, tile in enumerate(row["topics"][:3]):
                 tile["friends_listened"] = (7, 1, 3)[index]
+                tile["friends_faces"] = ([0, 1, 2], [3], [1, 2, 0])[index]
+    myfam["friend_faces"] = [
+        {"name": "Maya Ortiz", "handle": "maya", "avatar": ""},
+        {"name": "Jonah Reed", "handle": "jonah", "avatar": ""},
+        {"name": "Priya Shah", "handle": "priya", "avatar": ""},
+        {"name": "Sam Cole", "handle": "samc", "avatar": ""},
+    ]
 
     # Through the real `mixes.clean_items`, so a fixture mix is exactly the
     # shape the server stores - followed subjects, one narrowed to a team and

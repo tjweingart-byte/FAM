@@ -25065,3 +25065,20 @@ a missing icon leaves the initials rather than a blank circle. Only the three
 shown are asked for. This reverses the strip's "no network request" note
 (the popup's reason - no referrer, nothing about the episode - is what now
 holds for both); the popup is unchanged.
+
+## 366. A card shows the friends who listened, not a count (2026-10-31)
+
+§363 put "N friends listened" on DailyFAM's cards as a count, never a name.
+At the owner's direction a card now shows *who*: the friends' faces, drawn
+the way the player's sources are - up to three overlapped circles (the
+picture, else initials on the person's colour), newest listen first, then a
+copper "+N". `topics.friends_who_listened` returns the friend ids per tile,
+newest first; `friends_listened` is now its count. `app._mark_friends_listened`
+sets `friends_faces` (indexes) beside the old `friends_listened` and returns a
+per-response `friend_faces` list of name, handle and picture - listed once,
+because a picture is up to `MAX_AVATAR` and one friend can be on a dozen
+cards - which `/api/myfam` and `/api/myfam/section` send. Never a user id:
+the faces are what a friend's profile already shows a friend. The client
+resolves them in `attachFriendFaces` (feed, remembered feed, View more); a
+response without faces still draws the words. Rule `friends-listened` is
+rewritten. **Pinned by** `tests/test_friend_faces_366.py`.

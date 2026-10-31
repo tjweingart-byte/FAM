@@ -621,15 +621,21 @@
    rather than shown and taken away, because a control that appears and then
    vanishes reads as a fault.
 <!-- rule:friends-listened -->
-**"N friends listened" on a card** (PROBLEMS.md §363, the owner's 10.31
+**Friends' faces on a card** (PROBLEMS.md §363, the owner's 10.31
 notebook: social proof makes somebody "more inclined, more comfortable
-listening to an episode"). Every DailyFAM rail card and View more card whose
-episode a **friend** played in `FRIENDS_WINDOW` carries the count,
-bottom-right of the picture, opposite the subject. Friends are the mutual
-case (`social.friends`), never `circle_of`: the card says friends. People,
-not plays; by question as well as tile id (`topics.friends_listened`). A
-count, never a name or an id; a tile with none carries no field, so no card
-ever says "0 friends listened". Guests have no friends and get none.
+listening to an episode"; §366, faces in place of the count at the owner's
+direction). Every DailyFAM rail card and View more card whose episode a
+**friend** played in `FRIENDS_WINDOW` shows who, bottom-right of the picture,
+opposite the subject: drawn the way the player's sources are - up to three
+overlapped faces (picture, else initials on `personHue`), newest listen
+first, then "+N" (`FRIEND_FACES`). Friends are the mutual case
+(`social.friends`), never `circle_of`. People, not plays; by question as well
+as tile id (`topics.friends_who_listened`). Each face is name, handle and
+picture only - what a friend's profile already shows a friend - listed once
+per response (`friend_faces`, tiles carry indexes), **never an id**; the
+count (`friends_listened`) stays for installed clients and the "+N". A tile
+with none carries no field, so no card shows an empty row. Guests have no
+friends and get none.
 
 <!-- rule:op-follow-graph -->
 7. ~~**"What your followers are listening to" has no follow graph behind it.**~~
