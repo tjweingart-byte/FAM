@@ -106,6 +106,9 @@ def test_a_dormant_mix_is_not_written_but_a_shared_subject_is(on):
         "other subject is not")
     assert active.is_active(time.time(), 48)
     assert daily_edition.dormant_count(on) == 1
+    every = daily_edition.subjects(on, include_dormant=True)
+    assert len(every) == 2 and every[0]["mixes"] == 2, (
+        "a follower count still counts the dormant mix")
 
 
 def test_a_play_keeps_a_mix_active_and_an_old_one_lapses(on):

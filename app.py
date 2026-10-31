@@ -7925,7 +7925,10 @@ def _mix_counts() -> dict:
     """How many mixes follow each of today's DailyFAM questions, by the
     words - the words are an edition episode's cache key (§143)."""
     try:
-        return {s["query"]: s["mixes"] for s in daily_edition.subjects(MIXES)}
+        # Every mix, dormant ones included (§359): this counts followers,
+        # not what the edition writes.
+        return {s["query"]: s["mixes"]
+                for s in daily_edition.subjects(MIXES, include_dormant=True)}
     except Exception:  # noqa: BLE001 - a count is never worth a failure
         log.exception("could not count mixes for the category pages")
         return {}

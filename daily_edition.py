@@ -217,7 +217,8 @@ def is_active(mix, now: Optional[float] = None) -> bool:
     return True if check is None else bool(check(now, active_hours()))
 
 
-def subjects(mix_store, now: Optional[float] = None) -> list:
+def subjects(mix_store, now: Optional[float] = None,
+             include_dormant: bool = False) -> list:
     """Every distinct thing a DailyFAM tap could send today from an **active**
     mix, most-followed first. `[{"query", "mixes", "title"}]`.
 
@@ -230,7 +231,8 @@ def subjects(mix_store, now: Optional[float] = None) -> list:
     edited in `DAILY_EDITION_ACTIVE_HOURS` (48) is written when it is next
     opened (`schedule_open`), not every morning. Its subjects still get
     written when any active mix follows them - that is the dedup above -
-    but it never pulls in the rest of itself.
+    but it never pulls in the rest of itself. `include_dormant` counts
+    every mix, for a reader that wants followers rather than what to write.
     """
     from cache import is_shareable
 
@@ -238,7 +240,7 @@ def subjects(mix_store, now: Optional[float] = None) -> list:
     counts: dict = {}
     titles: dict = {}
     for mix in mix_store.all_mixes():
-        if not is_active(mix, now):
+        if not include_dormant and not is_active(mix, now):
             continue
         seen_here: set = set()
         for item in getattr(mix, "items", []) or []:
