@@ -82,6 +82,7 @@ which is the go/no-go for all of it.
 - **Local or hosted voices?** Changes the cost model more than the model choice
   does.
 <!-- rule:dec-prefetch -->
+> **Current (PROBLEMS.md §359):** answered for the rails by the owner rather than by a hit rate: the rails edition writes every held story whole twice a day, because the cache key is per story, not per listener, so the cost is bounded by the pool. `PREFETCH_LEVEL` is unchanged and still governs the draw-scheduled cycle.
 - **How much to prefetch?** *Half answered (§105), and the half that is left is
   the expensive one.* What schedules a cycle is decided: myFAM, on the draw,
   per listener, at most one every `PREFETCH_CYCLE_SECONDS`. What is warmed is

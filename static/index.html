@@ -11692,6 +11692,7 @@
     }
     renderMixBody(m);
     navigate("mixdetail");
+    noteMixOpen(m.id, false);
     if(!pushState) loadPushState(repaintMixWhen);
     // The recommendations are drawn from the catalogue; if it has not
     // arrived yet, draw them when it does rather than leaving the space empty.
@@ -11699,6 +11700,20 @@
       var again = mixById(currentMixId);
       if(again && again.id === id) rerenderMixKeepScroll(again);
     });
+  }
+
+  // Tells the server the mix was opened, or one of its episodes started
+  // (§359). Opening a mix nobody has played for 48 hours writes its episodes
+  // while the list is read; a play keeps it in the morning edition. Never
+  // waited on: the screen and the player go on whatever it answers.
+  function noteMixOpen(id, played){
+    if(!id) return;
+    try {
+      fetch("/api/mixes/" + encodeURIComponent(id) + "/open", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ played: !!played })
+      }).catch(function(){});
+    } catch(e) {}
   }
 
   function renderMixBody(m){
@@ -12309,6 +12324,7 @@
       endMixQueue();
     } else if(mixPlay){
       mixPlay.key = key;
+      noteMixOpen(mixPlay.id, true);
     }
     generate(key);
   }

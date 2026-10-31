@@ -87,6 +87,7 @@ import stories as stories_mod
 import trending as trending_mod
 import trending_bank
 import daily_edition
+import rails_edition
 from live_facts import report as live_facts_report
 from research import NoEvidence, ResearchUnavailable, report as research_report
 import local_news as local_news_mod
@@ -621,6 +622,28 @@ def _write_mix_ahead(mix, before=None) -> None:
         log.exception("daily edition: could not schedule a saved mix")
 
 
+def _rails_edition_report() -> dict:
+    """`rails_edition.report()`, never able to break the health page."""
+    try:
+        return rails_edition.report()
+    except Exception as exc:  # noqa: BLE001 - health must always answer
+        return {"enabled": bool(settings.rails_edition), "error": str(exc)}
+
+
+def _write_mix_on_open(mix) -> bool:
+    """A dormant mix was opened: write its episodes now, in the background
+    (§359). A mix the edition is keeping (played in the last 48 hours) is
+    already written and spends nothing. Never awaited, never raises."""
+    try:
+        if daily_edition.is_active(mix):
+            return False
+        return daily_edition.schedule_open(mix, generator=_EDITION_WRITER,
+                                           cache=SCRIPT_CACHE)
+    except Exception:  # noqa: BLE001 - opening a mix must not fail on a guess
+        log.exception("daily edition: could not schedule an opened mix")
+        return False
+
+
 def _trending_bank_report() -> dict:
     """`trending_bank.report()`, never able to break the health page."""
     try:
@@ -753,6 +776,13 @@ async def lifespan(_: FastAPI):
         _BACKGROUND.add(asyncio.create_task(daily_edition.run_forever(
             MIXES, generator=_EDITION_WRITER, cache=SCRIPT_CACHE,
             initial_delay=2 * settings.boot_stagger_seconds)))
+    # The rails edition (§359): every story the pool holds, written whole at
+    # 05:00 and 17:00 Eastern, so a rail tap is a cache hit. Started after
+    # the story sweep and the mixes' edition, so boot writes a full pool.
+    if settings.rails_edition:
+        _BACKGROUND.add(asyncio.create_task(rails_edition.run_forever(
+            generator=_EDITION_WRITER, cache=SCRIPT_CACHE,
+            initial_delay=3 * settings.boot_stagger_seconds)))
     # "Your mix is ready" at each mix's listen time, once its edition is
     # written (`push.py`). Started only where it can deliver; a server
     # without keys logs why once and keeps every listen time for later.
@@ -1996,6 +2026,7 @@ async def health(request: Request) -> dict:
         # and how many pictures are live, waiting for a person, or failed.
         "thumbnails": thumbnails_mod.health(),
         "daily_edition": _daily_edition_report(),
+        "rails_edition": _rails_edition_report(),
         # The ranking vocabulary, and how much of it this deployment grew
         # rather than inherited. Worth reporting for the reason every other
         # optional layer here is: a tree that had stopped growing, or one
@@ -6357,6 +6388,33 @@ async def delete_mix(mix_id: str, request: Request):
     return {"ok": True}
 
 
+class MixOpenRequest(BaseModel):
+    #: True when an episode of the mix has started, not just its screen.
+    played: bool = False
+
+
+@app.post("/api/mixes/{mix_id}/open")
+async def open_mix(mix_id: str, request: Request,
+                   req: Optional[MixOpenRequest] = None):
+    """The mix's screen was opened, or one of its episodes started (§359).
+
+    Opening a **dormant** mix - not played, made or edited in
+    `DAILY_EDITION_ACTIVE_HOURS` - writes its episodes in the background, so
+    the seconds spent looking at the list are the writer's. A play stamps
+    the mix (`played_at`), which is what keeps it in the morning edition.
+    Never waits on a model call."""
+    _read_limit(request)
+    account = _require_account(request)
+    mix = MIXES.get(account, mix_id)
+    if mix is None:
+        raise HTTPException(status_code=404, detail="That mix no longer exists.")
+    dormant = not daily_edition.is_active(mix)
+    writing = _write_mix_on_open(mix) if dormant else False
+    if req is not None and req.played:
+        MIXES.note_played(account, mix_id)
+    return {"ok": True, "dormant": dormant, "writing": bool(writing)}
+
+
 def _may_be_notified(user_id: str) -> bool:
     """Whether "your mix is ready" may reach this account: always, unless the
     waitlist is running and they are not let in yet (WAITLIST.md)."""
@@ -7880,7 +7938,10 @@ def _mix_counts() -> dict:
     """How many mixes follow each of today's DailyFAM questions, by the
     words - the words are an edition episode's cache key (§143)."""
     try:
-        return {s["query"]: s["mixes"] for s in daily_edition.subjects(MIXES)}
+        # Every mix, dormant ones included (§359): this counts followers,
+        # not what the edition writes.
+        return {s["query"]: s["mixes"]
+                for s in daily_edition.subjects(MIXES, include_dormant=True)}
     except Exception:  # noqa: BLE001 - a count is never worth a failure
         log.exception("could not count mixes for the category pages")
         return {}

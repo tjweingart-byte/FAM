@@ -528,7 +528,10 @@ class Story:
         """
         if self.expired(now):
             return 0.0
-        half = max(60.0, self.shelf_life / 2.0)
+        # The domain's half-life, not a held shelf's (§359): a story kept on
+        # the shelf for the rails edition stays offered, not louder.
+        half = max(60.0, min(self.shelf_life, DOMAIN_SHELF_LIFE.get(
+            self.domain, self.shelf_life)) / 2.0)
         return (DOMAIN_WEIGHT.get(self.domain, 0.6) * max(0.0, self.strength)
                 * (0.5 ** (self.age(now) / half)))
 
@@ -745,6 +748,61 @@ def pool() -> Pool:
     return _POOL
 
 
+#: The domains whose stories a rails edition holds on the shelf until the next
+#: edition once it has written them (§359). Sports alone, at the owner's
+#: direction: its eight hours end before the next twice-daily edition, so a
+#: fixture written at 05:00 would leave the rails at 13:00 with its episode
+#: still current. The others already outlive the gap.
+HELD_FOR_EDITION = (SPORTS,)
+#: Every hold, by story id, until when (§359): kept apart from the pool so a
+#: refresh that was composing while the hold was made re-applies it rather
+#: than installing the copy it took before, and so a held subject pushed out
+#: of the store and reported again is not retired on the domain's clock.
+_HELD: dict = {}
+
+
+def _held_life(story_id: str, first_seen: float, life: float) -> float:
+    """`life`, lengthened to a hold's end if this story has one."""
+    until = _HELD.get(story_id)
+    return max(life, until - first_seen) if until else life
+
+
+def _apply_holds(rows: list, now: float) -> list:
+    """`rows` with every live hold applied; expired holds forgotten."""
+    for old in [k for k, until in _HELD.items() if until <= now]:
+        _HELD.pop(old, None)
+    if not _HELD:
+        return rows
+    out = []
+    for story in rows:
+        life = _held_life(story.id, story.first_seen, story.shelf_life)
+        out.append(replace(story, shelf_life=life)
+                   if life > story.shelf_life else story)
+    return out
+
+
+def hold_until(story_id: str, until: float) -> bool:
+    """Keep a written story on the shelf until `until` (§359). True if held.
+
+    Only lengthens, never shortens; only a story the pool holds, in a domain
+    in `HELD_FOR_EDITION`. Its `first_seen` is untouched, so its age is the
+    truth, and the cooldown starts when the longer shelf life ends. Kept on
+    the disk by the next `save`.
+    """
+    for i, story in enumerate(_POOL.stories):
+        if story.id != story_id:
+            continue
+        if story.domain not in HELD_FOR_EDITION:
+            return False
+        wanted = float(until) - float(story.first_seen or 0.0)
+        if wanted > story.shelf_life:
+            _HELD[story_id] = max(float(until), _HELD.get(story_id, 0.0))
+            _POOL.stories[i] = replace(story, shelf_life=wanted)
+            return True
+        return False
+    return False
+
+
 def reset() -> None:
     """Drop everything. For tests, and for a forced refresh.
 
@@ -769,6 +827,7 @@ def reset() -> None:
     _REFRESHING = False
     _RETIRED.clear()
     _FIRST_SEEN.clear()
+    _HELD.clear()
     _LAST_SWEPT.clear()
     _DEMAND[0] = 0.0
     _SOURCES.clear()
@@ -1885,7 +1944,9 @@ async def refresh(now: Optional[float] = None) -> Pool:
         # Capped by push and **not** facet-capped here: the variety rule runs
         # in `Pool.live`, so an over-served story is hidden rather than
         # forgotten. See `POOL_STORE`.
-        held = sorted(kept + composed + still,
+        # Holds made while this refresh was composing are applied to the
+        # copies it took before (§359).
+        held = sorted(_apply_holds(kept + composed + still, now),
                       key=lambda story: (-story.push(now), story.id))
         _POOL = Pool(
             stories=held[:POOL_STORE],
@@ -1934,10 +1995,10 @@ def _admissible(key: str, domain: str, now: float) -> bool:
       nothing else has, and hold it out until the cooldown is up.
     """
     seen_at = _FIRST_SEEN.get(key)
-    if seen_at is not None and now - seen_at >= DOMAIN_SHELF_LIFE.get(
-            domain, 24 * 3600.0):
-        _RETIRED.setdefault(key, seen_at + DOMAIN_SHELF_LIFE.get(
-            domain, 24 * 3600.0))
+    life = (_held_life(key, seen_at, DOMAIN_SHELF_LIFE.get(domain, 24 * 3600.0))
+            if seen_at is not None else 0.0)
+    if seen_at is not None and now - seen_at >= life:
+        _RETIRED.setdefault(key, seen_at + life)
     retired_at = _RETIRED.get(key)
     if retired_at is None:
         return True

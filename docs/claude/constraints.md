@@ -1121,6 +1121,7 @@
   `AUDIO_CACHE_MAX_MB`; past it a heard episode replays its same script in
   its same voice, synthesised once more.
 <!-- rule:ttl-from-evidence -->
+> **Current (PROBLEMS.md §359, at the owner's direction):** an **edition's** episode about a game in progress (DailyFAM's or the rails', `daily_edition._finish`) is current for `EDITION_IN_PROGRESS_SECONDS` (1800) instead of never, keeping its title, hook and category on the tile; a tap after the window writes a new one. `0` restores never current. `ttl_for` is unchanged, so a tap's own episode of a live game is still never current, and the rails edition joins DailyFAM's as the stated exception to "prefetch never warms an outcome-dependent script".
 > **Current (PROBLEMS.md §320):** the one place question words touch the window: EI's gate removes a window **longer than a week** from a question nothing marks as a moment (`time_bound`), so such an episode is kept as long as any evergreen one. A window of a week or less - EI saying "a moment" - is never removed, so the volatile TTL is never lost to a word list.
 - **How long a script stays current comes from what it was built on, never
   from the words of the question.** *(§89, `cache.ttl_for`.)* It used to be a keyword

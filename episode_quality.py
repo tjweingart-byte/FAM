@@ -81,7 +81,7 @@ LABELS = {
 
 #: Episodes written before anybody tapped: the only ones `QUALITY_GRADE=ahead`
 #: grades, and the only ones a later rewrite pass could ever touch.
-AHEAD_ORIGINS = frozenset({"prefetch", "dailyfam", "trending", "startup"})
+AHEAD_ORIGINS = frozenset({"prefetch", "dailyfam", "myfam", "trending", "startup"})
 
 #: Rows are kept this long, so a change can be compared with months before it.
 KEEP_DAYS = 180

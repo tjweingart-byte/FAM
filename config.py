@@ -1199,8 +1199,36 @@ class Settings:
         "EDITION_BATCH_WAIT_SECONDS", 3600.0)
     edition_batch_poll_seconds: float = _env_float(
         "EDITION_BATCH_POLL_SECONDS", 30.0)
-    daily_edition_max_episodes: int = _env_int("DAILY_EDITION_MAX_EPISODES", 300)
-    daily_edition_max_dollars: float = _env_float("DAILY_EDITION_MAX_DOLLARS", 15.0)
+    # Lifted at the owner's direction (§359): 0 is no ceiling, so every
+    # subject an active mix follows is written ahead. Settable again here.
+    daily_edition_max_episodes: int = _env_int("DAILY_EDITION_MAX_EPISODES", 0)
+    daily_edition_max_dollars: float = _env_float("DAILY_EDITION_MAX_DOLLARS", 0.0)
+    # A mix nobody has played (or made, or edited) in this many hours is
+    # dormant (§359): the edition skips it, and opening it writes it. A
+    # subject an active mix also follows is written all the same. 0 writes
+    # every mix every morning, as before.
+    daily_edition_active_hours: float = _env_float("DAILY_EDITION_ACTIVE_HOURS", 48.0)
+    # Episodes an edition writes at once (§359), both editions. With the
+    # ceilings lifted an edition can be thousands of episodes.
+    edition_concurrency: int = _env_int("EDITION_CONCURRENCY", 6)
+    # How long an edition episode about a game in progress stays current
+    # (§359, at the owner's direction): its title, hook and category stay on
+    # the tile, and a tap after this writes a new one. 0 is never current.
+    edition_in_progress_seconds: float = _env_float("EDITION_IN_PROGRESS_SECONDS", 1800.0)
+    # --- the myFAM rails edition (§359, `rails_edition.py`) ---------------
+    # Every story the live pool holds - what Made for you ranks - written
+    # whole at these hours on `DAILY_EDITION_TIMEZONE`'s clock, so a tap on
+    # a rail tile is a cache hit and only the voice is left. A sports story
+    # it wrote is held on the shelf until the next rails edition. No
+    # ceiling by default (0); `RAILS_EDITION=0` leaves the rails to the tap.
+    rails_edition: bool = field(
+        default_factory=lambda: os.environ.get("RAILS_EDITION", "1")
+        not in ("0", "false", "False", ""))
+    rails_edition_hours: str = field(
+        default_factory=lambda: os.environ.get(
+            "RAILS_EDITION_HOURS", "5,17").strip())
+    rails_edition_max_episodes: int = _env_int("RAILS_EDITION_MAX_EPISODES", 0)
+    rails_edition_max_dollars: float = _env_float("RAILS_EDITION_MAX_DOLLARS", 0.0)
     # How long to wait before trying a failed edition again.
     daily_edition_retry_seconds: float = _env_float(
         "DAILY_EDITION_RETRY_SECONDS", 1800.0)
