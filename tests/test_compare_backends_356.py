@@ -137,3 +137,31 @@ def test_the_default_questions_load_and_the_dry_run_spends_nothing(capsys, monke
     monkeypatch.setattr(sys, "argv", ["compare_backends.py", "--dry-run", "--limit", "2"])
     assert cb.main() == 0
     assert "2 questions" in capsys.readouterr().out
+
+
+def test_a_run_installs_the_live_providers_first_and_a_dry_run_does_not(monkeypatch, capsys):
+    """§359: without `live_sources.install()` there is no scoreboard, and the
+    score guard cuts every true score from both backends' sports scripts."""
+    import anthropic_client
+    import live_sources
+
+    order = []
+    monkeypatch.setattr(live_sources, "install", lambda: order.append("install") or {
+        "installed": ["BALLDONTLIE scores"], "problems": [], "configured": {}})
+    monkeypatch.setattr(cb.research, "backend_available", lambda _b: True)
+    monkeypatch.setattr(anthropic_client, "build_async_client", lambda: None)
+
+    async def fake_run(*_a, **_k):
+        order.append("run")
+        return 0
+
+    monkeypatch.setattr(cb, "_run", fake_run)
+
+    monkeypatch.setattr(sys, "argv", ["compare_backends.py", "--dry-run", "--limit", "1"])
+    assert cb.main() == 0
+    assert order == []
+
+    monkeypatch.setattr(sys, "argv", ["compare_backends.py", "--yes", "--limit", "1"])
+    assert cb.main() == 0
+    assert order == ["install", "run"]
+    assert "live facts: BALLDONTLIE scores" in capsys.readouterr().out

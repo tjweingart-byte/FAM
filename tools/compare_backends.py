@@ -34,6 +34,10 @@ a person's. `--write` saves both scripts for every question as A and B in a
 random order, with the key in `key.json`, so they can be read or listened to
 blind before anyone looks at which was which.
 
+The live providers are installed as the server installs them at boot
+(`live_sources.install()`), so a sports question is checked against the same
+scoreboard it would be in production; the run prints which were installed.
+
 Nothing here writes to the cache, the archive or the event log: it calls
 `ScriptGenerator` directly, as `write.py` does, never the pipeline.
 
@@ -345,6 +349,15 @@ def main() -> int:
         return 2
     if not args.yes and input("spend it? [y/N] ").strip().lower() != "y":
         return 1
+
+    # The live providers the server installs at boot (`app.py`): without
+    # them a sports question has no scoreboard, and the score guard cuts
+    # every true score from both scripts alike (§359).
+    import live_sources
+
+    live = live_sources.install()
+    print("live facts: " + (", ".join(live["installed"]) or "none installed")
+          + "".join(f"\n  problem: {p}" for p in live["problems"]))
 
     from anthropic_client import build_async_client
 

@@ -24790,3 +24790,22 @@ cannot be recovered from the text.
 Tests: `tests/test_intake_provider_358.py` (each web search names itself;
 one article from both keeps them apart; an old table is widened and its rows
 read as unknown; Atlas adds per provider).
+
+## 359. The backend comparison runs with the scoreboard (2026-10-31)
+
+The §356 rerun with `BALLDONTLIE_API_KEY` set still had no scoreboard: the
+score guard cut the true scores from both backends' sports scripts ("there is
+no scoreboard") on the Eagles, World Series, Premier League and F1 questions.
+Two causes. `tools/compare_backends.py` never called
+`live_sources.install()`, which `app.py` runs at boot, so no live provider
+was registered and the key was never read. And this environment's network
+policy refuses `api.balldontlie.io` (the proxy answers 403), so even with the
+provider installed every lookup failed - an environment setting, not code.
+
+The tool now installs the live providers as the server does, after the spend
+prompt (a dry run installs nothing), and prints which were installed and any
+problem, so a run's log says whether it had a scoreboard. The comparison's
+other numbers are unaffected: both backends were equally without one.
+
+Tests: `tests/test_compare_backends_356.py` (a run installs the providers
+before it searches; a dry run does not).
