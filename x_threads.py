@@ -190,12 +190,13 @@ REPLY_CONTEXT = 5
 #: What an advertisement sounds like (§366 rule 4). A reply that says any of
 #: these is not part of the conversation; its words go back to the code's.
 _PROMO = re.compile(
-    r"\b(check (it |this |us )?out|link (below|in bio)|listen now|tune in|"
-    r"don'?t miss|must[- ]listen|game[- ]?changer|changing everything|"
-    r"changes everything|you won'?t believe|here'?s the thing|"
+    r"\b(check (it|this|us|them) out|check out (our|the|this|my) (episode|pod|show|link)|"
+    r"link (below|in bio)|listen now|tune in (now|here|to (our|the episode))|"
+    r"don'?t miss (this|it|out)|must[- ]listen|game[- ]?changer|changing everything|"
+    r"changes everything|you won'?t believe|"
     r"great (question|post|point|take|thread)|love this|so true|"
-    r"mind[- ]?blowing|hit play|click here|follow us|our (new |latest )?episode)\b"
-    r"|!|#[A-Za-z]|[\U0001F300-\U0001FAFF☀-➿]", re.I)
+    r"mind[- ]?blowing|hit play|click here|follow us|our (new|latest) episode)\b"
+    r"|!|#[A-Za-z]|[\U0001F300-\U0001FAFF\u2600-\u26FF]", re.I)
 
 #: The score's parts and their weights. Episode match leads because a reply
 #: with nothing to add is the thing the playbook says not to post.
@@ -1364,6 +1365,9 @@ class Store:
             return False
         assess = json.loads(row[0]) if row[0] else {}
         assess["recommendation"] = RECOMMEND_EPISODE
+        # The proposal is written now: the card links it, it no longer proposes.
+        assess["written_from"] = assess.pop("proposed", None)
+        assess["proposed"] = None
         cur = self._conn().execute(
             "UPDATE candidates SET episode = ?, kind = ?, reason = ?, assess = ?,"
             " listened_at = 0 WHERE post_id = ?",
@@ -1616,8 +1620,10 @@ async def run(cache, *, now: Optional[float] = None, searcher=None,
                 # (the read may have changed it), and a reply written to
                 # connect two posts, one of which is gone, is the code's.
                 reply, by = trim(fallback_draft(cand)), "code"
-            elif by != "code" and not verdict.episode_fits and cand.kind == QUESTION_ONLY \
+            elif by != "code" and cand.kind == QUESTION_ONLY \
                     and "episode" in reply.lower():
+                # A card with no link never says FAM has an episode - also when
+                # the read chose one too far from the post to link (§366).
                 # Told not to mention the episode, and did: the code's
                 # question rather than words that point at nothing.
                 reply, by = trim(fallback_draft(cand)), "code"

@@ -375,6 +375,12 @@
     var id = ev.target.dataset && ev.target.dataset.edit;
     if (!id) return;
     edits[id] = ev.target.value;
+    // The tick vouches for these words: new words, a new check.
+    if (checked[id]) {
+      checked[id] = false;
+      var box = document.querySelector('[data-verify="' + id + '"]');
+      if (box) box.checked = false;
+    }
     var k = card(id), n = counted(k, ev.target.value), el = $("count-" + id);
     el.textContent = n + " / " + POST_CHARS + (linked(k) && !edits[id + ":nolink"] ? " with the link" : "");
     el.className = "count" + (n > POST_CHARS ? " over" : "");

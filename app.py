@@ -11459,6 +11459,12 @@ async def admin_x_decide(req: XDecision, request: Request) -> dict:
             "Check every claim in the reply first, then tick that you did."))
     link = ""
     if not req.no_link and card["kind"] != x_threads.QUESTION_ONLY:
+        if card.get("relevance", 0) < x_threads.EPISODE_RELEVANCE:
+            # Only a 4 or 5 against the original post carries an episode
+            # (§366); a card read in code, or from before the scale, does not.
+            raise HTTPException(status_code=409, detail=(
+                "Only a card scored 4 or 5 against the original post may link "
+                "an episode. Tick no link to send the comment alone."))
         if not card.get("listened_at"):
             # Nobody vouches for audio they have not heard (§366).
             raise HTTPException(status_code=409, detail=(

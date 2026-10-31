@@ -74,6 +74,10 @@ async def judge(cache, cand: X.Candidate) -> dict:
     cand.material = {s.key: OI.material(cache, s.key) for s in X.offered(cand)}
     reply, by, dollars, verdict = await X.judge_and_draft(cand)
     dropped = X.apply_verdict(cand, verdict)
+    if by == "code" or (cand.kind == X.QUESTION_ONLY and "episode" in reply.lower()):
+        # As a run does: the code's words name the card as it now stands,
+        # and a card with no link never says FAM has an episode.
+        reply, by = X.trim(X.fallback_draft(cand)), "code"
     a = cand.assess or {}
     return {"post": cand.post, "replies": cand.replies, "dropped": dropped,
             "reply": "" if dropped else reply, "by": by, "dollars": dollars,
@@ -104,7 +108,11 @@ async def from_x(cache, n: int, max_reads: int) -> list:
     for seed in seeds:
         if reads + 10 > max_reads:
             break
-        posts = await X.search(seed.search(), max_results=10, since=now - window * 3600)
+        try:
+            posts = await X.search(seed.search(), max_results=10, since=now - window * 3600)
+        except Exception as exc:  # noqa: BLE001 - one refused search never ends the review
+            print(f"search for “{seed.title}” failed: {exc}")
+            continue
         reads += len(posts)
         found.extend(p for p in posts
                      if not X.screen(p, now, window_hours=window, min_engagement=floor))
@@ -115,10 +123,13 @@ async def from_x(cache, n: int, max_reads: int) -> list:
         authors.add(p.author)
         replies = []
         if p.replies and config.settings.x_threads_reply_reads and reads + 10 <= max_reads:
-            under = await X.search(X.replies_query(p), max_results=10,
-                                   since=max(p.created_at - 60, now - window * 3600))
-            reads += len(under)
-            replies = X.thread_replies(p, under)
+            try:
+                under = await X.search(X.replies_query(p), max_results=10,
+                                       since=max(p.created_at - 60, now - window * 3600))
+                reads += len(under)
+                replies = X.thread_replies(p, under)
+            except Exception as exc:  # noqa: BLE001 - context, not the post
+                print(f"replies to @{p.author} failed: {exc}")
         out.append((p, replies))
         if len(out) >= n:
             break

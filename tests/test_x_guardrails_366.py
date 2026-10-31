@@ -401,3 +401,50 @@ def test_match_again_never_changes_an_approved_reply(client, monkeypatch):
     monkeypatch.setattr(appmod, "SCRIPT_CACHE", FakeCache([EPISODE]))
     r = client.post("/api/admin/x/match", headers=ADMIN, json={"post_id": "1"})
     assert r.status_code == 409 and "approved" in _detail(r)
+
+
+def test_a_card_with_no_link_never_says_fam_has_an_episode():
+    """Review finding: a card below LINK_FLOOR whose read still chose its
+    episode kept a reply that named it, with nothing linked."""
+    far = _post("1", text="Philadelphia Eagles fans: what is the best tailgate food?")
+
+    async def searcher(query, *, max_results, since):
+        return [far]
+
+    async def drafter(cand):
+        cand.kind = X.QUESTION_ONLY  # what a match under LINK_FLOOR makes
+        return ("We covered this in a short episode on the defence.", "m", 0.0,
+                X.Verdict(relevance=5, choice=0, episode_fits=True))
+    asyncio.run(X.run(FakeCache([EPISODE]), now=NOW, searcher=searcher, drafter=drafter))
+    [card] = X.store().all()
+    assert card["kind"] == X.QUESTION_ONLY and card["drafted_by"] == "code"
+    assert "episode" not in card["draft"].lower()
+
+
+@pytest.mark.parametrize("words", [
+    "Fine-tune in stages and the cost drops.",
+    "I don't miss the old salary cap rules, do you?",
+    "Teams rarely check out of a scheme mid-season.",
+    "Here's the thing nobody prices in: depth.",
+    "We covered this in our episode on the cap.",
+    "Two paths ✓ and ✗ - which one holds?"])
+def test_ordinary_words_are_not_an_advertisement(words):
+    assert X.promotional(words) == []
+
+
+def test_a_link_needs_a_four_or_five_on_the_server_too(client):
+    _card()
+    X.store()._conn().execute("UPDATE candidates SET relevance = 0, assess = ''")
+    client.post("/api/admin/x/listen", headers=ADMIN, json={"post_id": "1"})
+    r = client.post("/api/admin/x/decide", headers=ADMIN,
+                    json={"post_id": "1", "action": "approve", "verified": True})
+    assert r.status_code == 409 and "4 or 5" in _detail(r)
+
+
+def test_a_written_proposal_is_no_longer_proposed(client, monkeypatch):
+    import app as appmod
+
+    _card(X.QUESTION_ONLY, proposed={"title": "T", "scope": "", "query": EPISODE["query"]})
+    monkeypatch.setattr(appmod, "SCRIPT_CACHE", FakeCache([EPISODE]))
+    card = client.post("/api/admin/x/match", headers=ADMIN, json={"post_id": "1"}).json()["card"]
+    assert card["episode"]["key"] == "k-eagles" and card["proposed"] is None
