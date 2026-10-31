@@ -162,3 +162,18 @@ def test_a_catalogue_that_failed_says_so():
     load = _fn("loadMyFamCatalog")
     assert "Could not load the episodes right now." in load
     assert "mfsCatalog = []" not in load
+
+
+def test_search_dailyfam_rows_wear_the_episodes_picture(client, monkeypatch):
+    """The owner (10.31): a thumbnail on each row, not a play button."""
+    monkeypatch.setattr(appmod, "_picture_url",
+                        lambda q, t="", m=0: "/static/thumbs/" + q[:3] + ".jpg")
+    appmod.SCRIPT_CACHE.put("k1", ["A."], 600, "why volcanoes erupt", "", 2,
+                            "", "", "other", origin="search")
+    got = client.get("/api/myfam/catalog").json()["episodes"]
+    assert got[0]["thumb"] == "/static/thumbs/why.jpg"
+    found = client.get("/api/myfam/search", params={"q": "volcanoes"}).json()["episodes"]
+    assert found[0]["thumb"] == "/static/thumbs/why.jpg"
+    row = _fn("myFamSearchRow")
+    assert "ep.thumb" in row and "has-img" in row
+    assert "#mfsBody .sv-art.has-img svg{ display:none; }" in HTML
