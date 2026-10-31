@@ -114,6 +114,7 @@ def test_nothing_parallel_returned_is_kept(tmp_path, monkeypatch):
     store = ha.SQLiteBackend(str(tmp_path / "archive.db"))
     monkeypatch.setattr(ha, "backend", lambda: store)
     monkeypatch.setattr(ha, "_backing_off", lambda: False)
+    ha.reset()
     findings = [
         ha.Finding(url="https://a.com/1", passages=("From Parallel.",),
                    provider="parallel"),
@@ -130,6 +131,10 @@ def test_nothing_parallel_returned_is_kept(tmp_path, monkeypatch):
     assert json.loads(rows[0][2]) == {"perplexity": ["From Perplexity."]}
     assert [link["url"] for link in store.episode_links("episode-1")] == [
         "https://a.com/1"]
+    # Counted, for /api/health - and a reset forgets it like every counter.
+    assert ha.STATS["never_kept"] == 2
+    ha.reset()
+    assert ha.STATS["never_kept"] == 0
 
 
 def test_an_episode_from_parallel_alone_keeps_nothing(tmp_path, monkeypatch):

@@ -25087,5 +25087,7 @@ backup-only use. Passages kept before §358 carry no provider and stay; what
 happens to them is the owner's call.
 
 Tests: `tests/test_intake_provider_358.py` (Parallel's passages and links
-never reach intake or the episode's links; an episode from Parallel alone
-keeps nothing).
+never reach intake or the episode's links, and are counted; an episode from
+Parallel alone keeps nothing). Reviewed before the PR: `reset()` now zeroes
+`never_kept` with the other counters, and email 1 says the archive (not FAM)
+keeps nothing and asks again about episodes written ahead for everyone.

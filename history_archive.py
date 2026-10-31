@@ -682,7 +682,7 @@ def reset() -> None:
                       "recalled_facts": 0, "recall_late": 0, "errors": 0,
                       "last_error": "", "last_recall_ms": None,
                       "live_facts": 0, "live_skipped": 0, "swept_facts": 0,
-                      "swept_skipped": 0})
+                      "swept_skipped": 0, "never_kept": 0})
     _SWEPT_SEEN.clear()
     _BACKOFF_UNTIL[0] = 0.0
     _SINCE_PRUNE[0] = 0

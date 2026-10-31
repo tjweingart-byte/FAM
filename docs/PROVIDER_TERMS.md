@@ -617,11 +617,13 @@ returns, so the email asks only what the terms leave open after that.
 > results, and write the episode in our own words, crediting the outlets.
 >
 > We have read your Customer Terms (effective October 17, 2026) and are
-> setting up our use to match them. We will not store anything the Search API
-> returns: no excerpts, titles or links are kept in our database or reused for
-> another listener's question.
+> setting up our use to match them. Our research archive keeps nothing the
+> Search API returns: no excerpts, titles or links are stored there or reused
+> to write another listener's episode. What we do keep is the finished
+> episode, with the outlets it drew on listed beside it, and that raises the
+> questions below.
 >
-> One point the terms leave open for us. Section 2(b) lets us "create
+> The terms leave this open for us. Section 2(b) lets us "create
 > derivative works based on Customer Output and incorporate Customer Output
 > (and such derivative works) into materials that Customer provides to its End
 > Customers, provided that (i) Customer Output generated from one query shall
@@ -638,9 +640,13 @@ returns, so the email asks only what the terms leave open after that.
 > 2. That listing the outlets the episode drew on (the outlet's name and
 >    article link) beside that episode is acceptable, given the same episode
 >    may be replayed.
+> 3. Twice a day we write some episodes ahead for all our listeners (the day's
+>    trending stories, and listeners' daily mixes). If our main search comes
+>    back thin there, Parallel is the backup. Is a search made before any
+>    listener has asked within the terms?
 >
-> If either needs a different plan or a written agreement, what would it be,
-> and what would it cost?
+> If any of this needs a different plan or a written agreement, what would it
+> be, and what would it cost?
 >
 > Thank you,
 > [Your name]
