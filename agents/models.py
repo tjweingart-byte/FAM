@@ -537,6 +537,13 @@ def health() -> dict:
                        if tasks.exists() else {})
     except Exception:  # noqa: BLE001
         out["tasks"], out["held"] = None, {}
+    try:
+        from agents import contextualizer
+
+        # C3P0's code plan and what empty searches found in the archive (§355).
+        out["contextualizer"] = contextualizer.report()
+    except Exception:  # noqa: BLE001
+        out["contextualizer"] = None
     out["overlord"] = {"loop": bool(settings.agents),
                        "tick_seconds": settings.overlord_tick_seconds,
                        "max_tasks_per_tick": settings.overlord_max_tasks_per_tick}

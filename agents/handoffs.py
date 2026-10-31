@@ -47,10 +47,19 @@ class ArchiveRequest(_Handoff):
     end: str = ""
 
 
+#: FAM's closed list of plugins (c3p0.md, "always" 3; docs/FAM_AGENTS.md,
+#: C3P0 responsibility 2): the search ladder, a live provider, a player's or
+#: team's report, the forecast, a town's own news, the weather, and the
+#: archive through Sonic. There are no others (§355).
+PLUGINS = ("search", "live_facts", "players", "forecast", "local_news", "weather",
+           "archive")
+
+
 class PluginCall(_Handoff):
     """One plugin from FAM's own list, and what to ask it - never a result."""
 
-    plugin: str
+    plugin: Literal["search", "live_facts", "players", "forecast", "local_news",
+                    "weather", "archive"]
     query: str = Field(max_length=300)
 
 

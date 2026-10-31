@@ -24685,3 +24685,57 @@ when it checks; a stale disk snapshot re-read in the background catches a
 change; an unreadable book holds; the ahead surface asked for prefetch and
 editions, off while off, a tap's answer kept; the probe's model list, its
 verdict on an exact, dated or missing id, and nothing sent on staging).
+
+## 355. Phase 1, piece 2: C3P0's ResearchPlan in code, and what an empty search would have found in the archive (2026-10-31)
+
+The guide's first step for C3P0 (`docs/FAM_AGENTS.md`, C3P0, Plugin options,
+"First"): write the `ResearchPlan` and fill it from today's brief and code
+routes with no model, and log how often a search comes back empty while the
+archive had something. Both built; nothing a listener hears changes, and
+with `AGENTS=0` none of it runs.
+
+**`agents/contextualizer.py`, `from_brief(brief, query)`.** The plan the
+pipeline already acts on, as one typed decision: the search ladder always
+with the brief's search ([always-researched]); a live provider with the bare
+name when `live_route.domain_of` names a domain, and the player report
+beside it on sports; the weather on a weather question; a town's own news
+ladder when the brief names a place; the forecast when
+`live_facts.wants_forecast` says so, by its market words; and the archive
+through Sonic - `ArchiveRequest(node, "background", subject)` under the
+brief's `category_path` node - when `history_archive.recall_wanted` allows
+it. The entity, its kind, the node and its path, and the brief's title.
+It reads the same predicates the pipeline uses, so the plan can only
+describe what the episode will ask, never drift from it. Pure: no file,
+store, socket or model (a test refuses all four), microseconds, never
+raises. `ScriptGenerator.prepare` keeps it on `ScriptNotes.research_plan`
+after the code route, only when Netenyahu let the contextualizer work on
+the episode (`_agent_runs`). Nothing reads it yet; piece 4's call improves
+it.
+
+**The closed plugin list** is now in the hand-off's shape:
+`agents.handoffs.PLUGINS` and `PluginCall.plugin` a `Literal` of the seven
+(c3p0.md, "always" 3; "never" 3: a source FAM does not have cannot be
+named).
+
+**The empty search, counted.** When the ladder comes back with nothing, an
+episode C3P0 works on no longer cancels the archive recall started beside
+it: `contextualizer.note_empty_search` counts, when the recall ends, whether
+it held something - never waited for, and never handed to the writer, so
+the episode is exactly as before (§316: an empty search gets no archive
+until `archive_alone` is built, responsibility 8). With C3P0 off the recall
+is cancelled as it always was. `/api/health`'s `agents.contextualizer` gives
+the counts and `empty_search_archive_had_rate` (None before any empty
+search, never 0). That rate is what decides how much the archive answering
+alone would buy.
+
+**Latency.** None. Off: one attribute read. On: microseconds after the
+brief, and the empty-search count runs on the recall's own completion.
+
+Tests: `tests/test_agents_research_plan.py` (the ladder always, with the
+brief's search or the question; scoreboard and players by bare name; a code
+route's provider; no players on markets; weather alone; a town's news
+without the archive; the forecast's words; Sonic under the brief's node;
+the brief's title; only the seven plugins; no brief or a broken one never
+raises; no socket or file; kept on the episode only when C3P0 works on it;
+the empty search counted with the recall left running, as before when off;
+None before any empty search; the health block).

@@ -645,6 +645,10 @@ class ScriptNotes:
     #: for an episode written ahead of the tap (§354). `netenyahu.OFF` while
     #: `AGENTS=0`. No agent reads it yet.
     agents: object = None
+    #: C3P0's `ResearchPlan` for this episode (§355): built in code from the
+    #: brief and the code routes once the contextualizer works on it. None
+    #: otherwise. Nothing reads it yet.
+    research_plan: object = None
     #: The episode's own title, off the model's trailing marker line. Empty
     #: when it did not write one, and every caller falls back to the question -
     #: which is what all of them showed before this existed.
@@ -748,6 +752,13 @@ async def _players_by(task, began: float):
         return None
     return plan.players
 
+
+
+def _agent_runs(notes, role: str) -> bool:
+    """Whether Netenyahu let `role` work on this episode (§350). False with
+    no notes, no answer, or `AGENTS=0`."""
+    runs = getattr(getattr(notes, "agents", None), "runs", None)
+    return bool(runs(role)) if callable(runs) else False
 
 def _mark(notes: "ScriptNotes | None", name: str) -> None:
     """Record one pre-writing stage on the episode's clock, if it has one."""
@@ -1968,6 +1979,16 @@ class ScriptGenerator:
             if better:
                 better.fell_back_from = configured
                 packet = better
+        if not packet and recall is not None and _agent_runs(notes, "contextualizer"):
+            # How often an empty search had the archive holding something
+            # (§355), counted when the recall ends - never waited for and
+            # never handed to the writer: an empty search still gets no
+            # archive (§316) until the archive may answer alone.
+            from agents import contextualizer
+
+            contextualizer.note_empty_search(recall)
+            packet.archive = "no web sources"
+            recall = None
         await research_mod.finish_history_look(packet, recall)
         _mark(notes, "retrieval_ready")
 
@@ -2316,6 +2337,13 @@ class ScriptGenerator:
                 log.info("live route: %s for %r (%s)", routed.live_route,
                          plan.query, routed.live_route_why)
                 plan = dataclasses.replace(plan, brief=routed)
+        # C3P0's plan, in code first (§355): what the brief and the code
+        # routes above already decided, as one `ResearchPlan`. Only when the
+        # contextualizer works on this episode; microseconds, no I/O.
+        if _agent_runs(notes, "contextualizer"):
+            from agents import contextualizer
+
+            notes.research_plan = contextualizer.from_brief(plan.brief, plan.query)
 
         # **Concurrent, and verified independent before it was made so.** Both
         # read `plan.brief` and neither reads the other's output: `live_lookup`

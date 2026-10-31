@@ -763,7 +763,10 @@ latency matters more here than for any other agent.
 - **Sonnet only on the write-ahead**, where need 1 does not bind.
 - **First:** write the `ResearchPlan` type and fill it from today's brief and
   code routes, and log how often a search comes back empty while the archive
-  had something.
+  had something. **Built (§355):** `agents/contextualizer.py`'s `from_brief`,
+  pure code, kept on the episode's notes when C3P0 works on it; the closed
+  plugin list is `agents.handoffs.PLUGINS`; the empty-search count is in
+  `/api/health`'s `agents.contextualizer`.
 
 ### Settings and open questions
 
