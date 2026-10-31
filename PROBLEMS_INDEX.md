@@ -363,3 +363,4 @@ and `limit` = Lines.
 | 24897 | 34 | 360. The status bar belongs to the screen, and the profile's wash reaches the top (2026-10-31) |
 | 24931 | 25 | 361. Main's Postgres job was red from §358's intake tests (2026-10-31) |
 | 24956 | 17 | 362. A §359 edition test failed by the clock, half of every day (2026-10-31) |
+| 24973 | 13 | 363. The player's source circles show the publishers' logos (2026-10-31) |
