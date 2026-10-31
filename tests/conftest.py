@@ -243,6 +243,7 @@ FAM_ENVIRONMENT = (
     "EDITOR_AGENT",
     "SUPERVISOR", "HOUSEKEEPER", "IT_AGENT",
     "OVERLORD_PLANNER_MODEL", "CONTEXTUALIZER_MODEL", "CATEGORIZER_MODEL",
+    "CATEGORIZER_JUDGE_MODEL",
     "RETRIEVER_MODEL", "EDITOR_MODEL", "EDITOR_SEARCH_MODEL", "SUPERVISOR_MODEL",
     "SUPERVISOR_SCREEN_MODEL", "HOUSEKEEPER_MODEL", "HOUSEKEEPER_REVIEW_MODEL",
     "IT_MODEL", "IT_SUMMARY_MODEL",
@@ -254,6 +255,9 @@ FAM_ENVIRONMENT = (
     "EDITOR_AHEAD_TIMEOUT_SECONDS", "EDITOR_MAX_TOKENS", "SUPERVISOR_TIMEOUT_SECONDS",
     "SUPERVISOR_MAX_TOKENS", "HOUSEKEEPER_TIMEOUT_SECONDS", "HOUSEKEEPER_MAX_TOKENS",
     "IT_TIMEOUT_SECONDS", "IT_MAX_TOKENS",
+    # §366: Nando's answer key.
+    "CATEGORIZER_JUDGE_TIMEOUT_SECONDS", "CATEGORIZER_JUDGE_MAX_TOKENS",
+    "NANDO_JUDGE_PER_RUN",
     # §350: Netenyahu's loop.
     "OVERLORD_TICK_SECONDS", "OVERLORD_MAX_TASKS_PER_TICK",
 )
@@ -612,11 +616,14 @@ def isolated_pipeline_errors(tmp_path, monkeypatch):
 def isolated_agent_tasks(tmp_path, monkeypatch):
     """The agents' task table (§349), per test, never the project root."""
     from agents import tasks as agent_tasks
+    from agents import training as agent_training
 
     monkeypatch.setenv("AGENTS_DB", str(tmp_path / "stores" / "agents.db"))
     agent_tasks.reset()
+    agent_training.reset()
     yield
     agent_tasks.reset()
+    agent_training.reset()
 
 
 @pytest.fixture(autouse=True)

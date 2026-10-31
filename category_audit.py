@@ -58,12 +58,13 @@ def composer_category(query: str, now: Optional[float] = None) -> str:
 
 def note(query: str, words: str, origin: str = "",
          composer: Optional[str] = None, at: float = 0.0,
-         nando: Optional[dict] = None) -> dict:
+         nando: Optional[dict] = None, key: str = "") -> dict:
     """Log what each categoriser said about one written episode, and return
     the row. `composer` is looked up when not given. `nando` is
     `ScriptNotes.category_settled` when Nando filed the episode (§356): his
     node at the request and after the writer, and how each was found.
-    Never raises."""
+    `key` is the episode's cache key, for the answer key (§366). Never
+    raises."""
     row: dict = {}
     try:
         import stories
@@ -82,6 +83,7 @@ def note(query: str, words: str, origin: str = "",
             "composer": composer or "",
             "composer_facet": (stories.facet_for(composer) if composer else ""),
             "keywords": " ".join(sorted(keywords)),
+            "key": key or "",
         }
         if nando:
             row.update(nando_request=nando.get("request", "") or "",
@@ -130,6 +132,16 @@ def _nando_summary(rows: list, examples: int) -> dict:
                      "after": r.get("nando", ""), "words": r["words"]}
                     for r in refiled[:examples]],
     }
+
+
+def _answer_key(days: float, examples: int) -> dict:
+    try:
+        from agents import training
+
+        return training.report(days, examples) if training.exists() else {}
+    except Exception:  # noqa: BLE001 - a report line, never the report
+        log.exception("could not compare nando with the answer key")
+        return {}
 
 
 def _rate(hits: int, of: int) -> Optional[float]:
@@ -182,6 +194,9 @@ def summary(days: float = 7.0, now: Optional[float] = None,
         "with_keywords": len(with_keys),
         "writer_vs_keywords": _rate(len(keyword_agrees), len(with_keys)),
         "nando": _nando_summary(rows, examples),
+        # How his filings agree with the answer key (§366), once it has
+        # graded anything; never creates the agents' store.
+        "answer_key": _answer_key(days, examples),
         "composer_to_writer": [
             {"composer": a, "writer": b, "episodes": n}
             for (a, b), n in sorted(pairs.items(), key=lambda kv: -kv[1])],

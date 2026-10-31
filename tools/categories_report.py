@@ -122,6 +122,15 @@ def audit(days: int, as_json: bool) -> int:
         for row in nando["refiled"]:
             print(f"    re-filed {row['query'][:50]!r}: {row['request']} ->"
                   f" {row['after']} (writer said {row['words']!r})")
+    key = found.get("answer_key") or {}
+    if key.get("compared"):
+        print()
+        print(f"  Nando against the answer key (§366), {key['compared']} graded:"
+              f" same node {key['exact']}, on its branch {key['on_branch']},"
+              f" wrong {key['wrong']} ({_pct(key['wrong_rate'])} of filed),"
+              f" filed nothing {key['filed_nothing']}")
+        for pair in key["confusions"]:
+            print(f"    filed {pair['filed']:24} truly {pair['truth']:24} {pair['episodes']}")
     if found["composer_to_writer"]:
         print()
         print("  composer -> writer, where they disagree:")

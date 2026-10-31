@@ -659,6 +659,12 @@ async def lifespan(_: FastAPI):
         # first episode decides from copies, never the database (§354).
         await asyncio.to_thread(netenyahu.prime)
         _BACKGROUND.add(asyncio.create_task(netenyahu.run_forever()))
+        # Nando's answer key (§366), reading the scripts it grades from the
+        # script cache. Queued nightly only while CATEGORIZER is on; the
+        # loop's first round runs after this, at the next await.
+        from agents import training as agent_training
+
+        agent_training.register(lambda key: SCRIPT_CACHE.get(key, current=False) or [])
     # Expired scripts are already filtered out on read, so nothing ever deleted
     # them and the file grew for the life of the deployment. One DELETE at
     # startup is enough: entries expire on a timescale of days, not minutes.

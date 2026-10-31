@@ -909,7 +909,7 @@ def _finish(story, plan, key: str, notes, sentences: list, cache, minutes: int,
 
     category_audit.note(story.query, getattr(notes, "category", ""), origin,
                         composer=getattr(story, "category", "") or "",
-                        nando=getattr(notes, "category_settled", None))
+                        nando=getattr(notes, "category_settled", None), key=key)
     # Its articles, for the history archive (§308). Never awaited.
     import history_archive
 

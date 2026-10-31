@@ -531,7 +531,7 @@ def _finish(pending: "_Pending", sentences: list, cache, length: int,
     import category_audit
 
     category_audit.note(query, getattr(notes, "category", ""), "dailyfam",
-                        nando=getattr(notes, "category_settled", None))
+                        nando=getattr(notes, "category_settled", None), key=key)
     # Its articles, for the history archive (§308). Never awaited.
     import history_archive
 

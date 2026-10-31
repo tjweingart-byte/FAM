@@ -2043,6 +2043,11 @@ class Settings:
     categorizer_model: str = field(
         default_factory=lambda: os.environ.get(
             "CATEGORIZER_MODEL", "anthropic:claude-haiku-5-5").strip())
+    # Nando's answer key (§366): the stronger model that grades his filings
+    # in the background, nightly. Opus, the owner's choice.
+    categorizer_judge_model: str = field(
+        default_factory=lambda: os.environ.get(
+            "CATEGORIZER_JUDGE_MODEL", "anthropic:claude-opus-5-5").strip())
     retriever_model: str = field(
         default_factory=lambda: os.environ.get("RETRIEVER_MODEL", "").strip())
     editor_model: str = field(
@@ -2091,6 +2096,13 @@ class Settings:
     # check of one unsure sentence, and the background agents' calls.
     categorizer_timeout_seconds: float = _env_float("CATEGORIZER_TIMEOUT_SECONDS", 8.0)
     categorizer_max_tokens: int = _env_int("CATEGORIZER_MAX_TOKENS", 300)
+    # The answer key's one call (§366): it reads the whole tree and the
+    # script, in the background, so it may take its time.
+    categorizer_judge_timeout_seconds: float = _env_float(
+        "CATEGORIZER_JUDGE_TIMEOUT_SECONDS", 60.0)
+    categorizer_judge_max_tokens: int = _env_int("CATEGORIZER_JUDGE_MAX_TOKENS", 400)
+    # How many written episodes one nightly run grades at most (§366).
+    nando_judge_per_run: int = _env_int("NANDO_JUDGE_PER_RUN", 50)
     editor_timeout_seconds: float = _env_float("EDITOR_TIMEOUT_SECONDS", 8.0)
     editor_ahead_timeout_seconds: float = _env_float("EDITOR_AHEAD_TIMEOUT_SECONDS", 60.0)
     editor_max_tokens: int = _env_int("EDITOR_MAX_TOKENS", 4000)

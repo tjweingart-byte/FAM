@@ -312,6 +312,7 @@ def reset() -> None:
     with _HELD_LOCK:
         _HELD.update(roles=UNKNOWN, at=0.0, running=False)
         _MADE.clear()
+    _QUEUED_DAYS.clear()
 
 
 # ------------------------------------------------------------------ the background
@@ -329,6 +330,41 @@ def in_edition_window(now: Optional[datetime.datetime] = None) -> bool:
         ZoneInfo("America/New_York"))
     return any(now.hour == hour and now.minute < EDITION_QUIET_MINUTES
                for hour in EDITION_HOURS)
+
+
+#: Background work queued on a clock (§366): (agent, kind, Eastern hour,
+#: the agent's switch setting). Once a day, at or after the hour, one task
+#: keyed by the Eastern date - so a restart never runs it twice, and a day
+#: the loop was down is not made up. Nando's answer key runs at 03:00,
+#: clear of both editions.
+SCHEDULE: tuple = (("categorizer", "judge", 3, "categorizer"),)
+_QUEUED_DAYS: set = set()
+
+
+def schedule(now: Optional[datetime.datetime] = None, handlers: Optional[dict] = None) -> int:
+    """Queue today's scheduled tasks that are due, for agents that are on
+    and have a handler. Returns how many were added. Never raises."""
+    from zoneinfo import ZoneInfo
+
+    handlers = HANDLERS if handlers is None else handlers
+    added = 0
+    try:
+        from agents import tasks
+
+        local = (now or datetime.datetime.now(datetime.timezone.utc)).astimezone(
+            ZoneInfo("America/New_York"))
+        day = local.date().isoformat()
+        for agent, kind, hour, switch in SCHEDULE:
+            if (agent, kind) not in handlers or not getattr(settings, switch, False):
+                continue
+            if local.hour < hour or (agent, kind, day) in _QUEUED_DAYS:
+                continue
+            if tasks.store().add(agent, kind, day, {"day": day}) == tasks.ADDED:
+                added += 1
+            _QUEUED_DAYS.add((agent, kind, day))
+    except Exception:  # noqa: BLE001 - the loop outlives any one round
+        log.exception("netenyahu could not queue the scheduled work")
+    return added
 
 
 #: The loop's pace is clamped: a setting of 0 would spin on the event loop,
@@ -357,6 +393,7 @@ async def _tick(now, handlers) -> dict:
     from agents import tasks
 
     handlers = HANDLERS if handlers is None else handlers
+    schedule(now, handlers)
     held = refresh_held()
     if held is UNKNOWN:
         return {"ran": 0, "why": "the holds could not be read"}

@@ -805,7 +805,7 @@ class Prefetcher:
 
             category_audit.note(candidate.query, getattr(notes, "category", ""),
                                 "prefetch",
-                                nando=getattr(notes, "category_settled", None))
+                                nando=getattr(notes, "category_settled", None), key=key)
             # Its articles, for the history archive (§308). Never awaited.
             import history_archive
 

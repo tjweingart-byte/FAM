@@ -1693,7 +1693,7 @@ class PodcastPipeline:
 
             category_audit.note(plan.query, getattr(notes, "category", ""),
                                 self.origin or "tap",
-                                nando=getattr(notes, "category_settled", None))
+                                nando=getattr(notes, "category_settled", None), key=key)
             # Its articles, for the history archive (§308). Never awaited;
             # a private search is refused there.
             import history_archive

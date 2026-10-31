@@ -452,8 +452,10 @@ class CategoryStore:
             # did not file.
             # §358: how sure the request's placement was, and any name in it
             # that means two things and was left undecided.
+            # §366: the episode's cache key, so the answer key can read the
+            # script it grades.
             for column in ("nando_request", "nando_request_how", "nando", "nando_how",
-                           "nando_confidence", "nando_ambiguous"):
+                           "nando_confidence", "nando_ambiguous", "key"):
                 try:
                     conn.execute(f"ALTER TABLE category_audit ADD COLUMN {column}"
                                  " TEXT NOT NULL DEFAULT ''")
@@ -821,8 +823,8 @@ class CategoryStore:
                 "INSERT INTO category_audit (at, origin, query, words, writer,"
                 " writer_facet, composer, composer_facet, keywords,"
                 " nando_request, nando_request_how, nando, nando_how,"
-                " nando_confidence, nando_ambiguous)"
-                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                " nando_confidence, nando_ambiguous, key)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (now, str(row.get("origin", ""))[:16],
                  str(row.get("query", ""))[:200], str(row.get("words", ""))[:60],
                  str(row.get("writer", ""))[:80],
@@ -835,7 +837,8 @@ class CategoryStore:
                  str(row.get("nando", ""))[:80],
                  str(row.get("nando_how", ""))[:16],
                  str(row.get("nando_confidence", ""))[:8],
-                 str(row.get("nando_ambiguous", ""))[:80]))
+                 str(row.get("nando_ambiguous", ""))[:80],
+                 str(row.get("key", ""))[:80]))
             conn.execute("DELETE FROM category_audit WHERE at < ?",
                          (now - AUDIT_DAYS * 86400,))
             return True
@@ -850,7 +853,7 @@ class CategoryStore:
                 "SELECT at, origin, query, words, writer, writer_facet,"
                 " composer, composer_facet, keywords, nando_request,"
                 " nando_request_how, nando, nando_how, nando_confidence,"
-                " nando_ambiguous FROM category_audit"
+                " nando_ambiguous, key FROM category_audit"
                 " WHERE at >= ? ORDER BY at DESC LIMIT ?",
                 (since, int(limit))).fetchall()
         except Exception:
@@ -859,7 +862,7 @@ class CategoryStore:
         names = ("at", "origin", "query", "words", "writer", "writer_facet",
                  "composer", "composer_facet", "keywords", "nando_request",
                  "nando_request_how", "nando", "nando_how", "nando_confidence",
-                 "nando_ambiguous")
+                 "nando_ambiguous", "key")
         return [dict(zip(names, r)) for r in rows]
 
     def report(self) -> dict:

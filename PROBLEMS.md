@@ -25628,3 +25628,63 @@ none; no example a measured question; chosen for the request, never its
 own answer, at most two "none"; learned examples join in the background;
 hints say they are hints; every facet always a candidate; Nando's own call
 and C3P0's carry the teaching; teaching never raises).
+
+## 366. Training Nando, piece N3: the answer key - Opus grades his filings nightly (2026-10-31)
+
+**The problem.** Nothing said how often Nando files an episode under the
+right node. The forty questions and the corpus (§363) are fixed sets; the
+owner wants training that keeps going as the tree grows, with nobody
+hand-scoring episodes (decided item 30). Every later piece - his memory
+(N4), corrected mistakes as examples (N5), a small trained model (N6) -
+needs right answers to learn from.
+
+**The answer key** (`agents/training.py`). A stronger model,
+`CATEGORIZER_JUDGE_MODEL` (Opus 5.5, the owner's choice), reads each
+finished episode - the question and the first forty sentences of its
+script - with the whole tree (id, path, drafted definition) and names the
+one node it is truly about, or "none", with how sure it is and why. One
+request through `agents.models.ask`, as Nando (`categorizer:judge`), under
+his signed rule book (rules 5 and 11: read the finished episode, record
+what every part of FAM said); a node the tree lacks is thrown away, a
+failed call labels nothing. The tree listing sits in the cached fixed
+block, so a batch pays for it once.
+
+**Nightly.** Netenyahu gained a clock (`netenyahu.SCHEDULE`): at or after
+03:00 Eastern, clear of both editions, one task keyed by the Eastern date -
+a restart never runs it twice, and a day the loop was down is not made up.
+Only with `AGENTS=1`, `CATEGORIZER=1` and the handler registered (the app
+registers it at boot, reading scripts from the script cache). A run grades
+at most `NANDO_JUDGE_PER_RUN` (50) episodes from the last week that it has
+not graded, newest first, one per cache key.
+
+**What it never reads.** A private search's episodes (origin `private`)
+and history archives; an attached file's episode is never cached and so
+never audited. Labels keep the cache key, the question, the node, the
+confidence and the reason - never a listener id. A wipe forgets them
+(`demo_data._forget_what_the_log_taught`).
+
+**To find the script**, the category audit now keeps each episode's cache
+key (a `key` column, passed from all four write paths).
+
+**The number** (`training.report`, printed by `tools/categories_report.py
+--audit`): over episodes both filed and graded, the same node, on its
+branch (one an ancestor of the other: true, more or less specific), wrong,
+and filed nothing (counted apart: never wrong, only unhelpful), by facet,
+with the commonest confusions. `None`, not 0, before anything is graded.
+
+**Cost.** Opus at the pinned price; one call per episode, at most fifty a
+night, the tree read from the prompt cache after the first. Recorded in
+`agent_calls` per call like every agent call.
+
+**Not measured here.** No key in this container: nothing has been graded.
+The first night's numbers are the measurement. To grade now, by hand, with
+a key and the agents on: run the app with `AGENTS=1 CATEGORIZER=1`; the
+task is queued at the first tick after 03:00 Eastern.
+
+Tests: `tests/test_nando_answer_key_366.py` (the audit keeps the key on all
+four write paths; the store round-trips and a wipe forgets; the judge is
+Nando's background call on its own model and setting; it never keeps a node
+the tree lacks; "none" is an answer; a failed call labels nothing; a batch
+grades each episode once, never a private one, skips a missing script; the
+report's four counts and confusions; `None` before grading; queued once a
+night only when Nando is on and has a handler).

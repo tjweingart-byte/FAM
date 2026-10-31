@@ -361,8 +361,9 @@ def test_nothing_on_the_listener_path_imports_the_model_layer():
     # Nando's placement (§356) are pure code, and every write path settles
     # Nando's node (§356).
     allowed = {
-        "app.py": {"models", "rulebooks", "netenyahu", "tasks", "roster"},
-        "demo_data.py": {"tasks"},
+        "app.py": {"models", "rulebooks", "netenyahu", "tasks", "roster", "training"},
+        # The wipe also forgets Nando's answer-key labels (§366).
+        "demo_data.py": {"tasks", "training"},
         "pipeline.py": {"netenyahu", "categorizer"},
         "script_generator.py": {"netenyahu", "contextualizer", "categorizer"},
         "prefetch.py": {"categorizer"},
@@ -372,6 +373,9 @@ def test_nothing_on_the_listener_path_imports_the_model_layer():
         "episode_intelligence.py": {"contextualizer", "categorizer"},
         # Nando's worked examples read his paths (§365).
         "category_examples.py": {"categorizer"},
+        # The audit report reads the answer key's agreement (§366); the
+        # judge itself is a background task, never on the listener's path.
+        "category_audit.py": {"training"},
     }
     found = {}
     for p in ROOT.glob("*.py"):
