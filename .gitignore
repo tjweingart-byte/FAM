@@ -66,3 +66,6 @@ after/
 
 # Built pages of docs/ (docs/build_html.py, docs/build_agents_html.py), published, never committed.
 docs/build/
+
+# tools/compare_backends.py output (§356)
+backend_comparison/

@@ -1,4 +1,4 @@
-"""§354: every screen paints its own status bar, so the strip at the top
+"""§359: every screen paints its own status bar, so the strip at the top
 slides and fades with the page it belongs to instead of staying put and
 changing colour while the page under it is still moving."""
 from __future__ import annotations

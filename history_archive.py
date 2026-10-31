@@ -127,10 +127,19 @@ class Finding:
     #: `YYYY-MM-DD`, or "" when the search did not know it.
     published: str = ""
     passages: tuple = ()
+    #: Which search supplied it - "perplexity", "parallel" or "gdelt" (§358).
+    #: Their terms differ on keeping what they return (docs/PROVIDER_TERMS.md),
+    #: so the archive keeps each provider's passages apart and can drop one
+    #: provider's words without the other's. "" for a caller that does not say.
+    provider: str = ""
 
     def as_link(self) -> dict:
         return {"url": self.url, "title": self.title, "host": self.host,
                 "grade": self.grade, "published": self.published}
+
+
+#: The searches whose passages the archive keeps apart (§358).
+PROVIDERS = ("perplexity", "parallel", "gdelt")
 
 
 @dataclass
@@ -160,11 +169,13 @@ def url_id(url: str) -> str:
     return hashlib.sha256((url or "").strip().encode("utf-8")).hexdigest()[:32]
 
 
-def findings_from(results, packet_sources: int, highlights_per_source: int) -> list:
+def findings_from(results, packet_sources: int, highlights_per_source: int,
+                  provider: str = "") -> list:
     """The articles a packet was built from, in the packet's own order.
 
     Called wherever `research.build_packet` is, with the same arguments, so
-    only what the writer actually read is archived."""
+    only what the writer actually read is archived. `provider` is the search
+    that returned `results` (§358)."""
     import research
 
     found = []
@@ -180,7 +191,7 @@ def findings_from(results, packet_sources: int, highlights_per_source: int) -> l
             url=url, title=str(getattr(result, "title", "") or "").strip(),
             host=research.host_of(result), grade=research.credibility(result),
             published=when.strftime("%Y-%m-%d") if when else "",
-            passages=tuple(highlights)))
+            passages=tuple(highlights), provider=str(provider or "")))
     return found
 
 
@@ -231,6 +242,18 @@ class SQLiteBackend:
                        " created REAL NOT NULL)")
             db.execute("CREATE INDEX IF NOT EXISTS facts_active"
                        " ON facts(active, published_ts)")
+        # Each provider's passages apart (§358): {"perplexity": [...]}.
+        # `passages` stays the union every reader already reads. Rows written
+        # before this have `{}` - their provider was never known. Its own
+        # connection, after the tables above are committed: on Postgres a
+        # failed statement spoils the transaction it is in, and a second
+        # connection cannot see a table the first has not committed yet.
+        try:
+            with closing(self._connect()) as alter, alter:
+                alter.execute("ALTER TABLE intake ADD COLUMN by_provider "
+                              "TEXT NOT NULL DEFAULT '{}'")
+        except Exception:  # noqa: BLE001 - already there
+            pass
 
     def _connect(self) -> sqlite3.Connection:
         return store_db.connect(self.path, timeout=10)
@@ -240,29 +263,33 @@ class SQLiteBackend:
         written = 0
         with self._lock, closing(self._connect()) as db, db:
             for f in findings:
-                row = db.execute("SELECT passages, subjects, categories FROM "
-                                 "intake WHERE id = ?", (url_id(f.url),)).fetchone()
+                row = db.execute("SELECT passages, subjects, categories, "
+                                 "by_provider FROM intake WHERE id = ?",
+                                 (url_id(f.url),)).fetchone()
                 if row is None:
                     db.execute(
                         "INSERT INTO intake (id, url, title, host, grade, "
                         "published, passages, subjects, categories, first_seen, "
-                        "last_seen, seen, digested) "
-                        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 0)",
+                        "last_seen, seen, digested, by_provider) "
+                        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 0, ?)",
                         (url_id(f.url), f.url, f.title, f.host, f.grade,
                          f.published, json.dumps(list(f.passages)[:MAX_PASSAGES]),
                          json.dumps([subject] if subject else []),
-                         json.dumps([category] if category else []), now, now))
+                         json.dumps([category] if category else []), now, now,
+                         json.dumps(_by_provider({}, f))))
                 else:
                     passages = _union(json.loads(row[0]), f.passages, MAX_PASSAGES)
                     subjects = _union(json.loads(row[1]), [subject] if subject else [])
                     categories = _union(json.loads(row[2]),
                                         [category] if category else [])
+                    by_provider = _by_provider(json.loads(row[3] or "{}"), f)
                     db.execute(
                         "UPDATE intake SET passages = ?, subjects = ?, "
-                        "categories = ?, last_seen = ?, seen = seen + 1 "
-                        "WHERE id = ?",
+                        "categories = ?, by_provider = ?, last_seen = ?, "
+                        "seen = seen + 1 WHERE id = ?",
                         (json.dumps(passages), json.dumps(subjects),
-                         json.dumps(categories), now, url_id(f.url)))
+                         json.dumps(categories), json.dumps(by_provider), now,
+                         url_id(f.url)))
                 written += 1
         return written
 
@@ -354,7 +381,25 @@ class SQLiteBackend:
                                        "episode_sources").fetchone()[0],
                 "facts": db.execute("SELECT COUNT(*) FROM facts "
                                     "WHERE active = 1").fetchone()[0],
+                # Articles holding each provider's passages (§358); "unknown"
+                # holds no attributed passage - written before the provider
+                # was recorded, or kept with no passages at all.
+                "intake_by_provider": {
+                    **{p: db.execute("SELECT COUNT(*) FROM intake WHERE "
+                                     "by_provider LIKE ?", (f'%"{p}"%',)).fetchone()[0]
+                       for p in PROVIDERS},
+                    "unknown": db.execute("SELECT COUNT(*) FROM intake WHERE "
+                                          "by_provider = '{}'").fetchone()[0]},
             }
+
+
+def _by_provider(held: dict, finding: "Finding") -> dict:
+    """`held` with `finding`'s passages added under its provider (§358)."""
+    held = dict(held or {})
+    if finding.provider and finding.passages:
+        held[finding.provider] = _union(held.get(finding.provider, []),
+                                        finding.passages, MAX_PASSAGES)
+    return held
 
 
 def _union(existing, more, limit: int = 0) -> list:
@@ -440,6 +485,10 @@ class AtlasBackend:
             add: dict = {}
             if f.passages:
                 add["passages"] = {"$each": list(f.passages)[:MAX_PASSAGES]}
+                if f.provider:
+                    # Each provider's passages apart (§358); see SQLite's.
+                    add[f"by_provider.{f.provider}"] = {
+                        "$each": list(f.passages)[:MAX_PASSAGES]}
             if subject:
                 add["subjects"] = subject
             if category:
@@ -533,6 +582,12 @@ class AtlasBackend:
             "undigested": self.intake_c.count_documents({"digested": False}),
             "episodes": self.episodes_c.estimated_document_count(),
             "facts": self.facts_c.count_documents({"active": True}),
+            # As SQLite's (§358).
+            "intake_by_provider": {
+                **{p: self.intake_c.count_documents(
+                    {f"by_provider.{p}": {"$exists": True}}) for p in PROVIDERS},
+                "unknown": self.intake_c.count_documents(
+                    {"by_provider": {"$exists": False}})},
         }
 
     def ping(self) -> None:

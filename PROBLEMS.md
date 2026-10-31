@@ -24619,7 +24619,179 @@ What they found, and what was done:
 **Numbering.** Main merged its own §341 and §345 while this branch was open;
 this branch's sections moved to §346-§352, and every reference with them.
 
-## 354. The status bar belongs to the screen, and the profile's wash reaches the top (2026-10-31)
+## 354. May FAM keep what its providers return? The terms could not be read (2026-10-29)
+
+The owner asked, per provider, whether FAM may store what it returns, for
+how long, reuse it for another listener's episode, speak it to the public,
+and what must be credited - quoting each provider's own pages. GDELT,
+Tiingo and BALLDONTLIE were settled and not reopened; Finnhub and
+API-Sports are being removed.
+
+**Every page of the four open providers was refused by this session's
+network policy** (parallel.ai, perplexity.ai, gnews.io, polymarket.com and
+their docs sites): no clause was quoted, and none was filled in from memory
+or search snippets. So Parallel, Perplexity, GNews and Polymarket stay
+**unclear** on every question and Consuela keeps none of their material.
+`docs/PROVIDER_TERMS.md` holds the table, the safest shape per provider
+(links, titles and dates, never passages, for the two search providers), the
+publishers' copyright kept apart from the providers' terms with a list for a
+lawyer, four unsent emails for the owner, and the domains to allow so a
+later session can quote the pages.
+
+Two findings for the owner: `history_archive` intake (§308) **already
+keeps** up to eight Parallel and Perplexity passages per article, and it
+**does not record which provider** supplied them, so build-prompt item 8's
+per-provider switch could not delete them per provider. Nothing in code
+changed here; the agents guide, its build prompt and the rule books carry
+the decision once the owner makes it.
+
+## 355. Provider terms, read: Parallel forbids reuse across listeners; Perplexity and GNews allow storage (2026-10-29)
+
+§354 could not open a single provider page. With the network now allowing
+them, `docs/PROVIDER_TERMS.md` quotes the deciding clauses word for word from
+Parallel's Customer Terms (effective 2026-10-17), Perplexity's API Terms and
+Search addendum, GNews's Terms of Service (2026-10-18) and Polymarket's Terms
+of Use (2026-08-11), all read on 2026-10-29, and re-marks the table.
+
+- **Parallel:** output "shall not be copied, cached, stored, or made available
+  to other End Customers" (§2(b)(i)), nor made available "from previous
+  queries for future uses" (§2(c)(xi)). So intake's Parallel passages, kept to
+  write other listeners' episodes, are outside the standard terms. Whether
+  FAM's cached script (a derivative work FAM wrote) may be replayed to the next
+  listener is unclear; email 1 asks, and asks the price of an agreement.
+- **Perplexity:** no restriction on storing or reusing Search API results (its
+  docs say "filter, store, or hand to a model"), no credit; but FAM "does not
+  own" them and gets no IP indemnity, so the publishers' copyright is the only
+  limit. No personal data may be sent without written permission (addendum
+  §2.3) - email 2 asks about queries naming public figures.
+- **GNews:** storage allowed and kept after a plan ends; no credit required;
+  **only a paid plan may be used commercially**, and production counts. The
+  Free plan also runs 12 hours late. No email - a subscription (Essential,
+  €49.99 a month).
+- **Polymarket:** the Terms bind API use, grant a "personal" licence and bar
+  only capital-markets firms and market data distributors; nothing on storing
+  or quoting odds. Email 3 to hello@polymarket.com.
+
+The first pass's leads were checked: five confirmed, one corrected, two
+struck (a Google Cloud Marketplace agreement for Parallel; an "API Usage
+Policy" for Polymarket). Contact addresses come from each provider's own
+pages. The provider-terms note was numbered §340 on its branch, beside the
+agents guide's §340; merged here it is §354. Nothing in code changed; the
+agents guide, build prompt and rule books are left to the branch that owns
+them.
+
+## 356. Parallel against Perplexity, measured on one brief (2026-10-30)
+
+The owner asked how much worse Perplexity is than Parallel: Perplexity's
+terms let FAM keep what it returns and Parallel's do not (§355), so making
+it the primary search would let the archive keep its passages. Nobody had
+measured it - §258 chose both on price, and `tools/compare_search.py`
+measures the deleted model web search, not these two.
+
+`tools/compare_backends.py` runs both on the same questions. **One brief per
+question**, written once by EI and handed to both, so the two searches ask
+the same thing with the same window and the same `must_establish`; the second
+look is pinned to the same index (`RESEARCH_SECOND_LOOK=same`) so neither run
+is rescued by the other; the archive's recall is off so earlier passages
+reach neither packet. Settings are set on the one shared `settings` object
+and put back after each run. A backend that fails outright still falls back
+so an episode can be written, and the row says `fell_back`.
+
+Per question and backend it records sources, distinct outlets, dated sources
+and their age, source types, evidence size, which `must_establish` items the
+packet missed (the pipeline's own token test), search time and cost; with
+`--write`, the script and the six code proxies (§309); with `--grade`, the
+grader's 1-5. **It does not decide which is better**: `--write` saves both
+scripts as A and B in a random order with the key apart (`key.json`), to be
+read or heard blind. Output goes to `backend_comparison/<time>/` (ignored):
+`report.md`, `results.csv`, `packets/`, `blind/`.
+
+The default 25 questions (`tools/compare_backends_questions.txt`) spread over
+news, sports, markets, politics, tech, niche and local subjects; real
+listeners' searches from `/admin`, passed with `--queries`, are better.
+Not run here: this environment has neither search key. Next: run it with
+both keys, `--write`, on 20-30 real searches; about $1.
+
+Also: email 3 in `docs/PROVIDER_TERMS.md` now asks Polymarket
+(hello@polymarket.com, the address its Terms give) for written permission,
+since its Terms reserve anything beyond them for what is "otherwise agreed to
+in writing by us".
+
+Tests: `tests/test_compare_backends_356.py` (one brief for both, each index
+pinned and the settings restored, the blind files and the report; the packet
+reader; the dry run spends nothing).
+
+## 357. Perplexity is the primary search; Parallel the second look (2026-10-30)
+
+The owner, after the §356 comparison: switch the primary search to
+Perplexity. On 25 questions, one brief each, Perplexity missed 20
+must-establish items to Parallel's 22, every source it returned was dated,
+the grader scored it within 0.1 of Parallel on all six measures, and it
+searched in 0.69 s to Parallel's 1.39 s; Parallel's sources were about two
+days fresher (median 4.1 days against 6.1). And Perplexity's terms let FAM
+keep what it returns, where Parallel's forbid reusing it for another
+listener (§355).
+
+**What changed.**
+
+* `DEFAULT_RESEARCH_BACKEND` is `perplexity`; `RESEARCH_SECOND_LOOK`
+  defaults to `parallel`. A retired `RESEARCH_BACKEND` (`claude`, `exa`)
+  now runs as `perplexity`.
+* `FALLBACK_RUNGS` is `("perplexity", "parallel", "gdelt")` and `ladder()`
+  skips the configured backend, so the other web index always comes next
+  whichever is primary (`test_the_ladder_tries_the_other_index_then_gdelt`).
+* `.env.example`, `render.yaml`'s comment, the startup and health wording,
+  the cost table, the "no sources" explanation and the local-news docs say
+  Perplexity, then Parallel. CLAUDE.md's `[always-researched]` line and a
+  `Current` note in `docs/claude/constraints.md` record it.
+
+**For the owner.** `render.yaml` does not set `RESEARCH_BACKEND`, so
+production follows the new default on deploy - **unless the Render
+dashboard sets `RESEARCH_BACKEND=parallel` (or `RESEARCH_SECOND_LOOK`)
+itself**; a dashboard value wins, so remove it there. `/api/health` reports
+which backend runs. Parallel still runs as the second look and the backup,
+so `history_archive` intake can still receive Parallel passages, and it
+still does not record which provider a passage came from (§355's findings
+1 and 2) - storing Perplexity's passages only needs that recorded first.
+
+Tests: `tests/test_research.py` (the new default, the ladder either way
+round), `tests/test_search_backends_258.py` (Perplexity's second look on
+Parallel; the §258 tests pin their Parallel-first shape).
+
+## 358. The archive records which search supplied each passage (2026-10-30)
+
+The owner: make intake record which provider each passage came from. §355
+found that `history_archive` intake kept search passages with no provider on
+them, so Parallel's - which its terms forbid reusing for another listener -
+could not be told from Perplexity's, which its terms let FAM keep.
+
+**What changed.**
+
+* `Finding.provider` - "perplexity", "parallel" or "gdelt" - set where the
+  search ran: `research._retrieve_blocking` (the configured backend, the
+  second look and every fallback rung), the tapped story's outlets
+  (`_merge_story_look`, the configured backend), and both GDELT paths.
+* Intake keeps each provider's passages apart in `by_provider`
+  (`{"perplexity": [...], "parallel": [...]}`); `passages` stays the union
+  every reader already reads, so nothing downstream changes. One article
+  seen through both searches holds both lists.
+* SQLite (and Postgres through `db.connect`) widens an existing `intake`
+  table with `by_provider TEXT NOT NULL DEFAULT '{}'`; Atlas adds
+  `by_provider.<name>` with `$addToSet`, no migration.
+* `counts()` reports `intake_by_provider`: articles holding each provider's
+  passages, and `unknown` - articles with no attributed passage (kept before
+  this deployed, or kept with no passages).
+
+**Not done here.** Nothing is deleted or dropped: the owner decides what
+happens to Parallel's passages (§355, finding 1). Passages kept before this
+deploys stay `unknown` for good - the provider was never recorded, and it
+cannot be recovered from the text.
+
+Tests: `tests/test_intake_provider_358.py` (each web search names itself;
+one article from both keeps them apart; an old table is widened and its rows
+read as unknown; Atlas adds per provider).
+
+## 359. The status bar belongs to the screen, and the profile's wash reaches the top (2026-10-31)
 
 The owner, from screenshots: on YourFAM and a friend's profile the gold
 wash started under a dark band - the status bar - and should extend to the

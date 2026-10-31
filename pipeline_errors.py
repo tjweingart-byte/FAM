@@ -567,7 +567,7 @@ EXPLAIN = (
          "Usually nothing to do; a run of them means the sweep stopped.")),
     ("research", r"^no sources",
      _ex("No sources found",
-         "Every search rung (Parallel, then Perplexity, then GDELT) came back "
+         "Every search rung (Perplexity, then Parallel, then GDELT) came back "
          "empty for this question.",
          "The episode was written without evidence, from what is settled, "
          "with nothing current in it.",
