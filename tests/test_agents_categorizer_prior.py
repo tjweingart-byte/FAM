@@ -82,9 +82,12 @@ def test_a_dailyfam_subject_from_the_catalogue(tree, pool):
 
 
 def test_a_narrowed_dailyfam_subject_stays_in_its_subject(tree, pool):
-    # "Eagles" alone is not a phrase the tree holds; NFL is true and broader.
+    # "Eagles" alone is not a phrase the tree holds, but it is the
+    # Eagles' nickname inside NFL (§359), so it narrows to the team.
     prior = categorizer.prior_for(f"The latest on Eagles (NFL) as of {DATE}. Cover only Eagles")
-    assert prior == Prior("nfl", "dailyfam")
+    assert prior == Prior("philadelphia eagles", "dailyfam")
+    # A specific the subject's branch has no word for stays the subject.
+    assert categorizer.prior_for(f"The latest on Zqxv (NFL) as of {DATE}") == Prior("nfl", "dailyfam")
     narrowed = categorizer.prior_for(
         f"The latest on Philadelphia Eagles (NFL) as of {DATE}. Cover only them")
     assert narrowed == Prior("philadelphia eagles", "dailyfam")

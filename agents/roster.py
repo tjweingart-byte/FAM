@@ -86,7 +86,8 @@ ROSTER: dict = {a.role: a for a in (
     _agent("categorizer",
            "Pins each request to one node of the category tree, and confirms it "
            "after the writer",
-           ("place", "confirm", "re-file"), (SEARCH, AHEAD, BACKGROUND), "categorize",
+           ("place", "confirm", "re-file", "draft vocabulary", "draft entities"),
+           (SEARCH, AHEAD, BACKGROUND), "categorize",
            ((SEARCH, "categorizer_timeout_seconds", "categorizer_max_tokens"),
             (AHEAD, "categorizer_timeout_seconds", "categorizer_max_tokens"),
             (BACKGROUND, "", "")),

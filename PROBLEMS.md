@@ -24978,3 +24978,95 @@ or nothing, and names itself; a decided name rules out the others; every
 placement's confidence; below the floor the parent; a facet never made
 broader; the audit's counts; the held-out set never wrong and better than
 today).
+
+## 359. Phase 1, piece 6: the category vocabulary - other wordings and named things, and a tool to draft them (2026-10-31)
+
+After pieces 4 and 5 the typed questions Nando cannot place are plain
+wordings the tree has no phrase for ("why rents keep rising" against
+`rental market`, "is bitcoin going up", "Fed interest rate decision") and
+named things it should not grow a node for (Taylor Swift, OpenAI, a team
+whose name is an everyday word). The owner approved giving every node a
+definition, its other wordings and its Wikidata id, an entity table, and a
+batch tool to draft them for a key-holder to run once and check, with
+Haiku 5.5 drafting and the files kept beside the category seed (not signed
+rule books).
+
+**`category_vocabulary.py`** reads two sources:
+
+- **Derived in code**, from data FAM already has and nothing fitted to a
+  test: each seeded team's nickname ("lakers", "red sox"), read as the team
+  only in a question about sport - a nickname alone can be an everyday word
+  ("jazz festival" is not the Utah Jazz); and each followable interest's
+  label ("cryptocurrency" for `crypto`).
+- **Drafted, then checked**: `category_vocabulary.json` - `nodes` (each
+  one's `definition`, `excludes`, `wordings`, `wikidata`) and `entities`
+  (name -> node, kind, Wikidata id). Committed empty; nodes or entities the
+  tree does not hold are ignored, and an unreadable file is no vocabulary.
+
+`match(text, facet)` finds the longest known wording in the text (a named
+thing before a wording of the same length), inside the facet when one is
+known. A wording two nodes share comes back as both - a tie. Built once per
+tree and file, then a walk over a dictionary.
+
+**Nando reads it** after the tree's own phrases (exact, §209) and before
+meaning and keywords: the brief's words, then its subject, then the
+question (`wording` 0.65, `entity` 0.8 in `CONFIDENCE`). A tie is filed
+under what its nodes share, never one of them. A DailyFAM specific
+("Eagles" under NFL) now narrows through the vocabulary inside its
+subject's branch.
+
+**`tools/draft_category_vocabulary.py`.** Nando's offline task, through
+`agents.models.ask` like any agent call - `CATEGORIZER_MODEL` (Haiku 5.5),
+Nando's signed rule book, metered, refused on staging and sending nothing
+unless the deployment has `AGENTS=1 CATEGORIZER=1`. Thirteen calls of
+twenty-five nodes each for definitions, exclusions and wordings, from the
+node ids and paths (FAM's own material); then the named things the tree
+leaves out on purpose (`category_seed.LEFT_TO_GROW`) and the specifics
+DailyFAM offers (`topics.FOCUS_HINTS`), each filed under a node chosen from
+the tree's list or "none". Every answer is checked in code: an unasked or
+unknown node is dropped, wordings are normalised and capped at fifteen, and
+a Wikidata id is kept only when Wikidata's own label is exactly the name.
+It writes `category_vocabulary.pending.json`, which Nando never reads; a
+person reads it, edits it and renames it. To run where there is a key:
+
+    AGENTS=1 CATEGORIZER=1 python tools/draft_category_vocabulary.py
+
+Then measure:
+
+    python tools/nando_eval.py
+
+**Not in this piece.** The Wikidata ids are drafted and verified, but
+walking them at the request (a name -> its league or industry -> an
+anchored node) needs links the reference look's cache does not keep
+(`wikimedia.raw_facts` holds occupations, teams, employers - not sport,
+league or industry) and would be a disk read in front of the first word; it
+moves to piece 8, where the sources' names are linked after research. The
+definitions are for piece 7's candidate list; `category_near` still embeds
+bare node ids, because changing it would change what the readers place
+with the agents off.
+
+**Measured.** With the vocabulary file still empty, the derived wordings
+add one typed question (Lakers trade rumors): the forty are **21 right, 1
+broader, 17 unplaced, 1 wrong** (today 11 / 0 / 28 / 1); the held-out
+clashes 18 / 1 narrower / 1 unplaced / 0 wrong; the taps 12 of 12. The gain
+the plan expects - most of the seventeen - waits for the drafted file, and
+is measured by the same command once it is checked in.
+
+**Latency.** None off. On: one dictionary walk after the brief; the file is
+read once per change.
+
+**A test that moved.** Piece 4's DailyFAM test pinned "Eagles (NFL)" to
+`nfl` because Nando could not read the nickname; it now narrows to the
+team, and the test pins that a specific the branch has no word for stays
+the subject.
+
+Tests: `tests/test_category_vocabulary.py` (a nickname in a sports question
+and not outside one; a two-word nickname; an interest's label; drafted
+wordings and entities read; a shared wording a tie; the longest wording and
+an entity first; the facet kept; unknown nodes ignored; an unreadable file
+is none; the pending draft never read; the repository's file holds only
+seeded nodes; not a rule book; Nando places by a wording, files a tie under
+what it shares, places a named thing, narrows a DailyFAM specific; the
+tool cleans wordings, drops unasked and unknown nodes, keeps entities only
+under real nodes, sends nothing when the agent is off, keeps a Wikidata id
+only for one exact label, and the dry run sends nothing).

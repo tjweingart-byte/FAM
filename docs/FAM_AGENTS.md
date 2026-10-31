@@ -1971,7 +1971,14 @@ Hurricanes, United, Apple, Amazon, Eagles...) with its readings' nodes and
 the words that decide between them; a tie is never guessed - Nando files
 under what the readings share, or nothing, and records the name for C3P0
 to ask about. Every placement has a confidence; below `MIN_CONFIDENCE` it
-is filed under its parent.
+is filed under its parent. **The vocabulary (§359):**
+`category_vocabulary.py` reads each node's other wordings and the named
+things filed under one - derived in code (each seeded team's nickname, in a
+sports question only; each interest's label) and drafted into
+`category_vocabulary.json` by `tools/draft_category_vocabulary.py` (Nando's
+offline task, Haiku 5.5 through the agent layer, Wikidata ids kept only on
+an exact label) as a pending file a person checks and renames. A wording two
+nodes share is a tie, filed under what they share.
 
 ### Settings and open questions
 

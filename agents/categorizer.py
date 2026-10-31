@@ -67,8 +67,9 @@ NOWHERE = Placement()
 #: failure (§209); meaning and keywords are weakest. A facet is always true.
 CONFIDENCE = {
     "edition": 0.9, "tile": 0.9, "bank": 0.9, "dailyfam": 0.9, "provider": 0.9,
-    "parent": 0.7, "category": 0.8, "clash": 0.75, "subject": 0.7,
-    "question": 0.6, "near": 0.5, "tags": 0.5, "shared": 1.0, "facet": 1.0,
+    "parent": 0.7, "category": 0.8, "clash": 0.75, "entity": 0.8, "subject": 0.7,
+    "wording": 0.65, "question": 0.6, "near": 0.5, "tags": 0.5, "shared": 1.0,
+    "facet": 1.0,
 }
 #: Below this a placement is filed under its parent node (decided item 38:
 #: a broader node rather than a nearby wrong one).
@@ -317,6 +318,15 @@ def _prior_for(query: str, context: str, notes) -> Prior:
             node = _interest_node(interest)
             shown = (daily.group("shown") or "").strip() if daily.group("label") else ""
             narrowed = _resolved(shown)
+            if not narrowed and shown and node:
+                # "Eagles" under NFL: the vocabulary, on the subject's facet,
+                # with the subject's own label as the sport context (§359).
+                import category_vocabulary
+
+                found, _kind, _w = category_vocabulary.match(
+                    f"{shown} {label}", _facet(node))
+                found = tuple(n for n in found if node in _branch(n))
+                narrowed = found[0] if len(found) == 1 else ""
             if narrowed and node and (narrowed == node or node in _branch(narrowed)):
                 node = narrowed
             if node:
@@ -441,30 +451,46 @@ def _place(brief, query: str, prior_facet: str = "") -> Placement:
         # nothing is filed rather than the other reading's node.
         return done("", "clash")
     # 3-4: phrases in the subject, then the question - never a node a
-    # decided name ruled out.
+    # decided name ruled out. A phrase is the tree's own word, exact (§209).
     if agrees(by_subject) and by_subject not in topics.FACETS:
         return done(by_subject, "subject")
     if agrees(by_question) and by_question not in topics.FACETS:
         return done(by_question, "question")
-    # 5: the brief's words by meaning, under its facet.
+    # 5: the vocabulary (§359) - a named thing, or another way of saying a
+    # node, in the brief's words, its subject, then the question. A wording
+    # that names two nodes is a tie: what they share, never one of them.
+    import category_vocabulary
+
+    for text in (words, subject, query):
+        nodes, kind, _wording = category_vocabulary.match(text, facet, tree)
+        nodes = tuple(n for n in nodes if agrees(n))
+        if len(nodes) == 1:
+            return done(seen(nodes[0]), kind)
+        if len(nodes) > 1:
+            for n in nodes:
+                seen(n)
+            shared = _shared(list(nodes))
+            if shared:
+                return done(shared, "shared")
+    # 6: the brief's words by meaning, under its facet.
     if words:
         import category_near
 
         near = seen(category_near.nearest(words, facet=facet, inline=1))
         if near and agrees(near):
             return done(near, "near")
-    # 6: the keyword map's deepest tree node for the question.
+    # 7: the keyword map's deepest tree node for the question.
     tagged = [t for t in topics.tags_for_text(query or "")
               if t not in topics.FACETS and tree.get(t) is not None and agrees(t)]
     if tagged:
         tagged.sort(key=lambda n: (-tree.depth_of(n), n))
         return done(seen(tagged[0]), "tags")
-    # 7: an undecided name - what all its readings share, never one of them.
+    # 8: an undecided name - what all its readings share, never one of them.
     for _name, readings in undecided:
         shared = _shared([r.node for r in readings])
         if shared:
             return done(shared, "shared")
-    # 8: broader, never wrong.
+    # 9: broader, never wrong.
     if facet:
         return done(facet, "facet")
     for node in (by_subject, by_question):
