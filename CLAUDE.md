@@ -439,7 +439,7 @@ Accounts, tiers, sharing
   other doors need `APP_STORE_URL`; no `user_id`; host from the request (`_public_base`,
   `X-Forwarded-Proto`, loopback refused); story cards are PNG files to the share
   sheet. [share-link]
-- FAM never posts, holds no posting token; /admin/x, /linkedin draft. [no-social-posting] [x-threads] [linkedin]
+- FAM never posts, holds no posting token; /admin/x drafts. [no-social-posting] [x-threads]
 - **App review** (§222): Report everywhere, block both ways (`moderation.py`, `/admin`);
   a listener's words reach Anthropic only after a yes (`consent.py`); photos checked (§224); Terms ticked at sign-up (§228). [app-review-safety]
 - **Authorship is provenance, never identity**: `PodcastPipeline.author`, never

@@ -1,4 +1,4 @@
-"""The X agent against real posts, side by side, before it is trusted (§366).
+"""The X agent against real posts, side by side, before it is trusted (§368).
 
 The guardrails brief (FAM_X_Marketing_Agent_Guardrails.pdf §10): "Before
 deployment, compare its proposed output against 10 real posts using
@@ -183,7 +183,7 @@ td p{{margin:4px 0}} .n{{color:var(--muted)}} .flag{{color:var(--flag);font-size
 </style></head><body>
 <h1>The X agent against {len(rows)} posts</h1>
 <p>Every row is pending human review. Episode + comment needs relevance 4-5 and the original-author test;
-3 is a comment only; 1-2 is rejected (§366).</p>
+3 is a comment only; 1-2 is rejected (§368).</p>
 <div class=scroll><table><tr><th>#</th><th>Original post</th><th>Central message / opportunity</th>
 <th>Episode</th><th>Proposed comment</th><th>Relevance / recommendation</th><th>Reviewer</th></tr>
 {''.join(cells)}</table></div></body></html>"""

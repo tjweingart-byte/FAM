@@ -25066,7 +25066,53 @@ shown are asked for. This reverses the strip's "no network request" note
 (the popup's reason - no referrer, nothing about the episode - is what now
 holds for both); the popup is unchanged.
 
-## 366. The X agent adds to conversations instead of distributing episodes (2026-10-31)
+## 366. The archive keeps nothing Parallel returns (2026-10-31)
+
+The owner: Parallel stays as the backup search, but nothing it returns is
+stored. Its Customer Terms say output "shall not be copied, cached, stored,
+or made available to other End Customers" (§2(b); `docs/PROVIDER_TERMS.md`),
+and the archive exists to reuse what one episode found for later ones.
+
+`history_archive.NEVER_KEPT = ("parallel",)`, and `_write` - the one path
+into intake and the episode's links - drops those findings first, so no store
+sees them. An article both searches found keeps only Perplexity's passages;
+an episode written from Parallel alone adds nothing. The count is
+`never_kept` in the archive's stats on `/api/health`. This rests on §358,
+which tagged every finding with its provider.
+
+Not changed: the episode Parallel helped write is still cached and replayed
+to listeners asking the same thing, with its sources on the player - the
+open question in email 1 of `docs/PROVIDER_TERMS.md`, rewritten here for
+backup-only use. Passages kept before §358 carry no provider and stay; what
+happens to them is the owner's call.
+
+Tests: `tests/test_intake_provider_358.py` (Parallel's passages and links
+never reach intake or the episode's links, and are counted; an episode from
+Parallel alone keeps nothing). Reviewed before the PR: `reset()` now zeroes
+`never_kept` with the other counters, and email 1 says the archive (not FAM)
+keeps nothing and asks again about episodes written ahead for everyone.
+
+## 367. Go Deeper on LinkedIn is removed (2026-10-31)
+
+At the owner's direction the LinkedIn outreach engine is gone: `/admin/linkedin`
+and its four `/api/admin/linkedin/*` routes, `linkedin_posts.py`, its page
+(`admin_ui/linkedin.html`), its link in the tracker's "Other admin pages",
+`LINKEDIN_POSTS_DB` and the `LINKEDIN_*` settings (`config.py`,
+`.env.example`, both Dockerfiles), and its tests. `outreach_intelligence.py`
+(§337) keeps the read and X's voice; LinkedIn's voice and the `LINKEDIN`
+platform are deleted, so `/admin/x` is the one engine it serves. The
+`linkedin` rule in `docs/claude/constraints.md` is removed and its line in
+`CLAUDE.md` folded into `no-social-posting`.
+
+**What stays.** The listener's LinkedIn share target (`sharing.py`, the share
+sheet, the landing page's preview card) is a separate feature and is
+untouched. A deployment that already has `linkedin_posts.db` on its disk keeps
+the file; nothing opens or reports it any more, and it can be deleted by hand.
+§322 and §327 above are history.
+
+## 368. The X agent adds to conversations instead of distributing episodes (2026-10-31)
+
+(Written as §366 on its branch; renumbered at the merge with Main, where §366 and §367 had landed.)
 
 The owner's brief, *FAM / X Marketing Agent: Updated Instructions &
 Guardrails*: "FAM doesn't interrupt the conversation. FAM adds to it." The
@@ -25132,6 +25178,16 @@ it. What it lacked, rule by rule:
 Not done here, and why: this container has no ANTHROPIC_API_KEY and no
 X_BEARER_TOKEN, so the 10-real-post comparison the brief asks for has not
 been run; the tool ran in code mode on the brief's own example post only.
-LinkedIn shares `outreach_intelligence` but not these fields: the brief is
-about X, and the shared `READ_RULES` are unchanged.
+`outreach_intelligence`'s shared `READ_RULES` are unchanged; the new fields
+are X's own (`DRAFT_RULES`, `DRAFT_SCHEMA`).
+
+A review of the branch before its PR found and fixed: a card with no link
+could keep a reply naming an episode when the read chose one too far from
+the post (the run's check now fires on any unlinked card); the ad filter
+caught ordinary words ("fine-tune in", "don't miss the old rules", "our
+episode"), now narrowed; the relevance gate was the card's kind alone at
+approval, now also `relevance >= 4` on the server; a written proposal stayed
+"proposed" once linked; a code read recorded the author test as passed (now
+"not run"); Match again could change an approved reply (refused); and the
+eval tool did not rewrite code fallback words as a run does.
 

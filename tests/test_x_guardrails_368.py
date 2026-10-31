@@ -1,4 +1,4 @@
-"""The X agent's guardrails (§366, FAM_X_Marketing_Agent_Guardrails.pdf).
+"""The X agent's guardrails (§368, FAM_X_Marketing_Agent_Guardrails.pdf).
 
 FAM is a participant in conversations already happening on X, not a bot
 that distributes episodes: the original post anchors everything, a 1-5
@@ -92,7 +92,7 @@ def test_a_four_with_a_kept_episode_is_episode_and_comment():
 
 
 def test_the_read_may_choose_a_comment_even_at_five():
-    """Do not force episode links (§366 rule 5)."""
+    """Do not force episode links (§368 rule 5)."""
     _run(X.Verdict(relevance=5, recommendation=X.RECOMMEND_COMMENT))
     [card] = X.store().all()
     assert card["kind"] == X.QUESTION_ONLY and card["recommendation"] == X.RECOMMEND_COMMENT
@@ -356,7 +356,7 @@ def test_nothing_here_can_post():
 
 
 def test_the_before_deployment_review_puts_post_episode_and_comment_side_by_side(monkeypatch):
-    """§366 rule 10: compare the agent against real posts, side by side."""
+    """§368 rule 10: compare the agent against real posts, side by side."""
     import importlib.util
     import pathlib
 

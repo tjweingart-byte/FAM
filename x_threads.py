@@ -158,7 +158,7 @@ _STOP = {
     "have", "had", "not", "no", "yes", "up", "out", "just", "than", "then",
 }
 
-#: The guardrails' relevance scale (§366, FAM_X_Marketing_Agent_Guardrails
+#: The guardrails' relevance scale (§368, FAM_X_Marketing_Agent_Guardrails
 #: §6): how much FAM's contribution has to do with what the ORIGINAL post
 #: says. Judged by the read, never computed from keyword overlap.
 RELEVANCE = {
@@ -176,7 +176,7 @@ EPISODE_RELEVANCE = 4
 #: test, so it never puts an episode under a stranger's post on its own word.
 CODE_RELEVANCE = 3
 
-#: The three outcomes (§366): an episode is never the required result.
+#: The three outcomes (§368): an episode is never the required result.
 RECOMMEND_EPISODE, RECOMMEND_COMMENT, RECOMMEND_SKIP = "episode_comment", "comment", "skip"
 RECOMMENDATIONS = {
     RECOMMEND_EPISODE: "Episode + comment",
@@ -187,7 +187,7 @@ RECOMMENDATIONS = {
 #: How many replies a card reads for context, and the most shown to the read.
 REPLY_CONTEXT = 5
 
-#: What an advertisement sounds like (§366 rule 4). A reply that says any of
+#: What an advertisement sounds like (§368 rule 4). A reply that says any of
 #: these is not part of the conversation; its words go back to the code's.
 _PROMO = re.compile(
     r"\b(check (it|this|us|them) out|check out (our|the|this|my) (episode|pod|show|link)|"
@@ -266,14 +266,14 @@ class Candidate:
     material: dict = field(default_factory=dict)
     #: What the drafting call understood about the post (`OI.Read.as_dict`).
     read: dict = field(default_factory=dict)
-    #: Replies read as secondary context (§366): they may say what people are
+    #: Replies read as secondary context (§368): they may say what people are
     #: debating, never what the card is about.
     replies: list = field(default_factory=list)
-    #: The guardrails' judgement (§366): relevance 1-5 and why, the original-
+    #: The guardrails' judgement (§368): relevance 1-5 and why, the original-
     #: author test, the central message, the recommendation, and a proposed
     #: episode ({title, scope, query}) when none kept answers the post.
     assess: dict = field(default_factory=dict)
-    #: When a person heard the linked episode through its link (§366).
+    #: When a person heard the linked episode through its link (§368).
     listened_at: float = 0.0
 
 
@@ -571,7 +571,7 @@ def takes_a_side(text: str) -> bool:
 
 
 def promotional(text: str) -> list[str]:
-    """What in a reply sounds like an advertisement (§366 rule 4): generic
+    """What in a reply sounds like an advertisement (§368 rule 4): generic
     praise, a pitch, manufactured urgency, hashtags, emoji, exclamation."""
     out = []
     for m in _PROMO.finditer(text or ""):
@@ -583,7 +583,7 @@ def promotional(text: str) -> list[str]:
 
 def anchored(reply: str, post_text: str) -> bool:
     """Whether a reply takes up something concrete the post itself says -
-    shares one of its content words - rather than talking past it (§366
+    shares one of its content words - rather than talking past it (§368
     rule 4: acknowledge something concrete from the original post)."""
     import news_clusters
 
@@ -594,7 +594,7 @@ def anchored(reply: str, post_text: str) -> bool:
 
 def replies_query(post: "Post") -> str:
     """X's search for the replies under one post: what the thread is
-    debating, read as context only (§366)."""
+    debating, read as context only (§368)."""
     return f"conversation_id:{post.id} is:reply lang:en -is:retweet"
 
 
@@ -1007,7 +1007,7 @@ class Verdict:
     read: Optional[dict] = None
     #: Why the words were replaced by the code's, or "".
     replaced: str = ""
-    #: The guardrails (§366). The defaults are a read that found nothing
+    #: The guardrails (§368). The defaults are a read that found nothing
     #: wrong; every path that did not read with a model sets
     #: `relevance=CODE_RELEVANCE`, so code never links on its own word.
     relevance: int = EPISODE_RELEVANCE
@@ -1029,7 +1029,7 @@ class Verdict:
 
 def _code_verdict(options, text: str, why: str, *, episode_fits: bool = True) -> Verdict:
     """The verdict when no model read the post: the code's gates have
-    passed it, but relevance is capped at a comment (§366) and the card
+    passed it, but relevance is capped at a comment (§368) and the card
     says why."""
     return Verdict(episode_fits=episode_fits, why=why,
                    read=OI.code_read(text, options, why=why).as_dict(),
@@ -1117,7 +1117,7 @@ async def judge_and_draft(cand: Candidate, client=None) -> tuple:
             return trim(fallback_draft(cand)), "code", dollars, verdict
         pitch = promotional(reply)
         if pitch:
-            # An advertisement is not part of the conversation (§366).
+            # An advertisement is not part of the conversation (§368).
             verdict.replaced = (f"the drafted reply sounded like an ad "
                                 f"({', '.join(pitch[:3])})")
             return trim(fallback_draft(cand)), "code", dollars, verdict
@@ -1141,7 +1141,7 @@ def apply_verdict(cand: Candidate, verdict: Verdict) -> str:
     cand.assess = verdict.assess()
     if not verdict.same_subject:
         return verdict.why or "the post is about something else"
-    # The guardrails' hard gates (§366), whatever the score.
+    # The guardrails' hard gates (§368), whatever the score.
     if verdict.author_test is False:
         return ("the original author would not see why this relates to their post"
                 + (f": {verdict.relevance_why or verdict.why}"
@@ -1247,7 +1247,7 @@ class Store:
                          " ON candidates(status, found_at)")
             # §337: what the drafting call understood about the post. Added
             # after the table shipped, so an existing file is widened.
-            # §366: the guardrails' judgement, the replies read for context,
+            # §368: the guardrails' judgement, the replies read for context,
             # its relevance for ordering, and when the episode was heard.
             for column, kind in (("reading", "TEXT NOT NULL DEFAULT ''"),
                                  ("assess", "TEXT NOT NULL DEFAULT ''"),
@@ -1324,7 +1324,7 @@ class Store:
             sql += " AND post_id = ?"
             args.append(post_id)
         # Waiting first; within a run, a 5 (the post's central question)
-        # before a 4 before a comment (§366).
+        # before a 4 before a comment (§368).
         sql += (" ORDER BY CASE status WHEN 'waiting' THEN 0 ELSE 1 END,"
                 " found_at DESC, relevance DESC, score DESC LIMIT ?")
         args.append(int(limit))
@@ -1351,13 +1351,13 @@ class Store:
         return out
 
     def listened(self, post_id: str, at: float) -> bool:
-        """A person heard the card's episode through its link (§366)."""
+        """A person heard the card's episode through its link (§368)."""
         cur = self._conn().execute(
             "UPDATE candidates SET listened_at = ? WHERE post_id = ?", (at, post_id))
         return cur.rowcount > 0
 
     def attach(self, post_id: str, seed: "Seed", kind: str, reason: str) -> bool:
-        """Put the episode written for a card's proposal on it (§366). It
+        """Put the episode written for a card's proposal on it (§368). It
         has not been heard through its link yet, so `listened_at` is reset."""
         row = self._conn().execute("SELECT assess FROM candidates WHERE post_id = ?",
                                    (post_id,)).fetchone()
@@ -1420,7 +1420,7 @@ class Store:
 
 
 def _assessed(assess: dict, kind: str) -> dict:
-    """A card's guardrail fields for the page (§366). A card from before
+    """A card's guardrail fields for the page (§368). A card from before
     them has no score: it says so rather than inventing one."""
     relevance = int(assess.get("relevance") or 0)
     recommendation = assess.get("recommendation") or (
@@ -1430,7 +1430,7 @@ def _assessed(assess: dict, kind: str) -> dict:
             "relevance_why": assess.get("relevance_why") or "",
             # True passed, None not run (read in code); a failed one is never
             # a card, only a rejection.
-            # A card from before §366 was never asked: not run, never "passed".
+            # A card from before §368 was never asked: not run, never "passed".
             "author_test": assess.get("author_test"),
             "central": assess.get("central") or "",
             "recommendation": recommendation,
@@ -1514,7 +1514,7 @@ async def run(cache, *, now: Optional[float] = None, searcher=None,
             return report
         searcher = search
         # The replies under a card are read with the same search, and
-        # billed and counted the same way (§366).
+        # billed and counted the same way (§368).
         replier = replier or search
     room = min(config.settings.x_threads_max_reads,
                config.settings.x_threads_daily_reads - held.reads_since(_day_start(now)))
@@ -1586,7 +1586,7 @@ async def run(cache, *, now: Optional[float] = None, searcher=None,
             # What each offered episode says, so the read writes from it.
             cand.material = await asyncio.to_thread(
                 lambda: {s.key: OI.material(cache, s.key) for s in offered(cand)})
-            # The replies, as secondary context (§366): only for a card about
+            # The replies, as secondary context (§368): only for a card about
             # to be read, only inside the ceilings, never a failure.
             want = config.settings.x_threads_reply_reads
             if replier is not None and want > 0 and reads + 10 <= room \
@@ -1623,13 +1623,13 @@ async def run(cache, *, now: Optional[float] = None, searcher=None,
             elif by != "code" and cand.kind == QUESTION_ONLY \
                     and "episode" in reply.lower():
                 # A card with no link never says FAM has an episode - also when
-                # the read chose one too far from the post to link (§366).
+                # the read chose one too far from the post to link (§368).
                 # Told not to mention the episode, and did: the code's
                 # question rather than words that point at nothing.
                 reply, by = trim(fallback_draft(cand)), "code"
             cand.draft, cand.drafted_by = reply, by
             # Shown, not enforced: a person rewrites a reply that talks past
-            # the post (§366 rule 4: acknowledge something concrete).
+            # the post (§368 rule 4: acknowledge something concrete).
             cand.assess = {**(cand.assess or {}),
                            "anchored": anchored(reply, cand.post.text)}
             held.add(cand, now)
@@ -1673,7 +1673,7 @@ def health() -> dict:
 
 
 # --------------------------------------------------------------------------
-# A proposal, once written (§366)
+# A proposal, once written (§368)
 
 
 def _norm(text: str) -> str:

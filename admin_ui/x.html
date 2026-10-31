@@ -189,7 +189,7 @@
       + (r.read || 0) + " posts read, " + (r.cards || 0) + " new cards"
       // Set aside by the relevance check: about something else (§326).
       + ((r.off_subject || []).length ? ", " + r.off_subject.length + " rejected (see Rejected by the agent)" : "")
-      // What the cards recommend (§366): fewer, better contributions.
+      // What the cards recommend (§368): fewer, better contributions.
       + (r.outcomes ? " - " + Object.keys(r.outcomes).map(function (o) {
           return r.outcomes[o] + " " + ((data.health.recommendations || {})[o] || o).toLowerCase();
         }).join(", ") : "")
@@ -205,7 +205,7 @@
       + p.reposts + '</span><a href="' + esc(p.url) + '" target="_blank" rel="noopener">Open on X ↗</a></div></div>';
   }
 
-  // The guardrails' judgement (§366): what the author means, what FAM adds,
+  // The guardrails' judgement (§368): what the author means, what FAM adds,
   // and the relevance score with its reason.
   function relChip(k) {
     if (!k.relevance) return '<span class="chip">not scored</span>';

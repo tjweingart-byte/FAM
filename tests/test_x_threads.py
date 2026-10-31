@@ -424,7 +424,7 @@ def _card(kind=None):
     [cand] = X.shortlist([(_post("4242"), _seed())], NOW, window_hours=6)
     cand.kind = kind or X.THREAD_TO_EPISODE
     cand.draft = "Depth is the real question here. Who steps up first?"
-    # Scored 4 against the post (§366): what a card needs to carry a link.
+    # Scored 4 against the post (§368): what a card needs to carry a link.
     cand.assess = {"relevance": 4}
     X.store().add(cand, time.time())
     return cand
