@@ -773,6 +773,17 @@
     color:rgba(244,239,228,0.72); }
   .reel-count:not(:empty)::before{ content:"\00b7"; margin:0 5px 0 4px; }
   .reel-count{ font-family:inherit; font-size:inherit; letter-spacing:0; color:inherit; }
+  /* The wait in front of a card's first word, named (option C, 10.31): three
+     steps under the title, each ticked when FamAudio says it really
+     happened. Nothing is held for them and none has a minimum time. */
+  .reel-steps{ list-style:none; margin:8px 0 0; padding:0; display:flex; flex-direction:column;
+    gap:3px; font-family:'Geist Mono', monospace; font-size:10px; letter-spacing:0.04em;
+    color:#F4EFE4; text-shadow:0 1px 6px rgba(0,0,0,0.5); }
+  .reel-steps[hidden]{ display:none; }
+  .reel-steps li{ display:flex; gap:6px; opacity:0.45; }
+  .reel-steps li.now{ opacity:1; }
+  .reel-steps li.done{ opacity:0.8; }
+  .reel-steps .tick{ width:10px; flex:none; color:var(--copper); }
   .reel-transport{ display:flex; align-items:center; gap:12px; margin-top:11px;
     flex-wrap:wrap; }
   .reel-body .go-deeper-pill{ margin:0; }
@@ -4446,6 +4457,7 @@
               <!-- Where a reel puts the account's name, the episode's title. -->
               <div class="reel-title" id="reelTitle">Loading…</div>
               <div class="reel-sub"><span id="reelSub"></span><span class="reel-count" id="reelCount"></span></div>
+              <ul class="reel-steps" id="reelSteps" aria-live="polite" hidden></ul>
               <div class="reel-transport">
                 <button class="go-deeper-pill" id="reelDeeper" onclick="openGoDeeperOnReel()">GO DEEPER</button>
                 <div class="reel-controls">
@@ -20542,6 +20554,9 @@
     drawReelStats();
     paintReelAsk();
     drawReelPicture(ep);
+    // Another card's steps go; this card's stay, since coming back to
+    // Explore redraws a card whose audio may still be on its way.
+    if(reelStepsRun && reelStepsRun.ep !== ep) reelStepsRun.done();
     resetReelCaptions();
     document.getElementById("reelHint").style.visibility = "visible";
   }
@@ -20756,8 +20771,11 @@
     setTimeout(refreshSavedState, 0);
     markPlaying();
     audioOwner = "reel";
+    var steps = startReelSteps(ep);
     FamAudio.play(ep.query, ep.minutes, {
+      onStage: steps.mark,
       onFirstAudio: function(){
+        steps.done();
         reelFailures = 0;          // a card that plays clears the streak
         startReelProgress(ep.minutes * 60);
         // The server counted this play before the first sample left it, so
@@ -20773,6 +20791,7 @@
         nextReel();
       },
       onError: function(err){
+        steps.done();
         // A card can expire between the feed loading and this play. The
         // server refuses rather than generating, so this costs nothing -
         // drop the dud and deal the next one.
@@ -20801,6 +20820,56 @@
         nextReel();
       }
     }, "", null, { cachedOnly: true });   // its own voice (§147)
+  }
+
+  // **The wait in front of a card's first word is named** (option C of the
+  // 10.31 loading options): Finding the episode until the server answers,
+  // Downloading audio until its first bytes arrive, Starting until the first
+  // sample plays - each from FamAudio's own `onStage` marks, never a timer.
+  // Unlike search's steps (§148) the audio is not held for them and no step
+  // has a minimum time (`latency-start-earlier`, `motion`). They appear only
+  // once a start has taken REEL_STEPS_AFTER_MS, so a card that starts at
+  // once never flashes them.
+  var REEL_STEPS = ["Finding the episode", "Downloading audio", "Starting"];
+  var REEL_STEPS_AFTER_MS = 250;
+  var reelStepsRun = null;
+  function startReelSteps(ep){
+    if(reelStepsRun) reelStepsRun.done();
+    var el = document.getElementById("reelSteps");
+    var at = 0, over = false, shown = false;
+    function draw(){
+      if(over || !shown || !el) return;
+      el.innerHTML = REEL_STEPS.map(function(name, i){
+        var state = i < at ? "done" : i === at ? "now" : "";
+        return '<li class="' + state + '"><span class="tick" aria-hidden="true">'
+          + (state === "done" ? "\u2713" : state === "now" ? "\u203a" : "")
+          + '</span>' + name + '</li>';
+      }).join("");
+      el.hidden = false;
+    }
+    var timer = setTimeout(function(){
+      // Another play took the audio meanwhile: this card waits on nothing.
+      if(over || reelCurrent !== ep || audioOwner !== "reel"){ run.done(); return; }
+      shown = true;
+      draw();
+    }, REEL_STEPS_AFTER_MS);
+    var run = {
+      ep: ep,
+      mark: function(stage){
+        if(audioOwner !== "reel"){ run.done(); return; }
+        var i = stage === "found" ? 1 : stage === "arriving" ? 2 : at;
+        if(i > at){ at = i; draw(); }
+      },
+      done: function(){
+        if(over) return;
+        over = true;
+        clearTimeout(timer);
+        if(reelStepsRun === run) reelStepsRun = null;
+        if(el){ el.hidden = true; el.innerHTML = ""; }
+      }
+    };
+    reelStepsRun = run;
+    return run;
   }
 
   // ---- Explore as a reel (10.5 packet #8) ----
@@ -21253,6 +21322,7 @@
     reelTimer = setInterval(refreshReelProgress, 200);
   }
   function stopReelProgress(){
+    if(reelStepsRun) reelStepsRun.done();   // a stopped card waits on nothing
     if(reelTimer){ clearInterval(reelTimer); reelTimer = null; }
     document.getElementById("reelFill").style.width = "0%";
   }
