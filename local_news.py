@@ -17,7 +17,7 @@ reached by a side door.
    writer is told plainly that this is county-level evidence, and the episode
    opens with a sentence composed in code that says the town itself had
    nothing (`gap_line`) - so county news is never presented as the town's.
-3. **A web search (Parallel, then Perplexity), limited to the town's and
+3. **A web search (Perplexity, then Parallel), limited to the town's and
    county's known outlets** - or, for a place with no known outlet, a search
    that must name the place.
    Avoided whenever 1 or 2 answered.

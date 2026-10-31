@@ -199,7 +199,7 @@ Points to hold on to:
 4. **The brief.** EI makes one Claude call, or a brief already warmed by
    prefetch is used. If EI fails, the raw query is used and the failure is
    recorded.
-5. **The evidence.** The research ladder (Parallel, then Perplexity wider, then GDELT)
+5. **The evidence.** The research ladder (Perplexity, then Parallel wider, then GDELT)
    and, for sports, markets and elections, the live-facts lookup run
    concurrently. A local question uses the local-news ladder instead (town
    RSS, then county, then a web search on known outlets, then weather; never GDELT).

@@ -354,3 +354,8 @@ and `limit` = Lines.
 | 24477 | 43 | 351. Phase 0, piece 5: the Agents panel on /admin - and Phase 0 done (2026-10-30) |
 | 24520 | 33 | 352. The owner signed the rule books (2026-10-30) |
 | 24553 | 69 | 353. Phase 0 reviewed before merge: the lock's key, a test that skipped itself, and the queue (2026-10-30) |
+| 24622 | 26 | 354. May FAM keep what its providers return? The terms could not be read (2026-10-29) |
+| 24648 | 35 | 355. Provider terms, read: Parallel forbids reuse across listeners; Perplexity and GNews allow storage (2026-10-29) |
+| 24683 | 41 | 356. Parallel against Perplexity, measured on one brief (2026-10-30) |
+| 24724 | 37 | 357. Perplexity is the primary search; Parallel the second look (2026-10-30) |
+| 24761 | 33 | 358. The archive records which search supplied each passage (2026-10-30) |

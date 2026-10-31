@@ -291,7 +291,7 @@ Audio and the opening
 
 Research and truth
 - **Every episode is researched** (`SEARCH_MODE=always`). Empty search is a
-  ladder - Parallel, Perplexity (also the second look), GDELT (§258) - defined once in
+  ladder - Perplexity, Parallel (also the second look), GDELT (§357) - defined once in
   `research.ladder()`; **no model web search** (§135); no rung raises;
   every fallback recorded; sim-league pages and (on sports) unknown outlets
   are screened out (§178); nothing is refused for want of evidence (§256);
