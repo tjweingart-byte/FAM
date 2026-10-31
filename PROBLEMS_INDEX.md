@@ -360,3 +360,4 @@ and `limit` = Lines.
 | 24724 | 37 | 357. Perplexity is the primary search; Parallel the second look (2026-10-30) |
 | 24761 | 33 | 358. The archive records which search supplied each passage (2026-10-30) |
 | 24794 | 34 | 359. The status bar belongs to the screen, and the profile's wash reaches the top (2026-10-31) |
+| 24828 | 22 | 360. Main's Postgres job was red from §358's intake tests (2026-10-31) |

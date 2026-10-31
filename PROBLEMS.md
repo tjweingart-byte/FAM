@@ -24824,3 +24824,25 @@ still sliding or fading the page under it - the bar visibly detached.
 `tests/test_screen_top.py` pins all of it, including that no screen is added
 without its strip. Checked in a browser mid-animation (push, pop, tab) at
 phone and framed widths.
+
+## 360. Main's Postgres job was red from §358's intake tests (2026-10-31)
+
+After PR #202 merged, CI's `postgres` job failed on `Main` (and on every PR
+from it) in `tests/test_intake_provider_358.py`: two tests wrote through
+`history_archive.SQLiteBackend` - which goes to Postgres when `DATABASE_URL`
+is set (§243) - then read the result back with raw `sqlite3` from a file that
+never got the table (`no such table: intake`, `assert 0 == 1`). The `test`
+job, with no `DATABASE_URL`, passed.
+
+- `test_one_article_from_two_providers_keeps_their_passages_apart` now reads
+  through the store's own connection, so it runs on both backends and is the
+  one test of the `by_provider` column under Postgres. That database is shared
+  by the whole run and not emptied between tests, so the URL is the test's
+  own and the provider counts are compared before and after, not as totals.
+- `test_an_archive_from_before_is_widened_and_its_rows_read_as_unknown` builds
+  an old SQLite file by hand - a test of the SQLite file itself - so it takes
+  `@pytest.mark.sqlite_file` and is skipped in the Postgres job, like the
+  others of its kind.
+
+Reproduced and checked against a local Postgres 16: before, 2 failed; after,
+3 passed and 1 skipped, the same on repeated runs over the same database.
