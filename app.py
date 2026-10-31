@@ -7351,12 +7351,12 @@ async def myfam_section(request: Request,
     the rest of the first page and every Refresh - is an episode already
     written, on the listener's topics, so nothing on this screen past the
     rail can cause one to be written. When those run out the page is empty
-    and `caught_up`, never the first eight again. An installed client that
+    and `caught_up`, never the first page again. An installed client that
     sends no `cycle` gets what it always got.
 
     With `page_size` (the app sends `topics.VIEW_MORE_PAGE`, sixteen) it is one
     page of that length: the first tiles of the ranking not in `seen`, which
-    is how the screen's refresh deals eight new ones (§165). Without it, the
+    is how the screen's refresh deals a page of new ones (§165). Without it, the
     whole list, as before.
 
     Costs no model call and cannot cause one: this reorders the same fixed

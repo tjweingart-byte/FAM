@@ -13703,7 +13703,7 @@
   // right of the picture, opposite the subject. The server counts mutual
   // follows only and sends nothing for none, so a card never says "0".
   function seedFriendsHtml(t){
-    var n = t && t.friends_listened;
+    var n = Math.floor(Number(t && t.friends_listened)) || 0;
     if(!n || n < 1) return '';
     return '<span class="seed-friends">' + n + (n === 1 ? ' friend' : ' friends')
       + ' listened</span>';
@@ -14096,13 +14096,12 @@
   // fill this screen - the rail was showing six of something that already had
   // twenty-eight.
   var sectionTopics = {};
-  // The "View more" screen shows sixteen of the rail's ranking at a time, and
-  // Refresh deals the next sixteen (§165, doubled 10.31). `seen` is every tile this screen has
+  // The "View more" screen shows a page of the rail's ranking at a time, and
+  // Refresh deals the next page (§165). `seen` is every tile this screen has
   // shown since it opened, which is what "new" means - the server returns the
-  // first eight of the same ranking not in it, and starts again from the top
-  // once there are none.
-  // Sixteen since the owner's 10.31 notebook ("when you click on view more,
-  // can more be displayed?"); it was eight.
+  // first page of the same ranking not in it, and starts again from the top
+  // once there are none. Sixteen since the owner's 10.31 notebook ("when you
+  // click on view more, can more be displayed?"); it was eight.
   var SECTION_PAGE = 16;
   var sectionState = { key: "", seen: [], busy: false, req: 0, head: [] };
   // Each rail's tiles as the page drew them, so Made for you's View more
