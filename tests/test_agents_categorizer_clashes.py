@@ -86,8 +86,8 @@ def test_a_tap_still_outranks_the_table(tree):
 
 # ------------------------------------------------------------------ a tie is never guessed
 def test_a_tie_is_what_the_readings_share(tree):
-    placed = node("how did the Kings do")
-    assert placed.node == "sports" and placed.how == "shared"
+    placed = node("Kings game tonight")
+    assert placed.node == "sports" and placed.how in ("shared", "tie")
     assert placed.ambiguous == ("kings",)
 
 
@@ -100,7 +100,7 @@ def test_a_decided_name_rules_out_the_other_readings_phrases(tree):
     # "carolina hurricanes" is not a node, but if a phrase in the question
     # landed on a losing reading's branch it would be passed over.
     named = categorizer.clashes("Hurricane season forecast for the Gulf coast")
-    assert [(n, d.node) for n, d, _r in named] == [("hurricane", "extreme weather")]
+    assert [(n, d.node) for n, d, _r, _c in named] == [("hurricane", "extreme weather")]
 
 
 # ------------------------------------------------------------------ confidence and broader when unsure
@@ -112,14 +112,31 @@ def test_every_placement_has_a_confidence(tree):
 
 @pytest.mark.parametrize("question", [
     "Rangers season preview", "Panthers season preview", "Cardinals win",
-    "Rangers game preview"])
-def test_an_undecided_name_is_filed_under_what_its_readings_share(tree, question):
-    # Review, §361: these were filed under one reading's league. "Rangers
-    # game preview" reaches the New York Rangers through a nickname, and
-    # "game" is a cue of both readings: still a tie, never the NHL.
+    "tech giants earnings", "kings and queens of England", "cardinals gather to elect a new pope",
+    "Power Rangers movie", "Texas Rangers arrest suspect"])
+def test_a_name_with_nothing_deciding_it_files_nothing(tree, question):
+    # Review, §361: no cue is no evidence - these were filed under a league,
+    # then under `sports`; a third meaning (a pope, a monarch) was never
+    # in the table.
+    assert node(question).node == ""
+
+
+@pytest.mark.parametrize("question", ["Rangers game preview", "Kings game tonight"])
+def test_a_draw_between_cued_readings_is_what_they_share(tree, question):
     placed = node(question)
     assert placed.node == "sports" and placed.how in ("shared", "tie")
     assert placed.ambiguous
+
+
+def test_two_decided_names_that_disagree_decide_nothing(tree):
+    # "fans" and "game" claimed the Heat for the NBA beside the Eagles.
+    assert node("Eagles fans brave the heat wave at the game").node == "philadelphia eagles"
+    assert node("Apple shares fall as heat wave hits").node == ""
+
+
+def test_a_word_inside_another_name_is_not_the_clash(tree):
+    assert categorizer.clashes("United States airport security rules") == []
+    assert categorizer.clashes("Kings of Leon tour") == []
 
 
 def test_the_weakest_steps_sit_below_the_floor():

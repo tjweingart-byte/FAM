@@ -1703,9 +1703,13 @@ async def understand(query: str, minutes: int = DEFAULT_MINUTES, context: str = 
     c3p0 = len(parts) == 2 and callable(run) and bool(run("contextualizer"))
     candidates: tuple = ()
     if c3p0 and run("categorizer"):
-        from agents import categorizer
+        listed = getattr(notes, "category_candidates", None)
+        if listed is not None:
+            candidates = tuple(listed)      # already listed for this request
+        else:
+            from agents import categorizer
 
-        candidates, _tie = categorizer.candidates_for(query, context, notes)
+            candidates, _tie = categorizer.candidates_for(query, context, notes)
 
     try:
         client = build_async_client(credentials.active("ANTHROPIC_API_KEY"))

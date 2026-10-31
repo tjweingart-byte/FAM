@@ -662,6 +662,9 @@ class ScriptNotes:
     #: Nando's tie call, running beside the brief (§360), or None. Read once
     #: at placement and never waited for.
     category_tie_task: object = None
+    #: Nando's candidate nodes for this request, listed once (§360, §361)
+    #: for both the brief's call and the tie call. None until listed.
+    category_candidates: object = None
     #: C3P0's title, when he worked on the brief and it passed the code's
     #: checks (§360): the episode's title (decided item 1), which the
     #: writer's `<<TITLE:>>` does not replace.
@@ -2254,13 +2257,19 @@ class ScriptGenerator:
             _take_brief_names(plan)
             return plan
 
-        # Nando's tie call beside the brief (§360): only when code found a
-        # name or wording it could not settle, and never waited for.
+        ahead = notes is not None and (getattr(notes, "ahead", False)
+                                       or getattr(notes, "prefetch", False))
+        # Nando's candidates, listed once for the brief's call and the tie
+        # call (§360). The tie call only where a listener waits and the
+        # placement in `prepare` is sure to follow (review, §361): ahead of
+        # the tap a prefetch or an edition can stop after the brief, and C3P0
+        # there has the whole of `EI_AHEAD_EFFORT` to choose. Never waited for.
         if _agent_runs(notes, "categorizer"):
             from agents import categorizer
 
             nodes, tie = categorizer.candidates_for(plan.query, plan.context, notes)
-            if tie and nodes:
+            notes.category_candidates = nodes
+            if tie and nodes and not ahead:
                 notes.category_tie_task = asyncio.ensure_future(
                     categorizer.ask_tie(plan.query, nodes, notes))
         # `covered` only when there is some, so a call for anything that is
@@ -2268,11 +2277,18 @@ class ScriptGenerator:
         extra = {"covered": plan.covered} if plan.covered else {}
         # Nobody waiting, more time (§268): only a listener in front of the
         # first word is held to `EI_TIMEOUT_SECONDS`.
-        if notes is not None and (getattr(notes, "ahead", False)
-                                  or getattr(notes, "prefetch", False)):
+        if ahead:
             extra["ahead"] = True
-        brief = await episode_intelligence.understand(
-            plan.query, plan.minutes, plan.context, notes, **extra)
+        try:
+            brief = await episode_intelligence.understand(
+                plan.query, plan.minutes, plan.context, notes, **extra)
+        except BaseException:
+            # A listener who left, or a brief that raised: the tie call goes
+            # with it, never left running unread.
+            task = getattr(notes, "category_tie_task", None)
+            if task is not None:
+                task.cancel()
+            raise
         _publish_title(notes, brief)
         _take_c3p0_title(notes, brief)
         # Contextualised (§311): where the request sits in the category
@@ -2386,11 +2402,14 @@ class ScriptGenerator:
             # running for an answer nobody will read.
             tie = categorizer.tie_answer(notes.category_tie_task)
             notes.category_tie_task = None
-            picked = ((getattr(plan.brief, "contextualized", None) or {}).get("node", "")
-                      or tie)
+            said = getattr(plan.brief, "contextualized", None) or {}
+            unsure = bool(said.get("ambiguous"))
             placed = categorizer.place(
                 plan.brief, plan.query, categorizer.provider_field(plan.query),
-                categorizer.prior_for(plan.query, plan.context, notes), picked)
+                categorizer.prior_for(plan.query, plan.context, notes),
+                # C3P0's pick, unless he said the request is ambiguous; else
+                # the tie call's (review, §361).
+                ("" if unsure else said.get("node", "")) or tie)
             notes.category_placement = placed
             if placed.node and notes.caption_key:
                 live_captions.publish_category(notes.caption_key, placed.node)

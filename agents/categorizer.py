@@ -128,7 +128,7 @@ def path_for(node: str) -> tuple:
 
 
 def place(brief, query: str = "", field: tuple = (),
-          prior: Prior = NO_PRIOR, picked: str = "") -> Placement:
+          prior: Prior = NO_PRIOR, picked: str = "", unsure: bool = False) -> Placement:
     """The node this request is truly about, in code. Never raises.
 
     `field` is the facets a live game's or market's provider filed the
@@ -141,8 +141,30 @@ def place(brief, query: str = "", field: tuple = (),
 
     `picked` is the node the brief's call chose from the candidate list
     (C3P0's call, or Nando's tie call, §360), checked here against the tree:
-    it outranks every code step but the tap's own filing."""
+    it outranks every code step but the tap's own filing. `unsure` is C3P0
+    saying the request is ambiguous: then his pick is a guess between the
+    readings and is not taken (review, §361).
+
+    A Go Deeper's parent (`Prior(..., "parent")`) is weaker than a tap's own
+    filing: it is a title, placed by this module, and it stands only when
+    the request itself places nothing more than a facet (review, §361)."""
     try:
+        if unsure:
+            picked = ""
+        if prior.source == "parent":
+            placed = _place(brief, query)
+            if placed.node and placed.node not in _facets():
+                placed = _within(placed, field, query) if field else placed
+                return _broader_when_unsure(placed)
+            if not placed.node or _facet(prior.node) == placed.node:
+                placed = Placement(node=prior.node, path=path_for(prior.node),
+                                   how="parent",
+                                   candidates=tuple(dict.fromkeys(
+                                       (prior.node,) + placed.candidates)),
+                                   confidence=CONFIDENCE["parent"],
+                                   ambiguous=placed.ambiguous)
+            placed = _within(placed, field, query) if field else placed
+            return _broader_when_unsure(placed)
         if picked and _facet(picked) and (
                 not prior.node or picked == prior.node or prior.node in _branch(picked)):
             import topics
@@ -160,6 +182,12 @@ def place(brief, query: str = "", field: tuple = (),
     except Exception as exc:  # noqa: BLE001 - a category never costs an episode
         log.warning("nando could not place %r: %s", query, exc)
         return NOWHERE
+
+
+def _facets() -> frozenset:
+    import topics
+
+    return frozenset(topics.FACETS)
 
 
 def _facet(node: str) -> str:
@@ -311,7 +339,8 @@ def _prior_for(query: str, context: str, notes) -> Prior:
     import topics
 
     given = getattr(notes, "category_prior", None)
-    if isinstance(given, Prior) and given.node:
+    if isinstance(given, Prior) and given.node and (
+            given.node in topics.FACETS or topics.category_tree().get(given.node) is not None):
         return given
     want = " ".join((query or "").split())
     if not want:
@@ -358,9 +387,14 @@ def _prior_for(query: str, context: str, notes) -> Prior:
                 node = narrowed
             if node:
                 return Prior(node, "dailyfam")
-    parent = _resolved(" ".join((context or "").split()))
-    if parent:
-        return Prior(parent, "parent")
+    # The episode a Go Deeper follows, by its title - placed by this module's
+    # own steps (clashes, the vocabulary, the sport gate), never by a raw
+    # phrase match (review, §361: "Utah's jazz festival lineup").
+    title = " ".join((context or "").split())
+    if title:
+        parent = _place(None, title)
+        if parent.node and parent.confidence >= MIN_CONFIDENCE:
+            return Prior(parent.node, "parent")
     return NO_PRIOR
 
 
@@ -370,31 +404,59 @@ def _cue_in(cue: str, text: str) -> bool:
 
 def clashes(text: str) -> list:
     """The names in `text` that mean two things (`category_collisions`), each
-    `(name, decided, readings)`: `decided` is the one reading the words
+    `(name, decided, readings, cued)`: `decided` is the one reading the words
     around the name point to, or None when none or several do - a tie,
-    never guessed. Never raises."""
+    never guessed, and then `readings` are only those tied on cues; `cued`
+    says whether any reading had a word for it at all
+    (no cue is no evidence, review §361). A reading's own node name in the
+    text ("new york rangers") decides it. A word inside another name
+    (`NOT_THE_NAME`: "United States") is not the clash. Never raises."""
     try:
         import category_collisions
 
         low = " ".join((text or "").lower().split())
         out = []
         for name, readings in category_collisions.COLLISIONS.items():
-            if not _cue_in(name, low):
+            here = low
+            for phrase in category_collisions.NOT_THE_NAME.get(name, ()):
+                here = re.sub(r"(?<![a-z0-9])" + re.escape(phrase) + r"(?![a-z0-9])",
+                              " ", here)
+            if not _cue_in(name, here):
                 continue
-            rest = re.sub(r"(?<![a-z0-9])" + re.escape(name) + r"(?![a-z0-9])", " ", low)
+            rest = re.sub(r"(?<![a-z0-9])" + re.escape(name) + r"(?![a-z0-9])", " ", here)
             # A cue that holds the name itself ("new york jets") is read in
             # the whole text; the others without the name (review, §361).
             hits = [sum(1 for cue in r.cues
-                        if _cue_in(cue, low if _cue_in(name, cue) else rest))
+                        if _cue_in(cue, here if _cue_in(name, cue) else rest))
+                    + (3 if r.node and _cue_in(name, r.node) and _cue_in(r.node, here) else 0)
                     for r in readings]
             best = max(hits)
             decided = (readings[hits.index(best)]
                        if best and hits.count(best) == 1 else None)
-            out.append((name, decided, readings))
+            # A draw is between the readings that tied on cues; a reading
+            # with none ("Kings game tonight": the monarchs) is not in it.
+            if decided is None and best:
+                readings = tuple(r for r, h in zip(readings, hits) if h == best)
+            out.append((name, decided, readings, best > 0))
         return out
     except Exception as exc:  # noqa: BLE001
         log.warning("nando could not read the name clashes: %s", exc)
         return []
+
+
+def _is_team(node: str) -> bool:
+    """A seeded team's node: a name that can be an everyday phrase too
+    ("Utah Jazz festival"), read as the team only in a sports question."""
+    import category_seed
+
+    return any(node in (getattr(category_seed, name, {}) or {})
+               for name in ("NFL_TEAMS", "NBA_TEAMS", "MLB_TEAMS", "NHL_TEAMS"))
+
+
+def _sport_context(text: str) -> bool:
+    import category_vocabulary
+
+    return category_vocabulary._sporty(category_vocabulary._norm(text or ""))
 
 
 def _shared(nodes) -> str:
@@ -429,14 +491,28 @@ def _place(brief, query: str, prior_facet: str = "") -> Placement:
     # brief's own words. A decided one points at a reading; the others are
     # the readings it is not.
     named = clashes(" ".join((query or "", subject, words)))
-    decided = [d for _n, d, _r in named if d is not None]
+    decided_named = [(n, d, rs) for n, d, rs, _c in named if d is not None]
+    # Two decided names that point to different fields contradict each
+    # other ("Eagles fans brave the heat wave": the Eagles and the Heat's
+    # basketball both claim "fans"), and no table order may settle it
+    # (review, §361): neither decides anything.
+    # Contradict = not on one branch: the Eagles and the NBA are both sport
+    # and still two different answers.
+    nodes = [d.node for _n, d, _rs in decided_named]
+    conflict = any(not (a == b or (a and b and (a in _branch(b) or b in _branch(a))))
+                   for i, a in enumerate(nodes) for b in nodes[i + 1:])
+    decided = [] if conflict else [d for _n, d, _rs in decided_named]
     # A losing reading on the winner's own branch (consumer hardware above
     # smartphones) is not ruled out: it is the same truth, said less exactly.
-    losing = [r.node for _n, d, rs in named if d is not None for r in rs
-              if r is not d and r.node and not (
-                  d.node and (r.node in _branch(d.node) or d.node in _branch(r.node)))]
-    undecided = [(n, rs) for n, d, rs in named if d is None]
-    ambiguous = tuple(n for n, _rs in undecided)
+    losing = [] if conflict else [
+        r.node for _n, d, rs in decided_named for r in rs
+        if r is not d and r.node and not (
+            d.node and (r.node in _branch(d.node) or d.node in _branch(r.node)))]
+    # Only a draw between readings that each had a cue is a tie; a name with
+    # no cue at all is no evidence for any reading (review, §361).
+    undecided = [(n, rs) for n, d, rs, cued in named if d is None and cued]
+    ambiguous = tuple(n for n, d, _rs, _c in named if d is None) + (
+        tuple(n for n, _d, _rs in decided_named) if conflict else ())
     tied = [r.node for _n, rs in undecided for r in rs if r.node]
 
     def touches(node: str, nodes) -> bool:
@@ -494,7 +570,12 @@ def _place(brief, query: str, prior_facet: str = "") -> Placement:
     # decided name ruled out. A phrase is the tree's own word, exact (§209).
     if agrees(by_subject) and by_subject not in topics.FACETS:
         return done(by_subject, "subject")
-    if agrees(by_question) and by_question not in topics.FACETS:
+    if (agrees(by_question) and by_question not in topics.FACETS
+            and (facet == "sports" or not _is_team(by_question)
+                 or _sport_context(query))):
+        # A team's full name in the raw words is still read as the team only
+        # in a question about sport (review, §361: "Boston red sox the color
+        # of autumn"), as its nickname is.
         return done(by_question, "question")
     # 5: the vocabulary (§359) - a named thing, or another way of saying a
     # node, in the brief's words, its subject, then the question. A wording
@@ -503,7 +584,8 @@ def _place(brief, query: str, prior_facet: str = "") -> Placement:
 
     for text in (words, subject, query):
         nodes, kind, _wording = category_vocabulary.match(text, facet, tree)
-        nodes = tuple(n for n in nodes if agrees(n))
+        nodes = tuple(n for n in nodes if agrees(n) and (
+            n in topics.FACETS or tree.get(n) is not None))
         if len(nodes) == 1:
             return done(seen(nodes[0]), kind)
         if len(nodes) > 1:
@@ -522,15 +604,20 @@ def _place(brief, query: str, prior_facet: str = "") -> Placement:
         if near and agrees(near):
             return done(near, "near")
     # 7: the keyword map's deepest tree node for the question.
+    sporty = facet == "sports" or _sport_context(query)
     tagged = [t for t in topics.tags_for_text(query or "")
-              if t not in topics.FACETS and tree.get(t) is not None and agrees(t)]
+              if t not in topics.FACETS and tree.get(t) is not None and agrees(t)
+              # The keyword map reads team names into league tags, so in a
+              # question with no sport in it no sports tag is taken (§361).
+              and (sporty or _facet(t) != "sports")]
     if tagged:
         tagged.sort(key=lambda n: (-tree.depth_of(n), n))
         return done(seen(tagged[0]), "tags")
-    # 8: an undecided name - what all its readings share, never one of them.
+    # 8: an undecided name - what all its readings share, never one of them,
+    # and only inside the facet already chosen.
     for _name, readings in undecided:
         shared = _shared([r.node for r in readings])
-        if shared:
+        if shared and (not facet or _facet(shared) == facet):
             return done(shared, "shared")
     # 9: broader, never wrong.
     if facet:
@@ -572,7 +659,8 @@ def confirm(request: str, words: str, field: tuple = ()) -> tuple:
         if not written and words:
             import category_near
 
-            written = category_near.nearest(words, inline=1)
+            # Queued, never embedded on the event loop (review, §361).
+            written = category_near.nearest(words, inline=0)
         if field and written and _facet(written) not in field:
             written = ""
         if not written:
@@ -650,10 +738,10 @@ def candidates_for(query: str, context: str = "", notes=None) -> tuple:
 
         prior = prior_for(query, context, notes)
         add(prior.node)
-        for _name, decided, readings in clashes(query):
+        for _name, decided, readings, cued in clashes(query):
             if decided is not None:
                 add(decided.node)
-            else:
+            elif cued:
                 tie = True
             for reading in readings:
                 add(reading.node)

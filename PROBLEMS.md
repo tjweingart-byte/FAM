@@ -25077,8 +25077,9 @@ The decided design (§346; the owner's answers 1, 2 and 5, §354): C3P0 rides
 in the brief's existing search half, sent through the agent layer so it is
 metered and locked; Nando's node is chosen in the same call from candidates
 code built from the tree; Haiku on ties runs beside the brief. Nothing new
-in series in front of the first word. With `AGENTS=0`, or either switch off,
-the brief is byte for byte what it was.
+in series in front of the first word. With `AGENTS=0` or `CONTEXTUALIZER=0`
+the brief is byte for byte what it was (with C3P0 on and Nando off, C3P0
+still answers the search half, without a candidate list - corrected, §362).
 
 **C3P0's call** (`contextualizer.search_half`). When Netenyahu lets him work
 on the episode and the brief is split (`EI_SPLIT=1`, the default), the
@@ -25141,8 +25142,8 @@ cancelled if it has not answered: nothing waits for it.
 from his call is the one published before the first word and the writer's
 `<<TITLE:>>` does not replace it (`ScriptNotes.c3p0_title`). `[title-from-content]`
 and `[one-category]` are rewritten in `CLAUDE.md` and `product.md` as the
-build prompt asked - inside the core's budget (39,956 of 40,000 bytes),
-the full text in the topic file. Mclovin's comparison of the title with
+build prompt asked - inside the core's budget (39,956 of 40,000 bytes then;
+39,970 after §361), the full text in the topic file. Mclovin's comparison of the title with
 the finished script, and C3P0 retitling on a mismatch, are Phase 3.
 
 **Latency - what cannot be measured here.** No new call in series: C3P0's
@@ -25255,7 +25256,8 @@ anything is sent) also falls back, where it used to fail the brief.
 
 **The tie call ran on.** When C3P0 picked, Nando's tie call was neither
 read nor cancelled (`or` short-circuited), and ran to completion, paid for
-and thrown away. It is read or cancelled at every placement.
+and thrown away. It is read or cancelled at every placement - which still
+left the paths that never reach a placement (§362).
 
 **Smaller.** Netenyahu's refresh could overwrite a hold made while it was
 reading (holds made since a read began are now merged in) and, with the
@@ -25315,4 +25317,107 @@ reader asks the store once; dates, ranges and questions not results;
 opinion only by name; forecast and archive inputs checked; the title
 cleaned and three to eight words; drafting never writes the live tree; off,
 the brief and every call are what they were) and the tie cases in
+`tests/test_agents_categorizer_clashes.py`.
+
+## 362. Phase 1 reviewed a second time: names that were never what the table thought, and the paths the first fixes missed (2026-10-31)
+
+The owner asked for a second check after the first (§361). Two new
+reviewers read the fixed code cold and tried to break it. The agents' code
+reviewer found that Nando still filed things under a specific wrong node on
+adversarial questions; the integration reviewer found paths the first round
+missed and two docs that still claimed too much. All fixed here.
+
+**No cue is no evidence.** The clash table lists only the readings FAM files
+(the Kings as two teams), so "what the readings share" filed "kings and
+queens of England", "tech giants earnings", "cardinals gather to elect a
+new pope", "Power Rangers movie" under `sports` - over the brief's own
+facet. A name with no word around it pointing to any reading now decides
+nothing and is filed under nothing; only a draw between readings that each
+had a cue is a tie, and only the tied readings count ("Kings game tonight":
+the two teams, `sports`). `NOT_THE_NAME` takes out words inside other names
+("United States", "Kings of Leon", "College of Cardinals"); readings with no
+node were added where a third meaning is common (a pope, a monarch, a
+ranger, an endangered panther, the jazz "giants"); weak cues went ("texas",
+"airport", "watch" - "apple watch" stays); a reading's own node name in the
+text decides it ("New York Rangers trade").
+
+**Two names that disagree decide nothing.** "Eagles fans brave the heat
+wave at the game" was filed under the NBA, because "fans" and "game" are
+sports cues and "heat" came first in the table. Decided names whose
+readings are not on one branch now cancel each other (the Eagles then come
+from the vocabulary); there is no table order.
+
+**A team's name needs a sports question.** "Utah jazz festival lineup",
+"Boston red sox the color of autumn": a seeded team's full name in the raw
+words, and any sports tag the keyword map reads off it, is taken only in a
+question about sport, as its nickname is. "Stanley Cup odds" needs nothing.
+
+**C3P0's pick, when he said ambiguous, is not taken.** It was accepted
+even when his own `ambiguous` was true - a guess between the readings he
+had just said he could not tell apart. Nando's own tie call (asked for a
+node or "none") is still taken: the owner's design, a model on ties.
+
+**A Go Deeper's parent is a hint, not a pin.** Its title was phrase-matched
+(the §209 failure - "Utah's jazz festival lineup" became the Utah Jazz) and
+then could only be narrowed. It is now placed by Nando's own steps, and it
+stands only when the request itself places nothing more than a facet.
+
+**The tie call, everywhere.** It no longer starts ahead of the tap (a
+prefetch or an edition may stop after the brief, where nothing reads it;
+C3P0 there has the whole of `EI_AHEAD_EFFORT`), it is cancelled if the
+brief raises or the listener leaves, and a cancelled call still leaves its
+ledger row. Nando's candidates are listed once per request, not twice.
+
+**Written live-story tiles** drew their picture from the writer's words
+through their own resolver, bypassing `_episode_category` - the very
+tile/episode mismatch Nando is for. They read the one reader now (with
+Nando off it returns exactly what the tile code computed before, in the
+same single read). `product.md`'s §189 note says so.
+
+**C3P0's answer.** Missed results: "Eagles 24, Giants 17" (the comma form;
+without the comma it is too like "Windows 11 Office 365"), "lost",
+"loses", "clinched", "eliminated", "swept". Wrongly flagged: date ranges
+("October 10-11"), named numbers ("9-11", "737-800", "4-3 defense",
+"50-50", "9-5 job", "top 10-15"), "won't", "have won" (a streak). A view:
+the name must stand alone ("Byron" is not "Ron"), the last name alone
+counts ("Krugman" for "Paul Krugman"), a reporting verb is not a view
+("Biden said GDP grew"), and a possessive noun needs what it is on
+("Krugman's take on", not "Krugman's position in the rankings"). A title
+over eighty characters is refused, not cut mid-word. Every step after the
+call is inside the safety net: an answer that cannot be read is the search
+half failing once; any failure before sending runs the brief's own half.
+
+**Smaller.** Holds made here stay in the copy until a read of the store
+shows them, whenever the refresh began; a store down since boot is asked
+once an interval, not once an episode. The confirmation after the writer
+queues its embedding. A replaced tree object rebuilds the vocabulary in the
+background, and the vocabulary step checks each node against the tree. An
+edition's node the tree has lost is no prior. `tools/agent_probe.py` meters
+its calls under the agent name `probe`.
+
+**Docs that claimed too much.** §360: the brief is byte for byte what it
+was with `CONTEXTUALIZER=0` (with C3P0 on and Nando off he still answers
+the search half); §361's tie-call line; the core's byte count.
+
+**Measured.** The forty: **20 right, 19 unplaced, 1 wrong** (today 11 / 28
+/ 1); every adversarial question both reviews found is filed true or not at
+all. The clash set 18 right, 1 narrower, 1 unplaced; taps 12 of 12.
+
+**Open, for the owner.** Whether Nando's Haiku tie call choosing one
+reading counts as "guessing" under c3p0.md's "never guess" (it is asked to
+say "none" when it cannot tell, and it is the owner's decision of §346); and
+whether C3P0's stricter answer failing more often than the old search half
+is acceptable once `/api/health` shows how often.
+
+Tests: `tests/test_second_review_362.py` (a team's full name only in a
+sports question, an unambiguous sports phrase without one; C3P0's pick not
+taken when he said ambiguous, and `prepare` passing it; a parent title
+placed by Nando and overridden by the request; an edition's lost node; no
+tie call ahead; the tie call cancelled with a failed brief; a cancelled call
+still a ledger row; candidates listed once; a late-written hold kept until
+the store shows it; a down store asked once an interval; fourteen results
+and non-results; six views and non-views; a long title refused; an
+unreadable answer fails once; any failure before sending falls back; a
+written tile drawn from Nando's node; a new tree built in the background;
+the probe metered) and the clash cases in
 `tests/test_agents_categorizer_clashes.py`.

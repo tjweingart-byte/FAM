@@ -385,6 +385,14 @@ async def ask(request: AgentRequest, *, notes=None, client=None) -> AgentResult:
     sent: list = [False]
     try:
         result = await _ask(request, notes, client, started, sent)
+    except asyncio.CancelledError:
+        # Cancelled by its caller (a tie call nobody needs any more, a
+        # listener who left): still a row, because a request that was sent
+        # may have been billed (review, §361). Then the cancel goes on.
+        _write(request, AgentResult(FAILED, getattr(request, "agent", ""),
+                                    getattr(request, "task", ""), "cancelled by its caller",
+                                    seconds=time.monotonic() - started, sent=sent[0]))
+        raise
     except Exception as exc:  # noqa: BLE001 - an agent never costs an episode
         log.exception("agent layer failed for %r", getattr(request, "agent", "?"))
         # `sent` says whether it left the machine before the failure, so a
@@ -394,14 +402,19 @@ async def ask(request: AgentRequest, *, notes=None, client=None) -> AgentResult:
                              f"the agent layer failed: {type(exc).__name__}",
                              seconds=time.monotonic() - started, sent=sent[0])
     if result.status not in (OFF, MALFORMED):
-        if RECORD_OFF_LOOP:
-            try:
-                _writer().submit(_record, request, result)
-            except Exception:  # noqa: BLE001 - a record never costs an episode
-                log.exception("could not queue an agent record")
-        else:
-            _record(request, result)
+        _write(request, result)
     return result
+
+
+def _write(request, result) -> None:
+    """One ledger row, off the event loop unless the tests write inline."""
+    if RECORD_OFF_LOOP:
+        try:
+            _writer().submit(_record, request, result)
+        except Exception:  # noqa: BLE001 - a record never costs an episode
+            log.exception("could not queue an agent record")
+    else:
+        _record(request, result)
 
 
 async def _ask(request, notes, client, started, sent=None) -> AgentResult:

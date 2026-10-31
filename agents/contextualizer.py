@@ -276,31 +276,52 @@ contains: "hurricanes hitting the Carolina coast" is weather, not the \
 hockey team. A broader true node is better than a specific wrong one."""
 
 #: A result where a search input or a title must not have one: a score, or
-#: a verb saying how something ended. A date ("2026-10-11"), a range of
-#: ages, days or years ("ages 18-25", "5-7 day forecast") is not a score, and
-#: "who won", "did they win", "can they beat" are questions (review, §361).
+#: a verb saying how something ended. Not a result (review, §361): a date
+#: or a date range ("2026-10-11", "October 10-11"), a range of ages, days,
+#: stars or players ("ages 18-25", "5-7 day forecast", "top 10-15"), a
+#: named thing with a number in it ("9-11", "737-800", "4-3 defense",
+#: "50-50", "9-5 job"); "who won", "did they win", "can they beat" are
+#: questions and "have won four straight" a streak.
+_MONTH = (r"jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|"
+          r"aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?")
 _SCORE = re.compile(r"(?<![\w.:\-–—])(\d{1,3})\s*[-–—]\s*(\d{1,3})(?![\w%\-–—]|[.:]\d)")
+#: "Eagles 24, Giants 17" - two names, each with a number, the comma
+#: between them. Without the comma it is too like "Windows 11 Office 365"
+#: to be read as a score.
+_NAMED_SCORE = re.compile(r"\b[A-Z][\w.'&]*(?: [A-Z][\w.'&]*)* (\d{1,3}), "
+                          r"(?:[A-Z][\w.'&]*(?: [A-Z][\w.'&]*)*) (\d{1,3})\b")
 _NOT_A_SCORE_BEFORE = re.compile(
-    r"\b(ages?|aged|between|from|week|weeks|day|days|years?|grades?|sizes?|rooms?|"
-    r"chapters?|pages?|steps?|levels?|hours?)\s*$", re.I)
+    r"\b(ages?|aged|between|from|top|week|weeks|day|days|years?|grades?|sizes?|"
+    r"rooms?|chapters?|pages?|steps?|levels?|hours?|boeing|airbus|covid|" + _MONTH +
+    r")\s*$", re.I)
 _NOT_A_SCORE_AFTER = re.compile(
     r"^\s*(-?\s*)?(day|days|week|weeks|month|months|year|years|hour|hours|minute|"
-    r"minutes|percent|per cent|%|degrees|inch|inches|mph|km)\b", re.I)
+    r"minutes|percent|per cent|%|degrees|inch|inches|mph|km|stars?|players?|"
+    r"defen[cs]e|formation|job|jobs|chance|split|attacks?|" + _MONTH + r")\b", re.I)
 _RESULT_VERB = re.compile(
-    r"\b(won|wins|beat|beats|defeated|defeats|crush|crushed|crushes|rout|routed|routs|"
-    r"edged|topped|lost to|loses to|fell to|victory over|cruised past)\b", re.I)
-#: Words in front of a result verb that make it a question or a prospect.
+    r"\b(won(?!')|wins|beat|beats|defeated|defeats|crush|crushed|crushes|rout|routed|"
+    r"routs|edged|topped|lost|loses|lose|clinched|clinches|eliminated|swept|sweeps|"
+    r"fell to|victory over|cruised past)\b", re.I)
+#: Words in front of a result verb that make it a question, a prospect or a
+#: streak rather than a result.
 _ASKING = re.compile(
     r"\b(who|did|does|do|whether|if|can|could|will|would|should|might|may|to|"
-    r"chance|chances|odds)\s+(\w+\s+){0,3}$", re.I)
+    r"chance|chances|odds|have|has|had|not)\s+(\w+\s+){0,3}$", re.I)
+
+
+def _is_score(text: str, m) -> bool:
+    a, b = int(m.group(1)), int(m.group(2))
+    if a == b and a >= 10:
+        return False                      # "50-50"
+    return not (_NOT_A_SCORE_BEFORE.search(text[:m.start()])
+                or _NOT_A_SCORE_AFTER.search(text[m.end():]))
 
 
 def has_result(text: str) -> bool:
     text = text or ""
-    for m in _SCORE.finditer(text):
-        if _NOT_A_SCORE_BEFORE.search(text[:m.start()]) or \
-                _NOT_A_SCORE_AFTER.search(text[m.end():]):
-            continue
+    if any(_is_score(text, m) for m in _SCORE.finditer(text)):
+        return True
+    if _NAMED_SCORE.search(text):
         return True
     for m in _RESULT_VERB.finditer(text):
         if not _ASKING.search(text[:m.start()]):
@@ -310,19 +331,27 @@ def has_result(text: str) -> bool:
 
 def asks_for_view(person: str, query: str) -> bool:
     """Whether `query` names `person` and asks for that person's view: the
-    name right before a view verb ("Krugman think", "Krugman's take") or
-    right after a view noun ("the opinion of Krugman"). "How many views did
-    Taylor Swift's video get" and "Do people think Biden is too old" are not
-    (review, §361)."""
-    name = re.escape(" ".join((person or "").split()))
-    if not name:
+    name (or its last word, "Krugman" for "Paul Krugman") right before a
+    view verb ("Krugman think") or a possessive view noun with what it is on
+    ("Krugman's take on"), or right after "the opinion of". A word inside
+    another word is not the name ("Byron" is not "Ron"), and reporting verbs
+    are not views: "Biden said GDP grew" asks for a fact (review, §361)."""
+    full = " ".join((person or "").split())
+    if not full:
         return False
-    after = (r"(?:'s?\s+(?:view|views|opinion|opinions|take|position|stance|thoughts)\b"
-             r"|\s+(?:\w+\s+){0,2}(?:think|thinks|thought|believe|believes|say|says|said|"
-             r"argue|argues|argued|feel|feels)\b)")
-    before = r"\b(?:opinion|opinions|view|views|take|position|stance|thoughts)\s+of\s+"
-    return bool(re.search(name + after, query or "", re.I)
-                or re.search(before + name, query or "", re.I))
+    names = [full] + ([full.split()[-1]] if len(full.split()) > 1 else [])
+    view_verb = (r"\s+(?:\w+\s+){0,2}(?:think|thinks|thought|believe|believes|"
+                 r"argue|argues|argued|feel|feels|make of|stand on)\b")
+    view_noun = (r"'s?\s+(?:view|views|opinion|opinions|take|position|stance|thoughts)"
+                 r"\s+(?:on|about|of|regarding)\b")
+    before = (r"\b(?:opinion|opinions|view|views|take|position|stance|thoughts)\s+of\s+")
+    for name in names:
+        n = r"(?<![\w'])" + re.escape(name) + r"(?![\w])"
+        if (re.search(n + view_verb, query or "", re.I)
+                or re.search(n + view_noun, query or "", re.I)
+                or re.search(before + n, query or "", re.I)):
+            return True
+    return False
 
 
 #: C3P0's title: three to eight words (c3p0.md, "always" 7), held in code.
@@ -342,7 +371,9 @@ def checked(answer: "SearchPlan", query: str, candidates: tuple) -> tuple:
     # The title: no result, the brief's own cleaning (not the question handed
     # back, no trailing "?", at most 80 characters), three to eight words.
     raw_title = search["title"]
-    title = ei.clean_title(raw_title, query) if not has_result(raw_title) else ""
+    # Over eighty characters is refused rather than cut mid-word.
+    title = (ei.clean_title(raw_title, query)
+             if not has_result(raw_title) and len(raw_title.strip()) <= 80 else "")
     title_ok = bool(title) and TITLE_WORDS[0] <= len(title.split()) <= TITLE_WORDS[1]
     if raw_title and not title_ok:
         why.append(f"title refused: {raw_title!r}")
@@ -442,34 +473,38 @@ async def search_half(query: str, minutes: int, context: str, now: str, covered:
         if candidates:
             material.append(("evidence", "Candidate nodes (id | path):\n"
                              + candidate_block(candidates)))
-        system = instructions()
+        request = models.AgentRequest(
+            agent="contextualizer", task="contextualise", switch_setting="contextualizer",
+            model_setting="contextualizer_model", rule_book="c3p0.md", schema=SearchPlan,
+            instructions=instructions(), material=tuple(material),
+            carries_listener_words=True,
+            timeout=float(settings.ei_ahead_timeout_seconds if ahead
+                          else settings.ei_timeout_seconds),
+            max_tokens=int(settings.ei_max_tokens),
+            effort=str(settings.ei_ahead_effort if ahead else settings.ei_effort),
+            surface="ahead" if ahead else "search")
     except Exception as exc:  # noqa: BLE001 - nothing was sent: the brief's own half
         log.warning("c3p0's request could not be built (%s); the brief's own search half",
                     exc)
         _count("call_fell_back_to_brief")
         return await fallback()
-    request = models.AgentRequest(
-        agent="contextualizer", task="contextualise", switch_setting="contextualizer",
-        model_setting="contextualizer_model", rule_book="c3p0.md", schema=SearchPlan,
-        instructions=system, material=tuple(material),
-        carries_listener_words=True,
-        timeout=float(settings.ei_ahead_timeout_seconds if ahead
-                      else settings.ei_timeout_seconds),
-        max_tokens=int(settings.ei_max_tokens),
-        effort=str(settings.ei_ahead_effort if ahead else settings.ei_effort),
-        surface="ahead" if ahead else "search")
-    result = await models.ask(request, notes=notes)
-    netenyahu.report("contextualizer", result.status)
-    _count(f"call_{result.status}")
-    if not result.ok:
-        # Only a request that never left: one sent and then failed is never
-        # sent again (review, §361 - a second request for one site).
-        if not result.sent and result.status in models.UNSENT:
-            _count("call_fell_back_to_brief")
-            return await fallback()
-        kind = "timeout" if result.status == models.TIMEOUT else "failed"
-        return kind, None, f"C3P0 {result.status}: {result.reason}"
-    search, extras, why = checked(result.value, query, candidates)
+    result = await models.ask(request, notes=notes)     # never raises
+    try:
+        netenyahu.report("contextualizer", result.status)
+        _count(f"call_{result.status}")
+        if not result.ok:
+            # Only a request that never left (`sent` is set the moment it
+            # does): one sent and then failed is never sent again (review,
+            # §361 - a second request for one site).
+            if not result.sent:
+                _count("call_fell_back_to_brief")
+                return await fallback()
+            kind = "timeout" if result.status == models.TIMEOUT else "failed"
+            return kind, None, f"C3P0 {result.status}: {result.reason}"
+        search, extras, why = checked(result.value, query, candidates)
+    except Exception as exc:  # noqa: BLE001 - sent: the search half failed, once
+        log.exception("c3p0's answer could not be read")
+        return "failed", None, f"C3P0's answer could not be read: {type(exc).__name__}"
     for line in why:
         log.info("c3p0 on %r: %s", query, line)
     if why:

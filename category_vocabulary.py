@@ -162,7 +162,18 @@ def index(tree=None) -> dict:
                 threading.Thread(target=_refresh, args=(tree,),
                                  name="category-vocabulary", daemon=True).start()
             return have
-    # First use, or a different tree: built here (boot primes it, §361).
+        if have is not None:
+            # A new tree object (a wipe, a reload in another module): the
+            # copy we have answers while the new one is built beside it
+            # (review, §361) - its nodes are checked against the tree by
+            # every reader anyway.
+            if not _CACHE["building"]:
+                _CACHE["building"] = True
+                _CACHE["checked"] = time.monotonic()
+                threading.Thread(target=_refresh, args=(tree,),
+                                 name="category-vocabulary", daemon=True).start()
+            return have
+    # First use only: built here (boot primes it when the agents are on, §361).
     built = _build(tree, _stamp(tree))
     with _LOCK:
         _CACHE["checked"] = time.monotonic()

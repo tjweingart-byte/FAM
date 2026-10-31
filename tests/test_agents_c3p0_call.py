@@ -218,7 +218,7 @@ def test_nandos_node_only_from_the_candidates():
 
 # ------------------------------------------------------------------ Nando: the candidates, the tie call, the pick
 def test_candidates_hold_every_reading_and_their_parents(tree):
-    nodes, tie = categorizer.candidates_for("how did United do")
+    nodes, tie = categorizer.candidates_for("United flights after the match")
     assert tie and {"airlines", "premier league", "business", "football"} <= set(nodes)
     assert len(nodes) <= categorizer.MAX_CANDIDATES
 

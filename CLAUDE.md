@@ -125,7 +125,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
 - **Titled by what it turned out to be about**: C3P0's title while he works
   (§360), else the writer's stripped `<<TITLE:>>`; no extra call, never a result;
   derived title first, then swapped; `titleOverridden` never replaced; own column;
-  a written live-story tile takes the writer's title, summary, `<<CATEGORY:>>` (§189). [title-from-content]
+  a written live-story tile takes the episode's title, summary, category (§189). [title-from-content]
 - `<<NEXT: ...>>` is a *prediction* of the likeliest follow-up, stored beside the
   script, served free by `/api/next`, offered by Go Deeper; the script never
   gestures at it. Every Go Deeper (Explore included) shows a suggestion - that

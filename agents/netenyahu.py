@@ -222,9 +222,9 @@ HELD_REFRESH_SECONDS = 30.0
 UNKNOWN = None
 _HELD: dict = {"roles": UNKNOWN, "at": 0.0, "running": False}
 _HELD_LOCK = threading.Lock()
-#: Holds made in this process, with when (§361): merged into every read of
-#: the store that began before they were written, so a refresh racing a hold
-#: can never drop it from the copy.
+#: Holds made in this process (§361): kept in the copy until a read of the
+#: store shows them, so a refresh racing a hold's write - whenever it began
+#: - can never drop it from the copy.
 _MADE: dict = {}
 #: Write a hold to the store off the listener's path (§361). Tests write it
 #: inline (`tests/conftest.py`).
@@ -242,7 +242,6 @@ def refresh_held() -> Optional[dict]:
     """Re-read the holds into the copy. Off the request path; never raises.
     A failed read keeps the last copy and waits a full interval before the
     next try, so a store that is down is not asked once per episode."""
-    started = time.monotonic()
     try:
         roles = dict(_read_held())
     except Exception:  # noqa: BLE001
@@ -252,9 +251,10 @@ def refresh_held() -> Optional[dict]:
             _HELD["at"] = time.monotonic()
         return _HELD["roles"]
     with _HELD_LOCK:
-        for role, (reason, made) in _MADE.items():
-            if made >= started:
-                roles.setdefault(role, reason)
+        for role in [r for r in _MADE if r in roles]:
+            del _MADE[role]                  # the store has it now
+        for role, (reason, _made) in _MADE.items():
+            roles.setdefault(role, reason)   # written yet? kept until it is
         _HELD.update(roles=roles, at=time.monotonic(), running=False)
     return dict(roles)
 
@@ -278,7 +278,9 @@ def prime() -> None:
 
 def _refresh_held_soon() -> None:
     with _HELD_LOCK:
-        if _HELD["running"] or (_HELD["roles"] is not UNKNOWN and
+        # Once an interval, read or not: a store down since boot is not
+        # asked once per episode (review, §361).
+        if _HELD["running"] or (_HELD["at"] and
                                 time.monotonic() - _HELD["at"] < HELD_REFRESH_SECONDS):
             return
         _HELD["running"] = True

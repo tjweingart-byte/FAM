@@ -7090,8 +7090,10 @@ def _name_written_tiles(tiles: list[dict], minutes: int) -> None:
             title = SCRIPT_CACHE.title(key) if key and SCRIPT_CACHE else ""
             summary = (getattr(SCRIPT_CACHE, "summary", lambda _k: "")(key)
                        if title else "")
-            category = (getattr(SCRIPT_CACHE, "category", lambda _k: "")(key)
-                        if key and SCRIPT_CACHE else "")
+            # Through the one reader (review, §361): Nando's node when he
+            # filed it, else the writer's words placed exactly as before - so
+            # the tile, the player and the category page draw one picture.
+            category = _episode_category(key) if key and SCRIPT_CACHE else ""
         except Exception:  # noqa: BLE001 - a card's name is never worth a 500
             log.exception("could not name a written tile")
             continue

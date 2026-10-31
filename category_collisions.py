@@ -14,7 +14,15 @@ share, or nothing, and C3P0 asks the listener when one can be asked.
 Cues are whole words or phrases, lower case, matched against the question
 and the brief's own words. Keep each list to words that are about the
 reading itself ("storm", "puck"), never to words both readings use
-("season", "record", "win" for weather records).
+("season", "record", "win" for weather records). A reading's own node name
+("new york rangers") in the text decides it outright.
+
+**No cue is no evidence** (review, §361): a name with nothing around it
+that points to any reading tells Nando nothing - "tech giants", "kings and
+queens of England" are neither league - so it is not filed under what the
+readings share; only a draw between readings that each have a cue is.
+`NOT_THE_NAME` lists phrases where the word is part of another name
+("United States", "College of Cardinals") and is not the clash at all.
 """
 from __future__ import annotations
 
@@ -44,6 +52,20 @@ _BASEBALL = _SPORTS + ("mlb", "baseball", "pitcher", "home run", "inning", "inni
 _SOCCER = _SPORTS + ("striker", "midfielder", "transfer", "premier league", "match",
                      "goal", "goals", "manager", "pitch", "champions league", "keeper")
 
+#: Phrases in which the word is not the clash at all.
+NOT_THE_NAME: dict[str, tuple[str, ...]] = {
+    "united": ("united states", "united nations", "united kingdom", "united arab emirates",
+               "united way", "united auto workers", "united church", "united methodist"),
+    "cardinals": ("college of cardinals",),
+    "giants": ("giants causeway", "giant's causeway", "tech giants", "gentle giants"),
+    "kings": ("book of kings", "kings of leon", "kings and queens", "three kings",
+              "kings cross", "king's cross"),
+    "rangers": ("power rangers", "park rangers", "forest rangers", "texas rangers division"),
+    "panthers": ("black panthers", "black panther party", "pink panther"),
+    "jaguars": ("jaguar land rover",),
+    "heat": ("heat pump", "heat pumps", "heat map"),
+}
+
 COLLISIONS: dict[str, tuple[Reading, ...]] = {
     "heat": (
         Reading("extreme weather", ("wave", "heatwave", "temperature", "temperatures",
@@ -71,23 +93,31 @@ COLLISIONS: dict[str, tuple[Reading, ...]] = {
     ),
     "rangers": (
         Reading("new york rangers", _HOCKEY),
-        Reading("mlb", _BASEBALL + ("texas",)),
+        Reading("mlb", _BASEBALL),
+        Reading("", ("arrest", "arrested", "suspect", "investigation", "law enforcement",
+                     "trail", "park", "wildfire")),
     ),
     "kings": (
         Reading("los angeles kings", _HOCKEY + ("los angeles", "la kings")),
         Reading("sacramento kings", _BASKETBALL + ("sacramento",)),
+        Reading("", ("queen", "queens", "monarch", "monarchy", "royal", "throne", "crown",
+                     "dynasty", "bible", "band", "album")),
     ),
     "panthers": (
         Reading("carolina panthers", _FOOTBALL + ("carolina",)),
-        Reading("nhl", _HOCKEY + ("florida",)),
+        Reading("nhl", _HOCKEY),
+        Reading("", ("endangered", "wildlife", "species", "habitat", "big cat", "zoo")),
     ),
     "cardinals": (
         Reading("arizona cardinals", _FOOTBALL + ("arizona",)),
-        Reading("mlb", _BASEBALL + ("st. louis", "st louis")),
+        Reading("mlb", _BASEBALL),
+        Reading("", ("pope", "conclave", "vatican", "church", "catholic", "bird", "birds",
+                     "feeder")),
     ),
     "giants": (
         Reading("nfl", _FOOTBALL + ("new york giants",)),
         Reading("mlb", _BASEBALL + ("san francisco",)),
+        Reading("", ("jazz", "industry", "earnings", "companies", "corporate")),
     ),
     "jets": (
         Reading("nfl", _FOOTBALL + ("new york jets",)),
@@ -103,15 +133,16 @@ COLLISIONS: dict[str, tuple[Reading, ...]] = {
     ),
     "united": (
         Reading("airlines", ("airline", "airlines", "flight", "flights", "route", "routes",
-                             "airport", "pilots", "fares", "united airlines", "boeing")),
+                             "pilots", "fares", "united airlines", "boeing")),
         Reading("premier league", _SOCCER + ("manchester", "old trafford", "man utd",
                                              "man united")),
     ),
     "apple": (
         Reading("smartphones", ("iphone", "iphones", "ios", "app store")),
         Reading("consumer hardware", ("mac", "macbook", "ipad", "vision pro", "airpods",
-                                      "watch", "device", "devices")),
-        Reading("stock market", ("shares", "stock", "market cap", "earnings", "investors")),
+                                      "apple watch", "device", "devices")),
+        Reading("stock market", ("shares", "stock", "stocks", "market cap", "earnings",
+                                 "investors")),
         Reading("", ("orchard", "orchards", "fruit", "harvest", "cider", "pie")),
     ),
     "amazon": (

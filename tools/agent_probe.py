@@ -10,7 +10,8 @@ call falls back. Phase 0 could not see which without a key; this asks. One
 call per distinct model in the agents' settings, through the same adapter
 `ask` uses, about 30 tokens each - a fraction of a cent. It does not go
 through `ask`, so no agent switch needs to be on and nothing is written to
-`agent_calls`.
+`agent_calls` as any agent's; each probe is still metered there under the
+agent name `probe` (review, §361), so its cost is never missing.
 
 Refuses on a zero-spend deployment (`spend_guard`) and with no Anthropic
 key. Prints, per model: asked, served, and whether `ask` would accept it.
@@ -58,8 +59,30 @@ async def probe(vendor: str, model: str) -> dict:
     except Exception as exc:  # noqa: BLE001 - a probe reports, never raises
         return {"vendor": vendor, "asked": model, "served": "", "accepted": False,
                 "error": f"{type(exc).__name__}: {exc}"[:300]}
+    _meter(vendor, model, answer)
     return {"vendor": vendor, "asked": model, "served": answer.served_model,
             "accepted": answer.served_model == model, "error": ""}
+
+
+def _meter(vendor: str, model: str, answer) -> None:
+    """The probe's own row in `agent_calls`, priced like any call. Never
+    raises."""
+    try:
+        import metering
+
+        usage = metering.Usage()
+        key = model if vendor == "anthropic" else f"{vendor}:{model}"
+        usage.add_model_call(key, answer.usage)
+        cost = metering.price_of(usage)
+        metering.MeterStore().record_agent_call(
+            agent="probe", task="served model", surface="background",
+            status="ok" if answer.served_model == model else "wrong_model",
+            vendor=vendor, model=model, served_model=answer.served_model,
+            usage={"input_tokens": usage.input_tokens, "output_tokens": usage.output_tokens},
+            cost_usd=round(cost.claude, 8), priced=cost.priced, sent=True,
+            seconds=0.0, reason="tools/agent_probe.py")
+    except Exception:  # noqa: BLE001 - a probe reports, never raises
+        pass
 
 
 def main() -> int:
