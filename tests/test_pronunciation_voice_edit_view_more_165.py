@@ -310,8 +310,9 @@ def _body(n, groups=False):
     return body
 
 
-def test_view_more_shows_the_first_eight_of_the_ranking():
-    body = T.page_section(_body(20))
+def test_view_more_shows_the_first_page_of_the_ranking():
+    # The mechanics, at a page of eight; the page itself is pinned below.
+    body = T.page_section(_body(20), size=8)
     assert [t["id"] for t in body["topics"]] == [f"t{i}" for i in range(8)]
     assert body["total"] == 20 and body["more"] is True and body["wrapped"] is False
     assert body["ready"] == 4
@@ -319,15 +320,16 @@ def test_view_more_shows_the_first_eight_of_the_ranking():
 
 def test_refresh_deals_the_next_eight_never_one_already_shown():
     seen = {f"t{i}" for i in range(8)}
-    body = T.page_section(_body(20), seen)
+    body = T.page_section(_body(20), seen, size=8)
     assert [t["id"] for t in body["topics"]] == [f"t{i}" for i in range(8, 16)]
-    last = T.page_section(_body(20), seen | {f"t{i}" for i in range(8, 16)})
+    last = T.page_section(_body(20), seen | {f"t{i}" for i in range(8, 16)},
+                          size=8)
     assert [t["id"] for t in last["topics"]] == ["t16", "t17", "t18", "t19"]
     assert last["more"] is False
 
 
 def test_once_everything_is_shown_it_starts_again_from_the_top_and_says_so():
-    body = T.page_section(_body(10), {f"t{i}" for i in range(10)})
+    body = T.page_section(_body(10), {f"t{i}" for i in range(10)}, size=8)
     assert [t["id"] for t in body["topics"]] == [f"t{i}" for i in range(8)]
     assert body["wrapped"] is True
 
@@ -400,10 +402,11 @@ def test_the_heard_words_are_editable_in_place():
     assert "stopVoiceRecognition(true)" in body
 
 
-def test_view_more_asks_for_eight_and_has_a_refresh():
+def test_view_more_asks_for_sixteen_and_has_a_refresh():
     html = _index()
     assert 'id="sectionRefresh"' in html and "refreshSection()" in html
-    assert "var SECTION_PAGE = 8;" in html
+    # Sixteen since the owner's 10.31 notebook; it was eight.
+    assert "var SECTION_PAGE = 16;" in html
     # Less the rail's own tiles on Made for you's first page (§286).
     assert "SECTION_PAGE - head.length" in html and '"&page_size=" + size' in html
-    assert T.VIEW_MORE_PAGE == 8
+    assert T.VIEW_MORE_PAGE == 16

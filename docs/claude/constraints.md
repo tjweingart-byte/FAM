@@ -1670,6 +1670,8 @@
   warmed script was nobody's tap, so it belongs to everybody, which is also
   what rows written before the column existed do.
 <!-- rule:typefaces -->
+> **Current (PROBLEMS.md §363, the owner 10.31):** the three tab headings are lower case - **daily**FAM, **my**FAM, **your**FAM - set by one rule (`.myfam-header h2, .yf-head .wordmark`: Bricolage Grotesque 500, 28px, which is how "my" was already drawn: `.myfam-header h2` outranked `.wordmark`'s 400) and centred over the page. The owner: "make them all look like my". exploreFAM's word on the reel is unchanged.
+
 > **Current (PROBLEMS.md §250):** the words beside the FAM mark ("Daily", "my", "Your", "explore") are all Bricolage Grotesque at its regular 400, matching exploreFAM's, at the owner's direction (the 10.10 packet's picture); they had been 500 with tightened spacing. And **light is the default theme**: dark is the choice in Settings ("Dark mode"), kept on the device under `fam.theme`; a device that cannot store it gets light. Fraunces, Space Grotesk and JetBrains Mono are gone (§204).
 - **The type is Bricolage Grotesque, Geist and Geist Mono.** *(§204.)* At the
   owner's direction, after a comparison of six type systems on every screen:
