@@ -87,7 +87,9 @@ def note(query: str, words: str, origin: str = "",
             row.update(nando_request=nando.get("request", "") or "",
                        nando_request_how=nando.get("request_how", "") or "",
                        nando=nando.get("node", "") or "",
-                       nando_how=nando.get("how", "") or "")
+                       nando_how=nando.get("how", "") or "",
+                       nando_confidence=str(nando.get("confidence", "") or ""),
+                       nando_ambiguous=nando.get("ambiguous", "") or "")
         topics.category_tree().note_written(row, at=at)
     except Exception:  # noqa: BLE001 - a log, never the episode
         log.exception("could not log a categorisation")
@@ -109,9 +111,18 @@ def _nando_summary(rows: list, examples: int) -> dict:
     # Where the picture and the category page would differ from the old
     # reader's: the writer's words placed by phrases (§209) against Nando's.
     moved = [r for r in filed if r.get("nando") and r.get("nando") != r.get("writer")]
+    unsure = [r for r in filed if "~broader" in (r.get("nando_request_how") or "")]
+    names: dict = {}
+    for r in filed:
+        for name in (r.get("nando_ambiguous") or "").split():
+            names[name] = names.get(name, 0) + 1
     return {
         "filed": len(filed),
         "differs_from_writer_words": len(moved),
+        # Filed under the parent because the placement was unsure (§358).
+        "broader_when_unsure": len(unsure),
+        # Names that meant two things and nothing decided, most common first.
+        "undecided_names": dict(sorted(names.items(), key=lambda kv: -kv[1])),
         "after_the_writer": dict(sorted(how.items())),
         "at_the_request": dict(sorted(found.items())),
         "refiled_rate": _rate(len(refiled), len(filed)),

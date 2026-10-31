@@ -47,14 +47,15 @@ def test_the_briefs_category_words_outrank_a_word_in_the_question(tree):
 
 def test_the_subject_places_when_the_words_do_not(tree):
     placed = categorizer.place(brief(category="", subject="Philadelphia Eagles"), "eagles score")
-    assert placed.node == "philadelphia eagles" and placed.how == "subject"
+    # "Eagles" is a name that means two things (§358); "score" decides it,
+    # and the subject names the team in full.
+    assert placed.node == "philadelphia eagles" and placed.how in ("subject", "clash")
 
 
 def test_a_question_phrase_on_another_facet_than_the_brief_is_passed_over(tree):
     # The brief says weather; "carolina hurricanes" would be the hockey team.
     placed = categorizer.place(brief(category="weather"), "hurricanes hitting the Carolina coast")
-    assert stories.facet_for(placed.node) == stories.facet_for(
-        stories.resolve_category("weather")) or placed.node in topics.FACETS
+    assert placed.node == "extreme weather"
 
 
 def test_with_no_brief_the_question_places_as_today(tree):
@@ -149,8 +150,11 @@ def test_settle_records_both_decisions_and_moves_the_players_picture(tree, monke
     notes.category = "philadelphia eagles"
     notes.category_placement = categorizer.place(brief(category="stock market"), "q")
     assert categorizer.settle(notes, "q") == "philadelphia eagles"
-    assert notes.category_settled == {"request": "stock market", "request_how": "category",
-                                      "node": "philadelphia eagles", "how": "refiled"}
+    settled = notes.category_settled
+    assert {k: settled[k] for k in ("request", "request_how", "node", "how")} == {
+        "request": "stock market", "request_how": "category",
+        "node": "philadelphia eagles", "how": "refiled"}
+    assert settled["confidence"] == categorizer.CONFIDENCE["category"]
     assert published == [("k1", "philadelphia eagles")]
 
 

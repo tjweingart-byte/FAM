@@ -24908,3 +24908,73 @@ first; a typed search has none; never raises; the words narrow on the
 branch and never move off it; a prior with no words is the node; the facet
 first; `prepare` places from the tap; the Trending edition hands over its
 story's category; taps place better than today and never wrong).
+
+## 358. Phase 1, piece 5: names that mean two things, and broader when unsure (2026-10-31)
+
+Most of the typed questions Nando could not place, and the one it placed
+wrong in §209, are names that mean two things: the Heat and a heat wave,
+the Hurricanes and a hurricane, United the airline and the club, Apple,
+Amazon, the Eagles. A phrase in the question picks one reading by its
+words, and the picture and the packets follow it.
+
+**The clash table** (`category_collisions.py`, data beside the category
+seed at the owner's direction - reviewed like the seed, never a signed
+rule book). Nineteen names, each with its readings: the node each is filed
+under, or "" for a reading the tree has no node for (the bird, the fruit),
+and the words around the name that point to it ("storm", "landfall" for
+the weather; "puck", "goalie" for the team). `categorizer.clashes` reads the
+question and the brief's words: one reading with the most cues is decided;
+none, or a draw, is a tie.
+
+**How Nando uses it.** The tap's filing and the brief's own category words
+still come first - the brief has read the question - then a decided name's
+reading (and a team named in full under it), then the old phrase steps,
+which may no longer land on a reading the name ruled out. A reading on the
+winner's own branch is not ruled out (consumer hardware above
+smartphones: found by the held-out check below, as a bug). A decided
+reading the tree has no node for files nothing - never the other reading.
+**A tie is never guessed**: Nando files under what all its readings share
+(the Kings: `sports`), or nothing (United), and records the name on the
+placement (`ambiguous`) for C3P0 to ask about (piece 10).
+
+**Confidence, and broader when unsure.** Every placement carries a
+confidence from the step that decided it (`CONFIDENCE`: the tap's or a
+provider's filing 0.9, the brief's words 0.8, a decided name 0.75, a phrase
+in the raw question 0.6, meaning and keywords 0.5, a facet 1.0), halved
+when an undecided name touches the chosen node. Below `MIN_CONFIDENCE`
+(0.5) the episode is filed under the node's parent - true, broader, so the
+picture is the parent's rather than a possibly wrong team's (decided item
+38). The audit records each placement's confidence and undecided names;
+`categories_report.py --audit` counts filings made broader and the names
+left undecided most often - which is where the table needs a word.
+
+**Measured.** The forty typed questions: today 11 right / 28 unplaced / 1
+wrong; Nando in code now **20 right, 1 broader, 18 unplaced, 1 wrong**. The
+table was written beside the forty, so that number flatters it. **Twenty
+held-out clash questions**, written and labelled after the table and never
+used to tune it: today **1 right, 1 narrower, 18 unplaced**; Nando **18
+right, 1 narrower, 1 unplaced, 0 wrong**. The held-out run found two code
+problems, fixed, and one table gap, left as found: the consumer-hardware bug
+above; a scorer with no "narrower" verdict ("United cancels flights" filed
+under `flights`, which sits under my label `airlines` - now counted as
+narrower in every column, never as right); and "thunderstorms and lightning
+expected tonight" unplaced, because "thunderstorms" is not a cue. The
+taps with context are 12 of 12. The remaining unplaced typed questions are
+plain wordings and subjects the tree has no phrase for - piece 6's other
+wordings, definitions and Wikidata anchors.
+
+**Latency.** None off. On: nineteen names checked against a short text with
+regular expressions, in memory, after the brief.
+
+**Tests that moved.** Two of piece 3's tests pinned which step decided
+("subject") or compared against an empty facet; they now pin the node, which
+is what they were for. The settle test reads the two new fields.
+
+Tests: `tests/test_agents_categorizer_clashes.py` (every reading a seeded
+node or none; the table is data, not a rule book; eight names decided by
+their words; a reading on the winner's branch kept; the bird files nothing;
+the brief and the tap outrank the table; a tie is what the readings share,
+or nothing, and names itself; a decided name rules out the others; every
+placement's confidence; below the floor the parent; a facet never made
+broader; the audit's counts; the held-out set never wrong and better than
+today).

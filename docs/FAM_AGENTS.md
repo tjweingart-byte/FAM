@@ -1965,7 +1965,13 @@ The tie call on Haiku comes with C3P0's call (Phase 1, piece 7).
 says - a tile's story, a bank topic, a DailyFAM subject from the catalogue,
 the Trending edition's story, the episode a Go Deeper follows - and the
 question's words may only narrow that node; the facet is chosen first and
-every later step stays inside it.
+every later step stays inside it. **Names that mean two things (§358):**
+`category_collisions.py`, beside the seed, lists each clash (Heat,
+Hurricanes, United, Apple, Amazon, Eagles...) with its readings' nodes and
+the words that decide between them; a tie is never guessed - Nando files
+under what the readings share, or nothing, and records the name for C3P0
+to ask about. Every placement has a confidence; below `MIN_CONFIDENCE` it
+is filed under its parent.
 
 ### Settings and open questions
 

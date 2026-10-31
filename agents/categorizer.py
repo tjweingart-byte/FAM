@@ -50,9 +50,32 @@ class Placement:
     how: str = ""
     #: Every node the steps found, in the order found.
     candidates: tuple = ()
+    #: How sure, 0 to 1 (§358): which step decided, lowered when a name
+    #: that means two things was left undecided. Below `MIN_CONFIDENCE` the
+    #: node is filed under its parent - still true, just broader.
+    confidence: float = 0.0
+    #: Names in the request that mean two things and that nothing around
+    #: them decided (`category_collisions`), for C3P0 to ask about.
+    ambiguous: tuple = ()
 
 
 NOWHERE = Placement()
+
+#: How far each step is trusted (§358). The tap's own filing and a
+#: provider's are near certain; a phrase in the brief's words is the brief
+#: understanding the question; a phrase in the raw question is the old
+#: failure (§209); meaning and keywords are weakest. A facet is always true.
+CONFIDENCE = {
+    "edition": 0.9, "tile": 0.9, "bank": 0.9, "dailyfam": 0.9, "provider": 0.9,
+    "parent": 0.7, "category": 0.8, "clash": 0.75, "subject": 0.7,
+    "question": 0.6, "near": 0.5, "tags": 0.5, "shared": 1.0, "facet": 1.0,
+}
+#: Below this a placement is filed under its parent node (decided item 38:
+#: a broader node rather than a nearby wrong one).
+MIN_CONFIDENCE = 0.5
+#: What an undecided name that touches the chosen node does to its
+#: confidence.
+UNDECIDED_PENALTY = 0.5
 
 
 @dataclass(frozen=True)
@@ -106,7 +129,8 @@ def place(brief, query: str = "", field: tuple = (),
         placed = _place(brief, query, _facet(prior.node) if prior.node else "")
         if prior.node:
             placed = _narrow(prior, placed)
-        return _within(placed, field, query) if field else placed
+        placed = _within(placed, field, query) if field else placed
+        return _broader_when_unsure(placed)
     except Exception as exc:  # noqa: BLE001 - a category never costs an episode
         log.warning("nando could not place %r: %s", query, exc)
         return NOWHERE
@@ -132,7 +156,7 @@ def _within(placed: Placement, field: tuple, query: str) -> Placement:
     tags.sort(key=lambda n: (-tree.depth_of(n), n))
     node = tags[0] if tags else sorted(field)[0]
     return Placement(node=node, path=path_for(node), how="provider",
-                     candidates=placed.candidates)
+                     candidates=placed.candidates, confidence=CONFIDENCE["provider"])
 
 
 def _provider_story(query: str):
@@ -170,16 +194,34 @@ def provider_field(query: str) -> tuple:
     return tuple(sorted({t for t in provider_tags(query) if t in topics.FACETS}))
 
 
+def _with(placed: Placement, **changes) -> Placement:
+    import dataclasses
+
+    return dataclasses.replace(placed, **changes)
+
+
+def _broader_when_unsure(placed: Placement) -> Placement:
+    """Below `MIN_CONFIDENCE`, the parent node (or the facet): the episode
+    is filed under something true rather than something possibly wrong."""
+    if not placed.node or placed.confidence >= MIN_CONFIDENCE or len(placed.path) < 2:
+        return placed
+    parent = placed.path[-2]
+    return _with(placed, node=parent, path=placed.path[:-1],
+                 how=f"{placed.how}~broader")
+
+
 def _narrow(prior: Prior, placed: Placement) -> Placement:
     """The words' node when it sits on the prior's branch at or below it,
     else the prior's node."""
     candidates = tuple(dict.fromkeys((prior.node,) + placed.candidates))
     if placed.node and (placed.node == prior.node or prior.node in _branch(placed.node)):
-        return Placement(node=placed.node, path=placed.path,
-                         how=placed.how if placed.node != prior.node else prior.source,
-                         candidates=candidates)
+        how = placed.how if placed.node != prior.node else prior.source
+        # Narrowing a known filing is at least as sure as the filing.
+        return _with(placed, how=how, candidates=candidates,
+                     confidence=max(placed.confidence, CONFIDENCE.get(prior.source, 0.7)))
     return Placement(node=prior.node, path=path_for(prior.node), how=prior.source,
-                     candidates=candidates)
+                     candidates=candidates, confidence=CONFIDENCE.get(prior.source, 0.7),
+                     ambiguous=placed.ambiguous)
 
 
 def _interest_node(interest) -> str:
@@ -285,6 +327,49 @@ def _prior_for(query: str, context: str, notes) -> Prior:
     return NO_PRIOR
 
 
+def _cue_in(cue: str, text: str) -> bool:
+    return re.search(r"(?<![a-z0-9])" + re.escape(cue) + r"(?![a-z0-9])", text) is not None
+
+
+def clashes(text: str) -> list:
+    """The names in `text` that mean two things (`category_collisions`), each
+    `(name, decided, readings)`: `decided` is the one reading the words
+    around the name point to, or None when none or several do - a tie,
+    never guessed. Never raises."""
+    try:
+        import category_collisions
+
+        low = " ".join((text or "").lower().split())
+        out = []
+        for name, readings in category_collisions.COLLISIONS.items():
+            if not _cue_in(name, low):
+                continue
+            rest = re.sub(r"(?<![a-z0-9])" + re.escape(name) + r"(?![a-z0-9])", " ", low)
+            hits = [sum(1 for cue in r.cues if _cue_in(cue, rest)) for r in readings]
+            best = max(hits)
+            decided = (readings[hits.index(best)]
+                       if best and hits.count(best) == 1 else None)
+            out.append((name, decided, readings))
+        return out
+    except Exception as exc:  # noqa: BLE001
+        log.warning("nando could not read the name clashes: %s", exc)
+        return []
+
+
+def _shared(nodes) -> str:
+    """The most specific node every one of `nodes` sits under, or ""."""
+    import topics
+
+    if not nodes or not all(nodes):
+        return ""
+    lines = [[n] + list(topics.category_tree().ancestors(n)) for n in nodes]
+    for node in lines[0]:
+        if all(node in line for line in lines[1:]):
+            return node
+    facets = {_facet(n) for n in nodes}
+    return facets.pop() if len(facets) == 1 else ""
+
+
 def _place(brief, query: str, prior_facet: str = "") -> Placement:
     import stories
     import topics
@@ -299,50 +384,93 @@ def _place(brief, query: str, prior_facet: str = "") -> Placement:
             found.append(node)
         return node
 
-    def done(node: str, how: str) -> Placement:
-        return Placement(node=node, path=path_for(node), how=how,
-                         candidates=tuple(found))
+    # Names that mean two things (§358), read across the question and the
+    # brief's own words. A decided one points at a reading; the others are
+    # the readings it is not.
+    named = clashes(" ".join((query or "", subject, words)))
+    decided = [d for _n, d, _r in named if d is not None]
+    # A losing reading on the winner's own branch (consumer hardware above
+    # smartphones) is not ruled out: it is the same truth, said less exactly.
+    losing = [r.node for _n, d, rs in named if d is not None for r in rs
+              if r is not d and r.node and not (
+                  d.node and (r.node in _branch(d.node) or d.node in _branch(r.node)))]
+    undecided = [(n, rs) for n, d, rs in named if d is None]
+    ambiguous = tuple(n for n, _rs in undecided)
+    tied = [r.node for _n, rs in undecided for r in rs if r.node]
 
-    # Facet first (§357): the tap's, else the brief's words', else the
-    # subject's. Every later step stays inside it, which is where the
-    # cross-facet mistakes (the heat wave and the Heat) are stopped.
+    def touches(node: str, nodes) -> bool:
+        return any(node == other or other in _branch(node) for other in nodes)
+
+    def done(node: str, how: str) -> Placement:
+        sure = CONFIDENCE.get(how, 0.5)
+        if node and how not in ("facet", "shared") and touches(node, tied):
+            sure *= UNDECIDED_PENALTY
+        return Placement(node=node, path=path_for(node), how=how,
+                         candidates=tuple(found), confidence=round(sure, 3),
+                         ambiguous=ambiguous)
+
+    # Facet first (§357): the tap's, else the brief's words', else a decided
+    # name's, else the subject's. Every later step stays inside it, which is
+    # where the cross-facet mistakes (the heat wave and the Heat) are stopped.
     by_words = seen(stories.resolve_category(words)) if words else ""
+    by_clash = seen(decided[0].node) if decided and decided[0].node else ""
     by_subject = seen(stories.resolve_category(subject)) if subject else ""
     by_question = seen(stories.resolve_category(query)) if query else ""
-    facet = prior_facet or (_facet(by_words) if by_words else "") or \
-        (_facet(by_subject) if by_subject else "")
+    facet = (prior_facet or (_facet(by_words) if by_words else "")
+             or (_facet(by_clash) if by_clash else "")
+             or (_facet(by_subject) if by_subject else ""))
 
     def agrees(node: str) -> bool:
-        return bool(node) and (not facet or stories.facet_for(node) == facet)
+        return (bool(node) and (not facet or _facet(node) == facet)
+                and not touches(node, losing))
 
-    # 1-3: phrases, the brief's words first. A facet alone from the words
-    # is kept for step 6: a subject or question node under it is truer.
-    if by_words and by_words not in topics.FACETS and agrees(by_words):
+    # 1: the brief's words by phrase - the brief has read the question, so
+    # it outranks the clash table (only the tap's facet holds it).
+    if (by_words and by_words not in topics.FACETS
+            and (not prior_facet or _facet(by_words) == prior_facet)):
         return done(by_words, "category")
+    # 2: a name that means two things, decided by the words around it.
+    if by_clash and agrees(by_clash):
+        # A team named in full under that reading is more specific still.
+        for node in (by_subject, by_question):
+            if node and node != by_clash and by_clash in _branch(node) and agrees(node):
+                return done(node, "clash")
+        return done(by_clash, "clash")
+    if decided and not decided[0].node:
+        # The words point to a reading the tree has no node for (the bird):
+        # nothing is filed rather than the other reading's node.
+        return done("", "clash")
+    # 3-4: phrases in the subject, then the question - never a node a
+    # decided name ruled out.
     if agrees(by_subject) and by_subject not in topics.FACETS:
         return done(by_subject, "subject")
     if agrees(by_question) and by_question not in topics.FACETS:
         return done(by_question, "question")
-    # 4: the brief's words by meaning, under its facet.
+    # 5: the brief's words by meaning, under its facet.
     if words:
         import category_near
 
         near = seen(category_near.nearest(words, facet=facet, inline=1))
-        if near:
+        if near and agrees(near):
             return done(near, "near")
-    # 5: the keyword map's deepest tree node for the question.
+    # 6: the keyword map's deepest tree node for the question.
     tagged = [t for t in topics.tags_for_text(query or "")
               if t not in topics.FACETS and tree.get(t) is not None and agrees(t)]
     if tagged:
         tagged.sort(key=lambda n: (-tree.depth_of(n), n))
         return done(seen(tagged[0]), "tags")
-    # 6: broader, never wrong.
+    # 7: an undecided name - what all its readings share, never one of them.
+    for _name, readings in undecided:
+        shared = _shared([r.node for r in readings])
+        if shared:
+            return done(shared, "shared")
+    # 8: broader, never wrong.
     if facet:
         return done(facet, "facet")
     for node in (by_subject, by_question):
         if node in topics.FACETS:
             return done(node, "facet")
-    return Placement(candidates=tuple(found))
+    return Placement(candidates=tuple(found), ambiguous=ambiguous)
 
 
 # ------------------------------------------------------------------ after the writer
@@ -407,7 +535,9 @@ def settle(notes, query: str = "") -> str:
         field = provider_field(query)
         node, how = confirm(placed.node, getattr(notes, "category", "") or "", field)
         notes.category_settled = {"request": placed.node, "request_how": placed.how,
-                                  "node": node, "how": how}
+                                  "node": node, "how": how,
+                                  "confidence": placed.confidence,
+                                  "ambiguous": " ".join(placed.ambiguous)}
         if how == "refiled":
             log.info("nando re-filed %r: %s at the request, %s after the writer",
                      query, placed.node, node)

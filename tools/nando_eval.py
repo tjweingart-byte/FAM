@@ -118,6 +118,36 @@ CONTEXT_TAPS = (
 )
 
 
+#: Twenty questions about names that mean two things, written and labelled
+#: *after* the clash table (§358) and never used to tune it - a held-out
+#: check on the forty, which the table was written beside. "" is a label
+#: for a reading the tree has no node for (the bird): placing nothing is
+#: right there, and any node is wrong. Ties a listener would be asked about
+#: are labelled with what the readings share, or "".
+HELD_OUT = (
+    ("Heat advisory issued as temperatures soar in Phoenix", "extreme weather"),
+    ("Heat beat the Knicks in overtime", "nba"),
+    ("Hurricane makes landfall near Tampa", "extreme weather"),
+    ("Hurricanes goalie pulled after three goals", "nhl"),
+    ("thunderstorms and lightning expected tonight", "extreme weather"),
+    ("Thunder point guard out with an injury", "nba"),
+    ("Kings trade for a new goalie", "los angeles kings"),
+    ("Kings point guard signs extension in Sacramento", "sacramento kings"),
+    ("Panthers quarterback benched", "carolina panthers"),
+    ("Rangers pitcher throws a no-hitter", "mlb"),
+    ("Rangers win in overtime at the Garden on a power play", "new york rangers"),
+    ("Jets coach fired after loss", "nfl"),
+    ("fighter jets scrambled over the Baltic", "geopolitical conflict"),
+    ("United cancels flights at Newark", "airlines"),
+    ("United striker scores twice at Old Trafford", "premier league"),
+    ("Apple unveils a new iPhone", "smartphones"),
+    ("Amazon deforestation hits a record in Brazil", "climate science"),
+    ("Amazon Web Services outage takes sites down", "cloud computing"),
+    ("bald eagles return to nest along the river", ""),
+    ("Mercury probe sends back new images of the planet", "space science"),
+)
+
+
 def seeded_tree():
     """The seeded tree in a throwaway file, as `category_tree()` serves it."""
     import categories
@@ -143,6 +173,11 @@ def score(tree, label: str, placed: str) -> str:
     facet = stories.facet_for(label)
     if placed in ancestry or (placed in topics.FACETS and placed == facet):
         return "broader"
+    # Under the label: more specific than the hand label, and true when the
+    # label was ("United cancels flights" filed under `flights`, which sits
+    # under `airlines`). Counted on its own, never as right.
+    if label in set(tree.ancestors(placed)):
+        return "narrower"
     return "wrong"
 
 
@@ -151,7 +186,7 @@ def run(places: dict) -> dict:
     tree = seeded_tree()
     out = {}
     for name, place in places.items():
-        rows, totals = [], {"right": 0, "broader": 0, "unplaced": 0, "wrong": 0}
+        rows, totals = [], {"right": 0, "narrower": 0, "broader": 0, "unplaced": 0, "wrong": 0}
         for question, label in QUESTIONS:
             node = place(question) or ""
             verdict = score(tree, label, node)
@@ -160,6 +195,30 @@ def run(places: dict) -> dict:
                          "verdict": verdict})
         out[name] = {"totals": totals, "rows": rows}
     return out
+
+
+def run_held_out() -> dict:
+    """Today against Nando on `HELD_OUT`. A "" label is right only when
+    nothing is placed."""
+    import stories
+    from agents import categorizer
+
+    tree = seeded_tree()
+    result = {}
+    for name, place in (("today (resolve_category)", stories.resolve_category),
+                        ("nando, code, no brief", lambda q: categorizer.place(None, q).node)):
+        totals, rows = {"right": 0, "narrower": 0, "broader": 0, "unplaced": 0, "wrong": 0}, []
+        for question, label in HELD_OUT:
+            node = place(question) or ""
+            if not label:
+                verdict = "right" if not node else "wrong"
+            else:
+                verdict = score(tree, label, node)
+            totals[verdict] += 1
+            rows.append({"question": question, "label": label, "placed": node,
+                         "verdict": verdict})
+        result[name] = {"totals": totals, "rows": rows}
+    return result
 
 
 def run_context() -> dict:
@@ -189,7 +248,7 @@ def run_context() -> dict:
                               "placed": node, "verdict": score(tree, label, node or "")})
     result = {}
     for name, rows in out.items():
-        totals = {"right": 0, "broader": 0, "unplaced": 0, "wrong": 0}
+        totals = {"right": 0, "narrower": 0, "broader": 0, "unplaced": 0, "wrong": 0}
         for r in rows:
             totals[r["verdict"]] += 1
         result[name] = {"totals": totals, "rows": rows}
@@ -234,21 +293,34 @@ def main() -> int:
     result = run(places)
     context = run_context()
     if args.json:
-        print(json.dumps({"questions": result, "taps": context}, indent=2))
+        print(json.dumps({"questions": result, "held_out": run_held_out(),
+                          "taps": context}, indent=2))
         return 0
     for name, found in result.items():
         t = found["totals"]
-        print(f"{name:<28} right {t['right']:>2}  broader {t['broader']:>2}  "
+        print(f"{name:<28} right {t['right']:>2}  narrower {t['narrower']:>2}  broader {t['broader']:>2}  "
               f"unplaced {t['unplaced']:>2}  wrong {t['wrong']:>2}   (of {len(QUESTIONS)})")
     for name, found in result.items():
         wrong = [r for r in found["rows"] if r["verdict"] == "wrong"]
         for r in wrong:
             print(f"  wrong, {name}: {r['question']!r} -> {r['placed']} (is {r['label']})")
+    held = run_held_out()
+    print()
+    print(f"Held-out name clashes ({len(HELD_OUT)}, never used to tune the table):")
+    for name, found in held.items():
+        t = found["totals"]
+        print(f"{name:<28} right {t['right']:>2}  narrower {t['narrower']:>2}  broader {t['broader']:>2}  "
+              f"unplaced {t['unplaced']:>2}  wrong {t['wrong']:>2}")
+    for name, found in held.items():
+        for r in found["rows"]:
+            if r["verdict"] in ("wrong",) or (name.startswith("nando") and r["verdict"] != "right"):
+                print(f"  {r['verdict']}, {name}: {r['question'][:50]!r}"
+                      f" -> {r['placed'] or '-'} (is {r['label'] or 'nothing'})")
     print()
     print(f"Taps that carry context ({len(CONTEXT_TAPS)}):")
     for name, found in context.items():
         t = found["totals"]
-        print(f"{name:<28} right {t['right']:>2}  broader {t['broader']:>2}  "
+        print(f"{name:<28} right {t['right']:>2}  narrower {t['narrower']:>2}  broader {t['broader']:>2}  "
               f"unplaced {t['unplaced']:>2}  wrong {t['wrong']:>2}")
     for name, found in context.items():
         for r in found["rows"]:
