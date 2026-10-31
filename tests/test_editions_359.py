@@ -224,7 +224,13 @@ def test_it_writes_what_the_variety_cap_hides(on):
 
 
 def test_a_written_sports_story_is_held_until_the_next_edition(on):
-    _pool(_story("eagles", S.SPORTS, "how did the eagles do last night"),
+    # 7.5 hours into an 8-hour shelf life: its own shelf ends within half an
+    # hour, and `until` is always at least the grace hour away, so the hold
+    # lengthens it at any time of day. At 1 hour old the hold (which only
+    # lengthens) changed nothing whenever the next edition was under seven
+    # hours off - about half the day - and this failed by the clock.
+    _pool(_story("eagles", S.SPORTS, "how did the eagles do last night",
+                 age_hours=7.5),
           _story("nvda", S.MARKETS, "why did nvidia stock move today"))
     asyncio.run(rails_edition.build(Writer(), MemoryScriptCache()))
     until = rails_edition.current_until(time.time())

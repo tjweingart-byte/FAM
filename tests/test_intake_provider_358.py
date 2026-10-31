@@ -33,26 +33,33 @@ def test_each_web_search_names_itself_on_its_findings(monkeypatch):
         assert [f.provider for f in packet.findings] == [backend]
 
 
-@pytest.mark.sqlite_file
+# Runs on both backends: read through the store's own connection, so in
+# CI's Postgres job (§243) this checks the by_provider column there too. That
+# database is shared by the whole run, so the URL is this test's own and the
+# counts are compared before and after rather than read as totals.
 def test_one_article_from_two_providers_keeps_their_passages_apart(tmp_path):
     store = ha.SQLiteBackend(str(tmp_path / "archive.db"))
-    url = "https://www.reuters.com/a"
+    url = f"https://www.reuters.com/a/{tmp_path.name}"
+    before = store.counts()["intake_by_provider"]
     store.intake([ha.Finding(url=url, passages=("From P.", "Shared."),
                              provider="perplexity")], "Eagles", "nfl", 1.0)
     store.intake([ha.Finding(url=url, passages=("From X.", "Shared."),
                              provider="parallel")], "Eagles", "nfl", 2.0)
-    with closing(sqlite3.connect(store.path)) as db:
+    with closing(store._connect()) as db:
         passages, by_provider = db.execute(
-            "SELECT passages, by_provider FROM intake").fetchone()
+            "SELECT passages, by_provider FROM intake WHERE url = ?", (url,)).fetchone()
     # What every reader reads is unchanged: the union.
     assert json.loads(passages) == ["From P.", "Shared.", "From X."]
     assert json.loads(by_provider) == {"perplexity": ["From P.", "Shared."],
                                        "parallel": ["From X.", "Shared."]}
-    counts = store.counts()["intake_by_provider"]
-    assert counts["perplexity"] == 1 and counts["parallel"] == 1
-    assert counts["unknown"] == 0
+    after = store.counts()["intake_by_provider"]
+    assert after["perplexity"] - before["perplexity"] == 1
+    assert after["parallel"] - before["parallel"] == 1
+    assert after["unknown"] == before["unknown"]
 
 
+# Reads the SQLite file directly, so it tests the SQLite backend only;
+# skipped in CI's Postgres job (§243), where the store is not that file.
 @pytest.mark.sqlite_file
 def test_an_archive_from_before_is_widened_and_its_rows_read_as_unknown(tmp_path):
     path = str(tmp_path / "archive.db")

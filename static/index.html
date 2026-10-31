@@ -28,7 +28,7 @@
   /* Light mode: the default since §250 (the 10.10 packet); dark is the
      listener's choice in Settings ("Dark mode"), kept on the device under
      `fam.theme`. Set on <html> before the first paint by the script at the
-     top of <body>. Only the chrome changes. Everything
+     top of the body. Only the chrome changes. Everything
      drawn over a picture - the Explore reel, a story, the VIBE! editor, the
      player's artwork and the captions panel - stays dark in both, the way a
      photo viewer does, so their colours are deliberately not variables. */
@@ -168,6 +168,12 @@
 
   .screen{ display:none; flex-direction:column; flex:1; min-height:0; }
   .screen.active{ display:flex; }
+  /* Every screen paints its own status bar: a strip pulled up over the
+     frame's empty one, the first thing in the screen, so it slides and
+     fades with the page it belongs to. The frame's own bar stayed put and
+     changed colour at once while the page under it was still moving. */
+  .screen-top{ flex:none; height:var(--sb-h); margin-top:calc(-1 * var(--sb-h));
+    background:var(--bg); pointer-events:none; }
   .scroll{ flex:1; min-height:0; overflow-y:auto; padding:2px 18px 18px; }
   .home-hero{ display:flex; flex-direction:column; }
   #screen-home{ position:relative; background:var(--bg); }
@@ -912,7 +918,10 @@
   /* The whole page turns, not just the words on it (10.2 packet #3): the
      stage follows the finger and slides out as the next one slides in. The
      tab bar stays put above it, and the screen clips what is off it. */
-  #screen-explore{ overflow:hidden; position:relative; }
+  /* Clipped at the sides and bottom only, so the screen's status-bar
+     strip above it is not cut off (overflow would clip it too). */
+  #screen-explore{ clip-path:inset(calc(-1 * var(--sb-h)) 0 0 0); position:relative; }
+  #screen-explore > .screen-top{ background:#121016; }
   #screen-explore .tabbar{ z-index:3; background:var(--bg); }
   .reel-stage{ will-change:transform; }/* playFAM: a mix is a folder. The card shows what is inside without
      needing to be opened, because a folder you cannot see into is a guess. */
@@ -1477,7 +1486,7 @@
   .progress-wrap{ flex:none; padding:12px 20px 4px; }
 
   /* -------- the player, in Spotify's layout (§190) -------- */
-  #screen-player{ position:relative; overflow:hidden; }
+  #screen-player{ position:relative; clip-path:inset(calc(-1 * var(--sb-h)) 0 0 0); }
   #screen-player > *{ position:relative; z-index:1; }
   /* The episode's picture, fading into the page at its edges so the
      controls over it stay readable. Empty, it is the page's own colour.
@@ -3070,6 +3079,13 @@
   #screen-profile .scroll, #screen-person .scroll{ background:linear-gradient(180deg,
       color-mix(in srgb, var(--copper) 24%, transparent), transparent 290px) no-repeat;
     background-attachment:local; }
+  /* The wash reaches the top of the screen: the page's status-bar strip,
+     and a friend's back-arrow bar, take its first colour, so the gradient
+     starts at the frame's edge rather than under a dark band. Opaque, the
+     wash already laid on the page's colour, because the strip slides over
+     the screen it is replacing. */
+  #screen-profile > .screen-top, #screen-person > .screen-top,
+  #screen-person .yf-bar{ background:color-mix(in srgb, var(--copper) 24%, var(--bg)); }
   .yf-hero{ display:flex; flex-direction:column; align-items:center; text-align:center;
     margin-top:8px; }
   .yf-hero .yf-photo{ width:92px; height:92px; font-size:28px; }
@@ -3369,6 +3385,7 @@
            what makes the rest of the guest rules readable (the profile tab
            asks for an account, and every gate's buttons lead here). -->
       <section class="screen" id="screen-welcome">
+        <div class="screen-top" aria-hidden="true"></div>
         <div class="scroll">
           <div class="entry-wrap">
             <div class="fam-logo" aria-label="FAM" style="padding:0 0 18px;">
@@ -3403,6 +3420,7 @@
       </section>
 
       <section class="screen" id="screen-auth">
+        <div class="screen-top" aria-hidden="true"></div>
         <div class="back-row">
           <span class="back" onclick="backToWelcome()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M17 6l-6 6 6 6"/><path d="M10 6l-6 6 6 6"/></svg></span>
           <h2 id="authTitle">Sign up</h2>
@@ -3518,6 +3536,7 @@
            A primary action you have to go looking for is not a primary
            action. -->
       <section class="screen" id="screen-intro">
+        <div class="screen-top" aria-hidden="true"></div>
         <!-- Opened from Settings, this screen is an editor rather than the
              first run, and an editor needs a way out that goes back where it
              came from. Hidden during the actual first run, which has Next and
@@ -3581,6 +3600,7 @@
            password change on it - is hidden during the first run, where there
            is no password to change yet. -->
       <section class="screen" id="screen-identity">
+        <div class="screen-top" aria-hidden="true"></div>
         <div class="intro-top" id="identityTop" hidden>
           <button class="sheet-close" onclick="closeIdentity()"
                   aria-label="Back"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
@@ -3708,6 +3728,7 @@
            has existed and been tested since myFAM was built and has been
            shown nowhere since its shelf came off that page. -->
       <section class="screen" id="screen-explorenew">
+        <div class="screen-top" aria-hidden="true"></div>
         <div class="back-row">
           <span class="back" onclick="goBack()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M17 6l-6 6 6 6"/><path d="M10 6l-6 6 6 6"/></svg></span>
           <h2>Explore New</h2>
@@ -3725,6 +3746,7 @@
            sheet inside the player - which is three places to look for one
            thing. -->
       <section class="screen" id="screen-settings">
+        <div class="screen-top" aria-hidden="true"></div>
         <div class="back-row">
           <span class="back" onclick="goBack()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M17 6l-6 6 6 6"/><path d="M10 6l-6 6 6 6"/></svg></span>
           <h2>Settings</h2>
@@ -3744,6 +3766,7 @@
            text because there is no list of the world's towns both complete
            and short enough to ship. See `preferences.Location`. -->
       <section class="screen" id="screen-location">
+        <div class="screen-top" aria-hidden="true"></div>
         <div class="intro-top">
           <button class="sheet-close" onclick="closeLocation()"
                   aria-label="Back"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
@@ -3787,6 +3810,7 @@
            tapping one plays it - the script already exists, so it costs
            nothing but the audio. -->
       <section class="screen" id="screen-myvibe">
+        <div class="screen-top" aria-hidden="true"></div>
         <div class="back-row">
           <span class="back" onclick="goBack()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M17 6l-6 6 6 6"/><path d="M10 6l-6 6 6 6"/></svg></span>
           <h2>My Vibe</h2>
@@ -3800,6 +3824,7 @@
            case, derived rather than stored - so there is no pending state and
            nothing to accept. -->
       <section class="screen" id="screen-friends">
+        <div class="screen-top" aria-hidden="true"></div>
         <div class="back-row">
           <span class="back" onclick="goBack()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M17 6l-6 6 6 6"/><path d="M10 6l-6 6 6 6"/></svg></span>
           <h2>Friends</h2>
@@ -3825,6 +3850,7 @@
            already held these, and the ones whose script is already written
            are marked and sorted to the front. -->
       <section class="screen" id="screen-section">
+        <div class="screen-top" aria-hidden="true"></div>
         <div class="back-row">
           <span class="back" onclick="goBack()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M17 6l-6 6 6 6"/><path d="M10 6l-6 6 6 6"/></svg></span>
           <h2 id="sectionTitle">Section</h2>
@@ -3844,6 +3870,7 @@
            cached episodes other listeners made that are most like it come
            up (`/api/myfam/search`). Replay only - a result never writes. -->
       <section class="screen" id="screen-myfamsearch">
+        <div class="screen-top" aria-hidden="true"></div>
         <div class="back-row">
           <span class="back" onclick="goBack()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M17 6l-6 6 6 6"/><path d="M10 6l-6 6 6 6"/></svg></span>
           <h2>Search DailyFAM</h2>
@@ -3858,6 +3885,7 @@
       </section>
 
       <section class="screen" id="screen-saved">
+        <div class="screen-top" aria-hidden="true"></div>
         <div class="back-row">
           <span class="back" onclick="goBack()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M17 6l-6 6 6 6"/><path d="M10 6l-6 6 6 6"/></svg></span>
           <h2>Save for Later</h2>
@@ -3871,6 +3899,7 @@
            direction: it replays other people's episodes, and a feed you swipe
            through is not a list of things you chose. Reached from Settings. -->
       <section class="screen" id="screen-history">
+        <div class="screen-top" aria-hidden="true"></div>
         <div class="back-row">
           <span class="back" onclick="goBack()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M17 6l-6 6 6 6"/><path d="M10 6l-6 6 6 6"/></svg></span>
           <h2>Recent listening history</h2>
@@ -3918,6 +3947,7 @@
 
       <!-- ============ HOME ============ -->
       <section class="screen" id="screen-home">
+        <div class="screen-top" aria-hidden="true"></div>
         <!-- Explore from search (10.2 packet #5): a button in the top right,
              and a swipe from right to left that pulls this page away to show
              Explore underneath it. Since the 10.5 packet (#7) the button is
@@ -4005,6 +4035,7 @@
            everybody without an account. The splash covers the gap instead and
            `bootToFirstScreen` is the only thing that opens a screen. -->
       <section class="screen" id="screen-myfam">
+        <div class="screen-top" aria-hidden="true"></div>
         <!-- Outside the scroller, so the wordmark, messages and the episode
              length stay put while the rails move under them (§127). The
              length control moved up here from the "Pick up where you left
@@ -4060,6 +4091,7 @@
       <!-- ============ PLAYFAM (past playlists) ============ -->
       <!-- ============ PLAYFAM (daily mixes) ============ -->
       <section class="screen" id="screen-playfam">
+        <div class="screen-top" aria-hidden="true"></div>
         <!-- Outside the scroller, like DailyFAM's (§232), so the wordmark and
              the (+) sit exactly where DailyFAM's do and stay put. -->
         <div class="myfam-header myfam-header-fixed">
@@ -4121,6 +4153,7 @@
 
       <!-- ============ PLAYFAM — inside one mix ============ -->
       <section class="screen" id="screen-mixdetail">
+        <div class="screen-top" aria-hidden="true"></div>
         <div class="back-row">
           <span class="back" onclick="openPlayFAM()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M17 6l-6 6 6 6"/><path d="M10 6l-6 6 6 6"/></svg></span>
           <h2 id="mixTitle">Mix</h2>
@@ -4134,6 +4167,7 @@
            cache only: nothing on this page writes an episode. Sorted and
            searched by the server (`/api/categories/episodes`). -->
       <section class="screen" id="screen-category">
+        <div class="screen-top" aria-hidden="true"></div>
         <div class="back-row">
           <span class="back" onclick="goBack()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M17 6l-6 6 6 6"/><path d="M10 6l-6 6 6 6"/></svg></span>
           <h2 id="catTitle">Category</h2>
@@ -4165,6 +4199,7 @@
            a shared /m/ link. It can be played as it is, and the (+) adds a
            copy to this listener's own DailyFAM. -->
       <section class="screen" id="screen-publicmix">
+        <div class="screen-top" aria-hidden="true"></div>
         <div class="back-row">
           <span class="back" onclick="closePublicMix()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M17 6l-6 6 6 6"/><path d="M10 6l-6 6 6 6"/></svg></span>
           <h2 id="publicMixTitle">Mix</h2>
@@ -4174,6 +4209,7 @@
 
       <!-- ============ DAILYFAM — name a new mix ============ -->
       <section class="screen" id="screen-newmix">
+        <div class="screen-top" aria-hidden="true"></div>
         <div class="back-row">
           <span class="back" onclick="cancelNewMix()" aria-label="Cancel"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></span>
           <h2 class="nm-step">Step 1 of 2 &middot; Name</h2>
@@ -4204,6 +4240,7 @@
 
       <!-- ============ PLAYFAM — choose topics ============ -->
       <section class="screen" id="screen-mixpicker">
+        <div class="screen-top" aria-hidden="true"></div>
         <div class="back-row">
           <span class="back" onclick="cancelMixPicker()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M17 6l-6 6 6 6"/><path d="M10 6l-6 6 6 6"/></svg></span>
           <h2 id="pickerTitle">Choose topics</h2>
@@ -4223,6 +4260,7 @@
 
       <!-- ============ DETAIL (branch topic list) ============ -->
       <section class="screen" id="screen-detail">
+        <div class="screen-top" aria-hidden="true"></div>
         <div class="back-row">
           <span class="back" onclick="goBack()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M17 6l-6 6 6 6"/><path d="M10 6l-6 6 6 6"/></svg></span>
           <h2 id="detail-title">Market Watch</h2>
@@ -4233,6 +4271,7 @@
 
       <!-- ============ PLAYER ============ -->
       <section class="screen" id="screen-player">
+        <div class="screen-top" aria-hidden="true"></div>
         <!-- Spotify's layout (§190, the owner's): a down arrow top left that
              minimises (never stops, §142), the episode's picture behind its
              title, the title and the sources on one line, the transport,
@@ -4319,6 +4358,7 @@
 
       <!-- ============ PLAY ALL (segmented continuous player) ============ -->
       <section class="screen" id="screen-playall">
+        <div class="screen-top" aria-hidden="true"></div>
         <div class="player-top"><span class="kicker" id="pa-kicker">Playing all</span><span class="demo-badge" title="No API key: a built-in sample script is standing in for Claude">not your episode</span><span class="x" onclick="goBack()">✕</span></div>
         <button class="go-deeper-pill" onclick="openGoDeeper('playall')">GO DEEPER</button>
         <div class="segbar" id="paSegbar"></div>
@@ -4360,6 +4400,7 @@
            bottom as they do on the player. The ±15 and the draggable bar
            stay (`transport`), small, under the title. -->
       <section class="screen" id="screen-explore">
+        <div class="screen-top" aria-hidden="true"></div>
         <div class="reel-stage" id="reelStage">
           <div class="reel-bg" id="reelBg" aria-hidden="true"></div>
           <div class="reel-head">
@@ -4509,6 +4550,7 @@
            them before `loadProfile` replaced it. Two pages sharing one
            container is not a routing bug with four fixes, it is one bug. -->
       <section class="screen" id="screen-person">
+        <div class="screen-top" aria-hidden="true"></div>
         <div class="yf-bar" id="personTop"></div>
         <div class="scroll"><div class="yf-person" id="personBody"></div></div>
       </section>
@@ -4520,6 +4562,7 @@
            pool, and the length pill is myFAM's own - it sets how long a
            tapped episode is written, it does not filter by duration. -->
       <section class="screen" id="screen-topic">
+        <div class="screen-top" aria-hidden="true"></div>
         <div class="yf-bar">
           <button class="yf-back" onclick="goBack()" aria-label="Back"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></button>
           <span class="yf-kicker">INTEREST</span>
@@ -4528,6 +4571,7 @@
       </section>
 
       <section class="screen" id="screen-profile">
+        <div class="screen-top" aria-hidden="true"></div>
         <div class="scroll">
           <div class="pf-top" id="pfTop"></div>
           <div id="profileBody"></div>
@@ -4550,6 +4594,7 @@
            Explore's place on the tab bar, and Explore moved into myFAM as
            the "What users are searching" rail. -->
       <section class="screen" id="screen-messages">
+        <div class="screen-top" aria-hidden="true"></div>
         <div class="yf-bar">
           <h2 class="yf-title">Messages</h2>
           <button class="yf-round gold" onclick="openNewChatModal()" aria-label="New message"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
@@ -4577,6 +4622,7 @@
            open on purpose. Sending is just sending: the old VIBE! button in
            this composer mixed a direct share up with a public vibe. -->
       <section class="screen" id="screen-thread">
+        <div class="screen-top" aria-hidden="true"></div>
         <div class="yf-thread-head">
           <div class="yf-thread-top">
             <button class="yf-back" onclick="goBack()" aria-label="Back to messages"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></button>
