@@ -131,15 +131,65 @@ def _request(task: str, schema, instructions: str, material: tuple, max_tokens: 
                         surface="background")
 
 
-def clean_wordings(node: str, wordings) -> list:
+def clean_wordings(node: str, wordings, tree=None) -> list:
     import categories
+    import category_vocabulary
+    import topics
 
+    tree = tree or topics.category_tree()
     out = []
     for w in wordings or ():
         w = categories.normalise(w)
-        if w and w != node and 1 <= len(w.split()) <= 4 and w not in out:
+        if (w and w != node and 1 <= len(w.split()) <= 4 and w not in out
+                and not category_vocabulary.refused(w, node, tree)):
             out.append(w)
     return out[:MAX_WORDINGS]
+
+
+def clean_draft(data: dict, tree) -> tuple:
+    """`(data, notes)`: a draft with every wording `clean_wordings` refuses
+    taken out (§385), and a wording several nodes claim kept only where it
+    is unambiguous - on the broadest of them when they lie on one branch
+    ("movies": film, not hollywood; "diet": nutrition, not weight loss - a
+    broader true node is better than a specific wrong one, §375), on none
+    when they are on different branches ("chip fabs": chip or semiconductor
+    manufacturing is the model's to choose, not the table's). `notes` says
+    what went."""
+    notes = []
+    nodes = data.get("nodes") or {}
+    for node, entry in nodes.items():
+        before = list(entry.get("wordings") or ())
+        entry["wordings"] = clean_wordings(node, before, tree)
+        for w in before:
+            import categories
+            import category_vocabulary
+
+            key = categories.normalise(w)
+            why = category_vocabulary.refused(key, node, tree) if key else ""
+            if why:
+                notes.append(f"{node}: dropped {w!r} ({why})")
+    owners: dict = {}
+    for node, entry in nodes.items():
+        for w in entry["wordings"]:
+            owners.setdefault(w, []).append(node)
+
+    def ancestors(n):
+        return set(tree.ancestors(n)) if tree.get(n) is not None else set()
+
+    for w, claim in owners.items():
+        if len(claim) < 2:
+            continue
+        deepest = [n for n in claim if not any(n in ancestors(m) for m in claim if m != n)]
+        on_one_branch = len(deepest) == 1 and all(
+            n == deepest[0] or n in ancestors(deepest[0]) for n in claim)
+        broadest = [n for n in claim if not (ancestors(n) & set(claim))]
+        keep = broadest[0] if on_one_branch and len(broadest) == 1 else None
+        for n in claim:
+            if n != keep:
+                nodes[n]["wordings"] = [x for x in nodes[n]["wordings"] if x != w]
+        notes.append(f"{w!r}: claimed by {', '.join(sorted(claim))}; "
+                     + (f"kept on {keep}" if keep else "dropped from all (different branches)"))
+    return data, notes
 
 
 async def draft_nodes(tree, limit: int = 0) -> tuple:
@@ -212,6 +262,8 @@ def main() -> int:
     parser.add_argument("--no-entities", action="store_true")
     parser.add_argument("--no-wikidata", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--clean", action="store_true",
+                        help="clean the pending draft already written (§385); sends nothing")
     args = parser.parse_args()
 
     import category_vocabulary
@@ -226,6 +278,16 @@ def main() -> int:
 
         tree = categories.CategoryStore(tempfile.mktemp(suffix=".db"))
         categories.apply_seed(tree)
+    if args.clean:
+        data = json.loads(category_vocabulary.PENDING.read_text(encoding="utf-8"))
+        data, notes = clean_draft(data, tree)
+        data.setdefault("drafted", {})["cleaned"] = notes
+        category_vocabulary.PENDING.write_text(
+            json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        print(f"cleaned {category_vocabulary.PENDING.name}: {len(notes)} change(s)")
+        for line in notes:
+            print(f"  {line}")
+        return 0
     lines = tree_lines(tree)[: args.limit or None]
     if args.dry_run:
         print(f"would ask about {len(lines)} nodes in {-(-len(lines) // BATCH)} calls, "
@@ -250,6 +312,8 @@ def main() -> int:
                 entry["wikidata"] = qid
     out = {"version": 1, "nodes": nodes, "entities": entities,
            "drafted": {"model_setting": "CATEGORIZER_MODEL", "problems": problems}}
+    out, cleaned = clean_draft(out, tree)
+    out["drafted"]["cleaned"] = cleaned
     category_vocabulary.PENDING.write_text(json.dumps(out, indent=2, sort_keys=True) + "\n",
                                            encoding="utf-8")
     print(f"wrote {category_vocabulary.PENDING.name}: {len(nodes)} nodes, "

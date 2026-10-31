@@ -25963,3 +25963,66 @@ run.
 
 Tests: `tests/test_one_event_loop_384.py`;
 `tests/test_agents_c3p0_call.py::test_with_nothing_found_the_facets_then_the_tree_are_offered`.
+
+## 385. The vocabulary drafted, cleaned and measured: it does not help yet (2026-10-31)
+
+**Drafted** (`tools/draft_category_vocabulary.py --no-wikidata`, the owner's
+go-ahead; Haiku 5.5 through `agents.models.ask`): all 303 nodes have a
+definition, an exclusion and other wordings; 166 of 188 named things are
+filed. The 22 left out are names several teams share ("Giants", "Kings",
+"Panthers", "Rangers") or places and institutions the tree has no node for
+("Congress", "India") - right to leave out. Wikidata ids are missing: this
+environment's network refuses `www.wikidata.org` (the owner can allow it,
+with `query.wikidata.org` and `en.wikipedia.org`, in the environment's
+network settings).
+
+**What the draft got wrong, and the tool now refuses** (`category_vocabulary.refused`,
+used by the tool and again by the loader, whatever the file says):
+
+* **A lone letter.** "M&A", "A's" and "O's" normalise to "m a", "a s" and
+  "o s" - and a question normalises the same way, so "I'm a Lakers fan"
+  ("i m a lakers fan") would have read as mergers. A wording made only of
+  one- and two-letter pieces is refused; "e commerce" and "women s health"
+  keep their long word and stay.
+* **Another node's own name** (37): "nfl" under american football. That
+  node already matches its name; listing it elsewhere only made ties.
+* **A name that means two things** ("hurricanes", "rangers"): those are
+  `category_collisions`' to decide.
+* **A wording several nodes claim** (35): kept on the broadest node when
+  they lie on one branch ("movies": film, not hollywood; "diet":
+  nutrition, not weight loss - a broader true node is better than a
+  specific wrong one), dropped from all when they are on different
+  branches ("chip fabs"). The tool cleans every draft as it writes it;
+  `--clean` re-cleans the pending file and sends nothing. 77 changes to
+  this draft, listed in its `drafted.cleaned`.
+
+**Measured** (`nando_eval --with-brief`, two runs each, right / wrong of 40):
+
+| | no vocabulary | draft as written | draft cleaned |
+|---|---|---|---|
+| whole tree only when nothing found (§384) | 36, 36 / 2, 2 | 31, 33 / 3, 4 | - |
+| whole tree always (kept) | 35, 36 / 2, 3 | 34, 32 / 2, 3 | 32, 32 / 2, 2 |
+
+The first cause: with the whole tree only when nothing was found, a
+vocabulary match ("stock market" for "the gold rush in AI chip stocks")
+put code's shortlist in its place and the true node was off the list.
+**The whole tree now always follows code's matches** while the tree has
+at most 400 nodes; it costs nothing without a vocabulary (35-36) and
+protects as one grows.
+
+**Still, the cleaned draft scores below none** (32 against 35-36): code's
+vocabulary matches go first on the list and into the hints, and the model
+leans on them ("the Jets quarterback situation" -> `quarterback play`,
+"AI chip stocks" -> `stock market`; three more left unplaced). So the draft
+waits, cleaned, as `category_vocabulary.pending.json` - which Nando never
+reads - and is **not recommended for approval** until a run shows it helps.
+What to try next, one at a time, each measured: the vocabulary's matches as
+plain candidates without the "code's reading" hint; definitions only, no
+wordings; wordings only for named things.
+
+**Found on the way:** `tools/` holds its own `trending_bank.py`, so a test
+that puts `tools/` first on the import path shadows the real module; the
+new test loads the tool from its file instead.
+
+Tests: `tests/test_vocabulary_cleanup_385.py`;
+`tests/test_agents_c3p0_call.py` (the whole tree after code's matches).

@@ -220,7 +220,14 @@ def test_nandos_node_only_from_the_candidates():
 def test_candidates_hold_every_reading_and_their_parents(tree):
     nodes, tie = categorizer.candidates_for("United flights after the match")
     assert tie and {"airlines", "premier league", "business", "football"} <= set(nodes)
-    assert len(nodes) <= categorizer.MAX_CANDIDATES
+    # The cap is on code's own matches; the facets and the tree follow (§385).
+    # Code's matches come first, then the facets it did not match, in order.
+    def facets_after(k):
+        rest = sorted(set(topics.FACETS) - set(nodes[:k]))
+        return list(nodes[k:k + len(rest)]) == rest
+
+    k = next(k for k in range(len(nodes)) if facets_after(k))
+    assert 0 < k <= categorizer.MAX_CANDIDATES
 
 
 def test_with_nothing_found_the_facets_then_the_tree_are_offered(tree, monkeypatch):
@@ -230,6 +237,9 @@ def test_with_nothing_found_the_facets_then_the_tree_are_offered(tree, monkeypat
     facets = sorted(topics.FACETS)
     assert list(nodes[:len(facets)]) == facets and not tie
     assert set(nodes) == set(facets) | set(tree.nodes())
+    # Code's matches first, and the whole tree still after them (§385).
+    found, _tie = categorizer.candidates_for("Stanley Cup odds")
+    assert found[0] != facets[0] and set(found) >= set(tree.nodes())
     # A tree too big to read cheaply: only the level under the facets.
     monkeypatch.setattr(categorizer, "WHOLE_TREE_NODES", 10)
     nodes, _tie = categorizer.candidates_for("zqxv blorp")

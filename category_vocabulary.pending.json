@@ -1,0 +1,3689 @@
+{
+  "drafted": {
+    "cleaned": [
+      "air travel: dropped 'flights' (the node 'flights''s own name)",
+      "american football: dropped 'nfl' (the node 'nfl''s own name)",
+      "american football: dropped 'college football' (the node 'college football''s own name)",
+      "american football: dropped 'super bowl' (the node 'super bowl''s own name)",
+      "artificial intelligence: dropped 'machine learning' (the node 'machine learning''s own name)",
+      "baltimore orioles: dropped 'o s' (a one-letter word with nothing longer)",
+      "baseball: dropped 'mlb' (the node 'mlb''s own name)",
+      "basketball: dropped 'nba' (the node 'nba''s own name)",
+      "central banks: dropped 'federal reserve' (the node 'federal reserve''s own name)",
+      "chip manufacturing: dropped 'semiconductor manufacturing' (the node 'semiconductor manufacturing''s own name)",
+      "combat sports: dropped 'boxing' (the node 'boxing''s own name)",
+      "combat sports: dropped 'mixed martial arts' (the node 'mixed martial arts''s own name)",
+      "combat sports: dropped 'ufc' (the node 'ufc''s own name)",
+      "consumer hardware: dropped 'smartphones' (the node 'smartphones''s own name)",
+      "consumer hardware: dropped 'wearables' (the node 'wearables''s own name)",
+      "digital currency: dropped 'crypto' (the node 'crypto''s own name)",
+      "elections and politics: dropped 'political parties' (the node 'political parties''s own name)",
+      "energy business: dropped 'oil companies' (the node 'oil companies''s own name)",
+      "extreme weather: dropped 'hurricanes' (a name that means two things)",
+      "federal reserve: dropped 'interest rates' (the node 'interest rates''s own name)",
+      "film: dropped 'box office' (the node 'box office''s own name)",
+      "flights: dropped 'air travel' (the node 'air travel''s own name)",
+      "flights: dropped 'airlines' (the node 'airlines''s own name)",
+      "food scene: dropped 'restaurants' (the node 'restaurants''s own name)",
+      "food supply: dropped 'food prices' (the node 'food prices''s own name)",
+      "football: dropped 'premier league' (the node 'premier league''s own name)",
+      "ice hockey: dropped 'nhl' (the node 'nhl''s own name)",
+      "ice hockey: dropped 'stanley cup' (the node 'stanley cup''s own name)",
+      "israel: dropped 'tel aviv' (the node 'tel aviv''s own name)",
+      "markets: dropped 'stock market' (the node 'stock market''s own name)",
+      "markets: dropped 'bond market' (the node 'bond market''s own name)",
+      "mental health: dropped 'anxiety' (the node 'anxiety''s own name)",
+      "mergers acquisitions: dropped 'm a' (a one-letter word with nothing longer)",
+      "mixed martial arts: dropped 'ufc' (the node 'ufc''s own name)",
+      "motorsport: dropped 'formula one' (the node 'formula one''s own name)",
+      "nba: dropped 'basketball' (the node 'basketball''s own name)",
+      "new york rangers: dropped 'rangers' (a name that means two things)",
+      "nfl: dropped 'football' (the node 'football''s own name)",
+      "nfl: dropped 'american football' (the node 'american football''s own name)",
+      "oakland athletics: dropped 'a s' (a one-letter word with nothing longer)",
+      "semiconductor manufacturing: dropped 'chip manufacturing' (the node 'chip manufacturing''s own name)",
+      "trade policy: dropped 'tariffs' (the node 'tariffs''s own name)",
+      "urban policy: dropped 'zoning' (the node 'zoning''s own name)",
+      "'plane travel': claimed by air travel, flights; dropped from all (different branches)",
+      "'pro football': claimed by american football, nfl; kept on american football",
+      "'chatbots': claimed by artificial intelligence, language models; kept on artificial intelligence",
+      "'ai models': claimed by artificial intelligence, machine learning; kept on artificial intelligence",
+      "'major league baseball': claimed by baseball, mlb; kept on baseball",
+      "'pro basketball': claimed by basketball, nba; kept on basketball",
+      "'book publishing': claimed by books, publishing; kept on books",
+      "'central bank rates': claimed by central banks, interest rates; kept on central banks",
+      "'chip factories': claimed by chip manufacturing, semiconductor manufacturing; dropped from all (different branches)",
+      "'chip fabs': claimed by chip manufacturing, semiconductor manufacturing; dropped from all (different branches)",
+      "'chipmaking': claimed by chip manufacturing, semiconductor manufacturing; dropped from all (different branches)",
+      "'mma': claimed by combat sports, mixed martial arts, ufc; dropped from all (different branches)",
+      "'oil prices': claimed by commodity prices, oil price; kept on commodity prices",
+      "'gold prices': claimed by commodity prices, gold price; kept on commodity prices",
+      "'mergers': claimed by corporate strategy, mergers acquisitions; kept on corporate strategy",
+      "'acquisitions': claimed by corporate strategy, mergers acquisitions; kept on corporate strategy",
+      "'cryptocurrency': claimed by crypto, digital currency; kept on crypto",
+      "'digital coins': claimed by crypto, digital currency; kept on crypto",
+      "'energy companies': claimed by energy business, oil companies; kept on energy business",
+      "'oil industry': claimed by energy business, oil companies; kept on energy business",
+      "'energy supply': claimed by energy security, oil supply; kept on energy security",
+      "'movies': claimed by film, hollywood; kept on film",
+      "'movie industry': claimed by film, hollywood; kept on film",
+      "'food trends': claimed by food culture, food scene; kept on food culture",
+      "'f1': claimed by formula one, motorsport; kept on motorsport",
+      "'home prices': claimed by house prices, urban housing; dropped from all (different branches)",
+      "'rents': claimed by housing market, rental market, urban housing; dropped from all (different branches)",
+      "'rent prices': claimed by housing market, rental market, urban housing; dropped from all (different branches)",
+      "'renters': claimed by housing market, rental market, urban housing; dropped from all (different branches)",
+      "'stocks': claimed by markets, stock market; kept on markets",
+      "'diet': claimed by nutrition, weight loss; kept on nutrition",
+      "'sleep health': claimed by sleep quality, sleep research; kept on sleep quality",
+      "'venture funding': claimed by startups, venture capital; kept on startups",
+      "'startup funding': claimed by startups, venture capital; kept on startups"
+    ],
+    "model_setting": "CATEGORIZER_MODEL",
+    "problems": []
+  },
+  "entities": {
+    "2026 midterms": {
+      "kind": "other",
+      "node": "elections and politics"
+    },
+    "49ers": {
+      "kind": "team",
+      "node": "niners"
+    },
+    "76ers": {
+      "kind": "team",
+      "node": "philadelphia sixers"
+    },
+    "ai agents": {
+      "kind": "other",
+      "node": "artificial intelligence"
+    },
+    "ai regulation": {
+      "kind": "other",
+      "node": "tech regulation"
+    },
+    "airlines": {
+      "kind": "other",
+      "node": "airlines"
+    },
+    "amazon": {
+      "kind": "company",
+      "node": "ecommerce"
+    },
+    "anthropic": {
+      "kind": "company",
+      "node": "artificial intelligence"
+    },
+    "apple": {
+      "kind": "company",
+      "node": "consumer hardware"
+    },
+    "arsenal": {
+      "kind": "team",
+      "node": "premier league"
+    },
+    "artemis": {
+      "kind": "other",
+      "node": "space science"
+    },
+    "aryna sabalenka": {
+      "kind": "person",
+      "node": "tennis"
+    },
+    "astros": {
+      "kind": "team",
+      "node": "houston astros"
+    },
+    "barcelona": {
+      "kind": "team",
+      "node": "football"
+    },
+    "bears": {
+      "kind": "team",
+      "node": "nfl"
+    },
+    "beyonc\u00e9": {
+      "kind": "person",
+      "node": "pop music"
+    },
+    "bills": {
+      "kind": "team",
+      "node": "nfl"
+    },
+    "bitcoin": {
+      "kind": "other",
+      "node": "crypto"
+    },
+    "blue origin": {
+      "kind": "company",
+      "node": "space technology"
+    },
+    "braves": {
+      "kind": "team",
+      "node": "atlanta braves"
+    },
+    "bruins": {
+      "kind": "team",
+      "node": "boston bruins"
+    },
+    "buffalo bills": {
+      "kind": "team",
+      "node": "nfl"
+    },
+    "calgary flames": {
+      "kind": "team",
+      "node": "nhl"
+    },
+    "canelo \u00e1lvarez": {
+      "kind": "person",
+      "node": "boxing"
+    },
+    "carlos alcaraz": {
+      "kind": "person",
+      "node": "tennis"
+    },
+    "carolina hurricanes": {
+      "kind": "team",
+      "node": "nhl"
+    },
+    "celtics": {
+      "kind": "team",
+      "node": "boston celtics"
+    },
+    "champions league": {
+      "kind": "organisation",
+      "node": "champions league"
+    },
+    "chargers": {
+      "kind": "team",
+      "node": "nfl"
+    },
+    "chicago bears": {
+      "kind": "team",
+      "node": "nfl"
+    },
+    "chicago bulls": {
+      "kind": "team",
+      "node": "nba"
+    },
+    "chiefs": {
+      "kind": "team",
+      "node": "nfl"
+    },
+    "chips": {
+      "kind": "other",
+      "node": "semiconductors"
+    },
+    "climate tech": {
+      "kind": "other",
+      "node": "renewable energy"
+    },
+    "coco gauff": {
+      "kind": "person",
+      "node": "tennis"
+    },
+    "colorado avalanche": {
+      "kind": "team",
+      "node": "nhl"
+    },
+    "colorado rockies": {
+      "kind": "team",
+      "node": "mlb"
+    },
+    "cowboys": {
+      "kind": "team",
+      "node": "dallas cowboys"
+    },
+    "cs2": {
+      "kind": "work",
+      "node": "video games"
+    },
+    "cubs": {
+      "kind": "team",
+      "node": "chicago cubs"
+    },
+    "dallas stars": {
+      "kind": "team",
+      "node": "nhl"
+    },
+    "detroit pistons": {
+      "kind": "team",
+      "node": "nba"
+    },
+    "dodgers": {
+      "kind": "team",
+      "node": "los angeles dodgers"
+    },
+    "drake": {
+      "kind": "person",
+      "node": "hip hop"
+    },
+    "ducks": {
+      "kind": "team",
+      "node": "anaheim ducks"
+    },
+    "eagles": {
+      "kind": "team",
+      "node": "philadelphia eagles"
+    },
+    "ethereum": {
+      "kind": "other",
+      "node": "crypto"
+    },
+    "f1": {
+      "kind": "other",
+      "node": "formula one"
+    },
+    "ferrari": {
+      "kind": "company",
+      "node": "automotive industry"
+    },
+    "florida panthers": {
+      "kind": "team",
+      "node": "nhl"
+    },
+    "fortnite": {
+      "kind": "work",
+      "node": "video games"
+    },
+    "golden knights": {
+      "kind": "team",
+      "node": "vegas golden knights"
+    },
+    "google": {
+      "kind": "company",
+      "node": "software business"
+    },
+    "google deepmind": {
+      "kind": "company",
+      "node": "artificial intelligence"
+    },
+    "governor races": {
+      "kind": "other",
+      "node": "elections and politics"
+    },
+    "gta vi": {
+      "kind": "work",
+      "node": "video games"
+    },
+    "hbo": {
+      "kind": "company",
+      "node": "streaming business"
+    },
+    "heat": {
+      "kind": "team",
+      "node": "nba"
+    },
+    "houston rockets": {
+      "kind": "team",
+      "node": "nba"
+    },
+    "houston texans": {
+      "kind": "team",
+      "node": "nfl"
+    },
+    "immigration": {
+      "kind": "other",
+      "node": "immigration"
+    },
+    "indycar": {
+      "kind": "organisation",
+      "node": "motorsport"
+    },
+    "inter miami": {
+      "kind": "team",
+      "node": "major league soccer"
+    },
+    "interest rates": {
+      "kind": "other",
+      "node": "interest rates"
+    },
+    "jannik sinner": {
+      "kind": "person",
+      "node": "tennis"
+    },
+    "kansas city chiefs": {
+      "kind": "team",
+      "node": "nfl"
+    },
+    "knicks": {
+      "kind": "team",
+      "node": "new york knicks"
+    },
+    "la 2028": {
+      "kind": "other",
+      "node": "olympic sport"
+    },
+    "lakers": {
+      "kind": "team",
+      "node": "los angeles lakers"
+    },
+    "lando norris": {
+      "kind": "person",
+      "node": "formula one"
+    },
+    "league of legends": {
+      "kind": "work",
+      "node": "video games"
+    },
+    "lewis hamilton": {
+      "kind": "person",
+      "node": "formula one"
+    },
+    "lions": {
+      "kind": "team",
+      "node": "detroit lions"
+    },
+    "liv golf": {
+      "kind": "organisation",
+      "node": "golf"
+    },
+    "liverpool": {
+      "kind": "team",
+      "node": "premier league"
+    },
+    "los angeles chargers": {
+      "kind": "team",
+      "node": "nfl"
+    },
+    "man city": {
+      "kind": "team",
+      "node": "premier league"
+    },
+    "maple leafs": {
+      "kind": "team",
+      "node": "toronto maple leafs"
+    },
+    "march madness": {
+      "kind": "other",
+      "node": "basketball"
+    },
+    "marvel": {
+      "kind": "company",
+      "node": "film franchises"
+    },
+    "max verstappen": {
+      "kind": "person",
+      "node": "formula one"
+    },
+    "mclaren": {
+      "kind": "team",
+      "node": "formula one"
+    },
+    "mercedes": {
+      "kind": "team",
+      "node": "formula one"
+    },
+    "meta": {
+      "kind": "company",
+      "node": "social platforms"
+    },
+    "mets": {
+      "kind": "team",
+      "node": "new york mets"
+    },
+    "miami dolphins": {
+      "kind": "team",
+      "node": "nfl"
+    },
+    "miami heat": {
+      "kind": "team",
+      "node": "nba"
+    },
+    "microsoft": {
+      "kind": "company",
+      "node": "software business"
+    },
+    "middle east": {
+      "kind": "place",
+      "node": "middle east"
+    },
+    "milwaukee brewers": {
+      "kind": "team",
+      "node": "mlb"
+    },
+    "minnesota wild": {
+      "kind": "team",
+      "node": "nhl"
+    },
+    "mortgage rates": {
+      "kind": "other",
+      "node": "mortgage rates"
+    },
+    "motogp": {
+      "kind": "organisation",
+      "node": "motorsport"
+    },
+    "naoya inoue": {
+      "kind": "person",
+      "node": "boxing"
+    },
+    "nasa": {
+      "kind": "organisation",
+      "node": "space science"
+    },
+    "nascar": {
+      "kind": "organisation",
+      "node": "nascar"
+    },
+    "nasdaq": {
+      "kind": "organisation",
+      "node": "stock market"
+    },
+    "netflix": {
+      "kind": "company",
+      "node": "streaming business"
+    },
+    "new england patriots": {
+      "kind": "team",
+      "node": "nfl"
+    },
+    "new york giants": {
+      "kind": "team",
+      "node": "nfl"
+    },
+    "new york jets": {
+      "kind": "team",
+      "node": "nfl"
+    },
+    "nintendo": {
+      "kind": "company",
+      "node": "video games"
+    },
+    "nuggets": {
+      "kind": "team",
+      "node": "denver nuggets"
+    },
+    "nutrition": {
+      "kind": "other",
+      "node": "nutrition"
+    },
+    "nvidia": {
+      "kind": "company",
+      "node": "semiconductors"
+    },
+    "oilers": {
+      "kind": "team",
+      "node": "edmonton oilers"
+    },
+    "oklahoma city thunder": {
+      "kind": "team",
+      "node": "nba"
+    },
+    "oleksandr usyk": {
+      "kind": "person",
+      "node": "boxing"
+    },
+    "openai": {
+      "kind": "company",
+      "node": "artificial intelligence"
+    },
+    "orlando magic": {
+      "kind": "team",
+      "node": "nba"
+    },
+    "oscars": {
+      "kind": "organisation",
+      "node": "awards season"
+    },
+    "ottawa senators": {
+      "kind": "team",
+      "node": "nhl"
+    },
+    "packers": {
+      "kind": "team",
+      "node": "green bay packers"
+    },
+    "padres": {
+      "kind": "team",
+      "node": "san diego padres"
+    },
+    "pfl": {
+      "kind": "organisation",
+      "node": "mixed martial arts"
+    },
+    "pga tour": {
+      "kind": "organisation",
+      "node": "golf"
+    },
+    "phillies": {
+      "kind": "team",
+      "node": "philadelphia phillies"
+    },
+    "playstation": {
+      "kind": "company",
+      "node": "video games"
+    },
+    "premier league": {
+      "kind": "organisation",
+      "node": "premier league"
+    },
+    "ravens": {
+      "kind": "team",
+      "node": "baltimore ravens"
+    },
+    "real madrid": {
+      "kind": "team",
+      "node": "football"
+    },
+    "red bull": {
+      "kind": "team",
+      "node": "formula one"
+    },
+    "red sox": {
+      "kind": "team",
+      "node": "boston red sox"
+    },
+    "rentals": {
+      "kind": "other",
+      "node": "rental market"
+    },
+    "retail": {
+      "kind": "other",
+      "node": "retail business"
+    },
+    "robotics": {
+      "kind": "other",
+      "node": "robotics"
+    },
+    "rory mcilroy": {
+      "kind": "person",
+      "node": "golf"
+    },
+    "running": {
+      "kind": "other",
+      "node": "endurance training"
+    },
+    "s&p 500": {
+      "kind": "other",
+      "node": "stock market"
+    },
+    "san diego fc": {
+      "kind": "team",
+      "node": "major league soccer"
+    },
+    "san francisco giants": {
+      "kind": "team",
+      "node": "mlb"
+    },
+    "scottie scheffler": {
+      "kind": "person",
+      "node": "golf"
+    },
+    "senate races": {
+      "kind": "other",
+      "node": "elections and politics"
+    },
+    "sleep": {
+      "kind": "other",
+      "node": "sleep quality"
+    },
+    "smartphones": {
+      "kind": "other",
+      "node": "smartphones"
+    },
+    "solana": {
+      "kind": "other",
+      "node": "crypto"
+    },
+    "spacex": {
+      "kind": "company",
+      "node": "space technology"
+    },
+    "stablecoins": {
+      "kind": "other",
+      "node": "digital currency"
+    },
+    "star wars": {
+      "kind": "work",
+      "node": "film franchises"
+    },
+    "strength training": {
+      "kind": "other",
+      "node": "strength training"
+    },
+    "swimming": {
+      "kind": "other",
+      "node": "olympic sport"
+    },
+    "tampa bay lightning": {
+      "kind": "team",
+      "node": "nhl"
+    },
+    "tampa bay rays": {
+      "kind": "team",
+      "node": "mlb"
+    },
+    "taylor swift": {
+      "kind": "person",
+      "node": "pop music"
+    },
+    "team usa": {
+      "kind": "team",
+      "node": "olympic sport"
+    },
+    "tesla": {
+      "kind": "company",
+      "node": "automotive industry"
+    },
+    "texas rangers": {
+      "kind": "team",
+      "node": "mlb"
+    },
+    "the fed": {
+      "kind": "organisation",
+      "node": "federal reserve"
+    },
+    "the masters": {
+      "kind": "other",
+      "node": "golf"
+    },
+    "thunder": {
+      "kind": "team",
+      "node": "nba"
+    },
+    "tours": {
+      "kind": "other",
+      "node": "live touring"
+    },
+    "track & field": {
+      "kind": "other",
+      "node": "olympic sport"
+    },
+    "ufc": {
+      "kind": "organisation",
+      "node": "ufc"
+    },
+    "us open": {
+      "kind": "other",
+      "node": "tennis"
+    },
+    "usmnt": {
+      "kind": "team",
+      "node": "football"
+    },
+    "valorant": {
+      "kind": "work",
+      "node": "video games"
+    },
+    "warriors": {
+      "kind": "team",
+      "node": "golden state warriors"
+    },
+    "washington commanders": {
+      "kind": "team",
+      "node": "nfl"
+    },
+    "washington nationals": {
+      "kind": "team",
+      "node": "mlb"
+    },
+    "wec": {
+      "kind": "organisation",
+      "node": "motorsport"
+    },
+    "wimbledon": {
+      "kind": "other",
+      "node": "tennis"
+    },
+    "winnipeg jets": {
+      "kind": "team",
+      "node": "nhl"
+    },
+    "wnba": {
+      "kind": "organisation",
+      "node": "wnba"
+    },
+    "xbox": {
+      "kind": "company",
+      "node": "video games"
+    },
+    "y combinator": {
+      "kind": "organisation",
+      "node": "startups"
+    },
+    "yankees": {
+      "kind": "team",
+      "node": "new york yankees"
+    }
+  },
+  "nodes": {
+    "advertising": {
+      "definition": "An episode filed here is about how businesses promote products and services through ads, campaigns and marketing.",
+      "excludes": "Advertising is not about the advertising revenue of media companies, which belongs under business news.",
+      "wordings": [
+        "ads",
+        "adverts",
+        "commercials",
+        "marketing campaigns",
+        "ad campaigns",
+        "brand marketing"
+      ]
+    },
+    "ageing": {
+      "definition": "An episode filed here is about the health and life changes that come with growing older.",
+      "excludes": "Ageing is not about the aging of wine, cheese or materials, which belongs under science or food.",
+      "wordings": [
+        "aging",
+        "getting older",
+        "older people",
+        "elderly health",
+        "age related health",
+        "growing old"
+      ]
+    },
+    "air travel": {
+      "definition": "An episode filed here is about flying as a passenger or cargo, including flights, airports and air fares.",
+      "excludes": "Air travel is not about the companies that run airlines as businesses, which belongs under airlines.",
+      "wordings": [
+        "flying",
+        "air fares",
+        "airfares",
+        "airports",
+        "air passengers"
+      ]
+    },
+    "airlines": {
+      "definition": "An episode filed here is about airline companies as businesses, including their finances, mergers, staffing and fleets.",
+      "excludes": "Airlines is not about the experience of being a passenger on a flight, which belongs under air travel.",
+      "wordings": [
+        "airline industry",
+        "airline companies",
+        "budget airlines",
+        "air carriers",
+        "airline business"
+      ]
+    },
+    "american football": {
+      "definition": "An episode filed here is about American football as a sport, including the game, its players and its leagues.",
+      "excludes": "American football is not about soccer, which is played with the feet and belongs under a separate football category.",
+      "wordings": [
+        "gridiron",
+        "football games",
+        "pro football"
+      ]
+    },
+    "anaheim ducks": {
+      "definition": "An episode filed here is about the Anaheim Ducks, the National Hockey League ice hockey team.",
+      "excludes": "Anaheim Ducks is not about the bird species called ducks, which belongs under animals or nature.",
+      "wordings": [
+        "anaheim hockey",
+        "nhl anaheim",
+        "anaheim ice hockey"
+      ]
+    },
+    "anxiety": {
+      "definition": "An episode filed here is about anxiety as a mental health condition, its causes, symptoms and treatment.",
+      "excludes": "Anxiety is not about general financial or market worry, which belongs under business or economics.",
+      "wordings": [
+        "anxiety disorder",
+        "feeling anxious",
+        "anxiety symptoms",
+        "generalised anxiety",
+        "anxiety treatment"
+      ]
+    },
+    "archaeology": {
+      "definition": "An episode filed here is about the study of past human life through excavated remains, sites and artefacts.",
+      "excludes": "Archaeology is not about fossils of animals and plants, which belongs under biology or palaeontology.",
+      "wordings": [
+        "archaeologists",
+        "ancient ruins",
+        "excavations",
+        "ancient sites",
+        "dig sites",
+        "ancient artefacts"
+      ]
+    },
+    "arizona cardinals": {
+      "definition": "An episode filed here is about the Arizona Cardinals, the National Football League team.",
+      "excludes": "Arizona Cardinals is not about the red bird called a cardinal, which belongs under animals or nature.",
+      "wordings": [
+        "az cardinals",
+        "arizona football",
+        "nfl arizona",
+        "cardinals football"
+      ]
+    },
+    "arizona diamondbacks": {
+      "definition": "An episode filed here is about the Arizona Diamondbacks, the Major League Baseball team.",
+      "excludes": "Arizona Diamondbacks is not about the rattlesnake species, which belongs under animals or nature.",
+      "wordings": [
+        "dbacks",
+        "arizona baseball",
+        "mlb arizona",
+        "diamondbacks baseball"
+      ]
+    },
+    "art world": {
+      "definition": "An episode filed here is about the art world, including galleries, dealers, auctions and the art market.",
+      "excludes": "Art world is not about the art of film or television, which belongs under culture film or awards.",
+      "wordings": [
+        "art market",
+        "art galleries",
+        "art dealers",
+        "art auctions",
+        "contemporary art",
+        "art scene"
+      ]
+    },
+    "artificial intelligence": {
+      "definition": "An episode filed here is about artificial intelligence, including the systems, tools and companies that build and use it.",
+      "excludes": "Artificial intelligence is not about self-driving vehicles specifically, which belongs under autonomous vehicles.",
+      "wordings": [
+        "ai",
+        "generative ai",
+        "chatbots",
+        "ai models",
+        "ai tools"
+      ]
+    },
+    "athletic training": {
+      "definition": "An episode filed here is about training athletes to improve strength, fitness and performance in sport.",
+      "excludes": "Athletic training is not about medical treatment of injuries, which belongs under health.",
+      "wordings": [
+        "sports training",
+        "athlete fitness",
+        "strength coaching",
+        "sports conditioning",
+        "workout programs for athletes"
+      ]
+    },
+    "atlanta braves": {
+      "definition": "An episode filed here is about the Atlanta Braves, the Major League Baseball team.",
+      "excludes": "Atlanta Braves is not about the Native American peoples, which belongs under history or culture.",
+      "wordings": [
+        "braves baseball",
+        "atlanta baseball",
+        "mlb atlanta"
+      ]
+    },
+    "atlanta falcons": {
+      "definition": "An episode filed here is about the Atlanta Falcons, the National Football League team.",
+      "excludes": "Atlanta Falcons is not about the bird of prey, which belongs under animals or nature.",
+      "wordings": [
+        "atlanta football",
+        "nfl atlanta",
+        "falcons football"
+      ]
+    },
+    "atlanta hawks": {
+      "definition": "An episode filed here is about the Atlanta Hawks, the National Basketball Association team.",
+      "excludes": "Atlanta Hawks is not about the bird of prey, which belongs under animals or nature.",
+      "wordings": [
+        "atlanta basketball",
+        "nba atlanta",
+        "hawks basketball"
+      ]
+    },
+    "automotive industry": {
+      "definition": "An episode filed here is about the car industry as a business, including car makers, sales, factories and supply chains.",
+      "excludes": "Automotive industry is not about self-driving technology itself, which belongs under autonomous vehicles.",
+      "wordings": [
+        "car industry",
+        "car makers",
+        "carmakers",
+        "car manufacturers",
+        "car sales",
+        "auto industry"
+      ]
+    },
+    "autonomous vehicles": {
+      "definition": "An episode filed here is about vehicles that drive themselves, including self-driving cars, robotaxis and their regulation.",
+      "excludes": "Autonomous vehicles is not about car companies' sales or factories, which belongs under automotive industry.",
+      "wordings": [
+        "self driving cars",
+        "driverless cars",
+        "self driving",
+        "robotaxis",
+        "autonomous cars",
+        "driverless vehicles"
+      ]
+    },
+    "awards season": {
+      "definition": "An episode filed here is about the film awards season, including nominations and ceremonies such as the Oscars.",
+      "excludes": "Awards season is not about awards in music, sport or books, which belong under their own categories.",
+      "wordings": [
+        "oscars",
+        "academy awards",
+        "film awards",
+        "golden globes",
+        "bafta",
+        "best picture"
+      ]
+    },
+    "baltimore orioles": {
+      "definition": "An episode filed here is about the Baltimore Orioles, the Major League Baseball team.",
+      "excludes": "Baltimore Orioles is not about the songbird called an oriole, which belongs under animals or nature.",
+      "wordings": [
+        "baltimore baseball",
+        "mlb baltimore",
+        "orioles baseball"
+      ]
+    },
+    "baltimore ravens": {
+      "definition": "An episode filed here is about the Baltimore Ravens, the National Football League team.",
+      "excludes": "Baltimore Ravens is not about the bird called a raven, which belongs under animals or nature.",
+      "wordings": [
+        "baltimore football",
+        "nfl baltimore",
+        "ravens football"
+      ]
+    },
+    "baseball": {
+      "definition": "An episode filed here is about baseball as a sport, including its leagues, players and games.",
+      "excludes": "Baseball is not about softball or cricket, which belong under their own sport categories.",
+      "wordings": [
+        "major league baseball",
+        "the majors",
+        "baseball games",
+        "pro baseball"
+      ]
+    },
+    "basketball": {
+      "definition": "An episode filed here is about basketball as a sport, including its leagues, players and games.",
+      "excludes": "Basketball is not about netball or volleyball, which belong under their own sport categories.",
+      "wordings": [
+        "hoops",
+        "pro basketball",
+        "basketball games",
+        "college basketball"
+      ]
+    },
+    "bengals": {
+      "definition": "An episode filed here is about the Cincinnati Bengals, the National Football League team.",
+      "excludes": "Bengals is not about the tiger subspecies called the Bengal tiger, which belongs under animals or nature.",
+      "wordings": [
+        "cincinnati bengals",
+        "cincinnati football",
+        "nfl cincinnati",
+        "bengals football"
+      ]
+    },
+    "biology": {
+      "definition": "An episode filed here is about biology, the scientific study of living organisms, their cells, genes and ecosystems.",
+      "excludes": "Biology is not about medical treatment of patients, which belongs under health.",
+      "wordings": [
+        "biologists",
+        "life sciences",
+        "living organisms",
+        "cell biology",
+        "genetics research",
+        "evolution research"
+      ]
+    },
+    "black holes": {
+      "definition": "An episode filed here is about black holes, the regions of space whose gravity stops light from escaping.",
+      "excludes": "Not general space news about planets or rockets, which belong to space science rather than black holes.",
+      "wordings": [
+        "black hole",
+        "event horizon",
+        "black hole physics"
+      ]
+    },
+    "bond market": {
+      "definition": "An episode filed here is about the market where government and corporate bonds are bought and sold, and their yields.",
+      "excludes": "Not the stock market or James Bond films.",
+      "wordings": [
+        "bond yields",
+        "treasury yields",
+        "government bonds",
+        "treasury bonds"
+      ]
+    },
+    "books": {
+      "definition": "An episode filed here is about books, reading and the publishing of literature.",
+      "excludes": "Not book-keeping or accounting books, which belong to money.",
+      "wordings": [
+        "novels",
+        "literature",
+        "book publishing",
+        "new books"
+      ]
+    },
+    "boston bruins": {
+      "definition": "An episode filed here is about the Boston Bruins, the NHL ice hockey team.",
+      "excludes": "Not the bruin bird or bear animals, and not other Boston sports teams.",
+      "wordings": [
+        "bruins",
+        "boston hockey",
+        "bruins hockey"
+      ]
+    },
+    "boston celtics": {
+      "definition": "An episode filed here is about the Boston Celtics, the NBA basketball team.",
+      "excludes": "Not Celtic history, culture or music, and not other Boston teams.",
+      "wordings": [
+        "celtics",
+        "boston basketball",
+        "celtics basketball"
+      ]
+    },
+    "boston red sox": {
+      "definition": "An episode filed here is about the Boston Red Sox, the MLB baseball team.",
+      "excludes": "Not other baseball teams and not the Chicago White Sox.",
+      "wordings": [
+        "red sox",
+        "boston baseball",
+        "red sox baseball"
+      ]
+    },
+    "box office": {
+      "definition": "An episode filed here is about how much money films earn in cinemas and their ticket sales results.",
+      "excludes": "Not the box in a theatre for buying tickets, and not general film reviews.",
+      "wordings": [
+        "movie box office",
+        "box office sales",
+        "movie earnings",
+        "film earnings",
+        "box office results"
+      ]
+    },
+    "boxing": {
+      "definition": "An episode filed here is about professional boxing, including fights, fighters and title bouts.",
+      "excludes": "Not mixed martial arts or wrestling, which belong to other combat sports.",
+      "wordings": [
+        "boxing match",
+        "prizefighting",
+        "heavyweight fight",
+        "boxing title",
+        "boxers"
+      ]
+    },
+    "broncos": {
+      "definition": "An episode filed here is about the Denver Broncos, the NFL American football team.",
+      "excludes": "Not wild horses called broncos, and not other NFL teams.",
+      "wordings": [
+        "denver broncos",
+        "broncos football",
+        "nfl broncos"
+      ]
+    },
+    "brooklyn nets": {
+      "definition": "An episode filed here is about the Brooklyn Nets, the NBA basketball team.",
+      "excludes": "Not fishing nets or other basketball teams.",
+      "wordings": [
+        "brooklyn basketball",
+        "nets basketball"
+      ]
+    },
+    "buccaneers": {
+      "definition": "An episode filed here is about the Tampa Bay Buccaneers, the NFL American football team.",
+      "excludes": "Not historical pirates or privateers, and not other NFL teams.",
+      "wordings": [
+        "tampa bay buccaneers",
+        "bucs",
+        "bucs football"
+      ]
+    },
+    "buffalo sabres": {
+      "definition": "An episode filed here is about the Buffalo Sabres, the NHL ice hockey team.",
+      "excludes": "Not swords or sabre fencing, and not other NHL teams.",
+      "wordings": [
+        "sabres",
+        "buffalo hockey",
+        "sabres hockey"
+      ]
+    },
+    "bundesliga": {
+      "definition": "An episode filed here is about the Bundesliga, the top professional football league in Germany.",
+      "excludes": "Not other European leagues or the UEFA Champions League.",
+      "wordings": [
+        "german football league",
+        "german soccer league",
+        "bundesliga football"
+      ]
+    },
+    "burnout": {
+      "definition": "An episode filed here is about burnout, the state of mental and physical exhaustion caused by long-term work stress.",
+      "excludes": "Not car or vehicle burnouts, or fires that burn out.",
+      "wordings": [
+        "job burnout",
+        "work exhaustion",
+        "overwork",
+        "workplace stress"
+      ]
+    },
+    "cancer research": {
+      "definition": "An episode filed here is about scientific and medical research into cancer, its causes and its treatments.",
+      "excludes": "Not cancer as a star sign or general medical news unrelated to cancer.",
+      "wordings": [
+        "cancer studies",
+        "oncology research",
+        "tumor research",
+        "cancer treatment research"
+      ]
+    },
+    "carbon removal": {
+      "definition": "An episode filed here is about methods for taking carbon dioxide out of the air or storing it to address climate change.",
+      "excludes": "Not general emissions cuts or fossil fuel news, which belong to climate science generally.",
+      "wordings": [
+        "carbon capture",
+        "direct air capture",
+        "removing carbon dioxide",
+        "carbon dioxide removal"
+      ]
+    },
+    "carolina panthers": {
+      "definition": "An episode filed here is about the Carolina Panthers, the NFL American football team.",
+      "excludes": "Not the animal panthers, and not other NFL teams.",
+      "wordings": [
+        "panthers football",
+        "carolina football",
+        "nfl panthers"
+      ]
+    },
+    "celebrity": {
+      "definition": "An episode filed here is about famous public figures and their public lives and news.",
+      "excludes": "Not private individuals, and not celebrity comebacks, which have their own category.",
+      "wordings": [
+        "celebrities",
+        "famous people",
+        "celeb news",
+        "celebrity news"
+      ]
+    },
+    "celebrity comeback": {
+      "definition": "An episode filed here is about a famous public figure returning to success or public attention after a decline.",
+      "excludes": "Not sports comebacks by athletes, and not general celebrity news.",
+      "wordings": [
+        "celebrity comebacks",
+        "celeb comeback",
+        "star comeback"
+      ]
+    },
+    "central banks": {
+      "definition": "An episode filed here is about central banks and their decisions on interest rates and money supply.",
+      "excludes": "Not commercial banks or retail banking services.",
+      "wordings": [
+        "european central bank",
+        "bank of england",
+        "central bank rates"
+      ]
+    },
+    "champions league": {
+      "definition": "An episode filed here is about the UEFA Champions League, the top European club football competition.",
+      "excludes": "Not domestic football leagues or the Bundesliga.",
+      "wordings": [
+        "uefa champions league",
+        "champions league football",
+        "european club football"
+      ]
+    },
+    "charlotte hornets": {
+      "definition": "An episode filed here is about the Charlotte Hornets, the NBA basketball team.",
+      "excludes": "Not the insect hornets or wasps, and not other NBA teams.",
+      "wordings": [
+        "charlotte basketball",
+        "hornets basketball",
+        "nba hornets"
+      ]
+    },
+    "chicago blackhawks": {
+      "definition": "An episode filed here is about the Chicago Blackhawks, the NHL ice hockey team.",
+      "excludes": "Not the Black Hawk helicopters or birds, and not other Chicago teams.",
+      "wordings": [
+        "chicago hockey",
+        "blackhawks",
+        "blackhawks hockey"
+      ]
+    },
+    "chicago cubs": {
+      "definition": "An episode filed here is about the Chicago Cubs, the MLB baseball team.",
+      "excludes": "Not young bears or lion cubs, and not the Chicago White Sox.",
+      "wordings": [
+        "cubs",
+        "chicago baseball",
+        "cubs baseball"
+      ]
+    },
+    "chicago white sox": {
+      "definition": "An episode filed here is about the Chicago White Sox, the MLB baseball team.",
+      "excludes": "Not the Boston Red Sox, and not socks or clothing.",
+      "wordings": [
+        "white sox",
+        "chicago sox",
+        "sox baseball"
+      ]
+    },
+    "chip export controls": {
+      "definition": "An episode about government rules that limit which advanced semiconductor chips and chipmaking tools can be sold or shipped to other countries.",
+      "excludes": "Not general trade tariffs or chip factory building; those belong to commodity prices or chip manufacturing.",
+      "wordings": [
+        "chip export rules",
+        "chip sanctions",
+        "semiconductor export ban",
+        "export restrictions on chips",
+        "chip trade restrictions"
+      ]
+    },
+    "chip manufacturing": {
+      "definition": "An episode about making semiconductor chips, including fabrication plants, production capacity and the companies that build them.",
+      "excludes": "Not the rules on selling chips abroad, which belong to chip export controls.",
+      "wordings": [
+        "chip production"
+      ]
+    },
+    "cincinnati reds": {
+      "definition": "An episode about the Cincinnati Reds Major League Baseball team.",
+      "excludes": "Not communist or political reds, and not other baseball teams.",
+      "wordings": [
+        "cincinnati baseball",
+        "cincy reds",
+        "reds baseball",
+        "cincinnati mlb"
+      ]
+    },
+    "cleveland browns": {
+      "definition": "An episode about the Cleveland Browns National Football League team.",
+      "excludes": "Not the brown color or other football teams; college football belongs elsewhere.",
+      "wordings": [
+        "cleveland football",
+        "browns nfl",
+        "cleveland browns football"
+      ]
+    },
+    "cleveland cavaliers": {
+      "definition": "An episode about the Cleveland Cavaliers National Basketball Association team.",
+      "excludes": "Not horses or cavalry history; those are not sports.",
+      "wordings": [
+        "cleveland basketball",
+        "cavs",
+        "cavaliers nba",
+        "cleveland cavs"
+      ]
+    },
+    "cleveland guardians": {
+      "definition": "An episode about the Cleveland Guardians Major League Baseball team.",
+      "excludes": "Not the Cleveland Browns or Cavaliers, and not other guardian or security roles.",
+      "wordings": [
+        "cleveland baseball",
+        "guardians mlb",
+        "cleveland guardians baseball"
+      ]
+    },
+    "climate science": {
+      "definition": "An episode about the scientific study of the climate, including warming trends, greenhouse gases and climate research findings.",
+      "excludes": "Not day-to-day weather forecasts or storms; those are weather news.",
+      "wordings": [
+        "global warming",
+        "climate change",
+        "greenhouse gases",
+        "climate research",
+        "carbon emissions science"
+      ]
+    },
+    "cloud computing": {
+      "definition": "An episode about businesses and services that deliver computing, storage and software over the internet from remote data centers.",
+      "excludes": "Not weather clouds or cloud storage on personal devices alone.",
+      "wordings": [
+        "cloud services",
+        "cloud platforms",
+        "data centers",
+        "cloud providers",
+        "cloud software"
+      ]
+    },
+    "college football": {
+      "definition": "An episode about college and university American football, including conference play and college teams.",
+      "excludes": "Not professional NFL teams.",
+      "wordings": [
+        "ncaa football",
+        "campus football",
+        "college gridiron"
+      ]
+    },
+    "columbus blue jackets": {
+      "definition": "An episode about the Columbus Blue Jackets National Hockey League team.",
+      "excludes": "Not the Columbus city government or other hockey teams.",
+      "wordings": [
+        "columbus hockey",
+        "blue jackets nhl",
+        "columbus blue jackets hockey"
+      ]
+    },
+    "combat sports": {
+      "definition": "An episode about combat sports such as boxing, mixed martial arts and wrestling competitions.",
+      "excludes": "Not martial arts used for self-defense training or military combat.",
+      "wordings": [
+        "fight night"
+      ]
+    },
+    "commodity prices": {
+      "definition": "An episode about the prices of raw materials and goods traded in markets, such as oil, metals, grains and energy.",
+      "excludes": "Not currency exchange rates or company share prices.",
+      "wordings": [
+        "oil prices",
+        "gold prices",
+        "raw materials",
+        "grain prices",
+        "metal prices"
+      ]
+    },
+    "consumer hardware": {
+      "definition": "An episode about physical devices sold to everyday people, such as phones, laptops, wearables and home gadgets.",
+      "excludes": "Not the chips inside devices or the factories making them, which belong to chip manufacturing.",
+      "wordings": [
+        "gadgets",
+        "laptops",
+        "consumer devices"
+      ]
+    },
+    "content moderation": {
+      "definition": "An episode about how social platforms decide what user posts to remove, label, limit or keep up.",
+      "excludes": "Not general internet privacy or cybersecurity breaches.",
+      "wordings": [
+        "post removal",
+        "platform moderation",
+        "online censorship",
+        "banned posts",
+        "social media rules"
+      ]
+    },
+    "corporate layoffs": {
+      "definition": "An episode about companies cutting jobs or staff, including job losses and redundancy programs.",
+      "excludes": "Not general corporate plans or strategy changes that do not involve job cuts.",
+      "wordings": [
+        "job cuts",
+        "layoffs",
+        "staff cuts",
+        "job losses",
+        "redundancies"
+      ]
+    },
+    "corporate strategy": {
+      "definition": "An episode about how companies plan their direction, including mergers, acquisitions, leadership decisions and business plans.",
+      "excludes": "Not job cuts, which belong to corporate layoffs.",
+      "wordings": [
+        "business strategy",
+        "mergers",
+        "acquisitions",
+        "company plans",
+        "corporate deals"
+      ]
+    },
+    "creator economy": {
+      "definition": "An episode about independent content creators on social platforms and how they earn money from their audiences.",
+      "excludes": "Not the platforms' own rules on posts, which belong to content moderation.",
+      "wordings": [
+        "content creators",
+        "influencers",
+        "youtubers",
+        "creator income",
+        "online creators"
+      ]
+    },
+    "crypto": {
+      "definition": "An episode about cryptocurrencies and blockchain assets such as bitcoin and ether, and the markets for them.",
+      "excludes": "Not traditional currency exchange rates, which belong to currency markets.",
+      "wordings": [
+        "cryptocurrency",
+        "bitcoin",
+        "ethereum",
+        "crypto markets",
+        "digital coins"
+      ]
+    },
+    "currency markets": {
+      "definition": "An episode about the trading and value of national currencies, exchange rates and central bank moves affecting them.",
+      "excludes": "Not cryptocurrencies, which belong to crypto.",
+      "wordings": [
+        "exchange rates",
+        "forex",
+        "dollar strength",
+        "currency values",
+        "foreign exchange"
+      ]
+    },
+    "cybersecurity": {
+      "definition": "An episode about protecting computer systems and data from attacks, hacks, malware and data breaches.",
+      "excludes": "Not online censorship or post removal, which belong to content moderation.",
+      "wordings": [
+        "hacking",
+        "data breaches",
+        "ransomware",
+        "cyber attacks",
+        "malware"
+      ]
+    },
+    "dallas cowboys": {
+      "definition": "An episode about the Dallas Cowboys National Football League team.",
+      "excludes": "Not cowboys as a western or cattle-ranch subject.",
+      "wordings": [
+        "dallas football",
+        "cowboys nfl",
+        "dallas cowboys football"
+      ]
+    },
+    "dallas mavericks": {
+      "definition": "An episode about the Dallas Mavericks National Basketball Association team.",
+      "excludes": "Not mavericks as independent-minded people in general.",
+      "wordings": [
+        "dallas basketball",
+        "mavs",
+        "mavericks nba",
+        "dallas mavs"
+      ]
+    },
+    "denver nuggets": {
+      "definition": "An episode about the Denver Nuggets National Basketball Association team.",
+      "excludes": "Not gold nuggets or mining, which are not sports.",
+      "wordings": [
+        "denver basketball",
+        "nba denver",
+        "denver nba team"
+      ]
+    },
+    "detroit lions": {
+      "definition": "An episode about the Detroit Lions National Football League team.",
+      "excludes": "Not lions as wild animals or zoo news.",
+      "wordings": [
+        "detroit football",
+        "lions nfl",
+        "detroit lions football"
+      ]
+    },
+    "detroit red wings": {
+      "definition": "An episode about the Detroit Red Wings National Hockey League team.",
+      "excludes": "Not the Cincinnati Reds baseball team or other red-colored subjects.",
+      "wordings": [
+        "detroit hockey",
+        "red wings nhl",
+        "detroit red wings hockey"
+      ]
+    },
+    "detroit tigers": {
+      "definition": "Episodes about the Detroit Tigers, the Major League Baseball team.",
+      "excludes": "Not Detroit's other pro teams such as the Lions or Pistons, or college teams named Tigers.",
+      "wordings": [
+        "detroit baseball",
+        "tigers baseball",
+        "detroit mlb",
+        "motown baseball"
+      ]
+    },
+    "digital currency": {
+      "definition": "Episodes about digital currencies such as cryptocurrency, stablecoins and central bank digital money.",
+      "excludes": "Not physical cash, bank card payments or stock market trading.",
+      "wordings": [
+        "stablecoins",
+        "digital money",
+        "virtual currency"
+      ]
+    },
+    "draft prospects": {
+      "definition": "Episodes about young players projected to enter a professional draft, mainly in basketball.",
+      "excludes": "Not completed draft results or trade news.",
+      "wordings": [
+        "mock draft",
+        "draft class",
+        "college prospects",
+        "nba prospects"
+      ]
+    },
+    "earth science": {
+      "definition": "Episodes about the physical study of Earth's rocks, land, oceans and planetary processes.",
+      "excludes": "Not climate change or weather forecasts, which belong to climate or weather.",
+      "wordings": [
+        "geology",
+        "geoscience",
+        "plate tectonics",
+        "volcanoes",
+        "rocks and minerals"
+      ]
+    },
+    "earthquakes": {
+      "definition": "Episodes about earthquakes, fault lines and seismic activity.",
+      "excludes": "Not volcanic eruptions or tsunamis unless caused by a quake.",
+      "wordings": [
+        "seismic activity",
+        "tremors",
+        "fault lines",
+        "quake",
+        "seismology"
+      ]
+    },
+    "ecommerce": {
+      "definition": "Episodes about buying and selling goods online and the companies that run online retail.",
+      "excludes": "Not physical store retail or delivery logistics on their own.",
+      "wordings": [
+        "online shopping",
+        "online retail",
+        "e commerce",
+        "online sales",
+        "internet retail"
+      ]
+    },
+    "edmonton oilers": {
+      "definition": "Episodes about the Edmonton Oilers, the NHL ice hockey team.",
+      "excludes": "Not the oil industry or Alberta's energy business.",
+      "wordings": [
+        "oilers",
+        "edmonton hockey",
+        "edmonton nhl",
+        "oilers hockey"
+      ]
+    },
+    "elections and politics": {
+      "definition": "Episodes about elections, campaigns, voting and political parties.",
+      "excludes": "Not general government policy or sports league elections.",
+      "wordings": [
+        "elections",
+        "election campaign",
+        "voters",
+        "political campaigns"
+      ]
+    },
+    "electric vehicles": {
+      "definition": "Episodes about battery-powered cars and trucks, their makers and charging.",
+      "excludes": "Not electricity grids or power utility companies.",
+      "wordings": [
+        "evs",
+        "electric cars",
+        "ev sales",
+        "battery cars",
+        "ev charging"
+      ]
+    },
+    "electricity grids": {
+      "definition": "Episodes about power transmission networks, grid capacity and electricity supply systems.",
+      "excludes": "Not electric vehicles or household power bills.",
+      "wordings": [
+        "power grid",
+        "the grid",
+        "power networks",
+        "grid capacity",
+        "utility grid"
+      ]
+    },
+    "endurance training": {
+      "definition": "Episodes about training methods that build stamina for long-distance exercise.",
+      "excludes": "Not general fitness or sports competitions.",
+      "wordings": [
+        "cardio training",
+        "stamina training",
+        "aerobic training",
+        "long distance training",
+        "marathon training"
+      ]
+    },
+    "energy business": {
+      "definition": "Episodes about companies and markets that produce or sell oil, gas and other energy.",
+      "excludes": "Not renewable energy policy or energy security diplomacy.",
+      "wordings": [
+        "oil and gas",
+        "energy companies",
+        "oil industry",
+        "gas industry"
+      ]
+    },
+    "energy security": {
+      "definition": "Episodes about the reliability of energy supplies and how countries protect them.",
+      "excludes": "Not energy company business or electricity grid engineering.",
+      "wordings": [
+        "energy supply",
+        "fuel security",
+        "energy independence",
+        "energy crisis",
+        "gas supply security"
+      ]
+    },
+    "euroleague": {
+      "definition": "Episodes about the EuroLeague, Europe's top club basketball competition.",
+      "excludes": "Not the NBA or national team basketball.",
+      "wordings": [
+        "euro league",
+        "european basketball",
+        "euroleague basketball",
+        "european club basketball"
+      ]
+    },
+    "exercise science": {
+      "definition": "Episodes about how the body responds to exercise and how training is studied.",
+      "excludes": "Not mental health or nutrition advice.",
+      "wordings": [
+        "sports science",
+        "exercise physiology",
+        "training science",
+        "fitness science"
+      ]
+    },
+    "extreme weather": {
+      "definition": "Episodes about severe storms, floods, heatwaves and other dangerous weather events.",
+      "excludes": "Not sports teams named after storms, such as hurricanes or thunder.",
+      "wordings": [
+        "severe weather",
+        "storms",
+        "heatwaves",
+        "floods",
+        "tornadoes"
+      ]
+    },
+    "fashion": {
+      "definition": "Episodes about clothing, design, fashion brands and runway trends.",
+      "excludes": "Not home decor or beauty products.",
+      "wordings": [
+        "clothing trends",
+        "fashion week",
+        "designer clothes",
+        "runway",
+        "apparel"
+      ]
+    },
+    "federal reserve": {
+      "definition": "Episodes about the US central bank, its interest rate decisions and monetary policy.",
+      "excludes": "Not other countries' central banks or commercial bank news.",
+      "wordings": [
+        "the fed",
+        "us central bank",
+        "fed rates",
+        "monetary policy"
+      ]
+    },
+    "film": {
+      "definition": "Episodes about movies, cinema releases, filmmakers and the film industry.",
+      "excludes": "Not television series or streaming shows.",
+      "wordings": [
+        "movies",
+        "cinema",
+        "films",
+        "movie industry"
+      ]
+    },
+    "film franchises": {
+      "definition": "Episodes about movie series that share characters or a universe across several films.",
+      "excludes": "Not single films or television shows.",
+      "wordings": [
+        "movie series",
+        "film series",
+        "movie franchise",
+        "cinematic universe",
+        "sequels"
+      ]
+    },
+    "fine dining": {
+      "definition": "Episodes about high-end restaurants, tasting menus and upscale dining.",
+      "excludes": "Not everyday restaurants or fast food.",
+      "wordings": [
+        "fine restaurants",
+        "upscale dining",
+        "tasting menu",
+        "gourmet dining"
+      ]
+    },
+    "flights": {
+      "definition": "Episodes about air travel, airline routes, flight schedules and airport operations.",
+      "excludes": "Not aircraft manufacturing or space launches.",
+      "wordings": [
+        "flight delays",
+        "airfare"
+      ]
+    },
+    "focus and attention": {
+      "definition": "Episodes about how people concentrate, sustain attention and resist distraction.",
+      "excludes": "Not diagnosed mental health conditions or medication advice.",
+      "wordings": [
+        "concentration",
+        "attention span",
+        "focus",
+        "distraction",
+        "productivity focus"
+      ]
+    },
+    "food culture": {
+      "definition": "Episodes about how food traditions, cuisines and eating habits reflect society.",
+      "excludes": "Not restaurant reviews or food prices.",
+      "wordings": [
+        "cuisine",
+        "food traditions",
+        "culinary culture",
+        "eating habits",
+        "food trends"
+      ]
+    },
+    "food prices": {
+      "definition": "Episodes about the cost of groceries and food commodities and how it changes.",
+      "excludes": "Not restaurant menus or food culture.",
+      "wordings": [
+        "grocery prices",
+        "food inflation",
+        "cost of food",
+        "grocery costs",
+        "food costs"
+      ]
+    },
+    "food scene": {
+      "definition": "Episodes about restaurants, dining trends and the local food and drink scene.",
+      "excludes": "Food farming, production and supply chains belong to food supply, not here.",
+      "wordings": [
+        "dining scene",
+        "restaurant scene"
+      ]
+    },
+    "food supply": {
+      "definition": "Episodes about how food is grown, produced, shipped and made available worldwide.",
+      "excludes": "Restaurants and dining belong to food scene, not here.",
+      "wordings": [
+        "food shortages",
+        "grain supply",
+        "food security"
+      ]
+    },
+    "football": {
+      "definition": "Episodes about football (soccer) matches, leagues, clubs and players.",
+      "excludes": "American football teams in the NFL belong to their own team or NFL nodes, not here.",
+      "wordings": [
+        "soccer",
+        "football league",
+        "football club"
+      ]
+    },
+    "formula one": {
+      "definition": "Episodes about Formula One motor racing, its drivers, teams and races.",
+      "excludes": "Other motorsport series and car racing in general are not covered here.",
+      "wordings": [
+        "grand prix",
+        "formula 1",
+        "f1 racing"
+      ]
+    },
+    "founder stories": {
+      "definition": "Episodes about the lives and choices of people who founded companies.",
+      "excludes": "General startup funding and business news are not covered here.",
+      "wordings": [
+        "founders",
+        "startup founders",
+        "entrepreneurs",
+        "company founders"
+      ]
+    },
+    "fusion power": {
+      "definition": "Episodes about efforts to produce energy by nuclear fusion.",
+      "excludes": "Nuclear fission power plants and nuclear weapons are not covered here.",
+      "wordings": [
+        "nuclear fusion",
+        "fusion energy",
+        "fusion reactor"
+      ]
+    },
+    "gaza": {
+      "definition": "Episodes about Gaza, its people, the conflict there and its humanitarian situation.",
+      "excludes": "The wider geopolitical conflict in general belongs to geopolitical conflict.",
+      "wordings": [
+        "gaza strip",
+        "gaza city"
+      ]
+    },
+    "genetics": {
+      "definition": "Episodes about genes, heredity and the science of how traits are passed on.",
+      "excludes": "Medical diagnosis and treatment are not covered here.",
+      "wordings": [
+        "dna",
+        "genes",
+        "heredity",
+        "genetic research"
+      ]
+    },
+    "geopolitical conflict": {
+      "definition": "Episodes about wars, armed disputes and tensions between countries.",
+      "excludes": "A single country's domestic politics or elections are not covered here.",
+      "wordings": [
+        "war",
+        "armed conflict",
+        "military conflict",
+        "international tensions"
+      ]
+    },
+    "global development": {
+      "definition": "Episodes about poverty reduction, aid and economic growth in developing countries.",
+      "excludes": "Immigration and refugees belong to immigration, not here.",
+      "wordings": [
+        "developing countries",
+        "foreign aid",
+        "poverty reduction",
+        "economic development"
+      ]
+    },
+    "gold price": {
+      "definition": "Episodes about the market price of gold.",
+      "excludes": "Gold medals in sport and the Golden State Warriors team are not covered here.",
+      "wordings": [
+        "gold market",
+        "price of gold",
+        "gold rate"
+      ]
+    },
+    "golden state warriors": {
+      "definition": "Episodes about the Golden State Warriors NBA basketball team.",
+      "excludes": "The gold price and gold as a metal are not covered here.",
+      "wordings": [
+        "warriors",
+        "golden state",
+        "nba warriors"
+      ]
+    },
+    "golf": {
+      "definition": "Episodes about golf tournaments, golfers and the sport of golf.",
+      "excludes": "",
+      "wordings": [
+        "golfers",
+        "pga tour",
+        "pga",
+        "golf tournament"
+      ]
+    },
+    "green bay packers": {
+      "definition": "Episodes about the Green Bay Packers NFL football team.",
+      "excludes": "Other NFL teams and the San Francisco Bay Area are not covered here.",
+      "wordings": [
+        "packers",
+        "green bay",
+        "nfl packers"
+      ]
+    },
+    "habit formation": {
+      "definition": "Episodes about how habits form, change and stick in daily behaviour.",
+      "excludes": "Medical addiction treatment is not covered here.",
+      "wordings": [
+        "habits",
+        "building habits",
+        "breaking habits",
+        "daily routines"
+      ]
+    },
+    "high school sports": {
+      "definition": "Episodes about sports played by high school students and their teams.",
+      "excludes": "Professional and college leagues are not covered here.",
+      "wordings": [
+        "high school football",
+        "high school basketball",
+        "school sports",
+        "prep sports"
+      ]
+    },
+    "hip hop": {
+      "definition": "Episodes about hip hop music, its artists and its culture.",
+      "excludes": "Pop and country music charts in general are not covered here.",
+      "wordings": [
+        "rap",
+        "rap music",
+        "rappers"
+      ]
+    },
+    "hollywood": {
+      "definition": "Episodes about the American film industry, its studios, films and stars.",
+      "excludes": "Films made outside the US industry are not covered here.",
+      "wordings": [
+        "hollywood films",
+        "film studios"
+      ]
+    },
+    "house prices": {
+      "definition": "Episodes about the prices of homes and how they change.",
+      "excludes": "The wider housing market, rents and mortgages in general belong to housing market, not here.",
+      "wordings": [
+        "house price index",
+        "property prices",
+        "housing prices"
+      ]
+    },
+    "household debt": {
+      "definition": "Episodes about how much debt households owe, such as credit cards, loans and mortgages.",
+      "excludes": "Government or national debt is not covered here.",
+      "wordings": [
+        "personal debt",
+        "consumer debt",
+        "credit card debt",
+        "family debt"
+      ]
+    },
+    "housing market": {
+      "definition": "Episodes about the market for buying, selling and renting homes.",
+      "excludes": "House prices alone belong to house prices, not here.",
+      "wordings": [
+        "real estate",
+        "property market"
+      ]
+    },
+    "houston astros": {
+      "definition": "Episodes about the Houston Astros MLB baseball team.",
+      "excludes": "Other baseball teams and astronomy are not covered here.",
+      "wordings": [
+        "astros",
+        "houston baseball",
+        "astros baseball"
+      ]
+    },
+    "ice hockey": {
+      "definition": "Episodes about ice hockey leagues, teams and players.",
+      "excludes": "Field hockey and roller hockey are not covered here.",
+      "wordings": [
+        "hockey league"
+      ]
+    },
+    "immigration": {
+      "definition": "Episodes about people moving to a country to live, and the policies and debates around it.",
+      "excludes": "Refugee aid in developing countries belongs to global development, not here.",
+      "wordings": [
+        "migration",
+        "migrants",
+        "immigrants",
+        "visas",
+        "asylum"
+      ]
+    },
+    "indiana pacers": {
+      "definition": "Episodes about the Indiana Pacers NBA basketball team.",
+      "excludes": "Pacemakers and the pace of change are not sports and are not covered here.",
+      "wordings": [
+        "pacers",
+        "indiana basketball",
+        "indiana nba"
+      ]
+    },
+    "indianapolis colts": {
+      "definition": "An episode about the Indianapolis Colts, the American football team in the NFL.",
+      "excludes": "Not horses called colts; those belong elsewhere.",
+      "wordings": [
+        "colts football",
+        "indy colts",
+        "nfl colts",
+        "indianapolis football"
+      ]
+    },
+    "inflation": {
+      "definition": "An episode about rising prices across the economy and how fast they are increasing.",
+      "excludes": "Not interest rate decisions by central banks, which belong under interest rates.",
+      "wordings": [
+        "prices rising",
+        "cost of living",
+        "consumer prices",
+        "price rises",
+        "rising prices"
+      ]
+    },
+    "injury recovery": {
+      "definition": "An episode about how athletes and people heal and return from injury, through rehabilitation and training.",
+      "excludes": "Not news about who is injured or when they will play, which belongs to the sport they play.",
+      "wordings": [
+        "rehab",
+        "rehabilitation",
+        "sports injury",
+        "return from injury",
+        "injury rehab"
+      ]
+    },
+    "interest rates": {
+      "definition": "An episode about the rates set by central banks and what changes to them mean for borrowing and saving.",
+      "excludes": "Not general price rises, which belong under inflation.",
+      "wordings": [
+        "rate cuts",
+        "rate hikes",
+        "base rate",
+        "borrowing costs"
+      ]
+    },
+    "international law": {
+      "definition": "An episode about the rules and treaties that govern relations between countries and international courts.",
+      "excludes": "Not the laws of a single country or local court cases.",
+      "wordings": [
+        "treaties",
+        "global law",
+        "international treaties",
+        "international court",
+        "un law"
+      ]
+    },
+    "internet trends": {
+      "definition": "An episode about what is spreading and popular online, such as viral trends, memes and platform changes.",
+      "excludes": "Not news about artificial intelligence models, which belong under language models.",
+      "wordings": [
+        "viral trends",
+        "online trends",
+        "memes",
+        "social media trends",
+        "going viral"
+      ]
+    },
+    "iran": {
+      "definition": "An episode about Iran, its government, society and its role in regional and world affairs.",
+      "excludes": "Not Israel or Lebanon, which have their own categories even when Iran is mentioned in the same story.",
+      "wordings": [
+        "iranian",
+        "tehran",
+        "iran news",
+        "iranian government"
+      ]
+    },
+    "israel": {
+      "definition": "An episode about Israel, its government, society and its role in regional and world affairs.",
+      "excludes": "Not Jerusalem specifically, which has its own category, or Iran and Lebanon.",
+      "wordings": [
+        "israeli",
+        "israeli government",
+        "israel news"
+      ]
+    },
+    "jacksonville jaguars": {
+      "definition": "An episode about the Jacksonville Jaguars, the American football team in the NFL.",
+      "excludes": "Not the jaguar animal; that belongs elsewhere.",
+      "wordings": [
+        "jags",
+        "jacksonville football",
+        "jaguars football",
+        "nfl jaguars"
+      ]
+    },
+    "jerusalem": {
+      "definition": "An episode about the city of Jerusalem and events within it.",
+      "excludes": "Not Israel as a whole country, which has its own category.",
+      "wordings": [
+        "jerusalem news",
+        "east jerusalem",
+        "jerusalem city"
+      ]
+    },
+    "kansas city royals": {
+      "definition": "An episode about the Kansas City Royals, the baseball team in Major League Baseball.",
+      "excludes": "Not the royal family of any country.",
+      "wordings": [
+        "kc royals",
+        "kansas city baseball",
+        "royals baseball",
+        "mlb royals"
+      ]
+    },
+    "labour market": {
+      "definition": "An episode about jobs, employment, unemployment and hiring across the economy.",
+      "excludes": "Not individual businesses or local shops, which belong under local business.",
+      "wordings": [
+        "job market",
+        "jobs market",
+        "unemployment",
+        "employment",
+        "hiring"
+      ]
+    },
+    "language models": {
+      "definition": "An episode about large language models and the artificial intelligence systems that generate and understand text.",
+      "excludes": "Not general online trends or social media, which belong under internet trends.",
+      "wordings": [
+        "llm",
+        "large language model",
+        "ai chatbot",
+        "gpt"
+      ]
+    },
+    "las vegas raiders": {
+      "definition": "An episode about the Las Vegas Raiders, the American football team in the NFL.",
+      "excludes": "Not the earlier Oakland Raiders history unless the episode is about the Las Vegas team.",
+      "wordings": [
+        "las vegas football",
+        "vegas raiders",
+        "nfl raiders",
+        "raiders football"
+      ]
+    },
+    "lebanon": {
+      "definition": "An episode about Lebanon, its government, society and its role in regional affairs.",
+      "excludes": "Not Israel or Iran, which have their own categories.",
+      "wordings": [
+        "lebanese",
+        "beirut",
+        "lebanon news",
+        "lebanese government"
+      ]
+    },
+    "live touring": {
+      "definition": "An episode about musicians and artists performing live on concert tours.",
+      "excludes": "Not recorded music releases or streaming, which belong elsewhere.",
+      "wordings": [
+        "concert tour",
+        "tour dates",
+        "live concerts",
+        "concert tours",
+        "on tour"
+      ]
+    },
+    "local business": {
+      "definition": "An episode about shops, firms and other businesses in a local area and how they are doing.",
+      "excludes": "Not jobs and employment figures across the economy, which belong under labour market.",
+      "wordings": [
+        "small business",
+        "local shops",
+        "high street",
+        "local firms",
+        "local companies"
+      ]
+    },
+    "local elections": {
+      "definition": "An episode about local votes such as council and mayoral elections and their candidates.",
+      "excludes": "Not national elections or national government politics.",
+      "wordings": [
+        "council elections",
+        "mayoral race",
+        "local voting",
+        "city council vote",
+        "local election"
+      ]
+    },
+    "local events": {
+      "definition": "An episode about events happening in a local area, such as festivals, markets and community gatherings.",
+      "excludes": "Not live concert tours by musicians, which belong under live touring.",
+      "wordings": [
+        "town events",
+        "community events",
+        "local festivals",
+        "things to do",
+        "local fairs"
+      ]
+    },
+    "local news": {
+      "definition": "An episode about news from a particular town or area and the people and issues there.",
+      "excludes": "Not local elections, schools or restaurants, which have their own categories.",
+      "wordings": [
+        "community news",
+        "town news",
+        "city news",
+        "local stories",
+        "neighbourhood news"
+      ]
+    },
+    "local restaurants": {
+      "definition": "An episode about places to eat in a local area and the local food scene.",
+      "excludes": "Not food culture in general or national food trends, which belong elsewhere.",
+      "wordings": [
+        "restaurants nearby",
+        "local eateries",
+        "local dining",
+        "local food",
+        "best restaurants"
+      ]
+    },
+    "local schools": {
+      "definition": "An episode about schools in a local area, including their performance, places and local school decisions.",
+      "excludes": "Not national education policy, which belongs elsewhere.",
+      "wordings": [
+        "schools nearby",
+        "school district",
+        "local education",
+        "local school news",
+        "neighbourhood schools"
+      ]
+    },
+    "longevity research": {
+      "definition": "An episode about scientific research into extending human lifespan and healthy ageing.",
+      "excludes": "Not general health news or medical treatment advice.",
+      "wordings": [
+        "anti ageing",
+        "life extension",
+        "lifespan research",
+        "healthy ageing",
+        "living longer"
+      ]
+    },
+    "los angeles angels": {
+      "definition": "An episode about the Los Angeles Angels, the baseball team in Major League Baseball.",
+      "excludes": "Not angels in religion or art.",
+      "wordings": [
+        "la angels",
+        "angels baseball",
+        "mlb angels",
+        "anaheim angels"
+      ]
+    },
+    "los angeles clippers": {
+      "definition": "An episode about the Los Angeles Clippers, the basketball team in the NBA.",
+      "excludes": "Not ships called clippers.",
+      "wordings": [
+        "la clippers",
+        "clippers basketball",
+        "nba clippers",
+        "clippers game"
+      ]
+    },
+    "los angeles dodgers": {
+      "definition": "An episode about the Los Angeles Dodgers baseball team, its games, players or news.",
+      "excludes": "Not other MLB clubs or baseball news that does not involve the Dodgers.",
+      "wordings": [
+        "dodgers",
+        "la dodgers",
+        "dodgers baseball"
+      ]
+    },
+    "los angeles kings": {
+      "definition": "An episode about the Los Angeles Kings ice hockey team, its games, players or news.",
+      "excludes": "Not royalty or monarchs; 'kings' here means the NHL team only.",
+      "wordings": [
+        "la kings",
+        "kings hockey",
+        "los angeles kings hockey"
+      ]
+    },
+    "los angeles lakers": {
+      "definition": "An episode about the Los Angeles Lakers basketball team, its games, players or news.",
+      "excludes": "Not other NBA teams or lake-related stories.",
+      "wordings": [
+        "lakers",
+        "la lakers",
+        "lakers basketball"
+      ]
+    },
+    "los angeles rams": {
+      "definition": "An episode about the Los Angeles Rams football team, its games, players or news.",
+      "excludes": "Not the animal or the car-part meaning of ram; this is the NFL team.",
+      "wordings": [
+        "la rams",
+        "rams football"
+      ]
+    },
+    "luxury goods": {
+      "definition": "An episode about luxury brands and high-end consumer products and the business behind them.",
+      "excludes": "Not everyday retail or general consumer shopping.",
+      "wordings": [
+        "luxury brands",
+        "high end brands",
+        "luxury fashion",
+        "premium brands"
+      ]
+    },
+    "machine learning": {
+      "definition": "An episode about machine learning, the methods by which systems learn patterns from data.",
+      "excludes": "Not general tech or robotics news that does not involve learning from data.",
+      "wordings": [
+        "ml",
+        "neural networks",
+        "deep learning",
+        "training models"
+      ]
+    },
+    "major championship": {
+      "definition": "An episode about golf's major championships, the four biggest tournaments in professional golf.",
+      "excludes": "Not other sports championships or tournaments outside golf.",
+      "wordings": [
+        "golf majors",
+        "masters tournament",
+        "pga championship",
+        "the open championship",
+        "us open golf"
+      ]
+    },
+    "major league soccer": {
+      "definition": "An episode about Major League Soccer, the top professional soccer league in the United States and Canada.",
+      "excludes": "Not European soccer leagues or national team matches.",
+      "wordings": [
+        "mls",
+        "mls soccer",
+        "us soccer league"
+      ]
+    },
+    "market volatility": {
+      "definition": "An episode about sharp swings in prices and trading activity in financial markets.",
+      "excludes": "Not general market news or economic reports without notable price swings.",
+      "wordings": [
+        "market swings",
+        "stock volatility",
+        "market turbulence",
+        "price swings"
+      ]
+    },
+    "markets": {
+      "definition": "An episode about financial markets, including stocks, bonds and trading.",
+      "excludes": "Not specific price swings, which belong to market volatility, or consumer shopping markets.",
+      "wordings": [
+        "financial markets",
+        "stocks"
+      ]
+    },
+    "mars missions": {
+      "definition": "An episode about spacecraft missions sent to explore Mars.",
+      "excludes": "Not the candy company or general planetary science unrelated to missions.",
+      "wordings": [
+        "mars rover",
+        "mars mission",
+        "red planet",
+        "mars probe",
+        "mars exploration"
+      ]
+    },
+    "materials science": {
+      "definition": "An episode about the study of the properties, creation and uses of materials.",
+      "excludes": "Not general chemistry or manufacturing business news.",
+      "wordings": [
+        "new materials",
+        "materials research",
+        "advanced materials"
+      ]
+    },
+    "medicine": {
+      "definition": "An episode about medical treatment, drugs and the practice of treating disease.",
+      "excludes": "Not mental health or microbiome research.",
+      "wordings": [
+        "medical research",
+        "treatments",
+        "clinical trials",
+        "medical care"
+      ]
+    },
+    "memphis grizzlies": {
+      "definition": "An episode about the Memphis Grizzlies basketball team, its games, players or news.",
+      "excludes": "Not the bear species; this is the NBA team.",
+      "wordings": [
+        "grizzlies",
+        "memphis basketball",
+        "memphis grizzlies basketball"
+      ]
+    },
+    "mental health": {
+      "definition": "An episode about psychological wellbeing, mental illness and its care.",
+      "excludes": "Not physical medicine or general health news.",
+      "wordings": [
+        "mental wellbeing",
+        "depression",
+        "therapy",
+        "mental illness"
+      ]
+    },
+    "mergers acquisitions": {
+      "definition": "An episode about companies merging with, buying or selling other companies.",
+      "excludes": "Not general corporate strategy or everyday stock trading.",
+      "wordings": [
+        "takeovers",
+        "buyouts"
+      ]
+    },
+    "miami marlins": {
+      "definition": "An episode about the Miami Marlins baseball team, its games, players or news.",
+      "excludes": "Not the fish species or the Miami Heat basketball team.",
+      "wordings": [
+        "marlins",
+        "miami marlins baseball",
+        "marlins baseball"
+      ]
+    },
+    "microbiome": {
+      "definition": "An episode about the communities of microbes living in the body or environment and their effects.",
+      "excludes": "Not general microbiology or germ-based disease news.",
+      "wordings": [
+        "gut bacteria",
+        "gut microbes",
+        "gut microbiota",
+        "bacteria in the body"
+      ]
+    },
+    "middle east": {
+      "definition": "An episode about the Middle East region, its countries and its geopolitical conflicts.",
+      "excludes": "Not foreign news from other regions.",
+      "wordings": [
+        "mideast",
+        "middle eastern politics"
+      ]
+    },
+    "milwaukee bucks": {
+      "definition": "An episode about the Milwaukee Bucks basketball team, its games, players or news.",
+      "excludes": "Not the deer or the dollar slang for money.",
+      "wordings": [
+        "milwaukee basketball",
+        "bucks basketball",
+        "milwaukee bucks basketball"
+      ]
+    },
+    "minnesota timberwolves": {
+      "definition": "An episode about the Minnesota Timberwolves basketball team, its games, players or news.",
+      "excludes": "Not the wolf animal or other Minnesota teams.",
+      "wordings": [
+        "timberwolves",
+        "wolves basketball",
+        "minnesota basketball"
+      ]
+    },
+    "minnesota twins": {
+      "definition": "An episode about the Minnesota Twins baseball team, its games, players or news.",
+      "excludes": "Not people who are twins or other Minnesota teams.",
+      "wordings": [
+        "twins baseball",
+        "minnesota baseball"
+      ]
+    },
+    "minnesota vikings": {
+      "definition": "An episode about the Minnesota Vikings football team, its games, players or news.",
+      "excludes": "Not the historical Norse seafarers or other Minnesota teams.",
+      "wordings": [
+        "vikings football",
+        "minnesota football"
+      ]
+    },
+    "mixed martial arts": {
+      "definition": "An episode about mixed martial arts events, fighters and organizations such as the UFC.",
+      "excludes": "Not boxing or other combat sports on their own.",
+      "wordings": [
+        "cage fighting",
+        "ultimate fighting"
+      ]
+    },
+    "mlb": {
+      "definition": "An episode about Major League Baseball, the top professional baseball league in North America.",
+      "excludes": "Not a single team's own news, which belongs to that team's category.",
+      "wordings": [
+        "baseball league",
+        "mlb baseball"
+      ]
+    },
+    "montreal canadiens": {
+      "definition": "An episode filed here is about the Montreal Canadiens, the NHL hockey team.",
+      "excludes": "Not the city of Montreal or other Canadian hockey teams in general.",
+      "wordings": [
+        "canadiens",
+        "habs",
+        "les habs",
+        "montreal hockey"
+      ]
+    },
+    "mortgage rates": {
+      "definition": "An episode filed here is about the interest rates charged on home mortgage loans.",
+      "excludes": "Not house prices or the wider property market in general.",
+      "wordings": [
+        "home loan rates",
+        "mortgage interest",
+        "mortgage interest rates",
+        "home loans"
+      ]
+    },
+    "motorsport": {
+      "definition": "An episode filed here is about car or motorcycle racing competitions other than the NASCAR series.",
+      "excludes": "Not NASCAR, which has its own category, and not racing sports that are not motor-powered.",
+      "wordings": [
+        "car racing",
+        "motor racing",
+        "f1",
+        "motor sport"
+      ]
+    },
+    "music industry": {
+      "definition": "An episode filed here is about the business of recording, releasing and selling music.",
+      "excludes": "Not the playing or listening of music as an art form, and not music charts for individual artists.",
+      "wordings": [
+        "music business",
+        "record labels",
+        "music sales",
+        "recording industry",
+        "music streaming business"
+      ]
+    },
+    "nascar": {
+      "definition": "An episode filed here is about NASCAR stock car racing and its series and teams.",
+      "excludes": "Not motorsport in general, such as Formula One or motorcycle racing.",
+      "wordings": [
+        "stock car racing",
+        "nascar racing",
+        "stock car"
+      ]
+    },
+    "nashville predators": {
+      "definition": "An episode filed here is about the Nashville Predators, the NHL hockey team.",
+      "excludes": "Not the city of Nashville or other music-city topics.",
+      "wordings": [
+        "predators",
+        "nashville hockey",
+        "preds"
+      ]
+    },
+    "nba": {
+      "definition": "An episode filed here is about the National Basketball Association and its teams and games.",
+      "excludes": "Not college basketball or other basketball leagues.",
+      "wordings": [
+        "nba basketball",
+        "national basketball association"
+      ]
+    },
+    "neuroscience": {
+      "definition": "An episode filed here is about the scientific study of the brain and nervous system.",
+      "excludes": "Not general biology or medical treatment of brain disease.",
+      "wordings": [
+        "brain science",
+        "brain research",
+        "neurology research",
+        "the brain",
+        "nervous system"
+      ]
+    },
+    "new jersey devils": {
+      "definition": "An episode filed here is about the New Jersey Devils, the NHL hockey team.",
+      "excludes": "Not the state of New Jersey or the mythical Jersey Devil creature.",
+      "wordings": [
+        "devils",
+        "nj devils",
+        "new jersey hockey"
+      ]
+    },
+    "new orleans pelicans": {
+      "definition": "An episode filed here is about the New Orleans Pelicans, the NBA basketball team.",
+      "excludes": "Not the pelican bird or other New Orleans topics.",
+      "wordings": [
+        "pelicans",
+        "nola pelicans",
+        "new orleans basketball"
+      ]
+    },
+    "new orleans saints": {
+      "definition": "An episode filed here is about the New Orleans Saints, the NFL football team.",
+      "excludes": "Not the religious saints or other New Orleans topics.",
+      "wordings": [
+        "saints",
+        "nola saints",
+        "new orleans football"
+      ]
+    },
+    "new york islanders": {
+      "definition": "An episode filed here is about the New York Islanders, the NHL hockey team.",
+      "excludes": "Not the Long Island islands or other New York teams.",
+      "wordings": [
+        "islanders",
+        "ny islanders",
+        "long island hockey"
+      ]
+    },
+    "new york knicks": {
+      "definition": "An episode filed here is about the New York Knicks, the NBA basketball team.",
+      "excludes": "Not the city of New York or other New York teams.",
+      "wordings": [
+        "knicks",
+        "ny knicks",
+        "new york basketball"
+      ]
+    },
+    "new york mets": {
+      "definition": "An episode filed here is about the New York Mets, the MLB baseball team.",
+      "excludes": "Not the New York Yankees or other New York teams.",
+      "wordings": [
+        "mets",
+        "ny mets",
+        "new york baseball"
+      ]
+    },
+    "new york rangers": {
+      "definition": "An episode filed here is about the New York Rangers, the NHL hockey team.",
+      "excludes": "Not the Texas Rangers baseball team or other New York teams.",
+      "wordings": [
+        "ny rangers",
+        "nyr"
+      ]
+    },
+    "new york yankees": {
+      "definition": "An episode filed here is about the New York Yankees, the MLB baseball team.",
+      "excludes": "Not the New York Mets or other New York teams.",
+      "wordings": [
+        "yankees",
+        "bronx bombers",
+        "ny yankees"
+      ]
+    },
+    "nfl": {
+      "definition": "An episode filed here is about the National Football League and its teams and games.",
+      "excludes": "Not college football or other football codes such as soccer.",
+      "wordings": [
+        "nfl football"
+      ]
+    },
+    "nhl": {
+      "definition": "An episode filed here is about the National Hockey League and its teams and games.",
+      "excludes": "Not college hockey or other hockey leagues.",
+      "wordings": [
+        "hockey",
+        "pro hockey",
+        "nhl hockey",
+        "national hockey league"
+      ]
+    },
+    "niners": {
+      "definition": "An episode filed here is about the San Francisco 49ers, the NFL football team.",
+      "excludes": "Not the number 49 or other San Francisco topics.",
+      "wordings": [
+        "49ers",
+        "san francisco 49ers",
+        "sf 49ers",
+        "niners football"
+      ]
+    },
+    "nutrition": {
+      "definition": "An episode filed here is about food, diet and what nutrients people need to stay healthy.",
+      "excludes": "Not diet fads sold as medical treatment or the food industry's business news.",
+      "wordings": [
+        "diet",
+        "healthy eating",
+        "food nutrients",
+        "nutrition facts",
+        "vitamins"
+      ]
+    },
+    "oakland athletics": {
+      "definition": "An episode filed here is about the Oakland Athletics, the MLB baseball team.",
+      "excludes": "Not the Olympic athletics track events or other Oakland topics.",
+      "wordings": [
+        "athletics",
+        "oakland a s",
+        "oakland baseball"
+      ]
+    },
+    "ocean science": {
+      "definition": "An episode filed here is about the scientific study of the oceans, including marine life and sea processes.",
+      "excludes": "Not general climate science or sea-based energy business.",
+      "wordings": [
+        "marine science",
+        "oceanography",
+        "ocean research",
+        "sea science",
+        "marine biology"
+      ]
+    },
+    "oil companies": {
+      "definition": "An episode filed here is about the businesses that explore for, produce and sell oil and gas.",
+      "excludes": "Not the price of oil or the supply of oil to countries.",
+      "wordings": [
+        "oil firms",
+        "oil producers",
+        "big oil"
+      ]
+    },
+    "oil price": {
+      "definition": "An episode filed here is about the price of crude oil and changes in that price.",
+      "excludes": "Not the companies that produce oil or the supply of oil.",
+      "wordings": [
+        "crude prices",
+        "crude oil price",
+        "gas prices",
+        "brent price"
+      ]
+    },
+    "oil supply": {
+      "definition": "An episode filed here is about how much oil is available and how it is secured for countries and markets.",
+      "excludes": "Not the price of oil or the companies that drill for it.",
+      "wordings": [
+        "oil supplies",
+        "oil security",
+        "oil output",
+        "oil shortage"
+      ]
+    },
+    "olympic sport": {
+      "definition": "An episode about sports contested at the Olympic Games.",
+      "excludes": "Ordinary pro leagues and tournaments that are not part of the Olympics: not olympic sport.",
+      "wordings": [
+        "olympics",
+        "olympic games",
+        "summer olympics",
+        "winter olympics"
+      ]
+    },
+    "open source": {
+      "definition": "An episode about software whose code is publicly shared so anyone can view, use or change it.",
+      "excludes": "Open-plan offices and open markets: not about software code.",
+      "wordings": [
+        "open source software",
+        "free software",
+        "open source code"
+      ]
+    },
+    "particle physics": {
+      "definition": "An episode about the study of the fundamental particles of matter and the forces between them.",
+      "excludes": "Dust, pollution or other small particles in everyday life: not particle physics.",
+      "wordings": [
+        "subatomic particles",
+        "quarks",
+        "large hadron collider",
+        "particle accelerators"
+      ]
+    },
+    "personal finance": {
+      "definition": "An episode about how individuals and households manage their own money, such as saving, budgeting, debt and investing.",
+      "excludes": "Company accounts and corporate finance: not personal money.",
+      "wordings": [
+        "personal money",
+        "household budgeting",
+        "saving money",
+        "debt payoff",
+        "budgeting"
+      ]
+    },
+    "philadelphia eagles": {
+      "definition": "An episode about the Philadelphia Eagles NFL football team.",
+      "excludes": "Eagles the bird and wildlife stories: not the football team.",
+      "wordings": [
+        "eagles football",
+        "philly eagles",
+        "nfl eagles"
+      ]
+    },
+    "philadelphia flyers": {
+      "definition": "An episode about the Philadelphia Flyers NHL hockey team.",
+      "excludes": "Flying, aviation or airline stories: not the hockey team.",
+      "wordings": [
+        "philly flyers",
+        "flyers hockey",
+        "nhl flyers"
+      ]
+    },
+    "philadelphia phillies": {
+      "definition": "An episode about the Philadelphia Phillies MLB baseball team.",
+      "excludes": "Other Philadelphia news that is not about the baseball team.",
+      "wordings": [
+        "philly phillies",
+        "phillies baseball",
+        "mlb phillies"
+      ]
+    },
+    "philadelphia sixers": {
+      "definition": "An episode about the Philadelphia 76ers NBA basketball team.",
+      "excludes": "The number 76 or 1776 history: not the basketball team.",
+      "wordings": [
+        "76ers",
+        "philly sixers",
+        "sixers basketball"
+      ]
+    },
+    "phoenix suns": {
+      "definition": "An episode about the Phoenix Suns NBA basketball team.",
+      "excludes": "The sun itself or Phoenix city news that is not about the team.",
+      "wordings": [
+        "suns basketball",
+        "phoenix basketball",
+        "nba suns"
+      ]
+    },
+    "physics": {
+      "definition": "An episode about the science of matter, energy, motion and forces.",
+      "excludes": "Fundamental particles and their forces: those are filed under particle physics.",
+      "wordings": [
+        "laws of physics",
+        "physics research",
+        "physics science"
+      ]
+    },
+    "pittsburgh penguins": {
+      "definition": "An episode about the Pittsburgh Penguins NHL hockey team.",
+      "excludes": "Penguin wildlife stories: not the hockey team.",
+      "wordings": [
+        "penguins hockey",
+        "nhl penguins"
+      ]
+    },
+    "pittsburgh pirates": {
+      "definition": "An episode about the Pittsburgh Pirates MLB baseball team.",
+      "excludes": "Pirates in films, games or history: not the baseball team.",
+      "wordings": [
+        "pirates baseball",
+        "mlb pirates",
+        "pittsburgh baseball"
+      ]
+    },
+    "player contracts": {
+      "definition": "An episode about the terms and deals that sign athletes to teams, including salaries and guarantees.",
+      "excludes": "General business and contract law: not sports deals.",
+      "wordings": [
+        "athlete contracts",
+        "contract extensions",
+        "sports salaries",
+        "free agency deals"
+      ]
+    },
+    "playoff basketball": {
+      "definition": "An episode about the postseason knockout games in basketball leagues.",
+      "excludes": "Regular-season basketball games and results: not playoffs.",
+      "wordings": [
+        "basketball playoffs",
+        "nba playoffs"
+      ]
+    },
+    "political parties": {
+      "definition": "An episode about organized groups that contest elections and govern under a shared platform.",
+      "excludes": "Party events and celebrations: not political organizations.",
+      "wordings": [
+        "political party",
+        "party politics",
+        "governing party"
+      ]
+    },
+    "polling": {
+      "definition": "An episode about surveys that measure public opinion, often on elections or issues.",
+      "excludes": "Voting and ballot counting: not opinion surveys.",
+      "wordings": [
+        "opinion polls",
+        "poll results",
+        "public opinion survey",
+        "approval ratings"
+      ]
+    },
+    "pop music": {
+      "definition": "An episode about popular commercial music aimed at mass audiences, such as chart hits.",
+      "excludes": "Pop culture stories about films and TV that are not about songs.",
+      "wordings": [
+        "pop songs",
+        "chart hits",
+        "pop artists",
+        "top 40"
+      ]
+    },
+    "portland trail blazers": {
+      "definition": "An episode about the Portland Trail Blazers NBA basketball team.",
+      "excludes": "Hiking trails and parks in Portland: not the team.",
+      "wordings": [
+        "blazers basketball",
+        "portland basketball",
+        "nba blazers"
+      ]
+    },
+    "premier league": {
+      "definition": "An episode about the top professional football league in England.",
+      "excludes": "Other football leagues and national team matches: not the English top flight.",
+      "wordings": [
+        "epl",
+        "english premier league",
+        "premier league football"
+      ]
+    },
+    "presidential election": {
+      "definition": "An episode about the vote to choose a country's president.",
+      "excludes": "Parliamentary and local council elections: not presidential votes.",
+      "wordings": [
+        "presidential race",
+        "presidential vote",
+        "election for president"
+      ]
+    },
+    "pricing strategy": {
+      "definition": "An episode about how a business sets the prices of its products and services.",
+      "excludes": "Consumer prices and inflation across the economy: not a company's pricing choices.",
+      "wordings": [
+        "how to price",
+        "setting prices",
+        "price strategy",
+        "pricing models"
+      ]
+    },
+    "protein intake": {
+      "definition": "An episode about how much protein people eat and its effect on diet and health.",
+      "excludes": "Protein as a molecule in biology labs: not diet.",
+      "wordings": [
+        "protein diet",
+        "how much protein",
+        "eating protein",
+        "high protein diet"
+      ]
+    },
+    "public health": {
+      "definition": "An episode about organized efforts to protect and improve the health of whole populations.",
+      "excludes": "Private medical care for individual patients: not population health.",
+      "wordings": [
+        "population health",
+        "public health policy",
+        "disease prevention"
+      ]
+    },
+    "public transport": {
+      "definition": "An episode about shared transit services such as buses, trains and subways that run for the public.",
+      "excludes": "Private cars and ride-hailing: not shared transit.",
+      "wordings": [
+        "public transit",
+        "mass transit",
+        "subway systems",
+        "commuter rail"
+      ]
+    },
+    "publishing": {
+      "definition": "An episode about producing and selling books, magazines and other printed or digital works.",
+      "excludes": "Posting a social media update or website: not the book and magazine industry.",
+      "wordings": [
+        "publishers",
+        "book industry",
+        "magazine publishing"
+      ]
+    },
+    "quantum computing": {
+      "definition": "An episode filed here is about computers that use quantum physics to process information, and the companies and research building them.",
+      "excludes": "Quantum physics in general or science fiction plots: not ordinary computing news.",
+      "wordings": [
+        "quantum computer",
+        "quantum computers",
+        "quantum chips",
+        "qubits",
+        "quantum processor",
+        "quantum hardware"
+      ]
+    },
+    "quarterback play": {
+      "definition": "An episode filed here is about the performance, selection or injuries of quarterbacks in American football.",
+      "excludes": "American football teams, scores and league business that do not focus on the quarterback position.",
+      "wordings": [
+        "quarterback",
+        "qb play",
+        "passing game",
+        "starting quarterback",
+        "qb injury"
+      ]
+    },
+    "reality television": {
+      "definition": "An episode filed here is about unscripted television shows featuring ordinary people or competitions, and the networks and stars that make them.",
+      "excludes": "Scripted dramas and comedies, and news programmes that happen to air on television.",
+      "wordings": [
+        "reality tv",
+        "reality show",
+        "reality shows",
+        "unscripted tv",
+        "tv competition show"
+      ]
+    },
+    "remote work": {
+      "definition": "An episode filed here is about working from home or other locations away from an office, and the policies and trends around it.",
+      "excludes": "General employment figures and job market news that do not focus on where people work.",
+      "wordings": [
+        "working from home",
+        "work from home",
+        "hybrid work",
+        "remote workers",
+        "telecommuting",
+        "return to office"
+      ]
+    },
+    "renewable energy": {
+      "definition": "An episode filed here is about power from sources that replenish naturally, such as solar, wind and hydro, and the businesses and policies behind them.",
+      "excludes": "Fossil fuel production and oil prices, which belong to energy business news without a renewables focus.",
+      "wordings": [
+        "clean energy",
+        "green energy",
+        "solar power",
+        "wind power",
+        "solar energy",
+        "wind farms",
+        "renewables"
+      ]
+    },
+    "rental market": {
+      "definition": "An episode filed here is about renting homes and apartments, including rent levels, supply and tenants' conditions.",
+      "excludes": "Buying and selling houses or mortgage rates, which belong to the wider housing market.",
+      "wordings": [
+        "rent",
+        "apartment rents",
+        "rental prices",
+        "landlords",
+        "rental housing"
+      ]
+    },
+    "restaurants": {
+      "definition": "An episode filed here is about eating establishments, their menus, openings, closings and the food service business.",
+      "excludes": "Food production and grocery supply chains that do not involve dining out.",
+      "wordings": [
+        "restaurant",
+        "dining out",
+        "eateries",
+        "food service",
+        "restaurant industry",
+        "new restaurants"
+      ]
+    },
+    "retail business": {
+      "definition": "An episode filed here is about shops and stores selling goods to consumers, including sales results, chains and store closures.",
+      "excludes": "Restaurants and food service, which belong under restaurants.",
+      "wordings": [
+        "retail",
+        "retailers",
+        "stores",
+        "shops",
+        "retail sales",
+        "store closures",
+        "shopping"
+      ]
+    },
+    "retirement saving": {
+      "definition": "An episode filed here is about money set aside for retirement, such as pensions, retirement accounts and how much people need to save.",
+      "excludes": "Pension fund investment returns in general markets that do not concern personal retirement saving.",
+      "wordings": [
+        "retirement savings",
+        "pensions",
+        "401k",
+        "retirement accounts",
+        "retirement planning",
+        "pension savings"
+      ]
+    },
+    "reusable rockets": {
+      "definition": "An episode filed here is about rockets designed to be recovered and flown again, and the launches that test them.",
+      "excludes": "Satellite internet services and space companies' business news that do not concern rocket reuse.",
+      "wordings": [
+        "reusable rocket",
+        "rocket reuse",
+        "booster landing",
+        "reusable launch vehicle",
+        "rocket landing",
+        "landing rockets"
+      ]
+    },
+    "robotics": {
+      "definition": "An episode filed here is about machines that sense, move and act with software, and the companies and research that build them.",
+      "excludes": "Automation in factories described only as job losses, and science fiction about machines.",
+      "wordings": [
+        "robots",
+        "robot",
+        "robotic",
+        "humanoid robots",
+        "industrial robots",
+        "robot makers"
+      ]
+    },
+    "sacramento kings": {
+      "definition": "An episode filed here is about the Sacramento Kings professional basketball team.",
+      "excludes": "Other kings and royalty stories, and other basketball teams.",
+      "wordings": [
+        "sacramento kings nba",
+        "kings basketball",
+        "sac kings"
+      ]
+    },
+    "san antonio spurs": {
+      "definition": "An episode filed here is about the San Antonio Spurs professional basketball team.",
+      "excludes": "Spurs as a horse-riding accessory or other uses of the word, and other basketball teams.",
+      "wordings": [
+        "san antonio spurs nba",
+        "spurs basketball",
+        "sa spurs"
+      ]
+    },
+    "san diego padres": {
+      "definition": "An episode filed here is about the San Diego Padres professional baseball team.",
+      "excludes": "Other baseball teams and the padres of religious orders.",
+      "wordings": [
+        "san diego padres mlb",
+        "padres baseball",
+        "padres"
+      ]
+    },
+    "san jose sharks": {
+      "definition": "An episode filed here is about the San Jose Sharks professional ice hockey team.",
+      "excludes": "Sharks the animal and other ice hockey teams.",
+      "wordings": [
+        "san jose sharks nhl",
+        "sharks hockey",
+        "sj sharks"
+      ]
+    },
+    "sanctions": {
+      "definition": "An episode filed here is about trade or financial restrictions one country or group imposes on another, and their effects.",
+      "excludes": "Sporting or league penalties, which belong to sports news.",
+      "wordings": [
+        "trade sanctions",
+        "economic sanctions",
+        "embargo",
+        "trade restrictions",
+        "sanctioned"
+      ]
+    },
+    "satellite internet": {
+      "definition": "An episode filed here is about internet service delivered by satellites in orbit, and the providers and networks behind it.",
+      "excludes": "Satellite imagery and launches that do not concern internet service.",
+      "wordings": [
+        "satellite broadband",
+        "starlink",
+        "internet from space",
+        "low earth orbit internet",
+        "satellite connection"
+      ]
+    },
+    "school board": {
+      "definition": "An episode filed here is about local elected boards that govern public schools, their votes, budgets and decisions.",
+      "excludes": "Individual school events and national education policy that does not involve a local board.",
+      "wordings": [
+        "school boards",
+        "school district board",
+        "school trustees",
+        "board of education",
+        "local school board"
+      ]
+    },
+    "seahawks": {
+      "definition": "An episode filed here is about the Seattle Seahawks professional American football team.",
+      "excludes": "Other football teams and the seahawk bird.",
+      "wordings": [
+        "seattle seahawks",
+        "seahawks football",
+        "seattle nfl team"
+      ]
+    },
+    "seattle kraken": {
+      "definition": "An episode filed here is about the Seattle Kraken professional ice hockey team.",
+      "excludes": "The mythical sea monster and other ice hockey teams.",
+      "wordings": [
+        "seattle kraken nhl",
+        "kraken hockey",
+        "kraken"
+      ]
+    },
+    "seattle mariners": {
+      "definition": "An episode filed here is about the Seattle Mariners professional baseball team.",
+      "excludes": "Sailors and maritime news, and other baseball teams.",
+      "wordings": [
+        "seattle mariners mlb",
+        "mariners baseball",
+        "mariners"
+      ]
+    },
+    "semiconductor manufacturing": {
+      "definition": "An episode filed here is about factories and processes that make semiconductor chips, including fabrication plants and capacity.",
+      "excludes": "Chip designs and chip company sales without a focus on manufacturing.",
+      "wordings": [
+        "chip fabrication",
+        "foundries"
+      ]
+    },
+    "semiconductors": {
+      "definition": "An episode filed here is about semiconductor chips and the companies that design and sell them.",
+      "excludes": "Chip manufacturing plants and fabrication work, which belong under semiconductor manufacturing.",
+      "wordings": [
+        "chips",
+        "computer chips",
+        "microchips",
+        "chip makers",
+        "chip industry",
+        "chipmakers"
+      ]
+    },
+    "short video": {
+      "definition": "An episode filed here is about brief video clips shared on social platforms, and the trends, creators and platforms around them.",
+      "excludes": "Long-form streaming shows and television, which belong elsewhere.",
+      "wordings": [
+        "short videos",
+        "short form video",
+        "video clips",
+        "reels",
+        "vertical video",
+        "viral videos"
+      ]
+    },
+    "sleep quality": {
+      "definition": "An episode filed here is about how well people sleep, and the health effects and factors that affect sleep.",
+      "excludes": "Sleep disorders treated as medical care, and bedding or mattress sales.",
+      "wordings": [
+        "sleep",
+        "sleep health",
+        "poor sleep",
+        "sleep problems",
+        "sleep habits",
+        "insomnia"
+      ]
+    },
+    "sleep research": {
+      "definition": "An episode filed here covers scientific studies of how people sleep and what affects sleep.",
+      "excludes": "Not general health or wellness advice; sleep quality products belong elsewhere.",
+      "wordings": [
+        "sleep science",
+        "sleep studies",
+        "how we sleep"
+      ]
+    },
+    "smartphones": {
+      "definition": "An episode filed here is about mobile phones, their models, makers and features.",
+      "excludes": "Not phone companies' stock prices or lawsuits, which belong to markets or business.",
+      "wordings": [
+        "cell phones",
+        "mobile phones",
+        "iphone",
+        "android phones"
+      ]
+    },
+    "social platforms": {
+      "definition": "An episode filed here is about online social networks and the apps people use to share posts and messages.",
+      "excludes": "Not social media used as a general term for public opinion or polls.",
+      "wordings": [
+        "social media",
+        "social networks",
+        "social apps"
+      ]
+    },
+    "software business": {
+      "definition": "An episode filed here is about companies that make and sell software and their products, deals and results.",
+      "excludes": "Not software used only as a tool in a story about another industry.",
+      "wordings": [
+        "software companies",
+        "software industry",
+        "saas"
+      ]
+    },
+    "space science": {
+      "definition": "An episode filed here is about scientific study of space, planets, stars and the universe.",
+      "excludes": "Not space companies launching rockets or selling satellite services, which belong to space technology.",
+      "wordings": [
+        "astronomy",
+        "outer space",
+        "planets and stars",
+        "the universe"
+      ]
+    },
+    "space technology": {
+      "definition": "An episode filed here is about rockets, spacecraft, satellites and the companies and missions that build and launch them.",
+      "excludes": "Not scientific discoveries about space itself, which belong to space science.",
+      "wordings": [
+        "rockets",
+        "space launches",
+        "spacecraft",
+        "satellites"
+      ]
+    },
+    "sports franchise": {
+      "definition": "An episode filed here is about a professional sports team as a business, including its owners, sales and value.",
+      "excludes": "Not games or match results, which belong to the team's sport.",
+      "wordings": [
+        "pro sports team",
+        "sports team value",
+        "team sale"
+      ]
+    },
+    "sports stadiums": {
+      "definition": "An episode filed here is about sports venues, their construction, naming and use.",
+      "excludes": "Not public money paying for stadiums, which belongs to stadium funding.",
+      "wordings": [
+        "stadium",
+        "arena",
+        "sports venue",
+        "new stadium"
+      ]
+    },
+    "stadium funding": {
+      "definition": "An episode filed here is about how public or private money is raised and used to pay for sports stadiums.",
+      "excludes": "Not the stadium itself as a building or event venue, which belongs to sports stadiums.",
+      "wordings": [
+        "stadium deal",
+        "stadium subsidies",
+        "public stadium money",
+        "stadium financing"
+      ]
+    },
+    "stanley cup": {
+      "definition": "An episode filed here is about the National Hockey League's championship trophy and the playoffs that decide it.",
+      "excludes": "Not hockey games outside the Stanley Cup playoffs or finals.",
+      "wordings": [
+        "stanley cup playoffs",
+        "nhl championship",
+        "stanley cup finals"
+      ]
+    },
+    "startups": {
+      "definition": "An episode filed here is about newly founded companies, their funding rounds and their founders.",
+      "excludes": "Not established large companies' everyday business news.",
+      "wordings": [
+        "start ups",
+        "new companies",
+        "venture funding",
+        "startup funding"
+      ]
+    },
+    "steelers": {
+      "definition": "An episode filed here is about the Pittsburgh Steelers, the American football team.",
+      "excludes": "Not steel industry companies or the steel trade.",
+      "wordings": [
+        "pittsburgh steelers",
+        "steelers football",
+        "steelers nfl"
+      ]
+    },
+    "stock market": {
+      "definition": "An episode filed here is about the trading of shares and the movement of stock indexes and prices.",
+      "excludes": "Not company business news unless it is about share prices or trading.",
+      "wordings": [
+        "share prices",
+        "wall street",
+        "stock prices"
+      ]
+    },
+    "streaming business": {
+      "definition": "An episode filed here is about the companies and finances behind streaming services, such as subscriptions, deals and results.",
+      "excludes": "Not the shows or films themselves, which belong to streaming shows.",
+      "wordings": [
+        "streaming services",
+        "streaming companies",
+        "streaming subscriptions"
+      ]
+    },
+    "streaming shows": {
+      "definition": "An episode filed here is about television series and films released on streaming services.",
+      "excludes": "Not the business or finances of streaming companies, which belong to streaming business.",
+      "wordings": [
+        "streaming series",
+        "netflix shows",
+        "tv streaming",
+        "streaming films"
+      ]
+    },
+    "strength training": {
+      "definition": "An episode filed here is about exercise that builds muscle and strength, such as lifting weights.",
+      "excludes": "Not general fitness or cardio advice.",
+      "wordings": [
+        "weight training",
+        "weightlifting",
+        "resistance training",
+        "lifting weights"
+      ]
+    },
+    "super bowl": {
+      "definition": "An episode filed here is about the National Football League's championship game and its related events.",
+      "excludes": "Not regular season NFL games, which belong to the team's sport coverage.",
+      "wordings": [
+        "super bowl game",
+        "nfl championship",
+        "super bowl halftime"
+      ]
+    },
+    "taiwan": {
+      "definition": "An episode filed here is about Taiwan, its politics, and its relations with China and other countries.",
+      "excludes": "Not Taiwanese companies' business news unless it concerns the political conflict.",
+      "wordings": [
+        "taiwan strait",
+        "taipei",
+        "cross strait relations"
+      ]
+    },
+    "tariffs": {
+      "definition": "An episode filed here is about taxes on imported goods and the trade policies that set them.",
+      "excludes": "Not general taxation of income or property, which belongs to taxation.",
+      "wordings": [
+        "import tariffs",
+        "trade tariffs",
+        "trade duties",
+        "tariff war"
+      ]
+    },
+    "taxation": {
+      "definition": "An episode filed here is about taxes that governments levy on income, property, sales and businesses.",
+      "excludes": "Not tariffs on imported goods, which belong to tariffs.",
+      "wordings": [
+        "taxes",
+        "tax policy",
+        "income tax",
+        "tax rates"
+      ]
+    },
+    "team ownership": {
+      "definition": "An episode filed here is about who owns sports teams and how those ownership groups operate.",
+      "excludes": "Not the value or sale of a single team, which belongs to sports franchise.",
+      "wordings": [
+        "team owners",
+        "owners of teams",
+        "sports ownership"
+      ]
+    },
+    "tech regulation": {
+      "definition": "An episode filed here is about laws and government rules that govern technology companies and artificial intelligence.",
+      "excludes": "Not technology company business news without a rule or policy focus.",
+      "wordings": [
+        "tech laws",
+        "ai regulation",
+        "big tech rules",
+        "technology regulation"
+      ]
+    },
+    "tel aviv": {
+      "definition": "An episode filed here is about Tel Aviv, the Israeli city, its life, events and news.",
+      "excludes": "Not Israeli national politics or the wider conflict unless it is about Tel Aviv.",
+      "wordings": [
+        "tel aviv israel",
+        "tel aviv city"
+      ]
+    },
+    "telescopes": {
+      "definition": "An episode filed here is about telescopes and the instruments used to observe space.",
+      "excludes": "Not space rockets or satellite launches, which belong to space technology.",
+      "wordings": [
+        "space telescope",
+        "telescope observations",
+        "observatory"
+      ]
+    },
+    "television": {
+      "definition": "An episode filed here is about television as a medium, including broadcast channels, networks and TV shows.",
+      "excludes": "Not streaming services or shows, which belong to streaming shows or streaming business.",
+      "wordings": [
+        "tv",
+        "tv shows",
+        "broadcast tv",
+        "cable tv"
+      ]
+    },
+    "tennessee titans": {
+      "definition": "An episode about the Tennessee Titans, the NFL American football team.",
+      "excludes": "The Greek mythological Titans and other uses of the word titans; those are not filed here.",
+      "wordings": [
+        "nfl titans"
+      ]
+    },
+    "tennis": {
+      "definition": "An episode about tennis matches, players, and tournaments.",
+      "excludes": "Table tennis and squash are not tennis; table tennis has no separate category here.",
+      "wordings": [
+        "tennis match",
+        "grand slam tennis",
+        "atp",
+        "wta"
+      ]
+    },
+    "toronto blue jays": {
+      "definition": "An episode about the Toronto Blue Jays, the MLB baseball team.",
+      "excludes": "The blue jay bird and other MLB teams are not filed here.",
+      "wordings": [
+        "blue jays"
+      ]
+    },
+    "toronto maple leafs": {
+      "definition": "An episode about the Toronto Maple Leafs, the NHL ice hockey team.",
+      "excludes": "The maple leaf as a national symbol or plant is not filed here.",
+      "wordings": [
+        "maple leafs",
+        "leafs hockey"
+      ]
+    },
+    "toronto raptors": {
+      "definition": "An episode about the Toronto Raptors, the NBA basketball team.",
+      "excludes": "Dinosaurs and birds called raptors are not filed here.",
+      "wordings": [
+        "raptors basketball"
+      ]
+    },
+    "town council": {
+      "definition": "An episode about decisions, votes, and meetings of a local town council.",
+      "excludes": "Wider city planning and policy is filed under urban policy, not here.",
+      "wordings": [
+        "local council",
+        "town hall meeting",
+        "council vote"
+      ]
+    },
+    "trade policy": {
+      "definition": "An episode about tariffs, trade agreements, and trade rules between countries.",
+      "excludes": "Sports player trades are not trade policy; they belong under transfer window or the team.",
+      "wordings": [
+        "trade deals",
+        "trade agreements"
+      ]
+    },
+    "transfer window": {
+      "definition": "An episode about the football transfer periods when clubs can sign or sell players.",
+      "excludes": "Bank transfers and money transfers are not football transfers.",
+      "wordings": [
+        "football transfers",
+        "summer signings",
+        "january window"
+      ]
+    },
+    "ufc": {
+      "definition": "An episode about UFC mixed martial arts events, fighters, and results.",
+      "excludes": "Boxing and other combat sports that are not the UFC are not filed here.",
+      "wordings": [
+        "ultimate fighting championship",
+        "octagon fights"
+      ]
+    },
+    "ukraine": {
+      "definition": "An episode about the war and politics involving Ukraine.",
+      "excludes": "Ukrainian food, culture, or sport unconnected to the conflict is not filed here.",
+      "wordings": [
+        "ukrainian war",
+        "russia ukraine war"
+      ]
+    },
+    "ultra processed food": {
+      "definition": "An episode about industrially formulated foods and their effects on health.",
+      "excludes": "General diets and weight loss have their own categories and are not filed here.",
+      "wordings": [
+        "processed food",
+        "packaged food",
+        "junk food"
+      ]
+    },
+    "urban housing": {
+      "definition": "An episode about housing supply, rents, and home prices in cities.",
+      "excludes": "General city government and planning decisions are filed under urban policy.",
+      "wordings": [
+        "affordable housing"
+      ]
+    },
+    "urban policy": {
+      "definition": "An episode about how cities are planned and governed, beyond housing.",
+      "excludes": "Local town council meetings and votes are filed under town council.",
+      "wordings": [
+        "city planning",
+        "city government"
+      ]
+    },
+    "utah jazz": {
+      "definition": "An episode about the Utah Jazz, the NBA basketball team.",
+      "excludes": "Jazz music is not filed here.",
+      "wordings": [
+        "jazz nba"
+      ]
+    },
+    "vaccines": {
+      "definition": "An episode about vaccine development, approval, safety, and rollout.",
+      "excludes": "General medicines and drugs that are not vaccines are not filed here.",
+      "wordings": [
+        "vaccine",
+        "immunization",
+        "immunisation",
+        "jabs"
+      ]
+    },
+    "vancouver canucks": {
+      "definition": "An episode about the Vancouver Canucks, the NHL ice hockey team.",
+      "excludes": "Other Vancouver sports teams are not filed here.",
+      "wordings": [
+        "canucks",
+        "vancouver hockey"
+      ]
+    },
+    "vegas golden knights": {
+      "definition": "An episode about the Vegas Golden Knights, the NHL ice hockey team.",
+      "excludes": "Medieval knights and other Las Vegas sports teams are not filed here.",
+      "wordings": [
+        "golden knights",
+        "vegas hockey"
+      ]
+    },
+    "venture capital": {
+      "definition": "An episode about investment funds that back early-stage startup companies.",
+      "excludes": "Bank loans and public stock markets are not venture capital.",
+      "wordings": [
+        "vc funding"
+      ]
+    },
+    "video games": {
+      "definition": "An episode about video game releases, platforms, and the games industry.",
+      "excludes": "Esports competitions may be sports and are not filed here.",
+      "wordings": [
+        "gaming",
+        "video game",
+        "gamers",
+        "game releases"
+      ]
+    },
+    "washington capitals": {
+      "definition": "An episode about the Washington Capitals, the NHL ice hockey team.",
+      "excludes": "The city of Washington and the US Capitol building are not filed here.",
+      "wordings": [
+        "caps hockey"
+      ]
+    },
+    "washington wizards": {
+      "definition": "An episode about the Washington Wizards, the NBA basketball team.",
+      "excludes": "Fantasy wizards and magic are not filed here.",
+      "wordings": [
+        "wizards nba"
+      ]
+    },
+    "wearables": {
+      "definition": "An episode about wearable devices such as smartwatches and fitness trackers.",
+      "excludes": "Phones, laptops, and other general computers are not wearables.",
+      "wordings": [
+        "smartwatch",
+        "fitness tracker",
+        "smart ring"
+      ]
+    },
+    "weight loss": {
+      "definition": "An episode about diets, drugs, and methods for losing body weight.",
+      "excludes": "General nutrition with no weight goal is not filed here.",
+      "wordings": [
+        "losing weight",
+        "slimming"
+      ]
+    },
+    "wnba": {
+      "definition": "An episode about the WNBA, the professional women's basketball league.",
+      "excludes": "The NBA men's league is not filed here.",
+      "wordings": [
+        "women s basketball",
+        "wnba basketball"
+      ]
+    },
+    "womens health": {
+      "definition": "An episode about health issues specific to women.",
+      "excludes": "General health research that is not about women is not filed here.",
+      "wordings": [
+        "women s health",
+        "menstrual health",
+        "pregnancy health"
+      ]
+    },
+    "world cup": {
+      "definition": "An episode about the FIFA World Cup, the international football tournament held every four years between national teams.",
+      "excludes": "World Cup as a trophy or a coffee-maker brand is not this; the baseball championship is the World Series, not the World Cup.",
+      "wordings": [
+        "fifa world cup",
+        "world cup football",
+        "world cup soccer",
+        "football world cup",
+        "soccer world cup",
+        "national teams tournament"
+      ]
+    },
+    "world series": {
+      "definition": "An episode about the Major League Baseball World Series, the annual championship final between two baseball teams.",
+      "excludes": "Not the World Cup, which is international football; the World Series is only the baseball final.",
+      "wordings": [
+        "mlb world series",
+        "baseball world series",
+        "baseball finals",
+        "mlb finals",
+        "world series baseball"
+      ]
+    },
+    "zoning": {
+      "definition": "An episode about local rules that decide what land and buildings can be used for in a town or city.",
+      "excludes": "Not general local news or property prices alone; zoning is about land-use rules set by local government.",
+      "wordings": [
+        "zoning laws",
+        "zoning rules",
+        "land use rules",
+        "city zoning",
+        "zoning board",
+        "zoning changes"
+      ]
+    }
+  },
+  "version": 1
+}

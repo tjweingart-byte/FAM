@@ -794,11 +794,10 @@ def settle(notes, query: str = "") -> str:
 MAX_CANDIDATES = 20
 
 
-#: When the words point at nothing below a facet (§384): the whole tree
-#: goes on the list while it is small enough to read cheaply, else the
-#: level under the facets.
+#: The whole tree goes on the list after code's matches while it has at
+#: most this many nodes (§384, §385); past it, the level under the facets,
+#: and only when the words found nothing.
 WHOLE_TREE_NODES = 400
-WHOLE_TREE_DEPTH = 99
 
 
 def candidates_for(query: str, context: str = "", notes=None) -> tuple:
@@ -868,11 +867,17 @@ def candidates_for(query: str, context: str = "", notes=None) -> tuple:
         # left the model a choice of eight broad answers for "is bitcoin
         # going up" (§384, measured): the level under the facets goes on the
         # list too, so the true node - or its parent - is there to choose.
-        if not ordered:
-            nodes = tree.nodes()
-            depth = WHOLE_TREE_DEPTH if len(nodes) <= WHOLE_TREE_NODES else 1
+        # And the whole tree after them while it is small enough to read
+        # cheaply, whatever code found (§385): code's matches go first, but
+        # a vocabulary match ("stock market" for "AI chip stocks") must never
+        # leave the true node off the list. A larger tree: the level under
+        # the facets, only when the words found nothing.
+        nodes = tree.nodes()
+        if len(nodes) <= WHOLE_TREE_NODES:
+            found += sorted(n for n in nodes if n not in found)
+        elif not ordered:
             found += sorted(n for n, node in nodes.items()
-                            if node.depth <= depth and n not in found)
+                            if node.depth == 1 and n not in found)
         return tuple(found), tie
     except Exception as exc:  # noqa: BLE001
         log.warning("nando could not list candidates for %r: %s", query, exc)

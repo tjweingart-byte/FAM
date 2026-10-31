@@ -208,6 +208,32 @@ def _build(tree, stamp) -> dict:
     return built
 
 
+def refused(key: str, node: str, tree) -> str:
+    """Why a normalised wording may not stand for `node`, or "" (§385):
+
+    * it is a one-letter word with nothing longer to anchor it - "M&A"
+      normalises to "m a", which a question normalises the same way, so
+      "I'm a Lakers fan" ("i m a lakers fan") would read as mergers. "e
+      commerce" and "women s health" keep their long word and stay;
+    * it is another node's own name - that node already matches it, and
+      listing it under a second node only manufactures a tie ("nfl" under
+      american football);
+    * it is a name known to mean two things, or a word known not to be the
+      name (`category_collisions`) - those are decided there, never here."""
+    import category_collisions
+    import topics
+
+    words = key.split()
+    if (any(len(w) == 1 and not w.isdigit() for w in words)
+            and not any(len(w) >= 3 for w in words)):
+        return "a one-letter word with nothing longer"
+    if key != node and (tree.get(key) is not None or key in topics.FACETS):
+        return f"the node {key!r}'s own name"
+    if key in category_collisions.COLLISIONS or key in category_collisions.NOT_THE_NAME:
+        return "a name that means two things"
+    return ""
+
+
 def _built(tree) -> dict:
     import topics
 
@@ -220,7 +246,7 @@ def _built(tree) -> dict:
             continue
         for wording in (entry or {}).get("wordings", ()) or ():
             key = _norm(wording)
-            if not key or key == node:
+            if not key or key == node or refused(key, node, tree):
                 continue
             nodes, sport, kind = built.get(key, ((), False, "wording"))
             if node not in nodes:
