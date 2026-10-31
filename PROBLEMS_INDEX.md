@@ -372,3 +372,4 @@ and `limit` = Lines.
 | 25766 | 39 | 380. The owner's rule for the answer key, and a `<teaching>` label (2026-10-31) |
 | 25805 | 47 | 381. Training Nando, piece N6: a small model of his own, trusted only when its numbers say so (2026-10-31) |
 | 25852 | 12 | 382. This branch's sections renumbered §365-§381: Main had taken 354-364 (2026-10-31) |
+| 25864 | 38 | 383. Training Nando, piece N7: his training follows the tree as it grows (2026-10-31) |

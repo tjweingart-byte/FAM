@@ -77,9 +77,16 @@ def rows() -> list:
     if training.exists():
         for label in training.store().labels(limit=MAX_ROWS):
             q = " ".join((label["query"] or "").split())
+            node = label["node"]
+            if label["retired_at"]:
+                # Its node was pruned (§383): remembered under the nearest
+                # ancestor still there, or not at all - never as "none".
+                if not label["node_now"]:
+                    continue
+                node = label["node_now"]
             if label["confidence"] in REMEMBERED and q and q.lower() not in seen:
                 seen.add(q.lower())
-                out.append({"question": q, "node": label["node"], "source": "graded"})
+                out.append({"question": q, "node": node, "source": "graded"})
     for ex in category_examples.load():
         q = " ".join(ex["question"].split())
         if q and q.lower() not in seen:

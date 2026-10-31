@@ -132,6 +132,19 @@ def audit(days: int, as_json: bool) -> int:
         for pair in key["confusions"]:
             print(f"    filed {pair['filed']:24} truly {pair['truth']:24} {pair['episodes']}")
     try:
+        import category_vocabulary
+        import topics
+
+        missing = sorted(n for n in topics.category_tree().nodes()
+                         if not category_vocabulary.definition(n).get("definition"))
+        if missing:
+            print()
+            print(f"  {len(missing)} nodes have no drafted definition (§383), e.g."
+                  f" {', '.join(missing[:8])}; draft them for review with"
+                  " `AGENTS=1 CATEGORIZER=1 python tools/draft_category_vocabulary.py`")
+    except Exception:  # noqa: BLE001 - a report line, never the report
+        pass
+    try:
         from agents import memory
 
         memory.build()

@@ -25860,3 +25860,41 @@ headings, every `§` reference in code, docs and tests, and the ten test
 files named for their section - moved up by eleven, to §365-§381, by one
 script. Plain numbers that are counts ("358 words") were left alone. A
 merge with Main now meets no two sections under one number.
+
+## 383. Training Nando, piece N7: his training follows the tree as it grows (2026-10-31)
+
+**The problem.** The owner asked for training that continues as the tree
+grows. The tree mints nodes, prunes ones nobody has matched for 180 days,
+and reparents branches; every grade (§377), memory (§378), example (§379)
+and the small model (§381) names nodes, so each change can leave training
+pointing at a tree that is gone.
+
+**What changed.** A nightly look (`training.follow_tree`, Netenyahu's
+`categorizer:follow` at 02:00 Eastern, before the answer key at 03:00 and
+the model at 04:00) compares the tree with the last look:
+
+* **Pruned**: the node's grades are *retired*, not deleted
+  (every-agent.md, always 8): the grade keeps the key's node and reason,
+  and points at the nearest ancestor still in the tree - from the path
+  stored with each grade - or at nothing. Memory and the model learn it
+  under that ancestor; a grade with nothing left is not learnt at all
+  (never as "none"); retired grades are never compared with filings. If
+  the node is minted again, its grades come back.
+* **Minted**: grades filed under its parent are flagged for a fresh grade,
+  which the answer key does first the same night while the episodes'
+  scripts are still kept - so the new, more specific node gets examples.
+  A minted node with no drafted definition is listed, and
+  `tools/categories_report.py --audit` lists every node without one, with
+  the command to draft them for a person to review (definitions are never
+  written without review, §370).
+* **Moved**: stored paths under the moved branch are refreshed.
+* **Every change** is a re-file task for Consuela (`housekeeper:refile`,
+  nando.md always 9: tell Consuela when the tree changes). She is not built,
+  so the tasks wait in the queue - Netenyahu never claims a task nobody can
+  run.
+
+Memory refreshes itself every five minutes and drops nodes the tree has
+lost; the model is retrained every night on the corrected rows. The first
+look only remembers the tree. A wipe forgets the last look with the grades.
+
+Tests: `tests/test_nando_follows_the_tree_383.py`.

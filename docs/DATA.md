@@ -119,7 +119,7 @@ Render deployment; since §208 it pins every store there (21 since §211), as th
 | **moderation.db** (`MODERATION_DB`) | `moderation.py` | `reports`, `blocks`, `suspended`, `hidden_episodes` | Yes | Forever | Erased (blocks, suspension) · reports **anonymised** · kept |
 | **mixes.db** (`MIXES_DB`) | `mixes.py`, `push.py`, `daily_edition.py` | `mixes`, `push_subscriptions`, `push_sent`, `daily_editions` | Yes (mixes, push) | ≤ 30 mixes per listener | Erased · `daily_editions` **wiped** |
 | **quotas.db** (`QUOTAS_DB`) | `quotas.py` | `counters`, `charges` | Yes | 60 days | Erased · kept |
-| **agents.db** (`AGENTS_DB`, §349) | `agents/tasks.py`, `agents/training.py` | `tasks`, `holds`, `nando_labels` | No | Tasks and labels until a wipe; holds kept | A wipe empties `tasks` and `nando_labels` |
+| **agents.db** (`AGENTS_DB`, §349) | `agents/tasks.py`, `agents/training.py` | `tasks`, `holds`, `nando_labels`, `nando_tree`, `nando_model` | No | Tasks and labels until a wipe; holds kept | A wipe empties `tasks`, `nando_labels`, `nando_tree` and `nando_model` |
 | **metering.db** (`METERING_DB`) | `metering.py` | `usage`, `agent_calls` | Yes, until anonymised | Forever | **Anonymised** · **never wiped** |
 | **attachments.db** (`ATTACHMENTS_PATH`) | `attachments.py` | `attachments` | Yes | 6 hours | Erased · kept |
 | **voice_registry.db** (`VOICE_REGISTRY_DB`) | `voice_registry.py` | `workers` | No | ≤ 20 rows | n/a |
@@ -270,6 +270,11 @@ releases it. Ids and hashes only: no listener and no material. Created by
 the first task. `nando_labels` (§377): the answer key's grade of each
 written episode - its cache key, question, node, confidence, reason and the
 judge's model; never a listener id, never a private search's episode.
+Each grade also keeps the node's path when graded and, once the tree
+prunes its node, when it was retired and the nearest ancestor it points at
+(§383) - never deleted by the tree, only marked. `nando_tree`: the tree as
+the last nightly look saw it (node and parent). `nando_model` (§381): one
+row, Nando's trained classifier's weights and how it measured itself.
 
 **attachments.db**: extracted text of attached documents (≤ 24,000 chars),
 purged after 6 h. An attached episode is never cached.

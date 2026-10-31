@@ -77,6 +77,22 @@ class TrainingStore:
                 confidence TEXT NOT NULL, reason TEXT NOT NULL DEFAULT '',
                 judge_model TEXT NOT NULL DEFAULT '', at REAL NOT NULL)""")
             db.execute("CREATE INDEX IF NOT EXISTS nando_labels_at ON nando_labels(at)")
+            # §383: following the tree. The node's path when it was graded
+            # (so a pruned node's grade can point at the nearest ancestor
+            # still there), when it was retired and what it points at now,
+            # and whether a new node under it asks for a fresh grade.
+            for column, kind in (("path", "TEXT NOT NULL DEFAULT ''"),
+                                 ("retired_at", "REAL NOT NULL DEFAULT 0"),
+                                 ("node_now", "TEXT NOT NULL DEFAULT ''"),
+                                 ("regrade", "INTEGER NOT NULL DEFAULT 0")):
+                try:
+                    db.execute(f"ALTER TABLE nando_labels ADD COLUMN {column} {kind}")
+                except Exception:  # noqa: BLE001 - already there
+                    pass
+            # The tree as the last nightly look saw it (§383).
+            db.execute("""CREATE TABLE IF NOT EXISTS nando_tree (
+                node TEXT PRIMARY KEY, parent TEXT NOT NULL DEFAULT '',
+                seen_at REAL NOT NULL)""")
 
     def _connect(self) -> sqlite3.Connection:
         conn = store_db.connect(self.path, timeout=10, isolation_level=None)
@@ -84,16 +100,20 @@ class TrainingStore:
         return conn
 
     def put_label(self, key: str, query: str, node: str, confidence: str, reason: str,
-                  judge_model: str, now: float = 0.0) -> None:
+                  judge_model: str, now: float = 0.0, path: str = "") -> None:
+        """A grade, or a fresh one for the same episode: a new grade is
+        never retired and asks for no regrade."""
         with self._lock, self._connect() as db:
             db.execute("INSERT INTO nando_labels (key, query, node, confidence, reason,"
-                       " judge_model, at) VALUES (?, ?, ?, ?, ?, ?, ?)"
+                       " judge_model, at, path, retired_at, node_now, regrade)"
+                       " VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, '', 0)"
                        " ON CONFLICT(key) DO UPDATE SET query = excluded.query,"
                        " node = excluded.node, confidence = excluded.confidence,"
                        " reason = excluded.reason, judge_model = excluded.judge_model,"
-                       " at = excluded.at",
+                       " at = excluded.at, path = excluded.path, retired_at = 0,"
+                       " node_now = '', regrade = 0",
                        (key, query[:500], node[:120], confidence[:8], reason[:240],
-                        judge_model[:80], now or time.time()))
+                        judge_model[:80], now or time.time(), path[:400]))
 
     def labelled(self, keys) -> set:
         keys, found = list(keys), set()
@@ -105,19 +125,54 @@ class TrainingStore:
                     f" ({', '.join('?' for _ in chunk)})", chunk).fetchall())
         return found
 
-    def labels(self, since: float = 0.0, limit: int = 20000) -> list:
+    _COLUMNS = ("key", "query", "node", "confidence", "reason", "judge_model", "at",
+                "path", "retired_at", "node_now", "regrade")
+
+    def labels(self, since: float = 0.0, limit: int = 20000,
+               retired: bool = True) -> list:
+        """Grades since `since`, newest first. `retired=False` leaves out
+        grades whose node the tree has lost (§383)."""
+        where = "at >= ?" + ("" if retired else " AND retired_at = 0")
         with self._connect() as db:
-            rows = db.execute("SELECT key, query, node, confidence, reason, judge_model, at"
-                              " FROM nando_labels WHERE at >= ? ORDER BY at DESC LIMIT ?",
+            rows = db.execute(f"SELECT {', '.join(self._COLUMNS)} FROM nando_labels"
+                              f" WHERE {where} ORDER BY at DESC LIMIT ?",
                               (since, int(limit))).fetchall()
-        names = ("key", "query", "node", "confidence", "reason", "judge_model", "at")
-        return [dict(zip(names, r)) for r in rows]
+        return [dict(zip(self._COLUMNS, r)) for r in rows]
+
+    def to_regrade(self) -> set:
+        with self._connect() as db:
+            return {r[0] for r in db.execute(
+                "SELECT key FROM nando_labels WHERE regrade = 1").fetchall()}
+
+    def mark(self, key: str, **fields) -> None:
+        """Change a grade's tree fields only (`retired_at`, `node_now`,
+        `regrade`, `path`): its node and reason stay as the key gave them,
+        so every mark can be undone."""
+        allowed = {k: v for k, v in fields.items()
+                   if k in ("retired_at", "node_now", "regrade", "path")}
+        if not allowed:
+            return
+        with self._lock, self._connect() as db:
+            db.execute(f"UPDATE nando_labels SET {', '.join(f'{k} = ?' for k in allowed)}"
+                       " WHERE key = ?", (*allowed.values(), key))
+
+    def tree_seen(self) -> dict:
+        with self._connect() as db:
+            return dict(db.execute("SELECT node, parent FROM nando_tree").fetchall())
+
+    def see_tree(self, nodes: dict, now: float = 0.0) -> None:
+        with self._lock, self._connect() as db:
+            db.execute("DELETE FROM nando_tree")
+            db.executemany("INSERT INTO nando_tree (node, parent, seen_at) VALUES (?, ?, ?)",
+                           [(n, p, now or time.time()) for n, p in nodes.items()])
 
     def forget(self) -> int:
-        """A wipe: every label was learnt from episodes the wipe empties."""
+        """A wipe: every label was learnt from episodes the wipe empties, and
+        the tree is re-seeded, so the last look at it goes too."""
         with self._lock, self._connect() as db:
             n = db.execute("SELECT COUNT(*) FROM nando_labels").fetchone()[0]
             db.execute("DELETE FROM nando_labels")
+            db.execute("DELETE FROM nando_tree")
         return int(n)
 
 
@@ -227,6 +282,12 @@ def allowed() -> tuple:
         return False, f"{type(exc).__name__}: {exc}"
 
 
+def _path_text(node: str) -> str:
+    from agents import categorizer
+
+    return " > ".join(categorizer.path_for(node)) if node else ""
+
+
 #: Origins never labelled: nothing private reaches an agent.
 NOT_LABELLED = frozenset({"private", "archive"})
 
@@ -252,7 +313,11 @@ async def judge_batch(script_for: Callable[[str], list], limit: int = 0,
                 if r.get("key") and r.get("origin", "") not in NOT_LABELLED]
         rows = _newest_per_key(rows)
         seen = store().labelled(r["key"] for r in rows)
-        fresh = [r for r in rows if r["key"] not in seen]
+        # A new node under a grade's node asks for a fresh grade (§383),
+        # first, while the episode's script is still kept.
+        again = store().to_regrade()
+        fresh = ([r for r in rows if r["key"] in again]
+                 + [r for r in rows if r["key"] not in seen])
         listing = tree_listing()
         for row in fresh[:limit]:
             out["looked"] += 1
@@ -265,7 +330,8 @@ async def judge_batch(script_for: Callable[[str], list], limit: int = 0,
                 out["failed"] += 1
                 continue
             store().put_label(row["key"], row["query"], label["node"], label["confidence"],
-                              label["reason"], label["judge_model"])
+                              label["reason"], label["judge_model"],
+                              path=_path_text(label["node"]))
             out["labelled"] += 1
     except Exception as exc:  # noqa: BLE001
         log.exception("nando's answer-key run failed")
@@ -288,6 +354,7 @@ def register(script_for: Callable[[str], list]) -> None:
 
     from agents import nando_model
 
+    netenyahu.HANDLERS[("categorizer", "follow")] = follow_handler()
     netenyahu.HANDLERS[("categorizer", "judge")] = handler(script_for)
     netenyahu.HANDLERS[("categorizer", "train")] = nando_model.handler()
 
@@ -319,7 +386,8 @@ def compared(days: float = 30.0) -> list:
     import topics
 
     since = time.time() - days * 86400
-    labels = {l["key"]: l for l in store().labels(since=since)}
+    # A retired grade describes a tree that has gone (§383): not compared.
+    labels = {l["key"]: l for l in store().labels(since=since, retired=False)}
     out = []
     for r in _newest_per_key(row for row in topics.category_tree().audit_rows(since=since)
                              if row.get("key") in labels):
@@ -405,3 +473,96 @@ def report(days: float = 30.0, examples: int = 10) -> dict:
         }
     except Exception as exc:  # noqa: BLE001
         return {"error": f"{type(exc).__name__}: {exc}"}
+
+
+# ------------------------------------------------------------------ following the tree
+def _tree_now() -> dict:
+    import topics
+
+    return {node_id: (node.parent_id or "") for node_id, node in
+            topics.category_tree().nodes().items()}
+
+
+def _nearest_surviving(path: str, now: dict) -> str:
+    """The deepest node of a grade's old path the tree still has, or ""."""
+    import topics
+
+    for node in reversed([p.strip() for p in (path or "").split(" > ") if p.strip()]):
+        if node in now or node in topics.FACETS:
+            return node
+    return ""
+
+
+def follow_tree(now_nodes: Optional[dict] = None, at: float = 0.0) -> dict:
+    """The nightly look at the tree (§383, piece N7): what was minted,
+    pruned or moved since the last look, and what that changes for Nando's
+    training. Never deletes a grade (every-agent.md, always 8):
+
+    * a **pruned** node's grades are retired and point at the nearest
+      ancestor still there (or nothing); they come back if the node does;
+    * a **minted** node asks for a fresh grade of the episodes graded under
+      its parent, which the answer key does first while their scripts are
+      kept;
+    * every change is a re-file task for Consuela (nando.md, always 9),
+      queued until she is built;
+    * a minted node with no drafted definition is listed for a person.
+
+    The first look only remembers the tree. Never raises."""
+    out = {"minted": [], "pruned": [], "moved": [], "retired": 0, "restored": 0,
+           "regrade": 0, "consuela": 0, "undefined": []}
+    try:
+        import category_vocabulary
+
+        from agents import tasks
+
+        now = _tree_now() if now_nodes is None else dict(now_nodes)
+        seen = store().tree_seen()
+        if not seen:
+            store().see_tree(now, at)
+            out["first_look"] = True
+            return out
+        minted = sorted(set(now) - set(seen))
+        pruned = sorted(set(seen) - set(now))
+        moved = sorted(n for n in set(now) & set(seen) if now[n] != seen[n])
+        out.update(minted=minted, pruned=pruned, moved=moved)
+        parents_of_new = {now[n] for n in minted if now[n]}
+        for label in store().labels(limit=100000):
+            node, key = label["node"], label["key"]
+            if label["retired_at"] and node in now:
+                store().mark(key, retired_at=0, node_now="")        # it came back
+                out["restored"] += 1
+            elif not label["retired_at"] and node and node in pruned:
+                store().mark(key, retired_at=at or time.time(),
+                             node_now=_nearest_surviving(label["path"], now))
+                out["retired"] += 1
+            elif not label["retired_at"] and node in parents_of_new and not label["regrade"]:
+                store().mark(key, regrade=1)
+                out["regrade"] += 1
+            if moved and node in now and not label["retired_at"]:
+                path = _path_text(node)          # under a moved branch, anywhere
+                if path != label["path"]:
+                    store().mark(key, path=path)
+        for change, nodes in (("minted", minted), ("pruned", pruned), ("moved", moved)):
+            for node in nodes:
+                if tasks.store().add("housekeeper", "refile", node,
+                                     {"change": change, "node": node,
+                                      "parent": now.get(node, seen.get(node, ""))}
+                                     ) == tasks.ADDED:
+                    out["consuela"] += 1
+        out["undefined"] = [n for n in minted
+                            if not category_vocabulary.definition(n).get("definition")]
+        store().see_tree(now, at)
+    except Exception as exc:  # noqa: BLE001
+        log.exception("nando could not follow the tree")
+        out["error"] = f"{type(exc).__name__}: {exc}"
+    return out
+
+
+def follow_handler():
+    """The background task `categorizer:follow`."""
+    import asyncio
+
+    async def run(_task: str) -> None:
+        result = await asyncio.to_thread(follow_tree)
+        log.info("nando followed the tree: %s", result)
+    return run
