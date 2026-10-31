@@ -26044,3 +26044,41 @@ new test loads the tool from its file instead.
 
 Tests: `tests/test_vocabulary_cleanup_385.py`;
 `tests/test_agents_c3p0_call.py` (the whole tree after code's matches).
+
+## 386. What Phase 1 leaves for the next branch (2026-10-31)
+
+At the owner's direction, these four items of Phase 1
+(`docs/AGENTS_BUILD_PROMPT.md`, Phase 1) are the next branch's work, not
+this one's:
+
+1. **Ask the listener when a name is ambiguous** (decided item 15): an
+   ambiguous brief returns the readings before any plugin is called (`/api`
+   first, then the search and voice-search screens); the chosen reading
+   resumes the request; old clients get the likeliest reading from context;
+   tiles and editions use context, else stay unwritten. The owner's answer:
+   the transport is `/api/progress` plus a `reading=` parameter. This also
+   settles the open question from §373: today Nando's own call (`ask_tie`)
+   picks one reading of an undecided name, and the build prompt says
+   "never a guess".
+2. **Public figures only** (decided item 16, the owner's answer 4a): a name
+   unknown to Wikipedia, Wikidata or a provider's catalogue gets no episode
+   and a plain explanation, logged. C3P0 already sets `private_person`
+   (`agents/contextualizer.py`), but nothing acts on it. Needs
+   `en.wikipedia.org`, `www.wikidata.org` and `query.wikidata.org` allowed in
+   the environment's network settings.
+3. **Facts, never advice** (decided item 17): C3P0 sets `advice_request`;
+   nothing acts on it yet - the writer must be told to give the facts
+   around the request, never a recommendation.
+4. **Re-file old episodes** (decided item 20; nando.md always 10): a dry run
+   listing every category change Nando would make, for the owner's review,
+   applied only after a yes.
+
+Also left: the before-and-after measurement of the two problems Nando
+exists to fix (pictures that do not match titles, category pages with
+unrelated episodes; `tools/categories_report.py --audit`), which needs real
+episodes - staging or production with the agents on.
+
+Waiting on the owner, not on a branch: signing `nando.md` rule 12
+(`docs/agent_rule_proposals/README.md`, §380); the search-latency
+trade-off with the agents on (§384); the vocabulary draft, not recommended
+(§385).
