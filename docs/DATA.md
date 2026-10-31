@@ -145,7 +145,9 @@ Render deployment; since §208 it pins every store there (21 since §211), as th
 
 - `scripts`, one row per cache key (`pipeline.key_for` is the only key):
   `query`, `sentences`, `minutes`, `title`, `summary`, `category` (the
-  writer's `<<CATEGORY:>>`), `thread` (the `<<NEXT:>>` prediction),
+  writer's `<<CATEGORY:>>`), `category_node` (Nando's one tree node, placed at
+  the request and confirmed after the writer, read first by
+  `app._episode_category`; '' when he did not file it, §356), `thread` (the `<<NEXT:>>` prediction),
   `sources`, `bucket` and `vector` (float32 blob, the near-match index),
   `author` (the first writer's listener id, provenance only), `origin`
   (`search`, a browse surface, or `archive`), `voice`, `sourced_at`,

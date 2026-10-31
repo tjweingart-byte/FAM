@@ -7131,10 +7131,24 @@ def _episode_category(key: str) -> str:
     player's picture, the ranking and the logged tags all come through here,
     so one episode is filed under one node everywhere. The words are stored
     as the writer put them and resolved against the tree as it is now, so a
-    tree that has grown since still places an older episode. One local read;
+    tree that has grown since still places an older episode. Nando's stored
+    node outranks the words when he filed the episode (§356). Local reads;
     never a model call."""
     if not key or SCRIPT_CACHE is None:
         return ""
+    # Nando's node first (§356): one id, placed at the request and confirmed
+    # after the writer, read as stored - while the tree still holds it. A
+    # node merged away since, or an episode Nando never filed, falls back to
+    # the writer's words below, as before.
+    try:
+        node = getattr(SCRIPT_CACHE, "category_node", lambda _k: "")(key)
+    except Exception:  # noqa: BLE001
+        node = ""
+    if node:
+        import topics
+
+        if node in topics.FACETS or topics.category_tree().get(node) is not None:
+            return node
     try:
         words = getattr(SCRIPT_CACHE, "category", lambda _k: "")(key)
     except Exception:  # noqa: BLE001 - a category is never worth a failure

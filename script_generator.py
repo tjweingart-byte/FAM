@@ -649,6 +649,12 @@ class ScriptNotes:
     #: brief and the code routes once the contextualizer works on it. None
     #: otherwise. Nothing reads it yet.
     research_plan: object = None
+    #: Nando's placement at the request (`agents.categorizer.Placement`,
+    #: §356), and what he settled on after the writer
+    #: (`categorizer.settle`), for the cache and the audit. None when he did
+    #: not work on the episode.
+    category_placement: object = None
+    category_settled: object = None
     #: The episode's own title, off the model's trailing marker line. Empty
     #: when it did not write one, and every caller falls back to the question -
     #: which is what all of them showed before this existed.
@@ -2344,6 +2350,17 @@ class ScriptGenerator:
             from agents import contextualizer
 
             notes.research_plan = contextualizer.from_brief(plan.brief, plan.query)
+        # Nando's node at the request (§356): in code from the brief, before
+        # anything is researched, and on the live track at once so the
+        # player's picture is the node's from the first word. Never waits.
+        if _agent_runs(notes, "categorizer"):
+            from agents import categorizer
+
+            placed = categorizer.place(plan.brief, plan.query,
+                                       categorizer.provider_field(plan.query))
+            notes.category_placement = placed
+            if placed.node and notes.caption_key:
+                live_captions.publish_category(notes.caption_key, placed.node)
 
         # **Concurrent, and verified independent before it was made so.** Both
         # read `plan.brief` and neither reads the other's output: `live_lookup`

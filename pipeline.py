@@ -1677,6 +1677,14 @@ class PodcastPipeline:
                 import voice_bank
 
                 extra["voice"] = voice_bank.slug_of(self._audio_voice())
+            # Nando's node, confirmed after the writer (§356), only when he
+            # filed it - so a cache written before it existed is called as
+            # it always was.
+            from agents import categorizer
+
+            node = categorizer.settle(notes, plan.query)
+            if node:
+                extra["category_node"] = node
             self.cache.put(key, stats.script, ttl, plan.query, stats.thread,
                            plan.minutes, bucket, sources, self.author,
                            stats.title, **extra)
@@ -1684,7 +1692,8 @@ class PodcastPipeline:
             import category_audit
 
             category_audit.note(plan.query, getattr(notes, "category", ""),
-                                self.origin or "tap")
+                                self.origin or "tap",
+                                nando=getattr(notes, "category_settled", None))
             # Its articles, for the history archive (§308). Never awaited;
             # a private search is refused there.
             import history_archive

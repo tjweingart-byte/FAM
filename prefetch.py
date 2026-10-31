@@ -790,6 +790,13 @@ class Prefetcher:
                 if getattr(notes, name, ""):
                     stamp[name] = getattr(notes, name)
             stamp["voice"] = voice_bank.random_slug()
+            # Nando's node, confirmed after the writer (§356), only when he
+            # filed it.
+            from agents import categorizer
+
+            node = categorizer.settle(notes, candidate.query)
+            if node:
+                stamp["category_node"] = node
             self.cache.put(key, sentences, ttl,
                            candidate.query, notes.thread, candidate.minutes,
                            self._bucket(plan), **stamp)
@@ -797,7 +804,8 @@ class Prefetcher:
             import category_audit
 
             category_audit.note(candidate.query, getattr(notes, "category", ""),
-                                "prefetch")
+                                "prefetch",
+                                nando=getattr(notes, "category_settled", None))
             # Its articles, for the history archive (§308). Never awaited.
             import history_archive
 

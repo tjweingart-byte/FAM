@@ -1952,6 +1952,16 @@ disagree. After the shared preamble:
   drift.
 - **Later:** a fine-tuned classifier measured against `category_audit`.
 
+**Built in code (§356):** `agents/categorizer.py` - `place` at the request
+(the brief's category words, then its subject, then the question's phrases
+on the brief's facet, then the words by meaning, then the keyword map's
+deepest node, then the facet; a game's or market's provider field never
+left), `confirm` and `settle` after the writer on all four write paths, the
+node stored in the script cache's `category_node` and read first by
+`app._episode_category`, and both decisions in `category_audit`
+(`categories_report.py --audit`). The measurement is `tools/nando_eval.py`.
+The tie call on Haiku comes with C3P0's call (Phase 1, piece 4).
+
 ### Settings and open questions
 
 | Setting | What it is |

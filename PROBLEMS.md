@@ -24739,3 +24739,106 @@ the brief's title; only the seven plugins; no brief or a broken one never
 raises; no socket or file; kept on the episode only when C3P0 works on it;
 the empty search counted with the recall left running, as before when off;
 None before any empty search; the health block).
+
+## 356. Phase 1, piece 3: Nando in code - one node per episode, stored with it, read by the one reader (2026-10-31)
+
+Nando exists to fix two things the owner sees (`docs/FAM_AGENTS.md`,
+Nando): thumbnails that do not match the episode, and myFAM category pages
+holding episodes that do not belong. Both come from three filers that never
+consult each other (§209) and a picture chosen from words. This piece is
+Nando's code - placing, confirming, storing and reading one node - with the
+tie call on Haiku left to piece 4, where it rides beside C3P0's call. With
+`AGENTS=0` or `CATEGORIZER=0` none of it runs, nothing new is written, and
+the reader answers exactly as before.
+
+**At the request** (`agents/categorizer.place`, in `ScriptGenerator.prepare`
+when Netenyahu lets Nando work on the episode). From what the brief already
+worked out, before the question's raw words, because the brief has already
+told "Miami heat wave" from the basketball team: the brief's category words
+by the tree's phrases; its subject; the question's phrases, kept only on
+the facet the brief named (how "hurricanes hitting the Carolina coast"
+became a hockey team, §209); the brief's words by meaning
+(`category_near`, the rung built for short category words); the keyword
+map's deepest tree node; and the brief's facet - broader, never wrong
+(decided item 38). Dictionary lookups and at most one embedding of a few
+words; no file, store or network. The node goes on the live track at once,
+so the player's picture is the node's from the first word.
+
+**A provider's filing is never left** (nando.md, "never" 4). When the
+question is a live game's or market move's story in the pool, Nando places
+only inside the facets its provider filed it under, and otherwise takes the
+provider's own deepest tag. The pool is memory; Trending holds news only
+and is not read, so this adds no database read in front of the first word.
+
+**After the writer** (`confirm`, `settle`), on all four write paths - a tap,
+prefetch, the DailyFAM and Trending editions. The writer's `<<CATEGORY:>>`
+placed by phrases, then by meaning: nothing the tree knows keeps the
+request's node; the same node, or a broader one on its branch, confirms it;
+a narrower one on its branch narrows it; anything else means the episode
+turned out to be about something else, and it is re-filed - both decisions
+logged. The settled node replaces the writer's words on the live track.
+
+**Stored and read.** The script cache has a `category_node` column (memory,
+SQLite and Postgres through the same migration), written with the same
+rule as `category`: a re-write with new words and no node clears it, the
+same words keep it, an archived row keeps its own. `app._episode_category` -
+the one reader the tile, the player's picture, the category pages, the
+ranking and the logged tags already go through (§209) - reads Nando's node
+first while the tree still holds it, and otherwise the writer's words as
+before. So `thumbnails.pick*` and `/api/categories/episodes` follow Nando
+with no change of their own. The write paths pass the column only when
+Nando filed the episode, so every cache (and test double) written before it
+is called exactly as it was.
+
+**Audited.** `category_audit` gains Nando's request node and how it was
+found, and his node after the writer and how (`nando_request`,
+`nando_request_how`, `nando`, `nando_how`); `summary()` and
+`categories_report.py --audit` report how many he filed, how each was
+found, how often the writer confirmed, narrowed or re-filed, and how often
+his node differs from the writer's words - the episodes whose picture and
+category page change.
+
+**Measured, before and after.** `tools/nando_eval.py`: §346's forty
+questions were not committed, so the set is rebuilt in the same kinds and
+committed, labelled once by hand with the most specific seeded node each is
+truly about (or the closest above it where the tree has no node). Today's
+placement (`resolve_category` on the question): **11 right, 0 broader, 28
+unplaced, 1 wrong** ("high school football scores in my town" ->
+`football`) - the shape §346 found (17/1/22). **Nando's code with no brief:
+the same 11 / 0 / 28 / 1.** That is the honest finding: on the question
+alone there is nothing more for code to read, and what Nando adds is reading
+the brief's category words and subject first. That needs a brief, which
+needs a key:
+
+    python tools/nando_eval.py --with-brief
+
+(one brief per question, a few cents for the set). The thumbnails and the
+category pages are measured on a deployment with episodes, after
+`CATEGORIZER=1`:
+
+    python tools/categories_report.py --audit
+
+which this container's empty database cannot answer. The nearest-by-meaning
+rung could not be measured here either: the embedding model is not
+installed in this container (`taste_vectors._encoder()` is None).
+
+**Latency.** None off. On: a few dictionary lookups and at most one small
+embedding after the brief, before the search starts; the confirmation runs
+after the episode is written.
+
+**Guard tests that moved.** `test_nothing_on_the_listener_path_imports_the_model_layer`
+listed the files allowed to import from `agents/`; it now lists which agent
+modules each may import - the model layer still only from `/api/health`,
+and C3P0's plan and Nando's placement are checked to import no model layer.
+
+Tests: `tests/test_agents_categorizer.py` (the brief's words outrank a word
+in the question; the subject; a question phrase on another facet passed
+over; no brief places as today; a facet is broader, never wrong; nothing is
+nothing; the path from the facet; never raises; a game's provider field
+never left, even by the writer; news has no provider field; no database
+read; eight confirmation cases; settle records both and moves the picture;
+nothing when Nando did not work; stored and cleared on both cache backends;
+the reader takes the node first, falls back when the tree lost it, and reads
+an unfiled episode as before; placed and published only when Nando works;
+every write path settles and audits; the audit's numbers, None before any
+filing; the forty labels exist in the seed; Nando never wronger than today).

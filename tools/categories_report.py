@@ -111,6 +111,17 @@ def audit(days: int, as_json: bool) -> int:
     print(f"  writer's facet is one the keyword map found:"
           f" {_pct(found['writer_vs_keywords'])}"
           f" of {found['with_keywords']}")
+    nando = found.get("nando") or {}
+    if nando.get("filed"):
+        print()
+        print(f"  Nando filed {nando['filed']} (§356): at the request"
+              f" {nando['at_the_request']}; after the writer"
+              f" {nando['after_the_writer']}; re-filed {_pct(nando['refiled_rate'])};"
+              f" node differs from the writer's words on"
+              f" {nando['differs_from_writer_words']}")
+        for row in nando["refiled"]:
+            print(f"    re-filed {row['query'][:50]!r}: {row['request']} ->"
+                  f" {row['after']} (writer said {row['words']!r})")
     if found["composer_to_writer"]:
         print()
         print("  composer -> writer, where they disagree:")

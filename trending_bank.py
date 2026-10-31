@@ -879,6 +879,12 @@ def _finish(story, plan, key: str, notes, sentences: list, cache, minutes: int,
 
     extra["origin"] = origin
     extra["voice"] = voice_bank.random_slug()
+    # Nando's node, confirmed after the writer (§356), only when he filed it.
+    from agents import categorizer
+
+    node = categorizer.settle(notes, story.query)
+    if node:
+        extra["category_node"] = node
     cache.put(key, sentences, ttl, story.query, notes.thread, minutes,
               bucket_for(plan), sources, "", notes.title, **extra)
     # What each categoriser said about it (§209): the composer's category is
@@ -886,7 +892,8 @@ def _finish(story, plan, key: str, notes, sentences: list, cache, minutes: int,
     import category_audit
 
     category_audit.note(story.query, getattr(notes, "category", ""), origin,
-                        composer=getattr(story, "category", "") or "")
+                        composer=getattr(story, "category", "") or "",
+                        nando=getattr(notes, "category_settled", None))
     # Its articles, for the history archive (§308). Never awaited.
     import history_archive
 

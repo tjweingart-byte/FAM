@@ -519,12 +519,19 @@ def _finish(pending: "_Pending", sentences: list, cache, length: int,
 
     extra["origin"] = "dailyfam"
     extra["voice"] = voice_bank.random_slug()
+    # Nando's node, confirmed after the writer (§356), only when he filed it.
+    from agents import categorizer
+
+    node = categorizer.settle(notes, query)
+    if node:
+        extra["category_node"] = node
     cache.put(key, sentences, ttl, query, notes.thread, length,
               bucket_for(pending.plan), sources, "", notes.title, **extra)
     # What each categoriser said about it (§209), for the audit.
     import category_audit
 
-    category_audit.note(query, getattr(notes, "category", ""), "dailyfam")
+    category_audit.note(query, getattr(notes, "category", ""), "dailyfam",
+                        nando=getattr(notes, "category_settled", None))
     # Its articles, for the history archive (§308). Never awaited.
     import history_archive
 

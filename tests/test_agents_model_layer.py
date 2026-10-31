@@ -352,12 +352,39 @@ def test_api_health_carries_the_agents_block():
 def test_nothing_on_the_listener_path_imports_the_model_layer():
     """Phase 0 builds no agent. Until one is wired in through Netenyahu, the
     layer is reachable from the health report only."""
-    users = sorted(p.name for p in ROOT.glob("*.py")
-                   if re.search(r"^\s*(from agents|import agents)", p.read_text(encoding="utf-8"), re.M))
-    # `demo_data.py` is the wipe, emptying the agents' queue (§349);
-    # `pipeline.py` and `script_generator.py` carry Netenyahu's answer (§350),
-    # the second for episodes written ahead of the tap (§354).
-    assert set(users) <= {"app.py", "demo_data.py", "pipeline.py", "script_generator.py"}, users
+    # Which agent modules each file outside `agents/` may import. Only the
+    # health report reaches the model layer; on the listener's path an agent
+    # is code until its phase sends a call (§354-§356). `demo_data.py` is the
+    # wipe, emptying the agents' queue (§349); `pipeline.py` and
+    # `script_generator.py` carry Netenyahu's answer (§350), the second for
+    # episodes written ahead of the tap (§354); C3P0's code plan (§355) and
+    # Nando's placement (§356) are pure code, and every write path settles
+    # Nando's node (§356).
+    allowed = {
+        "app.py": {"models", "rulebooks", "netenyahu", "tasks", "roster"},
+        "demo_data.py": {"tasks"},
+        "pipeline.py": {"netenyahu", "categorizer"},
+        "script_generator.py": {"netenyahu", "contextualizer", "categorizer"},
+        "prefetch.py": {"categorizer"},
+        "daily_edition.py": {"categorizer"},
+        "trending_bank.py": {"categorizer"},
+    }
+    found = {}
+    for p in ROOT.glob("*.py"):
+        text = p.read_text(encoding="utf-8")
+        mods = set(re.findall(r"^\s*from agents import (\w+)", text, re.M))
+        mods |= set(re.findall(r"^\s*from agents\.(\w+) import", text, re.M))
+        mods |= set(re.findall(r"^\s*import agents\.(\w+)", text, re.M))
+        if re.search(r"^\s*import agents\s*$", text, re.M):
+            mods.add("*")
+        if mods:
+            found[p.name] = mods
+    assert set(found) <= set(allowed), found
+    for name, mods in found.items():
+        assert mods <= allowed[name], (name, mods)
+    for name in ("contextualizer", "categorizer"):
+        agent_src = (ROOT / "agents" / f"{name}.py").read_text(encoding="utf-8")
+        assert "agents.models" not in agent_src and "import models" not in agent_src, name
     hook = (ROOT / "pipeline.py").read_text(encoding="utf-8")
     assert set(re.findall(r"netenyahu\.(\w+)", hook)) <= {"for_episode", "OFF"}
     source = (ROOT / "app.py").read_text(encoding="utf-8")
