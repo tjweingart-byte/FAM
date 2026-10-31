@@ -279,6 +279,11 @@ def prime() -> None:
     import category_vocabulary
 
     category_vocabulary.index()
+    from agents import training
+
+    # His corrected mistakes become worked examples (§368), read in the
+    # background with the rest.
+    category_examples.add_source(training.mistakes)
     category_examples.examples()     # read once here, not on a request (§365)
     from agents import memory
 

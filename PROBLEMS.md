@@ -25735,3 +25735,69 @@ remembered, "none" among them; a lost node never recalled; nothing embedded
 on a search; recalled nodes join the list and the teaching; his own call
 embeds and may choose a remembered node; grades and examples both
 remembered).
+
+## 368. Training Nando, piece N5: his corrected mistakes become worked examples (2026-10-31)
+
+**The problem.** The worked examples (§365) are a fixed, reviewed file. The
+cases that teach the most are the ones Nando himself gets wrong, and the
+answer key (§366) now finds them every night.
+
+**What changed.** `training.mistakes()`: every graded episode Nando filed
+under a wrong node - or under nothing - that the key was sure of (`high`),
+with the key's node as the answer, newest first, one per question, at most
+200 from the last 60 days. A filing on the right branch (more or less
+specific, but true) is not a mistake. Registered at boot (`netenyahu.prime`,
+`AGENTS=1`) as a source of `category_examples`, read in its background
+thread every five minutes, never on a request. In `pick`, his own mistakes
+come first among equally relevant examples. A grade of "none" becomes a
+"none" example, still capped at two a request.
+
+`training.compared()` and `training.verdict()` are now the one place a
+filing is compared with the key; `report` (§366) and `mistakes` both read
+them.
+
+**Not measured here.** No graded episodes in this container.
+
+Tests: `tests/test_nando_mistakes_368.py` (a confident correction is a
+mistake, a branch or an exact match is not, nor is an unsure grade; filed
+nothing counts; one example per question; mistakes reach the examples and
+come first among equals; boot registers them; never raises).
+
+## 369. The owner's rule for the answer key, and a `<teaching>` label (2026-10-31)
+
+**Raised by the session, decided by the owner.** Checking the rule books
+against training (§366-§368) found two things.
+
+1. **The answer key broke a bound.** `every-agent.md`, always 3: at most one
+   call per episode plus one retry. Nando may already call once at the
+   request; the key reads the same episode again overnight. The owner chose
+   to add a rule to `nando.md` (always 12) naming the answer key, and saying
+   its grades never change an episode's category without the owner's
+   review (rule 10). A session never edits a signed book - the build fails
+   until the owner signs - so the agreed file waits in
+   `docs/agent_rule_proposals/nando.md`, with the signing commands beside
+   it. **Until it is signed, the key grades nothing**: `training.allowed()`
+   asks the lock for Nando's signed text and refuses the nightly run unless
+   it carries the rule, and says why in the log and the run's result. A
+   test holds the proposal to the signed book plus exactly that rule, and
+   asks for it to be deleted once signed.
+
+2. **Model wording travelled as evidence.** Worked examples, remembered
+   grades, corrected mistakes and code's hints reached the model in
+   `<evidence>` tags, against the spirit of every-agent.md, never 2 (never
+   pass your own wording on as evidence). The owner agreed a fifth material
+   label, `<teaching>` (`models.MATERIAL_TAGS`): the shared preamble says it
+   holds examples and past grades for learning the task and is never
+   evidence about the world (`docs/FAM_AGENTS.md`, the preamble, word for
+   word, as a test requires). Every part of `categorizer.teaching` now
+   travels as `<teaching>`; the candidate list stays `<evidence>` - it is
+   the tree, not a model's words. A forged `</teaching>` in material is
+   escaped like the other tags.
+
+Also checked and found consistent: a grade keeps a listener's question but
+never who asked, and never a private search's or attached file's episode
+(never 4); memory, mistakes and the small model make no call and add no
+category; N7 will mark grades whose node moved rather than delete them
+(always 8).
+
+Tests: `tests/test_teaching_label_369.py`.

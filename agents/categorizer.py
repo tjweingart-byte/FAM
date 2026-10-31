@@ -878,17 +878,17 @@ def teaching(query: str, candidates: tuple, inline: int = 0) -> tuple:
     out = []
     examples = category_examples.block(query, candidates)
     if examples:
-        out.append(("evidence", examples))
+        out.append(("teaching", examples))
     shown = {line.split(" -> ")[0] for line in examples.splitlines()[1:]}
     recalled = [r for r in memory.recall(query, inline=inline) if r["question"] not in shown]
     if recalled:
-        out.append(("evidence", "Past requests like this one, and the node each was "
+        out.append(("teaching", "Past requests like this one, and the node each was "
                     "truly about (graded after it was written; \"none\" means no node "
                     "fits):\n" + "\n".join(f"{r['question']} -> {r['node'] or 'none'}"
                                            for r in recalled)))
     hints = hint_block(query)
     if hints:
-        out.append(("evidence", hints))
+        out.append(("teaching", hints))
     return tuple(out)
 
 

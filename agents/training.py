@@ -202,6 +202,31 @@ def _newest_per_key(rows) -> list:
     return out
 
 
+#: The words of the owner's rule (nando.md, always 12, §369) that lets the
+#: answer key read a finished episode. Until the signed rule book Nando
+#: runs under carries them, the key grades nothing: one call per episode
+#: plus a retry is every agent's bound (every-agent.md, always 3), and only
+#: the owner's rule makes this one more.
+ANSWER_KEY_RULE = "Let your answer key"
+
+
+def allowed() -> tuple:
+    """`(ok, why)`: whether Nando's signed rule book lets the answer key
+    run. Never raises."""
+    try:
+        from agents import rulebooks
+
+        lock = rulebooks.check("nando.md")
+        if not lock.ok:
+            return False, f"nando's rule books are not signed: {lock.reason}"
+        if ANSWER_KEY_RULE not in lock.text:
+            return False, ("nando's signed rule book has no answer-key rule yet "
+                           "(nando.md, always 12, §369): nothing is graded")
+        return True, ""
+    except Exception as exc:  # noqa: BLE001
+        return False, f"{type(exc).__name__}: {exc}"
+
+
 #: Origins never labelled: nothing private reaches an agent.
 NOT_LABELLED = frozenset({"private", "archive"})
 
@@ -212,6 +237,11 @@ async def judge_batch(script_for: Callable[[str], list], limit: int = 0,
     first. `script_for(key)` returns the cached sentences (or []). Returns
     what it did. Never raises."""
     out = {"looked": 0, "labelled": 0, "skipped": 0, "failed": 0}
+    ok, why = allowed()
+    if not ok:
+        log.warning("nando's answer key did not run: %s", why)
+        out["refused"] = why
+        return out
     try:
         import category_audit  # noqa: F401 - the audit's own store
         import topics
@@ -263,45 +293,105 @@ def _rate(hits: int, of: int) -> Optional[float]:
     return round(hits / of, 3) if of else None
 
 
+def verdict(filed: str, truth: str) -> str:
+    """How a filing compares with the key: `exact`, `branch` (one is the
+    other's ancestor: true, more or less specific), `wrong`, or `nothing`
+    (nothing filed)."""
+    from agents import categorizer
+
+    if not filed:
+        return "nothing"
+    if filed == truth:
+        return "exact"
+    if truth and (truth in categorizer._branch(filed) or filed in categorizer._branch(truth)):
+        return "branch"
+    return "wrong"
+
+
+def compared(days: float = 30.0) -> list:
+    """Every graded episode beside Nando's filing, newest first: `[{"key",
+    "query", "filed", "truth", "confidence", "verdict", "at"}]`. Reads the
+    stores - background and reports only."""
+    import topics
+
+    since = time.time() - days * 86400
+    labels = {l["key"]: l for l in store().labels(since=since)}
+    out = []
+    for r in _newest_per_key(row for row in topics.category_tree().audit_rows(since=since)
+                             if row.get("key") in labels):
+        label = labels[r["key"]]
+        filed = r.get("nando") or r.get("nando_request") or ""
+        out.append({"key": r["key"], "query": r["query"], "filed": filed,
+                    "truth": label["node"], "confidence": label["confidence"],
+                    "verdict": verdict(filed, label["node"]), "at": label["at"]})
+    return out
+
+
+#: How many corrected mistakes become worked examples at most (§368), and
+#: from how far back.
+MISTAKES_KEPT = 200
+MISTAKE_DAYS = 60.0
+
+
+def mistakes(limit: int = MISTAKES_KEPT, days: float = MISTAKE_DAYS) -> list:
+    """Nando's corrected mistakes as worked examples (§368, piece N5): each
+    graded episode he filed under a wrong node - or under nothing - that the
+    key was sure about, as `{"question", "node", "source": "mistake"}`, the
+    key's node the answer. Newest first, one per question. A filing on the
+    right branch is not a mistake. Never raises; read in the background by
+    `category_examples`."""
+    try:
+        out, seen = [], set()
+        for g in compared(days):
+            if g["verdict"] not in ("wrong", "nothing") or g["confidence"] != "high":
+                continue
+            q = " ".join((g["query"] or "").split())
+            if not q or q.lower() in seen:
+                continue
+            seen.add(q.lower())
+            out.append({"question": q, "node": g["truth"], "source": "mistake"})
+            if len(out) >= limit:
+                break
+        return out
+    except Exception:  # noqa: BLE001
+        log.exception("nando's mistakes could not be read")
+        return []
+
+
 def report(days: float = 30.0, examples: int = 10) -> dict:
     """How Nando's filings agree with the answer key (§366). Agreement is
     "same node" (exact), "on one branch" (one is the other's ancestor: true
     but more or less specific), else a disagreement. A filing of nothing is
     counted apart: it is never wrong, only unhelpful. Never raises."""
     try:
-        import topics
-
         from agents import categorizer
 
-        labels = {l["key"]: l for l in store().labels(since=time.time() - days * 86400)}
-        rows = _newest_per_key(
-            r for r in topics.category_tree().audit_rows(since=time.time() - days * 86400)
-            if r.get("key") in labels)
+        graded = compared(days)
         exact = branch = wrong = nothing = 0
         by_facet: dict = {}
         confusions: dict = {}
-        for r in rows:
-            truth = labels[r["key"]]["node"]
-            filed = r.get("nando") or r.get("nando_request") or ""
+        for g in graded:
+            truth, filed, verdict = g["truth"], g["filed"], g["verdict"]
             facet = categorizer._facet(truth) if truth else "none"
             slot = by_facet.setdefault(facet, {"labelled": 0, "exact": 0, "wrong": 0})
             slot["labelled"] += 1
-            if not filed:
+            if verdict == "nothing":
                 nothing += 1
-            elif filed == truth:
+            elif verdict == "exact":
                 exact += 1
                 slot["exact"] += 1
-            elif truth and (truth in categorizer._branch(filed)
-                            or filed in categorizer._branch(truth)):
+            elif verdict == "branch":
                 branch += 1
             else:
                 wrong += 1
                 slot["wrong"] += 1
                 pair = (filed, truth or "none")
                 confusions[pair] = confusions.get(pair, 0) + 1
+        rows = graded
         filed_count = exact + branch + wrong
         return {
-            "days": days, "labels": len(labels), "compared": len(rows),
+            "days": days, "labels": len(store().labels(since=time.time() - days * 86400)),
+            "compared": len(rows),
             "exact": exact, "on_branch": branch, "wrong": wrong, "filed_nothing": nothing,
             "exact_rate": _rate(exact, filed_count), "wrong_rate": _rate(wrong, filed_count),
             "by_facet": dict(sorted(by_facet.items())),

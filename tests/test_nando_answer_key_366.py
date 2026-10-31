@@ -96,6 +96,7 @@ def test_a_failed_call_labels_nothing(tree, monkeypatch):
 
 
 def test_a_batch_grades_each_episode_once_and_never_a_private_one(tree, monkeypatch):
+    monkeypatch.setattr(training, "allowed", lambda: (True, ""))
     for key, origin in (("a", "tap"), ("b", "private"), ("c", "prefetch"), ("d", "tap")):
         category_audit.note(f"question {key}", "", origin, key=key)
     category_audit.note("old row", "", "tap")                      # no key: skipped

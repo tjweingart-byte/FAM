@@ -128,7 +128,10 @@ def pick(query: str, candidates=(), per_request: int = PER_REQUEST) -> list:
             on_list = 2 if node in cands else (1 if node and node in branch else 0)
             if not on_list and not overlap:
                 continue
-            scored.append((-(on_list * 2 + overlap), i, ex))
+            # His own corrected mistakes first among equals (§368): they
+            # are exactly where he goes wrong.
+            mistake = 1 if ex.get("source") == "mistake" else 0
+            scored.append((-(on_list * 2 + overlap + mistake), i, ex))
         scored.sort(key=lambda t: (t[0], t[1]))
         out, nones = [], 0
         for _s, _i, ex in scored:
