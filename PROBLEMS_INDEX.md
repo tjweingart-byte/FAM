@@ -360,4 +360,7 @@ and `limit` = Lines.
 | 24724 | 37 | 357. Perplexity is the primary search; Parallel the second look (2026-10-30) |
 | 24761 | 33 | 358. The archive records which search supplied each passage (2026-10-30) |
 | 24794 | 103 | 359. The whole script before the tap: the rails edition, dormant mixes, no ceilings (2026-10-31) |
-| 24897 | 31 | 360. Explore names the wait in front of a card's first word (2026-10-31) |
+| 24897 | 34 | 360. The status bar belongs to the screen, and the profile's wash reaches the top (2026-10-31) |
+| 24931 | 25 | 361. Main's Postgres job was red from §358's intake tests (2026-10-31) |
+| 24956 | 17 | 362. A §359 edition test failed by the clock, half of every day (2026-10-31) |
+| 24973 | 32 | 363. Explore names the wait in front of a card's first word (2026-10-31) |

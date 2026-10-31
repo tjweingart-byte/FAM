@@ -24894,7 +24894,83 @@ Rules: `rails-edition` (new, `product.md`), `mix-dormancy` (new,
 and `ttl-from-evidence`. Tests: `tests/test_editions_359.py`;
 `tests/test_daily_edition_143.py`'s in-progress test now pins the window.
 
-## 360. Explore names the wait in front of a card's first word (2026-10-31)
+## 360. The status bar belongs to the screen, and the profile's wash reaches the top (2026-10-31)
+
+The owner, from screenshots: on YourFAM and a friend's profile the gold
+wash started under a dark band - the status bar - and should extend to the
+top. Then, once it did: "the header should be attached to the rest of the
+app. When the main screen changes, a lot of the time the header doesn't
+change with it and it is evident."
+
+**Why.** `.statusbar` is one empty strip of the frame, above every screen.
+Colouring it per screen (the first fix, a `.frame:has(...)` rule) made it
+change colour the instant the screen became active, while Motion (§292) was
+still sliding or fading the page under it - the bar visibly detached.
+
+**What changed.**
+- Every `<section class="screen">` starts with `<div class="screen-top">`, a
+  strip `height:var(--sb-h)` with `margin-top:calc(-1 * var(--sb-h))`, so it
+  covers the frame's bar and moves with its own screen: push and pop carry
+  it with the screen; tab and step changes fade it with the content
+  (`contentOf`). Default colour `var(--bg)`, so the private-search charcoal
+  reaches the top too; Explore's is the reel's `#121016`.
+- Explore and the player clipped with `overflow:hidden`, which cut the strip
+  off; they clip with `clip-path:inset(calc(-1 * var(--sb-h)) 0 0 0)` now -
+  sides and bottom as before, top left open.
+- The profile and a friend's profile paint their strip (and the friend's
+  back-arrow bar) the wash's first colour, mixed opaque onto `--bg` because
+  the strip slides over the screen it replaces.
+- A comment in the stylesheet said `<body>`; the preview builders split the
+  document on that tag, so the published preview printed the CSS as text
+  (Main's `fam-live-artifact.html` had 3 `<style>` and 4 `</style>`). Reworded.
+
+`tests/test_screen_top.py` pins all of it, including that no screen is added
+without its strip. Checked in a browser mid-animation (push, pop, tab) at
+phone and framed widths.
+
+## 361. Main's Postgres job was red from §358's intake tests (2026-10-31)
+
+After PR #202 merged, CI's `postgres` job failed on `Main` (and on every PR
+from it) in `tests/test_intake_provider_358.py`: two tests wrote through
+`history_archive.SQLiteBackend` - which goes to Postgres when `DATABASE_URL`
+is set (§243) - then read the result back with raw `sqlite3` from a file that
+never got the table (`no such table: intake`, `assert 0 == 1`). The `test`
+job, with no `DATABASE_URL`, passed.
+
+- `test_one_article_from_two_providers_keeps_their_passages_apart` now reads
+  through the store's own connection, so it runs on both backends and is the
+  one test of the `by_provider` column under Postgres. That database is shared
+  by the whole run and not emptied between tests, so the URL is the test's
+  own and the provider counts are compared before and after, not as totals.
+- `test_an_archive_from_before_is_widened_and_its_rows_read_as_unknown` builds
+  an old SQLite file by hand - a test of the SQLite file itself - so it takes
+  `@pytest.mark.sqlite_file` and is skipped in the Postgres job, like the
+  others of its kind.
+- Main fixed the same failure while this branch was open (#204) by marking
+  both tests `sqlite_file`. The merge keeps this version: skipping both left
+  `by_provider` untested under Postgres, the backend production runs on.
+
+Reproduced and checked against a local Postgres 16: before, 2 failed; after,
+3 passed and 1 skipped, the same on repeated runs over the same database.
+
+## 362. A §359 edition test failed by the clock, half of every day (2026-10-31)
+
+`tests/test_editions_359.py::test_a_written_sports_story_is_held_until_the_next_edition`
+(from #205) failed in CI on #203 and on `Main` itself when run at 03:17 UTC.
+Not a product bug: the test's sports story was 1 hour into an 8-hour shelf
+life, so it was already on the shelf until now + 7 h. The edition holds a
+written story until the next edition plus the grace hour, and `hold_until`
+only lengthens - so whenever the next edition was under 7 hours away, the
+hold rightly changed nothing and the test's equality failed. Run with the
+clock moved to each half hour of a day, `Main`'s version failed at 24 of 48
+points (roughly 23:00-05:00 and 11:00-17:00 Eastern); #205's CI ran in a
+passing window.
+
+The story is now 7.5 hours old: its own shelf ends within half an hour and
+`until` is always at least the grace hour away, so the hold applies at any
+hour. The same sweep passes at all 48 points.
+
+## 363. Explore names the wait in front of a card's first word (2026-10-31)
 
 **The problem.** An Explore card opened, sat silent for a few seconds while
 its kept audio was asked for, downloaded and decoded, and then started with
@@ -24920,7 +24996,8 @@ fifth and give each two seconds; these hold nothing and have no minimum, so
 `latency-start-earlier` and `motion` stand. The only clock is
 `REEL_STEPS_AFTER_MS` (250 ms): a card that starts sooner never shows them,
 so a fast start does not flash three lines. A stopped card, a new card, or
-another play taking the audio clears them.
+another play taking the audio clears them; reopening Explore on a card
+still loading redraws the card and keeps its steps.
 
-**Pinned by** `tests/test_explore_loading_360.py`. Heard on no device yet:
+**Pinned by** `tests/test_explore_loading_363.py`. Heard on no device yet:
 the stages' real proportions on a phone network are unmeasured.

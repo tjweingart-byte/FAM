@@ -1,4 +1,4 @@
-"""Explore names the wait in front of a card's first word (§360, option C).
+"""Explore names the wait in front of a card's first word (§363, option C).
 
 Three steps under the title - Finding the episode, Downloading audio,
 Starting - ticked from FamAudio's own `onStage` marks as each really happens.
