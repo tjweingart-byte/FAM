@@ -2666,7 +2666,10 @@
      run of titles, the way the owner's sketch draws it, held at the top
      while its run scrolls under it. */
   /* The whole title in Search DailyFAM, wrapped rather than cut (10.5 #5). */
-  #mfsBody .sv-title, #svBody .sv-title{ white-space:normal; overflow:visible; text-overflow:clip;
+  #mfsBody .sv-title{ white-space:normal; overflow:visible; text-overflow:clip;
+    line-height:1.3; overflow-wrap:anywhere; }
+  /* And in Saved for Later. */
+  #svBody .sv-title{ white-space:normal; overflow:visible; text-overflow:clip;
     line-height:1.3; overflow-wrap:anywhere; }
   .mfs-letter{ position:sticky; top:0; z-index:1; padding:14px 18px 6px;
     background:var(--bg); color:var(--copper);
