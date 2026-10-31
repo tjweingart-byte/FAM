@@ -37,6 +37,8 @@ import logging
 import re
 from dataclasses import dataclass
 
+from pydantic import BaseModel, ConfigDict, Field
+
 log = logging.getLogger("fam.agents")
 
 
@@ -67,6 +69,7 @@ NOWHERE = Placement()
 #: failure (§209); meaning and keywords are weakest. A facet is always true.
 CONFIDENCE = {
     "edition": 0.9, "tile": 0.9, "bank": 0.9, "dailyfam": 0.9, "provider": 0.9,
+    "picked": 0.85,
     "parent": 0.7, "category": 0.8, "clash": 0.75, "entity": 0.8, "subject": 0.7,
     "wording": 0.65, "question": 0.6, "near": 0.5, "tags": 0.5, "shared": 1.0,
     "facet": 1.0,
@@ -116,7 +119,7 @@ def path_for(node: str) -> tuple:
 
 
 def place(brief, query: str = "", field: tuple = (),
-          prior: Prior = NO_PRIOR) -> Placement:
+          prior: Prior = NO_PRIOR, picked: str = "") -> Placement:
     """The node this request is truly about, in code. Never raises.
 
     `field` is the facets a live game's or market's provider filed the
@@ -125,8 +128,21 @@ def place(brief, query: str = "", field: tuple = (),
     provider's own deepest tag stands in.
 
     `prior` is what the tap already says (`prior_for`, §357): the words may
-    narrow it - a node on its branch, below it - and never move it."""
+    narrow it - a node on its branch, below it - and never move it.
+
+    `picked` is the node the brief's call chose from the candidate list
+    (C3P0's call, or Nando's tie call, §360), checked here against the tree:
+    it outranks every code step but the tap's own filing."""
     try:
+        if picked and _facet(picked) and (
+                not prior.node or picked == prior.node or prior.node in _branch(picked)):
+            import topics
+
+            if picked in topics.FACETS or topics.category_tree().get(picked) is not None:
+                placed = Placement(node=picked, path=path_for(picked), how="picked",
+                                   candidates=(picked,), confidence=CONFIDENCE["picked"])
+                placed = _within(placed, field, query) if field else placed
+                return _broader_when_unsure(placed)
         placed = _place(brief, query, _facet(prior.node) if prior.node else "")
         if prior.node:
             placed = _narrow(prior, placed)
@@ -575,4 +591,119 @@ def settle(notes, query: str = "") -> str:
         return node
     except Exception as exc:  # noqa: BLE001
         log.warning("nando could not settle %r: %s", query, exc)
+        return ""
+
+
+# ------------------------------------------------------------------ the candidate list and the tie call (§360)
+#: How many candidate nodes the brief's call is shown: enough to hold every
+#: reading and their parents, few enough to read in a glance.
+MAX_CANDIDATES = 20
+
+
+def candidates_for(query: str, context: str = "", notes=None) -> tuple:
+    """`(nodes, tie)`: the nodes the brief's call may choose from, found in
+    code before it is asked - the tap's own, every reading of a name that
+    means two things, the tree's phrases, the vocabulary's matches and the
+    keyword map's nodes, each with its parent so a broader true node is
+    always on offer - and whether the request holds a tie code could not
+    settle. The facets when nothing else is found. Memory only; never
+    raises."""
+    try:
+        import category_vocabulary
+        import stories
+        import topics
+
+        tree = topics.category_tree()
+        found: list = []
+        tie = False
+
+        def add(node: str) -> None:
+            if node and node not in found and (node in topics.FACETS
+                                               or tree.get(node) is not None):
+                found.append(node)
+
+        prior = prior_for(query, context, notes)
+        add(prior.node)
+        for _name, decided, readings in clashes(query):
+            if decided is not None:
+                add(decided.node)
+            else:
+                tie = True
+            for reading in readings:
+                add(reading.node)
+        add(stories.resolve_category(query))
+        nodes, _kind, _w = category_vocabulary.match(query)
+        tie = tie or len(nodes) > 1
+        for node in nodes:
+            add(node)
+        for tag in topics.tags_for_text(query or ""):
+            if tag not in topics.FACETS:
+                add(tag)
+        for node in list(found):
+            path = path_for(node)
+            if len(path) > 1:
+                add(path[-2])
+        if not found:
+            for facet in sorted(topics.FACETS):
+                add(facet)
+        return tuple(found[:MAX_CANDIDATES]), tie
+    except Exception as exc:  # noqa: BLE001
+        log.warning("nando could not list candidates for %r: %s", query, exc)
+        return (), False
+
+
+class TiePick(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    node: str = Field(max_length=120)
+
+
+TIE_INSTRUCTIONS = """You file one FAM request under one node of FAM's \
+category tree. You are given the request and the candidate nodes with their \
+paths. Choose the single most specific node the episode is truly about, from \
+the list only, or "none". A node matches what the episode is about, not a \
+word it contains: "hurricanes hitting the Carolina coast" is weather, not the \
+hockey team. A broader true node is better than a specific wrong one."""
+
+
+async def ask_tie(query: str, candidates: tuple, notes=None) -> str:
+    """Nando's own call, only on a tie code could not settle, run beside the
+    brief and never waited for (the owner's answer 5, §354): a node from
+    `candidates`, or "". Never raises."""
+    try:
+        from agents import models, netenyahu
+        from agents.contextualizer import candidate_block
+        from config import settings
+
+        request = models.AgentRequest(
+            agent="categorizer", task="place", switch_setting="categorizer",
+            model_setting="categorizer_model", rule_book="nando.md", schema=TiePick,
+            instructions=TIE_INSTRUCTIONS,
+            material=(("request", query),
+                      ("evidence", "Candidate nodes (id | path):\n"
+                       + candidate_block(candidates))),
+            timeout=float(settings.categorizer_timeout_seconds),
+            max_tokens=int(settings.categorizer_max_tokens), effort="low",
+            surface="search")
+        result = await models.ask(request, notes=notes)
+        netenyahu.report("categorizer", result.status)
+        if not result.ok:
+            return ""
+        node = result.value.node.strip()
+        return node if node in candidates else ""
+    except Exception as exc:  # noqa: BLE001
+        log.warning("nando's tie call failed for %r: %s", query, exc)
+        return ""
+
+
+def tie_answer(task) -> str:
+    """The tie call's node if it has already answered, else "" - and a
+    call still running is cancelled: nothing waits for it."""
+    if task is None:
+        return ""
+    if not task.done():
+        task.cancel()
+        return ""
+    try:
+        return task.result() or ""
+    except BaseException:  # noqa: BLE001 - cancelled or failed: no answer
         return ""

@@ -444,7 +444,7 @@ The guard: every sentence must carry information. Atmosphere alone is cut. The
 point should be arriving continuously, from the first line, inside the story.
 
 <!-- rule:title-from-content -->
-> **Decided, not yet built (PROBLEMS.md §340, the owner 2026-10-28):** the contextualizer agent (C3P0) will write the episode's title at the request; the script supervisor checks it against the finished script and C3P0 retitles on a mismatch. Until that is built, the rule below stands as written; when it is built, rewrite it here and in `CLAUDE.md`.
+> **Current (PROBLEMS.md §360, decided by the owner 2026-10-28, item 1):** when C3P0 works on an episode (`AGENTS=1`, `CONTEXTUALIZER=1`), **his title is the episode's title**: written in the brief's search half, which is his call (no extra call, no added wait), held in code to three to eight words with no result in it (a score or a verb saying how something ended is refused, and the brief then has none, so the player keeps its derived title), published on the live track before the first word, and never replaced by the writer's `<<TITLE:>>` (`ScriptNotes.c3p0_title`). With C3P0 off, or when his call did not answer, the writer names the episode exactly as below. What still holds whoever titles it: a listener's or bank tile's own title (`titleOverridden`) is never replaced, and a tile claims no result. Not built yet: the script supervisor (Mclovin, Phase 3) comparing the title with the finished script and C3P0 retitling on a mismatch.
 > **Current (PROBLEMS.md §189):** a *live story* tile (Trending or the pool) is not protected the way a bank tile is: once its episode is cached and current, every later listener sees the writer's title and summary on the card and in the player, and its picture, facet word and logged tags come from the writer's `<<CATEGORY:>>` line (`app._name_written_tiles`). The first listener of an unwritten story still hears it under the composer's title.
 
 **An episode is titled by what it turned out to be about.** *(§104.)* It used
@@ -507,6 +507,8 @@ candidate list. It deliberately
 does not fire on Explore or Explore New, which are already continuous.
 
 <!-- rule:one-category -->
+> **Current (PROBLEMS.md §356-§360, decided item 5):** when Nando works on an episode (`AGENTS=1`, `CATEGORIZER=1`) he files it under one node at the request and confirms it after the writer, and that node is stored with the episode (`category_node`) and read **first** by `app._episode_category`; the writer's `<<CATEGORY:>>` words below are the reader's fallback - for an episode Nando did not file, or a node the tree no longer holds. With Nando off, everything below is exactly as written.
+
 **One episode, one category, everywhere it is read.** *(PROBLEMS.md §209, at
 the owner's direction.)* An episode was categorised by three things that never
 consulted each other - the keyword map (`topics.tags_for_text`), the composer

@@ -552,6 +552,13 @@ class Settings:
         default_factory=lambda: os.environ.get("EI_MODEL") or SMALL_MODEL)
     ei_effort: str = field(
         default_factory=lambda: os.environ.get("EI_EFFORT", "medium"))
+    # **C3P0's effort ahead of the tap** (the owner, 2026-10-30, §346 and
+    # decided item 36). When the contextualizer works on a brief written
+    # before any tap - an edition, the write-ahead, prefetch - its call runs
+    # at this effort; a brief a listener waits on keeps `EI_EFFORT`. Read
+    # only by C3P0's call (§360): with the agents off nothing reads it.
+    ei_ahead_effort: str = field(
+        default_factory=lambda: os.environ.get("EI_AHEAD_EFFORT", "high"))
     # A ceiling on the brief's thinking and its JSON together; a brief that
     # hits it is cut off mid-JSON and searched as the raw query (§248). 1200
     # was sized on Sonnet 5, whose briefs ran ~400-1,200 tokens and sometimes
@@ -1996,6 +2003,11 @@ class Settings:
         not in ("0", "false", "False", ""))
     contextualizer: bool = field(
         default_factory=lambda: os.environ.get("CONTEXTUALIZER", "0")
+        not in ("0", "false", "False", ""))
+    # C3P0's title is the episode's title while he works (decided item 1,
+    # §360); 0 keeps the writer's `<<TITLE:>>` with C3P0 otherwise on.
+    contextualizer_titles: bool = field(
+        default_factory=lambda: os.environ.get("CONTEXTUALIZER_TITLES", "1")
         not in ("0", "false", "False", ""))
     categorizer: bool = field(
         default_factory=lambda: os.environ.get("CATEGORIZER", "0")

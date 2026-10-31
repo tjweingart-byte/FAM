@@ -70,7 +70,7 @@ FAM_ENVIRONMENT = (
     # Episode intelligence: whether the layer in front of retrieval runs, and
     # how. A developer with EPISODE_INTELLIGENCE=0 set must not run a suite
     # that quietly skips every EI behaviour and still reports green.
-    "EPISODE_INTELLIGENCE", "EI_MODEL", "EI_EFFORT", "EI_MAX_TOKENS",
+    "EPISODE_INTELLIGENCE", "EI_MODEL", "EI_EFFORT", "EI_AHEAD_EFFORT", "EI_MAX_TOKENS",
     "EI_TIMEOUT_SECONDS", "EI_DEFAULT_RECENCY_DAYS", "EI_AHEAD_TIMEOUT_SECONDS",
     "EI_SPLIT", "EI_EXAMPLES", "EI_OUTLINE", "EI_OUTLINE_GRACE_SECONDS",
     # §309: the quality grader. A developer with QUALITY_GRADE=all set must
@@ -239,7 +239,8 @@ FAM_ENVIRONMENT = (
     "EDITION_BATCH", "EDITION_BATCH_WAIT_SECONDS", "EDITION_BATCH_POLL_SECONDS",
     # §347: the agents. A developer who switched one on, or pointed one at
     # another model, must not run a suite whose agents are on.
-    "AGENTS", "CONTEXTUALIZER", "CATEGORIZER", "RETRIEVER", "EDITOR_AGENT",
+    "AGENTS", "CONTEXTUALIZER", "CONTEXTUALIZER_TITLES", "CATEGORIZER", "RETRIEVER",
+    "EDITOR_AGENT",
     "SUPERVISOR", "HOUSEKEEPER", "IT_AGENT",
     "OVERLORD_PLANNER_MODEL", "CONTEXTUALIZER_MODEL", "CATEGORIZER_MODEL",
     "RETRIEVER_MODEL", "EDITOR_MODEL", "EDITOR_SEARCH_MODEL", "SUPERVISOR_MODEL",

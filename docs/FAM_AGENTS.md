@@ -767,6 +767,18 @@ latency matters more here than for any other agent.
   pure code, kept on the episode's notes when C3P0 works on it; the closed
   plugin list is `agents.handoffs.PLUGINS`; the empty-search count is in
   `/api/health`'s `agents.contextualizer`.
+- **Built (§360): C3P0's call is the brief's search half** while he works -
+  `contextualizer.search_half`, through `agents.models.ask` on
+  `CONTEXTUALIZER_MODEL`, at `EI_EFFORT` on the tap and `EI_AHEAD_EFFORT`
+  ahead of it, with the brief's own ceilings; the search half's fields plus
+  the entity and its kind, `ambiguous` with readings and the likeliest, his
+  plugin choices and inputs, Sonic's request, `opinion_requested`,
+  `private_person`, `advice_request` and Nando's node from a candidate list,
+  each held in code (`checked`). A request never sent runs the brief's own
+  search half; one sent and failed is the search half failing. His plugin
+  choices are recorded and compared with the code routes
+  (`plugins_agree`/`plugins_differ`), not yet followed. His title is the
+  episode's (`CONTEXTUALIZER_TITLES`).
 
 ### Settings and open questions
 
@@ -1960,7 +1972,13 @@ left), `confirm` and `settle` after the writer on all four write paths, the
 node stored in the script cache's `category_node` and read first by
 `app._episode_category`, and both decisions in `category_audit`
 (`categories_report.py --audit`). The measurement is `tools/nando_eval.py`.
-The tie call on Haiku comes with C3P0's call (Phase 1, piece 7).
+**In the brief's call (§360):** the candidate list
+(`candidates_for`: the tap's node, every reading of a clash, phrases, the
+vocabulary, keyword nodes and their parents, the facets when nothing else)
+goes with C3P0's call, whose pick outranks every code step but the tap's
+own filing; on a tie code could not settle, Nando's own Haiku call
+(`ask_tie`) runs beside the brief and is used only when there is no pick,
+never waited for.
 **Starting from the tap (§357):** `prior_for` reads what the tap already
 says - a tile's story, a bank topic, a DailyFAM subject from the catalogue,
 the Trending edition's story, the episode a Go Deeper follows - and the

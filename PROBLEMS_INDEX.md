@@ -360,3 +360,4 @@ and `limit` = Lines.
 | 24846 | 66 | 357. Phase 1, piece 4: Nando starts from what the tap already knows, and chooses the facet first (2026-10-31) |
 | 24912 | 70 | 358. Phase 1, piece 5: names that mean two things, and broader when unsure (2026-10-31) |
 | 24982 | 92 | 359. Phase 1, piece 6: the category vocabulary - other wordings and named things, and a tool to draft them (2026-10-31) |
+| 25074 | 109 | 360. Phase 1, piece 7: C3P0 and Nando in the brief's call (2026-10-31) |

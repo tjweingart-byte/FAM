@@ -368,6 +368,8 @@ def test_nothing_on_the_listener_path_imports_the_model_layer():
         "prefetch.py": {"categorizer"},
         "daily_edition.py": {"categorizer"},
         "trending_bank.py": {"categorizer"},
+        # C3P0 rides in the brief's search half (§360).
+        "episode_intelligence.py": {"contextualizer", "categorizer"},
     }
     found = {}
     for p in ROOT.glob("*.py"):
@@ -382,9 +384,17 @@ def test_nothing_on_the_listener_path_imports_the_model_layer():
     assert set(found) <= set(allowed), found
     for name, mods in found.items():
         assert mods <= allowed[name], (name, mods)
-    for name in ("contextualizer", "categorizer"):
+    # The listener's path reaches the model layer in exactly two places:
+    # C3P0's call, which is the brief's search half, and Nando's tie call
+    # beside it (§360). Each sends one request.
+    for name, where in (("contextualizer", "async def search_half("),
+                        ("categorizer", "async def ask_tie(")):
         agent_src = (ROOT / "agents" / f"{name}.py").read_text(encoding="utf-8")
-        assert "agents.models" not in agent_src and "import models" not in agent_src, name
+        assert agent_src.count("await models.ask(") == 1, name
+        start = agent_src.index(where)
+        end = agent_src.find("\ndef ", start + 1)
+        end = len(agent_src) if end < 0 else end
+        assert "await models.ask(" in agent_src[start:end], name
     hook = (ROOT / "pipeline.py").read_text(encoding="utf-8")
     assert set(re.findall(r"netenyahu\.(\w+)", hook)) <= {"for_episode", "OFF"}
     source = (ROOT / "app.py").read_text(encoding="utf-8")

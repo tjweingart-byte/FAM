@@ -659,6 +659,13 @@ class ScriptNotes:
     #: (`categorizer.Prior`, §357) - the Trending story's category. None
     #: everywhere else, where `categorizer.prior_for` reads it from the tap.
     category_prior: object = None
+    #: Nando's tie call, running beside the brief (§360), or None. Read once
+    #: at placement and never waited for.
+    category_tie_task: object = None
+    #: C3P0's title, when he worked on the brief and it passed the code's
+    #: checks (§360): the episode's title (decided item 1), which the
+    #: writer's `<<TITLE:>>` does not replace.
+    c3p0_title: str = ""
     #: The episode's own title, off the model's trailing marker line. Empty
     #: when it did not write one, and every caller falls back to the question -
     #: which is what all of them showed before this existed.
@@ -1638,7 +1645,10 @@ class _ScriptReader:
                 out.append(line)
         if self.notes is not None:
             self.notes.thread = extract_thread(self.buffer)
-            self.notes.title = extract_title(self.buffer)
+            # C3P0's title is the episode's title when he wrote one (decided
+            # item 1, §360); the writer's names it otherwise, as before.
+            self.notes.title = (getattr(self.notes, "c3p0_title", "")
+                                or extract_title(self.buffer))
             self.notes.summary = extract_summary(self.buffer)
             self.notes.category = extract_category(self.buffer)
             self.notes.meta_openings = (tuple(self.guard.dropped)
@@ -2238,11 +2248,21 @@ class ScriptGenerator:
         if warmed is not None:
             log.info("using a brief warmed before the tap for %r", plan.query)
             _publish_title(notes, warmed)
+            _take_c3p0_title(notes, warmed)
             plan = dataclasses.replace(
                 plan, brief=episode_intelligence.place_category(warmed))
             _take_brief_names(plan)
             return plan
 
+        # Nando's tie call beside the brief (§360): only when code found a
+        # name or wording it could not settle, and never waited for.
+        if _agent_runs(notes, "categorizer"):
+            from agents import categorizer
+
+            nodes, tie = categorizer.candidates_for(plan.query, plan.context, notes)
+            if tie and nodes:
+                notes.category_tie_task = asyncio.ensure_future(
+                    categorizer.ask_tie(plan.query, nodes, notes))
         # `covered` only when there is some, so a call for anything that is
         # not a later daily edition is exactly the call it always was.
         extra = {"covered": plan.covered} if plan.covered else {}
@@ -2254,6 +2274,7 @@ class ScriptGenerator:
         brief = await episode_intelligence.understand(
             plan.query, plan.minutes, plan.context, notes, **extra)
         _publish_title(notes, brief)
+        _take_c3p0_title(notes, brief)
         # Contextualised (§311): where the request sits in the category
         # tree, in code - the category and subcategory of the search.
         plan = dataclasses.replace(
@@ -2360,9 +2381,11 @@ class ScriptGenerator:
         if _agent_runs(notes, "categorizer"):
             from agents import categorizer
 
+            picked = ((getattr(plan.brief, "contextualized", None) or {}).get("node", "")
+                      or categorizer.tie_answer(notes.category_tie_task))
             placed = categorizer.place(
                 plan.brief, plan.query, categorizer.provider_field(plan.query),
-                categorizer.prior_for(plan.query, plan.context, notes))
+                categorizer.prior_for(plan.query, plan.context, notes), picked)
             notes.category_placement = placed
             if placed.node and notes.caption_key:
                 live_captions.publish_category(notes.caption_key, placed.node)
@@ -2788,6 +2811,18 @@ async def _demo() -> None:  # pragma: no cover - manual check
 
 if __name__ == "__main__":  # pragma: no cover
     asyncio.run(_demo())
+
+
+def _take_c3p0_title(notes: "ScriptNotes | None", brief) -> None:
+    """Keep C3P0's title as the episode's (decided item 1, §360) - only
+    while he works on this episode, so a brief he warmed earlier does not
+    outlive his switch."""
+    if (notes is None or not _agent_runs(notes, "contextualizer")
+            or not settings.contextualizer_titles):
+        return
+    title = ((getattr(brief, "contextualized", None) or {}).get("title", "") or "").strip()
+    if title:
+        notes.c3p0_title = content_filter.scrub(title)
 
 
 def _publish_title(notes: "ScriptNotes | None", brief) -> None:

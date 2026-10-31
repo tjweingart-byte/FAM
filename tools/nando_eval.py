@@ -3,6 +3,8 @@
     python tools/nando_eval.py              # code only, on the seeded tree
     python tools/nando_eval.py --json
     python tools/nando_eval.py --with-brief # each question through the real brief first (needs a key)
+    AGENTS=1 CONTEXTUALIZER=1 CATEGORIZER=1 python tools/nando_eval.py --with-brief
+                                            # ... with C3P0's call choosing Nando's node (§360)
 
 §346 measured the tree's code placement on forty hand-labelled questions -
 17 right, 1 wrong, 22 unplaced - but did not commit them. This is the set
@@ -266,12 +268,20 @@ def code_places() -> dict:
 
 
 def brief_places() -> dict:
+    """Each question through the real brief - with C3P0's call carrying
+    Nando's candidates when the agents are switched on (§360) - then
+    placed as at the request."""
     import episode_intelligence
-    from agents import categorizer
+    import script_generator
+    from agents import categorizer, netenyahu
 
     def with_brief(question: str) -> str:
-        brief = asyncio.run(episode_intelligence.understand(question, 2))
-        return categorizer.place(brief, question).node
+        notes = script_generator.ScriptNotes()
+        notes.agents = netenyahu.for_episode("search")
+        brief = asyncio.run(episode_intelligence.understand(question, 2, notes=notes))
+        picked = (brief.contextualized or {}).get("node", "")
+        return categorizer.place(brief, question, prior=categorizer.prior_for(question),
+                                 picked=picked).node
 
     return {"nando, from the brief": with_brief}
 

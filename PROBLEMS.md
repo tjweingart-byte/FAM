@@ -25070,3 +25070,112 @@ what it shares, places a named thing, narrows a DailyFAM specific; the
 tool cleans wordings, drops unasked and unknown nodes, keeps entities only
 under real nodes, sends nothing when the agent is off, keeps a Wikidata id
 only for one exact label, and the dry run sends nothing).
+
+## 360. Phase 1, piece 7: C3P0 and Nando in the brief's call (2026-10-31)
+
+The decided design (§346; the owner's answers 1, 2 and 5, §354): C3P0 rides
+in the brief's existing search half, sent through the agent layer so it is
+metered and locked; Nando's node is chosen in the same call from candidates
+code built from the tree; Haiku on ties runs beside the brief. Nothing new
+in series in front of the first word. With `AGENTS=0`, or either switch off,
+the brief is byte for byte what it was.
+
+**C3P0's call** (`contextualizer.search_half`). When Netenyahu lets him work
+on the episode and the brief is split (`EI_SPLIT=1`, the default), the
+search half is not asked of EI's client: it is one `AgentRequest` - agent
+`contextualizer`, `CONTEXTUALIZER_MODEL` (Haiku 5.5), C3P0's signed rule
+book, the brief's own instructions, worked examples and the search half's
+field guide followed by C3P0's (the guide's prompt: tell same-name things
+apart and say `ambiguous` rather than guess, plugins from the closed list,
+inputs as what must be found with dates from the moment, a name as the
+provider lists it, private person, advice, opinion only when asked for by
+name, a title of three to eight words with no result) and Nando's (the most
+specific node from the list, by what it is about). The request goes in its
+`<request>` tag (the consent check applies, Anthropic covered); the moment,
+the length and Nando's candidates as `<evidence>`. Effort `EI_EFFORT`
+(medium) on the tap and the new `EI_AHEAD_EFFORT` (high, decided item 36)
+for prefetch and the editions; the brief's own time limits and call size.
+The answer's schema is the search half field for field (a test holds the
+two together) plus C3P0's and Nando's fields.
+
+**Held in code** (`contextualizer.checked`): a title, search or plugin
+input with a result - a score, or a verb saying how something ended - is
+refused (the title left empty so the player keeps its derived one; a
+plugin input replaced by the search), "who won" being a question; plugins
+only from the seven (the schema's enum); `ambiguous` only with two readings
+or more; `opinion_requested` only when the request names that person and
+asks for a view; Nando's node only from the candidates.
+
+**Failure.** A request never sent (held, off, misconfigured, unpriced,
+staging) runs the brief's own search half at once - no time was spent. One
+that was sent and failed is the search half failing, which the brief
+already survives (the understanding half stands, the gate searches the
+question). Every result goes to Netenyahu, who holds C3P0 after three
+failures in a row - after which every brief is EI's own again. This is
+where a dated served-model id would show (§353): `tools/agent_probe.py`
+answers it before C3P0 is switched on.
+
+**Kept on the brief** (`Brief.contextualized`), so a brief warmed before
+the tap carries C3P0's answer to it. `contextualizer.from_brief` now builds
+the `ResearchPlan` from it - his entity, kind, readings, plugins and Sonic's
+request - and counts whether his plugin choices match the routes code took
+(`plugins_agree` / `plugins_differ` in `/api/health`). **The pipeline does
+not follow his plugin choices yet**: which plugins run is still the brief's
+fields and the code routes. Following them is a routing change worth making
+only once those counts say how often he and the code disagree, and on what.
+
+**Nando in the same call.** `categorizer.candidates_for` lists, in memory,
+up to twenty nodes: the tap's own, every reading of a clash, the tree's
+phrase, the vocabulary's matches, the keyword map's nodes, and each one's
+parent, so a broader true node is always on offer - the facets when nothing
+else is found - with each node's drafted definition and exclusions when
+the vocabulary has them (§359). His pick (`place(..., picked=)`) outranks
+every code step but the tap's own filing, which it may only narrow. **On a
+tie code could not settle** (a clash or a wording with no deciding words),
+Nando's own call (`ask_tie`, `CATEGORIZER_MODEL`, his ceilings) starts
+beside the brief and is read at placement only if C3P0 gave no pick - and
+cancelled if it has not answered: nothing waits for it.
+
+**C3P0's title is the episode's title** (decided item 1). While he works
+(and `CONTEXTUALIZER_TITLES=1`, the guide's setting, default on), the title
+from his call is the one published before the first word and the writer's
+`<<TITLE:>>` does not replace it (`ScriptNotes.c3p0_title`). `[title-from-content]`
+and `[one-category]` are rewritten in `CLAUDE.md` and `product.md` as the
+build prompt asked - inside the core's budget (39,956 of 40,000 bytes),
+the full text in the topic file. Mclovin's comparison of the title with
+the finished script, and C3P0 retitling on a mismatch, are Phase 3.
+
+**Latency - what cannot be measured here.** No new call in series: C3P0's
+call is the search half, at its moment. But it asks for more: about 200
+more output tokens (his and Nando's fields) and a longer cached prompt (the
+rule books and his instructions). The brief takes as long as its slower
+half, so this adds time only if the search half becomes the slower one.
+There is no key in this container. Where there is one:
+
+    python tools/agent_probe.py
+    AGENTS=1 CONTEXTUALIZER=1 CATEGORIZER=1 python tools/nando_eval.py --with-brief
+
+and, on a deployment, compare `/admin`'s pipeline steps "brief: search"
+and "brief: understand" (`pipeline_errors.step`) and `/api/health`'s
+`episode_intelligence.seconds_by_path` before and after switching C3P0 on.
+The rule the owner set: the brief's time must not grow. If it does, the
+first lever is moving C3P0's and Nando's fields into the understanding
+half, or trimming his instructions - the owner's call.
+
+**Tests that moved.** The guard on what the listener's path imports now
+allows the brief to import C3P0 and Nando and pins that the model layer is
+reached in exactly two places: C3P0's search half and Nando's tie call.
+
+Tests: `tests/test_agents_c3p0_call.py` (the call carries the search half
+field for field and a sendable schema; with C3P0 working the search half is
+his call, with his rule book, model and the request in its tag; the effort
+on the tap and ahead; Nando's candidates go with it; never sent runs the
+brief's own half; sent and failed is the half failing; every result
+reported to Netenyahu; off, the brief is as before; the one-call brief
+leaves C3P0 out; results found and refused in titles, searches and inputs;
+ambiguous needs two readings; opinion only by name; the node only from the
+candidates; candidates hold every reading and parent, the facets when
+nothing; the tie call only from candidates, cancelled if late; the pick
+outranks code but not the tap; prepare files the pick, or the tie call's;
+C3P0's title kept while he works, and its switch; the plan is his and
+counts agreement with the code routes).
