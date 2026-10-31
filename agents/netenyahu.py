@@ -251,8 +251,12 @@ def refresh_held() -> Optional[dict]:
             _HELD["at"] = time.monotonic()
         return _HELD["roles"]
     with _HELD_LOCK:
-        for role in [r for r in _MADE if r in roles]:
-            del _MADE[role]                  # the store has it now
+        now = time.monotonic()
+        for role in [r for r, (_why, made) in _MADE.items()
+                     if r in roles or now - made > 2 * HELD_REFRESH_SECONDS]:
+            # The store has it now - or never will (a write that failed is
+            # logged; the owner may have released it): not sticky (§363).
+            del _MADE[role]
         for role, (reason, _made) in _MADE.items():
             roles.setdefault(role, reason)   # written yet? kept until it is
         _HELD.update(roles=roles, at=time.monotonic(), running=False)

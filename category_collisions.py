@@ -40,7 +40,7 @@ _STORM = ("storm", "storms", "landfall", "coast", "coastal", "evacuation", "evac
           "forecast", "wind", "winds", "rain", "flooding", "flood", "weather", "category 1",
           "category 2", "category 3", "category 4", "category 5", "tropical", "path")
 _SPORTS = ("game", "games", "score", "scores", "trade", "trades", "roster", "coach",
-           "playoff", "playoffs", "draft", "lineup", "beat", "lost to", "defeated",
+           "playoff", "playoffs", "draft", "beat", "lost to", "defeated",
            "standings", "fans", "stadium", "arena", "signing", "injury", "injured")
 _HOCKEY = _SPORTS + ("puck", "goalie", "goaltender", "nhl", "hockey", "power play",
                      "stanley cup", "rink")
@@ -60,11 +60,16 @@ NOT_THE_NAME: dict[str, tuple[str, ...]] = {
     "giants": ("giants causeway", "giant's causeway", "tech giants", "gentle giants"),
     "kings": ("book of kings", "kings of leon", "kings and queens", "three kings",
               "kings cross", "king's cross"),
-    "rangers": ("power rangers", "park rangers", "forest rangers", "texas rangers division"),
+    "rangers": ("power rangers", "park rangers", "forest rangers"),
     "panthers": ("black panthers", "black panther party", "pink panther"),
     "jaguars": ("jaguar land rover",),
     "heat": ("heat pump", "heat pumps", "heat map"),
 }
+
+#: Words that make a seeded team's name an everyday phrase again: the team
+#: reading must then win on its cues like any clash (§363).
+_MUSIC = ("festival", "festivals", "music", "album", "band", "concert", "concerts",
+          "brunch", "club", "musician", "musicians", "records", "saxophone", "playlist")
 
 COLLISIONS: dict[str, tuple[Reading, ...]] = {
     "heat": (
@@ -93,7 +98,7 @@ COLLISIONS: dict[str, tuple[Reading, ...]] = {
     ),
     "rangers": (
         Reading("new york rangers", _HOCKEY),
-        Reading("mlb", _BASEBALL),
+        Reading("mlb", _BASEBALL + ("texas",)),
         Reading("", ("arrest", "arrested", "suspect", "investigation", "law enforcement",
                      "trail", "park", "wildfire")),
     ),
@@ -105,12 +110,12 @@ COLLISIONS: dict[str, tuple[Reading, ...]] = {
     ),
     "panthers": (
         Reading("carolina panthers", _FOOTBALL + ("carolina",)),
-        Reading("nhl", _HOCKEY),
+        Reading("nhl", _HOCKEY + ("florida",)),
         Reading("", ("endangered", "wildlife", "species", "habitat", "big cat", "zoo")),
     ),
     "cardinals": (
         Reading("arizona cardinals", _FOOTBALL + ("arizona",)),
-        Reading("mlb", _BASEBALL),
+        Reading("mlb", _BASEBALL + ("st. louis", "st louis")),
         Reading("", ("pope", "conclave", "vatican", "church", "catholic", "bird", "birds",
                      "feeder")),
     ),
@@ -134,8 +139,8 @@ COLLISIONS: dict[str, tuple[Reading, ...]] = {
     "united": (
         Reading("airlines", ("airline", "airlines", "flight", "flights", "route", "routes",
                              "pilots", "fares", "united airlines", "boeing")),
-        Reading("premier league", _SOCCER + ("manchester", "old trafford", "man utd",
-                                             "man united")),
+        Reading("premier league", _SOCCER + ("manchester", "manchester united",
+                                             "old trafford", "man utd", "man united")),
     ),
     "apple": (
         Reading("smartphones", ("iphone", "iphones", "ios", "app store")),
@@ -169,6 +174,10 @@ COLLISIONS: dict[str, tuple[Reading, ...]] = {
         Reading("nfl", _FOOTBALL + ("chicago",)),
         Reading("stock market", ("market", "stocks", "investors", "selloff", "bull")),
         Reading("", ("grizzly", "wildlife", "hibernation", "attack", "cubs")),
+    ),
+    "jazz": (
+        Reading("utah jazz", _BASKETBALL),
+        Reading("", _MUSIC),
     ),
     "jaguars": (
         Reading("jacksonville jaguars", _FOOTBALL + ("jacksonville",)),

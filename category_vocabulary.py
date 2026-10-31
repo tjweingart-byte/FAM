@@ -166,8 +166,9 @@ def index(tree=None) -> dict:
             # A new tree object (a wipe, a reload in another module): the
             # copy we have answers while the new one is built beside it
             # (review, §361) - its nodes are checked against the tree by
-            # every reader anyway.
-            if not _CACHE["building"]:
+            # every reader anyway. At most once an interval (§363).
+            if (not _CACHE["building"]
+                    and time.monotonic() - _CACHE["checked"] >= CHECK_SECONDS / 6):
                 _CACHE["building"] = True
                 _CACHE["checked"] = time.monotonic()
                 threading.Thread(target=_refresh, args=(tree,),

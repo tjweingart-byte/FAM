@@ -151,6 +151,8 @@ def place(brief, query: str = "", field: tuple = (),
     try:
         if unsure:
             picked = ""
+        if picked and prior.source == "parent":
+            prior = NO_PRIOR             # a hint: the brief's call outranks it (§363)
         if prior.source == "parent":
             placed = _place(brief, query)
             if placed.node and placed.node not in _facets():
@@ -417,10 +419,7 @@ def clashes(text: str) -> list:
         low = " ".join((text or "").lower().split())
         out = []
         for name, readings in category_collisions.COLLISIONS.items():
-            here = low
-            for phrase in category_collisions.NOT_THE_NAME.get(name, ()):
-                here = re.sub(r"(?<![a-z0-9])" + re.escape(phrase) + r"(?![a-z0-9])",
-                              " ", here)
+            here = _without_other_names(low, name)
             if not _cue_in(name, here):
                 continue
             rest = re.sub(r"(?<![a-z0-9])" + re.escape(name) + r"(?![a-z0-9])", " ", here)
@@ -428,7 +427,7 @@ def clashes(text: str) -> list:
             # the whole text; the others without the name (review, §361).
             hits = [sum(1 for cue in r.cues
                         if _cue_in(cue, here if _cue_in(name, cue) else rest))
-                    + (3 if r.node and _cue_in(name, r.node) and _cue_in(r.node, here) else 0)
+                    + (1 if r.node and _cue_in(name, r.node) and _cue_in(r.node, here) else 0)
                     for r in readings]
             best = max(hits)
             decided = (readings[hits.index(best)]
@@ -444,19 +443,29 @@ def clashes(text: str) -> list:
         return []
 
 
-def _is_team(node: str) -> bool:
-    """A seeded team's node: a name that can be an everyday phrase too
-    ("Utah Jazz festival"), read as the team only in a sports question."""
-    import category_seed
-
-    return any(node in (getattr(category_seed, name, {}) or {})
-               for name in ("NFL_TEAMS", "NBA_TEAMS", "MLB_TEAMS", "NHL_TEAMS"))
-
-
 def _sport_context(text: str) -> bool:
     import category_vocabulary
 
     return category_vocabulary._sporty(category_vocabulary._norm(text or ""))
+
+
+def _without_other_names(low: str, only: str = "") -> str:
+    """`low` with the phrases in which a clash word is part of another name
+    taken out ("power rangers", "united states") - unless a cue that holds
+    the word itself is there ("manchester united states tour": the club).
+    For one name, or every name. Read by the clash check and, so a stripped
+    word cannot come back as a nickname, by the vocabulary step (§363)."""
+    import category_collisions
+
+    names = (only,) if only else tuple(category_collisions.NOT_THE_NAME)
+    for name in names:
+        held = any(_cue_in(cue, low) for r in category_collisions.COLLISIONS.get(name, ())
+                   for cue in r.cues if _cue_in(name, cue))
+        if held:
+            continue
+        for phrase in category_collisions.NOT_THE_NAME.get(name, ()):
+            low = re.sub(r"(?<![a-z0-9])" + re.escape(phrase) + r"(?![a-z0-9])", " ", low)
+    return low
 
 
 def _shared(nodes) -> str:
@@ -492,27 +501,29 @@ def _place(brief, query: str, prior_facet: str = "") -> Placement:
     # the readings it is not.
     named = clashes(" ".join((query or "", subject, words)))
     decided_named = [(n, d, rs) for n, d, rs, _c in named if d is not None]
-    # Two decided names that point to different fields contradict each
-    # other ("Eagles fans brave the heat wave": the Eagles and the Heat's
-    # basketball both claim "fans"), and no table order may settle it
-    # (review, §361): neither decides anything.
-    # Contradict = not on one branch: the Eagles and the NBA are both sport
-    # and still two different answers.
-    nodes = [d.node for _n, d, _rs in decided_named]
-    conflict = any(not (a == b or (a and b and (a in _branch(b) or b in _branch(a))))
-                   for i, a in enumerate(nodes) for b in nodes[i + 1:])
-    decided = [] if conflict else [d for _n, d, _rs in decided_named]
     # A losing reading on the winner's own branch (consumer hardware above
     # smartphones) is not ruled out: it is the same truth, said less exactly.
-    losing = [] if conflict else [
-        r.node for _n, d, rs in decided_named for r in rs
-        if r is not d and r.node and not (
-            d.node and (r.node in _branch(d.node) or d.node in _branch(r.node)))]
+    # Losing readings stay ruled out whatever else happens (§363).
+    losing = [r.node for _n, d, rs in decided_named for r in rs
+              if r is not d and r.node and not (
+                  d.node and (r.node in _branch(d.node) or d.node in _branch(r.node)))]
+    # Two decided names whose filed readings are not on one branch contradict
+    # each other ("Eagles fans brave the heat wave": the Eagles and the
+    # Heat's basketball both claim "fans"), and no table order settles it:
+    # the contradicting readings become a tie between themselves. A reading
+    # with no node (the bird) files nothing and contradicts nothing (§363).
+    filed = [(n, d) for n, d, _rs in decided_named if d.node]
+    conflict = any(not (a.node == b.node or a.node in _branch(b.node)
+                        or b.node in _branch(a.node))
+                   for i, (_x, a) in enumerate(filed) for _y, b in filed[i + 1:])
+    decided = [] if conflict else [d for _n, d, _rs in decided_named]
     # Only a draw between readings that each had a cue is a tie; a name with
     # no cue at all is no evidence for any reading (review, §361).
     undecided = [(n, rs) for n, d, rs, cued in named if d is None and cued]
+    if conflict:
+        undecided.append(("+".join(n for n, _d in filed), tuple(d for _n, d in filed)))
     ambiguous = tuple(n for n, d, _rs, _c in named if d is None) + (
-        tuple(n for n, _d, _rs in decided_named) if conflict else ())
+        tuple(n for n, _d in filed) if conflict else ())
     tied = [r.node for _n, rs in undecided for r in rs if r.node]
 
     def touches(node: str, nodes) -> bool:
@@ -539,7 +550,8 @@ def _place(brief, query: str, prior_facet: str = "") -> Placement:
     # name's, else the subject's. Every later step stays inside it, which is
     # where the cross-facet mistakes (the heat wave and the Heat) are stopped.
     by_words = seen(stories.resolve_category(words)) if words else ""
-    by_clash = seen(decided[0].node) if decided and decided[0].node else ""
+    with_node = [d for d in decided if d.node]
+    by_clash = seen(with_node[0].node) if with_node else ""
     by_subject = seen(stories.resolve_category(subject)) if subject else ""
     by_question = seen(stories.resolve_category(query)) if query else ""
     facet = (prior_facet or (_facet(by_words) if by_words else "")
@@ -562,7 +574,7 @@ def _place(brief, query: str, prior_facet: str = "") -> Placement:
             if node and node != by_clash and by_clash in _branch(node) and agrees(node):
                 return done(node, "clash")
         return done(by_clash, "clash")
-    if decided and not decided[0].node:
+    if decided and not with_node:
         # The words point to a reading the tree has no node for (the bird):
         # nothing is filed rather than the other reading's node.
         return done("", "clash")
@@ -570,12 +582,11 @@ def _place(brief, query: str, prior_facet: str = "") -> Placement:
     # decided name ruled out. A phrase is the tree's own word, exact (§209).
     if agrees(by_subject) and by_subject not in topics.FACETS:
         return done(by_subject, "subject")
-    if (agrees(by_question) and by_question not in topics.FACETS
-            and (facet == "sports" or not _is_team(by_question)
-                 or _sport_context(query))):
-        # A team's full name in the raw words is still read as the team only
-        # in a question about sport (review, §361: "Boston red sox the color
-        # of autumn"), as its nickname is.
+    if agrees(by_question) and by_question not in topics.FACETS:
+        # A seeded team's full name means the team (the seed leaves out the
+        # names that are everyday phrases, `LEFT_TO_GROW`); where one is
+        # still both ("Utah jazz festival") it is a clash, decided above
+        # (§363 - a gate here unplaced twenty right teams).
         return done(by_question, "question")
     # 5: the vocabulary (§359) - a named thing, or another way of saying a
     # node, in the brief's words, its subject, then the question. A wording
@@ -583,7 +594,10 @@ def _place(brief, query: str, prior_facet: str = "") -> Placement:
     import category_vocabulary
 
     for text in (words, subject, query):
-        nodes, kind, _wording = category_vocabulary.match(text, facet, tree)
+        # Without the phrases where a clash word is another name's ("power
+        # rangers"), so it cannot come back as a team's nickname (§363).
+        nodes, kind, _wording = category_vocabulary.match(
+            _without_other_names(" ".join((text or "").lower().split())), facet, tree)
         nodes = tuple(n for n in nodes if agrees(n) and (
             n in topics.FACETS or tree.get(n) is not None))
         if len(nodes) == 1:

@@ -2368,51 +2368,59 @@ class ScriptGenerator:
         if plan.search and getattr(self, "client", None) is not None:
             writer_warm.warm_if_cold(self.client, notes)
         _mark(notes, "brief_start")
-        plan = await self.understand(plan, notes)
-        # Already marked when the understanding half answered (§288); a
-        # warmed, degraded or switched-off brief is understood here.
-        _mark(notes, "brief_understood")
-        _mark(notes, "brief_ready")
-        # A brief that named no live domain still asks a provider when the
-        # question names something one covers (§265) - decided in code,
-        # spending nothing, and changing nothing but who is asked.
-        if plan.brief is not None and not getattr(plan.brief, "live_domain", "") \
-                and not getattr(notes, "prefetch", False):
-            routed = copy.copy(plan.brief)
-            live_route.apply(routed, plan.query)
-            if getattr(routed, "live_route", ""):
-                log.info("live route: %s for %r (%s)", routed.live_route,
-                         plan.query, routed.live_route_why)
-                plan = dataclasses.replace(plan, brief=routed)
-        # C3P0's plan, in code first (§355): what the brief and the code
-        # routes above already decided, as one `ResearchPlan`. Only when the
-        # contextualizer works on this episode; microseconds, no I/O.
-        if _agent_runs(notes, "contextualizer"):
-            from agents import contextualizer
+        try:
+            plan = await self.understand(plan, notes)
+            # Already marked when the understanding half answered (§288); a
+            # warmed, degraded or switched-off brief is understood here.
+            _mark(notes, "brief_understood")
+            _mark(notes, "brief_ready")
+            # A brief that named no live domain still asks a provider when the
+            # question names something one covers (§265) - decided in code,
+            # spending nothing, and changing nothing but who is asked.
+            if plan.brief is not None and not getattr(plan.brief, "live_domain", "") \
+                    and not getattr(notes, "prefetch", False):
+                routed = copy.copy(plan.brief)
+                live_route.apply(routed, plan.query)
+                if getattr(routed, "live_route", ""):
+                    log.info("live route: %s for %r (%s)", routed.live_route,
+                             plan.query, routed.live_route_why)
+                    plan = dataclasses.replace(plan, brief=routed)
+            # C3P0's plan, in code first (§355): what the brief and the code
+            # routes above already decided, as one `ResearchPlan`. Only when the
+            # contextualizer works on this episode; microseconds, no I/O.
+            if _agent_runs(notes, "contextualizer"):
+                from agents import contextualizer
 
-            notes.research_plan = contextualizer.from_brief(plan.brief, plan.query)
-        # Nando's node at the request (§356): in code from the brief, before
-        # anything is researched, and on the live track at once so the
-        # player's picture is the node's from the first word. Never waits.
-        if _agent_runs(notes, "categorizer"):
-            from agents import categorizer
+                notes.research_plan = contextualizer.from_brief(plan.brief, plan.query)
+            # Nando's node at the request (§356): in code from the brief, before
+            # anything is researched, and on the live track at once so the
+            # player's picture is the node's from the first word. Never waits.
+            if _agent_runs(notes, "categorizer"):
+                from agents import categorizer
 
-            # The tie call is read - or cancelled if still running - every
-            # time, whether or not C3P0 picked (review, §361): never left
-            # running for an answer nobody will read.
-            tie = categorizer.tie_answer(notes.category_tie_task)
-            notes.category_tie_task = None
-            said = getattr(plan.brief, "contextualized", None) or {}
-            unsure = bool(said.get("ambiguous"))
-            placed = categorizer.place(
-                plan.brief, plan.query, categorizer.provider_field(plan.query),
-                categorizer.prior_for(plan.query, plan.context, notes),
-                # C3P0's pick, unless he said the request is ambiguous; else
-                # the tie call's (review, §361).
-                ("" if unsure else said.get("node", "")) or tie)
-            notes.category_placement = placed
-            if placed.node and notes.caption_key:
-                live_captions.publish_category(notes.caption_key, placed.node)
+                # The tie call is read - or cancelled if still running - every
+                # time, whether or not C3P0 picked (review, §361): never left
+                # running for an answer nobody will read.
+                tie = categorizer.tie_answer(notes.category_tie_task)
+                notes.category_tie_task = None
+                said = getattr(plan.brief, "contextualized", None) or {}
+                unsure = bool(said.get("ambiguous"))
+                placed = categorizer.place(
+                    plan.brief, plan.query, categorizer.provider_field(plan.query),
+                    categorizer.prior_for(plan.query, plan.context, notes),
+                    # C3P0's pick, unless he said the request is ambiguous; else
+                    # the tie call's (review, §361).
+                    ("" if unsure else said.get("node", "")) or tie)
+                notes.category_placement = placed
+                if placed.node and notes.caption_key:
+                    live_captions.publish_category(notes.caption_key, placed.node)
+        except BaseException:
+            # Anything between the brief and the placement that raises takes
+            # Nando's tie call with it: never left running unread (§363).
+            task = getattr(notes, "category_tie_task", None)
+            if task is not None:
+                task.cancel()
+            raise
 
         # **Concurrent, and verified independent before it was made so.** Both
         # read `plan.brief` and neither reads the other's output: `live_lookup`

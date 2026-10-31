@@ -362,4 +362,5 @@ and `limit` = Lines.
 | 24982 | 92 | 359. Phase 1, piece 6: the category vocabulary - other wordings and named things, and a tool to draft them (2026-10-31) |
 | 25074 | 110 | 360. Phase 1, piece 7: C3P0 and Nando in the brief's call (2026-10-31) |
 | 25184 | 138 | 361. Phase 1 reviewed: the bookkeeping that was still on the listener's path, ties that were guessed, and claims that were not true (2026-10-31) |
-| 25322 | 103 | 362. Phase 1 reviewed a second time: names that were never what the table thought, and the paths the first fixes missed (2026-10-31) |
+| 25322 | 105 | 362. Phase 1 reviewed a second time: names that were never what the table thought, and the paths the first fixes missed (2026-10-31) |
+| 25427 | 87 | 363. Phase 1 reviewed a third time: the second round's fixes broke things, and a corpus that stops that happening again (2026-10-31) |

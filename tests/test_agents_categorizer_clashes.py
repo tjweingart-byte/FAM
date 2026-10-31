@@ -128,10 +128,17 @@ def test_a_draw_between_cued_readings_is_what_they_share(tree, question):
     assert placed.ambiguous
 
 
-def test_two_decided_names_that_disagree_decide_nothing(tree):
-    # "fans" and "game" claimed the Heat for the NBA beside the Eagles.
-    assert node("Eagles fans brave the heat wave at the game").node == "philadelphia eagles"
+def test_two_decided_names_that_disagree_are_a_tie_between_themselves(tree):
+    # "fans" and "game" claimed the Heat for the NBA beside the Eagles: the
+    # two decided readings tie (§363) - what they share, never the NBA.
+    placed = node("Eagles fans brave the heat wave at the game")
+    assert placed.node in ("sports", "") and set(placed.ambiguous) == {"heat", "eagles"}
     assert node("Apple shares fall as heat wave hits").node == ""
+
+
+def test_a_reading_with_no_node_contradicts_nothing(tree):
+    # The birds file nothing; the heat wave still decides the weather (§363).
+    assert node("bald eagles nest survives heat wave").node == "extreme weather"
 
 
 def test_a_word_inside_another_name_is_not_the_clash(tree):

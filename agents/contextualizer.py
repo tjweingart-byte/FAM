@@ -285,11 +285,6 @@ hockey team. A broader true node is better than a specific wrong one."""
 _MONTH = (r"jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|"
           r"aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?")
 _SCORE = re.compile(r"(?<![\w.:\-–—])(\d{1,3})\s*[-–—]\s*(\d{1,3})(?![\w%\-–—]|[.:]\d)")
-#: "Eagles 24, Giants 17" - two names, each with a number, the comma
-#: between them. Without the comma it is too like "Windows 11 Office 365"
-#: to be read as a score.
-_NAMED_SCORE = re.compile(r"\b[A-Z][\w.'&]*(?: [A-Z][\w.'&]*)* (\d{1,3}), "
-                          r"(?:[A-Z][\w.'&]*(?: [A-Z][\w.'&]*)*) (\d{1,3})\b")
 _NOT_A_SCORE_BEFORE = re.compile(
     r"\b(ages?|aged|between|from|top|week|weeks|day|days|years?|grades?|sizes?|"
     r"rooms?|chapters?|pages?|steps?|levels?|hours?|boeing|airbus|covid|" + _MONTH +
@@ -297,16 +292,24 @@ _NOT_A_SCORE_BEFORE = re.compile(
 _NOT_A_SCORE_AFTER = re.compile(
     r"^\s*(-?\s*)?(day|days|week|weeks|month|months|year|years|hour|hours|minute|"
     r"minutes|percent|per cent|%|degrees|inch|inches|mph|km|stars?|players?|"
-    r"defen[cs]e|formation|job|jobs|chance|split|attacks?|" + _MONTH + r")\b", re.I)
+    r"defen[cs]e|formation|job|jobs|chance|split|attacks?|memorial|" + _MONTH + r")\b",
+    re.I)
+#: Verbs that say how a contest ended. Not bare "lost", "lose", "swept" or
+#: "eliminated": a film, a job, a territory and a tariff have them too
+#: (§363) - only the forms that name the other side.
 _RESULT_VERB = re.compile(
     r"\b(won(?!')|wins|beat|beats|defeated|defeats|crush|crushed|crushes|rout|routed|"
-    r"routs|edged|topped|lost|loses|lose|clinched|clinches|eliminated|swept|sweeps|"
+    r"routs|edged|topped|lost to|loses to|lost by|clinched|clinches|"
     r"fell to|victory over|cruised past)\b", re.I)
-#: Words in front of a result verb that make it a question, a prospect or a
-#: streak rather than a result.
+#: Words in front of a result verb that make it a question or a prospect.
+#: Not "has" or "have": "Spain has won Euro 2024" is a result (§363).
 _ASKING = re.compile(
     r"\b(who|did|does|do|whether|if|can|could|will|would|should|might|may|to|"
-    r"chance|chances|odds|have|has|had|not)\s+(\w+\s+){0,3}$", re.I)
+    r"chance|chances|odds|how many|how often)\s+(\w+\s+){0,5}$", re.I)
+#: A streak after the verb: "have won four straight", "won 3 in a row".
+_STREAK = re.compile(
+    r"^\s*(\w+\s+)?(\d+|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)"
+    r"\s+(straight|in a row|consecutive|games|matches|of|out of)\b", re.I)
 
 
 def _is_score(text: str, m) -> bool:
@@ -321,37 +324,34 @@ def has_result(text: str) -> bool:
     text = text or ""
     if any(_is_score(text, m) for m in _SCORE.finditer(text)):
         return True
-    if _NAMED_SCORE.search(text):
-        return True
     for m in _RESULT_VERB.finditer(text):
-        if not _ASKING.search(text[:m.start()]):
+        if not _ASKING.search(text[:m.start()]) and not _STREAK.search(text[m.end():]):
             return True
     return False
 
 
 def asks_for_view(person: str, query: str) -> bool:
-    """Whether `query` names `person` and asks for that person's view: the
-    name (or its last word, "Krugman" for "Paul Krugman") right before a
-    view verb ("Krugman think") or a possessive view noun with what it is on
-    ("Krugman's take on"), or right after "the opinion of". A word inside
-    another word is not the name ("Byron" is not "Ron"), and reporting verbs
-    are not views: "Biden said GDP grew" asks for a fact (review, §361)."""
-    full = " ".join((person or "").split())
-    if not full:
+    """Whether `query` names `person` - the name C3P0 wrote, as it stands in
+    the request - and asks for that person's view: the name right before a
+    view verb ("Krugman think", "Swift say about"), a possessive view noun
+    with what it is on ("Krugman's take on"), or after "the opinion of". A
+    word inside another word is not the name ("Byron" is not "Ron"); a
+    reporting verb without "about" asks for a fact ("Biden said GDP grew");
+    "feels" is a mood (§363). Curly apostrophes count as straight ones."""
+    name = " ".join((person or "").split())
+    text = (query or "").replace("\u2019", "'").replace("\u2018", "'")
+    if not name:
         return False
-    names = [full] + ([full.split()[-1]] if len(full.split()) > 1 else [])
+    n = r"(?<![\w'])" + re.escape(name) + r"(?![\w])"
     view_verb = (r"\s+(?:\w+\s+){0,2}(?:think|thinks|thought|believe|believes|"
-                 r"argue|argues|argued|feel|feels|make of|stand on)\b")
+                 r"argue|argues|make of|stand on|"
+                 r"(?:say|says|said|saying)\s+(?:\w+\s+){0,2}about)\b")
     view_noun = (r"'s?\s+(?:view|views|opinion|opinions|take|position|stance|thoughts)"
                  r"\s+(?:on|about|of|regarding)\b")
-    before = (r"\b(?:opinion|opinions|view|views|take|position|stance|thoughts)\s+of\s+")
-    for name in names:
-        n = r"(?<![\w'])" + re.escape(name) + r"(?![\w])"
-        if (re.search(n + view_verb, query or "", re.I)
-                or re.search(n + view_noun, query or "", re.I)
-                or re.search(before + n, query or "", re.I)):
-            return True
-    return False
+    before = r"\b(?:opinion|opinions|view|views|take|position|stance|thoughts)\s+of\s+"
+    return bool(re.search(n + view_verb, text, re.I)
+                or re.search(n + view_noun, text, re.I)
+                or re.search(before + n, text, re.I))
 
 
 #: C3P0's title: three to eight words (c3p0.md, "always" 7), held in code.

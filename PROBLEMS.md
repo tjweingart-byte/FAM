@@ -25399,9 +25399,11 @@ its calls under the agent name `probe`.
 was with `CONTEXTUALIZER=0` (with C3P0 on and Nando off he still answers
 the search half); §361's tie-call line; the core's byte count.
 
-**Measured.** The forty: **20 right, 19 unplaced, 1 wrong** (today 11 / 28
-/ 1); every adversarial question both reviews found is filed true or not at
-all. The clash set 18 right, 1 narrower, 1 unplaced; taps 12 of 12.
+**Measured.** The forty: **20 right, 18 unplaced, 1 broader, 1 wrong** (today
+11 / 28 / 1; corrected - the first count here said 19 unplaced); every
+adversarial question both reviews found is filed true or not at all. The
+clash set 18 right, 1 narrower, 1 unplaced; taps 12 of 12. **Several of these
+fixes caused regressions of their own - §363.**
 
 **Open, for the owner.** Whether Nando's Haiku tie call choosing one
 reading counts as "guessing" under c3p0.md's "never guess" (it is asked to
@@ -25421,3 +25423,90 @@ unreadable answer fails once; any failure before sending falls back; a
 written tile drawn from Nando's node; a new tree built in the background;
 the probe metered) and the clash cases in
 `tests/test_agents_categorizer_clashes.py`.
+
+## 363. Phase 1 reviewed a third time: the second round's fixes broke things, and a corpus that stops that happening again (2026-10-31)
+
+A third reviewer read only §362's changes, compared every case against the
+code before them, and found that several of my fixes had caused new
+failures - some of them specific wrong nodes, the one failure Nando must
+never have:
+
+- **A word stripped as another name came back as a nickname.** §362 took
+  "power rangers", "park rangers", "black panthers" out of the clash check,
+  but not out of the vocabulary: "Power Rangers game" and "park rangers
+  rescue hikers near the stadium" went to the New York Rangers, "Black
+  Panthers history game" to the Carolina Panthers.
+- **The conflict rule dropped every guard.** Two contradicting decided names
+  were thrown out of the decided, losing and tied lists alike, so a later
+  step could take the very reading the table had ruled out ("eagles nest
+  and migration ... during heat wave temperatures" went to the Eagles); and
+  a reading with no node (the bird) counted as a contradiction.
+- **The team gate unplaced twenty right teams.** "Dallas Cowboys news", "New
+  York Yankees", "bengals", "Detroit Tigers manager fired" were all unplaced,
+  and Go Deeper parents with team titles lost their prior. The seed already
+  leaves out the team names that are everyday phrases (`LEFT_TO_GROW`).
+- **The result check's new verbs flagged ordinary sentences** ("Lost in
+  Translation review", "I lost my job", "swept away by the flood",
+  "eliminated tariffs"), and the comma score form flagged "Windows 11,
+  Office 365"; treating "has" and "have" as asking let present-perfect
+  results through ("Spain has won Euro 2024").
+- **The view check** missed curly apostrophes (iOS types them) and "what did
+  Taylor Swift say about", and took the last name alone ("Jordan thinks
+  about peace with Israel" for Michael Jordan) and "feels" as a view.
+- **Smaller:** a Go Deeper ignored the brief's pick; the tie call could still
+  leak if a step between the brief and the placement raised; holds made in
+  this process could stick in the copy for ever; a new tree object could
+  start a rebuild thread per call; cues removed in §362 had made correct
+  teams broader ("Texas Rangers score").
+
+**The real fault was the method.** Three rounds of fixes, each written
+against the cases in front of it, each moved some cases from wrong to right
+and others from right to wrong, and nothing measured both. So the first fix
+here is a **fixed adversarial corpus**, `tests/nando_corpus.py`: every
+question the three reviews used, with the nodes acceptable for it (the true
+one, a true broader one, or nothing; a specific wrong node never), the Go
+Deeper parent titles, and the result and view texts, each read the right
+way - 124 cases, run as `tests/test_nando_corpus_363.py`. Before the fixes
+below, the branch's code failed 36 of them. After: **0**.
+
+**The fixes, each checked against the whole corpus:**
+
+- Words inside another name are taken out before the vocabulary is read as
+  well as before the clash check (`_without_other_names`) - unless a cue
+  holding the word is there ("Manchester United States tour": the club).
+- Contradicting decided names become a tie between their own readings
+  (filed under what they share, or nothing), and their losing readings stay
+  ruled out; a reading with no node contradicts nothing ("bald eagles nest
+  survives heat wave" is the weather).
+- The team gate is gone. Where a seeded team's name is also an everyday
+  phrase it is a clash in the table and must win on its cues: "jazz" (the
+  Utah Jazz or the music) is added; "lineup" is no longer a sports cue; a
+  reading's own name in the text counts as one cue, not three.
+- `texas`, `florida`, `st. louis` are cues again (their third meanings
+  carry their own cues: "Texas Rangers arrest suspect" files nothing).
+- Results: no bare "lost", "lose", "swept", "eliminated" (only "lost to",
+  "loses to", "lost by"); no comma score form; "has"/"have" are results
+  unless a streak follows ("have won four straight"); "how many" asks.
+  Known misses, noted rather than chased: "Eagles win Super Bowl" (a bare
+  "win" is too common), "Eagles 24, Giants 17".
+- Views: the name as C3P0 wrote it, not its last word; curly apostrophes;
+  "say/said about"; no "feels".
+- A Go Deeper takes the brief's pick over its parent; the tie call is
+  cancelled if anything between the brief and the placement raises; an
+  unconfirmed hold is kept at most two refresh intervals; a new tree's
+  rebuild is throttled.
+
+**Measured.** The corpus 124 of 124. The forty: 20 right, 1 broader, 18
+unplaced, 1 wrong (today 11 / 28 / 1). The clash set 18 / 1 narrower / 1
+unplaced; taps 12 of 12. Every test that pinned a §362 behaviour this round
+reverses says so where it changed.
+
+**What this does not prove.** The corpus is a floor built from what three
+reviewers thought of, labelled by me; it says Nando is not wrong on those,
+not how often he is right on what listeners ask. That is piece 9's judged
+set, and production's `category_audit` once he runs.
+
+Tests: `tests/test_nando_corpus_363.py` (the 124 cases; a Go Deeper takes
+the brief's pick over its parent; an unconfirmed hold not kept for ever; a
+tie call cancelled with a prepare that raises), and the §362 tests updated
+where this round reverses them.

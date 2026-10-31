@@ -34,11 +34,12 @@ def tree():
 
 
 # ------------------------------------------------------------------ Nando
-@pytest.mark.parametrize("question", [
-    "Utah jazz festival lineup", "Boston red sox the color of autumn",
-    "Denver nuggets of wisdom for investors"])
-def test_a_teams_full_name_is_the_team_only_in_a_sports_question(tree, question):
-    assert categorizer.place(None, question).node == ""
+def test_a_team_whose_name_is_an_everyday_phrase_is_a_clash(tree):
+    # §363 reverted the team gate (it unplaced twenty right teams): a seeded
+    # full name means the team, and where one is also an everyday phrase it
+    # is in the clash table and must win on its cues.
+    assert categorizer.place(None, "Utah jazz festival lineup").node == ""
+    assert categorizer.place(None, "Dallas Cowboys news").node == "dallas cowboys"
 
 
 def test_an_unambiguous_sports_phrase_needs_no_sport_word(tree):
@@ -212,7 +213,9 @@ def test_a_store_down_since_boot_is_asked_once_an_interval(signed, monkeypatch):
 
 # ------------------------------------------------------------------ C3P0's answer
 @pytest.mark.parametrize("text, result", [
-    ("Eagles 24, Giants 17", True), ("Eagles lost on Sunday", True),
+    # §363: the comma form and a bare "lost" were dropped as too noisy
+    # ("Windows 11, Office 365", "I lost my job") - known misses.
+    ("Eagles 24, Giants 17", False), ("Eagles lost on Sunday", False),
     ("Chiefs clinched the division", True), ("October 10-11", False),
     ("Oct 10-12 schedule", False), ("top 10-15 players", False), ("9-11 attacks", False),
     ("a 50-50 chance", False), ("the 4-3 defense", False), ("Boeing 737-800", False),
@@ -229,7 +232,9 @@ def test_more_results_and_non_results(text, result):
     ("Biden", "Biden says he will veto the bill", False),
     ("Taylor Swift", "Taylor Swift's views count on YouTube", False),
     ("Krugman", "Krugman's position in the rankings", False),
-    ("Paul Krugman", "What does Krugman think", True),
+    # §363: C3P0 writes the name as the request has it; the last name alone
+    # also matched "Jordan thinks about peace with Israel" for Michael Jordan.
+    ("Paul Krugman", "What does Krugman think", False),
 ])
 def test_more_views_and_non_views(person, query, asked):
     assert contextualizer.asks_for_view(person, query) is asked
@@ -281,6 +286,7 @@ def test_a_written_tile_is_drawn_from_nandos_node(tree, monkeypatch):
 
 def test_a_new_tree_object_is_built_in_the_background(tree, monkeypatch):
     V.index(tree)
+    V._CACHE["checked"] -= V.CHECK_SECONDS          # past the throttle (§363)
     other = C.CategoryStore(str(pathlib.Path(tree.path).with_name("other.db")))
     C.apply_seed(other)
     monkeypatch.setattr(V, "_built", lambda t: (_ for _ in ()).throw(AssertionError("inline")))
