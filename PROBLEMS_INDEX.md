@@ -357,3 +357,4 @@ and `limit` = Lines.
 | 24622 | 67 | 354. Phase 1, piece 1: nothing of the agents' bookkeeping in front of the first word, and the ahead surface asked (2026-10-30) |
 | 24689 | 54 | 355. Phase 1, piece 2: C3P0's ResearchPlan in code, and what an empty search would have found in the archive (2026-10-31) |
 | 24743 | 103 | 356. Phase 1, piece 3: Nando in code - one node per episode, stored with it, read by the one reader (2026-10-31) |
+| 24846 | 66 | 357. Phase 1, piece 4: Nando starts from what the tap already knows, and chooses the facet first (2026-10-31) |

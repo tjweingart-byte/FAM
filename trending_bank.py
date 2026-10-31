@@ -842,6 +842,11 @@ async def _start(story, generator, cache, minutes: int, rewrite: bool = False):
     notes = ScriptNotes()
     # Written ahead of every tap: the brief may take its time (§268).
     notes.ahead = True
+    # What the story is already filed under, for Nando to start from (§357).
+    if getattr(story, "category", ""):
+        from agents import categorizer
+
+        notes.category_prior = categorizer.Prior(story.category, "edition")
     # And its writer is the editions' own, when one is set (§269).
     notes.edition = True
     plan = await generator.understand(plan, notes)

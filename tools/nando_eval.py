@@ -38,6 +38,7 @@ import json
 import pathlib
 import sys
 import tempfile
+import time
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
@@ -92,6 +93,31 @@ QUESTIONS = (
 )
 
 
+#: Taps that carry context (§357): (question, how it was tapped, the
+#: context, the node it is truly about). `tile` is a live story in the pool
+#: with that category; `bank` and `dailyfam` are FAM's own questions,
+#: recognised from their words; `deeper` is a Go Deeper with the title of
+#: the episode it follows. Labelled by hand, like the forty.
+DATE = "Saturday, October 31, 2026"
+CONTEXT_TAPS = (
+    ("what happened in the Eagles game", "tile", "philadelphia eagles", "philadelphia eagles"),
+    ("Heat grips Miami as records fall", "tile", "extreme weather", "extreme weather"),
+    ("United's new route to Lisbon", "tile", "airlines", "airlines"),
+    ("why the Thunder keep winning", "tile", "nba", "nba"),
+    ("Apple's quarter, explained", "tile", "smartphones", "smartphones"),
+    ("how NIL money changed college football recruiting", "bank", "", "college football"),
+    (f"The latest on NFL as of {DATE}: what happened in the last 24 hours", "dailyfam", "", "nfl"),
+    (f"The latest on Eagles (NFL) as of {DATE}. Cover only Eagles, not NFL in general",
+     "dailyfam", "", "philadelphia eagles"),
+    (f"The latest on Artificial Intelligence as of {DATE}: what happened", "dailyfam", "",
+     "artificial intelligence"),
+    (f"The latest on Cryptocurrency as of {DATE}: what happened", "dailyfam", "", "crypto"),
+    ("what about their defense", "deeper", "Philadelphia Eagles' playoff picture",
+     "philadelphia eagles"),
+    ("and what happens to prices next", "deeper", "Why the oil price jumped", "oil price"),
+)
+
+
 def seeded_tree():
     """The seeded tree in a throwaway file, as `category_tree()` serves it."""
     import categories
@@ -136,6 +162,40 @@ def run(places: dict) -> dict:
     return out
 
 
+def run_context() -> dict:
+    """Today against Nando on `CONTEXT_TAPS`. A `tile` tap puts its story in
+    the pool for the run, as the sweep would have."""
+    import stories
+    from agents import categorizer
+
+    tree = seeded_tree()
+    out = {"today (resolve_category)": [], "nando, from the tap": []}
+    for question, how, context, label in CONTEXT_TAPS:
+        added = None
+        if how == "tile":
+            added = stories.Story(subject=question, title=question, angle="",
+                                  query=question, category=context,
+                                  first_seen=time.time(), last_seen=time.time())
+            stories.pool().stories.append(added)
+        try:
+            today = stories.resolve_category(question)
+            prior = categorizer.prior_for(question, context if how == "deeper" else "")
+            nando = categorizer.place(None, question, prior=prior).node
+        finally:
+            if added is not None:
+                stories.pool().stories.remove(added)
+        for name, node in (("today (resolve_category)", today), ("nando, from the tap", nando)):
+            out[name].append({"question": question, "tap": how, "label": label,
+                              "placed": node, "verdict": score(tree, label, node or "")})
+    result = {}
+    for name, rows in out.items():
+        totals = {"right": 0, "broader": 0, "unplaced": 0, "wrong": 0}
+        for r in rows:
+            totals[r["verdict"]] += 1
+        result[name] = {"totals": totals, "rows": rows}
+    return result
+
+
 def code_places() -> dict:
     import stories
     from agents import categorizer
@@ -172,8 +232,9 @@ def main() -> int:
             return 2
         places.update(brief_places())
     result = run(places)
+    context = run_context()
     if args.json:
-        print(json.dumps(result, indent=2))
+        print(json.dumps({"questions": result, "taps": context}, indent=2))
         return 0
     for name, found in result.items():
         t = found["totals"]
@@ -183,6 +244,17 @@ def main() -> int:
         wrong = [r for r in found["rows"] if r["verdict"] == "wrong"]
         for r in wrong:
             print(f"  wrong, {name}: {r['question']!r} -> {r['placed']} (is {r['label']})")
+    print()
+    print(f"Taps that carry context ({len(CONTEXT_TAPS)}):")
+    for name, found in context.items():
+        t = found["totals"]
+        print(f"{name:<28} right {t['right']:>2}  broader {t['broader']:>2}  "
+              f"unplaced {t['unplaced']:>2}  wrong {t['wrong']:>2}")
+    for name, found in context.items():
+        for r in found["rows"]:
+            if r["verdict"] != "right":
+                print(f"  {r['verdict']}, {name}: [{r['tap']}] {r['question'][:50]!r}"
+                      f" -> {r['placed'] or '-'} (is {r['label']})")
     return 0
 
 

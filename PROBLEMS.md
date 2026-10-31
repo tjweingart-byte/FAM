@@ -24842,3 +24842,69 @@ the reader takes the node first, falls back when the tree lost it, and reads
 an unfiled episode as before; placed and published only when Nando works;
 every write path settles and audits; the audit's numbers, None before any
 filing; the forty labels exist in the seed; Nando never wronger than today).
+
+## 357. Phase 1, piece 4: Nando starts from what the tap already knows, and chooses the facet first (2026-10-31)
+
+Piece 3 measured what it should have: on a typed question alone, Nando's
+code places what today's code places (11 right, 28 unplaced of 40). The
+owner asked for ways to make categorisation actually work - "arguably our
+most important one", because the node decides what both packets look for
+and which picture shows - and approved a rewritten plan in which Nando is
+six pieces (4-9 and 12-14 of the new list). This is the first: most taps
+are not typed at all, and each already says what it is about.
+
+**`categorizer.prior_for(query, context, notes)`**, memory reads only, in
+order:
+
+1. an edition writer's own - the Trending edition hands Nando its story's
+   category before the brief (`notes.category_prior`, source `edition`);
+2. a tile - the live story, or Trending story, whose question this is: its
+   category, else its deepest tree tag (`tile`); the same lookup
+   `stories.context_for` already makes on a tap;
+3. a bank topic with this question: its deepest tree tag (`bank`);
+4. a DailyFAM prompt, whose shape is FAM's own (`mixes.daily_prompt`,
+   "The latest on Eagles (NFL) as of ..."): the followed subject from the
+   interest catalogue, and the narrowed specific within it when the tree
+   places it on that branch (`dailyfam`);
+5. a Go Deeper: the episode it follows, by the title the client already
+   sends as `context` (`parent`).
+
+**The words may narrow, never move.** `place(..., prior=)` keeps the
+question's node only when it is the prior's or below it on its branch;
+anything else is the prior. A tile filed under extreme weather stays
+there however much the brief says "Miami Heat".
+
+**Facet first.** Every placement now decides its facet before anything
+else - the tap's, else the brief's category words', else the subject's -
+and every later step (the brief's words included) stays inside it. That is
+where the cross-facet mistakes are stopped.
+
+**Measured.** `tools/nando_eval.py` gains twelve taps that carry context -
+five tiles, a bank topic, four DailyFAM subjects, two Go Deepers - labelled
+by hand like the forty. Today: **3 right, 1 broader, 8 unplaced, 0 wrong.
+Nando from the tap: 11 right, 1 broader, 0 unplaced, 0 wrong.** Read it for
+what it is. The tiles are right because the tile's category is the label I
+gave it: that measures that the episode now keeps the tile's filing, which
+it did not (the episode was filed by the writer's words alone, so a tile
+and its episode could disagree - the owner's thumbnail complaint), not that
+the composer's category is right. The one broader is "Eagles" inside NFL:
+the tree's phrase is "philadelphia eagles", which piece 6's other wordings
+are for. The forty typed questions are unchanged (11/0/28/1), as they must
+be: a typed search carries no context.
+
+Not done here: a Go Deeper carries its parent's *title*; sending the parent
+episode's id (`X-FAM-Episode`, §173) would let Nando read the parent's
+stored node exactly. That is a client change, left for the ambiguity
+piece's screen work.
+
+**Latency.** None off. On: scans of the pool, the bank (28 topics) and the
+interest catalogue (73) in memory, after the brief; Trending's edition is
+read as `stories.context_for` already reads it on every tap.
+
+Tests: `tests/test_agents_categorizer_prior.py` (a tile's category, or its
+deepest tag; a Trending story as a tile; a bank topic; a DailyFAM subject,
+narrowed only within it; a Go Deeper's parent; an edition writer's own
+first; a typed search has none; never raises; the words narrow on the
+branch and never move off it; a prior with no words is the node; the facet
+first; `prepare` places from the tap; the Trending edition hands over its
+story's category; taps place better than today and never wrong).

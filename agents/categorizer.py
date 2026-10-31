@@ -34,6 +34,7 @@ what `category_audit` logs.
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass
 
 log = logging.getLogger("fam.agents")
@@ -54,6 +55,24 @@ class Placement:
 NOWHERE = Placement()
 
 
+@dataclass(frozen=True)
+class Prior:
+    """What the tap already says the episode is about, before any words are
+    read (§357): its node and where that came from."""
+
+    node: str = ""
+    #: tile, bank, dailyfam, edition, parent
+    source: str = ""
+
+
+NO_PRIOR = Prior()
+
+#: A DailyFAM prompt (`mixes.daily_prompt`): "The latest on Eagles (NFL) as
+#: of ..." for a narrowed subject, "The latest on NFL as of ..." for a whole
+#: one. Built by FAM, never typed by a listener, so its shape is ours.
+_DAILY = re.compile(r"^The latest on (?P<shown>.+?)(?: \((?P<label>[^()]+)\))? as of ")
+
+
 def path_for(node: str) -> tuple:
     """The facet, then each node down to `node` (as `Brief.category_path`)."""
     if not node:
@@ -72,15 +91,21 @@ def path_for(node: str) -> tuple:
         return (node,)
 
 
-def place(brief, query: str = "", field: tuple = ()) -> Placement:
+def place(brief, query: str = "", field: tuple = (),
+          prior: Prior = NO_PRIOR) -> Placement:
     """The node this request is truly about, in code. Never raises.
 
     `field` is the facets a live game's or market's provider filed the
     story under (`provider_field`): Nando never files it anywhere else
     (nando.md, "never" 4) - a node outside them is passed over, and the
-    provider's own deepest tag stands in."""
+    provider's own deepest tag stands in.
+
+    `prior` is what the tap already says (`prior_for`, §357): the words may
+    narrow it - a node on its branch, below it - and never move it."""
     try:
-        placed = _place(brief, query)
+        placed = _place(brief, query, _facet(prior.node) if prior.node else "")
+        if prior.node:
+            placed = _narrow(prior, placed)
         return _within(placed, field, query) if field else placed
     except Exception as exc:  # noqa: BLE001 - a category never costs an episode
         log.warning("nando could not place %r: %s", query, exc)
@@ -145,7 +170,122 @@ def provider_field(query: str) -> tuple:
     return tuple(sorted({t for t in provider_tags(query) if t in topics.FACETS}))
 
 
-def _place(brief, query: str) -> Placement:
+def _narrow(prior: Prior, placed: Placement) -> Placement:
+    """The words' node when it sits on the prior's branch at or below it,
+    else the prior's node."""
+    candidates = tuple(dict.fromkeys((prior.node,) + placed.candidates))
+    if placed.node and (placed.node == prior.node or prior.node in _branch(placed.node)):
+        return Placement(node=placed.node, path=placed.path,
+                         how=placed.how if placed.node != prior.node else prior.source,
+                         candidates=candidates)
+    return Placement(node=prior.node, path=path_for(prior.node), how=prior.source,
+                     candidates=candidates)
+
+
+def _interest_node(interest) -> str:
+    """The tree node a catalogue interest is: its label or id when the tree
+    holds one, else the deepest tree node among its tags, else its facet."""
+    import stories
+    import topics
+
+    tree = topics.category_tree()
+    for text in (getattr(interest, "label", ""), getattr(interest, "id", "")):
+        node = stories.resolve_category(text) if text else ""
+        if node:
+            return node
+    tags = [t for t in getattr(interest, "tags", ()) if tree.get(t) is not None]
+    tags.sort(key=lambda n: (-tree.depth_of(n), n))
+    if tags:
+        return tags[0]
+    return next((t for t in getattr(interest, "tags", ()) if t in topics.FACETS), "")
+
+
+def _deepest_tag(tags) -> str:
+    import topics
+
+    tree = topics.category_tree()
+    nodes = [t for t in tags if t not in topics.FACETS and tree.get(t) is not None]
+    nodes.sort(key=lambda n: (-tree.depth_of(n), n))
+    if nodes:
+        return nodes[0]
+    return next((t for t in tags if t in topics.FACETS), "")
+
+
+def prior_for(query: str, context: str = "", notes=None) -> Prior:
+    """What the tap already says the episode is about (§357), or `NO_PRIOR`.
+    Memory reads only - the pool, the bank, the catalogue and, as
+    `stories.context_for` already does on a tap, the Trending edition.
+    Never raises. In order:
+
+    1. an edition writer's own (`notes.category_prior`: the Trending story's
+       category, which the writer knew before anything was asked);
+    2. a tile: the live story or Trending story whose question this is;
+    3. a bank topic with this question: its deepest tree tag;
+    4. a DailyFAM prompt: the followed subject from the catalogue, and the
+       narrowed specific within it when the tree places it there;
+    5. a Go Deeper: the episode it follows, by the title it carried.
+    """
+    try:
+        return _prior_for(query, context, notes)
+    except Exception as exc:  # noqa: BLE001
+        log.warning("nando could not read the tap's context for %r: %s", query, exc)
+        return NO_PRIOR
+
+
+def _resolved(text: str) -> str:
+    import stories
+
+    return stories.resolve_category(text) if text else ""
+
+
+def _prior_for(query: str, context: str, notes) -> Prior:
+    import stories
+    import topics
+
+    given = getattr(notes, "category_prior", None)
+    if isinstance(given, Prior) and given.node:
+        return given
+    want = " ".join((query or "").split())
+    if not want:
+        return NO_PRIOR
+    held = list(stories.pool().held())
+    try:
+        import trending_bank
+
+        held += list(trending_bank.stories_now())
+    except Exception:  # noqa: BLE001
+        pass
+    for story in held:
+        if " ".join((getattr(story, "query", "") or "").split()) == want:
+            node = _resolved(getattr(story, "category", "") or "") \
+                or _deepest_tag(getattr(story, "tags", ()) or ())
+            if node:
+                return Prior(node, "tile")
+    for topic in topics.TOPIC_BANK:
+        if " ".join(topic.query.split()) == want:
+            node = _resolved(getattr(topic, "category", "") or "") or _deepest_tag(topic.tags)
+            if node:
+                return Prior(node, "bank")
+    daily = _DAILY.match(want)
+    if daily:
+        label = (daily.group("label") or daily.group("shown") or "").strip()
+        interest = next((i for i in topics.INTEREST_CATALOGUE
+                         if i.label.lower() == label.lower()), None)
+        if interest is not None:
+            node = _interest_node(interest)
+            shown = (daily.group("shown") or "").strip() if daily.group("label") else ""
+            narrowed = _resolved(shown)
+            if narrowed and node and (narrowed == node or node in _branch(narrowed)):
+                node = narrowed
+            if node:
+                return Prior(node, "dailyfam")
+    parent = _resolved(" ".join((context or "").split()))
+    if parent:
+        return Prior(parent, "parent")
+    return NO_PRIOR
+
+
+def _place(brief, query: str, prior_facet: str = "") -> Placement:
     import stories
     import topics
 
@@ -163,17 +303,21 @@ def _place(brief, query: str) -> Placement:
         return Placement(node=node, path=path_for(node), how=how,
                          candidates=tuple(found))
 
+    # Facet first (§357): the tap's, else the brief's words', else the
+    # subject's. Every later step stays inside it, which is where the
+    # cross-facet mistakes (the heat wave and the Heat) are stopped.
     by_words = seen(stories.resolve_category(words)) if words else ""
-    facet = stories.facet_for(by_words) if by_words else ""
     by_subject = seen(stories.resolve_category(subject)) if subject else ""
     by_question = seen(stories.resolve_category(query)) if query else ""
+    facet = prior_facet or (_facet(by_words) if by_words else "") or \
+        (_facet(by_subject) if by_subject else "")
 
     def agrees(node: str) -> bool:
         return bool(node) and (not facet or stories.facet_for(node) == facet)
 
     # 1-3: phrases, the brief's words first. A facet alone from the words
     # is kept for step 6: a subject or question node under it is truer.
-    if by_words and by_words not in topics.FACETS:
+    if by_words and by_words not in topics.FACETS and agrees(by_words):
         return done(by_words, "category")
     if agrees(by_subject) and by_subject not in topics.FACETS:
         return done(by_subject, "subject")

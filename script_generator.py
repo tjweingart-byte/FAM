@@ -655,6 +655,10 @@ class ScriptNotes:
     #: not work on the episode.
     category_placement: object = None
     category_settled: object = None
+    #: What an edition writer already knows the episode is about
+    #: (`categorizer.Prior`, §357) - the Trending story's category. None
+    #: everywhere else, where `categorizer.prior_for` reads it from the tap.
+    category_prior: object = None
     #: The episode's own title, off the model's trailing marker line. Empty
     #: when it did not write one, and every caller falls back to the question -
     #: which is what all of them showed before this existed.
@@ -2356,8 +2360,9 @@ class ScriptGenerator:
         if _agent_runs(notes, "categorizer"):
             from agents import categorizer
 
-            placed = categorizer.place(plan.brief, plan.query,
-                                       categorizer.provider_field(plan.query))
+            placed = categorizer.place(
+                plan.brief, plan.query, categorizer.provider_field(plan.query),
+                categorizer.prior_for(plan.query, plan.context, notes))
             notes.category_placement = placed
             if placed.node and notes.caption_key:
                 live_captions.publish_category(notes.caption_key, placed.node)
