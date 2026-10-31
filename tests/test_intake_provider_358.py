@@ -105,3 +105,38 @@ def test_atlas_adds_each_provider_s_passages_under_its_name():
     assert first["$addToSet"]["by_provider.perplexity"] == {"$each": ["Words."]}
     # A finding with no provider adds none, rather than an empty key.
     assert not any(k.startswith("by_provider") for k in second["$addToSet"])
+
+
+def test_nothing_parallel_returned_is_kept(tmp_path, monkeypatch):
+    """§366: Parallel is the backup search and its terms forbid keeping its
+    output for other listeners, so the archive keeps none of it - not its
+    passages in intake, not its links beside the episode."""
+    store = ha.SQLiteBackend(str(tmp_path / "archive.db"))
+    monkeypatch.setattr(ha, "backend", lambda: store)
+    monkeypatch.setattr(ha, "_backing_off", lambda: False)
+    findings = [
+        ha.Finding(url="https://a.com/1", passages=("From Parallel.",),
+                   provider="parallel"),
+        ha.Finding(url="https://a.com/1", passages=("From Perplexity.",),
+                   provider="perplexity"),
+        ha.Finding(url="https://b.com/2", passages=("Only Parallel.",),
+                   provider="parallel"),
+    ]
+    ha._write(findings, "subject", "", "episode-1", "key", 1.0)
+    with closing(sqlite3.connect(store.path)) as db:
+        rows = db.execute("SELECT url, passages, by_provider FROM intake").fetchall()
+    assert [r[0] for r in rows] == ["https://a.com/1"]
+    assert json.loads(rows[0][1]) == ["From Perplexity."]
+    assert json.loads(rows[0][2]) == {"perplexity": ["From Perplexity."]}
+    assert [link["url"] for link in store.episode_links("episode-1")] == [
+        "https://a.com/1"]
+
+
+def test_an_episode_from_parallel_alone_keeps_nothing(tmp_path, monkeypatch):
+    store = ha.SQLiteBackend(str(tmp_path / "archive.db"))
+    monkeypatch.setattr(ha, "backend", lambda: store)
+    monkeypatch.setattr(ha, "_backing_off", lambda: False)
+    ha._write([ha.Finding(url="https://b.com/2", passages=("Words.",),
+                          provider="parallel")], "s", "", "episode-2", "key", 1.0)
+    assert store.counts()["intake"] == 0
+    assert store.episode_links("episode-2") == []

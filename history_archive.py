@@ -141,6 +141,13 @@ class Finding:
 #: The searches whose passages the archive keeps apart (§358).
 PROVIDERS = ("perplexity", "parallel", "gdelt")
 
+#: Searches whose results the archive never keeps (§366, the owner's): not
+#: their passages, not their links or titles. Parallel's Customer Terms say
+#: output "shall not be copied, cached, stored, or made available to other End
+#: Customers" (§2(b)) - so it may write the episode it was asked for, as the
+#: backup search, and nothing it returned is kept (docs/PROVIDER_TERMS.md).
+NEVER_KEPT = ("parallel",)
+
 
 @dataclass
 class Fact:
@@ -603,7 +610,8 @@ _BACKEND_LOCK = threading.Lock()
 STATS: dict = {"intake_articles": 0, "episodes_linked": 0, "recalls": 0,
                "recalled_facts": 0, "recall_late": 0, "errors": 0,
                "last_error": "", "last_recall_ms": None, "live_facts": 0,
-               "live_skipped": 0, "swept_facts": 0, "swept_skipped": 0}
+               "live_skipped": 0, "swept_facts": 0, "swept_skipped": 0,
+               "never_kept": 0}
 _STATS_LOCK = threading.Lock()
 _BACKOFF_UNTIL = [0.0]
 _SINCE_PRUNE = [0]
@@ -897,8 +905,22 @@ def after_episode(notes, key: str, sourced_at: float, origin: str = "") -> None:
         log.warning("could not queue an episode for the archive: %s", exc)
 
 
+def _kept(findings: list) -> list:
+    """`findings` without what a `NEVER_KEPT` search returned (§366). An
+    article both searches found stays, carrying only the passages of the one
+    the archive may keep."""
+    kept = [f for f in findings or () if f.provider not in NEVER_KEPT]
+    dropped = len(findings or ()) - len(kept)
+    if dropped:
+        _count("never_kept", dropped)
+    return kept
+
+
 def _write(findings: list, subject: str, category: str, episode: str,
            key: str, sourced_at: float, live: list = ()) -> None:
+    # Before anything else, so no store - intake, the episode's links - ever
+    # sees what may not be kept.
+    findings = _kept(findings)
     if _backing_off():
         return
     store = backend()
