@@ -4221,6 +4221,49 @@ def rank_friends(
     return out[:limit]
 
 
+def friends_listened(store: EventStore, friends: Iterable[str],
+                     tiles: Iterable[dict], now: Optional[float] = None,
+                     window: float = FRIENDS_WINDOW) -> dict[str, int]:
+    """**How many of your friends listened to each tile** - the social proof
+    on DailyFAM's cards ("7 friends listened", the owner's 10.31 notebook).
+
+    `friends` is the mutual case only (`social.friends`), never the wider
+    `circle_of`: the card says *friends*, and somebody you follow who does
+    not follow back is not one. Counted by person, not by play - a friend who
+    played it three times is one friend - inside `FRIENDS_WINDOW`, by the
+    normalised question like every other listen count (`_tally_listens`), so
+    a friend's search of the same question counts.
+
+    Returns tile id -> count, with tiles nobody listened to left out: a card
+    that said "0 friends listened" would be a number with nothing behind it.
+    """
+    friends = {u for u in friends if u}
+    tiles = [t for t in tiles if t.get("id")]
+    if not friends or not tiles:
+        return {}
+    now = time.time() if now is None else now
+    known = known_topics(now)
+    by_question: dict[str, set[str]] = {}
+    by_id: dict[str, set[str]] = {}
+    for user, topic_id, text, _at, *_kind in store.listens_between(
+            now - window, now + 1):
+        if user not in friends:
+            continue
+        query = text or (known[topic_id].query if topic_id in known else "")
+        norm = _norm_question(query)
+        if norm:
+            by_question.setdefault(norm, set()).add(user)
+        if topic_id:
+            by_id.setdefault(topic_id, set()).add(user)
+    out: dict[str, int] = {}
+    for tile in tiles:
+        who = set(by_id.get(tile["id"], ()))
+        who |= by_question.get(_norm_question(tile.get("query") or ""), set())
+        if who:
+            out[tile["id"]] = len(who)
+    return out
+
+
 #: How many Explore New shows. Six, and deliberately not `SECTION_SIZE`: that
 #: became four in §134 as a rule about *rails on myFAM*, and Explore New is a
 #: screen somebody opened on purpose rather than a rail.
@@ -4804,10 +4847,10 @@ GUEST_SAMPLE_MIX = ("Example: Morning commute",
 FULL_SECTION_SIZE = 40
 
 
-#: How many tiles "View more" shows at once (§165, the 28/09 packet): the
-#: rail's four and the four after them, with a refresh that deals the next
-#: eight of the same ranking.
-VIEW_MORE_PAGE = 8
+#: How many tiles "View more" shows at once (§165, the 28/09 packet), with a
+#: refresh that deals the next page of the same ranking. Sixteen since the
+#: owner's 10.31 notebook asked for more on that screen; it was eight.
+VIEW_MORE_PAGE = 16
 
 
 def page_section(body: dict, seen: Iterable[str] = (),

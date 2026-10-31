@@ -425,6 +425,8 @@
   listening outvotes" (§121 and before).
 
 <!-- rule:op-taste-scoring -->
+> **Current (PROBLEMS.md §363, the owner 10.31):** View more and its Refresh deal **sixteen** (`topics.VIEW_MORE_PAGE`, `SECTION_PAGE`), not eight. Where the text says eight, read sixteen.
+
 > **Current (PROBLEMS.md §305, the owner 10.23):** `BROWSE_MINUTES` is **one** - myFAM, DailyFAM, the Trending and DailyFAM editions, the startup write-ahead and prefetch all write and play one-minute episodes. Search and Go Deeper still offer 1-5. Where the text below says two, read one.
 
 > **Current (PROBLEMS.md §332, the owner 10.28):** `BROWSE_MINUTES` is **a minute and a half** (1.5) - one felt too short, two too long. Every surface above writes and plays 1.5-minute episodes; lengths are held to the half minute (`config.as_minutes`). Where the text above or below says one or two, read 1.5.
@@ -618,6 +620,17 @@
    until `/api/mixes` answers, shown by `renderMixList`, and hidden to start
    rather than shown and taken away, because a control that appears and then
    vanishes reads as a fault.
+<!-- rule:friends-listened -->
+**"N friends listened" on a card** (PROBLEMS.md §363, the owner's 10.31
+notebook: social proof makes somebody "more inclined, more comfortable
+listening to an episode"). Every DailyFAM rail card and View more card whose
+episode a **friend** played in `FRIENDS_WINDOW` carries the count,
+bottom-right of the picture, opposite the subject. Friends are the mutual
+case (`social.friends`), never `circle_of`: the card says friends. People,
+not plays; by question as well as tile id (`topics.friends_listened`). A
+count, never a name or an id; a tile with none carries no field, so no card
+ever says "0 friends listened". Guests have no friends and get none.
+
 <!-- rule:op-follow-graph -->
 7. ~~**"What your followers are listening to" has no follow graph behind it.**~~
    - *done, on both halves* (`SHARING.md`, PROBLEMS.md §102). Follows are
