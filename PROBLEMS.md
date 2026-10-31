@@ -25082,3 +25082,15 @@ the faces are what a friend's profile already shows a friend. The client
 resolves them in `attachFriendFaces` (feed, remembered feed, View more); a
 response without faces still draws the words. Rule `friends-listened` is
 rewritten. **Pinned by** `tests/test_friend_faces_366.py`.
+
+## 367. Tapping a card's faces opens who listened (2026-10-31)
+
+At the owner's direction the faces on a DailyFAM card (§366) are a button:
+tapping them opens a sheet in the Sources popup's shape, titled "N friends
+listened", listing every friend who listened, newest first, each row their
+face, name and @handle and opening their profile (`openPersonProfile`). The
+tap stops at the faces, so the card underneath does not play. To list
+everyone, `_mark_friends_listened` now gives each tile every friend's index
+rather than the first three (`FRIEND_FACES` is gone); the card still draws
+three and "+N". The indexes are small; each picture is still listed once per
+response. **Pinned by** `tests/test_friends_listened_sheet_367.py`.

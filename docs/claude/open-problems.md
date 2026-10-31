@@ -628,11 +628,12 @@ direction). Every DailyFAM rail card and View more card whose episode a
 **friend** played in `FRIENDS_WINDOW` shows who, bottom-right of the picture,
 opposite the subject: drawn the way the player's sources are - up to three
 overlapped faces (picture, else initials on `personHue`), newest listen
-first, then "+N" (`FRIEND_FACES`). Friends are the mutual case
+first, then "+N"; tapping them opens who listened - every friend, each row
+their profile (§367) - and never plays the card. Friends are the mutual case
 (`social.friends`), never `circle_of`. People, not plays; by question as well
 as tile id (`topics.friends_who_listened`). Each face is name, handle and
 picture only - what a friend's profile already shows a friend - listed once
-per response (`friend_faces`, tiles carry indexes), **never an id**; the
+per response (`friend_faces`, tiles carry every friend's index), **never an id**; the
 count (`friends_listened`) stays for installed clients and the "+N". A tile
 with none carries no field, so no card shows an empty row. Guests have no
 friends and get none.

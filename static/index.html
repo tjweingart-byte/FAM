@@ -1856,6 +1856,9 @@
   .seed-friends.has-faces .friend-face{ width:22px; height:22px; font-size:9px; }
   .seed-friends.has-faces .src-marks .src-mark{ border-color:rgba(42,37,48,0.88); }
   .seed-friends.has-faces .src-mark img{ opacity:0; }
+  .seed-card .seed-friends.has-faces{ cursor:pointer; }
+  /* The sheet's rows draw the same face at the logo's size. */
+  #flList .friend-face{ width:30px; height:30px; font-size:12px; }
   .seed-friends.has-faces:not(:has(.src-count)){ padding-right:3px; }
   /* Room for both on a narrow card: the subject gives way, never the count. */
   .seed-thumb.has-friends .seed-tag{ max-width:calc(100% - 112px); overflow:hidden;
@@ -4924,6 +4927,20 @@
             </button>
           </div>
           <div class="src-list" id="srcList"></div>
+        </div>
+      </div>
+
+      <!-- Who listened (§367): tapping a card's faces. -->
+      <div class="modal-overlay" id="friendsListenedOverlay"
+           onclick="if(event.target===this) closeFriendsListened()">
+        <div class="modal-card src-card">
+          <div class="src-card-top">
+            <div class="modal-title" id="flTitle" style="margin:0;">Friends who listened</div>
+            <button class="sheet-close" onclick="closeFriendsListened()" aria-label="Close">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+            </button>
+          </div>
+          <div class="src-list" id="flList"></div>
         </div>
       </div>
 
@@ -13787,10 +13804,47 @@
     }
     var label = n === 1 ? (faces[0].name || faces[0].handle || "A friend") + " listened"
                         : n + " friends listened";
-    return '<span class="seed-friends has-faces" aria-label="' + escapeHtml(label) + '">'
+    // Tapping the faces lists everyone who listened (§367), and never
+    // plays the card underneath.
+    return '<span class="seed-friends has-faces" role="button" tabindex="0"'
+      + ' aria-label="' + escapeHtml(label) + '" data-topic="' + escapeHtml(t.id || "") + '"'
+      + ' onclick="event.stopPropagation(); openFriendsListened(this.dataset.topic)">'
       + '<span class="src-marks">' + faces.map(friendFaceHtml).join("") + '</span>'
       + (n > faces.length ? '<span class="src-count">+' + (n - faces.length) + '</span>' : '')
       + '</span>';
+  }
+  // **Who listened** (§367): the faces' own sheet, the Sources popup's
+  // shape - every friend who listened, newest first, each row their profile.
+  function openFriendsListened(topicId){
+    var t = myFamTopics[topicId];
+    var faces = ((t && t.friendKeys) || []).map(function(k){
+      return FRIEND_FACE_BOOK[k];
+    }).filter(Boolean);
+    if(!faces.length) return;
+    var list = document.getElementById("flList");
+    list.innerHTML = faces.map(function(f){
+      return '<div class="src-row' + (f.handle ? ' openable' : '') + '"'
+        + (f.handle ? ' onclick="openListenedFriend(this.dataset.handle)"'
+          + ' data-handle="' + escapeHtml(f.handle) + '"' : '') + '>'
+        + '<span class="src-logo">' + friendFaceHtml(f) + '</span>'
+        + '<span class="src-body">'
+        + '<span class="src-name">' + escapeHtml(f.name || f.handle || "A friend") + '</span>'
+        + (f.handle ? '<span class="src-meta">@' + escapeHtml(f.handle) + '</span>' : '')
+        + '</span>'
+        + (f.handle ? '<svg class="src-go" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>' : '')
+        + '</div>';
+    }).join("");
+    var n = Math.max(faces.length, Math.floor(Number(t.friends_listened)) || 0);
+    document.getElementById("flTitle").textContent =
+      n === 1 ? "1 friend listened" : n + " friends listened";
+    document.getElementById("friendsListenedOverlay").classList.add("active");
+  }
+  function closeFriendsListened(){
+    document.getElementById("friendsListenedOverlay").classList.remove("active");
+  }
+  function openListenedFriend(handle){
+    closeFriendsListened();
+    openPersonProfile(handle);
   }
   function seedImgFailed(el){
     var box = el.parentNode;

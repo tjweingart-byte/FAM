@@ -232,8 +232,8 @@ def load_fixtures() -> dict:
         # played, no field on the rest.
         if row["key"] in ("from_history", "followers"):
             for index, tile in enumerate(row["topics"][:3]):
-                tile["friends_listened"] = (7, 1, 3)[index]
-                tile["friends_faces"] = ([0, 1, 2], [3], [1, 2, 0])[index]
+                tile["friends_faces"] = ([0, 1, 2, 3], [3], [1, 2, 0])[index]
+                tile["friends_listened"] = len(tile["friends_faces"])
     myfam["friend_faces"] = [
         {"name": "Maya Ortiz", "handle": "maya", "avatar": ""},
         {"name": "Jonah Reed", "handle": "jonah", "avatar": ""},

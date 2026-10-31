@@ -7441,17 +7441,13 @@ async def myfam_section(request: Request,
     return body
 
 
-#: How many friends' faces a card draws before "+N" - three, the sources
-#: pill's number, at the owner's direction ("the same way the sources are").
-FRIEND_FACES = 3
-
-
 def _mark_friends_listened(user: str, tiles: list[dict]) -> list[dict]:
     """Who of your friends listened, on a DailyFAM card (the owner's 10.31
     notebook; faces in place of "N friends listened" at the owner's
     direction): `friends_listened` (the count, kept for installed clients)
     and `friends_faces` - indexes into the returned list, newest listen first,
-    at most `FRIEND_FACES` - on each tile at least one friend (a mutual
+    every friend, because tapping the faces lists who listened (§367); the
+    card draws three and "+N" - on each tile at least one friend (a mutual
     follow, `topics.friends_who_listened`) played in the last fortnight.
 
     The faces are listed once per response rather than per tile, because a
@@ -7475,7 +7471,7 @@ def _mark_friends_listened(user: str, tiles: list[dict]) -> list[dict]:
             continue
         tile["friends_listened"] = len(who)
         shown = []
-        for uid in who[:FRIEND_FACES]:
+        for uid in who:
             if uid not in index:
                 person = people.get(uid) or {}
                 index[uid] = len(faces)

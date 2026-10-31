@@ -36,7 +36,7 @@ def test_newest_listener_first_and_one_face_per_person(tmp_path):
     assert T.friends_listened(store, ["ana", "ben"], [{"id": "t", "query": "q"}]) == {"t": 2}
 
 
-def test_three_faces_at_most_each_picture_listed_once(monkeypatch, tmp_path):
+def test_every_friend_listed_each_picture_once(monkeypatch, tmp_path):
     store = T.EventStore(str(tmp_path / "e.db"))
     monkeypatch.setattr(appmod, "EVENTS", store)
     people = [{"user_id": f"u{i}", "name": f"Name {i}", "handle": f"h{i}",
@@ -49,11 +49,13 @@ def test_three_faces_at_most_each_picture_listed_once(monkeypatch, tmp_path):
     tiles = [{"id": "a", "query": "x"}, {"id": "b", "query": "y"}]
     faces = appmod._mark_friends_listened("me", tiles)
     assert tiles[0]["friends_listened"] == 5
-    assert len(tiles[0]["friends_faces"]) == appmod.FRIEND_FACES == 3
-    assert [faces[i]["handle"] for i in tiles[0]["friends_faces"]] == ["h4", "h3", "h2"]
+    # Every friend since §367 (tapping the faces lists them); the card
+    # draws the first three.
+    assert [faces[i]["handle"] for i in tiles[0]["friends_faces"]] == [
+        "h4", "h3", "h2", "h1", "h0"]
     # u4 is on both cards and listed once.
     assert tiles[1]["friends_faces"] == [tiles[0]["friends_faces"][0]]
-    assert len(faces) == 3
+    assert len(faces) == 5
     for face in faces:
         assert set(face) == {"name", "handle", "avatar"}   # never an id
 
