@@ -1596,7 +1596,7 @@
   > figure neither the post nor the episode states sends the words back to
   > the code's.
   > **Current:** the LinkedIn engine that shared this read (§322, §327,
-  > `/admin/linkedin`) was removed at the owner's direction (§366); X is
+  > `/admin/linkedin`) was removed at the owner's direction (§367); X is
   > the only outreach page. The listener's LinkedIn share button is a
   > separate feature and stays ([share-link]).
 <!-- rule:app-review-safety -->
