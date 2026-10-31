@@ -773,6 +773,17 @@ def main() -> int:
 
             marks = page.eval_on_selector_all("#srcMarks .src-mark", "e => e.length")
             assert marks == 3, f"the corner showed {marks} publisher marks, not three"
+            # Each mark carries the publisher's logo over its initials (§365),
+            # asked for with no referrer, as the Sources popup does.
+            logos = page.eval_on_selector_all(
+                "#srcMarks .src-mark img",
+                "e => e.map(i => [i.getAttribute('src'), i.referrerPolicy])")
+            assert logos, "the corner's marks carry no publisher logo"
+            for src, policy in logos:
+                assert src.startswith("http") and src.endswith("/favicon.ico"), \
+                    f"a mark's logo is not the publisher's icon: {src}"
+                assert policy == "no-referrer", \
+                    f"a mark's logo is asked for with referrer policy {policy!r}"
             # Overlapped, which is what makes it read as "these several"
             # rather than as a list somebody has to count.
             overlap = page.eval_on_selector(

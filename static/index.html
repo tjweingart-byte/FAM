@@ -1458,7 +1458,13 @@
   .src-marks .src-mark:first-child{ margin-left:0; }
   .src-mark{ display:inline-flex; align-items:center; justify-content:center;
     border-radius:50%; color:var(--ink); font-family:'Geist', sans-serif;
-    font-weight:700; letter-spacing:0; text-transform:uppercase; flex:none; }
+    font-weight:700; letter-spacing:0; text-transform:uppercase; flex:none;
+    position:relative; overflow:hidden; }
+  /* The publisher's logo over the initials, transparent until it loads, so a
+     slow or missing icon leaves the mark rather than a blank circle. */
+  .src-mark img{ position:absolute; inset:0; width:100%; height:100%;
+    border-radius:50%; object-fit:cover; background:var(--paper);
+    opacity:0; transition:opacity 160ms ease; }
   .src-count{ flex:none; color:var(--copper); font-weight:700; }
 
   /* The popup. */
@@ -14407,15 +14413,14 @@
   // because a domain in the packet is a domain the voice can read out. This is
   // the display channel. Showing sources in the app is not a reason to let the
   // model cite them aloud.
-  // A publisher's mark, drawn rather than fetched.
+  // A publisher's mark: drawn initials, with the publisher's own icon laid
+  // over them when it loads.
   //
-  // The strip renders one of these per source, and it makes **no network
-  // request**: an episode's source list is a list of what somebody just
-  // listened to, and pinging five publishers to decorate it would tell each
-  // of them that, for every episode, whether or not anyone ever looked. The
-  // real favicon is loaded inside the popup, which only opens when the
-  // listener has asked to see the sources - and with no referrer, so it says
-  // nothing about which episode it was for.
+  // The strip used to make no network request at all and showed initials
+  // only; at the owner's direction it now shows the logos too (PROBLEMS.md
+  // §365). It asks only for the three it shows, with no referrer, so the
+  // request still says nothing about which episode it was for; a failure
+  // leaves the initials it was drawn on.
   //
   // The colour is a hash of the hostname, so one publisher is the same colour
   // every time and two adjacent ones are almost never the same.
@@ -14440,11 +14445,19 @@
     return SRC_HUES[sum % SRC_HUES.length];
   }
 
-  function srcMark(item, size){
+  function srcMark(item, size, withLogo){
     var px = size || 22;
+    var origin = withLogo && item.url ? originOf(item.url) : "";
+    if (!/^https?:\/\//.test(origin)) origin = "";
     return '<span class="src-mark" style="width:' + px + 'px;height:' + px
       + 'px;background:' + srcHue(item.label) + ';font-size:' + Math.round(px * 0.4)
-      + 'px;">' + escapeHtml(srcInitials(item.label)) + '</span>';
+      + 'px;">' + escapeHtml(srcInitials(item.label))
+      + (origin
+          ? '<img src="' + escapeHtml(origin) + '/favicon.ico" alt=""'
+            + ' referrerpolicy="no-referrer"'
+            + ' onload="this.style.opacity=1" onerror="this.remove()">'
+          : "")
+      + '</span>';
   }
 
   var sourcesNow = [];
@@ -14490,7 +14503,7 @@
     // that at this size is a row of dots nobody can tell apart, and the whole
     // list is one tap away.
     marks.innerHTML = sourcesNow.slice(0, 3).map(function(item){
-      return srcMark(item, 20);
+      return srcMark(item, 20, true);
     }).join("");
     count.textContent = sourcesNow.length > 3
       ? "+" + (sourcesNow.length - 3) : String(sourcesNow.length);
