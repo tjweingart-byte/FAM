@@ -354,3 +354,4 @@ and `limit` = Lines.
 | 24477 | 43 | 351. Phase 0, piece 5: the Agents panel on /admin - and Phase 0 done (2026-10-30) |
 | 24520 | 33 | 352. The owner signed the rule books (2026-10-30) |
 | 24553 | 69 | 353. Phase 0 reviewed before merge: the lock's key, a test that skipped itself, and the queue (2026-10-30) |
+| 24622 | 34 | 354. The status bar belongs to the screen, and the profile's wash reaches the top (2026-10-31) |

@@ -24618,3 +24618,37 @@ What they found, and what was done:
 
 **Numbering.** Main merged its own §341 and §345 while this branch was open;
 this branch's sections moved to §346-§352, and every reference with them.
+
+## 354. The status bar belongs to the screen, and the profile's wash reaches the top (2026-10-31)
+
+The owner, from screenshots: on YourFAM and a friend's profile the gold
+wash started under a dark band - the status bar - and should extend to the
+top. Then, once it did: "the header should be attached to the rest of the
+app. When the main screen changes, a lot of the time the header doesn't
+change with it and it is evident."
+
+**Why.** `.statusbar` is one empty strip of the frame, above every screen.
+Colouring it per screen (the first fix, a `.frame:has(...)` rule) made it
+change colour the instant the screen became active, while Motion (§292) was
+still sliding or fading the page under it - the bar visibly detached.
+
+**What changed.**
+- Every `<section class="screen">` starts with `<div class="screen-top">`, a
+  strip `height:var(--sb-h)` with `margin-top:calc(-1 * var(--sb-h))`, so it
+  covers the frame's bar and moves with its own screen: push and pop carry
+  it with the screen; tab and step changes fade it with the content
+  (`contentOf`). Default colour `var(--bg)`, so the private-search charcoal
+  reaches the top too; Explore's is the reel's `#121016`.
+- Explore and the player clipped with `overflow:hidden`, which cut the strip
+  off; they clip with `clip-path:inset(calc(-1 * var(--sb-h)) 0 0 0)` now -
+  sides and bottom as before, top left open.
+- The profile and a friend's profile paint their strip (and the friend's
+  back-arrow bar) the wash's first colour, mixed opaque onto `--bg` because
+  the strip slides over the screen it replaces.
+- A comment in the stylesheet said `<body>`; the preview builders split the
+  document on that tag, so the published preview printed the CSS as text
+  (Main's `fam-live-artifact.html` had 3 `<style>` and 4 `</style>`). Reworded.
+
+`tests/test_screen_top.py` pins all of it, including that no screen is added
+without its strip. Checked in a browser mid-animation (push, pop, tab) at
+phone and framed widths.
