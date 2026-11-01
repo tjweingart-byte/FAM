@@ -26704,6 +26704,21 @@ and all of it is fixed here, each pinned in
   nor Nando chose. Nando's own call now starts whenever C3P0 is not
   actually choosing; ahead of the tap it is recorded as `ahead`.
 
+**Re-measured** (`nando_eval --with-brief`, which now places as production
+does - C3P0's pick dropped when he says the request is ambiguous, the
+provider's field and that unsureness passed on; two runs, of 40):
+
+| | right | narrower | broader | unplaced | wrong |
+|---|---|---|---|---|---|
+| today's code (`resolve_category`) | 11 | 0 | 0 | 28 | 1 |
+| Nando through the brief, before (§388, counted his ambiguous picks) | 36, 36 | 1-2 | 0-1 | 0 | 2, 2 |
+| **Nando through the brief, as production files** | **32, 32** | 1, 1 | 1, 2 | 4, 5 | **2, 0** |
+
+The four that moved were picks C3P0 himself called ambiguous: production
+never filed them, so §388's 36 overstated what a listener would get by
+four. They now go unfiled - the writer's category stands - which is what
+asking the listener (§390, the next branch) turns into answers.
+
 **The answer key and the request path.**
 
 - **Three failed nightly grades would have held Nando on every listener's
