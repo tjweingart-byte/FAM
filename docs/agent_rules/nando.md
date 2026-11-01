@@ -35,6 +35,10 @@ thumbnail, the myFAM category pages, the archive and Sonic all agree.
     owner has reviewed a list of every change you would make.
 11. Record what every part of FAM said about the category, and what you
    decided.
+12. Let your answer key - a stronger model chosen by the owner - read each
+    finished episode once, in the background, to grade your filing. Its
+    grades only teach you and measure you; they never change an episode's
+    category without the owner's review (rule 10).
 
 ## You must never
 
