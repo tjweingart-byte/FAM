@@ -26798,3 +26798,34 @@ doing its job - and now also asserts that the real lock lets the key grade.
 a command line twice. Signing from a key file that exists for a minute (saved
 from TextEdit, deleted with `rm -P` straight after `openssl`) never puts the
 key where the shell can read it as a command.
+
+## 393. Phase 2, piece 0: the activation step's Privacy Policy and consent wording, drafted for the owner (2026-11-01)
+
+Phase 2 ("MongoDB: Consuela and Sonic", `docs/AGENTS_BUILD_PROMPT.md`)
+starts with the one piece that waits on the owner: the activation step asks
+for date of birth (required, 13 and over), location and gender (optional),
+and decided item 2 says the Privacy Policy and consent must cover them first.
+Nothing collects any of them before the owner approves the wording.
+
+**The draft is `docs/ACTIVATION_PRIVACY_DRAFT.md`**: each changed section of
+`pages/privacy.html` as current and proposed text (a short-version bullet; the
+Profile row split so date of birth and gender sit in their own "About you"
+row, never shown; a new "Totals about groups of listeners" section - groups
+of 100 or more, age bands and region only, never guests or Private searches,
+never shared; retention, deletion and Children rewritten); a third consent
+scope, `demographics`, kept like `ai`, with its notice, and `TERMS_VERSION`
+left alone; the activation screen's words; the App Store privacy labels to
+update; and points for the lawyer's list. `pages/privacy.html`, `consent.py`
+and the app are unchanged.
+
+**Found while drafting, not fixed:** the "Where you are" screen says the place
+"is never shown on your profile", but §219 prints it on the profile and on
+`/api/person`, and the Privacy Policy lists it as visible. The draft asks the
+owner which is right (its question 3) rather than choosing.
+
+Waiting on the owner: the draft's five questions - an under-13 date of birth
+(delete, recommended), counting opt-in or on by default, which location, the
+self-describe words, and whether the totals may ever shape what FAM offers.
+
+Also decided this session: `pymongo` may be added (piece 1); no other new
+dependency - `dateparser`, `quantulum3` and `datasketch` are not added.

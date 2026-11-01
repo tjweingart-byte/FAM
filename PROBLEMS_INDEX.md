@@ -393,3 +393,4 @@ and `limit` = Lines.
 | 26626 | 38 | 390. What Phase 1 leaves for the next branch (2026-10-31) |
 | 26664 | 108 | 391. Phase 1 reviewed before merge: what the writer chose was counted as Nando's, and the answer key read twice (2026-11-01) |
 | 26772 | 30 | 392. The owner signed nando.md rule 12, and a stray file came with it (2026-11-01) |
+| 26802 | 31 | 393. Phase 2, piece 0: the activation step's Privacy Policy and consent wording, drafted for the owner (2026-11-01) |
