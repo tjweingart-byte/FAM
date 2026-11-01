@@ -115,7 +115,7 @@ def test_every_placement_has_a_confidence(tree):
     "tech giants earnings", "kings and queens of England", "cardinals gather to elect a new pope",
     "Power Rangers movie", "Texas Rangers arrest suspect"])
 def test_a_name_with_nothing_deciding_it_files_nothing(tree, question):
-    # Review, §376: no cue is no evidence - these were filed under a league,
+    # Review, §377: no cue is no evidence - these were filed under a league,
     # then under `sports`; a third meaning (a pope, a monarch) was never
     # in the table.
     assert node(question).node == ""

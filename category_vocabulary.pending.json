@@ -77,7 +77,13 @@
       "'diet': claimed by nutrition, weight loss; kept on nutrition",
       "'sleep health': claimed by sleep quality, sleep research; kept on sleep quality",
       "'venture funding': claimed by startups, venture capital; kept on startups",
-      "'startup funding': claimed by startups, venture capital; kept on startups"
+      "'startup funding': claimed by startups, venture capital; kept on startups",
+      "entity 'amazon': dropped (a name that means two things)",
+      "entity 'apple': dropped (a name that means two things)",
+      "entity 'bears': dropped (a name that means two things)",
+      "entity 'eagles': dropped (a name that means two things)",
+      "entity 'heat': dropped (a name that means two things)",
+      "entity 'thunder': dropped (a name that means two things)"
     ],
     "model_setting": "CATEGORIZER_MODEL",
     "problems": []
@@ -107,17 +113,9 @@
       "kind": "other",
       "node": "airlines"
     },
-    "amazon": {
-      "kind": "company",
-      "node": "ecommerce"
-    },
     "anthropic": {
       "kind": "company",
       "node": "artificial intelligence"
-    },
-    "apple": {
-      "kind": "company",
-      "node": "consumer hardware"
     },
     "arsenal": {
       "kind": "team",
@@ -138,10 +136,6 @@
     "barcelona": {
       "kind": "team",
       "node": "football"
-    },
-    "bears": {
-      "kind": "team",
-      "node": "nfl"
     },
     "beyonc\u00e9": {
       "kind": "person",
@@ -263,10 +257,6 @@
       "kind": "team",
       "node": "anaheim ducks"
     },
-    "eagles": {
-      "kind": "team",
-      "node": "philadelphia eagles"
-    },
     "ethereum": {
       "kind": "other",
       "node": "crypto"
@@ -310,10 +300,6 @@
     "hbo": {
       "kind": "company",
       "node": "streaming business"
-    },
-    "heat": {
-      "kind": "team",
-      "node": "nba"
     },
     "houston rockets": {
       "kind": "team",
@@ -678,10 +664,6 @@
     "the masters": {
       "kind": "other",
       "node": "golf"
-    },
-    "thunder": {
-      "kind": "team",
-      "node": "nba"
     },
     "tours": {
       "kind": "other",

@@ -103,13 +103,14 @@ def test_no_call_of_his_own_when_the_tap_already_files_it(tree, monkeypatch):
 def test_ahead_of_the_tap_his_call_is_awaited_in_prepare(tree, monkeypatch):
     asked = []
 
-    async def tie(query, nodes, notes=None):
-        asked.append(query)
+    async def tie(query, nodes, notes=None, ahead=False):
+        asked.append((query, ahead))
         return nodes[0]
     monkeypatch.setattr(categorizer, "ask_tie", tie)
     notes = notes_with("categorizer")
     notes.ahead = True
     brief = ei.Brief(query="Stanley Cup odds")
     _prepare(monkeypatch, brief, notes)
-    assert asked == ["Stanley Cup odds"]
+    # Asked as an ahead-of-the-tap call, so the ledger says so (§391).
+    assert asked == [("Stanley Cup odds", True)]
     assert notes.category_placement.node and notes.category_placement.how == "picked"

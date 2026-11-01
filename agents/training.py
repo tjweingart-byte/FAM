@@ -27,6 +27,7 @@ listener's path.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 import sqlite3
 import threading
@@ -89,6 +90,12 @@ class TrainingStore:
                     db.execute(f"ALTER TABLE nando_labels ADD COLUMN {column} {kind}")
                 except Exception:  # noqa: BLE001 - already there
                     pass
+            # Every episode the answer key has been asked about, answered or
+            # not (§391): nando.md rule 12 lets it read each finished
+            # episode once, so a failed or skipped answer is never asked
+            # again.
+            db.execute("""CREATE TABLE IF NOT EXISTS nando_asked (
+                key TEXT PRIMARY KEY, at REAL NOT NULL)""")
             # The tree as the last nightly look saw it (§387).
             db.execute("""CREATE TABLE IF NOT EXISTS nando_tree (
                 node TEXT PRIMARY KEY, parent TEXT NOT NULL DEFAULT '',
@@ -114,6 +121,22 @@ class TrainingStore:
                        " node_now = '', regrade = 0",
                        (key, query[:500], node[:120], confidence[:8], reason[:240],
                         judge_model[:80], now or time.time(), path[:400]))
+
+    def mark_asked(self, key: str, now: float = 0.0) -> None:
+        with self._lock, self._connect() as db:
+            db.execute("INSERT INTO nando_asked (key, at) VALUES (?, ?)"
+                       " ON CONFLICT(key) DO NOTHING", (key, now or time.time()))
+
+    def asked(self, keys) -> set:
+        """The keys the answer key has been asked about, graded or not."""
+        keys, found = list(keys), set()
+        with self._connect() as db:
+            for i in range(0, len(keys), 500):     # under any bound-variable limit
+                chunk = keys[i:i + 500]
+                found.update(r[0] for r in db.execute(
+                    f"SELECT key FROM nando_asked WHERE key IN"
+                    f" ({', '.join('?' for _ in chunk)})", chunk).fetchall())
+        return found
 
     def labelled(self, keys) -> set:
         keys, found = list(keys), set()
@@ -172,6 +195,7 @@ class TrainingStore:
         with self._lock, self._connect() as db:
             n = db.execute("SELECT COUNT(*) FROM nando_labels").fetchone()[0]
             db.execute("DELETE FROM nando_labels")
+            db.execute("DELETE FROM nando_asked")
             db.execute("DELETE FROM nando_tree")
         return int(n)
 
@@ -230,7 +254,9 @@ async def judge(key: str, query: str, sentences: list, listing: str) -> Optional
             max_tokens=int(settings.categorizer_judge_max_tokens), effort="medium",
             surface="background")
         result = await models.ask(request)
-        netenyahu.report("categorizer", result.status)
+        # Not counted toward Nando's hold (§391): three failed nightly
+        # grades must never stop his filing on listeners' episodes. A
+        # failure is still in `agent_calls` and on /admin.
         if not result.ok:
             return None
         node = result.value.node.strip()
@@ -309,29 +335,41 @@ async def judge_batch(script_for: Callable[[str], list], limit: int = 0,
         from config import settings
 
         limit = int(limit or settings.nando_judge_per_run)
-        rows = [r for r in topics.category_tree().audit_rows(since=time.time() - days * 86400)
-                if r.get("key") and r.get("origin", "") not in NOT_LABELLED]
-        rows = _newest_per_key(rows)
-        seen = store().labelled(r["key"] for r in rows)
-        # A new node under a grade's node asks for a fresh grade (§387),
-        # first, while the episode's script is still kept.
-        again = store().to_regrade()
-        fresh = ([r for r in rows if r["key"] in again]
-                 + [r for r in rows if r["key"] not in seen])
-        listing = tree_listing()
-        for row in fresh[:limit]:
+
+        def plan() -> tuple:
+            # Every database read in a thread, never on the event loop the
+            # listeners share (§391).
+            rows = [r for r in topics.category_tree().audit_rows(
+                        since=time.time() - days * 86400)
+                    if r.get("key") and r.get("origin", "") not in NOT_LABELLED]
+            rows = _newest_per_key(rows)
+            done = store().labelled(r["key"] for r in rows) | store().asked(
+                r["key"] for r in rows)
+            fresh = []
+            for row in rows:
+                if row["key"] in done:
+                    continue
+                sentences = list(script_for(row["key"]) or [])
+                if sentences:                # no script yet: asked another night
+                    fresh.append((row, sentences))
+                if len(fresh) >= limit:
+                    break
+            return fresh, tree_listing()
+
+        # Read once each (nando.md rule 12): an episode is never asked again,
+        # answered or not; a new node under its grade only flags it (§387).
+        fresh, listing = await asyncio.to_thread(plan)
+        for row, sentences in fresh:
             out["looked"] += 1
-            sentences = list(script_for(row["key"]) or [])
-            if not sentences:
-                out["skipped"] += 1
-                continue
+            await asyncio.to_thread(store().mark_asked, row["key"])
             label = await judge(row["key"], row["query"], sentences, listing)
             if label is None:
                 out["failed"] += 1
                 continue
-            store().put_label(row["key"], row["query"], label["node"], label["confidence"],
-                              label["reason"], label["judge_model"],
-                              path=_path_text(label["node"]))
+            await asyncio.to_thread(
+                store().put_label, row["key"], row["query"], label["node"],
+                label["confidence"], label["reason"], label["judge_model"],
+                0.0, _path_text(label["node"]))
             out["labelled"] += 1
     except Exception as exc:  # noqa: BLE001
         log.exception("nando's answer-key run failed")
@@ -370,6 +408,8 @@ def verdict(filed: str, truth: str) -> str:
     (nothing filed)."""
     from agents import categorizer
 
+    if not filed and not truth:
+        return "exact"           # both said no node fits: agreement, never a mistake
     if not filed:
         return "nothing"
     if filed == truth:
@@ -402,7 +442,7 @@ def compared(days: float = 30.0) -> list:
 #: How many corrected mistakes become worked examples at most (§383), and
 #: from how far back.
 MISTAKES_KEPT = 200
-MISTAKE_DAYS = 60.0
+MISTAKE_DAYS = 30.0          # the audit keeps 30 days (categories.AUDIT_DAYS)
 
 
 def mistakes(limit: int = MISTAKES_KEPT, days: float = MISTAKE_DAYS) -> list:
@@ -516,6 +556,11 @@ def follow_tree(now_nodes: Optional[dict] = None, at: float = 0.0) -> dict:
         from agents import tasks
 
         now = _tree_now() if now_nodes is None else dict(now_nodes)
+        if not now:
+            # A tree that could not be read is not a tree with no nodes:
+            # retiring every grade on it would be a creation (§391).
+            out["skipped"] = "the tree read empty"
+            return out
         seen = store().tree_seen()
         if not seen:
             store().see_tree(now, at)
@@ -529,7 +574,8 @@ def follow_tree(now_nodes: Optional[dict] = None, at: float = 0.0) -> dict:
         for label in store().labels(limit=100000):
             node, key = label["node"], label["key"]
             if label["retired_at"] and node in now:
-                store().mark(key, retired_at=0, node_now="")        # it came back
+                store().mark(key, retired_at=0, node_now="",         # it came back
+                             path=_path_text(node))
                 out["restored"] += 1
             elif not label["retired_at"] and node and node in pruned:
                 store().mark(key, retired_at=at or time.time(),

@@ -11,7 +11,7 @@ call per distinct model in the agents' settings, through the same adapter
 `ask` uses, about 30 tokens each - a fraction of a cent. It does not go
 through `ask`, so no agent switch needs to be on and nothing is written to
 `agent_calls` as any agent's; each probe is still metered there under the
-agent name `probe` (review, §376), so its cost is never missing.
+agent name `probe` (review, §377), so its cost is never missing.
 
 Refuses on a zero-spend deployment (`spend_guard`) and with no Anthropic
 key. Prints, per model: asked, served, and whether `ask` would accept it.

@@ -109,7 +109,9 @@ def test_a_batch_grades_each_episode_once_and_never_a_private_one(tree, monkeypa
     monkeypatch.setattr(models, "ask", ask)
     scripts = {"a": ["one"], "b": ["two"], "c": ["three"]}       # d has no script
     out = asyncio.run(training.judge_batch(lambda k: scripts.get(k, []), limit=10))
-    assert out == {"looked": 3, "labelled": 2, "skipped": 1, "failed": 0}
+    # "d" has no script yet: not asked (it may be another night), so not
+    # counted (§391).
+    assert out == {"looked": 2, "labelled": 2, "skipped": 0, "failed": 0}
     assert "question b" not in asked
     again = asyncio.run(training.judge_batch(lambda k: scripts.get(k, []), limit=10))
     assert again["labelled"] == 0 and asked.count("question a") == 1

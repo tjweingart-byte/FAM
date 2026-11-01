@@ -686,7 +686,9 @@ async def lifespan(_: FastAPI):
         # loop's first round runs after this, at the next await.
         from agents import training as agent_training
 
-        agent_training.register(lambda key: SCRIPT_CACHE.get(key, current=False) or [])
+        # `script` reads without counting a hit: grading is not a replay (§391).
+        agent_training.register(
+            lambda key: getattr(SCRIPT_CACHE, "script", lambda _k: [])(key) or [])
     # Expired scripts are already filtered out on read, so nothing ever deleted
     # them and the file grew for the life of the deployment. One DELETE at
     # startup is enough: entries expire on a timescale of days, not minutes.

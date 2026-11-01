@@ -60,7 +60,8 @@ def test_a_pruned_grade_with_nothing_left_is_forgotten_by_memory_not_called_none
     assert all(r["question"] != "zoo question" for r in memory.rows())
 
 
-def test_a_minted_node_asks_for_fresh_grades_under_its_parent_first(tree, monkeypatch):
+def test_a_minted_node_flags_the_grades_under_its_parent_and_never_reads_them_again(
+        tree, monkeypatch):
     leaf = _leaf(tree)
     parent = tree.get(leaf).parent_id
     _grade("p", parent)
@@ -70,7 +71,8 @@ def test_a_minted_node_asks_for_fresh_grades_under_its_parent_first(tree, monkey
     assert out["minted"] == ["brand new node"] and out["regrade"] == 1
     assert training.store().to_regrade() == {"p"}
     assert out["undefined"] == ["brand new node"]
-    # The answer key grades it again, ahead of new episodes.
+    # nando.md rule 12 lets the key read each finished episode once (§391):
+    # the flag is kept for the report, and only new episodes are asked.
     category_audit.note("question p", "", "tap", key="p")
     category_audit.note("question q", "", "tap", key="q")
     monkeypatch.setattr(training, "allowed", lambda: (True, ""))
@@ -83,8 +85,8 @@ def test_a_minted_node_asks_for_fresh_grades_under_its_parent_first(tree, monkey
                                                             reason="r"), model="m")
 
     monkeypatch.setattr(models, "ask", ask)
-    asyncio.run(training.judge_batch(lambda _k: ["s"], limit=1))
-    assert asked == ["question p"] and training.store().to_regrade() == set()
+    asyncio.run(training.judge_batch(lambda _k: ["s"], limit=5))
+    assert asked == ["question q"] and training.store().to_regrade() == {"p"}
 
 
 def test_every_change_is_a_refile_task_for_consuela(tree):

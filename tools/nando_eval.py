@@ -292,9 +292,16 @@ def brief_places() -> dict:
         notes.agents = netenyahu.for_episode("search")
         brief = loop.run_until_complete(
             episode_intelligence.understand(question, 2, notes=notes))
-        picked = (brief.contextualized or {}).get("node", "")
-        return categorizer.place(brief, question, prior=categorizer.prior_for(question),
-                                 picked=picked).node
+        # As production places it (script_generator.prepare, §391): C3P0's
+        # pick is dropped when he says the request is ambiguous, and that
+        # unsureness reaches the placement.
+        said = brief.contextualized or {}
+        unsure = bool(said.get("ambiguous"))
+        picked = "" if unsure else said.get("node", "")
+        return categorizer.place(brief, question,
+                                 field=categorizer.provider_field(question),
+                                 prior=categorizer.prior_for(question),
+                                 picked=picked, unsure=unsure).node
 
     return {"nando, from the brief": with_brief}
 

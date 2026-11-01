@@ -309,7 +309,7 @@ prices) cost more than Haiku 5.5.
 |---|---|
 | Netenyahu | No planner model; the rules in code |
 | C3P0 | Haiku 5.5 folded into the brief's call: at the brief's effort (medium) on the tap, at high effort ahead of the tap (`EI_AHEAD_EFFORT`) |
-| Nando | Code first, folded into the brief's call, Haiku 5.5 on ties; always the closest node it is truly about |
+| Nando | Code first, folded into the brief's call, Haiku 5.5 whenever nothing solid files the request (§379); always the closest node it is truly about. His answer key: Opus 5.5, in the background (§381) |
 | Sonic | An embedding router chooses the lookup; the code mapping is its fallback |
 | Shakespeare | Haiku 5.5 on searchFAM, in tandem with the writer; ahead of the tap measured first (no editor / Haiku 5.5 high / Sonnet 5.5), the owner decides, Sonnet the default until then; Opus 5.5 for the playbook and the eval |
 | Mclovin | Haiku 5.5 on unsure sentences and unsettled pages; **the grounding checker not decided** (its own analysis) |
@@ -430,7 +430,9 @@ together is ~$15 per 10,000 episodes.
 
 **Levers not to pull**, because they cost quality: Haiku for Shakespeare on the
 editions; dropping Mclovin's checker for a cheaper rule; skipping
-fact-checks on search; Opus anywhere per episode.
+fact-checks on search; Opus anywhere per episode. *(The owner's one
+exception: Nando's answer key reads each finished episode once, in the
+background, on Opus - §381, nando.md rule 12 awaiting signature, §384.)*
 
 **Instead of a cap:** every call has a size limit (tokens in and out); each
 agent makes at most one call per episode plus one retry or repair;
@@ -790,7 +792,7 @@ latency matters more here than for any other agent.
 | `CONTEXTUALIZER_MODEL` | `anthropic:claude-haiku-5-5`, inside the brief's call (decided 2026-10-30); empty = code rules |
 | `EI_AHEAD_EFFORT` | `high` ahead of the tap with C3P0 on (decided 2026-10-30); the search path keeps `EI_EFFORT` |
 | `ARCHIVE_ALONE`, `ARCHIVE_ALONE_TTL_SECONDS` | The archive answering an empty search alone, past or settled things only (responsibility 8, decided 2026-10-28) |
-| `CONTEXTUALIZER_TITLES` | `1`: C3P0's title is the episode's title (decided by the owner, 2026-10-28; replaces [title-from-content]'s writer title once built) |
+| `CONTEXTUALIZER_TITLES` | `1`: C3P0's title is the episode's title (decided by the owner, 2026-10-28; built, §371); `0` keeps the writer's `<<TITLE:>>` |
 
 Open: in tandem as part of EI's own call, or a separate call run alongside it?
 How does an archive-only episode look on the sources panel? Decided
@@ -1966,6 +1968,10 @@ disagree. After the shared preamble:
   drift.
 - **Later:** a fine-tuned classifier measured against `category_audit`.
 
+> **Current:** Nando's own Haiku call runs whenever nothing solid will file
+> the request, not only on ties (§379); his small trained model is built
+> (§385).
+
 **Built in code (§371):** `agents/categorizer.py` - `place` at the request
 (the brief's category words, then its subject, then the question's phrases
 on the brief's facet, then the words by meaning, then the keyword map's
@@ -1976,23 +1982,30 @@ node stored in the script cache's `category_node` and read first by
 (`categories_report.py --audit`). The measurement is `tools/nando_eval.py`.
 **In the brief's call (§375):** the candidate list
 (`candidates_for`: the tap's node, every reading of a clash, phrases, the
-vocabulary, keyword nodes and their parents, the facets when nothing else)
-goes with C3P0's call, whose pick outranks every code step but the tap's
-own filing; on a tie code could not settle, Nando's own Haiku call
-(`ask_tie`) runs beside the brief and is used only when there is no pick,
-never waited for. **Nando decides (§379, the owner):** code files a node
+vocabulary, keyword nodes and their parents, capped at `MAX_CANDIDATES`;
+then every facet, §380; then the whole tree while it has at most
+`WHOLE_TREE_NODES`, §388-§389) goes with C3P0's call, whose pick outranks
+every code step but the tap's own filing, and is dropped when he says the
+request is ambiguous (§377); Nando's own Haiku call (`ask_tie`) runs beside
+the brief whenever C3P0 is not choosing (§379, §391) and is used only when
+there is no pick, never waited for on a search. **Nando decides (§379, the owner):** code files a node
 only from a solid source (`categorizer.SOLID`: the tap's own filing, a
 provider's field, the brief's own category words, the model's pick); what
 it reads off the raw words is the suggestion and the candidate list the
 model is shown (`suggest`). Nando's own call runs whenever nothing solid
 will file the request and C3P0 is not choosing - not only on ties - and is
-awaited ahead of the tap. With no answer the writer's category stands.
-Training him continuously is pieces N2-N7.
+awaited ahead of the tap. With no answer the writer's category stands, read
+live and never stored as his (§391). A provider's filing is only ever
+narrowed after the writer, never re-filed (§391). Training him continuously
+is pieces N2-N7 (§380-§387): worked examples and code's hints as
+`<teaching>`, an Opus answer key, a memory of graded answers, his mistakes
+as examples, a small trained model, and a nightly look at the tree.
 **Starting from the tap (§372):** `prior_for` reads what the tap already
 says - a tile's story, a bank topic, a DailyFAM subject from the catalogue,
 the Trending edition's story, the episode a Go Deeper follows - and the
 question's words may only narrow that node; the facet is chosen first and
-every later step stays inside it. **Names that mean two things (§373):**
+every later step stays inside it. *(A Go Deeper's parent is only a hint
+since §377: its title is no solid source.)* **Names that mean two things (§373):**
 `category_collisions.py`, beside the seed, lists each clash (Heat,
 Hurricanes, United, Apple, Amazon, Eagles...) with its readings' nodes and
 the words that decide between them; a tie is never guessed - Nando files
@@ -2012,7 +2025,10 @@ nodes share is a tie, filed under what they share.
 | Setting | What it is |
 |---|---|
 | `CATEGORIZER` | `0` / `1` (proposed): off = today's code |
-| `CATEGORIZER_MODEL` | `anthropic:claude-haiku-5-5`, asked only on ties (decided 2026-10-30) |
+| `CATEGORIZER_MODEL` | `anthropic:claude-haiku-5-5` (decided 2026-10-30), asked whenever nothing solid files the request and C3P0 is not choosing (§379) |
+| `CATEGORIZER_JUDGE_MODEL` | `anthropic:claude-opus-5-5`: the answer key, nightly, each finished episode once (§381) |
+| `CATEGORIZER_JUDGE_TIMEOUT_SECONDS`, `CATEGORIZER_JUDGE_MAX_TOKENS` | 60, 400: the answer key's one call (§381) |
+| `NANDO_JUDGE_PER_RUN` | 50: episodes a nightly run grades at most (§381) |
 | `NEAR_COSINE`, `WRITER_MIN_EPISODES`, `SUBJECT_DEPTH`, `THUMBNAILS_REVIEW` | Built: 0.45, 2, 2, `flagged` |
 
 Decided (2026-10-28): the category tag is the same everywhere for the

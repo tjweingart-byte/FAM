@@ -17,7 +17,7 @@ reading itself ("storm", "puck"), never to words both readings use
 ("season", "record", "win" for weather records). A reading's own node name
 ("new york rangers") in the text decides it outright.
 
-**No cue is no evidence** (review, §376): a name with nothing around it
+**No cue is no evidence** (review, §377): a name with nothing around it
 that points to any reading tells Nando nothing - "tech giants", "kings and
 queens of England" are neither league - so it is not filed under what the
 readings share; only a draw between readings that each have a cue is.

@@ -280,6 +280,13 @@ def _forget_what_the_log_taught() -> dict:
 
         out["nando_model_dropped"] = (nando_model.forget()
                                       if agent_training.exists() else 0)
+        # And the copies in memory, so no wiped grade is recalled or taught
+        # until the next refresh ([wipe-derived], §391).
+        import category_examples
+        from agents import memory as agent_memory
+
+        agent_memory.reset()
+        category_examples.reset()
     except Exception:  # noqa: BLE001 - see the docstring
         log.exception("could not clear nando's training material")
         out.setdefault("nando_labels_dropped", 0)

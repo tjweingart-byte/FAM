@@ -256,6 +256,10 @@ def _built(tree) -> dict:
         key = _norm(name)
         if not key or (tree.get(node) is None and node not in topics.FACETS):
             continue
+        # A named thing that means two things ("Eagles", "Heat") is
+        # category_collisions' to decide, as a wording is (§391).
+        if "two things" in refused(key, node, tree):
+            continue
         # A one-word name ("Bills", "Lions", "Mercedes") is also an everyday
         # word, and keeps any context a derived nickname already asked for
         # (review, §376): it is read only in a question about its field.

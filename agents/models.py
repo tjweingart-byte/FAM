@@ -75,9 +75,13 @@ REFUSED = "refused"
 OUT_OF_ROOM = "out_of_room"
 UNREADABLE = "unreadable"
 INVALID = "invalid"
+#: Cancelled by its caller - a tie call the brief no longer needs, a
+#: listener who left (§391). Recorded, because a sent request may be billed,
+#: but never a failure: it is the designed end of most tie calls.
+CANCELLED = "cancelled"
 STATUSES = (OK, OFF, MALFORMED, HELD, NO_MODEL, MISCONFIGURED, CONSENT,
             UNPRICED, STAGING, TIMEOUT, FAILED, WRONG_MODEL, REFUSED,
-            OUT_OF_ROOM, UNREADABLE, INVALID)
+            OUT_OF_ROOM, UNREADABLE, INVALID, CANCELLED)
 
 #: The tags material may arrive in (Guardrails and prompting). Anything a
 #: model reads that is not the owner's rule books arrives inside one.
@@ -395,7 +399,7 @@ async def ask(request: AgentRequest, *, notes=None, client=None) -> AgentResult:
         # Cancelled by its caller (a tie call nobody needs any more, a
         # listener who left): still a row, because a request that was sent
         # may have been billed (review, §376). Then the cancel goes on.
-        _write(request, AgentResult(FAILED, getattr(request, "agent", ""),
+        _write(request, AgentResult(CANCELLED, getattr(request, "agent", ""),
                                     getattr(request, "task", ""), "cancelled by its caller",
                                     seconds=time.monotonic() - started, sent=sent[0]))
         raise
@@ -591,6 +595,11 @@ def health() -> dict:
                                  for surface in roster.get(role).surfaces}
         except Exception:  # noqa: BLE001 - a report is never load-bearing
             pass
+        if role == "categorizer":
+            # The answer key's batch size (§381) is settable too, so it is
+            # reported with where it came from ([server-says-build]).
+            entry["judge_per_run"] = {"value": int(settings.nando_judge_per_run),
+                                      "source": source("nando_judge_per_run")}
         out["agents"][role] = entry
     try:
         from agents import tasks

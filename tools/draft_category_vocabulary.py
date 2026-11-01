@@ -155,7 +155,19 @@ def clean_draft(data: dict, tree) -> tuple:
     when they are on different branches ("chip fabs": chip or semiconductor
     manufacturing is the model's to choose, not the table's). `notes` says
     what went."""
+    import categories
+    import category_vocabulary
+
     notes = []
+    # A named thing that means two things ("Eagles", "Heat") is
+    # category_collisions' to decide, never the table's (§391).
+    entities = data.get("entities") or {}
+    for name in list(entities):
+        key = categories.normalise(name)
+        node = (entities[name] or {}).get("node", "")
+        if key and "two things" in category_vocabulary.refused(key, node, tree):
+            del entities[name]
+            notes.append(f"entity {name!r}: dropped (a name that means two things)")
     nodes = data.get("nodes") or {}
     for node, entry in nodes.items():
         before = list(entry.get("wordings") or ())
@@ -281,7 +293,8 @@ def main() -> int:
     if args.clean:
         data = json.loads(category_vocabulary.PENDING.read_text(encoding="utf-8"))
         data, notes = clean_draft(data, tree)
-        data.setdefault("drafted", {})["cleaned"] = notes
+        drafted = data.setdefault("drafted", {})
+        drafted["cleaned"] = list(drafted.get("cleaned") or ()) + notes
         category_vocabulary.PENDING.write_text(
             json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
         print(f"cleaned {category_vocabulary.PENDING.name}: {len(notes)} change(s)")

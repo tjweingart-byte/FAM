@@ -119,7 +119,7 @@ Render deployment; since §208 it pins every store there (21 since §211), as th
 | **moderation.db** (`MODERATION_DB`) | `moderation.py` | `reports`, `blocks`, `suspended`, `hidden_episodes` | Yes | Forever | Erased (blocks, suspension) · reports **anonymised** · kept |
 | **mixes.db** (`MIXES_DB`) | `mixes.py`, `push.py`, `daily_edition.py` | `mixes`, `push_subscriptions`, `push_sent`, `daily_editions` | Yes (mixes, push) | ≤ 30 mixes per listener | Erased · `daily_editions` **wiped** |
 | **quotas.db** (`QUOTAS_DB`) | `quotas.py` | `counters`, `charges` | Yes | 60 days | Erased · kept |
-| **agents.db** (`AGENTS_DB`, §349) | `agents/tasks.py`, `agents/training.py` | `tasks`, `holds`, `nando_labels`, `nando_tree`, `nando_model` | No | Tasks and labels until a wipe; holds kept | A wipe empties `tasks`, `nando_labels`, `nando_tree` and `nando_model` |
+| **agents.db** (`AGENTS_DB`, §349) | `agents/tasks.py`, `agents/training.py` | `tasks`, `holds`, `nando_labels`, `nando_asked`, `nando_tree`, `nando_model` | No | Tasks and labels until a wipe; holds kept | A wipe empties `tasks`, `nando_labels`, `nando_asked`, `nando_tree` and `nando_model` |
 | **metering.db** (`METERING_DB`) | `metering.py` | `usage`, `agent_calls` | Yes, until anonymised | Forever | **Anonymised** · **never wiped** |
 | **attachments.db** (`ATTACHMENTS_PATH`) | `attachments.py` | `attachments` | Yes | 6 hours | Erased · kept |
 | **voice_registry.db** (`VOICE_REGISTRY_DB`) | `voice_registry.py` | `workers` | No | ≤ 20 rows | n/a |
@@ -271,7 +271,10 @@ written episode - its cache key, question, node, confidence, reason and the
 judge's model; never a listener id, never a private search's episode.
 Each grade also keeps the node's path when graded and, once the tree
 prunes its node, when it was retired and the nearest ancestor it points at
-(§387) - never deleted by the tree, only marked. `nando_tree`: the tree as
+(§387) - never deleted by the tree, only marked - and whether a node minted
+under it flags it for a fresh grade (`regrade`; flagged only, never read
+again, §391). `nando_asked`: every episode key the answer key was asked
+about, answered or not, so none is read twice (nando.md rule 12, §391). `nando_tree`: the tree as
 the last nightly look saw it (node and parent). `nando_model` (§385): one
 row, Nando's trained classifier's weights and how it measured itself.
 

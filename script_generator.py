@@ -2261,7 +2261,7 @@ class ScriptGenerator:
                                        or getattr(notes, "prefetch", False))
         # Nando's candidates, listed once for the brief's call and the tie
         # call (§375). The tie call only where a listener waits and the
-        # placement in `prepare` is sure to follow (review, §376): ahead of
+        # placement in `prepare` is sure to follow (review, §377): ahead of
         # the tap a prefetch or an edition can stop after the brief, and C3P0
         # there has the whole of `EI_AHEAD_EFFORT` to choose. Never waited for.
         if _agent_runs(notes, "categorizer"):
@@ -2275,8 +2275,12 @@ class ScriptGenerator:
             # Ahead of the tap it is asked in `prepare`, where nobody waits.
             prior = categorizer.prior_for(plan.query, plan.context, notes)
             solid_tap = prior.node and prior.source in categorizer.SOLID
-            if (nodes and not ahead and not solid_tap
-                    and not _agent_runs(notes, "contextualizer")):
+            # C3P0 chooses only when his call actually runs: on the split
+            # brief (`EI_SPLIT`, as `episode_intelligence.understand` asks).
+            # Switched on but not running, he is not choosing (§391).
+            c3p0_chooses = (_agent_runs(notes, "contextualizer")
+                            and bool(settings.ei_split))
+            if nodes and not ahead and not solid_tap and not c3p0_chooses:
                 notes.category_tie_task = asyncio.ensure_future(
                     categorizer.ask_tie(plan.query, nodes, notes))
         # `covered` only when there is some, so a call for anything that is
@@ -2415,17 +2419,19 @@ class ScriptGenerator:
                 field = categorizer.provider_field(plan.query)
                 prior = categorizer.prior_for(plan.query, plan.context, notes)
                 pick = ("" if unsure else said.get("node", "")) or tie
-                placed = categorizer.place(plan.brief, plan.query, field, prior, pick)
+                placed = categorizer.place(plan.brief, plan.query, field, prior, pick,
+                                           unsure=unsure)
                 ahead_now = bool(getattr(notes, "ahead", False)
                                  or getattr(notes, "prefetch", False))
                 if (not placed.node and ahead_now and not unsure
                         and not said.get("node") and placed.candidates):
                     # Ahead of the tap nobody waits: Nando's own call is
                     # simply awaited, within its own time limit (§379).
-                    pick = await categorizer.ask_tie(plan.query, placed.candidates, notes)
+                    pick = await categorizer.ask_tie(plan.query, placed.candidates, notes,
+                                                     ahead=True)
                     if pick:
                         placed = categorizer.place(plan.brief, plan.query, field, prior,
-                                                   pick)
+                                                   pick, unsure=unsure)
                 notes.category_placement = placed
                 if placed.node and notes.caption_key:
                     live_captions.publish_category(notes.caption_key, placed.node)

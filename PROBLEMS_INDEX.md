@@ -387,7 +387,8 @@ and `limit` = Lines.
 | 26338 | 39 | 384. The owner's rule for the answer key, and a `<teaching>` label (2026-10-31) |
 | 26377 | 47 | 385. Training Nando, piece N6: a small model of his own, trusted only when its numbers say so (2026-10-31) |
 | 26424 | 17 | 386. This branch's sections renumbered, twice: Main kept taking the numbers (2026-11-01) |
-| 26441 | 38 | 387. Training Nando, piece N7: his training follows the tree as it grows (2026-10-31) |
-| 26479 | 65 | 388. Measured with a key at last: the probe's lost Opus, and the whole tree on Nando's list (2026-10-31) |
-| 26544 | 81 | 389. The vocabulary drafted, cleaned and measured: it does not help yet (2026-10-31) |
-| 26625 | 38 | 390. What Phase 1 leaves for the next branch (2026-10-31) |
+| 26441 | 39 | 387. Training Nando, piece N7: his training follows the tree as it grows (2026-10-31) |
+| 26480 | 65 | 388. Measured with a key at last: the probe's lost Opus, and the whole tree on Nando's list (2026-10-31) |
+| 26545 | 81 | 389. The vocabulary drafted, cleaned and measured: it does not help yet (2026-10-31) |
+| 26626 | 38 | 390. What Phase 1 leaves for the next branch (2026-10-31) |
+| 26664 | 82 | 391. Phase 1 reviewed before merge: what the writer chose was counted as Nando's, and the answer key read twice (2026-11-01) |

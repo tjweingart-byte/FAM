@@ -207,11 +207,11 @@ def suggest(brief, query: str = "", field: tuple = (),
     (C3P0's call, or Nando's tie call, §375), checked here against the tree:
     it outranks every code step but the tap's own filing. `unsure` is C3P0
     saying the request is ambiguous: then his pick is a guess between the
-    readings and is not taken (review, §376).
+    readings and is not taken (review, §377).
 
     A Go Deeper's parent (`Prior(..., "parent")`) is weaker than a tap's own
     filing: it is a title, placed by this module, and it stands only when
-    the request itself places nothing more than a facet (review, §376)."""
+    the request itself places nothing more than a facet (review, §377)."""
     try:
         if unsure:
             picked = ""
@@ -455,7 +455,7 @@ def _prior_for(query: str, context: str, notes) -> Prior:
                 return Prior(node, "dailyfam")
     # The episode a Go Deeper follows, by its title - placed by this module's
     # own steps (clashes, the vocabulary, the sport gate), never by a raw
-    # phrase match (review, §376: "Utah's jazz festival lineup").
+    # phrase match (review, §377: "Utah's jazz festival lineup").
     title = " ".join((context or "").split())
     if title:
         parent = _place(None, title)
@@ -476,7 +476,7 @@ def clashes(text: str) -> list:
     around the name point to, or None when none or several do - a tie,
     never guessed, and then `readings` are only those tied on cues; `cued`
     says whether any reading had a word for it at all
-    (no cue is no evidence, review §376). A reading's own node name in the
+    (no cue is no evidence, review §377). A reading's own node name in the
     text ("new york rangers") decides it. A word inside another name
     (`NOT_THE_NAME`: "United States") is not the clash. Never raises."""
     try:
@@ -584,7 +584,7 @@ def _place(brief, query: str, prior_facet: str = "") -> Placement:
                    for i, (_x, a) in enumerate(filed) for _y, b in filed[i + 1:])
     decided = [] if conflict else [d for _n, d, _rs in decided_named]
     # Only a draw between readings that each had a cue is a tie; a name with
-    # no cue at all is no evidence for any reading (review, §376).
+    # no cue at all is no evidence for any reading (review, §377).
     undecided = [(n, rs) for n, d, rs, cued in named if d is None and cued]
     if conflict:
         undecided.append(("+".join(n for n, _d in filed), tuple(d for _n, d in filed)))
@@ -688,7 +688,7 @@ def _place(brief, query: str, prior_facet: str = "") -> Placement:
     tagged = [t for t in topics.tags_for_text(query or "")
               if t not in topics.FACETS and tree.get(t) is not None and agrees(t)
               # The keyword map reads team names into league tags, so in a
-              # question with no sport in it no sports tag is taken (§376).
+              # question with no sport in it no sports tag is taken (§377).
               and (sporty or _facet(t) != "sports")]
     if tagged:
         tagged.sort(key=lambda n: (-tree.depth_of(n), n))
@@ -715,7 +715,7 @@ def _branch(node: str) -> tuple:
     return tuple(topics.category_tree().ancestors(node)) if node else ()
 
 
-def confirm(request: str, words: str, field: tuple = ()) -> tuple:
+def confirm(request: str, words: str, field: tuple = (), locked: bool = False) -> tuple:
     """`(node, how)`: the episode's node once it is written (nando.md,
     "always" 5). `request` is Nando's node from the request, `words` the
     writer's `<<CATEGORY:>>`. Never raises.
@@ -731,16 +731,15 @@ def confirm(request: str, words: str, field: tuple = ()) -> tuple:
     * anything else - the episode turned out to be about something else,
       and is re-filed under the writer's (`refiled`), both logged.
 
-    A provider's field is never left (`field`)."""
+    A provider's field is never left (`field`), and a provider's own
+    filing (`locked`) is only ever narrowed on its branch, never re-filed
+    (nando.md, never 4; §391). Only the writer's words as the tree's phrases
+    place them: the nearest node by meaning is the step trusted least, and
+    may never re-file what a solid source filed (§391)."""
     try:
         import stories
 
         written = stories.resolve_category(words) if words else ""
-        if not written and words:
-            import category_near
-
-            # Queued, never embedded on the event loop (review, §376).
-            written = category_near.nearest(words, inline=0)
         if field and written and _facet(written) not in field:
             written = ""
         if not written:
@@ -753,6 +752,8 @@ def confirm(request: str, words: str, field: tuple = ()) -> tuple:
             return written, "narrowed"
         if written in _branch(request) or (written == _facet(request)):
             return request, "confirmed"
+        if locked:
+            return request, "kept"
         return written, "refiled"
     except Exception as exc:  # noqa: BLE001
         log.warning("nando could not confirm %r: %s", words, exc)
@@ -769,7 +770,15 @@ def settle(notes, query: str = "") -> str:
         if placed is None:
             return ""
         field = provider_field(query)
-        node, how = confirm(placed.node, getattr(notes, "category", "") or "", field)
+        locked = (placed.how or "").split("~")[0] == "provider"
+        node, how = confirm(placed.node, getattr(notes, "category", "") or "", field,
+                            locked)
+        if how == "writer":
+            # Nando filed nothing at the request: the writer's category
+            # stands as it did before him, read live by `_episode_category`
+            # so a growing tree still places it - never stored as his, and
+            # never counted as his in the audit or the answer key (§391).
+            node = ""
         notes.category_settled = {"request": placed.node, "request_how": placed.how,
                                   "node": node, "how": how,
                                   "confidence": placed.confidence,
@@ -861,8 +870,11 @@ def candidates_for(query: str, context: str = "", notes=None) -> tuple:
         # Then every facet, always (§380): what the words pointed at may be
         # wrong ("Detroit lions at the zoo"), and a broader true node must
         # always be on offer beside it.
-        facets = [f for f in sorted(topics.FACETS) if f not in ordered]
-        found = ordered[:MAX_CANDIDATES] + facets
+        kept = ordered[:MAX_CANDIDATES]
+        # Every facet not already kept - tested against the list as cut, so a
+        # facet past the cut is never lost (§391).
+        facets = [f for f in sorted(topics.FACETS) if f not in kept]
+        found = kept + facets
         # When the words pointed at nothing below a facet, the facets alone
         # left the model a choice of eight broad answers for "is bitcoin
         # going up" (§388, measured): the level under the facets goes on the
@@ -882,6 +894,21 @@ def candidates_for(query: str, context: str = "", notes=None) -> tuple:
     except Exception as exc:  # noqa: BLE001
         log.warning("nando could not list candidates for %r: %s", query, exc)
         return (), False
+
+
+def code_part(nodes) -> tuple:
+    """The part of a candidate list code itself found - before the facets
+    it did not match and the tree that follow (§389) - so what is chosen
+    for the request (examples) is chosen for code's matches, not for all of
+    the tree (§391)."""
+    import topics
+
+    nodes = tuple(nodes or ())
+    for k in range(len(nodes) + 1):
+        rest = sorted(set(topics.FACETS) - set(nodes[:k]))
+        if rest and list(nodes[k:k + len(rest)]) == rest:
+            return nodes[:k]
+    return nodes
 
 
 def hint_block(query: str) -> str:
@@ -915,7 +942,7 @@ def teaching(query: str, candidates: tuple, inline: int = 0) -> tuple:
     from agents import memory
 
     out = []
-    examples = category_examples.block(query, candidates)
+    examples = category_examples.block(query, code_part(candidates))
     if examples:
         out.append(("teaching", examples))
     shown = {line.split(" -> ")[0] for line in examples.splitlines()[1:]}
@@ -953,7 +980,7 @@ word it contains: "hurricanes hitting the Carolina coast" is weather, not the \
 hockey team. A broader true node is better than a specific wrong one."""
 
 
-async def ask_tie(query: str, candidates: tuple, notes=None) -> str:
+async def ask_tie(query: str, candidates: tuple, notes=None, ahead: bool = False) -> str:
     """Nando's own call, only on a tie code could not settle, run beside the
     brief and never waited for (the owner's answer 5, §369): a node from
     `candidates`, or "". Never raises."""
@@ -981,7 +1008,7 @@ async def ask_tie(query: str, candidates: tuple, notes=None) -> str:
                        + candidate_block(candidates))) + teaching(query, candidates),
             timeout=float(settings.categorizer_timeout_seconds),
             max_tokens=int(settings.categorizer_max_tokens), effort="low",
-            surface="search")
+            surface="ahead" if ahead else "search")
         result = await models.ask(request, notes=notes)
         netenyahu.report("categorizer", result.status)
         if not result.ok:

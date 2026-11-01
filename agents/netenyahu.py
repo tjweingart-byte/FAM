@@ -222,7 +222,7 @@ HELD_REFRESH_SECONDS = 30.0
 UNKNOWN = None
 _HELD: dict = {"roles": UNKNOWN, "at": 0.0, "running": False}
 _HELD_LOCK = threading.Lock()
-#: Holds made in this process (§376): kept in the copy until a read of the
+#: Holds made in this process (§377): kept in the copy until a read of the
 #: store shows them, so a refresh racing a hold's write - whenever it began
 #: - can never drop it from the copy.
 _MADE: dict = {}

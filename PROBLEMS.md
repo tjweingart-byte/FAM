@@ -25715,7 +25715,7 @@ from his call is the one published before the first word and the writer's
 `<<TITLE:>>` does not replace it (`ScriptNotes.c3p0_title`). `[title-from-content]`
 and `[one-category]` are rewritten in `CLAUDE.md` and `product.md` as the
 build prompt asked - inside the core's budget (39,956 of 40,000 bytes then;
-39,970 after §376), the full text in the topic file. Mclovin's comparison of the title with
+`tests/test_claude_md.py` holds it since), the full text in the topic file. Mclovin's comparison of the title with
 the finished script, and C3P0 retitling on a mismatch, are Phase 3.
 
 **Latency - what cannot be measured here.** No new call in series: C3P0's
@@ -26317,7 +26317,7 @@ answer key (§381) now finds them every night.
 **What changed.** `training.mistakes()`: every graded episode Nando filed
 under a wrong node - or under nothing - that the key was sure of (`high`),
 with the key's node as the answer, newest first, one per question, at most
-200 from the last 60 days. A filing on the right branch (more or less
+200 from the last 30 days (the audit's own window; 60 until §391). A filing on the right branch (more or less
 specific, but true) is not a mistake. Registered at boot (`netenyahu.prime`,
 `AGENTS=1`) as a source of `category_examples`, read in its background
 thread every five minutes, never on a request. In `pick`, his own mistakes
@@ -26457,9 +26457,10 @@ the model at 04:00) compares the tree with the last look:
   under that ancestor; a grade with nothing left is not learnt at all
   (never as "none"); retired grades are never compared with filings. If
   the node is minted again, its grades come back.
-* **Minted**: grades filed under its parent are flagged for a fresh grade,
-  which the answer key does first the same night while the episodes'
-  scripts are still kept - so the new, more specific node gets examples.
+* **Minted**: grades filed under its parent are flagged for a fresh grade.
+  *(Until §391 the answer key then read them again first; it no longer
+  does - nando.md rule 12 lets it read each finished episode once - so the
+  flag is kept for the report.)*
   A minted node with no drafted definition is listed, and
   `tools/categories_report.py --audit` lists every node without one, with
   the command to draft them for a person to review (definitions are never
@@ -26558,9 +26559,9 @@ used by the tool and again by the loader, whatever the file says):
 
 * **A lone letter.** "M&A", "A's" and "O's" normalise to "m a", "a s" and
   "o s" - and a question normalises the same way, so "I'm a Lakers fan"
-  ("i m a lakers fan") would have read as mergers. A wording made only of
-  one- and two-letter pieces is refused; "e commerce" and "women s health"
-  keep their long word and stay.
+  ("i m a lakers fan") would have read as mergers. A wording with a
+  one-letter word and no word of three letters or more is refused; "e
+  commerce" and "women s health" keep their long word and stay.
 * **Another node's own name** (37): "nfl" under american football. That
   node already matches its name; listing it elsewhere only made ties.
 * **A name that means two things** ("hurricanes", "rangers"): those are
@@ -26659,3 +26660,85 @@ Waiting on the owner, not on a branch: signing `nando.md` rule 12
 (`docs/agent_rule_proposals/README.md`, §384); the search-latency
 trade-off with the agents on (§388); the vocabulary draft, not recommended
 (§389).
+
+## 391. Phase 1 reviewed before merge: what the writer chose was counted as Nando's, and the answer key read twice (2026-11-01)
+
+Before this branch was readied to merge, four independent reviews read
+every change (`git diff 29c092a`), one each on the request path, Nando,
+his training, and whether the documents tell the truth. None found a
+change to anything with the agents off - `AGENTS=0`, the default, is still
+byte for byte what it was. What they found only shows with the agents on,
+and all of it is fixed here, each pinned in
+`tests/test_review_before_merge_391.py`.
+
+**Nando, the most serious.**
+
+- **What the writer chose was stored as Nando's.** When Nando filed
+  nothing at the request, `settle` stored the writer's category as his
+  node (`how="writer"`). It froze the reading against a tree that grows,
+  counted the writer's choices as Nando's filings in the audit, and fed
+  the writer's mistakes to the answer key's report and to his "mistakes"
+  as if they were his. Now nothing is stored: the writer's category stands
+  as it did before him, read live. **Every Nando number before this,
+  §376-§389's included, counted those episodes**; the forty-question
+  measurements (§388, §389) are re-measured below.
+- **A provider's filing could be re-filed by the writer** (nando.md, never
+  4). `settle` now locks a provider's filing: the writer may narrow it on
+  its branch, never move it.
+- **The nearest node by meaning could re-file a solid filing.** `confirm`
+  now reads the writer's words only as the tree's phrases.
+- **C3P0's "ambiguous" never reached the placement**, so the trained model
+  (§385) could file a guess when he said the name meant two things. It is
+  passed (`unsure`).
+- **A named thing that means two things** ("Eagles", "Heat", "Apple") was
+  never refused - only wordings were (§389). The loader and the drafting
+  tool refuse it now; six went from the pending draft, appended to its
+  `drafted.cleaned` (which `--clean` now adds to instead of replacing).
+- **Since the whole tree went on the list (§389), every worked example was
+  "on the list"**, so the same twelve unrelated ones were shown for every
+  request. Examples are now chosen for code's own matches
+  (`categorizer.code_part`).
+- **A facet past the 20-candidate cut was lost**; facets are now tested
+  against the list as cut.
+- **When C3P0 was switched on but not running** (`EI_SPLIT=0`), neither he
+  nor Nando chose. Nando's own call now starts whenever C3P0 is not
+  actually choosing; ahead of the tap it is recorded as `ahead`.
+
+**The answer key and the request path.**
+
+- **Three failed nightly grades would have held Nando on every listener's
+  episode**: the grader shared his failure count. It no longer reports to
+  the hold; a failure is still in `agent_calls` and on /admin.
+- **Read twice, against the rule waiting for the owner's signature.** A
+  failed grade was asked again every night, and a node minted under a
+  grade asked for it again (§387). Every episode asked about is now
+  recorded (`nando_asked`) and never asked again, answered or not; a new
+  node only flags its parent's grades.
+- **The grader worked on the event loop listeners share**, and counted
+  each script it read as a cache hit. Its reads run in threads, and it
+  reads scripts with `SCRIPT_CACHE.script`, which counts nothing.
+- **C3P0 ahead of the tap could run the embedding model on that loop**
+  (his memory, §382). It now embeds in a thread, as Nando's own call does.
+- **A tie call cancelled by design was logged as a failure** on /admin and
+  in the ledger. Its status is now `cancelled`, never a failure.
+- **Agreeing that no node fits** (Nando filed nothing, the key said
+  "none") was counted as one of his mistakes; it is agreement.
+- **A wipe left the remembered grades and learned examples in memory** for
+  up to five minutes; it resets them ([wipe-derived]).
+- **A tree that read empty would have retired every grade**; it is
+  skipped. A grade restored when its node returns refreshes its path.
+- `MISTAKE_DAYS` was 60 while the audit keeps 30; it is 30.
+  `NANDO_JUDGE_PER_RUN` is reported in `/api/health`.
+
+**Documents.** Eleven comments cited the first review (§376) for what the
+second recorded (§377); `docs/FAM_AGENTS.md` still said Nando was asked
+"only on ties" and lacked the answer key's settings and Opus exception;
+`product.md`, `DATA.md` and §375's, §383's, §387's and §389's details
+were brought up to date.
+
+**Known and left, said plainly:** a grade outlives a key written again
+(the second episode under one key is never graded, §173); Consuela's
+re-file tasks keep only a hash of what changed, as every task does
+(`agents/tasks.py`); and a sent-then-failed C3P0 call answers the brief as
+a failed search half, never a second request (§376) - the owner may want
+to confirm that reading of "falls back".

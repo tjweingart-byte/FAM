@@ -24,6 +24,7 @@ the agent layer, with his and Nando's fields after it, each held in code
 """
 from __future__ import annotations
 
+import asyncio
 import collections
 import logging
 import threading
@@ -491,10 +492,15 @@ async def search_half(query: str, minutes: int, context: str, now: str, covered:
             material.append(("evidence", "Candidate nodes (id | path):\n"
                              + candidate_block(candidates)))
             # Nando's teaching: worked examples and code's hints (§380).
-            # Ahead of the tap his memory may embed the request; on a
-            # search only a vector already made is read (§382).
-            material.extend(categorizer.teaching(query, candidates,
-                                                 inline=1 if ahead else 0))
+            # Ahead of the tap his memory may embed the request - in a
+            # thread, never on the event loop prefetch and the editions share
+            # with listeners (§391); on a search only a vector already made
+            # is read (§382).
+            if ahead:
+                from agents import memory
+
+                await asyncio.to_thread(memory.recall, query, memory.PER_REQUEST, 1)
+            material.extend(categorizer.teaching(query, candidates))
         request = models.AgentRequest(
             agent="contextualizer", task="contextualise", switch_setting="contextualizer",
             model_setting="contextualizer_model", rule_book="c3p0.md", schema=SearchPlan,
