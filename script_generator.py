@@ -641,9 +641,34 @@ class ScriptNotes:
     #: panel appearing while the episode plays instead of after it ends.
     caption_key: str = ""
     #: Which agents may work on this episode (`agents.netenyahu.EpisodeRun`),
-    #: set by the pipeline as the episode starts (§350). None outside it;
-    #: `netenyahu.OFF` while `AGENTS=0`. No agent reads it yet.
+    #: set by the pipeline as the episode starts (§350), or by `understand`
+    #: for an episode written ahead of the tap (§369). `netenyahu.OFF` while
+    #: `AGENTS=0`. No agent reads it yet.
     agents: object = None
+    #: C3P0's `ResearchPlan` for this episode (§370): built in code from the
+    #: brief and the code routes once the contextualizer works on it. None
+    #: otherwise. Nothing reads it yet.
+    research_plan: object = None
+    #: Nando's placement at the request (`agents.categorizer.Placement`,
+    #: §371), and what he settled on after the writer
+    #: (`categorizer.settle`), for the cache and the audit. None when he did
+    #: not work on the episode.
+    category_placement: object = None
+    category_settled: object = None
+    #: What an edition writer already knows the episode is about
+    #: (`categorizer.Prior`, §372) - the Trending story's category. None
+    #: everywhere else, where `categorizer.prior_for` reads it from the tap.
+    category_prior: object = None
+    #: Nando's tie call, running beside the brief (§375), or None. Read once
+    #: at placement and never waited for.
+    category_tie_task: object = None
+    #: Nando's candidate nodes for this request, listed once (§375, §376)
+    #: for both the brief's call and the tie call. None until listed.
+    category_candidates: object = None
+    #: C3P0's title, when he worked on the brief and it passed the code's
+    #: checks (§375): the episode's title (decided item 1), which the
+    #: writer's `<<TITLE:>>` does not replace.
+    c3p0_title: str = ""
     #: The episode's own title, off the model's trailing marker line. Empty
     #: when it did not write one, and every caller falls back to the question -
     #: which is what all of them showed before this existed.
@@ -747,6 +772,13 @@ async def _players_by(task, began: float):
         return None
     return plan.players
 
+
+
+def _agent_runs(notes, role: str) -> bool:
+    """Whether Netenyahu let `role` work on this episode (§350). False with
+    no notes, no answer, or `AGENTS=0`."""
+    runs = getattr(getattr(notes, "agents", None), "runs", None)
+    return bool(runs(role)) if callable(runs) else False
 
 def _mark(notes: "ScriptNotes | None", name: str) -> None:
     """Record one pre-writing stage on the episode's clock, if it has one."""
@@ -1616,7 +1648,10 @@ class _ScriptReader:
                 out.append(line)
         if self.notes is not None:
             self.notes.thread = extract_thread(self.buffer)
-            self.notes.title = extract_title(self.buffer)
+            # C3P0's title is the episode's title when he wrote one (decided
+            # item 1, §375); the writer's names it otherwise, as before.
+            self.notes.title = (getattr(self.notes, "c3p0_title", "")
+                                or extract_title(self.buffer))
             self.notes.summary = extract_summary(self.buffer)
             self.notes.category = extract_category(self.buffer)
             self.notes.meta_openings = (tuple(self.guard.dropped)
@@ -1967,6 +2002,16 @@ class ScriptGenerator:
             if better:
                 better.fell_back_from = configured
                 packet = better
+        if not packet and recall is not None and _agent_runs(notes, "contextualizer"):
+            # How often an empty search had the archive holding something
+            # (§370), counted when the recall ends - never waited for and
+            # never handed to the writer: an empty search still gets no
+            # archive (§316) until the archive may answer alone.
+            from agents import contextualizer
+
+            contextualizer.note_empty_search(recall)
+            packet.archive = "no web sources"
+            recall = None
         await research_mod.finish_history_look(packet, recall)
         _mark(notes, "retrieval_ready")
 
@@ -2183,6 +2228,16 @@ class ScriptGenerator:
         worth a second of silence to get") and it is the trade this change
         reverses: the framing is what the opening is made of.
         """
+        # Which agents work on an episode written ahead of the tap (§369):
+        # prefetch and the editions never pass through the pipeline, which
+        # asks for the search surface, so the ahead surface is asked here,
+        # once. `netenyahu.OFF` while `AGENTS=0`, decided before anything is
+        # read; no agent reads the answer yet.
+        if (notes is not None and notes.agents is None
+                and (getattr(notes, "ahead", False) or getattr(notes, "prefetch", False))):
+            from agents import netenyahu
+
+            notes.agents = netenyahu.for_episode("ahead", attached=bool(plan.attachments))
         if plan.brief is not None:
             return plan
         if not settings.episode_intelligence:
@@ -2196,22 +2251,57 @@ class ScriptGenerator:
         if warmed is not None:
             log.info("using a brief warmed before the tap for %r", plan.query)
             _publish_title(notes, warmed)
+            _take_c3p0_title(notes, warmed)
             plan = dataclasses.replace(
                 plan, brief=episode_intelligence.place_category(warmed))
             _take_brief_names(plan)
             return plan
 
+        ahead = notes is not None and (getattr(notes, "ahead", False)
+                                       or getattr(notes, "prefetch", False))
+        # Nando's candidates, listed once for the brief's call and the tie
+        # call (§375). The tie call only where a listener waits and the
+        # placement in `prepare` is sure to follow (review, §377): ahead of
+        # the tap a prefetch or an edition can stop after the brief, and C3P0
+        # there has the whole of `EI_AHEAD_EFFORT` to choose. Never waited for.
+        if _agent_runs(notes, "categorizer"):
+            from agents import categorizer
+
+            nodes, _tie = categorizer.candidates_for(plan.query, plan.context, notes)
+            notes.category_candidates = nodes
+            # Nando decides (§379): his own call whenever nothing solid will
+            # file the request and C3P0 is not choosing for him - not only on
+            # ties. Beside the brief, read at placement, never waited for.
+            # Ahead of the tap it is asked in `prepare`, where nobody waits.
+            prior = categorizer.prior_for(plan.query, plan.context, notes)
+            solid_tap = prior.node and prior.source in categorizer.SOLID
+            # C3P0 chooses only when his call actually runs: on the split
+            # brief (`EI_SPLIT`, as `episode_intelligence.understand` asks).
+            # Switched on but not running, he is not choosing (§391).
+            c3p0_chooses = (_agent_runs(notes, "contextualizer")
+                            and bool(settings.ei_split))
+            if nodes and not ahead and not solid_tap and not c3p0_chooses:
+                notes.category_tie_task = asyncio.ensure_future(
+                    categorizer.ask_tie(plan.query, nodes, notes))
         # `covered` only when there is some, so a call for anything that is
         # not a later daily edition is exactly the call it always was.
         extra = {"covered": plan.covered} if plan.covered else {}
         # Nobody waiting, more time (§268): only a listener in front of the
         # first word is held to `EI_TIMEOUT_SECONDS`.
-        if notes is not None and (getattr(notes, "ahead", False)
-                                  or getattr(notes, "prefetch", False)):
+        if ahead:
             extra["ahead"] = True
-        brief = await episode_intelligence.understand(
-            plan.query, plan.minutes, plan.context, notes, **extra)
+        try:
+            brief = await episode_intelligence.understand(
+                plan.query, plan.minutes, plan.context, notes, **extra)
+        except BaseException:
+            # A listener who left, or a brief that raised: the tie call goes
+            # with it, never left running unread.
+            task = getattr(notes, "category_tie_task", None)
+            if task is not None:
+                task.cancel()
+            raise
         _publish_title(notes, brief)
+        _take_c3p0_title(notes, brief)
         # Contextualised (§311): where the request sits in the category
         # tree, in code - the category and subcategory of the search.
         plan = dataclasses.replace(
@@ -2289,22 +2379,69 @@ class ScriptGenerator:
         if plan.search and getattr(self, "client", None) is not None:
             writer_warm.warm_if_cold(self.client, notes)
         _mark(notes, "brief_start")
-        plan = await self.understand(plan, notes)
-        # Already marked when the understanding half answered (§288); a
-        # warmed, degraded or switched-off brief is understood here.
-        _mark(notes, "brief_understood")
-        _mark(notes, "brief_ready")
-        # A brief that named no live domain still asks a provider when the
-        # question names something one covers (§265) - decided in code,
-        # spending nothing, and changing nothing but who is asked.
-        if plan.brief is not None and not getattr(plan.brief, "live_domain", "") \
-                and not getattr(notes, "prefetch", False):
-            routed = copy.copy(plan.brief)
-            live_route.apply(routed, plan.query)
-            if getattr(routed, "live_route", ""):
-                log.info("live route: %s for %r (%s)", routed.live_route,
-                         plan.query, routed.live_route_why)
-                plan = dataclasses.replace(plan, brief=routed)
+        try:
+            plan = await self.understand(plan, notes)
+            # Already marked when the understanding half answered (§288); a
+            # warmed, degraded or switched-off brief is understood here.
+            _mark(notes, "brief_understood")
+            _mark(notes, "brief_ready")
+            # A brief that named no live domain still asks a provider when the
+            # question names something one covers (§265) - decided in code,
+            # spending nothing, and changing nothing but who is asked.
+            if plan.brief is not None and not getattr(plan.brief, "live_domain", "") \
+                    and not getattr(notes, "prefetch", False):
+                routed = copy.copy(plan.brief)
+                live_route.apply(routed, plan.query)
+                if getattr(routed, "live_route", ""):
+                    log.info("live route: %s for %r (%s)", routed.live_route,
+                             plan.query, routed.live_route_why)
+                    plan = dataclasses.replace(plan, brief=routed)
+            # C3P0's plan, in code first (§370): what the brief and the code
+            # routes above already decided, as one `ResearchPlan`. Only when the
+            # contextualizer works on this episode; microseconds, no I/O.
+            if _agent_runs(notes, "contextualizer"):
+                from agents import contextualizer
+
+                notes.research_plan = contextualizer.from_brief(plan.brief, plan.query)
+            # Nando's node at the request (§371): in code from the brief, before
+            # anything is researched, and on the live track at once so the
+            # player's picture is the node's from the first word. Never waits.
+            if _agent_runs(notes, "categorizer"):
+                from agents import categorizer
+
+                # The tie call is read - or cancelled if still running - every
+                # time, whether or not C3P0 picked (review, §376): never left
+                # running for an answer nobody will read.
+                tie = categorizer.tie_answer(notes.category_tie_task)
+                notes.category_tie_task = None
+                said = getattr(plan.brief, "contextualized", None) or {}
+                unsure = bool(said.get("ambiguous"))
+                field = categorizer.provider_field(plan.query)
+                prior = categorizer.prior_for(plan.query, plan.context, notes)
+                pick = ("" if unsure else said.get("node", "")) or tie
+                placed = categorizer.place(plan.brief, plan.query, field, prior, pick,
+                                           unsure=unsure)
+                ahead_now = bool(getattr(notes, "ahead", False)
+                                 or getattr(notes, "prefetch", False))
+                if (not placed.node and ahead_now and not unsure
+                        and not said.get("node") and placed.candidates):
+                    # Ahead of the tap nobody waits: Nando's own call is
+                    # simply awaited, within its own time limit (§379).
+                    pick = await categorizer.ask_tie(plan.query, placed.candidates, notes,
+                                                     ahead=True)
+                    if pick:
+                        placed = categorizer.place(plan.brief, plan.query, field, prior,
+                                                   pick, unsure=unsure)
+                notes.category_placement = placed
+                if placed.node and notes.caption_key:
+                    live_captions.publish_category(notes.caption_key, placed.node)
+        except BaseException:
+            # Anything between the brief and the placement that raises takes
+            # Nando's tie call with it: never left running unread (§378).
+            task = getattr(notes, "category_tie_task", None)
+            if task is not None:
+                task.cancel()
+            raise
 
         # **Concurrent, and verified independent before it was made so.** Both
         # read `plan.brief` and neither reads the other's output: `live_lookup`
@@ -2727,6 +2864,18 @@ async def _demo() -> None:  # pragma: no cover - manual check
 
 if __name__ == "__main__":  # pragma: no cover
     asyncio.run(_demo())
+
+
+def _take_c3p0_title(notes: "ScriptNotes | None", brief) -> None:
+    """Keep C3P0's title as the episode's (decided item 1, §375) - only
+    while he works on this episode, so a brief he warmed earlier does not
+    outlive his switch."""
+    if (notes is None or not _agent_runs(notes, "contextualizer")
+            or not settings.contextualizer_titles):
+        return
+    title = ((getattr(brief, "contextualized", None) or {}).get("title", "") or "").strip()
+    if title:
+        notes.c3p0_title = content_filter.scrub(title)
 
 
 def _publish_title(notes: "ScriptNotes | None", brief) -> None:

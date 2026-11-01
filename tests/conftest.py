@@ -70,7 +70,7 @@ FAM_ENVIRONMENT = (
     # Episode intelligence: whether the layer in front of retrieval runs, and
     # how. A developer with EPISODE_INTELLIGENCE=0 set must not run a suite
     # that quietly skips every EI behaviour and still reports green.
-    "EPISODE_INTELLIGENCE", "EI_MODEL", "EI_EFFORT", "EI_MAX_TOKENS",
+    "EPISODE_INTELLIGENCE", "EI_MODEL", "EI_EFFORT", "EI_AHEAD_EFFORT", "EI_MAX_TOKENS",
     "EI_TIMEOUT_SECONDS", "EI_DEFAULT_RECENCY_DAYS", "EI_AHEAD_TIMEOUT_SECONDS",
     "EI_SPLIT", "EI_EXAMPLES", "EI_OUTLINE", "EI_OUTLINE_GRACE_SECONDS",
     # §309: the quality grader. A developer with QUALITY_GRADE=all set must
@@ -151,10 +151,8 @@ FAM_ENVIRONMENT = (
     # /admin/x (§321); its token is cleared by `isolated_x_threads`.
     "X_THREADS_MAX_READS",
     "X_THREADS_DAILY_READS", "X_THREADS_WINDOW_HOURS", "X_THREADS_SEEDS", "X_THREADS_MIN_ENGAGEMENT",
+    "X_THREADS_REPLY_READS",
     "X_THREADS_MODEL",
-    # /admin/linkedin (§322).
-    "LINKEDIN_MODEL", "LINKEDIN_SEEDS", "LINKEDIN_DAILY_SEARCHES",
-    "LINKEDIN_WINDOW_DAYS", "LINKEDIN_MIN_ENGAGEMENT",
     # GDELT and the live provider credentials. A developer with any of these
     # set must not run a suite that quietly has a real provider in it - a test
     # asserting FAM says "no live feed" would then pass or fail on their shell.
@@ -243,9 +241,11 @@ FAM_ENVIRONMENT = (
     "EDITION_BATCH", "EDITION_BATCH_WAIT_SECONDS", "EDITION_BATCH_POLL_SECONDS",
     # §347: the agents. A developer who switched one on, or pointed one at
     # another model, must not run a suite whose agents are on.
-    "AGENTS", "CONTEXTUALIZER", "CATEGORIZER", "RETRIEVER", "EDITOR_AGENT",
+    "AGENTS", "CONTEXTUALIZER", "CONTEXTUALIZER_TITLES", "CATEGORIZER", "RETRIEVER",
+    "EDITOR_AGENT",
     "SUPERVISOR", "HOUSEKEEPER", "IT_AGENT",
     "OVERLORD_PLANNER_MODEL", "CONTEXTUALIZER_MODEL", "CATEGORIZER_MODEL",
+    "CATEGORIZER_JUDGE_MODEL",
     "RETRIEVER_MODEL", "EDITOR_MODEL", "EDITOR_SEARCH_MODEL", "SUPERVISOR_MODEL",
     "SUPERVISOR_SCREEN_MODEL", "HOUSEKEEPER_MODEL", "HOUSEKEEPER_REVIEW_MODEL",
     "IT_MODEL", "IT_SUMMARY_MODEL",
@@ -257,6 +257,9 @@ FAM_ENVIRONMENT = (
     "EDITOR_AHEAD_TIMEOUT_SECONDS", "EDITOR_MAX_TOKENS", "SUPERVISOR_TIMEOUT_SECONDS",
     "SUPERVISOR_MAX_TOKENS", "HOUSEKEEPER_TIMEOUT_SECONDS", "HOUSEKEEPER_MAX_TOKENS",
     "IT_TIMEOUT_SECONDS", "IT_MAX_TOKENS",
+    # §381: Nando's answer key.
+    "CATEGORIZER_JUDGE_TIMEOUT_SECONDS", "CATEGORIZER_JUDGE_MAX_TOKENS",
+    "NANDO_JUDGE_PER_RUN",
     # §350: Netenyahu's loop.
     "OVERLORD_TICK_SECONDS", "OVERLORD_MAX_TASKS_PER_TICK",
 )
@@ -616,11 +619,22 @@ def isolated_pipeline_errors(tmp_path, monkeypatch):
 def isolated_agent_tasks(tmp_path, monkeypatch):
     """The agents' task table (§349), per test, never the project root."""
     from agents import tasks as agent_tasks
+    from agents import training as agent_training
 
     monkeypatch.setenv("AGENTS_DB", str(tmp_path / "stores" / "agents.db"))
+    from agents import memory as agent_memory
+
+    from agents import nando_model as agent_nando_model
+
     agent_tasks.reset()
+    agent_training.reset()
+    agent_memory.reset()
+    agent_nando_model.reset()
     yield
+    agent_nando_model.reset()
     agent_tasks.reset()
+    agent_training.reset()
+    agent_memory.reset()
 
 
 @pytest.fixture(autouse=True)
@@ -772,17 +786,6 @@ def isolated_x_threads(tmp_path, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
-def isolated_linkedin_posts(tmp_path, monkeypatch):
-    """`/admin/linkedin`'s cards (§322) per test, like `/admin/x`'s above."""
-    import linkedin_posts
-
-    monkeypatch.setenv("LINKEDIN_POSTS_DB", str(tmp_path / "stores" / "linkedin_posts.db"))
-    linkedin_posts.reset()
-    yield
-    linkedin_posts.reset()
-
-
-@pytest.fixture(autouse=True)
 def isolated_quotas(tmp_path, monkeypatch):
     """Every test counts against its own allowance, and by default none bites.
 
@@ -824,3 +827,16 @@ def kept_only_while_current(monkeypatch):
     life_zero = dataclasses.replace(cache_mod.settings, cache_life_seconds=0)
     monkeypatch.setattr(cache_mod, "settings", life_zero)
     monkeypatch.setattr(pipeline_mod, "settings", life_zero)
+
+
+@pytest.fixture(autouse=True)
+def _agent_writes_inline(monkeypatch):
+    """The agents' bookkeeping is written off the event loop in a running
+    server (§376); tests write it inline, so a ledger row or a hold can be
+    read the moment the call returns. The tests of the off-loop path turn
+    it back on themselves."""
+    from agents import models as agent_models
+    from agents import netenyahu as agent_netenyahu
+
+    monkeypatch.setattr(agent_models, "RECORD_OFF_LOOP", False)
+    monkeypatch.setattr(agent_netenyahu, "HOLD_OFF_LOOP", False)

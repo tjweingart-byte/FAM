@@ -111,6 +111,51 @@ def audit(days: int, as_json: bool) -> int:
     print(f"  writer's facet is one the keyword map found:"
           f" {_pct(found['writer_vs_keywords'])}"
           f" of {found['with_keywords']}")
+    nando = found.get("nando") or {}
+    if nando.get("filed"):
+        print()
+        print(f"  Nando filed {nando['filed']} (§371): at the request"
+              f" {nando['at_the_request']}; after the writer"
+              f" {nando['after_the_writer']}; re-filed {_pct(nando['refiled_rate'])};"
+              f" node differs from the writer's words on"
+              f" {nando['differs_from_writer_words']}")
+        for row in nando["refiled"]:
+            print(f"    re-filed {row['query'][:50]!r}: {row['request']} ->"
+                  f" {row['after']} (writer said {row['words']!r})")
+    key = found.get("answer_key") or {}
+    if key.get("compared"):
+        print()
+        print(f"  Nando against the answer key (§381), {key['compared']} graded:"
+              f" same node {key['exact']}, on its branch {key['on_branch']},"
+              f" wrong {key['wrong']} ({_pct(key['wrong_rate'])} of filed),"
+              f" filed nothing {key['filed_nothing']}")
+        for pair in key["confusions"]:
+            print(f"    filed {pair['filed']:24} truly {pair['truth']:24} {pair['episodes']}")
+    try:
+        import category_vocabulary
+        import topics
+
+        missing = sorted(n for n in topics.category_tree().nodes()
+                         if not category_vocabulary.definition(n).get("definition"))
+        if missing:
+            print()
+            print(f"  {len(missing)} nodes have no drafted definition (§387), e.g."
+                  f" {', '.join(missing[:8])}; draft them for review with"
+                  " `AGENTS=1 CATEGORIZER=1 python tools/draft_category_vocabulary.py`")
+    except Exception:  # noqa: BLE001 - a report line, never the report
+        pass
+    try:
+        from agents import memory
+
+        memory.build()
+        mem = memory.describe()
+        print()
+        print(f"  Nando's memory (§382): {mem['remembered'] or 0} graded requests and"
+              f" examples remembered"
+              + ("" if mem["semantic"] else " - no sentence model installed, so none"
+                 " is recalled"))
+    except Exception:  # noqa: BLE001 - a report line, never the report
+        pass
     if found["composer_to_writer"]:
         print()
         print("  composer -> writer, where they disagree:")

@@ -446,6 +446,21 @@ class CategoryStore:
                        keywords       TEXT NOT NULL DEFAULT ''
                    )"""
             )
+            # §371: Nando's two decisions beside the others - the node at
+            # the request and how it was found, the node after the writer
+            # and how (`agents.categorizer.confirm`). '' for an episode he
+            # did not file.
+            # §373: how sure the request's placement was, and any name in it
+            # that means two things and was left undecided.
+            # §381: the episode's cache key, so the answer key can read the
+            # script it grades.
+            for column in ("nando_request", "nando_request_how", "nando", "nando_how",
+                           "nando_confidence", "nando_ambiguous", "key"):
+                try:
+                    conn.execute(f"ALTER TABLE category_audit ADD COLUMN {column}"
+                                 " TEXT NOT NULL DEFAULT ''")
+                except Exception:  # noqa: BLE001 - already there
+                    pass
             conn.execute("CREATE INDEX IF NOT EXISTS category_audit_at"
                          " ON category_audit(at)")
         self.reload()
@@ -806,15 +821,24 @@ class CategoryStore:
             conn = self._conn()
             conn.execute(
                 "INSERT INTO category_audit (at, origin, query, words, writer,"
-                " writer_facet, composer, composer_facet, keywords)"
-                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                " writer_facet, composer, composer_facet, keywords,"
+                " nando_request, nando_request_how, nando, nando_how,"
+                " nando_confidence, nando_ambiguous, key)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (now, str(row.get("origin", ""))[:16],
                  str(row.get("query", ""))[:200], str(row.get("words", ""))[:60],
                  str(row.get("writer", ""))[:80],
                  str(row.get("writer_facet", ""))[:24],
                  str(row.get("composer", ""))[:80],
                  str(row.get("composer_facet", ""))[:24],
-                 str(row.get("keywords", ""))[:120]))
+                 str(row.get("keywords", ""))[:120],
+                 str(row.get("nando_request", ""))[:80],
+                 str(row.get("nando_request_how", ""))[:16],
+                 str(row.get("nando", ""))[:80],
+                 str(row.get("nando_how", ""))[:16],
+                 str(row.get("nando_confidence", ""))[:8],
+                 str(row.get("nando_ambiguous", ""))[:80],
+                 str(row.get("key", ""))[:80]))
             conn.execute("DELETE FROM category_audit WHERE at < ?",
                          (now - AUDIT_DAYS * 86400,))
             return True
@@ -827,14 +851,18 @@ class CategoryStore:
         try:
             rows = self._conn().execute(
                 "SELECT at, origin, query, words, writer, writer_facet,"
-                " composer, composer_facet, keywords FROM category_audit"
+                " composer, composer_facet, keywords, nando_request,"
+                " nando_request_how, nando, nando_how, nando_confidence,"
+                " nando_ambiguous, key FROM category_audit"
                 " WHERE at >= ? ORDER BY at DESC LIMIT ?",
                 (since, int(limit))).fetchall()
         except Exception:
             log.exception("could not read the categorisation audit")
             return []
         names = ("at", "origin", "query", "words", "writer", "writer_facet",
-                 "composer", "composer_facet", "keywords")
+                 "composer", "composer_facet", "keywords", "nando_request",
+                 "nando_request_how", "nando", "nando_how", "nando_confidence",
+                 "nando_ambiguous", "key")
         return [dict(zip(names, r)) for r in rows]
 
     def report(self) -> dict:

@@ -60,6 +60,19 @@
   .chip.bad { background:var(--rose-bg); color:var(--rose); }
   .reason { font-size:12px; color:var(--muted); }
   .read { font-size:12.5px; border-left:3px solid var(--line); padding:2px 0 2px 8px; }
+  .judge { display:grid; grid-template-columns:auto 1fr; gap:3px 10px; font-size:12.5px; }
+  .judge dt { font:10px var(--mono); letter-spacing:.08em; text-transform:uppercase; color:var(--faint); padding-top:3px; }
+  .judge dd { margin:0; }
+  .chip.rel5 { background:var(--green-bg); color:var(--green); }
+  .chip.rel4 { background:#1E2E2A; color:var(--green); }
+  .chip.rel3 { background:var(--surface); color:var(--amber); }
+  .proposal { font-size:12.5px; background:var(--surface); border:1px dashed var(--line); border-radius:10px; padding:8px 10px; }
+  .proposal b { font-family:var(--serif); font-size:15px; }
+  details.replies { font-size:12px; color:var(--muted); }
+  details.replies p { margin:4px 0; }
+  .check { font-size:12px; color:var(--muted); display:flex; gap:6px; align-items:flex-start; }
+  .heard { font-size:12px; color:var(--green); }
+  .unheard { font-size:12px; color:var(--rose); }
   .episode { font-size:12.5px; }
   .episode b { font-family:var(--serif); font-size:15px; }
   textarea { width:100%; min-height:96px; resize:vertical; background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:10px 12px; line-height:1.45; }
@@ -92,10 +105,13 @@
 <div class="wrap" id="app" hidden>
   <div class="eyebrow"><a href="/admin">FAM admin</a> · FAM on X</div>
   <h1>Conversations to join</h1>
-  <p class="sub">Threads on X that one of today's episodes could add to, found from the Trending edition
-    and the most played episodes. Each card has a drafted reply. <b>Approve</b> opens X's reply box on that
-    post with the words already in it, and copies them too; you press Post in X. FAM never posts.
-    Listen before you link an episode.</p>
+  <p class="sub">FAM doesn't interrupt the conversation; it adds to it. Original posts on X (never
+    replies) that FAM could make more interesting, each read before a word is drafted: what the author
+    means, the one thing FAM adds, a relevance score from 1 to 5 against the <b>original post</b>, and the
+    test that the author would see at once why FAM's words relate to what they posted. A 1 or 2, or a
+    failed author test, is rejected; a 3 is a comment only; only a 4 or 5 may carry or propose an episode.
+    Every card is <b>pending your review</b>: check its claims, listen to a linked episode through its
+    link, then <b>Approve</b> opens X's reply box with the words in it. You press Post. FAM never posts.</p>
 
   <div class="kpis" id="kpis"></div>
 
@@ -112,10 +128,11 @@
 (function () {
   "use strict";
   var $ = function (id) { return document.getElementById(id); };
-  var TABS = [["waiting", "Waiting for you"], ["approved", "Approved"], ["skipped", "Skipped"], ["", "All"]];
+  var TABS = [["waiting", "Waiting for you"], ["approved", "Approved"], ["skipped", "Skipped"], ["", "All"],
+              ["rejected", "Rejected by the agent"]];
   // What X counts a link as, whatever its length; and a post's ceiling.
   var LINK_CHARS = 23, POST_CHARS = 280;
-  var tab = "waiting", data = null, edits = {};
+  var tab = "waiting", data = null, edits = {}, checked = {};
 
   function esc(s) {
     return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) {
@@ -171,7 +188,12 @@
     return ["Last search (" + when + "): " + (r.seeds || []).length + " episodes looked for, "
       + (r.read || 0) + " posts read, " + (r.cards || 0) + " new cards"
       // Set aside by the relevance check: about something else (§326).
-      + ((r.off_subject || []).length ? ", " + r.off_subject.length + " set aside as not about the episode" : "")
+      + ((r.off_subject || []).length ? ", " + r.off_subject.length + " rejected (see Rejected by the agent)" : "")
+      // What the cards recommend (§368): fewer, better contributions.
+      + (r.outcomes ? " - " + Object.keys(r.outcomes).map(function (o) {
+          return r.outcomes[o] + " " + ((data.health.recommendations || {})[o] || o).toLowerCase();
+        }).join(", ") : "")
+      + (r.proposed ? ", " + r.proposed + " proposing an episode" : "")
       + (errs ? ", " + errs + " searches failed (" + r.errors[0] + ")" : "") + ".", errs > 0 && !r.cards];
   }
 
@@ -183,6 +205,47 @@
       + p.reposts + '</span><a href="' + esc(p.url) + '" target="_blank" rel="noopener">Open on X ↗</a></div></div>';
   }
 
+  // The guardrails' judgement (§368): what the author means, what FAM adds,
+  // and the relevance score with its reason.
+  function relChip(k) {
+    if (!k.relevance) return '<span class="chip">not scored</span>';
+    return '<span class="chip rel' + k.relevance + '" title="' + esc(k.relevance_label) + '">relevance '
+      + k.relevance + '/5</span>';
+  }
+  function judgement(k) {
+    var angle = k.read && k.read.angle, rows = [];
+    if (k.central) rows.push(["Central message", k.central]);
+    if (angle) rows.push(["Opportunity", angle]);
+    rows.push(["Author test", k.author_test === false ? "Fails: the author would not see why this relates"
+      : k.author_test == null ? "Not run (read in code): judge it yourself"
+      : "Passes: the author would see at once why this relates"]);
+    rows.push(["Relevance", (k.relevance ? k.relevance + "/5 · " + k.relevance_label : "Not scored")
+      + (k.relevance_why ? " - " + k.relevance_why : "")]);
+    return '<dl class="judge">' + rows.map(function (r) {
+      return '<dt>' + esc(r[0]) + '</dt><dd>' + esc(r[1]) + '</dd>';
+    }).join("") + '</dl>';
+  }
+  // Replies were read as context only; the original post set the subject.
+  function repliesBox(k) {
+    var r = k.replies || [];
+    if (!r.length) return "";
+    return '<details class="replies"><summary>' + r.length + (r.length === 1 ? ' reply' : ' replies') + ' read for context</summary>'
+      + r.map(function (x) { return '<p><b>@' + esc(x.author) + '</b> ' + esc(x.text) + '</p>'; }).join("")
+      + '</details>';
+  }
+  // What the agent turned away, and why: an audit trail, never actionable.
+  function renderRejected() {
+    var rows = data.rejected || [];
+    if (!rows.length) { $("list").innerHTML = '<p class="note">Nothing rejected yet.</p>'; return; }
+    $("list").innerHTML = rows.map(function (k) {
+      return '<div class="card done"><div>' + postBox(k.post) + '</div><div class="side"><div class="chips">'
+        + relChip(k) + '<span class="chip bad">rejected</span></div>' + judgement(k)
+        + '<div class="reason">' + esc(k.reason) + '</div>'
+        + (k.draft ? '<div class="read">Would have said: ' + esc(k.draft) + '</div>' : '')
+        + '</div></div>';
+    }).join("");
+  }
+
   function render() {
     var h = data.health || {}, c = h.counts || {};
     $("kpis").innerHTML =
@@ -191,7 +254,8 @@
       kpi("Skipped", c.skipped || 0) +
       kpi("X reads today", (h.reads_today || 0) + " / " + (h.daily_reads || 0),
           (h.max_reads || 0) + " most per search") +
-      kpi("Engagement floor", h.min_engagement || 0, "likes, replies, reposts and quotes");
+      kpi("Engagement floor", h.min_engagement || 0, "likes, replies, reposts and quotes") +
+      kpi("Rejected by the agent", (data.rejected || []).length, "relevance 1-2, author test, skip");
     $("runBtn").disabled = !h.available || data.running;
     if (!h.available) { $("runNote").className = "note err"; $("runNote").textContent = "Cannot search X: " + h.detail + "."; }
     else if (data.running) { $("runNote").className = "note"; $("runNote").textContent = "Searching X and drafting replies. Cards appear here as they arrive."; }
@@ -199,11 +263,13 @@
     else { $("runNote").className = "note"; $("runNote").textContent = "No search yet."; }
 
     $("tabs").innerHTML = TABS.map(function (t) {
-      var n = !t[0] ? (data.cards || []).length : (c[t[0]] || 0);
+      var n = t[0] === "rejected" ? (data.rejected || []).length
+        : !t[0] ? (data.cards || []).length : (c[t[0]] || 0);
       return '<button class="ghost' + (t[0] === tab ? " on" : "") + '" data-tab="' + t[0] + '">'
         + esc(t[1]) + " · " + n + '</button>';
     }).join("");
 
+    if (tab === "rejected") { renderRejected(); return; }
     var rows = (data.cards || []).filter(function (k) { return !tab || k.status === tab; });
     if (!rows.length) {
       $("list").innerHTML = '<p class="note">' + (tab === "waiting"
@@ -214,17 +280,34 @@
       var id = k.post_id, text = edits[id] != null ? edits[id] : (k.draft || "");
       var n = counted(k, text);
       var ep = k.episode;
-      var chips = ['<span class="chip kind">' + esc(k.kind_label) + '</span>',
-                   '<span class="chip">score ' + Math.round(k.score * 100) + '</span>'];
+      var chips = ['<span class="chip kind">' + esc(k.recommendation_label || k.kind_label) + '</span>',
+                   relChip(k),
+                   '<span class="chip" title="Engagement, room in the thread, author fit and episode match: the order cards were read in">score ' + Math.round(k.score * 100) + '</span>'];
+      if (k.status === "waiting") chips.push('<span class="chip">pending human review</span>');
+      if (k.anchored === false) chips.push('<span class="chip bad" title="The reply shares no concrete word with the post: rewrite it to take up what they said">talks past the post</span>');
       if (k.drafted_by === "code") chips.push('<span class="chip bad" title="No model could be asked; written from the episode title">drafted in code</span>');
       if (k.status === "approved") chips.push('<span class="chip ok">approved</span>');
       var side = '<div class="side"><div class="chips">' + chips.join("") + '</div>'
-        + '<div class="reason">' + esc(k.reason) + '</div>'
+        + judgement(k)
+        + '<details class="replies"><summary>Why this card</summary><div class="reason">' + esc(k.reason) + '</div>'
         + (k.read_line ? '<div class="read" title="What FAM understood about the post before it wrote (§337)">'
-          + (k.read && k.read.by === "code" ? "Read in code: " : "Read: ") + esc(k.read_line) + '</div>' : '');
+          + (k.read && k.read.by === "code" ? "Read in code: " : "Read: ") + esc(k.read_line) + '</div>' : '')
+        + '</details>'
+        + repliesBox(k);
       if (ep && linked(k)) {
         side += '<div class="episode">Episode: <b>' + esc(ep.title) + '</b> · ' + ep.minutes + ' min'
-          + ' <button class="ghost" data-act="listen" data-id="' + id + '">Listen first</button></div>';
+          + ' <button class="ghost" data-act="listen" data-id="' + id + '">Listen first</button> '
+          + (k.listened_at ? '<span class="heard">heard through its link ✓</span>'
+             : '<span class="unheard">not heard yet: it cannot be linked until it is</span>') + '</div>';
+      } else if (k.proposed) {
+        side += '<div class="proposal">Proposed episode (not made yet): <b>' + esc(k.proposed.title) + '</b>'
+          + (k.proposed.scope ? '<div>' + esc(k.proposed.scope) + '</div>' : '')
+          + '<div>Search in FAM: “' + esc(k.proposed.query) + '”</div><div class="acts">'
+          + '<button class="ghost" data-act="copyq" data-id="' + id + '">Copy the question</button>'
+          + '<a href="/" target="_blank" rel="noopener">Open FAM ↗</a>'
+          + '<button class="ghost" data-act="match" data-id="' + id + '">Match again</button></div></div>';
+      } else {
+        side += '<div class="episode">No episode: the comment is the contribution.</div>';
       }
       if (k.status === "approved") {
         side += '<div class="posted">' + esc(k.posted) + '</div><div class="acts">'
@@ -234,6 +317,8 @@
         side += '<textarea data-edit="' + id + '" aria-label="Reply">' + esc(text) + '</textarea>'
           + '<div class="count' + (n > POST_CHARS ? " over" : "") + '" id="count-' + id + '">' + n + ' / ' + POST_CHARS
           + (linked(k) && !edits[id + ":nolink"] ? " with the link" : "") + '</div>'
+          + '<label class="check"><input type="checkbox" data-verify="' + id + '"' + (checked[id] ? " checked" : "")
+          + '> I checked every claim in this reply against the post and the episode.</label>'
           + '<div class="acts"><button class="go" data-act="approve" data-id="' + id + '">Approve</button>'
           + (k.status === "skipped"
             ? '<button class="ghost" data-act="reopen" data-id="' + id + '">Back to waiting</button>'
@@ -290,11 +375,19 @@
     var id = ev.target.dataset && ev.target.dataset.edit;
     if (!id) return;
     edits[id] = ev.target.value;
+    // The tick vouches for these words: new words, a new check.
+    if (checked[id]) {
+      checked[id] = false;
+      var box = document.querySelector('[data-verify="' + id + '"]');
+      if (box) box.checked = false;
+    }
     var k = card(id), n = counted(k, ev.target.value), el = $("count-" + id);
     el.textContent = n + " / " + POST_CHARS + (linked(k) && !edits[id + ":nolink"] ? " with the link" : "");
     el.className = "count" + (n > POST_CHARS ? " over" : "");
   });
   document.addEventListener("change", function (ev) {
+    var vid = ev.target.dataset && ev.target.dataset.verify;
+    if (vid) { checked[vid] = ev.target.checked; return; }
     var id = ev.target.dataset && ev.target.dataset.nolink;
     if (!id) return;
     edits[id + ":nolink"] = ev.target.checked;
@@ -319,16 +412,34 @@
       b.disabled = true;
       api("/api/admin/x/listen", { post_id: id }).then(function (r) {
         if (lw) { lw.opener = null; lw.location.href = r.url; } else window.open(r.url, "_blank", "noopener");
+        return load();
       }).catch(function (e) { if (lw) lw.close(); alert(e.message); })
         .then(function () { b.disabled = false; });
+      return;
+    }
+    if (act === "copyq") {
+      copy(k.proposed.query).then(function () { b.textContent = "Copied"; }, function () {
+        prompt("Copy the question:", k.proposed.query);
+      });
+      return;
+    }
+    if (act === "match") {
+      b.disabled = true;
+      api("/api/admin/x/match", { post_id: id }).then(load)
+        .catch(function (e) { alert(e.message); b.disabled = false; });
       return;
     }
     if (act === "approve") {
       var text = edits[id] != null ? edits[id] : (k.draft || "");
       if (counted(k, text) > POST_CHARS) { alert("The reply is longer than X allows. Shorten it first."); return; }
+      if (!checked[id]) { alert("Check every claim in the reply first, then tick the box."); return; }
+      if (linked(k) && !edits[id + ":nolink"] && !k.listened_at) {
+        alert("Listen to the episode through its link first (Listen first), or tick no link."); return;
+      }
       var win = window.open("", "_blank");
       b.disabled = true;
-      api("/api/admin/x/decide", { post_id: id, action: "approve", text: text, no_link: !!edits[id + ":nolink"] })
+      api("/api/admin/x/decide", { post_id: id, action: "approve", text: text, no_link: !!edits[id + ":nolink"],
+                                    verified: true })
         .then(function (r) {
           copy(r.text).catch(function () {});
           if (!openX(win, r.intent_url)) {

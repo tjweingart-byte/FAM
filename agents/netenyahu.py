@@ -9,9 +9,11 @@ owner's choice (§346): no planner model; the rules in code.
   `AGENTS=0`, and never anything in front of the first word. A private
   search or an attached file gets no agent at all (every-agent.md, "never"
   4). An agent works only if it is switched on, its rule books pass the
-  lock, it serves this surface, and it is not held. Today nothing passes:
-  every switch is off (the owner signed the rule books, §352, and no agent
-  is built yet).
+  lock, it serves this surface, and it is not held. Both the holds and the
+  lock's disk check are copies refreshed in the background (§369), so
+  deciding reads no database and no file while a listener waits. With the
+  switches at their defaults nothing passes: every switch is off (the owner
+  signed the rule books, §352; C3P0 and Nando are built, §369-§376).
 * **The closed vocabulary** (`validate`): the only actions anything may
   ask of Netenyahu are `run(agent, task)`, `hold(agent, reason)` and
   `note(text)`, checked against the roster. There is no "change a rule",
@@ -23,8 +25,8 @@ owner's choice (§346): no planner model; the rules in code.
 * **The background** (`run_forever`, `tick`): every `OVERLORD_TICK_SECONDS`,
   at most `OVERLORD_MAX_TASKS_PER_TICK` claimed tasks, never during the
   05:00 and 17:00 Eastern edition writes, never for a held agent. Started
-  only when `AGENTS=1`; with no agent built there is no handler, so a
-  claimed task is handed back untouched.
+  only when `AGENTS=1`; no background agent is built yet, so there is no
+  handler and a claimed task is handed back untouched.
 """
 from __future__ import annotations
 
@@ -32,6 +34,7 @@ import asyncio
 import datetime
 import logging
 import threading
+import time
 from dataclasses import dataclass, field
 from typing import Callable, Optional
 
@@ -87,6 +90,8 @@ def for_episode(surface: str, *, private: bool = False, attached: bool = False) 
         from agents import roster
 
         held = _held()
+        if held is UNKNOWN:
+            return EpisodeRun((), {"all": "the holds are not read yet"})
         runs, why = [], {}
         for role in EPISODE_AGENTS:
             agent = roster.get(role)
@@ -162,7 +167,15 @@ def report(role: str, status: str) -> Optional[str]:
         if count < HOLD_AFTER:
             return None
         reason = f"{count} failures in a row (last: {status})"
-        hold(role, reason)
+        if HOLD_OFF_LOOP:
+            # `report` is called on the listener's path (§376): the copy
+            # holds the agent at once, the store is written in the
+            # background.
+            _remember_hold(role, reason)
+            threading.Thread(target=hold, args=(role, reason),
+                             name="netenyahu-hold", daemon=True).start()
+        else:
+            hold(role, reason)
         return reason
     except Exception:  # noqa: BLE001
         log.exception("netenyahu could not count a result")
@@ -174,7 +187,11 @@ def hold(role: str, reason: str) -> None:
     exists). Releasing it is the owner's act, never an agent's."""
     from agents import tasks
 
-    tasks.store().hold(role, reason)
+    _remember_hold(role, reason)
+    try:
+        tasks.store().hold(role, reason)
+    except Exception:  # noqa: BLE001 - the copy still holds it
+        log.exception("netenyahu could not write the hold of %s", role)
     log.warning("netenyahu held %s: %s", role, reason)
     try:
         import pipeline_errors
@@ -184,7 +201,9 @@ def hold(role: str, reason: str) -> None:
         pass
 
 
-def _held() -> dict:
+def _read_held() -> dict:
+    """The holds as the task store has them. Reads the database: never on
+    the request path (`_held` is)."""
     from agents import tasks
 
     if not tasks.exists():
@@ -192,10 +211,119 @@ def _held() -> dict:
     return {role: reason for role, (reason, _at) in tasks.store().held().items()}
 
 
+#: **The holds, kept off the request path** (§353's carry-over, §369).
+#: `for_episode` runs as an episode starts, so it reads this copy and never
+#: the database; a background thread re-reads it at most every
+#: `HELD_REFRESH_SECONDS`, boot primes it (`prime`), and a hold made here is
+#: written into it at once. Until it has been read once nobody knows what is
+#: held, so no agent works (`UNKNOWN`): a missed agent costs one episode some
+#: quality, a held agent that ran would break the hold.
+HELD_REFRESH_SECONDS = 30.0
+UNKNOWN = None
+_HELD: dict = {"roles": UNKNOWN, "at": 0.0, "running": False}
+_HELD_LOCK = threading.Lock()
+#: Holds made in this process (§377): kept in the copy until a read of the
+#: store shows them, so a refresh racing a hold's write - whenever it began
+#: - can never drop it from the copy.
+_MADE: dict = {}
+#: Write a hold to the store off the listener's path (§376). Tests write it
+#: inline (`tests/conftest.py`).
+HOLD_OFF_LOOP = True
+
+
+def _remember_hold(role: str, reason: str) -> None:
+    with _HELD_LOCK:
+        _MADE[role] = (reason, time.monotonic())
+        if _HELD["roles"] is not UNKNOWN:
+            _HELD["roles"] = dict(_HELD["roles"], **{role: reason})
+
+
+def refresh_held() -> Optional[dict]:
+    """Re-read the holds into the copy. Off the request path; never raises.
+    A failed read keeps the last copy and waits a full interval before the
+    next try, so a store that is down is not asked once per episode."""
+    try:
+        roles = dict(_read_held())
+    except Exception:  # noqa: BLE001
+        log.exception("netenyahu could not read the holds")
+        with _HELD_LOCK:
+            _HELD["running"] = False
+            _HELD["at"] = time.monotonic()
+        return _HELD["roles"]
+    with _HELD_LOCK:
+        now = time.monotonic()
+        for role in [r for r, (_why, made) in _MADE.items()
+                     if r in roles or now - made > 2 * HELD_REFRESH_SECONDS]:
+            # The store has it now - or never will (a write that failed is
+            # logged; the owner may have released it): not sticky (§378).
+            del _MADE[role]
+        for role, (reason, _made) in _MADE.items():
+            roles.setdefault(role, reason)   # written yet? kept until it is
+        _HELD.update(roles=roles, at=time.monotonic(), running=False)
+    return dict(roles)
+
+
+def prime() -> None:
+    """Boot: read the holds (and the rule books' disk check) once, before
+    any listener, so the first episode has an answer. Only when `AGENTS=1`."""
+    if not settings.agents:
+        return
+    refresh_held()
+    from agents import rulebooks
+
+    rulebooks.load()
+    rulebooks.refresh_disk()
+    # Nando's vocabulary, built once here rather than on the first request
+    # (§376).
+    import category_examples
+    import category_vocabulary
+
+    category_vocabulary.index()
+    from agents import training
+
+    # His corrected mistakes become worked examples (§383), read in the
+    # background with the rest.
+    category_examples.add_source(training.mistakes)
+    category_examples.examples()     # read once here, not on a request (§380)
+    from agents import memory
+
+    memory.warm()                    # his memory, built in the background (§382)
+    from agents import nando_model
+
+    nando_model.current()            # his trained model, loaded in the background (§385)
+
+
+def _refresh_held_soon() -> None:
+    with _HELD_LOCK:
+        # Once an interval, read or not: a store down since boot is not
+        # asked once per episode (review, §376).
+        if _HELD["running"] or (_HELD["at"] and
+                                time.monotonic() - _HELD["at"] < HELD_REFRESH_SECONDS):
+            return
+        _HELD["running"] = True
+    try:
+        threading.Thread(target=refresh_held, name="netenyahu-holds", daemon=True).start()
+    except Exception:  # noqa: BLE001
+        with _HELD_LOCK:
+            _HELD["running"] = False
+
+
+def _held() -> Optional[dict]:
+    """The holds from the copy - no database read - or `UNKNOWN` before the
+    first read, which starts one in the background."""
+    _refresh_held_soon()
+    roles = _HELD["roles"]
+    return None if roles is UNKNOWN else dict(roles)
+
+
 def reset() -> None:
-    """Tests: forget the failure counts."""
+    """Tests: forget the failure counts and the copy of the holds."""
     with _LOCK:
         _FAILURES.clear()
+    with _HELD_LOCK:
+        _HELD.update(roles=UNKNOWN, at=0.0, running=False)
+        _MADE.clear()
+    _QUEUED_DAYS.clear()
 
 
 # ------------------------------------------------------------------ the background
@@ -213,6 +341,45 @@ def in_edition_window(now: Optional[datetime.datetime] = None) -> bool:
         ZoneInfo("America/New_York"))
     return any(now.hour == hour and now.minute < EDITION_QUIET_MINUTES
                for hour in EDITION_HOURS)
+
+
+#: Background work queued on a clock (§381): (agent, kind, Eastern hour,
+#: the agent's switch setting). Once a day, at or after the hour, one task
+#: keyed by the Eastern date - so a restart never runs it twice, and a day
+#: the loop was down is not made up. Nando's answer key runs at 03:00,
+#: clear of both editions.
+SCHEDULE: tuple = (# The tree's changes first, so a fresh grade is asked the same night (§387).
+                   ("categorizer", "follow", 2, "categorizer"),
+                   ("categorizer", "judge", 3, "categorizer"),
+                   # His small model, retrained on the night's grades (§385).
+                   ("categorizer", "train", 4, "categorizer"))
+_QUEUED_DAYS: set = set()
+
+
+def schedule(now: Optional[datetime.datetime] = None, handlers: Optional[dict] = None) -> int:
+    """Queue today's scheduled tasks that are due, for agents that are on
+    and have a handler. Returns how many were added. Never raises."""
+    from zoneinfo import ZoneInfo
+
+    handlers = HANDLERS if handlers is None else handlers
+    added = 0
+    try:
+        from agents import tasks
+
+        local = (now or datetime.datetime.now(datetime.timezone.utc)).astimezone(
+            ZoneInfo("America/New_York"))
+        day = local.date().isoformat()
+        for agent, kind, hour, switch in SCHEDULE:
+            if (agent, kind) not in handlers or not getattr(settings, switch, False):
+                continue
+            if local.hour < hour or (agent, kind, day) in _QUEUED_DAYS:
+                continue
+            if tasks.store().add(agent, kind, day, {"day": day}) == tasks.ADDED:
+                added += 1
+            _QUEUED_DAYS.add((agent, kind, day))
+    except Exception:  # noqa: BLE001 - the loop outlives any one round
+        log.exception("netenyahu could not queue the scheduled work")
+    return added
 
 
 #: The loop's pace is clamped: a setting of 0 would spin on the event loop,
@@ -241,7 +408,10 @@ async def _tick(now, handlers) -> dict:
     from agents import tasks
 
     handlers = HANDLERS if handlers is None else handlers
-    held = _held()
+    schedule(now, handlers)
+    held = refresh_held()
+    if held is UNKNOWN:
+        return {"ran": 0, "why": "the holds could not be read"}
     # Only tasks something here can run: a task for an agent not built yet,
     # or held, stays queued without taking a place in this round (§353).
     kinds = [f"{agent}:{kind}" for agent, kind in handlers if agent not in held]

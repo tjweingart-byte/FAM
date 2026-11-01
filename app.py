@@ -100,7 +100,6 @@ import categories as categories_mod
 import topics as topics_mod
 import thumbnails as thumbnails_mod
 import x_threads
-import linkedin_posts
 import accounts as accounts_mod
 import viral_loops as viral_loops_mod
 import waitlist as waitlist_mod
@@ -678,7 +677,18 @@ async def lifespan(_: FastAPI):
     # Netenyahu's background loop (§350), only when the agents are on: with
     # `AGENTS=0` no task is ever claimed, so there is nothing to run.
     if settings.agents:
+        # The holds and the rule books' disk check read once here, so the
+        # first episode decides from copies, never the database (§369).
+        await asyncio.to_thread(netenyahu.prime)
         _BACKGROUND.add(asyncio.create_task(netenyahu.run_forever()))
+        # Nando's answer key (§381), reading the scripts it grades from the
+        # script cache. Queued nightly only while CATEGORIZER is on; the
+        # loop's first round runs after this, at the next await.
+        from agents import training as agent_training
+
+        # `script` reads without counting a hit: grading is not a replay (§391).
+        agent_training.register(
+            lambda key: getattr(SCRIPT_CACHE, "script", lambda _k: [])(key) or [])
     # Expired scripts are already filtered out on read, so nothing ever deleted
     # them and the file grew for the life of the deployment. One DELETE at
     # startup is enough: entries expire on a timescale of days, not minutes.
@@ -1133,13 +1143,6 @@ def _database_report() -> list[dict]:
     if x_threads._exists():
         try:
             stores.append(("x threads", "X_THREADS_DB", x_threads.store().path))
-        except Exception:  # pragma: no cover - a report is never load-bearing
-            pass
-    # Go Deeper on LinkedIn (§322): created by the first post pasted.
-    if linkedin_posts._exists():
-        try:
-            stores.append(("linkedin posts", "LINKEDIN_POSTS_DB",
-                           linkedin_posts.store().path))
         except Exception:  # pragma: no cover - a report is never load-bearing
             pass
     # Requests per outside service per day (§179). Created by the first
@@ -7145,8 +7148,10 @@ def _name_written_tiles(tiles: list[dict], minutes: int) -> None:
             title = SCRIPT_CACHE.title(key) if key and SCRIPT_CACHE else ""
             summary = (getattr(SCRIPT_CACHE, "summary", lambda _k: "")(key)
                        if title else "")
-            category = (getattr(SCRIPT_CACHE, "category", lambda _k: "")(key)
-                        if key and SCRIPT_CACHE else "")
+            # Through the one reader (review, §376): Nando's node when he
+            # filed it, else the writer's words placed exactly as before - so
+            # the tile, the player and the category page draw one picture.
+            category = _episode_category(key) if key and SCRIPT_CACHE else ""
         except Exception:  # noqa: BLE001 - a card's name is never worth a 500
             log.exception("could not name a written tile")
             continue
@@ -7186,14 +7191,32 @@ def _episode_category(key: str) -> str:
     player's picture, the ranking and the logged tags all come through here,
     so one episode is filed under one node everywhere. The words are stored
     as the writer put them and resolved against the tree as it is now, so a
-    tree that has grown since still places an older episode. One local read;
+    tree that has grown since still places an older episode. Nando's stored
+    node outranks the words when he filed the episode (§371). Local reads;
     never a model call."""
     if not key or SCRIPT_CACHE is None:
         return ""
+    # Nando's node first (§371): one id, placed at the request and confirmed
+    # after the writer, read as stored - while the tree still holds it. A
+    # node merged away since, or an episode Nando never filed, falls back to
+    # the writer's words below, as before. Both in one read (§376), so the
+    # store is asked once, as it was before the node existed.
+    node = ""
     try:
-        words = getattr(SCRIPT_CACHE, "category", lambda _k: "")(key)
+        pair = getattr(SCRIPT_CACHE, "category_pair", None)
+        if callable(pair):
+            words, node = pair(key)
+        else:
+            # A store without the one read (a test double, an older one).
+            node = getattr(SCRIPT_CACHE, "category_node", lambda _k: "")(key)
+            words = getattr(SCRIPT_CACHE, "category", lambda _k: "")(key)
     except Exception:  # noqa: BLE001 - a category is never worth a failure
         return ""
+    if node:
+        import topics
+
+        if node in topics.FACETS or topics.category_tree().get(node) is not None:
+            return node
     if not words:
         return ""
     import stories as stories_mod
@@ -11346,11 +11369,15 @@ async def admin_x(request: Request, status: str = "") -> dict:
     _require_admin(request)
     if status and status not in x_threads.STATUSES:
         raise HTTPException(status_code=422, detail="Unknown status.")
-    cards = []
+    cards, rejected = [], []
     if x_threads._exists():
         cards = await asyncio.to_thread(x_threads.store().all, status)
+        # What the agent turned away and why (§368), for a person to audit:
+        # never actionable, never shown as a card.
+        rejected = await asyncio.to_thread(x_threads.store().all,
+                                           x_threads.SET_ASIDE, "", 40)
     return {"health": x_threads.health(), "running": bool(_X_RUNNING),
-            "cards": cards, "kinds": x_threads.KINDS}
+            "cards": cards, "rejected": rejected, "kinds": x_threads.KINDS}
 
 
 @app.post("/api/admin/x/run")
@@ -11417,7 +11444,27 @@ async def admin_x_listen(req: XCard, request: Request) -> dict:
     link = _x_episode_link(card, request)
     if not link:
         raise HTTPException(status_code=404, detail="This card has no episode.")
+    # Heard through the very link the reply will carry: listening is also
+    # testing the link (§368). Approve with a link waits for this.
+    await asyncio.to_thread(x_threads.store().listened, req.post_id, time.time())
     return {"url": link}
+
+
+@app.post("/api/admin/x/match")
+async def admin_x_match(req: XCard, request: Request) -> dict:
+    """A card's proposed episode, once a person has written it in FAM: the
+    kept episode that answers the proposal goes on the card, unheard (§368)."""
+    _require_admin(request)
+    if not x_threads._exists():
+        raise HTTPException(status_code=404, detail="No cards yet")
+    try:
+        card = await asyncio.to_thread(x_threads.attach_written, SCRIPT_CACHE,
+                                       req.post_id)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="No card for that post")
+    except LookupError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return {"card": card}
 
 
 class XDecision(BaseModel):
@@ -11427,6 +11474,8 @@ class XDecision(BaseModel):
     text: str = Field("", max_length=1000)
     #: Leave the episode's link off this reply even when it has one.
     no_link: bool = False
+    #: The person checked every claim in the words (§368): no approval without.
+    verified: bool = False
 
 
 @app.post("/api/admin/x/decide")
@@ -11450,8 +11499,22 @@ async def admin_x_decide(req: XDecision, request: Request) -> dict:
     words = " ".join((req.text or card["draft"] or "").split())
     if not words:
         raise HTTPException(status_code=422, detail="There is no reply to post.")
+    if not req.verified:
+        raise HTTPException(status_code=422, detail=(
+            "Check every claim in the reply first, then tick that you did."))
     link = ""
     if not req.no_link and card["kind"] != x_threads.QUESTION_ONLY:
+        if card.get("relevance", 0) < x_threads.EPISODE_RELEVANCE:
+            # Only a 4 or 5 against the original post carries an episode
+            # (§368); a card read in code, or from before the scale, does not.
+            raise HTTPException(status_code=409, detail=(
+                "Only a card scored 4 or 5 against the original post may link "
+                "an episode. Tick no link to send the comment alone."))
+        if not card.get("listened_at"):
+            # Nobody vouches for audio they have not heard (§368).
+            raise HTTPException(status_code=409, detail=(
+                "Listen to the episode through its link before linking it "
+                "(Listen first), or untick the link."))
         link = _x_episode_link(card, request)
     try:
         text = x_threads.compose(words, link)
@@ -11463,207 +11526,6 @@ async def admin_x_decide(req: XDecision, request: Request) -> dict:
             "share_url": link,
             "intent_url": x_threads.intent_url(req.post_id, text),
             "post_url": card["post"]["url"]}
-
-
-# --- Go Deeper on LinkedIn (§322, linkedin_posts.py) ---------------------------
-# LinkedIn posts that teach something, and the kept episode that goes deeper.
-# Nothing here reads LinkedIn: the page builds search links a person opens,
-# and a person pastes the posts worth commenting on. A person approves each
-# comment and posts it in LinkedIn ([no-social-posting]).
-
-
-@app.get("/admin/linkedin", include_in_schema=False)
-async def admin_linkedin_page(request: Request):
-    """The review page, `/admin/x`'s shape."""
-    if not _admin_configured():
-        raise HTTPException(status_code=404, detail="Not found")
-    page = PROJECT_ROOT / "admin_ui" / "linkedin.html"
-    return HTMLResponse(page.read_text(encoding="utf-8"),
-                        headers={"Cache-Control": "no-store",
-                                 "X-Robots-Tag": "noindex"})
-
-
-@app.get("/api/admin/linkedin")
-async def admin_linkedin(request: Request, status: str = "") -> dict:
-    """Every card, and the LinkedIn searches built from today's episodes."""
-    _require_admin(request)
-    if status and status not in linkedin_posts.STATUSES:
-        raise HTTPException(status_code=422, detail="Unknown status.")
-    cards = []
-    if linkedin_posts._exists():
-        cards = await asyncio.to_thread(lambda: linkedin_posts.store().all(status))
-    # The Trending edition and the cache are read off the loop.
-    searches = await asyncio.to_thread(lambda: linkedin_posts.search_links(
-        SCRIPT_CACHE, trending=x_threads.trending_now(),
-        limit=settings.x_threads_seeds))
-    health = await asyncio.to_thread(linkedin_posts.health)
-    return {"health": health, "cards": cards, "searches": searches,
-            "running": bool(_LINKEDIN_RUNNING),
-            "comment_chars": linkedin_posts.COMMENT_CHARS}
-
-
-#: One "Find posts" at a time: a second press while one runs would pay for
-#: the same searches twice.
-_LINKEDIN_RUNNING: list = []
-
-
-@app.post("/api/admin/linkedin/run")
-async def admin_linkedin_run(request: Request) -> dict:
-    """Find posts now (§327), in the background, inside the search ceilings:
-    public LinkedIn posts about FAM's kept episodes, through the research
-    vendor FAM already uses. Returns at once; the page polls while it runs."""
-    _require_admin(request)
-    ok, why = linkedin_posts.available()
-    if not ok:
-        raise HTTPException(status_code=409, detail=f"Cannot search for posts: {why}.")
-    if _LINKEDIN_RUNNING:
-        raise HTTPException(status_code=409, detail="A search is already running.")
-
-    async def _run() -> None:
-        try:
-            report = await linkedin_posts.run(SCRIPT_CACHE)
-            log.info("linkedin (admin run): %s",
-                     {k: v for k, v in report.items() if k != "seeds"})
-        except Exception:  # noqa: BLE001 - recorded, never raised into nothing
-            log.exception("linkedin: the run failed")
-        finally:
-            _LINKEDIN_RUNNING.clear()
-
-    _LINKEDIN_RUNNING.append(time.time())
-    _BACKGROUND.add(asyncio.create_task(_run()))
-    return {"started": True}
-
-
-class LinkedInPaste(BaseModel):
-    url: str = Field(..., min_length=1, max_length=600)
-    text: str = Field(..., min_length=1, max_length=6000)
-    author_name: str = Field("", max_length=120)
-    #: Add it although the screen turned it away; the card says why.
-    anyway: bool = False
-
-
-@app.post("/api/admin/linkedin/add")
-async def admin_linkedin_add(req: LinkedInPaste, request: Request) -> dict:
-    """A post a person found and pasted: screened, matched against every
-    kept episode, its comment drafted. A refusal says why, and the page
-    offers to add it anyway."""
-    _require_admin(request)
-    try:
-        card = await linkedin_posts.add(SCRIPT_CACHE, url=req.url, text=req.text,
-                                        author_name=req.author_name, anyway=req.anyway)
-    except linkedin_posts.NotAPost as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-    except linkedin_posts.Refused as exc:
-        # The page offers "Add it anyway" only for a refusal that may be
-        # overruled - never for a post that already has a card.
-        raise HTTPException(status_code=409, detail=str(exc),
-                            headers={"X-FAM-Overrule": "anyway"}) from exc
-    except linkedin_posts.OnThePage as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
-    return {"card": card}
-
-
-class LinkedInCard(BaseModel):
-    post_id: str = Field(..., min_length=1, max_length=40,
-                         pattern=r"^(activity|share|ugcPost):[0-9]+$")
-
-
-@app.post("/api/admin/linkedin/match")
-async def admin_linkedin_match(req: LinkedInCard, request: Request) -> dict:
-    """Match a card again: after the Go Deeper episode it needed was made."""
-    _require_admin(request)
-    if not linkedin_posts._exists():
-        raise HTTPException(status_code=404, detail="No cards yet")
-    try:
-        card = await linkedin_posts.rematch(SCRIPT_CACHE, req.post_id)
-    except KeyError as exc:
-        raise HTTPException(status_code=404, detail="No card for that post") from exc
-    return {"card": card}
-
-
-def _linkedin_episode(card: dict, chosen: Optional[int]) -> dict:
-    """The offered episode the person chose, only one that is the post's
-    subject: no episode, no link."""
-    episodes = card.get("episodes") or []
-    index = card.get("chosen", 0) if chosen is None else chosen
-    if not 0 <= index < len(episodes) or not linkedin_posts.linked(episodes[index]):
-        raise HTTPException(status_code=409, detail=(
-            "No kept episode is this post's subject. Make one: search its Go "
-            "Deeper question in FAM, then press Match again."))
-    return episodes[index]
-
-
-def _linkedin_link(episode: dict, request: Request) -> str:
-    """The episode as a share link FAM owns: one per episode, like `/admin/x`'s."""
-    try:
-        share = SHARES.create(linkedin_posts.SHARER, episode["query"],
-                              as_minutes(episode.get("minutes") or 1),
-                              episode.get("title") or "")
-    except sharing.ShareError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    link, public = _share_url(share["id"], request)
-    if not public:
-        raise HTTPException(status_code=409, detail=(
-            "This server does not know its public address, so the episode "
-            "link would not open on LinkedIn. Set PUBLIC_BASE_URL."))
-    return link
-
-
-class LinkedInListen(LinkedInCard):
-    chosen: Optional[int] = Field(None, ge=0, le=linkedin_posts.OFFERED - 1)
-
-
-@app.post("/api/admin/linkedin/listen")
-async def admin_linkedin_listen(req: LinkedInListen, request: Request) -> dict:
-    """The episode's link, to hear it before vouching for it."""
-    _require_admin(request)
-    if not linkedin_posts._exists():
-        raise HTTPException(status_code=404, detail="No cards yet")
-    card = await asyncio.to_thread(lambda: linkedin_posts.store().get(req.post_id))
-    if card is None:
-        raise HTTPException(status_code=404, detail="No card for that post")
-    episode = _linkedin_episode(card, req.chosen)
-    return {"url": await asyncio.to_thread(_linkedin_link, episode, request)}
-
-
-class LinkedInDecision(LinkedInCard):
-    action: str = Field(..., pattern="^(approve|skip|reopen)$")
-    #: The comment as the person edited it on the card; the draft if empty.
-    text: str = Field("", max_length=2000)
-    #: Which offered episode goes in the Go Deeper line.
-    chosen: Optional[int] = Field(None, ge=0, le=linkedin_posts.OFFERED - 1)
-
-
-@app.post("/api/admin/linkedin/decide")
-async def admin_linkedin_decide(req: LinkedInDecision, request: Request) -> dict:
-    """A person's verdict on one card. Approve makes the episode's share
-    link, puts the comment together and hands it back with the post's
-    address; the page copies the words and opens the post. LinkedIn has no
-    prefilled comment box, so the person pastes. Nothing is posted here."""
-    _require_admin(request)
-    if not linkedin_posts._exists():
-        raise HTTPException(status_code=404, detail="No cards yet")
-    held = await asyncio.to_thread(linkedin_posts.store)
-    card = await asyncio.to_thread(held.get, req.post_id)
-    if card is None:
-        raise HTTPException(status_code=404, detail="No card for that post")
-    now = time.time()
-    if req.action != "approve":
-        status = (linkedin_posts.SKIPPED if req.action == "skip"
-                  else linkedin_posts.WAITING)
-        await asyncio.to_thread(held.decide, req.post_id, status, now)
-        return {"post_id": req.post_id, "status": status}
-    episode = _linkedin_episode(card, req.chosen)
-    link = await asyncio.to_thread(_linkedin_link, episode, request)
-    try:
-        text = linkedin_posts.compose(req.text or card["draft"], episode, link)
-    except linkedin_posts.TooLong as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-    chosen = card["chosen"] if req.chosen is None else req.chosen
-    await asyncio.to_thread(held.decide, req.post_id, linkedin_posts.APPROVED, now,
-                            posted=text, share_url=link, chosen=chosen)
-    return {"post_id": req.post_id, "status": linkedin_posts.APPROVED,
-            "text": text, "share_url": link, "post_url": card["url"]}
 
 
 @app.exception_handler(HTTPException)

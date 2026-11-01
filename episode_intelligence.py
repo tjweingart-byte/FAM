@@ -347,6 +347,15 @@ class Brief:
     outline_opening: dict = field(default_factory=dict)
     #: What the last line has to land on - the kind of thing, never the thing.
     outline_ending: str = ""
+    #: **C3P0's answer** when he worked on this brief (§375): the resolved
+    #: entity and its kind, whether a name is ambiguous and its readings,
+    #: his plugin choices and inputs, what Sonic should fetch, whose opinion
+    #: is asked for, whether it is about a private person or asks for
+    #: advice, Nando's node, and C3P0's title - each held to the rules in
+    #: code (`contextualizer.checked`). Empty while he is off, so a brief is
+    #: exactly what it was. Kept on the brief so a brief warmed before the
+    #: tap carries it.
+    contextualized: dict = field(default_factory=dict)
     #: True when the model call did not happen or could not be used, and this
     #: brief was assembled from the raw query. Reported, never hidden: an EI
     #: layer that silently degrades is the "quietly worse than intended"
@@ -1687,6 +1696,20 @@ async def understand(query: str, minutes: int = DEFAULT_MINUTES, context: str = 
     parts = ("understand", "search") if settings.ei_split else ("whole",)
     started = time.monotonic()
     outline = None
+    # C3P0 rides in the search half when he works on this episode (§375):
+    # the same call, at the same moment, through the agent layer. Nando's
+    # candidate nodes go with it when Nando works too.
+    run = getattr(getattr(notes, "agents", None), "runs", None)
+    c3p0 = len(parts) == 2 and callable(run) and bool(run("contextualizer"))
+    candidates: tuple = ()
+    if c3p0 and run("categorizer"):
+        listed = getattr(notes, "category_candidates", None)
+        if listed is not None:
+            candidates = tuple(listed)      # already listed for this request
+        else:
+            from agents import categorizer
+
+            candidates, _tie = categorizer.candidates_for(query, context, notes)
 
     try:
         client = build_async_client(credentials.active("ANTHROPIC_API_KEY"))
@@ -1697,11 +1720,23 @@ async def understand(query: str, minutes: int = DEFAULT_MINUTES, context: str = 
         # with them and never allowed to hold the brief: once they are in it
         # gets `EI_OUTLINE_GRACE_SECONDS` more on the search path (all of the
         # ceiling ahead, where nobody waits), then the brief goes without it.
-        main = asyncio.gather(*(
-            _timed(part, path, _ask(client, part, query, minutes, context, now,
-                                    tuple(covered or ()), timeout, notes, path),
-                   notes)
-            for part in parts))
+        def ask(part: str):
+            own = _ask(client, part, query, minutes, context, now,
+                       tuple(covered or ()), timeout, notes, path)
+            if part != "search" or not c3p0:
+                return own
+            from agents import contextualizer
+
+            own.close()     # never started: C3P0's call is the search half
+
+            def fallback():
+                return _ask(client, part, query, minutes, context, now,
+                            tuple(covered or ()), timeout, notes, path)
+            return contextualizer.search_half(query, minutes, context, now,
+                                              tuple(covered or ()), ahead, notes,
+                                              candidates, fallback)
+
+        main = asyncio.gather(*(_timed(part, path, ask(part), notes) for part in parts))
         outline_task = None
         if len(parts) == 2 and settings.ei_outline:
             outline_task = asyncio.ensure_future(_timed(
@@ -1750,6 +1785,7 @@ async def understand(query: str, minutes: int = DEFAULT_MINUTES, context: str = 
             for name, value in words.items():
                 setattr(brief, name, value)
             brief.notes.append("the search half answered; its searches are kept")
+            brief.contextualized = dict(search.get("_c3p0") or {})
             brief = gate(brief, query)
         return brief
 
@@ -1772,6 +1808,8 @@ async def understand(query: str, minutes: int = DEFAULT_MINUTES, context: str = 
         place=" ".join(str(data.get("place", "") or "").split())[:120],
         **_search_fields(data, query),
     )
+    if len(parts) == 2 and search_kind == "ok" and search.get("_c3p0"):
+        brief.contextualized = dict(search["_c3p0"])
     if len(parts) == 2 and search_kind != "ok":
         brief.notes.append(f"the search half did not answer ({search_kind}): "
                            f"{search_why}")
@@ -2039,6 +2077,8 @@ def report() -> dict:
         "enabled": bool(settings.episode_intelligence),
         "model": settings.ei_model,
         "effort": settings.ei_effort,
+        # C3P0's effort ahead of the tap (§375), read only while he works.
+        "ahead_effort": settings.ei_ahead_effort,
         "timeout_seconds": settings.ei_timeout_seconds,
         "max_tokens": settings.ei_max_tokens,
         # How the briefs since boot ended: `ok` or why each degraded (§248).

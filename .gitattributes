@@ -3,3 +3,5 @@
 # endings, or every agent is held.
 docs/agent_rules/** -text eol=lf
 docs/journalism_playbook.md -text eol=lf
+# A proposed rule book is copied over a signed one byte for byte (§384).
+docs/agent_rule_proposals/** -text eol=lf

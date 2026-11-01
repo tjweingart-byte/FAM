@@ -1,0 +1,305 @@
+{
+ "version": 1,
+ "examples": [
+  {
+   "question": "Rangers season preview",
+   "node": "",
+   "source": "review"
+  },
+  {
+   "question": "Panthers season preview",
+   "node": "",
+   "source": "review"
+  },
+  {
+   "question": "Cardinals win",
+   "node": "",
+   "source": "review"
+  },
+  {
+   "question": "how did the Kings do",
+   "node": "",
+   "source": "review"
+  },
+  {
+   "question": "how did United do",
+   "node": "",
+   "source": "review"
+  },
+  {
+   "question": "cardinals gather to elect a new pope",
+   "node": "",
+   "source": "review"
+  },
+  {
+   "question": "tech giants earnings",
+   "node": "stock market",
+   "source": "review"
+  },
+  {
+   "question": "kings and queens of England",
+   "node": "",
+   "source": "review"
+  },
+  {
+   "question": "the Book of Kings",
+   "node": "books",
+   "source": "review"
+  },
+  {
+   "question": "Kings of Leon tour",
+   "node": "live touring",
+   "source": "review"
+  },
+  {
+   "question": "Power Rangers movie",
+   "node": "film",
+   "source": "review"
+  },
+  {
+   "question": "Power Rangers game",
+   "node": "video games",
+   "source": "review"
+  },
+  {
+   "question": "Power Rangers video game review",
+   "node": "video games",
+   "source": "review"
+  },
+  {
+   "question": "park rangers rescue hikers near the stadium",
+   "node": "",
+   "source": "review"
+  },
+  {
+   "question": "Black Panthers history",
+   "node": "",
+   "source": "review"
+  },
+  {
+   "question": "Black Panthers history game",
+   "node": "",
+   "source": "review"
+  },
+  {
+   "question": "Giants Causeway",
+   "node": "",
+   "source": "review"
+  },
+  {
+   "question": "giants of jazz",
+   "node": "music industry",
+   "source": "review"
+  },
+  {
+   "question": "Texas Rangers arrest suspect",
+   "node": "",
+   "source": "review"
+  },
+  {
+   "question": "St Louis cardinals bird",
+   "node": "biology",
+   "source": "review"
+  },
+  {
+   "question": "Florida panthers endangered",
+   "node": "biology",
+   "source": "review"
+  },
+  {
+   "question": "United States airport security rules",
+   "node": "air travel",
+   "source": "review"
+  },
+  {
+   "question": "United Nations flights of aid",
+   "node": "",
+   "source": "review"
+  },
+  {
+   "question": "Utah jazz festival lineup",
+   "node": "live touring",
+   "source": "review"
+  },
+  {
+   "question": "jazz festival lineup",
+   "node": "live touring",
+   "source": "review"
+  },
+  {
+   "question": "jazz brunch near me this season",
+   "node": "restaurants",
+   "source": "review"
+  },
+  {
+   "question": "Heat beat the Celtics in the playoffs",
+   "node": "nba",
+   "source": "review"
+  },
+  {
+   "question": "Hurricanes goalie pulled in the third",
+   "node": "nhl",
+   "source": "review"
+  },
+  {
+   "question": "United's new striker scores on debut",
+   "node": "premier league",
+   "source": "review"
+  },
+  {
+   "question": "Manchester United States tour game",
+   "node": "premier league",
+   "source": "review"
+  },
+  {
+   "question": "stocks to watch Apple",
+   "node": "stock market",
+   "source": "review"
+  },
+  {
+   "question": "New York Rangers trade",
+   "node": "new york rangers",
+   "source": "review"
+  },
+  {
+   "question": "New York Giants roster",
+   "node": "nfl",
+   "source": "review"
+  },
+  {
+   "question": "Private jets for billionaires",
+   "node": "air travel",
+   "source": "review"
+  },
+  {
+   "question": "Texas Rangers score",
+   "node": "mlb",
+   "source": "review"
+  },
+  {
+   "question": "Texas Rangers division lead after Sunday's game",
+   "node": "mlb",
+   "source": "review"
+  },
+  {
+   "question": "St. Louis Cardinals score",
+   "node": "mlb",
+   "source": "review"
+  },
+  {
+   "question": "Florida Panthers win",
+   "node": "nhl",
+   "source": "review"
+  },
+  {
+   "question": "Kings game tonight",
+   "node": "",
+   "source": "review"
+  },
+  {
+   "question": "Rangers game preview",
+   "node": "",
+   "source": "review"
+  },
+  {
+   "question": "Eagles fans brave the heat wave at the game",
+   "node": "philadelphia eagles",
+   "source": "review"
+  },
+  {
+   "question": "eagles nest and migration seen from the stadium during heat wave temperatures",
+   "node": "extreme weather",
+   "source": "review"
+  },
+  {
+   "question": "Apple orchard heat wave",
+   "node": "extreme weather",
+   "source": "review"
+  },
+  {
+   "question": "Apple shares fall as heat wave hits",
+   "node": "stock market",
+   "source": "review"
+  },
+  {
+   "question": "bald eagles nest survives heat wave",
+   "node": "extreme weather",
+   "source": "review"
+  },
+  {
+   "question": "Mercury levels in fish rise in heat wave",
+   "node": "public health",
+   "source": "review"
+  },
+  {
+   "question": "Lakers game in the heat wave",
+   "node": "los angeles lakers",
+   "source": "review"
+  },
+  {
+   "question": "Giants earnings and Apple stock",
+   "node": "stock market",
+   "source": "review"
+  },
+  {
+   "question": "Dallas Cowboys news",
+   "node": "dallas cowboys",
+   "source": "review"
+  },
+  {
+   "question": "Boston Red Sox trade rumors",
+   "node": "boston red sox",
+   "source": "review"
+  },
+  {
+   "question": "Utah Jazz vs Lakers",
+   "node": "utah jazz",
+   "source": "review"
+  },
+  {
+   "question": "New York Yankees",
+   "node": "new york yankees",
+   "source": "review"
+  },
+  {
+   "question": "Green Bay Packers",
+   "node": "green bay packers",
+   "source": "review"
+  },
+  {
+   "question": "Boston Celtics",
+   "node": "boston celtics",
+   "source": "review"
+  },
+  {
+   "question": "Toronto Maple Leafs",
+   "node": "toronto maple leafs",
+   "source": "review"
+  },
+  {
+   "question": "bengals",
+   "node": "bengals",
+   "source": "review"
+  },
+  {
+   "question": "steelers news",
+   "node": "steelers",
+   "source": "review"
+  },
+  {
+   "question": "Detroit Tigers manager fired",
+   "node": "detroit tigers",
+   "source": "review"
+  },
+  {
+   "question": "what happened to the Detroit Lions",
+   "node": "detroit lions",
+   "source": "review"
+  },
+  {
+   "question": "Lakers game tonight",
+   "node": "los angeles lakers",
+   "source": "review"
+  }
+ ]
+}

@@ -119,7 +119,7 @@ Render deployment; since §208 it pins every store there (21 since §211), as th
 | **moderation.db** (`MODERATION_DB`) | `moderation.py` | `reports`, `blocks`, `suspended`, `hidden_episodes` | Yes | Forever | Erased (blocks, suspension) · reports **anonymised** · kept |
 | **mixes.db** (`MIXES_DB`) | `mixes.py`, `push.py`, `daily_edition.py` | `mixes`, `push_subscriptions`, `push_sent`, `daily_editions` | Yes (mixes, push) | ≤ 30 mixes per listener | Erased · `daily_editions` **wiped** |
 | **quotas.db** (`QUOTAS_DB`) | `quotas.py` | `counters`, `charges` | Yes | 60 days | Erased · kept |
-| **agents.db** (`AGENTS_DB`, §349) | `agents/tasks.py` | `tasks`, `holds` | No | Tasks until a wipe; holds kept | A wipe empties `tasks` |
+| **agents.db** (`AGENTS_DB`, §349) | `agents/tasks.py`, `agents/training.py` | `tasks`, `holds`, `nando_labels`, `nando_asked`, `nando_tree`, `nando_model` | No | Tasks and labels until a wipe; holds kept | A wipe empties `tasks`, `nando_labels`, `nando_asked`, `nando_tree` and `nando_model` |
 | **metering.db** (`METERING_DB`) | `metering.py` | `usage`, `agent_calls` | Yes, until anonymised | Forever | **Anonymised** · **never wiped** |
 | **attachments.db** (`ATTACHMENTS_PATH`) | `attachments.py` | `attachments` | Yes | 6 hours | Erased · kept |
 | **voice_registry.db** (`VOICE_REGISTRY_DB`) | `voice_registry.py` | `workers` | No | ≤ 20 rows | n/a |
@@ -131,7 +131,6 @@ Render deployment; since §208 it pins every store there (21 since §211), as th
 | **pipeline_errors.db** (`PIPELINE_ERRORS_DB`, §269) | `pipeline_errors.py` | `errors` | No `user_id`; holds the typed question | 14 days (`KEEP_DAYS`) | n/a · kept |
 | **episode_quality.db** (`EPISODE_QUALITY_DB`, §309) | `episode_quality.py` (`QualityStore`) | `episodes`, `listens`, `labels` | `listens` only (the account that listened); `episodes` holds the typed question | 180 days (`KEEP_DAYS`); the evidence text until graded, at most 14 days (`EVIDENCE_DAYS`) | `listens` erased · **Wiped** |
 | **x_threads.db** (`X_THREADS_DB`, §321) | `x_threads.py` (`Store`) | `candidates`, `runs` | No listener; holds public X posts and their authors' handles | 7 days (`KEEP_DAYS`); runs 30 days | n/a · kept |
-| **linkedin_posts.db** (`LINKEDIN_POSTS_DB`, §322) | `linkedin_posts.py` (`Store`) | `posts`, `seen`, `runs` | No listener; holds public LinkedIn posts found by a search or pasted, and their authors' names | 7 days (`KEEP_DAYS`); an approved card until a week after its approval; runs 30 days | n/a · kept |
 | **thumbnails.db** (`THUMBNAILS_DB`) | `thumbnails.py` | `thumbnails`, `spend`, `runs` | No, shared | ≤ 1 picture per tree node | n/a · kept |
 | **local_news.db** (`LOCAL_NEWS_DB`) | `local_news.py`, `places.py`, `weather.py` | `outlets`, `items`, `demand`, `excluded`, `places`, `weather` | No (no `user_id`) | Items pruned daily past 30 days (`LOCAL_NEWS_KEEP_DAYS`, never below the 14-day window; each outlet keeps its newest 200, §208); demand 30 days | n/a · kept |
 | **gdelt_export.db** (`GDELT_EXPORT_DB`, §211) | `gdelt.py` (`ExportStore`) | `files`, `articles`, `theme_counts`, `domains`, `meta` | No, shared | 24 hours of GDELT's 15-minute export files (`GDELT_EXPORT_KEEP_HOURS`), ≤ 1,500 articles per file | n/a · kept |
@@ -145,7 +144,9 @@ Render deployment; since §208 it pins every store there (21 since §211), as th
 
 - `scripts`, one row per cache key (`pipeline.key_for` is the only key):
   `query`, `sentences`, `minutes`, `title`, `summary`, `category` (the
-  writer's `<<CATEGORY:>>`), `thread` (the `<<NEXT:>>` prediction),
+  writer's `<<CATEGORY:>>`), `category_node` (Nando's one tree node, placed at
+  the request and confirmed after the writer, read first by
+  `app._episode_category`; '' when he did not file it, §371), `thread` (the `<<NEXT:>>` prediction),
   `sources`, `bucket` and `vector` (float32 blob, the near-match index),
   `author` (the first writer's listener id, provenance only), `origin`
   (`search`, a browse surface, or `archive`), `voice`, `sourced_at`,
@@ -265,7 +266,17 @@ none of the material. Append-only and never wiped, like `usage`.
 finished run (so a re-run with nothing new is refused), attempts and claim
 times - and `holds`, an agent held with why and when until the owner
 releases it. Ids and hashes only: no listener and no material. Created by
-the first task.
+the first task. `nando_labels` (§381): the answer key's grade of each
+written episode - its cache key, question, node, confidence, reason and the
+judge's model; never a listener id, never a private search's episode.
+Each grade also keeps the node's path when graded and, once the tree
+prunes its node, when it was retired and the nearest ancestor it points at
+(§387) - never deleted by the tree, only marked - and whether a node minted
+under it flags it for a fresh grade (`regrade`; flagged only, never read
+again, §391). `nando_asked`: every episode key the answer key was asked
+about, answered or not, so none is read twice (nando.md rule 12, §391). `nando_tree`: the tree as
+the last nightly look saw it (node and parent). `nando_model` (§385): one
+row, Nando's trained classifier's weights and how it measured itself.
 
 **attachments.db**: extracted text of attached documents (≤ 24,000 chars),
 purged after 6 h. An attached episode is never cached.
@@ -339,23 +350,13 @@ recalled beside the search. Never a private search or an attachment.
 **x_threads.db** (`x_threads.Store`, §321): `/admin/x`'s cards. `candidates`,
 one row per public X post a search found worth replying to - its text, the
 author's handle, name and follower count, the episode it matched, the drafted
-reply, and the admin's verdict (and, once approved, the words handed to X).
+reply, and the admin's verdict (and, once approved, the words handed to X);
+since §368 also the relevance judgement (`assess`, `relevance`), up to five
+public replies read as context (`replies`), and when the admin heard the
+episode through its link (`listened_at`).
 `runs`, what each search asked and how many posts it read, which is how the
 daily read ceiling is counted. No listener's data; pruned after 7 days. Read
 only by `/admin/x`.
-
-**linkedin_posts.db** (`linkedin_posts.Store`, §322): `/admin/linkedin`'s
-cards. `posts`, one row per public LinkedIn post a search found or a person
-pasted - its address
-and words, the author's profile name, the three kept episodes that match it
-best, the drafted comment and Go Deeper question, what drafting it cost, and the
-admin's verdict (and, once approved, the words copied for LinkedIn). Nothing
-here reads LinkedIn. No listener's data; pruned after 7 days, an approved card
-a week after its approval. `runs` (§327), one row per Find posts press: what
-it searched for, how many searches and what they cost, which is how the daily
-search ceiling is counted; kept 30 days. `seen` (§327), only the ids of pruned
-posts, kept 45 days so a search never brings back a post already decided.
-Read only by `/admin/linkedin`.
 
 **episode_quality.db** (`episode_quality.QualityStore`, §309): how well each
 written episode was written. `episodes`, one row per episode cached anywhere
